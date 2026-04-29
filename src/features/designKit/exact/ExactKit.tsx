@@ -51,6 +51,7 @@ import {
 
 import { buildCockpitPath, type CockpitSurfaceId } from "@/lib/registry/viewRegistry";
 import { RichNotebookEditor } from "@/features/notebook/components/RichNotebookEditor";
+import { EntityFindingsPanel } from "@/features/narrative/components/social/EntityFindingsPanel";
 import {
   buildLocalWorkspacePath,
   buildWorkspaceUrl,
@@ -1412,6 +1413,10 @@ export function ExactReportsSurface() {
               <button type="button" data-active={view === "list"} onClick={() => setView("list")}><List size={13} /> List</button>
             </div>
           </div>
+        </div>
+
+        <div data-testid="reports-findings-panel-slot" style={{ marginBottom: 16 }}>
+          <EntityFindingsPanel />
         </div>
 
         <div className="nb-reports-grid" data-view={view}>

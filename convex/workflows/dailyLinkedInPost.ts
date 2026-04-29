@@ -4094,6 +4094,12 @@ export const backfillFundingTrackerPosts = internalAction({
             metadataPatch: { findings },
           },
         );
+        // Refresh the entity-link join table so per-entity queries find
+        // this row immediately. Idempotent — diffs against existing links.
+        await ctx.runMutation(
+          internal.domains.social.linkedinArchiveEntityLinks.upsertArchiveRowEntityLinks,
+          { archiveRowId: post._id },
+        );
       }
 
       results.push({
