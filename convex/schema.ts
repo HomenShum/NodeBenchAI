@@ -2259,6 +2259,103 @@ const linkedinArchiveEntityLinks = defineTable({
   .index("by_archive_company", ["archiveRowId", "companyId"]);
 
 /* ------------------------------------------------------------------ */
+/* Pi-AI Pipeline Runs — durable record of pi-ai pipeline executions   */
+/*                                                                     */
+/* One row per run; steps are normalized into pipelineSteps below so   */
+/* the UI can render a step timeline cheaply via by_run index. Outputs */
+/* either flow back into NodeBench (Workspace document, archive row)   */
+/* or stay export-only (zip handoff to Claude Code per S23264).        */
+/*                                                                     */
+/* Telemetry note: each run is also written to the canonical           */
+/* traceAuditEntries table (see pipeline_operational_standard.md) via  */
+/* `emitPipelineProjectionInstrumented`, so the existing operator      */
+/* dashboards + verdict gates work unchanged.                          */
+/* ------------------------------------------------------------------ */
+const pipelineRuns = defineTable({
+  pipelineKind: v.union(
+    v.literal("code_gen"),
+    v.literal("design_gen"),
+    v.literal("research"),
+    v.literal("custom"),
+  ),
+  status: v.union(
+    v.literal("queued"),
+    v.literal("running"),
+    v.literal("succeeded"),
+    v.literal("failed"),
+    v.literal("cancelled"),
+  ),
+  // Verdict mirrors agent_run_verdict_workflow's bounded enum.
+  verdict: v.optional(
+    v.union(
+      v.literal("verified"),
+      v.literal("provisionally_verified"),
+      v.literal("needs_review"),
+      v.literal("awaiting_approval"),
+      v.literal("failed"),
+      v.literal("in_progress"),
+    ),
+  ),
+  title: v.string(),
+  spec: v.string(), // input prompt / spec
+  modelId: v.string(), // pi-ai model id (e.g., "openai:gpt-5.4-mini")
+  ownerKey: v.optional(v.string()), // user:<id> or anon:<sessionId>
+  createdAt: v.number(),
+  startedAt: v.optional(v.number()),
+  completedAt: v.optional(v.number()),
+  durationMs: v.optional(v.number()),
+  // Cost telemetry
+  inputTokens: v.optional(v.number()),
+  outputTokens: v.optional(v.number()),
+  estimatedUsd: v.optional(v.number()),
+  // Output handoff
+  outputDocumentId: v.optional(v.id("documents")),
+  outputArchiveRowId: v.optional(v.id("linkedinPostArchive")),
+  outputZipStorageId: v.optional(v.id("_storage")),
+  // Failure surfacing — never silent per HONEST_STATUS
+  errorMessage: v.optional(v.string()),
+  // Stable run id for trace correlation across actions
+  runId: v.string(),
+  // Idempotency key — sha256(pipelineKind + spec + ownerKey)
+  idempotencyKey: v.string(),
+})
+  .index("by_runId", ["runId"])
+  .index("by_idempotencyKey", ["idempotencyKey"])
+  .index("by_owner_createdAt", ["ownerKey", "createdAt"])
+  .index("by_kind_createdAt", ["pipelineKind", "createdAt"])
+  .index("by_status_createdAt", ["status", "createdAt"]);
+
+/* ------------------------------------------------------------------ */
+/* Pi-AI Pipeline Steps — normalized step events for cheap timeline    */
+/* rendering. Each row = one observable event in a pipelineRuns row.   */
+/* ------------------------------------------------------------------ */
+const pipelineSteps = defineTable({
+  runId: v.string(), // foreign-key to pipelineRuns.runId
+  pipelineRunId: v.id("pipelineRuns"),
+  seq: v.number(), // monotonic order within the run
+  name: v.string(), // e.g., "spec.parse", "scaffold.generate", "verify.test"
+  status: v.union(
+    v.literal("running"),
+    v.literal("ok"),
+    v.literal("error"),
+    v.literal("skipped"),
+  ),
+  startedAt: v.number(),
+  completedAt: v.optional(v.number()),
+  durationMs: v.optional(v.number()),
+  // Honest score components — null/undefined means "not measured here"
+  inputTokens: v.optional(v.number()),
+  outputTokens: v.optional(v.number()),
+  estimatedUsd: v.optional(v.number()),
+  modelId: v.optional(v.string()),
+  // Free-form scratchpad (cap < 32KB enforced at write time per BOUND_READ)
+  scratchpad: v.optional(v.string()),
+  errorMessage: v.optional(v.string()),
+})
+  .index("by_run", ["pipelineRunId", "seq"])
+  .index("by_runId", ["runId"]);
+
+/* ------------------------------------------------------------------ */
 /* LinkedIn Held Posts - Posts blocked by engagement quality gate     */
 /* ------------------------------------------------------------------ */
 const linkedinHeldPosts = defineTable({
@@ -3918,6 +4015,8 @@ export default defineSchema({
   linkedinMaPosts,
   linkedinPostArchive,
   linkedinArchiveEntityLinks,
+  pipelineRuns,
+  pipelineSteps,
   linkedinHeldPosts,
   linkedinContentQueue,
   userApiKeys,
