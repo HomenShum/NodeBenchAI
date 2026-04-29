@@ -5344,6 +5344,309 @@
   background: color-mix(in oklab, var(--success) 10%, var(--bg-secondary));
 }
 
+/* ──────────────────────────────────────────────────────────────────
+   Kit-canonical chat turn affordances (ported verbatim from
+   docs/design/nodebench-ai-design-system/ui_kits/nodebench-web/nodebench.css):
+     - .nb-turn-receipts        — metrics row block in agent body
+     - .nb-trace / .nb-trace-*  — collapsible reasoning panel
+     - .nb-turn-branches/...    — "N branches explored" + branch buttons
+     - .nb-turn-chips           — Save/Watch/Re-run/Share row
+     - .nb-action-chip          — single chip (primary = terracotta)
+     - .nb-turn-edit / actions  — user-turn inline edit textarea
+     - .nb-turn-actions         — edit/copy buttons in user turn header
+     - .nb-src-chip-more        — sources strip overflow chip
+   ────────────────────────────────────────────────────────────────── */
+
+/* Receipts — metrics line under an agent answer (sources · cost · ...). */
+.nb-turn-receipts {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-default, var(--border-color));
+  border-radius: 8px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.nb-turn-receipts .nb-kicker {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint, var(--text-tertiary));
+}
+
+/* Reasoning trace — collapsible mono pill + step list. */
+.nb-trace {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.nb-trace-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  padding: 2px 6px 2px 2px;
+  border-radius: 5px;
+  color: var(--text-faint, var(--text-tertiary));
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+.nb-trace-head:hover {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+.nb-trace-head .caret {
+  transition: transform 180ms var(--ease-out-expo, ease-out);
+}
+.nb-trace-head[data-open="true"] .caret {
+  transform: rotate(90deg);
+}
+.nb-trace-body {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.nb-trace-body li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.nb-trace-body li .d {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--success, #10b981);
+  flex-shrink: 0;
+}
+.nb-trace-body li[data-active="true"] .d {
+  background: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-primary-tint, color-mix(in oklab, var(--accent-primary) 18%, transparent));
+}
+.nb-trace-body li[data-active="true"] {
+  color: var(--accent-ink, var(--accent-primary));
+}
+@media (prefers-reduced-motion: reduce) {
+  .nb-trace-head .caret { transition: none; }
+}
+
+/* Branches — "N branches explored" card with branch buttons. */
+.nb-turn-branches {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  padding: 8px;
+}
+.nb-turn-branches-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint, var(--text-tertiary));
+  padding: 0 4px 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 4px;
+}
+.nb-branch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 120ms;
+  text-align: left;
+  width: 100%;
+}
+.nb-branch:hover { background: var(--bg-secondary); }
+.nb-branch .lbl {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nb-branch .n {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint, var(--text-tertiary));
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+.nb-branch[data-active="true"] {
+  background: var(--accent-primary-tint, color-mix(in oklab, var(--accent-primary) 14%, transparent));
+  color: var(--accent-ink, var(--accent-primary));
+  font-weight: 600;
+}
+.nb-branch[data-active="true"] .n {
+  background: color-mix(in oklab, var(--accent-primary) 22%, transparent);
+  color: var(--accent-ink, var(--accent-primary));
+}
+
+/* ActionChips — Save / Watch / Re-run / Share row. */
+.nb-turn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.nb-action-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default, var(--border-color));
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms var(--ease-out-expo, ease-out);
+}
+.nb-action-chip:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--border-strong, var(--border-color));
+}
+.nb-action-chip.primary {
+  background: var(--accent-primary);
+  color: #FFFAF8;
+  border-color: var(--accent-primary);
+}
+.nb-action-chip.primary:hover { filter: brightness(1.04); }
+.nb-action-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-primary-tint, color-mix(in oklab, var(--accent-primary) 18%, transparent));
+}
+
+/* User turn header actions — pencil (edit) + copy icons. */
+.nb-turn-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.nb-turn[data-role="user"]:hover .nb-turn-actions,
+.nb-turn[data-role="user"]:focus-within .nb-turn-actions {
+  opacity: 1;
+}
+.nb-turn-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  color: var(--text-faint, var(--text-tertiary));
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.nb-turn-actions button:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+.nb-turn-actions button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-primary-tint, color-mix(in oklab, var(--accent-primary) 18%, transparent));
+}
+
+/* User turn edit textarea + actions row. */
+.nb-turn-edit {
+  width: 100%;
+  border: 1px solid var(--accent-primary-border, var(--accent-primary));
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.55;
+  resize: none;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-primary-tint, color-mix(in oklab, var(--accent-primary) 18%, transparent));
+  min-height: 48px;
+}
+.nb-turn-edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.nb-turn-edit-actions button {
+  padding: 5px 11px;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border-default, var(--border-color));
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+.nb-turn-edit-actions button:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+.nb-turn-edit-actions button.primary {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+  color: #FFFAF8;
+}
+.nb-turn-edit-actions button.primary:hover { filter: brightness(1.04); }
+
+/* Sources strip overflow chip (+N more). */
+.nb-src-chip-more {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px dashed var(--border-default, var(--border-color));
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+.nb-src-chip-more:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-style: solid;
+}
+
 /* Composer — in-flow at the bottom of the main column grid (NOT
    position: fixed across the whole viewport). The .nb-stream-main
    grid `auto auto 1fr auto` pins this row at the bottom of the

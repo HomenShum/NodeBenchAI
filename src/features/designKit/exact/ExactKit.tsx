@@ -7,6 +7,7 @@ import {
   Archive,
   Bell,
   BookOpen,
+  Bookmark,
   Bot,
   Check,
   ChevronRight,
@@ -14,6 +15,7 @@ import {
   Command,
   Copy,
   Eye,
+  ExternalLink,
   FileText,
   Filter,
   GitBranch,
@@ -31,6 +33,7 @@ import {
   Moon,
   MoreHorizontal,
   Paperclip,
+  Pencil,
   Plus,
   RefreshCw,
   Repeat,
@@ -1841,6 +1844,7 @@ type ChatBlock =
   | { kind: "p"; segs: ChatSegment[] }
   | { kind: "h"; v: string }
   | { kind: "list"; items: ChatSegment[][] }
+  | { kind: "receipts"; v: string }
   | { kind: "confirm"; match: string; confidence: "low" | "medium" | "high"; entityKind?: string };
 type ChatSource = {
   n: number;
@@ -1848,6 +1852,12 @@ type ChatSource = {
   domain: string;
   title: string;
   cached?: boolean;
+};
+type ChatBranch = {
+  id: string;
+  label: string;
+  sources: number;
+  active?: boolean;
 };
 
 type ChatTurn =
@@ -1861,6 +1871,7 @@ type ChatTurn =
       body?: ChatBlock[];
       runUpdates?: ChatRunUpdate[];
       sources?: ChatSource[];
+      branches?: ChatBranch[];
       followups?: string[];
     };
 
@@ -2018,6 +2029,10 @@ const ORBITAL_THREAD_TURNS: ChatTurn[] = [
           { t: "t", v: "Reply to Alex by EOD with two specific questions: (1) does their replay infra accept full workflow replay or only audio, and (2) are they looking for paid pilots or unpaid design partners. I drafted a 4-line email — open the report to review." },
         ],
       },
+      {
+        kind: "receipts",
+        v: "14 sources · 1 paid call · 0.94s · 5 branches explored · ↑ 92% verified",
+      },
     ],
     sources: [
       { n: 1, fav: "O", domain: "orbitallabs.dev", title: "Orbital Labs design partner page", cached: false },
@@ -2025,6 +2040,15 @@ const ORBITAL_THREAD_TURNS: ChatTurn[] = [
       { n: 3, fav: "L", domain: "linkedin.com", title: "Sam Reichelt LinkedIn", cached: true },
       { n: 4, fav: "C", domain: "commure.com", title: "Commure pilot announcement", cached: true },
       { n: 5, fav: "G", domain: "github.com", title: "orbital-labs/voice-eval", cached: true },
+      { n: 6, fav: "B", domain: "braintrust.dev", title: "Braintrust competitive landscape", cached: true },
+      { n: 7, fav: "C", domain: "crunchbase.com", title: "Orbital Labs Series Seed details", cached: true },
+    ],
+    branches: [
+      { id: "br-fit", label: "Fit & overlap with current threads", sources: 5, active: true },
+      { id: "br-funding", label: "Funding & traction signals", sources: 4 },
+      { id: "br-team", label: "Founder credibility deep-dive", sources: 3 },
+      { id: "br-comp", label: "Competitive landscape (Braintrust, Arize)", sources: 3 },
+      { id: "br-risk", label: "Risk: pilot churn & burn rate", sources: 2 },
     ],
     runUpdates: [
       { kind: "graph", label: "6 ring-1 neighbors added", detail: "Olive AI · Epic · Oscar Health · Commure · Braintrust · Arize" },
@@ -2095,26 +2119,118 @@ function ChatRunBarView({ run }: { run: ChatRunBar }) {
   );
 }
 
-function ChatTraceView({ trace }: { trace: ChatTraceStep[] }) {
+/**
+ * ReasoningTrace — kit-canonical collapsible reasoning panel (.nb-trace).
+ * Mirrors `ChatTurn.jsx` ReasoningTrace: caret toggle, "Reasoned in N steps"
+ * label when closed, step list with active-step highlight when live.
+ */
+function ReasoningTrace({
+  trace,
+  defaultOpen = false,
+  live = false,
+}: {
+  trace: ChatTraceStep[];
+  defaultOpen?: boolean;
+  live?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen || live);
   if (!trace.length) return null;
-  const summary = `Reasoned across ${trace.length} steps`;
-  const tags = trace.map((s) => s.step).join(" + ");
   return (
-    <details className="nb-runtrace">
-      <summary>
-        <span className="nb-runtrace-sum">{summary}</span>
-        <span className="nb-runtrace-tags">{tags}</span>
-      </summary>
-      <div className="nb-runtrace-list">
-        {trace.map((step, i) => (
-          <div key={i} className="nb-runtrace-step">
-            <span className="step">{step.step}</span>
-            <span className="lbl">{step.label}</span>
-            {step.hits && <span className="hits">· {step.hits}</span>}
-          </div>
-        ))}
+    <div className="nb-trace">
+      <button
+        type="button"
+        className="nb-trace-head"
+        data-open={open}
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <ChevronRight size={10} className="caret" />
+        {live ? (
+          <span>Reasoning…</span>
+        ) : (
+          <span>Reasoned in {trace.length} steps</span>
+        )}
+      </button>
+      {open && (
+        <ul className="nb-trace-body">
+          {trace.map((s, i) => {
+            const active = live && i === trace.length - 1;
+            return (
+              <li key={i} data-active={active}>
+                <span className="d" />
+                <span>
+                  <strong style={{ color: "var(--text-secondary)" }}>{s.step}</strong>
+                  {" — "}
+                  {s.label}
+                  {s.hits && <span style={{ color: "var(--text-faint)" }}>{` · ${s.hits}`}</span>}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Branches — "N branches explored" card with branch buttons.
+ * Mirrors kit `ChatTurn.jsx` Branches component.
+ */
+function Branches({
+  branches,
+  onSwitch,
+}: {
+  branches: ChatBranch[];
+  onSwitch?: (id: string) => void;
+}) {
+  return (
+    <div className="nb-turn-branches">
+      <div className="nb-turn-branches-head">
+        <GitBranch size={11} aria-hidden="true" />
+        {branches.length} branches explored
       </div>
-    </details>
+      {branches.map((b) => (
+        <button
+          key={b.id}
+          type="button"
+          className="nb-branch"
+          data-active={b.active}
+          aria-pressed={!!b.active}
+          onClick={() => onSwitch?.(b.id)}
+        >
+          <span className="lbl">{b.label}</span>
+          <span className="n">{b.sources} sources</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * ActionChips — Save / Watch / Re-run / Share, post-answer affordances.
+ * Mirrors kit `ChatTurn.jsx` ActionChips. Save is the primary (terracotta).
+ */
+function ActionChips({
+  onAction,
+}: {
+  onAction?: (id: "save" | "watch" | "rerun" | "share") => void;
+}) {
+  return (
+    <div className="nb-turn-chips">
+      <button type="button" className="nb-action-chip primary" onClick={() => onAction?.("save")}>
+        <Bookmark size={11} aria-hidden="true" /> Save as report
+      </button>
+      <button type="button" className="nb-action-chip" onClick={() => onAction?.("watch")}>
+        <Eye size={11} aria-hidden="true" /> Watch entity
+      </button>
+      <button type="button" className="nb-action-chip" onClick={() => onAction?.("rerun")}>
+        <Repeat size={11} aria-hidden="true" /> Re-run
+      </button>
+      <button type="button" className="nb-action-chip" onClick={() => onAction?.("share")}>
+        <ExternalLink size={11} aria-hidden="true" /> Share
+      </button>
+    </div>
   );
 }
 
@@ -2138,24 +2254,23 @@ function renderSegments(segs: ChatSegment[]) {
 function ChatTurnView({
   turn,
   onFollowup,
+  onEditUser,
+  onCopyUser,
+  onAction,
+  onSwitchBranch,
 }: {
   turn: ChatTurn;
   onFollowup: (text: string) => void;
+  onEditUser?: (id: string, next: string) => void;
+  onCopyUser?: (text: string) => void;
+  onAction?: (turnId: string, id: "save" | "watch" | "rerun" | "share") => void;
+  onSwitchBranch?: (turnId: string, branchId: string) => void;
 }) {
+  // ── User turn: kit-canonical inline edit + copy affordances ─────────────
   if (turn.role === "user") {
-    return (
-      <div className="nb-turn" data-role="user">
-        <div className="nb-turn-avatar" data-role="user">HS</div>
-        <div className="nb-turn-body">
-          <div className="nb-turn-head">
-            <span className="nb-turn-who">You</span>
-            <span className="nb-turn-time">{turn.time}</span>
-          </div>
-          <div className="nb-turn-text">{turn.text}</div>
-        </div>
-      </div>
-    );
+    return <UserTurnView turn={turn} onEdit={onEditUser} onCopy={onCopyUser} />;
   }
+  // ── Agent turn: kit-canonical structure ────────────────────────────────
   return (
     <div className="nb-turn" data-role="agent">
       <div className="nb-turn-avatar" data-role="agent"><Sparkles size={12} /></div>
@@ -2165,7 +2280,7 @@ function ChatTurnView({
           <span className="nb-turn-time">{turn.time}</span>
         </div>
         {turn.run && <ChatRunBarView run={turn.run} />}
-        {turn.trace && turn.trace.length > 0 && <ChatTraceView trace={turn.trace} />}
+        {turn.trace && turn.trace.length > 0 && <ReasoningTrace trace={turn.trace} />}
         {turn.body && (
           <div className="nb-turn-text">
             {turn.body.map((b, i) => {
@@ -2182,6 +2297,14 @@ function ChatTurnView({
                       <li key={j}>{renderSegments(segs)}</li>
                     ))}
                   </ul>
+                );
+              }
+              if (b.kind === "receipts") {
+                return (
+                  <div key={i} className="nb-turn-receipts">
+                    <span className="nb-kicker" style={{ marginRight: 6 }}>Receipts</span>
+                    {b.v}
+                  </div>
                 );
               }
               if (b.kind === "confirm") {
@@ -2207,7 +2330,7 @@ function ChatTurnView({
         {turn.sources && turn.sources.length > 0 && (
           <div className="nb-turn-sources">
             <span className="ttl">Sources</span>
-            {turn.sources.map((s) => (
+            {turn.sources.slice(0, 5).map((s) => (
               <button
                 key={s.n}
                 type="button"
@@ -2226,7 +2349,15 @@ function ChatTurnView({
                 {s.cached === false && <span className="badge live">live</span>}
               </button>
             ))}
+            {turn.sources.length > 5 && (
+              <button type="button" className="nb-src-chip-more">
+                +{turn.sources.length - 5} more
+              </button>
+            )}
           </div>
+        )}
+        {turn.branches && turn.branches.length > 0 && (
+          <Branches branches={turn.branches} onSwitch={(id) => onSwitchBranch?.(turn.id, id)} />
         )}
         {turn.runUpdates && turn.runUpdates.length > 0 && (
           <div className="nb-runups">
@@ -2241,6 +2372,12 @@ function ChatTurnView({
             ))}
           </div>
         )}
+        {/* ActionChips render after the answer body (kit-canonical post-answer
+            row). Only shown on agent turns that actually have a body — the
+            "now" thinking/streaming turns shouldn't show Save/Watch yet. */}
+        {turn.body && turn.body.length > 0 && (
+          <ActionChips onAction={(id) => onAction?.(turn.id, id)} />
+        )}
         {turn.followups && turn.followups.length > 0 && (
           <div className="nb-followups">
             {turn.followups.map((f, i) => (
@@ -2249,6 +2386,127 @@ function ChatTurnView({
               </button>
             ))}
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * UserTurnView — kit-canonical user turn with inline edit + copy buttons.
+ * Mirrors `ChatTurn.jsx` UserTurn: pencil opens textarea (autosizing),
+ * ⌘+Enter / Re-run from here commits, Esc cancels.
+ */
+function UserTurnView({
+  turn,
+  onEdit,
+  onCopy,
+}: {
+  turn: Extract<ChatTurn, { role: "user" }>;
+  onEdit?: (id: string, next: string) => void;
+  onCopy?: (text: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(turn.text);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+
+  function autosize(el: HTMLTextAreaElement) {
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 240) + "px";
+  }
+
+  useEffect(() => {
+    if (editing && taRef.current) {
+      taRef.current.focus();
+      taRef.current.setSelectionRange(taRef.current.value.length, taRef.current.value.length);
+      autosize(taRef.current);
+    }
+  }, [editing]);
+
+  function commit() {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    setEditing(false);
+    onEdit?.(turn.id, trimmed);
+  }
+  function cancel() {
+    setDraft(turn.text);
+    setEditing(false);
+  }
+
+  return (
+    <div className="nb-turn" data-role="user">
+      <div className="nb-turn-avatar" data-role="user">HS</div>
+      <div className="nb-turn-body">
+        <div className="nb-turn-head">
+          <span className="nb-turn-who">You</span>
+          <span className="nb-turn-time">{turn.time}</span>
+          {!editing && (
+            <div className="nb-turn-actions">
+              <button
+                type="button"
+                title="Edit & re-run"
+                aria-label="Edit message"
+                onClick={() => setEditing(true)}
+              >
+                <Pencil size={11} />
+              </button>
+              <button
+                type="button"
+                title="Copy"
+                aria-label="Copy message"
+                onClick={() => {
+                  if (typeof navigator !== "undefined" && navigator.clipboard) {
+                    navigator.clipboard.writeText(turn.text).catch(() => {});
+                  }
+                  onCopy?.(turn.text);
+                }}
+              >
+                <Copy size={11} />
+              </button>
+            </div>
+          )}
+        </div>
+        {editing ? (
+          <div>
+            <textarea
+              ref={taRef}
+              className="nb-turn-edit"
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                autosize(e.target);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  commit();
+                }
+                if (e.key === "Escape") cancel();
+              }}
+            />
+            <div className="nb-turn-edit-actions">
+              <button type="button" className="primary" onClick={commit}>
+                Re-run from here
+              </button>
+              <button type="button" onClick={cancel}>
+                Cancel
+              </button>
+              <span
+                style={{
+                  marginLeft: "auto",
+                  alignSelf: "center",
+                  fontSize: 10.5,
+                  color: "var(--text-faint)",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                ⌘+Enter to save · Esc to cancel
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="nb-turn-text">{turn.text}</div>
         )}
       </div>
     </div>
@@ -2352,6 +2610,49 @@ export function ExactChatSurface() {
       { id: `u${Date.now()}`, role: "user", time: nowTime(), text: t },
     ]);
     setComposer("");
+  };
+
+  // ── User-turn edit: replace the in-place text and trim trailing turns
+  // (the "re-run from here" flow per kit). For now we just rewrite the
+  // text; backend re-run is a follow-up wire-up.
+  const editUserTurn = (id: string, next: string) => {
+    setTurns((prev) =>
+      prev.map((t) => (t.id === id && t.role === "user" ? { ...t, text: next } : t)),
+    );
+  };
+  // ── Agent action chip: Save/Watch/Re-run/Share. Save routes to the
+  // packets surface (kit-canonical "Save as report"). Re-run echoes the
+  // last user turn back through the composer. Watch + Share are placeholders.
+  const onTurnAction = (turnId: string, id: "save" | "watch" | "rerun" | "share") => {
+    if (id === "save") {
+      navigate(buildCockpitPath({ surfaceId: "packets", extra: { report: "orbital" } }));
+      return;
+    }
+    if (id === "rerun") {
+      // Walk back to the most recent user turn before this agent turn.
+      const idx = turns.findIndex((t) => t.id === turnId);
+      for (let i = idx - 1; i >= 0; i--) {
+        const t = turns[i];
+        if (t.role === "user") {
+          sendTurn(t.text);
+          return;
+        }
+      }
+    }
+    // watch/share: no-op for now (kit-canonical chips, wiring TBD)
+  };
+  // ── Branch switch: stub for now — flips active flag locally so users
+  // see the kit-canonical visual feedback (active branch highlighted).
+  const onSwitchBranch = (turnId: string, branchId: string) => {
+    setTurns((prev) =>
+      prev.map((t) => {
+        if (t.id !== turnId || t.role !== "agent" || !t.branches) return t;
+        return {
+          ...t,
+          branches: t.branches.map((b) => ({ ...b, active: b.id === branchId })),
+        };
+      }),
+    );
   };
 
   return (
@@ -2471,7 +2772,14 @@ export function ExactChatSurface() {
                     kit's interleaved-content discipline (messages + sources
                     + match cards + operator runs all in one scroll). */}
                 {turns.map((turn) => (
-                  <ChatTurnView key={turn.id} turn={turn} onFollowup={sendTurn} />
+                  <ChatTurnView
+                    key={turn.id}
+                    turn={turn}
+                    onFollowup={sendTurn}
+                    onEditUser={editUserTurn}
+                    onAction={onTurnAction}
+                    onSwitchBranch={onSwitchBranch}
+                  />
                 ))}
                 {activeFinRunId && (
                   <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px dashed var(--border-color)" }}>
