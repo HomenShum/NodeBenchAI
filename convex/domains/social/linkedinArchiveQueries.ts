@@ -235,3 +235,40 @@ export const getRecentPostsForVerification = internalQuery({
       }));
   },
 });
+
+/**
+ * Internal query for the funding-tracker backfill: returns all
+ * `funding_tracker` rows so the action can detect broken posts
+ * (containing "0 sources" or placeholder strings) and rewrite content
+ * + structured metadata against the current pipeline.
+ */
+export const getAllFundingTrackerPostsForBackfill = internalQuery({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("linkedinPostArchive"),
+      dateString: v.string(),
+      persona: v.string(),
+      postType: v.string(),
+      content: v.string(),
+      postedAt: v.number(),
+      metadata: v.optional(v.any()),
+    }),
+  ),
+  handler: async (ctx) => {
+    const posts = await ctx.db
+      .query("linkedinPostArchive")
+      .withIndex("by_type", (q) => q.eq("postType", "funding_tracker"))
+      .order("desc")
+      .take(500);
+    return posts.map((p) => ({
+      _id: p._id,
+      dateString: p.dateString,
+      persona: p.persona,
+      postType: p.postType,
+      content: p.content,
+      postedAt: p.postedAt,
+      metadata: p.metadata,
+    }));
+  },
+});

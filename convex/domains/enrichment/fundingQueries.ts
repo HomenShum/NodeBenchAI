@@ -628,6 +628,47 @@ export const getFundingEventById = internalQuery({
 });
 
 /**
+ * Get funding events in a specific announced-at window.
+ * Used by the LinkedIn funding-tracker backfill to recompute the post
+ * content for a historical date using the original event window.
+ */
+export const getFundingEventsInWindow = internalQuery({
+  args: {
+    startMs: v.number(),
+    endMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const events = await ctx.db
+      .query("fundingEvents")
+      .withIndex("by_announcedAt", (q) =>
+        q.gte("announcedAt", args.startMs).lte("announcedAt", args.endMs),
+      )
+      .collect();
+
+    return events.map((event) => ({
+      eventId: event._id,
+      companyName: event.companyName,
+      companyId: event.companyId,
+      roundType: event.roundType,
+      amountRaw: event.amountRaw,
+      amountUsd: event.amountUsd,
+      announcedAt: event.announcedAt,
+      leadInvestors: event.leadInvestors,
+      coInvestors: event.coInvestors,
+      sector: event.sector,
+      location: event.location,
+      valuation: event.valuation,
+      description: event.description,
+      confidence: event.confidence,
+      verificationStatus: event.verificationStatus,
+      sourceUrls: event.sourceUrls,
+      sourceNames: event.sourceNames,
+      sourceCount: event.sourceUrls.length,
+    }));
+  },
+});
+
+/**
  * Best-effort enrichment lookup: pull product/founder fields off
  * `entityContexts.crmFields` for a batch of company IDs. Used by the LinkedIn
  * funding-tracker workflow to replace placeholder lines ("Product details are
