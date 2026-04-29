@@ -10,7 +10,7 @@
 import React, { useMemo } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { useStableQuery } from "@/hooks/useStableQuery";
-import { Cpu, AlertCircle, CheckCircle2, Loader2, FileText } from "lucide-react";
+import { Cpu, AlertCircle, CheckCircle2, Loader2, FileText, Download, Image as ImageIcon } from "lucide-react";
 
 const statusBadge: Record<string, { label: string; className: string; Icon: any }> = {
   queued: {
@@ -212,6 +212,35 @@ export const PipelineRunsPanel: React.FC = () => {
                 >
                   {run.errorMessage}
                 </p>
+              ) : null}
+              {(run.bundleUrl || run.imageUrl) ? (
+                <div className="flex items-center gap-3 pt-1">
+                  {run.imageUrl ? (
+                    <a
+                      data-testid="pipeline-run-image"
+                      href={run.imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-300 hover:underline"
+                    >
+                      <ImageIcon className="w-3 h-3" />
+                      View image
+                    </a>
+                  ) : null}
+                  {run.bundleUrl ? (
+                    <a
+                      data-testid="pipeline-run-bundle"
+                      href={run.bundleUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={`pipeline-${run.runId}.json`}
+                      className="inline-flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-300 hover:underline"
+                    >
+                      <Download className="w-3 h-3" />
+                      Download bundle
+                    </a>
+                  ) : null}
+                </div>
               ) : null}
             </li>
           );

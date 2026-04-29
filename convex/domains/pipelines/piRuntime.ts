@@ -245,6 +245,107 @@ export async function runPiCompletion(args: PiRunArgs): Promise<PiRunResult> {
   }
 }
 
+export interface PiStreamArgs extends PiRunArgs {
+  /**
+   * Callback fired for every text delta. Wire to PersistentTextStreaming's
+   * `appendChunk` to persist while streaming.
+   */
+  onTextDelta: (delta: string) => Promise<void> | void;
+}
+
+/**
+ * Stream a pi-ai completion. Drains pi-ai's `streamSimple` AsyncGenerator,
+ * routes each delta to `onTextDelta`, and aggregates the final result so
+ * the caller still gets honest tokens + cost. Falls back to single-shot
+ * runPiCompletion if pi-ai's stream entry isn't available.
+ *
+ * The `onTextDelta` callback is also where a Convex
+ * `@convex-dev/persistent-text-streaming` `appendChunk` would be wired —
+ * caller owns the side-effect.
+ */
+export async function runPiCompletionStreamed(args: PiStreamArgs): Promise<PiRunResult> {
+  const lib = (await import("@mariozechner/pi-ai" as string).catch(() => null)) as
+    | {
+        getModel?: (p: string, m: string) => unknown;
+        registerBuiltInApiProviders?: () => void;
+        streamSimple?: (m: unknown, c: unknown, o: unknown) => AsyncIterable<unknown>;
+      }
+    | null;
+  if (!lib?.streamSimple) {
+    // No streaming entry → fall back to the buffered path. Caller still
+    // gets a one-shot delta via onTextDelta.
+    const result = await runPiCompletion(args);
+    if (result.text) await args.onTextDelta(result.text);
+    return result;
+  }
+
+  if (!_piRegistered) {
+    lib.registerBuiltInApiProviders?.();
+    _piRegistered = true;
+  }
+  const handle = await resolvePiModel(args.model);
+  if (!handle) {
+    const err = new Error("pi_ai_model_not_resolved");
+    (err as any).code = "pi_ai_model_not_resolved";
+    throw err;
+  }
+
+  const timeoutMs = args.timeoutMs ?? 60_000;
+  const requested = args.maxOutputTokens ?? 2048;
+  const maxTokens = Math.max(16, Math.min(requested, 8192));
+  const controller = new AbortController();
+  const upstream = args.signal;
+  if (upstream) {
+    if (upstream.aborted) controller.abort(upstream.reason);
+    else upstream.addEventListener("abort", () => controller.abort(upstream.reason), { once: true });
+  }
+  const timer = setTimeout(() => controller.abort(new Error("pi_runtime_timeout")), timeoutMs);
+
+  try {
+    const messages: Array<{ role: string; content: string }> = [];
+    if (args.system) messages.push({ role: "system", content: args.system });
+    messages.push({ role: "user", content: args.prompt });
+
+    let buffered = "";
+    let finalUsage: any = null;
+    let stopReason = "unknown";
+
+    for await (const event of lib.streamSimple(
+      handle.raw,
+      { messages },
+      { maxTokens, temperature: args.temperature ?? 0.4, signal: controller.signal },
+    )) {
+      const e = event as any;
+      if (e?.type === "text_delta" && typeof e.delta === "string") {
+        buffered += e.delta;
+        await args.onTextDelta(e.delta);
+      } else if (e?.type === "delta" && typeof e.text === "string") {
+        buffered += e.text;
+        await args.onTextDelta(e.text);
+      } else if (e?.type === "complete" || e?.type === "stop" || e?.role === "assistant") {
+        if (e.usage) finalUsage = e.usage;
+        if (e.stopReason) stopReason = e.stopReason;
+      }
+    }
+
+    return {
+      text: buffered,
+      usage: {
+        inputTokens: typeof finalUsage?.input === "number" ? finalUsage.input : 0,
+        outputTokens: typeof finalUsage?.output === "number" ? finalUsage.output : 0,
+        estimatedUsd:
+          typeof finalUsage?.cost?.total === "number" ? finalUsage.cost.total : 0,
+      },
+      modelId: handle.modelId,
+      providerId: handle.providerId,
+      stopReason,
+      scratchpad: JSON.stringify({ streamed: true, len: buffered.length, stopReason }).slice(0, 32_000),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Run pi-ai with explicit fallback to the existing Vercel AI SDK
  * resolver if pi-ai isn't installed or the model can't be resolved.
