@@ -2735,6 +2735,38 @@ export function ExactChatSurface() {
         .then((res: any) => {
           if (res?.ok && res.text) {
             const agentTurnId = `a${Date.now()}`;
+            // Map atomic-edit tool execs into the kit's run-update chips.
+            // Each fired tool becomes a "captured X" chip the user can see.
+            const toolExecs: Array<{ name: string; args: any; ok: boolean }> =
+              Array.isArray(res.toolExecs) ? res.toolExecs : [];
+            const runUpdates = toolExecs.map((t) => {
+              const kind = t.name === "upsertEntity"
+                ? "graph" as const
+                : t.name === "addGraphEdge"
+                  ? "graph" as const
+                  : t.name === "createFollowup"
+                    ? "followup" as const
+                    : t.name === "attachSource"
+                      ? "notebook" as const
+                      : "session" as const;
+              const label = !t.ok
+                ? `${t.name} failed`
+                : t.name === "upsertEntity"
+                  ? `Entity captured · ${t.args?.name ?? t.args?.slug}`
+                  : t.name === "recordClaim"
+                    ? `Claim · ${t.args?.status}: ${(t.args?.text || "").slice(0, 60)}`
+                    : t.name === "attachSource"
+                      ? `Source attached · ${t.args?.url}`
+                      : t.name === "createFollowup"
+                        ? `Follow-up · ${(t.args?.text || "").slice(0, 60)}`
+                        : t.name === "addGraphEdge"
+                          ? `Edge · ${t.args?.fromSlug} —[${t.args?.kind}]→ ${t.args?.toSlug}`
+                          : t.name;
+              return { kind, label, detail: t.ok ? undefined : t.error ?? "error" };
+            });
+            const toolSummary = toolExecs.length > 0
+              ? `${toolExecs.filter((t) => t.ok).length}/${toolExecs.length} atomic edits`
+              : undefined;
             setTurns((prev) => [
               ...prev,
               {
@@ -2744,9 +2776,14 @@ export function ExactChatSurface() {
                 run: {
                   kind: "research" as const,
                   summary: `${res.model} · ${res.durationMs}ms${typeof res.costUsd === "number" && res.costUsd > 0 ? ` · $${res.costUsd.toFixed(6)}` : " · free"}`,
-                  detail: typeof res.outputTokens === "number" ? `${res.outputTokens} output tokens` : undefined,
+                  detail: toolSummary
+                    ? `${toolSummary}${typeof res.outputTokens === "number" ? ` · ${res.outputTokens} output tokens` : ""}`
+                    : typeof res.outputTokens === "number"
+                      ? `${res.outputTokens} output tokens`
+                      : undefined,
                 },
                 body: [{ kind: "p" as const, segs: [{ t: "t" as const, v: res.text }] }],
+                runUpdates: runUpdates.length > 0 ? runUpdates : undefined,
               },
             ]);
           } else {

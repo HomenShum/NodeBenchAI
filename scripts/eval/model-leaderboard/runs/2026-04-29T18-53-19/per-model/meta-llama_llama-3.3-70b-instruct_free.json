@@ -1,0 +1,123 @@
+{
+  "model": {
+    "id": "meta-llama/llama-3.3-70b-instruct:free",
+    "display": "Llama 3.3 70B",
+    "vendor": "Meta",
+    "paramsApprox": "70B",
+    "tier": "free",
+    "era": "2024",
+    "notes": "older but proven"
+  },
+  "perQuery": [
+    {
+      "queryId": "lb-research",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 1726,
+      "judgeMs": 7393,
+      "flags": [
+        "rate_limit_exceeded",
+        "api_error"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/meta-llama/llama-3.3-70b-instruct/839b2e30-a1b4-4974-b980-3e534b5873b1. High demand for meta-llama/llama-3.3-70b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-memory",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2130,
+      "judgeMs": 6724,
+      "flags": [
+        "rate_limit_error"
+      ],
+      "error": "429 Provider returned error\nmeta-llama/llama-3.3-70b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-capture",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2240,
+      "judgeMs": 3084,
+      "flags": [
+        "rate_limit_error",
+        "provider_error"
+      ],
+      "error": "429 Provider returned error\nmeta-llama/llama-3.3-70b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-compare",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 27223,
+      "judgeMs": 21154,
+      "flags": [
+        "timeout_error"
+      ],
+      "error": "Request timed out.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-budget",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 1888,
+      "judgeMs": 7005,
+      "flags": [],
+      "error": "429 Rate limit exceeded: limit_rpm/meta-llama/llama-3.3-70b-instruct/839b2e30-a1b4-4974-b980-3e534b5873b1. High demand for meta-llama/llama-3.3-70b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-injection",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 1964,
+      "judgeMs": 24150,
+      "flags": [
+        "rate_limit_exceeded"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/meta-llama/llama-3.3-70b-instruct/839b2e30-a1b4-4974-b980-3e534b5873b1. High demand for meta-llama/llama-3.3-70b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-rumor",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 1571,
+      "judgeMs": 3915,
+      "flags": [
+        "rate_limit_error"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/meta-llama/llama-3.3-70b-instruct/839b2e30-a1b4-4974-b980-3e534b5873b1. High demand for meta-llama/llama-3.3-70b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-graph-promote",
+      "score": 0,
+      "verdict": "?",
+      "agentOk": false,
+      "agentMs": 2062,
+      "judgeMs": 60007,
+      "flags": [],
+      "error": "429 Rate limit exceeded: limit_rpm/meta-llama/llama-3.3-70b-instruct/839b2e30-a1b4-4974-b980-3e534b5873b1. High demand for meta-llama/llama-3.3-70b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    }
+  ],
+  "avgScore": 0,
+  "avgLatencyMs": 5101,
+  "totalCostUsd": 0,
+  "totalTokens": 0,
+  "passes": 0,
+  "partials": 0,
+  "fails": 7,
+  "errors": 8
+}
