@@ -6197,6 +6197,67 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────
+   Benchmark badges in model-picker rows — surface NodeBench
+   leaderboard data so users pick on real signal, not vibes.
+   ────────────────────────────────────────────────────────────────── */
+.nb-model-picker-bench-rank {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+.nb-model-picker-bench-rank[data-tone="clean"] {
+  background: color-mix(in oklab, var(--success, #10b981) 12%, transparent);
+  color: var(--success, #047857);
+  border: 1px solid color-mix(in oklab, var(--success, #10b981) 30%, transparent);
+}
+.nb-model-picker-bench-rank[data-tone="errors"] {
+  background: color-mix(in oklab, var(--warning, #b45309) 12%, transparent);
+  color: var(--warning, #b45309);
+  border: 1px solid color-mix(in oklab, var(--warning, #b45309) 30%, transparent);
+}
+.nb-model-picker-item-bench {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  color: var(--text-faint, var(--text-tertiary));
+}
+.nb-model-picker-bench-score {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.nb-model-picker-item[data-active="true"] .nb-model-picker-bench-score {
+  color: var(--accent-ink, var(--accent-primary));
+}
+.nb-model-picker-bench-passes,
+.nb-model-picker-bench-partials,
+.nb-model-picker-bench-fails,
+.nb-model-picker-bench-errors {
+  font-weight: 600;
+}
+.nb-model-picker-bench-passes[data-tone="ok"] { color: var(--success, #047857); }
+.nb-model-picker-bench-partials[data-tone="warn"] { color: var(--warning, #b45309); }
+.nb-model-picker-bench-fails[data-tone="ok"] { color: var(--text-faint, var(--text-tertiary)); }
+.nb-model-picker-bench-fails[data-tone="warn"] { color: var(--warning, #b45309); }
+.nb-model-picker-bench-errors[data-tone="bad"] {
+  color: #DC2626;
+  background: rgba(220, 38, 38, 0.08);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+.nb-model-picker-bench-latency {
+  color: var(--text-faint, var(--text-tertiary));
+  font-weight: 500;
+}
+
+/* ──────────────────────────────────────────────────────────────────
    Chat toast — fires when an action chip (Save/Watch/Share/Re-run)
    completes its live mutation. Anchors to the composer.
    ────────────────────────────────────────────────────────────────── */
