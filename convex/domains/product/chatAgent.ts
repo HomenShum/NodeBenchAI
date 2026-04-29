@@ -22,6 +22,67 @@ import { v } from "convex/values";
 import { complete, getModel, Type } from "@mariozechner/pi-ai";
 import type { Tool } from "@mariozechner/pi-ai";
 
+/**
+ * Auto-router state — Kilo-Code-style cooldown registry.
+ *
+ * When a model returns 429 / "rate limited upstream" / 5xx, mark it in
+ * the cooldown Map for COOLDOWN_MS. The next request skips that model
+ * entirely instead of wasting a budget gate. After cooldown expires it
+ * automatically rejoins the active pool.
+ *
+ * Module-level Map persists across action invocations within the same
+ * Convex worker process. NOT cluster-wide; that's fine — we want
+ * per-worker fast failover, not consensus.
+ */
+const COOLDOWN_MS = 60_000;
+const COOLDOWN_MAX_ENTRIES = 64; // BOUND — prevents unbounded growth
+const cooldownUntil = new Map<string, number>();
+
+function markCooldown(modelId: string, ms: number = COOLDOWN_MS) {
+  // Evict oldest if at capacity (LRU-via-insertion-order)
+  if (cooldownUntil.size >= COOLDOWN_MAX_ENTRIES && !cooldownUntil.has(modelId)) {
+    const oldestKey = cooldownUntil.keys().next().value as string | undefined;
+    if (oldestKey !== undefined) cooldownUntil.delete(oldestKey);
+  }
+  cooldownUntil.set(modelId, Date.now() + ms);
+}
+
+function isInCooldown(modelId: string): boolean {
+  const until = cooldownUntil.get(modelId);
+  if (!until) return false;
+  if (Date.now() >= until) {
+    cooldownUntil.delete(modelId);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Capability registry — which models support tool calling reliably?
+ * Free OpenRouter models historically have spotty tool support — only
+ * models proven by smoke tests get included here. Paid frontier models
+ * (Anthropic, OpenAI, Kimi) all support tools.
+ */
+const TOOL_CAPABLE_PREFIXES = [
+  "moonshotai/kimi",
+  "anthropic/",
+  "claude-",
+  "gpt-",
+  "openai/",
+  "google/gemini",
+  "gemini-",
+  // Free models that have demonstrated tool calling in smoke tests:
+  "z-ai/glm-4.5-air:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "inclusionai/ling-2.6-1t:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "tencent/hy3-preview:free",
+];
+
+function supportsToolCalls(modelId: string): boolean {
+  return TOOL_CAPABLE_PREFIXES.some((prefix) => modelId.startsWith(prefix) || modelId.includes(prefix));
+}
+
 const SYSTEM_PROMPT = `You are NodeBench, an entity-intelligence agent for founders, bankers, and analysts.
 
 Every input flows through:
@@ -192,16 +253,34 @@ export const runChatAgent = action({
       console.warn("[runChatAgent] persist user turn failed:", err);
     }
 
-    // 2. Call pi-ai. We don't force reasoningEnabled: false because some
-    //    free OpenRouter models require reasoning mode. Free fallback
-    //    chain if the requested model is rate-limited.
+    // 2. Call pi-ai. Kilo-Code-style auto-router:
+    //    - Order = leaderboard reliable-score ranking (highest pass rate first)
+    //    - Per-model cooldown skip (rate-limited models parked for 60s)
+    //    - Capability filter: tool-call queries skip non-tool-supporting models
+    //    - Free first, paid last (kimi-k2.6 only on full-chain bust)
     const t0 = Date.now();
-    const fallbackChain: string[] = [
-      modelId,
-      "z-ai/glm-4.5-air:free",
-      "nvidia/nemotron-3-super-120b-a12b:free",
-      "moonshotai/kimi-k2.6",
+    const tier1Free = [
+      "nvidia/nemotron-3-super-120b-a12b:free", // #1 reliable free, leaderboard 3.11
+      "inclusionai/ling-2.6-1t:free",           // #2 reliable free, leaderboard 3.06
+      "z-ai/glm-4.5-air:free",                  // #3 reliable free, leaderboard 2.92
+      "tencent/hy3-preview:free",               // #4 reliable free, leaderboard 2.83 (fastest)
     ];
+    const tier2Paid = [
+      "moonshotai/kimi-k2.6",                   // proven frontier, ~$0.002/call
+    ];
+    // De-dupe + put requested model FIRST so user choice always wins.
+    const seen = new Set<string>();
+    const fallbackChain: string[] = [];
+    for (const m of [modelId, ...tier1Free, ...tier2Paid]) {
+      if (!seen.has(m) && !isInCooldown(m)) {
+        seen.add(m);
+        fallbackChain.push(m);
+      }
+    }
+    if (fallbackChain.length === 0) {
+      // Every model is in cooldown — try the requested one anyway as last resort.
+      fallbackChain.push(modelId);
+    }
     let agentResp: string = "";
     let modelUsed = modelId;
     let inputTokens: number | undefined;
@@ -313,6 +392,9 @@ export const runChatAgent = action({
             lower.includes("budget_timeout") ||
             lower.includes("reasoning is mandatory")
           ) {
+            // Park this model — don't try it again for COOLDOWN_MS so the
+            // next request skips it cleanly (Kilo Code auto-router pattern).
+            markCooldown(candidate);
             modelUsed = candidate;
             continue;
           }
@@ -348,6 +430,8 @@ export const runChatAgent = action({
         ) {
           break;
         }
+        // Recoverable error → cooldown this candidate before next iteration
+        markCooldown(candidate);
       }
     }
 

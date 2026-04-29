@@ -1,0 +1,27 @@
+{
+  "name": "nodebench-mcp-workspace",
+  "version": "0.1.0",
+  "mcpName": "io.github.homenshum/nodebench-workspace",
+  "description": "Atomic-edit MCP server for NodeBench. Exposes upsertEntity, recordClaim, attachSource, createFollowup, addGraphEdge over the Model Context Protocol so any agent (Claude Desktop, Cursor, Windsurf, custom) can call them — not just the pi-ai chat surface.",
+  "type": "module",
+  "bin": {
+    "nodebench-workspace-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "convex": "^1.31.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "@types/node": "^22.0.0"
+  }
+}
