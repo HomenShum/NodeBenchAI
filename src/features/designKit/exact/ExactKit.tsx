@@ -3025,6 +3025,33 @@ export function ExactChatSurface() {
           </div>
         </div>
 
+        {/* Anonymous session banner — kit-canonical "you're in a temporary
+            workspace" cue. Surfaces ONLY when (a) the user is not signed
+            in and (b) there's no live thread yet (first-landing state).
+            Clicking "Claim workspace" routes to the sign-in flow which
+            migrates anon:<sessionId> data to user:<userId>. See
+            docs/architecture/MULTI_TENANCY.md for the full identity story. */}
+        {!liveThread?.live && turns === ORBITAL_THREAD_TURNS && (
+          <div className="nb-anon-banner" role="status" aria-live="polite">
+            <span className="dot" aria-hidden="true" />
+            <span className="msg">
+              <strong>Temporary workspace</strong>
+              <span className="dim">
+                {" "}— captures save under <code>{anonymousSessionId.slice(0, 18)}…</code> on this browser only.
+              </span>
+            </span>
+            <button
+              type="button"
+              className="claim-btn"
+              onClick={() => navigate("/signin")}
+              aria-label="Sign in to claim this workspace"
+              title="Sign in to keep your captures across devices"
+            >
+              Claim workspace →
+            </button>
+          </div>
+        )}
+
         <div className="nb-stream-root" data-rails-open={(showThreads || showContext) ? "true" : "false"}>
           {/* LEFT — threads rail as toggleable overlay (kit canonical) */}
           <ChatThreadsRail open={showThreads} onClose={() => setShowThreads(false)} />
