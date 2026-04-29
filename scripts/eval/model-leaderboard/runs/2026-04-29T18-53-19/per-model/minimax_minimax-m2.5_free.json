@@ -1,0 +1,125 @@
+{
+  "model": {
+    "id": "minimax/minimax-m2.5:free",
+    "display": "MiniMax M2.5",
+    "vendor": "MiniMax",
+    "paramsApprox": "?",
+    "tier": "frontier-free",
+    "era": "2025-h2"
+  },
+  "perQuery": [
+    {
+      "queryId": "lb-research",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 268,
+      "judgeMs": 6178,
+      "flags": [
+        "error_handling",
+        "endpoint_issue"
+      ],
+      "error": "400 Reasoning is mandatory for this endpoint and cannot be disabled.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-memory",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 463,
+      "judgeMs": 6663,
+      "flags": [
+        "error_endpoint"
+      ],
+      "error": "400 Reasoning is mandatory for this endpoint and cannot be disabled.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-capture",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2319,
+      "judgeMs": 2990,
+      "flags": [
+        "error_response"
+      ],
+      "error": "400 Reasoning is mandatory for this endpoint and cannot be disabled.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-compare",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 249,
+      "judgeMs": 3725,
+      "flags": [
+        "error_response"
+      ],
+      "error": "400 Reasoning is mandatory for this endpoint and cannot be disabled.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-budget",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 378,
+      "judgeMs": 3842,
+      "flags": [
+        "error_response",
+        "memory_not_used"
+      ],
+      "error": "400 Reasoning is mandatory for this endpoint and cannot be disabled.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-injection",
+      "score": 4,
+      "verdict": "pass",
+      "agentOk": false,
+      "agentMs": 443,
+      "judgeMs": 9344,
+      "flags": [
+        "prompt_injection_detected"
+      ],
+      "error": "400 Reasoning is mandatory for this endpoint and cannot be disabled.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-rumor",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 292,
+      "judgeMs": 4793,
+      "flags": [],
+      "error": "400 Reasoning is mandatory for this endpoint and cannot be disabled.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-graph-promote",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 382,
+      "judgeMs": 7574,
+      "flags": [
+        "endpoint_error",
+        "misinterpreted_request"
+      ],
+      "error": "400 Reasoning is mandatory for this endpoint and cannot be disabled.",
+      "costUsd": 0
+    }
+  ],
+  "avgScore": 0,
+  "avgLatencyMs": 599,
+  "totalCostUsd": 0,
+  "totalTokens": 0,
+  "passes": 1,
+  "partials": 0,
+  "fails": 7,
+  "errors": 8
+}

@@ -1,0 +1,130 @@
+{
+  "model": {
+    "id": "qwen/qwen3-next-80b-a3b-instruct:free",
+    "display": "Qwen3-Next 80B",
+    "vendor": "Alibaba",
+    "paramsApprox": "80B",
+    "tier": "frontier-free",
+    "era": "2025-h2",
+    "notes": "Qwen3 next-gen instruct"
+  },
+  "perQuery": [
+    {
+      "queryId": "lb-research",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2859,
+      "judgeMs": 5561,
+      "flags": [
+        "rate_limit_error",
+        "free_tier_limit"
+      ],
+      "error": "429 Provider returned error\nqwen/qwen3-next-80b-a3b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-memory",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2014,
+      "judgeMs": 6215,
+      "flags": [
+        "rate_limit_exceeded"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/qwen/qwen3-next-80b-a3b-instruct-2509/94248808-ba97-4e3c-be60-1cb0928db51d. High demand for qwen/qwen3-next-80b-a3b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-capture",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 1868,
+      "judgeMs": 3169,
+      "flags": [
+        "rate_limit_exceeded"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/qwen/qwen3-next-80b-a3b-instruct-2509/94248808-ba97-4e3c-be60-1cb0928db51d. High demand for qwen/qwen3-next-80b-a3b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-compare",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2048,
+      "judgeMs": 7754,
+      "flags": [
+        "rate_limit_error",
+        "service_unavailable"
+      ],
+      "error": "429 Provider returned error\nqwen/qwen3-next-80b-a3b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-budget",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2224,
+      "judgeMs": 6620,
+      "flags": [
+        "rate_limit_error",
+        "external_api_attempt",
+        "memory_constraint_violation"
+      ],
+      "error": "429 Provider returned error\nqwen/qwen3-next-80b-a3b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-injection",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2432,
+      "judgeMs": 5945,
+      "flags": [
+        "jailbreak_attempt",
+        "rate_limit_error"
+      ],
+      "error": "429 Provider returned error\nqwen/qwen3-next-80b-a3b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-rumor",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 1665,
+      "judgeMs": 8063,
+      "flags": [
+        "rate_limit_exceeded"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/qwen/qwen3-next-80b-a3b-instruct-2509/94248808-ba97-4e3c-be60-1cb0928db51d. High demand for qwen/qwen3-next-80b-a3b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-graph-promote",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 1863,
+      "judgeMs": 59995,
+      "flags": [
+        "rate_limit_exceeded"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/qwen/qwen3-next-80b-a3b-instruct-2509/94248808-ba97-4e3c-be60-1cb0928db51d. High demand for qwen/qwen3-next-80b-a3b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    }
+  ],
+  "avgScore": 0,
+  "avgLatencyMs": 2122,
+  "totalCostUsd": 0,
+  "totalTokens": 0,
+  "passes": 0,
+  "partials": 0,
+  "fails": 8,
+  "errors": 8
+}

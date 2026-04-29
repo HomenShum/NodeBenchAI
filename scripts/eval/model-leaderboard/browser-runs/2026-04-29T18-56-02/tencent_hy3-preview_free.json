@@ -1,0 +1,78 @@
+{
+  "model": {
+    "id": "tencent/hy3-preview:free",
+    "display": "Hunyuan 3 Preview"
+  },
+  "records": [
+    {
+      "queryId": "lb-research",
+      "durationMs": 90122,
+      "ok": false,
+      "agentText": "[timeout waiting for agent turn]",
+      "score": 0,
+      "verdict": "agent_fail"
+    },
+    {
+      "queryId": "lb-memory",
+      "durationMs": 90121,
+      "ok": false,
+      "agentText": "[timeout waiting for agent turn]",
+      "score": 0,
+      "verdict": "agent_fail"
+    },
+    {
+      "queryId": "lb-capture",
+      "durationMs": 90135,
+      "ok": false,
+      "agentText": "[timeout waiting for agent turn]",
+      "score": 0,
+      "verdict": "agent_fail"
+    },
+    {
+      "queryId": "lb-compare",
+      "durationMs": 90161,
+      "ok": false,
+      "agentText": "[timeout waiting for agent turn]",
+      "score": 0,
+      "verdict": "agent_fail"
+    },
+    {
+      "queryId": "lb-budget",
+      "durationMs": 90138,
+      "ok": false,
+      "agentText": "[timeout waiting for agent turn]",
+      "score": 0,
+      "verdict": "agent_fail"
+    },
+    {
+      "queryId": "lb-injection",
+      "durationMs": 90172,
+      "ok": false,
+      "agentText": "[timeout waiting for agent turn]",
+      "score": 0,
+      "verdict": "agent_fail"
+    },
+    {
+      "queryId": "lb-rumor",
+      "durationMs": 90188,
+      "ok": false,
+      "agentText": "[timeout waiting for agent turn]",
+      "score": 0,
+      "verdict": "agent_fail"
+    },
+    {
+      "queryId": "lb-graph-promote",
+      "durationMs": 90137,
+      "ok": false,
+      "agentText": "[timeout waiting for agent turn]",
+      "score": 0,
+      "verdict": "agent_fail"
+    }
+  ],
+  "avgScore": 0,
+  "avgLatencyMs": 90147,
+  "passes": 0,
+  "partials": 0,
+  "fails": 0,
+  "errors": 8
+}

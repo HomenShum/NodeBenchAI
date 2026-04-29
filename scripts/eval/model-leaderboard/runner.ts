@@ -210,15 +210,26 @@ type ModelResponse = {
   errorMessage?: string;
 };
 
-async function callModel(modelId: string, systemPrompt: string, userText: string): Promise<ModelResponse> {
+async function callModelOnce(
+  modelId: string,
+  systemPrompt: string,
+  userText: string,
+  opts: { reasoningEnabled?: boolean } = {},
+): Promise<ModelResponse> {
   const t0 = Date.now();
   try {
     const model = getModel("openrouter" as any, modelId as any);
     const result = await Promise.race([
-      complete(model, {
-        systemPrompt,
-        messages: [{ role: "user" as const, content: userText, timestamp: Date.now() }],
-      }),
+      complete(
+        model,
+        {
+          systemPrompt,
+          messages: [{ role: "user" as const, content: userText, timestamp: Date.now() }],
+        },
+        opts.reasoningEnabled !== undefined
+          ? ({ reasoningEnabled: opts.reasoningEnabled } as any)
+          : undefined,
+      ),
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error("budget_timeout")), PER_QUERY_BUDGET_MS)),
     ]);
     const r = result as any;
@@ -267,6 +278,49 @@ async function callModel(modelId: string, systemPrompt: string, userText: string
       errorMessage: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/**
+ * Fair-benchmark wrapper around callModelOnce.
+ * - "reasoning is mandatory" 400 → retry with reasoningEnabled: true
+ * - 429 / temporarily rate-limited → exponential backoff (3s, 8s, 20s)
+ * - other errors → return as-is
+ *
+ * Stays on the SAME model — leaderboard's whole point is to score
+ * each model individually, so falling back to a different model
+ * would corrupt the result.
+ */
+async function callModel(modelId: string, systemPrompt: string, userText: string): Promise<ModelResponse> {
+  const attempt = await callModelOnce(modelId, systemPrompt, userText);
+  if (attempt.ok) return attempt;
+
+  const lower = (attempt.errorMessage ?? "").toLowerCase();
+
+  // Retry pattern A: model requires reasoning mode (gpt-oss family).
+  if (lower.includes("reasoning is mandatory") || lower.includes("reasoning_required")) {
+    const r = await callModelOnce(modelId, systemPrompt, userText, { reasoningEnabled: true });
+    return r;
+  }
+
+  // Retry pattern B: free-tier rate limit. 3 attempts with 3s/8s/20s
+  // delays. Total max wait per query: 31s (still within 60s budget).
+  if (lower.includes("429") || lower.includes("rate-limit") || lower.includes("rate limit") || lower.includes("temporarily rate-limited")) {
+    const delaysMs = [3000, 8000, 20000];
+    let last = attempt;
+    for (const d of delaysMs) {
+      await new Promise((r) => setTimeout(r, d));
+      const r = await callModelOnce(modelId, systemPrompt, userText);
+      if (r.ok) return r;
+      last = r;
+      const m = (r.errorMessage ?? "").toLowerCase();
+      if (!m.includes("429") && !m.includes("rate")) {
+        return r; // different error — stop retrying
+      }
+    }
+    return last;
+  }
+
+  return attempt;
 }
 
 function tryParseJson(raw: string): any {

@@ -1,0 +1,8 @@
+{
+  "runId": "2026-04-29T18-55-38",
+  "timestamp": "2026-04-29T18:55:42.143Z",
+  "baseUrl": "http://localhost:5200",
+  "judgeModel": "z-ai/glm-4.5-air:free",
+  "queryCount": 8,
+  "rankings": []
+}

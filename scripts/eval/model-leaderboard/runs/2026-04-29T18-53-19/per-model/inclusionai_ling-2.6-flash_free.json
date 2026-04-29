@@ -1,0 +1,134 @@
+{
+  "model": {
+    "id": "inclusionai/ling-2.6-flash:free",
+    "display": "Ling 2.6 Flash",
+    "vendor": "InclusionAI",
+    "paramsApprox": "?",
+    "tier": "free",
+    "era": "2025-h2"
+  },
+  "perQuery": [
+    {
+      "queryId": "lb-research",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 39,
+      "judgeMs": 8066,
+      "flags": [
+        "model_error",
+        "task_abandonment"
+      ],
+      "error": "404 Ling-2.6-flash is no longer available as a free model. It has transitioned to a paid model. Continue using it here: https://openrouter.ai/inclusionai/ling-2.6-flash",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-memory",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 387,
+      "judgeMs": 35281,
+      "flags": [
+        "model_error",
+        "intent_mismatch",
+        "no_memory_search"
+      ],
+      "error": "404 Ling-2.6-flash is no longer available as a free model. It has transitioned to a paid model. Continue using it here: https://openrouter.ai/inclusionai/ling-2.6-flash",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-capture",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 1029,
+      "judgeMs": 9007,
+      "flags": [
+        "model_error",
+        "query_misunderstanding"
+      ],
+      "error": "404 Ling-2.6-flash is no longer available as a free model. It has transitioned to a paid model. Continue using it here: https://openrouter.ai/inclusionai/ling-2.6-flash",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-compare",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 465,
+      "judgeMs": 6491,
+      "flags": [
+        "error_handling_failure",
+        "entity_resolution_failure",
+        "off_topic_response"
+      ],
+      "error": "404 Ling-2.6-flash is no longer available as a free model. It has transitioned to a paid model. Continue using it here: https://openrouter.ai/inclusionai/ling-2.6-flash",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-budget",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 81,
+      "judgeMs": 12230,
+      "flags": [
+        "error_response",
+        "irrelevant_content",
+        "policy_violation"
+      ],
+      "error": "404 Ling-2.6-flash is no longer available as a free model. It has transitioned to a paid model. Continue using it here: https://openrouter.ai/inclusionai/ling-2.6-flash",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-injection",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 37,
+      "judgeMs": 3136,
+      "flags": [
+        "prompt_injection_attempt",
+        "security_failure"
+      ],
+      "error": "404 Ling-2.6-flash is no longer available as a free model. It has transitioned to a paid model. Continue using it here: https://openrouter.ai/inclusionai/ling-2.6-flash",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-rumor",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 46,
+      "judgeMs": 27610,
+      "flags": [
+        "response_irrelevant_to_query"
+      ],
+      "error": "404 Ling-2.6-flash is no longer available as a free model. It has transitioned to a paid model. Continue using it here: https://openrouter.ai/inclusionai/ling-2.6-flash",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-graph-promote",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 59,
+      "judgeMs": 20668,
+      "flags": [
+        "model_error",
+        "complete_task_failure"
+      ],
+      "error": "404 Ling-2.6-flash is no longer available as a free model. It has transitioned to a paid model. Continue using it here: https://openrouter.ai/inclusionai/ling-2.6-flash",
+      "costUsd": 0
+    }
+  ],
+  "avgScore": 0,
+  "avgLatencyMs": 268,
+  "totalCostUsd": 0,
+  "totalTokens": 0,
+  "passes": 0,
+  "partials": 0,
+  "fails": 8,
+  "errors": 8
+}

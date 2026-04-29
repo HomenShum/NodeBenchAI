@@ -1,0 +1,20 @@
+{
+  "runId": "2026-04-29T18-56-02",
+  "timestamp": "2026-04-29T19:08:13.386Z",
+  "baseUrl": "http://localhost:5200",
+  "judgeModel": "z-ai/glm-4.5-air:free",
+  "queryCount": 8,
+  "rankings": [
+    {
+      "rank": 1,
+      "id": "tencent/hy3-preview:free",
+      "display": "Hunyuan 3 Preview",
+      "avgScore": 0,
+      "passes": 0,
+      "partials": 0,
+      "fails": 0,
+      "errors": 8,
+      "avgLatencyMs": 90147
+    }
+  ]
+}
