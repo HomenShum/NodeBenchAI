@@ -1,0 +1,58 @@
+{
+  "runId": "2026-04-29T17-48-39",
+  "timestamp": "2026-04-29T17:51:07.962Z",
+  "convexUrl": "https://agile-caribou-964.convex.cloud",
+  "sessionId": "eval_live_mokcmlwm",
+  "queryCount": 5,
+  "overallScore": 1.54,
+  "overallScorePct": 39,
+  "verdicts": {
+    "pass": 0,
+    "partial": 4,
+    "fail": 1
+  },
+  "sideEffects": {
+    "ledgerWrites": 1,
+    "threadReplays": 1,
+    "skipped": 3,
+    "errors": 0
+  },
+  "totalMs": 148051,
+  "perQuery": [
+    {
+      "id": "core-01",
+      "category": "core_flow",
+      "score": 2,
+      "verdict": "partial",
+      "sideEffectKind": "skipped"
+    },
+    {
+      "id": "core-02",
+      "category": "core_flow",
+      "score": 1.5,
+      "verdict": "partial",
+      "sideEffectKind": "thread_replay"
+    },
+    {
+      "id": "core-06",
+      "category": "core_flow",
+      "score": 0,
+      "verdict": "fail",
+      "sideEffectKind": "ledger_write"
+    },
+    {
+      "id": "core-07",
+      "category": "core_flow",
+      "score": 2,
+      "verdict": "partial",
+      "sideEffectKind": "skipped"
+    },
+    {
+      "id": "core-08",
+      "category": "core_flow",
+      "score": 2.2,
+      "verdict": "partial",
+      "sideEffectKind": "skipped"
+    }
+  ]
+}
