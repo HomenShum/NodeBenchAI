@@ -1,0 +1,79 @@
+{
+  "runId": "2026-04-29T18-02-44",
+  "timestamp": "2026-04-29T18:06:42.965Z",
+  "convexUrl": "https://agile-caribou-964.convex.cloud",
+  "sessionId": "eval_live_mokd4ppt",
+  "queryCount": 8,
+  "overallScore": 1.831,
+  "overallScorePct": 46,
+  "verdicts": {
+    "pass": 2,
+    "partial": 2,
+    "fail": 4
+  },
+  "sideEffects": {
+    "ledgerWrites": 2,
+    "threadReplays": 1,
+    "skipped": 5,
+    "errors": 0
+  },
+  "totalMs": 238307,
+  "perQuery": [
+    {
+      "id": "core-01",
+      "category": "core_flow",
+      "score": 1.25,
+      "verdict": "fail",
+      "sideEffectKind": "skipped"
+    },
+    {
+      "id": "core-02",
+      "category": "core_flow",
+      "score": 2.333,
+      "verdict": "partial",
+      "sideEffectKind": "thread_replay"
+    },
+    {
+      "id": "core-06",
+      "category": "core_flow",
+      "score": 1.667,
+      "verdict": "fail",
+      "sideEffectKind": "ledger_write"
+    },
+    {
+      "id": "core-07",
+      "category": "core_flow",
+      "score": 0,
+      "verdict": "fail",
+      "sideEffectKind": "skipped"
+    },
+    {
+      "id": "core-08",
+      "category": "core_flow",
+      "score": 4,
+      "verdict": "pass",
+      "sideEffectKind": "skipped"
+    },
+    {
+      "id": "core-09",
+      "category": "core_flow",
+      "score": 0,
+      "verdict": "fail",
+      "sideEffectKind": "skipped"
+    },
+    {
+      "id": "event-01",
+      "category": "event_capture",
+      "score": 2,
+      "verdict": "partial",
+      "sideEffectKind": "skipped"
+    },
+    {
+      "id": "event-02",
+      "category": "event_capture",
+      "score": 3.4,
+      "verdict": "pass",
+      "sideEffectKind": "ledger_write"
+    }
+  ]
+}

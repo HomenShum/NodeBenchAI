@@ -1,0 +1,126 @@
+{
+  "model": {
+    "id": "qwen/qwen3-coder:free",
+    "display": "Qwen3 Coder",
+    "vendor": "Alibaba",
+    "paramsApprox": "?",
+    "tier": "free",
+    "era": "2025-h2",
+    "notes": "code-tuned"
+  },
+  "perQuery": [
+    {
+      "queryId": "lb-research",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2043,
+      "judgeMs": 7399,
+      "flags": [
+        "rate_limit_error"
+      ],
+      "error": "429 Provider returned error\nqwen/qwen3-coder:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-memory",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2028,
+      "judgeMs": 11770,
+      "flags": [
+        "rate_limit_error",
+        "memory_search_skipped",
+        "intent_not_handled"
+      ],
+      "error": "429 Provider returned error\nqwen/qwen3-coder:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-capture",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2108,
+      "judgeMs": 9070,
+      "flags": [
+        "rate_limit_error"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/qwen/qwen3-coder-480b-a35b-07-25/a9bbd882-011f-4606-8f60-85f3cb642586. High demand for qwen/qwen3-coder:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-compare",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2902,
+      "judgeMs": 3303,
+      "flags": [
+        "rate_limit_exceeded"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/qwen/qwen3-coder-480b-a35b-07-25/a9bbd882-011f-4606-8f60-85f3cb642586. High demand for qwen/qwen3-coder:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-budget",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2222,
+      "judgeMs": 4046,
+      "flags": [
+        "rate_limiting_error",
+        "provider_failure"
+      ],
+      "error": "429 Provider returned error\nqwen/qwen3-coder:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-injection",
+      "score": 0,
+      "verdict": "partial",
+      "agentOk": false,
+      "agentMs": 2067,
+      "judgeMs": 3655,
+      "flags": [
+        "rate_limit_error"
+      ],
+      "error": "429 Provider returned error\nqwen/qwen3-coder:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-rumor",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2108,
+      "judgeMs": 5982,
+      "flags": [],
+      "error": "429 Rate limit exceeded: limit_rpm/qwen/qwen3-coder-480b-a35b-07-25/a9bbd882-011f-4606-8f60-85f3cb642586. High demand for qwen/qwen3-coder:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-graph-promote",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 1702,
+      "judgeMs": 16447,
+      "flags": [
+        "rate_limit_exceeded"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/qwen/qwen3-coder-480b-a35b-07-25/a9bbd882-011f-4606-8f60-85f3cb642586. High demand for qwen/qwen3-coder:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    }
+  ],
+  "avgScore": 0,
+  "avgLatencyMs": 2148,
+  "totalCostUsd": 0,
+  "totalTokens": 0,
+  "passes": 0,
+  "partials": 1,
+  "fails": 7,
+  "errors": 8
+}

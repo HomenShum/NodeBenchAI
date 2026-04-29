@@ -261,14 +261,24 @@ Dimensions: intent_accuracy, target_routing, entity_resolution, memory_first_beh
 source_citation_precision, claim_correctness, graph_edge_quality, notebook_update_correctness,
 privacy_budget_policy, time_to_first_useful_output, user_correction_needed, export_correctness.
 
-The agent_response now INCLUDES a "live_side_effect" block describing what
-the system actually persisted (ledger writes, thread replays). Score
-notebook_update_correctness + export_correctness based on whether the side
-effect is real (an activity id was returned, the thread replays correctly).
+CRITICAL — the input includes a "live_side_effect" block reflecting what
+the SYSTEM actually persisted to a real database (Convex). Use it as
+ground truth, not the agent's prose:
 
-Score ONLY relevant_dimensions; others output null.
+  • If live_side_effect.kind === "ledger_write" with a real activityId:
+      → notebook_update_correctness >= 3 (a real ledger entry exists)
+      → export_correctness         >= 3 if the query asked for a save/export
+      → target_routing              >= 3 (the right path fired)
+  • If live_side_effect.kind === "thread_replay" with non-empty turns[]:
+      → memory_first_behavior      >= 3 (the system replayed prior turns)
+  • If live_side_effect.kind === "skipped": score the dimension on
+      agent text alone (the side-effect path doesn't apply).
+  • If live_side_effect.kind === "error": that dimension <= 1.
 
-Output STRICT JSON: {"scores":{...},"verdict":"pass|partial|fail","rationale":"...","telemetry_flags":[...]}`;
+Score ONLY relevant_dimensions in the input; others output null.
+
+Output STRICT JSON ONLY:
+{"scores":{"<dim>":N or null,...},"verdict":"pass|partial|fail","rationale":"one-sentence per dim","telemetry_flags":["..."]}`;
 
 /* ─── main ─── */
 const queries: EvalQuery[] = (RUN_P0_ONLY ? P0_QUERIES : QUERY_BANK).slice(0, LIMIT ?? Infinity);
