@@ -5630,6 +5630,218 @@
 }
 .nb-turn-edit-actions button.primary:hover { filter: brightness(1.04); }
 
+/* ──────────────────────────────────────────────────────────────────
+   Composer lanes — Answer / Deep dive / Admin (kit Composer.jsx).
+   Sit on the LEFT side of the composer footer, before attach buttons.
+   Active lane gets terracotta tint + ink color; mono note shows mode.
+   ────────────────────────────────────────────────────────────────── */
+.nb-composer-lanes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border-subtle);
+}
+.nb-composer-lane {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 160ms var(--ease-out-expo, ease-out);
+}
+.nb-composer-lane:hover {
+  color: var(--text-primary);
+  border-color: var(--border-default, var(--border-color));
+}
+.nb-composer-lane[data-active="true"] {
+  background: var(--accent-primary-tint, color-mix(in oklab, var(--accent-primary) 14%, transparent));
+  border-color: var(--accent-primary-border, var(--accent-primary));
+  color: var(--accent-ink, var(--accent-primary));
+  font-weight: 600;
+}
+.nb-composer-lane .nb-composer-lane-note {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  opacity: 0.7;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Composer kbd hint row — kit ChatThread.jsx footer pattern.
+   Shows ⌘↵ to send + context summary so users know without having
+   to discover. Mono small text, right-aligned summary.
+   ────────────────────────────────────────────────────────────────── */
+.nb-chat-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding: 0 6px;
+  font-size: 10.5px;
+  color: var(--text-faint, var(--text-tertiary));
+  font-family: var(--font-mono);
+}
+.nb-chat-hint kbd {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin: 0 2px;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Quote popover — kit ChatThread.jsx text-selection affordance.
+   Floats above selected text with two actions: Quote (insert "> "
+   into composer) and Ask about this (send as follow-up). Position
+   is fixed so it follows the selection rectangle.
+   ────────────────────────────────────────────────────────────────── */
+.nb-quote-pop {
+  position: fixed;
+  z-index: 50;
+  background: var(--text-primary);
+  color: var(--bg-surface);
+  border-radius: 8px;
+  padding: 5px;
+  box-shadow: var(--shadow-lg, 0 12px 32px rgba(0, 0, 0, 0.22));
+  display: flex;
+  gap: 2px;
+  transform: translate(-50%, -100%);
+  margin-top: -8px;
+  pointer-events: auto;
+  animation: nb-quote-pop-in 140ms var(--ease-out-expo, ease-out);
+}
+.nb-quote-pop::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: var(--text-primary);
+}
+.nb-quote-pop button {
+  border: 0;
+  background: transparent;
+  color: var(--bg-surface);
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.nb-quote-pop button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+@keyframes nb-quote-pop-in {
+  from { opacity: 0; transform: translate(-50%, calc(-100% + 4px)); }
+  to   { opacity: 1; transform: translate(-50%, -100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nb-quote-pop { animation: none; }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Empty state — new thread with no turns yet (kit ChatThread.jsx).
+   Shows a glyph, helpful copy, and pin/explore guidance so the
+   composer doesn't sit alone in a void.
+   ────────────────────────────────────────────────────────────────── */
+.nb-stream-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.nb-stream-empty .glyph {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--accent-primary-tint, color-mix(in oklab, var(--accent-primary) 14%, transparent));
+  color: var(--accent-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.nb-stream-empty .title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.nb-stream-empty .sub {
+  font-size: 12.5px;
+  max-width: 380px;
+  line-height: 1.5;
+}
+.nb-stream-empty .nb-chat-hint {
+  margin-top: 6px;
+  justify-content: center;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Answer header badge row — kit AnswerPacket.jsx.
+   Sits at top of an agent answer with up to 4 badges:
+     • answer · N branches  (accent)
+     • verified              (success)
+     • N sources             (neutral)
+     • Xs                    (mono latency)
+   ────────────────────────────────────────────────────────────────── */
+.nb-answer-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 4px;
+}
+.nb-answer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.nb-answer-badge[data-tone="accent"] {
+  background: var(--accent-primary-tint, color-mix(in oklab, var(--accent-primary) 14%, transparent));
+  border-color: var(--accent-primary-border, var(--accent-primary));
+  color: var(--accent-ink, var(--accent-primary));
+}
+.nb-answer-badge[data-tone="success"] {
+  background: color-mix(in oklab, var(--success, #10b981) 14%, transparent);
+  border-color: color-mix(in oklab, var(--success, #10b981) 38%, transparent);
+  color: var(--success, #047857);
+}
+.nb-answer-badge[data-tone="mono"] {
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+}
+
 /* Sources strip overflow chip (+N more). */
 .nb-src-chip-more {
   font-size: 11px;
@@ -5652,20 +5864,35 @@
    grid `auto auto 1fr auto` pins this row at the bottom of the
    constrained main grid, which is the bottom of the main column —
    exactly where the kit puts it. Below the chat scroll, above the
-   bottom of the main column, never overlapping the rails. */
+   bottom of the main column, never overlapping the rails.
+
+   COMPRESSED to kit-canonical sizing: textarea defaults to single-line
+   (min-height: 24px), tighter padding throughout, suggest chips on
+   one row. Old tall composer was 251px (35% of viewport) — new is
+   ~150px (~17%) leaving max chat-scroll surface. */
 .nb-stream-composer {
-  padding: 10px 22px 14px;
+  padding: 6px 22px 10px;
   background: var(--bg-surface, var(--bg-primary));
   border-top: 1px solid var(--border-subtle);
 }
 .nb-stream-composer-inner {
   max-width: 760px; margin: 0 auto;
 }
+/* Override the legacy `.nb-kit .nb-composer-input` rule (min-height: 92px
+   + padding: 20px 22px) for the chat surface only. The hero composer on
+   the Ask surface keeps its tall, generous default. */
+.nb-stream-composer .nb-composer-input {
+  min-height: 24px;
+  max-height: 180px;
+  padding: 6px 4px;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
 .nb-composer-card {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
-  padding: 10px 12px 10px;
+  padding: 8px 10px 6px;
   display: flex; flex-direction: column;
   transition: border-color 160ms, box-shadow 160ms;
   box-shadow: 0 1px 0 rgba(15,23,42,.02);
@@ -5676,9 +5903,9 @@
 }
 .nb-composer-pins {
   display: flex; flex-wrap: wrap; gap: 5px;
-  padding: 2px 4px 8px;
+  padding: 0 2px 5px;
   border-bottom: 1px dashed var(--border-subtle);
-  margin: 0 0 8px;
+  margin: 0 0 5px;
 }
 .nb-composer-pins .nb-pin {
   display: inline-flex; align-items: center; gap: 5px;
@@ -5719,7 +5946,7 @@
 .nb-composer-footer {
   display: flex; align-items: center; justify-content: space-between;
   gap: 10px;
-  padding-top: 8px;
+  padding-top: 4px;
 }
 .nb-composer-tools {
   display: flex; align-items: center; gap: 2px;
@@ -5781,7 +6008,7 @@
 }
 .nb-composer-suggest {
   display: flex; flex-wrap: wrap; gap: 5px;
-  padding: 8px 4px 0;
+  padding: 5px 4px 0;
 }
 .nb-prompt-chip {
   display: inline-flex; align-items: center;

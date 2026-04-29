@@ -1957,7 +1957,7 @@ const ORBITAL_THREAD_TURNS: ChatTurn[] = [
     run: {
       kind: "research",
       summary: "Memory-first research · 14 sources · 1 paid call",
-      detail: "cache · corpus · live refresh",
+      detail: "cache · corpus · live refresh · 0.94s",
     },
     trace: [
       { step: "mem", label: "memory · 8 hits in 0.14s", hits: "3 prior reports · 2 captures · 3 graph rings" },
@@ -2271,6 +2271,13 @@ function ChatTurnView({
     return <UserTurnView turn={turn} onEdit={onEditUser} onCopy={onCopyUser} />;
   }
   // ── Agent turn: kit-canonical structure ────────────────────────────────
+  // Derive AnswerPacket header badges from existing metadata. Only
+  // rendered when the turn has an actual answer body (skips lookup-only
+  // turns like the "Likely Alex Park" disambiguation card).
+  const hasAnswer = !!turn.body && turn.body.length > 0;
+  const branchCount = turn.branches?.length ?? 0;
+  const sourceCount = turn.sources?.length ?? 0;
+  const latency = turn.run?.detail?.match(/(\d+(?:\.\d+)?)\s*s/)?.[1];
   return (
     <div className="nb-turn" data-role="agent">
       <div className="nb-turn-avatar" data-role="agent"><Sparkles size={12} /></div>
@@ -2279,6 +2286,30 @@ function ChatTurnView({
           <span className="nb-turn-who">NodeBench</span>
           <span className="nb-turn-time">{turn.time}</span>
         </div>
+        {hasAnswer && (sourceCount > 0 || branchCount > 0 || latency) && (
+          <div className="nb-answer-badges" role="status" aria-label="Answer metadata">
+            <span className="nb-answer-badge" data-tone="accent" title="Answer mode">
+              <Sparkles size={10} aria-hidden="true" />
+              answer{branchCount > 0 ? ` · ${branchCount} branches` : ""}
+            </span>
+            {sourceCount >= 3 && (
+              <span className="nb-answer-badge" data-tone="success" title="Verified by sources">
+                <Check size={10} aria-hidden="true" />
+                verified
+              </span>
+            )}
+            {sourceCount > 0 && (
+              <span className="nb-answer-badge" title="Source count">
+                {sourceCount} sources
+              </span>
+            )}
+            {latency && (
+              <span className="nb-answer-badge" data-tone="mono" title="Latency">
+                {latency}s
+              </span>
+            )}
+          </div>
+        )}
         {turn.run && <ChatRunBarView run={turn.run} />}
         {turn.trace && turn.trace.length > 0 && <ReasoningTrace trace={turn.trace} />}
         {turn.body && (
@@ -2549,6 +2580,59 @@ export function ExactChatSurface() {
   // as floating overlay panels (absolute, animated transform).
   const [showThreads, setShowThreads] = useState(false);
   const [showContext, setShowContext] = useState(false);
+  // Composer lane — kit Composer.jsx (Answer / Deep dive / Admin). The
+  // active lane drives downstream routing (fast vs multi-agent vs MCP).
+  // For now we just track the visual state; backend wiring is a follow-up.
+  const [lane, setLane] = useState<"answer" | "deep" | "admin">("answer");
+  // Quote-on-selection popover — kit ChatThread.jsx pattern. Captures
+  // text selection inside the chat scroll and offers Quote / Ask actions.
+  // Position is fixed to the selection rectangle.
+  const [quotePop, setQuotePop] = useState<{
+    text: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const streamScrollRef = useRef<HTMLDivElement | null>(null);
+  // ── Capture text selection inside the chat scroll. We listen on
+  // mouseup at the document level so the popover follows ANY selection
+  // started inside the chat. Selection outside chat clears the popover.
+  useEffect(() => {
+    function onMouseUp() {
+      const sel = typeof window !== "undefined" ? window.getSelection() : null;
+      if (!sel || sel.isCollapsed || !sel.rangeCount) {
+        setQuotePop(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      const scrollEl = streamScrollRef.current;
+      if (!scrollEl || !scrollEl.contains(range.commonAncestorContainer)) {
+        setQuotePop(null);
+        return;
+      }
+      const text = sel.toString().trim();
+      if (text.length < 3) {
+        setQuotePop(null);
+        return;
+      }
+      const rect = range.getBoundingClientRect();
+      setQuotePop({
+        text,
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+      });
+    }
+    function onScroll() {
+      // Keep popover anchored to selection — clear on scroll so it
+      // doesn't drift visually.
+      setQuotePop(null);
+    }
+    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mouseup", onMouseUp);
+      document.removeEventListener("scroll", onScroll, true);
+    };
+  }, []);
   // Escape closes whichever rail is open (last opened wins; both close).
   useEffect(() => {
     if (!showThreads && !showContext) return;
@@ -2764,8 +2848,26 @@ export function ExactChatSurface() {
               <button type="button">Track updates</button>
             </div>
 
-            <div className="nb-stream-scroll">
+            <div className="nb-stream-scroll" ref={streamScrollRef}>
               <div className="nb-stream-inner">
+                {/* Empty state — kit ChatThread.jsx new-thread message. Only
+                    rendered when there are no turns AND no active operator run.
+                    Gives users a clear next action instead of an empty void. */}
+                {turns.length === 0 && !activeFinRunId && (
+                  <div className="nb-stream-empty" role="status" aria-label="New thread">
+                    <span className="glyph" aria-hidden="true">
+                      <Sparkles size={22} />
+                    </span>
+                    <div className="title">Start a new thread</div>
+                    <div className="sub">
+                      Ask anything to kick off the conversation. Pin an entity
+                      or a past report below to anchor the context.
+                    </div>
+                    <div className="nb-chat-hint">
+                      <span><kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline</span>
+                    </div>
+                  </div>
+                )}
                 {/* Chat turns ALWAYS render. Operator runs interleave: when
                     finRun is set, the run timeline appears as a synthetic
                     agent turn at the end of the thread. This restores the
@@ -2841,6 +2943,31 @@ export function ExactChatSurface() {
                     placeholder="Ask, capture, paste, upload, or record…"
                     aria-label="Chat composer"
                   />
+                  {/* Lanes — kit Composer.jsx (Answer / Deep dive / Admin).
+                      Sits in its own row above the tools/send row so the
+                      lane buttons get their natural width (don't get squished
+                      by the fixed-width attach icons). Active lane drives
+                      downstream routing — visual only for now.  */}
+                  <div className="nb-composer-lanes" role="radiogroup" aria-label="Run mode">
+                    {([
+                      { id: "answer", label: "Answer", note: "fast · default" },
+                      { id: "deep", label: "Deep dive", note: "multi-agent · 3-5 min" },
+                      { id: "admin", label: "Admin", note: "nodebench-mcp" },
+                    ] as const).map((L) => (
+                      <button
+                        key={L.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={lane === L.id}
+                        className="nb-composer-lane"
+                        data-active={lane === L.id}
+                        onClick={() => setLane(L.id)}
+                      >
+                        {L.label}
+                        <span className="nb-composer-lane-note">· {L.note}</span>
+                      </button>
+                    ))}
+                  </div>
                   <div className="nb-composer-footer">
                     <div className="nb-composer-tools">
                       <button type="button" aria-label="Attach file" title="Attach file"><Paperclip size={14} /></button>
@@ -2870,6 +2997,16 @@ export function ExactChatSurface() {
                         <ChevronRight size={14} style={{ transform: "rotate(-90deg)" }} />
                       </button>
                     </div>
+                  </div>
+                  {/* Kbd hint row — kit ChatThread.jsx footer. Inside the
+                      card so it stays inside the focus ring. */}
+                  <div className="nb-chat-hint">
+                    <span>
+                      <kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline
+                    </span>
+                    <span>
+                      Context: <strong style={{ color: "var(--text-muted)" }}>Orbital Labs</strong> · {turns.length} turns
+                    </span>
                   </div>
                 </div>
                 {/* Suggested chips are reactive to thread + run state:
@@ -2931,6 +3068,45 @@ export function ExactChatSurface() {
           {/* RIGHT — context / graph rail as toggleable overlay (kit canonical) */}
           <ChatContextRail open={showContext} onClose={() => setShowContext(false)} />
         </div>
+        {/* Quote-on-selection popover (kit ChatThread.jsx). Renders above
+            the selected text with two actions: Quote (insert "> text" into
+            composer) and Ask (send as follow-up turn). */}
+        {quotePop && (
+          <div
+            className="nb-quote-pop"
+            style={{ left: quotePop.x, top: quotePop.y }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setComposer((prev) =>
+                  (prev ? prev + "\n" : "") + "> " + quotePop.text + "\n\n",
+                );
+                setQuotePop(null);
+                if (typeof window !== "undefined") {
+                  window.getSelection()?.removeAllRanges();
+                }
+              }}
+            >
+              <Copy size={11} aria-hidden="true" />
+              Quote
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                sendTurn(`Tell me more about: "${quotePop.text}"`);
+                setQuotePop(null);
+                if (typeof window !== "undefined") {
+                  window.getSelection()?.removeAllRanges();
+                }
+              }}
+            >
+              <MessageSquare size={11} aria-hidden="true" />
+              Ask about this
+            </button>
+          </div>
+        )}
       </section>
     </ResponsiveSurface>
   );
