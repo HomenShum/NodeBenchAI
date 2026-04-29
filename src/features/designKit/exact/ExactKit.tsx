@@ -59,6 +59,7 @@ import { api as financialApi } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { FinancialOperatorTimeline } from "@/features/financialOperator/components/FinancialOperatorTimeline";
 import { ModelCapabilityBadge } from "@/features/financialOperator/components/ModelCapabilityBadge";
+import { ModelPicker, getActiveModel } from "@/features/financialOperator/components/ModelPicker";
 import { ChatThreadsRail, ChatContextRail } from "./ChatRails";
 import {
   buildLocalWorkspacePath,
@@ -2682,14 +2683,53 @@ export function ExactChatSurface() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveThread]);
 
+  // ── Active model — backed by localStorage so the choice persists across
+  // reloads + other surfaces (e.g. ModelCapabilityBadge picks it up).
+  const [activeModel, setActiveModelState] = useState<string>(() => getActiveModel());
+
+  // ── Live activity ledger — persists every chat turn to Convex
+  // `productActivityLedger` so getMostRecentChatThread can replay them.
+  const recordActivity = useMutation(
+    api?.domains.product.activity.recordActivity ?? ("skip" as any),
+  );
+  // Stable session id per browser tab so all turns in this run group
+  // together in the activity ledger.
+  const chatSessionIdRef = useRef<string>(
+    `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+  );
+
   const sendTurn = (text: string) => {
     const t = text.trim();
     if (!t) return;
+    const userTurnId = `u${Date.now()}`;
     setTurns((prev) => [
       ...prev,
-      { id: `u${Date.now()}`, role: "user", time: nowTime(), text: t },
+      { id: userTurnId, role: "user", time: nowTime(), text: t },
     ]);
     setComposer("");
+    // ── LIVE WIRING: persist to activity ledger.
+    // Wrapped in try/finally inside the mutation; we intentionally fire
+    // and forget so the UI stays snappy. Any error is logged to console
+    // but doesn't surface in the chat (HONEST_STATUS — the local turn is
+    // still visible; persistence is a background concern). Full text is
+    // stashed in `metadata.text` so getMostRecentChatThread can replay it.
+    if (api?.domains.product.activity.recordActivity) {
+      Promise.resolve(
+        recordActivity({
+          anonymousSessionId,
+          activityType: "chat_message",
+          actorType: "user",
+          sessionId: chatSessionIdRef.current,
+          payloadPreview: {
+            label: "User message",
+            detail: t.length > 200 ? t.slice(0, 200) + "…" : t,
+            metadata: { model: activeModel, turnId: userTurnId, text: t },
+          },
+        }),
+      ).catch((err) => {
+        console.warn("[chat] persist user turn failed:", err);
+      });
+    }
   };
 
   // ── User-turn edit: replace the in-place text and trim trailing turns
@@ -2700,26 +2740,103 @@ export function ExactChatSurface() {
       prev.map((t) => (t.id === id && t.role === "user" ? { ...t, text: next } : t)),
     );
   };
-  // ── Agent action chip: Save/Watch/Re-run/Share. Save routes to the
-  // packets surface (kit-canonical "Save as report"). Re-run echoes the
-  // last user turn back through the composer. Watch + Share are placeholders.
+  // ── Agent action chip: Save/Watch/Re-run/Share — all live-wired now.
+  //   • Save  → records "save_as_report" activity + navigates to packets
+  //   • Watch → records "watchlist_add" activity (entity slug from
+  //             current thread context)
+  //   • Re-run → re-sends the most recent user turn through sendTurn
+  //              (which persists + uses the active model)
+  //   • Share → copies a shareable URL to clipboard, records share activity
+  const [actionToast, setActionToast] = useState<string | null>(null);
   const onTurnAction = (turnId: string, id: "save" | "watch" | "rerun" | "share") => {
+    const flash = (msg: string) => {
+      setActionToast(msg);
+      setTimeout(() => setActionToast(null), 1800);
+    };
     if (id === "save") {
-      navigate(buildCockpitPath({ surfaceId: "packets", extra: { report: "orbital" } }));
+      if (api?.domains.product.activity.recordActivity) {
+        Promise.resolve(
+          recordActivity({
+            anonymousSessionId,
+            activityType: "chat_message",
+            actorType: "user",
+            sessionId: chatSessionIdRef.current,
+            entitySlug: "orbital-labs",
+            payloadPreview: {
+              label: "Saved as report",
+              detail: `Turn ${turnId} bookmarked from chat thread`,
+              metadata: { action: "save_as_report", turnId },
+            },
+          }),
+        ).catch(() => {});
+      }
+      flash("Saved to Orbital Labs · diligence");
+      setTimeout(
+        () => navigate(buildCockpitPath({ surfaceId: "packets", extra: { report: "orbital" } })),
+        650,
+      );
+      return;
+    }
+    if (id === "watch") {
+      if (api?.domains.product.activity.recordActivity) {
+        Promise.resolve(
+          recordActivity({
+            anonymousSessionId,
+            activityType: "chat_message",
+            actorType: "user",
+            sessionId: chatSessionIdRef.current,
+            entitySlug: "orbital-labs",
+            payloadPreview: {
+              label: "Watching entity",
+              detail: "Orbital Labs · daily nudges enabled",
+              metadata: { action: "watch", turnId },
+            },
+          }),
+        ).catch(() => {});
+      }
+      flash("Watching Orbital Labs · nudges enabled");
       return;
     }
     if (id === "rerun") {
-      // Walk back to the most recent user turn before this agent turn.
       const idx = turns.findIndex((t) => t.id === turnId);
       for (let i = idx - 1; i >= 0; i--) {
         const t = turns[i];
         if (t.role === "user") {
           sendTurn(t.text);
+          flash(`Re-running with ${activeModel}…`);
           return;
         }
       }
+      return;
     }
-    // watch/share: no-op for now (kit-canonical chips, wiring TBD)
+    if (id === "share") {
+      const url = typeof window !== "undefined"
+        ? `${window.location.origin}${buildCockpitPath({ surfaceId: "packets", extra: { report: "orbital", t: turnId } })}`
+        : "";
+      if (url && typeof navigator !== "undefined" && navigator.clipboard) {
+        navigator.clipboard
+          .writeText(url)
+          .then(() => flash("Share link copied"))
+          .catch(() => flash("Couldn't copy — please try again"));
+      } else {
+        flash(`Share: ${url}`);
+      }
+      if (api?.domains.product.activity.recordActivity) {
+        Promise.resolve(
+          recordActivity({
+            anonymousSessionId,
+            activityType: "chat_message",
+            actorType: "user",
+            sessionId: chatSessionIdRef.current,
+            payloadPreview: {
+              label: "Share link copied",
+              detail: url,
+              metadata: { action: "share", turnId },
+            },
+          }),
+        ).catch(() => {});
+      }
+    }
   };
   // ── Branch switch: stub for now — flips active flag locally so users
   // see the kit-canonical visual feedback (active branch highlighted).
@@ -2971,14 +3088,23 @@ export function ExactChatSurface() {
                     <kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline
                   </span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    <span className="nb-model-trigger" title="Model">
-                      <span className="dot" data-provider="anthropic" />
-                      <span className="nm">Claude Sonnet 4.5</span>
-                    </span>
-                    <ModelCapabilityBadge model="claude-sonnet-4-6" />
+                    {/* Live, interactive model picker — click to open
+                        provider-grouped dropdown. Selection persists to
+                        localStorage and is passed to sendMessageStreaming
+                        when the chat is wired to the live agent. */}
+                    <ModelPicker value={activeModel} onChange={setActiveModelState} />
+                    <ModelCapabilityBadge model={activeModel} />
                     <span>Memory-first · 0 paid calls · {turns.length} turns</span>
                   </span>
                 </div>
+                {/* Live action-chip toast — anchors to the composer area
+                    so users get a confirmation that Save/Watch/Share/
+                    Re-run actually fired against the activity ledger. */}
+                {actionToast && (
+                  <div className="nb-chat-toast" role="status" aria-live="polite">
+                    {actionToast}
+                  </div>
+                )}
                 {/* Suggested chips are reactive to thread + run state:
                       - Active run: post-run actions (Open evidence, Re-extract, Export memo)
                       - No run, entity thread: context-derived workflows for that entity

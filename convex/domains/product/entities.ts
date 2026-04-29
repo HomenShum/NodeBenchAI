@@ -2357,9 +2357,11 @@ export const getMostRecentChatThread = query({
         hour: "numeric",
         minute: "2-digit",
       }),
-      text: typeof row.payloadPreview?.text === "string"
-        ? row.payloadPreview.text.slice(0, 600)
-        : `Turn ${i + 1}`,
+      text: typeof row.payloadPreview?.metadata?.text === "string"
+        ? row.payloadPreview.metadata.text.slice(0, 600)
+        : typeof row.payloadPreview?.detail === "string"
+          ? row.payloadPreview.detail.slice(0, 600)
+          : `Turn ${i + 1}`,
     }));
 
     const userTurns = turns.filter((t) => t.role === "user").length;
