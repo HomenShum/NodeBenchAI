@@ -64,9 +64,11 @@ interface ThreadsRailProps {
   activeId?: string;
   onSelect?: (id: string) => void;
   onNewThread?: () => void;
+  open?: boolean;
+  onClose?: () => void;
 }
 
-export function ChatThreadsRail({ activeId = "orbital", onSelect, onNewThread }: ThreadsRailProps) {
+export function ChatThreadsRail({ activeId = "orbital", onSelect, onNewThread, open = true, onClose }: ThreadsRailProps) {
   const [search, setSearch] = useState("");
   const filtered = DEMO_THREADS.filter((t) =>
     !search.trim() ? true : t.title.toLowerCase().includes(search.toLowerCase()),
@@ -77,6 +79,8 @@ export function ChatThreadsRail({ activeId = "orbital", onSelect, onNewThread }:
       className="nb-chat-threads-rail"
       role="navigation"
       aria-label="Chat threads"
+      data-open={open ? "true" : "false"}
+      aria-hidden={!open}
     >
       <header className="nb-chat-threads-rail-head">
         <div className="nb-chat-threads-rail-title">Threads</div>
@@ -201,7 +205,7 @@ const DEMO_ACTIVITY: ActivityItem[] = [
   { id: "3", icon: Activity, iconBg: "color-mix(in oklab, var(--accent-primary) 12%, transparent)", iconColor: "var(--accent-primary)", text: "Product update", age: "1d ago" },
 ];
 
-export function ChatContextRail({ entityName }: { entityName?: string }) {
+export function ChatContextRail({ entityName, open = true, onClose }: { entityName?: string; open?: boolean; onClose?: () => void }) {
   const [tab, setTab] = useState<"context" | "graph">("context");
 
   return (
@@ -209,6 +213,8 @@ export function ChatContextRail({ entityName }: { entityName?: string }) {
       className="nb-chat-context-rail"
       role="complementary"
       aria-label="Thread context"
+      data-open={open ? "true" : "false"}
+      aria-hidden={!open}
     >
       <header className="nb-chat-context-rail-tabs" role="tablist">
         <button

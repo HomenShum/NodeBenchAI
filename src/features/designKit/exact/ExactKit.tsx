@@ -2286,6 +2286,23 @@ export function ExactChatSurface() {
   const runCovenant = useAction(financialApi.domains.financialOperator.orchestratorExamples.runCovenantComplianceDemo);
   const runVariance = useAction(financialApi.domains.financialOperator.orchestratorExamples.runVarianceAnalysisDemo);
   const [pendingDemo, setPendingDemo] = useState<string | null>(null);
+  // Toggleable rail overlays — kit canonical pattern (Linear/ChatGPT).
+  // Default: BOTH closed → single-column chat. Toggles slide rails in
+  // as floating overlay panels (absolute, animated transform).
+  const [showThreads, setShowThreads] = useState(false);
+  const [showContext, setShowContext] = useState(false);
+  // Escape closes whichever rail is open (last opened wins; both close).
+  useEffect(() => {
+    if (!showThreads && !showContext) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowThreads(false);
+        setShowContext(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showThreads, showContext]);
   const startDemo = async (id: "att" | "crm" | "covenant" | "variance") => {
     setPendingDemo(id);
     try {
@@ -2364,12 +2381,31 @@ export function ExactChatSurface() {
           </div>
         </div>
 
-        <div className="nb-stream-root">
-          {/* LEFT — threads rail (kit canonical, hidden below xl) */}
-          <ChatThreadsRail />
+        <div className="nb-stream-root" data-rails-open={(showThreads || showContext) ? "true" : "false"}>
+          {/* LEFT — threads rail as toggleable overlay (kit canonical) */}
+          <ChatThreadsRail open={showThreads} onClose={() => setShowThreads(false)} />
+          {/* Backdrop — click anywhere outside the rails closes them.
+              Only renders when at least one rail is open so it doesn't
+              eat clicks on the underlying composer. */}
+          {(showThreads || showContext) && (
+            <button
+              type="button"
+              className="nb-stream-backdrop"
+              aria-label="Close panels"
+              onClick={() => { setShowThreads(false); setShowContext(false); }}
+            />
+          )}
           <div className="nb-stream-main">
             <div className="nb-stream-header">
-              <button type="button" className="nb-rail-toggle" aria-label="Toggle threads" title="Threads">
+              <button
+                type="button"
+                className="nb-rail-toggle"
+                aria-label={showThreads ? "Close threads" : "Open threads"}
+                aria-pressed={showThreads}
+                aria-expanded={showThreads}
+                title="Threads"
+                onClick={() => setShowThreads((v) => !v)}
+              >
                 <Layers size={14} />
               </button>
               {/* Thread header stays the same in workspace mode — entity
@@ -2404,7 +2440,15 @@ export function ExactChatSurface() {
                   <Share2 size={11} /> Share
                 </button>
               </div>
-              <button type="button" className="nb-rail-toggle" aria-label="Toggle context" title="Context">
+              <button
+                type="button"
+                className="nb-rail-toggle"
+                aria-label={showContext ? "Close context" : "Open context"}
+                aria-pressed={showContext}
+                aria-expanded={showContext}
+                title="Context"
+                onClick={() => setShowContext((v) => !v)}
+              >
                 <LayoutGrid size={14} />
               </button>
             </div>
@@ -2576,8 +2620,8 @@ export function ExactChatSurface() {
               </div>
             </div>
           </div>
-          {/* RIGHT — context / graph rail (kit canonical, hidden below xl) */}
-          <ChatContextRail />
+          {/* RIGHT — context / graph rail as toggleable overlay (kit canonical) */}
+          <ChatContextRail open={showContext} onClose={() => setShowContext(false)} />
         </div>
       </section>
     </ResponsiveSurface>

@@ -4504,43 +4504,114 @@
    ChatStream — full conversation surface (kit ChatStream port)
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ──────────────────────────────────────────────────────────────────
+   Single-column root. Rails are TOGGLEABLE OVERLAYS (kit canonical).
+   Default: chat is full-width. Clicking the threads/context toggle
+   slides the rail in as a floating panel (absolute, transform-based).
+   ────────────────────────────────────────────────────────────────── */
 .nb-stream-root {
   position: relative;
-  min-height: 600px;
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 320px;
-  gap: 14px;
+  display: flex;
+  flex-direction: column;
   background: transparent;
-  /* Break out of parent max-width so 3-col layout has room to breathe.
-     Negative margin pulls back into the cockpit center area; max-width
-     none prevents the outer chat-surface page-frame from clamping us. */
   width: 100%;
   max-width: none;
+  /* Viewport-locked height so the inner main flex pins the composer
+     at the bottom of the main column (NOT the bottom of the viewport).
+     12rem subtracts: ProductTopNav (~3.5rem) + page H1 + description
+     (~5rem) + page gutters + margin (~3.5rem). Uses 100dvh on browsers
+     that support it so the composer doesn't shift on mobile address-
+     bar collapse. */
+  height: calc(100dvh - 12rem);
+  min-height: 520px;
+  max-height: calc(100vh - 12rem);
 }
-/* Also let the chat surface section fill width when rails are present. */
+/* Section fills width — no parent column reservation for rails. */
 [data-testid="exact-web-chat-stream"] { width: 100%; max-width: none; }
-@media (max-width: 1279px) {
-  /* Below xl: hide both rails — main column takes full width.
-     Rails come back at >=1280px where there's enough horizontal room. */
-  .nb-stream-root {
-    grid-template-columns: 1fr;
-  }
-  .nb-chat-threads-rail,
-  .nb-chat-context-rail {
-    display: none;
-  }
+
+/* ── Backdrop — only renders when at least one rail is open.
+   Catches clicks anywhere on the main column and closes the panels. */
+.nb-stream-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: color-mix(in oklab, var(--bg-primary) 35%, transparent);
+  backdrop-filter: blur(2px);
+  border: 0;
+  cursor: pointer;
+  animation: nb-backdrop-fade 160ms var(--ease-out-expo, ease-out);
+}
+@keyframes nb-backdrop-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nb-stream-backdrop { animation: none; }
 }
 
-/* ── LEFT — Threads rail ───────────────────────────────────────── */
+/* ── Rails — floating overlay panels (kit canonical).
+   Both rails position absolutely inside .nb-stream-root and slide in
+   via transform. data-open="false" parks them off-screen with no
+   pointer-events, so the underlying composer stays clickable. */
+.nb-chat-threads-rail,
+.nb-chat-context-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 12;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  box-shadow: var(--shadow-md, 0 12px 32px rgba(0, 0, 0, 0.18));
+  overflow-y: auto;
+  transition:
+    transform 200ms var(--ease-out-expo, ease-out),
+    opacity 160ms ease-out;
+}
+.nb-chat-threads-rail  { left: 0;  }
+.nb-chat-context-rail  { right: 0; }
+.nb-chat-threads-rail[data-open="false"]  {
+  transform: translateX(-110%);
+  opacity: 0;
+  pointer-events: none;
+}
+.nb-chat-threads-rail[data-open="true"]   {
+  transform: translateX(0);
+  opacity: 1;
+}
+.nb-chat-context-rail[data-open="false"]  {
+  transform: translateX(110%);
+  opacity: 0;
+  pointer-events: none;
+}
+.nb-chat-context-rail[data-open="true"]   {
+  transform: translateX(0);
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nb-chat-threads-rail,
+  .nb-chat-context-rail {
+    transition: opacity 100ms ease-out;
+  }
+  .nb-chat-threads-rail[data-open="false"] { transform: translateX(-110%); }
+  .nb-chat-context-rail[data-open="false"] { transform: translateX(110%); }
+}
+
+/* ── .nb-rail-toggle — pressed state when its rail is open. */
+.nb-rail-toggle[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--accent-primary) 14%, transparent);
+  color: var(--accent-primary);
+}
+
+/* ── LEFT — Threads rail (overlay panel content) ──────────────── */
 .nb-chat-threads-rail {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 14px 10px;
-  border-right: 1px solid var(--border-subtle);
-  background: transparent;
   overflow-y: auto;
-  min-height: 0;
 }
 .nb-chat-threads-rail-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -4643,16 +4714,13 @@
   color: #fff;
 }
 
-/* ── RIGHT — Context / Graph rail ──────────────────────────────── */
+/* ── RIGHT — Context / Graph rail (overlay panel content) ─────── */
 .nb-chat-context-rail {
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 14px 12px;
-  border-left: 1px solid var(--border-subtle);
-  background: transparent;
   overflow-y: auto;
-  min-height: 0;
 }
 .nb-chat-context-rail-tabs {
   display: flex;
@@ -4808,14 +4876,15 @@
   grid-template-rows: auto auto 1fr auto;
   min-width: 0;
   min-height: 0;
-  flex: 1;
+  height: 100%;
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
   background: var(--bg-surface);
-  /* Removed `overflow: hidden` so position: sticky on .nb-stream-composer
-     can stick to the viewport bottom. The grid still defines the four
-     rows; sticky just keeps the composer pinned as the user scrolls
-     past the chat content. */
+  /* overflow: hidden so the inner scroll area is the only thing that
+     scrolls. The composer (4th grid row, auto height) pins at the
+     bottom of THIS grid — which is the bottom of the main column,
+     NOT the bottom of the viewport. Kit-canonical chat-page shape. */
+  overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
 
@@ -5275,38 +5344,16 @@
   background: color-mix(in oklab, var(--success) 10%, var(--bg-secondary));
 }
 
-/* Composer — pinned at viewport bottom (kit-canonical chat composer).
-   Uses position: fixed because the chat surface itself doesn't fill
-   viewport, so sticky has no scroll context to engage. Fixed
-   guarantees the composer is always reachable; the scroll content
-   below picks up bottom padding so cards don't hide behind it.
-   Mobile (xl:hidden bottom nav) sits below this via the bottom offset. */
+/* Composer — in-flow at the bottom of the main column grid (NOT
+   position: fixed across the whole viewport). The .nb-stream-main
+   grid `auto auto 1fr auto` pins this row at the bottom of the
+   constrained main grid, which is the bottom of the main column —
+   exactly where the kit puts it. Below the chat scroll, above the
+   bottom of the main column, never overlapping the rails. */
 .nb-stream-composer {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-  z-index: 30;
   padding: 10px 22px 14px;
   background: var(--bg-surface, var(--bg-primary));
   border-top: 1px solid var(--border-subtle);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 -8px 24px -16px rgba(15, 23, 42, 0.12);
-}
-@media (min-width: 768px) {
-  /* md+: MobileTabBar (md:hidden) is gone — top nav is the only nav,
-     and the composer hugs viewport bottom directly. The 56px reserve
-     was for the bottom-nav swap-out below 768px. */
-  .nb-stream-composer {
-    bottom: 0;
-  }
-}
-/* Reserve space at the bottom of the chat scroll so the last cards
-   aren't hidden behind the fixed composer. The composer is roughly
-   ~190px tall (pins + textarea + tools row + suggested chips). */
-.nb-stream-scroll {
-  padding-bottom: 220px;
 }
 .nb-stream-composer-inner {
   max-width: 760px; margin: 0 auto;
