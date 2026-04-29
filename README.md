@@ -4,7 +4,48 @@ Entity intelligence for any company, market, or question.
 
 **Live:** [nodebenchai.com](https://www.nodebenchai.com)  
 **npm:** `npx nodebench-mcp` / `npx nodebench-mcp-power` / `npx nodebench-mcp-admin`  
+**Workspace MCP (atomic edits, 12 tools):** [`packages/mcp-nodebench-workspace/`](packages/mcp-nodebench-workspace/README.md)  
 **GitHub:** [HomenShum/nodebench-ai](https://github.com/HomenShum/nodebench-ai)
+
+---
+
+## Try It Now — 60-second walkthrough
+
+For first-time visitors, hackathon attendees, or anyone wanting to see the
+system work end-to-end. Anonymous, no signup required.
+
+1. **Open** [nodebenchai.com/?surface=workspace](https://www.nodebenchai.com/?surface=workspace).
+   A *Temporary workspace* banner shows your anonymous session id.
+2. **Pick a model** — click the model badge in the composer footer. Default
+   is **Nemotron 3 Super 120B** (free, NodeBench leaderboard rank #2 by raw
+   score, **#1 by reliable score** — clean 0-error sweep on the 8-query bench).
+   The picker shows score / pass-rate / errors / latency per model so you can
+   compare quality vs speed vs reliability.
+3. **Capture something messy** — paste a meeting note like:
+   `Met Priya from Acme Bio at SciCon. AI lab notebooks with Benchling integration. Looking for early users in pharma R&D.`
+4. **Watch atomic edits fire** — within ~5–30s the agent persists 4–8
+   structured side effects to your workspace ledger (entity captures, claims
+   with `verified` / `needs_review` / `rumor` status, source attachments, graph
+   edges, follow-ups). They render as inline run-update chips on the agent
+   turn.
+5. **Try the prompt enhancer** — type a vague prompt, click the ✨ Sparkles
+   icon next to the textarea. Kilo Code-style — small fast free model rewrites
+   it with workspace context + acceptance criteria in ~3s for $0.
+6. **Reload the page** — captures persist (Convex-backed, scoped by anon
+   session id). Click **Claim workspace →** in the banner to sign in with
+   Google. Convex Auth migrates `anon:<sessionId>` → `user:<userId>` so the
+   workspace becomes cross-device.
+
+**Cost protection:** every anon session is capped at 60 calls / 10 min and
+$0.50 / hour cumulative paid spend. Free models are unmetered cost-wise. After
+hitting a cap, the agent returns `ok: false, errorMessage: "rate_limit: ..."`
+— the user just picks a free model and continues.
+
+**For hackathon organizers:** [`HACKATHON_DAY0.md`](HACKATHON_DAY0.md) covers
+pre-flight checks, multi-user verification, expected cost ranges, sharing one
+workspace across browser + Cursor / Claude Desktop, and troubleshooting.
+
+---
 
 ## Product
 
@@ -33,6 +74,42 @@ They need a system that can:
 - improve the next run from what it learned
 
 ## What Shipped
+
+**Recently shipped (April 2026 — hackathon-ready):**
+
+- live agent in chat composer — `convex/domains/product/chatAgent.ts`
+  exposes `runChatAgent` action that calls pi-ai → OpenRouter, handles
+  tool calling (5 atomic-edit primitives + multi-turn loop), persists
+  user + agent turns to `productActivityLedger` with full telemetry
+- Kilo-Code-style auto-router — per-model 60s cooldown registry
+  (bounded LRU map, ≤64 entries), capability filter
+  (`TOOL_CAPABLE_PREFIXES`), free-first ranked fallback chain
+  (Nemotron 3 Super → Ling 2.6 → GLM 4.5 Air → Hunyuan 3 → kimi-k2.6
+  paid)
+- prompt enhancer — `enhancePrompt` action rewrites vague prompts
+  with workspace context (active entity, pinned context) using a fast
+  free model (~3s, $0). UI: ✨ Sparkles button next to composer
+- benchmark-aware ModelPicker — 12 models with leaderboard rank,
+  pass / partial / fail / error counts, latency per row. Default = the
+  highest-reliable-score free model from the 16-model leaderboard
+- multi-tenancy + cost protection — every product table carries
+  `ownerKey`, every action gates through `requireProductIdentity`. Per-
+  session rate limit (60 calls / 10min) + cost ceiling ($0.50 / hour)
+  enforce honest backpressure (HONEST_STATUS — return `ok: false`, no
+  silent drops)
+- `nodebench-mcp-workspace` MCP server — 12 tools (5 atomic edits +
+  5 read tools + 2 workflow/delivery tools), Zod-validated, 30s timeout,
+  ERROR_BOUNDARY wrapped. Lets Claude Desktop / Cursor / Windsurf share
+  the same workspace as the browser via `NODEBENCH_ANON_SESSION_ID`
+- model leaderboard pipeline — `scripts/eval/model-leaderboard/`
+  ranks free + paid LLMs on a fixed 8-query NodeBench eval set. 16-
+  model free-tier sweep + comparative paid kimi-k2.6 results published
+- live-Convex eval runner — `scripts/eval/nodebench-loop/liveRunner.ts`
+  exercises real `recordActivity` round-trips so judge can score
+  notebook-correctness + export-correctness from real side effects, not
+  agent text alone
+
+**Foundational (already shipped):**
 
 - five-surface web app across `Home`, `Reports`, `Chat`, `Inbox`, and `Me`
 - separate deep-work Workspace shell at `nodebench.workspace`
@@ -548,7 +625,12 @@ nodebench-ai/
 
 ## Related Docs
 
-**Start here:** [`docs/ONBOARDING.md`](docs/ONBOARDING.md) · [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`docs/architecture/README.md`](docs/architecture/README.md)
+**For new users / hackathon attendees:**
+- [`HACKATHON_DAY0.md`](HACKATHON_DAY0.md) — 60-second attendee guide + organizer pre-flight checklist
+- [`docs/architecture/MULTI_TENANCY.md`](docs/architecture/MULTI_TENANCY.md) — identity model (`anon:<sessionId>` vs `user:<userId>`), end-to-end first-landing story, threat model, MCP session-linking patterns
+
+**For builders / contributors:**
+[`docs/ONBOARDING.md`](docs/ONBOARDING.md) · [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`docs/architecture/README.md`](docs/architecture/README.md)
 
 The 13 canonical architecture docs are organized in 4 tiers. See [`docs/architecture/README.md`](docs/architecture/README.md) for the indexed map:
 
