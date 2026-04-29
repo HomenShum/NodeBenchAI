@@ -2235,6 +2235,30 @@ const linkedinPostArchive = defineTable({
   .index("by_target_postedAt", ["target", "postedAt"]);
 
 /* ------------------------------------------------------------------ */
+/* LinkedIn Archive Entity Links — denormalized many-to-many index     */
+/* Each row: (archiveRowId, companyId) with copy of postedAt/postType  */
+/* for cheap reverse lookups: "all posts mentioning entity X".         */
+/* Populated by linkArchiveRowsToEntities + the funding-tracker        */
+/* backfill. Convex doesn't natively index array fields for `contains` */
+/* queries, so we denormalize.                                          */
+/* ------------------------------------------------------------------ */
+const linkedinArchiveEntityLinks = defineTable({
+  archiveRowId: v.id("linkedinPostArchive"),
+  companyId: v.id("entityContexts"),
+  postedAt: v.number(),
+  postType: v.string(),
+  // Soft denormalized fields the UI uses without joining back to the post:
+  dateString: v.string(),
+  matchSource: v.union(
+    v.literal("findings_round"), // matched via metadata.findings.rounds[].companyName
+    v.literal("content_mention"), // matched via plain-text scan of content
+  ),
+})
+  .index("by_company_postedAt", ["companyId", "postedAt"])
+  .index("by_archive_row", ["archiveRowId"])
+  .index("by_archive_company", ["archiveRowId", "companyId"]);
+
+/* ------------------------------------------------------------------ */
 /* LinkedIn Held Posts - Posts blocked by engagement quality gate     */
 /* ------------------------------------------------------------------ */
 const linkedinHeldPosts = defineTable({
@@ -3893,6 +3917,7 @@ export default defineSchema({
   linkedinResearchPosts,
   linkedinMaPosts,
   linkedinPostArchive,
+  linkedinArchiveEntityLinks,
   linkedinHeldPosts,
   linkedinContentQueue,
   userApiKeys,

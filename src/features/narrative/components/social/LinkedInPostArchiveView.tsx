@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback } from "react";
 import { api } from "../../../../../convex/_generated/api";
 import { useStableQuery } from "@/hooks/useStableQuery";
 import { LinkedInPostCard } from "./LinkedInPostCard";
+import { EntityFindingsPanel } from "./EntityFindingsPanel";
 import {
   Linkedin,
   Filter,
@@ -167,6 +168,11 @@ export const LinkedInPostArchiveView: React.FC = () => {
             })}
           </div>
         </div>
+      </div>
+
+      {/* Findings by entity (cheap retrieval substrate for chat) */}
+      <div className="px-4 pt-6">
+        <EntityFindingsPanel />
       </div>
 
       {/* Content */}
