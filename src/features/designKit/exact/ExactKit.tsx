@@ -2708,6 +2708,46 @@ export function ExactChatSurface() {
   // response arrives.
   const [pendingAgent, setPendingAgent] = useState<boolean>(false);
 
+  // ── Enhance prompt — Kilo Code / Augment-style "improve prompt"
+  // button. Click sends the current composer text + workspace context
+  // hints to enhancePrompt action; replaces composer with the result.
+  const enhancePromptAction = useAction(
+    api?.domains.product.chatAgent?.enhancePrompt
+      ?? financialApi.domains.product.chatAgent.enhancePrompt,
+  );
+  const [pendingEnhance, setPendingEnhance] = useState<boolean>(false);
+  const [enhanceToast, setEnhanceToast] = useState<string | null>(null);
+
+  const handleEnhance = async () => {
+    const text = composer.trim();
+    if (!text || pendingEnhance) return;
+    setPendingEnhance(true);
+    try {
+      const res: any = await enhancePromptAction({
+        text,
+        contextHints: {
+          activeEntitySlug: pins[0]?.label
+            ? pins[0].label.toLowerCase().replace(/\s+/g, "-")
+            : undefined,
+          pinnedContext: pins.map((p) => `${p.kind}:${p.label}`),
+          recentTurnCount: turns.length,
+        },
+      });
+      if (res?.ok && res.enhanced) {
+        setComposer(res.enhanced);
+        setEnhanceToast(`Enhanced via ${res.modelUsed} · ${res.durationMs}ms`);
+      } else {
+        setEnhanceToast(`Enhance unavailable: ${res?.errorMessage ?? "unknown"} — original kept`);
+      }
+    } catch (err) {
+      console.warn("[chat] enhancePrompt failed:", err);
+      setEnhanceToast("Enhance failed — original kept");
+    } finally {
+      setPendingEnhance(false);
+      setTimeout(() => setEnhanceToast(null), 2400);
+    }
+  };
+
   const sendTurn = (text: string) => {
     const t = text.trim();
     if (!t) return;
@@ -3160,6 +3200,24 @@ export function ExactChatSurface() {
                     <button type="button" aria-label="Attach file" title="Attach file"><Paperclip size={14} /></button>
                     <button type="button" aria-label="Add URL" title="Add URL"><Link2 size={14} /></button>
                     <button type="button" aria-label="Voice note" title="Voice note"><Mic size={14} /></button>
+                    {/* Enhance prompt — Kilo Code / Augment pattern. Click
+                        rewrites the current composer text with workspace
+                        context. Disabled when composer empty or already
+                        running. Spinner-tinted on pending. */}
+                    <button
+                      type="button"
+                      aria-label="Enhance prompt"
+                      title="Enhance prompt — rewrite with workspace context (Sparkles icon)"
+                      onClick={handleEnhance}
+                      disabled={!composer.trim() || pendingEnhance}
+                      data-pending={pendingEnhance ? "true" : "false"}
+                      style={{
+                        color: pendingEnhance ? "var(--accent-primary)" : undefined,
+                        opacity: !composer.trim() ? 0.4 : 1,
+                      }}
+                    >
+                      <Sparkles size={14} />
+                    </button>
                   </div>
                   <textarea
                     className="nb-composer-input"
@@ -3209,6 +3267,16 @@ export function ExactChatSurface() {
                 {actionToast && (
                   <div className="nb-chat-toast" role="status" aria-live="polite">
                     {actionToast}
+                  </div>
+                )}
+                {enhanceToast && (
+                  <div
+                    className="nb-chat-toast"
+                    role="status"
+                    aria-live="polite"
+                    data-tone="enhance"
+                  >
+                    {enhanceToast}
                   </div>
                 )}
                 {/* Suggested chips are reactive to thread + run state:

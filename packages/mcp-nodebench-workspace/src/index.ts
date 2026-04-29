@@ -104,6 +104,29 @@ const SCHEMAS = {
       .enum(["low", "medium", "high"])
       .describe("Confidence in the edge"),
   }),
+  // ── Read tools (workspace state queries) ───────────────────────────
+  listEntities: z.object({
+    limit: z.number().min(1).max(50).optional().describe("Max entities to return (default 20)"),
+  }),
+  recallEntityMemory: z.object({
+    slug: z.string().min(1).max(200).describe("Entity slug to recall memory for"),
+  }),
+  getMostRecentChatThread: z.object({}),
+  getHomeSnapshot: z.object({}),
+  getEntityWorkspace: z.object({
+    slug: z.string().min(1).max(200).describe("Entity slug"),
+  }),
+  // ── Workflow tools (action triggers) ───────────────────────────────
+  enhancePrompt: z.object({
+    text: z.string().min(1).max(4000).describe("Raw user prompt to enhance"),
+    activeEntitySlug: z.string().max(200).optional(),
+  }),
+  // ── Delivery / export tools ────────────────────────────────────────
+  createGmailDraft: z.object({
+    entitySlug: z.string().min(1).max(200),
+    subject: z.string().min(1).max(200),
+    body: z.string().min(1).max(8000),
+  }),
 } as const;
 
 type ToolName = keyof typeof SCHEMAS;
@@ -138,6 +161,50 @@ const TOOL_DEFINITIONS = [
     description:
       "Record a typed edge between two entities. Confidence='medium' is a sensible default; reserve 'high' for strong evidence.",
     inputSchema: zodToJsonSchema(SCHEMAS.addGraphEdge),
+  },
+  // ── Read tools ───────────────────────────────────────────────────
+  {
+    name: "listEntities",
+    description:
+      "List the user's entities (companies, people, topics, events) with their slugs and last-updated timestamps. Use this BEFORE upsertEntity to avoid creating duplicates.",
+    inputSchema: zodToJsonSchema(SCHEMAS.listEntities),
+  },
+  {
+    name: "recallEntityMemory",
+    description:
+      "Recall everything NodeBench knows about an entity: prior reports, claims, sources, recent captures. Memory-first — call this before live web research.",
+    inputSchema: zodToJsonSchema(SCHEMAS.recallEntityMemory),
+  },
+  {
+    name: "getMostRecentChatThread",
+    description:
+      "Get the most-recent chat thread for the current session. Returns the turns array so the agent can reference what was just said.",
+    inputSchema: zodToJsonSchema(SCHEMAS.getMostRecentChatThread),
+  },
+  {
+    name: "getHomeSnapshot",
+    description:
+      "Get the user's home/workspace overview: recent activity, watched entities, pending follow-ups, claim audit summary. Useful at session start to orient.",
+    inputSchema: zodToJsonSchema(SCHEMAS.getHomeSnapshot),
+  },
+  {
+    name: "getEntityWorkspace",
+    description:
+      "Get the full entity workspace: all sections, claims, sources, sub-entities, recent activity. Heavier than recallEntityMemory; use for deep diligence prep.",
+    inputSchema: zodToJsonSchema(SCHEMAS.getEntityWorkspace),
+  },
+  // ── Workflow / action tools ──────────────────────────────────────
+  {
+    name: "enhancePrompt",
+    description:
+      "Rewrite a vague user prompt into a specific NodeBench capture using a fast free model. Returns the enhanced text — does NOT auto-send. Useful when the user's input lacks structure.",
+    inputSchema: zodToJsonSchema(SCHEMAS.enhancePrompt),
+  },
+  {
+    name: "createGmailDraft",
+    description:
+      "Create a Gmail draft (NOT auto-sent) for an entity. Requires the user to have connected their Gmail integration. Returns the draft id.",
+    inputSchema: zodToJsonSchema(SCHEMAS.createGmailDraft),
   },
 ];
 
@@ -365,6 +432,121 @@ async function executeTool(
           ok: true,
           result: { activityId: String((r as any)?.activityId ?? r) },
         };
+      }
+
+      // ── Read tools ───────────────────────────────────────────────
+      case "listEntities": {
+        const limit = typeof args.limit === "number" ? args.limit : 20;
+        const list = await convex.query(api.domains.product.entities.listEntities, {
+          anonymousSessionId: ANON_SESSION_ID,
+          limit,
+        });
+        return { ok: true, result: list };
+      }
+
+      case "recallEntityMemory": {
+        const slug = trim(args.slug, 200);
+        if (!slug) return { ok: false, error: "missing slug" };
+        const memory = await convex.query(
+          api.domains.product.entities.recallEntityMemory,
+          {
+            anonymousSessionId: ANON_SESSION_ID,
+            entitySlug: slug,
+          },
+        );
+        return { ok: true, result: memory };
+      }
+
+      case "getMostRecentChatThread": {
+        const thread = await convex.query(
+          api.domains.product.entities.getMostRecentChatThread,
+          { anonymousSessionId: ANON_SESSION_ID },
+        );
+        return { ok: true, result: thread };
+      }
+
+      case "getHomeSnapshot": {
+        const snap = await convex.query(api.domains.product.home.getHomeSnapshot, {
+          anonymousSessionId: ANON_SESSION_ID,
+        });
+        return { ok: true, result: snap };
+      }
+
+      case "getEntityWorkspace": {
+        const slug = trim(args.slug, 200);
+        if (!slug) return { ok: false, error: "missing slug" };
+        const ws = await convex.query(
+          api.domains.product.entities.getEntityWorkspace,
+          {
+            anonymousSessionId: ANON_SESSION_ID,
+            entitySlug: slug,
+          },
+        );
+        return { ok: true, result: ws };
+      }
+
+      // ── Workflow / action tools ──────────────────────────────────
+      case "enhancePrompt": {
+        const text = trim(args.text, 4000);
+        const activeEntitySlug = trim(args.activeEntitySlug ?? "", 200);
+        if (!text) return { ok: false, error: "missing text" };
+        const enhanced = await convex.action(
+          api.domains.product.chatAgent.enhancePrompt,
+          {
+            text,
+            contextHints: activeEntitySlug
+              ? { activeEntitySlug, recentTurnCount: 0 }
+              : undefined,
+          },
+        );
+        return { ok: true, result: enhanced };
+      }
+
+      case "createGmailDraft": {
+        const entitySlug = trim(args.entitySlug, 200);
+        const subject = trim(args.subject, 200);
+        const body = trim(args.body, 8000);
+        if (!entitySlug || !subject || !body)
+          return { ok: false, error: "missing entitySlug/subject/body" };
+        try {
+          const draft = await convex.action(
+            api.domains.product.delivery.createGmailDraftForEntity,
+            {
+              anonymousSessionId: ANON_SESSION_ID,
+              entitySlug,
+              subject,
+              body,
+            },
+          );
+          return { ok: true, result: draft };
+        } catch (err) {
+          // Common case: user hasn't connected Gmail. Fall back to a
+          // ledger entry so the agent at least records the intent.
+          const r = await convex.mutation(recordActivity, {
+            ...baseArgs,
+            entitySlug,
+            entityKeys: [entitySlug],
+            payloadPreview: {
+              label: `Gmail draft requested (deferred)`,
+              detail: `${subject} — ${body.slice(0, 120)}…`,
+              metadata: {
+                tool: "createGmailDraft",
+                entitySlug,
+                subject,
+                bodyLength: body.length,
+                deferReason: err instanceof Error ? err.message : String(err),
+              },
+            },
+          });
+          return {
+            ok: true,
+            result: {
+              activityId: String((r as any)?.activityId ?? r),
+              status: "deferred",
+              reason: "Gmail not connected — draft intent logged to ledger",
+            },
+          };
+        }
       }
     }
   } catch (err) {

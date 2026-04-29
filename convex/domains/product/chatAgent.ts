@@ -492,6 +492,166 @@ export const runChatAgent = action({
 });
 
 /* ──────────────────────────────────────────────────────────────────
+   enhancePrompt — Kilo Code / Augment-style prompt enhancer.
+
+   Pattern (well-documented across Roo/Kilo/Cline/Augment):
+     1. User types a vague prompt ("Met Alex from Orbital Labs")
+     2. Click "Enhance" → small fast model rewrites it with workspace
+        context + explicit acceptance criteria
+     3. Enhanced prompt replaces the original; user can edit further.
+
+   NodeBench's adaptation pulls in:
+     - Active entity / pinned context from the current thread
+     - Recent claims for that entity
+     - Available atomic-edit tools (so the enhancer can hint at side
+       effects the user probably wants)
+     - The leaderboard's top free model as the enhancer (cheap + fast)
+
+   Returns a single string. Never throws — falls back to the raw
+   prompt on any error so the user can still send it.
+   ────────────────────────────────────────────────────────────────── */
+const ENHANCE_SYSTEM = `You rewrite vague user prompts into specific, actionable NodeBench captures.
+
+Goals:
+  • Identify entities (people, companies, topics, events) the user mentions
+  • Surface implicit claims that should be flagged as needs_review or rumor
+  • Note relationships (works-at, partner-with, founded, invests-in)
+  • Suggest concrete next-actions when the prompt implies one
+  • Keep the user's voice — do NOT add facts they didn't mention
+  • Stay under 300 words; prefer 2-4 short sentences plus a brief checklist
+
+NodeBench tools the agent can call (mention them when relevant so the
+agent knows what side effects to fire):
+  upsertEntity, recordClaim, attachSource, createFollowup, addGraphEdge
+
+Respond with ONLY the enhanced prompt — no preamble, no explanations,
+no "Here's an improved version:" wrapper.`;
+
+export const enhancePrompt = action({
+  args: {
+    text: v.string(),
+    model: v.optional(v.string()),
+    contextHints: v.optional(
+      v.object({
+        activeEntitySlug: v.optional(v.string()),
+        pinnedContext: v.optional(v.array(v.string())),
+        recentTurnCount: v.optional(v.number()),
+      }),
+    ),
+  },
+  returns: v.object({
+    ok: v.boolean(),
+    enhanced: v.string(),
+    durationMs: v.number(),
+    modelUsed: v.string(),
+    costUsd: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const t0 = Date.now();
+    const original = args.text.trim();
+    if (original.length < 3) {
+      return {
+        ok: true,
+        enhanced: original,
+        durationMs: 0,
+        modelUsed: "noop",
+      };
+    }
+
+    // Default to a fast free model for enhancement (cheaper than the
+    // main agent). Honors override if caller wants a specific model.
+    const enhancerChain = [
+      args.model,
+      "tencent/hy3-preview:free",                // ~5s avg, leaderboard #5
+      "z-ai/glm-4.5-air:free",                   // backup
+      "moonshotai/kimi-k2.6",                    // paid frontier last resort
+    ].filter((m): m is string => typeof m === "string");
+
+    const ctxLines: string[] = [];
+    if (args.contextHints?.activeEntitySlug) {
+      ctxLines.push(`Active entity slug: ${args.contextHints.activeEntitySlug}`);
+    }
+    if (args.contextHints?.pinnedContext?.length) {
+      ctxLines.push(`Pinned context: ${args.contextHints.pinnedContext.join(", ")}`);
+    }
+    if (typeof args.contextHints?.recentTurnCount === "number") {
+      ctxLines.push(`Thread length: ${args.contextHints.recentTurnCount} turns`);
+    }
+
+    const userPayload = ctxLines.length > 0
+      ? `[Workspace context]\n${ctxLines.join("\n")}\n\n[User prompt to enhance]\n${original}`
+      : original;
+
+    let lastError: string | undefined;
+    for (const candidate of enhancerChain) {
+      if (isInCooldown(candidate)) continue;
+      try {
+        const model = getModel("openrouter" as any, candidate as any);
+        const result = (await Promise.race([
+          complete(model, {
+            systemPrompt: ENHANCE_SYSTEM,
+            messages: [{ role: "user" as const, content: userPayload, timestamp: Date.now() }],
+          }),
+          new Promise<never>((_, rej) =>
+            setTimeout(() => rej(new Error("enhance_timeout")), 30_000),
+          ),
+        ])) as any;
+
+        const content = result?.content;
+        let text = "";
+        if (typeof content === "string") text = content;
+        else if (Array.isArray(content)) {
+          text = content
+            .filter((c: any) => c?.type === "text" && typeof c.text === "string")
+            .map((c: any) => c.text)
+            .join("\n");
+        }
+        text = text.trim();
+        if (!text) {
+          lastError = "empty enhancer response";
+          markCooldown(candidate, 30_000);
+          continue;
+        }
+
+        let costUsd: number | undefined;
+        const usage = result?.usage ?? {};
+        const c = usage.cost;
+        if (c && typeof c === "object") {
+          costUsd =
+            c.total ??
+            ["input", "output"]
+              .map((k) => (typeof c[k] === "number" ? c[k] : 0))
+              .reduce((a, b) => a + b, 0);
+        }
+
+        return {
+          ok: true,
+          enhanced: text,
+          durationMs: Date.now() - t0,
+          modelUsed: candidate,
+          costUsd,
+        };
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        markCooldown(candidate, 30_000);
+      }
+    }
+
+    // All enhancer chain failed — return original prompt unchanged.
+    // HONEST_STATUS: ok=false, but enhanced still carries the original
+    // so the caller doesn't lose the user's text.
+    return {
+      ok: false,
+      enhanced: original,
+      durationMs: Date.now() - t0,
+      modelUsed: "fallback:original",
+      errorMessage: lastError ?? "all enhancer models unavailable",
+    };
+  },
+});
+
+/* ──────────────────────────────────────────────────────────────────
    executeTool — dispatch a single pi-ai toolCall to its real Convex
    mutation. Each tool gets bounded payloads, owner-key scoping, and
    its own try/catch so one bad call doesn't poison the loop.
