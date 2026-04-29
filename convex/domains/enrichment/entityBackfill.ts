@@ -638,6 +638,86 @@ export const backfillEntityContextsCanonicalKey = internalMutation({
   },
 });
 
+/**
+ * Repair pass: ensure every canonicalKey has exactly one non-stale
+ * representative. The earlier `backfillEntityContextsCanonicalKey`
+ * could over-stale (a re-run that processes already-stale rows skips
+ * them, but a row marked stale on a previous run never gets un-staled
+ * even when no other live row exists for its canonicalKey). This
+ * mutation walks all rows, groups by canonicalKey, keeps the earliest
+ * non-stale-or-stale row alive, and marks everything else stale.
+ */
+export const repairEntityCanonicalDedup = internalMutation({
+  args: {},
+  returns: v.object({
+    totalRows: v.number(),
+    keysSeen: v.number(),
+    revived: v.number(),
+    markedStale: v.number(),
+    sample: v.array(v.string()),
+  }),
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("entityContexts").collect();
+    rows.sort((a, b) => a._creationTime - b._creationTime);
+
+    const groups = new Map<
+      string,
+      Array<{ id: Id<"entityContexts">; isStale: boolean; ts: number }>
+    >();
+
+    for (const row of rows) {
+      const key =
+        row.canonicalKey ??
+        buildCanonicalKey(
+          row.entityType as "company" | "person",
+          row.entityName,
+        );
+      const arr = groups.get(key) ?? [];
+      arr.push({
+        id: row._id,
+        isStale: row.isStale === true,
+        ts: row._creationTime,
+      });
+      groups.set(key, arr);
+    }
+
+    let revived = 0;
+    let markedStale = 0;
+    const sample: string[] = [];
+
+    for (const [key, members] of groups.entries()) {
+      members.sort((a, b) => a.ts - b.ts);
+      const winner = members[0];
+      if (winner.isStale) {
+        await ctx.db.patch(winner.id, { isStale: false, canonicalKey: key });
+        revived += 1;
+        if (sample.length < 12) sample.push(`revived ${key}`);
+      } else if (members.length > 0) {
+        // ensure canonicalKey is set even if it was undefined
+        const row = await ctx.db.get(winner.id);
+        if (row && row.canonicalKey !== key) {
+          await ctx.db.patch(winner.id, { canonicalKey: key });
+        }
+      }
+      for (let i = 1; i < members.length; i++) {
+        const m = members[i];
+        if (!m.isStale) {
+          await ctx.db.patch(m.id, { isStale: true, canonicalKey: key });
+          markedStale += 1;
+        }
+      }
+    }
+
+    return {
+      totalRows: rows.length,
+      keysSeen: groups.size,
+      revived,
+      markedStale,
+      sample,
+    };
+  },
+});
+
 /* -------------------------------------------------------------------------- */
 /*  Combined: full backfill + relink                                           */
 /* -------------------------------------------------------------------------- */
