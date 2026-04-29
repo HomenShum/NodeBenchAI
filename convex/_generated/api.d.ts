@@ -418,6 +418,7 @@ import type * as domains_enrichment_deleteDuplicates from "../domains/enrichment
 import type * as domains_enrichment_documentStore from "../domains/enrichment/documentStore.js";
 import type * as domains_enrichment_enrichmentQueue from "../domains/enrichment/enrichmentQueue.js";
 import type * as domains_enrichment_enrichmentWorker from "../domains/enrichment/enrichmentWorker.js";
+import type * as domains_enrichment_entityBackfill from "../domains/enrichment/entityBackfill.js";
 import type * as domains_enrichment_entityLinkingJudge from "../domains/enrichment/entityLinkingJudge.js";
 import type * as domains_enrichment_entityLinkingMutations from "../domains/enrichment/entityLinkingMutations.js";
 import type * as domains_enrichment_entityLinkingQueries from "../domains/enrichment/entityLinkingQueries.js";
@@ -1871,6 +1872,7 @@ declare const fullApi: ApiFromModules<{
   "domains/enrichment/documentStore": typeof domains_enrichment_documentStore;
   "domains/enrichment/enrichmentQueue": typeof domains_enrichment_enrichmentQueue;
   "domains/enrichment/enrichmentWorker": typeof domains_enrichment_enrichmentWorker;
+  "domains/enrichment/entityBackfill": typeof domains_enrichment_entityBackfill;
   "domains/enrichment/entityLinkingJudge": typeof domains_enrichment_entityLinkingJudge;
   "domains/enrichment/entityLinkingMutations": typeof domains_enrichment_entityLinkingMutations;
   "domains/enrichment/entityLinkingQueries": typeof domains_enrichment_entityLinkingQueries;

@@ -53,7 +53,45 @@ function normalizeForMatch(input: string): string {
  */
 function entityRegex(entityName: string): RegExp {
   const escaped = entityName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^a-zA-Z0-9])${escaped}([^a-zA-Z0-9]|$)`, "i");
+  return new RegExp(`(^|[^a-zA-Z0-9])${escaped}([^a-zA-Z0-9]|$)`, "gi");
+}
+
+/**
+ * Detect the funding-tracker formatter's `Trace:` prefix line:
+ *
+ *     Trace: single-source | 1 sources | confidence 100% | event nd7…
+ *
+ * If an entity's only matches in the post are inside such a line,
+ * we skip the link — the mention is the formatter literal, not a
+ * real company reference. Otherwise the entityContext "Trace" (a
+ * real $3M-seed company) accidentally links to every funding-tracker
+ * post regardless of who the post is actually about.
+ */
+function isFormatterPrefixLine(line: string): boolean {
+  const trimmed = line.trimStart();
+  if (line.length - trimmed.length < 2) return false; // must be indented
+  return /^(Trace|Sources|Risk|Audience|Opportunity|Founder lens|Product|Industry):/i.test(
+    trimmed,
+  );
+}
+
+/**
+ * Count "real" mentions of an entity in the post content — excluding
+ * matches that fall inside formatter prefix lines.
+ */
+function countRealMentions(content: string, regex: RegExp): number {
+  // Reset lastIndex defensively in case the regex was re-used.
+  regex.lastIndex = 0;
+  let real = 0;
+  for (const match of content.matchAll(regex)) {
+    const idx = match.index ?? 0;
+    const lineStart = content.lastIndexOf("\n", idx - 1) + 1;
+    const lineEnd = content.indexOf("\n", idx);
+    const line = content.slice(lineStart, lineEnd === -1 ? undefined : lineEnd);
+    if (isFormatterPrefixLine(line)) continue;
+    real += 1;
+  }
+  return real;
 }
 
 type LinkPlan = {
@@ -104,10 +142,16 @@ function planLinksForRow(
     }
   }
 
-  // 2) Plain-text mention scan (covers daily_digest signals and prose)
+  // 2) Plain-text mention scan (covers daily_digest signals and prose).
+  // Skip matches that appear ONLY inside a formatter prefix line — those
+  // are formatter literals like "Trace:" / "Risk:" rather than real
+  // entity mentions. Also skip very-short names (<= 3 chars) entirely:
+  // their false-positive rate against arbitrary prose is unworkable.
   for (const entity of entities) {
     if (plans.has(entity._id)) continue;
-    if (entity.regex.test(row.content)) {
+    if (entity.entityName.trim().length <= 3) continue;
+    const realMentions = countRealMentions(row.content, entity.regex);
+    if (realMentions > 0) {
       plans.set(entity._id, { companyId: entity._id, matchSource: "content_mention" });
     }
   }
@@ -142,13 +186,17 @@ export const upsertArchiveRowEntityLinks = internalMutation({
       };
     }
 
+    // Exclude stale entityContexts (duplicates marked by the canonicalKey
+    // backfill) so per-entity link counts aren't split across dupes.
     const entityDocs = await ctx.db.query("entityContexts").collect();
-    const entities = entityDocs.map((e) => ({
-      _id: e._id,
-      entityName: e.entityName,
-      normalized: normalizeForMatch(e.entityName),
-      regex: entityRegex(e.entityName),
-    }));
+    const entities = entityDocs
+      .filter((e) => !e.isStale)
+      .map((e) => ({
+        _id: e._id,
+        entityName: e.entityName,
+        normalized: normalizeForMatch(e.entityName),
+        regex: entityRegex(e.entityName),
+      }));
 
     const desired = planLinksForRow({ content: row.content, metadata: row.metadata }, entities);
     const desiredById = new Map(desired.map((p) => [p.companyId, p]));
@@ -338,6 +386,7 @@ export const listEntitiesWithArchiveLinks = query({
     for (const [companyId, info] of byCompany.entries()) {
       const entity = await ctx.db.get(companyId as Id<"entityContexts">);
       if (!entity) continue;
+      if (entity.isStale) continue; // hide duplicates marked stale by the canonicalKey backfill
       out.push({
         companyId: companyId as Id<"entityContexts">,
         entityName: entity.entityName,
