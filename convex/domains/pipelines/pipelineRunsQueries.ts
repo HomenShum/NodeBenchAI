@@ -40,6 +40,8 @@ export const listRecentRuns = query({
       stepCount: v.number(),
       errorMessage: v.optional(v.string()),
       outputDocumentId: v.optional(v.id("documents")),
+      bundleUrl: v.optional(v.union(v.null(), v.string())),
+      imageUrl: v.optional(v.union(v.null(), v.string())),
     }),
   ),
   handler: async (ctx, args) => {
@@ -69,6 +71,30 @@ export const listRecentRuns = query({
         .query("pipelineSteps")
         .withIndex("by_run", (q) => q.eq("pipelineRunId", r._id))
         .collect();
+
+      // Bundle + image URLs (resolved via Convex storage). Both are
+      // optional — null when the run has no persisted bundle/image yet.
+      let bundleUrl: string | null = null;
+      let imageUrl: string | null = null;
+      if (r.outputZipStorageId) {
+        try {
+          bundleUrl = await ctx.storage.getUrl(r.outputZipStorageId);
+        } catch {
+          bundleUrl = null;
+        }
+      }
+      const imageStep = steps.find((s) => s.name === "design.image");
+      if (imageStep?.scratchpad) {
+        const m = imageStep.scratchpad.match(/image_storage_id=([a-z0-9]+)/i);
+        if (m) {
+          try {
+            imageUrl = await ctx.storage.getUrl(m[1] as any);
+          } catch {
+            imageUrl = null;
+          }
+        }
+      }
+
       out.push({
         _id: r._id,
         runId: r.runId,
@@ -86,6 +112,8 @@ export const listRecentRuns = query({
         stepCount: steps.length,
         errorMessage: r.errorMessage,
         outputDocumentId: r.outputDocumentId,
+        bundleUrl,
+        imageUrl,
       });
     }
     return out;
@@ -190,6 +218,52 @@ export const getRunDetail = query({
         errorMessage: s.errorMessage,
       })),
     };
+  },
+});
+
+/**
+ * Get a download URL for a pipelineRuns row's persisted bundle. Returns
+ * null if the run has no `outputZipStorageId` or the storage ref is
+ * stale. The frontend uses this to render a "Download bundle" link.
+ */
+export const getRunBundleDownloadUrl = query({
+  args: { runId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      bundleUrl: v.union(v.null(), v.string()),
+      imageUrl: v.union(v.null(), v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const run = await ctx.db
+      .query("pipelineRuns")
+      .withIndex("by_runId", (q) => q.eq("runId", args.runId))
+      .first();
+    if (!run) return null;
+    const bundleUrl = run.outputZipStorageId
+      ? await ctx.storage.getUrl(run.outputZipStorageId)
+      : null;
+    // Design pipeline writes the image as the most recent step's
+    // scratchpad ref (`image_storage_id=...`); cheaper to just look at
+    // the steps table.
+    let imageUrl: string | null = null;
+    const steps = await ctx.db
+      .query("pipelineSteps")
+      .withIndex("by_run", (q) => q.eq("pipelineRunId", run._id))
+      .collect();
+    for (const step of steps) {
+      if (step.name !== "design.image") continue;
+      const m = step.scratchpad?.match(/image_storage_id=([a-z0-9]+)/i);
+      if (m) {
+        try {
+          imageUrl = await ctx.storage.getUrl(m[1] as any);
+        } catch {
+          imageUrl = null;
+        }
+      }
+    }
+    return { bundleUrl, imageUrl };
   },
 });
 
