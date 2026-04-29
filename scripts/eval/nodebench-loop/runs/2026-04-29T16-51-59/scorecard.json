@@ -1,0 +1,103 @@
+{
+  "runId": "2026-04-29T16-51-59",
+  "timestamp": "2026-04-29T16:52:12.855Z",
+  "agentModel": "meta-llama/llama-3.3-70b-instruct:free",
+  "judgeModel": "nvidia/nemotron-3-super-120b-a12b:free",
+  "queryCount": 1,
+  "totalMs": 13244,
+  "avgQueryMs": 13244,
+  "overallScore": 0,
+  "overallScorePct": 0,
+  "verdicts": {
+    "pass": 0,
+    "partial": 0,
+    "fail": 1
+  },
+  "byCategory": {
+    "core_flow": {
+      "count": 1,
+      "avgScore": 0,
+      "passes": 0,
+      "fails": 1,
+      "partials": 0
+    }
+  },
+  "byDimension": {
+    "intent_accuracy": {
+      "count": 1,
+      "sum": 0,
+      "avg": 0
+    },
+    "target_routing": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    },
+    "entity_resolution": {
+      "count": 1,
+      "sum": 0,
+      "avg": 0
+    },
+    "memory_first_behavior": {
+      "count": 1,
+      "sum": 0,
+      "avg": 0
+    },
+    "source_citation_precision": {
+      "count": 1,
+      "sum": 0,
+      "avg": 0
+    },
+    "claim_correctness": {
+      "count": 1,
+      "sum": 0,
+      "avg": 0
+    },
+    "graph_edge_quality": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    },
+    "notebook_update_correctness": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    },
+    "privacy_budget_policy": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    },
+    "time_to_first_useful_output": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    },
+    "user_correction_needed": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    },
+    "export_correctness": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    }
+  },
+  "perQuery": [
+    {
+      "id": "core-01",
+      "category": "core_flow",
+      "verdict": "fail",
+      "score": 0,
+      "agentMs": 2396,
+      "judgeMs": 10339,
+      "agentOk": false,
+      "agentParsed": false,
+      "flags": [
+        "rate_limit_error",
+        "no_output_generated"
+      ]
+    }
+  ]
+}

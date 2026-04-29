@@ -1,0 +1,126 @@
+{
+  "runId": "2026-04-29T16-55-07",
+  "timestamp": "2026-04-29T16:55:21.243Z",
+  "agentModel": "qwen/qwen3-next-80b-a3b-instruct:free",
+  "judgeModel": "nvidia/nemotron-3-super-120b-a12b:free",
+  "agentChain": [
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "openai/gpt-oss-120b:free",
+    "z-ai/glm-4.5-air:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-31b-it:free",
+    "minimax/minimax-m2.5:free"
+  ],
+  "judgeChain": [
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "openai/gpt-oss-120b:free",
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "z-ai/glm-4.5-air:free",
+    "google/gemma-4-31b-it:free"
+  ],
+  "agentModelsUsed": [
+    "openai/gpt-oss-120b:free"
+  ],
+  "judgeModelsUsed": [
+    "nvidia/nemotron-3-super-120b-a12b:free"
+  ],
+  "queryCount": 1,
+  "totalMs": 13527,
+  "avgQueryMs": 13527,
+  "overallScore": 0,
+  "overallScorePct": 0,
+  "verdicts": {
+    "pass": 0,
+    "partial": 0,
+    "fail": 1
+  },
+  "byCategory": {
+    "core_flow": {
+      "count": 1,
+      "avgScore": 0,
+      "passes": 0,
+      "fails": 1,
+      "partials": 0
+    }
+  },
+  "byDimension": {
+    "intent_accuracy": {
+      "count": 1,
+      "sum": 0,
+      "avg": 0
+    },
+    "target_routing": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    },
+    "entity_resolution": {
+      "count": 1,
+      "sum": 0,
+      "avg": 0
+    },
+    "memory_first_behavior": {
+      "count": 1,
+      "sum": 0,
+      "avg": 0
+    },
+    "source_citation_precision": {
+      "count": 1,
+      "sum": 0,
+      "avg": 0
+    },
+    "claim_correctness": {
+      "count": 1,
+      "sum": 0,
+      "avg": 0
+    },
+    "graph_edge_quality": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    },
+    "notebook_update_correctness": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    },
+    "privacy_budget_policy": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    },
+    "time_to_first_useful_output": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    },
+    "user_correction_needed": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    },
+    "export_correctness": {
+      "count": 0,
+      "sum": 0,
+      "avg": 0
+    }
+  },
+  "perQuery": [
+    {
+      "id": "core-01",
+      "category": "core_flow",
+      "verdict": "fail",
+      "score": 0,
+      "agentMs": 345,
+      "judgeMs": 9447,
+      "agentModel": "openai/gpt-oss-120b:free",
+      "judgeModel": "nvidia/nemotron-3-super-120b-a12b:free",
+      "agentOk": false,
+      "agentParsed": false,
+      "flags": [
+        "agent_error",
+        "no_reasoning_attempted"
+      ]
+    }
+  ]
+}
