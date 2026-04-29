@@ -61,6 +61,7 @@ import { FinancialOperatorTimeline } from "@/features/financialOperator/componen
 import { ModelCapabilityBadge } from "@/features/financialOperator/components/ModelCapabilityBadge";
 import { ModelPicker, getActiveModel } from "@/features/financialOperator/components/ModelPicker";
 import { ChatThreadsRail, ChatContextRail } from "./ChatRails";
+import { useAuthActions } from "@convex-dev/auth/react";
 import {
   buildLocalWorkspacePath,
   buildWorkspaceUrl,
@@ -2708,6 +2709,17 @@ export function ExactChatSurface() {
   // response arrives.
   const [pendingAgent, setPendingAgent] = useState<boolean>(false);
 
+  // ── Convex Auth — used by the "Claim workspace" CTA on the anon
+  // session banner. Signs in with Google by default; on success Convex
+  // Auth migrates the anon ownerKey to the user ownerKey.
+  const { signIn } = useAuthActions();
+  const handleClaimWorkspace = () => {
+    const redirectTo = typeof window !== "undefined" ? window.location.href : "/";
+    void signIn("google", { redirectTo }).catch((err) => {
+      console.warn("[chat] claim workspace failed:", err);
+    });
+  };
+
   // ── Enhance prompt — Kilo Code / Augment-style "improve prompt"
   // button. Click sends the current composer text + workspace context
   // hints to enhancePrompt action; replaces composer with the result.
@@ -3043,8 +3055,8 @@ export function ExactChatSurface() {
             <button
               type="button"
               className="claim-btn"
-              onClick={() => navigate("/signin")}
-              aria-label="Sign in to claim this workspace"
+              onClick={handleClaimWorkspace}
+              aria-label="Sign in with Google to claim this workspace"
               title="Sign in to keep your captures across devices"
             >
               Claim workspace →

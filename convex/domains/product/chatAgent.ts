@@ -83,6 +83,89 @@ function supportsToolCalls(modelId: string): boolean {
   return TOOL_CAPABLE_PREFIXES.some((prefix) => modelId.startsWith(prefix) || modelId.includes(prefix));
 }
 
+/**
+ * Per-anon-session rate limit + cost ceiling.
+ *
+ * Hackathon-day-0 protection: one bad actor (or one runaway tab) can't
+ * burn the OpenRouter budget for everyone else. Tracks both call count
+ * and cumulative paid cost per session.
+ *
+ * Authenticated users skip the limit (they have an account; abuse is
+ * traceable). Anonymous users get capped.
+ *
+ * Bounds:
+ *   - 60 calls per 10-minute window per session
+ *   - $0.50 cumulative paid cost per session per 60-minute window
+ *
+ * Both windows are sliding — entries older than the window get pruned
+ * on each check. The Map is bounded at 4096 sessions (LRU evict).
+ */
+const CALL_WINDOW_MS = 10 * 60_000;       // 10 min
+const CALL_LIMIT = 60;                     // max calls per window
+const COST_WINDOW_MS = 60 * 60_000;        // 1 hour
+const COST_LIMIT_USD = 0.50;               // max paid spend per window
+const RATE_LIMIT_MAX_SESSIONS = 4096;
+
+type SessionMeter = {
+  calls: number[];                 // timestamps
+  costEntries: { ts: number; usd: number }[]; // (timestamp, cost) pairs
+};
+const sessionMeters = new Map<string, SessionMeter>();
+
+function pruneSession(m: SessionMeter, now: number) {
+  const callCutoff = now - CALL_WINDOW_MS;
+  while (m.calls.length > 0 && m.calls[0] < callCutoff) m.calls.shift();
+  const costCutoff = now - COST_WINDOW_MS;
+  while (m.costEntries.length > 0 && m.costEntries[0].ts < costCutoff) m.costEntries.shift();
+}
+
+function getSessionMeter(sessionKey: string): SessionMeter {
+  let m = sessionMeters.get(sessionKey);
+  if (!m) {
+    if (sessionMeters.size >= RATE_LIMIT_MAX_SESSIONS) {
+      const oldest = sessionMeters.keys().next().value as string | undefined;
+      if (oldest !== undefined) sessionMeters.delete(oldest);
+    }
+    m = { calls: [], costEntries: [] };
+    sessionMeters.set(sessionKey, m);
+  }
+  return m;
+}
+
+function checkRateLimit(sessionKey: string): { ok: boolean; reason?: string; calls?: number; costUsd?: number } {
+  const now = Date.now();
+  const m = getSessionMeter(sessionKey);
+  pruneSession(m, now);
+
+  if (m.calls.length >= CALL_LIMIT) {
+    const oldestCall = m.calls[0];
+    const retrySec = Math.max(1, Math.ceil((CALL_WINDOW_MS - (now - oldestCall)) / 1000));
+    return {
+      ok: false,
+      reason: `rate_limit: ${m.calls.length}/${CALL_LIMIT} calls in last 10 min. retry in ${retrySec}s`,
+      calls: m.calls.length,
+    };
+  }
+
+  const totalCost = m.costEntries.reduce((s, e) => s + e.usd, 0);
+  if (totalCost >= COST_LIMIT_USD) {
+    return {
+      ok: false,
+      reason: `cost_limit: $${totalCost.toFixed(4)} of $${COST_LIMIT_USD.toFixed(2)} cap reached this hour. switch to a free model or wait.`,
+      costUsd: totalCost,
+    };
+  }
+
+  m.calls.push(now);
+  return { ok: true, calls: m.calls.length, costUsd: totalCost };
+}
+
+function recordCost(sessionKey: string, usd: number) {
+  if (!Number.isFinite(usd) || usd <= 0) return;
+  const m = getSessionMeter(sessionKey);
+  m.costEntries.push({ ts: Date.now(), usd });
+}
+
 const SYSTEM_PROMPT = `You are NodeBench, an entity-intelligence agent for founders, bankers, and analysts.
 
 Every input flows through:
@@ -233,6 +316,28 @@ export const runChatAgent = action({
     const modelId = args.model || "moonshotai/kimi-k2.6";
     const userTurnId = `u${Date.now()}`;
     const agentTurnId = `a${Date.now() + 1}`;
+
+    // Rate-limit anon sessions only — authed users have accounts so
+    // abuse is traceable + addressable. Key on anonymousSessionId,
+    // fall back to provided sessionId.
+    const rateLimitKey = args.anonymousSessionId || args.sessionId;
+    if (rateLimitKey) {
+      const rl = checkRateLimit(rateLimitKey);
+      if (!rl.ok) {
+        // Honest status — return ok=false so the UI surfaces the cap to
+        // the user rather than silently swallowing it. No agent call,
+        // no ledger write (don't burn the user's count on a rejected
+        // request).
+        return {
+          ok: false,
+          text: "",
+          model: modelId,
+          durationMs: 0,
+          errorMessage: rl.reason ?? "rate_limit",
+          toolExecs: [],
+        };
+      }
+    }
 
     // 1. Persist user turn.
     let userActivityId: string | undefined;
@@ -417,6 +522,11 @@ export const runChatAgent = action({
 
         agentResp = text;
         modelUsed = candidate;
+        // Charge the rate-limit budget AFTER a successful paid call.
+        // Free models (cost = 0 or undefined) don't decrement the budget.
+        if (rateLimitKey && typeof costUsd === "number" && costUsd > 0) {
+          recordCost(rateLimitKey, costUsd);
+        }
         ok = !!text || toolExecs.length > 0;
         if (ok) break;
       } catch (err) {
