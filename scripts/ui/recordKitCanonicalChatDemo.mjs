@@ -101,17 +101,16 @@ async function main() {
   await page.hover('.nb-turn[data-role="user"]:first-of-type', { timeout: 2_500 }).catch(() => {});
   await sleep(2000);
 
-  console.log("▶ scene 8 — composer lanes: cycle");
+  console.log("▶ scene 8 — composer hover (chips + badges reveal)");
   await page.evaluate(() => {
     document.querySelector('.nb-stream-composer')?.scrollIntoView({ behavior: "smooth", block: "end" });
   });
   await sleep(1000);
-  await page.click('.nb-composer-lane:nth-child(2)').catch(() => {});
-  await sleep(1100);
-  await page.click('.nb-composer-lane:nth-child(3)').catch(() => {});
-  await sleep(1100);
-  await page.click('.nb-composer-lane:nth-child(1)').catch(() => {});
-  await sleep(1200);
+  // Hover an agent turn to reveal the gated chips + badges
+  await page.hover('.nb-turn[data-role="agent"]:nth-of-type(2)').catch(() => {});
+  await sleep(1800);
+  await page.hover('.nb-turn[data-role="user"]:first-of-type').catch(() => {});
+  await sleep(1500);
 
   console.log("▶ scene 9 — quote-on-selection popover");
   await page.evaluate(() => {

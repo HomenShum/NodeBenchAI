@@ -2580,10 +2580,6 @@ export function ExactChatSurface() {
   // as floating overlay panels (absolute, animated transform).
   const [showThreads, setShowThreads] = useState(false);
   const [showContext, setShowContext] = useState(false);
-  // Composer lane — kit Composer.jsx (Answer / Deep dive / Admin). The
-  // active lane drives downstream routing (fast vs multi-agent vs MCP).
-  // For now we just track the visual state; backend wiring is a follow-up.
-  const [lane, setLane] = useState<"answer" | "deep" | "admin">("answer");
   // Quote-on-selection popover — kit ChatThread.jsx pattern. Captures
   // text selection inside the chat scroll and offers Quote / Ask actions.
   // Position is fixed to the selection rectangle.
@@ -2905,31 +2901,43 @@ export function ExactChatSurface() {
 
             <div className="nb-stream-composer">
               <div className="nb-stream-composer-inner">
-                <div className="nb-composer-card">
-                  {pins.length > 0 && (
-                    <div className="nb-composer-pins">
-                      {pins.map((p, i) => (
-                        <span key={i} className="nb-pin">
-                          <span className="typ">{p.kind}</span>
-                          {p.label}
-                          <button
-                            type="button"
-                            aria-label="Remove pin"
-                            onClick={() => setPins((prev) => prev.filter((_, idx) => idx !== i))}
-                          >
-                            <X size={9} />
-                          </button>
-                        </span>
-                      ))}
-                      <button
-                        type="button"
-                        className="nb-pin-add"
-                        onClick={() => setPins((prev) => [...prev, { kind: "entity", label: "Orbital Labs" }])}
-                      >
-                        <Plus size={9} /> Add context
-                      </button>
-                    </div>
-                  )}
+                {/* Pins strip — kit ChatThread.jsx pattern with "ADDING TO:"
+                    kicker label so the user always knows what context the
+                    next turn will be anchored to. */}
+                {pins.length > 0 && (
+                  <div className="nb-pins">
+                    <span className="nb-pins-kicker">ADDING TO:</span>
+                    {pins.map((p, i) => (
+                      <span key={i} className="nb-pin">
+                        <span className="typ">{p.kind}</span>
+                        {p.label}
+                        <button
+                          type="button"
+                          aria-label="Remove pin"
+                          onClick={() => setPins((prev) => prev.filter((_, idx) => idx !== i))}
+                        >
+                          <X size={9} />
+                        </button>
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      className="nb-pin-add"
+                      onClick={() => setPins((prev) => [...prev, { kind: "entity", label: "Orbital Labs" }])}
+                    >
+                      <Plus size={9} /> Pin
+                    </button>
+                  </div>
+                )}
+                {/* Inline chat field — kit `.nb-chat-field`. Single row:
+                    attach icons (left) + textarea (flex) + send (right).
+                    No card wrapper, no separate footer/lanes/hint inside. */}
+                <div className="nb-chat-field">
+                  <div className="nb-chat-attach">
+                    <button type="button" aria-label="Attach file" title="Attach file"><Paperclip size={14} /></button>
+                    <button type="button" aria-label="Add URL" title="Add URL"><Link2 size={14} /></button>
+                    <button type="button" aria-label="Voice note" title="Voice note"><Mic size={14} /></button>
+                  </div>
                   <textarea
                     className="nb-composer-input"
                     value={composer}
@@ -2943,71 +2951,33 @@ export function ExactChatSurface() {
                     placeholder="Ask, capture, paste, upload, or record…"
                     aria-label="Chat composer"
                   />
-                  {/* Lanes — kit Composer.jsx (Answer / Deep dive / Admin).
-                      Sits in its own row above the tools/send row so the
-                      lane buttons get their natural width (don't get squished
-                      by the fixed-width attach icons). Active lane drives
-                      downstream routing — visual only for now.  */}
-                  <div className="nb-composer-lanes" role="radiogroup" aria-label="Run mode">
-                    {([
-                      { id: "answer", label: "Answer", note: "fast · default" },
-                      { id: "deep", label: "Deep dive", note: "multi-agent · 3-5 min" },
-                      { id: "admin", label: "Admin", note: "nodebench-mcp" },
-                    ] as const).map((L) => (
-                      <button
-                        key={L.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={lane === L.id}
-                        className="nb-composer-lane"
-                        data-active={lane === L.id}
-                        onClick={() => setLane(L.id)}
-                      >
-                        {L.label}
-                        <span className="nb-composer-lane-note">· {L.note}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="nb-composer-footer">
-                    <div className="nb-composer-tools">
-                      <button type="button" aria-label="Attach file" title="Attach file"><Paperclip size={14} /></button>
-                      <button type="button" aria-label="Add URL" title="Add URL"><Link2 size={14} /></button>
-                      <button type="button" aria-label="Voice note" title="Voice note"><Mic size={14} /></button>
-                      <span className="nb-composer-divider" />
-                      <span className="nb-model-trigger" title="Model">
-                        <span className="dot" data-provider="anthropic" />
-                        <span className="nm">Claude Sonnet 4.5</span>
-                      </span>
-                      {/* Capability indicators: text/image/pdf/audio/video/web/code/tools.
-                          Sits on the existing composer next to the model trigger,
-                          where the kit puts model metadata. Tooltips surface what
-                          the active model can/can't accept (OpenRouter / pi-ai
-                          modality pattern). */}
-                      <ModelCapabilityBadge model="claude-sonnet-4-6" />
-                    </div>
-                    <div className="nb-composer-send-group">
-                      <span className="nb-composer-meta">Memory-first · 0 paid calls</span>
-                      <button
-                        type="button"
-                        className="nb-composer-send"
-                        aria-label="Send"
-                        disabled={!composer.trim()}
-                        onClick={() => sendTurn(composer)}
-                      >
-                        <ChevronRight size={14} style={{ transform: "rotate(-90deg)" }} />
-                      </button>
-                    </div>
-                  </div>
-                  {/* Kbd hint row — kit ChatThread.jsx footer. Inside the
-                      card so it stays inside the focus ring. */}
-                  <div className="nb-chat-hint">
-                    <span>
-                      <kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline
+                  <button
+                    type="button"
+                    className="nb-chat-send"
+                    aria-label="Send"
+                    disabled={!composer.trim()}
+                    onClick={() => sendTurn(composer)}
+                    title="Send (Enter)"
+                  >
+                    <ChevronRight size={16} style={{ transform: "rotate(-90deg)" }} />
+                  </button>
+                </div>
+                {/* Kbd hint row — kit ChatThread.jsx (OUTSIDE the card so
+                    it sits as a quiet meta line, not as part of the composer
+                    focus ring). Left: keyboard hints. Right: model + paid
+                    calls + context summary. */}
+                <div className="nb-chat-hint">
+                  <span>
+                    <kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline
+                  </span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <span className="nb-model-trigger" title="Model">
+                      <span className="dot" data-provider="anthropic" />
+                      <span className="nm">Claude Sonnet 4.5</span>
                     </span>
-                    <span>
-                      Context: <strong style={{ color: "var(--text-muted)" }}>Orbital Labs</strong> · {turns.length} turns
-                    </span>
-                  </div>
+                    <ModelCapabilityBadge model="claude-sonnet-4-6" />
+                    <span>Memory-first · 0 paid calls · {turns.length} turns</span>
+                  </span>
                 </div>
                 {/* Suggested chips are reactive to thread + run state:
                       - Active run: post-run actions (Open evidence, Re-extract, Export memo)

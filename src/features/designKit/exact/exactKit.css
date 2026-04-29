@@ -4877,15 +4877,12 @@
   min-width: 0;
   min-height: 0;
   height: 100%;
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  background: var(--bg-surface);
-  /* overflow: hidden so the inner scroll area is the only thing that
-     scrolls. The composer (4th grid row, auto height) pins at the
-     bottom of THIS grid — which is the bottom of the main column,
-     NOT the bottom of the viewport. Kit-canonical chat-page shape. */
+  background: transparent;
+  /* Kit-canonical: chat blends with the page background — no card
+     border or shadow. The composer pins at the bottom of THIS grid
+     via grid-template-rows `auto auto 1fr auto`, so the chat scroll
+     stays the only scrollable area inside the main column. */
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
 }
 
 .nb-stream-header {
@@ -5514,12 +5511,27 @@
   color: var(--accent-ink, var(--accent-primary));
 }
 
-/* ActionChips — Save / Watch / Re-run / Share row. */
+/* ActionChips — Save / Watch / Re-run / Share row.
+   Default: HIDDEN. Reveals on hover/focus of the agent turn (kit
+   reference screenshots don't show these in resting state — they're
+   an optional progressive-disclosure affordance). */
 .nb-turn-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 8px;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 140ms ease-out, max-height 180ms ease-out, margin 180ms ease-out;
+}
+.nb-turn[data-role="agent"]:hover .nb-turn-chips,
+.nb-turn[data-role="agent"]:focus-within .nb-turn-chips {
+  opacity: 1;
+  max-height: 80px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nb-turn-chips { transition: none; }
 }
 .nb-action-chip {
   display: inline-flex;
@@ -5800,12 +5812,10 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────
-   Answer header badge row — kit AnswerPacket.jsx.
-   Sits at top of an agent answer with up to 4 badges:
-     • answer · N branches  (accent)
-     • verified              (success)
-     • N sources             (neutral)
-     • Xs                    (mono latency)
+   Answer header badge row — kit AnswerPacket.jsx (optional reveal).
+   Default: HIDDEN. Reveals on hover/focus of the agent turn so
+   default reading view stays kit-clean (matches reference screenshot
+   where badges aren't part of the resting state).
    ────────────────────────────────────────────────────────────────── */
 .nb-answer-badges {
   display: flex;
@@ -5813,6 +5823,18 @@
   align-items: center;
   gap: 6px;
   margin: 2px 0 4px;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 140ms ease-out, max-height 180ms ease-out, margin 180ms ease-out;
+}
+.nb-turn[data-role="agent"]:hover .nb-answer-badges,
+.nb-turn[data-role="agent"]:focus-within .nb-answer-badges {
+  opacity: 1;
+  max-height: 60px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nb-answer-badges { transition: none; }
 }
 .nb-answer-badge {
   display: inline-flex;
@@ -5859,21 +5881,165 @@
   border-style: solid;
 }
 
-/* Composer — in-flow at the bottom of the main column grid (NOT
-   position: fixed across the whole viewport). The .nb-stream-main
-   grid `auto auto 1fr auto` pins this row at the bottom of the
-   constrained main grid, which is the bottom of the main column —
-   exactly where the kit puts it. Below the chat scroll, above the
-   bottom of the main column, never overlapping the rails.
+/* ──────────────────────────────────────────────────────────────────
+   Kit-canonical chat composer (.nb-chat-field) — single inline row.
+   Mirrors docs/design/.../ui_kits/nodebench-web/nodebench.css:1394:
+     .nb-chat-field { display: flex; align-items: flex-end;
+                      gap: 8px; background: var(--bg-surface);
+                      border: 1px solid var(--border-default);
+                      border-radius: 14px;
+                      padding: 8px 8px 8px 14px; }
+   Layout: [attach buttons] · [textarea (flex: 1)] · [send button].
+   Replaces the old .nb-composer-card with stacked rows.
+   ────────────────────────────────────────────────────────────────── */
+.nb-chat-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default, var(--border-color));
+  border-radius: 14px;
+  padding: 6px 6px 6px 10px;
+  transition: border-color 160ms, box-shadow 160ms;
+}
+.nb-chat-field:focus-within {
+  border-color: var(--accent-primary-border, var(--accent-primary));
+  box-shadow: 0 0 0 4px var(--accent-primary-tint, color-mix(in oklab, var(--accent-primary) 18%, transparent));
+}
+.nb-chat-field textarea.nb-composer-input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--text-primary);
+  line-height: 1.55;
+  resize: none;
+  min-height: 24px;
+  max-height: 180px;
+  padding: 6px 0;
+}
+.nb-chat-field textarea.nb-composer-input::placeholder {
+  color: var(--text-faint, var(--text-tertiary));
+}
+.nb-chat-attach {
+  display: flex;
+  gap: 2px;
+}
+.nb-chat-attach button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 140ms;
+}
+.nb-chat-attach button:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+.nb-chat-send {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: var(--accent-primary);
+  color: #FFFAF8;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 140ms;
+  flex-shrink: 0;
+}
+.nb-chat-send:hover { filter: brightness(1.04); }
+.nb-chat-send:disabled {
+  background: var(--bg-tertiary, var(--bg-secondary));
+  color: var(--text-faint, var(--text-tertiary));
+  cursor: not-allowed;
+}
 
-   COMPRESSED to kit-canonical sizing: textarea defaults to single-line
-   (min-height: 24px), tighter padding throughout, suggest chips on
-   one row. Old tall composer was 251px (35% of viewport) — new is
-   ~150px (~17%) leaving max chat-scroll surface. */
+/* Pins strip — kit `.nb-pins` (above .nb-chat-field). "ADDING TO:"
+   kicker label + terracotta-tinted pill pins + dashed "Pin" button. */
+.nb-pins {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding: 0 4px;
+}
+.nb-pins-kicker {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint, var(--text-tertiary));
+  margin-right: 2px;
+}
+.nb-pins .nb-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px 3px 9px;
+  border-radius: 999px;
+  background: var(--accent-primary-tint, color-mix(in oklab, var(--accent-primary) 14%, transparent));
+  border: 1px solid var(--accent-primary-border, var(--accent-primary));
+  color: var(--accent-ink, var(--accent-primary));
+  font-size: 11px;
+  font-weight: 600;
+}
+.nb-pins .nb-pin .typ {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.nb-pins .nb-pin button {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  background: rgba(173, 95, 69, 0.15);
+  color: inherit;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.nb-pins .nb-pin button:hover { background: rgba(173, 95, 69, 0.28); }
+.nb-pins .nb-pin-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  background: transparent;
+  border: 1px dashed var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.nb-pins .nb-pin-add:hover {
+  color: var(--accent-ink, var(--accent-primary));
+  border-color: var(--accent-primary-border, var(--accent-primary));
+}
+
+/* Composer outer (.nb-stream-composer) — minimal: just safe-area
+   padding + optional top border. Kit reference shows no separator
+   line; we keep an extremely subtle one for legibility. */
 .nb-stream-composer {
-  padding: 6px 22px 10px;
-  background: var(--bg-surface, var(--bg-primary));
-  border-top: 1px solid var(--border-subtle);
+  padding: 8px 22px 12px;
+  background: transparent;
+  border-top: none;
 }
 .nb-stream-composer-inner {
   max-width: 760px; margin: 0 auto;
