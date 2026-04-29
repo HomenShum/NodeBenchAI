@@ -922,6 +922,7 @@ import type * as domains_product_blockProsemirror from "../domains/product/block
 import type * as domains_product_blocks from "../domains/product/blocks.js";
 import type * as domains_product_bootstrap from "../domains/product/bootstrap.js";
 import type * as domains_product_chat from "../domains/product/chat.js";
+import type * as domains_product_chatAgent from "../domains/product/chatAgent.js";
 import type * as domains_product_delivery from "../domains/product/delivery.js";
 import type * as domains_product_diligenceCheckpointStructuring from "../domains/product/diligenceCheckpointStructuring.js";
 import type * as domains_product_diligenceJudge from "../domains/product/diligenceJudge.js";
@@ -2374,6 +2375,7 @@ declare const fullApi: ApiFromModules<{
   "domains/product/blocks": typeof domains_product_blocks;
   "domains/product/bootstrap": typeof domains_product_bootstrap;
   "domains/product/chat": typeof domains_product_chat;
+  "domains/product/chatAgent": typeof domains_product_chatAgent;
   "domains/product/delivery": typeof domains_product_delivery;
   "domains/product/diligenceCheckpointStructuring": typeof domains_product_diligenceCheckpointStructuring;
   "domains/product/diligenceJudge": typeof domains_product_diligenceJudge;

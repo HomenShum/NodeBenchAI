@@ -2692,11 +2692,21 @@ export function ExactChatSurface() {
   const recordActivity = useMutation(
     api?.domains.product.activity.recordActivity ?? ("skip" as any),
   );
+  // ── Live chat agent — sends text to OpenRouter via pi-ai server-side
+  // (Convex action), persists user + agent turns, returns telemetry.
+  const runChatAgent = useAction(
+    api?.domains.product.chatAgent?.runChatAgent ?? financialApi.domains.product.chatAgent.runChatAgent,
+  );
   // Stable session id per browser tab so all turns in this run group
   // together in the activity ledger.
   const chatSessionIdRef = useRef<string>(
     `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
   );
+
+  // ── Pending state: while the agent is running we show an optimistic
+  // user turn immediately + a "thinking" indicator until the agent
+  // response arrives.
+  const [pendingAgent, setPendingAgent] = useState<boolean>(false);
 
   const sendTurn = (text: string) => {
     const t = text.trim();
@@ -2707,12 +2717,71 @@ export function ExactChatSurface() {
       { id: userTurnId, role: "user", time: nowTime(), text: t },
     ]);
     setComposer("");
-    // ── LIVE WIRING: persist to activity ledger.
-    // Wrapped in try/finally inside the mutation; we intentionally fire
-    // and forget so the UI stays snappy. Any error is logged to console
-    // but doesn't surface in the chat (HONEST_STATUS — the local turn is
-    // still visible; persistence is a background concern). Full text is
-    // stashed in `metadata.text` so getMostRecentChatThread can replay it.
+
+    // ── LIVE AGENT: server-side pi-ai → OpenRouter via the runChatAgent
+    // action. Persists both user + agent turns to productActivityLedger.
+    // Falls back to plain ledger-only persistence if the agent action
+    // isn't available yet (codegen lag during local dev).
+    if (api?.domains.product.chatAgent?.runChatAgent) {
+      setPendingAgent(true);
+      Promise.resolve(
+        runChatAgent({
+          text: t,
+          model: activeModel,
+          sessionId: chatSessionIdRef.current,
+          anonymousSessionId,
+        }),
+      )
+        .then((res: any) => {
+          if (res?.ok && res.text) {
+            const agentTurnId = `a${Date.now()}`;
+            setTurns((prev) => [
+              ...prev,
+              {
+                id: agentTurnId,
+                role: "agent" as const,
+                time: nowTime(),
+                run: {
+                  kind: "research" as const,
+                  summary: `${res.model} · ${res.durationMs}ms${typeof res.costUsd === "number" && res.costUsd > 0 ? ` · $${res.costUsd.toFixed(6)}` : " · free"}`,
+                  detail: typeof res.outputTokens === "number" ? `${res.outputTokens} output tokens` : undefined,
+                },
+                body: [{ kind: "p" as const, segs: [{ t: "t" as const, v: res.text }] }],
+              },
+            ]);
+          } else {
+            // Agent failed — surface a brief inline error turn.
+            setTurns((prev) => [
+              ...prev,
+              {
+                id: `a${Date.now()}`,
+                role: "agent" as const,
+                time: nowTime(),
+                body: [
+                  {
+                    kind: "p" as const,
+                    segs: [
+                      {
+                        t: "t" as const,
+                        v: `Agent unavailable: ${res?.errorMessage ?? "unknown error"}. Try a different model.`,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ]);
+          }
+        })
+        .catch((err) => {
+          console.warn("[chat] runChatAgent failed:", err);
+        })
+        .finally(() => {
+          setPendingAgent(false);
+        });
+      return;
+    }
+
+    // Fallback (codegen lag): persist user turn directly to ledger.
     if (api?.domains.product.activity.recordActivity) {
       Promise.resolve(
         recordActivity({

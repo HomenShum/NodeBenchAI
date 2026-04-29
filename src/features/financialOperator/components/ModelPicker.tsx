@@ -26,7 +26,10 @@ import { ChevronDown, Check, Code2, FileText, Globe, Image as ImageIcon, Mic, Ty
 import { MODEL_CAPABILITIES, type ModelCapability } from "./ModelCapabilityBadge";
 
 const STORAGE_KEY = "nodebench:active-model";
-const DEFAULT_MODEL = "claude-sonnet-4-6";
+// Default to a free OpenRouter model so the chat is immediately usable
+// without any paid credits. Users can switch to kimi-k2.6 or Claude/GPT
+// from the picker if they want frontier quality.
+const DEFAULT_MODEL = "z-ai/glm-4.5-air:free";
 
 export function getActiveModel(): string {
   if (typeof window === "undefined") return DEFAULT_MODEL;
@@ -56,10 +59,18 @@ interface ModelMeta {
 }
 
 const REGISTRY: ModelMeta[] = [
+  // ── Free OpenRouter models (recent + capable, no cost) ───────────────
+  { id: "z-ai/glm-4.5-air:free",                display: "GLM 4.5 Air",       provider: "open",      providerLabel: "Free (OpenRouter)", tier: "balanced",  note: "free · default for live chat" },
+  { id: "nvidia/nemotron-3-super-120b-a12b:free", display: "Nemotron 3 Super 120B", provider: "open", providerLabel: "Free (OpenRouter)", tier: "frontier", note: "free · top free score on NodeBench eval" },
+  { id: "inclusionai/ling-2.6-1t:free",         display: "Ling 2.6 (1T)",     provider: "open",      providerLabel: "Free (OpenRouter)", tier: "frontier",  note: "free · 1T sparse MoE" },
+  { id: "google/gemma-4-26b-a4b-it:free",       display: "Gemma 4 26B-A4B",   provider: "open",      providerLabel: "Free (OpenRouter)", tier: "balanced",  note: "free · fast + capable" },
+  { id: "tencent/hy3-preview:free",             display: "Hunyuan 3 Preview", provider: "open",      providerLabel: "Free (OpenRouter)", tier: "balanced",  note: "free · sub-5s avg" },
+  // Paid OpenRouter (proven in parity-studio repo)
+  { id: "moonshotai/kimi-k2.6",                 display: "Kimi K2.6",         provider: "open",      providerLabel: "Paid (OpenRouter)", tier: "frontier",  note: "paid · proven frontier in parity-studio" },
   // Anthropic
-  { id: "claude-opus-4-7",   display: "Claude Opus 4.7",   provider: "anthropic", providerLabel: "Anthropic", tier: "frontier", note: "1M ctx · best reasoning" },
-  { id: "claude-sonnet-4-6", display: "Claude Sonnet 4.6", provider: "anthropic", providerLabel: "Anthropic", tier: "balanced", note: "default · fast + capable" },
-  { id: "claude-haiku-4-5",  display: "Claude Haiku 4.5",  provider: "anthropic", providerLabel: "Anthropic", tier: "fast",     note: "fastest · cheapest" },
+  { id: "claude-opus-4-7",   display: "Claude Opus 4.7",   provider: "anthropic", providerLabel: "Anthropic", tier: "frontier", note: "paid · 1M ctx · best reasoning" },
+  { id: "claude-sonnet-4-6", display: "Claude Sonnet 4.6", provider: "anthropic", providerLabel: "Anthropic", tier: "balanced", note: "paid · fast + capable" },
+  { id: "claude-haiku-4-5",  display: "Claude Haiku 4.5",  provider: "anthropic", providerLabel: "Anthropic", tier: "fast",     note: "paid · fastest" },
   // OpenAI
   { id: "gpt-5",             display: "GPT-5",             provider: "openai",    providerLabel: "OpenAI",    tier: "frontier" },
   { id: "gpt-4.1",           display: "GPT-4.1",           provider: "openai",    providerLabel: "OpenAI",    tier: "balanced" },
@@ -70,10 +81,6 @@ const REGISTRY: ModelMeta[] = [
   { id: "gemini-3-flash",    display: "Gemini 3 Flash",    provider: "google",    providerLabel: "Google",    tier: "fast" },
   // xAI
   { id: "grok-4",            display: "Grok 4",            provider: "xai",       providerLabel: "xAI",       tier: "balanced" },
-  // Open weights via OpenRouter
-  { id: "kimi-k2.6",         display: "Kimi K2.6",         provider: "open",      providerLabel: "Open weights", tier: "balanced" },
-  { id: "deepseek-v3.5",     display: "DeepSeek V3.5",     provider: "open",      providerLabel: "Open weights", tier: "reasoning" },
-  { id: "glm-4.6v",          display: "GLM 4.6V",          provider: "open",      providerLabel: "Open weights", tier: "balanced", note: "vision" },
 ];
 
 const PROVIDER_DOT: Record<ModelMeta["provider"], string> = {
@@ -96,7 +103,8 @@ const CAP_ICON: Record<ModelCapability, typeof Type> = {
 };
 
 function findMeta(id: string): ModelMeta {
-  return REGISTRY.find((m) => m.id === id) ?? REGISTRY[1];
+  // First entry in REGISTRY is the canonical default (free GLM 4.5 Air).
+  return REGISTRY.find((m) => m.id === id) ?? REGISTRY[0];
 }
 
 interface Props {

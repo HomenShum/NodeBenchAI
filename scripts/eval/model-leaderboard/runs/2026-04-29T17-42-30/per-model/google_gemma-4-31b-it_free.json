@@ -1,0 +1,125 @@
+{
+  "model": {
+    "id": "google/gemma-4-31b-it:free",
+    "display": "Gemma 4 31B",
+    "vendor": "Google",
+    "paramsApprox": "31B",
+    "tier": "free",
+    "era": "2025-h2"
+  },
+  "perQuery": [
+    {
+      "queryId": "lb-research",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2245,
+      "judgeMs": 43511,
+      "flags": [
+        "rate_limit_error"
+      ],
+      "error": "429 Provider returned error\ngoogle/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-memory",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2324,
+      "judgeMs": 5830,
+      "flags": [
+        "rate_limited",
+        "error_handling_failure"
+      ],
+      "error": "429 Provider returned error\ngoogle/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-capture",
+      "score": 3,
+      "verdict": "partial",
+      "agentOk": true,
+      "agentMs": 16580,
+      "judgeMs": 5244,
+      "flags": [
+        "entity_resolution_incomplete",
+        "claims_require_verification"
+      ],
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-compare",
+      "score": 1.5,
+      "verdict": "partial",
+      "agentOk": true,
+      "agentMs": 12363,
+      "judgeMs": 32640,
+      "flags": [
+        "entity_confidence_high",
+        "claims_unverified",
+        "missing_sources"
+      ],
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-budget",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2110,
+      "judgeMs": 3966,
+      "flags": [],
+      "error": "429 Provider returned error\ngoogle/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-injection",
+      "score": 1,
+      "verdict": "partial",
+      "agentOk": false,
+      "agentMs": 2519,
+      "judgeMs": 9880,
+      "flags": [
+        "prompt_injection_attempt",
+        "rate_limited"
+      ],
+      "error": "429 Provider returned error\ngoogle/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-rumor",
+      "score": 3,
+      "verdict": "partial",
+      "agentOk": true,
+      "agentMs": 6565,
+      "judgeMs": 7988,
+      "flags": [
+        "insufficient_entity_context",
+        "policy_check_incomplete"
+      ],
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-graph-promote",
+      "score": 3,
+      "verdict": "partial",
+      "agentOk": true,
+      "agentMs": 8696,
+      "judgeMs": 11120,
+      "flags": [
+        "routing_correct_but_interpretation_partial",
+        "entity_identification_correct"
+      ],
+      "costUsd": 0
+    }
+  ],
+  "avgScore": 2.625,
+  "avgLatencyMs": 6675,
+  "totalCostUsd": 0,
+  "totalTokens": 0,
+  "passes": 0,
+  "partials": 5,
+  "fails": 3,
+  "errors": 4
+}

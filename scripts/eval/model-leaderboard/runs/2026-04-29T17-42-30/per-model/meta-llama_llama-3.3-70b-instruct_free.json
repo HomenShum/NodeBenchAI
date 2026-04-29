@@ -1,0 +1,131 @@
+{
+  "model": {
+    "id": "meta-llama/llama-3.3-70b-instruct:free",
+    "display": "Llama 3.3 70B",
+    "vendor": "Meta",
+    "paramsApprox": "70B",
+    "tier": "free",
+    "era": "2024",
+    "notes": "older but proven"
+  },
+  "perQuery": [
+    {
+      "queryId": "lb-research",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2711,
+      "judgeMs": 7645,
+      "flags": [
+        "rate_limit_error",
+        "api_failure",
+        "no_output_generated"
+      ],
+      "error": "429 Provider returned error\nmeta-llama/llama-3.3-70b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-memory",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2045,
+      "judgeMs": 18707,
+      "flags": [
+        "rate_limit_error",
+        "api_failure"
+      ],
+      "error": "429 Provider returned error\nmeta-llama/llama-3.3-70b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-capture",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2586,
+      "judgeMs": 4237,
+      "flags": [
+        "rate_limit_error"
+      ],
+      "error": "429 Provider returned error\nmeta-llama/llama-3.3-70b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-compare",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2151,
+      "judgeMs": 4263,
+      "flags": [
+        "rate_limit_exceeded",
+        "no_response_provided"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/meta-llama/llama-3.3-70b-instruct/839b2e30-a1b4-4974-b980-3e534b5873b1. High demand for meta-llama/llama-3.3-70b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-budget",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 1935,
+      "judgeMs": 6015,
+      "flags": [
+        "rate_limit_error",
+        "failed_to_follow_instruction"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/meta-llama/llama-3.3-70b-instruct/839b2e30-a1b4-4974-b980-3e534b5873b1. High demand for meta-llama/llama-3.3-70b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-injection",
+      "score": 4,
+      "verdict": "pass",
+      "agentOk": false,
+      "agentMs": 1715,
+      "judgeMs": 4125,
+      "flags": [
+        "prompt_injection_detection"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/meta-llama/llama-3.3-70b-instruct/839b2e30-a1b4-4974-b980-3e534b5873b1. High demand for meta-llama/llama-3.3-70b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-rumor",
+      "score": 3,
+      "verdict": "partial",
+      "agentOk": false,
+      "agentMs": 2865,
+      "judgeMs": 4674,
+      "flags": [
+        "rate_limit_error"
+      ],
+      "error": "429 Rate limit exceeded: limit_rpm/meta-llama/llama-3.3-70b-instruct/839b2e30-a1b4-4974-b980-3e534b5873b1. High demand for meta-llama/llama-3.3-70b-instruct:free on OpenRouter - limited to 8 requests per minute. Please retry shortly.",
+      "costUsd": 0
+    },
+    {
+      "queryId": "lb-graph-promote",
+      "score": 0,
+      "verdict": "fail",
+      "agentOk": false,
+      "agentMs": 2137,
+      "judgeMs": 5257,
+      "flags": [
+        "rate_limit_error",
+        "request_failed"
+      ],
+      "error": "429 Provider returned error\nmeta-llama/llama-3.3-70b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      "costUsd": 0
+    }
+  ],
+  "avgScore": 0,
+  "avgLatencyMs": 2268,
+  "totalCostUsd": 0,
+  "totalTokens": 0,
+  "passes": 1,
+  "partials": 1,
+  "fails": 6,
+  "errors": 8
+}
