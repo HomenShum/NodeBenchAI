@@ -147,3 +147,21 @@ Implement route timing records for the five main web surfaces plus mobile Report
 4. Document the current baseline before changing data fetching.
 
 This gives NodeBench its own measurement loop before heavier optimization work starts.
+
+## Implementation Update
+
+April 30, 2026 slice:
+
+- Added `window.__nodebenchPerf` for dev and dogfood runs, with route id, surface id, viewport class, root/action visibility timing, and console/page warning counts.
+- Wired timing records into the five main web surfaces and mobile Reports without adding visible debug UI.
+- Added a compact Reports read model that prefers live memory and makes starter memory explicit.
+- Deferred non-critical Reports background panels behind idle readiness so launcher, runs, and report cards reach the first viewport first.
+- Windowed pipeline runs, pipeline schedules, and report cards with explicit show-more controls.
+- Added contextual report actions for Brief, Sources, Notebook, Chat, and CRM CSV export.
+- Extended mobile Reports smoke coverage with performance, overflow, production-warning, and compact pipeline assertions.
+
+Remaining follow-up:
+
+- Persist dogfood timing summaries into a Convex operator table after the local buffer proves stable.
+- Apply the same windowing and timing checks to sources, claims, MCP ledger, and execution trace ledgers where route evidence shows large lists.
+- Add command-palette bindings for the shared report actions so buttons and keyboard actions use the same contract.

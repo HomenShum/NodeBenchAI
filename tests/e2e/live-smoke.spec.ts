@@ -101,7 +101,7 @@ test.describe("live-smoke — Tier B hydrated-DOM verification", () => {
     await expect(page.locator('[aria-label="Breadcrumb"]')).toBeVisible();
   });
 
-  test("/?surface=reports shows Brief|Explore|Chat action row on cards", async ({ page }) => {
+  test("/?surface=reports shows contextual report action row on cards", async ({ page }) => {
     const response = await page.goto(BASE_URL + "/?surface=reports");
     expect(response?.status()).toBe(200);
     // Wait for report cards to hydrate.
@@ -114,12 +114,10 @@ test.describe("live-smoke — Tier B hydrated-DOM verification", () => {
     const actionRow = page.locator('[data-testid="report-card-actions"]').first();
     await expect(actionRow).toBeVisible();
     await expect(actionRow.getByRole("button", { name: "Brief" })).toBeVisible();
-    await expect(
-      actionRow.getByRole("button", { name: /Explore workspace cards/i }),
-    ).toBeVisible();
-    await expect(
-      actionRow.getByRole("button", { name: /Ask NodeBench/i }),
-    ).toBeVisible();
+    await expect(actionRow.getByRole("button", { name: /Open report sources/i })).toBeVisible();
+    await expect(actionRow.getByRole("button", { name: /Open report notebook/i })).toBeVisible();
+    await expect(actionRow.getByRole("button", { name: /Resume report chat/i })).toBeVisible();
+    await expect(actionRow.getByRole("button", { name: /Export report to CRM CSV/i })).toBeVisible();
   });
 
   test("/workspace/w/:id mounts UniversalWorkspacePage chromelessly", async ({ page }) => {

@@ -104,7 +104,13 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
   });
 
   test("Reports surface — mobile mounts live pipeline controls and report tabs", async ({ page }) => {
-    await page.goto(BASE_URL + "/?surface=reports");
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") errors.push(msg.text());
+    });
+
+    await page.goto(BASE_URL + "/?surface=reports&nbPerf=1");
     const reportsSurface = page.locator('[data-testid="mobile-reports-surface"]');
     const pipelineBlock = reportsSurface.locator('[data-testid="mobile-reports-pipeline-block"]');
     await expect(reportsSurface).toBeVisible({ timeout: 20_000 });
@@ -116,16 +122,69 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
       "compact",
     );
     await expect(pipelineBlock.locator('[data-testid="reports-pipelines-panel-slot"]')).toBeVisible();
-    await expect(pipelineBlock.locator('[data-testid="pipeline-runs-panel"]')).toBeVisible();
+    await expect(pipelineBlock.locator('[data-testid="pipeline-runs-panel"], [data-testid="pipeline-runs-empty"]')).toBeVisible();
     await expect(pipelineBlock.locator('[data-testid="reports-pipeline-eval-slot"]')).toBeVisible();
     await expect(
       pipelineBlock.locator(
-        '[data-testid="pipeline-eval-scorecard"], [data-testid="pipeline-eval-scorecard-empty"]',
+        '[data-testid="pipeline-eval-scorecard"], [data-testid="pipeline-eval-scorecard-empty"], .nb-deferred-panel',
       ),
     ).toBeVisible();
+    await expect(
+      pipelineBlock.locator(
+        '[data-testid="pipeline-stat-window"], [data-testid="pipeline-runs-empty"], [data-testid="pipeline-run-list"]',
+      ).first(),
+    ).toBeVisible();
+    await expect(pipelineBlock.locator('[data-testid="pipeline-schedules-panel"]')).toHaveCount(0);
     await expect(reportsSurface.getByRole("button", { name: /^Brief$/ })).toBeVisible();
     await expect(reportsSurface.getByRole("button", { name: /^Sources$/ })).toBeVisible();
     await expect(reportsSurface.getByRole("button", { name: /^Notebook$/ })).toBeVisible();
+
+    const noHorizontalOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    );
+    expect(noHorizontalOverflow, "mobile reports should not create document-level horizontal overflow").toBe(true);
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const perfApi = window as Window & {
+              __nodebenchPerf?: {
+                getLatest: (routeId?: string) => { rootVisibleMs?: number; firstActionVisibleMs?: number } | undefined;
+              };
+            };
+            const record = perfApi.__nodebenchPerf?.getLatest("mobile-reports");
+            return Boolean(record?.rootVisibleMs != null && record?.firstActionVisibleMs != null);
+          }),
+        { timeout: 5_000 },
+      )
+      .toBe(true);
+    const perf = await page.evaluate(() => {
+      const perfApi = window as Window & {
+        __nodebenchPerf?: {
+          getLatest: (routeId?: string) =>
+            | {
+                rootVisibleMs?: number;
+                firstActionVisibleMs?: number;
+                convexWarningCount?: number;
+              }
+            | undefined;
+        };
+      };
+      return perfApi.__nodebenchPerf?.getLatest("mobile-reports");
+    });
+    expect(perf?.rootVisibleMs ?? Infinity).toBeLessThanOrEqual(1_500);
+    expect(perf?.firstActionVisibleMs ?? Infinity).toBeLessThanOrEqual(2_000);
+    expect(perf?.convexWarningCount ?? 0, "mobile reports should not emit Convex fallback warnings").toBe(0);
+
+    const real = errors.filter(
+      (e) =>
+        !/favicon/i.test(e) &&
+        !/CSP/i.test(e) &&
+        !/Third-party cookie/i.test(e) &&
+        !/extension/i.test(e),
+    );
+    expect(real, "mobile reports console/page errors:\n" + real.map((e) => "  - " + e).join("\n")).toEqual([]);
   });
 
   test("Report detail — MobileReportSurface mounts with Brief|Sources|Notebook sub-tabs", async ({ page }) => {
