@@ -450,6 +450,13 @@ export function AgentsHub() {
               </Suspense>
             </div>
 
+            {/* Autonomous Operations Status - always visible for operator QA */}
+            <div className="mb-6">
+              <Suspense fallback={<div className="h-[120px]" />}>
+                <AutonomousOperationsPanel />
+              </Suspense>
+            </div>
+
             {/* Mode toggle */}
             <div className="mb-6 flex items-center justify-between">
               <button
@@ -473,13 +480,6 @@ export function AgentsHub() {
                 {/* Quick Stats */}
                 <div className="mb-6">
                   <QuickStatsBar />
-                </div>
-
-                {/* Autonomous Operations Status */}
-                <div className="mb-6">
-                  <Suspense fallback={<div className="h-[120px]" />}>
-                    <AutonomousOperationsPanel />
-                  </Suspense>
                 </div>
 
                 {/* Oracle Control Tower */}

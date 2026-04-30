@@ -25,6 +25,7 @@ export type MainView =
   | "execution-trace"
   | "world-monitor"
   | "watchlists"
+  | "agents"
   | "receipts"
   | "delegation"
   | "mcp-ledger"
@@ -292,6 +293,19 @@ export const VIEW_REGISTRY: ViewRegistryEntry[] = [
     navVisible: false,
     parentId: "research",
     surfaceId: "ask",
+    commandPaletteVisible: true,
+  },
+  {
+    id: "agents",
+    title: "Agents",
+    subtitle: "AI assistants, autonomous operations, and run governance",
+    path: "/agents",
+    aliases: ["/operations", "/autonomous-operations", "/control-plane/agents"],
+    component: lazyView(() => import("@/features/agents/views/AgentsHub")),
+    group: "internal",
+    navVisible: false,
+    parentId: "control-plane",
+    surfaceId: "trace",
     commandPaletteVisible: true,
   },
   {

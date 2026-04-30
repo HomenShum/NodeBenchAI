@@ -2964,6 +2964,7 @@ function ExactMobileSurface({ surface }: { surface: MobileSurface }) {
   const [reportTab, setReportTab] = useState<"brief" | "sources" | "notebook">("brief");
   const surfaceTestIds: Partial<Record<MobileSurface, string>> = {
     home: "mobile-home-surface",
+    reports: "mobile-reports-surface",
     chat: "mobile-chat-surface",
     inbox: "mobile-inbox-surface",
     me: "mobile-me-surface",
@@ -2991,6 +2992,7 @@ function ExactMobileSurface({ surface }: { surface: MobileSurface }) {
         {surface === "chat" ? <MobileChatBody /> : null}
         {surface === "reports" ? (
           <div className="m-body">
+            <MobileReportsPipelineBlock />
             <div className="m-sub-tabs">
               {(["brief", "sources", "notebook"] as const).map((tab) => (
                 <button key={tab} type="button" className="m-sub-tab" data-active={reportTab === tab} onClick={() => setReportTab(tab)}>
@@ -3007,6 +3009,41 @@ function ExactMobileSurface({ surface }: { surface: MobileSurface }) {
         {surface === "me" ? <MobileMeBody /> : null}
       </div>
     </div>
+  );
+}
+
+function MobileReportsPipelineBlock() {
+  return (
+    <section
+      className="m-pipeline-block"
+      data-testid="mobile-reports-pipeline-block"
+      aria-label="Mobile pipeline runtime"
+    >
+      <header className="m-pipeline-block-head">
+        <div>
+          <span className="kicker">Pipelines</span>
+          <h2>Run, review, and score</h2>
+        </div>
+        <span className="pill pill-neutral">live Convex</span>
+      </header>
+      <div className="m-pipeline-stack">
+        <div data-testid="reports-pipeline-launcher-slot">
+          <PipelineLauncher variant="compact" />
+        </div>
+        <div data-testid="reports-pipelines-panel-slot">
+          <PipelineRunsPanel />
+        </div>
+        <div data-testid="reports-pipeline-eval-slot">
+          <PipelineEvalScorecard />
+        </div>
+        <details className="m-pipeline-more">
+          <summary>Schedules</summary>
+          <div data-testid="reports-pipeline-schedules-slot">
+            <PipelineSchedulesPanel />
+          </div>
+        </details>
+      </div>
+    </section>
   );
 }
 

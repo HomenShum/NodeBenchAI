@@ -65,7 +65,9 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
     // Top sources header
     await expect(page.getByText(/Top sources/i)).toBeVisible();
     // Follow-up chips
-    await expect(page.getByText(/Follow-up/i)).toBeVisible();
+    await expect(
+      page.locator('[data-testid="mobile-chat-surface"]').getByText(/^Follow-up$/),
+    ).toBeVisible();
     // Composer dock input
     await expect(page.getByPlaceholder(/Ask a follow-up/i)).toBeVisible();
   });
@@ -99,6 +101,31 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
     await expect(meSurface.getByText(/Quick settings/i)).toBeVisible();
     // Shortcuts CTA inside the mobile surface
     await expect(meSurface.getByRole("button", { name: /Starred threads/i })).toBeVisible();
+  });
+
+  test("Reports surface — mobile mounts live pipeline controls and report tabs", async ({ page }) => {
+    await page.goto(BASE_URL + "/?surface=reports");
+    const reportsSurface = page.locator('[data-testid="mobile-reports-surface"]');
+    const pipelineBlock = reportsSurface.locator('[data-testid="mobile-reports-pipeline-block"]');
+    await expect(reportsSurface).toBeVisible({ timeout: 20_000 });
+    await expect(pipelineBlock).toBeVisible();
+    await expect(pipelineBlock.locator('[data-testid="reports-pipeline-launcher-slot"]')).toBeVisible();
+    await expect(pipelineBlock.locator('[data-testid="pipeline-launcher"]')).toBeVisible();
+    await expect(pipelineBlock.locator('[data-testid="pipeline-launcher"]')).toHaveAttribute(
+      "data-pipeline-launcher-variant",
+      "compact",
+    );
+    await expect(pipelineBlock.locator('[data-testid="reports-pipelines-panel-slot"]')).toBeVisible();
+    await expect(pipelineBlock.locator('[data-testid="pipeline-runs-panel"]')).toBeVisible();
+    await expect(pipelineBlock.locator('[data-testid="reports-pipeline-eval-slot"]')).toBeVisible();
+    await expect(
+      pipelineBlock.locator(
+        '[data-testid="pipeline-eval-scorecard"], [data-testid="pipeline-eval-scorecard-empty"]',
+      ),
+    ).toBeVisible();
+    await expect(reportsSurface.getByRole("button", { name: /^Brief$/ })).toBeVisible();
+    await expect(reportsSurface.getByRole("button", { name: /^Sources$/ })).toBeVisible();
+    await expect(reportsSurface.getByRole("button", { name: /^Notebook$/ })).toBeVisible();
   });
 
   test("Report detail — MobileReportSurface mounts with Brief|Sources|Notebook sub-tabs", async ({ page }) => {

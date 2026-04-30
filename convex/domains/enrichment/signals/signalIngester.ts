@@ -165,6 +165,40 @@ export const getPendingSignals = internalQuery({
   },
 });
 
+export const getRecentSignals = internalQuery({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit = 100 }): Promise<Array<Doc<"signals"> & { ingestedAt: number; status: string }>> => {
+    const boundedLimit = Math.min(Math.max(limit, 1), 500);
+    const signals = await ctx.db.query("signals").take(1000) as Doc<"signals">[];
+    return signals
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, boundedLimit)
+      .map((signal) => ({
+        ...signal,
+        ingestedAt: signal.createdAt,
+        status: signal.processingStatus,
+      }));
+  },
+});
+
+export const getUnprocessedSignals = internalQuery({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit = 50 }): Promise<Doc<"signals">[]> => {
+    const boundedLimit = Math.min(Math.max(limit, 1), 500);
+    const failed = await ctx.db
+      .query("signals")
+      .withIndex("by_status", (q) => q.eq("processingStatus", "failed"))
+      .take(boundedLimit) as Doc<"signals">[];
+    if (failed.length >= boundedLimit) return failed;
+
+    const pending = await ctx.db
+      .query("signals")
+      .withIndex("by_status", (q) => q.eq("processingStatus", "pending"))
+      .take(boundedLimit - failed.length) as Doc<"signals">[];
+    return [...failed, ...pending];
+  },
+});
+
 /**
  * Get signals by source type
  */
@@ -312,6 +346,26 @@ export const cleanupExpiredSignals = internalMutation({
     }
 
     return { deleted: expiredSignals.length };
+  },
+});
+
+export const cleanupErrorSignals = internalMutation({
+  args: {
+    olderThanHours: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { olderThanHours = 24, limit = 100 }): Promise<number> => {
+    const cutoff = Date.now() - olderThanHours * 60 * 60 * 1000;
+    const failedSignals = await ctx.db
+      .query("signals")
+      .withIndex("by_status", (q) => q.eq("processingStatus", "failed"))
+      .filter((q) => q.lt(q.field("createdAt"), cutoff))
+      .take(Math.min(Math.max(limit, 1), 500)) as Doc<"signals">[];
+
+    for (const signal of failedSignals) {
+      await ctx.db.delete(signal._id);
+    }
+    return failedSignals.length;
   },
 });
 

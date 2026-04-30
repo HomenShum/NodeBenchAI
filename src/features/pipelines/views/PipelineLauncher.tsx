@@ -25,6 +25,9 @@ const PIPELINE_KINDS = [
 ] as const;
 
 type PipelineKindValue = (typeof PIPELINE_KINDS)[number]["value"];
+type PipelineLauncherProps = {
+  variant?: "default" | "compact";
+};
 
 const COMPOSED_KINDS = new Set<PipelineKindValue>([
   "research_then_code",
@@ -54,7 +57,10 @@ const PLACEHOLDER_BY_KIND: Record<string, string> = {
     "Describe what to scaffold and then design — e.g., A simple kanban board in React, then a polished design for it.",
 };
 
-export const PipelineLauncher: React.FC = () => {
+export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
+  variant = "default",
+}) => {
+  const isCompact = variant === "compact";
   const [pipelineKind, setPipelineKind] = useState<PipelineKindValue>("research");
   const [spec, setSpec] = useState("");
   const [title, setTitle] = useState("");
@@ -191,8 +197,9 @@ export const PipelineLauncher: React.FC = () => {
   return (
     <section
       data-testid="pipeline-launcher"
+      data-pipeline-launcher-variant={variant}
       aria-label="Run a pipeline"
-      className="nb-surface-card p-4 space-y-3"
+      className={`nb-surface-card space-y-3 ${isCompact ? "p-3 pipeline-launcher-compact" : "p-4"}`}
     >
       <header className="flex items-center gap-2">
         <div className="w-8 h-8 rounded-md bg-emerald-500/15 flex items-center justify-center">
@@ -200,14 +207,20 @@ export const PipelineLauncher: React.FC = () => {
         </div>
         <div>
           <h3 className="text-sm font-semibold text-content">Run a pipeline</h3>
-          <p className="text-[11px] text-content-muted">
-            Pick a kind, describe what you want, and submit. The run lands below in real time.
-          </p>
+          {isCompact ? (
+            <p className="text-[11px] text-content-muted">
+              Kind + spec. Full model and schedule controls remain on desktop.
+            </p>
+          ) : (
+            <p className="text-[11px] text-content-muted">
+              Pick a kind, describe what you want, and submit. The run lands below in real time.
+            </p>
+          )}
         </div>
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-3" data-testid="pipeline-launcher-form">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className={`grid grid-cols-1 ${isCompact ? "gap-2" : "md:grid-cols-3 gap-3"}`}>
           <label className="flex flex-col gap-1 text-xs text-content-muted">
             <span>Kind</span>
             <select
@@ -226,6 +239,8 @@ export const PipelineLauncher: React.FC = () => {
               ))}
             </select>
           </label>
+          {!isCompact ? (
+            <>
           <label className="flex flex-col gap-1 text-xs text-content-muted">
             <span>Model</span>
             <select
@@ -255,9 +270,11 @@ export const PipelineLauncher: React.FC = () => {
               maxLength={120}
             />
           </label>
+            </>
+          ) : null}
         </div>
         {showLinkupDepth ? (
-          <div className="flex items-center gap-2 text-[11px] text-content-muted">
+          <div className="flex items-center gap-2 text-[11px] text-content-muted flex-wrap">
             <span>Web search depth:</span>
             <button
               type="button"
@@ -293,6 +310,7 @@ export const PipelineLauncher: React.FC = () => {
             <span>Composed run: two pipelineRuns rows will appear (stage 1 → stage 2).</span>
           </div>
         ) : null}
+        {!isCompact ? (
         <div className="flex items-center gap-3 flex-wrap text-[11px] text-content-muted">
           <label className="inline-flex items-center gap-1.5 cursor-pointer">
             <input
@@ -330,11 +348,12 @@ export const PipelineLauncher: React.FC = () => {
             </span>
           ) : null}
         </div>
+        ) : null}
         <label className="flex flex-col gap-1 text-xs text-content-muted">
           <span>Spec</span>
           <textarea
             data-testid="pipeline-launcher-spec"
-            className="bg-surface border border-edge rounded-md text-xs px-2 py-2 text-content font-mono resize-y min-h-[88px]"
+            className={`bg-surface border border-edge rounded-md text-xs px-2 py-2 text-content font-mono resize-y ${isCompact ? "min-h-[68px]" : "min-h-[88px]"}`}
             placeholder={PLACEHOLDER_BY_KIND[pipelineKind]}
             value={spec}
             onChange={(e) => setSpec(e.target.value)}
@@ -348,13 +367,13 @@ export const PipelineLauncher: React.FC = () => {
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="text-[11px] text-content-muted">
-            Runs durably via{" "}
+            {isCompact ? <>Durable workflow, idempotent resubmit.</> : <>Runs durably via{" "}
             <code className="text-[10px]">@convex-dev/workflow</code> — retries on transient
-            failure, idempotent on resubmit.
+            failure, idempotent on resubmit.</>}
             {loggedInUser?._id ? (
-              <span data-testid="pipeline-launcher-owner-signedin"> {ownerLabel}</span>
+              <span data-testid="pipeline-launcher-owner-signedin"> {isCompact ? "Signed in." : ownerLabel}</span>
             ) : (
-              <span data-testid="pipeline-launcher-owner-anon"> {ownerLabel}</span>
+              <span data-testid="pipeline-launcher-owner-anon"> {isCompact ? `Session ${anonymousSessionId?.slice(0, 8) ?? "?"}.` : ownerLabel}</span>
             )}
           </div>
           <button

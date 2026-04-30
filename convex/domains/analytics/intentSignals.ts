@@ -576,6 +576,52 @@ export const listIntentHotspotCards = query({
   },
 });
 
+export const exportIntentHotspotCardsForOps = internalQuery({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 200, 1), 2000);
+    const sessions = await ctx.db
+      .query("agentTaskSessions")
+      .withIndex("by_type_date", (q: any) => q.eq("type", "manual"))
+      .order("desc")
+      .take(5000);
+
+    const cards: any[] = [];
+    for (const session of sessions as Doc<"agentTaskSessions">[]) {
+      const meta = session.metadata as IntentHotspotMeta | undefined;
+      if (meta?.kind !== "intent_hotspot") continue;
+
+      const artifactId = meta.investigation?.artifactId;
+      const artifact = artifactId ? await ctx.db.get(artifactId) : null;
+      cards.push({
+        sessionId: session._id,
+        title: session.title,
+        description: session.description ?? "",
+        startedAt: session.startedAt,
+        status: session.status,
+        meta,
+        artifacts: {
+          investigation: artifact
+            ? {
+                id: artifact._id,
+                fetchedAt: artifact.fetchedAt,
+                title: artifact.title,
+                rawContent: typeof artifact.rawContent === "string" ? artifact.rawContent.slice(0, 12000) : null,
+                extractedData: artifact.extractedData ?? null,
+              }
+            : null,
+        },
+      });
+      if (cards.length >= limit) break;
+    }
+
+    return { ok: true, exportedAtIso: new Date().toISOString(), cards };
+  },
+});
+
 export const moveIntentHotspotCard = mutation({
   args: {
     sessionId: v.id("agentTaskSessions"),
