@@ -7,10 +7,21 @@
  * cheap-retrieval substrates over Convex queries.
  */
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { useStableQuery } from "@/hooks/useStableQuery";
-import { Cpu, AlertCircle, CheckCircle2, Loader2, FileText, Download, Image as ImageIcon } from "lucide-react";
+import {
+  Cpu,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  FileText,
+  Download,
+  Image as ImageIcon,
+  ChevronDown,
+  ChevronRight,
+  Radio,
+} from "lucide-react";
 
 const statusBadge: Record<string, { label: string; className: string; Icon: any }> = {
   queued: {
@@ -71,7 +82,73 @@ function formatDuration(ms: number | undefined): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+/**
+ * Live stream preview — subscribes to `getPipelineStream` for the run
+ * and renders the partial text as it grows. Shown when a row is
+ * expanded. Streaming state badge ("Live" / "Complete") reflects the
+ * real-time mutation chain in `pipelineRunStreams`.
+ */
+const PipelineRunStreamPreview: React.FC<{ runId: string }> = ({ runId }) => {
+  const stream = useStableQuery(
+    api.domains.pipelines.pipelineStreamMutations.getPipelineStream,
+    { runId },
+  );
+  if (stream === undefined) {
+    return (
+      <div
+        data-testid="pipeline-run-stream-loading"
+        className="text-[11px] text-content-muted"
+      >
+        Loading stream…
+      </div>
+    );
+  }
+  if (stream === null) {
+    return (
+      <div
+        data-testid="pipeline-run-stream-empty"
+        className="text-[11px] text-content-muted"
+      >
+        No live output for this run.
+      </div>
+    );
+  }
+  const isLive = stream.status === "streaming";
+  return (
+    <div
+      data-testid="pipeline-run-stream"
+      data-pipeline-stream-status={stream.status}
+      className="rounded-md bg-surface/60 border border-edge/40 px-3 py-2 space-y-1.5"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 text-[11px] text-content-muted">
+          <Radio
+            className={`w-3 h-3 ${
+              isLive ? "text-emerald-500 animate-pulse" : "text-content-muted"
+            }`}
+          />
+          {stream.stepName} · {stream.status}
+          {stream.errorMessage ? ` · ${stream.errorMessage}` : ""}
+        </span>
+        <span className="text-[10px] text-content-muted">
+          {stream.partialText.length.toLocaleString()} chars
+        </span>
+      </div>
+      <pre
+        data-testid="pipeline-run-stream-text"
+        className="whitespace-pre-wrap break-words text-[11px] text-content max-h-64 overflow-y-auto font-mono leading-snug"
+      >
+        {stream.partialText.length > 0
+          ? stream.partialText.slice(0, 4000) +
+            (stream.partialText.length > 4000 ? "\n\n[…truncated]" : "")
+          : "(waiting for first delta)"}
+      </pre>
+    </div>
+  );
+};
+
 export const PipelineRunsPanel: React.FC = () => {
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const runs = useStableQuery(
     api.domains.pipelines.pipelineRunsQueries.listRecentRuns,
     { limit: 8 },
@@ -213,6 +290,26 @@ export const PipelineRunsPanel: React.FC = () => {
                   {run.errorMessage}
                 </p>
               ) : null}
+              {expandedRunId === run.runId ? (
+                <PipelineRunStreamPreview runId={run.runId} />
+              ) : null}
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  data-testid="pipeline-run-toggle"
+                  onClick={() =>
+                    setExpandedRunId((prev) => (prev === run.runId ? null : run.runId))
+                  }
+                  className="inline-flex items-center gap-1 text-[11px] text-content-muted hover:text-content"
+                >
+                  {expandedRunId === run.runId ? (
+                    <ChevronDown className="w-3 h-3" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3" />
+                  )}
+                  {expandedRunId === run.runId ? "Hide live output" : "Show live output"}
+                </button>
+              </div>
               {(run.bundleUrl || run.imageUrl) ? (
                 <div className="flex items-center gap-3 pt-1">
                   {run.imageUrl ? (
