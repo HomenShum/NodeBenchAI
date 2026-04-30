@@ -37,6 +37,9 @@ They need a system that can:
 - five-surface web app across `Home`, `Reports`, `Chat`, `Inbox`, and `Me`
 - separate deep-work Workspace shell at `nodebench.workspace`
 - typed search and reporting pipeline
+- Pi-AI pipeline lane on `Reports` with code-gen, design-gen, research,
+  composed runs, schedules, streaming previews, eval scorecard, and MCP HTTP
+  bridge
 - live SSE streaming with saved runtime state
 - Convex-backed product state for sessions, reports, entities, nudges, files,
   and related objects
@@ -564,6 +567,62 @@ Historical specs are preserved in [`docs/archive/2026-q1/`](docs/archive/2026-q1
 NodeBench ships with a comprehensive evaluation harness that proves correctness
 across 32+ scenarios, 9 user personas, and 9 feature categories. This is not
 hand-wavy "it works" — it is measured, versioned, and reproducible.
+
+### Latest Published Run Results
+
+**Pi-AI pipeline cascade:** merged to `main` on 2026-04-30 at
+`2a541037874c0f8c675ab393d5c08f50123cf6d2`.
+
+| Lane | Result |
+|------|--------|
+| PR chain | #211 -> #212 -> #213 -> #214 -> #215 -> #216 all merged |
+| Production surface | `https://www.nodebenchai.com/?surface=packets` |
+| MCP bridge | `https://agile-caribou-964.convex.site/mcp/pipeline/*` behind `MCP_SECRET` |
+| Code-gen run | `pipeline_mokobe4y_6n23be` succeeded, `verified`, 6 files, 32.9s, about `$0.001` |
+| Research streaming | `pipeline_mokpvi1b_yoj8ot` completed with 4,317 streamed characters |
+| Linkup research | `pipeline_mol2wj2j_2lgx2u` succeeded with 18 snippets across 5 sub-questions |
+| Composed pipeline | `research_then_code` completed stage 1 research and stage 2 code-gen |
+| Schedule workflow | once schedule swept by cron/manual sweep and auto-disabled after run |
+| Design output | design-gen produced a PNG stored in Convex storage |
+| UI launcher | DOM-submitted composed run updated the reactive run list |
+| Pipeline scorecard | 41.7% verified, Brier 0.135 across 12 runs |
+
+The implementation is mounted on the Reports surface:
+
+- `PipelineLauncher`
+- `PipelineSchedulesPanel`
+- `PipelineEvalScorecard`
+- `PipelineRunsPanel`
+- `EntityFindingsPanel`
+
+The detailed handoff is in
+[`docs/handoff/PI_AI_PIPELINES_HANDOFF.md`](docs/handoff/PI_AI_PIPELINES_HANDOFF.md).
+
+**Workflow-loop eval bank:** added on 2026-04-30 to test the full product loop,
+not just answer text.
+
+```text
+query / capture
+  -> memory search
+  -> entity resolution
+  -> report update
+  -> notebook update
+  -> graph edges
+  -> sources / claims
+  -> follow-up / export
+```
+
+| Eval bank | Result |
+|-----------|--------|
+| Total workflow cases | 124 |
+| Minimum P0 suite | 30 cases |
+| Coverage categories | 11 |
+| Score dimensions | 12 |
+| Validator | `src/features/evaluation/data/nodebenchWorkflowEvalBank.test.ts` |
+| Latest local check | `npx vitest run src/features/evaluation/data/nodebenchWorkflowEvalBank.test.ts` -> 4/4 passed |
+
+The eval bank lives in
+[`src/features/evaluation/data/nodebenchWorkflowEvalBank.ts`](src/features/evaluation/data/nodebenchWorkflowEvalBank.ts).
 
 ### Two-Layer Judge Architecture
 
