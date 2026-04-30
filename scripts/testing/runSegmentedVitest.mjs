@@ -88,7 +88,7 @@ async function main() {
     {
       id: "mcp-local",
       label: "mcp-local-vitest",
-      command: "npm run test:run:mcp-local",
+      command: "node scripts/testing/runVitestSegment.mjs --cwd packages/mcp-local --target src --mode filter",
       timeoutMs: 300_000,
       required: true,
     },

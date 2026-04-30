@@ -2818,6 +2818,12 @@ html.dark[data-preset="dark-botanical"] .focus-ring:focus-visible {
   backdrop-filter: blur(18px);
 }
 
+.dark .nb-kit-topnav {
+  border-bottom-color: rgba(255, 255, 255, 0.07);
+  background: rgba(13, 17, 23, 0.9);
+  color: #f8fafc;
+}
+
 .nb-kit-topnav-tab {
   border: 1px solid transparent;
   border-radius: 10px;
@@ -2839,12 +2845,28 @@ html.dark[data-preset="dark-botanical"] .focus-ring:focus-visible {
   color: #111827;
 }
 
+.dark .nb-kit-topnav-tab {
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.dark .nb-kit-topnav-tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
 .nb-kit-topnav-tab[data-active="true"] {
   border-color: rgba(15, 23, 42, 0.06);
   background: #ffffff;
   color: #111827;
   font-weight: 600;
   box-shadow: 0 10px 24px -20px rgba(15, 23, 42, 0.35);
+}
+
+.dark .nb-kit-topnav-tab[data-active="true"] {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 .nb-kit-topnav-search {
@@ -2862,6 +2884,13 @@ html.dark[data-preset="dark-botanical"] .focus-ring:focus-visible {
   font-size: 13px;
   line-height: 1.25;
   text-align: left;
+}
+
+.dark .nb-kit-topnav-search {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.58);
 }
 
 .nb-kit-topnav-search:focus-visible {
@@ -2885,6 +2914,11 @@ html.dark[data-preset="dark-botanical"] .focus-ring:focus-visible {
   line-height: 1.2;
 }
 
+.dark .nb-kit-topnav-search kbd {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.58);
+}
+
 .nb-kit-topnav-icon {
   display: inline-flex;
   width: 36px;
@@ -2903,6 +2937,15 @@ html.dark[data-preset="dark-botanical"] .focus-ring:focus-visible {
 .nb-kit-topnav-icon:hover {
   background: rgba(15, 23, 42, 0.04);
   color: #111827;
+}
+
+.dark .nb-kit-topnav-icon {
+  color: rgba(255, 255, 255, 0.64);
+}
+
+.dark .nb-kit-topnav-icon:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
 }
 
 .nb-kit-topnav-avatar {

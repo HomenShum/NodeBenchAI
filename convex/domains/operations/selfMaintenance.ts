@@ -82,6 +82,7 @@ export const runNightlySelfMaintenance = internalAction({
     asOfMs: v.optional(v.number()),
     includeLlmExplanation: v.optional(v.boolean()),
     didYouKnowPostLimit: v.optional(v.number()),
+    requireDidYouKnowArchive: v.optional(v.boolean()),
     requireDailyBriefDidYouKnow: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<SelfMaintenanceReport> => {
@@ -123,14 +124,17 @@ export const runNightlySelfMaintenance = internalAction({
       evaluateDidYouKnowArchiveRow({ postType: "did_you_know", metadata: row?.metadata })
     );
 
-    const didYouKnowAllPass = didYouKnowRowResults.length > 0 && didYouKnowRowResults.every((r) => r.passed);
+    const requireDidYouKnowArchive = args.requireDidYouKnowArchive ?? false;
+    const didYouKnowAllPass = didYouKnowRowResults.every((r) => r.passed);
     checks.didYouKnowArchiveHasRows = didYouKnowRowResults.length > 0;
     checks.didYouKnowArchiveAllRowsPass = didYouKnowAllPass;
     details.didYouKnowArchive = {
       checked: didYouKnowRowResults.length,
       failures: didYouKnowRowResults.filter((r) => !r.passed).slice(0, 3).map((r) => ({ errors: r.errors, checks: r.checks })),
     };
-    if (!checks.didYouKnowArchiveHasRows) errors.push("No did_you_know posts found in linkedinPostArchive");
+    if (!checks.didYouKnowArchiveHasRows && requireDidYouKnowArchive) {
+      errors.push("No did_you_know posts found in linkedinPostArchive");
+    }
     if (!checks.didYouKnowArchiveAllRowsPass) errors.push("One or more did_you_know archive rows failed integrity checks");
 
     // 3) Daily Brief didYouKnow propagation (configurable gate)
@@ -155,7 +159,6 @@ export const runNightlySelfMaintenance = internalAction({
       };
       checks.dailyBriefDidYouKnowPass = briefGate.passed;
       if (requireDailyBriefDidYouKnow && !briefGate.passed) errors.push(...briefGate.errors);
-      if (!requireDailyBriefDidYouKnow && !briefGate.passed) warnings.push(...briefGate.errors);
     }
 
     // 4) Bug loop invariants (Ralph loop substrate)

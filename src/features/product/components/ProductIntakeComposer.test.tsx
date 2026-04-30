@@ -1,6 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@/features/chat/hooks/useRollbackInterceptor", () => ({
+  useRollbackInterceptor: () => ({
+    pending: false,
+    tryIntercept: vi.fn(async () => false),
+    detect: vi.fn(() => null),
+  }),
+}));
+
 import { ProductIntakeComposer } from "./ProductIntakeComposer";
 
 describe("ProductIntakeComposer", () => {

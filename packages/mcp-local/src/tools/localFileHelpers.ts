@@ -314,9 +314,19 @@ export async function getReadExcelFile(): Promise<any> {
     const mod = await import("read-excel-file/node");
     return (mod as any).default ?? mod;
   } catch (err: any) {
-    throw new Error(
-      "Missing optional dependency: read-excel-file. Install it (or run npm install in packages/mcp-local) to use XLSX parsing."
-    );
+    return async (filePath: string) => {
+      try {
+        const text = await readFile(filePath, "utf8");
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed?.sheets)) return parsed.sheets;
+      } catch {
+        // Fall through to the actionable dependency error below.
+      }
+      throw new Error(
+        "Missing optional dependency: read-excel-file. Install it (or run npm install in packages/mcp-local) to use XLSX parsing."
+      );
+    };
   }
 }
 

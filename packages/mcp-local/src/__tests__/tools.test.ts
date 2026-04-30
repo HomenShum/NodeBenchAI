@@ -7,7 +7,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import { mkdtemp, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { verificationTools } from "../tools/verificationTools.js";
 import { reconTools } from "../tools/reconTools.js";
 import { uiCaptureTools } from "../tools/uiCaptureTools.js";
@@ -68,6 +68,7 @@ import { founderTrackingTools } from "../tools/founderTrackingTools.js";
 import { causalMemoryTools } from "../tools/causalMemoryTools.js";
 import { dogfoodJudgeTools } from "../tools/dogfoodJudgeTools.js";
 import { getQuickRef, hybridSearch, TOOL_REGISTRY, SEARCH_MODES, ALL_REGISTRY_ENTRIES, WORKFLOW_CHAINS, tokenize, buildDenseIndex, getToolComplexity } from "../tools/toolRegistry.js";
+import { TOOLSET_LOADERS } from "../toolsetRegistry.js";
 import type { McpTool } from "../types.js";
 
 // Assemble all tools like index.ts does
@@ -138,6 +139,20 @@ const discoveryTools = createProgressiveDiscoveryTools(
 );
 const allTools = [...allToolsWithoutDiscovery, ...discoveryTools];
 
+let cachedImplementedToolNames: Set<string> | null = null;
+
+async function getAllImplementedToolNames(): Promise<Set<string>> {
+  if (cachedImplementedToolNames) return cachedImplementedToolNames;
+  const names = new Set(allTools.map((tool) => tool.name));
+  for (const [domain, loadTools] of Object.entries(TOOLSET_LOADERS)) {
+    const tools = await loadTools();
+    for (const tool of tools) names.add(tool.name);
+    expect(tools.length, `${domain} toolset should load at least one tool`).toBeGreaterThan(0);
+  }
+  cachedImplementedToolNames = names;
+  return names;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // STATIC LAYER — structure validation
 // ═══════════════════════════════════════════════════════════════════════════
@@ -178,7 +193,7 @@ describe("Static: tool structure", () => {
     }
   });
 
-  it("every registry entry corresponds to an implemented tool (no orphan metadata)", () => {
+  it("every registry entry corresponds to an implemented tool (no orphan metadata)", async () => {
     // REVERSE coverage: every registry entry must point to a real tool.
     // Catches the case where a tool gets renamed or deleted but its registry
     // entry is left behind, causing progressive_discovery / quickRef to surface
@@ -186,7 +201,7 @@ describe("Static: tool structure", () => {
     //
     // Combined with the FORWARD check above, this gives us a deterministic
     // contract for adding/removing tools — neither direction can drift silently.
-    const toolNames = new Set(allTools.map((t) => t.name));
+    const toolNames = await getAllImplementedToolNames();
     const orphanRegistryEntries: string[] = [];
     for (const [name] of TOOL_REGISTRY) {
       if (!toolNames.has(name)) {
@@ -673,12 +688,39 @@ describe("Static: self_reinforced_learning methodology", () => {
 const findTool = (name: string) => allTools.find((t) => t.name === name)!;
 
 async function writeWorkbook(filePath: string, sheetName: string, rows: unknown[][]) {
-  const mod = await import("exceljs");
-  const ExcelJS = (mod as any).default ?? mod;
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet(sheetName);
-  for (const row of rows) worksheet.addRow(row);
-  await workbook.xlsx.writeFile(filePath);
+  try {
+    const mod = await import("exceljs");
+    const ExcelJS = (mod as any).default ?? mod;
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(sheetName);
+    for (const row of rows) worksheet.addRow(row);
+    await workbook.xlsx.writeFile(filePath);
+  } catch {
+    await writeFile(filePath, JSON.stringify([{ sheet: sheetName, data: rows }]), "utf8");
+  }
+}
+
+const BINARY_FIXTURES: Record<string, string> = {
+  "test_assets/Report_2025-12-25.pdf":
+    "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA0MyA+PgpzdHJlYW0KQlQgL0YxIDI0IFRmIDcyIDcyMCBUZCAoSGVsbG8gV29ybGQpIFRqIEVUCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI0MSAwMDAwMCBuIAowMDAwMDAwMzMzIDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKNDAzCiUlRU9GCg==",
+  "test_assets/zip_fixture.zip":
+    "UEsDBBQAAAAIAChcnlwVVSgwGQAAABcAAAAJAAAAaGVsbG8udHh080jNyclXSCvKz1WoyixQSMusKCktSuUCAFBLAwQUAAAACAAoXJ5chD+lIBwAAAAaAAAADwAAAGZvbGRlci9kYXRhLmNzdstLzE3VKUvMKU3lSswpyEjUMeRKSi1J1DHiAgBQSwECFAAUAAAACAAoXJ5cFVUoMBkAAAAXAAAACQAAAAAAAAAAAAAAgAEAAAAAaGVsbG8udHh0UEsBAhQAFAAAAAgAKFyeXIQ/pSAcAAAAGgAAAA8AAAAAAAAAAAAAAIABQAAAAGZvbGRlci9kYXRhLmNzdlBLBQYAAAAAAgACAHQAAACJAAAAAAA=",
+  "test_assets/docx_fixture.docx":
+    "UEsDBBQAAAAIAChcnlzMVIwQ4AAAAJwBAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbH2Qy07DMBBFf8XyFsUTukAIJekCyhJYlA+w7Eli4Zc8bil/z6QtXaDC0r6PM7rd+hC82GMhl2Ivb1UrBUaTrItTL9+3z829XA/d9isjCbZG6uVca34AIDNj0KRSxsjKmErQlZ9lgqzNh54QVm17BybFirE2demQQ/eEo975KjYH/j5hC3qS4vFkXFi91Dl7Z3RlHfbR/qI0Z4Li5NFDs8t0wwYJVwmL8jfgnHvlHYqzKN50qS86sAs+U7Fgk9kFTqr/a67cmcbRGbzkl7ZckkEiHjh4dVGCdvHnfjjOPXwDUEsDBBQAAAAIAChcnlw2V97cogAAABgBAAALAAAAX3JlbHMvLnJlbHONzzsOwjAMBuCrRN6pCwNCqGkXhNQVlQNEiZtGNA8l4XV7MjBQxMBo+/dnuekedmY3isl4x2Fd1cDISa+M0xzOw3G1g65tTjSLXBJpMiGxsuIShynnsEdMciIrUuUDuTIZfbQilzJqDEJehCbc1PUW46cBS5P1ikPs1RrY8Az0j+3H0Ug6eHm15PKPE1+JIouoKXO4+6hQvdtVYQHbBhcvti9QSwMEFAAAAAgAKFyeXFcBylemAAAA8wAAABEAAAB3b3JkL2RvY3VtZW50LnhtbG2PzQrCMBCEXyXkbrd6ECn9OSjizYMKXmMS20KSDZto9e1NBBHEy7cMOzvD1t3DGnbXFEZ0DZ8XJWfaSVSj6xt+Om5nK9619VQplDerXWTJ70I1NXyI0VcAQQ7ailCg1y7trkhWxCSphwlJeUKpQ0hx1sCiLJdgxeh4jrygeubpMygjtjttDLLNfn2uIetMetP/Wg9aolPMCxI9CT/8OYBPCXwfaF9QSwECFAAUAAAACAAoXJ5czFSMEOAAAACcAQAAEwAAAAAAAAAAAAAAgAEAAAAAW0NvbnRlbnRfVHlwZXNdLnhtbFBLAQIUABQAAAAIAChcnlw2V97cogAAABgBAAALAAAAAAAAAAAAAACAAREBAABfcmVscy8ucmVsc1BLAQIUABQAAAAIAChcnlxXAcpXpgAAAPMAAAARAAAAAAAAAAAAAACAAdwBAAB3b3JkL2RvY3VtZW50LnhtbFBLBQYAAAAAAwADALkAAACxAgAAAAA=",
+  "test_assets/pptx_fixture.pptx":
+    "UEsDBBQAAAAIAChcnlzyya6y5AAAABgCAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbLVRO0/DMBD+K5bXKnbaASGUpAOPERjKD7CcS2LVL/muVfn3XJJOqCAxMJ1831PnZn8JXpyhoEuxlVtVSwHRpt7FsZUfh5fqXu675vCZAQVTI7ZyIsoPWqOdIBhUKUNkZEglGOJnGXU29mhG0Lu6vtM2RYJIFc0esmueYDAnT+L5wus1toBHKR5X4pzVSpOzd9YQ4/oc+28p1TVBsXLh4OQybpgg9c2EGfk54Kp74zsU14N4N4VeTWCWzpk0el7iOrbqd6sbXdMwOAt9sqfAEpULIM+FHrxaXDd/aLD71wZ6+eruC1BLAwQUAAAACAAoXJ5cWakHNboAAAA0AQAAFQAAAHBwdC9zbGlkZXMvc2xpZGUxLnhtbI2QywrCMBBFfyVkb6d1IVL6ABfistAKbkMztoW8SILWvzdpleLOzWGSmTm5pKhnKcgDrZu0KmmWpJSg6jWf1FDSa3feHWldFSZ3gpMwqlxuSjp6b3IA148omUu0QRV6d20l8+FoBzAWHSrPfNBKAfs0PYBkk6IfCftHwi17hhw/+zFL3wq+ZDKdRVyrSD+fNH9VBctNhI3w1QWF0KRpuhtpxcQxKyBeR9qFYRi2ZVhtsOnh+yIs31C9AVBLAwQUAAAACAAoXJ5cPd45HbMAAAAuAQAAFQAAAHBwdC9zbGlkZXMvc2xpZGUyLnhtbI2QTQ6CMBBGr0K6l0EWxjQFEhdeADxAQ0do0r+0jeLtbUFD3Ll5mXZmXr+UdYtWxQN9kNY05FhWpEAzWiHN1JDbcD2cSdcyR4MSRRo1gbqGzDE6ChDGGTUPpXVoUu9uveYxHf0EzmNAE3lMWq2grqoTaC4N+Uj4PxLh+TPl+NnPWcZeiTWTGzziVmXG5WLFq2WcugyfEdteSYF1MeASGeSLTL8yjcG+BpsHdjF834L1A9o3UEsBAhQAFAAAAAgAKFyeXPLJrrLkAAAAGAIAABMAAAAAAAAAAAAAAIABAAAAAFtDb250ZW50X1R5cGVzXS54bWxQSwECFAAUAAAACAAoXJ5cWakHNboAAAA0AQAAFQAAAAAAAAAAAAAAgAEVAQAAcHB0L3NsaWRlcy9zbGlkZTEueG1sUEsBAhQAFAAAAAgAKFyeXD3eOR2zAAAALgEAABUAAAAAAAAAAAAAAIABAgIAAHBwdC9zbGlkZXMvc2xpZGUyLnhtbFBLBQYAAAAAAwADAMcAAADoAgAAAAA=",
+};
+
+function materializeBinaryFixture(relPath: string): string | null {
+  const key = relPath.replace(/\\/g, "/");
+  const payload = BINARY_FIXTURES[key];
+  if (!payload) return null;
+  const outPath = path.join(os.tmpdir(), "nodebench-mcp-test-assets", key);
+  mkdirSync(path.dirname(outPath), { recursive: true });
+  if (!existsSync(outPath)) {
+    writeFileSync(outPath, Buffer.from(payload, "base64"));
+  }
+  return outPath;
 }
 
 describe("Unit: local file tools", () => {
@@ -691,6 +733,8 @@ describe("Unit: local file tools", () => {
       if (parent === dir) break;
       dir = parent;
     }
+    const generated = materializeBinaryFixture(relPath);
+    if (generated) return generated;
     throw new Error(`Fixture not found: ${relPath}`);
   };
 

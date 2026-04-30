@@ -3,10 +3,13 @@ dist
 .dev-logs
 .tmp
 .claude
+.worktrees
+.serena
 .cursor
 .windsurf
 *.log
 *.err.log
+*.tsbuildinfo
 python-mcp-servers
 packages/mcp-local/node_modules
 packages/mcp-client/node_modules
@@ -14,6 +17,10 @@ packages/convex-mcp-nodebench/node_modules
 scripts/eval-harness
 tests
 test_assets
+test-results
+playwright-report
+coverage
+storybook-static
 test-results.json
 docs/completions
 docs/plans
@@ -25,6 +32,7 @@ public/dogfood/coordination-demo.mp4
 public/dogfood/coordination-demo.webm
 public/dogfood/scribe/
 public/dogfood/frames/
+public/dogfood/screenshots/
 
 # Scripts with browser profiles (locks files)
 scripts/tax-2025/

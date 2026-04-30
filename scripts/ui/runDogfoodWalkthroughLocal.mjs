@@ -3,6 +3,10 @@ import path from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { cp, rm, rename } from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
+
+const requireFromScript = createRequire(import.meta.url);
+const DEFAULT_DOGFOOD_CONVEX_URL = "https://agile-caribou-964.convex.cloud";
 
 function parseArgs(argv) {
   const args = new Map();
@@ -314,6 +318,15 @@ function spawnViteServer({ mode, host, port, repoRoot, nodeCmd, viteBin }) {
   };
 }
 
+function canResolvePackage(packageName, searchPaths) {
+  try {
+    requireFromScript.resolve(`${packageName}/package.json`, { paths: searchPaths });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function startViteServerWithRetry({
   mode,
   host,
@@ -386,10 +399,21 @@ async function main() {
   const shardMode = (args.get("shardMode") ?? process.env.DOGFOOD_SHARD_MODE ?? "serial").toLowerCase();
 
   const repoRoot = process.cwd();
+  if (!process.env.VITE_CONVEX_URL && !process.env.CONVEX_URL) {
+    process.env.VITE_CONVEX_URL = DEFAULT_DOGFOOD_CONVEX_URL;
+    process.env.CONVEX_URL = DEFAULT_DOGFOOD_CONVEX_URL;
+    // eslint-disable-next-line no-console
+    console.warn(`Using ${DEFAULT_DOGFOOD_CONVEX_URL} for local dogfood because no Convex URL env was configured.`);
+  } else if (!process.env.VITE_CONVEX_URL && process.env.CONVEX_URL) {
+    process.env.VITE_CONVEX_URL = process.env.CONVEX_URL;
+  } else if (!process.env.CONVEX_URL && process.env.VITE_CONVEX_URL) {
+    process.env.CONVEX_URL = process.env.VITE_CONVEX_URL;
+  }
   const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
   const npxCmd = process.platform === "win32" ? "npx.cmd" : "npx";
   const nodeCmd = process.execPath;
-  const viteBin = path.join(repoRoot, "node_modules", "vite", "bin", "vite.js");
+  const vitePackageJson = requireFromScript.resolve("vite/package.json", { paths: [repoRoot] });
+  const viteBin = path.join(path.dirname(vitePackageJson), "bin", "vite.js");
   const distDir = path.join(repoRoot, "dist");
   const screenshotDir = path.join(repoRoot, ".tmp", "dogfood-screenshots", "full-ui-dogfood");
   const staleScribeUserdataDir = path.join(repoRoot, "public", "dogfood", "scribe", "userdata");
@@ -402,11 +426,15 @@ async function main() {
   const syncBridgePort = 3100;
   const apiHeadlessHost = "127.0.0.1";
   const apiHeadlessPort = 8020;
+  const apiHeadlessDir = path.join(repoRoot, "apps", "api-headless");
 
   if (!(await isPortOpen(syncBridgeHost, syncBridgePort))) {
     // eslint-disable-next-line no-console
     console.log(`Starting sync bridge server on ${syncBridgeHost}:${syncBridgePort} for local dogfood...`);
-    syncBridgeProc = spawn(`${npmCmd} run dev:voice`, {
+    const voiceCommand = existsSync(path.join(repoRoot, ".env.local"))
+      ? `${npmCmd} run dev:voice`
+      : `${npxCmd} tsx server/index.ts`;
+    syncBridgeProc = spawn(voiceCommand, {
       cwd: repoRoot,
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env },
@@ -419,18 +447,24 @@ async function main() {
   }
 
   if (!(await isPortOpen(apiHeadlessHost, apiHeadlessPort))) {
-    // eslint-disable-next-line no-console
-    console.log(`Starting api-headless server on ${apiHeadlessHost}:${apiHeadlessPort} for local dogfood...`);
-    apiHeadlessProc = spawn(`${npmCmd} run dev`, {
-      cwd: path.join(repoRoot, "apps", "api-headless"),
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, API_PORT: String(apiHeadlessPort) },
-      windowsHide: true,
-      shell: true,
-    });
-    apiHeadlessProc.stdout.on("data", (buf) => process.stdout.write(String(buf)));
-    apiHeadlessProc.stderr.on("data", (buf) => process.stderr.write(String(buf)));
-    await waitForPort(apiHeadlessHost, apiHeadlessPort, 120_000);
+    const canStartApiHeadless = canResolvePackage("helmet", [apiHeadlessDir, repoRoot]);
+    if (!canStartApiHeadless) {
+      // eslint-disable-next-line no-console
+      console.warn("Skipping api-headless local server: package-scoped dependencies are not installed in this worktree.");
+    } else {
+      // eslint-disable-next-line no-console
+      console.log(`Starting api-headless server on ${apiHeadlessHost}:${apiHeadlessPort} for local dogfood...`);
+      apiHeadlessProc = spawn(`${npmCmd} run dev`, {
+        cwd: apiHeadlessDir,
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, API_PORT: String(apiHeadlessPort) },
+        windowsHide: true,
+        shell: true,
+      });
+      apiHeadlessProc.stdout.on("data", (buf) => process.stdout.write(String(buf)));
+      apiHeadlessProc.stderr.on("data", (buf) => process.stderr.write(String(buf)));
+      await waitForPort(apiHeadlessHost, apiHeadlessPort, 120_000);
+    }
   }
 
   let baseURL;

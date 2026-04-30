@@ -5,6 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { existsSync, mkdirSync, writeFileSync as writeFileSyncFs } from "node:fs";
 import path from "node:path";
+import { inflateRawSync } from "node:zlib";
 import type { McpTool } from "../types.js";
 import { resolveLocalPath, clampInt, getYauzl } from "./localFileHelpers.js";
 
@@ -61,8 +62,108 @@ type ZipEntryInfo = {
   compressionMethod?: number;
 };
 
+type FallbackZipEntryInfo = ZipEntryInfo & {
+  localHeaderOffset: number;
+};
+
+async function readFallbackZipEntries(zipPath: string, maxEntries: number): Promise<{ entries: FallbackZipEntryInfo[]; truncated: boolean }> {
+  const buffer = await readFile(zipPath);
+  let eocdOffset = -1;
+  for (let i = buffer.length - 22; i >= Math.max(0, buffer.length - 65557); i--) {
+    if (buffer.readUInt32LE(i) === 0x06054b50) {
+      eocdOffset = i;
+      break;
+    }
+  }
+  if (eocdOffset < 0) throw new Error("Invalid ZIP: end of central directory not found");
+
+  const totalEntries = buffer.readUInt16LE(eocdOffset + 10);
+  const centralDirOffset = buffer.readUInt32LE(eocdOffset + 16);
+  const entries: FallbackZipEntryInfo[] = [];
+  let offset = centralDirOffset;
+
+  for (let i = 0; i < totalEntries; i++) {
+    if (offset + 46 > buffer.length || buffer.readUInt32LE(offset) !== 0x02014b50) {
+      throw new Error("Invalid ZIP: central directory entry is corrupt");
+    }
+    if (entries.length >= maxEntries) return { entries, truncated: true };
+
+    const compressionMethod = buffer.readUInt16LE(offset + 10);
+    const crc32 = buffer.readUInt32LE(offset + 16);
+    const compressedSize = buffer.readUInt32LE(offset + 20);
+    const uncompressedSize = buffer.readUInt32LE(offset + 24);
+    const fileNameLength = buffer.readUInt16LE(offset + 28);
+    const extraLength = buffer.readUInt16LE(offset + 30);
+    const commentLength = buffer.readUInt16LE(offset + 32);
+    const localHeaderOffset = buffer.readUInt32LE(offset + 42);
+    const fileName = buffer.toString("utf8", offset + 46, offset + 46 + fileNameLength);
+
+    entries.push({
+      fileName,
+      uncompressedSize,
+      compressedSize,
+      isDirectory: fileName.endsWith("/"),
+      crc32,
+      compressionMethod,
+      localHeaderOffset,
+    });
+    offset += 46 + fileNameLength + extraLength + commentLength;
+  }
+
+  return { entries, truncated: false };
+}
+
+async function readFallbackZipEntryBuffer(
+  zipPath: string,
+  innerPath: string,
+  opts: { maxBytes: number; caseSensitive: boolean }
+): Promise<{ buffer: Buffer; entry: ZipEntryInfo }> {
+  const { entries } = await readFallbackZipEntries(zipPath, 10000);
+  const target = String(innerPath ?? "").replace(/\\/g, "/").replace(/^\/+/, "");
+  const want = opts.caseSensitive ? target : target.toLowerCase();
+  const entry = entries.find((candidate) => {
+    const name = opts.caseSensitive ? candidate.fileName : candidate.fileName.toLowerCase();
+    return name === want;
+  });
+  if (!entry) throw new Error(`zip entry not found: ${target}`);
+  if (entry.isDirectory) throw new Error(`zip entry is a directory: ${entry.fileName}`);
+  if (entry.uncompressedSize > opts.maxBytes) {
+    throw new Error(`zip entry too large (${entry.uncompressedSize} bytes) for maxBytes=${opts.maxBytes}: ${entry.fileName}`);
+  }
+
+  const archive = await readFile(zipPath);
+  const offset = entry.localHeaderOffset;
+  if (archive.readUInt32LE(offset) !== 0x04034b50) {
+    throw new Error("Invalid ZIP: local file header is corrupt");
+  }
+  const fileNameLength = archive.readUInt16LE(offset + 26);
+  const extraLength = archive.readUInt16LE(offset + 28);
+  const dataStart = offset + 30 + fileNameLength + extraLength;
+  const compressed = archive.subarray(dataStart, dataStart + entry.compressedSize);
+  let data: Buffer;
+  if (entry.compressionMethod === 0) {
+    data = Buffer.from(compressed);
+  } else if (entry.compressionMethod === 8) {
+    data = inflateRawSync(compressed);
+  } else {
+    throw new Error(`Unsupported ZIP compression method ${entry.compressionMethod}: ${entry.fileName}`);
+  }
+  if (data.length > opts.maxBytes) {
+    throw new Error(`zip entry exceeded maxBytes=${opts.maxBytes}: ${entry.fileName}`);
+  }
+  const { localHeaderOffset: _localHeaderOffset, ...publicEntry } = entry;
+  return { buffer: data, entry: publicEntry };
+}
+
 async function zipListEntries(zipPath: string, maxEntries: number): Promise<{ entries: ZipEntryInfo[]; truncated: boolean }> {
-  const yauzl = await getYauzl();
+  const yauzl = await getYauzl().catch(() => null);
+  if (!yauzl) {
+    const fallback = await readFallbackZipEntries(zipPath, maxEntries);
+    return {
+      truncated: fallback.truncated,
+      entries: fallback.entries.map(({ localHeaderOffset: _localHeaderOffset, ...entry }) => entry),
+    };
+  }
   return await new Promise((resolve, reject) => {
     (yauzl as any).open(zipPath, { lazyEntries: true, autoClose: true }, (err: any, zipfile: any) => {
       if (err || !zipfile) return reject(err ?? new Error("Failed to open zip"));
@@ -119,9 +220,10 @@ async function zipReadEntryBuffer(
   innerPath: string,
   opts: { maxBytes: number; caseSensitive: boolean }
 ): Promise<{ buffer: Buffer; entry: ZipEntryInfo }> {
-  const yauzl = await getYauzl();
+  const yauzl = await getYauzl().catch(() => null);
   const target = String(innerPath ?? "").replace(/\\/g, "/").replace(/^\/+/, "");
   if (!target) throw new Error("innerPath is required");
+  if (!yauzl) return readFallbackZipEntryBuffer(zipPath, target, opts);
 
   return await new Promise((resolve, reject) => {
     (yauzl as any).open(zipPath, { lazyEntries: true, autoClose: true }, (err: any, zipfile: any) => {

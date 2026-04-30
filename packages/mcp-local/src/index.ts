@@ -52,8 +52,8 @@ import {
 } from "./packageInfo.js";
 import type { McpTool } from "./types.js";
 
-// TOON format — ~40% token savings on tool responses
-import { encode as toonEncode } from "@toon-format/toon";
+// TOON format — ~40% token savings on tool responses when the optional package is installed.
+import { encodeToon } from "./tools/toonCodec.js";
 // Embedding provider — neural semantic search
 import { initEmbeddingIndex } from "./tools/embeddingProvider.js";
 
@@ -3523,7 +3523,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     let serialized: string;
     if (useToon) {
       try {
-        serialized = toonEncode(enrichedResult);
+        serialized = await encodeToon(enrichedResult);
       } catch {
         serialized = JSON.stringify(enrichedResult, null, 2);
       }
