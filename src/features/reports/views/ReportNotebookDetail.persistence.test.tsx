@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
@@ -174,7 +174,9 @@ describe("ReportNotebookDetail — Convex persistence round-trip", () => {
 
     for (let i = 0; i < 5; i++) {
       await user.keyboard(` t${i}`);
-      await new Promise((r) => setTimeout(r, 120));
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 120));
+      });
     }
 
     await waitFor(
@@ -220,7 +222,9 @@ describe("ReportNotebookDetail — Convex persistence round-trip", () => {
 
     // Wait an extra beat to confirm we don't auto-retry without new input.
     const before = mocks.saveCalls.length;
-    await new Promise((r) => setTimeout(r, 1500));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1500));
+    });
     expect(mocks.saveCalls.length).toBe(before);
   });
 
@@ -289,7 +293,9 @@ describe("ReportNotebookDetail — Convex persistence round-trip", () => {
     await user.keyboard(" attempted-edit");
 
     // Even after debounce window, no save fires for public-shared reports.
-    await new Promise((r) => setTimeout(r, 1500));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1500));
+    });
     expect(mocks.saveCalls.length).toBe(0);
   });
 
@@ -340,7 +346,9 @@ describe("ReportNotebookDetail — Convex persistence round-trip", () => {
     );
     editor.focus();
     await user.keyboard(" starter-edit");
-    await new Promise((r) => setTimeout(r, 1500));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1500));
+    });
     expect(mocks.saveCalls.length).toBe(0);
   });
 });
