@@ -10,6 +10,7 @@ import React from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
+import { useWindowedList } from "@/lib/performance/useWindowedList";
 import {
   Calendar,
   CheckCircle2,
@@ -47,10 +48,22 @@ function formatRelative(ms: number): string {
   return diff > 0 ? `in ${d}d` : `${d}d ago`;
 }
 
-export const PipelineSchedulesPanel: React.FC<{ ownerKey?: string }> = ({ ownerKey }) => {
+type PipelineSchedulesPanelProps = {
+  ownerKey?: string;
+  queryLimit?: number;
+  initialVisibleCount?: number;
+  windowStep?: number;
+};
+
+export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
+  ownerKey,
+  queryLimit = 25,
+  initialVisibleCount = 6,
+  windowStep = 6,
+}) => {
   const schedules = useQuery(
     api.domains.pipelines.pipelineSchedule.listSchedules,
-    { ownerKey, limit: 25 },
+    { ownerKey, limit: queryLimit },
   ) as ScheduleRow[] | undefined;
   const setEnabled = useMutation(
     api.domains.pipelines.pipelineSchedule.setScheduleEnabled,
@@ -58,6 +71,12 @@ export const PipelineSchedulesPanel: React.FC<{ ownerKey?: string }> = ({ ownerK
   const deleteSchedule = useMutation(
     api.domains.pipelines.pipelineSchedule.deleteSchedule,
   );
+  const safeSchedules = schedules ?? [];
+  const { visibleItems: visibleSchedules, remainingCount, hasMore, showMore } = useWindowedList({
+    items: safeSchedules,
+    initialCount: initialVisibleCount,
+    step: windowStep,
+  });
 
   if (schedules === undefined) {
     return (
@@ -111,12 +130,12 @@ export const PipelineSchedulesPanel: React.FC<{ ownerKey?: string }> = ({ ownerK
           <h3 className="text-sm font-semibold text-content">Pipeline schedules</h3>
           <p className="text-[11px] text-content-muted">
             Cron sweeps every hour · {schedules.filter((s) => s.enabled).length} enabled ·{" "}
-            {schedules.length} total
+            showing {visibleSchedules.length} / {schedules.length}
           </p>
         </div>
       </header>
       <ul data-testid="pipeline-schedule-list" className="space-y-2">
-        {schedules.map((row) => (
+        {visibleSchedules.map((row) => (
           <li
             key={row._id}
             data-testid="pipeline-schedule-row"
@@ -190,6 +209,17 @@ export const PipelineSchedulesPanel: React.FC<{ ownerKey?: string }> = ({ ownerK
           </li>
         ))}
       </ul>
+      {hasMore ? (
+        <button
+          type="button"
+          data-testid="pipeline-schedule-show-more"
+          onClick={showMore}
+          className="inline-flex items-center justify-center rounded-md border border-edge px-3 py-1.5 text-[11px] font-medium text-content-muted hover:bg-surface-hover"
+        >
+          Show {Math.min(windowStep, remainingCount)} more schedule
+          {remainingCount === 1 ? "" : "s"}
+        </button>
+      ) : null}
     </section>
   );
 };

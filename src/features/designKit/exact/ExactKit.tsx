@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useConvex, useMutation, useQuery } from "convex/react";
 import { useConvexApi } from "@/lib/convexApi";
@@ -61,6 +61,14 @@ import {
   buildWorkspaceUrl,
   type WorkspaceTab,
 } from "@/features/workspace/lib/workspaceRouting";
+import { buildCompactReportsReadModel } from "@/features/reports/lib/compactReportsReadModel";
+import {
+  REPORT_CONTEXTUAL_ACTIONS,
+  downloadReportCrmCsv,
+  type ReportActionId,
+} from "@/features/reports/lib/reportActions";
+import { useIdleGate } from "@/lib/performance/useIdleGate";
+import { useRoutePerformanceRecord } from "@/lib/performance/routeTiming";
 
 import "./exactKit.css";
 
@@ -348,6 +356,15 @@ function ResponsiveSurface({
    it via props in a follow-up — we keep the kit's exact JSX + class names so
    visual parity is verifiable in raw HTML.
    ────────────────────────────────────────────────────────────────────────── */
+
+function DeferredReportsPanel({ label }: { label: string }) {
+  return (
+    <section className="nb-deferred-panel" aria-label={`${label} loading`}>
+      <span className="nb-deferred-panel-dot" aria-hidden />
+      <span>{label} loading after the first reports view.</span>
+    </section>
+  );
+}
 
 type PulseMetric = {
   id: string;
@@ -914,9 +931,22 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
     navigate(buildCockpitPath({ surfaceId: "packets", extra: { report: id } }));
   };
 
+  useRoutePerformanceRecord({
+    routeId: "home",
+    surfaceId: "home",
+    rootSelector: '[data-testid="exact-web-home-surface"]',
+    firstActionSelector: '[data-nb-perf-action="home-primary"]',
+    dataSource: liveEntities && liveEntities.length > 0 ? "live_convex" : "starter",
+  });
+
   return (
     <ResponsiveSurface mobile="home">
-      <div className="nb-home-pulse" style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      <div
+        className="nb-home-pulse"
+        data-testid="exact-web-home-surface"
+        data-nb-perf-root="home"
+        style={{ display: "flex", flexDirection: "column", gap: 28 }}
+      >
       <section className="nb-composer-hero">
         <div className="nb-kicker">Entity intelligence</div>
         <h1>What are we researching today?</h1>
@@ -954,7 +984,12 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
             <span style={{ color: "var(--text-faint)", fontFamily: "var(--font-mono)", fontSize: 11 }}>
               <Command size={12} style={{ display: "inline", verticalAlign: "-2px" }} /> Enter
             </span>
-            <button type="button" className="nb-btn nb-btn-primary" onClick={() => start()}>
+            <button
+              type="button"
+              className="nb-btn nb-btn-primary"
+              data-nb-perf-action="home-primary"
+              onClick={() => start()}
+            >
               <Send size={14} />
               Start run
             </button>
@@ -1232,8 +1267,15 @@ export function ExactReportDetailSurface({ reportId, onBack }: { reportId: strin
   if (!detail) {
     return (
       <ResponsiveSurface mobile="reports">
-        <section style={{ padding: 24 }}>
-          <button type="button" className="nb-btn nb-btn-secondary" onClick={onBack}>← Back to reports</button>
+        <section style={{ padding: 24 }} data-testid="exact-web-report-detail">
+          <button
+            type="button"
+            className="nb-btn nb-btn-secondary"
+            data-testid="report-detail-back"
+            onClick={onBack}
+          >
+            ← Back to reports
+          </button>
           <p style={{ marginTop: 12, color: "var(--text-muted)" }}>Report not found.</p>
         </section>
       </ResponsiveSurface>
@@ -1251,6 +1293,7 @@ export function ExactReportDetailSurface({ reportId, onBack }: { reportId: strin
             <button
               type="button"
               className="nb-rdetail-back"
+              data-testid="report-detail-back"
               onClick={onBack}
               aria-label="Back to reports"
             >
@@ -1370,10 +1413,33 @@ export function ExactReportsSurface() {
     });
   }, [entities]);
 
-  const reportsSource = liveReports ?? REPORTS;
   const [view, setView] = useState<"grid" | "list">("grid");
   const [filter, setFilter] = useState("all");
-  const filteredReports = filter === "all" ? reportsSource : reportsSource.filter((report) => report.state.includes(filter));
+  const [visibleReportCount, setVisibleReportCount] = useState(12);
+  const backgroundReady = useIdleGate({ timeoutMs: 850 });
+
+  useEffect(() => {
+    setVisibleReportCount(12);
+  }, [filter, liveReports]);
+
+  const reportsReadModel = useMemo(
+    () =>
+      buildCompactReportsReadModel({
+        liveReports,
+        fallbackReports: REPORTS,
+        filter,
+        visibleCount: visibleReportCount,
+      }),
+    [filter, liveReports, visibleReportCount],
+  );
+
+  useRoutePerformanceRecord({
+    routeId: reportParam ? "reports-detail" : "reports",
+    surfaceId: "reports",
+    rootSelector: reportParam ? '[data-testid="exact-web-report-detail"]' : '[data-testid="reports-performance-root"]',
+    firstActionSelector: reportParam ? '[data-testid="report-detail-back"]' : '[data-testid="pipeline-launcher-submit"], [data-testid="report-card"]',
+    dataSource: reportsReadModel.sourceKind,
+  });
 
   const goBackToGrid = () => {
     const next = new URLSearchParams(searchParams);
@@ -1388,6 +1454,33 @@ export function ExactReportsSurface() {
     setSearchParams(next, { replace: false });
   };
 
+  const handleReportAction = (
+    report: ExactReportCard,
+    actionId: ReportActionId,
+    event: MouseEvent<HTMLButtonElement>,
+  ) => {
+    event.stopPropagation();
+    if (actionId === "open_brief") {
+      openInlineReport(report.id);
+      return;
+    }
+    if (actionId === "open_sources") {
+      openWorkspace(report.id, "sources");
+      return;
+    }
+    if (actionId === "open_notebook") {
+      openWorkspace(report.id, "notebook");
+      return;
+    }
+    if (actionId === "resume_chat") {
+      navigate(buildCockpitPath({ surfaceId: "workspace", extra: { q: report.title, report: report.id } }));
+      return;
+    }
+    if (actionId === "export_crm_csv") {
+      downloadReportCrmCsv(report);
+    }
+  };
+
   // Inline detail view: ?surface=packets&report=<id> renders within the
   // cockpit shell instead of redirecting to the workspace subdomain.
   if (reportParam) {
@@ -1396,7 +1489,7 @@ export function ExactReportsSurface() {
 
   return (
     <ResponsiveSurface mobile="reports">
-      <section>
+      <section data-testid="reports-performance-root" data-reports-source={reportsReadModel.sourceKind}>
         <div className="nb-reports-toolbar">
           <div>
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 760, letterSpacing: "-0.02em" }}>Reports</h1>
@@ -1405,6 +1498,9 @@ export function ExactReportsSurface() {
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span className="nb-reports-source-pill" data-source={reportsReadModel.sourceKind}>
+              {reportsReadModel.sourceLabel} - {reportsReadModel.filteredReports.length} reports
+            </span>
             <div className="nb-view-toggle" aria-label="Report filter">
               {["all", "verified", "review", "watching"].map((item) => (
                 <button key={item} type="button" data-active={filter === item} onClick={() => setFilter(item)}>
@@ -1419,28 +1515,32 @@ export function ExactReportsSurface() {
           </div>
         </div>
 
-        <div data-testid="reports-findings-panel-slot" style={{ marginBottom: 16 }}>
-          <EntityFindingsPanel />
-        </div>
-
         <div data-testid="reports-pipeline-launcher-slot" style={{ marginBottom: 16 }}>
           <PipelineLauncher />
         </div>
 
-        <div data-testid="reports-pipeline-schedules-slot" style={{ marginBottom: 16 }}>
-          <PipelineSchedulesPanel />
+        <div data-testid="reports-pipelines-panel-slot" style={{ marginBottom: 16 }}>
+          <PipelineRunsPanel initialVisibleCount={6} queryLimit={18} windowStep={6} />
         </div>
 
         <div data-testid="reports-pipeline-eval-slot" style={{ marginBottom: 16 }}>
-          <PipelineEvalScorecard />
+          {backgroundReady ? <PipelineEvalScorecard /> : <DeferredReportsPanel label="Eval scorecard" />}
         </div>
 
-        <div data-testid="reports-pipelines-panel-slot" style={{ marginBottom: 16 }}>
-          <PipelineRunsPanel />
+        <div data-testid="reports-pipeline-schedules-slot" style={{ marginBottom: 16 }}>
+          {backgroundReady ? (
+            <PipelineSchedulesPanel initialVisibleCount={4} queryLimit={12} windowStep={4} />
+          ) : (
+            <DeferredReportsPanel label="Pipeline schedules" />
+          )}
+        </div>
+
+        <div data-testid="reports-findings-panel-slot" style={{ marginBottom: 16 }}>
+          {backgroundReady ? <EntityFindingsPanel /> : <DeferredReportsPanel label="Entity findings" />}
         </div>
 
         <div className="nb-reports-grid" data-view={view}>
-          {filteredReports.map((report) => (
+          {reportsReadModel.visibleReports.map((report) => (
             <article
               key={report.id}
               className="nb-rcard"
@@ -1460,10 +1560,19 @@ export function ExactReportsSurface() {
               <div className="nb-rcard-body">
                 <div className="nb-rcard-title">{report.title}</div>
                 <div className="nb-rcard-sub">{report.summary}</div>
-                <div data-testid="report-card-actions" style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
-                  <button type="button" className="nb-btn nb-btn-secondary" onClick={(event) => { event.stopPropagation(); openInlineReport(report.id); }}>Brief</button>
-                  <button type="button" className="nb-btn nb-btn-secondary" aria-label="Explore workspace cards" onClick={(event) => { event.stopPropagation(); openWorkspace(report.id, "cards"); }}>Explore</button>
-                  <button type="button" className="nb-btn nb-btn-secondary" aria-label="Ask NodeBench" onClick={(event) => { event.stopPropagation(); navigate(buildCockpitPath({ surfaceId: "workspace", extra: { q: report.title, report: report.id } })); }}>Chat</button>
+                <div data-testid="report-card-actions" className="nb-rcard-actions">
+                  {REPORT_CONTEXTUAL_ACTIONS.map((action) => (
+                    <button
+                      key={action.id}
+                      type="button"
+                      className="nb-btn nb-btn-secondary"
+                      data-nb-action={action.id}
+                      aria-label={action.ariaLabel}
+                      onClick={(event) => handleReportAction(report, action.id, event)}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
                 </div>
                 <div className="nb-rcard-foot">
                   <span>{report.sources} sources</span>
@@ -1477,6 +1586,18 @@ export function ExactReportsSurface() {
             </article>
           ))}
         </div>
+        {reportsReadModel.hasMore ? (
+          <div className="nb-show-more-row">
+            <button
+              type="button"
+              className="nb-btn nb-btn-secondary"
+              data-testid="reports-show-more"
+              onClick={() => setVisibleReportCount((count) => count + 12)}
+            >
+              Show {Math.min(12, reportsReadModel.hiddenCount)} more reports
+            </button>
+          </div>
+        ) : null}
       </section>
     </ResponsiveSurface>
   );
@@ -2322,6 +2443,14 @@ export function ExactChatSurface() {
     setComposer("");
   };
 
+  useRoutePerformanceRecord({
+    routeId: "chat",
+    surfaceId: "chat",
+    rootSelector: '[data-testid="exact-web-chat-stream"]',
+    firstActionSelector: '[data-nb-perf-action="chat-send"]',
+    dataSource: liveThreadTurns ? "live_convex" : "starter",
+  });
+
   return (
     <ResponsiveSurface mobile="chat">
       <section data-testid="exact-web-chat-stream" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -2442,6 +2571,7 @@ export function ExactChatSurface() {
                       <button
                         type="button"
                         className="nb-composer-send"
+                        data-nb-perf-action="chat-send"
                         aria-label="Send"
                         disabled={!composer.trim()}
                         onClick={() => sendTurn(composer)}
@@ -2617,9 +2747,17 @@ export function ExactInboxSurface() {
     }
   };
 
+  useRoutePerformanceRecord({
+    routeId: "inbox",
+    surfaceId: "inbox",
+    rootSelector: '[data-testid="exact-web-inbox-surface"]',
+    firstActionSelector: '[data-nb-perf-action="inbox-filter"]',
+    dataSource: liveItems ? "live_convex" : "starter",
+  });
+
   return (
     <ResponsiveSurface mobile="inbox">
-      <section>
+      <section data-testid="exact-web-inbox-surface">
         <div className="nb-inbox-head">
           <div>
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 760, letterSpacing: "-0.02em" }}>Inbox</h1>
@@ -2634,7 +2772,13 @@ export function ExactInboxSurface() {
               ["auto", "Auto", counts.auto],
               ["watch", "Watching", counts.watch],
             ].map(([key, label, count]) => (
-              <button key={key} type="button" data-active={filter === key} onClick={() => setFilter(key as typeof filter)}>
+              <button
+                key={key}
+                type="button"
+                data-active={filter === key}
+                data-nb-perf-action={key === "all" ? "inbox-filter" : undefined}
+                onClick={() => setFilter(key as typeof filter)}
+              >
                 {label} <span style={{ marginLeft: 5, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>{count}</span>
               </button>
             ))}
@@ -2757,9 +2901,17 @@ export function ExactMeSurface() {
     { group: "Workspace", items: [{ id: "integrations", label: "Integrations", icon: Link2 }, { id: "usage", label: "Usage", icon: Sparkles }] },
   ];
 
+  useRoutePerformanceRecord({
+    routeId: "me",
+    surfaceId: "me",
+    rootSelector: '[data-testid="exact-web-me-surface"]',
+    firstActionSelector: '[data-nb-perf-action="me-add-entity"]',
+    dataSource: liveNotebook ? "live_convex" : "starter",
+  });
+
   return (
     <ResponsiveSurface mobile="me">
-      <section className="nb-me-grid">
+      <section className="nb-me-grid" data-testid="exact-web-me-surface">
         <aside className="nb-me-sidenav">
           <div className="hd">
             <div className="av">HS</div>
@@ -2796,7 +2948,7 @@ export function ExactMeSurface() {
                     <div style={{ fontSize: 13.5, fontWeight: 800 }}>{entities.length} watched entities</div>
                     <div style={{ color: "var(--text-muted)", fontSize: 11.5 }}>New reports automatically link to entities they mention.</div>
                   </div>
-                  <button className="nb-btn nb-btn-secondary" type="button"><Plus size={13} /> Add entity</button>
+                  <button className="nb-btn nb-btn-secondary" type="button" data-nb-perf-action="me-add-entity"><Plus size={13} /> Add entity</button>
                 </div>
                 {entities.map((entity, index) => (
                   <div
@@ -2976,9 +3128,19 @@ function ExactMobileSurface({ surface }: { surface: MobileSurface }) {
     inbox: "Inbox",
     me: "Me",
   };
+  const mobileRootTestId = surfaceTestIds[surface] ?? "mobile-home-surface";
+
+  useRoutePerformanceRecord({
+    routeId: `mobile-${surface}`,
+    surfaceId: surface,
+    rootSelector: `[data-testid="${mobileRootTestId}"]`,
+    firstActionSelector: surface === "reports" ? '[data-testid="pipeline-launcher-submit"]' : undefined,
+    dataSource: surface === "reports" ? "live_convex" : "starter",
+  });
+
   return (
     <div className="nb-mobile-kit">
-      <div className="m-screen" data-testid={surfaceTestIds[surface]}>
+      <div className="m-screen" data-testid={mobileRootTestId}>
         <header className="m-top">
           <button className="m-icon-btn" aria-label="Menu"><MobileIcon name="thread" /></button>
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -3013,6 +3175,9 @@ function ExactMobileSurface({ surface }: { surface: MobileSurface }) {
 }
 
 function MobileReportsPipelineBlock() {
+  const [schedulesOpen, setSchedulesOpen] = useState(false);
+  const evalReady = useIdleGate({ timeoutMs: 450 });
+
   return (
     <section
       className="m-pipeline-block"
@@ -3024,22 +3189,28 @@ function MobileReportsPipelineBlock() {
           <span className="kicker">Pipelines</span>
           <h2>Run, review, and score</h2>
         </div>
-        <span className="pill pill-neutral">live Convex</span>
+        <span className="pill pill-neutral">live runtime</span>
       </header>
       <div className="m-pipeline-stack">
         <div data-testid="reports-pipeline-launcher-slot">
           <PipelineLauncher variant="compact" />
         </div>
         <div data-testid="reports-pipelines-panel-slot">
-          <PipelineRunsPanel />
+          <PipelineRunsPanel initialVisibleCount={4} queryLimit={12} windowStep={4} />
         </div>
         <div data-testid="reports-pipeline-eval-slot">
-          <PipelineEvalScorecard />
+          {evalReady ? <PipelineEvalScorecard /> : <DeferredReportsPanel label="Eval scorecard" />}
         </div>
-        <details className="m-pipeline-more">
+        <details
+          className="m-pipeline-more"
+          open={schedulesOpen}
+          onToggle={(event) => setSchedulesOpen(event.currentTarget.open)}
+        >
           <summary>Schedules</summary>
           <div data-testid="reports-pipeline-schedules-slot">
-            <PipelineSchedulesPanel />
+            {schedulesOpen ? (
+              <PipelineSchedulesPanel initialVisibleCount={3} queryLimit={10} windowStep={3} />
+            ) : null}
           </div>
         </details>
       </div>

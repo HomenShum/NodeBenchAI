@@ -10,6 +10,7 @@
 import React, { useMemo, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { useStableQuery } from "@/hooks/useStableQuery";
+import { useWindowedList } from "@/lib/performance/useWindowedList";
 import {
   Cpu,
   AlertCircle,
@@ -147,11 +148,21 @@ const PipelineRunStreamPreview: React.FC<{ runId: string }> = ({ runId }) => {
   );
 };
 
-export const PipelineRunsPanel: React.FC = () => {
+type PipelineRunsPanelProps = {
+  queryLimit?: number;
+  initialVisibleCount?: number;
+  windowStep?: number;
+};
+
+export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
+  queryLimit = 24,
+  initialVisibleCount = 8,
+  windowStep = 8,
+}) => {
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const runs = useStableQuery(
     api.domains.pipelines.pipelineRunsQueries.listRecentRuns,
-    { limit: 8 },
+    { limit: queryLimit },
   );
   const stats = useStableQuery(
     api.domains.pipelines.pipelineRunsQueries.getRunSummaryStats,
@@ -159,6 +170,11 @@ export const PipelineRunsPanel: React.FC = () => {
   );
 
   const safeRuns = useMemo(() => runs ?? [], [runs]);
+  const { visibleItems: visibleRuns, remainingCount, hasMore, showMore } = useWindowedList({
+    items: safeRuns,
+    initialCount: initialVisibleCount,
+    step: windowStep,
+  });
 
   if (runs === undefined) {
     return (
@@ -233,12 +249,15 @@ export const PipelineRunsPanel: React.FC = () => {
             <span data-testid="pipeline-stat-cost">
               {formatUsd(stats.totalEstimatedUsd)} spent
             </span>
+            <span data-testid="pipeline-stat-window">
+              showing {visibleRuns.length} / {safeRuns.length}
+            </span>
           </div>
         ) : null}
       </header>
 
       <ul data-testid="pipeline-run-list" className="space-y-2">
-        {safeRuns.map((run) => {
+        {visibleRuns.map((run) => {
           const badge = statusBadge[run.status] ?? statusBadge.queued;
           const Icon = badge.Icon;
           return (
@@ -343,6 +362,16 @@ export const PipelineRunsPanel: React.FC = () => {
           );
         })}
       </ul>
+      {hasMore ? (
+        <button
+          type="button"
+          data-testid="pipeline-run-show-more"
+          onClick={showMore}
+          className="inline-flex items-center justify-center rounded-md border border-edge px-3 py-1.5 text-[11px] font-medium text-content-muted hover:bg-surface-hover"
+        >
+          Show {Math.min(windowStep, remainingCount)} more run{remainingCount === 1 ? "" : "s"}
+        </button>
+      ) : null}
     </section>
   );
 };
