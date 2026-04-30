@@ -78,6 +78,11 @@ export const runResearchPipeline = internalAction({
     modelId: v.optional(v.string()),
     ownerKey: v.optional(v.string()),
     forceFresh: v.optional(v.boolean()),
+    /**
+     * Linkup search depth — "standard" (~€0.005) or "deep" (~€0.05).
+     * Use "deep" for gnarlier multi-hop research. Default "standard".
+     */
+    linkupDepth: v.optional(v.union(v.literal("standard"), v.literal("deep"))),
   },
   returns: v.object({
     runId: v.string(),
@@ -253,9 +258,9 @@ export const runResearchPipeline = internalAction({
         try {
           const res = await runLinkupSearch({
             query: sub,
-            depth: "standard",
-            maxResults: 4,
-            timeoutMs: 25_000,
+            depth: args.linkupDepth ?? "standard",
+            maxResults: args.linkupDepth === "deep" ? 6 : 4,
+            timeoutMs: args.linkupDepth === "deep" ? 60_000 : 25_000,
           });
           if (res.fallback) gatherFallback = true;
           for (const snip of res.snippets) {

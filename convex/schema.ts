@@ -2326,6 +2326,43 @@ const pipelineRuns = defineTable({
   .index("by_status_createdAt", ["status", "createdAt"]);
 
 /* ------------------------------------------------------------------ */
+/* Pi-AI Scheduled Pipeline Runs — recurring or future-dated runs      */
+/*                                                                     */
+/* One row per schedule. The pipelineRunsCron sweep wakes hourly,      */
+/* finds rows whose `nextRunAt <= now`, kicks off the workflow, and    */
+/* advances `nextRunAt` per the cadence. Active rows have `enabled`    */
+/* true; disable by patch (no row deletion to preserve audit trail).   */
+/* ------------------------------------------------------------------ */
+const scheduledPipelineRuns = defineTable({
+  ownerKey: v.optional(v.string()), // user:<id> or system:<name>
+  pipelineKind: v.union(
+    v.literal("code_gen"),
+    v.literal("design_gen"),
+    v.literal("research"),
+  ),
+  spec: v.string(),
+  title: v.optional(v.string()),
+  modelId: v.string(),
+  cadence: v.union(
+    v.literal("once"),     // fire once at nextRunAt, then disable
+    v.literal("hourly"),
+    v.literal("daily"),
+    v.literal("weekly"),
+  ),
+  enabled: v.boolean(),
+  nextRunAt: v.number(),  // ms epoch
+  lastRunAt: v.optional(v.number()),
+  lastRunId: v.optional(v.string()),
+  lastStatus: v.optional(v.string()),
+  // Optional: deep-mode for research, image size for design-gen, etc.
+  options: v.optional(v.any()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index("by_enabled_nextRunAt", ["enabled", "nextRunAt"])
+  .index("by_owner_createdAt", ["ownerKey", "createdAt"]);
+
+/* ------------------------------------------------------------------ */
 /* Pi-AI Pipeline Run Streams — reactive partial-text rows for live    */
 /* streaming UX. One row per (runId, stepName) pair; updated on every  */
 /* delta during streamed pi-ai completions. Convex's reactive query    */
@@ -4042,6 +4079,7 @@ export default defineSchema({
   pipelineRuns,
   pipelineSteps,
   pipelineRunStreams,
+  scheduledPipelineRuns,
   linkedinHeldPosts,
   linkedinContentQueue,
   userApiKeys,

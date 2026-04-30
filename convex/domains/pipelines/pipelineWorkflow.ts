@@ -142,6 +142,7 @@ export const startPipelineRun = mutation({
     modelId: v.optional(v.string()),
     ownerKey: v.optional(v.string()),
     forceFresh: v.optional(v.boolean()),
+    linkupDepth: v.optional(v.union(v.literal("standard"), v.literal("deep"))),
   },
   returns: v.object({
     workflowId: v.string(),
@@ -150,6 +151,58 @@ export const startPipelineRun = mutation({
     const workflowId = await workflowManager.start(
       ctx,
       internal.domains.pipelines.pipelineWorkflow.runPipelineWorkflow,
+      args,
+    );
+    return { workflowId: String(workflowId) };
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Composed pipeline (research → code, research → design, code → design)
+// ─────────────────────────────────────────────────────────────────────────
+
+export const runComposedWorkflow = workflowManager.define({
+  args: {
+    composition: v.union(
+      v.literal("research_then_code"),
+      v.literal("research_then_design"),
+      v.literal("code_then_design"),
+    ),
+    spec: v.string(),
+    title: v.optional(v.string()),
+    modelId: v.optional(v.string()),
+    ownerKey: v.optional(v.string()),
+    forceFresh: v.optional(v.boolean()),
+    linkupDepth: v.optional(v.union(v.literal("standard"), v.literal("deep"))),
+  },
+  handler: async (step, args): Promise<any> => {
+    return await step.runAction(
+      internal.domains.pipelines.composedPipeline.runComposedPipeline,
+      args,
+      { retry: { maxAttempts: 2, initialBackoffMs: 5000, base: 2 } },
+    );
+  },
+});
+
+export const startComposedPipelineRun = mutation({
+  args: {
+    composition: v.union(
+      v.literal("research_then_code"),
+      v.literal("research_then_design"),
+      v.literal("code_then_design"),
+    ),
+    spec: v.string(),
+    title: v.optional(v.string()),
+    modelId: v.optional(v.string()),
+    ownerKey: v.optional(v.string()),
+    forceFresh: v.optional(v.boolean()),
+    linkupDepth: v.optional(v.union(v.literal("standard"), v.literal("deep"))),
+  },
+  returns: v.object({ workflowId: v.string() }),
+  handler: async (ctx, args): Promise<{ workflowId: string }> => {
+    const workflowId = await workflowManager.start(
+      ctx,
+      internal.domains.pipelines.pipelineWorkflow.runComposedWorkflow,
       args,
     );
     return { workflowId: String(workflowId) };
