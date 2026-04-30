@@ -896,6 +896,8 @@ import type * as domains_pipelines_designGenPipeline from "../domains/pipelines/
 import type * as domains_pipelines_linkupAdapter from "../domains/pipelines/linkupAdapter.js";
 import type * as domains_pipelines_piRuntime from "../domains/pipelines/piRuntime.js";
 import type * as domains_pipelines_pipelineDocumentHandoff from "../domains/pipelines/pipelineDocumentHandoff.js";
+import type * as domains_pipelines_pipelineEvalQueries from "../domains/pipelines/pipelineEvalQueries.js";
+import type * as domains_pipelines_pipelineMcpHttp from "../domains/pipelines/pipelineMcpHttp.js";
 import type * as domains_pipelines_pipelineRunsMutations from "../domains/pipelines/pipelineRunsMutations.js";
 import type * as domains_pipelines_pipelineRunsQueries from "../domains/pipelines/pipelineRunsQueries.js";
 import type * as domains_pipelines_pipelineSchedule from "../domains/pipelines/pipelineSchedule.js";
@@ -2363,6 +2365,8 @@ declare const fullApi: ApiFromModules<{
   "domains/pipelines/linkupAdapter": typeof domains_pipelines_linkupAdapter;
   "domains/pipelines/piRuntime": typeof domains_pipelines_piRuntime;
   "domains/pipelines/pipelineDocumentHandoff": typeof domains_pipelines_pipelineDocumentHandoff;
+  "domains/pipelines/pipelineEvalQueries": typeof domains_pipelines_pipelineEvalQueries;
+  "domains/pipelines/pipelineMcpHttp": typeof domains_pipelines_pipelineMcpHttp;
   "domains/pipelines/pipelineRunsMutations": typeof domains_pipelines_pipelineRunsMutations;
   "domains/pipelines/pipelineRunsQueries": typeof domains_pipelines_pipelineRunsQueries;
   "domains/pipelines/pipelineSchedule": typeof domains_pipelines_pipelineSchedule;

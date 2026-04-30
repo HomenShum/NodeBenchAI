@@ -54,6 +54,8 @@ import { RichNotebookEditor } from "@/features/notebook/components/RichNotebookE
 import { EntityFindingsPanel } from "@/features/narrative/components/social/EntityFindingsPanel";
 import { PipelineRunsPanel } from "@/features/pipelines/views/PipelineRunsPanel";
 import { PipelineLauncher } from "@/features/pipelines/views/PipelineLauncher";
+import { PipelineSchedulesPanel } from "@/features/pipelines/views/PipelineSchedulesPanel";
+import { PipelineEvalScorecard } from "@/features/pipelines/views/PipelineEvalScorecard";
 import {
   buildLocalWorkspacePath,
   buildWorkspaceUrl,
@@ -1423,6 +1425,14 @@ export function ExactReportsSurface() {
 
         <div data-testid="reports-pipeline-launcher-slot" style={{ marginBottom: 16 }}>
           <PipelineLauncher />
+        </div>
+
+        <div data-testid="reports-pipeline-schedules-slot" style={{ marginBottom: 16 }}>
+          <PipelineSchedulesPanel />
+        </div>
+
+        <div data-testid="reports-pipeline-eval-slot" style={{ marginBottom: 16 }}>
+          <PipelineEvalScorecard />
         </div>
 
         <div data-testid="reports-pipelines-panel-slot" style={{ marginBottom: 16 }}>

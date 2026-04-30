@@ -65,6 +65,14 @@ function base64EncodeAscii(input: string): string {
 // Voice agent helpers - Import from integrations domain
 import { voiceAction, voiceConnect } from "./domains/integrations/voice/voiceActions";
 
+// Pi-AI Pipeline MCP HTTP bridge
+import {
+  runPipelineHttp,
+  runComposedPipelineHttp,
+  getPipelineStatusHttp,
+  listPipelineRunsHttp,
+} from "./domains/pipelines/pipelineMcpHttp";
+
 // JSON-RPC 2.0 MCP-compatible endpoint (minimal, JSON-only)
 // Methods supported:
 // - initialize
@@ -1076,6 +1084,20 @@ http.route({
   method: "POST",
   handler: voiceAction,
 });
+
+// ============================================================================
+// Pi-AI Pipeline MCP HTTP bridge — external agents drive pipelines via curl
+// Auth: x-mcp-secret header matching MCP_SECRET env var.
+// ============================================================================
+
+http.route({ path: "/mcp/pipeline/run", method: "POST", handler: runPipelineHttp });
+http.route({
+  path: "/mcp/pipeline/run-composed",
+  method: "POST",
+  handler: runComposedPipelineHttp,
+});
+http.route({ path: "/mcp/pipeline/status", method: "GET", handler: getPipelineStatusHttp });
+http.route({ path: "/mcp/pipeline/list", method: "GET", handler: listPipelineRunsHttp });
 
 // ============================================================================
 // Twilio SMS Webhooks (for A2P 10DLC compliance)

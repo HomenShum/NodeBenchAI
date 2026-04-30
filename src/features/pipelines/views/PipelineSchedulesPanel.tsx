@@ -1,0 +1,197 @@
+/**
+ * PipelineSchedulesPanel
+ *
+ * Lists `scheduledPipelineRuns` rows for the signed-in user (or session)
+ * with toggle / delete affordances. Drives the cron sweep that fires
+ * pipelines on cadence (once / hourly / daily / weekly).
+ */
+
+import React from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
+import {
+  Calendar,
+  CheckCircle2,
+  Pause,
+  Play,
+  Trash2,
+} from "lucide-react";
+
+interface ScheduleRow {
+  _id: Id<"scheduledPipelineRuns">;
+  ownerKey?: string;
+  pipelineKind: string;
+  spec: string;
+  title?: string;
+  modelId: string;
+  cadence: string;
+  enabled: boolean;
+  nextRunAt: number;
+  lastRunAt?: number;
+  lastRunId?: string;
+  lastStatus?: string;
+  options?: any;
+  createdAt: number;
+}
+
+function formatRelative(ms: number): string {
+  const diff = ms - Date.now();
+  const abs = Math.abs(diff);
+  const m = Math.round(abs / 60_000);
+  if (m < 1) return diff > 0 ? "in <1 min" : "<1 min ago";
+  if (m < 60) return diff > 0 ? `in ${m} min` : `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return diff > 0 ? `in ${h}h` : `${h}h ago`;
+  const d = Math.round(h / 24);
+  return diff > 0 ? `in ${d}d` : `${d}d ago`;
+}
+
+export const PipelineSchedulesPanel: React.FC<{ ownerKey?: string }> = ({ ownerKey }) => {
+  const schedules = useQuery(
+    api.domains.pipelines.pipelineSchedule.listSchedules,
+    { ownerKey, limit: 25 },
+  ) as ScheduleRow[] | undefined;
+  const setEnabled = useMutation(
+    api.domains.pipelines.pipelineSchedule.setScheduleEnabled,
+  );
+  const deleteSchedule = useMutation(
+    api.domains.pipelines.pipelineSchedule.deleteSchedule,
+  );
+
+  if (schedules === undefined) {
+    return (
+      <section
+        data-testid="pipeline-schedules-panel"
+        className="nb-surface-card p-4 text-xs text-content-muted"
+      >
+        Loading schedules…
+      </section>
+    );
+  }
+
+  if (schedules.length === 0) {
+    return (
+      <section
+        data-testid="pipeline-schedules-empty"
+        className="nb-surface-card p-4 space-y-2"
+      >
+        <header className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-md bg-blue-500/15 flex items-center justify-center">
+            <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-content">Pipeline schedules</h3>
+            <p className="text-[11px] text-content-muted">
+              Cron-fired pipeline runs land here. Empty — none scheduled yet.
+            </p>
+          </div>
+        </header>
+        <p className="text-xs text-content-muted">
+          Create one via{" "}
+          <code className="text-[11px]">
+            npx convex run domains/pipelines/pipelineSchedule:createSchedule …
+          </code>
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      data-testid="pipeline-schedules-panel"
+      aria-label="Pipeline schedules"
+      className="nb-surface-card p-4 space-y-3"
+    >
+      <header className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-md bg-blue-500/15 flex items-center justify-center">
+          <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-content">Pipeline schedules</h3>
+          <p className="text-[11px] text-content-muted">
+            Cron sweeps every hour · {schedules.filter((s) => s.enabled).length} enabled ·{" "}
+            {schedules.length} total
+          </p>
+        </div>
+      </header>
+      <ul data-testid="pipeline-schedule-list" className="space-y-2">
+        {schedules.map((row) => (
+          <li
+            key={row._id}
+            data-testid="pipeline-schedule-row"
+            data-enabled={row.enabled ? "1" : "0"}
+            className="rounded-md border border-edge/60 px-3 py-2 text-xs space-y-1"
+          >
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 text-content font-medium truncate max-w-[55%]">
+                {row.title ?? row.spec.slice(0, 60)}
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-content-muted">
+                {row.pipelineKind.replace("_", " ")} · {row.cadence}
+                {row.enabled ? (
+                  <span className="text-emerald-700 dark:text-emerald-300">enabled</span>
+                ) : (
+                  <span className="text-content-muted">paused</span>
+                )}
+              </span>
+            </div>
+            <div className="text-[11px] text-content-muted">
+              Next run {formatRelative(row.nextRunAt)} · model {row.modelId}
+              {row.lastRunAt
+                ? ` · last fired ${formatRelative(row.lastRunAt)}${row.lastStatus ? ` (${row.lastStatus})` : ""}`
+                : " · never fired"}
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                data-testid="pipeline-schedule-toggle"
+                onClick={() => setEnabled({ scheduleId: row._id, enabled: !row.enabled })}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] ${
+                  row.enabled
+                    ? "border-edge text-content-muted hover:bg-surface-hover"
+                    : "border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                }`}
+              >
+                {row.enabled ? (
+                  <>
+                    <Pause className="w-3 h-3" /> Pause
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3 h-3" /> Resume
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                data-testid="pipeline-schedule-delete"
+                onClick={() => {
+                  if (
+                    typeof window !== "undefined" &&
+                    !window.confirm(
+                      `Delete schedule "${row.title ?? row.spec.slice(0, 40)}"? This cannot be undone.`,
+                    )
+                  ) {
+                    return;
+                  }
+                  deleteSchedule({ scheduleId: row._id });
+                }}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-edge text-[11px] text-red-700 dark:text-red-300 hover:bg-red-500/10"
+              >
+                <Trash2 className="w-3 h-3" /> Delete
+              </button>
+              {row.lastStatus === "kicked" ? (
+                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300">
+                  <CheckCircle2 className="w-3 h-3" /> last sweep ok
+                </span>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
+
+export default PipelineSchedulesPanel;
