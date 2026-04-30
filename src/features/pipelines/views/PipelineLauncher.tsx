@@ -10,15 +10,26 @@
  */
 
 import React, { useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { Play, Loader2 } from "lucide-react";
+import { Play, Loader2, Layers } from "lucide-react";
 
 const PIPELINE_KINDS = [
   { value: "research", label: "Research" },
   { value: "code_gen", label: "Code generation" },
   { value: "design_gen", label: "Design generation" },
+  { value: "research_then_code", label: "Research → Code (composed)" },
+  { value: "research_then_design", label: "Research → Design (composed)" },
+  { value: "code_then_design", label: "Code → Design (composed)" },
 ] as const;
+
+type PipelineKindValue = (typeof PIPELINE_KINDS)[number]["value"];
+
+const COMPOSED_KINDS = new Set<PipelineKindValue>([
+  "research_then_code",
+  "research_then_design",
+  "code_then_design",
+]);
 
 const MODEL_PRESETS = [
   { value: "gpt-4o-mini", label: "GPT-4o mini · cheap + fast" },
@@ -34,15 +45,20 @@ const PLACEHOLDER_BY_KIND: Record<string, string> = {
     "Describe what to scaffold — e.g., A TypeScript util that hashes strings with SHA-256, plus a Vitest test.",
   design_gen:
     "Describe the surface — e.g., A landing page for a coding-pipeline product. Hero, CTA, three feature cards, dark mode.",
+  research_then_code:
+    "Describe what to research and then build — e.g., Compare Tailwind v4 vs Panda CSS, then scaffold a starter using the winner.",
+  research_then_design:
+    "Describe what to research and then design — e.g., Survey premium SaaS landing pages, then design our hero + CTA.",
+  code_then_design:
+    "Describe what to scaffold and then design — e.g., A simple kanban board in React, then a polished design for it.",
 };
 
 export const PipelineLauncher: React.FC = () => {
-  const [pipelineKind, setPipelineKind] = useState<"research" | "code_gen" | "design_gen">(
-    "research",
-  );
+  const [pipelineKind, setPipelineKind] = useState<PipelineKindValue>("research");
   const [spec, setSpec] = useState("");
   const [title, setTitle] = useState("");
   const [modelId, setModelId] = useState("gpt-4o-mini");
+  const [linkupDepth, setLinkupDepth] = useState<"standard" | "deep">("standard");
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{
     kind: "ok" | "error";
@@ -52,6 +68,23 @@ export const PipelineLauncher: React.FC = () => {
   const startPipelineRun = useMutation(
     api.domains.pipelines.pipelineWorkflow.startPipelineRun,
   );
+  const startComposedPipelineRun = useMutation(
+    api.domains.pipelines.pipelineWorkflow.startComposedPipelineRun,
+  );
+
+  // Auth-aware ownerKey: when signed in, runs are attributed to the
+  // user (`user:<id>`) so the document handoff fires automatically and
+  // /reports filtering works. Anonymous runs export storage-only.
+  const loggedInUser = useQuery(
+    (api as any)?.domains?.auth?.auth?.loggedInUser ?? "skip",
+  );
+  const ownerKey = loggedInUser?._id
+    ? `user:${loggedInUser._id}`
+    : undefined;
+  const isComposed = COMPOSED_KINDS.has(pipelineKind);
+  const showLinkupDepth =
+    pipelineKind === "research" || pipelineKind === "research_then_code" ||
+    pipelineKind === "research_then_design";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,16 +96,40 @@ export const PipelineLauncher: React.FC = () => {
     setSubmitting(true);
     setFeedback(null);
     try {
-      const result = await startPipelineRun({
-        pipelineKind,
-        spec: spec.trim(),
-        title: title.trim() || undefined,
-        modelId,
-        forceFresh: true,
-      });
+      let workflowId: string;
+      if (isComposed) {
+        const result = await startComposedPipelineRun({
+          composition: pipelineKind as
+            | "research_then_code"
+            | "research_then_design"
+            | "code_then_design",
+          spec: spec.trim(),
+          title: title.trim() || undefined,
+          modelId,
+          ownerKey,
+          forceFresh: true,
+          linkupDepth: showLinkupDepth ? linkupDepth : undefined,
+        });
+        workflowId = result.workflowId;
+      } else {
+        const result = await startPipelineRun({
+          pipelineKind: pipelineKind as "research" | "code_gen" | "design_gen",
+          spec: spec.trim(),
+          title: title.trim() || undefined,
+          modelId,
+          ownerKey,
+          forceFresh: true,
+          linkupDepth: showLinkupDepth ? linkupDepth : undefined,
+        });
+        workflowId = result.workflowId;
+      }
       setFeedback({
         kind: "ok",
-        message: `Workflow ${result.workflowId} started — run will appear below.`,
+        message: `Workflow ${workflowId} started — ${
+          isComposed ? "two runs" : "run"
+        } will appear below.${
+          ownerKey ? "" : " (anonymous: bundle export only)"
+        }`,
       });
       setSpec("");
       setTitle("");
@@ -152,6 +209,43 @@ export const PipelineLauncher: React.FC = () => {
             />
           </label>
         </div>
+        {showLinkupDepth ? (
+          <div className="flex items-center gap-2 text-[11px] text-content-muted">
+            <span>Web search depth:</span>
+            <button
+              type="button"
+              data-testid="pipeline-launcher-depth-standard"
+              onClick={() => setLinkupDepth("standard")}
+              className={`px-2 py-0.5 rounded-full border ${
+                linkupDepth === "standard"
+                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                  : "border-edge"
+              }`}
+              disabled={submitting}
+            >
+              Standard (~€0.005/query)
+            </button>
+            <button
+              type="button"
+              data-testid="pipeline-launcher-depth-deep"
+              onClick={() => setLinkupDepth("deep")}
+              className={`px-2 py-0.5 rounded-full border ${
+                linkupDepth === "deep"
+                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                  : "border-edge"
+              }`}
+              disabled={submitting}
+            >
+              Deep (~€0.05/query, slower)
+            </button>
+          </div>
+        ) : null}
+        {isComposed ? (
+          <div className="flex items-center gap-1.5 text-[11px] text-content-muted">
+            <Layers className="w-3 h-3" />
+            <span>Composed run: two pipelineRuns rows will appear (stage 1 → stage 2).</span>
+          </div>
+        ) : null}
         <label className="flex flex-col gap-1 text-xs text-content-muted">
           <span>Spec</span>
           <textarea
@@ -173,6 +267,11 @@ export const PipelineLauncher: React.FC = () => {
             Runs durably via{" "}
             <code className="text-[10px]">@convex-dev/workflow</code> — retries on transient
             failure, idempotent on resubmit.
+            {ownerKey ? (
+              <span data-testid="pipeline-launcher-owner-signedin"> Signed in — output also lands as a Workspace document.</span>
+            ) : (
+              <span data-testid="pipeline-launcher-owner-anon"> Anonymous — bundle export only (sign in for document handoff).</span>
+            )}
           </div>
           <button
             type="submit"

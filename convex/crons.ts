@@ -15,6 +15,16 @@ crons.interval(
   {}
 );
 
+// Pi-AI pipeline scheduler — sweeps `scheduledPipelineRuns` hourly,
+// kicks off any rows whose `nextRunAt <= now` via the durable workflow.
+// Bounded to 50 schedules per sweep (BOUND invariant in pipelineSchedule.ts).
+crons.interval(
+  "pi-ai pipeline scheduler",
+  { minutes: 60 },
+  internal.domains.pipelines.pipelineSchedule.runDuePipelineSchedules,
+  {},
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // GAM: Memory maintenance crons
 // ═══════════════════════════════════════════════════════════════════════════
