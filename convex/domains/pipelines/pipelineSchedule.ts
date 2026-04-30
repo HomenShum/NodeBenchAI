@@ -89,6 +89,15 @@ export const setScheduleEnabled = mutation({
   },
 });
 
+export const deleteSchedule = mutation({
+  args: { scheduleId: v.id("scheduledPipelineRuns") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.scheduleId);
+    return null;
+  },
+});
+
 export const listSchedules = query({
   args: { ownerKey: v.optional(v.string()), limit: v.optional(v.number()) },
   returns: v.array(

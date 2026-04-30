@@ -9,10 +9,11 @@
  * refresh required.
  */
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { Play, Loader2, Layers } from "lucide-react";
+import { Play, Loader2, Layers, Calendar } from "lucide-react";
+import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 
 const PIPELINE_KINDS = [
   { value: "research", label: "Research" },
@@ -71,16 +72,35 @@ export const PipelineLauncher: React.FC = () => {
   const startComposedPipelineRun = useMutation(
     api.domains.pipelines.pipelineWorkflow.startComposedPipelineRun,
   );
+  const createSchedule = useMutation(
+    api.domains.pipelines.pipelineSchedule.createSchedule,
+  );
 
   // Auth-aware ownerKey: when signed in, runs are attributed to the
   // user (`user:<id>`) so the document handoff fires automatically and
-  // /reports filtering works. Anonymous runs export storage-only.
+  // /reports filtering works. When anonymous, fall back to the persistent
+  // anonymous session id (`session:<id>`) so shareable run links resolve
+  // for the same browser session even before signup. Storage-bundle export
+  // is the only handoff path until they sign in (auth-gated).
   const loggedInUser = useQuery(
     (api as any)?.domains?.auth?.auth?.loggedInUser ?? "skip",
   );
+  const anonymousSessionId = useMemo(() => getAnonymousProductSessionId(), []);
   const ownerKey = loggedInUser?._id
     ? `user:${loggedInUser._id}`
-    : undefined;
+    : anonymousSessionId
+      ? `session:${anonymousSessionId}`
+      : undefined;
+  const ownerLabel = loggedInUser?._id
+    ? "Signed in — output also lands as a Workspace document."
+    : `Session ${anonymousSessionId?.slice(0, 8) ?? "?"} — bundle export only (sign in for document handoff).`;
+  // Schedule mode: when ON, submit creates a scheduledPipelineRuns row
+  // instead of firing the workflow immediately. Cron sweeps the row
+  // hourly and kicks off the run when nextRunAt elapses.
+  const [scheduleMode, setScheduleMode] = useState(false);
+  const [scheduleCadence, setScheduleCadence] = useState<
+    "once" | "hourly" | "daily" | "weekly"
+  >("daily");
   const isComposed = COMPOSED_KINDS.has(pipelineKind);
   const showLinkupDepth =
     pipelineKind === "research" || pipelineKind === "research_then_code" ||
@@ -93,9 +113,36 @@ export const PipelineLauncher: React.FC = () => {
       setFeedback({ kind: "error", message: "Spec required." });
       return;
     }
+    if (scheduleMode && isComposed) {
+      setFeedback({
+        kind: "error",
+        message: "Composed pipelines can't be scheduled yet. Pick a primitive kind.",
+      });
+      return;
+    }
     setSubmitting(true);
     setFeedback(null);
     try {
+      if (scheduleMode) {
+        const result = await createSchedule({
+          ownerKey,
+          pipelineKind: pipelineKind as "research" | "code_gen" | "design_gen",
+          spec: spec.trim(),
+          title: title.trim() || undefined,
+          modelId,
+          cadence: scheduleCadence,
+          nextRunAt: Date.now(), // fire immediately on next cron sweep
+          options: showLinkupDepth ? { linkupDepth } : undefined,
+        });
+        setFeedback({
+          kind: "ok",
+          message: `Schedule ${result.scheduleId} created — fires on next ${scheduleCadence} cron sweep.`,
+        });
+        setSpec("");
+        setTitle("");
+        setSubmitting(false);
+        return;
+      }
       let workflowId: string;
       if (isComposed) {
         const result = await startComposedPipelineRun({
@@ -246,6 +293,43 @@ export const PipelineLauncher: React.FC = () => {
             <span>Composed run: two pipelineRuns rows will appear (stage 1 → stage 2).</span>
           </div>
         ) : null}
+        <div className="flex items-center gap-3 flex-wrap text-[11px] text-content-muted">
+          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              data-testid="pipeline-launcher-schedule-toggle"
+              checked={scheduleMode}
+              onChange={(e) => setScheduleMode(e.target.checked)}
+              disabled={submitting || isComposed}
+              className="h-3 w-3"
+            />
+            <Calendar className="w-3 h-3" />
+            <span>Schedule instead of run now</span>
+          </label>
+          {scheduleMode ? (
+            <select
+              data-testid="pipeline-launcher-schedule-cadence"
+              className="bg-surface border border-edge rounded-md text-xs px-2 py-0.5 text-content"
+              value={scheduleCadence}
+              onChange={(e) =>
+                setScheduleCadence(
+                  e.target.value as "once" | "hourly" | "daily" | "weekly",
+                )
+              }
+              disabled={submitting}
+            >
+              <option value="once">Once</option>
+              <option value="hourly">Hourly</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+            </select>
+          ) : null}
+          {scheduleMode && isComposed ? (
+            <span className="text-amber-700 dark:text-amber-300">
+              (composed schedules not supported)
+            </span>
+          ) : null}
+        </div>
         <label className="flex flex-col gap-1 text-xs text-content-muted">
           <span>Spec</span>
           <textarea
@@ -267,10 +351,10 @@ export const PipelineLauncher: React.FC = () => {
             Runs durably via{" "}
             <code className="text-[10px]">@convex-dev/workflow</code> — retries on transient
             failure, idempotent on resubmit.
-            {ownerKey ? (
-              <span data-testid="pipeline-launcher-owner-signedin"> Signed in — output also lands as a Workspace document.</span>
+            {loggedInUser?._id ? (
+              <span data-testid="pipeline-launcher-owner-signedin"> {ownerLabel}</span>
             ) : (
-              <span data-testid="pipeline-launcher-owner-anon"> Anonymous — bundle export only (sign in for document handoff).</span>
+              <span data-testid="pipeline-launcher-owner-anon"> {ownerLabel}</span>
             )}
           </div>
           <button
