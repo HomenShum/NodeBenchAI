@@ -35,6 +35,11 @@ import {
   runPiOrAiSdkCompletion,
 } from "./piRuntime";
 import { appendPipelineTraceEntry } from "./pipelineTrace";
+import {
+  runLinkupSearch,
+  formatSnippetsForPrompt,
+  type LinkupSnippet,
+} from "./linkupAdapter";
 
 function stableHash(input: string): string {
   let h = 0;
@@ -230,7 +235,76 @@ export const runResearchPipeline = internalAction({
         `Decomposed into ${scope.subQuestions.length} sub-question(s)`,
       );
 
-      // ── Step 2: research.synthesize (STREAMED) ─────────────────────
+      // ── Step 2: research.gather ────────────────────────────────────
+      // Best-effort web search per sub-question via Linkup. Falls back
+      // gracefully when LINKUP_API_KEY isn't set (common in local dev),
+      // in which case `gathered` is empty and synthesis runs from the
+      // model's internal knowledge only.
+      const gatherStart = Date.now();
+      const allSnippets: LinkupSnippet[] = [];
+      let gatherFallback = false;
+      let gatherErrors = 0;
+      const perSubResults: Array<{
+        subQuestion: string;
+        count: number;
+        fallback: boolean;
+      }> = [];
+      for (const sub of scope.subQuestions.slice(0, 5)) {
+        try {
+          const res = await runLinkupSearch({
+            query: sub,
+            depth: "standard",
+            maxResults: 4,
+            timeoutMs: 25_000,
+          });
+          if (res.fallback) gatherFallback = true;
+          for (const snip of res.snippets) {
+            // Dedupe on URL across sub-questions.
+            if (!allSnippets.some((s) => s.url === snip.url)) {
+              allSnippets.push(snip);
+            }
+          }
+          perSubResults.push({
+            subQuestion: sub,
+            count: res.snippets.length,
+            fallback: res.fallback,
+          });
+        } catch (e) {
+          gatherErrors += 1;
+          console.warn(
+            `[researchPipeline] gather subQuestion failed: ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+          );
+          perSubResults.push({ subQuestion: sub, count: 0, fallback: false });
+        }
+      }
+      const gatherStatus =
+        gatherFallback && allSnippets.length === 0
+          ? "skipped"
+          : gatherErrors > 0 && allSnippets.length === 0
+            ? "error"
+            : "ok";
+      await recordStep(
+        "research.gather",
+        gatherStatus,
+        { startedAt: gatherStart },
+        trimScratchpad(
+          JSON.stringify({
+            totalSnippets: allSnippets.length,
+            perSub: perSubResults,
+            fallback: gatherFallback,
+            errors: gatherErrors,
+          }),
+        ),
+        gatherStatus === "error" ? "all_subqueries_failed" : undefined,
+        "gather_info",
+        gatherFallback
+          ? "Skipped Linkup (no API key) — synthesis from internal knowledge only"
+          : `Gathered ${allSnippets.length} snippets across ${scope.subQuestions.length} sub-questions`,
+      );
+
+      // ── Step 3: research.synthesize (STREAMED) ─────────────────────
       const synthStart = Date.now();
       const streamId = await ctx.runMutation(
         internal.domains.pipelines.pipelineStreamMutations.startPipelineStream,
@@ -240,6 +314,22 @@ export const runResearchPipeline = internalAction({
           stepName: "research.synthesize",
         },
       );
+
+      const sourcesSection =
+        allSnippets.length > 0
+          ? [
+              "",
+              "RETRIEVED SOURCES (cite with [N] markers using these numbers):",
+              formatSnippetsForPrompt(allSnippets),
+              "",
+              "When you cite a fact, use the [N] marker matching the source above.",
+              "Do not invent citations — use ONLY the numbered sources.",
+            ].join("\n")
+          : [
+              "",
+              "(No external sources were retrieved. Answer from internal knowledge.",
+              "Hedge claims, especially numeric ones, since you cannot verify.)",
+            ].join("\n");
 
       const synthPrompt = [
         "Write a clear, structured research synthesis answering the question.",
@@ -254,6 +344,7 @@ export const runResearchPipeline = internalAction({
         "",
         "OUTLINE:",
         scope.outline.map((p, i) => `${i + 1}. ${p}`).join("\n"),
+        sourcesSection,
       ].join("\n");
 
       let synthesis = "";
@@ -411,6 +502,11 @@ export const runResearchPipeline = internalAction({
       // ── Step 4: bundle.persist + document handoff ─────────────────
       const persistStart = Date.now();
       let bundleStorageId: Id<"_storage"> | undefined = undefined;
+      const citations = allSnippets.map((s, i) => ({
+        idx: i + 1,
+        title: s.title,
+        url: s.url,
+      }));
       try {
         const bundleJson = JSON.stringify(
           {
@@ -420,6 +516,8 @@ export const runResearchPipeline = internalAction({
             scope,
             synthesis,
             verdict,
+            sources: allSnippets,
+            citations,
           },
           null,
           2,
@@ -454,6 +552,7 @@ export const runResearchPipeline = internalAction({
               pipelineKind,
               spec: args.spec,
               synthesis,
+              citations,
               verdict,
             },
           },
