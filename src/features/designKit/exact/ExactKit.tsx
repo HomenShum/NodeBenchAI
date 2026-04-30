@@ -53,6 +53,7 @@ import { buildCockpitPath, type CockpitSurfaceId } from "@/lib/registry/viewRegi
 import { RichNotebookEditor } from "@/features/notebook/components/RichNotebookEditor";
 import { EntityFindingsPanel } from "@/features/narrative/components/social/EntityFindingsPanel";
 import { PipelineRunsPanel } from "@/features/pipelines/views/PipelineRunsPanel";
+import { PipelineLauncher } from "@/features/pipelines/views/PipelineLauncher";
 import {
   buildLocalWorkspacePath,
   buildWorkspaceUrl,
@@ -1418,6 +1419,10 @@ export function ExactReportsSurface() {
 
         <div data-testid="reports-findings-panel-slot" style={{ marginBottom: 16 }}>
           <EntityFindingsPanel />
+        </div>
+
+        <div data-testid="reports-pipeline-launcher-slot" style={{ marginBottom: 16 }}>
+          <PipelineLauncher />
         </div>
 
         <div data-testid="reports-pipelines-panel-slot" style={{ marginBottom: 16 }}>
