@@ -28,6 +28,7 @@ describe("cockpit rails", () => {
     mockUseQuery.mockReset();
     mockSignIn.mockReset();
     mockConvexMutation.mockReset();
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
     mockUseConvexAuth.mockReturnValue({ isAuthenticated: true });
     mockConvexMutation.mockResolvedValue(undefined);
     mockUseConvex.mockReturnValue({ mutation: mockConvexMutation });
@@ -35,6 +36,7 @@ describe("cockpit rails", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 

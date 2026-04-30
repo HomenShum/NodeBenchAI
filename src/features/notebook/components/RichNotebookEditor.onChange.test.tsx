@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { RichNotebookEditor } from "./RichNotebookEditor";
@@ -60,7 +60,9 @@ describe("RichNotebookEditor — onChange callback (Convex persistence hook)", (
       ).not.toBeNull();
     });
     // Allow a frame to ensure no async transactions land.
-    await new Promise((r) => setTimeout(r, 50));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -89,7 +91,9 @@ describe("RichNotebookEditor — onChange callback (Convex persistence hook)", (
     await user.keyboard(" persisted");
 
     // Wait a beat for the debounced save.
-    await new Promise((r) => setTimeout(r, 1000));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1000));
+    });
     const stored = window.localStorage.getItem(storageKey);
     expect(stored).toContain("persisted");
 
