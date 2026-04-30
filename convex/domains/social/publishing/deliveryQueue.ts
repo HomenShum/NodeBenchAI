@@ -159,6 +159,53 @@ export const getQueueStats = internalQuery({
   },
 });
 
+export const getDeliveryStats = internalQuery({
+  args: {},
+  handler: async (ctx): Promise<{
+    pending: number;
+    deliveredToday: number;
+    failedToday: number;
+    retriesExhausted: number;
+  }> => {
+    const allJobs = await ctx.db.query("deliveryJobs").collect() as Doc<"deliveryJobs">[];
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDayMs = startOfDay.getTime();
+
+    let pending = 0;
+    let deliveredToday = 0;
+    let failedToday = 0;
+    let retriesExhausted = 0;
+
+    for (const job of allJobs) {
+      if (job.status === "pending" || job.status === "retrying" || job.status === "sending") {
+        pending++;
+      }
+      if (job.status === "delivered" && (job.deliveredAt ?? 0) >= startOfDayMs) {
+        deliveredToday++;
+      }
+      if (job.status === "failed" && job.createdAt >= startOfDayMs) {
+        failedToday++;
+      }
+      if (job.status === "failed" && job.attempts >= job.maxAttempts) {
+        retriesExhausted++;
+      }
+    }
+
+    return { pending, deliveredToday, failedToday, retriesExhausted };
+  },
+});
+
+export const getFailedJobs = internalQuery({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit = 50 }): Promise<Doc<"deliveryJobs">[]> => {
+    return await ctx.db
+      .query("deliveryJobs")
+      .withIndex("by_status", (q) => q.eq("status", "failed"))
+      .take(Math.min(Math.max(limit, 1), 500)) as Doc<"deliveryJobs">[];
+  },
+});
+
 /* ================================================================== */
 /* MUTATIONS                                                           */
 /* ================================================================== */
@@ -213,6 +260,20 @@ export const markForRetry = internalMutation({
       nextRetryAt,
     });
 
+    return true;
+  },
+});
+
+export const requeueJob = internalMutation({
+  args: { jobId: v.id("deliveryJobs") },
+  handler: async (ctx, { jobId }): Promise<boolean> => {
+    const job = await ctx.db.get(jobId) as Doc<"deliveryJobs"> | null;
+    if (!job || job.status !== "failed") return false;
+    await ctx.db.patch(jobId, {
+      status: "retrying",
+      nextRetryAt: Date.now(),
+      lastError: undefined,
+    });
     return true;
   },
 });

@@ -250,6 +250,37 @@ export const getPendingTasks = internalQuery({
   },
 });
 
+export const getPublishingStats = internalQuery({
+  args: {},
+  handler: async (ctx): Promise<{
+    pending: number;
+    publishedToday: number;
+    failedToday: number;
+  }> => {
+    const tasks = await ctx.db.query("publishingTasks").collect() as Doc<"publishingTasks">[];
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDayMs = startOfDay.getTime();
+
+    let pending = 0;
+    let publishedToday = 0;
+    let failedToday = 0;
+    for (const task of tasks) {
+      if (task.status === "pending" || task.status === "formatting" || task.status === "delivering") {
+        pending++;
+      }
+      if ((task.status === "completed" || task.status === "partial") && (task.completedAt ?? 0) >= startOfDayMs) {
+        publishedToday++;
+      }
+      if (task.status === "failed" && (task.completedAt ?? task.createdAt) >= startOfDayMs) {
+        failedToday++;
+      }
+    }
+
+    return { pending, publishedToday, failedToday };
+  },
+});
+
 /* ================================================================== */
 /* MUTATIONS                                                           */
 /* ================================================================== */
