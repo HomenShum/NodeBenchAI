@@ -893,9 +893,12 @@ import type * as domains_personas_personaAutonomousAgent from "../domains/person
 import type * as domains_pipelines_codeGenPipeline from "../domains/pipelines/codeGenPipeline.js";
 import type * as domains_pipelines_designGenPipeline from "../domains/pipelines/designGenPipeline.js";
 import type * as domains_pipelines_piRuntime from "../domains/pipelines/piRuntime.js";
+import type * as domains_pipelines_pipelineDocumentHandoff from "../domains/pipelines/pipelineDocumentHandoff.js";
 import type * as domains_pipelines_pipelineRunsMutations from "../domains/pipelines/pipelineRunsMutations.js";
 import type * as domains_pipelines_pipelineRunsQueries from "../domains/pipelines/pipelineRunsQueries.js";
+import type * as domains_pipelines_pipelineStreamMutations from "../domains/pipelines/pipelineStreamMutations.js";
 import type * as domains_pipelines_pipelineTrace from "../domains/pipelines/pipelineTrace.js";
+import type * as domains_pipelines_researchPipeline from "../domains/pipelines/researchPipeline.js";
 import type * as domains_proactive_actions_emailDraftGenerator from "../domains/proactive/actions/emailDraftGenerator.js";
 import type * as domains_proactive_actions_gmailDraftActions from "../domains/proactive/actions/gmailDraftActions.js";
 import type * as domains_proactive_actions_testDraftGenerator from "../domains/proactive/actions/testDraftGenerator.js";
@@ -2353,9 +2356,12 @@ declare const fullApi: ApiFromModules<{
   "domains/pipelines/codeGenPipeline": typeof domains_pipelines_codeGenPipeline;
   "domains/pipelines/designGenPipeline": typeof domains_pipelines_designGenPipeline;
   "domains/pipelines/piRuntime": typeof domains_pipelines_piRuntime;
+  "domains/pipelines/pipelineDocumentHandoff": typeof domains_pipelines_pipelineDocumentHandoff;
   "domains/pipelines/pipelineRunsMutations": typeof domains_pipelines_pipelineRunsMutations;
   "domains/pipelines/pipelineRunsQueries": typeof domains_pipelines_pipelineRunsQueries;
+  "domains/pipelines/pipelineStreamMutations": typeof domains_pipelines_pipelineStreamMutations;
   "domains/pipelines/pipelineTrace": typeof domains_pipelines_pipelineTrace;
+  "domains/pipelines/researchPipeline": typeof domains_pipelines_researchPipeline;
   "domains/proactive/actions/emailDraftGenerator": typeof domains_proactive_actions_emailDraftGenerator;
   "domains/proactive/actions/gmailDraftActions": typeof domains_proactive_actions_gmailDraftActions;
   "domains/proactive/actions/testDraftGenerator": typeof domains_proactive_actions_testDraftGenerator;

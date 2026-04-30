@@ -2326,6 +2326,30 @@ const pipelineRuns = defineTable({
   .index("by_status_createdAt", ["status", "createdAt"]);
 
 /* ------------------------------------------------------------------ */
+/* Pi-AI Pipeline Run Streams — reactive partial-text rows for live    */
+/* streaming UX. One row per (runId, stepName) pair; updated on every  */
+/* delta during streamed pi-ai completions. Convex's reactive query    */
+/* layer means clients see the text grow in real-time without HTTP     */
+/* infrastructure (no PersistentTextStreaming HTTP endpoint required). */
+/* ------------------------------------------------------------------ */
+const pipelineRunStreams = defineTable({
+  runId: v.string(),
+  pipelineRunId: v.id("pipelineRuns"),
+  stepName: v.string(), // e.g., "research.synthesize"
+  partialText: v.string(),
+  status: v.union(
+    v.literal("streaming"),
+    v.literal("complete"),
+    v.literal("error"),
+  ),
+  startedAt: v.number(),
+  updatedAt: v.number(),
+  errorMessage: v.optional(v.string()),
+})
+  .index("by_runId_stepName", ["runId", "stepName"])
+  .index("by_pipelineRunId", ["pipelineRunId"]);
+
+/* ------------------------------------------------------------------ */
 /* Pi-AI Pipeline Steps — normalized step events for cheap timeline    */
 /* rendering. Each row = one observable event in a pipelineRuns row.   */
 /* ------------------------------------------------------------------ */
@@ -4017,6 +4041,7 @@ export default defineSchema({
   linkedinArchiveEntityLinks,
   pipelineRuns,
   pipelineSteps,
+  pipelineRunStreams,
   linkedinHeldPosts,
   linkedinContentQueue,
   userApiKeys,
