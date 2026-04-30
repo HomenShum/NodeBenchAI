@@ -459,8 +459,9 @@ test.describe('Scenario: Route flash fixes — skeleton stability during fast na
     // Either the wrapper exists during loading OR the page settled before we checked
     // Either state is acceptable — what's NOT acceptable is white flash
     const whiteFlash = await page.evaluate(() => {
-      const body = document.body;
-      const bg = window.getComputedStyle(body).backgroundColor;
+      const root = document.body ?? document.documentElement;
+      if (!(root instanceof Element)) return false;
+      const bg = window.getComputedStyle(root).backgroundColor;
       const m = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
       if (!m) return false;
       const lum = 0.299 * parseInt(m[1]) + 0.587 * parseInt(m[2]) + 0.114 * parseInt(m[3]);

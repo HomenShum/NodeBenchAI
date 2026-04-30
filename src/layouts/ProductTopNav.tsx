@@ -37,13 +37,13 @@ export const ProductTopNav = memo(function ProductTopNav({
           <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#d97757] text-[17px] font-bold leading-none text-white">
             N
           </span>
-          <span className="truncate text-[15px] font-bold tracking-[-0.01em] text-[#111827]">
+          <span className="truncate text-[15px] font-bold tracking-[-0.01em] text-[#111827] dark:text-white">
             NodeBench <span className="text-[var(--accent-primary)]">AI</span>
           </span>
         </button>
 
         <nav
-          className="ml-2 flex items-center gap-0.5 rounded-[14px] bg-[#f3f4f6] p-1"
+          className="ml-2 flex items-center gap-0.5 rounded-[14px] bg-[#f3f4f6] p-1 dark:bg-white/[0.04] dark:ring-1 dark:ring-white/[0.07]"
           aria-label="Primary product navigation"
         >
           {PRODUCT_NAV.map((item) => {

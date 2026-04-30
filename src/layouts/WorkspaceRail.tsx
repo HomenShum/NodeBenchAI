@@ -81,7 +81,7 @@ export const WorkspaceRail = memo(function WorkspaceRail({
   return (
     <nav
       className={cn(
-        "hidden xl:flex shrink-0 flex-col border-r border-black/[0.05] bg-white/[0.68] backdrop-blur-2xl transition-[width] duration-200 ease-in-out dark:border-white/[0.05] dark:bg-[#0b1016]/72",
+        "hidden xl:flex shrink-0 flex-col border-r border-black/[0.05] bg-white/[0.68] backdrop-blur-2xl transition-[width] duration-200 ease-in-out dark:border-white/[0.05] dark:bg-[#0b1016]/[0.92]",
         isCollapsed ? "w-12" : "w-[236px]",
       )}
       id="main-navigation"

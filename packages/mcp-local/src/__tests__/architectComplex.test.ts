@@ -30,7 +30,7 @@ const COMMAND_PALETTE = resolve(
 /** HTTP server with routes, middleware-like patterns, auth token check */
 const HTTP_SERVER = resolve(
   import.meta.dirname,
-  "../../../../mcp_tools/gateway_server/httpServer.ts",
+  "../../../../mcp-services/gateway_server/httpServer.ts",
 );
 
 /** MCP tool file — pure Node.js, SQLite, McpTool pattern, no React */

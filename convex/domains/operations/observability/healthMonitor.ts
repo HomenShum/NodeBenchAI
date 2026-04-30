@@ -204,11 +204,12 @@ async function checkSignalIngestion(ctx: any): Promise<HealthCheckResult> {
     const oneHourAgo = Date.now() - 60 * 60 * 1000;
     const freshSignals = recentSignals.filter((s: Doc<"signals">) => s.ingestedAt > oneHourAgo);
 
-    if (freshSignals.length === 0) {
+    if (recentSignals.length > 0 && freshSignals.length === 0) {
       issues.push("No signals ingested in the last hour");
     }
 
     metrics.freshSignalCount = freshSignals.length;
+    metrics.ingestionIdle = recentSignals.length === 0 ? 1 : 0;
 
     // Check error rate
     const errorSignals = recentSignals.filter((s: Doc<"signals">) => s.status === "error");

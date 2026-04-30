@@ -15,7 +15,7 @@
  * ChatHome.progress-card.test.tsx imports from here now.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronUp, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

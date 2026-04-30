@@ -565,6 +565,29 @@ export const VIEW_CAPABILITIES: Record<MainView, ViewCapability> = {
     requiresAuth: false,
   },
 
+  "report-detail-workspace": {
+    viewId: "report-detail-workspace",
+    title: "Report Workspace",
+    description:
+      "Recursive report workspace for graph-backed company, person, source, and notebook exploration from a saved report.",
+    paths: ["/reports/:reportId/graph"],
+    dataEndpoints: [
+      {
+        name: "reportWorkspace",
+        convexQuery: "domains.product.entities.getEntityWorkspace",
+        description: "Canonical entity workspace with graph edges, claims, sources, and notebook state",
+      },
+    ],
+    actions: [
+      { name: "promoteEntityRoot", description: "Re-root the workspace graph around a selected entity" },
+      { name: "openRelationshipEvidence", description: "Inspect evidence explaining a graph edge or claim" },
+      { name: "openWorkspaceNotebook", description: "Open the report notebook for editable synthesis" },
+    ],
+    relatedToolCategories: ["research", "verification", "knowledge"],
+    tags: ["report-workspace", "graph", "notebook", "entities", "evidence"],
+    requiresAuth: false,
+  },
+
   "pulse-home": {
     viewId: "pulse-home",
     title: "Pulse",
@@ -628,6 +651,51 @@ export const VIEW_CAPABILITIES: Record<MainView, ViewCapability> = {
     ],
     relatedToolCategories: ["platform", "learning"],
     tags: ["me", "files", "profile", "settings", "connectors"],
+    requiresAuth: false,
+  },
+
+  "me-wiki-landing": {
+    viewId: "me-wiki-landing",
+    title: "My Wiki",
+    description:
+      "Personal synthesis index grouped by topic, company, person, product, event, location, job, and contradiction pages.",
+    paths: ["/me/wiki"],
+    dataEndpoints: [
+      {
+        name: "wikiPages",
+        convexQuery: "domains.product.meWiki.listPages",
+        description: "Owner-scoped generated wiki pages and freshness metadata",
+      },
+    ],
+    actions: [
+      { name: "openWikiPage", description: "Open a generated wiki page with evidence and notes" },
+      { name: "filterWikiPages", description: "Filter wiki pages by type, freshness, or source coverage" },
+    ],
+    relatedToolCategories: ["knowledge", "learning", "research"],
+    tags: ["me", "wiki", "synthesis", "personal-knowledge"],
+    requiresAuth: false,
+  },
+
+  "me-wiki-page-detail": {
+    viewId: "me-wiki-page-detail",
+    title: "Wiki Page",
+    description:
+      "Detailed personal wiki page with AI-maintained synthesis, source evidence, and editable notes.",
+    paths: ["/me/wiki/:pageType/:slug"],
+    dataEndpoints: [
+      {
+        name: "wikiPage",
+        convexQuery: "domains.product.meWiki.getPage",
+        description: "AI synthesis, evidence references, source reports, and user notes for one wiki page",
+      },
+    ],
+    actions: [
+      { name: "refreshWikiPage", description: "Refresh the generated synthesis from linked reports and sources" },
+      { name: "openSourceReport", description: "Open the report that contributed evidence to this page" },
+      { name: "editWikiNotes", description: "Edit the user-authored notes on the wiki page" },
+    ],
+    relatedToolCategories: ["knowledge", "research", "verification"],
+    tags: ["wiki-page", "evidence", "notes", "synthesis"],
     requiresAuth: false,
   },
 
@@ -1157,6 +1225,23 @@ export const VIEW_CAPABILITIES: Record<MainView, ViewCapability> = {
     ],
     relatedToolCategories: ["platform", "boilerplate"],
     tags: ["developers", "cli", "mcp", "api", "documentation", "sdk", "integration"],
+    requiresAuth: false,
+  },
+
+  "financial-operator": {
+    viewId: "financial-operator",
+    title: "Financial Operator",
+    description:
+      "Typed-card financial operator console for extracting filings, validating assumptions, sandboxing calculations, and approving outputs.",
+    paths: ["/finance-demo", "/financial-operator", "/finops"],
+    dataEndpoints: [],
+    actions: [
+      { name: "extractFinancialInputs", description: "Extract structured assumptions from filings or pasted finance notes" },
+      { name: "runSandboxCalculation", description: "Run a gated financial calculation with inspectable inputs and outputs" },
+      { name: "approveOperatorOutput", description: "Approve a generated memo, model output, or export artifact" },
+    ],
+    relatedToolCategories: ["financial", "verification", "documents"],
+    tags: ["financial-operator", "finance", "sandbox", "approval", "typed-cards"],
     requiresAuth: false,
   },
 

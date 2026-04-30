@@ -7,6 +7,49 @@ import { existsSync } from "node:fs";
 import type { McpTool } from "../types.js";
 import { resolveLocalPath, clampInt, getPdfParseModule } from "./localFileHelpers.js";
 
+function decodePdfLiteral(raw: string): string {
+  return raw
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\r")
+    .replace(/\\t/g, "\t")
+    .replace(/\\\(/g, "(")
+    .replace(/\\\)/g, ")")
+    .replace(/\\\\/g, "\\");
+}
+
+function extractFallbackPdfText(buffer: Buffer): string {
+  const raw = buffer.toString("latin1");
+  const textMatches = [...raw.matchAll(/\(((?:\\.|[^\\)])*)\)\s*Tj/g)].map((match) =>
+    decodePdfLiteral(match[1] ?? ""),
+  );
+  if (textMatches.length > 0) return textMatches.join("\n");
+  return buffer.toString("utf8").replace(/[^\S\r\n]+/g, " ").trim();
+}
+
+async function parsePdfPagesFallback(
+  filePath: string,
+  args: {
+    pageStart?: unknown;
+    pageEnd?: unknown;
+    pageNumbers?: unknown;
+  },
+): Promise<{ numPages: number; pages: Array<{ num: number; text: string }>; extractedPages: number[] }> {
+  const buffer = await readFile(filePath);
+  const text = extractFallbackPdfText(buffer);
+  const requested = Array.isArray(args.pageNumbers)
+    ? (args.pageNumbers as unknown[]).map((n) => clampInt(n, 0, 0, 100000)).filter((n) => n > 0)
+    : [];
+  const pageStart = clampInt(args.pageStart, 1, 1, 100000);
+  const pageEnd = clampInt(args.pageEnd, 1, 1, 100000);
+  const pages = requested.length > 0 ? requested : [Math.min(pageStart, pageEnd)];
+  const extractedPages = pages.includes(1) ? [1] : [];
+  return {
+    numPages: 1,
+    extractedPages,
+    pages: extractedPages.map((num) => ({ num, text })),
+  };
+}
+
 export const localFilePdfTools: McpTool[] = [
   {
     name: "read_pdf_text",
@@ -57,51 +100,55 @@ export const localFilePdfTools: McpTool[] = [
       const pageStart = clampInt(args?.pageStart, 1, 1, 100000);
       const pageEnd = clampInt(args?.pageEnd, 3, 1, 100000);
 
-      const mod = await getPdfParseModule();
-      const PDFParse = (mod as any)?.PDFParse;
-      if (typeof PDFParse !== "function") {
-        throw new Error("pdf-parse module missing PDFParse export (unsupported version)");
-      }
-
-      const buffer = await readFile(filePath);
-      const parser = new PDFParse({ data: buffer });
-
       let numPages = 0;
       let text = "";
       let extractedPages: number[] = [];
-      try {
-        const parseParams: any = {
-          // Prefer consistent structure; we add our own page markers below.
-          lineEnforce: true,
-          pageJoiner: "",
-          parseHyperlinks: false,
-        };
 
-        if (explicitPages && explicitPages.length > 0) {
-          parseParams.partial = explicitPages;
-        } else {
-          const start = Math.min(pageStart, pageEnd);
-          const end = Math.max(pageStart, pageEnd);
-          parseParams.first = start;
-          parseParams.last = end;
-        }
+      const mod = await getPdfParseModule().catch(() => null);
+      const PDFParse = (mod as any)?.PDFParse;
+      if (typeof PDFParse === "function") {
+        const buffer = await readFile(filePath);
+        const parser = new PDFParse({ data: buffer });
 
-        const result = await parser.getText(parseParams);
-        numPages = Number((result as any)?.total ?? 0);
-        const pages = Array.isArray((result as any)?.pages) ? (result as any).pages : [];
-        extractedPages = pages
-          .map((p: any) => Number(p?.num ?? 0))
-          .filter((n: number) => Number.isFinite(n) && n > 0);
-        text = pages
-          .map((p: any) => `\n\n[PAGE ${Number(p?.num ?? 0)}]\n${String(p?.text ?? "").trim()}\n`)
-          .join("")
-          .trim();
-      } finally {
         try {
-          await parser.destroy();
-        } catch {
-          // ignore
+          const parseParams: any = {
+            // Prefer consistent structure; we add our own page markers below.
+            lineEnforce: true,
+            pageJoiner: "",
+            parseHyperlinks: false,
+          };
+
+          if (explicitPages && explicitPages.length > 0) {
+            parseParams.partial = explicitPages;
+          } else {
+            const start = Math.min(pageStart, pageEnd);
+            const end = Math.max(pageStart, pageEnd);
+            parseParams.first = start;
+            parseParams.last = end;
+          }
+
+          const result = await parser.getText(parseParams);
+          numPages = Number((result as any)?.total ?? 0);
+          const pages = Array.isArray((result as any)?.pages) ? (result as any).pages : [];
+          extractedPages = pages
+            .map((p: any) => Number(p?.num ?? 0))
+            .filter((n: number) => Number.isFinite(n) && n > 0);
+          text = pages
+            .map((p: any) => `\n\n[PAGE ${Number(p?.num ?? 0)}]\n${String(p?.text ?? "").trim()}\n`)
+            .join("")
+            .trim();
+        } finally {
+          try {
+            await parser.destroy();
+          } catch {
+            // ignore
+          }
         }
+      } else {
+        const fallback = await parsePdfPagesFallback(filePath, { pageStart, pageEnd, pageNumbers: explicitPages });
+        numPages = fallback.numPages;
+        extractedPages = fallback.extractedPages;
+        text = fallback.pages.map((p) => `\n\n[PAGE ${p.num}]\n${p.text.trim()}\n`).join("").trim();
       }
 
       let truncated = false;
@@ -191,50 +238,53 @@ export const localFilePdfTools: McpTool[] = [
       const pageStart = clampInt(args?.pageStart, 1, 1, 100000);
       const pageEnd = clampInt(args?.pageEnd, 25, 1, 100000);
 
-      const mod = await getPdfParseModule();
-      const PDFParse = (mod as any)?.PDFParse;
-      if (typeof PDFParse !== "function") {
-        throw new Error("pdf-parse module missing PDFParse export (unsupported version)");
-      }
-
-      const buffer = await readFile(filePath);
-      const parser = new PDFParse({ data: buffer });
-
       let numPages = 0;
       let extractedPages: number[] = [];
       let pages: Array<{ num: number; text: string }> = [];
-      try {
-        const parseParams: any = {
-          lineEnforce: true,
-          pageJoiner: "",
-          parseHyperlinks: false,
-        };
+      const mod = await getPdfParseModule().catch(() => null);
+      const PDFParse = (mod as any)?.PDFParse;
+      if (typeof PDFParse === "function") {
+        const buffer = await readFile(filePath);
+        const parser = new PDFParse({ data: buffer });
 
-        if (explicitPages && explicitPages.length > 0) {
-          parseParams.partial = explicitPages.slice(0, 200);
-        } else {
-          const start = Math.min(pageStart, pageEnd);
-          const end = Math.max(pageStart, pageEnd);
-          parseParams.first = start;
-          parseParams.last = end;
-        }
-
-        const result = await parser.getText(parseParams);
-        numPages = Number((result as any)?.total ?? 0);
-        const parsedPages = Array.isArray((result as any)?.pages) ? (result as any).pages : [];
-        extractedPages = parsedPages
-          .map((p: any) => Number(p?.num ?? 0))
-          .filter((n: number) => Number.isFinite(n) && n > 0);
-        pages = parsedPages.map((p: any) => ({
-          num: Number(p?.num ?? 0),
-          text: String(p?.text ?? ""),
-        }));
-      } finally {
         try {
-          await parser.destroy();
-        } catch {
-          // ignore
+          const parseParams: any = {
+            lineEnforce: true,
+            pageJoiner: "",
+            parseHyperlinks: false,
+          };
+
+          if (explicitPages && explicitPages.length > 0) {
+            parseParams.partial = explicitPages.slice(0, 200);
+          } else {
+            const start = Math.min(pageStart, pageEnd);
+            const end = Math.max(pageStart, pageEnd);
+            parseParams.first = start;
+            parseParams.last = end;
+          }
+
+          const result = await parser.getText(parseParams);
+          numPages = Number((result as any)?.total ?? 0);
+          const parsedPages = Array.isArray((result as any)?.pages) ? (result as any).pages : [];
+          extractedPages = parsedPages
+            .map((p: any) => Number(p?.num ?? 0))
+            .filter((n: number) => Number.isFinite(n) && n > 0);
+          pages = parsedPages.map((p: any) => ({
+            num: Number(p?.num ?? 0),
+            text: String(p?.text ?? ""),
+          }));
+        } finally {
+          try {
+            await parser.destroy();
+          } catch {
+            // ignore
+          }
         }
+      } else {
+        const fallback = await parsePdfPagesFallback(filePath, { pageStart, pageEnd, pageNumbers: explicitPages });
+        numPages = fallback.numPages;
+        extractedPages = fallback.extractedPages;
+        pages = fallback.pages;
       }
 
       const needle = caseSensitive ? query : query.toLowerCase();

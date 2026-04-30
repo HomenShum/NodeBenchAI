@@ -70,7 +70,7 @@ export const IOSChrome = memo(function IOSChrome() {
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 6px)" }}
         aria-hidden="true"
       >
-        <span className="h-[5px] w-[134px] rounded-full bg-white/65" />
+        <span className="h-[5px] w-[134px] rounded-full bg-black/35 dark:bg-white/[0.28]" />
       </div>
     </>
   );

@@ -7,12 +7,11 @@
  *   - FastAgentPanel.tsx is 3700+ lines; reaching into its render tree
  *     for one button is high blast radius
  *   - URL-param-driven state (`?ws=1`) means the toggle works on every
- *     surface that wants to host workspace mode without coupling
+ *     chat/root surface without coupling to its render tree
  *
- * Visibility rule: only renders on chat surfaces (the `?surface=ask`
- * landing, plain `/`, or any path the cockpit treats as a chat
- * surface). Stays hidden on /finance-demo (where the experience is
- * already a workspace) and on info pages (/cli, /pricing, etc).
+ * Visibility rule: only renders on desktop chat surfaces (plain `/`,
+ * `/?surface=ask`, or `/?surface=chat`). Mobile uses the canonical bottom
+ * chrome, so the floating pill stays hidden there.
  *
  * Persistence: toggle state lives in `?ws=1` (shareable). When the
  * user reloads or shares the URL, workspace mode rehydrates.
@@ -22,7 +21,7 @@ import { useState, useEffect } from "react";
 import { LayoutDashboard, MessageSquare } from "lucide-react";
 
 const URL_PARAM = "ws";
-const SHOW_ON_PATHS = ["/", "/?", ""]; // root + chat surface
+const MOBILE_TOGGLE_QUERY = "(max-width: 767px)";
 
 export function isWorkspaceModeActive(): boolean {
   if (typeof window === "undefined") return false;
@@ -43,7 +42,9 @@ export function setWorkspaceMode(active: boolean) {
 
 function shouldRenderToggle(): boolean {
   if (typeof window === "undefined") return false;
+  if (window.matchMedia?.(MOBILE_TOGGLE_QUERY).matches) return false;
   const path = window.location.pathname;
+  const surface = new URLSearchParams(window.location.search).get("surface");
   // Hide on the standalone demo route — the workspace IS the page there.
   if (path.startsWith("/finance-demo") || path.startsWith("/financial-operator") || path.startsWith("/finops")) {
     return false;
@@ -51,7 +52,7 @@ function shouldRenderToggle(): boolean {
   // Hide on canonical info pages where workspace mode would be confusing.
   const HIDDEN_PREFIXES = ["/cli", "/pricing", "/changelog", "/legal", "/about", "/api-docs", "/share/", "/report/", "/embed/"];
   if (HIDDEN_PREFIXES.some((p) => path.startsWith(p))) return false;
-  return SHOW_ON_PATHS.some((p) => path === p || path.startsWith(p));
+  return path === "/" && (!surface || surface === "ask" || surface === "chat");
 }
 
 export function WorkspaceModeToggle() {
@@ -64,7 +65,12 @@ export function WorkspaceModeToggle() {
       setVisible(shouldRenderToggle());
     };
     window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
+    const media = window.matchMedia?.(MOBILE_TOGGLE_QUERY);
+    media?.addEventListener?.("change", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      media?.removeEventListener?.("change", onPop);
+    };
   }, []);
 
   if (!visible) return null;

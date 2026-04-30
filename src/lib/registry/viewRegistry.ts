@@ -38,9 +38,12 @@ export type MainView =
   | "chat-home"
   | "reports-home"
   | "report-detail"
+  | "report-detail-workspace"
   | "nudges-home"
   | "pulse-home"
   | "me-home"
+  | "me-wiki-landing"
+  | "me-wiki-page-detail"
   | "dogfood"
   | "conference-capture"
   | "entity-compare"
@@ -566,7 +569,7 @@ export const VIEW_REGISTRY: ViewRegistryEntry[] = [
   {
     // My Wiki landing — list view grouped by page type.
     // See: docs/architecture/ME_PAGE_WIKI_SPEC.md §3
-    id: "me-wiki-landing" as any,
+    id: "me-wiki-landing",
     title: "My Wiki",
     subtitle: "Personal synthesis layer — regenerated from your saved reports",
     path: "/me/wiki",
@@ -579,7 +582,7 @@ export const VIEW_REGISTRY: ViewRegistryEntry[] = [
   {
     // My Wiki page detail — three-zone layout (AI / evidence / notes).
     // Dynamic route; matches /me/wiki/:pageType/:slug.
-    id: "me-wiki-page-detail" as any,
+    id: "me-wiki-page-detail",
     title: "Wiki Page",
     subtitle: "AI-maintained page derived from your source reports",
     path: "/me/wiki/:pageType/:slug",

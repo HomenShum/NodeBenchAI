@@ -99,7 +99,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         const next = { ...DEFAULT_THEME, ...parsed };
         const savedVersion = localStorage.getItem('nodebench-theme-version');
         if (savedVersion !== THEME_STORAGE_VERSION && next.mode === 'system') {
-          return { ...next, mode: DEFAULT_THEME.mode };
+          return { ...next, mode: 'system' };
         }
         return next;
       }
@@ -113,7 +113,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         return { ...DEFAULT_THEME, mode: legacyMode, reducedMotion: prefersReducedMotion };
       }
 
-      return { ...DEFAULT_THEME, reducedMotion: prefersReducedMotion };
+      return { ...DEFAULT_THEME, mode: 'system', reducedMotion: prefersReducedMotion };
     } catch {
       return DEFAULT_THEME;
     }

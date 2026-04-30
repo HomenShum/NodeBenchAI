@@ -12,8 +12,8 @@
  * SDK:  https://www.npmjs.com/package/@toon-format/toon
  */
 
-import { encode, decode } from "@toon-format/toon";
 import type { McpTool } from "../types.js";
+import { decodeToon, encodeToon } from "./toonCodec.js";
 
 export const toonTools: McpTool[] = [
   {
@@ -50,7 +50,7 @@ export const toonTools: McpTool[] = [
       }
 
       try {
-        const toonString = encode(input);
+        const toonString = await encodeToon(input);
         const jsonSize = JSON.stringify(input).length;
         const toonSize = toonString.length;
         const savings = Math.round((1 - toonSize / jsonSize) * 100);
@@ -90,7 +90,7 @@ export const toonTools: McpTool[] = [
       }
 
       try {
-        const data = decode(args.toon);
+        const data = await decodeToon(args.toon);
         return { data, format: "json" };
       } catch (e: any) {
         return { error: true, message: `TOON decode failed: ${e.message}` };
