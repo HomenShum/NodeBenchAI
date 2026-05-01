@@ -9,11 +9,23 @@
  * Hidden above `md` viewport (desktop has rail + top nav already).
  */
 import { Plus } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import { useFastAgent } from "@/features/agents/context/FastAgentContext";
 import "@/features/designKit/exact/exactKit.css";
 
 export function MobileCaptureFab() {
   const { open } = useFastAgent();
+  const location = useLocation();
+  const surface = new URLSearchParams(location.search).get("surface");
+  const hidesPrimaryContent =
+    surface === null ||
+    surface === "home" ||
+    surface === "chat" ||
+    surface === "reports" ||
+    surface === "packets" ||
+    location.pathname.startsWith("/reports/");
+  if (hidesPrimaryContent) return null;
+
   return (
     <button
       type="button"

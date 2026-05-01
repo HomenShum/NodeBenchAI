@@ -84,13 +84,12 @@ type WebSurfaceProps = {
   onSurfaceChange?: (surface: CockpitSurfaceId) => void;
 };
 
-type LaneId = "answer" | "deep" | "admin";
+type LaneId = "answer" | "deep";
 type MobileSurface = "home" | "reports" | "chat" | "inbox" | "me";
 
 const LANES: Array<{ id: LaneId; label: string; note: string }> = [
-  { id: "answer", label: "Answer", note: "fast - default" },
-  { id: "deep", label: "Deep dive", note: "multi-agent - 3-5 min" },
-  { id: "admin", label: "Admin", note: "nodebench-mcp-admin" },
+  { id: "answer", label: "Quick answer", note: "fast read" },
+  { id: "deep", label: "Deep research", note: "more sources" },
 ];
 
 const PROMPT_CARDS: Array<{ icon: LucideIcon; prompt: string }> = [
@@ -412,28 +411,30 @@ function FirstImpressionBoard({
           ))}
         </div>
       </header>
-      <div className="nb-first-grid">
+      <div className="nb-first-list">
         {cards.map((card) => (
           <article key={card.id} className="nb-first-card" data-audience={card.audience.toLowerCase()}>
-            <div className="nb-first-card-top">
-              <span className="nb-badge nb-badge-accent">{card.audience}</span>
-              <span className="nb-first-card-horizon">{card.horizon}</span>
-            </div>
-            <h3>{card.title}</h3>
-            <p>{card.prompt}</p>
-            <div className="nb-first-proof">
-              {card.proofPoints.map((point) => (
-                <span key={point}><Check size={11} /> {point}</span>
-              ))}
-            </div>
-            <div className="nb-first-export">
-              {card.exportTargets.map((target) => (
-                <span key={target}>{target}</span>
-              ))}
+            <div className="nb-first-card-main">
+              <div className="nb-first-card-top">
+                <span className="nb-badge nb-badge-accent">{card.audience}</span>
+                <span className="nb-first-card-horizon">{card.horizon}</span>
+              </div>
+              <h3>{card.title}</h3>
+              <p>{card.prompt}</p>
+              <div className="nb-first-proof">
+                {card.proofPoints.slice(0, 3).map((point) => (
+                  <span key={point}><Check size={11} /> {point}</span>
+                ))}
+              </div>
             </div>
             <div className="nb-first-actions">
+              <div className="nb-first-export" aria-label="Export targets">
+                {card.exportTargets.slice(0, 3).map((target) => (
+                  <span key={target}>{target}</span>
+                ))}
+              </div>
               <button type="button" className="nb-btn nb-btn-secondary" onClick={() => onUsePrompt(card.prompt)}>
-                Use prompt
+                Fill prompt
               </button>
               <button
                 type="button"
@@ -442,7 +443,7 @@ function FirstImpressionBoard({
                 onClick={() => onRunCard(card)}
               >
                 <Clock3 size={13} />
-                Run async
+                Run research
               </button>
             </div>
           </article>
@@ -1054,10 +1055,10 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
     setBackgroundSubmitting(true);
     setBackgroundFeedback(null);
     try {
-      const result = await startPipelineRun(request);
+      await startPipelineRun(request);
       setBackgroundFeedback({
         kind: "ok",
-        message: `Background workflow ${result.workflowId} started. You can close this tab or lock your phone; the run continues server-side and will appear in Reports with sources and exports.`,
+        message: "Research started. Safe to close this tab or lock your phone. The report, sources, notes, and export options will be saved under Reports.",
       });
       setQuery(request.spec);
     } catch (error) {
@@ -1133,7 +1134,7 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
               onClick={() => start()}
             >
               <MessageSquare size={14} />
-              Open workspace
+              Chat now
             </button>
             <button
               type="button"
@@ -1144,7 +1145,7 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
               onClick={() => void startBackgroundResearch()}
             >
               {backgroundSubmitting ? <Clock3 size={14} /> : <Send size={14} />}
-              Run in background
+              Run research
             </button>
           </div>
         </div>
@@ -1165,21 +1166,19 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
           </div>
         ) : null}
 
-        <div className="nb-prompt-grid">
+        <div className="nb-example-strip" aria-label="Example research prompts">
           {PROMPT_CARDS.map(({ icon: Icon, prompt }) => (
             <button
               key={prompt}
               type="button"
-              className="nb-prompt-card"
+              className="nb-example-chip"
               onClick={() => {
                 setQuery(prompt);
                 start(prompt);
               }}
             >
-              <span className="nb-prompt-icon"><Icon size={14} /></span>
-              <span style={{ display: "block", fontSize: 14, fontWeight: 800, lineHeight: 1.35 }}>
-                {prompt}
-              </span>
+              <span className="nb-prompt-icon"><Icon size={13} /></span>
+              <span>{prompt}</span>
             </button>
           ))}
         </div>
@@ -1196,12 +1195,20 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
 
       <NBPulseStrip liveEntities={liveEntities} />
 
-      <div className="nb-home-grid">
-        <NBTodayIntel liveEntities={liveEntities} />
-        <NBActiveEvent />
-      </div>
+      <details className="nb-home-more">
+        <summary>
+          <span>Recent intelligence and saved reports</span>
+          <small>Open when you want the dashboard view</small>
+        </summary>
+        <div className="nb-home-more-body">
+          <div className="nb-home-grid">
+            <NBTodayIntel liveEntities={liveEntities} />
+            <NBActiveEvent />
+          </div>
 
-      <NBRecentReports onOpenReport={openReport} liveEntities={liveEntities} />
+          <NBRecentReports onOpenReport={openReport} liveEntities={liveEntities} />
+        </div>
+      </details>
 
       <div className="nb-install-chip">
         <span style={{ textTransform: "uppercase", letterSpacing: ".14em" }}>Use from Claude or Cursor</span>
@@ -1594,6 +1601,7 @@ export function ExactReportsSurface() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [filter, setFilter] = useState("all");
   const [visibleReportCount, setVisibleReportCount] = useState(12);
+  const [reportsTool, setReportsTool] = useState<"start" | "runs" | "quality" | "refresh">("start");
   const backgroundReady = useIdleGate({ timeoutMs: 850 });
 
   useEffect(() => {
@@ -1672,7 +1680,7 @@ export function ExactReportsSurface() {
           <div>
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 760, letterSpacing: "-0.02em" }}>Reports</h1>
             <p style={{ margin: "4px 0 0", color: "var(--text-muted)", fontSize: 13 }}>
-              Reusable entity memory. Open serious work in workspace.nodebenchai.com.
+              Saved research reports with sources, review status, exports, and follow-up actions.
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -1693,29 +1701,65 @@ export function ExactReportsSurface() {
           </div>
         </div>
 
-        <div data-testid="reports-pipeline-launcher-slot" style={{ marginBottom: 16 }}>
-          <PipelineLauncher />
-        </div>
-
-        <div data-testid="reports-pipelines-panel-slot" style={{ marginBottom: 16 }}>
-          <PipelineRunsPanel initialVisibleCount={6} queryLimit={18} windowStep={6} />
-        </div>
-
-        <div data-testid="reports-pipeline-eval-slot" style={{ marginBottom: 16 }}>
-          {backgroundReady ? <PipelineEvalScorecard /> : <DeferredReportsPanel label="Eval scorecard" />}
-        </div>
-
-        <div data-testid="reports-pipeline-schedules-slot" style={{ marginBottom: 16 }}>
-          {backgroundReady ? (
-            <PipelineSchedulesPanel initialVisibleCount={4} queryLimit={12} windowStep={4} />
-          ) : (
-            <DeferredReportsPanel label="Pipeline schedules" />
-          )}
-        </div>
-
-        <div data-testid="reports-findings-panel-slot" style={{ marginBottom: 16 }}>
-          {backgroundReady ? <EntityFindingsPanel /> : <DeferredReportsPanel label="Entity findings" />}
-        </div>
+        <section className="nb-research-workbench" data-testid="reports-research-workbench">
+          <header className="nb-research-workbench-head">
+            <div>
+              <div className="nb-kicker">Research workspace</div>
+              <h2>Start one thing, then check status when you come back.</h2>
+            </div>
+            <span className="nb-badge nb-badge-success">phone-safe background runs</span>
+          </header>
+          <div className="nb-workbench-tabs" role="tablist" aria-label="Reports research tools">
+            {([
+              ["start", "Start"],
+              ["runs", "Runs"],
+              ["quality", "Quality"],
+              ["refresh", "Refreshes"],
+            ] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                data-active={reportsTool === id}
+                aria-selected={reportsTool === id}
+                onClick={() => setReportsTool(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="nb-workbench-panel">
+            {reportsTool === "start" ? (
+              <div data-testid="reports-pipeline-launcher-slot">
+                <PipelineLauncher />
+              </div>
+            ) : null}
+            {reportsTool === "runs" ? (
+              <div data-testid="reports-pipelines-panel-slot">
+                <PipelineRunsPanel initialVisibleCount={6} queryLimit={18} windowStep={6} />
+              </div>
+            ) : null}
+            {reportsTool === "quality" ? (
+              <div data-testid="reports-pipeline-eval-slot">
+                {backgroundReady ? <PipelineEvalScorecard /> : <DeferredReportsPanel label="Research quality" />}
+              </div>
+            ) : null}
+            {reportsTool === "refresh" ? (
+              <div className="nb-workbench-stack">
+                <div data-testid="reports-pipeline-schedules-slot">
+                  {backgroundReady ? (
+                    <PipelineSchedulesPanel initialVisibleCount={4} queryLimit={12} windowStep={4} />
+                  ) : (
+                    <DeferredReportsPanel label="Automatic refreshes" />
+                  )}
+                </div>
+                <div data-testid="reports-findings-panel-slot">
+                  {backgroundReady ? <EntityFindingsPanel /> : <DeferredReportsPanel label="Entity findings" />}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
 
         <div className="nb-reports-grid" data-view={view}>
           {reportsReadModel.visibleReports.map((report) => (
@@ -3069,12 +3113,13 @@ export function ExactMeSurface() {
 
   const [section, setSection] = useState("notebook");
   const [entities, setEntities] = useState<ExactNotebookEntity[]>(() => [...ME_NOTEBOOK_SEED]);
+  const [pendingUnwatchId, setPendingUnwatchId] = useState<string | null>(null);
 
   useEffect(() => {
     if (liveNotebook) setEntities(liveNotebook);
   }, [liveNotebook]);
   const nav = [
-    { group: "Account", items: [{ id: "notebook", label: "Notebook", icon: BookOpen, count: entities.length }, { id: "profile", label: "Profile", icon: User }] },
+    { group: "Account", items: [{ id: "notebook", label: "Memory", icon: BookOpen, count: entities.length }, { id: "profile", label: "Profile", icon: User }] },
     { group: "Preferences", items: [{ id: "notifications", label: "Notifications", icon: Bell }, { id: "pace", label: "Pace & feel", icon: Zap }, { id: "data", label: "Data & memory", icon: FileText }] },
     { group: "Workspace", items: [{ id: "integrations", label: "Integrations", icon: Link2 }, { id: "usage", label: "Usage", icon: Sparkles }] },
   ];
@@ -3118,8 +3163,8 @@ export function ExactMeSurface() {
         <section>
           {section === "notebook" ? (
             <div>
-              <h1 className="nb-settings-h1">Notebook</h1>
-              <p className="nb-settings-sub">Entities you have taught NodeBench to watch. Reports and Inbox items anchor to these.</p>
+              <h1 className="nb-settings-h1">Memory</h1>
+              <p className="nb-settings-sub">Entities NodeBench watches for you. Reports, source updates, and Inbox nudges anchor here.</p>
               <div className="nb-settings-section" style={{ padding: 0, overflow: "hidden" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-subtle)", padding: "14px 20px" }}>
                   <div>
@@ -3133,7 +3178,7 @@ export function ExactMeSurface() {
                     key={entity.id}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "36px 1fr auto auto",
+                      gridTemplateColumns: "36px minmax(0, 1fr) auto minmax(130px, auto)",
                       gap: 14,
                       alignItems: "center",
                       borderTop: index === 0 ? 0 : "1px solid var(--border-subtle)",
@@ -3151,7 +3196,33 @@ export function ExactMeSurface() {
                       </div>
                     </div>
                     <button type="button" className="nb-btn nb-btn-secondary"><FileText size={12} /> Reports</button>
-                    <button type="button" className="nb-btn" aria-label="Unwatch" onClick={() => setEntities((current) => current.filter((item) => item.id !== entity.id))}><X size={13} /></button>
+                    {pendingUnwatchId === entity.id ? (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        <button type="button" className="nb-btn nb-btn-secondary" onClick={() => setPendingUnwatchId(null)}>
+                          Keep
+                        </button>
+                        <button
+                          type="button"
+                          className="nb-btn"
+                          aria-label={`Stop watching ${entity.name}`}
+                          onClick={() => {
+                            setEntities((current) => current.filter((item) => item.id !== entity.id));
+                            setPendingUnwatchId(null);
+                          }}
+                        >
+                          Stop watching
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="nb-btn"
+                        aria-label={`Stop watching ${entity.name}`}
+                        onClick={() => setPendingUnwatchId(entity.id)}
+                      >
+                        <X size={13} /> Stop watching
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -3354,43 +3425,71 @@ function ExactMobileSurface({ surface }: { surface: MobileSurface }) {
 
 function MobileReportsPipelineBlock() {
   const [schedulesOpen, setSchedulesOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"start" | "runs" | "quality">("start");
   const evalReady = useIdleGate({ timeoutMs: 450 });
+  const tabs = [
+    { id: "start", label: "Start" },
+    { id: "runs", label: "Runs" },
+    { id: "quality", label: "Quality" },
+  ] as const;
 
   return (
     <section
       className="m-pipeline-block"
       data-testid="mobile-reports-pipeline-block"
-      aria-label="Mobile pipeline runtime"
+      aria-label="Mobile research runtime"
     >
       <header className="m-pipeline-block-head">
         <div>
-          <span className="kicker">Pipelines</span>
-          <h2>Run, review, and score</h2>
+          <span className="kicker">Research</span>
+          <h2>Start or check research</h2>
         </div>
-        <span className="pill pill-neutral">live runtime</span>
+        <span className="pill pill-neutral">phone-safe</span>
       </header>
+      <div className="m-pipeline-tabs" role="tablist" aria-label="Research tools">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            data-active={activeTab === tab.id}
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
       <div className="m-pipeline-stack">
-        <div data-testid="reports-pipeline-launcher-slot">
-          <PipelineLauncher variant="compact" />
-        </div>
-        <div data-testid="reports-pipelines-panel-slot">
-          <PipelineRunsPanel initialVisibleCount={4} queryLimit={12} windowStep={4} />
-        </div>
-        <div data-testid="reports-pipeline-eval-slot">
-          {evalReady ? <PipelineEvalScorecard /> : <DeferredReportsPanel label="Eval scorecard" />}
-        </div>
-        <details
-          className="m-pipeline-more"
-          open={schedulesOpen}
-          onToggle={(event) => setSchedulesOpen(event.currentTarget.open)}
-        >
-          <summary>Schedules</summary>
-          <div data-testid="reports-pipeline-schedules-slot">
-            {schedulesOpen ? (
-              <PipelineSchedulesPanel initialVisibleCount={3} queryLimit={10} windowStep={3} />
-            ) : null}
+        {activeTab === "start" ? (
+          <div data-testid="reports-pipeline-launcher-slot">
+            <PipelineLauncher variant="compact" />
           </div>
-        </details>
+        ) : null}
+        {activeTab === "runs" ? (
+          <div data-testid="reports-pipelines-panel-slot">
+            <PipelineRunsPanel initialVisibleCount={4} queryLimit={12} windowStep={4} />
+          </div>
+        ) : null}
+        {activeTab === "quality" ? (
+          <div data-testid="reports-pipeline-eval-slot">
+            {evalReady ? <PipelineEvalScorecard /> : <DeferredReportsPanel label="Research quality" />}
+          </div>
+        ) : null}
+        {activeTab === "quality" ? (
+          <details
+            className="m-pipeline-more"
+            open={schedulesOpen}
+            onToggle={(event) => setSchedulesOpen(event.currentTarget.open)}
+          >
+            <summary>Automatic refreshes</summary>
+            <div data-testid="reports-pipeline-schedules-slot">
+              {schedulesOpen ? (
+                <PipelineSchedulesPanel initialVisibleCount={3} queryLimit={10} windowStep={3} />
+              ) : null}
+            </div>
+          </details>
+        ) : null}
       </div>
     </section>
   );
@@ -3416,9 +3515,9 @@ function MobileHomeBody() {
     setSubmitting(true);
     setFeedback(null);
     try {
-      const result = await startPipelineRun(request);
+      await startPipelineRun(request);
       setMobileQuery(request.spec);
-      setFeedback(`Running in background: ${result.workflowId.slice(0, 10)}. Check Reports later.`);
+      setFeedback("Research started. Safe to lock your phone; the report will appear under Reports.");
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : String(error));
     } finally {
@@ -3444,46 +3543,44 @@ function MobileHomeBody() {
         </button>
       </div>
       <div className="m-offline-proof">
-        <span>server-side</span>
-        <span>phone-safe</span>
+        <span>keeps working</span>
+        <span>safe to leave</span>
         <span>export-ready</span>
       </div>
       {feedback ? <div className="m-run-feedback" role="status">{feedback}</div> : null}
       <section className="m-section" data-testid="mobile-home-first-impression">
         <header className="m-section-head"><span className="kicker">Use cases today</span><a href="/?surface=reports">Reports</a></header>
         <div className="m-scenario-stack">
-          {mobileCards.map((card) => (
+          {mobileCards.slice(0, 1).map((card) => (
             <div key={card.id} className="m-scenario-card">
               <div className="m-scenario-top"><span>{card.audience}</span><span>{card.exportTargets[0]}</span></div>
               <div className="m-scenario-title">{card.title}</div>
               <p>{card.proofPoints.join(" - ")}</p>
               <button type="button" onClick={() => void runMobileBackground(card.prompt, card.title)} disabled={submitting}>
-                Run async
+                Run research
               </button>
             </div>
           ))}
+          <details className="m-scenario-more">
+            <summary>More example workflows</summary>
+            {mobileCards.slice(1).map((card) => (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() => void runMobileBackground(card.prompt, card.title)}
+                disabled={submitting}
+              >
+                <span>{card.audience}</span>
+                {card.title}
+              </button>
+            ))}
+          </details>
         </div>
       </section>
       <section className="m-section">
-        <header className="m-section-head"><span className="kicker">Watchlist</span><a href="/?surface=reports">Manage</a></header>
-        <div className="m-watch">
-          {WATCHLIST.map((item) => (
-            <div key={item.id} className="m-watch-tile">
-              <div className="m-watch-tile-head">
-                <div className="m-watch-tile-avatar" style={{ background: item.avatar }}>{item.initials}</div>
-                <div className="m-watch-tile-name">{item.name}</div>
-                <div className="m-watch-tile-ticker">{item.ticker}</div>
-              </div>
-              <div className="m-watch-tile-val"><strong>{item.value}</strong><span className="delta" data-trend={item.trend}>{item.delta}</span></div>
-              <div className="m-watch-tile-meta">{item.meta}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-      <section className="m-section">
-        <header className="m-section-head"><span className="kicker">Since you were last here</span><a href="/?surface=inbox" role="button">All 5</a></header>
+        <header className="m-section-head"><span className="kicker">Today</span><a href="/?surface=inbox" role="button">All 5</a></header>
         <div className="m-nudges">
-          {INBOX_SEED.slice(0, 3).map((item) => {
+          {INBOX_SEED.slice(0, 1).map((item) => {
             const Icon = item.icon;
             return (
               <div key={item.id} className="m-nudge">
@@ -3498,20 +3595,38 @@ function MobileHomeBody() {
           })}
         </div>
       </section>
-      <section className="m-section">
-        <header className="m-section-head"><span className="kicker">Recent threads</span><a href="/?surface=chat">View all</a></header>
-        <div className="m-threads">
-          {THREADS.map((thread) => (
-            <div key={thread.id} className="m-thread">
-              <div className="m-thread-icon"><MobileIcon name="chat" size={14} /></div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="m-thread-title">{thread.title}</div>
-                <div className="m-thread-meta">{thread.meta}</div>
+      <details className="m-section m-mobile-more">
+        <summary><span>Watchlist</span><small>4 tracked</small></summary>
+        <div className="m-watch">
+          {WATCHLIST.map((item) => (
+            <div key={item.id} className="m-watch-tile">
+              <div className="m-watch-tile-head">
+                <div className="m-watch-tile-avatar" style={{ background: item.avatar }}>{item.initials}</div>
+                <div className="m-watch-tile-name">{item.name}</div>
+                <div className="m-watch-tile-ticker">{item.ticker}</div>
               </div>
-              <MobileIcon name="chevron" />
+              <div className="m-watch-tile-val"><strong>{item.value}</strong><span className="delta" data-trend={item.trend}>{item.delta}</span></div>
+              <div className="m-watch-tile-meta">{item.meta}</div>
             </div>
           ))}
         </div>
+      </details>
+      <section className="m-section">
+        <details className="m-mobile-more">
+          <summary><span>Recent threads</span><small>3 saved</small></summary>
+          <div className="m-threads">
+            {THREADS.map((thread) => (
+              <div key={thread.id} className="m-thread">
+                <div className="m-thread-icon"><MobileIcon name="chat" size={14} /></div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="m-thread-title">{thread.title}</div>
+                  <div className="m-thread-meta">{thread.meta}</div>
+                </div>
+                <MobileIcon name="chevron" />
+              </div>
+            ))}
+          </div>
+        </details>
       </section>
     </main>
   );
@@ -3535,33 +3650,39 @@ function MobileChatBody() {
         <div className="m-chat-callout-head"><Sparkles size={12} /> So what</div>
         <p>The next best action is not a generic intro. Verify the claim, then send a tight reply around regulated EU expansion.</p>
       </div>
-      <div className="m-strip-head"><span className="kicker">Entities</span><a href="/?surface=reports">Open cards</a></div>
-      <div className="m-strip">
-        {WATCHLIST.slice(0, 3).map((item) => (
-          <div key={item.id} className="m-card">
-            <div className="m-card-head">
-              <div className="m-card-avatar" style={{ background: item.avatar }}>{item.initials}</div>
-              <div><div className="m-card-name">{item.name}</div><div className="m-card-sub">{item.meta}</div></div>
+      <details className="m-chat-evidence">
+        <summary>
+          <span>Evidence</span>
+          <small>3 entities - 24 sources</small>
+        </summary>
+        <div className="m-strip-head"><span className="kicker">Entities</span><a href="/?surface=reports">Open entity cards</a></div>
+        <div className="m-strip">
+          {WATCHLIST.slice(0, 3).map((item) => (
+            <div key={item.id} className="m-card">
+              <div className="m-card-head">
+                <div className="m-card-avatar" style={{ background: item.avatar }}>{item.initials}</div>
+                <div><div className="m-card-name">{item.name}</div><div className="m-card-sub">{item.meta}</div></div>
+              </div>
+              <div className="m-card-metrics">
+                <div><div className="m-card-metric-l">Signal</div><div className="m-card-metric-v" data-trend={item.trend}>{item.value}</div></div>
+                <div><div className="m-card-metric-l">Delta</div><div className="m-card-metric-v" data-trend={item.trend}>{item.delta}</div></div>
+              </div>
             </div>
-            <div className="m-card-metrics">
-              <div><div className="m-card-metric-l">Signal</div><div className="m-card-metric-v" data-trend={item.trend}>{item.value}</div></div>
-              <div><div className="m-card-metric-l">Delta</div><div className="m-card-metric-v" data-trend={item.trend}>{item.delta}</div></div>
+          ))}
+        </div>
+        <div className="m-strip-head"><span className="kicker">Top sources</span><a href="/?surface=reports">View source list</a></div>
+        {["Security page", "Saved report", "Launch note"].map((source, index) => (
+          <div key={source} className="m-src-row">
+            <MobileIcon name="source" />
+            <div style={{ flex: 1 }}>
+              <div className="m-src-title">{source}</div>
+              <div className="m-src-meta"><span>source {index + 1}</span><span>medium confidence</span></div>
             </div>
           </div>
         ))}
-      </div>
-      <div className="m-strip-head"><span className="kicker">Top sources</span><a href="/?surface=reports">View all</a></div>
-      {["Security page", "Saved report", "Launch note"].map((source, index) => (
-        <div key={source} className="m-src-row">
-          <MobileIcon name="source" />
-          <div style={{ flex: 1 }}>
-            <div className="m-src-title">{source}</div>
-            <div className="m-src-meta"><span>source {index + 1}</span><span>medium confidence</span></div>
-          </div>
-        </div>
-      ))}
+      </details>
       <div className="m-followups">
-        <span className="kicker">Follow-up</span>
+        <span className="kicker">Next</span>
         {["Verify", "Open card", "Draft reply"].map((item) => <button key={item} className="m-followup">{item}</button>)}
       </div>
       <div className="m-composer-dock">

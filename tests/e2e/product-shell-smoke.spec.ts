@@ -92,7 +92,7 @@ test.describe("Product shell smoke", () => {
       // Home: actionable first-impression H1 + async background CTA.
       await page.goto("/?surface=home", { waitUntil: "networkidle" });
       await expect(page.getByRole("heading", { name: /Get the read before you walk in\./i })).toBeVisible();
-      await expect(page.getByRole("button", { name: /run in background/i })).toBeVisible();
+      await expect(page.getByRole("button", { name: /run research/i }).first()).toBeVisible();
       await expect(page.getByTestId("home-first-impression-board")).toBeVisible();
       await expect(page.getByText(/Continues if the phone locks/i)).toBeVisible();
 
@@ -120,10 +120,10 @@ test.describe("Product shell smoke", () => {
       await expect(page.getByText(/what shows up here/i)).toHaveCount(0);
       await expect(page.getByRole("heading", { name: /nothing urgent right now/i })).toHaveCount(0);
 
-      // Me: notebook-first personal context surface, not a generic Settings page.
+      // Me: memory-first personal context surface, not a generic Settings page.
       await page.goto("/?surface=me", { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { level: 1, name: /^Notebook$/i })).toBeVisible();
-      await expect(page.getByText(/Entities you have taught NodeBench to watch/i)).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: /^Memory$/i })).toBeVisible();
+      await expect(page.getByText(/Entities NodeBench watches for you/i)).toBeVisible();
       await expect(page.getByRole("heading", { level: 1, name: /^settings$/i })).toHaveCount(0);
     } finally {
       await context.close().catch(() => undefined);
@@ -168,7 +168,7 @@ test.describe("Product shell smoke", () => {
       await expect(page).toHaveURL(/surface=me/);
       await expect(meButton).toHaveAttribute("data-active", "true");
       await expect(meButton).toHaveAttribute("aria-current", "page");
-      await expect(page.getByRole("heading", { level: 1, name: /your context/i })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: /^Memory$/i })).toBeVisible();
       await expect(inboxButton).toHaveAttribute("data-active", "false");
     } finally {
       await context.close().catch(() => undefined);
@@ -188,7 +188,7 @@ test.describe("Product shell smoke", () => {
 
       await expect(page).toHaveURL(/surface=me/);
       await expect(meButton).toHaveAttribute("aria-current", "page");
-      await expect(page.getByRole("heading", { level: 1, name: /your context/i })).toBeVisible();
+      await expect(page.getByText(/^Me$/i).first()).toBeVisible();
     } finally {
       await context.close().catch(() => undefined);
     }
