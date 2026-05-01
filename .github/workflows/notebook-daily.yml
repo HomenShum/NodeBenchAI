@@ -29,8 +29,8 @@ jobs:
 
       - name: Run daily summary
         env:
-          VITE_CONVEX_URL: ${{ secrets.CONVEX_URL }}
-          CONVEX_URL: ${{ secrets.CONVEX_URL }}
+          VITE_CONVEX_URL: ${{ secrets.CONVEX_URL || vars.CONVEX_URL || 'https://agile-caribou-964.convex.cloud' }}
+          CONVEX_URL: ${{ secrets.CONVEX_URL || vars.CONVEX_URL || 'https://agile-caribou-964.convex.cloud' }}
           OPS_NTFY_URL: ${{ secrets.OPS_NTFY_URL }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}

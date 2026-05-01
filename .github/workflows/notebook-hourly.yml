@@ -30,8 +30,8 @@ jobs:
 
       - name: Run hourly health check
         env:
-          VITE_CONVEX_URL: ${{ secrets.CONVEX_URL }}
-          CONVEX_URL: ${{ secrets.CONVEX_URL }}
+          VITE_CONVEX_URL: ${{ secrets.CONVEX_URL || vars.CONVEX_URL || 'https://agile-caribou-964.convex.cloud' }}
+          CONVEX_URL: ${{ secrets.CONVEX_URL || vars.CONVEX_URL || 'https://agile-caribou-964.convex.cloud' }}
           OPS_NTFY_URL: ${{ secrets.OPS_NTFY_URL }}
           HEALTH_P95_MS_BUDGET: "500"
           HEALTH_ERROR_RATE_BUDGET: "0.01"
