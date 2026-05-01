@@ -19,16 +19,20 @@ test("PR A4: Home renders ExactHomeSurface composer hero", async ({ page }) => {
   const result = await page.evaluate(() => ({
     composer: !!document.querySelector('[data-testid="exact-web-home-composer"]'),
     kicker: !!Array.from(document.querySelectorAll(".nb-kicker")).find((el) =>
-      el.textContent?.toLowerCase().includes("entity intelligence"),
+      el.textContent?.toLowerCase().includes("on-the-go intelligence"),
     ),
     h1: Array.from(document.querySelectorAll(".nb-composer-hero h1")).map((h) => h.textContent?.trim()),
     lanes: Array.from(document.querySelectorAll(".nb-lane")).map((b) => b.textContent?.trim().slice(0, 20)),
+    asyncProof: !!document.querySelector('[data-testid="home-async-proof"]'),
+    firstImpression: !!document.querySelector('[data-testid="home-first-impression-board"]'),
   }));
   console.log("HOME:", JSON.stringify(result, null, 2));
   expect(result.composer).toBe(true);
   expect(result.kicker).toBe(true);
-  expect(result.h1).toContain("What are we researching today?");
+  expect(result.h1).toContain("Get the read before you walk in.");
   expect(result.lanes.length).toBeGreaterThanOrEqual(3);
+  expect(result.asyncProof).toBe(true);
+  expect(result.firstImpression).toBe(true);
 });
 
 test("PR A6: Home renders full kit HomePulse layout", async ({ page }) => {

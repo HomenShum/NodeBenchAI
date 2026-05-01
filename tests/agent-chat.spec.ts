@@ -59,7 +59,7 @@ test.describe("Welcome Landing - Home Hub UI", () => {
 
   test("renders home page with key UI elements", async () => {
     // Check for Home heading or welcome message
-    const homeHeading = page.locator('h1:has-text("Home"), text=Good morning, text=Good afternoon, text=Good evening').first();
+    const homeHeading = page.locator('h1:has-text("Home"), text=Get the read before you walk in, text=Need the read before you walk in, text=Good morning, text=Good afternoon, text=Good evening').first();
     const hasHomeUI = await homeHeading.isVisible({ timeout: 5000 }).catch(() => false);
 
     // Check for navigation elements

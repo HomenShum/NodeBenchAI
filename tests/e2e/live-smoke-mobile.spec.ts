@@ -37,8 +37,11 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
     await expect(page.locator('[data-testid="mobile-home-surface"]')).toBeVisible({
       timeout: 20_000,
     });
-    // Greeting
-    await expect(page.getByText(/Good morning/i)).toBeVisible();
+    // First-impression async run contract
+    await expect(page.getByText(/Need the read before you walk in/i)).toBeVisible();
+    await expect(page.locator('[data-testid="mobile-home-async-run"]')).toBeVisible();
+    await expect(page.locator('[data-testid="mobile-home-first-impression"]')).toBeVisible();
+    await expect(page.getByText(/phone-safe/i)).toBeVisible();
     // Watchlist kicker
     await expect(page.getByText(/Watchlist/i).first()).toBeVisible();
     // At least one watchlist tile — Disco is the DISCO scenario root

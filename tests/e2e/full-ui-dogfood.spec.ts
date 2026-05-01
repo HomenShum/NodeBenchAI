@@ -5,7 +5,7 @@ const ROUTES = [
   {
     path: "/?surface=home",
     name: "home",
-    readyHeading: /What (do you want to understand|are we researching today)\?|Good morning,/i,
+    readyHeading: /(Get the read before you walk in\.|Need the read before you walk in\?)/i,
   },
   {
     path: "/?surface=chat",
@@ -355,7 +355,7 @@ test.describe("Full UI Dogfood", () => {
         .first();
       await expect(homeInput).toBeVisible({ timeout: 20_000 });
       await homeInput.fill(homeQuery);
-      await page.getByRole("button", { name: /^start run$/i }).first().click();
+      await page.getByRole("button", { name: /^open workspace$/i }).first().click();
       await page.waitForTimeout(2500);
       await ensureChatRunReady(page, homeQuery);
       await page.screenshot({

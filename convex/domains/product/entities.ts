@@ -1874,10 +1874,11 @@ export async function buildKnownEntityStateMarkdown(
 /**
  * Tier B2 — getProductPulseMetrics
  *
- * Aggregates the productActivityLedger + productEntities + productReports
- * tables into the metric tile shape the Home Pulse strip + the avatar status
- * panel's "Today's pulse" section render.  Anonymous visitors get an
- * all-zero result; authenticated users with activity see live counts.
+ * Aggregates product owner state plus public/system intelligence corpus tables
+ * into the metric tile shape the Home Pulse strip + the avatar status panel's
+ * "Today's pulse" section render. Owner-scoped product rows capture private
+ * workspace memory; daily brief, LinkedIn archive, entity context, and graph
+ * rows capture shared public system memory. Private notes stay excluded.
  *
  * The kit's PulseStrip + Avatar use these slugs.  Where a metric requires
  * data we don't yet ledger (memory-hit ratio, paid-call counts, average
@@ -1891,26 +1892,6 @@ export const getProductPulseMetrics = query({
   },
   handler: async (ctx, args) => {
     const ownerKeys = await resolveProductReadOwnerKeys(ctx, args.anonymousSessionId);
-    if (ownerKeys.length === 0) {
-      return {
-        live: false,
-        entitiesTracked: 0,
-        reportsCreated: 0,
-        chatMessagesLifetime: 0,
-        sourcesAttachedLifetime: 0,
-        claimsChangedLifetime: 0,
-        exportsCompletedLifetime: 0,
-        sourcesAttachedRecent: 0,
-        claimsChangedRecent: 0,
-        chatMessagesRecent: 0,
-        memoryHitPct: null,
-        avgSourcedAnswerSec: null,
-        followupsCreated: 0,
-        lookbackHours: args.lookbackHours ?? 168,
-        lastUpdated: Date.now(),
-      };
-    }
-
     const lookbackHours = args.lookbackHours ?? 168;  // default 7 days
     const lookbackCutoff = Date.now() - lookbackHours * 60 * 60 * 1000;
 
@@ -1996,11 +1977,106 @@ export const getProductPulseMetrics = query({
       followupsDueToday += followups.filter((f) => f.due === "today" && f.status === "open").length;
     }
 
-    // Tier D — avg sourced answer latency: pair user turn → next agent
-    // response within the same conversation flow.  Both arrays are in
-    // descending createdAt order from the loop above.  Reverse so we
-    // walk oldest → newest, then for each user turn find the next agent
-    // turn after it; the diff is one observation.
+    // Shared public/system corpus counts: daily brief, LinkedIn archive,
+    // entity cache, graph, and search-cache rows should count toward Home
+    // memory even when the current visitor has no private workspace rows.
+    //
+    // Some cache rows contain full source/result payloads. Keep these reads
+    // bounded so the pulse query never takes down Home by crossing Convex's
+    // per-function byte limit.
+    const countTableCapped = async (tableName: any, limit: number): Promise<number> => {
+      const rows = await (ctx.db.query(tableName) as any).take(limit);
+      return rows.length;
+    };
+    const safeCountTableCapped = async (tableName: any, limit: number): Promise<number> => {
+      try {
+        return await countTableCapped(tableName, limit);
+      } catch {
+        return 0;
+      }
+    };
+    const safeRows = async <T>(rowsPromise: Promise<T[]>): Promise<T[]> => {
+      try {
+        return await rowsPromise;
+      } catch {
+        return [];
+      }
+    };
+
+    const [
+      entityContextCount,
+      entityProfileCount,
+      entityMentionCount,
+      archiveRows,
+      archiveEntityLinkCount,
+      dailyBriefSnapshots,
+      dailyBriefMemories,
+      dailyBriefTaskResultCount,
+      searchCacheCount,
+      searchFusionCacheCount,
+      graphClaimCount,
+      factCount,
+      claimVerificationCount,
+    ] = await Promise.all([
+      safeCountTableCapped("entityContexts", 2000),
+      safeCountTableCapped("entityProfiles", 2000),
+      safeCountTableCapped("entityMentions", 3000),
+      safeRows(
+        ctx.db
+          .query("linkedinPostArchive")
+          .withIndex("by_postedAt")
+          .order("desc")
+          .take(1000),
+      ),
+      safeCountTableCapped("linkedinArchiveEntityLinks", 3000),
+      safeRows(
+        ctx.db
+          .query("dailyBriefSnapshots")
+          .withIndex("by_generated_at")
+          .order("desc")
+          .take(14),
+      ),
+      safeRows(
+        ctx.db
+          .query("dailyBriefMemories")
+          .withIndex("by_generated_at")
+          .order("desc")
+          .take(14),
+      ),
+      safeCountTableCapped("dailyBriefTaskResults", 1000),
+      safeCountTableCapped("searchCache", 100),
+      safeCountTableCapped("searchFusionCache", 25),
+      safeCountTableCapped("graphClaims", 2000),
+      safeCountTableCapped("facts", 2000),
+      safeCountTableCapped("claimVerifications", 2000),
+    ]);
+
+    const publicArchiveRows = archiveRows.filter((row) => row.target !== "personal");
+    const recentPublicArchiveRows = publicArchiveRows.filter((row) => row.postedAt >= lookbackCutoff);
+    const dailyBriefSourceItemsRecent = dailyBriefSnapshots
+      .filter((snapshot) => snapshot.generatedAt >= lookbackCutoff)
+      .reduce((acc, snapshot) => acc + Number(snapshot.sourceSummary?.totalItems ?? 0), 0);
+    const dailyBriefFeatureCountRecent = dailyBriefMemories
+      .filter((memory) => memory.generatedAt >= lookbackCutoff)
+      .reduce((acc, memory) => acc + (Array.isArray(memory.features) ? memory.features.length : 0), 0);
+    const publicEntitiesTracked = entityContextCount + entityProfileCount;
+    const publicReportsCreated = publicArchiveRows.length + dailyBriefTaskResultCount + dailyBriefMemories.length;
+    const publicRelationshipsMapped = archiveEntityLinkCount + entityMentionCount;
+    const publicSourcesRefreshedRecent = dailyBriefSourceItemsRecent + recentPublicArchiveRows.length;
+    const publicClaimsTracked = graphClaimCount + factCount + claimVerificationCount;
+    const publicSearchesAvoided = searchCacheCount + searchFusionCacheCount + dailyBriefFeatureCountRecent;
+
+    entitiesTracked += publicEntitiesTracked;
+    reportsCreated += publicReportsCreated;
+    relationshipsMapped += publicRelationshipsMapped;
+    sourcesAttachedRecent += publicSourcesRefreshedRecent;
+    sourcesAttachedLifetime += dailyBriefSourceItemsRecent + publicArchiveRows.length;
+    claimsChangedRecent += publicClaimsTracked;
+    claimsChangedLifetime += publicClaimsTracked;
+    chatMessagesRecent += publicSearchesAvoided;
+    chatMessagesLifetime += publicSearchesAvoided;
+
+    // Pair user turn to the next agent turn for a bounded sourced-answer latency proxy.
     const userAsc = [...userTurnTimestamps].sort((a, b) => a - b);
     const agentAsc = [...agentResponseTimestamps].sort((a, b) => a - b);
     const latencies: number[] = [];
@@ -2060,8 +2136,18 @@ export const getProductPulseMetrics = query({
           )
         : null;
 
+    const hasAnyPulseData =
+      entitiesTracked > 0 ||
+      reportsCreated > 0 ||
+      relationshipsMapped > 0 ||
+      chatMessagesLifetime > 0 ||
+      sourcesAttachedLifetime > 0 ||
+      claimsChangedLifetime > 0 ||
+      exportsCompletedLifetime > 0 ||
+      followupsCreated > 0;
+
     return {
-      live: true,
+      live: hasAnyPulseData,
       entitiesTracked,
       reportsCreated,
       relationshipsMapped,
@@ -2080,6 +2166,16 @@ export const getProductPulseMetrics = query({
       sourcesTotalCount,
       followupsCreated,
       followupsDueToday,
+      publicCorpus: {
+        entitiesTracked: publicEntitiesTracked,
+        reportsCreated: publicReportsCreated,
+        relationshipsMapped: publicRelationshipsMapped,
+        sourcesRefreshedRecent: publicSourcesRefreshedRecent,
+        claimsTracked: publicClaimsTracked,
+        searchesAvoided: publicSearchesAvoided,
+        archiveRows: publicArchiveRows.length,
+        dailyBriefSourceItemsRecent,
+      },
       lookbackHours,
       lastUpdated: Date.now(),
     };
