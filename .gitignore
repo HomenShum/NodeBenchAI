@@ -178,3 +178,5 @@ tmp-benchmark-args.json
 /tsconfig.tsbuildinfo
 /.tmp_*
 /test_assets/screenshots/
+
+.vercel

@@ -57,7 +57,8 @@ test.describe("Product shell smoke", () => {
       ]);
 
       await page.goto("/?surface=home", { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { name: /What do you want to understand\?/i })).toBeVisible();
+      await expect(page.getByRole("heading", { name: /Get the read before you walk in\./i })).toBeVisible();
+      await expect(page.getByTestId("home-async-proof")).toBeVisible();
 
       await page.goto("/?surface=reports", { waitUntil: "networkidle" });
       await expect(page.getByRole("heading", { name: "Reports" })).toBeVisible();
@@ -88,11 +89,12 @@ test.describe("Product shell smoke", () => {
     const page = await context.newPage();
 
     try {
-      // Home — actionable H1 + primary composer CTA + "Pick up where you left off" re-entry label
+      // Home: actionable first-impression H1 + async background CTA.
       await page.goto("/?surface=home", { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { name: /What do you want to understand\?/i })).toBeVisible();
-      await expect(page.getByRole("button", { name: /start run/i })).toBeVisible();
-      await expect(page.getByText(/pick up where you left off/i)).toBeVisible();
+      await expect(page.getByRole("heading", { name: /Get the read before you walk in\./i })).toBeVisible();
+      await expect(page.getByRole("button", { name: /run in background/i })).toBeVisible();
+      await expect(page.getByTestId("home-first-impression-board")).toBeVisible();
+      await expect(page.getByText(/Continues if the phone locks/i)).toBeVisible();
 
       // Reports — named cards (never "Company memory") + freshness-aware subtitle
       await page.goto("/?surface=reports", { waitUntil: "networkidle" });
@@ -103,29 +105,25 @@ test.describe("Product shell smoke", () => {
 
       // Chat — visually distinct from Home (different H1 + dedicated composer contract)
       await page.goto("/?surface=chat", { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { name: /ask nodebench/i })).toBeVisible();
-      await expect(page.locator("p:visible").filter({ hasText: /^chat$/i }).first()).toBeVisible();
-      await expect(page.getByPlaceholder(/ask nodebench/i)).toBeVisible();
+      await expect(page.getByRole("heading", { name: /^Chat$/i })).toBeVisible();
+      await expect(page.getByText(/Every turn keeps the entity context/i)).toBeVisible();
+      await expect(page.getByPlaceholder(/Ask, capture, paste/i)).toBeVisible();
       // Regression guard: Chat must not wear Home's eyebrow
       await expect(page.getByText(/^new run$/i)).toHaveCount(0);
 
-      // Inbox — empty state must use the new push-surface framing, not the old feature-tour copy
+      // Inbox: meaningful-change framing and filter tabs.
       await page.goto("/?surface=inbox", { waitUntil: "networkidle" });
-      await expect(
-        page.getByRole("heading", { name: /what changed, and what needs your attention\./i }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole("heading", { name: /you're all caught up/i }),
-      ).toBeVisible();
-      await expect(page.getByRole("button", { name: /open chat/i })).toBeVisible();
-      await expect(page.getByRole("button", { name: /open saved report/i })).toBeVisible();
+      await expect(page.getByRole("heading", { name: /^Inbox$/i })).toBeVisible();
+      await expect(page.getByText(/only when something meaningful changed/i)).toBeVisible();
+      await expect(page.getByRole("button", { name: /^All /i })).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Watching /i })).toBeVisible();
       await expect(page.getByText(/what shows up here/i)).toHaveCount(0);
       await expect(page.getByRole("heading", { name: /nothing urgent right now/i })).toHaveCount(0);
 
-      // Me — "Your context", not "Settings" — and the self-model sentence
+      // Me: notebook-first personal context surface, not a generic Settings page.
       await page.goto("/?surface=me", { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { level: 1, name: /your context/i })).toBeVisible();
-      await expect(page.getByText(/how nodebench sees you/i)).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: /^Notebook$/i })).toBeVisible();
+      await expect(page.getByText(/Entities you have taught NodeBench to watch/i)).toBeVisible();
       await expect(page.getByRole("heading", { level: 1, name: /^settings$/i })).toHaveCount(0);
     } finally {
       await context.close().catch(() => undefined);

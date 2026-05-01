@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useConvex, useMutation, useQuery } from "convex/react";
+import { api as generatedApi } from "../../../../convex/_generated/api";
 import { useConvexApi } from "@/lib/convexApi";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 import {
@@ -69,6 +70,13 @@ import {
 } from "@/features/reports/lib/reportActions";
 import { useIdleGate } from "@/lib/performance/useIdleGate";
 import { useRoutePerformanceRecord } from "@/lib/performance/routeTiming";
+import {
+  FIRST_IMPRESSION_HORIZONS,
+  createBackgroundResearchRequest,
+  getFirstImpressionCards,
+  type FirstImpressionCard,
+  type FirstImpressionHorizon,
+} from "@/features/home/lib/firstImpressionResearch";
 
 import "./exactKit.css";
 
@@ -366,6 +374,84 @@ function DeferredReportsPanel({ label }: { label: string }) {
   );
 }
 
+function FirstImpressionBoard({
+  horizon,
+  cards,
+  onHorizonChange,
+  onUsePrompt,
+  onRunCard,
+  submitting,
+}: {
+  horizon: FirstImpressionHorizon;
+  cards: FirstImpressionCard[];
+  onHorizonChange: (horizon: FirstImpressionHorizon) => void;
+  onUsePrompt: (prompt: string) => void;
+  onRunCard: (card: FirstImpressionCard) => void;
+  submitting: boolean;
+}) {
+  return (
+    <section className="nb-first-board" data-testid="home-first-impression-board">
+      <header className="nb-first-board-head">
+        <div>
+          <div className="nb-kicker">Immediate relevance</div>
+          <h2>Pick the situation. NodeBench turns scattered context into a saved report.</h2>
+        </div>
+        <div className="nb-first-tabs" role="tablist" aria-label="Research horizon">
+          {FIRST_IMPRESSION_HORIZONS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={horizon === item.id}
+              data-active={horizon === item.id}
+              onClick={() => onHorizonChange(item.id)}
+            >
+              {item.label}
+              <small>{item.note}</small>
+            </button>
+          ))}
+        </div>
+      </header>
+      <div className="nb-first-grid">
+        {cards.map((card) => (
+          <article key={card.id} className="nb-first-card" data-audience={card.audience.toLowerCase()}>
+            <div className="nb-first-card-top">
+              <span className="nb-badge nb-badge-accent">{card.audience}</span>
+              <span className="nb-first-card-horizon">{card.horizon}</span>
+            </div>
+            <h3>{card.title}</h3>
+            <p>{card.prompt}</p>
+            <div className="nb-first-proof">
+              {card.proofPoints.map((point) => (
+                <span key={point}><Check size={11} /> {point}</span>
+              ))}
+            </div>
+            <div className="nb-first-export">
+              {card.exportTargets.map((target) => (
+                <span key={target}>{target}</span>
+              ))}
+            </div>
+            <div className="nb-first-actions">
+              <button type="button" className="nb-btn nb-btn-secondary" onClick={() => onUsePrompt(card.prompt)}>
+                Use prompt
+              </button>
+              <button
+                type="button"
+                className="nb-btn nb-btn-primary"
+                disabled={submitting}
+                onClick={() => onRunCard(card)}
+              >
+                <Clock3 size={13} />
+                Run async
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 type PulseMetric = {
   id: string;
   label: string;
@@ -460,6 +546,7 @@ function NBPulseStrip({ liveEntities }: { liveEntities?: Array<any> | null }) {
   const ledgerMemoryHitPct = pulseLive ? ((pulse as any)?.memoryHitPct as number | null | undefined) ?? null : null;
   const ledgerAvgSourcedSec = pulseLive ? ((pulse as any)?.avgSourcedAnswerSec as number | null | undefined) ?? null : null;
   const ledgerSourcesFreshPct = pulseLive ? ((pulse as any)?.sourcesFreshPct as number | null | undefined) ?? null : null;
+  const positiveOrNull = (value: number | null) => (value != null && value > 0 ? value : null);
   const fallbackEntityCount =
     Array.isArray(liveEntities) && liveEntities.length > 0 ? liveEntities!.length : null;
   const fallbackReportCount =
@@ -471,23 +558,29 @@ function NBPulseStrip({ liveEntities }: { liveEntities?: Array<any> | null }) {
       : null;
   const overrideOrSeed = (id: string, fallback: number | null): { value: number; trendOverride?: string } | null => {
     if (id === "entities") {
-      const v = ledgerEntityCount ?? fallbackEntityCount;
+      const v = positiveOrNull(ledgerEntityCount) ?? fallbackEntityCount;
       if (v != null) return { value: v, trendOverride: "live · just now" };
     } else if (id === "reports") {
-      const v = ledgerReportCount ?? fallbackReportCount;
+      const v = positiveOrNull(ledgerReportCount) ?? fallbackReportCount;
       if (v != null) return { value: v, trendOverride: "live · just now" };
-    } else if (id === "avoided" && ledgerSearchesAvoided != null) {
-      return { value: ledgerSearchesAvoided, trendOverride: "this week" };
-    } else if (id === "refreshed" && ledgerSourcesRefreshed != null) {
-      return { value: ledgerSourcesRefreshed, trendOverride: "this week" };
-    } else if (id === "verified" && ledgerClaimsVerified != null) {
-      return { value: ledgerClaimsVerified, trendOverride: "this week" };
-    } else if (id === "crm" && ledgerCrmExports != null) {
-      return { value: ledgerCrmExports, trendOverride: "lifetime" };
-    } else if (id === "edges" && ledgerEdges != null) {
-      return { value: ledgerEdges, trendOverride: "live · graph" };
-    } else if (id === "followups" && ledgerFollowups != null) {
-      return { value: ledgerFollowups, trendOverride: "this week" };
+    } else if (id === "avoided") {
+      const v = positiveOrNull(ledgerSearchesAvoided);
+      if (v != null) return { value: v, trendOverride: "this week" };
+    } else if (id === "refreshed") {
+      const v = positiveOrNull(ledgerSourcesRefreshed);
+      if (v != null) return { value: v, trendOverride: "this week" };
+    } else if (id === "verified") {
+      const v = positiveOrNull(ledgerClaimsVerified);
+      if (v != null) return { value: v, trendOverride: "this week" };
+    } else if (id === "crm") {
+      const v = positiveOrNull(ledgerCrmExports);
+      if (v != null) return { value: v, trendOverride: "lifetime" };
+    } else if (id === "edges") {
+      const v = positiveOrNull(ledgerEdges);
+      if (v != null) return { value: v, trendOverride: "live · graph" };
+    } else if (id === "followups") {
+      const v = positiveOrNull(ledgerFollowups);
+      if (v != null) return { value: v, trendOverride: "this week" };
     } else if (id === "memory_pct" && ledgerMemoryHitPct != null) {
       return { value: ledgerMemoryHitPct, trendOverride: "live · 7d" };
     } else if (id === "avg_time" && ledgerAvgSourcedSec != null) {
@@ -907,6 +1000,12 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [lane, setLane] = useState<LaneId>("answer");
+  const [horizon, setHorizon] = useState<FirstImpressionHorizon>("today");
+  const [backgroundSubmitting, setBackgroundSubmitting] = useState(false);
+  const [backgroundFeedback, setBackgroundFeedback] = useState<{
+    kind: "ok" | "error";
+    message: string;
+  } | null>(null);
 
   // Tier A live wiring: pull entities.listEntities once at the home surface level
   // and pass slices to PulseStrip + TodayIntel + RecentReports.  When the user
@@ -920,11 +1019,55 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
       ? { anonymousSessionId, search: "", filter: "All" }
       : "skip",
   );
+  const loggedInUser = useQuery(
+    (api as any)?.domains?.auth?.auth?.loggedInUser ?? "skip",
+  );
+  const startPipelineRun = useMutation(
+    generatedApi.domains.pipelines.pipelineWorkflow.startPipelineRun,
+  );
   const liveEntities = (entities as Array<any> | undefined) ?? null;
+  const ownerKey = loggedInUser?._id
+    ? `user:${loggedInUser._id}`
+    : anonymousSessionId
+      ? `session:${anonymousSessionId}`
+      : undefined;
+  const firstImpressionCards = useMemo(() => getFirstImpressionCards(horizon), [horizon]);
+  const firstFallbackPrompt = firstImpressionCards[0]?.prompt ?? PROMPT_CARDS[0].prompt;
 
   const start = (nextQuery = query) => {
     const resolved = nextQuery.trim() || PROMPT_CARDS[0].prompt;
     navigate(buildCockpitPath({ surfaceId: "workspace", extra: { q: resolved, lane } }));
+  };
+
+  const startBackgroundResearch = async (nextQuery = query, title?: string) => {
+    if (backgroundSubmitting) return;
+    const request = createBackgroundResearchRequest({
+      query: nextQuery,
+      fallbackPrompt: firstFallbackPrompt,
+      title,
+      ownerKey,
+    });
+    if (!request.spec.trim()) {
+      setBackgroundFeedback({ kind: "error", message: "Add a query or choose a scenario first." });
+      return;
+    }
+    setBackgroundSubmitting(true);
+    setBackgroundFeedback(null);
+    try {
+      const result = await startPipelineRun(request);
+      setBackgroundFeedback({
+        kind: "ok",
+        message: `Background workflow ${result.workflowId} started. You can close this tab or lock your phone; the run continues server-side and will appear in Reports with sources and exports.`,
+      });
+      setQuery(request.spec);
+    } catch (error) {
+      setBackgroundFeedback({
+        kind: "error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setBackgroundSubmitting(false);
+    }
   };
 
   const openReport = (id: string) => {
@@ -948,9 +1091,9 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
         style={{ display: "flex", flexDirection: "column", gap: 28 }}
       >
       <section className="nb-composer-hero">
-        <div className="nb-kicker">Entity intelligence</div>
-        <h1>What are we researching today?</h1>
-        <p>Answer-first. Backed by sources. Saved reports become reusable memory.</p>
+        <div className="nb-kicker">On-the-go intelligence</div>
+        <h1>Get the read before you walk in.</h1>
+        <p>Research a person, school, company, product, or meeting. NodeBench keeps working server-side and turns the answer into sources, reports, notes, and exports.</p>
 
         <div className="nb-composer-box" data-testid="exact-web-home-composer">
           <textarea
@@ -986,15 +1129,41 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
             </span>
             <button
               type="button"
-              className="nb-btn nb-btn-primary"
-              data-nb-perf-action="home-primary"
+              className="nb-btn nb-btn-secondary"
               onClick={() => start()}
             >
-              <Send size={14} />
-              Start run
+              <MessageSquare size={14} />
+              Open workspace
+            </button>
+            <button
+              type="button"
+              className="nb-btn nb-btn-primary"
+              data-nb-perf-action="home-primary"
+              data-testid="home-background-run"
+              disabled={backgroundSubmitting}
+              onClick={() => void startBackgroundResearch()}
+            >
+              {backgroundSubmitting ? <Clock3 size={14} /> : <Send size={14} />}
+              Run in background
             </button>
           </div>
         </div>
+
+        <div className="nb-async-proof" data-testid="home-async-proof">
+          <span><Clock3 size={12} /> Continues if the phone locks</span>
+          <span><Save size={12} /> Saves to Reports</span>
+          <span><Share2 size={12} /> Export to Notes, Notion, Linear, CSV</span>
+        </div>
+
+        {backgroundFeedback ? (
+          <div
+            className="nb-background-feedback"
+            data-state={backgroundFeedback.kind}
+            role={backgroundFeedback.kind === "error" ? "alert" : "status"}
+          >
+            {backgroundFeedback.message}
+          </div>
+        ) : null}
 
         <div className="nb-prompt-grid">
           {PROMPT_CARDS.map(({ icon: Icon, prompt }) => (
@@ -1015,6 +1184,15 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
           ))}
         </div>
       </section>
+
+      <FirstImpressionBoard
+        horizon={horizon}
+        cards={firstImpressionCards}
+        onHorizonChange={setHorizon}
+        onUsePrompt={setQuery}
+        onRunCard={(card) => void startBackgroundResearch(card.prompt, card.title)}
+        submitting={backgroundSubmitting}
+      />
 
       <NBPulseStrip liveEntities={liveEntities} />
 
@@ -3219,17 +3397,73 @@ function MobileReportsPipelineBlock() {
 }
 
 function MobileHomeBody() {
+  const [mobileQuery, setMobileQuery] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const startPipelineRun = useMutation(
+    generatedApi.domains.pipelines.pipelineWorkflow.startPipelineRun,
+  );
+  const anonymousSessionId = useMemo(() => getAnonymousProductSessionId(), []);
+  const mobileCards = getFirstImpressionCards("today");
+  const runMobileBackground = async (prompt = mobileQuery, title?: string) => {
+    if (submitting) return;
+    const request = createBackgroundResearchRequest({
+      query: prompt,
+      fallbackPrompt: mobileCards[0]?.prompt ?? PROMPT_CARDS[0].prompt,
+      title,
+      ownerKey: anonymousSessionId ? `session:${anonymousSessionId}` : undefined,
+    });
+    setSubmitting(true);
+    setFeedback(null);
+    try {
+      const result = await startPipelineRun(request);
+      setMobileQuery(request.spec);
+      setFeedback(`Running in background: ${result.workflowId.slice(0, 10)}. Check Reports later.`);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <main className="m-body">
       <div className="m-home-greet">
-        <h2>Good morning, Homen.</h2>
-        <p>Four signals on your watchlist this morning.</p>
+        <h2>Need the read before you walk in?</h2>
+        <p>Start a server-side research run, lock your phone, and come back to sources, notes, and exports.</p>
       </div>
-      <div className="m-search">
+      <div className="m-search" data-testid="mobile-home-async-run">
         <MobileIcon name="search" />
-        <input placeholder="Ask NodeBench about any company..." readOnly />
-        <kbd>Cmd K</kbd>
+        <input
+          placeholder="School, person, company, product..."
+          value={mobileQuery}
+          onChange={(event) => setMobileQuery(event.target.value)}
+        />
+        <button type="button" onClick={() => void runMobileBackground()} disabled={submitting}>
+          {submitting ? "Running" : "Run"}
+        </button>
       </div>
+      <div className="m-offline-proof">
+        <span>server-side</span>
+        <span>phone-safe</span>
+        <span>export-ready</span>
+      </div>
+      {feedback ? <div className="m-run-feedback" role="status">{feedback}</div> : null}
+      <section className="m-section" data-testid="mobile-home-first-impression">
+        <header className="m-section-head"><span className="kicker">Use cases today</span><a href="/?surface=reports">Reports</a></header>
+        <div className="m-scenario-stack">
+          {mobileCards.map((card) => (
+            <div key={card.id} className="m-scenario-card">
+              <div className="m-scenario-top"><span>{card.audience}</span><span>{card.exportTargets[0]}</span></div>
+              <div className="m-scenario-title">{card.title}</div>
+              <p>{card.proofPoints.join(" - ")}</p>
+              <button type="button" onClick={() => void runMobileBackground(card.prompt, card.title)} disabled={submitting}>
+                Run async
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
       <section className="m-section">
         <header className="m-section-head"><span className="kicker">Watchlist</span><a href="/?surface=reports">Manage</a></header>
         <div className="m-watch">
