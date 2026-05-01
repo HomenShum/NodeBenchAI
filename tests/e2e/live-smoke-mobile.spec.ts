@@ -41,17 +41,19 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
     await expect(page.getByText(/Need the read before you walk in/i)).toBeVisible();
     await expect(page.locator('[data-testid="mobile-home-async-run"]')).toBeVisible();
     await expect(page.locator('[data-testid="mobile-home-first-impression"]')).toBeVisible();
-    await expect(page.getByText(/phone-safe/i)).toBeVisible();
+    await expect(page.getByText(/safe to leave/i)).toBeVisible();
     // Watchlist kicker
     await expect(page.getByText(/Watchlist/i).first()).toBeVisible();
     // At least one watchlist tile — Disco is the DISCO scenario root
-    await expect(page.getByText(/Disco Corp/i).first()).toBeVisible();
+    await expect(page.getByText(/^Today$/).first()).toBeVisible();
+    await expect(page.getByText(/Announced GA/i).first()).toBeVisible();
+    await page.getByText(/Watchlist/i).first().click();
+    await expect(page.getByText(/^DISCO$/).first()).toBeVisible();
     // Nudges section
-    await expect(page.getByText(/Since you were last here/i)).toBeVisible();
+    await expect(page.getByText(/Recent threads/i).first()).toBeVisible();
     // Recent threads kicker
-    await expect(page.getByText(/Recent threads/i)).toBeVisible();
-    // Mobile capture FAB (PR #21)
-    await expect(page.locator('[data-testid="mobile-capture-fab"]')).toBeVisible();
+    // Home already has a primary research control; no floating button should cover cards.
+    await expect(page.locator('[data-testid="mobile-capture-fab"]')).toHaveCount(0);
   });
 
   test("Chat surface — MobileChatSurface mounts with answer + entities + sources", async ({ page }) => {
@@ -64,15 +66,32 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
     // "So what" callout (design-kit vocabulary)
     await expect(page.getByText(/So what/i)).toBeVisible();
     // Entities strip header
+    const chatSurface = page.locator('[data-testid="mobile-chat-surface"]');
+    await expect(chatSurface.getByText(/^Evidence$/i)).toBeVisible();
+    await expect(chatSurface.getByText(/3 entities - 24 sources/i)).toBeVisible();
+    await chatSurface.getByText(/^Evidence$/i).click();
     await expect(page.getByText(/Entities/i).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /Open entity cards/i })).toBeVisible();
     // Top sources header
     await expect(page.getByText(/Top sources/i)).toBeVisible();
+    await expect(page.getByRole("link", { name: /View source list/i })).toBeVisible();
     // Follow-up chips
     await expect(
-      page.locator('[data-testid="mobile-chat-surface"]').getByText(/^Follow-up$/),
+      page.locator('[data-testid="mobile-chat-surface"]').getByText(/^Next$/),
     ).toBeVisible();
     // Composer dock input
     await expect(page.getByPlaceholder(/Ask a follow-up/i)).toBeVisible();
+    const stripHeadersFit = await page.evaluate(() =>
+      Array.from(document.querySelectorAll(".m-strip-head")).every((header) => {
+        const rect = header.getBoundingClientRect();
+        return Array.from(header.children).every((child) => {
+          const childRect = child.getBoundingClientRect();
+          return childRect.left >= rect.left - 1 && childRect.right <= rect.right + 1;
+        });
+      }),
+    );
+    expect(stripHeadersFit, "mobile chat strip headers should not collide or overflow").toBe(true);
+    await expect(page.locator('[data-testid="mobile-capture-fab"]')).toHaveCount(0);
   });
 
   test("Inbox surface — MobileInboxSurface mounts with filter tabs", async ({ page }) => {
@@ -118,24 +137,37 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
     const pipelineBlock = reportsSurface.locator('[data-testid="mobile-reports-pipeline-block"]');
     await expect(reportsSurface).toBeVisible({ timeout: 20_000 });
     await expect(pipelineBlock).toBeVisible();
+    await expect(pipelineBlock.getByText(/Start or check research/i)).toBeVisible();
+    await expect(pipelineBlock.getByRole("tab", { name: /^Start$/ })).toHaveAttribute("data-active", "true");
+    await expect(pipelineBlock.getByRole("tab", { name: /^Runs$/ })).toBeVisible();
+    await expect(pipelineBlock.getByRole("tab", { name: /^Quality$/ })).toBeVisible();
+    await expect(pipelineBlock.getByText(/Start research/i).first()).toBeVisible();
+    await expect(pipelineBlock.getByText(/Run a pipeline/i)).toHaveCount(0);
+    await expect(pipelineBlock.getByText(/Run pipeline/i)).toHaveCount(0);
+    await expect(pipelineBlock.getByText(/idempotent|@convex-dev/i)).toHaveCount(0);
+    await expect(page.locator('[data-testid="mobile-capture-fab"]')).toHaveCount(0);
     await expect(pipelineBlock.locator('[data-testid="reports-pipeline-launcher-slot"]')).toBeVisible();
     await expect(pipelineBlock.locator('[data-testid="pipeline-launcher"]')).toBeVisible();
     await expect(pipelineBlock.locator('[data-testid="pipeline-launcher"]')).toHaveAttribute(
       "data-pipeline-launcher-variant",
       "compact",
     );
+    await expect(pipelineBlock.locator('[data-testid="reports-pipelines-panel-slot"]')).toHaveCount(0);
+    await expect(pipelineBlock.locator('[data-testid="reports-pipeline-eval-slot"]')).toHaveCount(0);
+    await pipelineBlock.getByRole("tab", { name: /^Runs$/ }).click();
     await expect(pipelineBlock.locator('[data-testid="reports-pipelines-panel-slot"]')).toBeVisible();
     await expect(pipelineBlock.locator('[data-testid="pipeline-runs-panel"], [data-testid="pipeline-runs-empty"]')).toBeVisible();
+    await expect(
+      pipelineBlock.locator(
+        '[data-testid="pipeline-stat-window"], [data-testid="pipeline-runs-empty"], [data-testid="pipeline-run-list"]',
+      ).first(),
+    ).toBeVisible();
+    await pipelineBlock.getByRole("tab", { name: /^Quality$/ }).click();
     await expect(pipelineBlock.locator('[data-testid="reports-pipeline-eval-slot"]')).toBeVisible();
     await expect(
       pipelineBlock.locator(
         '[data-testid="pipeline-eval-scorecard"], [data-testid="pipeline-eval-scorecard-empty"], .nb-deferred-panel',
       ),
-    ).toBeVisible();
-    await expect(
-      pipelineBlock.locator(
-        '[data-testid="pipeline-stat-window"], [data-testid="pipeline-runs-empty"], [data-testid="pipeline-run-list"]',
-      ).first(),
     ).toBeVisible();
     await expect(pipelineBlock.locator('[data-testid="pipeline-schedules-panel"]')).toHaveCount(0);
     await expect(reportsSurface.getByRole("button", { name: /^Brief$/ })).toBeVisible();

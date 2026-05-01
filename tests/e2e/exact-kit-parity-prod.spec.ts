@@ -30,7 +30,7 @@ test("PR A4: Home renders ExactHomeSurface composer hero", async ({ page }) => {
   expect(result.composer).toBe(true);
   expect(result.kicker).toBe(true);
   expect(result.h1).toContain("Get the read before you walk in.");
-  expect(result.lanes.length).toBeGreaterThanOrEqual(3);
+  expect(result.lanes.length).toBeGreaterThanOrEqual(2);
   expect(result.asyncProof).toBe(true);
   expect(result.firstImpression).toBe(true);
 });

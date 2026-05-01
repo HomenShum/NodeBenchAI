@@ -1,9 +1,8 @@
 /**
  * PipelineSchedulesPanel
  *
- * Lists `scheduledPipelineRuns` rows for the signed-in user (or session)
- * with toggle / delete affordances. Drives the cron sweep that fires
- * pipelines on cadence (once / hourly / daily / weekly).
+ * Lists saved automatic refreshes. These rows are backed by scheduled
+ * pipeline runs, but the UI describes the user-facing refresh workflow.
  */
 
 import React from "react";
@@ -48,6 +47,13 @@ function formatRelative(ms: number): string {
   return diff > 0 ? `in ${d}d` : `${d}d ago`;
 }
 
+function formatKind(kind: string): string {
+  if (kind === "research") return "research";
+  if (kind === "code_gen") return "code starter";
+  if (kind === "design_gen") return "design brief";
+  return kind.replaceAll("_", " ");
+}
+
 type PipelineSchedulesPanelProps = {
   ownerKey?: string;
   queryLimit?: number;
@@ -84,7 +90,7 @@ export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
         data-testid="pipeline-schedules-panel"
         className="nb-surface-card p-4 text-xs text-content-muted"
       >
-        Loading schedules…
+        Loading automatic refreshes...
       </section>
     );
   }
@@ -100,17 +106,14 @@ export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
             <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-300" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-content">Pipeline schedules</h3>
+            <h3 className="text-sm font-semibold text-content">Automatic refreshes</h3>
             <p className="text-[11px] text-content-muted">
-              Cron-fired pipeline runs land here. Empty — none scheduled yet.
+              Saved refreshes appear here. None are scheduled yet.
             </p>
           </div>
         </header>
         <p className="text-xs text-content-muted">
-          Create one via{" "}
-          <code className="text-[11px]">
-            npx convex run domains/pipelines/pipelineSchedule:createSchedule …
-          </code>
+          Create one from Advanced controls when you want NodeBench to re-check a topic.
         </p>
       </section>
     );
@@ -119,7 +122,7 @@ export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
   return (
     <section
       data-testid="pipeline-schedules-panel"
-      aria-label="Pipeline schedules"
+      aria-label="Automatic refreshes"
       className="nb-surface-card p-4 space-y-3"
     >
       <header className="flex items-center gap-2">
@@ -127,9 +130,9 @@ export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
           <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-300" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-content">Pipeline schedules</h3>
+          <h3 className="text-sm font-semibold text-content">Automatic refreshes</h3>
           <p className="text-[11px] text-content-muted">
-            Cron sweeps every hour · {schedules.filter((s) => s.enabled).length} enabled ·{" "}
+            Checks for changes every hour - {schedules.filter((s) => s.enabled).length} active -{" "}
             showing {visibleSchedules.length} / {schedules.length}
           </p>
         </div>
@@ -147,19 +150,19 @@ export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
                 {row.title ?? row.spec.slice(0, 60)}
               </span>
               <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-content-muted">
-                {row.pipelineKind.replace("_", " ")} · {row.cadence}
+                {formatKind(row.pipelineKind)} - {row.cadence}
                 {row.enabled ? (
-                  <span className="text-emerald-700 dark:text-emerald-300">enabled</span>
+                  <span className="text-emerald-700 dark:text-emerald-300">active</span>
                 ) : (
                   <span className="text-content-muted">paused</span>
                 )}
               </span>
             </div>
             <div className="text-[11px] text-content-muted">
-              Next run {formatRelative(row.nextRunAt)} · model {row.modelId}
+              Next check {formatRelative(row.nextRunAt)}
               {row.lastRunAt
-                ? ` · last fired ${formatRelative(row.lastRunAt)}${row.lastStatus ? ` (${row.lastStatus})` : ""}`
-                : " · never fired"}
+                ? ` - last checked ${formatRelative(row.lastRunAt)}${row.lastStatus ? ` (${row.lastStatus})` : ""}`
+                : " - not checked yet"}
             </div>
             <div className="flex items-center gap-2 pt-1">
               <button
@@ -189,7 +192,7 @@ export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
                   if (
                     typeof window !== "undefined" &&
                     !window.confirm(
-                      `Delete schedule "${row.title ?? row.spec.slice(0, 40)}"? This cannot be undone.`,
+                      `Delete automatic refresh "${row.title ?? row.spec.slice(0, 40)}"? This cannot be undone.`,
                     )
                   ) {
                     return;
@@ -202,7 +205,7 @@ export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
               </button>
               {row.lastStatus === "kicked" ? (
                 <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="w-3 h-3" /> last sweep ok
+                  <CheckCircle2 className="w-3 h-3" /> last check ok
                 </span>
               ) : null}
             </div>
@@ -216,8 +219,8 @@ export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
           onClick={showMore}
           className="inline-flex items-center justify-center rounded-md border border-edge px-3 py-1.5 text-[11px] font-medium text-content-muted hover:bg-surface-hover"
         >
-          Show {Math.min(windowStep, remainingCount)} more schedule
-          {remainingCount === 1 ? "" : "s"}
+          Show {Math.min(windowStep, remainingCount)} more refresh
+          {remainingCount === 1 ? "" : "es"}
         </button>
       ) : null}
     </section>
