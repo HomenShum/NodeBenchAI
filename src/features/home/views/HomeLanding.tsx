@@ -49,9 +49,8 @@ const WEB_KIT_PROMPT_CARDS = [
 ] as const;
 
 const WEB_KIT_RESEARCH_LANES = [
-  { id: "answer", label: "Answer", note: "fast - default" },
-  { id: "deep", label: "Deep dive", note: "multi-agent - 3-5 min" },
-  { id: "admin", label: "Admin", note: "nodebench-mcp-admin" },
+  { id: "answer", label: "Quick answer", note: "fast read" },
+  { id: "deep", label: "Deep research", note: "more sources" },
 ] as const satisfies readonly ProductResearchLane[];
 
 type WebKitResearchLaneId = (typeof WEB_KIT_RESEARCH_LANES)[number]["id"];
@@ -493,7 +492,7 @@ export function HomeLanding() {
             uploadingFiles={uploadingFiles}
             placeholder="Ask anything - a company, a market, a question..."
             helperText="Accepts URLs, PDFs, docs, and notes."
-            submitLabel="Start run"
+            submitLabel="Open workspace"
             showOperatorContextChip={false}
             showOperatorContextHint={false}
             showLensSelector={false}

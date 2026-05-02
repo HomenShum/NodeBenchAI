@@ -1,14 +1,7 @@
 /**
  * PipelineEvalScorecard
  *
- * Surfaces aggregate eval metrics over the most recent pipelineRuns:
- *   - Verdict accuracy (% verified)
- *   - Brier score (forecast-vs-outcome calibration)
- *   - Avg duration / cost
- *   - Per-kind breakdown
- *
- * Pure-data view — no LLM calls. Uses the existing `pipelineRuns`
- * substrate to derive scores deterministically.
+ * User-facing quality summary for recent background research runs.
  */
 
 import React from "react";
@@ -21,34 +14,57 @@ function pct(n: number): string {
 }
 
 function ms(n?: number): string {
-  if (typeof n !== "number" || !Number.isFinite(n)) return "—";
+  if (typeof n !== "number" || !Number.isFinite(n)) return "-";
   if (n < 1000) return `${Math.round(n)}ms`;
   return `${(n / 1000).toFixed(1)}s`;
 }
 
 function usd(n?: number): string {
-  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return "—";
+  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return "-";
   if (n < 0.01) return "<$0.01";
   return `$${n.toFixed(3)}`;
 }
 
-function brierLabel(b?: number): { label: string; tone: string } {
-  if (typeof b !== "number") return { label: "—", tone: "text-content-muted" };
+function qualityLabel(b?: number): { label: string; tone: string } {
+  if (typeof b !== "number") return { label: "-", tone: "text-content-muted" };
   if (b < 0.15)
     return {
-      label: `${b.toFixed(3)} · well-calibrated`,
+      label: "well calibrated",
       tone: "text-emerald-700 dark:text-emerald-300",
     };
   if (b < 0.25)
     return {
-      label: `${b.toFixed(3)} · acceptable`,
+      label: "acceptable",
       tone: "text-amber-700 dark:text-amber-300",
     };
   return {
-    label: `${b.toFixed(3)} · poorly calibrated`,
+    label: "needs review",
     tone: "text-red-700 dark:text-red-300",
   };
 }
+
+function verdictLabel(key: string): string {
+  if (key === "verified") return "verified";
+  if (key === "provisionally_verified") return "partly verified";
+  if (key === "needs_review") return "needs review";
+  if (key === "failed") return "failed";
+  return "other";
+}
+
+function kindLabel(kind: string): string {
+  if (kind === "research") return "research";
+  if (kind === "code_gen") return "code starter";
+  if (kind === "design_gen") return "design brief";
+  return kind.replaceAll("_", " ");
+}
+
+const COUNT_TONE: Record<string, string> = {
+  verified: "text-emerald-700 dark:text-emerald-300",
+  provisionally_verified: "text-amber-700 dark:text-amber-300",
+  needs_review: "text-amber-700 dark:text-amber-300",
+  failed: "text-red-700 dark:text-red-300",
+  other: "text-content-muted",
+};
 
 export const PipelineEvalScorecard: React.FC = () => {
   const stats = useStableQuery(
@@ -62,7 +78,7 @@ export const PipelineEvalScorecard: React.FC = () => {
         data-testid="pipeline-eval-scorecard"
         className="nb-surface-card p-4 text-xs text-content-muted"
       >
-        Loading eval scorecard…
+        Loading research quality...
       </section>
     );
   }
@@ -77,9 +93,9 @@ export const PipelineEvalScorecard: React.FC = () => {
             <Gauge className="w-4 h-4 text-violet-600 dark:text-violet-300" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-content">Eval scorecard</h3>
+            <h3 className="text-sm font-semibold text-content">Research quality</h3>
             <p className="text-[11px] text-content-muted">
-              Brier + verdict accuracy across recent runs · empty until runs land.
+              Quality and review counters appear after research runs finish.
             </p>
           </div>
         </header>
@@ -87,12 +103,12 @@ export const PipelineEvalScorecard: React.FC = () => {
     );
   }
 
-  const brier = brierLabel(stats.brier);
+  const quality = qualityLabel(stats.brier);
 
   return (
     <section
       data-testid="pipeline-eval-scorecard"
-      aria-label="Pipeline eval scorecard"
+      aria-label="Research quality"
       className="nb-surface-card p-4 space-y-3"
     >
       <header className="flex items-center justify-between gap-3 flex-wrap">
@@ -101,9 +117,9 @@ export const PipelineEvalScorecard: React.FC = () => {
             <Gauge className="w-4 h-4 text-violet-600 dark:text-violet-300" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-content">Eval scorecard</h3>
+            <h3 className="text-sm font-semibold text-content">Research quality</h3>
             <p className="text-[11px] text-content-muted">
-              Aggregated over the last {stats.samples} run(s)
+              Based on the last {stats.samples} run(s)
             </p>
           </div>
         </div>
@@ -111,33 +127,33 @@ export const PipelineEvalScorecard: React.FC = () => {
           <span data-testid="pipeline-eval-accuracy">
             verified {pct(stats.verdictAccuracy)}
           </span>{" "}
-          ·{" "}
-          <span data-testid="pipeline-eval-brier" className={brier.tone}>
-            Brier {brier.label}
+          -{" "}
+          <span data-testid="pipeline-eval-brier" className={quality.tone}>
+            confidence {quality.label}
           </span>{" "}
-          · avg {ms(stats.avgDurationMs)} / {usd(stats.avgUsd)}
+          - avg {ms(stats.avgDurationMs)} / {usd(stats.avgUsd)}
         </div>
       </header>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         {(
           [
-            ["verified", "emerald"],
-            ["provisionally_verified", "amber"],
-            ["needs_review", "amber"],
-            ["failed", "red"],
-            ["other", "content-muted"],
+            "verified",
+            "provisionally_verified",
+            "needs_review",
+            "failed",
+            "other",
           ] as const
-        ).map(([key, tone]) => (
+        ).map((key) => (
           <div
             key={key}
             data-testid={`pipeline-eval-count-${key}`}
             className="rounded-md border border-edge/60 px-2 py-1.5"
           >
             <div className="text-[10px] uppercase tracking-wide text-content-muted">
-              {key.replace("_", " ")}
+              {verdictLabel(key)}
             </div>
-            <div className={`text-sm font-semibold text-${tone}-700 dark:text-${tone}-300`}>
+            <div className={`text-sm font-semibold ${COUNT_TONE[key]}`}>
               {(stats.verdictCounts as any)[key]}
             </div>
           </div>
@@ -147,22 +163,22 @@ export const PipelineEvalScorecard: React.FC = () => {
       {stats.byKind.length > 0 ? (
         <div data-testid="pipeline-eval-by-kind" className="text-[11px]">
           <div className="text-content-muted mb-1 inline-flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" /> Per-kind breakdown
+            <TrendingUp className="w-3 h-3" /> By output type
           </div>
           <table className="w-full">
             <thead>
               <tr className="text-[10px] uppercase text-content-muted">
-                <th className="text-left py-0.5">Kind</th>
-                <th className="text-right py-0.5">Samples</th>
-                <th className="text-right py-0.5">Verified%</th>
-                <th className="text-right py-0.5">Avg duration</th>
+                <th className="text-left py-0.5">Type</th>
+                <th className="text-right py-0.5">Runs</th>
+                <th className="text-right py-0.5">Verified</th>
+                <th className="text-right py-0.5">Avg time</th>
                 <th className="text-right py-0.5">Avg cost</th>
               </tr>
             </thead>
             <tbody>
               {stats.byKind.map((k) => (
                 <tr key={k.pipelineKind} className="border-t border-edge/40">
-                  <td className="py-0.5 text-content">{k.pipelineKind.replace("_", " ")}</td>
+                  <td className="py-0.5 text-content">{kindLabel(k.pipelineKind)}</td>
                   <td className="py-0.5 text-right text-content-muted">{k.samples}</td>
                   <td className="py-0.5 text-right text-content-muted">
                     {pct(k.verifiedShare)}

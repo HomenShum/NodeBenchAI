@@ -1,10 +1,8 @@
 /**
  * Pipeline Runs Panel
  *
- * Surfaces the most recent pi-ai pipeline runs on the Reports surface.
- * Each row shows status, verdict, model, tokens + estimated USD, and a
- * step count. Mirrors the look of EntityFindingsPanel — both are
- * cheap-retrieval substrates over Convex queries.
+ * Shows recent server-side research work on the Reports surface. Copy stays
+ * product-facing; implementation details remain in the backend and tests.
  */
 
 import React, { useMemo, useState } from "react";
@@ -36,12 +34,12 @@ const statusBadge: Record<string, { label: string; className: string; Icon: any 
     Icon: Loader2,
   },
   succeeded: {
-    label: "Succeeded",
+    label: "Ready",
     className: "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30",
     Icon: CheckCircle2,
   },
   failed: {
-    label: "Failed",
+    label: "Needs attention",
     className: "text-red-700 dark:text-red-300 bg-red-500/10 border border-red-500/30",
     Icon: AlertCircle,
   },
@@ -72,23 +70,40 @@ function formatRelative(ms: number): string {
 }
 
 function formatUsd(n: number | undefined): string {
-  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return "—";
-  if (n < 0.01) return `<$0.01`;
+  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return "-";
+  if (n < 0.01) return "<$0.01";
   return `$${n.toFixed(2)}`;
 }
 
 function formatDuration(ms: number | undefined): string {
-  if (typeof ms !== "number" || !Number.isFinite(ms) || ms <= 0) return "—";
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms <= 0) return "-";
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-/**
- * Live stream preview — subscribes to `getPipelineStream` for the run
- * and renders the partial text as it grows. Shown when a row is
- * expanded. Streaming state badge ("Live" / "Complete") reflects the
- * real-time mutation chain in `pipelineRunStreams`.
- */
+function formatKind(kind: string): string {
+  if (kind === "research") return "research report";
+  if (kind === "code_gen") return "code starter";
+  if (kind === "design_gen") return "design brief";
+  if (kind === "custom") return "custom run";
+  return kind.replaceAll("_", " ");
+}
+
+function formatVerdict(verdict: string): string {
+  if (verdict === "provisionally_verified") return "partly verified";
+  if (verdict === "needs_review") return "needs review";
+  if (verdict === "in_progress") return "in progress";
+  return verdict.replaceAll("_", " ");
+}
+
+function formatRunTitle(title: string): string {
+  const cleaned = title
+    .replace(/^original\s+spec:\s*/i, "")
+    .replace(/^spec:\s*/i, "")
+    .trim();
+  return cleaned || "Research run";
+}
+
 const PipelineRunStreamPreview: React.FC<{ runId: string }> = ({ runId }) => {
   const stream = useStableQuery(
     api.domains.pipelines.pipelineStreamMutations.getPipelineStream,
@@ -100,7 +115,7 @@ const PipelineRunStreamPreview: React.FC<{ runId: string }> = ({ runId }) => {
         data-testid="pipeline-run-stream-loading"
         className="text-[11px] text-content-muted"
       >
-        Loading stream…
+        Loading live output...
       </div>
     );
   }
@@ -128,8 +143,8 @@ const PipelineRunStreamPreview: React.FC<{ runId: string }> = ({ runId }) => {
               isLive ? "text-emerald-500 animate-pulse" : "text-content-muted"
             }`}
           />
-          {stream.stepName} · {stream.status}
-          {stream.errorMessage ? ` · ${stream.errorMessage}` : ""}
+          {stream.stepName} - {stream.status}
+          {stream.errorMessage ? ` - ${stream.errorMessage}` : ""}
         </span>
         <span className="text-[10px] text-content-muted">
           {stream.partialText.length.toLocaleString()} chars
@@ -141,8 +156,8 @@ const PipelineRunStreamPreview: React.FC<{ runId: string }> = ({ runId }) => {
       >
         {stream.partialText.length > 0
           ? stream.partialText.slice(0, 4000) +
-            (stream.partialText.length > 4000 ? "\n\n[…truncated]" : "")
-          : "(waiting for first delta)"}
+            (stream.partialText.length > 4000 ? "\n\n[truncated]" : "")
+          : "(waiting for first update)"}
       </pre>
     </div>
   );
@@ -182,7 +197,7 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
         data-testid="pipeline-runs-panel"
         className="nb-surface-card p-4 text-xs text-content-muted"
       >
-        Loading pipeline runs…
+        Loading research runs...
       </section>
     );
   }
@@ -198,19 +213,14 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
             <Cpu className="w-4 h-4 text-amber-600 dark:text-amber-300" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-content">Pipeline runs</h3>
+            <h3 className="text-sm font-semibold text-content">Research runs</h3>
             <p className="text-[11px] text-content-muted">
-              Pi-AI code-gen / design-gen / research runs land here.
+              Your background research appears here with status, sources, review state, and exports.
             </p>
           </div>
         </header>
         <p className="text-xs text-content-muted">
-          No runs yet. Trigger one via{" "}
-          <code className="text-[11px]">
-            npx convex run domains/pipelines/codeGenPipeline:runCodeGenPipeline
-            '{"{\"spec\": \"...\"}"}'
-          </code>
-          .
+          No runs yet. Start one above; it will keep running if you leave this page.
         </p>
       </section>
     );
@@ -219,7 +229,7 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
   return (
     <section
       data-testid="pipeline-runs-panel"
-      aria-label="Pi-AI pipeline runs"
+      aria-label="Research runs"
       className="nb-surface-card p-4 space-y-3"
     >
       <header className="flex items-start justify-between gap-3 flex-wrap">
@@ -228,9 +238,9 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
             <Cpu className="w-4 h-4 text-amber-600 dark:text-amber-300" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-content">Pipeline runs</h3>
+            <h3 className="text-sm font-semibold text-content">Research runs</h3>
             <p className="text-[11px] text-content-muted">
-              Pi-AI orchestrated runs · cost + verdict tracked
+              Background research with progress, review status, and export links.
             </p>
           </div>
         </div>
@@ -240,7 +250,7 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
               <span className="text-emerald-700 dark:text-emerald-300 font-medium">
                 {stats.succeeded}
               </span>{" "}
-              succeeded
+              ready
             </span>
             <span data-testid="pipeline-stat-failed">
               <span className="text-red-700 dark:text-red-300 font-medium">{stats.failed}</span>{" "}
@@ -271,7 +281,7 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="inline-flex items-center gap-2 font-medium text-content truncate max-w-[55%]">
                   <FileText className="w-3.5 h-3.5 text-content-muted" />
-                  <span className="truncate">{run.title}</span>
+                  <span className="truncate">{formatRunTitle(run.title)}</span>
                 </span>
                 <span
                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide ${badge.className}`}
@@ -283,21 +293,19 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
                 </span>
               </div>
               <div className="flex items-center gap-3 text-[11px] text-content-muted flex-wrap">
-                <span>{run.pipelineKind.replace("_", " ")}</span>
-                <span>·</span>
-                <span>{run.modelId}</span>
-                <span>·</span>
-                <span>{run.stepCount} steps</span>
-                <span>·</span>
+                <span>{formatKind(run.pipelineKind)}</span>
+                <span>-</span>
+                <span>{run.stepCount} checks</span>
+                <span>-</span>
                 <span>{formatDuration(run.durationMs)}</span>
-                <span>·</span>
+                <span>-</span>
                 <span>{formatUsd(run.estimatedUsd)}</span>
-                <span>·</span>
+                <span>-</span>
                 <span>{formatRelative(run.createdAt)}</span>
                 {run.verdict ? (
                   <>
-                    <span>·</span>
-                    <span className={verdictBadge[run.verdict] ?? ""}>{run.verdict}</span>
+                    <span>-</span>
+                    <span className={verdictBadge[run.verdict] ?? ""}>{formatVerdict(run.verdict)}</span>
                   </>
                 ) : null}
               </div>
@@ -329,7 +337,7 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
                   {expandedRunId === run.runId ? "Hide live output" : "Show live output"}
                 </button>
               </div>
-              {(run.bundleUrl || run.imageUrl) ? (
+              {run.bundleUrl || run.imageUrl ? (
                 <div className="flex items-center gap-3 pt-1">
                   {run.imageUrl ? (
                     <a

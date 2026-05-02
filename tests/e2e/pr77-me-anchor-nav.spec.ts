@@ -46,7 +46,7 @@ test("PR #77: /?surface=me has 7 kit-aligned anchor IDs + jump nav", async ({ pa
 
   expect(result.hasJumpNav).toBe(true);
   expect(result.navLabels).toEqual([
-    "Notebook",
+    "Memory",
     "Profile",
     "Files",
     "Plan",

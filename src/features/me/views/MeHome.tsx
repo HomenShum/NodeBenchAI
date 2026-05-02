@@ -404,7 +404,7 @@ export function MeHome() {
         className="mt-5 -mx-2 flex flex-wrap gap-1 overflow-x-auto rounded-full border border-black/[0.06] bg-black/[0.03] p-1 text-xs dark:border-white/10 dark:bg-white/[0.03] sm:mx-0"
       >
         {[
-          ["me-notebook", "Notebook"],
+          ["me-notebook", "Memory"],
           ["me-profile", "Profile"],
           ["me-files", "Files"],
           ["me-plan", "Plan"],
@@ -436,13 +436,13 @@ export function MeHome() {
         </p>
       </section>
 
-      {/* Notebook section */}
+      {/* Memory section */}
       <section id="me-notebook" className="mt-6 scroll-mt-24 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.08] dark:bg-white/[0.02]">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="mb-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--accent-primary)]">
               <BookOpen className="h-4 w-4" aria-hidden="true" />
-              Notebook
+              Memory
             </div>
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Watched memory</h2>
             <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
