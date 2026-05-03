@@ -51,6 +51,67 @@ public-research,gmail-research
 
 That means external Gmail/job integrations can call the hosted MCP URL with `?profile=gmail-research` and no token. Internal, builder, document, memory, and full profiles still require a token when `MCP_HTTP_TOKEN` or `MCP_PROFILE_TOKENS` is configured.
 
+## Accounts, Metering, And Cost Tracking
+
+The hosted MCP gateway is frictionless for public research, but still account-aware:
+
+- Token calls are attributed to a stable `token:<hash>` account key.
+- Anonymous public calls are attributed to a stable `anon:<profile>:<hash>` account key derived from request metadata without storing raw tokens.
+- Every tool call writes to the MCP ledger with profile, auth mode, client name, request id, estimated cost units, and estimated USD.
+- Daily rollups are stored by tier, tool, profile, account, account/tool, and account/profile.
+
+Every JSON-RPC response includes the same accounting metadata:
+
+```json
+{
+  "result": {
+    "_meta": {
+      "nodebench": {
+        "requestId": "uuid",
+        "profile": "gmail-research",
+        "authMode": "anonymous",
+        "accountKey": "anon:gmail-research:...",
+        "accounting": {
+          "ledger": "mcpToolCallLedger",
+          "costModel": "mcp-cost-v1-2026-05",
+          "costType": "estimated"
+        }
+      }
+    }
+  }
+}
+```
+
+The gateway also sends these HTTP headers so apps and agents can log them without parsing the MCP result:
+
+```txt
+x-nodebench-request-id
+x-nodebench-profile
+x-nodebench-auth-mode
+x-nodebench-account-key
+```
+
+Recommended client headers:
+
+```http
+x-nodebench-client: gmail-dashboard
+x-nodebench-client-version: 1.0.0
+```
+
+For operations views, use Convex:
+
+```powershell
+npx convex run --push "domains/mcp/mcpToolLedger:getUsageAndCostSnapshot" "{dateKey:'2026-05-03',limit:20}"
+```
+
+For one requester:
+
+```powershell
+npx convex run --push "domains/mcp/mcpToolLedger:getUsageAndCostSnapshot" "{accountKey:'anon:gmail-research:<hash>',limit:20}"
+```
+
+Cost values are estimates for product control and abuse detection. Provider invoices remain the source of truth for final billing reconciliation.
+
 ## Environment Variables
 
 ```txt

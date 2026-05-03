@@ -37,6 +37,16 @@ type PolicyConfig = {
   updatedAt?: number;
 };
 
+type UsageScope =
+  | "tier"
+  | "tool"
+  | "profile"
+  | "account"
+  | "account_tool"
+  | "account_profile";
+
+const PRICING_VERSION = "mcp-cost-v1-2026-05";
+
 function stableStringify(value: unknown): string {
   const seen = new WeakSet<object>();
   return JSON.stringify(value, (_key, v) => {
@@ -144,7 +154,7 @@ async function getOrCreatePolicyConfig(
 async function getUsageCount(
   ctx: { db: any },
   dateKey: string,
-  scope: "tier" | "tool",
+  scope: UsageScope,
   key: string,
 ): Promise<{ row: Doc<"mcpToolUsageDaily"> | null; count: number }> {
   const row = await ctx.db
@@ -159,13 +169,19 @@ async function getUsageCount(
 async function incrementUsage(
   ctx: { db: any },
   dateKey: string,
-  scope: "tier" | "tool",
+  scope: UsageScope,
   key: string,
+  accounting: { costUnits: number; estimatedCostUsd: number },
 ): Promise<void> {
   const now = Date.now();
   const { row } = await getUsageCount(ctx, dateKey, scope, key);
   if (row) {
-    await ctx.db.patch(row._id, { count: row.count + 1, updatedAt: now });
+    await ctx.db.patch(row._id, {
+      count: row.count + 1,
+      costUnits: (row.costUnits ?? 0) + accounting.costUnits,
+      estimatedCostUsd: (row.estimatedCostUsd ?? 0) + accounting.estimatedCostUsd,
+      updatedAt: now,
+    });
     return;
   }
   await ctx.db.insert("mcpToolUsageDaily", {
@@ -173,6 +189,8 @@ async function incrementUsage(
     scope,
     key,
     count: 1,
+    costUnits: accounting.costUnits,
+    estimatedCostUsd: accounting.estimatedCostUsd,
     updatedAt: now,
   });
 }
@@ -188,6 +206,75 @@ function toRiskTier(input?: string): RiskTier {
     default:
       return "unknown";
   }
+}
+
+function stringFromMeta(value: unknown, maxLength = 160): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
+}
+
+function extractRequestAccountingMeta(requestMeta: unknown): {
+  requestId?: string;
+  accountKey?: string;
+  profileName?: string;
+  authMode?: string;
+  clientName?: string;
+} {
+  const meta = requestMeta && typeof requestMeta === "object"
+    ? (requestMeta as Record<string, unknown>)
+    : {};
+
+  return {
+    requestId: stringFromMeta(meta.requestId, 120),
+    accountKey: stringFromMeta(meta.accountKey, 180),
+    profileName: stringFromMeta(meta.profileName, 80),
+    authMode: stringFromMeta(meta.authMode, 40),
+    clientName: stringFromMeta(meta.clientName, 160),
+  };
+}
+
+function estimateToolCost(input: {
+  toolName: string;
+  toolType: string;
+  riskTier: RiskTier;
+}): { costUnits: number; estimatedCostUsd: number; pricingVersion: string } {
+  const explicitUnitsByTool: Record<string, number> = {
+    "nodebench.research_company": 12,
+    "nodebench.research_person": 12,
+    "nodebench.research_role": 14,
+    "nodebench.search_public_sources": 5,
+    "nodebench.compile_interview_packet": 4,
+    "nodebench.get_matching_context": 2,
+    "nodebench.context.pack": 2,
+    "nodebench.dossiers.get": 1,
+    "nodebench.entities.resolve": 1,
+    "nodebench.claims.submit_public": 2,
+    "nodebench.claims.verify": 3,
+    "nodebench.watch_entity": 1,
+    "nodebench.link_private_signal_to_public_entity": 1,
+  };
+
+  const defaultUnitsByRisk: Record<RiskTier, number> = {
+    read_only: 1,
+    external_read: 4,
+    write_internal: 3,
+    external_side_effect: 8,
+    destructive: 12,
+    unknown: 2,
+  };
+
+  const directToolPremium = input.toolType === "direct" ? 1 : 0;
+  const costUnits =
+    (explicitUnitsByTool[input.toolName] ?? defaultUnitsByRisk[input.riskTier]) +
+    directToolPremium;
+
+  // Unit pricing is deliberately conservative and estimated. Actual provider
+  // invoices can be reconciled separately when API/search providers expose usage.
+  const estimatedCostUsd = Number((costUnits * 0.001).toFixed(6));
+
+  return { costUnits, estimatedCostUsd, pricingVersion: PRICING_VERSION };
 }
 
 export const startToolCallInternal = internalMutation({
@@ -214,6 +301,8 @@ export const startToolCallInternal = internalMutation({
     const toolName = input.toolName;
     const toolType = input.toolType ?? "unknown";
     const riskTier = toRiskTier(input.riskTier);
+    const requestAccountingMeta = extractRequestAccountingMeta(input.requestMeta);
+    const toolAccounting = estimateToolCost({ toolName, toolType, riskTier });
 
     const argsValue = input.args ?? {};
     const argsString = stableStringify(argsValue);
@@ -274,6 +363,14 @@ export const startToolCallInternal = internalMutation({
         tool: { toolKey, count: toolCount, limit: toolLimit ?? null },
         wouldExceed: budgetWouldExceed,
       },
+      accounting: {
+        accountKey: requestAccountingMeta.accountKey ?? null,
+        profileName: requestAccountingMeta.profileName ?? null,
+        authMode: requestAccountingMeta.authMode ?? null,
+        costUnits: toolAccounting.costUnits,
+        estimatedCostUsd: toolAccounting.estimatedCostUsd,
+        pricingVersion: toolAccounting.pricingVersion,
+      },
     };
 
     const callId = await ctx.db.insert("mcpToolCallLedger", {
@@ -287,12 +384,42 @@ export const startToolCallInternal = internalMutation({
       argsPreview,
       idempotencyKey: input.idempotencyKey,
       requestMeta: input.requestMeta,
+      requestId: requestAccountingMeta.requestId,
+      accountKey: requestAccountingMeta.accountKey,
+      profileName: requestAccountingMeta.profileName,
+      authMode: requestAccountingMeta.authMode,
+      clientName: requestAccountingMeta.clientName,
       startedAt: now,
+      costUnits: toolAccounting.costUnits,
+      estimatedCostUsd: toolAccounting.estimatedCostUsd,
+      pricingVersion: toolAccounting.pricingVersion,
     });
 
     if (allowed) {
-      await incrementUsage(ctx, dateKey, "tier", tierKey);
-      await incrementUsage(ctx, dateKey, "tool", toolKey);
+      await incrementUsage(ctx, dateKey, "tier", tierKey, toolAccounting);
+      await incrementUsage(ctx, dateKey, "tool", toolKey, toolAccounting);
+      if (requestAccountingMeta.profileName) {
+        await incrementUsage(ctx, dateKey, "profile", requestAccountingMeta.profileName, toolAccounting);
+      }
+      if (requestAccountingMeta.accountKey) {
+        await incrementUsage(ctx, dateKey, "account", requestAccountingMeta.accountKey, toolAccounting);
+        await incrementUsage(
+          ctx,
+          dateKey,
+          "account_tool",
+          `${requestAccountingMeta.accountKey}:${toolKey}`,
+          toolAccounting,
+        );
+      }
+      if (requestAccountingMeta.accountKey && requestAccountingMeta.profileName) {
+        await incrementUsage(
+          ctx,
+          dateKey,
+          "account_profile",
+          `${requestAccountingMeta.accountKey}:${requestAccountingMeta.profileName}`,
+          toolAccounting,
+        );
+      }
     }
 
     return { allowed, callId, argsHash, policy };
@@ -372,6 +499,11 @@ export const listToolCalls = query({
       argsPreview: v.optional(v.string()),
       idempotencyKey: v.optional(v.string()),
       requestMeta: v.optional(v.any()),
+      requestId: v.optional(v.string()),
+      accountKey: v.optional(v.string()),
+      profileName: v.optional(v.string()),
+      authMode: v.optional(v.string()),
+      clientName: v.optional(v.string()),
       startedAt: v.number(),
       finishedAt: v.optional(v.number()),
       durationMs: v.optional(v.number()),
@@ -379,6 +511,9 @@ export const listToolCalls = query({
       errorMessage: v.optional(v.string()),
       resultPreview: v.optional(v.string()),
       resultBytes: v.optional(v.number()),
+      costUnits: v.optional(v.number()),
+      estimatedCostUsd: v.optional(v.number()),
+      pricingVersion: v.optional(v.string()),
     })),
     nextCursor: v.optional(v.string()),
     hasMore: v.boolean(),
@@ -454,6 +589,11 @@ export const listToolCalls = query({
       argsPreview: r.argsPreview,
       idempotencyKey: r.idempotencyKey,
       requestMeta: r.requestMeta,
+      requestId: r.requestId,
+      accountKey: r.accountKey,
+      profileName: r.profileName,
+      authMode: r.authMode,
+      clientName: r.clientName,
       startedAt: r.startedAt,
       finishedAt: r.finishedAt,
       durationMs: r.durationMs,
@@ -461,6 +601,9 @@ export const listToolCalls = query({
       errorMessage: r.errorMessage,
       resultPreview: r.resultPreview,
       resultBytes: r.resultBytes,
+      costUnits: r.costUnits,
+      estimatedCostUsd: r.estimatedCostUsd,
+      pricingVersion: r.pricingVersion,
     }));
 
     return {
@@ -538,6 +681,128 @@ export const getPolicyAndUsage = query({
         updatedAt: cfg.updatedAt,
       },
       usageByTier,
+    };
+  },
+});
+
+export const getUsageAndCostSnapshot = query({
+  args: {
+    dateKey: v.optional(v.string()),
+    accountKey: v.optional(v.string()),
+    profileName: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    dateKey: v.string(),
+    pricingVersion: v.string(),
+    filters: v.object({
+      accountKey: v.optional(v.string()),
+      profileName: v.optional(v.string()),
+    }),
+    totals: v.object({
+      calls: v.number(),
+      costUnits: v.number(),
+      estimatedCostUsd: v.number(),
+    }),
+    usageByProfile: v.array(v.object({
+      profileName: v.string(),
+      calls: v.number(),
+      costUnits: v.number(),
+      estimatedCostUsd: v.number(),
+    })),
+    usageByTool: v.array(v.object({
+      toolName: v.string(),
+      calls: v.number(),
+      costUnits: v.number(),
+      estimatedCostUsd: v.number(),
+    })),
+    usageByAccount: v.array(v.object({
+      accountKey: v.string(),
+      calls: v.number(),
+      costUnits: v.number(),
+      estimatedCostUsd: v.number(),
+    })),
+  }),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const requested = typeof args.dateKey === "string" ? args.dateKey.trim() : "";
+    const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : todayDateKeyUtc(now);
+    const limit = Math.min(Math.max(args.limit ?? 20, 1), 100);
+
+    const normalizeRow = (row: Doc<"mcpToolUsageDaily">) => ({
+      key: row.key,
+      calls: row.count,
+      costUnits: row.costUnits ?? row.count,
+      estimatedCostUsd: row.estimatedCostUsd ?? 0,
+    });
+
+    const collectScopeRows = async (scope: UsageScope) => {
+      const rows = await ctx.db
+        .query("mcpToolUsageDaily")
+        .withIndex("by_date_scope", (q) => q.eq("dateKey", dateKey).eq("scope", scope))
+        .collect();
+      return rows.map(normalizeRow);
+    };
+
+    const rankRows = (rows: Awaited<ReturnType<typeof collectScopeRows>>) =>
+      rows
+        .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd || b.calls - a.calls)
+        .slice(0, limit);
+
+    const profileRows = rankRows(await collectScopeRows("profile"));
+    const accountRows = rankRows(await collectScopeRows("account"));
+    const allToolRows = rankRows(await collectScopeRows("tool"));
+
+    let scopedToolRows = allToolRows;
+    if (args.accountKey) {
+      const accountToolRows = await collectScopeRows("account_tool");
+      const prefix = `${args.accountKey}:`;
+      scopedToolRows = rankRows(accountToolRows
+        .filter((row) => row.key.startsWith(prefix))
+        .map((row) => ({ ...row, key: row.key.slice(prefix.length) })));
+    }
+
+    const totalSource = args.accountKey
+      ? accountRows.filter((row) => row.key === args.accountKey)
+      : args.profileName
+        ? profileRows.filter((row) => row.key === args.profileName)
+        : accountRows;
+
+    const totals = totalSource.reduce(
+      (acc, row) => ({
+        calls: acc.calls + row.calls,
+        costUnits: acc.costUnits + row.costUnits,
+        estimatedCostUsd: Number((acc.estimatedCostUsd + row.estimatedCostUsd).toFixed(6)),
+      }),
+      { calls: 0, costUnits: 0, estimatedCostUsd: 0 },
+    );
+
+    return {
+      dateKey,
+      pricingVersion: PRICING_VERSION,
+      filters: {
+        accountKey: args.accountKey,
+        profileName: args.profileName,
+      },
+      totals,
+      usageByProfile: profileRows.map((row) => ({
+        profileName: row.key,
+        calls: row.calls,
+        costUnits: row.costUnits,
+        estimatedCostUsd: row.estimatedCostUsd,
+      })),
+      usageByTool: scopedToolRows.map((row) => ({
+        toolName: row.key,
+        calls: row.calls,
+        costUnits: row.costUnits,
+        estimatedCostUsd: row.estimatedCostUsd,
+      })),
+      usageByAccount: accountRows.map((row) => ({
+        accountKey: row.key,
+        calls: row.calls,
+        costUnits: row.costUnits,
+        estimatedCostUsd: row.estimatedCostUsd,
+      })),
     };
   },
 });

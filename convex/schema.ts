@@ -2642,9 +2642,18 @@ const mcpPolicyConfigs = defineTable({
 
 const mcpToolUsageDaily = defineTable({
   dateKey: v.string(), // YYYY-MM-DD (UTC)
-  scope: v.union(v.literal("tier"), v.literal("tool")),
-  key: v.string(), // riskTier or toolName depending on scope
+  scope: v.union(
+    v.literal("tier"),
+    v.literal("tool"),
+    v.literal("profile"),
+    v.literal("account"),
+    v.literal("account_tool"),
+    v.literal("account_profile"),
+  ),
+  key: v.string(), // riskTier, toolName, profile, accountKey, or composite account key
   count: v.number(),
+  costUnits: v.optional(v.number()),
+  estimatedCostUsd: v.optional(v.number()),
   updatedAt: v.number(),
 })
   .index("by_date_scope_key", ["dateKey", "scope", "key"])
@@ -2664,6 +2673,11 @@ const mcpToolCallLedger = defineTable({
 
   idempotencyKey: v.optional(v.string()),
   requestMeta: v.optional(v.any()), // upstream request context (gateway request id, etc.)
+  requestId: v.optional(v.string()),
+  accountKey: v.optional(v.string()),
+  profileName: v.optional(v.string()),
+  authMode: v.optional(v.string()),
+  clientName: v.optional(v.string()),
 
   startedAt: v.number(),
   finishedAt: v.optional(v.number()),
@@ -2674,6 +2688,9 @@ const mcpToolCallLedger = defineTable({
 
   resultPreview: v.optional(v.string()), // redacted + truncated for UI
   resultBytes: v.optional(v.number()),
+  costUnits: v.optional(v.number()),
+  estimatedCostUsd: v.optional(v.number()),
+  pricingVersion: v.optional(v.string()),
 })
   .index("by_startedAt", ["startedAt"])
   .index("by_tool_startedAt", ["toolName", "startedAt"])
