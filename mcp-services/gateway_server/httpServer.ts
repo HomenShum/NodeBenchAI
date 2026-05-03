@@ -25,6 +25,12 @@ import { missionTools } from "./tools/missionTools.js";
 import { intelligenceTools } from "./tools/intelligenceTools.js";
 import { evalTools } from "./tools/evalTools.js";
 import { createMetaTools } from "./tools/metaTools.js";
+import {
+  filterToolsForProfile,
+  listToolProfiles,
+  normalizeToolProfileName,
+  type ToolProfileName,
+} from "./tools/toolProfiles.js";
 import { callGateway } from "./convexClient.js";
 import { getRequestContext, runWithRequestContext } from "./requestContext.js";
 
@@ -49,6 +55,13 @@ const directToolNames = new Set(financialTools.map((t) => t.name));
 const HOST = process.env.MCP_HTTP_HOST || "0.0.0.0";
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4002;
 const TOKEN = process.env.MCP_HTTP_TOKEN;
+const DEFAULT_PROFILE =
+  normalizeToolProfileName(process.env.MCP_DEFAULT_PROFILE) ?? "full";
+
+type TokenProfileConfig = {
+  tokens: Set<string>;
+  tokenProfiles: Map<string, ToolProfileName>;
+};
 
 type JsonRpcRequest = {
   jsonrpc?: string;
@@ -76,13 +89,92 @@ function getSuppliedToken(req: http.IncomingMessage): string | undefined {
   return authValue.slice("bearer ".length);
 }
 
+function parseTokenProfiles(value: string | undefined): Map<string, ToolProfileName> {
+  const tokenProfiles = new Map<string, ToolProfileName>();
+  if (!value) return tokenProfiles;
+
+  for (const entry of value.split(",")) {
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+
+    const separator = trimmed.includes("=") ? "=" : ":";
+    const [token, profile] = trimmed.split(separator).map((part) => part.trim());
+    const normalizedProfile = normalizeToolProfileName(profile);
+    if (!token || !normalizedProfile) continue;
+    tokenProfiles.set(token, normalizedProfile);
+  }
+
+  return tokenProfiles;
+}
+
+const tokenConfig: TokenProfileConfig = (() => {
+  const tokenProfiles = parseTokenProfiles(process.env.MCP_PROFILE_TOKENS);
+  const tokens = new Set<string>();
+  if (TOKEN) tokens.add(TOKEN);
+  for (const token of tokenProfiles.keys()) tokens.add(token);
+  return { tokens, tokenProfiles };
+})();
+
+function getRequestedProfile(req: http.IncomingMessage): ToolProfileName | undefined {
+  const headerProfile =
+    (req.headers["x-nodebench-profile"] as string | undefined) ??
+    (req.headers["x-mcp-profile"] as string | undefined);
+  const normalizedHeader = normalizeToolProfileName(headerProfile);
+  if (normalizedHeader) return normalizedHeader;
+
+  try {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    return normalizeToolProfileName(url.searchParams.get("profile") ?? undefined);
+  } catch {
+    return undefined;
+  }
+}
+
+function getProfileTools(profileName: ToolProfileName) {
+  const visibleDomainTools = filterToolsForProfile(domainTools, profileName);
+  return [...visibleDomainTools, ...createMetaTools(visibleDomainTools)];
+}
+
+function getAuthAndProfile(req: http.IncomingMessage): {
+  authorized: boolean;
+  profileName: ToolProfileName;
+} {
+  const suppliedToken = getSuppliedToken(req);
+
+  if (tokenConfig.tokens.size > 0) {
+    if (!suppliedToken || !tokenConfig.tokens.has(suppliedToken)) {
+      return { authorized: false, profileName: DEFAULT_PROFILE };
+    }
+
+    const scopedProfile = tokenConfig.tokenProfiles.get(suppliedToken);
+    if (scopedProfile) return { authorized: true, profileName: scopedProfile };
+  }
+
+  return {
+    authorized: true,
+    profileName: getRequestedProfile(req) ?? DEFAULT_PROFILE,
+  };
+}
+
 const server = http.createServer(async (req, res) => {
   // Health check
-  if (req.method === "GET" && (req.url === "/" || req.url === "/health")) {
+  const pathname = (() => {
+    try {
+      return new URL(req.url ?? "/", "http://localhost").pathname;
+    } catch {
+      return req.url;
+    }
+  })();
+  if (req.method === "GET" && (pathname === "/" || pathname === "/health")) {
     respond(res, 200, {
       status: "ok",
       service: "nodebench-mcp-unified",
       tools: allTools.length,
+      defaultProfile: DEFAULT_PROFILE,
+      profiles: listToolProfiles().map((profile) => ({
+        ...profile,
+        tools: getProfileTools(profile.name).length,
+      })),
       categories: ["research", "narrative", "verification", "knowledge", "documents", "planning", "memory", "search", "financial"],
     });
     return;
@@ -94,7 +186,7 @@ const server = http.createServer(async (req, res) => {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers":
-        "Content-Type, Accept, Authorization, x-mcp-token",
+        "Content-Type, Accept, Authorization, x-mcp-token, x-mcp-profile, x-nodebench-profile",
     });
     res.end();
     return;
@@ -122,18 +214,17 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // Token auth
-      if (TOKEN) {
-        const supplied = getSuppliedToken(req);
-        if (!supplied || supplied !== TOKEN) {
-          respond(res, 401, {
-            jsonrpc: "2.0",
-            id,
-            error: { code: -32001, message: "Unauthorized" },
-          });
-          return;
-        }
+      const authAndProfile = getAuthAndProfile(req);
+      if (!authAndProfile.authorized) {
+        respond(res, 401, {
+          jsonrpc: "2.0",
+          id,
+          error: { code: -32001, message: "Unauthorized" },
+        });
+        return;
       }
+      const profileName = authAndProfile.profileName;
+      const profileTools = getProfileTools(profileName);
 
       // MCP initialize
       if (method === "initialize") {
@@ -146,6 +237,7 @@ const server = http.createServer(async (req, res) => {
             serverInfo: {
               name: "nodebench-mcp-unified",
               version: "1.0.0",
+              profile: profileName,
             },
           },
         });
@@ -158,11 +250,13 @@ const server = http.createServer(async (req, res) => {
           jsonrpc: "2.0",
           id,
           result: {
-            tools: allTools.map((t) => ({
+            tools: profileTools.map((t) => ({
               name: t.name,
               description: t.description,
               inputSchema: t.inputSchema,
             })),
+            profile: profileName,
+            profiles: listToolProfiles(),
           },
         });
         return;
@@ -172,14 +266,14 @@ const server = http.createServer(async (req, res) => {
       if (method === "tools/call") {
         const toolName = params?.name;
         const args = params?.arguments ?? {};
-        const tool = allTools.find((t) => t.name === toolName);
+        const tool = profileTools.find((t) => t.name === toolName);
         if (!tool) {
           respond(res, 200, {
             jsonrpc: "2.0",
             id,
             error: {
               code: -32602,
-              message: `Tool not found: ${toolName}`,
+              message: `Tool not found in profile "${profileName}": ${toolName}`,
             },
           });
           return;
@@ -196,7 +290,7 @@ const server = http.createServer(async (req, res) => {
               jsonrpcId: id,
               method,
               toolName,
-              tokenAuthEnabled: Boolean(TOKEN),
+              tokenAuthEnabled: tokenConfig.tokens.size > 0,
               tokenPresent: Boolean(suppliedToken),
               remoteIp,
               forwardedFor,

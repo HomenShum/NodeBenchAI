@@ -1,0 +1,175 @@
+# NodeBench MCP Tool Profiles
+
+The unified NodeBench MCP gateway keeps one deployable service, but clients should not receive the full internal tool catalog by default. Tool profiles provide small, task-specific catalogs for external builders while preserving the full 114-tool internal surface.
+
+## Production Endpoint
+
+```txt
+https://nodebench-mcp-unified.onrender.com
+```
+
+## Profiles
+
+| Profile | Intended client | Tool count |
+| --- | --- | ---: |
+| `public-research` | External apps that need public entity research memory | 14 |
+| `gmail-research` | Gmail/job-match integrations | 10 |
+| `documents` | Document and spreadsheet agents | 21 |
+| `memory` | Agent memory clients | 5 |
+| `financial` | Market, macro, crypto, and news lookups | 10 |
+| `knowledge` | Knowledge graph and source registry clients | 11 |
+| `builder` | Builder-facing agents that need research, docs, memory, planning, and search | 55 |
+| `internal-full` / `full` | Internal NodeBench operators and eval harnesses | 114 |
+
+Counts include the profile-scoped `findTools` meta-tool. In a profile, `findTools` only searches the visible tools for that profile.
+
+## Selecting A Profile
+
+HTTP MCP clients can request a profile with either a query parameter or header:
+
+```txt
+https://nodebench-mcp-unified.onrender.com?profile=public-research
+```
+
+```http
+x-nodebench-profile: public-research
+```
+
+or:
+
+```http
+x-mcp-profile: public-research
+```
+
+If the server is configured with a profile-scoped token, the token wins over query/header profile requests. For example, a `gmail-research` token cannot request `full`.
+
+## Environment Variables
+
+```txt
+MCP_HTTP_TOKEN=<internal full-access token>
+MCP_DEFAULT_PROFILE=full
+MCP_PROFILE_TOKENS=<token1>:public-research,<token2>:gmail-research,<token3>:builder
+```
+
+Recommended production setup:
+
+- Keep `MCP_HTTP_TOKEN` as the internal full-access token.
+- Issue external users profile-scoped tokens through `MCP_PROFILE_TOKENS`.
+- Use `MCP_DEFAULT_PROFILE=public-research` only for a public demo service where full internal access is not needed through the same endpoint.
+
+For stdio clients:
+
+```txt
+MCP_PROFILE=public-research
+```
+
+or:
+
+```txt
+MCP_DEFAULT_PROFILE=public-research
+```
+
+## Public Research Client Config
+
+```json
+{
+  "mcpServers": {
+    "nodebench-public-research": {
+      "transport": "http",
+      "url": "https://nodebench-mcp-unified.onrender.com?profile=public-research",
+      "headers": {
+        "x-mcp-token": "<NODEBENCH_PUBLIC_RESEARCH_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+Visible tools:
+
+```txt
+nodebench.entities.resolve
+nodebench.search_public_sources
+nodebench.research_company
+nodebench.research_person
+nodebench.research_role
+nodebench.dossiers.get
+nodebench.context.pack
+nodebench.get_matching_context
+nodebench.compile_interview_packet
+nodebench.claims.submit_public
+nodebench.claims.verify
+nodebench.watch_entity
+nodebench.link_private_signal_to_public_entity
+findTools
+```
+
+## Gmail Research Client Config
+
+```json
+{
+  "mcpServers": {
+    "nodebench-gmail-research": {
+      "transport": "http",
+      "url": "https://nodebench-mcp-unified.onrender.com",
+      "headers": {
+        "x-mcp-token": "<NODEBENCH_GMAIL_RESEARCH_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+Visible tools:
+
+```txt
+nodebench.entities.resolve
+nodebench.search_public_sources
+nodebench.research_company
+nodebench.research_person
+nodebench.research_role
+nodebench.dossiers.get
+nodebench.context.pack
+nodebench.get_matching_context
+nodebench.compile_interview_packet
+findTools
+```
+
+## Smoke Tests
+
+```powershell
+$url = "https://nodebench-mcp-unified.onrender.com?profile=public-research"
+$token = "<NODEBENCH_PUBLIC_RESEARCH_TOKEN>"
+
+Invoke-RestMethod "$url" -Method Post -Headers @{"x-mcp-token"=$token} -ContentType "application/json" -Body (@{
+  jsonrpc = "2.0"
+  id = 1
+  method = "tools/list"
+} | ConvertTo-Json)
+```
+
+Expected:
+
+- `result.profile` is `public-research`
+- `result.tools.length` is `14`
+- no document, planning, eval, or internal-only tools appear
+
+Blocked-call check:
+
+```powershell
+Invoke-RestMethod "$url" -Method Post -Headers @{"x-mcp-token"=$token} -ContentType "application/json" -Body (@{
+  jsonrpc = "2.0"
+  id = 2
+  method = "tools/call"
+  params = @{
+    name = "createDocument"
+    arguments = @{ title = "Should be blocked" }
+  }
+} | ConvertTo-Json -Depth 5)
+```
+
+Expected JSON-RPC error message:
+
+```txt
+Tool not found in profile "public-research": createDocument
+```

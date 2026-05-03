@@ -25,6 +25,10 @@ import { missionTools } from "./tools/missionTools.js";
 import { intelligenceTools } from "./tools/intelligenceTools.js";
 import { evalTools } from "./tools/evalTools.js";
 import { createMetaTools } from "./tools/metaTools.js";
+import {
+  filterToolsForProfile,
+  normalizeToolProfileName,
+} from "./tools/toolProfiles.js";
 import { callGateway } from "./convexClient.js";
 
 const domainTools = [
@@ -41,7 +45,12 @@ const domainTools = [
   ...intelligenceTools,
   ...evalTools,
 ];
-const allTools = [...domainTools, ...createMetaTools(domainTools)];
+const profileName =
+  normalizeToolProfileName(process.env.MCP_PROFILE) ??
+  normalizeToolProfileName(process.env.MCP_DEFAULT_PROFILE) ??
+  "full";
+const profileDomainTools = filterToolsForProfile(domainTools, profileName);
+const allTools = [...profileDomainTools, ...createMetaTools(profileDomainTools)];
 const directToolNames = new Set(financialTools.map((t) => t.name));
 
 const server = new McpServer({
@@ -143,4 +152,6 @@ const transport = new StdioServerTransport();
 await server.connect(transport);
 
 // Log to stderr (stdout is reserved for MCP protocol)
-console.error(`nodebench-mcp-unified stdio server ready (${allTools.length} tools)`);
+console.error(
+  `nodebench-mcp-unified stdio server ready (${allTools.length} tools, profile=${profileName})`
+);

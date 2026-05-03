@@ -149,6 +149,15 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
     ).toHaveAttribute("placeholder", "Ask, capture, paste, upload, or record...");
     await expect(pipelineBlock.locator('[data-testid="pipeline-launcher"] .nb-model-trigger')).toBeVisible();
     await expect(pipelineBlock.locator('[data-testid="pipeline-launcher"] .nb-model-trigger')).toContainText("Auto balanced");
+    const mobileModelSelect = pipelineBlock
+      .locator('[data-testid="pipeline-launcher-model"]')
+      .filter({ visible: true });
+    await expect(mobileModelSelect).toContainText("Auto free");
+    await mobileModelSelect.selectOption("nodebench:auto-free");
+    await expect(mobileModelSelect).toHaveValue("nodebench:auto-free");
+    await expect(
+      pipelineBlock.locator('[data-testid="pipeline-launcher"] .nb-composer-meta'),
+    ).toContainText("Memory-first - free route");
     await expect(pipelineBlock.locator('[data-testid="pipeline-launcher"] .nb-prompt-chip')).toHaveCount(3);
     await expect(pipelineBlock.getByText(/What should NodeBench find out/i)).toHaveCount(0);
     await expect(pipelineBlock.getByText(/Options:/i)).toHaveCount(0);

@@ -78,6 +78,12 @@ import {
   type FirstImpressionCard,
   type FirstImpressionHorizon,
 } from "@/features/home/lib/firstImpressionResearch";
+import {
+  DEFAULT_PIPELINE_MODEL_SELECTION,
+  PIPELINE_MODEL_OPTIONS,
+  getPipelineModelOption,
+  type PipelineModelSelection,
+} from "@/shared/llm/pipelineModelRoutes";
 
 import "./exactKit.css";
 
@@ -2608,6 +2614,10 @@ export function ExactChatSurface() {
   const [pins, setPins] = useState<{ kind: string; label: string }[]>([
     { kind: "event", label: "Ship Demo Day" },
   ]);
+  const [chatModelId, setChatModelId] = useState<PipelineModelSelection>(
+    DEFAULT_PIPELINE_MODEL_SELECTION,
+  );
+  const chatModelOption = getPipelineModelOption(chatModelId);
 
   // Tier D — when authenticated user has a live chat thread, prefer it
   // over the seed ORBITAL_THREAD_TURNS demo.  Anonymous → seed.
@@ -2734,10 +2744,18 @@ export function ExactChatSurface() {
                   { key: "url", label: "Add URL", icon: <Link2 size={14} /> },
                   { key: "voice", label: "Voice note", icon: <Mic size={14} /> },
                 ]}
-                modelLabel="Auto balanced"
+                modelLabel={chatModelOption.shortLabel}
                 modelTitle="Model"
-                modelProvider="openrouter"
-                footerMeta="Memory-first - auto route"
+                modelProvider={chatModelOption.provider}
+                modelValue={chatModelId}
+                modelOptions={PIPELINE_MODEL_OPTIONS.map((model) => ({
+                  value: model.value,
+                  label: model.label,
+                }))}
+                onModelValueChange={(value) => setChatModelId(value as PipelineModelSelection)}
+                footerMeta={
+                  chatModelOption.isFree ? "Memory-first - free route" : "Memory-first - auto route"
+                }
                 submitPerfAction="chat-send"
                 submitDisabled={!composer.trim()}
                 suggestions={STREAM_PROMPTS}

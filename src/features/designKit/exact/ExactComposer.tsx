@@ -18,6 +18,12 @@ export type ExactComposerTool = {
   disabled?: boolean;
 };
 
+export type ExactComposerModelOption = {
+  value: string;
+  label: string;
+  disabled?: boolean;
+};
+
 type ExactComposerProps = {
   as?: "div" | "form";
   className?: string;
@@ -48,6 +54,10 @@ type ExactComposerProps = {
   modelTitle?: string;
   modelProvider?: string;
   onModelClick?: () => void;
+  modelValue?: string;
+  modelOptions?: ExactComposerModelOption[];
+  onModelValueChange?: (value: string) => void;
+  modelSelectTestId?: string;
   footerMeta?: string;
   suggestions?: string[];
   onSuggestion?: (suggestion: string) => void;
@@ -83,11 +93,16 @@ export function ExactComposer({
   modelTitle = "Model",
   modelProvider = "anthropic",
   onModelClick,
+  modelValue,
+  modelOptions,
+  onModelValueChange,
+  modelSelectTestId,
   footerMeta,
   suggestions = [],
   onSuggestion,
 }: ExactComposerProps) {
   const disabledSubmit = Boolean(submitDisabled || submitting || disabled);
+  const hasModelSelect = Boolean(modelOptions?.length && modelValue && onModelValueChange);
   const handleSubmit = (event?: React.FormEvent) => {
     event?.preventDefault();
     if (disabledSubmit) return;
@@ -177,7 +192,25 @@ export function ExactComposer({
           {modelLabel ? (
             <>
               <span className="nb-composer-divider" />
-              {onModelClick ? (
+              {hasModelSelect ? (
+                <label className="nb-model-trigger nb-model-select-trigger" title={modelTitle}>
+                  <span className="dot" data-provider={modelProvider} />
+                  <select
+                    data-testid={modelSelectTestId}
+                    className="nb-model-select"
+                    aria-label={modelTitle}
+                    value={modelValue}
+                    disabled={disabled}
+                    onChange={(event) => onModelValueChange?.(event.target.value)}
+                  >
+                    {modelOptions?.map((option) => (
+                      <option key={option.value} value={option.value} disabled={option.disabled}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : onModelClick ? (
                 <button
                   type="button"
                   className="nb-model-trigger"

@@ -464,9 +464,16 @@ Automated org page posts currently read like machine-generated reports. 67 posts
 - Scheduled enforcement: `domains/operations/privacyEnforcement:*`
 - Safety: dry-run where supported, never delete without audit trail
 
-### MCP Unified Server plane (Render) — 101 tools, 9 domains
-- Health: `curl https://nodebench-mcp-unified.onrender.com/health` (must return `{"status":"ok","tools":101}`)
-- Tools list: `tools/list` returns 101 tools across research, narrative, verification, knowledge, documents, planning, memory, search, financial + findTools meta-tool
+### MCP Unified Server plane (Render) — 114 tools, 9 domains
+- Health: `curl https://nodebench-mcp-unified.onrender.com/health` (must return `{"status":"ok","tools":114}`)
+- Full tools list: `tools/list` with `full` / `internal-full` returns 114 tools across research, narrative, verification, knowledge, documents, planning, memory, search, financial + findTools meta-tool
+- Tool profile layer:
+  - Full internal surface remains available through `full` / `internal-full`.
+  - External users should use scoped profiles: `public-research`, `gmail-research`, `documents`, `memory`, `financial`, `knowledge`, or `builder`.
+  - HTTP profile selection: `?profile=public-research`, `x-nodebench-profile`, or `x-mcp-profile`.
+  - Profile-scoped tokens are configured with `MCP_PROFILE_TOKENS=token:profile,token2:profile2`; scoped token profile wins over query/header requests.
+  - `findTools` is profile-scoped and only searches tools visible to that profile.
+  - Profile runbook: `docs/guides/MCP_TOOL_PROFILES.md`.
 - Architecture: Convex-side dispatcher at `/api/mcpGateway`
   - Gateway calls single endpoint with `x-mcp-secret` header (no admin key)
   - Convex httpAction validates secret, resolves function from static allowlist, injects userId server-side
