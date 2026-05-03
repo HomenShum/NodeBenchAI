@@ -650,12 +650,12 @@ export const getContextPack = query({
       .order("desc")
       .take(12);
     const verifiedClaims = claims.filter((claim: any) => claim.verifierStatus === "verified");
-    const sourceRefs = verifiedClaims.slice(0, 8).map((claim: any) => ({
+    const sourceRefs = Array.from(new Map(verifiedClaims.map((claim: any) => [claim.sourceUrl, {
       title: claim.sourceTitle,
       url: claim.sourceUrl,
       evidence: claim.evidenceSnippet,
       retrievedAt: claim.retrievedAt,
-    }));
+    }])).values()).slice(0, 8);
     return {
       entity_id: entity._id,
       entity_key: entity.entityKey,
@@ -714,7 +714,10 @@ export const listLatestPublicEntityResearch = query({
           ? claims.reduce((sum: number, claim: any) => sum + claim.confidence, 0) / claims.length
           : entity?.confidence ?? 0,
         summary: claims.map((claim: any) => claim.claim).join(" "),
-        sources: claims.map((claim: any) => ({ title: claim.sourceTitle, url: claim.sourceUrl })),
+        sources: Array.from(new Map(claims.map((claim: any) => [claim.sourceUrl, {
+          title: claim.sourceTitle,
+          url: claim.sourceUrl,
+        }])).values()),
       });
       if (rows.length >= limit) break;
     }
