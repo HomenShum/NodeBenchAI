@@ -65,6 +65,20 @@ function firstPublicSource(insights: any): { url: string; title?: string; snippe
   return null;
 }
 
+function publicSourcesFromSearch(result: any): Array<{ url: string; title?: string; snippet?: string }> {
+  const results = asArray(result?.payload?.results).length
+    ? asArray(result?.payload?.results)
+    : asArray(result?.results);
+  return results
+    .map((item) => ({
+      url: asString(item?.url),
+      title: asString(item?.title) || undefined,
+      snippet: asString(item?.snippet) || asString(item?.highlights?.[0]) || undefined,
+    }))
+    .filter((source) => /^https?:\/\//i.test(source.url))
+    .slice(0, 8);
+}
+
 function sourceForClaim(insights: any, fallback: { url: string; title?: string; snippet?: string } | null, fact: string) {
   const source = firstPublicSource(insights) ?? fallback;
   if (source) {
@@ -137,16 +151,117 @@ function extractClaimsFromInsights(entityName: string, kind: string, insights: a
   return claims;
 }
 
+function parseRoleEntityName(entityName: string): { roleTitle: string; companyName?: string } {
+  const match = entityName.match(/^(.+?)\s+at\s+(.+)$/i);
+  if (!match) return { roleTitle: entityName.trim() };
+  return {
+    roleTitle: match[1].trim(),
+    companyName: match[2].trim(),
+  };
+}
+
+async function runRolePublicResearch(ctx: any, args: {
+  entityName: string;
+  forceRefresh?: boolean;
+}) {
+  const { roleTitle, companyName } = parseRoleEntityName(args.entityName);
+  const roleQuery = companyName
+    ? `${companyName} ${roleTitle} careers job requirements`
+    : `${roleTitle} role responsibilities market hiring requirements`;
+
+  let roleSources: Array<{ url: string; title?: string; snippet?: string }> = [];
+  try {
+    const searchResult = await ctx.runAction(api.domains.search.fusion.actions.quickSearch, {
+      query: roleQuery,
+      maxResults: 8,
+      skipRateLimit: true,
+      allowPaidSearch: false,
+    });
+    roleSources = publicSourcesFromSearch(searchResult);
+  } catch (err: any) {
+    console.warn("[publicResearch] Role source search failed:", err?.message || err);
+  }
+
+  let companyInsights: any = null;
+  if (companyName) {
+    try {
+      companyInsights = await ctx.runAction(api.domains.knowledge.entityInsights.getEntityInsights, {
+        entityName: companyName,
+        entityType: "company",
+        forceRefresh: args.forceRefresh ?? false,
+      });
+    } catch (err: any) {
+      console.warn("[publicResearch] Company fallback for role failed:", err?.message || err);
+    }
+  }
+
+  const sources = roleSources.length
+    ? roleSources
+    : asArray(companyInsights?.sources).map((source) => ({
+        url: asString(source?.url),
+        title: asString(source?.name) || asString(source?.title) || undefined,
+        snippet: asString(source?.snippet) || asString(source?.summary) || undefined,
+      })).filter((source) => /^https?:\/\//i.test(source.url)).slice(0, 8);
+
+  const companySummary = asString(companyInsights?.summary);
+  const sourceSummary = sources
+    .map((source) => source.snippet || source.title || source.url)
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" ");
+  const summary = companyName
+    ? `${roleTitle} at ${companyName}: public role context is grounded in ${sources.length} public source${sources.length === 1 ? "" : "s"}.${companySummary ? ` Company context: ${companySummary}` : ""}`
+    : `${roleTitle}: public role context is grounded in ${sources.length} public source${sources.length === 1 ? "" : "s"}.`;
+
+  const keyFacts = [
+    companyName
+      ? `${companyName} is the company context for the ${roleTitle} role.`
+      : `${roleTitle} is the role target for this public research run.`,
+    sourceSummary
+      ? `Relevant public role/source signal: ${clip(sourceSummary, 260)}`
+      : "",
+    companySummary
+      ? `Company background relevant to the role: ${clip(companySummary, 260)}`
+      : "",
+  ].filter(Boolean);
+
+  return {
+    summary,
+    keyFacts,
+    sources,
+    crmFields: {
+      roleTitle,
+      companyName: companyName || "",
+      product: asString(companyInsights?.crmFields?.product),
+      industry: asString(companyInsights?.crmFields?.industry),
+      website: asString(companyInsights?.crmFields?.website),
+    },
+  };
+}
+
 async function runExistingEntityResearch(ctx: any, args: {
   entityName: string;
   kind: string;
   forceRefresh?: boolean;
 }) {
+  if (args.kind === "role") {
+    return await runRolePublicResearch(ctx, args);
+  }
   if (args.kind !== "company" && args.kind !== "person") {
+    const result = await ctx.runAction(api.domains.search.fusion.actions.quickSearch, {
+      query: `${args.entityName} public sources overview`,
+      maxResults: 8,
+      skipRateLimit: true,
+      allowPaidSearch: false,
+    });
+    const sources = publicSourcesFromSearch(result);
     return {
-      summary: `${args.entityName} is queued in the public research registry. No specialized ${args.kind} extractor is enabled yet.`,
-      keyFacts: [],
-      sources: [],
+      summary: `${args.entityName} public research is grounded in ${sources.length} public source${sources.length === 1 ? "" : "s"}.`,
+      keyFacts: sources
+        .map((source) => source.snippet || source.title || source.url)
+        .filter(Boolean)
+        .slice(0, 5),
+      sources,
     };
   }
   return await ctx.runAction(api.domains.knowledge.entityInsights.getEntityInsights, {

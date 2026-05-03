@@ -264,6 +264,10 @@ function routeAliasToModel(input: string): {
     case "nodebench:auto-balanced":
     case "kilo-auto/balanced":
       return { routeTier: "balanced", modelId: DEFAULT_MODEL };
+    case "public-research":
+    case "nodebench:auto-public-research":
+    case "kilo-auto/public-research":
+      return { routeTier: "balanced", modelId: "glm-4.7-flash" };
     case "free":
     case "auto-free":
     case "nodebench:auto-free":

@@ -13,6 +13,7 @@ import {
   resolveModelAlias,
   getModelWithFailover,
 } from "../../../shared/llm/modelCatalog";
+import { runPiOrAiSdkCompletion } from "../pipelines/piRuntime";
 import { linkupSearch } from "../../tools/media/linkupSearch";
 import { getStockPrice } from "../../domains/agents/core/subagents/openbb_subagent/tools/equityTools";
 
@@ -596,6 +597,29 @@ async function generateWithProvider(
   userPrompt: string,
   maxTokens: number = 500,
 ): Promise<string> {
+  const route =
+    process.env.NODEBENCH_PUBLIC_RESEARCH_MODEL_ROUTE ||
+    process.env.NODEBENCH_PUBLIC_RESEARCH_MODEL ||
+    "kilo-auto/public-research";
+  try {
+    const result = await runPiOrAiSdkCompletion({
+      model: route,
+      system: systemPrompt,
+      prompt: userPrompt,
+      maxOutputTokens: maxTokens,
+      timeoutMs: 60_000,
+      temperature: 0.2,
+    });
+    if (result.text.trim()) {
+      return result.text;
+    }
+  } catch (err: any) {
+    console.warn(
+      `[entityInsights] pi-ai autorouter failed for ${route}; falling back to legacy provider path:`,
+      err?.message || err,
+    );
+  }
+
   const { model: modelName, provider } = getModelWithFailover(
     resolveModelAlias(modelInput),
   );
@@ -622,6 +646,30 @@ async function generateWithProvider(
       maxOutputTokens: maxTokens,
     });
     return result.text;
+  }
+
+  if (provider === "openrouter") {
+    const openrouter = new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
+      defaultHeaders: {
+        ...(process.env.OPENROUTER_HTTP_REFERER
+          ? { "HTTP-Referer": process.env.OPENROUTER_HTTP_REFERER }
+          : {}),
+        ...(process.env.OPENROUTER_X_TITLE
+          ? { "X-Title": process.env.OPENROUTER_X_TITLE }
+          : {}),
+      },
+    });
+    const response = await openrouter.chat.completions.create({
+      model: modelName,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: maxTokens,
+    });
+    return response.choices[0]?.message?.content || "";
   }
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
