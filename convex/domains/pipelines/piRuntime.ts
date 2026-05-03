@@ -403,7 +403,7 @@ export async function runPiOrAiSdkCompletion(args: PiRunArgs): Promise<PiRunResu
       // running on AI-SDK-only env (Convex without pi-ai keys) succeed.
       (code === "pi_ai_error" &&
         typeof (e as any).message === "string" &&
-        /api[_ ]?key|unauthorized|401|rate.?limit|429|502|503|504|temporar/i.test((e as any).message));
+        /api[_ ]?key|unauthorized|401|404|model .*does not exist|do not have access|rate.?limit|429|502|503|504|temporar/i.test((e as any).message));
     if (!isFallback) throw e;
 
     // Fallback: AI SDK path.

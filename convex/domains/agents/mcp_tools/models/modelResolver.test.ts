@@ -24,6 +24,11 @@ describe("pipeline model route resolution", () => {
     expect(resolvePipelineModelSelection("kilo-auto/free").resolvedModelId).toBe(
       "qwen3-coder-free",
     );
+    expect(resolvePipelineModelSelection("kilo-auto/public-research")).toMatchObject({
+      resolvedModelId: "glm-4.7-flash",
+      routeTier: "balanced",
+      isFreeRoute: false,
+    });
     expect(resolvePipelineModelSelection("anthropic:claude-haiku-4.5").resolvedModelId).toBe(
       "claude-haiku-4.5",
     );
