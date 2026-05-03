@@ -20,6 +20,7 @@ import passportsRouter from "./routes/passports.js";
 import receiptsRouter from "./routes/receipts.js";
 import investigationsRouter from "./routes/investigations.js";
 import intentLedgersRouter from "./routes/intent-ledgers.js";
+import publicResearchRouter from "./routes/publicResearch.js";
 
 export function createApp() {
   const app = express();
@@ -55,6 +56,7 @@ export function createApp() {
   app.use("/v1/search", searchRouter);
   app.use("/v1/fetch", fetchRouter);
   app.use("/v1/research", researchRouter);
+  app.use("/v1/public-research", publicResearchRouter);
   app.use("/v1/resources", resourcesRouter);
   app.use("/v1/reports", reportsRouter);
   app.use("/v1/event-captures", eventCapturesRouter);

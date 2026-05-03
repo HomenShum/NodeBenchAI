@@ -6897,6 +6897,136 @@ export default defineSchema({
     .index("by_date_string", ["dateString"]),
 
   /* ------------------------------------------------------------------ */
+  /* PUBLIC RESEARCH MEMORY - Entity registry and claim-level facts      */
+  /* Apps may guide runs with private signals, but only public evidence  */
+  /* and public claims are stored here.                                  */
+  /* ------------------------------------------------------------------ */
+  publicResearchEntities: defineTable({
+    entityKey: v.string(), // Deterministic canonical key: "company:openai"
+    entityType: v.union(
+      v.literal("company"),
+      v.literal("person"),
+      v.literal("role"),
+      v.literal("product"),
+      v.literal("investor"),
+      v.literal("school"),
+      v.literal("source"),
+    ),
+    canonicalName: v.string(),
+    normalizedName: v.string(),
+    aliases: v.array(v.string()),
+    domains: v.array(v.string()),
+    siteUrls: v.array(v.string()),
+    linkedinUrls: v.array(v.string()),
+    githubUrls: v.array(v.string()),
+    confidence: v.number(),
+    status: v.union(v.literal("active"), v.literal("merged"), v.literal("needs_review")),
+    mergeTargetEntityId: v.optional(v.id("publicResearchEntities")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastResearchedAt: v.optional(v.number()),
+    latestRunId: v.optional(v.string()),
+  })
+    .index("by_entityKey", ["entityKey"])
+    .index("by_type_name", ["entityType", "normalizedName"])
+    .index("by_updated", ["updatedAt"]),
+
+  publicResearchClaims: defineTable({
+    entityId: v.id("publicResearchEntities"),
+    entityKey: v.string(),
+    claim: v.string(),
+    claimType: v.string(),
+    sourceUrl: v.string(),
+    sourceTitle: v.string(),
+    evidenceSnippet: v.string(),
+    retrievedAt: v.number(),
+    contentHash: v.string(),
+    confidence: v.number(),
+    verifierStatus: v.union(
+      v.literal("pending"),
+      v.literal("verified"),
+      v.literal("needs_review"),
+      v.literal("rejected"),
+      v.literal("contradicted"),
+      v.literal("stale"),
+    ),
+    freshnessTtlMs: v.number(),
+    contradictions: v.array(v.string()),
+    sourceIsPublic: v.boolean(),
+    privateBoundaryStatus: v.union(
+      v.literal("clean"),
+      v.literal("private_signal_stripped"),
+      v.literal("blocked"),
+    ),
+    submittedBySurface: v.optional(v.string()),
+    researchRunId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_entity_updated", ["entityKey", "updatedAt"])
+    .index("by_entity_claim_hash", ["entityKey", "contentHash"])
+    .index("by_verifier", ["verifierStatus"])
+    .index("by_updated", ["updatedAt"]),
+
+  publicResearchRuns: defineTable({
+    researchRunId: v.string(),
+    entityId: v.optional(v.id("publicResearchEntities")),
+    entityKey: v.string(),
+    entityName: v.string(),
+    kind: v.union(
+      v.literal("company"),
+      v.literal("person"),
+      v.literal("role"),
+      v.literal("product"),
+      v.literal("investor"),
+      v.literal("school"),
+      v.literal("source"),
+    ),
+    goal: v.string(),
+    visibility: v.union(v.literal("public"), v.literal("private_guided")),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("searching"),
+      v.literal("extracting"),
+      v.literal("verifying"),
+      v.literal("ready"),
+      v.literal("needs_review"),
+      v.literal("failed"),
+      v.literal("cancelled"),
+    ),
+    steps: v.array(
+      v.object({
+        name: v.string(),
+        status: v.union(v.literal("queued"), v.literal("running"), v.literal("done"), v.literal("failed")),
+        at: v.number(),
+        note: v.optional(v.string()),
+      }),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    claimCount: v.number(),
+    sourceCount: v.number(),
+    error: v.optional(v.string()),
+  })
+    .index("by_researchRunId", ["researchRunId"])
+    .index("by_entity_updated", ["entityKey", "updatedAt"])
+    .index("by_status_updated", ["status", "updatedAt"])
+    .index("by_updated", ["updatedAt"]),
+
+  publicResearchPrivateLinks: defineTable({
+    entityId: v.id("publicResearchEntities"),
+    entityKey: v.string(),
+    ownerKey: v.string(),
+    privateSignalKind: v.string(),
+    privateSignalHash: v.string(),
+    publicPurpose: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_owner_entity", ["ownerKey", "entityKey"])
+    .index("by_entity", ["entityKey"]),
+
+  /* ------------------------------------------------------------------ */
   /* DAILY BRIEF SNAPSHOTS - Automated morning dashboard metrics        */
   /* Generated daily at 6:00 AM UTC from aggregated feed data           */
   /* ------------------------------------------------------------------ */

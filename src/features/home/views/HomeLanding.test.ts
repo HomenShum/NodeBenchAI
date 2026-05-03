@@ -133,4 +133,9 @@ describe("buildVisibleHomeReports", () => {
     const api = await getApi();
     expect(api.domains.product.home.getPulsePreview).toBeDefined();
   });
+
+  it("exposes latest public entity research for the Home landing", async () => {
+    const api = await getApi();
+    expect(api.domains.publicResearch.core.listLatestPublicEntityResearch).toBeDefined();
+  });
 });

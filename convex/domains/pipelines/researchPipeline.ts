@@ -30,6 +30,7 @@ import { v } from "convex/values";
 import { internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
+import { resolvePipelineModelSelection } from "../agents/mcp_tools/models/modelResolver";
 import {
   runPiCompletionStreamed,
   runPiOrAiSdkCompletion,
@@ -95,7 +96,8 @@ export const runResearchPipeline = internalAction({
   }),
   handler: async (ctx, args) => {
     const pipelineKind = "research" as const;
-    const modelId = args.modelId ?? "openai:gpt-4o-mini";
+    const modelSelection = resolvePipelineModelSelection(args.modelId);
+    const modelId = modelSelection.resolvedModelId;
     const title = args.title ?? args.spec.slice(0, 80);
     const idempotencyKey = stableHash(
       [pipelineKind, args.spec, args.ownerKey ?? "anon"].sort().join(" "),

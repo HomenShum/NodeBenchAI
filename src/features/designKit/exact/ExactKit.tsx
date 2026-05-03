@@ -57,6 +57,7 @@ import { PipelineRunsPanel } from "@/features/pipelines/views/PipelineRunsPanel"
 import { PipelineLauncher } from "@/features/pipelines/views/PipelineLauncher";
 import { PipelineSchedulesPanel } from "@/features/pipelines/views/PipelineSchedulesPanel";
 import { PipelineEvalScorecard } from "@/features/pipelines/views/PipelineEvalScorecard";
+import { ExactComposer } from "@/features/designKit/exact/ExactComposer";
 import {
   buildLocalWorkspacePath,
   buildWorkspaceUrl,
@@ -1602,7 +1603,7 @@ export function ExactReportsSurface() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [filter, setFilter] = useState("all");
   const [visibleReportCount, setVisibleReportCount] = useState(12);
-  const [reportsTool, setReportsTool] = useState<"start" | "runs" | "quality" | "refresh">("start");
+  const [reportsOpsOpen, setReportsOpsOpen] = useState(false);
   const backgroundReady = useIdleGate({ timeoutMs: 850 });
 
   useEffect(() => {
@@ -1702,64 +1703,43 @@ export function ExactReportsSurface() {
           </div>
         </div>
 
-        <section className="nb-research-workbench" data-testid="reports-research-workbench">
-          <header className="nb-research-workbench-head">
-            <div>
-              <div className="nb-kicker">Research workspace</div>
-              <h2>Start one thing, then check status when you come back.</h2>
-            </div>
-            <span className="nb-badge nb-badge-success">phone-safe background runs</span>
+        <section className="nb-research-workbench nb-research-workbench-minimal" data-testid="reports-research-workbench">
+          <header className="nb-report-command-head">
+            <span className="nb-report-command-title">Ask for a report</span>
+            <span className="nb-report-command-note">background safe</span>
           </header>
-          <div className="nb-workbench-tabs" role="tablist" aria-label="Reports research tools">
-            {([
-              ["start", "Start"],
-              ["runs", "Runs"],
-              ["quality", "Quality"],
-              ["refresh", "Refreshes"],
-            ] as const).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                data-active={reportsTool === id}
-                aria-selected={reportsTool === id}
-                onClick={() => setReportsTool(id)}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="nb-workbench-panel" data-testid="reports-pipeline-launcher-slot">
+            <PipelineLauncher />
           </div>
-          <div className="nb-workbench-panel">
-            {reportsTool === "start" ? (
-              <div data-testid="reports-pipeline-launcher-slot">
-                <PipelineLauncher />
-              </div>
-            ) : null}
-            {reportsTool === "runs" ? (
-              <div data-testid="reports-pipelines-panel-slot">
-                <PipelineRunsPanel initialVisibleCount={6} queryLimit={18} windowStep={6} />
-              </div>
-            ) : null}
-            {reportsTool === "quality" ? (
-              <div data-testid="reports-pipeline-eval-slot">
-                {backgroundReady ? <PipelineEvalScorecard /> : <DeferredReportsPanel label="Research quality" />}
-              </div>
-            ) : null}
-            {reportsTool === "refresh" ? (
-              <div className="nb-workbench-stack">
-                <div data-testid="reports-pipeline-schedules-slot">
-                  {backgroundReady ? (
-                    <PipelineSchedulesPanel initialVisibleCount={4} queryLimit={12} windowStep={4} />
-                  ) : (
-                    <DeferredReportsPanel label="Automatic refreshes" />
-                  )}
+          <details
+            className="nb-reports-ops-disclosure"
+            open={reportsOpsOpen}
+            onToggle={(event) => setReportsOpsOpen(event.currentTarget.open)}
+          >
+            <summary>Activity</summary>
+            {reportsOpsOpen ? (
+              <div className="nb-reports-ops-grid">
+                <div data-testid="reports-pipelines-panel-slot">
+                  <PipelineRunsPanel initialVisibleCount={4} queryLimit={12} windowStep={4} />
                 </div>
-                <div data-testid="reports-findings-panel-slot">
-                  {backgroundReady ? <EntityFindingsPanel /> : <DeferredReportsPanel label="Entity findings" />}
+                <div data-testid="reports-pipeline-eval-slot">
+                  {backgroundReady ? <PipelineEvalScorecard /> : <DeferredReportsPanel label="Research quality" />}
+                </div>
+                <div className="nb-workbench-stack">
+                  <div data-testid="reports-pipeline-schedules-slot">
+                    {backgroundReady ? (
+                      <PipelineSchedulesPanel initialVisibleCount={3} queryLimit={9} windowStep={3} />
+                    ) : (
+                      <DeferredReportsPanel label="Automatic refreshes" />
+                    )}
+                  </div>
+                  <div data-testid="reports-findings-panel-slot">
+                    {backgroundReady ? <EntityFindingsPanel /> : <DeferredReportsPanel label="Entity findings" />}
+                  </div>
                 </div>
               </div>
             ) : null}
-          </div>
+          </details>
         </section>
 
         <div className="nb-reports-grid" data-view={view}>
@@ -2739,79 +2719,30 @@ export function ExactChatSurface() {
             </div>
 
             <div className="nb-stream-composer">
-              <div className="nb-stream-composer-inner">
-                <div className="nb-composer-card">
-                  {pins.length > 0 && (
-                    <div className="nb-composer-pins">
-                      {pins.map((p, i) => (
-                        <span key={i} className="nb-pin">
-                          <span className="typ">{p.kind}</span>
-                          {p.label}
-                          <button
-                            type="button"
-                            aria-label="Remove pin"
-                            onClick={() => setPins((prev) => prev.filter((_, idx) => idx !== i))}
-                          >
-                            <X size={9} />
-                          </button>
-                        </span>
-                      ))}
-                      <button
-                        type="button"
-                        className="nb-pin-add"
-                        onClick={() => setPins((prev) => [...prev, { kind: "entity", label: "Orbital Labs" }])}
-                      >
-                        <Plus size={9} /> Add context
-                      </button>
-                    </div>
-                  )}
-                  <textarea
-                    className="nb-composer-input"
-                    value={composer}
-                    onChange={(e) => setComposer(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        sendTurn(composer);
-                      }
-                    }}
-                    placeholder="Ask, capture, paste, upload, or record…"
-                    aria-label="Chat composer"
-                  />
-                  <div className="nb-composer-footer">
-                    <div className="nb-composer-tools">
-                      <button type="button" aria-label="Attach file" title="Attach file"><Paperclip size={14} /></button>
-                      <button type="button" aria-label="Add URL" title="Add URL"><Link2 size={14} /></button>
-                      <button type="button" aria-label="Voice note" title="Voice note"><Mic size={14} /></button>
-                      <span className="nb-composer-divider" />
-                      <span className="nb-model-trigger" title="Model">
-                        <span className="dot" data-provider="anthropic" />
-                        <span className="nm">Claude Sonnet 4.5</span>
-                      </span>
-                    </div>
-                    <div className="nb-composer-send-group">
-                      <span className="nb-composer-meta">Memory-first · 0 paid calls</span>
-                      <button
-                        type="button"
-                        className="nb-composer-send"
-                        data-nb-perf-action="chat-send"
-                        aria-label="Send"
-                        disabled={!composer.trim()}
-                        onClick={() => sendTurn(composer)}
-                      >
-                        <ChevronRight size={14} style={{ transform: "rotate(-90deg)" }} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div className="nb-composer-suggest">
-                  {STREAM_PROMPTS.map((p) => (
-                    <button key={p} type="button" className="nb-prompt-chip" onClick={() => setComposer(p + " ")}>
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <ExactComposer
+                value={composer}
+                onValueChange={setComposer}
+                onSubmit={() => sendTurn(composer)}
+                placeholder="Ask, capture, paste, upload, or record..."
+                ariaLabel="Chat composer"
+                pins={pins.map((pin) => ({ ...pin, removable: true }))}
+                onRemovePin={(index) => setPins((prev) => prev.filter((_, idx) => idx !== index))}
+                addPinLabel="Add context"
+                onAddPin={() => setPins((prev) => [...prev, { kind: "entity", label: "Orbital Labs" }])}
+                tools={[
+                  { key: "attach", label: "Attach file", icon: <Paperclip size={14} /> },
+                  { key: "url", label: "Add URL", icon: <Link2 size={14} /> },
+                  { key: "voice", label: "Voice note", icon: <Mic size={14} /> },
+                ]}
+                modelLabel="Auto balanced"
+                modelTitle="Model"
+                modelProvider="openrouter"
+                footerMeta="Memory-first - auto route"
+                submitPerfAction="chat-send"
+                submitDisabled={!composer.trim()}
+                suggestions={STREAM_PROMPTS}
+                onSuggestion={(prompt) => setComposer(`${prompt} `)}
+              />
             </div>
           </div>
         </div>
@@ -3363,7 +3294,6 @@ function SettingField({ label, hint, children }: { label: string; hint?: string;
 }
 
 function ExactMobileSurface({ surface }: { surface: MobileSurface }) {
-  const [reportTab, setReportTab] = useState<"brief" | "sources" | "notebook">("brief");
   const surfaceTestIds: Partial<Record<MobileSurface, string>> = {
     home: "mobile-home-surface",
     reports: "mobile-reports-surface",
@@ -3373,10 +3303,17 @@ function ExactMobileSurface({ surface }: { surface: MobileSurface }) {
   };
   const topTitle: Record<MobileSurface, string> = {
     home: "NodeBench",
-    reports: "DISCO report",
+    reports: "Reports",
     chat: "NodeBench Chat",
     inbox: "Inbox",
     me: "Me",
+  };
+  const topSubtitle: Record<MobileSurface, string> = {
+    home: "Disco Corp. - workspace",
+    reports: "ask, review, export",
+    chat: "capture to intelligence",
+    inbox: "signals and follow-ups",
+    me: "workspace settings",
   };
   const mobileRootTestId = surfaceTestIds[surface] ?? "mobile-home-surface";
 
@@ -3395,28 +3332,14 @@ function ExactMobileSurface({ surface }: { surface: MobileSurface }) {
           <button className="m-icon-btn" aria-label="Menu"><MobileIcon name="thread" /></button>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="m-title">{topTitle[surface]}</div>
-            <div className="m-top-sub">{surface === "home" ? "Disco Corp. - workspace" : "capture to intelligence"}</div>
+            <div className="m-top-sub">{topSubtitle[surface]}</div>
           </div>
           <button className="m-icon-btn" aria-label="Notifications"><MobileIcon name="bell" /></button>
         </header>
 
         {surface === "home" ? <MobileHomeBody /> : null}
         {surface === "chat" ? <MobileChatBody /> : null}
-        {surface === "reports" ? (
-          <div className="m-body">
-            <MobileReportsPipelineBlock />
-            <div className="m-sub-tabs">
-              {(["brief", "sources", "notebook"] as const).map((tab) => (
-                <button key={tab} type="button" className="m-sub-tab" data-active={reportTab === tab} onClick={() => setReportTab(tab)}>
-                  {tab[0].toUpperCase() + tab.slice(1)}
-                </button>
-              ))}
-            </div>
-            {reportTab === "brief" ? <MobileBriefBody embedded /> : null}
-            {reportTab === "sources" ? <MobileSourcesBody embedded /> : null}
-            {reportTab === "notebook" ? <MobileNotebookBody embedded /> : null}
-          </div>
-        ) : null}
+        {surface === "reports" ? <MobileReportsBody /> : null}
         {surface === "inbox" ? <MobileInboxBody /> : null}
         {surface === "me" ? <MobileMeBody /> : null}
       </div>
@@ -3424,72 +3347,97 @@ function ExactMobileSurface({ surface }: { surface: MobileSurface }) {
   );
 }
 
+function MobileReportsBody() {
+  return (
+    <main className="m-body m-reports-body">
+      <MobileReportsPipelineBlock />
+      <section className="m-section m-report-cards-section" data-testid="mobile-reports-card-list">
+        <header className="m-section-head">
+          <span className="kicker">Recent reports</span>
+          <a href="/?surface=reports" role="button">All {REPORTS.length}</a>
+        </header>
+        <div className="m-report-list">
+          {REPORTS.slice(0, 5).map((report) => (
+            <a
+              key={report.id}
+              className="m-report-row"
+              data-testid="mobile-report-card"
+              href={`/?surface=packets&report=${report.id}`}
+            >
+              <span
+                className="m-report-row-avatar"
+                style={{ background: `linear-gradient(135deg, ${report.colorA}, ${report.colorB})` }}
+              >
+                {report.title[0]}
+              </span>
+              <span className="m-report-row-main">
+                <span className="m-report-row-title">{report.title}</span>
+                <span className="m-report-row-summary">{report.summary}</span>
+                <span className="m-report-row-meta">
+                  <span>{report.sources} sources</span>
+                  <span>{report.updated}</span>
+                  <span>{report.state}</span>
+                </span>
+              </span>
+              <MobileIcon name="chevron" />
+            </a>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function MobileReportsPipelineBlock() {
-  const [schedulesOpen, setSchedulesOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"start" | "runs" | "quality">("start");
+  const [activePanel, setActivePanel] = useState<"none" | "runs" | "quality" | "refreshes">("none");
   const evalReady = useIdleGate({ timeoutMs: 450 });
-  const tabs = [
-    { id: "start", label: "Start" },
+  const panels = [
     { id: "runs", label: "Runs" },
     { id: "quality", label: "Quality" },
+    { id: "refreshes", label: "Refreshes" },
   ] as const;
 
   return (
     <section
-      className="m-pipeline-block"
+      className="m-pipeline-block m-pipeline-block-minimal"
       data-testid="mobile-reports-pipeline-block"
       aria-label="Mobile research runtime"
     >
-      <header className="m-pipeline-block-head">
-        <div>
-          <span className="kicker">Research</span>
-          <h2>Start or check research</h2>
+      <div data-testid="reports-pipeline-launcher-slot">
+        <PipelineLauncher variant="compact" />
+      </div>
+      <div className="m-report-runtime-bar">
+        <span>Background safe.</span>
+        <div className="m-report-runtime-actions" role="tablist" aria-label="Research activity">
+          {panels.map((panel) => (
+            <button
+              key={panel.id}
+              type="button"
+              role="tab"
+              data-active={activePanel === panel.id}
+              aria-selected={activePanel === panel.id}
+              onClick={() => setActivePanel((current) => (current === panel.id ? "none" : panel.id))}
+            >
+              {panel.label}
+            </button>
+          ))}
         </div>
-        <span className="pill pill-neutral">phone-safe</span>
-      </header>
-      <div className="m-pipeline-tabs" role="tablist" aria-label="Research tools">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            data-active={activeTab === tab.id}
-            aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
       </div>
       <div className="m-pipeline-stack">
-        {activeTab === "start" ? (
-          <div data-testid="reports-pipeline-launcher-slot">
-            <PipelineLauncher variant="compact" />
-          </div>
-        ) : null}
-        {activeTab === "runs" ? (
+        {activePanel === "runs" ? (
           <div data-testid="reports-pipelines-panel-slot">
             <PipelineRunsPanel initialVisibleCount={4} queryLimit={12} windowStep={4} />
           </div>
         ) : null}
-        {activeTab === "quality" ? (
+        {activePanel === "quality" ? (
           <div data-testid="reports-pipeline-eval-slot">
             {evalReady ? <PipelineEvalScorecard /> : <DeferredReportsPanel label="Research quality" />}
           </div>
         ) : null}
-        {activeTab === "quality" ? (
-          <details
-            className="m-pipeline-more"
-            open={schedulesOpen}
-            onToggle={(event) => setSchedulesOpen(event.currentTarget.open)}
-          >
-            <summary>Automatic refreshes</summary>
-            <div data-testid="reports-pipeline-schedules-slot">
-              {schedulesOpen ? (
-                <PipelineSchedulesPanel initialVisibleCount={3} queryLimit={10} windowStep={3} />
-              ) : null}
-            </div>
-          </details>
+        {activePanel === "refreshes" ? (
+          <div data-testid="reports-pipeline-schedules-slot">
+            <PipelineSchedulesPanel initialVisibleCount={3} queryLimit={10} windowStep={3} />
+          </div>
         ) : null}
       </div>
     </section>

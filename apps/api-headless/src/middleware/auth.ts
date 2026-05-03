@@ -30,7 +30,18 @@ if (process.env.NODE_ENV !== "production") {
     key: "dev-api-key-nodebench",
     clientId: "dev-client-001",
     clientOrg: "nodebench-dev",
-    scopes: ["specs:read", "specs:write", "runs:read", "runs:write", "evidence:read", "evidence:write", "replay:read", "replay:write"],
+    scopes: [
+      "specs:read",
+      "specs:write",
+      "runs:read",
+      "runs:write",
+      "evidence:read",
+      "evidence:write",
+      "replay:read",
+      "replay:write",
+      "public_research:read",
+      "public_research:write",
+    ],
     rateLimit: 1000,
   });
 }

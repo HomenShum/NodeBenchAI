@@ -26,6 +26,7 @@ import {
 } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
+import { DEFAULT_PIPELINE_MODEL_ROUTE } from "../agents/mcp_tools/models/modelResolver";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -62,7 +63,7 @@ export const createSchedule = mutation({
       pipelineKind: args.pipelineKind,
       spec: args.spec,
       title: args.title,
-      modelId: args.modelId ?? "openai:gpt-4o-mini",
+      modelId: args.modelId ?? DEFAULT_PIPELINE_MODEL_ROUTE,
       cadence: args.cadence,
       enabled: true,
       nextRunAt: args.nextRunAt ?? now,

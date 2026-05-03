@@ -152,6 +152,60 @@ const ALLOWLIST: Record<string, AllowlistEntry> = {
     ref: api.domains.knowledge.sourceRegistry.getRegistryForDomain,
     type: "query",
   },
+
+  // Public research memory and reusable dossiers
+  resolveEntity: {
+    ref: api.domains.publicResearch.core.resolveEntity,
+    type: "mutation",
+  },
+  startResearchRun: {
+    ref: api.domains.publicResearch.core.startResearchRun,
+    type: "mutation",
+  },
+  getResearchStatus: {
+    ref: api.domains.publicResearch.core.getResearchStatus,
+    type: "query",
+  },
+  getEntityDossier: {
+    ref: api.domains.publicResearch.core.getEntityDossier,
+    type: "query",
+  },
+  getContextPack: {
+    ref: api.domains.publicResearch.core.getContextPack,
+    type: "query",
+  },
+  listLatestPublicEntityResearch: {
+    ref: api.domains.publicResearch.core.listLatestPublicEntityResearch,
+    type: "query",
+  },
+  submitPublicClaim: {
+    ref: api.domains.publicResearch.core.submitPublicClaim,
+    type: "mutation",
+  },
+  verifyClaim: {
+    ref: api.domains.publicResearch.core.verifyClaim,
+    type: "mutation",
+  },
+  linkPrivateSignalToPublicEntity: {
+    ref: api.domains.publicResearch.core.linkPrivateSignalToPublicEntity,
+    type: "mutation",
+  },
+  researchCompany: {
+    ref: api.domains.publicResearch.actions.researchCompany,
+    type: "action",
+  },
+  researchPerson: {
+    ref: api.domains.publicResearch.actions.researchPerson,
+    type: "action",
+  },
+  researchRole: {
+    ref: api.domains.publicResearch.actions.researchRole,
+    type: "action",
+  },
+  searchPublicSources: {
+    ref: api.domains.publicResearch.actions.searchPublicSources,
+    type: "action",
+  },
   getDimensionProfile: {
     ref: api.domains.deepTrace.dimensions.getDimensionProfile,
     type: "query",

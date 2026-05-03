@@ -180,6 +180,20 @@ export type HomePulsePreview = {
   updatedAt?: number;
 } | null;
 
+type PublicResearchHomeRow = {
+  researchRunId: string;
+  status: string;
+  entityKey: string;
+  entityName: string;
+  entityType: string;
+  updatedAt: number;
+  claimCount: number;
+  sourceCount: number;
+  confidence: number;
+  summary?: string;
+  sources?: Array<{ title?: string; url: string }>;
+};
+
 export function formatPulseFreshness(updatedAt?: number) {
   if (!updatedAt) return "Updated recently";
   const ageMinutes = Math.max(1, Math.round((Date.now() - updatedAt) / 60000));
@@ -250,6 +264,12 @@ export function HomeLanding() {
       ? { filter: "All" }
       : "skip",
   );
+  const latestPublicResearch = useQuery(
+    (api as any)?.domains?.publicResearch?.core?.listLatestPublicEntityResearch ?? "skip",
+    (api as any)?.domains?.publicResearch?.core?.listLatestPublicEntityResearch
+      ? { limit: 6 }
+      : "skip",
+  ) as PublicResearchHomeRow[] | undefined;
   const operatorProfile = meSnapshot?.profile ?? null;
   const operatorContextHint = useMemo(() => buildOperatorContextHint(operatorProfile), [operatorProfile]);
   const operatorContextLabel = useMemo(() => buildOperatorContextLabel(operatorProfile), [operatorProfile]);
@@ -599,6 +619,7 @@ export function HomeLanding() {
           match Jony Ive empty-state guidance: intentional, actionable, warm.
         */}
         {!showPulseCard &&
+        (latestPublicResearch?.length ?? 0) === 0 &&
         recentSearches.length === 0 &&
         visibleReports.length === 0 ? (
           <div
@@ -626,6 +647,55 @@ export function HomeLanding() {
                   className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 transition hover:border-[var(--accent-primary)]/35 hover:text-gray-900 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:border-[var(--accent-primary)]/35 dark:hover:bg-white/[0.06]"
                 >
                   {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {(latestPublicResearch?.length ?? 0) > 0 ? (
+          <div className="mt-6 text-left" data-testid="latest-public-research">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                  Latest public research
+                </p>
+                <h2 className="mt-1 text-[18px] font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                  Reusable entity memory
+                </h2>
+              </div>
+              <span className="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] text-gray-500 dark:border-white/[0.10] dark:text-gray-400">
+                Public facts only
+              </span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {latestPublicResearch?.slice(0, 4).map((item) => (
+                <button
+                  key={item.entityKey}
+                  type="button"
+                  onClick={() => startChat(`Open public dossier for ${item.entityName}`, "founder", "public_research_home")}
+                  className="group min-w-0 rounded-2xl border border-gray-200 bg-white p-4 text-left transition hover:border-[var(--accent-primary)]/35 hover:shadow-[0_18px_42px_-32px_rgba(217,119,87,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/40 dark:border-white/[0.10] dark:bg-white/[0.03] dark:hover:border-[var(--accent-primary)]/35"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-[15px] font-semibold text-gray-900 dark:text-gray-100">
+                        {item.entityName}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">
+                        <span>{item.entityType}</span>
+                        <span>{item.status.replace(/_/g, " ")}</span>
+                      </div>
+                    </div>
+                    <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 text-gray-400 transition group-hover:text-[var(--accent-primary)]" />
+                  </div>
+                  <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-[13px] leading-5 text-gray-600 dark:text-gray-300">
+                    {item.summary || "Research run recorded. Verified public claims will appear as sources are extracted."}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] text-gray-500 dark:text-gray-400">
+                    <span>{item.claimCount} claim{item.claimCount === 1 ? "" : "s"}</span>
+                    <span>{item.sourceCount} source{item.sourceCount === 1 ? "" : "s"}</span>
+                    <span>{Math.round((item.confidence || 0) * 100)}% confidence</span>
+                  </div>
                 </button>
               ))}
             </div>

@@ -1,3 +1,5 @@
+import { DEFAULT_PIPELINE_MODEL_SELECTION } from "@/shared/llm/pipelineModelRoutes";
+
 export type FirstImpressionHorizon = "today" | "week" | "month";
 
 export type FirstImpressionCard = {
@@ -104,7 +106,7 @@ export function createBackgroundResearchRequest({
     pipelineKind: "research",
     spec,
     title: resolvedTitle,
-    modelId: "gpt-4o-mini",
+    modelId: DEFAULT_PIPELINE_MODEL_SELECTION,
     forceFresh: true,
     linkupDepth: "standard",
     ...(ownerKey ? { ownerKey } : {}),
