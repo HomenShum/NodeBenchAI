@@ -66,6 +66,8 @@ export const researchJobContext = action({
       title: v.string(),
       snippet: v.string(),
     })),
+    publicContextPack: v.optional(v.any()),
+    publicResearchStatus: v.optional(v.string()),
     traceId: v.string(),
   }),
   handler: async (ctx, args): Promise<any> => {
@@ -80,7 +82,36 @@ export const researchJobContext = action({
       depth,
     });
 
-    // Build search queries
+    const senderDomain = args.senderEmail?.split("@")[1]?.trim().toLowerCase();
+    let publicDossier: any = null;
+    let publicContextPack: any = null;
+    let publicResearchStatus: string | undefined;
+
+    if (args.companyName) {
+      try {
+        publicDossier = await ctx.runAction(api.domains.publicResearch.actions.researchCompany, {
+          companyName: args.companyName,
+          domain: senderDomain,
+          visibility: "private_guided",
+          goal: args.jobTitle
+            ? `Public job-match context for ${args.jobTitle} at ${args.companyName}`
+            : `Public job-match context for ${args.companyName}`,
+        });
+        publicContextPack = await ctx.runQuery(api.domains.publicResearch.core.getContextPack, {
+          entityKey: publicDossier?.entity?.entityKey,
+          entityType: "company",
+          name: args.companyName,
+          useCase: "job_match",
+        });
+        publicResearchStatus = publicContextPack ? "verified" : "needs_review";
+      } catch (err: any) {
+        publicResearchStatus = "failed";
+        console.warn(`[JobResearch] Public context pack failed for ${args.companyName}:`, err?.message ?? err);
+      }
+    }
+
+    // Build search queries. These remain public-source only; email snippet and
+    // resume/private artifacts are intentionally not used in search text.
     const queries: string[] = [];
     if (args.companyName) {
       queries.push(`${args.companyName} company overview funding valuation`);
@@ -131,14 +162,23 @@ export const researchJobContext = action({
     });
 
     // Extract unique sources
-    const sources = allResults
+    const sourcesFromPack = (publicContextPack?.sources ?? [])
+      .slice(0, 10)
+      .map((source: any) => ({
+        url: source.url || "",
+        title: source.title || "Public source",
+        snippet: source.evidence || "",
+      }))
+      .filter((source: any) => source.url);
+
+    const sources = (sourcesFromPack.length ? sourcesFromPack : allResults
       .slice(0, 10)
       .map((r: any) => ({
         url: r.url || r.link || "",
         title: r.title || "Untitled",
         snippet: r.snippet || r.summary || "",
       }))
-      .filter((s: any) => s.url);
+      .filter((s: any) => s.url));
 
     // Try to find entity data if company name provided
     let entityData: any = null;
@@ -160,7 +200,9 @@ export const researchJobContext = action({
           stage: entityData?.stage || undefined,
           valuation: entityData?.valuation || undefined,
           employees: entityData?.employees || undefined,
-          recentNews: allResults
+          recentNews: publicContextPack?.signals?.length
+            ? publicContextPack.signals.slice(0, 3).map((signal: any) => signal.text)
+            : allResults
             .filter((r: any) => r.title && r.title.includes(args.companyName))
             .slice(0, 3)
             .map((r: any) => `${r.title}: ${r.snippet || ""}`),
@@ -210,6 +252,8 @@ export const researchJobContext = action({
       diligenceAngles,
       jobContext,
       sources,
+      publicContextPack,
+      publicResearchStatus,
       traceId,
     };
   },

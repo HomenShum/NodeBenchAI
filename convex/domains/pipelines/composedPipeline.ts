@@ -25,7 +25,7 @@
 import { v } from "convex/values";
 import { internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
-import type { Id } from "../../_generated/dataModel";
+import { resolvePipelineModelSelection } from "../agents/mcp_tools/models/modelResolver";
 
 const HEADING = {
   research: "RESEARCH SYNTHESIS",
@@ -63,7 +63,8 @@ export const runComposedPipeline = internalAction({
     }),
   }),
   handler: async (ctx, args) => {
-    const modelId = args.modelId ?? "openai:gpt-4o-mini";
+    const modelSelection = resolvePipelineModelSelection(args.modelId);
+    const modelId = modelSelection.resolvedModelId;
     const ownerKey = args.ownerKey;
 
     // ── Stage 1 ─────────────────────────────────────────────────────

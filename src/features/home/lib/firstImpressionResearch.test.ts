@@ -24,7 +24,7 @@ describe("first impression research", () => {
       pipelineKind: "research",
       spec: "Research Northstar Bio before my meeting",
       title: "Research Northstar Bio before my meeting",
-      modelId: "gpt-4o-mini",
+      modelId: "nodebench:auto-balanced",
       ownerKey: "session:abc",
       forceFresh: true,
       linkupDepth: "standard",

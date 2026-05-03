@@ -236,6 +236,94 @@ export function normalizeNodeBenchRuntimeModel(
   return fallback;
 }
 
+export type NodeBenchModelRouteTier = "balanced" | "free" | "frontier" | "fast" | "small";
+
+export interface PipelineModelSelectionResolution {
+  requestedModelId: string;
+  resolvedModelId: ApprovedModel;
+  routeTier?: NodeBenchModelRouteTier;
+  isFreeRoute: boolean;
+  usedDefault: boolean;
+}
+
+export const DEFAULT_PIPELINE_MODEL_ROUTE = "nodebench:auto-balanced";
+
+function stripProviderPrefix(input: string): string {
+  const match = input.match(/^(openai|anthropic|google|openrouter):(.+)$/i);
+  return match ? match[2].trim() : input;
+}
+
+function routeAliasToModel(input: string): {
+  routeTier: NodeBenchModelRouteTier;
+  modelId: ApprovedModel;
+} | null {
+  switch (input) {
+    case "auto":
+    case "balanced":
+    case "auto-balanced":
+    case "nodebench:auto-balanced":
+    case "kilo-auto/balanced":
+      return { routeTier: "balanced", modelId: DEFAULT_MODEL };
+    case "free":
+    case "auto-free":
+    case "nodebench:auto-free":
+    case "kilo-auto/free":
+    case "openrouter/free":
+      return { routeTier: "free", modelId: getBestFreeModel() };
+    case "frontier":
+    case "best":
+    case "best-quality":
+    case "auto-frontier":
+    case "nodebench:auto-frontier":
+    case "kilo-auto/frontier":
+      return { routeTier: "frontier", modelId: "gpt-5.4" };
+    case "fast":
+    case "small":
+    case "auto-fast":
+    case "auto-small":
+    case "nodebench:auto-fast":
+    case "kilo-auto/small":
+      return { routeTier: "fast", modelId: "gemini-3.1-flash-lite-preview" };
+    default:
+      return null;
+  }
+}
+
+/**
+ * Normalize untrusted pipeline UI / MCP model input into an approved runtime
+ * alias. This is the Convex-side mirror of the Reports selector and accepts
+ * Kilo-style route aliases without letting arbitrary provider strings through.
+ */
+export function resolvePipelineModelSelection(
+  input: string | undefined | null,
+): PipelineModelSelectionResolution {
+  const requestedModelId = String(input?.trim() || DEFAULT_PIPELINE_MODEL_ROUTE);
+  const normalized = requestedModelId.toLowerCase();
+  const route = routeAliasToModel(normalized);
+  if (route) {
+    return {
+      requestedModelId,
+      resolvedModelId: route.modelId,
+      routeTier: route.routeTier,
+      isFreeRoute: route.routeTier === "free",
+      usedDefault: !input,
+    };
+  }
+
+  const stripped = stripProviderPrefix(normalized);
+  const resolved =
+    resolveModelAlias(requestedModelId) ??
+    resolveModelAlias(normalized) ??
+    resolveModelAlias(stripped);
+
+  return {
+    requestedModelId,
+    resolvedModelId: resolved ?? DEFAULT_MODEL,
+    isFreeRoute: resolved ? isFreeModel(resolved) : false,
+    usedDefault: !resolved,
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MODEL CAPABILITIES
 // ═══════════════════════════════════════════════════════════════════════════

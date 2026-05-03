@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NodeBench UI High-Fidelity Change Plan - 2026-05-02</title>
+<style>
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #08090b;
+  --stage: #0c0f14;
+  --panel: #11151c;
+  --panel-2: #151a22;
+  --panel-3: #1b222d;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.17);
+  --text: #f5f0ea;
+  --muted: #a7b0bd;
+  --faint: #6f7a88;
+  --accent: #d97757;
+  --accent-2: #e59579;
+  --green: #2fbf87;
+  --blue: #76a8ff;
+  --yellow: #f4c35a;
+  --red: #ef6a6a;
+  --purple: #b99cff;
+  --radius: 18px;
+  --shadow: 0 28px 70px rgba(0, 0, 0, 0.48);
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(217, 119, 87, 0.16), transparent 32rem),
+    radial-gradient(circle at 92% 6%, rgba(118, 168, 255, 0.11), transparent 34rem),
+    linear-gradient(180deg, #090b0f 0%, #08090b 42%, #0b0d11 100%);
+  color: var(--text);
+  padding: 38px 24px 90px;
+}
+
+.page {
+  width: min(1440px, 100%);
+  margin: 0 auto;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
+  gap: 26px;
+  align-items: stretch;
+  margin-bottom: 46px;
+}
+
+.hero-card,
+.meta-card,
+.section,
+.frame-card,
+.change-card,
+.pipeline-card,
+.gate-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.hero-card {
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-card:after {
+  content: "";
+  position: absolute;
+  inset: auto -80px -140px auto;
+  width: 360px;
+  height: 360px;
+  background: radial-gradient(circle, rgba(217, 119, 87, 0.18), transparent 68%);
+  pointer-events: none;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent-2);
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.eyebrow:before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(217, 119, 87, 0.15);
+}
+
+h1 {
+  margin: 14px 0 12px;
+  font-size: clamp(38px, 6vw, 74px);
+  line-height: 0.92;
+  letter-spacing: -0.04em;
+  max-width: 900px;
+}
+
+.subhead {
+  color: var(--muted);
+  max-width: 760px;
+  font-size: 17px;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 26px;
+  max-width: 820px;
+}
+
+.proof {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.proof strong {
+  display: block;
+  font-size: 14px;
+}
+
+.proof span {
+  display: block;
+  margin-top: 4px;
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.meta-card {
+  padding: 22px;
+}
+
+.meta-title {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.meta-list {
+  display: grid;
+  gap: 10px;
+}
+
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.meta-row b {
+  color: var(--text);
+  font-weight: 700;
+  text-align: right;
+}
+
+.section {
+  padding: 26px;
+  margin: 28px 0;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: end;
+  margin-bottom: 20px;
+}
+
+.section h2 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 36px);
+  letter-spacing: -0.03em;
+}
+
+.section p {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.section-desc {
+  max-width: 640px;
+  margin: 8px 0 0;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.hierarchy {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  gap: 14px;
+}
+
+.node {
+  min-height: 112px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.node h3 {
+  margin: 0 0 9px;
+  font-size: 15px;
+}
+
+.node ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.node li {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.node.root {
+  border-color: rgba(217, 119, 87, 0.42);
+  background: linear-gradient(180deg, rgba(217, 119, 87, 0.16), rgba(0, 0, 0, 0.14));
+}
+
+.node.claims {
+  border-color: rgba(47, 191, 135, 0.34);
+}
+
+.screen-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.screen-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.frame-card {
+  padding: 16px;
+  overflow: hidden;
+}
+
+.frame-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.frame-title h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.diagnosis {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 12px 0 0;
+}
+
+.laptop {
+  border-radius: 16px;
+  border: 1px solid var(--line-strong);
+  background: #06070a;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.laptop-bar {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  background: #0e1218;
+  border-bottom: 1px solid var(--line);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.dot.a { background: #ef6a6a; }
+.dot.b { background: #f4c35a; }
+.dot.c { background: #2fbf87; }
+
+.shot {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #0a0d12;
+}
+
+.phone {
+  width: min(390px, 100%);
+  margin: 0 auto;
+  aspect-ratio: 390 / 844;
+  background: #080a0e;
+  border: 3px solid #202632;
+  border-radius: 44px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), var(--shadow);
+}
+
+.phone.small {
+  width: min(340px, 100%);
+}
+
+.notch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150px;
+  height: 31px;
+  background: #000;
+  border-radius: 0 0 19px 19px;
+  z-index: 4;
+}
+
+.phone-shot {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.mock-screen {
+  height: 100%;
+  padding: 42px 16px 18px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(217, 119, 87, 0.18), transparent 190px),
+    linear-gradient(180deg, #0c1016, #090b0f 56%, #0c0f14);
+  overflow: hidden;
+}
+
+.mock-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.mock-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.pill {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  padding: 6px 9px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mock-card {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 11px;
+}
+
+.mock-card.accent {
+  border-color: rgba(217, 119, 87, 0.42);
+  background: linear-gradient(180deg, rgba(217, 119, 87, 0.16), rgba(255, 255, 255, 0.04));
+}
+
+.mock-card h4,
+.desktop-mock h4 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.mock-card p,
+.desktop-mock p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mock-input {
+  min-height: 86px;
+  border: 1px solid rgba(217, 119, 87, 0.35);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.mock-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  border: 0;
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--accent);
+}
+
+.btn.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+}
+
+.claim-list {
+  display: grid;
+  gap: 8px;
+}
+
+.claim {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.16);
+  font-size: 12px;
+}
+
+.status {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--green);
+}
+
+.status.review { background: var(--yellow); }
+.status.blocked { background: var(--red); }
+.status.info { background: var(--blue); }
+
+.desktop-mock {
+  min-height: 520px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(217, 119, 87, 0.13), transparent 260px),
+    linear-gradient(180deg, #0b0e13, #090b0f);
+}
+
+.mock-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mock-tabs {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.mock-tab {
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mock-tab.active {
+  color: #fff;
+  background: rgba(217, 119, 87, 0.18);
+  border-color: rgba(217, 119, 87, 0.4);
+}
+
+.desktop-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 14px;
+}
+
+.desktop-grid.three-col {
+  grid-template-columns: 0.8fr 1.1fr 0.9fr;
+}
+
+.mock-list {
+  display: grid;
+  gap: 9px;
+}
+
+.mini-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mini-row b {
+  color: var(--text);
+}
+
+.change-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.change-card {
+  padding: 18px;
+}
+
+.change-card h3 {
+  margin: 0 0 12px;
+  font-size: 17px;
+}
+
+.compare {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.compare-box {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.compare-box strong {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent-2);
+  margin-bottom: 7px;
+}
+
+.compare-box span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.change-card ul,
+.gate-card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.pipeline {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pipeline-card {
+  padding: 14px;
+  min-height: 132px;
+  position: relative;
+}
+
+.pipeline-card .num {
+  width: 24px;
+  height: 24px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: rgba(217, 119, 87, 0.2);
+  color: var(--accent-2);
+  font-weight: 900;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.pipeline-card h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.pipeline-card p {
+  font-size: 12px;
+  margin: 0;
+}
+
+.gates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.gate-card {
+  padding: 18px;
+}
+
+.gate-card h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.code {
+  display: block;
+  white-space: pre-wrap;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #07090d;
+  color: #d9e2ee;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.footer-note {
+  color: var(--faint);
+  font-size: 12px;
+  text-align: center;
+  margin-top: 34px;
+}
+
+@media (max-width: 1120px) {
+  .hero,
+  .hierarchy,
+  .desktop-grid,
+  .desktop-grid.three-col,
+  .screen-grid,
+  .screen-grid.three,
+  .change-grid,
+  .pipeline,
+  .gates {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-grid,
+  .compare {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <section class="hero">
+    <div class="hero-card">
+      <div class="eyebrow">NodeBench UI planning artifact</div>
+      <h1>From dashboard cards to context graph workflow.</h1>
+      <p class="subhead">
+        A high-fidelity change plan for turning first-run NodeBench into a product that starts with
+        a real-world context, organizes every note under the right root, runs research in the
+        background, and returns durable reports, claims, sources, notebooks, graph edges, and exports.
+      </p>
+      <div class="hero-grid">
+        <div class="proof">
+          <strong>Mobile first</strong>
+          <span>Capture, query, lock the phone, come back to a saved report.</span>
+        </div>
+        <div class="proof">
+          <strong>Laptop deep work</strong>
+          <span>Audit claims, edit notebooks, traverse entities, export packets.</span>
+        </div>
+        <div class="proof">
+          <strong>Parity lane</strong>
+          <span>Capture route -> decompose -> verify -> iterate -> export ui_kit.</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="meta-card">
+      <p class="meta-title">
+        Built from fresh local screenshots, the April 26 UI delta, the product surface hierarchy,
+        event intelligence model, and the Parity Studio decomposition workflow.
+      </p>
+      <div class="meta-list">
+        <div class="meta-row"><span>Artifact</span><b>Static HTML</b></div>
+        <div class="meta-row"><span>Date</span><b>2026-05-02</b></div>
+        <div class="meta-row"><span>Local source</span><b>127.0.0.1:4186</b></div>
+        <div class="meta-row"><span>Screenshot folder</span><b>ui-plan-2026-05-02</b></div>
+        <div class="meta-row"><span>Runtime dependency</span><b>None</b></div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="section" id="hierarchy">
+    <div class="section-head">
+      <div>
+        <span class="tag">1. Product hierarchy</span>
+        <h2>Everything starts from a context root.</h2>
+        <p class="section-desc">
+          NodeBench is not a flat chat log. The product should expose the typed memory graph directly:
+          events, companies, people, products, claims, sources, notebooks, reports, and exports.
+        </p>
+      </div>
+    </div>
+
+    <div class="hierarchy">
+      <div class="node root">
+        <h3>Workspace / User / Team</h3>
+        <ul>
+          <li>Owner-scoped memory</li>
+          <li>Private notes by default</li>
+          <li>Shared public corpus only when explicit</li>
+          <li>Search budget and approval policy</li>
+        </ul>
+      </div>
+      <div class="node root">
+        <h3>Context Roots</h3>
+        <ul>
+          <li>Event: Ship Demo Day, school visit, conference</li>
+          <li>Company: Orbital Labs, Mercury, Brex</li>
+          <li>Person: Alex from Orbital Labs</li>
+          <li>Product/topic: voice-agent eval infra</li>
+          <li>Location/date: today, campus, relocation district</li>
+        </ul>
+      </div>
+      <div class="node root">
+        <h3>Durable Outputs</h3>
+        <ul>
+          <li>Report and workspace</li>
+          <li>Notebook sections</li>
+          <li>Sources and claim audit</li>
+          <li>Graph map and edge evidence</li>
+          <li>CRM, Notes, Notion, Linear exports</li>
+        </ul>
+      </div>
+
+      <div class="node">
+        <h3>Event Governs</h3>
+        <ul>
+          <li>Notes, screenshots, voice memos</li>
+          <li>People met and companies mentioned</li>
+          <li>Field-note claims and follow-ups</li>
+          <li>Post-event memo and event corpus</li>
+        </ul>
+      </div>
+      <div class="node">
+        <h3>Company Governs</h3>
+        <ul>
+          <li>People, products, investors</li>
+          <li>Buyers, sellers, partners, competitors</li>
+          <li>Reports, prior chats, event mentions</li>
+          <li>Risks, public signals, watchlist refreshes</li>
+        </ul>
+      </div>
+      <div class="node">
+        <h3>Person Governs</h3>
+        <ul>
+          <li>Current and past affiliations</li>
+          <li>Public footprint and identity evidence</li>
+          <li>Collaborators and relationship context</li>
+          <li>Claims made and meeting follow-ups</li>
+        </ul>
+      </div>
+
+      <div class="node">
+        <h3>Product Governs</h3>
+        <ul>
+          <li>Maker company and adjacent companies</li>
+          <li>Buyers, sellers, channels, use cases</li>
+          <li>Competitors and market cluster</li>
+          <li>Evidence-backed product claims</li>
+        </ul>
+      </div>
+      <div class="node claims">
+        <h3>Claims Attach To Everything</h3>
+        <ul>
+          <li>Claim -> entity</li>
+          <li>Claim -> source evidence</li>
+          <li>Claim -> verification state</li>
+          <li>Claim -> graph edge reason</li>
+        </ul>
+      </div>
+      <div class="node claims">
+        <h3>Edges Must Explain Themselves</h3>
+        <ul>
+          <li>Person works at company</li>
+          <li>Company builds product</li>
+          <li>Product competes with product</li>
+          <li>Source supports or contradicts claim</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="current">
+    <div class="section-head">
+      <div>
+        <span class="tag">2. Current screens</span>
+        <h2>Fresh local screenshots from the current app.</h2>
+        <p class="section-desc">
+          These images were captured from `http://127.0.0.1:4186` on 2026-05-02 after restarting
+          the local frontend. They are evidence for what the plan is changing.
+        </p>
+      </div>
+    </div>
+
+    <div class="screen-grid">
+      <div class="frame-card">
+        <div class="frame-title"><h3>Current Home - desktop</h3><span class="tag">current</span></div>
+        <div class="laptop">
+          <div class="laptop-bar"><span class="dot a"></span><span class="dot b"></span><span class="dot c"></span></div>
+          <img class="shot" src="screenshots/ui-plan-2026-05-02/current-home-desktop.png" alt="Current NodeBench Home desktop screenshot" />
+        </div>
+        <p class="diagnosis">Direction is right: first-impression prompts exist. Target should make the context root and persistence contract even more explicit.</p>
+      </div>
+
+      <div class="frame-card">
+        <div class="frame-title"><h3>Current Reports - desktop</h3><span class="tag">current</span></div>
+        <div class="laptop">
+          <div class="laptop-bar"><span class="dot a"></span><span class="dot b"></span><span class="dot c"></span></div>
+          <img class="shot" src="screenshots/ui-plan-2026-05-02/current-reports-desktop.png" alt="Current NodeBench Reports desktop screenshot" />
+        </div>
+        <p class="diagnosis">Pipeline panels are present. Target should frame them as one job: start work, monitor run, inspect quality, export packet.</p>
+      </div>
+
+      <div class="frame-card">
+        <div class="frame-title"><h3>Current Chat - desktop</h3><span class="tag">current</span></div>
+        <div class="laptop">
+          <div class="laptop-bar"><span class="dot a"></span><span class="dot b"></span><span class="dot c"></span></div>
+          <img class="shot" src="screenshots/ui-plan-2026-05-02/current-chat-desktop.png" alt="Current NodeBench Chat desktop screenshot" />
+        </div>
+        <p class="diagnosis">Chat is the universal ask surface. Target should make every answer show target root, source scope, and output destination.</p>
+      </div>
+
+      <div class="frame-card">
+        <div class="frame-title"><h3>Current Inbox - desktop</h3><span class="tag">current</span></div>
+        <div class="laptop">
+          <div class="laptop-bar"><span class="dot a"></span><span class="dot b"></span><span class="dot c"></span></div>
+          <img class="shot" src="screenshots/ui-plan-2026-05-02/current-inbox-desktop.png" alt="Current NodeBench Inbox desktop screenshot" />
+        </div>
+        <p class="diagnosis">Inbox should become the one-list triage surface for captures, confirmations, alerts, and nudges.</p>
+      </div>
+
+      <div class="frame-card">
+        <div class="frame-title"><h3>Current Me - desktop</h3><span class="tag">current</span></div>
+        <div class="laptop">
+          <div class="laptop-bar"><span class="dot a"></span><span class="dot b"></span><span class="dot c"></span></div>
+          <img class="shot" src="screenshots/ui-plan-2026-05-02/current-me-desktop.png" alt="Current NodeBench Me desktop screenshot" />
+        </div>
+        <p class="diagnosis">Me should stay focused on preferences, privacy, watched entities, and personal memory boundaries.</p>
+      </div>
+    </div>
+
+    <div class="screen-grid three" style="margin-top:22px;">
+      <div class="frame-card">
+        <div class="frame-title"><h3>Mobile Home</h3><span class="tag">current</span></div>
+        <div class="phone small">
+          <div class="notch"></div>
+          <img class="phone-shot" src="screenshots/ui-plan-2026-05-02/current-home-mobile.png" alt="Current NodeBench Home mobile screenshot" />
+        </div>
+        <p class="diagnosis">Target should prioritize one query, one active context, one async status.</p>
+      </div>
+
+      <div class="frame-card">
+        <div class="frame-title"><h3>Mobile Reports</h3><span class="tag">current</span></div>
+        <div class="phone small">
+          <div class="notch"></div>
+          <img class="phone-shot" src="screenshots/ui-plan-2026-05-02/current-reports-mobile.png" alt="Current NodeBench Reports mobile screenshot" />
+        </div>
+        <p class="diagnosis">Mobile pipeline parity exists. Target should reduce it to capture -> run -> status -> open report.</p>
+      </div>
+
+      <div class="frame-card">
+        <div class="frame-title"><h3>Mobile Chat</h3><span class="tag">current</span></div>
+        <div class="phone small">
+          <div class="notch"></div>
+          <img class="phone-shot" src="screenshots/ui-plan-2026-05-02/current-chat-mobile.png" alt="Current NodeBench Chat mobile screenshot" />
+        </div>
+        <p class="diagnosis">Target should treat chat as a bottom-sheet tool over a context root, not a destination that loses the report.</p>
+      </div>
+
+      <div class="frame-card">
+        <div class="frame-title"><h3>Mobile Inbox</h3><span class="tag">current</span></div>
+        <div class="phone small">
+          <div class="notch"></div>
+          <img class="phone-shot" src="screenshots/ui-plan-2026-05-02/current-inbox-mobile.png" alt="Current NodeBench Inbox mobile screenshot" />
+        </div>
+        <p class="diagnosis">Target should compress this into capture review, confirmations, and follow-ups.</p>
+      </div>
+
+      <div class="frame-card">
+        <div class="frame-title"><h3>Mobile Me</h3><span class="tag">current</span></div>
+        <div class="phone small">
+          <div class="notch"></div>
+          <img class="phone-shot" src="screenshots/ui-plan-2026-05-02/current-me-mobile.png" alt="Current NodeBench Me mobile screenshot" />
+        </div>
+        <p class="diagnosis">Target should expose privacy, budgets, watched entities, and export defaults without crowding capture flows.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="targets">
+    <div class="section-head">
+      <div>
+        <span class="tag">3. Target screens</span>
+        <h2>Proposed high-fidelity product states.</h2>
+        <p class="section-desc">
+          These are HTML mockups inside this planning artifact. They define the intended product shape
+          before any React implementation work.
+        </p>
+      </div>
+    </div>
+
+    <div class="screen-grid">
+      <div class="frame-card">
+        <div class="frame-title"><h3>Target Home - immediate relevance</h3><span class="tag">laptop</span></div>
+        <div class="laptop">
+          <div class="laptop-bar"><span class="dot a"></span><span class="dot b"></span><span class="dot c"></span></div>
+          <div class="desktop-mock">
+            <div class="mock-nav">
+              <div class="mock-brand"><span class="mark">N</span>NodeBench AI</div>
+              <div class="mock-tabs">
+                <span class="mock-tab active">Home</span>
+                <span class="mock-tab">Reports</span>
+                <span class="mock-tab">Chat</span>
+                <span class="mock-tab">Inbox</span>
+                <span class="mock-tab">Me</span>
+              </div>
+            </div>
+            <div class="desktop-grid">
+              <div class="mock-card accent">
+                <span class="tag">Start here</span>
+                <h4 style="font-size:34px;max-width:540px;margin-top:12px;">Get the read before you walk in.</h4>
+                <p>Ask about a school, principal, person, company, product, event, or meeting. NodeBench saves the work to a durable context root.</p>
+                <div class="mock-input" style="margin-top:14px;">Research Lincoln High and Principal Maya Ortiz before I decide whether to transfer there.</div>
+                <div class="mock-actions">
+                  <button class="btn">Run async</button>
+                  <button class="btn secondary">Use memory only</button>
+                  <button class="btn secondary">Attach to event</button>
+                </div>
+              </div>
+              <div class="mock-list">
+                <div class="mock-card">
+                  <h4>Active context</h4>
+                  <p>Relocation research -> Lincoln High -> school culture read</p>
+                </div>
+                <div class="mini-row"><b>Continues if laptop sleeps</b><span>server run</span></div>
+                <div class="mini-row"><b>Saves to Reports</b><span>auto</span></div>
+                <div class="mini-row"><b>Sources and claims tracked</b><span>required</span></div>
+                <div class="mini-row"><b>Export ready</b><span>Notes, Notion, CSV</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="diagnosis">The first viewport should answer: what can I ask, where will it go, and can I leave while it runs?</p>
+      </div>
+
+      <div class="frame-card">
+        <div class="frame-title"><h3>Target Reports - async workbench</h3><span class="tag">laptop</span></div>
+        <div class="laptop">
+          <div class="laptop-bar"><span class="dot a"></span><span class="dot b"></span><span class="dot c"></span></div>
+          <div class="desktop-mock">
+            <div class="mock-nav">
+              <div class="mock-brand"><span class="mark">N</span>Reports</div>
+              <div class="mock-tabs">
+                <span class="mock-tab active">Start</span>
+                <span class="mock-tab">Runs</span>
+                <span class="mock-tab">Quality</span>
+                <span class="mock-tab">Refresh</span>
+              </div>
+            </div>
+            <div class="desktop-grid three-col">
+              <div class="mock-card accent">
+                <h4>Start research</h4>
+                <p>One job. Pick context, depth, destination, and budget.</p>
+                <div class="mock-input" style="margin-top:12px;">Compare Mercury vs Brex for a banker prep memo.</div>
+                <div class="mock-actions"><button class="btn">Run</button><button class="btn secondary">Schedule</button></div>
+              </div>
+              <div class="mock-card">
+                <h4>Running now</h4>
+                <div class="claim-list">
+                  <div class="claim"><span class="status info"></span><span>Memory search complete</span><b>0.4s</b></div>
+                  <div class="claim"><span class="status"></span><span>Entity resolution: Mercury, Brex</span><b>ok</b></div>
+                  <div class="claim"><span class="status review"></span><span>Public refresh queued</span><b>deep</b></div>
+                  <div class="claim"><span class="status info"></span><span>Report update streaming</span><b>42%</b></div>
+                </div>
+              </div>
+              <div class="mock-card">
+                <h4>Quality gate</h4>
+                <p>Claims: 18 total, 12 verified, 4 needs review, 2 unsupported.</p>
+                <div class="mini-row"><b>Verdict</b><span>needs_review</span></div>
+                <div class="mini-row"><b>Brier</b><span>0.13</span></div>
+                <div class="mini-row"><b>Export</b><span>preview first</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="diagnosis">Reports should expose the whole loop: run, status, quality, evidence, export.</p>
+      </div>
+    </div>
+
+    <div class="screen-grid three" style="margin-top:22px;">
+      <div class="frame-card">
+        <div class="frame-title"><h3>Target mobile capture</h3><span class="tag">phone</span></div>
+        <div class="phone">
+          <div class="notch"></div>
+          <div class="mock-screen">
+            <div class="mock-top">
+              <div class="mock-brand"><span class="mark">N</span>Capture</div>
+              <span class="pill">Ship Demo Day</span>
+            </div>
+            <div class="mock-card accent">
+              <h4>One input. Routed automatically.</h4>
+              <div class="mock-input">Met Alex from Orbital Labs. Voice-agent eval infra. Wants healthcare design partners.</div>
+              <div class="mock-actions"><button class="btn">Save</button><button class="btn secondary">Voice</button></div>
+            </div>
+            <div class="mock-card">
+              <h4>Detected</h4>
+              <div class="claim-list">
+                <div class="claim"><span class="status"></span><span>Person: Alex</span><b>new</b></div>
+                <div class="claim"><span class="status"></span><span>Company: Orbital Labs</span><b>match</b></div>
+                <div class="claim"><span class="status review"></span><span>Claim: healthcare partners</span><b>field</b></div>
+              </div>
+            </div>
+            <div class="mock-card">
+              <h4>Saved to Ship Demo Day</h4>
+              <p>Private note. 0 paid calls. Enrichment can run later from Reports.</p>
+            </div>
+          </div>
+        </div>
+        <p class="diagnosis">Mobile should not make users choose tables or tabs before saving a field note.</p>
+      </div>
+
+      <div class="frame-card">
+        <div class="frame-title"><h3>Target entity card</h3><span class="tag">phone</span></div>
+        <div class="phone">
+          <div class="notch"></div>
+          <div class="mock-screen">
+            <div class="mock-top">
+              <div class="mock-brand"><span class="mark">N</span>Orbital Labs</div>
+              <span class="pill">Company</span>
+            </div>
+            <div class="mock-card accent">
+              <h4>Voice-agent eval infra</h4>
+              <p>Seen in Ship Demo Day. 3 field notes, 5 public sources, 2 follow-ups.</p>
+            </div>
+            <div class="mock-card">
+              <h4>Claims</h4>
+              <div class="claim-list">
+                <div class="claim"><span class="status"></span><span>Builds voice-agent evaluation tooling</span><b>verified</b></div>
+                <div class="claim"><span class="status review"></span><span>Seeking healthcare design partners</span><b>field</b></div>
+                <div class="claim"><span class="status blocked"></span><span>Cheaper than VectorDock</span><b>unsupported</b></div>
+              </div>
+            </div>
+            <div class="mock-card">
+              <h4>Edges</h4>
+              <p>Alex -> Orbital Labs. Orbital Labs -> voice-agent eval. Healthcare buyers -> design partner target.</p>
+            </div>
+          </div>
+        </div>
+        <p class="diagnosis">Entity cards should show claims, changes, contradictions, and edge evidence directly.</p>
+      </div>
+
+      <div class="frame-card">
+        <div class="frame-title"><h3>Target export handoff</h3><span class="tag">phone</span></div>
+        <div class="phone">
+          <div class="notch"></div>
+          <div class="mock-screen">
+            <div class="mock-top">
+              <div class="mock-brand"><span class="mark">N</span>Export</div>
+              <span class="pill">Preview</span>
+            </div>
+            <div class="mock-card accent">
+              <h4>Export Ship Demo Day</h4>
+              <p>Choose what leaves NodeBench. Private captures stay excluded unless explicitly selected.</p>
+            </div>
+            <div class="mock-card">
+              <h4>Included</h4>
+              <div class="claim-list">
+                <div class="claim"><span class="status"></span><span>Public company research</span><b>on</b></div>
+                <div class="claim"><span class="status"></span><span>Verified claims only</span><b>on</b></div>
+                <div class="claim"><span class="status review"></span><span>Private field notes</span><b>off</b></div>
+              </div>
+            </div>
+            <div class="mock-actions">
+              <button class="btn">CRM CSV</button>
+              <button class="btn secondary">Notion</button>
+              <button class="btn secondary">Apple Notes</button>
+            </div>
+          </div>
+        </div>
+        <p class="diagnosis">Exports need a human review gate and a visible private/public boundary.</p>
+      </div>
+    </div>
+
+    <div class="frame-card" style="margin-top:22px;">
+      <div class="frame-title"><h3>Target Workspace - event root governs everything</h3><span class="tag">laptop</span></div>
+      <div class="laptop">
+        <div class="laptop-bar"><span class="dot a"></span><span class="dot b"></span><span class="dot c"></span></div>
+        <div class="desktop-mock">
+          <div class="mock-nav">
+            <div class="mock-brand"><span class="mark">N</span>Ship Demo Day Workspace</div>
+            <div class="mock-tabs">
+              <span class="mock-tab active">Brief</span>
+              <span class="mock-tab">Cards</span>
+              <span class="mock-tab">Notebook</span>
+              <span class="mock-tab">Sources</span>
+              <span class="mock-tab">Chat</span>
+              <span class="mock-tab">Map</span>
+            </div>
+          </div>
+          <div class="desktop-grid three-col">
+            <div class="mock-card">
+              <h4>Event root</h4>
+              <p>April 30, 2026. 14 captures, 9 companies, 22 claims, 6 follow-ups.</p>
+              <div class="mini-row"><b>Public corpus</b><span>shared</span></div>
+              <div class="mini-row"><b>Private notes</b><span>excluded</span></div>
+            </div>
+            <div class="mock-card accent">
+              <h4>Brief</h4>
+              <p>Strongest follow-up: Orbital Labs because healthcare partner ask matches prior watchlist and claim evidence is specific enough to verify.</p>
+              <div class="claim-list" style="margin-top:12px;">
+                <div class="claim"><span class="status"></span><span>3 companies in voice-agent infra</span><b>cluster</b></div>
+                <div class="claim"><span class="status review"></span><span>5 partner claims need verification</span><b>review</b></div>
+                <div class="claim"><span class="status info"></span><span>2 exports ready</span><b>draft</b></div>
+              </div>
+            </div>
+            <div class="mock-card">
+              <h4>Graph edge evidence</h4>
+              <div class="mock-list">
+                <div class="mini-row"><b>Alex -> Orbital</b><span>field note</span></div>
+                <div class="mini-row"><b>Orbital -> Healthcare</b><span>claim</span></div>
+                <div class="mini-row"><b>VectorDock -> GPU scheduling</b><span>source</span></div>
+                <div class="mini-row"><b>Northstar -> Benchling</b><span>needs review</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="diagnosis">Workspace is where the infinite-depth experience belongs: brief, cards, notebook, sources, chat, map.</p>
+    </div>
+  </section>
+
+  <section class="section" id="change-plan">
+    <div class="section-head">
+      <div>
+        <span class="tag">4. Change plan</span>
+        <h2>Side-by-side product decisions.</h2>
+        <p class="section-desc">
+          These cards translate the mockups into implementation intent without asking the implementer to guess.
+        </p>
+      </div>
+    </div>
+
+    <div class="change-grid">
+      <div class="change-card">
+        <h3>Home</h3>
+        <div class="compare">
+          <div class="compare-box"><strong>Current</strong><span>Scenario prompts exist, but the hierarchy can still read as a dashboard plus cards.</span></div>
+          <div class="compare-box"><strong>Target</strong><span>One query, one active context root, one background promise, one destination.</span></div>
+        </div>
+        <ul>
+          <li>Lead with "what are you walking into?" examples.</li>
+          <li>Show context root before memory metrics.</li>
+          <li>Keep async save-to-Reports proof visible.</li>
+          <li>Do not remove Convex-backed research run wiring.</li>
+        </ul>
+      </div>
+
+      <div class="change-card">
+        <h3>Mobile</h3>
+        <div class="compare">
+          <div class="compare-box"><strong>Current</strong><span>Mobile parity exists for core surfaces, including Reports pipeline block.</span></div>
+          <div class="compare-box"><strong>Target</strong><span>Mode-free capture first, then routing/ack/status after save.</span></div>
+        </div>
+        <ul>
+          <li>Prioritize capture/query above browse.</li>
+          <li>Surface active event or entity context as a pill.</li>
+          <li>Show "saved to X" and paid-call posture.</li>
+          <li>Do not let FABs cover primary report controls.</li>
+        </ul>
+      </div>
+
+      <div class="change-card">
+        <h3>Reports</h3>
+        <div class="compare">
+          <div class="compare-box"><strong>Current</strong><span>Pipeline launcher, runs, schedules, and eval panels are present.</span></div>
+          <div class="compare-box"><strong>Target</strong><span>Make the loop legible: Start -> Runs -> Quality -> Export/Refresh.</span></div>
+        </div>
+        <ul>
+          <li>Group controls around one workbench job.</li>
+          <li>Make status and output destination scannable.</li>
+          <li>Keep quality scorecard tied to claims/sources.</li>
+          <li>Do not introduce fixture fallback in production paths.</li>
+        </ul>
+      </div>
+
+      <div class="change-card">
+        <h3>Workspace</h3>
+        <div class="compare">
+          <div class="compare-box"><strong>Current</strong><span>Workspace is separate from the five-tab operating app.</span></div>
+          <div class="compare-box"><strong>Target</strong><span>Use Workspace for deep report detail: Brief, Cards, Notebook, Sources, Chat, Map.</span></div>
+        </div>
+        <ul>
+          <li>Keep Workspace out of web nav.</li>
+          <li>Open it from reports, sources, and graph nodes.</li>
+          <li>Make event/company/person/product roots visible.</li>
+          <li>Attach every graph edge to evidence.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="pipeline">
+    <div class="section-head">
+      <div>
+        <span class="tag">5. Decompose pipeline</span>
+        <h2>Parity Studio workflow for this plan.</h2>
+        <p class="section-desc">
+          Parity Studio is a planning and decomposition lane here, not a hidden production runtime dependency.
+          The goal is to turn each important NodeBench route into a canonical ui_kit and verify it with
+          bounded checks.
+        </p>
+      </div>
+    </div>
+
+    <div class="pipeline">
+      <div class="pipeline-card">
+        <div class="num">1</div>
+        <h3>Capture route</h3>
+        <p>Open the live app route and capture rendered HTML/CSS plus screenshots.</p>
+      </div>
+      <div class="pipeline-card">
+        <div class="num">2</div>
+        <h3>Generate standalone</h3>
+        <p>Normalize the route into a self-contained HTML artifact for decomposition.</p>
+      </div>
+      <div class="pipeline-card">
+        <div class="num">3</div>
+        <h3>Decompose</h3>
+        <p>Emit `ui_kits/nodebench-*` components, tokens, manifest, QA and API plans.</p>
+      </div>
+      <div class="pipeline-card">
+        <div class="num">4</div>
+        <h3>Verify deterministic</h3>
+        <p>Run boolean parity checks for text coverage, structure, budgets, and contracts.</p>
+      </div>
+      <div class="pipeline-card">
+        <div class="num">5</div>
+        <h3>Verify visual</h3>
+        <p>Judge rendered output against screenshots with bounded verdicts, not fake scores.</p>
+      </div>
+      <div class="pipeline-card">
+        <div class="num">6</div>
+        <h3>Iterate and export</h3>
+        <p>Patch scoped gaps, max two iterations, export a coding-agent-ready ui_kit zip.</p>
+      </div>
+    </div>
+
+    <span class="code">Recommended route decomposition commands:
+
+parity_platform_to_ui_kit url=http://127.0.0.1:4186/?surface=home&amp;nbPerf=1 projectRoot=. outputZipPath=./nodebench-home-ui-kit.zip
+parity_platform_to_ui_kit url=http://127.0.0.1:4186/?surface=reports&amp;nbPerf=1 projectRoot=. outputZipPath=./nodebench-reports-ui-kit.zip
+parity_platform_to_ui_kit url=http://127.0.0.1:4186/?surface=chat&amp;nbPerf=1 projectRoot=. outputZipPath=./nodebench-chat-ui-kit.zip
+parity_platform_to_ui_kit url=http://127.0.0.1:4186/?surface=inbox&amp;nbPerf=1 projectRoot=. outputZipPath=./nodebench-inbox-ui-kit.zip
+
+Target kit folders:
+ui_kits/nodebench-home/
+ui_kits/nodebench-reports/
+ui_kits/nodebench-mobile-capture/
+ui_kits/nodebench-workspace/</span>
+  </section>
+
+  <section class="section" id="qa">
+    <div class="section-head">
+      <div>
+        <span class="tag">6. QA gates</span>
+        <h2>What must be true before implementation is accepted.</h2>
+        <p class="section-desc">
+          The HTML plan is static, but the product changes it describes need browser proof, runtime proof,
+          and no regression in the live pipeline flow.
+        </p>
+      </div>
+    </div>
+
+    <div class="gates">
+      <div class="gate-card">
+        <h3>Screenshot gate</h3>
+        <ul>
+          <li>Desktop and mobile Home captured.</li>
+          <li>Desktop and mobile Reports captured.</li>
+          <li>Chat, Inbox, and Me captured.</li>
+          <li>Images embedded in this HTML load without a dev server.</li>
+        </ul>
+      </div>
+      <div class="gate-card">
+        <h3>Runtime gate</h3>
+        <ul>
+          <li>Pipeline launcher remains live-wired.</li>
+          <li>Runs panel shows status and output links.</li>
+          <li>Eval scorecard remains connected.</li>
+          <li>No production fixture fallback for live flows.</li>
+        </ul>
+      </div>
+      <div class="gate-card">
+        <h3>Product gate</h3>
+        <ul>
+          <li>First-time user can start from one real-world question.</li>
+          <li>Mobile user sees save/status after capture.</li>
+          <li>Laptop user can inspect sources, claims, notebooks, and exports.</li>
+          <li>Private notes are visibly excluded from public/shared outputs.</li>
+        </ul>
+      </div>
+    </div>
+
+    <span class="code">Required follow-up checks after React implementation:
+
+npx tsc --noEmit --pretty false
+targeted Vitest for touched surfaces
+npm run build
+npm run live-smoke:mobile
+npm run dogfood:full:local -- --routeShards 3
+
+Static HTML verification:
+Open docs/design/NODEBENCH_UI_HIFI_PLAN_2026_05_02.html directly in browser.
+Confirm all screenshot images load and no text overlaps inside frames.</span>
+  </section>
+
+  <p class="footer-note">
+    NodeBench UI HIFI plan. This is a planning artifact only. It does not add a runtime route and does not depend on Parity Studio in production.
+  </p>
+</main>
+</body>
+</html>

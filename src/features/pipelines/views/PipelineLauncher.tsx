@@ -9,8 +9,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { Play, Loader2, Layers, Calendar } from "lucide-react";
+import { Calendar, Layers, Link2, Mic, Paperclip } from "lucide-react";
+import { ExactComposer } from "@/features/designKit/exact/ExactComposer";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
+import {
+  DEFAULT_PIPELINE_MODEL_SELECTION,
+  PIPELINE_MODEL_OPTIONS,
+  getPipelineModelOption,
+  type PipelineModelSelection,
+} from "@/shared/llm/pipelineModelRoutes";
 
 const PIPELINE_KINDS = [
   { value: "research", label: "Research report", advanced: false },
@@ -32,20 +39,19 @@ const COMPOSED_KINDS = new Set<PipelineKindValue>([
   "code_then_design",
 ]);
 
-const MODEL_PRESETS = [
-  { value: "gpt-4o-mini", label: "Fast default" },
-  { value: "openai:gpt-4o", label: "Deeper read" },
-  { value: "anthropic:claude-haiku-4.5", label: "Claude Haiku 4.5" },
-  { value: "google:gemini-3-flash", label: "Gemini 3 Flash" },
-];
+const REPORT_COMPOSER_SUGGESTIONS = [
+  "Research a company",
+  "Capture an event note",
+  "Ask about a person",
+] as const;
 
-const PLACEHOLDER_BY_KIND: Record<string, string> = {
-  research: "Example: Research Orbital Labs and tell me if I should follow up.",
-  code_gen: "Example: Create a small TypeScript helper and include a test.",
-  design_gen: "Example: Make a clean mobile-first landing page for a research tool.",
-  research_then_code: "Example: Compare two libraries, then scaffold a starter with the better fit.",
-  research_then_design: "Example: Research strong SaaS examples, then design the hero and CTA.",
-  code_then_design: "Example: Scaffold a small React board, then polish the design.",
+const REPORT_COMPOSER_PROMPT_BY_SUGGESTION: Record<
+  (typeof REPORT_COMPOSER_SUGGESTIONS)[number],
+  string
+> = {
+  "Research a company": "Research ",
+  "Capture an event note": "I am at an event. Capture this note: ",
+  "Ask about a person": "Find the public footprint for ",
 };
 
 export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
@@ -55,7 +61,9 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
   const [pipelineKind, setPipelineKind] = useState<PipelineKindValue>("research");
   const [spec, setSpec] = useState("");
   const [title, setTitle] = useState("");
-  const [modelId, setModelId] = useState("gpt-4o-mini");
+  const [modelId, setModelId] = useState<PipelineModelSelection>(
+    DEFAULT_PIPELINE_MODEL_SELECTION,
+  );
   const [linkupDepth, setLinkupDepth] = useState<"standard" | "deep">("standard");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -104,6 +112,11 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
         : PIPELINE_KINDS.filter((kind) => !kind.advanced),
     [advancedOpen, isCompact],
   );
+  const selectedKindLabel =
+    PIPELINE_KINDS.find((kind) => kind.value === pipelineKind)?.label ?? "Research report";
+  const selectedModelOption = getPipelineModelOption(modelId);
+  const selectedModelLabel = selectedModelOption.shortLabel;
+  const selectedModelProvider = selectedModelOption.provider;
 
   useEffect(() => {
     if (!advancedOpen && !isCompact && isComposed) {
@@ -111,8 +124,7 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
     }
   }, [advancedOpen, isCompact, isComposed]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitLaunch = async () => {
     if (submitting) return;
     if (!spec.trim()) {
       setFeedback({ kind: "error", message: "Tell NodeBench what to research first." });
@@ -186,275 +198,190 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
     }
   };
 
+  const launcherOptions = (
+    <div className="pipeline-launcher-composer-options">
+      <label className="pipeline-launcher-option-field">
+        <span>Output</span>
+        <select
+          data-testid="pipeline-launcher-kind"
+          value={pipelineKind}
+          onChange={(e) => setPipelineKind(e.target.value as PipelineKindValue)}
+          disabled={submitting}
+        >
+          {visibleKinds.map((kind) => (
+            <option key={kind.value} value={kind.value}>
+              {kind.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="pipeline-launcher-option-field">
+        <span>Route</span>
+        <select
+          data-testid="pipeline-launcher-model"
+          value={modelId}
+          onChange={(e) => setModelId(e.target.value as PipelineModelSelection)}
+          disabled={submitting}
+        >
+          {PIPELINE_MODEL_OPTIONS.map((model) => (
+            <option key={model.value} value={model.value}>
+              {model.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="pipeline-launcher-option-field">
+        <span>Title</span>
+        <input
+          data-testid="pipeline-launcher-title"
+          type="text"
+          placeholder="Auto-derived"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          disabled={submitting}
+          maxLength={120}
+        />
+      </label>
+      {showLinkupDepth ? (
+        <div className="pipeline-launcher-option-pills" aria-label="Search depth">
+          <button
+            type="button"
+            data-testid="pipeline-launcher-depth-standard"
+            data-active={linkupDepth === "standard"}
+            onClick={() => setLinkupDepth("standard")}
+            disabled={submitting}
+          >
+            Standard
+          </button>
+          <button
+            type="button"
+            data-testid="pipeline-launcher-depth-deep"
+            data-active={linkupDepth === "deep"}
+            onClick={() => setLinkupDepth("deep")}
+            disabled={submitting}
+          >
+            Deep refresh
+          </button>
+        </div>
+      ) : null}
+      <label className="pipeline-launcher-schedule-field">
+        <input
+          type="checkbox"
+          data-testid="pipeline-launcher-schedule-toggle"
+          checked={scheduleMode}
+          onChange={(e) => setScheduleMode(e.target.checked)}
+          disabled={submitting || isComposed}
+        />
+        <Calendar className="w-3 h-3" />
+        <span>Refresh automatically</span>
+      </label>
+      {scheduleMode ? (
+        <select
+          data-testid="pipeline-launcher-schedule-cadence"
+          className="pipeline-launcher-cadence"
+          value={scheduleCadence}
+          onChange={(e) =>
+            setScheduleCadence(e.target.value as "once" | "hourly" | "daily" | "weekly")
+          }
+          disabled={submitting}
+        >
+          <option value="once">Once</option>
+          <option value="hourly">Hourly</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+        </select>
+      ) : null}
+      {isComposed ? (
+        <span className="pipeline-launcher-composed-note">
+          <Layers className="w-3 h-3" />
+          Multi-step run saved as separate rows.
+        </span>
+      ) : null}
+    </div>
+  );
+
+  const launcherClassName = [
+    "pipeline-launcher",
+    "pipeline-launcher-chatlike",
+    isCompact ? "pipeline-launcher-compact-golden" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <section
       data-testid="pipeline-launcher"
       data-pipeline-launcher-variant={variant}
       aria-label="Start research"
-      className={`nb-surface-card space-y-3 ${isCompact ? "p-3 pipeline-launcher-compact" : "p-4"}`}
+      className={launcherClassName}
     >
-      <header className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-md bg-emerald-500/15 flex items-center justify-center">
-          <Play className="w-4 h-4 text-emerald-600 dark:text-emerald-300" />
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold text-content">Start research</h3>
-          {isCompact ? (
-            <p className="text-[11px] text-content-muted">
-              Tell NodeBench what to find. It keeps running if you leave.
-            </p>
-          ) : (
-            <p className="text-[11px] text-content-muted">
-              Ask a question, start the run, then come back to sources, status, and exports.
-            </p>
-          )}
-        </div>
-      </header>
-
-      <form onSubmit={handleSubmit} className="space-y-3" data-testid="pipeline-launcher-form">
-        {isCompact ? (
-          <details className="pipeline-launcher-advanced">
-            <summary>Options: {PIPELINE_KINDS.find((k) => k.value === pipelineKind)?.label ?? "Research"} - {linkupDepth === "deep" ? "Deep refresh" : "Standard sources"}</summary>
-            <div className="pipeline-launcher-advanced-body">
-              <label className="flex flex-col gap-1 text-xs text-content-muted">
-                <span>Output type</span>
-                <select
-                  data-testid="pipeline-launcher-kind"
-                  className="bg-surface border border-edge rounded-md text-xs px-2 py-1.5 text-content"
-                  value={pipelineKind}
-                  onChange={(e) => setPipelineKind(e.target.value as PipelineKindValue)}
-                  disabled={submitting}
-                >
-                  {visibleKinds.map((k) => (
-                    <option key={k.value} value={k.value}>
-                      {k.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {showLinkupDepth ? (
-                <div className="flex items-center gap-2 text-[11px] text-content-muted flex-wrap">
-                  <span>Search depth</span>
-                  <button
-                    type="button"
-                    data-testid="pipeline-launcher-depth-standard"
-                    onClick={() => setLinkupDepth("standard")}
-                    className={`px-2 py-0.5 rounded-full border ${
-                      linkupDepth === "standard"
-                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
-                        : "border-edge"
-                    }`}
-                    disabled={submitting}
-                  >
-                    Standard
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="pipeline-launcher-depth-deep"
-                    onClick={() => setLinkupDepth("deep")}
-                    className={`px-2 py-0.5 rounded-full border ${
-                      linkupDepth === "deep"
-                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
-                        : "border-edge"
-                    }`}
-                    disabled={submitting}
-                  >
-                    Deep
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </details>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <label className="flex flex-col gap-1 text-xs text-content-muted">
-              <span>Output type</span>
-              <select
-                data-testid="pipeline-launcher-kind"
-                className="bg-surface border border-edge rounded-md text-xs px-2 py-1.5 text-content"
-                value={pipelineKind}
-                onChange={(e) => setPipelineKind(e.target.value as PipelineKindValue)}
-                disabled={submitting}
-              >
-                {visibleKinds.map((k) => (
-                  <option key={k.value} value={k.value}>
-                    {k.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {advancedOpen ? (
-            <>
-              <label className="flex flex-col gap-1 text-xs text-content-muted">
-                <span>Model</span>
-                <select
-                  data-testid="pipeline-launcher-model"
-                  className="bg-surface border border-edge rounded-md text-xs px-2 py-1.5 text-content"
-                  value={modelId}
-                  onChange={(e) => setModelId(e.target.value)}
-                  disabled={submitting}
-                >
-                  {MODEL_PRESETS.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-xs text-content-muted md:col-span-1">
-                <span>Title (optional)</span>
-                <input
-                  data-testid="pipeline-launcher-title"
-                  type="text"
-                  placeholder="Auto-derived if blank"
-                  className="bg-surface border border-edge rounded-md text-xs px-2 py-1.5 text-content"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  disabled={submitting}
-                  maxLength={120}
-                />
-              </label>
-            </>
-            ) : null}
-          </div>
-        )}
-
-        {!isCompact ? (
-          <details
-            className="pipeline-launcher-advanced"
-            open={advancedOpen}
-            onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
-          >
-            <summary>Advanced controls</summary>
-            <div className="pipeline-launcher-advanced-body">
-              {showLinkupDepth ? (
-                <div className="flex items-center gap-2 text-[11px] text-content-muted flex-wrap">
-                  <span>Search depth</span>
-                  <button
-                    type="button"
-                    data-testid="pipeline-launcher-depth-standard"
-                    onClick={() => setLinkupDepth("standard")}
-                    className={`px-2 py-0.5 rounded-full border ${
-                      linkupDepth === "standard"
-                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
-                        : "border-edge"
-                    }`}
-                    disabled={submitting}
-                  >
-                    Standard sources
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="pipeline-launcher-depth-deep"
-                    onClick={() => setLinkupDepth("deep")}
-                    className={`px-2 py-0.5 rounded-full border ${
-                      linkupDepth === "deep"
-                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
-                        : "border-edge"
-                    }`}
-                    disabled={submitting}
-                  >
-                    Deep refresh
-                  </button>
-                </div>
-              ) : null}
-              {isComposed ? (
-                <div className="flex items-center gap-1.5 text-[11px] text-content-muted">
-                  <Layers className="w-3 h-3" />
-                  <span>Multi-step run: research and generation are saved as separate rows.</span>
-                </div>
-              ) : null}
-              <div className="flex items-center gap-3 flex-wrap text-[11px] text-content-muted">
-                <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    data-testid="pipeline-launcher-schedule-toggle"
-                    checked={scheduleMode}
-                    onChange={(e) => setScheduleMode(e.target.checked)}
-                    disabled={submitting || isComposed}
-                    className="h-3 w-3"
-                  />
-                  <Calendar className="w-3 h-3" />
-                  <span>Refresh automatically</span>
-                </label>
-                {scheduleMode ? (
-                  <select
-                    data-testid="pipeline-launcher-schedule-cadence"
-                    className="bg-surface border border-edge rounded-md text-xs px-2 py-0.5 text-content"
-                    value={scheduleCadence}
-                    onChange={(e) =>
-                      setScheduleCadence(
-                        e.target.value as "once" | "hourly" | "daily" | "weekly",
-                      )
-                    }
-                    disabled={submitting}
-                  >
-                    <option value="once">Once</option>
-                    <option value="hourly">Hourly</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                  </select>
-                ) : null}
-              </div>
-            </div>
-          </details>
-        ) : null}
-
-        <label className="flex flex-col gap-1 text-xs text-content-muted">
-          <span>What should NodeBench find out?</span>
-          <textarea
-            data-testid="pipeline-launcher-spec"
-            className={`bg-surface border border-edge rounded-md text-xs px-2 py-2 text-content resize-y ${isCompact ? "min-h-[68px]" : "min-h-[88px]"}`}
-            placeholder={PLACEHOLDER_BY_KIND[pipelineKind]}
-            value={spec}
-            onChange={(e) => setSpec(e.target.value)}
-            disabled={submitting}
-            maxLength={4000}
-          />
-          <span className="text-[10px] text-content-muted self-end">
-            {spec.length} / 4000
-          </span>
-        </label>
-
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="text-[11px] text-content-muted">
-            Runs in the background. Safe to leave this page.
-            {loggedInUser?._id ? (
-              <span data-testid="pipeline-launcher-owner-signedin"> {isCompact ? "Saved to workspace." : ownerLabel}</span>
-            ) : (
-              <span data-testid="pipeline-launcher-owner-anon"> {isCompact ? "Saved in this browser." : ownerLabel}</span>
-            )}
-          </div>
-          <button
-            type="submit"
-            data-testid="pipeline-launcher-submit"
-            disabled={submitting || !spec.trim()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-500 text-white text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-600"
-          >
-            {submitting ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Play className="w-3.5 h-3.5" />
-            )}
-            {submitting ? "Starting..." : "Run research"}
-          </button>
-        </div>
-
-        {feedback ? (
-          <p
-            data-testid={
-              feedback.kind === "ok" ? "pipeline-launcher-success" : "pipeline-launcher-error"
-            }
-            className={`text-[11px] ${
-              feedback.kind === "ok"
-                ? "text-emerald-700 dark:text-emerald-300"
-                : "text-red-700 dark:text-red-300"
-            }`}
-          >
-            {feedback.message}
-          </p>
-        ) : null}
-      </form>
+      <ExactComposer
+        as="form"
+        innerClassName="pipeline-launcher-composer-inner"
+        cardClassName="pipeline-launcher-form"
+        cardTestId="pipeline-launcher-form"
+        value={spec}
+        onValueChange={setSpec}
+        onSubmit={submitLaunch}
+        placeholder="Ask, capture, paste, upload, or record..."
+        ariaLabel="Ask for a report"
+        inputTestId="pipeline-launcher-spec"
+        inputClassName="pipeline-launcher-composer-input"
+        maxLength={4000}
+        disabled={submitting}
+        submitting={submitting}
+        submitDisabled={!spec.trim()}
+        submitTestId="pipeline-launcher-submit"
+        pins={[
+          {
+            kind: "Report",
+            label: selectedKindLabel,
+            onClick: () => setAdvancedOpen(true),
+            ariaLabel: "Choose output type",
+            title: "Choose output type",
+          },
+        ]}
+        addPinLabel="Add context"
+        addPinExpanded={advancedOpen}
+        onAddPin={() => setAdvancedOpen((open) => !open)}
+        tools={[
+          { key: "attach", label: "Attach file", icon: <Paperclip size={14} /> },
+          { key: "url", label: "Add URL", icon: <Link2 size={14} /> },
+          { key: "voice", label: "Voice note", icon: <Mic size={14} /> },
+        ]}
+        modelLabel={selectedModelLabel}
+        modelTitle="Model"
+        modelProvider={selectedModelProvider}
+        onModelClick={() => setAdvancedOpen(true)}
+        footerMeta={
+          selectedModelOption.isFree
+            ? "Memory-first - free route"
+            : "Memory-first - auto route"
+        }
+        options={advancedOpen ? launcherOptions : null}
+        suggestions={[...REPORT_COMPOSER_SUGGESTIONS]}
+        onSuggestion={(suggestion) => {
+          if (suggestion in REPORT_COMPOSER_PROMPT_BY_SUGGESTION) {
+            setSpec(
+              REPORT_COMPOSER_PROMPT_BY_SUGGESTION[
+                suggestion as (typeof REPORT_COMPOSER_SUGGESTIONS)[number]
+              ],
+            );
+          }
+        }}
+      />
+      {feedback ? (
+        <p
+          data-testid={
+            feedback.kind === "ok" ? "pipeline-launcher-success" : "pipeline-launcher-error"
+          }
+          className={`pipeline-launcher-feedback ${
+            feedback.kind === "ok" ? "pipeline-launcher-success" : "pipeline-launcher-error"
+          }`}
+        >
+          {feedback.message}
+        </p>
+      ) : null}
     </section>
   );
 };

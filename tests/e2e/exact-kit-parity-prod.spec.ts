@@ -78,6 +78,7 @@ test("PR A8: Chat renders ExactChatSurface ChatStream (full conversation thread)
     entityPills: document.querySelectorAll(".nb-epill").length,
     followupChips: document.querySelectorAll(".nb-followup-chip").length,
     composerCard: !!document.querySelector(".nb-composer-card"),
+    goldenComposer: !!document.querySelector('[data-exact-composer="golden"][data-exact-composer-version="2026-05-02"]'),
     composerPin: !!document.querySelector(".nb-composer-pins .nb-pin"),
     composerInput: !!document.querySelector(".nb-composer-input"),
     composerSendButton: !!document.querySelector(".nb-composer-send"),
@@ -98,10 +99,11 @@ test("PR A8: Chat renders ExactChatSurface ChatStream (full conversation thread)
   expect(result.entityPills, "inline entity pills").toBeGreaterThan(0);
   expect(result.followupChips, "follow-up chips").toBeGreaterThan(0);
   expect(result.composerCard).toBe(true);
+  expect(result.goldenComposer, "shared golden composer contract").toBe(true);
   expect(result.composerPin, "Ship Demo Day pin").toBe(true);
   expect(result.composerInput).toBe(true);
   expect(result.suggestChips, "3 suggest chips").toBeGreaterThanOrEqual(3);
-  expect(result.modelPill, "Claude Sonnet 4.5 pill").toBe(true);
+  expect(result.modelPill, "model route pill").toBe(true);
 });
 
 test("PR A2: Reports renders ExactReportsSurface card grid", async ({ page }) => {
@@ -111,12 +113,48 @@ test("PR A2: Reports renders ExactReportsSurface card grid", async ({ page }) =>
     rcards: document.querySelectorAll(".nb-rcard").length,
     exactCards: document.querySelectorAll('[data-exact-testid="exact-report-card"]').length,
     actionRows: document.querySelectorAll('[data-testid="report-card-actions"]').length,
+    launcherGoldenComposer: !!document.querySelector('[data-testid="pipeline-launcher"] [data-exact-composer="golden"]'),
+    launcherModelPill: !!document.querySelector('[data-testid="pipeline-launcher"] .nb-model-trigger'),
+    launcherModelPillText: document
+      .querySelector('[data-testid="pipeline-launcher"] .nb-model-trigger')
+      ?.textContent?.trim(),
+    launcherSuggestChips: document.querySelectorAll('[data-testid="pipeline-launcher"] .nb-prompt-chip').length,
+    launcherPlaceholder: document
+      .querySelector('[data-testid="pipeline-launcher"] .nb-composer-input')
+      ?.getAttribute("placeholder"),
+    launcherAddContext: !!Array.from(
+      document.querySelectorAll('[data-testid="pipeline-launcher"] .nb-pin-add'),
+    ).find((node) => node.textContent?.includes("Add context")),
+    launcherFooterMeta: document
+      .querySelector('[data-testid="pipeline-launcher"] .nb-composer-meta')
+      ?.textContent?.trim(),
+    launcherTopModelPins: Array.from(
+      document.querySelectorAll('[data-testid="pipeline-launcher"] .nb-composer-pins .typ'),
+    ).filter((node) => node.textContent?.trim().toLowerCase() === "model").length,
   }));
   console.log("REPORTS:", JSON.stringify(result, null, 2));
   expect(result.grid).toBe(true);
   expect(result.rcards).toBeGreaterThan(0);
   expect(result.exactCards).toBeGreaterThan(0);
   expect(result.actionRows).toBeGreaterThan(0);
+  expect(result.launcherGoldenComposer, "Reports uses shared golden composer").toBe(true);
+  expect(result.launcherPlaceholder, "Reports uses golden composer placeholder").toBe(
+    "Ask, capture, paste, upload, or record...",
+  );
+  expect(result.launcherAddContext, "Reports keeps the golden + Add context affordance").toBe(true);
+  expect(result.launcherFooterMeta, "Reports keeps the golden memory/cost footer").toBe(
+    "Memory-first - auto route",
+  );
+  expect(result.launcherModelPill, "Reports model control lives in composer footer").toBe(true);
+  expect(result.launcherModelPillText, "Reports defaults to the route selector").toContain(
+    "Auto balanced",
+  );
+  expect(result.launcherTopModelPins, "Reports does not add a top-row model settings pin").toBe(0);
+  expect(result.launcherSuggestChips, "Reports keeps golden suggestion chips").toBeGreaterThanOrEqual(3);
+  await page.locator('[data-testid="pipeline-launcher"] .nb-model-trigger').filter({ visible: true }).click();
+  await expect(
+    page.locator('[data-testid="pipeline-launcher-model"]').filter({ visible: true }),
+  ).toContainText("Auto free");
 });
 
 test("PR A1: Inbox renders ExactInboxSurface single-column rows", async ({ page }) => {

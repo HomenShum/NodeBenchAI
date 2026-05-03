@@ -125,7 +125,7 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
     await expect(meSurface.getByRole("button", { name: /Starred threads/i })).toBeVisible();
   });
 
-  test("Reports surface — mobile mounts live pipeline controls and report tabs", async ({ page }) => {
+  test("Reports surface — mobile mounts live pipeline controls and report cards", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (err) => errors.push(err.message));
     page.on("console", (msg) => {
@@ -137,11 +137,21 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
     const pipelineBlock = reportsSurface.locator('[data-testid="mobile-reports-pipeline-block"]');
     await expect(reportsSurface).toBeVisible({ timeout: 20_000 });
     await expect(pipelineBlock).toBeVisible();
-    await expect(pipelineBlock.getByText(/Start or check research/i)).toBeVisible();
-    await expect(pipelineBlock.getByRole("tab", { name: /^Start$/ })).toHaveAttribute("data-active", "true");
+    await expect(reportsSurface.locator(".m-title")).toHaveText("Reports");
+    await expect(pipelineBlock.getByText(/Background safe/i)).toBeVisible();
+    await expect(pipelineBlock.getByText(/Start or check research/i)).toHaveCount(0);
     await expect(pipelineBlock.getByRole("tab", { name: /^Runs$/ })).toBeVisible();
     await expect(pipelineBlock.getByRole("tab", { name: /^Quality$/ })).toBeVisible();
-    await expect(pipelineBlock.getByText(/Start research/i).first()).toBeVisible();
+    await expect(pipelineBlock.getByRole("tab", { name: /^Refreshes$/ })).toBeVisible();
+    await expect(pipelineBlock.locator('[data-exact-composer="golden"]')).toBeVisible();
+    await expect(
+      pipelineBlock.locator('[data-testid="pipeline-launcher"] .nb-composer-input'),
+    ).toHaveAttribute("placeholder", "Ask, capture, paste, upload, or record...");
+    await expect(pipelineBlock.locator('[data-testid="pipeline-launcher"] .nb-model-trigger')).toBeVisible();
+    await expect(pipelineBlock.locator('[data-testid="pipeline-launcher"] .nb-model-trigger')).toContainText("Auto balanced");
+    await expect(pipelineBlock.locator('[data-testid="pipeline-launcher"] .nb-prompt-chip')).toHaveCount(3);
+    await expect(pipelineBlock.getByText(/What should NodeBench find out/i)).toHaveCount(0);
+    await expect(pipelineBlock.getByText(/Options:/i)).toHaveCount(0);
     await expect(pipelineBlock.getByText(/Run a pipeline/i)).toHaveCount(0);
     await expect(pipelineBlock.getByText(/Run pipeline/i)).toHaveCount(0);
     await expect(pipelineBlock.getByText(/idempotent|@convex-dev/i)).toHaveCount(0);
@@ -155,6 +165,7 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
     await expect(pipelineBlock.locator('[data-testid="reports-pipelines-panel-slot"]')).toHaveCount(0);
     await expect(pipelineBlock.locator('[data-testid="reports-pipeline-eval-slot"]')).toHaveCount(0);
     await pipelineBlock.getByRole("tab", { name: /^Runs$/ }).click();
+    await expect(pipelineBlock.getByRole("tab", { name: /^Runs$/ })).toHaveAttribute("data-active", "true");
     await expect(pipelineBlock.locator('[data-testid="reports-pipelines-panel-slot"]')).toBeVisible();
     await expect(pipelineBlock.locator('[data-testid="pipeline-runs-panel"], [data-testid="pipeline-runs-empty"]')).toBeVisible();
     await expect(
@@ -170,9 +181,17 @@ test.describe("live-smoke-mobile — Tier B (iPhone 14 viewport)", () => {
       ),
     ).toBeVisible();
     await expect(pipelineBlock.locator('[data-testid="pipeline-schedules-panel"]')).toHaveCount(0);
-    await expect(reportsSurface.getByRole("button", { name: /^Brief$/ })).toBeVisible();
-    await expect(reportsSurface.getByRole("button", { name: /^Sources$/ })).toBeVisible();
-    await expect(reportsSurface.getByRole("button", { name: /^Notebook$/ })).toBeVisible();
+    await pipelineBlock.getByRole("tab", { name: /^Refreshes$/ }).click();
+    await expect(pipelineBlock.locator('[data-testid="reports-pipeline-schedules-slot"]')).toBeVisible();
+    await expect(pipelineBlock.locator('[data-testid="pipeline-schedules-panel"], [data-testid="pipeline-schedules-empty"]')).toBeVisible();
+    await expect(reportsSurface.getByRole("button", { name: /^Brief$/ })).toHaveCount(0);
+    await expect(reportsSurface.getByRole("button", { name: /^Sources$/ })).toHaveCount(0);
+    await expect(reportsSurface.getByRole("button", { name: /^Notebook$/ })).toHaveCount(0);
+    await expect(reportsSurface.locator('[data-testid="mobile-reports-card-list"]')).toBeVisible();
+    await expect(reportsSurface.locator('[data-testid="mobile-report-card"]')).toHaveCount(5);
+    await expect(reportsSurface.locator('[data-testid="mobile-report-card"]').first()).toContainText(
+      "DISCO - diligence debrief",
+    );
 
     const noHorizontalOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,

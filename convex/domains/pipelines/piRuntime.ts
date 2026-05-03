@@ -33,6 +33,7 @@
 
 export type PiProviderId =
   | "openai"
+  | "openrouter"
   | "anthropic"
   | "google"
   | "google-vertex"
@@ -47,6 +48,8 @@ export type PiProviderId =
 export interface PiModelHandle {
   providerId: PiProviderId;
   modelId: string;
+  requestedModelId: string;
+  resolvedAlias?: string;
   /** Underlying pi-ai Model — `unknown` because the type isn't exposed. */
   raw: unknown;
 }
@@ -116,17 +119,50 @@ async function loadPiAi(): Promise<{
   }
 }
 
-function parseModelKey(input: string): { provider: PiProviderId; modelId: string } {
+function parseRawModelKey(input: string): {
+  provider: PiProviderId;
+  modelId: string;
+  requestedModelId: string;
+  resolvedAlias?: string;
+} {
   const idx = input.indexOf(":");
   if (idx > 0 && idx < input.length - 1) {
     return {
       provider: input.slice(0, idx) as PiProviderId,
       modelId: input.slice(idx + 1),
+      requestedModelId: input,
     };
   }
-  if (input.startsWith("claude")) return { provider: "anthropic", modelId: input };
-  if (input.startsWith("gemini")) return { provider: "google", modelId: input };
-  return { provider: "openai", modelId: input };
+  if (input.startsWith("claude")) {
+    return { provider: "anthropic", modelId: input, requestedModelId: input };
+  }
+  if (input.startsWith("gemini")) {
+    return { provider: "google", modelId: input, requestedModelId: input };
+  }
+  return { provider: "openai", modelId: input, requestedModelId: input };
+}
+
+async function parseModelKey(input: string): Promise<{
+  provider: PiProviderId;
+  modelId: string;
+  requestedModelId: string;
+  resolvedAlias?: string;
+}> {
+  try {
+    const { getModelSpec, resolvePipelineModelSelection } = await import(
+      "../agents/mcp_tools/models/modelResolver"
+    );
+    const selection = resolvePipelineModelSelection(input);
+    const spec = getModelSpec(selection.resolvedModelId);
+    return {
+      provider: spec.provider as PiProviderId,
+      modelId: spec.sdkId,
+      requestedModelId: selection.requestedModelId,
+      resolvedAlias: selection.resolvedModelId,
+    };
+  } catch {
+    return parseRawModelKey(input);
+  }
 }
 
 /**
@@ -136,11 +172,11 @@ function parseModelKey(input: string): { provider: PiProviderId; modelId: string
 export async function resolvePiModel(input: string): Promise<PiModelHandle | null> {
   const lib = await loadPiAi();
   if (!lib) return null;
-  const { provider, modelId } = parseModelKey(input);
+  const { provider, modelId, requestedModelId, resolvedAlias } = await parseModelKey(input);
   try {
     const raw = lib.getModel(provider, modelId);
     if (!raw) return null;
-    return { providerId: provider, modelId, raw };
+    return { providerId: provider, modelId, requestedModelId, resolvedAlias, raw };
   } catch (e) {
     console.warn(
       `[piRuntime] resolvePiModel(${input}) failed: ${e instanceof Error ? e.message : String(e)}`,
@@ -352,8 +388,8 @@ export async function runPiCompletionStreamed(args: PiStreamArgs): Promise<PiRun
  * Lets pipelines ship green even before the dep lands.
  *
  * Catches: pi_ai_not_installed, pi_ai_model_not_resolved, pi_ai_error
- * with no provider key set. Real provider errors (rate limit, 5xx)
- * still surface so HONEST_STATUS holds.
+ * with no provider key set, and transient upstream failures that can move
+ * to the approved model fallback chain while preserving HONEST_STATUS.
  */
 export async function runPiOrAiSdkCompletion(args: PiRunArgs): Promise<PiRunResult> {
   try {
@@ -367,23 +403,40 @@ export async function runPiOrAiSdkCompletion(args: PiRunArgs): Promise<PiRunResu
       // running on AI-SDK-only env (Convex without pi-ai keys) succeed.
       (code === "pi_ai_error" &&
         typeof (e as any).message === "string" &&
-        /api[_ ]?key|unauthorized|401/i.test((e as any).message));
+        /api[_ ]?key|unauthorized|401|rate.?limit|429|502|503|504|temporar/i.test((e as any).message));
     if (!isFallback) throw e;
 
     // Fallback: AI SDK path.
     const ai = await import("ai");
-    const { getLanguageModelSafe } = await import(
+    const {
+      executeWithModelFallback,
+      getModelSpec,
+      resolvePipelineModelSelection,
+    } = await import(
       "../agents/mcp_tools/models/modelResolver"
     );
-    const model = getLanguageModelSafe(args.model);
-    const result = await ai.generateText({
-      model,
-      prompt: args.prompt,
-      system: args.system,
-      temperature: args.temperature ?? 0.4,
-      maxOutputTokens: Math.max(16, Math.min(args.maxOutputTokens ?? 2048, 8192)),
-      abortSignal: args.signal,
-    });
+    const selection = resolvePipelineModelSelection(args.model);
+    const fallback = await executeWithModelFallback(
+      async (model) =>
+        ai.generateText({
+          model,
+          prompt: args.prompt,
+          system: args.system,
+          temperature: args.temperature ?? 0.4,
+          maxOutputTokens: Math.max(16, Math.min(args.maxOutputTokens ?? 2048, 8192)),
+          abortSignal: args.signal,
+        }),
+      {
+        startModel: selection.resolvedModelId,
+        onFallback: (fromModel, toModel, error) => {
+          console.warn(
+            `[piRuntime] AI SDK fallback moved ${fromModel} -> ${toModel}: ${error.message}`,
+          );
+        },
+      },
+    );
+    const result = fallback.result;
+    const spec = getModelSpec(fallback.modelUsed);
     return {
       text: result.text,
       usage: {
@@ -391,13 +444,18 @@ export async function runPiOrAiSdkCompletion(args: PiRunArgs): Promise<PiRunResu
         outputTokens: result.usage?.outputTokens ?? 0,
         estimatedUsd: 0,
       },
-      modelId: args.model,
-      providerId: "openai",
+      modelId: fallback.modelUsed,
+      providerId: spec.provider as PiProviderId,
       stopReason: typeof result.finishReason === "string" ? result.finishReason : "unknown",
-      scratchpad: JSON.stringify({ aiSdkFallback: true, finishReason: result.finishReason }).slice(
-        0,
-        32_000,
-      ),
+      scratchpad: JSON.stringify({
+        aiSdkFallback: true,
+        requestedModelId: selection.requestedModelId,
+        resolvedModelId: selection.resolvedModelId,
+        modelUsed: fallback.modelUsed,
+        isFree: fallback.isFree,
+        fallbacksUsed: fallback.fallbacksUsed,
+        finishReason: result.finishReason,
+      }).slice(0, 32_000),
     };
   }
 }

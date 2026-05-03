@@ -43,6 +43,7 @@ export const runPipelineWorkflow = workflowManager.define({
     modelId: v.optional(v.string()),
     ownerKey: v.optional(v.string()),
     forceFresh: v.optional(v.boolean()),
+    linkupDepth: v.optional(v.union(v.literal("standard"), v.literal("deep"))),
   },
   handler: async (
     step,
@@ -108,6 +109,7 @@ export const runPipelineWorkflow = workflowManager.define({
         modelId: args.modelId,
         ownerKey: args.ownerKey,
         forceFresh: args.forceFresh,
+        linkupDepth: args.linkupDepth,
       },
       { retry },
     );
