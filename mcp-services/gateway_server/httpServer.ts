@@ -146,6 +146,10 @@ function inferClientVersion(req: http.IncomingMessage): string | undefined {
   return firstHeader(req.headers["x-nodebench-client-version"])?.slice(0, 80);
 }
 
+function inferClientInstanceId(req: http.IncomingMessage): string | undefined {
+  return firstHeader(req.headers["x-nodebench-client-id"])?.slice(0, 160);
+}
+
 function buildAccountKey(input: {
   req: http.IncomingMessage;
   profileName: ToolProfileName;
@@ -159,10 +163,14 @@ function buildAccountKey(input: {
   }
 
   if (input.authMode === "anonymous") {
+    const clientInstanceId = inferClientInstanceId(input.req);
+    if (clientInstanceId) {
+      return `anon-client:${input.profileName}:${shortHash(clientInstanceId)}`;
+    }
+
     const publicRequesterBasis = [
       input.profileName,
-      input.forwardedFor?.split(",")[0]?.trim() ?? "",
-      input.remoteIp ?? "",
+      inferClientName(input.req) ?? "",
       firstHeader(input.req.headers["origin"]) ?? "",
       firstHeader(input.req.headers["user-agent"]) ?? "",
     ].join("|");
@@ -344,7 +352,7 @@ const server = http.createServer(async (req, res) => {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers":
-        "Content-Type, Accept, Authorization, x-mcp-token, x-mcp-profile, x-nodebench-profile, x-nodebench-client, x-nodebench-client-version, x-request-id",
+        "Content-Type, Accept, Authorization, x-mcp-token, x-mcp-profile, x-nodebench-profile, x-nodebench-client, x-nodebench-client-version, x-nodebench-client-id, x-request-id",
     });
     res.end();
     return;
@@ -481,6 +489,7 @@ const server = http.createServer(async (req, res) => {
               accountKey,
               clientName: inferClientName(req),
               clientVersion: inferClientVersion(req),
+              clientInstanceId: inferClientInstanceId(req),
               origin: firstHeader(req.headers["origin"]),
               externalUserAgent: firstHeader(req.headers["user-agent"]),
               tokenAuthEnabled: tokenConfig.tokens.size > 0,

@@ -254,6 +254,17 @@ function estimateToolCost(input: {
     "nodebench.claims.verify": 3,
     "nodebench.watch_entity": 1,
     "nodebench.link_private_signal_to_public_entity": 1,
+    resolveEntity: 1,
+    searchPublicSources: 5,
+    researchCompany: 12,
+    researchPerson: 12,
+    researchRole: 14,
+    getEntityDossier: 1,
+    getContextPack: 2,
+    submitPublicClaim: 2,
+    verifyPublicClaims: 3,
+    watchEntity: 1,
+    linkPrivateSignalToPublicEntity: 1,
   };
 
   const defaultUnitsByRisk: Record<RiskTier, number> = {

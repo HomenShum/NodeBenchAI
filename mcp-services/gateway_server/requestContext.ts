@@ -10,6 +10,7 @@ export type GatewayRequestContext = {
   accountKey?: string;
   clientName?: string;
   clientVersion?: string;
+  clientInstanceId?: string;
   origin?: string;
   externalUserAgent?: string;
   tokenAuthEnabled?: boolean;

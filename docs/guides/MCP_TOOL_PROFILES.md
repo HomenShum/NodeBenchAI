@@ -96,7 +96,10 @@ Recommended client headers:
 ```http
 x-nodebench-client: gmail-dashboard
 x-nodebench-client-version: 1.0.0
+x-nodebench-client-id: stable-install-or-workspace-id
 ```
+
+`x-nodebench-client-id` is optional but recommended. It gives anonymous public-profile clients stable usage attribution without requiring a NodeBench login or token. Do not put private email text, resume text, API keys, or other sensitive data in this header.
 
 For operations views, use Convex:
 
