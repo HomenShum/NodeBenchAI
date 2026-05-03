@@ -28,8 +28,19 @@ on:
   pull_request:
     branches:
       - main
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
   workflow_dispatch:
     inputs:
+      pr_number:
+        description: "PR number to inspect for changed files when running manually"
+        required: false
+      head_ref:
+        description: "Head branch to poll in Vercel when running manually"
+        required: false
+      head_sha:
+        description: "Head SHA to prefer when running manually"
+        required: false
       preview_url:
         description: "Override preview URL (skip Vercel polling)"
         required: false
@@ -39,7 +50,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: tier-b-preview-${{ github.ref }}
+  group: tier-b-preview-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -65,8 +76,18 @@ jobs:
           # touch any path Vercel actually serves, no preview will ever exist.
           # Don't block such PRs (docs-only, .github/-only, etc.).
           BUILD_RELEVANT=(src convex packages apps public server shared api scripts/vercel-build.sh vercel.json package.json package-lock.json tsconfig.json tsconfig.node.json vite.config.ts vite.config.mjs index.html)
+          if [ -n "${OVERRIDE_URL:-}" ]; then
+            echo "has_relevant=true" >> "$GITHUB_OUTPUT"
+            echo "Manual preview URL supplied; running Tier B against it."
+            exit 0
+          fi
+          if [ -z "${PR_NUMBER:-}" ]; then
+            echo "has_relevant=true" >> "$GITHUB_OUTPUT"
+            echo "No PR number available for changed-file detection; assuming relevant."
+            exit 0
+          fi
           # Get changed files for this PR
-          CHANGED=$(gh pr diff ${{ github.event.pull_request.number }} --name-only 2>/dev/null || echo "")
+          CHANGED=$(gh pr diff "$PR_NUMBER" --name-only 2>/dev/null || echo "")
           if [ -z "$CHANGED" ]; then
             # Fallback: if we can't get the diff, assume relevant
             echo "has_relevant=true" >> "$GITHUB_OUTPUT"
@@ -84,6 +105,8 @@ jobs:
           echo "::notice::PR touches no build-relevant paths — Vercel will not build a preview, Tier B skipped."
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+          OVERRIDE_URL: ${{ github.event.inputs.preview_url }}
 
       - name: Resolve Vercel preview URL
         id: preview
@@ -92,8 +115,8 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
-          GITHUB_REF: ${{ github.event.pull_request.head.ref }}
+          GITHUB_SHA: ${{ github.event.pull_request.head.sha || github.event.inputs.head_sha || github.sha }}
+          GITHUB_REF: ${{ github.event.pull_request.head.ref || github.event.inputs.head_ref || github.ref_name }}
           OVERRIDE_URL: ${{ github.event.inputs.preview_url }}
         run: |
           if [ -n "$OVERRIDE_URL" ]; then
@@ -149,13 +172,28 @@ jobs:
                   // Prefer the deployment whose meta.githubCommitSha matches.
                   // Otherwise pick the most-recent terminal deployment for the branch
                   // (Vercel may have rebuilt with a different SHA after rebase/merge).
-                  const exactMatch = deployments.find(d => {
+                  const state = (d) => d.readyState || d.state;
+                  const exactReady = deployments.find(d => {
                     const m = d.meta || {};
-                    return (m.githubCommitSha === sha || m.commitSha === sha) && isTerminal(d);
+                    return (m.githubCommitSha === sha || m.commitSha === sha) && state(d) === 'READY';
                   });
-                  const dep = exactMatch || deployments.find(isTerminal);
+                  const exactError = deployments.find(d => {
+                    const m = d.meta || {};
+                    return (m.githubCommitSha === sha || m.commitSha === sha) && state(d) === 'ERROR';
+                  });
+                  // If the latest exact SHA was ignored because it is docs-only
+                  // but the branch already has a READY preview from the previous
+                  // app commit, run against that preview instead of skipping.
+                  const branchReady = deployments.find(d => state(d) === 'READY');
+                  const exactCanceled = deployments.find(d => {
+                    const m = d.meta || {};
+                    return (m.githubCommitSha === sha || m.commitSha === sha) && state(d) === 'CANCELED';
+                  });
+                  const branchError = deployments.find(d => state(d) === 'ERROR');
+                  const branchCanceled = deployments.find(d => state(d) === 'CANCELED');
+                  const dep = exactReady || exactError || branchReady || exactCanceled || branchError || branchCanceled;
                   if (dep) {
-                    const st = dep.readyState || dep.state;
+                    const st = state(dep);
                     if (st === 'READY') console.log('READY:https://' + dep.url);
                     else if (st === 'CANCELED') console.log('CANCELED:vercel-marked-ignored');
                     else if (st === 'ERROR') console.log('ERROR:vercel-build-failed');
@@ -192,6 +230,12 @@ jobs:
       - name: Install Playwright browsers
         if: steps.preview.outputs.preview_status == 'ready'
         run: npx playwright install --with-deps chromium
+
+      - name: Tier B summary
+        if: always()
+        run: |
+          echo "preview_status=${{ steps.preview.outputs.preview_status || 'not_resolved' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "preview_url=${{ steps.preview.outputs.url || 'none' }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run Tier B regression + one-flow regression against preview
         if: steps.preview.outputs.preview_status == 'ready'

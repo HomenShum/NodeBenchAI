@@ -4,6 +4,8 @@ on:
   pull_request:
     branches:
       - main
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
   workflow_dispatch:
     inputs:
       target:
@@ -20,7 +22,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: vercel-preflight-${{ github.ref }}
+  group: vercel-preflight-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
