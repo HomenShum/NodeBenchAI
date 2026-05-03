@@ -151,18 +151,45 @@ function privateBoundaryStatus(claim: string, evidence: string): "clean" | "priv
 function isPublicLatestSafeEntity(entityKey: string, entityName: string): boolean {
   const normalizedName = normalizeName(entityName).replace(/\u2019/g, "'");
   const normalizedKey = entityKey.toLowerCase();
+  const wordCount = normalizedName.split(/\s+/).filter(Boolean).length;
   if (!normalizedName || normalizedName === "unknown entity") return false;
   if (/^(re|fw|fwd):\s/.test(normalizedName)) return false;
-  if (normalizedKey.startsWith("role:re-")) return false;
+  if (/^(ver|voir|view|apply)\s/.test(normalizedName)) return false;
+  if (normalizedKey.startsWith("role:re-") || normalizedKey.startsWith("role:ver-")) return false;
   if (
-    /\b(gmail|inbox|email thread|recruiter email|pinned resume|private artifact|no-reply|noreply)\b/.test(normalizedName)
+    /\b(gmail|inbox|email thread|recruiter email|pinned resume|private artifact|no-reply|noreply|homen)\b/.test(normalizedName)
   ) {
     return false;
   }
-  if (/\b(great opportunity|the posting here|a fantastic)\b/.test(normalizedName)) return false;
+  if (/\b(great opportunity|the posting here|a fantastic|happy monday|apply to|with no fee|from march|master of financial)\b/.test(normalizedName)) return false;
   if (/\bfrom [a-z0-9 ._-]{2,80}'s\b/.test(normalizedName)) return false;
-  if (normalizedName.length > 96 && /\b(role|opportunity|engineer|recruiter|hiring)\b/.test(normalizedName)) {
+  if (normalizedName.length > 72 && /\b(role|opportunity|engineer|recruiter|hiring|founder|cto|apply)\b/.test(normalizedName)) {
     return false;
+  }
+  if (wordCount > 8 && /\b(at|from|for|with)\b/.test(normalizedName)) {
+    return false;
+  }
+  if (normalizedKey.startsWith("role:") && /\$|salary|\bbase\b|\bopportunity\b/.test(normalizedName)) {
+    return false;
+  }
+  if (normalizedKey.startsWith("company:") && normalizedName.includes("+")) return false;
+  return true;
+}
+
+function isPublicLatestSafeRow(args: {
+  entityType: string;
+  entityName: string;
+  claims: Array<{ claim: string; sourceTitle?: string; sourceUrl?: string }>;
+}): boolean {
+  const normalizedName = normalizeName(args.entityName);
+  const combinedClaims = args.claims.map((claim) => normalizeName(claim.claim)).join("\n");
+  if (/\b(could not be found|not identify a specific company|search did not return|does not identify a specific company)\b/.test(combinedClaims)) {
+    return false;
+  }
+  if (args.entityType === "company") {
+    const words = normalizedName.split(/\s+/).filter(Boolean);
+    const hasCompanySignal = /\b(ai|labs?|group|inc|llc|corp|corporation|company|ventures?|capital|systems?|technolog(?:y|ies)|software|health|bank|university|school)\b/.test(normalizedName);
+    if (words.length === 2 && !hasCompanySignal) return false;
   }
   return true;
 }
@@ -741,6 +768,7 @@ export const listLatestPublicEntityResearch = query({
         )
         .slice(0, 3);
       if (publicClaims.length === 0) continue;
+      if (!isPublicLatestSafeRow({ entityType, entityName, claims: publicClaims })) continue;
       rows.push({
         researchRunId: run.researchRunId,
         status: run.status,
