@@ -11,6 +11,7 @@ import {
   Activity,
   ClipboardCopy,
   Key,
+  Link2,
   Plus,
   ShieldCheck,
   ShieldOff,
@@ -581,6 +582,29 @@ function ApiKeyManagementPageInner() {
         >
           <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
           <span>Default limits: 100 calls/min, 10,000 calls/day per key</span>
+        </div>
+
+        <div
+          style={stagger("0.08s")}
+          className="mt-6 rounded-xl border border-[#d97757]/30 bg-[#d97757]/[0.06] p-4"
+        >
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-sm font-semibold text-content">
+                <Link2 className="h-4 w-4 text-[#d97757]" aria-hidden="true" />
+                Public research starts without a key
+              </div>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-content-secondary">
+                External apps can call the hosted `public-research` and `gmail-research`
+                MCP profiles anonymously for the first sourced dossier. Create a key when
+                the user links NodeBench for saved history, higher limits, team usage,
+                webhooks, and billing controls.
+              </p>
+            </div>
+            <code className="shrink-0 rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 font-mono text-[11px] leading-relaxed text-content">
+              ?profile=gmail-research
+            </code>
+          </div>
         </div>
 
         {/* New key banner */}

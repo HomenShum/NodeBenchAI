@@ -12,6 +12,7 @@
  */
 
 import http from "http";
+import { createHash, randomUUID } from "node:crypto";
 import { researchTools } from "./tools/researchTools.js";
 import { narrativeTools } from "./tools/narrativeTools.js";
 import { verificationTools } from "./tools/verificationTools.js";
@@ -72,10 +73,16 @@ type JsonRpcRequest = {
   params?: { name?: string; arguments?: any };
 };
 
-function respond(res: http.ServerResponse, status: number, payload: any) {
+function respond(
+  res: http.ServerResponse,
+  status: number,
+  payload: any,
+  headers: Record<string, string> = {}
+) {
   res.writeHead(status, {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
+    ...headers,
   });
   res.end(JSON.stringify(payload));
 }
@@ -116,6 +123,97 @@ function parseProfileList(value: string | undefined): Set<ToolProfileName> {
     if (normalized) profiles.add(normalized);
   }
   return profiles;
+}
+
+function firstHeader(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+function shortHash(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 20);
+}
+
+function inferClientName(req: http.IncomingMessage): string | undefined {
+  return (
+    firstHeader(req.headers["x-nodebench-client"]) ??
+    firstHeader(req.headers["x-mcp-client"]) ??
+    firstHeader(req.headers["user-agent"])?.slice(0, 120)
+  );
+}
+
+function inferClientVersion(req: http.IncomingMessage): string | undefined {
+  return firstHeader(req.headers["x-nodebench-client-version"])?.slice(0, 80);
+}
+
+function inferClientInstanceId(req: http.IncomingMessage): string | undefined {
+  return firstHeader(req.headers["x-nodebench-client-id"])?.slice(0, 160);
+}
+
+function buildAccountKey(input: {
+  req: http.IncomingMessage;
+  profileName: ToolProfileName;
+  authMode: "token" | "anonymous" | "open";
+  suppliedToken?: string;
+  forwardedFor?: string;
+  remoteIp?: string;
+}): string {
+  if (input.authMode === "token" && input.suppliedToken) {
+    return `token:${shortHash(input.suppliedToken)}`;
+  }
+
+  if (input.authMode === "anonymous") {
+    const clientInstanceId = inferClientInstanceId(input.req);
+    if (clientInstanceId) {
+      return `anon-client:${input.profileName}:${shortHash(clientInstanceId)}`;
+    }
+
+    const publicRequesterBasis = [
+      input.profileName,
+      inferClientName(input.req) ?? "",
+      firstHeader(input.req.headers["origin"]) ?? "",
+      firstHeader(input.req.headers["user-agent"]) ?? "",
+    ].join("|");
+    return `anon:${input.profileName}:${shortHash(publicRequesterBasis)}`;
+  }
+
+  return `open:${input.profileName}`;
+}
+
+function nodebenchMeta(ctx: {
+  requestId: string;
+  profileName: ToolProfileName;
+  authMode: "token" | "anonymous" | "open";
+  accountKey: string;
+}) {
+  return {
+    nodebench: {
+      requestId: ctx.requestId,
+      profile: ctx.profileName,
+      authMode: ctx.authMode,
+      accountKey: ctx.accountKey,
+      accounting: {
+        ledger: "mcpToolCallLedger",
+        costModel: "mcp-cost-v1-2026-05",
+        costType: "estimated",
+      },
+    },
+  };
+}
+
+function nodebenchHeaders(ctx?: {
+  requestId?: string;
+  profileName?: string;
+  authMode?: string;
+  accountKey?: string;
+}): Record<string, string> {
+  if (!ctx) return {};
+  const headers: Record<string, string> = {};
+  if (ctx.requestId) headers["x-nodebench-request-id"] = ctx.requestId;
+  if (ctx.profileName) headers["x-nodebench-profile"] = ctx.profileName;
+  if (ctx.authMode) headers["x-nodebench-auth-mode"] = ctx.authMode;
+  if (ctx.accountKey) headers["x-nodebench-account-key"] = ctx.accountKey;
+  return headers;
 }
 
 const tokenConfig: TokenProfileConfig = (() => {
@@ -200,6 +298,12 @@ const server = http.createServer(async (req, res) => {
         anonymous: anonymousProfiles.has(profile.name) && isPublicToolProfileName(profile.name),
       })),
       anonymousProfiles: [...anonymousProfiles],
+      accounting: {
+        anonymousProfilesAreMetered: true,
+        accountKeyHeader: "x-nodebench-account-key",
+        requestIdHeader: "x-nodebench-request-id",
+        costModel: "mcp-cost-v1-2026-05",
+      },
       categories: ["research", "narrative", "verification", "knowledge", "documents", "planning", "memory", "search", "financial"],
     });
     return;
@@ -227,6 +331,17 @@ const server = http.createServer(async (req, res) => {
           headers: anonymousProfiles.has("gmail-research") ? {} : { "x-mcp-token": "<token>" },
         },
       },
+      accounting: {
+        frictionlessPublicProfiles: [...anonymousProfiles].filter(isPublicToolProfileName),
+        responseHeaders: [
+          "x-nodebench-request-id",
+          "x-nodebench-profile",
+          "x-nodebench-auth-mode",
+          "x-nodebench-account-key",
+        ],
+        responseMetaPath: "result._meta.nodebench",
+        costModel: "mcp-cost-v1-2026-05",
+      },
     });
     return;
   }
@@ -237,7 +352,7 @@ const server = http.createServer(async (req, res) => {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers":
-        "Content-Type, Accept, Authorization, x-mcp-token, x-mcp-profile, x-nodebench-profile",
+        "Content-Type, Accept, Authorization, x-mcp-token, x-mcp-profile, x-nodebench-profile, x-nodebench-client, x-nodebench-client-version, x-nodebench-client-id, x-request-id",
     });
     res.end();
     return;
@@ -276,6 +391,30 @@ const server = http.createServer(async (req, res) => {
       }
       const profileName = authAndProfile.profileName;
       const profileTools = getProfileTools(profileName);
+      const suppliedToken = getSuppliedToken(req);
+      const forwardedFor = firstHeader(req.headers["x-forwarded-for"]);
+      const remoteIp = (req.socket as any)?.remoteAddress as string | undefined;
+      const requestId = firstHeader(req.headers["x-request-id"]) ?? randomUUID();
+      const accountKey = buildAccountKey({
+        req,
+        profileName,
+        authMode: authAndProfile.authMode,
+        suppliedToken,
+        forwardedFor,
+        remoteIp,
+      });
+      const responseHeaders = nodebenchHeaders({
+        requestId,
+        profileName,
+        authMode: authAndProfile.authMode,
+        accountKey,
+      });
+      const meta = nodebenchMeta({
+        requestId,
+        profileName,
+        authMode: authAndProfile.authMode,
+        accountKey,
+      });
 
       // MCP initialize
       if (method === "initialize") {
@@ -291,8 +430,9 @@ const server = http.createServer(async (req, res) => {
               profile: profileName,
               authMode: authAndProfile.authMode,
             },
+            _meta: meta,
           },
-        });
+        }, responseHeaders);
         return;
       }
 
@@ -309,9 +449,12 @@ const server = http.createServer(async (req, res) => {
             })),
             profile: profileName,
             authMode: authAndProfile.authMode,
+            accountKey,
+            accounting: meta.nodebench.accounting,
             profiles: listToolProfiles(),
+            _meta: meta,
           },
-        });
+        }, responseHeaders);
         return;
       }
 
@@ -328,21 +471,27 @@ const server = http.createServer(async (req, res) => {
               code: -32602,
               message: `Tool not found in profile "${profileName}": ${toolName}`,
             },
-          });
+          }, responseHeaders);
           return;
         }
 
-        const suppliedToken = getSuppliedToken(req);
-        const forwardedFor = (req.headers["x-forwarded-for"] as string | undefined) ?? undefined;
-        const remoteIp = (req.socket as any)?.remoteAddress as string | undefined;
         const receivedAtIso = new Date().toISOString();
 
         try {
           const result = await runWithRequestContext(
             {
+              requestId,
               jsonrpcId: id,
               method,
               toolName,
+              profileName,
+              authMode: authAndProfile.authMode,
+              accountKey,
+              clientName: inferClientName(req),
+              clientVersion: inferClientVersion(req),
+              clientInstanceId: inferClientInstanceId(req),
+              origin: firstHeader(req.headers["origin"]),
+              externalUserAgent: firstHeader(req.headers["user-agent"]),
               tokenAuthEnabled: tokenConfig.tokens.size > 0,
               tokenPresent: Boolean(suppliedToken),
               remoteIp,
@@ -431,8 +580,9 @@ const server = http.createServer(async (req, res) => {
             result: {
               content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
               isError: false,
+              _meta: meta,
             },
-          });
+          }, responseHeaders);
         } catch (err: any) {
           // Tool execution errors are returned as results with isError, NOT as JSON-RPC errors.
           // JSON-RPC errors are reserved for protocol-level failures.
@@ -442,8 +592,9 @@ const server = http.createServer(async (req, res) => {
             result: {
               content: [{ type: "text", text: err?.message || "Internal error" }],
               isError: true,
+              _meta: meta,
             },
-          });
+          }, responseHeaders);
         }
         return;
       }
@@ -452,7 +603,7 @@ const server = http.createServer(async (req, res) => {
         jsonrpc: "2.0",
         id,
         error: { code: -32601, message: `Method not found: ${method}` },
-      });
+      }, responseHeaders);
     } catch {
       respond(res, 400, {
         jsonrpc: "2.0",

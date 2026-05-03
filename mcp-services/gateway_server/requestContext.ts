@@ -1,9 +1,18 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 export type GatewayRequestContext = {
+  requestId?: string;
   jsonrpcId?: string | number | null;
   method?: string;
   toolName?: string;
+  profileName?: string;
+  authMode?: "token" | "anonymous" | "open";
+  accountKey?: string;
+  clientName?: string;
+  clientVersion?: string;
+  clientInstanceId?: string;
+  origin?: string;
+  externalUserAgent?: string;
   tokenAuthEnabled?: boolean;
   tokenPresent?: boolean;
   remoteIp?: string;
@@ -23,4 +32,3 @@ export function runWithRequestContext<T>(
 export function getRequestContext(): GatewayRequestContext | undefined {
   return storage.getStore();
 }
-

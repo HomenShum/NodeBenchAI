@@ -37,6 +37,8 @@ They need a system that can:
 - five-surface web app across `Home`, `Reports`, `Chat`, `Inbox`, and `Me`
 - separate deep-work Workspace shell at `nodebench.workspace`
 - typed search and reporting pipeline
+- hosted public research MCP for external apps and agents:
+  `https://nodebench-mcp-unified.onrender.com?profile=public-research`
 - Pi-AI pipeline lane on `Reports` with code-gen, design-gen, research,
   composed runs, schedules, streaming previews, eval scorecard, and MCP HTTP
   bridge
@@ -50,6 +52,63 @@ They need a system that can:
   distribution lanes
 - builder-facing Oracle, dogfood, eval, replay, and control-plane
   infrastructure
+
+## Hosted Public Research MCP
+
+NodeBench can be used as a public research memory and tool server from any
+agent or app without forcing signup before the first useful result.
+
+Use the hosted MCP endpoint:
+
+```txt
+https://nodebench-mcp-unified.onrender.com?profile=public-research
+```
+
+For Gmail/job-match style integrations, use the smaller profile:
+
+```txt
+https://nodebench-mcp-unified.onrender.com?profile=gmail-research
+```
+
+Public profiles are anonymous by default, but still metered. Responses include:
+
+```txt
+x-nodebench-request-id
+x-nodebench-profile
+x-nodebench-auth-mode
+x-nodebench-account-key
+```
+
+Apps should send stable, non-sensitive client headers:
+
+```http
+x-nodebench-client: your-app-name
+x-nodebench-client-version: 1.0.0
+x-nodebench-client-id: stable-install-or-workspace-id
+```
+
+`x-nodebench-client-id` lets NodeBench attribute anonymous usage and estimated
+costs without requiring a NodeBench token. Do not put private email text,
+resume text, API keys, or user secrets in this header.
+
+### Progressive Sign-In And Linking
+
+The intended user flow is:
+
+```text
+First public dossier works without signup
+  -> show sources, freshness, and confidence
+  -> offer "Link NodeBench" after value is visible
+  -> linked users get stable history, higher budgets, team usage, webhooks,
+     token management, billing controls, and reusable private workspace context
+```
+
+Do not block public-source research behind login. Promote sign-in when the user
+wants persistence, shared team memory, budget controls, private workspace
+linking, or API/MCP tokens.
+
+See [MCP_TOOL_PROFILES.md](./docs/guides/MCP_TOOL_PROFILES.md) for the full
+profile list, tool catalog, account attribution, and cost tracking contract.
 
 ## Product At A Glance
 
