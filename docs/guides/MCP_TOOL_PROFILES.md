@@ -99,7 +99,7 @@ x-nodebench-client-version: 1.0.0
 x-nodebench-client-id: stable-install-or-workspace-id
 ```
 
-`x-nodebench-client-id` is optional but recommended. It gives anonymous public-profile clients stable usage attribution without requiring a NodeBench login or token. Do not put private email text, resume text, API keys, or other sensitive data in this header.
+`x-nodebench-client-id` is optional but recommended. It gives anonymous public-profile clients stable usage attribution without requiring a NodeBench login or token. Do not put private email text, resume text, API keys, or other sensitive data in this header. Rotate this value only when you intentionally want a new anonymous accounting bucket.
 
 For operations views, use Convex:
 
