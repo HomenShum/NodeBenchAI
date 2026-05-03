@@ -563,6 +563,19 @@ const ALLOWLIST: Record<string, AllowlistEntry> = {
   },
 };
 
+const PUBLIC_RESEARCH_GATEWAY_FNS = new Set([
+  "resolveEntity",
+  "startResearchRun",
+  "getResearchStatus",
+  "getEntityDossier",
+  "getContextPack",
+  "listLatestPublicEntityResearch",
+  "researchCompany",
+  "researchPerson",
+  "researchRole",
+  "searchPublicSources",
+]);
+
 // ── Dispatcher httpAction ──────────────────────────────────────────────────
 
 function inferRiskTier(fn: string, type: FnType): string {
@@ -580,11 +593,8 @@ function inferRiskTier(fn: string, type: FnType): string {
 }
 
 export const mcpGatewayHandler = httpAction(async (ctx, request) => {
-  // 1. Auth — validate x-mcp-secret
-  const authErr = requireMcpSecret(request);
-  if (authErr) return authErr;
-
-  // 2. Parse request body
+  // 1. Parse request body. Public research functions are intentionally
+  // available to anonymous MCP profiles, so auth depends on the requested fn.
   const body = await readJson(request);
   if (!body || typeof body.fn !== "string") {
     return badRequest(
@@ -597,13 +607,21 @@ export const mcpGatewayHandler = httpAction(async (ctx, request) => {
   const meta: Record<string, unknown> =
     body && typeof body.meta === "object" && body.meta ? body.meta : {};
 
-  // 3. Lookup in allowlist
+  // 2. Lookup in allowlist
   const entry = ALLOWLIST[fn];
   if (!entry) {
     const available = Object.keys(ALLOWLIST).sort().join(", ");
     return badRequest(
       `Unknown function: "${fn}". ${Object.keys(ALLOWLIST).length} available: ${available}`
     );
+  }
+
+  // 3. Auth. Internal, document, memory, builder, and control functions remain
+  // secret-gated. Only source-traceable public research primitives can be
+  // dispatched without a shared service secret.
+  if (!PUBLIC_RESEARCH_GATEWAY_FNS.has(fn)) {
+    const authErr = requireMcpSecret(request);
+    if (authErr) return authErr;
   }
 
   // 4. Policy + ledger (trusted access layer)
