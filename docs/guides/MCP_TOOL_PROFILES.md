@@ -43,18 +43,28 @@ x-mcp-profile: public-research
 
 If the server is configured with a profile-scoped token, the token wins over query/header profile requests. For example, a `gmail-research` token cannot request `full`.
 
+Hosted production allows anonymous access to the public profiles listed in `MCP_PUBLIC_PROFILES`:
+
+```txt
+public-research,gmail-research
+```
+
+That means external Gmail/job integrations can call the hosted MCP URL with `?profile=gmail-research` and no token. Internal, builder, document, memory, and full profiles still require a token when `MCP_HTTP_TOKEN` or `MCP_PROFILE_TOKENS` is configured.
+
 ## Environment Variables
 
 ```txt
 MCP_HTTP_TOKEN=<internal full-access token>
 MCP_DEFAULT_PROFILE=full
 MCP_PROFILE_TOKENS=<token1>:public-research,<token2>:gmail-research,<token3>:builder
+MCP_PUBLIC_PROFILES=public-research,gmail-research
 ```
 
 Recommended production setup:
 
 - Keep `MCP_HTTP_TOKEN` as the internal full-access token.
-- Issue external users profile-scoped tokens through `MCP_PROFILE_TOKENS`.
+- Keep `public-research` and `gmail-research` anonymous for frictionless public-source integrations.
+- Issue external users profile-scoped tokens through `MCP_PROFILE_TOKENS` when they need non-public profiles or custom budgets.
 - Use `MCP_DEFAULT_PROFILE=public-research` only for a public demo service where full internal access is not needed through the same endpoint.
 
 For stdio clients:
@@ -76,10 +86,7 @@ MCP_DEFAULT_PROFILE=public-research
   "mcpServers": {
     "nodebench-public-research": {
       "transport": "http",
-      "url": "https://nodebench-mcp-unified.onrender.com?profile=public-research",
-      "headers": {
-        "x-mcp-token": "<NODEBENCH_PUBLIC_RESEARCH_TOKEN>"
-      }
+      "url": "https://nodebench-mcp-unified.onrender.com?profile=public-research"
     }
   }
 }
@@ -111,10 +118,7 @@ findTools
   "mcpServers": {
     "nodebench-gmail-research": {
       "transport": "http",
-      "url": "https://nodebench-mcp-unified.onrender.com",
-      "headers": {
-        "x-mcp-token": "<NODEBENCH_GMAIL_RESEARCH_TOKEN>"
-      }
+      "url": "https://nodebench-mcp-unified.onrender.com?profile=gmail-research"
     }
   }
 }
@@ -139,9 +143,8 @@ findTools
 
 ```powershell
 $url = "https://nodebench-mcp-unified.onrender.com?profile=public-research"
-$token = "<NODEBENCH_PUBLIC_RESEARCH_TOKEN>"
 
-Invoke-RestMethod "$url" -Method Post -Headers @{"x-mcp-token"=$token} -ContentType "application/json" -Body (@{
+Invoke-RestMethod "$url" -Method Post -ContentType "application/json" -Body (@{
   jsonrpc = "2.0"
   id = 1
   method = "tools/list"
@@ -151,13 +154,14 @@ Invoke-RestMethod "$url" -Method Post -Headers @{"x-mcp-token"=$token} -ContentT
 Expected:
 
 - `result.profile` is `public-research`
+- `result.authMode` is `anonymous` on hosted production
 - `result.tools.length` is `14`
 - no document, planning, eval, or internal-only tools appear
 
 Blocked-call check:
 
 ```powershell
-Invoke-RestMethod "$url" -Method Post -Headers @{"x-mcp-token"=$token} -ContentType "application/json" -Body (@{
+Invoke-RestMethod "$url" -Method Post -ContentType "application/json" -Body (@{
   jsonrpc = "2.0"
   id = 2
   method = "tools/call"

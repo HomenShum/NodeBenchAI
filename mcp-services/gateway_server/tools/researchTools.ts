@@ -12,6 +12,50 @@ export type McpTool = {
   handler: (args: any) => Promise<unknown>;
 };
 
+const entityKindMap: Record<string, string> = {
+  company: "company",
+  person: "person",
+  role: "role",
+  product: "product",
+  investor: "investor",
+  school: "school",
+  source: "source",
+};
+
+function entityTypeFromKind(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  return entityKindMap[value.trim().toLowerCase()];
+}
+
+function compact<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined && entry !== null)
+  ) as T;
+}
+
+function contextUseCase(value: unknown): string {
+  if (
+    value === "job_match" ||
+    value === "interview_prep" ||
+    value === "sales_research" ||
+    value === "product_intel"
+  ) {
+    return value;
+  }
+  return "general";
+}
+
+function publicResearchEntity(args: any) {
+  return compact({
+    entityId: args.entityId,
+    entityType: entityTypeFromKind(args.kind ?? args.entityType),
+    name: args.name,
+    domain: args.domain,
+    url: args.url,
+    aliases: args.aliases,
+  });
+}
+
 export const researchTools: McpTool[] = [
   {
     name: "nodebench.entities.resolve",
@@ -37,7 +81,7 @@ export const researchTools: McpTool[] = [
       required: ["name"],
     },
     handler: async (args) => {
-      return await convexMutation("domains/publicResearch/core:resolveEntity", args);
+      return await convexMutation("domains/publicResearch/core:resolveEntity", publicResearchEntity(args));
     },
   },
   {
@@ -57,7 +101,12 @@ export const researchTools: McpTool[] = [
       required: ["query"],
     },
     handler: async (args) => {
-      return await convexAction("domains/publicResearch/actions:searchPublicSources", args);
+      return await convexAction("domains/publicResearch/actions:searchPublicSources", compact({
+        query: args.query,
+        maxResults: args.maxResults ?? args.limit,
+        entity: args.entity ?? (args.name ? publicResearchEntity(args) : undefined),
+        allowPaidSearch: args.allowPaidSearch,
+      }));
     },
   },
   {
@@ -80,7 +129,12 @@ export const researchTools: McpTool[] = [
       required: ["companyName"],
     },
     handler: async (args) => {
-      return await convexAction("domains/publicResearch/actions:researchCompany", args);
+      return await convexAction("domains/publicResearch/actions:researchCompany", compact({
+        companyName: args.companyName,
+        domain: args.domain,
+        goal: args.goal,
+        visibility: args.visibility,
+      }));
     },
   },
   {
@@ -102,7 +156,11 @@ export const researchTools: McpTool[] = [
       required: ["personName"],
     },
     handler: async (args) => {
-      return await convexAction("domains/publicResearch/actions:researchPerson", args);
+      return await convexAction("domains/publicResearch/actions:researchPerson", compact({
+        personName: args.personName,
+        goal: args.goal,
+        visibility: args.visibility,
+      }));
     },
   },
   {
@@ -124,7 +182,11 @@ export const researchTools: McpTool[] = [
       required: ["roleTitle"],
     },
     handler: async (args) => {
-      return await convexAction("domains/publicResearch/actions:researchRole", args);
+      return await convexAction("domains/publicResearch/actions:researchRole", compact({
+        roleTitle: args.roleTitle,
+        companyName: args.companyName,
+        goal: args.goal,
+      }));
     },
   },
   {
@@ -141,7 +203,14 @@ export const researchTools: McpTool[] = [
       },
     },
     handler: async (args) => {
-      return await convexQuery("domains/publicResearch/core:getEntityDossier", args);
+      return await convexQuery("domains/publicResearch/core:getEntityDossier", compact({
+        entityId: args.entityId,
+        entityKey: args.entityKey,
+        name: args.name,
+        domain: args.domain,
+        entityType: entityTypeFromKind(args.kind ?? args.entityType),
+        limit: args.limit,
+      }));
     },
   },
   {
@@ -163,7 +232,14 @@ export const researchTools: McpTool[] = [
       required: ["useCase"],
     },
     handler: async (args) => {
-      return await convexQuery("domains/publicResearch/core:getContextPack", args);
+      return await convexQuery("domains/publicResearch/core:getContextPack", compact({
+        entityId: args.entityId,
+        entityKey: args.entityKey,
+        name: args.name,
+        domain: args.domain,
+        entityType: entityTypeFromKind(args.kind ?? args.entityType),
+        useCase: contextUseCase(args.useCase),
+      }));
     },
   },
   {
@@ -182,7 +258,14 @@ export const researchTools: McpTool[] = [
       required: ["useCase"],
     },
     handler: async (args) => {
-      return await convexQuery("domains/publicResearch/core:getContextPack", args);
+      return await convexQuery("domains/publicResearch/core:getContextPack", compact({
+        entityId: args.entityId,
+        entityKey: args.entityKey,
+        name: args.name,
+        domain: args.domain,
+        entityType: entityTypeFromKind(args.kind ?? args.entityType),
+        useCase: contextUseCase(args.useCase),
+      }));
     },
   },
   {
@@ -200,7 +283,13 @@ export const researchTools: McpTool[] = [
     },
     handler: async (args) => {
       return await convexQuery("domains/publicResearch/core:getContextPack", {
-        ...args,
+        ...compact({
+          entityId: args.entityId,
+          entityKey: args.entityKey,
+          name: args.name,
+          domain: args.domain,
+          entityType: entityTypeFromKind(args.kind ?? args.entityType),
+        }),
         useCase: "interview_prep",
       });
     },
@@ -224,7 +313,16 @@ export const researchTools: McpTool[] = [
       required: ["entityId", "claim", "claimType", "sourceUrl", "evidenceSnippet"],
     },
     handler: async (args) => {
-      return await convexMutation("domains/publicResearch/core:submitPublicClaim", args);
+      return await convexMutation("domains/publicResearch/core:submitPublicClaim", compact({
+        entity: args.entity ?? publicResearchEntity(args),
+        claim: args.claim,
+        claimType: args.claimType,
+        sourceUrl: args.sourceUrl,
+        sourceTitle: args.sourceTitle,
+        evidenceSnippet: args.evidenceSnippet,
+        confidence: args.confidence,
+        submittedBySurface: args.submittedBySurface ?? "mcp",
+      }));
     },
   },
   {
@@ -284,7 +382,13 @@ export const researchTools: McpTool[] = [
       required: ["entityId", "app", "privateSignalHash", "signalType"],
     },
     handler: async (args) => {
-      return await convexMutation("domains/publicResearch/core:linkPrivateSignalToPublicEntity", args);
+      return await convexMutation("domains/publicResearch/core:linkPrivateSignalToPublicEntity", compact({
+        ownerKey: args.ownerKey ?? args.app ?? "mcp",
+        entity: args.entity ?? publicResearchEntity(args),
+        privateSignalKind: args.privateSignalKind ?? args.signalType,
+        privateSignalSummary: args.privateSignalSummary ?? args.privateSignalHash,
+        publicPurpose: args.publicPurpose ?? "Guide public entity research without storing private text.",
+      }));
     },
   },
   {

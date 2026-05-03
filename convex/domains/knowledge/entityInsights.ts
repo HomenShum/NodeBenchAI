@@ -1509,7 +1509,7 @@ Use null for unknown fields. Be precise with amounts and dates.`;
         contactPoints: enrichedEntity.contactPoints,
         freshness: enrichedEntity.freshness,
         personaHooks: enrichedEntity.personaHooks,
-        researchedBy: userId,
+        researchedBy: userId ?? undefined,
       },
     );
 

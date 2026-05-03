@@ -579,17 +579,21 @@ export const verifyClaim = mutation({
 
 export const getEntityDossier = query({
   args: {
+    entityId: v.optional(v.id("publicResearchEntities")),
     entityKey: v.optional(v.string()),
     entityType: v.optional(entityTypeValidator),
     name: v.optional(v.string()),
+    domain: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const entityKey = args.entityKey ?? canonicalKey({ entityType: args.entityType, name: args.name });
-    const entity = await ctx.db
-      .query("publicResearchEntities")
-      .withIndex("by_entityKey", (q) => q.eq("entityKey", entityKey))
-      .first();
+    const entityKey = args.entityKey ?? canonicalKey({ entityType: args.entityType, name: args.name, domain: args.domain });
+    const entity = args.entityId
+      ? await ctx.db.get(args.entityId)
+      : await ctx.db
+        .query("publicResearchEntities")
+        .withIndex("by_entityKey", (q) => q.eq("entityKey", entityKey))
+        .first();
     if (!entity) return null;
     const limit = Math.min(args.limit ?? 20, 50);
     const claims = await ctx.db
@@ -627,22 +631,27 @@ export const getEntityDossier = query({
 
 export const getContextPack = query({
   args: {
+    entityId: v.optional(v.id("publicResearchEntities")),
     entityKey: v.optional(v.string()),
     entityType: v.optional(entityTypeValidator),
     name: v.optional(v.string()),
+    domain: v.optional(v.string()),
     useCase: v.optional(v.union(
       v.literal("job_match"),
       v.literal("interview_prep"),
       v.literal("sales_research"),
+      v.literal("product_intel"),
       v.literal("general"),
     )),
   },
   handler: async (ctx, args) => {
-    const entityKey = args.entityKey ?? canonicalKey({ entityType: args.entityType, name: args.name });
-    const entity = await ctx.db
-      .query("publicResearchEntities")
-      .withIndex("by_entityKey", (q) => q.eq("entityKey", entityKey))
-      .first();
+    const entityKey = args.entityKey ?? canonicalKey({ entityType: args.entityType, name: args.name, domain: args.domain });
+    const entity = args.entityId
+      ? await ctx.db.get(args.entityId)
+      : await ctx.db
+        .query("publicResearchEntities")
+        .withIndex("by_entityKey", (q) => q.eq("entityKey", entityKey))
+        .first();
     if (!entity) return null;
     const claims = await ctx.db
       .query("publicResearchClaims")
@@ -650,12 +659,12 @@ export const getContextPack = query({
       .order("desc")
       .take(12);
     const verifiedClaims = claims.filter((claim: any) => claim.verifierStatus === "verified");
-    const sourceRefs = verifiedClaims.slice(0, 8).map((claim: any) => ({
+    const sourceRefs = Array.from(new Map(verifiedClaims.map((claim: any) => [claim.sourceUrl, {
       title: claim.sourceTitle,
       url: claim.sourceUrl,
       evidence: claim.evidenceSnippet,
       retrievedAt: claim.retrievedAt,
-    }));
+    }])).values()).slice(0, 8);
     return {
       entity_id: entity._id,
       entity_key: entity.entityKey,
@@ -714,7 +723,10 @@ export const listLatestPublicEntityResearch = query({
           ? claims.reduce((sum: number, claim: any) => sum + claim.confidence, 0) / claims.length
           : entity?.confidence ?? 0,
         summary: claims.map((claim: any) => claim.claim).join(" "),
-        sources: claims.map((claim: any) => ({ title: claim.sourceTitle, url: claim.sourceUrl })),
+        sources: Array.from(new Map(claims.map((claim: any) => [claim.sourceUrl, {
+          title: claim.sourceTitle,
+          url: claim.sourceUrl,
+        }])).values()),
       });
       if (rows.length >= limit) break;
     }
