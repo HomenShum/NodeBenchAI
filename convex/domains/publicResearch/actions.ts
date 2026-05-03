@@ -175,7 +175,7 @@ async function runRolePublicResearch(ctx: any, args: {
       query: roleQuery,
       maxResults: 8,
       skipRateLimit: true,
-      allowPaidSearch: false,
+      allowPaidSearch: true,
     });
     roleSources = publicSourcesFromSearch(searchResult);
   } catch (err: any) {
@@ -252,7 +252,7 @@ async function runExistingEntityResearch(ctx: any, args: {
       query: `${args.entityName} public sources overview`,
       maxResults: 8,
       skipRateLimit: true,
-      allowPaidSearch: false,
+      allowPaidSearch: true,
     });
     const sources = publicSourcesFromSearch(result);
     return {
@@ -419,13 +419,14 @@ export const searchPublicSources = action({
     query: v.string(),
     entity: v.optional(entitySignalValidator),
     maxResults: v.optional(v.number()),
+    allowPaidSearch: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const result = await ctx.runAction(api.domains.search.fusion.actions.quickSearch, {
       query: args.query,
       maxResults: args.maxResults ?? 8,
       skipRateLimit: true,
-      allowPaidSearch: false,
+      allowPaidSearch: args.allowPaidSearch ?? false,
     });
     if (args.entity) {
       await ctx.runMutation(internal.domains.publicResearch.core.startResearchRunInternal, {
