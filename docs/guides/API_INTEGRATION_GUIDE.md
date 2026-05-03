@@ -1,5 +1,92 @@
 # API Integration Guide - Cursor, Windsurf, Claude Code
 
+## Public Research MCP For Apps And Agents
+
+For company, person, role, and public-source context, prefer the hosted
+NodeBench MCP profile instead of building an app-specific research backend.
+
+Gmail/job-match integrations:
+
+```json
+{
+  "mcpServers": {
+    "nodebench-gmail-research": {
+      "transport": "http",
+      "url": "https://nodebench-mcp-unified.onrender.com?profile=gmail-research",
+      "headers": {
+        "x-nodebench-client": "your-app-name",
+        "x-nodebench-client-version": "1.0.0",
+        "x-nodebench-client-id": "stable-install-or-workspace-id"
+      }
+    }
+  }
+}
+```
+
+General public research integrations:
+
+```json
+{
+  "mcpServers": {
+    "nodebench-public-research": {
+      "transport": "http",
+      "url": "https://nodebench-mcp-unified.onrender.com?profile=public-research",
+      "headers": {
+        "x-nodebench-client": "your-app-name",
+        "x-nodebench-client-version": "1.0.0",
+        "x-nodebench-client-id": "stable-install-or-workspace-id"
+      }
+    }
+  }
+}
+```
+
+Start anonymous. NodeBench returns public dossiers and context packs without a
+token for `public-research` and `gmail-research`. Every response includes
+request/account/cost metadata in `result._meta.nodebench` and these headers:
+
+```txt
+x-nodebench-request-id
+x-nodebench-profile
+x-nodebench-auth-mode
+x-nodebench-account-key
+```
+
+Recommended product flow:
+
+```text
+Use public research anonymously
+  -> show sourced facts, freshness, confidence, and missing info
+  -> prompt "Link NodeBench" after the first useful dossier
+  -> linked users get persistent history, higher budgets, team usage,
+     API/MCP tokens, webhooks, billing controls, and workspace handoff
+```
+
+Privacy boundary:
+
+- Send public entity signals only: company name/domain, person name, role title,
+  job URL, source URL, and public goal.
+- Do not send raw Gmail text, resume text, private notes, API keys, or private
+  fit scores to public research tools.
+- Keep private scoring in the calling app.
+
+Core public tools:
+
+```txt
+nodebench.entities.resolve
+nodebench.search_public_sources
+nodebench.research_company
+nodebench.research_person
+nodebench.research_role
+nodebench.dossiers.get
+nodebench.context.pack
+nodebench.get_matching_context
+nodebench.compile_interview_packet
+```
+
+Full profile and metering contract:
+[MCP_TOOL_PROFILES.md](./MCP_TOOL_PROFILES.md).
+
 ## 🎯 Complete API for Agent-Driven DCF Editing
 
 This guide shows how to integrate the Interactive DCF system with Cursor, Windsurf, Claude Code, or any other agentic tool.

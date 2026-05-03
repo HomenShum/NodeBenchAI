@@ -2,6 +2,48 @@
 
 This directory contains **Model Context Protocol (MCP) servers** that expose shared tools for NodeBench AI agents.
 
+## Hosted Public Research MCP
+
+Production endpoint:
+
+```txt
+https://nodebench-mcp-unified.onrender.com
+```
+
+Use profiles instead of giving every user the full internal tool catalog:
+
+```txt
+https://nodebench-mcp-unified.onrender.com?profile=public-research
+https://nodebench-mcp-unified.onrender.com?profile=gmail-research
+```
+
+Public profiles are anonymous and frictionless by default. They are still
+metered through the MCP ledger, with response headers:
+
+```txt
+x-nodebench-request-id
+x-nodebench-profile
+x-nodebench-auth-mode
+x-nodebench-account-key
+```
+
+Recommended app headers:
+
+```http
+x-nodebench-client: your-app-name
+x-nodebench-client-version: 1.0.0
+x-nodebench-client-id: stable-install-or-workspace-id
+```
+
+Progressive account model:
+
+- Do not require sign-in for the first public research dossier.
+- Prompt users to link/sign in after they see sourced value.
+- Link/sign-in should unlock persistent history, higher budgets, team usage,
+  API/MCP tokens, billing controls, webhooks, and private workspace context.
+
+Full contract: [../docs/guides/MCP_TOOL_PROFILES.md](../docs/guides/MCP_TOOL_PROFILES.md).
+
 ## 🏗️ Architecture
 
 MCP servers provide a standardized way for AI agents to access tools and data sources. Each server:
