@@ -301,6 +301,14 @@ export function CockpitLayout({
     setShowSettingsModal(true);
   }, []);
 
+  useEffect(() => {
+    if (location.pathname === "/settings" || location.pathname.startsWith("/settings/")) {
+      const params = new URLSearchParams(location.search);
+      const pathTab = location.pathname.split("/")[2];
+      openSettings(params.get("tab") ?? pathTab ?? undefined);
+    }
+  }, [location.pathname, location.search, openSettings]);
+
   // Command palette
   const commandPalette = useCommandPalette();
   const paletteWasOpenRef = useRef(false);

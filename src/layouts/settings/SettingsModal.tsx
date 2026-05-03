@@ -1422,6 +1422,27 @@ export function SettingsModal({ isOpen, onClose, initialTab }: Props) {
               </div>
             ) : active === "connections" ? (
               <div className="space-y-6">
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
+                  <div className="flex items-start gap-3">
+                    <Link className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <div className="space-y-2">
+                      <div className="font-semibold">Start with public research, then link for memory.</div>
+                      <p className="text-xs leading-relaxed text-blue-900/80 dark:text-blue-100/80">
+                        A first company, person, or role dossier can run without sign-in. Link NodeBench when you want saved research history,
+                        higher limits, shared team usage, API keys, webhooks, and billing controls.
+                      </p>
+                      <div className="flex flex-wrap gap-2 text-[11px] font-medium">
+                        <span className="rounded-full bg-white/80 px-2 py-1 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100">
+                          first dossier: anonymous
+                        </span>
+                        <span className="rounded-full bg-white/80 px-2 py-1 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100">
+                          memory and limits: linked
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* AI Services */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-content">AI Services</h3>

@@ -556,6 +556,22 @@ export function HomeLanding() {
               CLI instructions -&gt;
             </a>
           </div>
+          <div className="mx-auto mt-3 flex max-w-[680px] flex-col gap-2 rounded-2xl border border-gray-200 bg-white/80 p-3 text-left shadow-[0_18px_44px_-38px_rgba(15,23,42,0.28)] dark:border-white/[0.08] dark:bg-white/[0.03] sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-[12px] font-semibold text-gray-900 dark:text-gray-100">
+                First public dossier works without sign-in.
+              </div>
+              <p className="mt-0.5 text-[12px] leading-5 text-gray-500 dark:text-gray-400">
+                Link NodeBench after the first sourced result to keep history, raise limits, and add team controls.
+              </p>
+            </div>
+            <a
+              href="/settings?tab=connections"
+              className="inline-flex shrink-0 items-center justify-center rounded-full border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-700 transition hover:border-[var(--accent-primary)]/35 hover:text-gray-900 dark:border-white/[0.10] dark:text-gray-200 dark:hover:border-[var(--accent-primary)]/35"
+            >
+              Link when ready
+            </a>
+          </div>
           <div className="mt-5 grid gap-2.5 sm:grid-cols-3">
             {WEB_KIT_PROMPT_CARDS.map(({ icon: Icon, prompt }, index) => (
               <button

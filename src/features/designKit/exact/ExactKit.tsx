@@ -1164,6 +1164,41 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
           <span><Share2 size={12} /> Export to Notes, Notion, Linear, CSV</span>
         </div>
 
+        <div
+          style={{
+            alignItems: "center",
+            background: "rgba(255,255,255,0.76)",
+            border: "1px solid var(--border-default)",
+            borderRadius: 18,
+            boxShadow: "0 18px 42px -34px rgba(15,23,42,0.38)",
+            display: "flex",
+            gap: 12,
+            justifyContent: "space-between",
+            margin: "14px auto 0",
+            maxWidth: 680,
+            padding: "12px 14px",
+            width: "100%",
+          }}
+        >
+          <div style={{ minWidth: 0, textAlign: "left" }}>
+            <div style={{ alignItems: "center", color: "var(--text-primary)", display: "flex", fontSize: 13, fontWeight: 800, gap: 7 }}>
+              <Link2 size={14} />
+              <span>First public dossier works without sign-in.</span>
+            </div>
+            <p style={{ color: "var(--text-muted)", fontSize: 12, lineHeight: 1.55, margin: "4px 0 0" }}>
+              Link NodeBench after the first sourced result to keep memory, raise limits, and add team controls.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="nb-btn nb-btn-secondary"
+            onClick={() => navigate("/settings?tab=connections")}
+            style={{ flexShrink: 0 }}
+          >
+            Link when ready
+          </button>
+        </div>
+
         {backgroundFeedback ? (
           <div
             className="nb-background-feedback"
@@ -3463,6 +3498,7 @@ function MobileReportsPipelineBlock() {
 }
 
 function MobileHomeBody() {
+  const navigate = useNavigate();
   const [mobileQuery, setMobileQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -3513,6 +3549,44 @@ function MobileHomeBody() {
         <span>keeps working</span>
         <span>safe to leave</span>
         <span>export-ready</span>
+      </div>
+      <div
+        style={{
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border-default)",
+          borderRadius: 18,
+          boxShadow: "var(--shadow-sm)",
+          display: "grid",
+          gap: 10,
+          padding: 14,
+        }}
+      >
+        <div style={{ alignItems: "center", display: "flex", gap: 8 }}>
+          <Link2 size={15} />
+          <strong style={{ color: "var(--text-primary)", fontSize: 14 }}>Research first, link after value.</strong>
+        </div>
+        <p style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.5, margin: 0 }}>
+          Public dossiers work without sign-in. Link NodeBench when you want saved history, higher limits, and team controls.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate("/settings?tab=connections")}
+          style={{
+            alignItems: "center",
+            background: "var(--accent-primary)",
+            border: 0,
+            borderRadius: 14,
+            color: "#fff",
+            display: "inline-flex",
+            fontSize: 13,
+            fontWeight: 800,
+            justifyContent: "center",
+            minHeight: 42,
+            padding: "0 14px",
+          }}
+        >
+          Link when ready
+        </button>
       </div>
       {feedback ? <div className="m-run-feedback" role="status">{feedback}</div> : null}
       <section className="m-section" data-testid="mobile-home-first-impression">
@@ -4877,11 +4951,19 @@ function WorkspaceMapNode({ x, y, entity, large = false }: { x: number; y: numbe
 
 export function ExactMcpTerminalPage() {
   const copyCommand = "claude mcp add nodebench -- npx -y nodebench-mcp";
+  const hostedPublicUrl = "https://nodebench-mcp-unified.onrender.com?profile=public-research";
   const [copied, setCopied] = useState(false);
+  const [copiedHosted, setCopiedHosted] = useState(false);
   const copy = () => {
     void navigator.clipboard.writeText(copyCommand).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  const copyHosted = () => {
+    void navigator.clipboard.writeText(hostedPublicUrl).then(() => {
+      setCopiedHosted(true);
+      setTimeout(() => setCopiedHosted(false), 1500);
     });
   };
   return (
@@ -4892,31 +4974,41 @@ export function ExactMcpTerminalPage() {
           <section>
             <div className="nb-kicker" style={{ color: "#d97757" }}>CLI / MCP</div>
             <h1 style={{ margin: "8px 0", color: "#fff", fontSize: 42, lineHeight: 1.05, letterSpacing: "-.04em" }}>Bring NodeBench into Claude, Cursor, and agent workflows.</h1>
-            <p style={{ color: "#a1a1aa", fontSize: 16, lineHeight: 1.7, maxWidth: 620 }}>The CLI/MCP kit is the distribution lane: plan, streamed checkpoints, answer packet, resource URIs, verification summary, and saved workspace links.</p>
-            <button className="nb-btn nb-btn-primary" type="button" onClick={copy} style={{ marginTop: 18 }}>
-              {copied ? <Check size={15} /> : <Copy size={15} />}
-              {copied ? "Copied" : "Copy install command"}
-            </button>
+            <p style={{ color: "#a1a1aa", fontSize: 16, lineHeight: 1.7, maxWidth: 620 }}>Start with a public dossier from the hosted MCP endpoint, no sign-in required. Link NodeBench after the first useful result to keep memory, raise limits, and manage teams.</p>
+            <div style={{ marginTop: 18, display: "flex", flexWrap: "wrap", gap: 10 }}>
+              <button className="nb-btn nb-btn-primary" type="button" onClick={copy}>
+                {copied ? <Check size={15} /> : <Copy size={15} />}
+                {copied ? "Copied" : "Copy install command"}
+              </button>
+              <button className="nb-btn" type="button" onClick={copyHosted} style={{ border: "1px solid rgba(255,255,255,.12)", background: "rgba(255,255,255,.04)", color: "#e5e7eb" }}>
+                {copiedHosted ? <Check size={15} /> : <Link2 size={15} />}
+                {copiedHosted ? "Copied" : "Copy hosted public URL"}
+              </button>
+            </div>
           </section>
           <TerminalCard title="~/diligence - zsh - 120x32" badge="core lane">
-            <TerminalLine>homen@mac &gt; claude mcp add nodebench -- npx -y nodebench-mcp</TerminalLine>
-            <TerminalLine tone="ok">registered with Claude Code - nodebench-mcp</TerminalLine>
-            <TerminalLine tone="ok">loaded tools - nodebench.research_run, nodebench.expand_resource</TerminalLine>
+            <TerminalLine>client &gt; tools/list profile=gmail-research</TerminalLine>
+            <TerminalLine tone="ok">anonymous - 10 public research tools loaded</TerminalLine>
+            <TerminalLine tone="ok">account key - anon-client:gmail-research:...</TerminalLine>
             <TerminalDivider />
-            <TerminalLine>agent &gt; nodebench.research_run({"{"} objective: "Fast debrief on DISCO" {"}"})</TerminalLine>
-            <TerminalLine tone="accent">plan - resolve entity, search, synthesize, verify</TerminalLine>
-            <TerminalLine tone="ok">24 sources captured - answer packet streaming</TerminalLine>
+            <TerminalLine>agent &gt; nodebench.research_company({"{"} companyName: "DISCO" {"}"})</TerminalLine>
+            <TerminalLine tone="accent">public-source research - sources, claims, freshness</TerminalLine>
+            <TerminalLine tone="ok">first dossier returned - no signup gate</TerminalLine>
             <div style={{ border: "1px solid rgba(217,119,87,.26)", borderRadius: 8, background: "rgba(217,119,87,.10)", padding: 12, color: "#f8fafc", fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 1.7 }}>
-              Worth reaching out. Save the report, verify the claim, then open Workspace for cards and sources.
+              Link NodeBench to save this run, raise daily limits, create API keys, and share team usage controls.
             </div>
-            <TerminalLine tone="ok">verified - saved report URI nodebench://report/disco-diligence</TerminalLine>
+            <TerminalLine tone="ok">upgrade prompt shown after value - not before</TerminalLine>
           </TerminalCard>
         </div>
-        <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 }}>
-          {["nodebench.research_run", "nodebench.expand_resource"].map((tool) => (
-            <section key={tool} style={{ border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, background: "rgba(255,255,255,.03)", padding: 18 }}>
-              <div style={{ color: "#e59579", fontFamily: "var(--font-mono)", fontSize: 13 }}>{tool}</div>
-              <p style={{ color: "#a1a1aa", fontSize: 13, lineHeight: 1.7 }}>Outputs plan, checkpoints, answer packet, resource URIs, verification summary, and saved report link.</p>
+        <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
+          {[
+            { title: "Use anonymously", body: "Public research and Gmail profiles return sourced dossiers without a token." },
+            { title: "Link after value", body: "Prompt sign-in once the user sees sources, freshness, confidence, and missing info." },
+            { title: "Unlock controls", body: "Linked accounts get history, higher budgets, API keys, team usage, webhooks, and billing." },
+          ].map((item) => (
+            <section key={item.title} style={{ border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, background: "rgba(255,255,255,.03)", padding: 18 }}>
+              <div style={{ color: "#e59579", fontFamily: "var(--font-mono)", fontSize: 13 }}>{item.title}</div>
+              <p style={{ color: "#a1a1aa", fontSize: 13, lineHeight: 1.7 }}>{item.body}</p>
             </section>
           ))}
         </div>

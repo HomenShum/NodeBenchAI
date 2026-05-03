@@ -11,7 +11,7 @@
  * watchlist + nudges + thread history are wired through Convex.
  */
 import { useNavigate } from "react-router-dom";
-import { Bell, ChevronRight, FileText, MessageSquare, Search, UserPlus, AlertTriangle } from "lucide-react";
+import { Bell, ChevronRight, FileText, Link2, MessageSquare, Search, UserPlus, AlertTriangle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useFastAgent } from "@/features/agents/context/FastAgentContext";
 
@@ -196,6 +196,29 @@ export function MobileHomeSurface() {
           ⌘K
         </kbd>
       </button>
+
+      <section className="rounded-[16px] border border-gray-200 bg-white px-3.5 py-3 shadow-sm dark:border-white/[0.08] dark:bg-white/[0.02]">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d97757]/10 text-[#d97757]">
+            <Link2 size={15} aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <div className="text-[13px] font-semibold text-gray-900 dark:text-white">
+              Research first, link after value.
+            </div>
+            <p className="mt-1 text-[12px] leading-5 text-gray-500 dark:text-gray-400">
+              Public dossiers work without sign-in. Link NodeBench when you want saved history, higher limits, and team controls.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/settings?tab=connections")}
+              className="mt-2 text-[12px] font-semibold text-[#d97757]"
+            >
+              Link when ready
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* Watchlist */}
       <section>
