@@ -216,21 +216,6 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
         </select>
       </label>
       <label className="pipeline-launcher-option-field">
-        <span>Route</span>
-        <select
-          data-testid="pipeline-launcher-model"
-          value={modelId}
-          onChange={(e) => setModelId(e.target.value as PipelineModelSelection)}
-          disabled={submitting}
-        >
-          {PIPELINE_MODEL_OPTIONS.map((model) => (
-            <option key={model.value} value={model.value}>
-              {model.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="pipeline-launcher-option-field">
         <span>Title</span>
         <input
           data-testid="pipeline-launcher-title"
@@ -352,7 +337,13 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
         modelLabel={selectedModelLabel}
         modelTitle="Model"
         modelProvider={selectedModelProvider}
-        onModelClick={() => setAdvancedOpen(true)}
+        modelValue={modelId}
+        modelOptions={PIPELINE_MODEL_OPTIONS.map((model) => ({
+          value: model.value,
+          label: model.label,
+        }))}
+        onModelValueChange={(value) => setModelId(value as PipelineModelSelection)}
+        modelSelectTestId="pipeline-launcher-model"
         footerMeta={
           selectedModelOption.isFree
             ? "Memory-first - free route"

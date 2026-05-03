@@ -370,7 +370,21 @@ export async function getNodeBenchJobContext(input: {
 
 ## MCP Usage
 
-Set:
+For hosted MCP, use the scoped public research profile so clients see only the research-memory tools:
+
+```txt
+https://nodebench-mcp-unified.onrender.com?profile=public-research
+```
+
+Use a profile-scoped token when available:
+
+```http
+x-mcp-token: <NODEBENCH_PUBLIC_RESEARCH_TOKEN>
+```
+
+See `docs/guides/MCP_TOOL_PROFILES.md` for token-scoped profiles and full gateway configuration.
+
+For local/package MCP, set:
 
 ```txt
 NODEBENCH_API_URL=https://<nodebench-api-host>

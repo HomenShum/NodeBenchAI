@@ -151,10 +151,15 @@ test("PR A2: Reports renders ExactReportsSurface card grid", async ({ page }) =>
   );
   expect(result.launcherTopModelPins, "Reports does not add a top-row model settings pin").toBe(0);
   expect(result.launcherSuggestChips, "Reports keeps golden suggestion chips").toBeGreaterThanOrEqual(3);
-  await page.locator('[data-testid="pipeline-launcher"] .nb-model-trigger').filter({ visible: true }).click();
+  const launcherModelSelect = page
+    .locator('[data-testid="pipeline-launcher-model"]')
+    .filter({ visible: true });
+  await expect(launcherModelSelect).toContainText("Auto free");
+  await launcherModelSelect.selectOption("nodebench:auto-free");
+  await expect(launcherModelSelect).toHaveValue("nodebench:auto-free");
   await expect(
-    page.locator('[data-testid="pipeline-launcher-model"]').filter({ visible: true }),
-  ).toContainText("Auto free");
+    page.locator('[data-testid="pipeline-launcher"]:visible .nb-composer-meta'),
+  ).toContainText("Memory-first - free route");
 });
 
 test("PR A1: Inbox renders ExactInboxSurface single-column rows", async ({ page }) => {
