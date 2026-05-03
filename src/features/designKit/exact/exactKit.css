@@ -1753,6 +1753,54 @@
   opacity: 0.6;
 }
 
+.nb-mobile-kit .m-public-memory-stack {
+  display: grid;
+  gap: 9px;
+}
+
+.nb-mobile-kit .m-public-memory-card {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 13px;
+  background: var(--bg-surface);
+  padding: 11px 12px;
+  text-align: left;
+  box-shadow: var(--shadow-sm);
+}
+
+.nb-mobile-kit .m-public-memory-card strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.nb-mobile-kit .m-public-memory-card small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.nb-mobile-kit .m-public-memory-card p {
+  margin: 8px 0;
+  color: var(--text-muted);
+  display: -webkit-box;
+  font-size: 11.5px;
+  line-height: 1.4;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.nb-mobile-kit .m-public-memory-card span {
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .nb-mobile-kit .m-watch-tile,
 .nb-mobile-kit .m-nudge,
 .nb-mobile-kit .m-thread,
@@ -6528,6 +6576,140 @@
   width: 22px;
   height: 22px;
   margin-bottom: 0;
+}
+
+.nb-kit .nb-public-memory {
+  margin: 0 auto;
+  max-width: 960px;
+  width: 100%;
+}
+
+.nb-kit .nb-public-memory-head {
+  align-items: flex-end;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.nb-kit .nb-public-memory-head h2 {
+  color: var(--text-primary);
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  margin: 5px 0 0;
+}
+
+.nb-kit .nb-public-memory-head > span {
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  color: var(--text-muted);
+  flex: none;
+  font-size: 11px;
+  font-weight: 760;
+  padding: 6px 10px;
+}
+
+.nb-kit .nb-public-memory-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.nb-kit .nb-public-memory-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--bg-surface);
+  color: inherit;
+  min-height: 172px;
+  padding: 14px;
+  text-align: left;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.nb-kit .nb-public-memory-card:hover {
+  border-color: var(--accent-primary-border);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.nb-kit .nb-public-memory-card-top {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.nb-kit .nb-public-memory-card-top strong {
+  color: var(--text-primary);
+  display: block;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.nb-kit .nb-public-memory-card-top small {
+  color: var(--text-faint);
+  display: block;
+  font-size: 10px;
+  font-weight: 820;
+  line-height: 1.4;
+  margin-top: 5px;
+  text-transform: uppercase;
+}
+
+.nb-kit .nb-public-memory-card-top svg {
+  color: var(--text-faint);
+  flex: none;
+  transition: color 160ms ease;
+}
+
+.nb-kit .nb-public-memory-card:hover .nb-public-memory-card-top svg {
+  color: var(--accent-primary);
+}
+
+.nb-kit .nb-public-memory-card p {
+  color: var(--text-muted);
+  display: -webkit-box;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 12px 0 0;
+  min-height: 36px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.nb-kit .nb-public-memory-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.nb-kit .nb-public-memory-meta span {
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 760;
+  padding: 4px 7px;
+}
+
+@media (max-width: 880px) {
+  .nb-kit .nb-public-memory-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .nb-kit .nb-public-memory-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .nb-kit .nb-public-memory-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .nb-kit .nb-first-list {

@@ -148,6 +148,25 @@ function privateBoundaryStatus(claim: string, evidence: string): "clean" | "priv
   return "clean";
 }
 
+function isPublicLatestSafeEntity(entityKey: string, entityName: string): boolean {
+  const normalizedName = normalizeName(entityName).replace(/\u2019/g, "'");
+  const normalizedKey = entityKey.toLowerCase();
+  if (!normalizedName || normalizedName === "unknown entity") return false;
+  if (/^(re|fw|fwd):\s/.test(normalizedName)) return false;
+  if (normalizedKey.startsWith("role:re-")) return false;
+  if (
+    /\b(gmail|inbox|email thread|recruiter email|pinned resume|private artifact|no-reply|noreply)\b/.test(normalizedName)
+  ) {
+    return false;
+  }
+  if (/\b(great opportunity|the posting here|a fantastic)\b/.test(normalizedName)) return false;
+  if (/\bfrom [a-z0-9 ._-]{2,80}'s\b/.test(normalizedName)) return false;
+  if (normalizedName.length > 96 && /\b(role|opportunity|engineer|recruiter|hiring)\b/.test(normalizedName)) {
+    return false;
+  }
+  return true;
+}
+
 function evaluateClaim(args: {
   claim: string;
   evidenceSnippet: string;
@@ -698,32 +717,44 @@ export const listLatestPublicEntityResearch = query({
       .query("publicResearchRuns")
       .withIndex("by_updated")
       .order("desc")
-      .take(limit * 2);
+      .take(limit * 8);
     const rows: any[] = [];
     const seen = new Set<string>();
     for (const run of runs) {
       if (seen.has(run.entityKey)) continue;
+      if (run.status !== "ready" && run.status !== "needs_review") continue;
       seen.add(run.entityKey);
       const entity = run.entityId ? await ctx.db.get(run.entityId) : null;
+      const entityName = entity?.canonicalName ?? run.entityName;
+      const entityType = entity?.entityType ?? run.kind;
+      if (!isPublicLatestSafeEntity(run.entityKey, entityName)) continue;
       const claims = await ctx.db
         .query("publicResearchClaims")
         .withIndex("by_entity_updated", (q) => q.eq("entityKey", run.entityKey))
         .order("desc")
-        .take(3);
+        .take(8);
+      const publicClaims = claims
+        .filter((claim: any) =>
+          claim.sourceIsPublic &&
+          claim.privateBoundaryStatus === "clean" &&
+          (claim.verifierStatus === "verified" || claim.verifierStatus === "needs_review")
+        )
+        .slice(0, 3);
+      if (publicClaims.length === 0) continue;
       rows.push({
         researchRunId: run.researchRunId,
         status: run.status,
         entityKey: run.entityKey,
-        entityName: entity?.canonicalName ?? run.entityName,
-        entityType: entity?.entityType ?? run.kind,
+        entityName,
+        entityType,
         updatedAt: run.updatedAt,
-        claimCount: run.claimCount,
-        sourceCount: run.sourceCount,
-        confidence: claims.length
-          ? claims.reduce((sum: number, claim: any) => sum + claim.confidence, 0) / claims.length
+        claimCount: publicClaims.length,
+        sourceCount: new Set(publicClaims.map((claim: any) => claim.sourceUrl)).size,
+        confidence: publicClaims.length
+          ? publicClaims.reduce((sum: number, claim: any) => sum + claim.confidence, 0) / publicClaims.length
           : entity?.confidence ?? 0,
-        summary: claims.map((claim: any) => claim.claim).join(" "),
-        sources: Array.from(new Map(claims.map((claim: any) => [claim.sourceUrl, {
+        summary: publicClaims.map((claim: any) => claim.claim).join(" "),
+        sources: Array.from(new Map(publicClaims.map((claim: any) => [claim.sourceUrl, {
           title: claim.sourceTitle,
           url: claim.sourceUrl,
         }])).values()),

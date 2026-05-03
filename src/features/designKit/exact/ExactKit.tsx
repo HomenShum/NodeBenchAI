@@ -94,6 +94,20 @@ type WebSurfaceProps = {
 type LaneId = "answer" | "deep";
 type MobileSurface = "home" | "reports" | "chat" | "inbox" | "me";
 
+type PublicResearchHomeRow = {
+  researchRunId: string;
+  status: string;
+  entityKey: string;
+  entityName: string;
+  entityType: string;
+  updatedAt: number;
+  claimCount: number;
+  sourceCount: number;
+  confidence: number;
+  summary?: string;
+  sources?: Array<{ title?: string; url: string }>;
+};
+
 const LANES: Array<{ id: LaneId; label: string; note: string }> = [
   { id: "answer", label: "Quick answer", note: "fast read" },
   { id: "deep", label: "Deep research", note: "more sources" },
@@ -1030,6 +1044,12 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
   const loggedInUser = useQuery(
     (api as any)?.domains?.auth?.auth?.loggedInUser ?? "skip",
   );
+  const latestPublicResearch = useQuery(
+    (api as any)?.domains?.publicResearch?.core?.listLatestPublicEntityResearch ?? "skip",
+    (api as any)?.domains?.publicResearch?.core?.listLatestPublicEntityResearch
+      ? { limit: 8 }
+      : "skip",
+  ) as PublicResearchHomeRow[] | undefined;
   const startPipelineRun = useMutation(
     generatedApi.domains.pipelines.pipelineWorkflow.startPipelineRun,
   );
@@ -1226,6 +1246,42 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
           ))}
         </div>
       </section>
+
+      {(latestPublicResearch?.length ?? 0) > 0 ? (
+        <section className="nb-public-memory" data-testid="exact-latest-public-research">
+          <div className="nb-public-memory-head">
+            <div>
+              <div className="nb-kicker">Latest public research</div>
+              <h2>Reusable public memory from recent entity runs.</h2>
+            </div>
+            <span>Public claims only</span>
+          </div>
+          <div className="nb-public-memory-grid">
+            {latestPublicResearch?.slice(0, 6).map((item) => (
+              <button
+                key={item.entityKey}
+                type="button"
+                className="nb-public-memory-card"
+                onClick={() => start(`Open public dossier for ${item.entityName}`)}
+              >
+                <div className="nb-public-memory-card-top">
+                  <div>
+                    <strong>{item.entityName}</strong>
+                    <small>{item.entityType} - {item.status.replace(/_/g, " ")} - {formatRelativeWhen(item.updatedAt)}</small>
+                  </div>
+                  <ArrowUpRight size={15} />
+                </div>
+                <p>{item.summary || "Research run recorded. Verified public claims appear as sources are extracted."}</p>
+                <div className="nb-public-memory-meta">
+                  <span>{item.claimCount} claim{item.claimCount === 1 ? "" : "s"}</span>
+                  <span>{item.sourceCount} source{item.sourceCount === 1 ? "" : "s"}</span>
+                  <span>{Math.round((item.confidence || 0) * 100)}% confidence</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <FirstImpressionBoard
         horizon={horizon}
@@ -3499,6 +3555,7 @@ function MobileReportsPipelineBlock() {
 
 function MobileHomeBody() {
   const navigate = useNavigate();
+  const api = useConvexApi();
   const [mobileQuery, setMobileQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -3506,6 +3563,12 @@ function MobileHomeBody() {
     generatedApi.domains.pipelines.pipelineWorkflow.startPipelineRun,
   );
   const anonymousSessionId = useMemo(() => getAnonymousProductSessionId(), []);
+  const latestPublicResearch = useQuery(
+    (api as any)?.domains?.publicResearch?.core?.listLatestPublicEntityResearch ?? "skip",
+    (api as any)?.domains?.publicResearch?.core?.listLatestPublicEntityResearch
+      ? { limit: 5 }
+      : "skip",
+  ) as PublicResearchHomeRow[] | undefined;
   const mobileCards = getFirstImpressionCards("today");
   const runMobileBackground = async (prompt = mobileQuery, title?: string) => {
     if (submitting) return;
@@ -3589,6 +3652,34 @@ function MobileHomeBody() {
         </button>
       </div>
       {feedback ? <div className="m-run-feedback" role="status">{feedback}</div> : null}
+      {(latestPublicResearch?.length ?? 0) > 0 ? (
+        <section className="m-section" data-testid="mobile-latest-public-research">
+          <header className="m-section-head">
+            <span className="kicker">Latest public research</span>
+            <a href="/?surface=reports">Public memory</a>
+          </header>
+          <div className="m-public-memory-stack">
+            {latestPublicResearch?.slice(0, 3).map((item) => (
+              <button
+                key={item.entityKey}
+                type="button"
+                className="m-public-memory-card"
+                onClick={() => navigate(buildCockpitPath({
+                  surfaceId: "workspace",
+                  extra: { q: `Open public dossier for ${item.entityName}`, lane: "answer" },
+                }))}
+              >
+                <div>
+                  <strong>{item.entityName}</strong>
+                  <small>{item.entityType} - {item.status.replace(/_/g, " ")} - {formatRelativeWhen(item.updatedAt)}</small>
+                </div>
+                <p>{item.summary || "Verified public claims appear as sources are extracted."}</p>
+                <span>{item.claimCount} claims - {item.sourceCount} sources</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <section className="m-section" data-testid="mobile-home-first-impression">
         <header className="m-section-head"><span className="kicker">Use cases today</span><a href="/?surface=reports">Reports</a></header>
         <div className="m-scenario-stack">
