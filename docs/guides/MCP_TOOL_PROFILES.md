@@ -114,6 +114,7 @@ npx convex run --push "domains/mcp/mcpToolLedger:getUsageAndCostSnapshot" "{acco
 ```
 
 Cost values are estimates for product control and abuse detection. Provider invoices remain the source of truth for final billing reconciliation.
+Anonymous public-profile accounting is intentionally stable per client id so apps can show usage before account linking without sending private user data.
 
 ## Environment Variables
 
