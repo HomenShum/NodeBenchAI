@@ -376,11 +376,20 @@ For hosted MCP, use the scoped public research profile so clients see only the r
 https://nodebench-mcp-unified.onrender.com?profile=public-research
 ```
 
-Use a profile-scoped token when available:
+The hosted `public-research` and `gmail-research` profiles are designed for tokenless public-source integrations. Use a profile-scoped token only when you need custom budgets or non-public profiles:
 
 ```http
 x-mcp-token: <NODEBENCH_PUBLIC_RESEARCH_TOKEN>
 ```
+
+Gmail/job integrations should use:
+
+```txt
+NODEBENCH_MCP_URL=https://nodebench-mcp-unified.onrender.com?profile=gmail-research
+NODEBENCH_MCP_PROFILE=gmail-research
+```
+
+No `NODEBENCH_MCP_TOKEN` is required for this public profile. The calling app must still keep Gmail, resume, and fit scoring local.
 
 See `docs/guides/MCP_TOOL_PROFILES.md` for token-scoped profiles and full gateway configuration.
 

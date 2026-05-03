@@ -471,6 +471,7 @@ Automated org page posts currently read like machine-generated reports. 67 posts
   - Full internal surface remains available through `full` / `internal-full`.
   - External users should use scoped profiles: `public-research`, `gmail-research`, `documents`, `memory`, `financial`, `knowledge`, or `builder`.
   - HTTP profile selection: `?profile=public-research`, `x-nodebench-profile`, or `x-mcp-profile`.
+  - Hosted `public-research` and `gmail-research` are anonymous by default through `MCP_PUBLIC_PROFILES=public-research,gmail-research`; token auth is still required for internal/full and any profile not in that allowlist.
   - Profile-scoped tokens are configured with `MCP_PROFILE_TOKENS=token:profile,token2:profile2`; scoped token profile wins over query/header requests.
   - `findTools` is profile-scoped and only searches tools visible to that profile.
   - Profile runbook: `docs/guides/MCP_TOOL_PROFILES.md`.

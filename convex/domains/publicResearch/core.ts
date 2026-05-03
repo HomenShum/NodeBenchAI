@@ -579,17 +579,21 @@ export const verifyClaim = mutation({
 
 export const getEntityDossier = query({
   args: {
+    entityId: v.optional(v.id("publicResearchEntities")),
     entityKey: v.optional(v.string()),
     entityType: v.optional(entityTypeValidator),
     name: v.optional(v.string()),
+    domain: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const entityKey = args.entityKey ?? canonicalKey({ entityType: args.entityType, name: args.name });
-    const entity = await ctx.db
-      .query("publicResearchEntities")
-      .withIndex("by_entityKey", (q) => q.eq("entityKey", entityKey))
-      .first();
+    const entityKey = args.entityKey ?? canonicalKey({ entityType: args.entityType, name: args.name, domain: args.domain });
+    const entity = args.entityId
+      ? await ctx.db.get(args.entityId)
+      : await ctx.db
+        .query("publicResearchEntities")
+        .withIndex("by_entityKey", (q) => q.eq("entityKey", entityKey))
+        .first();
     if (!entity) return null;
     const limit = Math.min(args.limit ?? 20, 50);
     const claims = await ctx.db
@@ -627,22 +631,27 @@ export const getEntityDossier = query({
 
 export const getContextPack = query({
   args: {
+    entityId: v.optional(v.id("publicResearchEntities")),
     entityKey: v.optional(v.string()),
     entityType: v.optional(entityTypeValidator),
     name: v.optional(v.string()),
+    domain: v.optional(v.string()),
     useCase: v.optional(v.union(
       v.literal("job_match"),
       v.literal("interview_prep"),
       v.literal("sales_research"),
+      v.literal("product_intel"),
       v.literal("general"),
     )),
   },
   handler: async (ctx, args) => {
-    const entityKey = args.entityKey ?? canonicalKey({ entityType: args.entityType, name: args.name });
-    const entity = await ctx.db
-      .query("publicResearchEntities")
-      .withIndex("by_entityKey", (q) => q.eq("entityKey", entityKey))
-      .first();
+    const entityKey = args.entityKey ?? canonicalKey({ entityType: args.entityType, name: args.name, domain: args.domain });
+    const entity = args.entityId
+      ? await ctx.db.get(args.entityId)
+      : await ctx.db
+        .query("publicResearchEntities")
+        .withIndex("by_entityKey", (q) => q.eq("entityKey", entityKey))
+        .first();
     if (!entity) return null;
     const claims = await ctx.db
       .query("publicResearchClaims")

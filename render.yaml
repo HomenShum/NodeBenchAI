@@ -18,6 +18,8 @@ services:
         value: "0.0.0.0"
       - key: MCP_HTTP_TOKEN
         sync: false
+      - key: MCP_PUBLIC_PROFILES
+        value: "public-research,gmail-research"
       - key: CONVEX_URL
         sync: false
       - key: MCP_SECRET

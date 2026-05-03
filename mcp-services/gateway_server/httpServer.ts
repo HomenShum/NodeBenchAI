@@ -27,6 +27,7 @@ import { evalTools } from "./tools/evalTools.js";
 import { createMetaTools } from "./tools/metaTools.js";
 import {
   filterToolsForProfile,
+  isPublicToolProfileName,
   listToolProfiles,
   normalizeToolProfileName,
   type ToolProfileName,
@@ -57,6 +58,7 @@ const PORT = process.env.PORT ? Number(process.env.PORT) : 4002;
 const TOKEN = process.env.MCP_HTTP_TOKEN;
 const DEFAULT_PROFILE =
   normalizeToolProfileName(process.env.MCP_DEFAULT_PROFILE) ?? "full";
+const DEFAULT_ANONYMOUS_PROFILES = "public-research,gmail-research";
 
 type TokenProfileConfig = {
   tokens: Set<string>;
@@ -107,6 +109,15 @@ function parseTokenProfiles(value: string | undefined): Map<string, ToolProfileN
   return tokenProfiles;
 }
 
+function parseProfileList(value: string | undefined): Set<ToolProfileName> {
+  const profiles = new Set<ToolProfileName>();
+  for (const entry of (value || "").split(",")) {
+    const normalized = normalizeToolProfileName(entry);
+    if (normalized) profiles.add(normalized);
+  }
+  return profiles;
+}
+
 const tokenConfig: TokenProfileConfig = (() => {
   const tokenProfiles = parseTokenProfiles(process.env.MCP_PROFILE_TOKENS);
   const tokens = new Set<string>();
@@ -114,6 +125,11 @@ const tokenConfig: TokenProfileConfig = (() => {
   for (const token of tokenProfiles.keys()) tokens.add(token);
   return { tokens, tokenProfiles };
 })();
+const anonymousProfiles = parseProfileList(
+  process.env.MCP_ANONYMOUS_PROFILES ??
+    process.env.MCP_PUBLIC_PROFILES ??
+    DEFAULT_ANONYMOUS_PROFILES
+);
 
 function getRequestedProfile(req: http.IncomingMessage): ToolProfileName | undefined {
   const headerProfile =
@@ -138,21 +154,28 @@ function getProfileTools(profileName: ToolProfileName) {
 function getAuthAndProfile(req: http.IncomingMessage): {
   authorized: boolean;
   profileName: ToolProfileName;
+  authMode: "token" | "anonymous" | "open";
 } {
   const suppliedToken = getSuppliedToken(req);
+  const requestedProfile = getRequestedProfile(req);
 
   if (tokenConfig.tokens.size > 0) {
+    if (!suppliedToken && requestedProfile && anonymousProfiles.has(requestedProfile)) {
+      return { authorized: true, profileName: requestedProfile, authMode: "anonymous" };
+    }
+
     if (!suppliedToken || !tokenConfig.tokens.has(suppliedToken)) {
-      return { authorized: false, profileName: DEFAULT_PROFILE };
+      return { authorized: false, profileName: DEFAULT_PROFILE, authMode: "token" };
     }
 
     const scopedProfile = tokenConfig.tokenProfiles.get(suppliedToken);
-    if (scopedProfile) return { authorized: true, profileName: scopedProfile };
+    if (scopedProfile) return { authorized: true, profileName: scopedProfile, authMode: "token" };
   }
 
   return {
     authorized: true,
-    profileName: getRequestedProfile(req) ?? DEFAULT_PROFILE,
+    profileName: requestedProfile ?? DEFAULT_PROFILE,
+    authMode: tokenConfig.tokens.size > 0 ? "token" : "open",
   };
 }
 
@@ -174,8 +197,36 @@ const server = http.createServer(async (req, res) => {
       profiles: listToolProfiles().map((profile) => ({
         ...profile,
         tools: getProfileTools(profile.name).length,
+        anonymous: anonymousProfiles.has(profile.name) && isPublicToolProfileName(profile.name),
       })),
+      anonymousProfiles: [...anonymousProfiles],
       categories: ["research", "narrative", "verification", "knowledge", "documents", "planning", "memory", "search", "financial"],
+    });
+    return;
+  }
+
+  if (req.method === "GET" && (pathname === "/.well-known/nodebench-mcp.json" || pathname === "/setup/gmail-research")) {
+    const host = req.headers["x-forwarded-host"] || req.headers.host || `localhost:${PORT}`;
+    const proto = req.headers["x-forwarded-proto"] || (HOST === "0.0.0.0" ? "https" : "http");
+    const baseUrl = `${Array.isArray(proto) ? proto[0] : proto}://${Array.isArray(host) ? host[0] : host}`;
+    respond(res, 200, {
+      service: "nodebench-mcp-unified",
+      protocol: "json-rpc-2.0-http",
+      defaultProfile: DEFAULT_PROFILE,
+      profiles: listToolProfiles().map((profile) => ({
+        ...profile,
+        url: `${baseUrl}?profile=${profile.name}`,
+        tools: getProfileTools(profile.name).length,
+        authRequired: !(anonymousProfiles.has(profile.name) && isPublicToolProfileName(profile.name)),
+      })),
+      recommended: {
+        gmailResearch: {
+          url: `${baseUrl}?profile=gmail-research`,
+          profile: "gmail-research",
+          authRequired: !(anonymousProfiles.has("gmail-research") && isPublicToolProfileName("gmail-research")),
+          headers: anonymousProfiles.has("gmail-research") ? {} : { "x-mcp-token": "<token>" },
+        },
+      },
     });
     return;
   }
@@ -238,6 +289,7 @@ const server = http.createServer(async (req, res) => {
               name: "nodebench-mcp-unified",
               version: "1.0.0",
               profile: profileName,
+              authMode: authAndProfile.authMode,
             },
           },
         });
@@ -256,6 +308,7 @@ const server = http.createServer(async (req, res) => {
               inputSchema: t.inputSchema,
             })),
             profile: profileName,
+            authMode: authAndProfile.authMode,
             profiles: listToolProfiles(),
           },
         });

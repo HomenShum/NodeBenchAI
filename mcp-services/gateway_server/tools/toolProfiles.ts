@@ -175,6 +175,10 @@ export function isToolProfileName(value: string | undefined): value is ToolProfi
   return Boolean(value && Object.prototype.hasOwnProperty.call(TOOL_PROFILES, value));
 }
 
+export function isPublicToolProfileName(value: ToolProfileName): boolean {
+  return value === "public-research" || value === "gmail-research" || value === "financial";
+}
+
 export function normalizeToolProfileName(value: string | undefined): ToolProfileName | undefined {
   if (!value) return undefined;
   const normalized = value.trim().toLowerCase();
