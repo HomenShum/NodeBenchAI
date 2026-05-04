@@ -6,6 +6,7 @@ import { useConvexApi } from "@/lib/convexApi";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 import {
   Archive,
+  ArrowUpRight,
   Bell,
   BookOpen,
   Bot,
