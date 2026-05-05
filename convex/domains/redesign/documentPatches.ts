@@ -50,7 +50,7 @@ export const propose = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Auth required");
-    const id = await ctx.db.insert("documentPatches", {
+    const id = await ctx.db.insert("redesignDocumentPatches", {
       documentId: args.documentId,
       userId,
       source: args.source,

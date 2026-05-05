@@ -90,13 +90,15 @@ export const executeBatchRun = internalAction({
           internal.domains.models.modelRouter.route,
           {
             taskCategory: "summarization",
-            taskTier: "free",
-            prompt: summaryPrompt,
+            tier: "free",
+            systemPrompt:
+              "You summarize newly collected intelligence into concise, source-aware analyst notes.",
+            messages: [{ role: "user", content: summaryPrompt }],
             maxTokens: 2000,
           }
         );
-        deltaSummary = summaryResult.text || summaryResult.content || "";
-        tokensUsed += summaryResult.usage?.totalTokens || 0;
+        deltaSummary = summaryResult.text || "";
+        tokensUsed += summaryResult.inputTokens + summaryResult.outputTokens;
         modelCallsCount++;
       } catch (e) {
         // Fallback: use raw data as summary
@@ -142,13 +144,15 @@ export const executeBatchRun = internalAction({
           internal.domains.models.modelRouter.route,
           {
             taskCategory: "content_generation",
-            taskTier: profile.budget.preferredModelTier || "free",
-            prompt: briefPrompt,
+            tier: profile.budget.preferredModelTier || "free",
+            systemPrompt:
+              "You write personalized intelligence briefs that preserve the operator's stated goals, writing style, and evidence preferences.",
+            messages: [{ role: "user", content: briefPrompt }],
             maxTokens: 4000,
           }
         );
-        briefMarkdown = briefResult.text || briefResult.content || deltaSummary;
-        tokensUsed += briefResult.usage?.totalTokens || 0;
+        briefMarkdown = briefResult.text || deltaSummary;
+        tokensUsed += briefResult.inputTokens + briefResult.outputTokens;
         modelCallsCount++;
       } catch (e) {
         // Fallback: use the summary as the brief
