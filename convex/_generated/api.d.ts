@@ -880,6 +880,7 @@ import type * as domains_operations_utilities_seedGoldenDataset from "../domains
 import type * as domains_operations_utilities_snapshotMigrations from "../domains/operations/utilities/snapshotMigrations.js";
 import type * as domains_operations_validationWorkflow from "../domains/operations/validationWorkflow.js";
 import type * as domains_operatorProfile_filesystemSync from "../domains/operatorProfile/filesystemSync.js";
+import type * as domains_operatorProfile_manifest from "../domains/operatorProfile/manifest.js";
 import type * as domains_operatorProfile_mutations from "../domains/operatorProfile/mutations.js";
 import type * as domains_operatorProfile_parser from "../domains/operatorProfile/parser.js";
 import type * as domains_operatorProfile_queries from "../domains/operatorProfile/queries.js";
@@ -2351,6 +2352,7 @@ declare const fullApi: ApiFromModules<{
   "domains/operations/utilities/snapshotMigrations": typeof domains_operations_utilities_snapshotMigrations;
   "domains/operations/validationWorkflow": typeof domains_operations_validationWorkflow;
   "domains/operatorProfile/filesystemSync": typeof domains_operatorProfile_filesystemSync;
+  "domains/operatorProfile/manifest": typeof domains_operatorProfile_manifest;
   "domains/operatorProfile/mutations": typeof domains_operatorProfile_mutations;
   "domains/operatorProfile/parser": typeof domains_operatorProfile_parser;
   "domains/operatorProfile/queries": typeof domains_operatorProfile_queries;

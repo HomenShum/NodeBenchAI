@@ -65,6 +65,51 @@ export function generateProfileMarkdown(answers: WizardAnswers): string {
   if (answers.domains?.length) lines.push(`- **Primary Domains**: ${answers.domains.join(", ")}`);
   if (answers.writingStyle) lines.push(`- **Writing Style**: ${answers.writingStyle}`);
 
+  lines.push(
+    "",
+    "## Personal Context Notebook",
+    "",
+    "### Background",
+    "",
+    "### Current priorities",
+    "",
+    "### Projects I am building",
+    "",
+    "### Companies, people, and markets I care about",
+    "",
+    "### Communication style",
+    answers.writingStyle
+      ? `- ${answers.writingStyle}`
+      : "- Concise, evidence-led, and explicit about uncertainty.",
+    "",
+    "### Evidence preferences",
+    "- Prefer source-backed claims and mark weak evidence as needs_review.",
+    "",
+    "### CRM / export preferences",
+    "",
+    "### Privacy boundaries",
+    "- Ask before changing privacy, connector, budget, sharing, or external-write defaults.",
+    "",
+    "### Things NodeBench should not assume",
+    "",
+    "## Style Profile",
+    answers.writingStyle
+      ? `- ${answers.writingStyle}`
+      : "- Founder / banker lens with concise recommendation-first memos.",
+    "- Short answer",
+    "- Why it matters",
+    "- Evidence",
+    "- Risks / unknowns",
+    "- Next action",
+    "",
+    "## Golden Set",
+    "- Upload 3-10 accepted memos, reports, prompts, or manager feedback artifacts to calibrate private style.",
+    "",
+    "## Rubric Library",
+    "- Banker coverage screen",
+    "- VC investor memo",
+  );
+
   lines.push("", "## Goals");
   answers.goals.forEach((goal, i) => {
     lines.push(`${i + 1}. ${goal}`);
