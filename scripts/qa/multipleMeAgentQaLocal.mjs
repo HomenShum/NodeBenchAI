@@ -71,7 +71,31 @@ const evidenceFiles = [
       "Batch",
       "MemoryPatchProposal",
       "approvalRequired",
+      "toRedesignStyleProfileUpsertArgs",
+      "createRedesignUniverseUpsertArgs",
+      "toRedesignDocumentPatchProposal",
+      "redesign.s5.v1",
     ],
+  },
+  {
+    id: "redesign_style_profile",
+    file: "convex/domains/redesign/styleProfile.ts",
+    terms: ["styleProfiles", "getActive", "upsert", "setActive", "provenance", "modelUsed"],
+  },
+  {
+    id: "redesign_universes",
+    file: "convex/domains/redesign/universes.ts",
+    terms: ["redesignUniverses", "entityIds", "styleId", "rubric", "setMonitoring"],
+  },
+  {
+    id: "redesign_document_patches",
+    file: "convex/domains/redesign/documentPatches.ts",
+    terms: ["redesignDocumentPatches", "listPending", "propose", "accept", "reject", "batchAutopilotRunId"],
+  },
+  {
+    id: "redesign_live_hooks",
+    file: "src/features/redesign/hooks/useBatchLive.ts",
+    terms: ["getRecentRuns", "ActiveBatchRun", "styleName", "rubric", "universeName"],
   },
   {
     id: "batch_autopilot",
@@ -207,7 +231,11 @@ function buildCriteria(evidence) {
   add(
     "style_profile",
     "Style Profile is durable and visible",
-    [has(evidence, "operator_profile", "operatorProfiles"), has(evidence, "operator_manifest", "StyleProfileManifest")],
+    [
+      has(evidence, "operator_profile", "operatorProfiles"),
+      has(evidence, "operator_manifest", "StyleProfileManifest"),
+      has(evidence, "redesign_style_profile", "styleProfiles"),
+    ],
     [has(evidence, "me_surface", "Style Profile")],
     "Promote memoStyles/user.inferred into a persisted styleProfile or style.skill.md runtime object with version/provenance.",
     ["operatorProfile domain", "operator manifest", "Me surface style card"],
@@ -215,7 +243,11 @@ function buildCriteria(evidence) {
   add(
     "golden_set",
     "Golden Set examples can drive private style extraction",
-    [has(evidence, "operator_manifest", "GoldenSetArtifact"), has(evidence, "operator_manifest", "Golden Set")],
+    [
+      has(evidence, "operator_manifest", "GoldenSetArtifact"),
+      has(evidence, "operator_manifest", "Golden Set"),
+      has(evidence, "redesign_style_profile", "provenance"),
+    ],
     [has(evidence, "style_fixtures", "memoStyles")],
     "Add Golden Set backend tables or fields for uploaded examples, extraction confidence, provenance, and accept/edit flow.",
     ["operator manifest Golden Set contract", "extraction confidence/provenance"],
@@ -223,7 +255,11 @@ function buildCriteria(evidence) {
   add(
     "rubric_library",
     "Rubric Library is modeled separately from prose style",
-    [has(evidence, "operator_manifest", "RubricDefinition"), has(evidence, "operator_manifest", "Rubric Library")],
+    [
+      has(evidence, "operator_manifest", "RubricDefinition"),
+      has(evidence, "operator_manifest", "Rubric Library"),
+      has(evidence, "redesign_universes", "rubric"),
+    ],
     [has(evidence, "reports_surface", "style")],
     "Add a rubric library contract with sections, required fields, source rules, scoring dimensions, and styleProfile separation.",
     ["operator manifest Rubric Library contract", "rubric sections/source rules/scoring dimensions"],
@@ -231,7 +267,7 @@ function buildCriteria(evidence) {
   add(
     "universe",
     "Universe entity lists are first-class",
-    [has(evidence, "reports_surface", "universe"), has(evidence, "product_schema", "productEventWorkspaces")],
+    [has(evidence, "redesign_universes", "redesignUniverses"), has(evidence, "redesign_universes", "entityIds")],
     [has(evidence, "root_schema", "researchJobs")],
     "Add explicit universe objects or normalize productEventWorkspaces into reusable coverage universes with entity membership and status counts.",
     ["Reports surface universe string", "productEventWorkspaces"],
@@ -239,7 +275,11 @@ function buildCriteria(evidence) {
   add(
     "batch_run",
     "Batch Run applies one prompt/rubric/style across many entities",
-    [has(evidence, "batch_autopilot", "batch"), has(evidence, "product_schema", "productEventRunRecords"), has(evidence, "root_schema", "researchJobs")],
+    [
+      has(evidence, "batch_autopilot", "batch"),
+      has(evidence, "root_schema", "researchJobs"),
+      has(evidence, "operator_manifest", "redesign.s5.v1"),
+    ],
     [has(evidence, "chat_surface", "Batch")],
     "Add BatchRun runtime contract with universeId, styleProfileId, rubricId, sourcePolicy, QA thresholds, live counts, kill switch.",
     ["batchAutopilot", "productEventRunRecords", "researchJobs"],
@@ -247,7 +287,11 @@ function buildCriteria(evidence) {
   add(
     "review_queue",
     "Review Queue triages batch outputs by reason",
-    [has(evidence, "product_schema", "productClaimReviews"), has(evidence, "inbox_surface", "review"), has(evidence, "inbox_surface", "confidence")],
+    [
+      has(evidence, "product_schema", "productClaimReviews"),
+      has(evidence, "inbox_surface", "review"),
+      has(evidence, "redesign_document_patches", "redesignDocumentPatches"),
+    ],
     [has(evidence, "product_schema", "productNudges")],
     "Add review item reason taxonomy for weak_source, style_mismatch, missing_field, low_confidence, approval_required.",
     ["productClaimReviews", "Inbox review/confidence"],
@@ -276,7 +320,11 @@ function buildCriteria(evidence) {
   add(
     "chat_multiply",
     "Chat can multiply a single prompt across a list",
-    [has(evidence, "operator_manifest", "ChatMultiplyHandoff"), has(evidence, "operator_manifest", "Run on a list"), has(evidence, "operator_manifest", "Multiply")],
+    [
+      has(evidence, "operator_manifest", "ChatMultiplyHandoff"),
+      has(evidence, "operator_manifest", "Run on a list"),
+      has(evidence, "operator_manifest", "redesign.s5.v1"),
+    ],
     [has(evidence, "chat_surface", "Compare across list"), has(evidence, "chat_surface", "UniversalComposer")],
     "Expose chat-to-batch handoff in runtime: prompt + style + current entity -> sample 3 -> full batch.",
     ["operator manifest chat-to-batch handoff"],
@@ -328,7 +376,11 @@ function buildCriteria(evidence) {
   add(
     "style_inference",
     "Style inference has backend policy and acceptance loop",
-    [has(evidence, "style_fixtures", "inferredStyleProvenance"), has(evidence, "me_surface", "Accept"), has(evidence, "me_surface", "Reject")],
+    [
+      has(evidence, "style_fixtures", "inferredStyleProvenance"),
+      has(evidence, "redesign_style_profile", "upsert"),
+      has(evidence, "redesign_style_profile", "setActive"),
+    ],
     [has(evidence, "operator_profile", "parse")],
     "Add opt-in style inference action that samples uploads/conversations, proposes style.skill.md diff, and requires accept/edit/pin for sensitive changes.",
     ["inferredStyleProvenance", "Accept/Reject UI evidence"],

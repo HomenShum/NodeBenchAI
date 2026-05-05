@@ -7,10 +7,19 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 
-const cliPath = "node_modules/convex/dist/cli.bundle.cjs";
+const cliPath = [
+  process.env.CONVEX_CLI_PATH,
+  resolve("node_modules/convex/dist/cli.bundle.cjs"),
+  resolve("../node_modules/convex/dist/cli.bundle.cjs"),
+  resolve("../../node_modules/convex/dist/cli.bundle.cjs"),
+].filter(Boolean).find((candidate) => existsSync(candidate));
+
+if (!cliPath) {
+  throw new Error("Could not locate Convex CLI bundle. Set CONVEX_CLI_PATH or run from a checkout with node_modules.");
+}
 
 function extractJson(raw) {
   const trimmed = raw.trim();

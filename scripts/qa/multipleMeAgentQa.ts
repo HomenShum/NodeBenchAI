@@ -192,7 +192,31 @@ const EVIDENCE_FILES = [
       "Batch",
       "MemoryPatchProposal",
       "approvalRequired",
+      "toRedesignStyleProfileUpsertArgs",
+      "createRedesignUniverseUpsertArgs",
+      "toRedesignDocumentPatchProposal",
+      "redesign.s5.v1",
     ],
+  },
+  {
+    id: "redesign_style_profile",
+    file: "convex/domains/redesign/styleProfile.ts",
+    patterns: ["styleProfiles", "getActive", "upsert", "setActive", "provenance", "modelUsed"],
+  },
+  {
+    id: "redesign_universes",
+    file: "convex/domains/redesign/universes.ts",
+    patterns: ["redesignUniverses", "entityIds", "styleId", "rubric", "setMonitoring"],
+  },
+  {
+    id: "redesign_document_patches",
+    file: "convex/domains/redesign/documentPatches.ts",
+    patterns: ["redesignDocumentPatches", "listPending", "propose", "accept", "reject", "batchAutopilotRunId"],
+  },
+  {
+    id: "redesign_batch_hook",
+    file: "src/features/redesign/hooks/useBatchLive.ts",
+    patterns: ["getRecentRuns", "ActiveBatchRun", "styleName", "rubric", "universeName"],
   },
   {
     id: "operator_queries",
@@ -435,6 +459,7 @@ function deterministicChecks(evidence: EvidenceItem[]): DeterministicCheck[] {
       includesEvidence(evidence, "operator_manifest", "StyleProfileManifest"),
       includesEvidence(evidence, "operator_manifest", "GoldenSetArtifact"),
       includesEvidence(evidence, "operator_manifest", "RubricDefinition"),
+      includesEvidence(evidence, "redesign_style_profile", "styleProfiles"),
     ],
     [
       includesEvidence(evidence, "operator_profile", "operatorProfiles"),
@@ -449,9 +474,10 @@ function deterministicChecks(evidence: EvidenceItem[]): DeterministicCheck[] {
     "Batch run applies one judgment process across many entities",
     [
       includesEvidence(evidence, "batch_autopilot", "batch"),
-      includesEvidence(evidence, "product_schema", "productEventRunRecords"),
+      includesEvidence(evidence, "redesign_batch_hook", "getRecentRuns"),
       includesEvidence(evidence, "root_schema", "researchJobs"),
       includesEvidence(evidence, "operator_manifest", "ChatMultiplyHandoff"),
+      includesEvidence(evidence, "operator_manifest", "redesign.s5.v1"),
     ],
     [
       includesEvidence(evidence, "batch_autopilot", "batch"),
@@ -468,6 +494,7 @@ function deterministicChecks(evidence: EvidenceItem[]): DeterministicCheck[] {
       includesEvidence(evidence, "product_schema", "productClaimReviews"),
       includesEvidence(evidence, "product_schema", "productNudges"),
       includesEvidence(evidence, "inbox_surface", "approval"),
+      includesEvidence(evidence, "redesign_document_patches", "redesignDocumentPatches"),
     ],
     [
       includesEvidence(evidence, "product_schema", "productClaimReviews"),

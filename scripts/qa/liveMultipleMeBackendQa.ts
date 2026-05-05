@@ -10,6 +10,7 @@
  * - deterministic diligence gate judge
  * - model-router call shape for batch/autopilot callers
  * - prompt builders used by personalized batch briefs
+ * - official PR 240 redesign backend contracts
  */
 
 import { config as loadEnv } from "dotenv";
@@ -19,6 +20,14 @@ import { judgeAgentRun } from "../../convex/domains/evaluation/agentRunJudge";
 import { runPiOrAiSdkCompletion } from "../../convex/domains/pipelines/piRuntime";
 import { buildBriefPrompt, buildDeltaSummaryPrompt } from "../../convex/domains/operations/batchAutopilot/promptBuilder";
 import { judgeDiligenceRun } from "../../server/pipeline/diligenceJudge";
+import {
+  createChatMultiplyHandoff,
+  createRedesignUniverseUpsertArgs,
+  parseOperatorManifestMarkdown,
+  proposeMemoryPatch,
+  toRedesignDocumentPatchProposal,
+  toRedesignStyleProfileUpsertArgs,
+} from "../../convex/domains/operatorProfile/manifest";
 
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
@@ -139,6 +148,93 @@ async function checkPromptBuilders() {
     details: {
       deltaPromptChars: deltaPrompt.length,
       briefPromptChars: briefPrompt.length,
+    },
+  });
+}
+
+async function checkOfficialRedesignContracts() {
+  const files = {
+    styleProfile: await fs.readFile("convex/domains/redesign/styleProfile.ts", "utf8"),
+    universes: await fs.readFile("convex/domains/redesign/universes.ts", "utf8"),
+    documentPatches: await fs.readFile("convex/domains/redesign/documentPatches.ts", "utf8"),
+    schema: await fs.readFile("convex/schema.ts", "utf8"),
+    batchHook: await fs.readFile("src/features/redesign/hooks/useBatchLive.ts", "utf8"),
+    reportsHook: await fs.readFile("src/features/redesign/hooks/useReportsLive.ts", "utf8"),
+    inboxHook: await fs.readFile("src/features/redesign/hooks/useInboxLive.ts", "utf8"),
+  };
+
+  assertIncludes(files.schema, "styleProfiles: defineTable", "schema");
+  assertIncludes(files.schema, "redesignDocumentPatches: defineTable", "schema");
+  assertIncludes(files.schema, "redesignUniverses: defineTable", "schema");
+  assertIncludes(files.schema, "inboxSnoozes: defineTable", "schema");
+  assertIncludes(files.schema, "agentRunFeedback: defineTable", "schema");
+  assertIncludes(files.styleProfile, "export const upsert", "styleProfile");
+  assertIncludes(files.universes, "export const upsert", "universes");
+  assertIncludes(files.documentPatches, 'ctx.db.insert("redesignDocumentPatches"', "documentPatches");
+  assertIncludes(files.batchHook, "getRecentRuns", "useBatchLive");
+  assertIncludes(files.reportsHook, "getRecentRuns", "useReportsLive");
+  assertIncludes(files.inboxHook, "listRecentRuns", "useInboxLive");
+
+  const manifest = parseOperatorManifestMarkdown(`## Personal Context Notebook
+### Communication style
+Concise banker memos.
+
+## Style Profile
+- Founder / banker lens with recommendation first (91% confidence)
+- Short answer
+- Why it matters
+- Evidence
+- Risks / unknowns
+- Next action
+
+## Golden Set
+- Orbital Labs memo (90% confidence)
+
+## Rubric Library
+- Banker coverage screen
+`);
+  const styleArgs = toRedesignStyleProfileUpsertArgs(manifest, "synthetic-qa");
+  const universeArgs = createRedesignUniverseUpsertArgs({
+    name: "Healthcare AI Coverage",
+    entityIds: ["orbital-labs", "mercuror"],
+    rubric: manifest.rubricLibrary[0],
+    styleId: "style_profile_id",
+  });
+  const handoff = createChatMultiplyHandoff({
+    prompt: "Research this company and multiply it across the list.",
+    universeId: "universe_id",
+    styleProfileId: styleArgs.slug,
+    rubricId: universeArgs.rubric,
+  });
+  const patch = proposeMemoryPatch({
+    targetSection: "Communication style",
+    proposedMarkdown: "- Prefer concise banker memos.",
+    reason: "Repeated edit pattern",
+    confidence: 0.84,
+    sourceType: "chat",
+  });
+  const patchProposal = toRedesignDocumentPatchProposal({
+    documentId: "doc_123",
+    patch,
+    html: "<p>Prefer concise banker memos.</p>",
+  });
+
+  if (handoff.contractVersion !== "redesign.s5.v1") {
+    throw new Error(`expected redesign.s5.v1 handoff, got ${handoff.contractVersion}`);
+  }
+  if (handoff.targetTables.reviewPatch !== "redesignDocumentPatches") {
+    throw new Error("chat handoff does not target redesignDocumentPatches");
+  }
+
+  record({
+    name: "official_redesign_contracts",
+    status: "pass",
+    summary: "backend handoff targets PR 240 S5 tables, live hooks, and document patch queue",
+    details: {
+      styleArgs,
+      universeArgs,
+      handoff,
+      patchProposal,
     },
   });
 }
@@ -268,6 +364,7 @@ async function main() {
   const runners: Array<[string, () => Promise<void>]> = [
     ["model_router_call_shape", checkModelRouterCallShape],
     ["personalized_prompt_builders", checkPromptBuilders],
+    ["official_redesign_contracts", checkOfficialRedesignContracts],
     ["deterministic_diligence_judge", checkDeterministicDiligenceJudge],
     ["pi_ai_runtime_completion", checkPiRuntime],
     ["llm_agent_judge", checkAgentLlmJudge],

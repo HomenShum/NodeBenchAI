@@ -3,8 +3,11 @@ import {
   DEFAULT_RUBRIC_LIBRARY,
   buildStyleSkillMarkdown,
   createChatMultiplyHandoff,
+  createRedesignUniverseUpsertArgs,
   parseOperatorManifestMarkdown,
   proposeMemoryPatch,
+  toRedesignDocumentPatchProposal,
+  toRedesignStyleProfileUpsertArgs,
 } from "./manifest";
 
 describe("operator manifest", () => {
@@ -64,6 +67,36 @@ Concise banker memos.
     expect(styleSkill).toContain("source_count:");
   });
 
+  it("adapts USER.md style and rubrics into the official PR 240 S5 contracts", () => {
+    const manifest = parseOperatorManifestMarkdown(markdown);
+    const styleArgs = toRedesignStyleProfileUpsertArgs(manifest, "synthetic-qa-model");
+    const universeArgs = createRedesignUniverseUpsertArgs({
+      name: "Healthcare AI Coverage",
+      entityIds: ["orbital-labs", "mercuror"],
+      rubric: manifest.rubricLibrary[0],
+      styleId: "style_profile_id",
+      monitoring: true,
+      monitoringMinutes: 1440,
+    });
+
+    expect(styleArgs).toMatchObject({
+      slug: "founder_banker_lens_v1",
+      modelUsed: "synthetic-qa-model",
+    });
+    expect(styleArgs.recommendationPhrasings).toContain("prioritize");
+    expect(styleArgs.provenance[0]).toMatchObject({
+      label: "Anthropic diligence memo",
+      weightPct: expect.any(Number),
+    });
+    expect(universeArgs).toMatchObject({
+      name: "Healthcare AI Coverage",
+      slug: "healthcare-ai-coverage",
+      rubric: manifest.rubricLibrary[0].id,
+      monitoring: true,
+      entityIds: ["orbital-labs", "mercuror"],
+    });
+  });
+
   it("creates a sample-first chat-to-batch handoff from one prompt", () => {
     const handoff = createChatMultiplyHandoff({
       sourceThreadId: "thread_orbital",
@@ -75,6 +108,13 @@ Concise banker memos.
     });
 
     expect(handoff.handoffType).toBe("chat_to_batch");
+    expect(handoff.contractVersion).toBe("redesign.s5.v1");
+    expect(handoff.targetTables).toMatchObject({
+      universe: "redesignUniverses",
+      styleProfile: "styleProfiles",
+      reviewPatch: "redesignDocumentPatches",
+      batchRun: "batchAutopilotRuns",
+    });
     expect(handoff.sampleSize).toBe(3);
     expect(handoff.fullBatchSize).toBe(250);
     expect(handoff.runControls.label).toBe("Run on a list");
@@ -101,5 +141,18 @@ Concise banker memos.
 
     expect(lowRisk.approvalRequired).toBe(false);
     expect(sensitive.approvalRequired).toBe(true);
+
+    const proposal = toRedesignDocumentPatchProposal({
+      documentId: "doc_123",
+      patch: lowRisk,
+      html: "<p>Prefer concise banker memos.</p>",
+      batchAutopilotRunId: "bar_123",
+    });
+    expect(proposal).toMatchObject({
+      documentId: "doc_123",
+      source: "chat",
+      label: "Communication style",
+      batchAutopilotRunId: "bar_123",
+    });
   });
 });

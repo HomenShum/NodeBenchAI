@@ -78,8 +78,55 @@ export interface OperatorManifest {
   permissionsBySection: Record<string, ManifestPermission[]>;
 }
 
+export interface RedesignStyleProfileUpsertArgs {
+  label: string;
+  slug: string;
+  voice: string;
+  sectionOrder: string[];
+  recommendationPhrasings: string[];
+  riskLens: string[];
+  sourcePreferences: string[];
+  sentenceRhythm: string;
+  confidence: number;
+  patternsFound: number;
+  provenance: Array<{
+    label: string;
+    chars: number;
+    weightPct: number;
+  }>;
+  modelUsed: string;
+}
+
+export interface RedesignUniverseUpsertArgs {
+  name: string;
+  slug: string;
+  rubric: string;
+  monitoring: boolean;
+  monitoringMinutes?: number;
+  entityIds: string[];
+  styleId?: string;
+}
+
+export interface RedesignDocumentPatchProposal<TDocumentId = string> {
+  documentId: TDocumentId;
+  source: "chat" | "agent";
+  label: string;
+  preview: string;
+  html: string;
+  pipelineRunId?: string;
+  batchAutopilotRunId?: string;
+}
+
 export interface ChatMultiplyHandoff {
   handoffType: "chat_to_batch";
+  contractVersion: "redesign.s5.v1";
+  targetTables: {
+    universe: "redesignUniverses";
+    styleProfile: "styleProfiles";
+    reviewPatch: "redesignDocumentPatches";
+    batchRun: "batchAutopilotRuns";
+    feedback: "agentRunFeedback";
+  };
   sourceThreadId?: string;
   prompt: string;
   universeId: string;
@@ -281,6 +328,73 @@ export function buildStyleSkillMarkdown(manifest: OperatorManifest): string {
   ].join("\n");
 }
 
+export function toRedesignStyleProfileUpsertArgs(
+  manifest: OperatorManifest,
+  modelUsed = "operator_manifest.v1",
+): RedesignStyleProfileUpsertArgs {
+  const style = manifest.styleProfile;
+  const totalChars = manifest.goldenSet.reduce((sum, item) => sum + item.provenance.length, 0);
+  const provenance = manifest.goldenSet.length > 0
+    ? manifest.goldenSet.map((item) => ({
+        label: item.title,
+        chars: item.provenance.length,
+        weightPct: totalChars > 0 ? Math.round((item.provenance.length / totalChars) * 100) : 0,
+      }))
+    : [{ label: "USER.md operator manifest", chars: manifest.personalContextNotebook.length, weightPct: 100 }];
+
+  return {
+    label: style.label.replace(/^Style Profile:\s*/i, ""),
+    slug: style.id,
+    voice: style.voice,
+    sectionOrder: style.sectionOrder,
+    recommendationPhrasings: style.recommendationPhrases,
+    riskLens: style.riskLens,
+    sourcePreferences: style.sourcePreferences,
+    sentenceRhythm: "recommendation-first, concise bullets, evidence before recommendation expansion",
+    confidence: style.confidence,
+    patternsFound: style.sectionOrder.length + style.recommendationPhrases.length + style.riskLens.length,
+    provenance,
+    modelUsed,
+  };
+}
+
+export function createRedesignUniverseUpsertArgs(args: {
+  name: string;
+  entityIds: string[];
+  rubric: RubricDefinition;
+  styleId?: string;
+  monitoring?: boolean;
+  monitoringMinutes?: number;
+}): RedesignUniverseUpsertArgs {
+  return {
+    name: args.name,
+    slug: args.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+    rubric: args.rubric.id,
+    monitoring: args.monitoring ?? false,
+    monitoringMinutes: args.monitoringMinutes,
+    entityIds: args.entityIds,
+    styleId: args.styleId,
+  };
+}
+
+export function toRedesignDocumentPatchProposal<TDocumentId = string>(args: {
+  documentId: TDocumentId;
+  patch: MemoryPatchProposal;
+  html: string;
+  pipelineRunId?: string;
+  batchAutopilotRunId?: string;
+}): RedesignDocumentPatchProposal<TDocumentId> {
+  return {
+    documentId: args.documentId,
+    source: args.patch.sourceType === "chat" ? "chat" : "agent",
+    label: args.patch.targetSection,
+    preview: args.patch.proposedMarkdown.slice(0, 500),
+    html: args.html,
+    pipelineRunId: args.pipelineRunId,
+    batchAutopilotRunId: args.batchAutopilotRunId,
+  };
+}
+
 export function createChatMultiplyHandoff(args: {
   sourceThreadId?: string;
   prompt: string;
@@ -292,6 +406,14 @@ export function createChatMultiplyHandoff(args: {
 }): ChatMultiplyHandoff {
   return {
     handoffType: "chat_to_batch",
+    contractVersion: "redesign.s5.v1",
+    targetTables: {
+      universe: "redesignUniverses",
+      styleProfile: "styleProfiles",
+      reviewPatch: "redesignDocumentPatches",
+      batchRun: "batchAutopilotRuns",
+      feedback: "agentRunFeedback",
+    },
     sourceThreadId: args.sourceThreadId,
     prompt: args.prompt,
     universeId: args.universeId,
