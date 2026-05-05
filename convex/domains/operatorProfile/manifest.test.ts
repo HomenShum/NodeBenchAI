@@ -1,0 +1,105 @@
+import { describe, expect, it } from "vitest";
+import {
+  DEFAULT_RUBRIC_LIBRARY,
+  buildStyleSkillMarkdown,
+  createChatMultiplyHandoff,
+  parseOperatorManifestMarkdown,
+  proposeMemoryPatch,
+} from "./manifest";
+
+describe("operator manifest", () => {
+  const markdown = `# USER.md
+
+## Personal Context Notebook
+### Background
+Founder and former startup banking operator.
+
+### Communication style
+Concise banker memos.
+
+## Style Profile
+- Concise banker brief with recommendation first (91% confidence)
+- Short answer
+- Why it matters
+- Evidence
+- Risks / unknowns
+- Next action
+
+## Golden Set
+- Anthropic diligence memo (93% confidence)
+- Manager feedback on Mercor report (88% confidence)
+
+## Rubric Library
+- Startup banking coverage
+- AI devtools screen
+`;
+
+  it("parses editable USER.md memory into durable multiple-me primitives", () => {
+    const manifest = parseOperatorManifestMarkdown(markdown);
+
+    expect(manifest.schemaVersion).toBe("operator_manifest.v1");
+    expect(manifest.personalContextNotebook).toContain("Founder and former startup banking operator");
+    expect(manifest.styleProfile.label).toContain("Style Profile");
+    expect(manifest.styleProfile.confidence).toBe(0.91);
+    expect(manifest.goldenSet).toHaveLength(2);
+    expect(manifest.goldenSet[0]).toMatchObject({
+      title: "Anthropic diligence memo",
+      extractionConfidence: 0.93,
+      accepted: true,
+    });
+    expect(manifest.rubricLibrary).toHaveLength(2);
+    expect(manifest.rubricLibrary[0].title).toContain("Rubric Library");
+    expect(manifest.permissionsBySection["Golden Set"]).toContain("private_only");
+  });
+
+  it("falls back to safe default rubrics and exports style.skill.md", () => {
+    const manifest = parseOperatorManifestMarkdown("# USER.md\n");
+
+    expect(manifest.rubricLibrary).toEqual(DEFAULT_RUBRIC_LIBRARY);
+    expect(manifest.memoryUpdatePolicy.privacyBudgetConnectorsSharing).toBe("approval_required");
+
+    const styleSkill = buildStyleSkillMarkdown(manifest);
+    expect(styleSkill).toContain("## Voice");
+    expect(styleSkill).toContain("## Section structure");
+    expect(styleSkill).toContain("source_count:");
+  });
+
+  it("creates a sample-first chat-to-batch handoff from one prompt", () => {
+    const handoff = createChatMultiplyHandoff({
+      sourceThreadId: "thread_orbital",
+      prompt: "Research Orbital Labs and tell me if I should follow up.",
+      universeId: "universe_healthcare_ai",
+      styleProfileId: "founder_banker_lens_v3",
+      rubricId: "banker_coverage_screen",
+      fullBatchSize: 250,
+    });
+
+    expect(handoff.handoffType).toBe("chat_to_batch");
+    expect(handoff.sampleSize).toBe(3);
+    expect(handoff.fullBatchSize).toBe(250);
+    expect(handoff.runControls.label).toBe("Run on a list");
+    expect(handoff.runControls.primaryAction).toBe("Multiply");
+    expect(handoff.runControls.mode).toBe("sample_first");
+    expect(handoff.qaThresholds.requireHumanApprovalForLowConfidence).toBe(true);
+  });
+
+  it("requires approval for sensitive self-updating memory patches", () => {
+    const lowRisk = proposeMemoryPatch({
+      targetSection: "Communication style",
+      proposedMarkdown: "- Prefer concise banker memos.",
+      reason: "Repeated edits shortened memo output.",
+      confidence: 0.84,
+      sourceType: "chat",
+    });
+    const sensitive = proposeMemoryPatch({
+      targetSection: "Privacy boundaries",
+      proposedMarkdown: "- Share event notes with team by default.",
+      reason: "User changed sharing in export.",
+      confidence: 0.9,
+      sourceType: "export",
+    });
+
+    expect(lowRisk.approvalRequired).toBe(false);
+    expect(sensitive.approvalRequired).toBe(true);
+  });
+});

@@ -12,7 +12,7 @@ import { v } from "convex/values";
 import { generateText, streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 
 type Provider = "openai" | "anthropic" | "google";
 
@@ -35,8 +35,18 @@ function getModel(provider: Provider, sdkId: string) {
       return openai(sdkId);
     case "anthropic":
       return anthropic(sdkId);
-    case "google":
-      return google(sdkId);
+    case "google": {
+      const apiKey =
+        process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+        process.env.GOOGLE_AI_API_KEY ||
+        process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error(
+          "Google API key is missing. Set GOOGLE_GENERATIVE_AI_API_KEY, GOOGLE_AI_API_KEY, or GEMINI_API_KEY.",
+        );
+      }
+      return createGoogleGenerativeAI({ apiKey })(sdkId);
+    }
   }
 }
 

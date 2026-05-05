@@ -45,15 +45,15 @@ export const refreshForecastAction = internalAction({
       const response = await ctx.runAction(
         internal.domains.models.modelRouter.route,
         {
-          taskCategory: "analysis",
-          taskTier: "low",
-          prompt,
+          taskCategory: "validation",
+          tier: "cheap",
+          systemPrompt:
+            "You are a calibrated superforecaster. Return only the requested JSON probability update.",
+          messages: [{ role: "user", content: prompt }],
           maxTokens: 1500,
         }
       );
-      llmResult = parseSuperforecasterOutput(
-        typeof response === "string" ? response : response.text ?? ""
-      );
+      llmResult = parseSuperforecasterOutput(response.text ?? "");
     } catch {
       // If model router unavailable, skip refresh gracefully
       return {
