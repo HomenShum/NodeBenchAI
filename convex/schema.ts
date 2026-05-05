@@ -15517,4 +15517,94 @@ export default defineSchema({
     .index("by_thread", ["threadId"])
     .index("by_thread_type", ["threadId", "type"])
     .index("by_thread_tool", ["threadId", "toolName"]),
+
+  // ─── Redesign Sprint S5 — Style profile + agent patches + inbox actions ───
+
+  /** Operator analyst style manifest — drives how every report and chat reads.
+   *  Inferred from sample memos via scripts/qa/inferStyle.ts. One active row per user. */
+  styleProfiles: defineTable({
+    userId: v.id("users"),
+    label: v.string(),
+    slug: v.string(),
+    voice: v.string(),
+    sectionOrder: v.array(v.string()),
+    recommendationPhrasings: v.array(v.string()),
+    riskLens: v.array(v.string()),
+    sourcePreferences: v.array(v.string()),
+    sentenceRhythm: v.string(),
+    confidence: v.number(),
+    patternsFound: v.number(),
+    provenance: v.array(v.object({
+      label: v.string(),
+      chars: v.number(),
+      weightPct: v.number(),
+    })),
+    modelUsed: v.string(),
+    inferredAt: v.number(),
+    isActive: v.boolean(),
+  })
+    .index("by_user_active", ["userId", "isActive"])
+    .index("by_user_inferred", ["userId", "inferredAt"]),
+
+  /** Redesign Sprint S5 — bidirectional contract for chat / agent → document edits
+   *  in the redesign route. Distinct from the legacy `documentPatches` table (line 4816)
+   *  which tracks patch-operations history. Replaces the in-memory pendingPatches queue
+   *  in ReportNotebookView. */
+  redesignDocumentPatches: defineTable({
+    documentId: v.id("documents"),
+    userId: v.id("users"),
+    source: v.union(v.literal("chat"), v.literal("agent")),
+    pipelineRunId: v.optional(v.id("pipelineRuns")),
+    batchAutopilotRunId: v.optional(v.id("batchAutopilotRuns")),
+    label: v.string(),
+    preview: v.string(),
+    html: v.string(),
+    status: v.string(),
+    proposedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    acceptedHtml: v.optional(v.string()),
+  })
+    .index("by_document_status", ["documentId", "status"])
+    .index("by_user_status", ["userId", "status"])
+    .index("by_pipelineRun", ["pipelineRunId"]),
+
+  /** Reports universes — saved entity collections. */
+  redesignUniverses: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    slug: v.string(),
+    styleId: v.optional(v.id("styleProfiles")),
+    rubric: v.string(),
+    monitoring: v.boolean(),
+    monitoringMinutes: v.optional(v.number()),
+    entityIds: v.array(v.string()),
+    entityCount: v.number(),
+    refreshedAt: v.number(),
+  })
+    .index("by_user_monitoring", ["userId", "monitoring"]),
+
+  /** Inbox snooze records — soft-hide an inbox item until a future timestamp. */
+  inboxSnoozes: defineTable({
+    userId: v.id("users"),
+    itemId: v.string(),
+    itemSource: v.string(),
+    snoozeUntil: v.number(),
+    snoozedAt: v.number(),
+    note: v.optional(v.string()),
+  })
+    .index("by_user_until", ["userId", "snoozeUntil"])
+    .index("by_user_item", ["userId", "itemId"]),
+
+  /** Per-message agent reaction feedback — feeds the eval flywheel. */
+  agentRunFeedback: defineTable({
+    userId: v.id("users"),
+    runId: v.string(),
+    runSource: v.string(),
+    turnId: v.optional(v.string()),
+    reaction: v.union(v.literal("up"), v.literal("down")),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_user_created", ["userId", "createdAt"])
+    .index("by_run", ["runId"]),
 });

@@ -23,6 +23,7 @@ import { FinancialOperatorOverlay } from "@/features/financialOperator/component
 import { WorkspaceModeToggle } from "@/features/financialOperator/components/WorkspaceModeToggle";
 import { WorkspaceModePane } from "@/features/financialOperator/components/WorkspaceModePane";
 
+const RedesignShell = lazy(() => import("@/features/redesign/RedesignShell"));
 const ShareableMemoView = lazy(() => import("@/features/founder/views/ShareableMemoView"));
 const PublicEntityShareView = lazy(() => import("@/features/share/views/PublicEntityShareView"));
 const PublicCompanyProfileView = lazy(() => import("@/features/founder/views/PublicCompanyProfileView"));
@@ -160,6 +161,23 @@ function App() {
           <Suspense fallback={<ViewSkeleton />}>
             <div key="workspace" className="route-fade-in h-screen">
               <UniversalWorkspacePage />
+            </div>
+          </Suspense>
+        </ErrorBoundary>
+      </ThemeProvider>
+    );
+  }
+
+  // Standalone route: /redesign* showcases the parity-studio + open-design redesign.
+  // Mounts a self-contained shell with its own tokens — does not touch the main cockpit.
+  const isRedesignRoute = location.pathname === "/redesign" || location.pathname.startsWith("/redesign/");
+  if (isRedesignRoute) {
+    return (
+      <ThemeProvider>
+        <ErrorBoundary title="Something went wrong">
+          <Suspense fallback={<ViewSkeleton />}>
+            <div key="redesign" className="route-fade-in">
+              <RedesignShell />
             </div>
           </Suspense>
         </ErrorBoundary>

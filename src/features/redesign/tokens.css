@@ -1,0 +1,197 @@
+/**
+ * NodeBench Redesign — Design Tokens
+ *
+ * Synthesized from:
+ *   - User-pasted parity-studio decomposition (entity intelligence workspace IA)
+ *   - open-design repo (nexu-io/open-design) — Claude.ai warm-paper system
+ *   - linear-app DESIGN.md (510 weight, OpenType ss03, achromatic precision)
+ *   - cohere DESIGN.md (22px signature radius, enterprise card system)
+ *   - notion DESIGN.md (warm whites, whisper borders, multi-layer shadows)
+ *   - raycast DESIGN.md (multi-layer dark depth, positive tracking on dark)
+ *
+ * Preserves NodeBench's existing terracotta accent (#d97757) for brand continuity.
+ *
+ * Scope: only inside `[data-redesign]` containers. Does not touch the cockpit shell.
+ */
+
+[data-redesign] {
+  /* ───── Surface tokens (light mode default) ───── */
+  --rd-paper: #faf9f7;            /* Page canvas (warm white, Claude/Notion blend) */
+  --rd-paper-warm: #f4f2ed;       /* Subtle alt-row tint */
+  --rd-panel: #ffffff;            /* Card surface */
+  --rd-panel-elevated: #ffffff;   /* Modal / popover */
+  --rd-muted: #ece9e2;            /* Hover wash, code blocks */
+
+  /* ───── Borders — Notion whisper-weight ───── */
+  --rd-line-faint: rgba(21, 20, 15, 0.05);
+  --rd-line: rgba(21, 20, 15, 0.10);
+  --rd-line-strong: rgba(21, 20, 15, 0.16);
+  --rd-line-soft: #ebe8e1;
+
+  /* ───── Text ───── */
+  --rd-ink: #1a1916;              /* Primary text */
+  --rd-ink-strong: #0d0c0a;       /* Display headings */
+  --rd-ink-mute: #74716b;         /* Body de-emphasized */
+  --rd-ink-soft: #989590;         /* Secondary metadata */
+  --rd-ink-faint: #b3b0a8;        /* Disabled / placeholder */
+
+  /* ───── Accent — NodeBench terracotta preserved ───── */
+  --rd-accent: #d97757;
+  --rd-accent-strong: #c76648;
+  --rd-accent-soft: rgba(217, 119, 87, 0.10);
+  --rd-accent-tint: rgba(217, 119, 87, 0.06);
+  --rd-accent-ring: rgba(217, 119, 87, 0.30);
+
+  /* ───── Status palette (Linear-style achromatic + minimal hue) ───── */
+  --rd-green: #1f7a3a;
+  --rd-green-bg: #e8f7ee;
+  --rd-green-border: #c6ead2;
+  --rd-blue: #2348b8;
+  --rd-blue-bg: #e8efff;
+  --rd-blue-border: #c8d6ff;
+  --rd-amber: #b26200;
+  --rd-amber-bg: #fff3e0;
+  --rd-red: #9c2a25;
+  --rd-red-bg: #fdecea;
+  --rd-red-border: #f5c6c2;
+  --rd-purple: #6c3aa6;
+  --rd-purple-bg: #f3ecf9;
+
+  /* ───── Radii — Cohere-signature 22px for hero, scaled down for compact ───── */
+  --rd-r-xs: 4px;
+  --rd-r-sm: 6px;
+  --rd-r: 10px;
+  --rd-r-md: 12px;
+  --rd-r-lg: 16px;
+  --rd-r-hero: 22px;       /* Cohere signature for Pulse / hero cards */
+  --rd-r-pill: 999px;
+
+  /* ───── Spacing scale (8px base) ───── */
+  --rd-s-1: 4px;
+  --rd-s-2: 8px;
+  --rd-s-3: 12px;
+  --rd-s-4: 16px;
+  --rd-s-5: 20px;
+  --rd-s-6: 24px;
+  --rd-s-8: 32px;
+  --rd-s-10: 40px;
+  --rd-s-12: 48px;
+
+  /* ───── Shadows — Notion's multi-layer whisper system ───── */
+  --rd-shadow-xs: 0 1px 0 rgba(28, 27, 26, 0.04);
+  --rd-shadow-sm:
+    0 1px 2px rgba(28, 27, 26, 0.05),
+    0 1px 3px rgba(28, 27, 26, 0.04);
+  --rd-shadow-md:
+    0 1px 3px rgba(0, 0, 0, 0.01),
+    0 3px 7px rgba(0, 0, 0, 0.02),
+    0 7px 15px rgba(0, 0, 0, 0.02),
+    0 14px 28px rgba(0, 0, 0, 0.04);
+  --rd-shadow-lg:
+    0 4px 18px rgba(0, 0, 0, 0.04),
+    0 23px 52px rgba(0, 0, 0, 0.05);
+
+  /* ───── Type ───── */
+  --rd-font-sans: 'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --rd-font-display: 'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+  --rd-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --rd-font-serif: 'Source Serif 4', 'Iowan Old Style', Georgia, serif;
+
+  /* ───── Motion ───── */
+  --rd-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --rd-ease-spring: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --rd-dur-fast: 120ms;
+  --rd-dur: 200ms;
+  --rd-dur-slow: 320ms;
+
+  /* ───── Inter OpenType — Linear's signature ss03 ───── */
+  font-feature-settings: 'cv01', 'ss03';
+  font-family: var(--rd-font-sans);
+  color: var(--rd-ink);
+  background: var(--rd-paper);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-redesign]:not([data-redesign-theme="light"]) {
+    /* Linear + Raycast dark blend */
+    --rd-paper: #0f1011;
+    --rd-paper-warm: #141516;
+    --rd-panel: #191a1b;
+    --rd-panel-elevated: #28282c;
+    --rd-muted: rgba(255, 255, 255, 0.04);
+
+    --rd-line-faint: rgba(255, 255, 255, 0.04);
+    --rd-line: rgba(255, 255, 255, 0.08);
+    --rd-line-strong: rgba(255, 255, 255, 0.14);
+    --rd-line-soft: #23252a;
+
+    --rd-ink: #f7f8f8;
+    --rd-ink-strong: #ffffff;
+    --rd-ink-mute: #d0d6e0;
+    --rd-ink-soft: #8a8f98;
+    --rd-ink-faint: #62666d;
+
+    --rd-accent: #e88f6e;
+    --rd-accent-strong: #f2a583;
+    --rd-accent-soft: rgba(232, 143, 110, 0.16);
+    --rd-accent-tint: rgba(232, 143, 110, 0.08);
+    --rd-accent-ring: rgba(232, 143, 110, 0.40);
+
+    --rd-green: #4ade80;
+    --rd-green-bg: rgba(74, 222, 128, 0.12);
+    --rd-green-border: rgba(74, 222, 128, 0.25);
+    --rd-blue: #7aa2ff;
+    --rd-blue-bg: rgba(122, 162, 255, 0.12);
+    --rd-blue-border: rgba(122, 162, 255, 0.25);
+    --rd-amber: #fbbf24;
+    --rd-amber-bg: rgba(251, 191, 36, 0.12);
+    --rd-red: #f87171;
+    --rd-red-bg: rgba(248, 113, 113, 0.12);
+    --rd-red-border: rgba(248, 113, 113, 0.25);
+
+    --rd-shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.4);
+    --rd-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --rd-shadow-md:
+      rgb(27, 28, 30) 0 0 0 1px,
+      rgb(7, 8, 10) 0 0 0 1px inset,
+      0 8px 24px rgba(0, 0, 0, 0.5);
+    --rd-shadow-lg:
+      rgb(27, 28, 30) 0 0 0 1px,
+      0 24px 60px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Forced light mode override (for /redesign default = light) */
+[data-redesign][data-redesign-theme="light"] {
+  color-scheme: light;
+}
+
+[data-redesign][data-redesign-theme="dark"] {
+  color-scheme: dark;
+  --rd-paper: #0f1011;
+  --rd-paper-warm: #141516;
+  --rd-panel: #191a1b;
+  --rd-panel-elevated: #28282c;
+  --rd-muted: rgba(255, 255, 255, 0.04);
+  --rd-line-faint: rgba(255, 255, 255, 0.04);
+  --rd-line: rgba(255, 255, 255, 0.08);
+  --rd-line-strong: rgba(255, 255, 255, 0.14);
+  --rd-line-soft: #23252a;
+  --rd-ink: #f7f8f8;
+  --rd-ink-strong: #ffffff;
+  --rd-ink-mute: #d0d6e0;
+  --rd-ink-soft: #8a8f98;
+  --rd-ink-faint: #62666d;
+  --rd-accent: #e88f6e;
+  --rd-accent-strong: #f2a583;
+  --rd-accent-soft: rgba(232, 143, 110, 0.16);
+  --rd-accent-tint: rgba(232, 143, 110, 0.08);
+  --rd-accent-ring: rgba(232, 143, 110, 0.40);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] *, [data-redesign] *::before, [data-redesign] *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

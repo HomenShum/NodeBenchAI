@@ -132,6 +132,7 @@ Modular rules live in `.claude/rules/` — each focused on one concern with `rel
 - **5-surface cockpit**: `/?surface=ask` (landing), `/?surface=memo` (Decision Workbench), `/?surface=research`, `/?surface=editor` (Workspace), `/?surface=telemetry` (System)
 - `/deep-sim` (Decision Workbench), `/postmortem`, `/agent-telemetry`
 - `/developers`, `/api-keys` (API key management), `/api-docs`, `/pricing`, `/changelog`, `/legal`
+- **`/redesign*` — entity-intelligence redesign showcase** (Home/Reports/Chat/Inbox/Me/Workspace + mobile shell, scoped `[data-redesign]` tokens, parallel to cockpit; see [docs/architecture/REDESIGN_ROADMAP.md](docs/architecture/REDESIGN_ROADMAP.md) and [src/features/redesign/README.md](src/features/redesign/README.md))
 - Onboarding: 3-step wizard, localStorage flag
 - Demo: 8 pre-scripted conversations, voice CTA on landing, 12 voice aliases
 - Proof section: founder bio, system status, open source, try-before-trust
