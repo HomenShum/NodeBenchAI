@@ -1,0 +1,252 @@
+/**
+ * RedesignShell — top-level container for the /redesign showcase.
+ *
+ * Mounts tokens.css + primitives.css, owns the URL-driven surface state,
+ * lays out the rail + main + (optional) right rail.
+ *
+ * Routes (parsed from useLocation, no nested router needed):
+ *   /redesign                  → Home
+ *   /redesign/reports          → Reports
+ *   /redesign/chat             → Chat
+ *   /redesign/inbox            → Inbox
+ *   /redesign/me               → Me
+ *   /redesign/workspace[/...]  → Workspace (separate full-height surface)
+ */
+
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+
+import "./tokens.css";
+import "./primitives.css";
+
+import { Rail } from "./components/Rail";
+import { RightInspector } from "./components/RightInspector";
+import { MobileShell } from "./components/MobileShell";
+import { ReportNotebookView } from "./components/ReportNotebookView";
+import { CommandPalette, useCommandPalette } from "./components/CommandPalette";
+import { ShortcutsOverlay } from "./components/ShortcutsOverlay";
+import { ToastViewport } from "./components/Toast";
+import { HomeSurface } from "./surfaces/HomeSurface";
+import { ReportsSurface } from "./surfaces/ReportsSurface";
+import { ChatSurface } from "./surfaces/ChatSurface";
+import { InboxSurface } from "./surfaces/InboxSurface";
+import { MeSurface } from "./surfaces/MeSurface";
+import { WorkspaceSurface } from "./surfaces/WorkspaceSurface";
+import type { SurfaceId } from "./fixtures";
+
+const PATH_TO_SURFACE: Record<string, SurfaceId | "workspace"> = {
+  "": "home",
+  "/": "home",
+  "reports": "reports",
+  "chat": "chat",
+  "inbox": "inbox",
+  "me": "me",
+  "workspace": "workspace",
+};
+
+function pathToSurface(pathname: string): SurfaceId | "workspace" {
+  const rest = pathname.replace(/^\/redesign\/?/, "").split("/")[0] ?? "";
+  return (PATH_TO_SURFACE[rest] ?? "home") as SurfaceId | "workspace";
+}
+
+function pathToReportId(pathname: string): string | null {
+  // /redesign/reports/<id> → <id>
+  const match = pathname.match(/^\/redesign\/reports\/([^/]+)/);
+  return match?.[1] ?? null;
+}
+
+export default function RedesignShell() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [forceMobile, setForceMobile] = useState(false);
+  const isMobile = useViewportMobile() || forceMobile;
+  const cmdk = useCommandPalette();
+
+  const surface = useMemo(() => pathToSurface(location.pathname), [location.pathname]);
+  const reportId = useMemo(() => pathToReportId(location.pathname), [location.pathname]);
+  const goSurface = (id: SurfaceId) => {
+    navigate(id === "home" ? "/redesign" : `/redesign/${id}`);
+  };
+  const goWorkspace = () => navigate("/redesign/workspace");
+
+  // Optionally lock body scroll while shell is mounted
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  // Mobile path overrides everything except /redesign/workspace (which keeps its own surface).
+  if (isMobile && surface !== "workspace") {
+    const mobileSurface: SurfaceId = (surface === "workspace" ? "reports" : surface) as SurfaceId;
+    return (
+      <div data-redesign data-redesign-theme={theme} style={{ height: "100dvh", overflow: "hidden" }}>
+        <MobileShell active={mobileSurface} onChange={(id) => goSurface(id)} />
+        <ThemeFab theme={theme} setTheme={setTheme} />
+        <ViewportFab forceMobile={forceMobile} setForceMobile={setForceMobile} />
+        <NavBanner pathname={location.pathname} />
+        <CommandPalette open={cmdk.open} onClose={() => cmdk.setOpen(false)} />
+        <ShortcutsOverlay />
+        <ToastViewport />
+      </div>
+    );
+  }
+
+  if (surface === "workspace") {
+    return (
+      <div data-redesign data-redesign-theme={theme} style={{ height: "100vh", overflow: "hidden" }}>
+        <div className="rd-shell rd-shell--single">
+          <Rail
+            active="reports"
+            onChange={(id) => goSurface(id)}
+            onOpenWorkspace={goWorkspace}
+          />
+          <main className="rd-pane" style={{ borderRight: "none" }}>
+            <WorkspaceSurface />
+          </main>
+        </div>
+        <ThemeFab theme={theme} setTheme={setTheme} />
+        <CommandPalette open={cmdk.open} onClose={() => cmdk.setOpen(false)} />
+        <ShortcutsOverlay />
+        <ToastViewport />
+      </div>
+    );
+  }
+
+  // Single-pane surfaces (Home, Reports, Inbox, Me) → no right rail
+  // Two-pane surfaces (Chat) → right inspector visible
+  const showInspector = surface === "chat";
+
+  return (
+    <div data-redesign data-redesign-theme={theme} style={{ height: "100vh", overflow: "hidden" }}>
+      <div className={`rd-shell ${showInspector ? "" : "rd-shell--single"}`}>
+        <Rail
+          active={surface as SurfaceId}
+          onChange={(id) => goSurface(id)}
+          onOpenWorkspace={goWorkspace}
+        />
+
+        {showInspector ? (
+          <div className="rd-shell__main">
+            <main className="rd-pane" style={{ borderRight: "1px solid var(--rd-line-faint)" }}>
+              <ChatSurface />
+            </main>
+            <RightInspector />
+          </div>
+        ) : (
+          <main className="rd-pane" style={{ borderRight: "none" }}>
+            {surface === "home" && (
+              <HomeSurface
+                onAsk={() => goSurface("chat")}
+                onOpenReport={(id) => navigate(`/redesign/workspace?report=${id}`)}
+              />
+            )}
+            {surface === "reports" && !reportId && (
+              <ReportsSurface
+                onOpen={(id, tab) => {
+                  if (tab === "brief") navigate(`/redesign/reports/${id}`);
+                  else navigate(`/redesign/workspace?report=${id}&tab=${tab}`);
+                }}
+              />
+            )}
+            {surface === "reports" && reportId && (
+              <ReportNotebookView reportId={reportId} />
+            )}
+            {surface === "inbox" && <InboxSurface />}
+            {surface === "me" && <MeSurface />}
+          </main>
+        )}
+      </div>
+
+      <ThemeFab theme={theme} setTheme={setTheme} />
+      <ViewportFab forceMobile={forceMobile} setForceMobile={setForceMobile} />
+      <NavBanner pathname={location.pathname} />
+
+      {/* Cross-surface primitives — Cmd+K palette, ? shortcuts, toasts */}
+      <CommandPalette open={cmdk.open} onClose={() => cmdk.setOpen(false)} />
+      <ShortcutsOverlay />
+      <ToastViewport />
+    </div>
+  );
+}
+
+function useViewportMobile() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 760px)").matches : false
+  );
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 760px)");
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return isMobile;
+}
+
+function ViewportFab({ forceMobile, setForceMobile }: { forceMobile: boolean; setForceMobile: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => setForceMobile(!forceMobile)}
+      aria-label="Toggle mobile preview"
+      title={forceMobile ? "Switch to desktop view" : "Preview on phone"}
+      className="rd-btn rd-btn--ghost"
+      style={{
+        position: "fixed",
+        bottom: 18,
+        right: 64,
+        height: 36,
+        padding: "0 12px",
+        borderRadius: "var(--rd-r-pill)",
+        boxShadow: "var(--rd-shadow-md)",
+        zIndex: 50,
+        fontSize: 11,
+        fontWeight: 590,
+      }}
+    >
+      {forceMobile ? "Desktop" : "Phone"}
+    </button>
+  );
+}
+
+function ThemeFab({ theme, setTheme }: { theme: "light" | "dark"; setTheme: (t: "light" | "dark") => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+      aria-label="Toggle theme"
+      title="Toggle light / dark"
+      className="rd-btn rd-btn--ghost"
+      style={{
+        position: "fixed",
+        bottom: 18,
+        right: 18,
+        width: 36,
+        height: 36,
+        padding: 0,
+        borderRadius: "50%",
+        boxShadow: "var(--rd-shadow-md)",
+        zIndex: 50,
+      }}
+    >
+      {theme === "light" ? "◐" : "◑"}
+    </button>
+  );
+}
+
+function NavBanner({ pathname }: { pathname: string }) {
+  // Visual signal: which redesign surface is mounted (in-DOM signal for live verification)
+  return (
+    <div
+      data-testid="redesign-active"
+      data-redesign-surface={pathname}
+      style={{ position: "absolute", left: -9999, top: -9999, opacity: 0 }}
+      aria-hidden="true"
+    >
+      NodeBench redesign · {pathname}
+    </div>
+  );
+}
