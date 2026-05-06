@@ -102,12 +102,12 @@ export function UniversalComposer({
   streaming = false,
   onStop,
   entitySuggestions = [
-    { slug: "orbital", label: "Orbital Labs", kind: "company" },
-    { slug: "anthropic", label: "Anthropic", kind: "company" },
-    { slug: "mode", label: "Mode Analytics", kind: "company" },
-    { slug: "alex", label: "Alex Chen", kind: "person" },
-    { slug: "ship_demo", label: "Ship Demo Day", kind: "event" },
-    { slug: "voice_eval", label: "Voice-agent evaluation", kind: "topic" },
+    { slug: "latest_brief", label: "Latest live brief", kind: "report" },
+    { slug: "daily_brief", label: "Daily Brief", kind: "artifact" },
+    { slug: "source_review", label: "Source review queue", kind: "workflow" },
+    { slug: "coverage_library", label: "Coverage library", kind: "workspace" },
+    { slug: "entity_universe", label: "Entity universe", kind: "universe" },
+    { slug: "claim_evidence", label: "Claim evidence", kind: "source" },
   ],
 }: UniversalComposerProps) {
   const [batchOpen, setBatchOpen] = useState(false);

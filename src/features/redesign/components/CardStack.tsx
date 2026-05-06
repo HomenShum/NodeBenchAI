@@ -14,15 +14,61 @@
  */
 
 import { useState } from "react";
-import { cardStackEntities, type CardStackEntity } from "../fixtures";
+import type { CardStackEntity } from "../fixtures";
 import { Pill } from "./Pill";
 
 interface CardStackProps {
   rootId: string;
 }
 
+const cardStackEntities: Record<string, CardStackEntity> = {
+  live_root: {
+    id: "live_root",
+    type: "event",
+    title: "Live report",
+    subtitle: "Artifact root",
+    whyItMatters: "Cards explain a live report by turning claims, sources, follow-ups, and themes into drillable nodes.",
+    facts: [
+      { label: "Status", value: "Awaiting live artifact" },
+      { label: "Use", value: "Open Reports, then Explore" },
+    ],
+    pills: [{ label: "graph-ready", tone: "blue" }],
+    claims: [{ idx: 1, text: "Every card should trace back to a live artifact or source row.", status: "review" }],
+    sources: 0,
+    nextHops: [
+      { id: "claim_node", label: "Claim", type: "topic", subtitle: "Needs evidence" },
+      { id: "source_node", label: "Source", type: "topic", subtitle: "Verification row" },
+    ],
+  },
+  claim_node: {
+    id: "claim_node",
+    type: "topic",
+    title: "Claim",
+    subtitle: "Reviewable assertion",
+    whyItMatters: "Claims are useful only when they retain evidence, confidence, and review state.",
+    facts: [{ label: "State", value: "needs review" }],
+    pills: [{ label: "claim", tone: "amber" }],
+    claims: [{ idx: 2, text: "Attach a source before marking verified.", status: "review" }],
+    sources: 0,
+    nextHops: [{ id: "source_node", label: "Source", type: "topic", subtitle: "Evidence trail" }],
+  },
+  source_node: {
+    id: "source_node",
+    type: "topic",
+    title: "Source",
+    subtitle: "Evidence row",
+    whyItMatters: "Sources prove claims and keep the notebook auditable after export.",
+    facts: [{ label: "Access", value: "open evidence drawer" }],
+    pills: [{ label: "source", tone: "green" }],
+    claims: [{ idx: 3, text: "Source rows should include title, refresh time, excerpt, and link when available.", status: "verified" }],
+    sources: 1,
+    nextHops: [],
+  },
+};
+
 export function CardStack({ rootId }: CardStackProps) {
-  const [path, setPath] = useState<string[]>([rootId]);
+  const initialRootId = cardStackEntities[rootId] ? rootId : "live_root";
+  const [path, setPath] = useState<string[]>([initialRootId]);
 
   // Render strategy: only the LAST 3 cards are active. Earlier ones collapse to crumbs.
   const visible = path.slice(-3);

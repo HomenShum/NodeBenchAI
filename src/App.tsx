@@ -168,6 +168,23 @@ function App() {
     );
   }
 
+  const rootParams = new URLSearchParams(location.search);
+  const rootSurface = rootParams.get("surface");
+  const isCompactLandingViewport =
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 760px)").matches : false;
+  const shouldUseRedesignLanding =
+    location.pathname === "/" &&
+    (rootSurface === null || rootSurface === "home") &&
+    !isCompactLandingViewport &&
+    !rootParams.has("doc") &&
+    !rootParams.has("session") &&
+    !rootParams.has("reportId");
+  if (shouldUseRedesignLanding) {
+    rootParams.delete("surface");
+    const nextSearch = rootParams.toString();
+    return <Navigate to={`/redesign${nextSearch ? `?${nextSearch}` : ""}`} replace />;
+  }
+
   // Standalone route: /redesign* showcases the parity-studio + open-design redesign.
   // Mounts a self-contained shell with its own tokens — does not touch the main cockpit.
   const isRedesignRoute = location.pathname === "/redesign" || location.pathname.startsWith("/redesign/");

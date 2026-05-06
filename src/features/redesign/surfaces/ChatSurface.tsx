@@ -7,22 +7,17 @@
  * Bottom: UniversalComposer.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { UniversalComposer, DEFAULT_TIERS, type RouterTier, type BatchTarget } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
 import { StreamingMarkdown } from "../components/StreamingMarkdown";
-import { sampleAnswer, universes, activeBatchRun, type ActiveBatchRun } from "../fixtures";
+import type { ActiveBatchRun, ChatAnswer } from "../fixtures";
 import { useBatchLive } from "../hooks/useBatchLive";
+import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 import { ChatThinking } from "../components/ChatThinking";
 import { ChatToolCall, type ToolCall } from "../components/ChatToolCall";
 import { MessageActions } from "../components/MessageActions";
 import { ChatEmptyState } from "../components/ChatEmptyState";
-
-const BATCH_TARGETS: BatchTarget[] = universes.map((u) => ({
-  universeId: u.id,
-  universeName: u.name,
-  entityCount: u.entityCount,
-}));
 
 interface ChatSurfaceProps {
   contextLabel?: string;
@@ -42,52 +37,175 @@ interface Turn {
   toolCalls?: ToolCall[];
   /** Created-at timestamp for live timestamp updating */
   createdAt?: number;
-  packet?: typeof sampleAnswer;
+  packet?: ChatAnswer;
   tier?: RouterTier;
 }
 
-const STREAMING_FOLLOWUP_MARKDOWN = `## Quick follow-up on Orbital Labs
+const STARTER_ANSWER: ChatAnswer = {
+  shortAnswer:
+    "NodeBench can turn one question into a reusable report with claims, source rows, notebook blocks, and a next action.",
+  whyItMatters:
+    "The important shift is not a one-off answer. The useful artifact is the reusable entity memory that can be reviewed, exported, and multiplied across a list.",
+  evidence: [
+    { idx: 1, quote: "Live artifacts hydrate from Convex when available.", source: "NodeBench runtime" },
+    { idx: 2, quote: "Reports preserve notebook, claim, source, and follow-up state.", source: "Redesign route contract" },
+    { idx: 3, quote: "The composer can run a question once or multiply it across a universe.", source: "Batch run workflow" },
+  ],
+  risks: [
+    "If no live artifact is selected, the user needs a clear starter path instead of a fake company sample.",
+    "Claim verification still needs visible source actions before export.",
+  ],
+  nextAction: "Ask about a real company, paste a list, or open the latest live brief from Reports.",
+  sourceCount: 3,
+  paidCalls: 0,
+  fromMemory: true,
+  trace: [
+    { step: "Start thread", status: "ok", detail: "Ready for entity, market, person, or list input", durationMs: 20 },
+    { step: "Router prepared", status: "ok", detail: "Single answer or batch run can start from the same composer", durationMs: 34 },
+    { step: "Report handoff", status: "info", detail: "A saved answer becomes notebook, claims, sources, and follow-ups", durationMs: 0 },
+  ],
+};
 
-Based on **today's** check, three updates worth flagging:
+const STREAMING_FOLLOWUP_MARKDOWN = `## Quick follow-up on reusable intelligence
 
-- Headcount went from **14 → 18** in the last week (4 new ML eval engineers per LinkedIn).
-- TechCrunch ran a piece on Mar 2026 confirming the *HIPAA-aware grading* wedge.
-- Two regional hospital pilots are in active discussion — one is in the procurement queue.
+Based on the current workspace, three things are worth keeping visible:
+
+- The answer should preserve a notebook block, not disappear into chat history.
+- Claims need source rows attached before export.
+- The same rubric should be reusable across a list.
 
 \`\`\`text
-risk: 6-month procurement cycle at regional hospitals
-risk: 2 competitors within 6 months on the same wedge
+risk: weak sources should stay in review
+risk: batch outputs need visible approval rails
 \`\`\`
 
-> **Bottom line:** Take the call this week. The hiring spike + healthcare pilot intent + verified \`HIPAA-aware grading\` wedge make this a structurally defensible bet.
+> **Bottom line:** Create the report, preserve the evidence, then multiply the same judgment across the universe.
 
-[Open Orbital Labs report →](#)`;
+[Open Reports →](/redesign/reports)`;
 
 const SAMPLE_TOOL_CALLS: ToolCall[] = [
   { step: "Classify query", detail: "company_search · single entity", status: "ok", durationMs: 28, tool: "classify_query" },
-  { step: "Build context bundle", detail: "memory + 3 prior reports", status: "ok", durationMs: 142, tool: "build_context_bundle", resultPreview: "{ entity: 'Orbital Labs', priorReports: 3, lastTouched: '2h ago' }" },
-  { step: "Web search", detail: "voice-agent eval HIPAA", status: "ok", durationMs: 1840, tool: "web_search", resultPreview: "4 results · TechCrunch · Crunchbase · Orbital whitepaper · LinkedIn" },
+  { step: "Build context bundle", detail: "memory + prior reports", status: "ok", durationMs: 142, tool: "build_context_bundle", resultPreview: "{ mode: 'entity-intelligence', priorReports: 'available' }" },
+  { step: "Check live artifacts", detail: "daily briefs + archive rows", status: "ok", durationMs: 1840, tool: "load_live_artifacts", resultPreview: "reports · sources · claims · notebook blocks" },
   { step: "Extract structured signals", detail: "Gemini 3 Flash", status: "ok", durationMs: 612, tool: "llm_extract" },
   { step: "Assemble answer", detail: "claim · evidence · risks · next action", status: "ok", durationMs: 88, tool: "assemble_response" },
 ];
 
 const NOW = Date.now();
 const SEED_TURNS: Turn[] = [
-  { id: "u1", role: "user", text: "What's the Orbital Labs angle? Is it worth a follow-up call this week?", createdAt: NOW - 4 * 60_000 },
-  { id: "a1", role: "assistant", packet: sampleAnswer, tier: "auto", toolCalls: SAMPLE_TOOL_CALLS, createdAt: NOW - 4 * 60_000 + 3000 },
-  { id: "u2", role: "user", text: "Anything new since last week? Quick markdown summary please.", createdAt: NOW - 30_000 },
+  { id: "u1", role: "user", text: "Turn this research question into reusable entity intelligence.", createdAt: NOW - 4 * 60_000 },
+  { id: "a1", role: "assistant", packet: STARTER_ANSWER, tier: "auto", toolCalls: SAMPLE_TOOL_CALLS, createdAt: NOW - 4 * 60_000 + 3000 },
+  { id: "u2", role: "user", text: "What should happen after the answer?", createdAt: NOW - 30_000 },
   { id: "a2", role: "assistant", markdown: STREAMING_FOLLOWUP_MARKDOWN, streaming: true, tier: "auto", createdAt: NOW - 25_000 },
 ];
 
-export function ChatSurface({ contextLabel = "Asking about: Orbital Labs" }: ChatSurfaceProps) {
-  const [turns, setTurns] = useState<Turn[]>(SEED_TURNS);
+function liveAnswer(detail: LiveArtifactDetail): ChatAnswer {
+  const firstSection = detail.sections[0];
+  const evidence = detail.sourceRows.slice(0, 4).map((source, index) => ({
+    idx: index + 1,
+    quote: source.excerpt || source.title,
+    source: source.href ? `${source.title} · ${source.href}` : source.title,
+  }));
+  return {
+    shortAnswer: detail.summary,
+    whyItMatters: firstSection?.body || "This live artifact is already preserved as reusable NodeBench memory and can be promoted into reports, claims, sources, and follow-ups.",
+    evidence: evidence.length
+      ? evidence
+      : [{ idx: 1, quote: detail.summary, source: `${detail.sourceCount} live source references` }],
+    risks: detail.followUps > 0
+      ? [`${detail.followUps} items still need review before this becomes fully trusted memory.`]
+      : ["No blocking review items are visible in the latest live artifact, but claim-level verification should stay attached."],
+    nextAction: detail.primaryAction,
+    sourceCount: detail.sourceCount,
+    paidCalls: 0,
+    fromMemory: true,
+    trace: [
+      { step: "Resolve live artifact", status: "ok", detail: detail.title, durationMs: 34 },
+      { step: "Memory-first", status: "ok", detail: `${detail.sourceCount} sources · ${detail.claimCount} claims cached`, durationMs: 52 },
+      { step: "Notebook hydrate", status: "ok", detail: "Live artifact body is ready for TipTap review", durationMs: 81 },
+      { step: "Save to report", status: "info", detail: detail.status === "verified" ? "Already verified in live memory" : "Needs review before verification", durationMs: 0 },
+    ],
+  };
+}
+
+function liveToolCalls(detail: LiveArtifactDetail): ToolCall[] {
+  return [
+    { step: "Load Convex artifact", detail: detail.id, status: "ok", durationMs: 34, tool: "load_live_artifact" },
+    { step: "Hydrate source rows", detail: `${detail.sourceCount} source refs`, status: "ok", durationMs: 68, tool: "hydrate_sources" },
+    { step: "Assemble answer packet", detail: "claim · evidence · risk · next action", status: "ok", durationMs: 94, tool: "assemble_response" },
+  ];
+}
+
+function liveFollowupMarkdown(detail: LiveArtifactDetail): string {
+  const bullets = detail.sections
+    .flatMap((section) => section.items ?? [])
+    .slice(0, 3)
+    .map((item) => `- **${item.label}**: ${item.body}`)
+    .join("\n");
+  return `## Quick follow-up on ${detail.title}
+
+${bullets || `- ${detail.summary}`}
+
+> **Bottom line:** ${detail.primaryAction}
+
+[Open live workspace →](/redesign/workspace?report=${detail.id}&tab=brief)`;
+}
+
+function buildSeedTurns(detail?: LiveArtifactDetail): Turn[] {
+  if (!detail) return SEED_TURNS;
+  const now = Date.now();
+  return [
+    { id: "u1", role: "user", text: `What is the latest read on ${detail.title}?`, createdAt: now - 4 * 60_000 },
+    { id: "a1", role: "assistant", packet: liveAnswer(detail), tier: "auto", toolCalls: liveToolCalls(detail), createdAt: now - 4 * 60_000 + 3000 },
+    { id: "u2", role: "user", text: "Turn the strongest signal into a notebook-ready follow-up.", createdAt: now - 30_000 },
+    { id: "a2", role: "assistant", markdown: liveFollowupMarkdown(detail), streaming: true, tier: "auto", createdAt: now - 25_000 },
+  ];
+}
+
+export function ChatSurface({ contextLabel = "Asking about: current context" }: ChatSurfaceProps) {
+  const liveArtifacts = useLiveArtifacts(24);
+  const liveDetail = liveArtifacts.details[0];
+  const batchTargets = useMemo<BatchTarget[]>(() => {
+    if (liveArtifacts.reports.length === 0) return [];
+    return [
+      {
+        universeId: "live-artifacts",
+        universeName: "Current live artifacts",
+        entityCount: liveArtifacts.reports.length,
+      },
+      ...liveArtifacts.reports.slice(0, 5).map((report) => ({
+        universeId: report.id,
+        universeName: `${report.entity} review set`,
+        entityCount: Math.max(1, report.claims + report.followUps),
+      })),
+    ];
+  }, [liveArtifacts.reports]);
+  const liveSeedKey = liveDetail?.id ?? (liveArtifacts.isLoading ? "loading" : "empty");
+  const liveStarters = useMemo(() => {
+    if (!liveDetail) return undefined;
+    return [
+      { icon: "🧾", title: `Summarize ${liveDetail.title}`, prompt: `Summarize ${liveDetail.title}. Keep it evidence-led and end with a next action.` },
+      { icon: "✅", title: "Promote strongest claim", prompt: `Promote the strongest verified signal from ${liveDetail.title} into a notebook claim with sources.` },
+      { icon: "🔎", title: "Find the review gaps", prompt: `List what still needs source review in ${liveDetail.title}, grouped by risk.` },
+      { icon: "📤", title: "Prepare an export", prompt: `Create a CRM-ready export summary for ${liveDetail.title}.` },
+    ];
+  }, [liveDetail]);
+  const [seedKey, setSeedKey] = useState<string | null>(null);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [ctx, setCtx] = useState(contextLabel);
   const [tier, setTier] = useState<RouterTier>("auto");
-  // Sprint S2: live batch monitor — falls back to the fixture run when unauthenticated
+  // Sprint S2: live batch monitor from Convex batchAutopilotRuns.
   const { batch: liveBatch } = useBatchLive();
   const [overrideBatch, setOverrideBatch] = useState<ActiveBatchRun | null>(null);
   const batch = overrideBatch ?? liveBatch;
   const setBatch = setOverrideBatch;
+
+  useEffect(() => {
+    if (liveSeedKey === "loading" || seedKey === liveSeedKey) return;
+    setTurns(buildSeedTurns(liveDetail));
+    setCtx(liveDetail ? `Asking about: ${liveDetail.title}` : contextLabel);
+    setSeedKey(liveSeedKey);
+  }, [contextLabel, liveDetail, liveSeedKey, seedKey]);
 
   const sendMessage = (text: string, submittedTier: RouterTier) => {
     const now = Date.now();
@@ -102,7 +220,7 @@ export function ChatSurface({ contextLabel = "Asking about: Orbital Labs" }: Cha
     window.setTimeout(() => {
       setTurns((prev) => prev.map((t) =>
         t.id === assistantId
-          ? { ...t, thinking: false, toolCalls: SAMPLE_TOOL_CALLS, packet: sampleAnswer }
+          ? { ...t, thinking: false, toolCalls: liveDetail ? liveToolCalls(liveDetail) : SAMPLE_TOOL_CALLS, packet: liveDetail ? liveAnswer(liveDetail) : STARTER_ANSWER }
           : t,
       ));
     }, 2200);
@@ -117,7 +235,7 @@ export function ChatSurface({ contextLabel = "Asking about: Orbital Labs" }: Cha
     window.setTimeout(() => {
       setTurns((prev) => prev.map((t) =>
         t.id === turnId
-          ? { ...t, thinking: false, toolCalls: SAMPLE_TOOL_CALLS, packet: sampleAnswer }
+          ? { ...t, thinking: false, toolCalls: liveDetail ? liveToolCalls(liveDetail) : SAMPLE_TOOL_CALLS, packet: liveDetail ? liveAnswer(liveDetail) : STARTER_ANSWER }
           : t,
       ));
     }, 1800);
@@ -131,22 +249,30 @@ export function ChatSurface({ contextLabel = "Asking about: Orbital Labs" }: Cha
   };
 
   const runOnList = (text: string, _t: RouterTier, target: BatchTarget) => {
-    // Spin up a fake batch run for the chosen universe
+    const totalEntities = Math.max(1, target.entityCount);
+    const recentSteps = liveArtifacts.reports.slice(0, 5).map((report, index) => ({
+      entity: report.entity,
+      status: index === 0 ? "running" as const : "queued" as const,
+      durationMs: index === 0 ? 0 : undefined,
+      paidCalls: 0,
+    }));
     setBatch({
-      ...activeBatchRun,
       id: `batch_${target.universeId}_${Date.now()}`,
       universeId: target.universeId,
       universeName: target.universeName,
-      totalEntities: target.entityCount,
+      styleId: "user.inferred",
+      styleName: "Founder / banker lens · v3",
+      rubric: "Live artifact review",
+      totalEntities,
       doneCount: 0,
       reviewCount: 0,
-      etaSeconds: target.entityCount * 4,
+      etaSeconds: totalEntities * 4,
       spentUsd: 0,
-      recentSteps: [],
+      recentSteps,
     });
     setTurns((prev) => [
       ...prev,
-      { id: `u${prev.length}`, role: "user", text: `${text}  ·  on universe: ${target.universeName} (${target.entityCount} entities)` },
+      { id: `u${prev.length}`, role: "user", text: `${text}  ·  on live set: ${target.universeName} (${totalEntities} entities)` },
     ]);
   };
 
@@ -209,17 +335,20 @@ export function ChatSurface({ contextLabel = "Asking about: Orbital Labs" }: Cha
         {/* Compact thread header — no marketing copy. Just status + thread context. */}
         <header className="rd-chat-thread-head">
           <div className="rd-row" style={{ gap: 8, flexWrap: "wrap" }}>
-            <Pill tone="green"><span className="rd-dot rd-dot--live" />Memory hot</Pill>
+            <Pill tone="green"><span className="rd-dot rd-dot--live" />{liveArtifacts.isLive ? "Live memory hot" : "Memory hot"}</Pill>
             <span className="rd-mono" style={{ fontSize: 11, color: "var(--rd-ink-soft)" }}>
-              Thread #2,841 · Orbital Labs · 0 paid calls
+              {liveDetail ? `Thread · ${liveDetail.title} · ${liveDetail.sourceCount} sources · 0 paid calls` : "Thread · no live artifact selected · 0 paid calls"}
             </span>
           </div>
         </header>
 
         {turns.length === 0 ? (
           <ChatEmptyState
+            starters={liveStarters}
             onPick={(prompt) => sendMessage(prompt, tier)}
-            recentThread={{ id: "2841", entity: "Orbital Labs", lastMessage: "Send Alex a 5-line note proposing a 30-min pilot-criteria call this week.", minutesAgo: 27 }}
+            recentThread={liveDetail
+              ? { id: liveDetail.id, entity: liveDetail.title, lastMessage: liveDetail.primaryAction, minutesAgo: 1 }
+              : undefined}
             onResume={() => { /* no-op in showcase */ }}
           />
         ) : (
@@ -243,6 +372,7 @@ export function ChatSurface({ contextLabel = "Asking about: Orbital Labs" }: Cha
                 packet={t.packet!}
                 tier={t.tier ?? "auto"}
                 toolCalls={t.toolCalls}
+                reportTitle={liveDetail?.title}
                 createdAt={t.createdAt}
                 onRegenerate={(tierOverride) => regenerate(t.id, tierOverride)}
                 onBranch={() => branchFromTurn(t.id)}
@@ -270,10 +400,12 @@ export function ChatSurface({ contextLabel = "Asking about: Orbital Labs" }: Cha
         <div style={{ maxWidth: 920, margin: "0 auto" }}>
           <UniversalComposer
             contextLabel={ctx}
-            onContextChange={() => setCtx(ctx.startsWith("Asking") ? "Adding to: Orbital Labs report" : "Asking about: Orbital Labs")}
+            onContextChange={() => setCtx(ctx.startsWith("Asking")
+              ? `Adding to: ${liveDetail?.title ?? "current report"}`
+              : `Asking about: ${liveDetail?.title ?? "current context"}`)}
             onSubmit={sendMessage}
             onRunOnList={runOnList}
-            batchTargets={BATCH_TARGETS}
+            batchTargets={batchTargets}
             tier={tier}
             onTierChange={setTier}
             placeholder="Ask anything · type / for commands · @ to mention an entity"
@@ -281,7 +413,7 @@ export function ChatSurface({ contextLabel = "Asking about: Orbital Labs" }: Cha
             onStop={() => {
               setTurns((prev) => prev.map((t) =>
                 t.thinking || t.streaming
-                  ? { ...t, thinking: false, streaming: false, markdown: t.markdown ? t.markdown + "\n\n_(stopped by user)_" : t.markdown, packet: t.packet ?? sampleAnswer }
+                  ? { ...t, thinking: false, streaming: false, markdown: t.markdown ? t.markdown + "\n\n_(stopped by user)_" : t.markdown, packet: t.packet ?? (liveDetail ? liveAnswer(liveDetail) : STARTER_ANSWER) }
                   : t,
               ));
             }}
@@ -420,13 +552,15 @@ function AnswerPacket({
   packet,
   tier,
   toolCalls,
+  reportTitle,
   createdAt,
   onRegenerate,
   onBranch,
 }: {
-  packet: typeof sampleAnswer;
+  packet: ChatAnswer;
   tier: RouterTier;
   toolCalls?: ToolCall[];
+  reportTitle?: string;
   createdAt?: number;
   onRegenerate?: (tierOverride?: "free" | "fast" | "deep") => void;
   onBranch?: () => void;
@@ -453,7 +587,7 @@ function AnswerPacket({
         {/* Status strip — quieter; structural meta moves to header above */}
         <div className="rd-row" style={{ gap: 6, flexWrap: "wrap" }}>
           <Pill tone="green"><span className="rd-dot rd-dot--live" />Using memory</Pill>
-          <Pill tone="accent">Saved to Orbital Labs report</Pill>
+          <Pill tone="accent">Saved to {reportTitle ?? "report"}</Pill>
           <Pill>{packet.paidCalls} paid calls</Pill>
         </div>
 
@@ -538,7 +672,7 @@ function AnswerPacket({
         <p className="rd-body" style={{ margin: 0, color: "var(--rd-ink)" }}>{packet.nextAction}</p>
         <div className="rd-row" style={{ gap: 6, marginTop: 10 }}>
           <button className="rd-btn rd-btn--primary rd-btn--sm">Add to follow-ups</button>
-          <button className="rd-btn rd-btn--quiet rd-btn--sm">Open Orbital Labs</button>
+          <button className="rd-btn rd-btn--quiet rd-btn--sm">Open {reportTitle ?? "report"}</button>
         </div>
       </section>
 

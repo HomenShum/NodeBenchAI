@@ -5,13 +5,13 @@
  *   convex/domains/operations/batchAutopilot/queries.ts:getRecentRuns
  *     → derive ReportCardData[] (id, entity, kind, status, description, sources, claims, followUps, updatedAt)
  *
- * When the user is unauthenticated or has no runs yet, the hook returns the curated starter
- * library so the redesign route is still useful for guest visitors.
+ * If the user is unauthenticated or has no runs yet, the hook returns an explicit
+ * empty live state. Production UI must not silently fall back to fixture reports.
  */
 
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { reports as fixtureReports, type ReportCardData } from "../fixtures";
+import type { ReportCardData } from "../fixtures";
 import { useLiveArtifacts } from "./useLiveArtifacts";
 
 interface BatchAutopilotRun {
@@ -82,7 +82,7 @@ function runToReport(run: BatchAutopilotRun): ReportCardData {
 
 export interface UseReportsLiveResult {
   reports: ReportCardData[];
-  /** True when live Convex data is being shown; false when falling back to fixtures. */
+  /** True when live Convex data is being shown; false when the live result set is empty. */
   isLive: boolean;
   /** True while the query is loading for the first time. */
   isLoading: boolean;
@@ -101,7 +101,7 @@ export function useReportsLive(): UseReportsLiveResult {
 
   if (liveRuns === undefined) {
     return {
-      reports: liveArtifacts.reports.length > 0 ? liveArtifacts.reports : fixtureReports,
+      reports: liveArtifacts.reports,
       isLive: liveArtifacts.isLive,
       isLoading: true,
       sourceLabel: liveArtifacts.sourceLabel,
@@ -112,10 +112,10 @@ export function useReportsLive(): UseReportsLiveResult {
   const reports = [...runReports, ...liveArtifacts.reports].slice(0, 60);
   if (reports.length === 0) {
     return {
-      reports: fixtureReports,
+      reports: [],
       isLive: false,
       isLoading: liveArtifacts.isLoading,
-      sourceLabel: "Starter coverage",
+      sourceLabel: "No live reports yet",
       liveCount: 0,
     };
   }

@@ -21,13 +21,9 @@ import { useHomePulseLive } from "../hooks/useHomePulseLive";
 import { useLiveArtifacts } from "../hooks/useLiveArtifacts";
 import { showToast } from "../components/Toast";
 import {
-  memoryPulse,
-  pulseCards as fixturePulseCards,
-  publicResearch,
   situations,
-  watchlist,
-  continueWorking,
   memoStyles,
+  type ContinueItem,
   type SituationWindow,
   type EntityClass,
   type PublicResearchCard,
@@ -67,17 +63,44 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
   const [entitySort, setEntitySort] = useState<"newest" | "confidence" | "delta">("newest");
   const [activeStyle, setActiveStyle] = useState<MemoStyle>(memoStyles.find((s) => s.id === "user.inferred") ?? memoStyles[0]);
   const isFirstVisit = useFirstVisit();
-  // Sprint S4 (partial): pulse cards from live batchAutopilot briefMarkdown — falls back to fixture
+  // Sprint S4 (partial): pulse cards from live batchAutopilot briefMarkdown.
   const { pulse: livePulse } = useHomePulseLive();
   const liveArtifacts = useLiveArtifacts(24);
-  const pulseCards = liveArtifacts.pulse.length > 0 ? liveArtifacts.pulse : livePulse.length > 0 ? livePulse : fixturePulseCards;
-  const effectiveMemoryPulse = liveArtifacts.metrics.length > 0 ? liveArtifacts.metrics : memoryPulse;
-  const effectivePublicResearch = liveArtifacts.publicResearch.length > 0 ? liveArtifacts.publicResearch : publicResearch;
+  const pulseCards = liveArtifacts.pulse.length > 0 ? liveArtifacts.pulse : livePulse;
+  const effectiveMemoryPulse = liveArtifacts.metrics;
+  const effectivePublicResearch = liveArtifacts.publicResearch;
+  const primaryLiveReport = liveArtifacts.reports[0];
+  const effectiveContinueWorking: ContinueItem[] = liveArtifacts.reports.slice(0, 3).map((report, index) => ({
+    id: `live_continue_${report.id}`,
+    reportId: report.id,
+    title: report.entity,
+    kind: report.kind,
+    lastTouched: report.updatedAt,
+    whatYouLeft: report.description,
+    pendingFromAgent: index === 0 && report.followUps > 0 ? report.followUps : undefined,
+  }));
+  const effectiveWatchlist: WatchlistEntity[] = liveArtifacts.publicResearch.slice(0, 5).map((card, index) => ({
+    id: `live_watch_${card.reportId ?? index}`,
+    entity: card.entity,
+    kind: card.entityClass === "role" ? "topic" : card.entityClass,
+    signal: card.signal,
+    delta: card.delta,
+    confidence: card.confidence,
+    lastSignalAt: card.whenAgo,
+    trendUp: card.trendUp,
+  }));
+  const whatChangedItems = useMemo(() => pulseCards.map((card, index) => ({
+    id: `pulse-${index}`,
+    kind: card.kind === "follow_up" ? "follow_up" as const : card.kind === "memory_win" ? "claim" as const : "report" as const,
+    title: card.title,
+    detail: card.body,
+    whenAgo: card.meta,
+    href: primaryLiveReport ? `/redesign/workspace?report=${primaryLiveReport.id}&tab=brief` : undefined,
+  })), [pulseCards, primaryLiveReport]);
   const tryStyle = (style: MemoStyle, entity: string) => {
     setActiveStyle(style);
     onAsk(`Run a ${style.name.toLowerCase()} on ${entity}.`);
   };
-  const primaryLiveReport = liveArtifacts.reports[0];
   const bankerStyle = memoStyles.find((s) => s.id === "gs.banker.brief") ?? memoStyles[0];
   const openPrimaryLiveArtifact = () => {
     if (primaryLiveReport) {
@@ -99,11 +122,21 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
     else if (entitySort === "delta") list.sort((a, b) => b.delta - a.delta);
     return list;
   }, [effectivePublicResearch, entityFilter, entitySort]);
+  const displayMemoryPulse = effectiveMemoryPulse.length > 0
+    ? effectiveMemoryPulse
+    : [
+        {
+          label: "Live artifacts",
+          value: liveArtifacts.isLoading ? "Loading" : "0",
+          hint: liveArtifacts.isLoading ? "Convex query in flight" : "No archive or daily brief rows returned",
+        },
+      ];
 
   return (
     <div className="rd-stack" style={{ padding: "20px 40px 40px", gap: 28, maxWidth: 1180, margin: "0 auto" }}>
       {/* ─── 0. What changed since last visit (returning users) ─── */}
       <WhatChangedStrip
+        items={whatChangedItems}
         onOpen={(item) => {
           if (item.href) navigate(item.href);
           else showToast({ tone: "info", message: `Opening ${item.title}…` });
@@ -148,7 +181,7 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
             {primaryLiveReport && <Pill>{primaryLiveReport.sources} sources</Pill>}
           </div>
           <strong style={{ fontSize: 14, color: "var(--rd-ink-strong)" }}>
-            {primaryLiveReport ? primaryLiveReport.entity : "No sign-in needed: generate a banker-style report sample."}
+            {primaryLiveReport ? primaryLiveReport.entity : "No sign-in needed: run a banker-style first report."}
           </strong>
           <span style={{ fontSize: 12.5, color: "var(--rd-ink-mute)", lineHeight: 1.45 }}>
             {primaryLiveReport
@@ -173,7 +206,9 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
         <UniversalComposer
           contextLabel={contextLabel}
           onContextChange={() =>
-            setContextLabel(contextLabel.startsWith("Auto") ? "Adding to: Ship Demo Day" : "Auto: current context")
+            setContextLabel(contextLabel.startsWith("Auto")
+              ? `Adding to: ${primaryLiveReport?.entity ?? "current report"}`
+              : "Auto: current context")
           }
           onSubmit={(text) => onAsk(text)}
           onChatNow={(text) => onAsk(text)}
@@ -249,7 +284,7 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
 
       {/* ─── 3. Memory Pulse TICKER (Bloomberg-style ribbon) ─── */}
       <section aria-label="Memory pulse" className="rd-ticker" style={{ marginTop: -8 }}>
-        {effectiveMemoryPulse.map((m, i) => (
+        {displayMemoryPulse.map((m, i) => (
           <div key={m.label} className="rd-ticker__cell" style={i === 0 ? { paddingLeft: 0 } : undefined}>
             <span className="rd-ticker__label">{m.label}</span>
             <span className="rd-ticker__value">{m.value}</span>
@@ -268,24 +303,35 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
       {/* ─── 4. Active-event COVER HERO ─── */}
       <section aria-label="Active event" className="rd-stack" style={{ gap: 10 }}>
         <div className="rd-row--between">
-          <div className="rd-eyebrow">Active event · live coverage</div>
+          <div className="rd-eyebrow">{primaryLiveReport ? "Active live artifact" : "Active coverage"}</div>
           <button className="rd-btn rd-btn--quiet rd-btn--sm">Mute</button>
         </div>
         <article className="rd-cover-hero">
           <span className="rd-cover-hero__pulse">LIVE</span>
           <div className="rd-stack" style={{ gap: 12, color: "#fff" }}>
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", opacity: 0.85 }}>
-              Today · in-person · 8 companies · 14 people
+              {liveArtifacts.isLive
+                ? `Today · ${liveArtifacts.archiveCount} archive posts · ${liveArtifacts.briefFeatureCount} brief checks`
+                : liveArtifacts.isLoading ? "Checking live artifacts" : "No live artifacts yet"}
             </span>
             <h2 style={{ fontSize: 36, fontWeight: 700, letterSpacing: "-1.2px", margin: 0, lineHeight: 1.05, color: "#fff" }}>
-              Ship Demo Day
+              {primaryLiveReport?.entity ?? "Live coverage memory"}
             </h2>
             <p style={{ fontSize: 14.5, lineHeight: 1.55, color: "rgba(255,255,255,0.92)", margin: 0, maxWidth: 480 }}>
-              Event corpus is hot — answers serve from local memory before public search runs. <strong style={{ color: "#fff" }}>3 strong pilot intents detected so far.</strong>
+              {primaryLiveReport
+                ? primaryLiveReport.description
+                : "Answers serve from reusable memory first, then preserve the result as reports, claims, sources, and follow-ups."}{" "}
+              <strong style={{ color: "#fff" }}>
+                {primaryLiveReport ? `${primaryLiveReport.claims} claims · ${primaryLiveReport.sources} sources.` : "Run one question, then multiply it."}
+              </strong>
             </p>
             <div className="rd-row" style={{ gap: 8, marginTop: 6 }}>
-              <button className="rd-btn rd-btn--sm" style={{ background: "#fff", color: "var(--rd-accent-strong)", border: "1px solid #fff", fontWeight: 700 }}>
-                Open event report →
+              <button
+                className="rd-btn rd-btn--sm"
+                style={{ background: "#fff", color: "var(--rd-accent-strong)", border: "1px solid #fff", fontWeight: 700 }}
+                onClick={openPrimaryLiveArtifact}
+              >
+                {primaryLiveReport ? "Open live brief →" : "Try banker brief →"}
               </button>
               <button className="rd-btn rd-btn--sm" style={{ background: "rgba(255,255,255,0.16)", color: "#fff", border: "1px solid rgba(255,255,255,0.30)", fontWeight: 590 }}>
                 Capture quick note
@@ -293,10 +339,10 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
             </div>
           </div>
           <dl style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, margin: 0 }}>
-            <CoverStat label="Memory hit" value="78%" hint="answers served from corpus" />
-            <CoverStat label="Paid calls" value="0" hint="cache + free public sources" />
-            <CoverStat label="Captures" value="12" hint="across all attendees" />
-            <CoverStat label="Follow-ups due" value="9" hint="3 due tomorrow" />
+            <CoverStat label="Reports" value={String(liveArtifacts.reports.length)} hint={liveArtifacts.isLive ? "live artifacts ready" : "awaiting artifact"} />
+            <CoverStat label="Sources" value={String(primaryLiveReport?.sources ?? 0)} hint="attached evidence" />
+            <CoverStat label="Claims" value={String(primaryLiveReport?.claims ?? 0)} hint="reviewable blocks" />
+            <CoverStat label="Follow-ups" value={String(primaryLiveReport?.followUps ?? 0)} hint="waiting on user" />
           </dl>
         </article>
       </section>
@@ -306,9 +352,17 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
         <div className="rd-ops__col">
           <div className="rd-ops__head">
             <span className="rd-ops__title">Continue working</span>
-            <span className="rd-ops__count">{continueWorking.length} open</span>
+            <span className="rd-ops__count">{effectiveContinueWorking.length} open</span>
           </div>
-          {continueWorking.map((c) => (
+          {effectiveContinueWorking.length === 0 && (
+            <div className="rd-ops__row">
+              <div className="rd-ops__row-title">No live report in progress</div>
+              <span style={{ fontSize: 12, color: "var(--rd-ink-mute)" }}>
+                Run a daily brief or open Reports once live artifacts return.
+              </span>
+            </div>
+          )}
+          {effectiveContinueWorking.map((c) => (
             <div key={c.id} className="rd-ops__row" onClick={() => navigate(`/redesign/reports/${c.reportId}`)}>
               <div className="rd-ops__row-title">
                 {c.title}
@@ -330,6 +384,14 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
             <span className="rd-ops__title">What changed</span>
             <span className="rd-ops__count">today · {pulseCards.length}</span>
           </div>
+          {pulseCards.length === 0 && (
+            <div className="rd-ops__row">
+              <div className="rd-ops__row-title">No new live changes yet</div>
+              <span style={{ fontSize: 12, color: "var(--rd-ink-mute)", lineHeight: 1.45 }}>
+                The archive and daily brief hooks are connected; this lane fills when Convex returns new artifacts.
+              </span>
+            </div>
+          )}
           {pulseCards.map((card, index) => (
             <div key={`${card.meta}-${card.title}-${index}`} className="rd-ops__row">
               <div className="rd-row" style={{ gap: 6 }}>
@@ -345,9 +407,17 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
         <div className="rd-ops__col">
           <div className="rd-ops__head">
             <span className="rd-ops__title">Watchlist</span>
-            <span className="rd-ops__count">{watchlist.length} entities</span>
+            <span className="rd-ops__count">{effectiveWatchlist.length} entities</span>
           </div>
-          {watchlist.map((w) => (
+          {effectiveWatchlist.length === 0 && (
+            <div className="rd-ops__row">
+              <div className="rd-ops__row-title">No live watchlist signals</div>
+              <span style={{ fontSize: 12, color: "var(--rd-ink-mute)" }}>
+                Public archive rows and daily brief checks will appear here when available.
+              </span>
+            </div>
+          )}
+          {effectiveWatchlist.map((w) => (
             <WatchRow key={w.id} entity={w} />
           ))}
         </div>
@@ -361,11 +431,11 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
             <h2 className="rd-h2" style={{ marginTop: 4 }}>
               {liveArtifacts.isLive
                 ? "LinkedIn archive + daily brief memory, ready to reuse."
-                : "Reusable public memory from recent entity runs."}
+                : liveArtifacts.isLoading ? "Checking live archive and daily brief memory." : "No live public artifacts returned yet."}
             </h2>
           </div>
           <Pill tone={liveArtifacts.isLive ? "green" : "accent"}>
-            {liveArtifacts.isLive ? liveArtifacts.sourceLabel : "Public claims only"}
+            {liveArtifacts.isLive ? liveArtifacts.sourceLabel : liveArtifacts.isLoading ? "Checking Convex" : "Empty live feed"}
           </Pill>
         </div>
 
@@ -393,6 +463,14 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
         </div>
 
         <div className="rd-entity-grid">
+          {filteredEntities.length === 0 && (
+            <div className="rd-card rd-card__pad" style={{ gridColumn: "1 / -1" }}>
+              <div className="rd-eyebrow">Live feed empty</div>
+              <p className="rd-body" style={{ marginTop: 6, color: "var(--rd-ink-mute)" }}>
+                No LinkedIn archive rows or Daily Brief checks matched this filter. Clear filters or run an artifact refresh.
+              </p>
+            </div>
+          )}
           {filteredEntities.map((e, index) => (
             <EntityCard
               key={`${e.reportId ?? e.entity}-${e.kind}-${index}`}

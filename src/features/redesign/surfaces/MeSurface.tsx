@@ -135,7 +135,7 @@ export function MeSurface() {
       {/* Compact header — Personal Context first, no chrome competing for attention */}
       <header className="rd-row--between" style={{ gap: 16, alignItems: "baseline", flexWrap: "wrap" }}>
         <div className="rd-stack" style={{ gap: 4, minWidth: 0 }}>
-          <div className="rd-eyebrow">Me · Personal Context</div>
+          <div className="rd-eyebrow">Me · Personal Context Notebook</div>
           <h1 className="rd-h1" style={{ fontSize: 26 }}>This is what NodeBench remembers about you.</h1>
           <CompletenessMeter sections={sections} />
           <p

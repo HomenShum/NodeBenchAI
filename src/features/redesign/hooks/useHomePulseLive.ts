@@ -8,7 +8,7 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { pulseCards as fixturePulse, type PulseCard } from "../fixtures";
+import type { PulseCard } from "../fixtures";
 
 interface BatchAutopilotRun {
   _id: string;
@@ -60,15 +60,15 @@ export function useHomePulseLive(): UseHomePulseLiveResult {
     { limit: 10 } as Parameters<typeof useQuery>[1],
   ) as BatchAutopilotRun[] | undefined;
 
-  if (liveRuns === undefined) return { pulse: fixturePulse, isLive: false, isLoading: true };
+  if (liveRuns === undefined) return { pulse: [], isLive: false, isLoading: true };
   const completed = (liveRuns ?? []).filter((r) => r.status === "completed" && r.briefMarkdown);
-  if (completed.length === 0) return { pulse: fixturePulse, isLive: false, isLoading: false };
+  if (completed.length === 0) return { pulse: [], isLive: false, isLoading: false };
 
   const cards = completed
     .flatMap((r, i) => [pulseFromRun(r, i), pulseFromRun(r, i + 1)])
     .filter((c): c is PulseCard => c !== null)
     .slice(0, 5);
 
-  if (cards.length === 0) return { pulse: fixturePulse, isLive: false, isLoading: false };
+  if (cards.length === 0) return { pulse: [], isLive: false, isLoading: false };
   return { pulse: cards, isLive: true, isLoading: false };
 }

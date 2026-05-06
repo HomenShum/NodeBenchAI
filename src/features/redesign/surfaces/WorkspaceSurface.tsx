@@ -10,12 +10,11 @@ import { useNavigate } from "react-router-dom";
 import { useConvex } from "convex/react";
 import { useConvexApi } from "@/lib/convexApi";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
-import { CardStack } from "../components/CardStack";
 import { Pill } from "../components/Pill";
 import { ChatSurface } from "./ChatSurface";
 import { ReportNotebookView } from "../components/ReportNotebookView";
 import { showToast } from "../components/Toast";
-import { cardStackEntities, sampleAnswer, type ReportCardData } from "../fixtures";
+import type { ReportCardData } from "../fixtures";
 import {
   buildLiveArtifactNotebookHtml,
   useLiveArtifacts,
@@ -39,31 +38,48 @@ interface WorkspaceSurfaceProps {
   initialTab?: Tab;
 }
 
-export function WorkspaceSurface({ reportId = "rep_orbital", initialTab = "brief" }: WorkspaceSurfaceProps) {
+function isLiveArtifactReportId(id: string): boolean {
+  return /^(daily|li|run)_/.test(id);
+}
+
+export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSurfaceProps) {
   const navigate = useNavigate();
   const convex = useConvex();
   const api = useConvexApi();
   const [tab, setTab] = useState<Tab>(initialTab);
   const [promoting, setPromoting] = useState(false);
-  const root = cardStackEntities.orbital;
   const liveArtifacts = useLiveArtifacts(60);
+  const selectedReportId = reportId ?? liveArtifacts.reports[0]?.id ?? "";
+  const workspaceNeedsSelection = !selectedReportId;
+  const selectedIsLiveArtifact = selectedReportId ? isLiveArtifactReportId(selectedReportId) : false;
   const liveReport = useMemo(
-    () => liveArtifacts.reports.find((report) => report.id === reportId),
-    [liveArtifacts.reports, reportId],
+    () => liveArtifacts.reports.find((report) => report.id === selectedReportId),
+    [liveArtifacts.reports, selectedReportId],
   );
   const liveDetail = useMemo(
-    () => liveArtifacts.details.find((detail) => detail.id === reportId),
-    [liveArtifacts.details, reportId],
+    () => liveArtifacts.details.find((detail) => detail.id === selectedReportId),
+    [liveArtifacts.details, selectedReportId],
   );
-  const workspaceTitle = liveDetail?.title ?? liveReport?.entity ?? root.title;
+  const liveArtifactUnavailable = Boolean(selectedIsLiveArtifact && !liveDetail && !liveArtifacts.isLoading);
+  const liveArtifactResolving = Boolean(selectedIsLiveArtifact && !liveDetail && liveArtifacts.isLoading);
+  const workspaceTitle =
+    liveDetail?.title ??
+    liveReport?.entity ??
+    (workspaceNeedsSelection
+      ? "Loading live workspace"
+      : liveArtifactResolving
+        ? "Loading live artifact"
+        : liveArtifactUnavailable
+          ? "Live artifact unavailable"
+          : "Workspace draft");
   const workspaceKind = liveDetail?.kind ?? liveReport?.kind ?? "Workspace";
-  const workspaceSources = liveDetail?.sourceCount ?? liveReport?.sources ?? 14;
-  const workspaceClaims = liveDetail?.claimCount ?? liveReport?.claims ?? 7;
-  const workspaceFollowUps = liveDetail?.followUps ?? liveReport?.followUps ?? 3;
-  const workspaceFreshness = liveDetail?.updatedAt ?? liveReport?.updatedAt ?? "2h ago";
+  const workspaceSources = liveDetail?.sourceCount ?? liveReport?.sources ?? 0;
+  const workspaceClaims = liveDetail?.claimCount ?? liveReport?.claims ?? 0;
+  const workspaceFollowUps = liveDetail?.followUps ?? liveReport?.followUps ?? 0;
+  const workspaceFreshness = liveDetail?.updatedAt ?? liveReport?.updatedAt ?? "awaiting live artifact";
   const createDraftReportRef = (api?.domains?.product?.reports as any)?.createDraftReport;
   const saveReportNotebookHtmlRef = (api?.domains?.product?.reports as any)?.saveReportNotebookHtml;
-  const isPromotableLiveArtifact = Boolean(liveReport && /^(daily|li|run)_/.test(reportId));
+  const isPromotableLiveArtifact = Boolean(liveReport && selectedIsLiveArtifact);
   const canPromoteLiveArtifact = Boolean(isPromotableLiveArtifact && createDraftReportRef && saveReportNotebookHtmlRef);
 
   const promoteLiveArtifact = async () => {
@@ -116,9 +132,9 @@ export function WorkspaceSurface({ reportId = "rep_orbital", initialTab = "brief
         background: "var(--rd-paper)",
         flexShrink: 0,
       }}>
-        <div className="rd-row" style={{ gap: 8 }}>
+          <div className="rd-row" style={{ gap: 8 }}>
           <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>
-            REPORTS / {reportId.toUpperCase()}
+            REPORTS / {(selectedReportId || "LIVE").toUpperCase()}
           </span>
           <span style={{ color: "var(--rd-ink-faint)" }}>›</span>
           <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink)" }}>WORKSPACE</span>
@@ -174,17 +190,59 @@ export function WorkspaceSurface({ reportId = "rep_orbital", initialTab = "brief
 
       {/* Active tab content */}
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden", background: "var(--rd-paper-warm)" }}>
-        {tab === "brief" && <BriefTab report={liveReport} detail={liveDetail} />}
-        {tab === "cards" && (liveDetail ? <LiveCardsTab detail={liveDetail} /> : <CardStack rootId="ship_demo" />)}
-        {tab === "notebook" && (
-          <div style={{ height: "100%", padding: "16px 24px 24px" }}>
-            <ReportNotebookView reportId={reportId} embedded liveDetail={liveDetail} />
-          </div>
+        {tab === "brief" && (
+          (workspaceNeedsSelection || (selectedIsLiveArtifact && !liveDetail))
+            ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
+            : <BriefTab report={liveReport} detail={liveDetail} />
         )}
-        {tab === "sources" && <SourcesTab report={liveReport} detail={liveDetail} />}
+        {tab === "cards" && (
+          liveDetail
+            ? <LiveCardsTab detail={liveDetail} />
+            : <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
+        )}
+        {tab === "notebook" && (
+          (workspaceNeedsSelection || (selectedIsLiveArtifact && !liveDetail))
+            ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
+            : (
+              <div style={{ height: "100%", padding: "16px 24px 24px" }}>
+                <ReportNotebookView reportId={selectedReportId || "workspace-draft"} embedded liveDetail={liveDetail} />
+              </div>
+            )
+        )}
+        {tab === "sources" && (
+          liveDetail
+            ? <SourcesTab report={liveReport} detail={liveDetail} />
+            : workspaceNeedsSelection || selectedIsLiveArtifact
+              ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
+              : <SourcesTab report={liveReport} />
+        )}
         {tab === "chat" && <ChatSurface contextLabel={`Asking about: ${workspaceTitle}`} />}
-        {tab === "map" && <MapTab detail={liveDetail} />}
+        {tab === "map" && (
+          liveDetail
+            ? <MapTab detail={liveDetail} />
+            : workspaceNeedsSelection || selectedIsLiveArtifact
+              ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
+              : <MapTab />
+        )}
       </div>
+    </div>
+  );
+}
+
+function LiveArtifactPlaceholder({ loading, reportId }: { loading: boolean; reportId: string }) {
+  return (
+    <div className="rd-stack" style={{ gap: 14, padding: "28px 32px", maxWidth: 760 }}>
+      <div className="rd-eyebrow">{loading ? "Resolving live artifact" : "Live artifact unavailable"}</div>
+      <section className="rd-card rd-card__pad" style={{ background: "var(--rd-panel)" }}>
+        <h2 className="rd-h2" style={{ marginBottom: 8 }}>
+          {loading ? "Loading the live workspace body." : "This artifact is not in the current live window."}
+        </h2>
+        <p className="rd-body rd-faint">
+          {loading
+            ? "NodeBench is waiting for the Convex artifact detail before rendering Brief, Cards, Sources, or Map. Fixture workspace content is intentionally suppressed for live artifact ids."
+            : `No live detail was returned for ${reportId || "the latest artifact"}. Open Reports to pick a currently indexed artifact, or refresh the live feed.`}
+        </p>
+      </section>
     </div>
   );
 }
@@ -333,45 +391,25 @@ function BriefTab({ report, detail }: { report?: ReportCardData; detail?: LiveAr
   return (
     <div className="rd-stack" style={{ gap: 18, padding: "28px 32px", maxWidth: 760, overflow: "auto", height: "100%" }}>
       <section>
-        <div className="rd-eyebrow">Short answer</div>
+        <div className="rd-eyebrow">Workspace draft</div>
         <p style={{ fontFamily: "var(--rd-font-display)", fontSize: 22, lineHeight: 1.35, color: "var(--rd-ink-strong)", letterSpacing: "-0.3px", marginTop: 6 }}>
-          {sampleAnswer.shortAnswer}
+          Select a live artifact from Reports to hydrate this workspace.
         </p>
       </section>
 
       <section>
-        <div className="rd-eyebrow">Why it matters</div>
-        <p className="rd-body" style={{ marginTop: 6, color: "var(--rd-ink-mute)" }}>{sampleAnswer.whyItMatters}</p>
-      </section>
-
-      <section>
-        <div className="rd-eyebrow">Verified evidence</div>
-        <ol className="rd-stack" style={{ gap: 8, listStyle: "none", padding: 0, marginTop: 6 }}>
-          {sampleAnswer.evidence.map((e) => (
-            <li key={e.idx} className="rd-card rd-card__pad-tight" style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 10 }}>
-              <span className="rd-mono" style={{ fontSize: 11, background: "var(--rd-accent-soft)", color: "var(--rd-accent-strong)", padding: "1px 6px", borderRadius: 4 }}>[{e.idx}]</span>
-              <span style={{ fontSize: 13 }}>{e.quote}</span>
-              <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>{e.source}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section>
-        <div className="rd-eyebrow">Risks</div>
-        <ul className="rd-stack" style={{ gap: 6, listStyle: "none", padding: 0, marginTop: 6 }}>
-          {sampleAnswer.risks.map((r, i) => (
-            <li key={i} className="rd-row" style={{ gap: 10, alignItems: "flex-start" }}>
-              <span className="rd-dot rd-dot--review" style={{ marginTop: 6 }} />
-              <span style={{ color: "var(--rd-ink-mute)" }}>{r}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="rd-eyebrow">Why this is blank</div>
+        <p className="rd-body" style={{ marginTop: 6, color: "var(--rd-ink-mute)" }}>
+          Workspace routes no longer fall through to starter entity fixtures. Brief, Cards, Sources, Notebook,
+          and Map wait for the selected live artifact or an editable report document before rendering intelligence.
+        </p>
       </section>
 
       <section className="rd-card rd-card__pad" style={{ background: "var(--rd-accent-tint)", borderColor: "var(--rd-accent-ring)" }}>
-        <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)" }}>Recommended next action</div>
-        <p className="rd-body" style={{ marginTop: 6 }}>{sampleAnswer.nextAction}</p>
+        <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)" }}>No fixture fallback</div>
+        <p className="rd-body" style={{ marginTop: 6 }}>
+          This blank state is intentional: live artifact routes must prove their data path instead of looking populated by old sample content.
+        </p>
       </section>
     </div>
   );
@@ -388,43 +426,42 @@ function NotebookTab() {
 
       <article className="rd-stack" style={{ gap: 14 }}>
         <h1 style={{ fontFamily: "var(--rd-font-display)", fontSize: 28, fontWeight: 590, color: "var(--rd-ink-strong)", letterSpacing: "-0.5px" }}>
-          Orbital Labs — pilot pre-read
+          Live artifact — notebook pre-read
         </h1>
         <p className="rd-mono" style={{ fontSize: 11, color: "var(--rd-ink-soft)" }}>
-          Drafted by NodeBench · revised 12m ago · 7 claims · 3 follow-ups
+          Drafted by NodeBench · waiting for live claims and follow-ups
         </p>
 
         <h2 className="rd-h2">What they do</h2>
         <p className="rd-body">
-          Orbital Labs builds voice-agent evaluation infrastructure with first-class support for HIPAA-aware grading.
-          The team is voice + healthcare from prior roles at Mode Analytics. Today they're seeking healthcare design
-          partners — capital is not the binding constraint{" "}
+          This notebook preserves an entity intelligence answer as editable report text, source-backed claims, and follow-up actions.
+          The live path hydrates this body from Convex artifacts before showing editable intelligence{" "}
           <span className="rd-mono" style={{ fontSize: 10, background: "var(--rd-accent-soft)", color: "var(--rd-accent-strong)", padding: "1px 5px", borderRadius: 4 }}>[2]</span>.
         </p>
 
         <h2 className="rd-h2">Why we should care</h2>
         <p className="rd-body">
-          The HIPAA-aware grading wedge is structurally defensible — most LLM eval vendors treat regulated industries
-          as an afterthought. If Orbital wins one regional hospital pilot, expansion follows the same procurement
-          cycle.
+          Live artifact notebooks keep the generated answer editable, but every claim still needs a source row before
+          it becomes reusable memory. If the selected report has not hydrated yet, this surface stays blank instead
+          of showing disconnected content.
         </p>
 
         <h2 className="rd-h2">Open questions</h2>
         <ul className="rd-stack" style={{ gap: 6, listStyle: "none", padding: 0 }}>
           <li className="rd-row" style={{ gap: 8 }}>
             <span className="rd-dot rd-dot--review" />
-            <span>What's the expected pilot procurement timeline at the regional hospitals?</span>
+            <span>Which claims still need source-backed verification?</span>
           </li>
           <li className="rd-row" style={{ gap: 8 }}>
             <span className="rd-dot rd-dot--review" />
-            <span>Is the eval framework open-source or closed-source?</span>
+            <span>Which next action should move into the review queue?</span>
           </li>
         </ul>
 
         <h2 className="rd-h2">Decision</h2>
         <p className="rd-body">
-          <strong style={{ color: "var(--rd-accent-strong)" }}>Take the call.</strong> Worth 30 minutes this week to
-          stress-test the pilot timeline. Healthcare entrenchment makes this a one-shot opportunity if validated.
+          <strong style={{ color: "var(--rd-accent-strong)" }}>Verify first.</strong> Promote only the claims that
+          can be traced to live sources, then export the report or keep it in monitoring.
         </p>
       </article>
     </div>
@@ -523,17 +560,18 @@ function SourcesTab({ report, detail }: { report?: ReportCardData; detail?: Live
 
   const sources = [
     ...(report ? [{ type: report.kind, title: report.entity, refreshed: report.updatedAt, reused: report.sources }] : []),
-    { type: "PDF", title: "Orbital Labs whitepaper, p.4", refreshed: "2d ago", reused: 4 },
-    { type: "Note", title: "Founder note, Ship Demo Day", refreshed: "today", reused: 6 },
-    { type: "Recap", title: "Notion meeting recap, Apr 30", refreshed: "5d ago", reused: 2 },
-    { type: "Web", title: "TechCrunch coverage, Mar 2026", refreshed: "1w ago", reused: 3 },
+    { type: "Source", title: "Primary source packet", refreshed: "2d ago", reused: 4 },
+    { type: "Note", title: "Captured context note", refreshed: "today", reused: 6 },
+    { type: "Recap", title: "Notebook revision log", refreshed: "5d ago", reused: 2 },
+    { type: "Web", title: "Public source refresh", refreshed: "1w ago", reused: 3 },
   ];
+  const sourceTotal = sources.reduce((total, source) => total + Math.max(1, source.reused), 0);
 
   return (
     <div className="rd-stack" style={{ gap: 14, padding: "28px 32px", maxWidth: 880, overflow: "auto", height: "100%" }}>
       <header className="rd-stack" style={{ gap: 6 }}>
         <div className="rd-eyebrow">Sources</div>
-        <h2 className="rd-h2">14 sources, 71% reused this session</h2>
+        <h2 className="rd-h2">{sourceTotal} source links ready for review</h2>
         <p className="rd-faint" style={{ fontSize: 12.5 }}>Each row is one click from the claim it supports.</p>
       </header>
 
@@ -653,15 +691,15 @@ function MapTab({ detail }: { detail?: LiveArtifactDetail }) {
           <path d="M 580,140 L 580,360" strokeDasharray="3 4" />
         </g>
 
-        {/* Root: Ship Demo Day */}
+        {/* Root placeholder graph */}
         <circle cx="400" cy="240" r="80" fill="url(#rd-glow)" />
-        <MapNode cx={400} cy={240} title="Ship Demo Day" subtitle="Event · root" tone="accent" size="lg" />
+        <MapNode cx={400} cy={240} title="Live report" subtitle="Artifact · root" tone="accent" size="lg" />
 
         {/* Spokes */}
-        <MapNode cx={240} cy={140} title="Orbital Labs" subtitle="Company · pilot" tone="blue" />
-        <MapNode cx={580} cy={140} title="Anthropic" subtitle="Coverage" tone="default" />
-        <MapNode cx={240} cy={360} title="Alex Chen" subtitle="Person · founder" tone="green" />
-        <MapNode cx={580} cy={360} title="Voice eval" subtitle="Theme · 6 vendors" tone="amber" />
+        <MapNode cx={240} cy={140} title="Claim" subtitle="Needs evidence" tone="blue" />
+        <MapNode cx={580} cy={140} title="Source" subtitle="Verified row" tone="default" />
+        <MapNode cx={240} cy={360} title="Follow-up" subtitle="Human review" tone="green" />
+        <MapNode cx={580} cy={360} title="Theme" subtitle="Coverage lane" tone="amber" />
       </svg>
 
       <p className="rd-mono" style={{ position: "absolute", bottom: 16, left: 32, fontSize: 10.5, color: "var(--rd-ink-soft)" }}>

@@ -1,7 +1,7 @@
 /**
  * Toast — minimalist transient notification system.
  *
- * Use:  showToast({ tone: "success", message: "Saved to Orbital Labs report" });
+ * Use:  showToast({ tone: "success", message: "Saved to report" });
  * Or:   showToast({ tone: "info", message: "Brief refresh started", action: { label: "Open", onClick: ... } });
  *
  * Mounts <ToastViewport /> once at the redesign layout level. Listens to a global event so

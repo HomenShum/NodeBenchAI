@@ -9,7 +9,7 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { activeBatchRun as fixtureBatch, type ActiveBatchRun } from "../fixtures";
+import type { ActiveBatchRun } from "../fixtures";
 
 interface BatchAutopilotRun {
   _id: string;
@@ -68,7 +68,7 @@ export function useBatchLive(): UseBatchLiveResult {
     { limit: 5 } as Parameters<typeof useQuery>[1],
   ) as BatchAutopilotRun[] | undefined;
 
-  if (liveRuns === undefined) return { batch: fixtureBatch, isLive: false, isLoading: true };
+  if (liveRuns === undefined) return { batch: null, isLive: false, isLoading: true };
   const active = liveRuns.find((r) => ACTIVE.has(r.status));
   if (!active) return { batch: null, isLive: false, isLoading: false };
   return { batch: runToBatch(active), isLive: true, isLoading: false };

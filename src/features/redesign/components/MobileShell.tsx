@@ -3,7 +3,7 @@
  *
  * Aligns with the locked design board (proposed-design-views.html#mobile-view):
  *   - Bottom 5-tab nav (Home · Reports · Chat · Inbox · Me) — never collapsed
- *   - Top mini-nav with active event pill ("Ship Demo Day" hot)
+ *   - Top mini-nav with the active live artifact pill
  *   - Capture ack card after speech-to-text turn
  *   - Bottom sheets for context (Sources / Graph / Card)
  *   - UniversalComposer pinned above the tab bar
@@ -15,10 +15,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { SurfaceId } from "../fixtures";
 import { Pill } from "./Pill";
-import { reports, inboxItems, memoryPulse, sampleAnswer } from "../fixtures";
 import { UniversalComposer, type RouterTier } from "./UniversalComposer";
-import { useLiveArtifacts } from "../hooks/useLiveArtifacts";
+import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 import { useReportsLive } from "../hooks/useReportsLive";
+import { useInboxLive } from "../hooks/useInboxLive";
 
 interface MobileShellProps {
   active: SurfaceId;
@@ -28,6 +28,10 @@ interface MobileShellProps {
 export function MobileShell({ active, onChange }: MobileShellProps) {
   const [sheet, setSheet] = useState<null | "sources" | "graph" | "entity">(null);
   const [tier, setTier] = useState<RouterTier>("auto");
+  const liveArtifacts = useLiveArtifacts(8);
+  const liveInboxSummary = useInboxLive();
+  const primaryDetail = liveArtifacts.details[0];
+  const contextTitle = primaryDetail?.title ?? (liveArtifacts.isLive ? "Live memory" : "Current report");
 
   return (
     <div
@@ -58,7 +62,10 @@ export function MobileShell({ active, onChange }: MobileShellProps) {
             }}>N</div>
             <strong style={{ fontSize: 13, color: "var(--rd-ink-strong)" }}>{titleFor(active)}</strong>
           </div>
-          <Pill tone="accent">Ship Demo Day</Pill>
+          <Pill tone={liveArtifacts.isLive ? "green" : "accent"}>
+            {liveArtifacts.isLive && <span className="rd-dot rd-dot--live" />}
+            {contextTitle}
+          </Pill>
         </div>
       </header>
 
@@ -66,7 +73,7 @@ export function MobileShell({ active, onChange }: MobileShellProps) {
       <div style={{ overflow: "auto", padding: "14px 14px 8px" }}>
         {active === "home" && <MobileHome onOpenReports={() => onChange("reports")} onOpenChat={() => onChange("chat")} />}
         {active === "reports" && <MobileReports />}
-        {active === "chat" && <MobileChat onOpenSheet={setSheet} />}
+        {active === "chat" && <MobileChat onOpenSheet={setSheet} detail={primaryDetail} />}
         {active === "inbox" && <MobileInbox />}
         {active === "me" && <MobileMe />}
       </div>
@@ -81,7 +88,7 @@ export function MobileShell({ active, onChange }: MobileShellProps) {
           }}
         >
           <UniversalComposer
-            contextLabel="Adding to: Ship Demo Day"
+            contextLabel={`Adding to: ${contextTitle}`}
             tier={tier}
             onTierChange={setTier}
           />
@@ -125,7 +132,7 @@ export function MobileShell({ active, onChange }: MobileShellProps) {
             >
               <TabIcon id={id} active={isActive} />
               <span style={{ textTransform: "capitalize" }}>{id}</span>
-              {id === "inbox" && (
+              {id === "inbox" && liveInboxSummary.items.length > 0 && (
                 <span style={{
                   position: "absolute",
                   top: 4,
@@ -137,7 +144,7 @@ export function MobileShell({ active, onChange }: MobileShellProps) {
                   padding: "1px 5px",
                   borderRadius: 999,
                   lineHeight: 1.2,
-                }}>5</span>
+                }}>{liveInboxSummary.items.length}</span>
               )}
             </button>
           );
@@ -146,7 +153,7 @@ export function MobileShell({ active, onChange }: MobileShellProps) {
 
       {/* Bottom sheet (Sources / Graph / Entity card) */}
       {sheet && (
-        <BottomSheet kind={sheet} onClose={() => setSheet(null)} />
+        <BottomSheet kind={sheet} detail={primaryDetail} onClose={() => setSheet(null)} />
       )}
     </div>
   );
@@ -184,24 +191,12 @@ function TabIcon({ id, active }: { id: SurfaceId; active: boolean }) {
 
 function MobileHome({ onOpenReports, onOpenChat }: { onOpenReports: () => void; onOpenChat: () => void }) {
   const liveArtifacts = useLiveArtifacts(8);
-  const metrics = liveArtifacts.metrics.length > 0 ? liveArtifacts.metrics : memoryPulse;
+  const metrics = liveArtifacts.metrics;
   const primaryReport = liveArtifacts.reports[0];
-  const pulseCards = liveArtifacts.pulse.length > 0
-    ? liveArtifacts.pulse
-    : [
-      {
-        kind: "memory_win" as const,
-        title: "Orbital Labs answered from event corpus",
-        body: "4 sources reused - 0 paid calls.",
-        meta: "2m ago",
-      },
-      {
-        kind: "follow_up" as const,
-        title: "Alex at Orbital Labs",
-        body: "Ask about healthcare pilot criteria.",
-        meta: "Due tomorrow",
-      },
-    ];
+  const pulseCards = liveArtifacts.pulse;
+  const metricCells = metrics.length > 0
+    ? metrics.slice(0, 4)
+    : [{ label: "Live artifacts", value: liveArtifacts.isLoading ? "Loading" : "0" }];
   return (
     <div className="rd-stack" style={{ gap: 14 }}>
       {/* Hero */}
@@ -274,7 +269,7 @@ function MobileHome({ onOpenReports, onOpenChat }: { onOpenReports: () => void; 
       <div>
         <div className="rd-eyebrow" style={{ marginBottom: 8 }}>Memory pulse</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {metrics.slice(0, 4).map((m) => (
+          {metricCells.map((m) => (
             <div key={m.label} className="rd-card" style={{ padding: "10px 12px" }}>
               <div className="rd-eyebrow" style={{ fontSize: 9 }}>{m.label}</div>
               <div style={{
@@ -302,6 +297,14 @@ function MobileHome({ onOpenReports, onOpenChat }: { onOpenReports: () => void; 
               <p className="rd-faint" style={{ fontSize: 12 }}>{card.body}</p>
             </article>
           ))}
+          {pulseCards.length === 0 && (
+            <article className="rd-card rd-card__pad-tight" style={{ padding: "12px 14px" }}>
+              <div className="rd-eyebrow">No live changes yet</div>
+              <p className="rd-faint" style={{ fontSize: 12, marginTop: 4 }}>
+                Daily Brief and archive artifacts will appear here once Convex returns them.
+              </p>
+            </article>
+          )}
         </div>
       </div>
     </div>
@@ -311,7 +314,7 @@ function MobileHome({ onOpenReports, onOpenChat }: { onOpenReports: () => void; 
 function MobileReports() {
   const navigate = useNavigate();
   const liveReports = useReportsLive();
-  const visibleReports = liveReports.reports.length > 0 ? liveReports.reports : reports;
+  const visibleReports = liveReports.reports;
   const openReport = (reportId: string, tab: "brief" | "cards" | "chat") => {
     navigate(`/redesign/workspace?report=${encodeURIComponent(reportId)}&tab=${tab}`);
   };
@@ -352,6 +355,14 @@ function MobileReports() {
       </div>
 
       <div className="rd-stack" style={{ gap: 10 }}>
+        {visibleReports.length === 0 && (
+          <article className="rd-card rd-card__pad-tight" style={{ padding: "12px 14px" }}>
+            <div className="rd-eyebrow">No live reports</div>
+            <p className="rd-faint" style={{ fontSize: 12, marginTop: 4 }}>
+              Reports will populate from daily briefs, archive rows, and batch runs. No fixture cards are shown on mobile.
+            </p>
+          </article>
+        )}
         {visibleReports.slice(0, 10).map((r) => (
           <article key={r.id} className="rd-card rd-card__pad-tight" style={{ padding: "12px 14px" }}>
             <div className="rd-row--between">
@@ -382,7 +393,10 @@ function MobileReports() {
   );
 }
 
-function MobileChat({ onOpenSheet }: { onOpenSheet: (k: "sources" | "graph" | "entity") => void }) {
+function MobileChat({ onOpenSheet, detail }: { onOpenSheet: (k: "sources" | "graph" | "entity") => void; detail?: LiveArtifactDetail }) {
+  const title = detail?.title ?? "current report";
+  const summary = detail?.summary ?? "Ask, paste, upload, or record. NodeBench turns messy input into a source-backed entity workspace.";
+  const sourceCount = detail?.sourceCount ?? 0;
   return (
     <div className="rd-stack" style={{ gap: 10 }}>
       {/* Capture ack — the headline mobile pattern */}
@@ -390,11 +404,13 @@ function MobileChat({ onOpenSheet }: { onOpenSheet: (k: "sources" | "graph" | "e
         background: "var(--rd-accent-tint)",
         borderColor: "var(--rd-accent-ring)",
       }}>
-        <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)" }}>Captured to Ship Demo Day</div>
+        <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)" }}>{detail ? "Captured to live artifact" : "Capture-ready"}</div>
         <h3 style={{ margin: "6px 0 4px", fontSize: 14, fontWeight: 590 }}>
-          Alex · Orbital Labs · voice-agent eval infra
+          {detail ? title : "Ask, paste, upload, or record"}
         </h3>
-        <p className="rd-faint" style={{ fontSize: 12 }}>Created 1 person, 1 company, 2 claims, 1 follow-up.</p>
+        <p className="rd-faint" style={{ fontSize: 12 }}>
+          {detail ? `${detail.claimCount} claims · ${detail.sourceCount} sources · ${detail.followUps} follow-ups.` : "NodeBench will route it into a report, source trail, and review queue."}
+        </p>
         <div className="rd-row" style={{ gap: 4, marginTop: 8, flexWrap: "wrap" }}>
           <button className="rd-btn rd-btn--primary rd-btn--sm" style={{ padding: "5px 11px", fontSize: 11 }}>Edit</button>
           <button className="rd-btn rd-btn--quiet rd-btn--sm" style={{ padding: "5px 11px", fontSize: 11 }}>Move</button>
@@ -407,21 +423,21 @@ function MobileChat({ onOpenSheet }: { onOpenSheet: (k: "sources" | "graph" | "e
         <div className="rd-card" style={{
           padding: "10px 12px", maxWidth: "82%",
           background: "var(--rd-paper-warm)", fontSize: 13, lineHeight: 1.5,
-        }}>Met Alex from Orbital Labs. They build voice-agent eval infra.</div>
+        }}>{detail ? `What changed in ${title}?` : "What changed in my live coverage?"}</div>
       </div>
 
       <article className="rd-card rd-card__pad" style={{ padding: 14 }}>
         <div className="rd-row" style={{ gap: 4, flexWrap: "wrap" }}>
-          <Pill tone="green">Memory · 4 sources</Pill>
+          <Pill tone="green">Memory · {sourceCount} sources</Pill>
           <Pill>0 paid calls</Pill>
         </div>
         <p style={{
           fontFamily: "var(--rd-font-display)", fontSize: 15, fontWeight: 510,
           lineHeight: 1.4, color: "var(--rd-ink-strong)", margin: "8px 0 6px",
           letterSpacing: "-0.15px",
-        }}>{sampleAnswer.shortAnswer}</p>
+        }}>{summary}</p>
         <div className="rd-row" style={{ gap: 4, marginTop: 6, flexWrap: "wrap" }}>
-          <button className="rd-btn rd-btn--quiet rd-btn--sm" style={{ padding: "5px 10px", fontSize: 11 }} onClick={() => onOpenSheet("sources")}>Sources (4)</button>
+          <button className="rd-btn rd-btn--quiet rd-btn--sm" style={{ padding: "5px 10px", fontSize: 11 }} onClick={() => onOpenSheet("sources")}>Sources ({sourceCount})</button>
           <button className="rd-btn rd-btn--quiet rd-btn--sm" style={{ padding: "5px 10px", fontSize: 11 }} onClick={() => onOpenSheet("graph")}>Graph</button>
           <button className="rd-btn rd-btn--quiet rd-btn--sm" style={{ padding: "5px 10px", fontSize: 11 }} onClick={() => onOpenSheet("entity")}>Entity</button>
         </div>
@@ -431,6 +447,8 @@ function MobileChat({ onOpenSheet }: { onOpenSheet: (k: "sources" | "graph" | "e
 }
 
 function MobileInbox() {
+  const liveInbox = useInboxLive();
+  const visibleItems = liveInbox.items;
   return (
     <div className="rd-stack" style={{ gap: 10 }}>
       <div className="rd-row" style={{ gap: 6, overflow: "auto", paddingBottom: 4 }}>
@@ -449,7 +467,15 @@ function MobileInbox() {
       </div>
 
       <div className="rd-stack" style={{ gap: 8 }}>
-        {inboxItems.slice(0, 4).map((item) => (
+        {visibleItems.length === 0 && (
+          <article className="rd-card rd-card__pad-tight" style={{ padding: "12px 14px" }}>
+            <div className="rd-eyebrow">No live review items</div>
+            <p className="rd-faint" style={{ fontSize: 12, marginTop: 4 }}>
+              Batch reviews and pipeline exceptions will appear here when the backend returns them.
+            </p>
+          </article>
+        )}
+        {visibleItems.slice(0, 4).map((item) => (
           <article key={item.id} className="rd-card rd-card__pad-tight" style={{ padding: "12px 14px" }}>
             <div className="rd-row" style={{ gap: 6, flexWrap: "wrap" }}>
               <Pill tone={
@@ -551,7 +577,7 @@ function MobileMe() {
 
 /* ──────────────────────────── Bottom sheet ──────────────────────────── */
 
-function BottomSheet({ kind, onClose }: { kind: "sources" | "graph" | "entity"; onClose: () => void }) {
+function BottomSheet({ kind, detail, onClose }: { kind: "sources" | "graph" | "entity"; detail?: LiveArtifactDetail; onClose: () => void }) {
   return (
     <div
       role="dialog"
@@ -588,23 +614,19 @@ function BottomSheet({ kind, onClose }: { kind: "sources" | "graph" | "entity"; 
           <button onClick={onClose} className="rd-btn rd-btn--quiet rd-btn--sm">Close</button>
         </div>
 
-        {kind === "sources" && <SheetSources />}
-        {kind === "graph" && <SheetGraph />}
-        {kind === "entity" && <SheetEntity />}
+        {kind === "sources" && <SheetSources detail={detail} />}
+        {kind === "graph" && <SheetGraph detail={detail} />}
+        {kind === "entity" && <SheetEntity detail={detail} />}
       </div>
     </div>
   );
 }
 
-function SheetSources() {
+function SheetSources({ detail }: { detail?: LiveArtifactDetail }) {
+  const rows = detail?.sourceRows.slice(0, 8).map((row) => row.title) ?? ["Open a live artifact to hydrate sources."];
   return (
     <ul className="rd-stack" style={{ gap: 8, listStyle: "none", padding: 0 }}>
-      {[
-        "Orbital Labs whitepaper, p.4",
-        "Founder note, Ship Demo Day",
-        "Notion meeting recap, Apr 30",
-        "TechCrunch coverage, Mar 2026",
-      ].map((s, i) => (
+      {rows.map((s, i) => (
         <li key={i} className="rd-row" style={{ gap: 10, padding: "8px 10px", border: "1px solid var(--rd-line)", borderRadius: 10 }}>
           <span className="rd-mono" style={{
             fontSize: 10, background: "var(--rd-accent-soft)", color: "var(--rd-accent-strong)",
@@ -618,22 +640,25 @@ function SheetSources() {
   );
 }
 
-function SheetGraph() {
+function SheetGraph({ detail }: { detail?: LiveArtifactDetail }) {
+  const nodes = detail?.nodes.slice(1, 5) ?? [];
   return (
     <svg viewBox="0 0 320 220" width="100%" style={{ maxHeight: 280 }}>
       <g stroke="var(--rd-line-strong)" strokeWidth={1.2} fill="none">
-        <path d="M 160,110 L 80,50" />
-        <path d="M 160,110 L 240,50" />
-        <path d="M 160,110 L 80,170" />
-        <path d="M 160,110 L 240,170" />
+        {[
+          [80, 50],
+          [240, 50],
+          [80, 170],
+          [240, 170],
+        ].slice(0, nodes.length || 4).map(([x, y], i) => <path key={i} d={`M 160,110 L ${x},${y}`} />)}
       </g>
       <circle cx={160} cy={110} r={28} fill="var(--rd-accent-soft)" stroke="var(--rd-accent)" strokeWidth={1.2} />
-      <text x={160} y={114} textAnchor="middle" fontSize={11} fontWeight={590} fill="var(--rd-accent-strong)">Orbital</text>
+      <text x={160} y={114} textAnchor="middle" fontSize={11} fontWeight={590} fill="var(--rd-accent-strong)">Root</text>
       {[
-        { cx: 80, cy: 50, label: "Alex" },
-        { cx: 240, cy: 50, label: "Pilot" },
-        { cx: 80, cy: 170, label: "Voice" },
-        { cx: 240, cy: 170, label: "Health" },
+        { cx: 80, cy: 50, label: nodes[0]?.title ?? "Claim" },
+        { cx: 240, cy: 50, label: nodes[1]?.title ?? "Source" },
+        { cx: 80, cy: 170, label: nodes[2]?.title ?? "Follow-up" },
+        { cx: 240, cy: 170, label: nodes[3]?.title ?? "Report" },
       ].map((n) => (
         <g key={n.label}>
           <circle cx={n.cx} cy={n.cy} r={16} fill="var(--rd-paper)" stroke="var(--rd-line-strong)" strokeWidth={1} />
@@ -644,19 +669,21 @@ function SheetGraph() {
   );
 }
 
-function SheetEntity() {
+function SheetEntity({ detail }: { detail?: LiveArtifactDetail }) {
+  const title = detail?.title ?? "Current report";
+  const summary = detail?.summary ?? "Open a live artifact or ask a question to hydrate the entity card.";
   return (
     <div className="rd-stack" style={{ gap: 8 }}>
-      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 590 }}>Orbital Labs</h3>
+      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 590 }}>{title}</h3>
       <p className="rd-mono" style={{ fontSize: 11, color: "var(--rd-ink-soft)", margin: 0 }}>
-        Voice-agent eval infra · Series Seed · 14 people
+        {detail?.kind ?? "Live artifact"} · {detail?.sourceCount ?? 0} sources · {detail?.claimCount ?? 0} claims
       </p>
       <p style={{ fontSize: 12.5, color: "var(--rd-ink-mute)", margin: "4px 0" }}>
-        Healthcare design-partner angle is the wedge. Validate procurement timeline before you commit.
+        {summary}
       </p>
       <div className="rd-row" style={{ gap: 4, flexWrap: "wrap" }}>
-        <Pill tone="blue">Watching</Pill>
-        <Pill tone="green">Pilot intent</Pill>
+        <Pill tone={detail?.status === "verified" ? "green" : detail?.status === "review" ? "amber" : "blue"}>{detail?.status ?? "Ready"}</Pill>
+        {(detail?.tags ?? ["Report"]).slice(0, 2).map((tag) => <Pill key={tag}>{tag}</Pill>)}
       </div>
       <div className="rd-row" style={{ gap: 6, marginTop: 8 }}>
         <button className="rd-btn rd-btn--primary rd-btn--sm" style={{ flex: 1, justifyContent: "center" }}>Open report</button>

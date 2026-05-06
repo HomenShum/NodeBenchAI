@@ -24,10 +24,10 @@ interface WhatChangedStripProps {
 }
 
 const FALLBACK_ITEMS: WhatChangedItem[] = [
-  { id: "1", kind: "report",     title: "Orbital Labs",        detail: "3 new claims · headcount 14 → 18",            whenAgo: "12m ago",   href: "/redesign/reports/rep_orbital" },
-  { id: "2", kind: "watchlist",  title: "Anthropic",           detail: "MCP host extensions confirmed Q3",            whenAgo: "1h ago",    href: "/redesign/reports/rep_anthropic" },
-  { id: "3", kind: "claim",      title: "Voice-agent eval",    detail: "Cross-entity rollup: 6 vendors · 3 academic", whenAgo: "3h ago",    href: "/redesign/reports/rep_voice_eval" },
-  { id: "4", kind: "follow_up",  title: "Send Alex a 5-line note", detail: "Follow-up due tomorrow",                  whenAgo: "yesterday", href: "/redesign/inbox" },
+  { id: "1", kind: "report",     title: "Latest live brief",     detail: "Claims, sources, and notebook body ready",      whenAgo: "12m ago",   href: "/redesign/reports" },
+  { id: "2", kind: "watchlist",  title: "Coverage changed",      detail: "Review fresh archive and daily brief signals",   whenAgo: "1h ago",    href: "/redesign/reports" },
+  { id: "3", kind: "claim",      title: "Source action needed",  detail: "Weak claims stay in review until verified",      whenAgo: "3h ago",    href: "/redesign/inbox" },
+  { id: "4", kind: "follow_up",  title: "Next action queued",    detail: "Turn strongest signal into reusable memory",     whenAgo: "yesterday", href: "/redesign/inbox" },
 ];
 
 const KIND_GLYPH: Record<WhatChangedItem["kind"], { icon: string; tone: string }> = {

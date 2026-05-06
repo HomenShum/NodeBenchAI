@@ -9,16 +9,17 @@ interface ChatEmptyStateProps {
   onPick: (prompt: string) => void;
   onResume?: (threadId: string) => void;
   recentThread?: { id: string; entity: string; lastMessage: string; minutesAgo: number };
+  starters?: Array<{ icon: string; title: string; prompt: string }>;
 }
 
 const STARTERS = [
-  { icon: "🔍", title: "Run diligence on Orbital Labs", prompt: "Run a banker-style diligence pass on Orbital Labs. Focus on the healthcare design-partner angle." },
-  { icon: "📊", title: "Compare Mercor vs Augmedix", prompt: "Compare Mercor vs Augmedix on hiring velocity, funding stage, and regulatory exposure. Use the Founder/banker lens." },
+  { icon: "🔍", title: "Run diligence on a company", prompt: "Run a banker-style diligence pass on the company I name. Focus on evidence, risks, and next action." },
+  { icon: "📊", title: "Compare a short list", prompt: "Compare these entities on funding, hiring velocity, source quality, and strategic fit. Use the Founder/banker lens." },
   { icon: "📰", title: "What's new in my watchlist?", prompt: "Summarize what changed in my watchlist over the last 7 days. Group by signal class." },
-  { icon: "📥", title: "Build me a tear-sheet", prompt: "Generate a one-page tear-sheet for Anthropic with ownership, hiring, peer comps, news, and red flags." },
+  { icon: "📥", title: "Build me a tear-sheet", prompt: "Generate a one-page tear-sheet with ownership, hiring, peer comps, news, and red flags." },
 ];
 
-export function ChatEmptyState({ onPick, onResume, recentThread }: ChatEmptyStateProps) {
+export function ChatEmptyState({ onPick, onResume, recentThread, starters = STARTERS }: ChatEmptyStateProps) {
   return (
     <div className="rd-chat-empty">
       <div className="rd-chat-empty__hero">
@@ -28,7 +29,7 @@ export function ChatEmptyState({ onPick, onResume, recentThread }: ChatEmptyStat
       </div>
 
       <div className="rd-chat-empty__chips">
-        {STARTERS.map((s) => (
+        {starters.map((s) => (
           <button
             key={s.title}
             type="button"
