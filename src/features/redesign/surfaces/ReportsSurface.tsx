@@ -29,9 +29,14 @@ const STYLE_BY_REPORT: Record<string, string> = {
 
 function StyleChip({ reportId }: { reportId: string }) {
   const styleName = STYLE_BY_REPORT[reportId] ?? memoStyles[0].name;
+  const displayName = styleName
+    .replace("Founder / banker lens", "Banker lens")
+    .replace("Goldman banker brief", "Banker brief")
+    .replace("Stratechery analysis", "Strategy analysis")
+    .replace("Bessemer scorecard", "Cloud scorecard");
   return (
     <span className="rd-style-chip" title={`Style: ${styleName} — click to swap`}>
-      {styleName}
+      {displayName}
     </span>
   );
 }
@@ -146,8 +151,12 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
             <Pill tone="green" title="Showing live Convex artifacts from batch runs, daily briefs, or the LinkedIn archive">
               <span className="rd-dot rd-dot--live" />{sourceLabel}
             </Pill>
+          ) : isLoading && reports.length === 0 ? (
+            <Pill tone="amber">Loading live coverage…</Pill>
           ) : isLoading ? (
-            <Pill tone="amber">Loading…</Pill>
+            <Pill title="Showing the starter coverage library while NodeBench checks for private live artifacts.">
+              Starter coverage · checking live data
+            </Pill>
           ) : (
             <Pill title="Anonymous starter library. Sign in to save private runs, universes, and review history.">
               Starter coverage
