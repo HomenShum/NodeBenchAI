@@ -8,13 +8,13 @@
  *       → lane = "agent_suggestions" when verdict in {needs_review}
  *
  * For lanes without backend data yet (`captures`, `watchlist`, `approvals`), the hook
- * falls back to fixtures so the UI still renders. The proper fix is a server-side aggregator
- * (`convex/domains/inbox/queries.ts:listItems`) — see docs/plans/REDESIGN_BACKEND_INTEGRATION_SPRINT.md.
+ * returns no rows instead of falling back to fixtures. The proper fix is a server-side
+ * aggregator (`convex/domains/inbox/queries.ts:listItems`) - see the backend sprint plan.
  */
 
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { inboxItems as fixtureInbox, type InboxItem } from "../fixtures";
+import type { InboxItem } from "../fixtures";
 
 interface BatchAutopilotRun {
   _id: string;
@@ -109,7 +109,7 @@ export function useInboxLive(): UseInboxLiveResult {
   ) as PipelineRun[] | undefined;
 
   const isLoading = liveBatch === undefined || livePipeline === undefined;
-  if (isLoading) return { items: fixtureInbox, isLive: false, isLoading: true, liveCount: 0 };
+  if (isLoading) return { items: [], isLive: false, isLoading: true, liveCount: 0 };
 
   const liveItems: InboxItem[] = [
     ...(liveBatch ?? []).filter((r) => r.status === "completed").map(batchToInbox),
@@ -117,15 +117,8 @@ export function useInboxLive(): UseInboxLiveResult {
   ];
 
   if (liveItems.length === 0) {
-    return { items: fixtureInbox, isLive: false, isLoading: false, liveCount: 0 };
+    return { items: [], isLive: false, isLoading: false, liveCount: 0 };
   }
 
-  // Mix live items (batch_review + agent_suggestions) with fixture items (captures/watchlist/approvals/etc.)
-  const fixtureKeepLanes = new Set(["captures", "watchlist", "approvals"]);
-  const mixed: InboxItem[] = [
-    ...liveItems,
-    ...fixtureInbox.filter((i) => fixtureKeepLanes.has((i.lane ?? "captures") as string)),
-  ];
-
-  return { items: mixed, isLive: true, isLoading: false, liveCount: liveItems.length };
+  return { items: liveItems, isLive: true, isLoading: false, liveCount: liveItems.length };
 }

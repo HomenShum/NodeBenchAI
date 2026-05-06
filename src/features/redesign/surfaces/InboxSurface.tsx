@@ -135,7 +135,9 @@ export function InboxSurface() {
                 <span className="rd-dot rd-dot--live" />Live · {liveCount} from runs
               </Pill>
             ) : (
-              <Pill title="Sign in to see live agent items">Demo data</Pill>
+              <Pill title="Starter queue is visible while live review items hydrate or when the user has no private items yet.">
+                Starter review lanes
+              </Pill>
             )}
           </div>
           <h1 className="rd-h1">Where you decide. Everything else runs in the background.</h1>

@@ -12,6 +12,7 @@ interface RailProps {
   onChange: (id: SurfaceId) => void;
   onOpenWorkspace: () => void;
   liveStats?: { entities: number; reports: number; followUps: number };
+  inboxCount?: number;
 }
 
 const NAV: Array<{ id: SurfaceId; label: string; hint: string; icon: string }> = [
@@ -30,7 +31,7 @@ const ICONS: Record<SurfaceId, string> = {
   me: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 9a8 8 0 0 1 16 0",
 };
 
-export function Rail({ active, onChange, onOpenWorkspace, liveStats }: RailProps) {
+export function Rail({ active, onChange, onOpenWorkspace, liveStats, inboxCount = 0 }: RailProps) {
   return (
     <aside className="rd-pane" aria-label="Primary navigation" style={{ padding: "20px 14px", gap: 24 }}>
       <a href="/" style={{
@@ -72,8 +73,8 @@ export function Rail({ active, onChange, onOpenWorkspace, liveStats }: RailProps
                 <path d={ICONS[item.id]} />
               </svg>
               <span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>
-              {item.id === "inbox" && (
-                <span className="rd-pill rd-pill--accent" style={{ padding: "1px 7px", fontSize: 10 }}>5</span>
+              {item.id === "inbox" && inboxCount > 0 && (
+                <span className="rd-pill rd-pill--accent" style={{ padding: "1px 7px", fontSize: 10 }}>{inboxCount}</span>
               )}
             </button>
           );
@@ -117,10 +118,10 @@ export function Rail({ active, onChange, onOpenWorkspace, liveStats }: RailProps
           >Sources →</button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 11 }}>
-          <Stat label="Entities" value={liveStats?.entities ?? 42810} />
-          <Stat label="Reports" value={liveStats?.reports ?? 18204} />
-          <Stat label="Follow-ups" value={liveStats?.followUps ?? 47} />
-          <Stat label="From memory" value="71%" />
+          <Stat label="Entities" value={liveStats?.entities ?? 0} />
+          <Stat label="Reports" value={liveStats?.reports ?? 0} />
+          <Stat label="Follow-ups" value={liveStats?.followUps ?? 0} />
+          <Stat label="From memory" value={liveStats ? "Live" : "0%"} />
         </div>
       </div>
     </aside>

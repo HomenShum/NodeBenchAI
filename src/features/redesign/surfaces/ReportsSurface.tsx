@@ -6,7 +6,7 @@
  */
 
 import { useMemo, useState, useEffect, useRef } from "react";
-import { memoStyles, universes, type ReportCardData, type Density, type Universe } from "../fixtures";
+import { memoStyles, type ReportCardData, type Density, type Universe } from "../fixtures";
 import { Pill } from "../components/Pill";
 import { useReportsLive } from "../hooks/useReportsLive";
 import { showToast } from "../components/Toast";
@@ -21,14 +21,11 @@ const SORT_OPTIONS: Array<{ id: SortKey; label: string }> = [
 ];
 
 const STYLE_BY_REPORT: Record<string, string> = {
-  rep_orbital: "Founder / banker lens · v3",
-  rep_ship_demo: "Founder / banker lens · v3",
-  rep_anthropic: "Stratechery analysis",
-  rep_voice_eval: "Bessemer scorecard",
+  default: "Founder / banker lens · v3",
 };
 
 function StyleChip({ reportId }: { reportId: string }) {
-  const styleName = STYLE_BY_REPORT[reportId] ?? memoStyles[0].name;
+  const styleName = STYLE_BY_REPORT[reportId] ?? STYLE_BY_REPORT.default ?? memoStyles[0].name;
   const displayName = styleName
     .replace("Founder / banker lens", "Banker lens")
     .replace("Goldman banker brief", "Banker brief")
@@ -65,7 +62,6 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
   const [kindFilter, setKindFilter] = useState<typeof KIND_FILTERS[number]["id"]>("all");
   const [density, setDensity] = useState<Density>("compact");
   const [query, setQuery] = useState("");
-  const [openUniverses, setOpenUniverses] = useState<Record<string, boolean>>({ u_health_ai: true });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("updated");
   const [sortOpen, setSortOpen] = useState(false);
@@ -81,11 +77,11 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
     return () => document.removeEventListener("mousedown", onClick);
   }, [sortOpen]);
 
-  // Live data wiring: authenticated workspaces show Convex runs; anonymous or empty
-  // workspaces get a curated starter library so the product is useful before sign-in.
+  // Live data wiring: authenticated and anonymous workspaces show Convex-backed
+  // runs/artifacts. Empty states remain explicit so production never masks a
+  // broken live path with fixture reports.
   const { reports, isLive, isLoading, sourceLabel, liveCount } = useReportsLive();
 
-  const toggleUniverse = (id: string) => setOpenUniverses((m) => ({ ...m, [id]: !m[id] }));
   const toggleSelect = (id: string) => setSelected((prev) => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -117,7 +113,7 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
         case "claims":  return b.claims - a.claims;
         case "status":  return statusRank[a.status] - statusRank[b.status];
         case "updated":
-        default: return 0; // already in fixture order ≈ recency
+        default: return 0; // live query order is already recency-ranked
       }
     });
   }, [reports, filter, kindFilter, query, sortKey]);
@@ -154,12 +150,12 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
           ) : isLoading && reports.length === 0 ? (
             <Pill tone="amber">Loading live coverage…</Pill>
           ) : isLoading ? (
-            <Pill title="Showing the starter coverage library while NodeBench checks for private live artifacts.">
-              Starter coverage · checking live data
+            <Pill title="Checking for Convex-backed public and private artifacts.">
+              Checking live data
             </Pill>
           ) : (
-            <Pill title="Anonymous starter library. Sign in to save private runs, universes, and review history.">
-              Starter coverage
+            <Pill title="No live report artifacts were returned for this session.">
+              No live reports yet
             </Pill>
           )}
         </div>
@@ -179,7 +175,7 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
             onChange={(e) => setQuery(e.target.value)}
             placeholder={isLive
               ? `Search ${reports.length.toLocaleString()} live reports by entity, claim, source, or tag...`
-              : "Search starter reports by entity, claim, source, or tag..."
+              : "Search live reports by entity, claim, source, or tag..."
             }
             aria-label="Search reports"
           />
@@ -279,15 +275,10 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
           use a real artifact header instead of presenting starter universes as live. */}
       {isLive ? (
         <LiveArtifactSection reportCount={liveCount} reviewCount={counts.review ?? 0} sourceLabel={sourceLabel} />
+      ) : isLoading ? (
+        <LiveArtifactSection reportCount={0} reviewCount={0} sourceLabel="Checking live artifacts" />
       ) : (
-        universes.map((u) => (
-          <UniverseSection
-            key={u.id}
-            universe={u}
-            open={openUniverses[u.id] ?? false}
-            onToggle={() => toggleUniverse(u.id)}
-          />
-        ))
+        <ReportsLiveEmptyState />
       )}
 
       {/* Bulk action bar — appears when ≥1 selected */}
@@ -332,6 +323,31 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
   );
 }
 
+function ReportsLiveEmptyState() {
+  return (
+    <section className="rd-universe">
+      <div className="rd-universe__header">
+        <button type="button" className="rd-universe__toggle" aria-expanded="true">
+          <span className="rd-caret" aria-hidden="true">▾</span>
+          <span>No live coverage returned</span>
+        </button>
+        <span className="rd-universe__meta">
+          Convex returned zero report artifacts for this session.
+        </span>
+        <div className="rd-universe__actions">
+          <Pill tone="amber">Live wiring required</Pill>
+          <button
+            className="rd-btn rd-btn--quiet rd-btn--sm"
+            onClick={() => showToast({ tone: "info", message: "Run a daily brief, batch run, or LinkedIn archive import to populate Reports." })}
+          >
+            How to populate
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function UniverseSection({ universe: u, open, onToggle }: { universe: Universe; open: boolean; onToggle: () => void }) {
   const styleName = memoStyles.find((s) => s.id === u.styleId)?.name ?? u.styleId;
   return (
@@ -362,7 +378,7 @@ function UniverseSection({ universe: u, open, onToggle }: { universe: Universe; 
           className="rd-btn rd-btn--quiet rd-btn--sm"
           onClick={(e) => {
             e.stopPropagation();
-            showToast({ tone: "info", message: `Queued sample batch for ${u.name}.` });
+            showToast({ tone: "info", message: `Queued batch run for ${u.name}.` });
           }}
         >
           Run batch →

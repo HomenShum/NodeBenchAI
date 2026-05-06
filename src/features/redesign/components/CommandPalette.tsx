@@ -50,9 +50,9 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
     { id: "act-toggle-theme", group: "action", label: "Toggle dark / light mode", run: () => { document.documentElement.classList.toggle("dark"); }, keywords: "theme appearance" },
     { id: "act-focus-mode", group: "action", label: "Toggle writing focus mode", shortcut: "⌘\\", run: () => { document.body.setAttribute("data-redesign-focus-mode", document.body.getAttribute("data-redesign-focus-mode") === "on" ? "off" : "on"); }, keywords: "zen distraction" },
 
-    { id: "ent-orbital",  group: "entity", label: "Orbital Labs",  hint: "Voice-agent eval · Series Seed",  run: () => navigate("/redesign/reports/rep_orbital") },
-    { id: "ent-anthropic", group: "entity", label: "Anthropic",     hint: "MCP host extensions · Q3",        run: () => navigate("/redesign/reports/rep_anthropic") },
-    { id: "ent-mode",      group: "entity", label: "Mode Analytics", hint: "Voice + healthcare prior",       run: () => navigate("/redesign/reports/rep_orbital") },
+    { id: "ent-live",      group: "entity", label: "Latest live brief",  hint: "Open first-party Convex artifact",  run: () => navigate("/redesign/workspace") },
+    { id: "ent-sources",   group: "entity", label: "Source review queue", hint: "Inspect claims that need evidence", run: () => navigate("/redesign/inbox") },
+    { id: "ent-library",   group: "entity", label: "Coverage library",   hint: "Browse reusable reports",           run: () => navigate("/redesign/reports") },
   ], [navigate]);
 
   const all = useMemo(() => [...baseCommands, ...extra], [baseCommands, extra]);

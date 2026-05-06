@@ -33,7 +33,6 @@ import { getAnonymousProductSessionId } from "@/features/product/lib/productIden
 import { ReportNotebookEditor, NotebookSaveStatePill, type ReportNotebookEditorHandle, type NotebookPatch, type SaveState } from "./ReportNotebookEditor";
 import { Pill } from "./Pill";
 import { showToast } from "./Toast";
-import { reportNotebookHtml, reports as reportFixtures, reportBacklinks } from "../fixtures";
 import type { LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 
 interface ReportNotebookViewProps {
@@ -45,6 +44,11 @@ interface ReportNotebookViewProps {
   /** Full live artifact payload for daily briefs, archive rows, and production runs. */
   liveDetail?: LiveArtifactDetail;
 }
+
+const LIVE_LOADING_TITLE = "Loading live artifact";
+const WORKSPACE_DRAFT_TITLE = "Workspace draft";
+const EMPTY_NOTEBOOK_HTML =
+  "<h1>Workspace draft</h1><p>Select a live report, promote an artifact, or start writing the analyst notebook here.</p>";
 
 /** Cmd/Ctrl + \\ toggles distraction-free mode (Karpathy-flow).
  *  Initial state honors `?focus=zen` URL param so deep links + persona QA can land in writing mode.
@@ -94,12 +98,21 @@ function liveIcon(kind?: string): string {
   return "🧠";
 }
 
-function buildLiveAudit(detail?: LiveArtifactDetail): AuditEntry[] {
+function isLiveArtifactReportId(id: string): boolean {
+  return /^(daily|li|run)_/.test(id);
+}
+
+function buildLiveAudit(detail?: LiveArtifactDetail, loadingLiveArtifact = false): AuditEntry[] {
+  if (loadingLiveArtifact) {
+    return [
+      { source: "agent", label: "Waiting for live artifact hydration before showing notebook activity", at: Date.now() },
+    ];
+  }
   if (!detail) {
     return [
-      { source: "user", label: "Created report from Ship Demo Day capture", at: Date.now() - 3600_000 * 3 },
-      { source: "agent", label: "Imported claim from Orbital Labs whitepaper p.4", at: Date.now() - 1800_000 },
-      { source: "user", label: "Marked claim 3 as needs-review", at: Date.now() - 720_000 },
+      { source: "user", label: "Created report notebook", at: Date.now() - 3600_000 * 3 },
+      { source: "agent", label: "Imported a source-backed claim", at: Date.now() - 1800_000 },
+      { source: "user", label: "Marked a weak claim as needs-review", at: Date.now() - 720_000 },
     ];
   }
   return [
@@ -109,18 +122,19 @@ function buildLiveAudit(detail?: LiveArtifactDetail): AuditEntry[] {
   ];
 }
 
-function buildLivePatches(detail?: LiveArtifactDetail): PendingPatch[] {
+function buildLivePatches(detail?: LiveArtifactDetail, loadingLiveArtifact = false): PendingPatch[] {
+  if (loadingLiveArtifact) return [];
   if (!detail) {
     return [
       {
         id: "p1",
         source: "agent",
-        label: "Agent: Hiring spike — refresh the Orbital team count?",
-        preview: "Adds a new claim: 'Headcount up to 18 (was 14 last week, +4 ML eval engineers per LinkedIn).'",
+        label: "Agent: refresh the strongest source-backed claim?",
+        preview: "Adds a new reviewable claim from the latest attached source row.",
         patch: {
           source: "agent",
-          label: "Hiring spike claim",
-          html: `<div data-block="claim" data-status="review"><span data-claim-label>Claim · agent · needs review</span><p>Headcount up to 18 (was 14 last week, +4 ML eval engineers per LinkedIn).</p><span data-claim-source>LinkedIn delta · refreshed 12m ago</span></div>`,
+          label: "Refreshed claim",
+          html: `<div data-block="claim" data-status="review"><span data-claim-label>Claim · agent · needs review</span><p>Latest artifact signal needs a stronger source before verification.</p><span data-claim-source>Source refresh · pending review</span></div>`,
         },
       },
     ];
@@ -163,6 +177,8 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
       ? (api.domains.product.reports as any).saveReportNotebookHtml
       : null;
   const canPersistNotebook = Boolean(saveNotebookMutationRef && ownReport);
+  const isLiveArtifactId = isLiveArtifactReportId(reportId);
+  const waitingForLiveArtifact = Boolean(isLiveArtifactId && !liveDetail);
   const editorRef = useRef<ReportNotebookEditorHandle>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedHtmlRef = useRef("");
@@ -170,35 +186,19 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
   const { zen, toggle: toggleZen } = useZenMode();
   const sidebarVisible = showSidebar && !zen;
   const [saveState, setSaveState] = useState<SaveState>("saved");
-  const [audit, setAudit] = useState<AuditEntry[]>([
-    { source: "user", label: "Created report from Ship Demo Day capture", at: Date.now() - 3600_000 * 3 },
-    { source: "agent", label: "Imported claim from Orbital Labs whitepaper p.4", at: Date.now() - 1800_000 },
-    { source: "user", label: "Marked claim 3 as needs-review", at: Date.now() - 720_000 },
-  ]);
-  const [pendingPatches, setPendingPatches] = useState<PendingPatch[]>([
-    {
-      id: "p1",
-      source: "agent",
-      label: "Agent: Hiring spike — refresh the Orbital team count?",
-      preview: "Adds a new claim: 'Headcount up to 18 (was 14 last week, +4 ML eval engineers per LinkedIn).'",
-      patch: {
-        source: "agent",
-        label: "Hiring spike claim",
-        html: `<div data-block="claim" data-status="review"><span data-claim-label>Claim · agent · needs review</span><p>Headcount up to 18 (was 14 last week, +4 ML eval engineers per LinkedIn).</p><span data-claim-source>LinkedIn delta · refreshed 12m ago</span></div>`,
-      },
-    },
-  ]);
+  const [audit, setAudit] = useState<AuditEntry[]>(() => buildLiveAudit(liveDetail, waitingForLiveArtifact));
+  const [pendingPatches, setPendingPatches] = useState<PendingPatch[]>(() =>
+    buildLivePatches(liveDetail, waitingForLiveArtifact),
+  );
 
-  const report = reportFixtures.find((r) => r.id === reportId);
-  const isLiveArtifactId = /^(daily|li|run)_/.test(reportId);
   const initialHtml =
     ownReport?.notebookHtml ??
     liveDetail?.notebookHtml ??
-    reportNotebookHtml[reportId] ??
-    (isLiveArtifactId ? "<p>Loading live artifact...</p>" : "<p>Report not found.</p>");
-  const backlinks = reportBacklinks[reportId];
-  const [pageIcon, setPageIcon] = useState<string>(report?.kind === "Event" ? "🎟" : report?.kind === "Theme" ? "📊" : "🏢");
-  const [pageTitle, setPageTitle] = useState<string>(ownReport?.title ?? liveDetail?.title ?? report?.entity ?? (isLiveArtifactId ? "Loading live artifact" : "Untitled report"));
+    (isLiveArtifactId ? "<p>Loading live artifact...</p>" : EMPTY_NOTEBOOK_HTML);
+  const [pageIcon, setPageIcon] = useState<string>(liveIcon(liveDetail?.kind));
+  const [pageTitle, setPageTitle] = useState<string>(
+    ownReport?.title ?? liveDetail?.title ?? (isLiveArtifactId ? LIVE_LOADING_TITLE : WORKSPACE_DRAFT_TITLE),
+  );
 
   useEffect(() => {
     lastSavedHtmlRef.current = ownReport?.notebookHtml ?? "";
@@ -206,20 +206,26 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
 
   useEffect(() => {
     if (!ownReport?.title) return;
-    setPageTitle((current) => current === "Untitled report" || current === report?.entity ? ownReport.title ?? current : current);
-  }, [ownReport?.title, report?.entity]);
+    setPageTitle((current) => current === WORKSPACE_DRAFT_TITLE || current === LIVE_LOADING_TITLE ? ownReport.title ?? current : current);
+  }, [ownReport?.title]);
 
   useEffect(() => {
     if (!liveDetail) return;
     setPageIcon(liveIcon(liveDetail.kind));
     setPageTitle((current) =>
-      current === "Untitled report" || current === "Loading live artifact" || current === report?.entity
+      current === WORKSPACE_DRAFT_TITLE || current === LIVE_LOADING_TITLE
         ? liveDetail.title
         : current,
     );
     setAudit(buildLiveAudit(liveDetail));
     setPendingPatches(buildLivePatches(liveDetail));
-  }, [liveDetail, report?.entity]);
+  }, [liveDetail]);
+
+  useEffect(() => {
+    if (!waitingForLiveArtifact) return;
+    setAudit(buildLiveAudit(undefined, true));
+    setPendingPatches([]);
+  }, [waitingForLiveArtifact]);
 
   useEffect(() => {
     return () => {
@@ -272,21 +278,31 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
     }
   };
 
-  // Demo: simulate a chat-driven patch (user clicks "Save to notebook" on a chat answer)
+  // Local interaction stub: mirrors saving an agent answer into the notebook.
   const simulateChatPatch = () => {
+    const note = liveDetail
+      ? liveDetail.primaryAction
+      : "Write the next action here, then attach the supporting source before exporting.";
     editorRef.current?.applyChatPatch({
       source: "chat",
-      label: "Chat: appended pilot-call note",
-      html: `<h3>Chat ${new Date().toLocaleTimeString()}</h3><blockquote>Send Alex a 5-line note proposing a 30-min pilot-criteria call this week.</blockquote><p>From the agent's last answer in this thread.</p>`,
+      label: `Chat: appended note for ${pageTitle}`,
+      html: `<h3>Chat ${new Date().toLocaleTimeString()}</h3><blockquote>${escapeInlineHtml(note)}</blockquote><p>From the agent's last answer in this thread.</p>`,
     });
   };
 
-  // Demo: simulate an agent autonomously writing
+  // Local interaction stub: mirrors an agent-suggested source-backed claim.
   const simulateAgentPatch = () => {
+    const source = liveDetail?.sourceRows[0];
+    const body = liveDetail
+      ? liveDetail.summary
+      : "A refreshed source should support one concrete claim before this notebook is marked verified.";
+    const sourceLabel = source
+      ? `${source.title} - refreshed ${source.refreshed}`
+      : "Source refresh - attach evidence before verification";
     editorRef.current?.applyAgentPatch({
       source: "agent",
-      label: "Agent: refreshed source — TechCrunch Mar 2026",
-      html: `<div data-block="claim" data-status="verified"><span data-claim-label>Claim · agent</span><p>TechCrunch piece confirms HIPAA-aware grading is the marketed wedge.</p><span data-claim-source>TechCrunch coverage · refreshed just now</span></div>`,
+      label: `Agent: refreshed source - ${source?.title ?? "source review"}`,
+      html: `<div data-block="claim" data-status="verified"><span data-claim-label>Claim - agent</span><p>${escapeInlineHtml(body)}</p><span data-claim-source>${escapeInlineHtml(sourceLabel)}</span></div>`,
     });
   };
 
@@ -373,15 +389,15 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
     );
   }, [insertNotebookBlock]);
 
-  const propertyStatus = liveDetail?.status ?? report?.status ?? "verified";
-  const propertyKind = liveDetail?.kind ?? report?.kind ?? "Diligence";
-  const propertySources = liveDetail?.sourceCount ?? report?.sources ?? 14;
-  const propertyClaims = liveDetail?.claimCount ?? report?.claims ?? 7;
-  const propertyFollowUps = liveDetail?.followUps ?? report?.followUps ?? 3;
-  const propertyUpdated = liveDetail?.updatedAt ? `${liveDetail.updatedAt}` : "12s ago by you";
+  const propertyStatus = liveDetail?.status ?? (ownReport ? "verified" : "review");
+  const propertyKind = liveDetail?.kind ?? (ownReport ? "Report" : "Draft");
+  const propertySources = liveDetail?.sourceCount ?? ownReport?.sources?.length ?? 0;
+  const propertyClaims = liveDetail?.claimCount ?? ownReport?.claimIds?.length ?? 0;
+  const propertyFollowUps = liveDetail?.followUps ?? 0;
+  const propertyUpdated = liveDetail?.updatedAt ?? "workspace draft";
   const linkedTags = liveDetail?.tags?.length
     ? liveDetail.tags.slice(0, 6)
-    : ["Mode Analytics", "Alex Chen", "Ship Demo Day", "Voice-agent evaluation"];
+    : ["Live memory", "Claim evidence", "Review queue", "Source trail"];
 
   return (
     <div
@@ -413,7 +429,7 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
                 onClick={() => navigate("/redesign/reports")}
                 style={{ padding: "4px 10px" }}
               >← Reports</button>
-              <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>{report?.entity ?? "Report"}</span>
+              <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>{pageTitle}</span>
             </div>
             <div className="rd-row" style={{ gap: 6 }}>
               <NotebookSaveStatePill state={saveState} readOnly={readOnly} />
@@ -555,6 +571,12 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
             </div>
           </div>
 
+          <div className="rd-notebook-divider" role="separator" aria-label="Notebook body begins">
+            <span className="rd-notebook-divider__label">TipTap notebook</span>
+            <span className="rd-notebook-divider__line" aria-hidden="true" />
+            <span className="rd-notebook-divider__hint">Editable report body below</span>
+          </div>
+
           {/* TipTap editor surface — page chrome owns the spacing above */}
           <div>
             <ReportNotebookEditor
@@ -564,53 +586,9 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
               readOnly={readOnly}
               onChange={handleNotebookChange}
               onAuditEntry={handleAuditEntry}
-              onSaveStateChange={setSaveState}
+              onSaveStateChange={canPersistNotebook ? setSaveState : undefined}
             />
           </div>
-
-          {/* Backlinks (Roam-style) */}
-          {backlinks && (backlinks.linked.length > 0 || backlinks.unlinked.length > 0) && (
-            <div className="rd-backlinks" style={{ padding: "0 96px 80px" }}>
-              {backlinks.linked.length > 0 && (
-                <div className="rd-backlinks__group">
-                  <h4 className="rd-backlinks__title">
-                    Linked references
-                    <span className="rd-backlinks__count">{backlinks.linked.length}</span>
-                  </h4>
-                  {backlinks.linked.map((b, i) => (
-                    <div key={i} className="rd-backlinks__item" onClick={() => navigate(`/redesign/reports/${b.fromReportId}`)}>
-                      <div className="rd-backlinks__item-title">{b.fromTitle}</div>
-                      <div
-                        className="rd-backlinks__item-snippet"
-                        // Render [[Entity]] references as inline chips
-                        dangerouslySetInnerHTML={{ __html: renderEntitySnippet(b.snippet) }}
-                      />
-                      <div className="rd-backlinks__item-meta">
-                        {b.blockKind} · {b.daysAgo === 0 ? "today" : `${b.daysAgo}d ago`}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {backlinks.unlinked.length > 0 && (
-                <div className="rd-backlinks__group">
-                  <h4 className="rd-backlinks__title">
-                    Unlinked references
-                    <span className="rd-backlinks__count">{backlinks.unlinked.length}</span>
-                  </h4>
-                  {backlinks.unlinked.map((b, i) => (
-                    <div key={i} className="rd-backlinks__item" onClick={() => navigate(`/redesign/reports/${b.fromReportId}`)}>
-                      <div className="rd-backlinks__item-title">{b.fromTitle}</div>
-                      <div className="rd-backlinks__item-snippet" dangerouslySetInnerHTML={{ __html: renderEntitySnippet(b.snippet) }} />
-                      <div className="rd-backlinks__item-meta">
-                        {b.blockKind} · {b.daysAgo === 0 ? "today" : `${b.daysAgo}d ago`}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </main>
 
@@ -822,12 +800,12 @@ function randomEmoji(prev: string): string {
   return others[Math.floor(Math.random() * others.length)];
 }
 
-function renderEntitySnippet(text: string): string {
-  // Replace [[Foo Bar]] with <a class="rd-entity-link">Foo Bar</a>
-  return text.replace(
-    /\[\[([^\]]+)\]\]/g,
-    '<a class="rd-entity-link" href="#" data-entity="$1">$1</a>'
-  );
+function escapeInlineHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function timeAgo(ms: number): string {

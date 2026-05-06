@@ -3,8 +3,8 @@
  *
  * Bridges existing first-party production artifacts into the redesign surfaces:
  * LinkedIn archive rows, daily brief memories, and daily brief feature checks.
- * Starter fixtures remain the fallback, but when Convex has public artifacts the
- * redesign should feel like a real operating surface, not a static showcase.
+ * The hook only returns Convex-backed public artifacts. Empty states are explicit
+ * so production cannot mask broken wiring with starter fixtures.
  */
 
 import { useMemo } from "react";
@@ -801,7 +801,7 @@ export function useLiveArtifacts(limit = 24): LiveArtifactsResult {
       isLive,
       sourceLabel: isLive
         ? `Live artifacts - ${archiveCount} posts - ${briefFeatureCount} brief checks`
-        : "Starter coverage",
+        : "No live artifacts yet",
       metrics: buildMetrics(archiveStats ?? null, memory),
       pulse: buildPulse(memory, posts),
       publicResearch,

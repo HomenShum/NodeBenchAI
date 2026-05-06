@@ -32,6 +32,7 @@ import { ChatSurface } from "./surfaces/ChatSurface";
 import { InboxSurface } from "./surfaces/InboxSurface";
 import { MeSurface } from "./surfaces/MeSurface";
 import { WorkspaceSurface } from "./surfaces/WorkspaceSurface";
+import { useLiveArtifacts } from "./hooks/useLiveArtifacts";
 import type { SurfaceId } from "./fixtures";
 
 const PATH_TO_SURFACE: Record<string, SurfaceId | "workspace"> = {
@@ -57,9 +58,9 @@ function pathToReportId(pathname: string): string | null {
 
 type WorkspaceTab = "brief" | "cards" | "notebook" | "sources" | "chat" | "map";
 
-function workspaceParams(search: string): { reportId: string; tab: WorkspaceTab } {
+function workspaceParams(search: string): { reportId?: string; tab: WorkspaceTab } {
   const params = new URLSearchParams(search);
-  const reportId = params.get("report") || "rep_orbital";
+  const reportId = params.get("report") || undefined;
   const tab = params.get("tab");
   const workspaceTab: WorkspaceTab =
     tab === "cards" || tab === "notebook" || tab === "sources" || tab === "chat" || tab === "map"
@@ -80,6 +81,12 @@ export default function RedesignShell() {
   const surface = useMemo(() => pathToSurface(location.pathname), [location.pathname]);
   const reportId = useMemo(() => pathToReportId(location.pathname), [location.pathname]);
   const workspace = useMemo(() => workspaceParams(location.search), [location.search]);
+  const shellLiveArtifacts = useLiveArtifacts(24);
+  const railStats = useMemo(() => ({
+    entities: shellLiveArtifacts.publicResearch.length,
+    reports: shellLiveArtifacts.reports.length,
+    followUps: shellLiveArtifacts.reports.reduce((total, report) => total + report.followUps, 0),
+  }), [shellLiveArtifacts.publicResearch.length, shellLiveArtifacts.reports]);
   const goSurface = (id: SurfaceId) => {
     navigate(id === "home" ? "/redesign" : `/redesign/${id}`);
   };
@@ -118,6 +125,7 @@ export default function RedesignShell() {
             active="reports"
             onChange={(id) => goSurface(id)}
             onOpenWorkspace={goWorkspace}
+            liveStats={railStats}
           />
           <main className="rd-pane" style={{ borderRight: "none" }}>
             <WorkspaceSurface reportId={workspace.reportId} initialTab={workspace.tab} />
@@ -142,6 +150,7 @@ export default function RedesignShell() {
           active={surface as SurfaceId}
           onChange={(id) => goSurface(id)}
           onOpenWorkspace={goWorkspace}
+          liveStats={railStats}
         />
 
         {showInspector ? (
@@ -163,7 +172,7 @@ export default function RedesignShell() {
               <ReportsSurface
                 onOpen={(id, tab) => {
                   if (id.startsWith("li_") || id.startsWith("daily_") || id.startsWith("run_")) {
-                    const workspaceTab = tab === "chat" ? "chat" : tab === "cards" ? "sources" : "brief";
+                    const workspaceTab = tab === "chat" ? "chat" : tab === "cards" ? "cards" : "brief";
                     navigate(`/redesign/workspace?report=${id}&tab=${workspaceTab}`);
                     return;
                   }
@@ -172,9 +181,7 @@ export default function RedesignShell() {
                 }}
               />
             )}
-            {surface === "reports" && reportId && (
-              <ReportNotebookView reportId={reportId} />
-            )}
+            {surface === "reports" && reportId && <ReportDetailRoute reportId={reportId} />}
             {surface === "inbox" && <InboxSurface />}
             {surface === "me" && <MeSurface />}
           </main>
@@ -193,9 +200,14 @@ export default function RedesignShell() {
   );
 }
 
+function ReportDetailRoute({ reportId }: { reportId: string }) {
+  const liveArtifacts = useLiveArtifacts(60);
+  const liveDetail = liveArtifacts.details.find((detail) => detail.id === reportId);
+  return <ReportNotebookView reportId={reportId} liveDetail={liveDetail} />;
+}
+
 function useQaChromeFlag(search: string): boolean {
   return useMemo(() => {
-    if (import.meta.env.DEV) return true;
     const params = new URLSearchParams(search);
     if (params.get("qaChrome") === "1" || params.get("debugUi") === "1") return true;
     try {
