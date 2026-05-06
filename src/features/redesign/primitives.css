@@ -840,17 +840,17 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 
 /* Add-ons (Change icon / Add cover / Add comment / + Claim / + Follow-up / + Source).
-   Notion-style: hidden by default, revealed on hover-of-chrome. A persistent "···" hint
-   tells users more actions exist without cluttering the reading area. */
+   Visible by default so first-time users can see this is an editable report,
+   not a static memo screenshot. */
 [data-redesign] .rd-page-chrome__addons {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  max-height: 0;
-  margin-top: 0;
-  opacity: 0;
+  max-height: 80px;
+  margin-top: 6px;
+  opacity: 1;
   overflow: hidden;
-  pointer-events: none;
+  pointer-events: auto;
   transition: max-height 180ms ease, opacity 140ms ease, margin-top 180ms ease;
 }
 
@@ -862,9 +862,10 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   pointer-events: auto;
 }
 
-/* "···" hint — only shows when addons are collapsed; fades when chrome is hovered */
+/* Legacy collapsed-actions hint. Hidden now that primary report actions are visible. */
 [data-redesign] .rd-page-chrome__row::after {
-  content: "···";
+  content: "";
+  display: none;
   margin-left: 6px;
   color: var(--rd-ink-faint);
   font-family: var(--rd-font-mono);

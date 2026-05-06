@@ -42,6 +42,8 @@ export type EntityClass = "company" | "person" | "topic" | "role" | "event";
 export type SignalClass = "hiring" | "funding" | "shipping" | "coverage" | "regulatory" | "leadership" | "research";
 
 export interface PublicResearchCard {
+  /** Optional saved/live report route id. Present for Convex-backed artifact cards. */
+  reportId?: string;
   entity: string;
   entityClass: EntityClass;
   kind: string;             // legacy display label, e.g. "ROLE · READY"

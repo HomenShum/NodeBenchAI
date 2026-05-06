@@ -27,8 +27,12 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useConvex, useQuery } from "convex/react";
+import { useConvexApi } from "@/lib/convexApi";
+import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 import { ReportNotebookEditor, NotebookSaveStatePill, type ReportNotebookEditorHandle, type NotebookPatch, type SaveState } from "./ReportNotebookEditor";
 import { Pill } from "./Pill";
+import { showToast } from "./Toast";
 import { reportNotebookHtml, reports as reportFixtures, reportBacklinks } from "../fixtures";
 
 interface ReportNotebookViewProps {
@@ -81,7 +85,27 @@ interface PendingPatch {
 
 export function ReportNotebookView({ reportId, showSidebar = true, embedded = false }: ReportNotebookViewProps) {
   const navigate = useNavigate();
+  const convex = useConvex();
+  const api = useConvexApi();
+  const looksLikeConvexId = /^[a-z0-9]{20,}$/i.test(reportId);
+  const getReportRef = looksLikeConvexId ? (api?.domains?.product?.reports as any)?.getReport : null;
+  const ownReport = useQuery(
+    getReportRef ?? "skip",
+    getReportRef
+      ? {
+          anonymousSessionId: getAnonymousProductSessionId(),
+          reportId: reportId as any,
+        }
+      : "skip",
+  ) as { notebookHtml?: string; title?: string; summary?: string; sources?: unknown[]; claimIds?: unknown[] } | null | undefined;
+  const saveNotebookMutationRef =
+    looksLikeConvexId && ownReport && (api?.domains?.product?.reports as any)?.saveReportNotebookHtml
+      ? (api.domains.product.reports as any).saveReportNotebookHtml
+      : null;
+  const canPersistNotebook = Boolean(saveNotebookMutationRef && ownReport);
   const editorRef = useRef<ReportNotebookEditorHandle>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedHtmlRef = useRef("");
   const [readOnly, setReadOnly] = useState(false);
   const { zen, toggle: toggleZen } = useZenMode();
   const sidebarVisible = showSidebar && !zen;
@@ -106,14 +130,54 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
   ]);
 
   const report = reportFixtures.find((r) => r.id === reportId);
-  const initialHtml = reportNotebookHtml[reportId] ?? "<p>Report not found.</p>";
+  const initialHtml = ownReport?.notebookHtml ?? reportNotebookHtml[reportId] ?? "<p>Report not found.</p>";
   const backlinks = reportBacklinks[reportId];
   const [pageIcon, setPageIcon] = useState<string>(report?.kind === "Event" ? "🎟" : report?.kind === "Theme" ? "📊" : "🏢");
-  const [pageTitle, setPageTitle] = useState<string>(report?.entity ?? "Untitled report");
+  const [pageTitle, setPageTitle] = useState<string>(ownReport?.title ?? report?.entity ?? "Untitled report");
+
+  useEffect(() => {
+    lastSavedHtmlRef.current = ownReport?.notebookHtml ?? "";
+  }, [ownReport?.notebookHtml]);
+
+  useEffect(() => {
+    if (!ownReport?.title) return;
+    setPageTitle((current) => current === "Untitled report" || current === report?.entity ? ownReport.title ?? current : current);
+  }, [ownReport?.title, report?.entity]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    };
+  }, []);
 
   const handleAuditEntry = useCallback((entry: AuditEntry) => {
     setAudit((a) => [entry, ...a].slice(0, 8));
   }, []);
+
+  const handleNotebookChange = useCallback((html: string) => {
+    if (!canPersistNotebook || !saveNotebookMutationRef) return;
+    if (html === lastSavedHtmlRef.current) return;
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    setSaveState("saving");
+    saveTimerRef.current = window.setTimeout(() => {
+      convex.mutation(saveNotebookMutationRef, {
+        anonymousSessionId: getAnonymousProductSessionId(),
+        notebookHtml: html,
+        reportId: reportId as any,
+      })
+        .then(() => {
+          lastSavedHtmlRef.current = html;
+          setSaveState("saved");
+        })
+        .catch(() => {
+          setSaveState("saved");
+          showToast({
+            tone: "warning",
+            message: "Notebook edited locally. Convex sync could not confirm for this report.",
+          });
+        });
+    }, 900);
+  }, [canPersistNotebook, convex, reportId, saveNotebookMutationRef]);
 
   const acceptPatch = (id: string) => {
     const p = pendingPatches.find((x) => x.id === id);
@@ -148,6 +212,89 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
       html: `<div data-block="claim" data-status="verified"><span data-claim-label>Claim · agent</span><p>TechCrunch piece confirms HIPAA-aware grading is the marketed wedge.</p><span data-claim-source>TechCrunch coverage · refreshed just now</span></div>`,
     });
   };
+
+  const insertNotebookBlock = useCallback((label: string, html: string, toastMessage?: string) => {
+    const editor = editorRef.current?.editor;
+    if (!editor) {
+      showToast({ tone: "warning", message: "Notebook editor is still loading." });
+      return;
+    }
+    if (readOnly) {
+      setReadOnly(false);
+      editor.setEditable(true);
+    }
+    editor.chain().focus("end").insertContent(html).run();
+    setSaveState("saving");
+    window.setTimeout(() => setSaveState("saved"), 600);
+    handleAuditEntry({ source: "user", label, at: Date.now() });
+    showToast({ tone: "success", message: toastMessage ?? label });
+  }, [handleAuditEntry, readOnly]);
+
+  const copyShareLink = useCallback(() => {
+    const href = typeof window !== "undefined" ? window.location.href : `/redesign/reports/${reportId}`;
+    void navigator.clipboard?.writeText(href);
+    showToast({ tone: "success", message: "Report link copied." });
+  }, [reportId]);
+
+  const exportNotebook = useCallback(() => {
+    const html = editorRef.current?.getHtml() ?? initialHtml;
+    const safeTitle = pageTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "nodebench-report";
+    const body = `<!doctype html><meta charset="utf-8"><title>${pageTitle}</title><h1>${pageTitle}</h1>${html}`;
+    const blob = new Blob([body], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${safeTitle}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast({ tone: "success", message: "Notebook export started." });
+    handleAuditEntry({ source: "user", label: "Exported notebook HTML", at: Date.now() });
+  }, [handleAuditEntry, initialHtml, pageTitle]);
+
+  const refreshSources = useCallback(() => {
+    simulateAgentPatch();
+    showToast({ tone: "info", message: "Source refresh added a verified claim block." });
+  }, []);
+
+  const addCover = useCallback(() => {
+    insertNotebookBlock(
+      "Added report cover block",
+      '<div data-block="cover"><p><strong>Cover summary</strong></p><p>Write the one-paragraph analyst read before exporting or sharing this report.</p></div><p></p>',
+      "Cover block added."
+    );
+  }, [insertNotebookBlock]);
+
+  const addComment = useCallback(() => {
+    insertNotebookBlock(
+      "Added comment block",
+      '<blockquote data-block="comment"><p>Comment: capture the reviewer note or manager feedback here.</p></blockquote><p></p>',
+      "Comment block added."
+    );
+  }, [insertNotebookBlock]);
+
+  const addClaim = useCallback(() => {
+    insertNotebookBlock(
+      "Added claim block",
+      '<div data-block="claim" data-status="review"><span data-claim-label>Claim - needs review</span><p>State the claim here.</p><span data-claim-source>Attach a source before marking verified.</span></div><p></p>',
+      "Claim block added."
+    );
+  }, [insertNotebookBlock]);
+
+  const addFollowUp = useCallback(() => {
+    insertNotebookBlock(
+      "Added follow-up block",
+      '<div data-block="follow-up" data-due="this-week"><p>What is the next action?</p></div><p></p>',
+      "Follow-up block added."
+    );
+  }, [insertNotebookBlock]);
+
+  const addSource = useCallback(() => {
+    insertNotebookBlock(
+      "Added source block",
+      '<div data-block="source-list"><ol><li>New source - refreshed today</li></ol></div><p></p>',
+      "Source block added."
+    );
+  }, [insertNotebookBlock]);
 
   return (
     <div
@@ -235,9 +382,9 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
               >
                 {readOnly ? "Switch to edit" : "Public read-only"}
               </button>
-              <button className="rd-btn rd-btn--quiet rd-btn--sm">Share link</button>
-              <button className="rd-btn rd-btn--quiet rd-btn--sm">Export ▾</button>
-              <button className="rd-btn rd-btn--primary rd-btn--sm">Refresh sources</button>
+              <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={copyShareLink}>Share link</button>
+              <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={exportNotebook}>Export</button>
+              <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={refreshSources}>Refresh sources</button>
             </div>
           </div>
         )}
@@ -295,6 +442,12 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
                 <span className="rd-page-chrome__prop-key">Updated</span>
                 <span className="rd-page-chrome__prop-val rd-page-chrome__meta-mono">12s ago by you</span>
               </div>
+              <div className="rd-page-chrome__prop" role="listitem">
+                <span className="rd-page-chrome__prop-key">Sync</span>
+                <span className="rd-page-chrome__prop-val rd-page-chrome__meta-mono">
+                  {canPersistNotebook ? "Convex notebook" : "workspace draft"}
+                </span>
+              </div>
               <div className="rd-page-chrome__prop rd-page-chrome__prop--wide" role="listitem">
                 <span className="rd-page-chrome__prop-key">Linked</span>
                 <span className="rd-page-chrome__prop-val">
@@ -307,12 +460,12 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
             </div>
 
             <div className="rd-page-chrome__addons" aria-hidden={false}>
-              <button onClick={() => setPageIcon(prev => randomEmoji(prev))}>Change icon</button>
-              <button>Add cover</button>
-              <button>Add comment</button>
-              <button onClick={() => editorRef.current?.editor?.chain().focus("end").insertContent('<div data-block="claim" data-status="review"><p>State the claim here.</p></div><p></p>').run()}>+ Claim</button>
-              <button onClick={() => editorRef.current?.editor?.chain().focus("end").insertContent('<div data-block="follow-up" data-due="this-week"><p>What\'s the next action?</p></div><p></p>').run()}>+ Follow-up</button>
-              <button onClick={() => editorRef.current?.editor?.chain().focus("end").insertContent('<div data-block="source-list"><ol><li>New source · refreshed today</li></ol></div><p></p>').run()}>+ Source</button>
+              <button type="button" onClick={() => setPageIcon(prev => randomEmoji(prev))}>Change icon</button>
+              <button type="button" onClick={addCover}>Add cover</button>
+              <button type="button" onClick={addComment}>Add comment</button>
+              <button type="button" onClick={addClaim}>+ Claim</button>
+              <button type="button" onClick={addFollowUp}>+ Follow-up</button>
+              <button type="button" onClick={addSource}>+ Source</button>
             </div>
           </div>
 
@@ -322,6 +475,7 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
               ref={editorRef}
               initialHtml={initialHtml}
               readOnly={readOnly}
+              onChange={handleNotebookChange}
               onAuditEntry={handleAuditEntry}
               onSaveStateChange={setSaveState}
             />

@@ -22,18 +22,18 @@ interface HowItWorksCard {
 
 const HOW_IT_WORKS_CARDS: HowItWorksCard[] = [
   {
-    label: "Describe",
-    description: "Type your startup idea in one sentence — NodeBench figures out your market, stage, and the criteria that apply",
+    label: "Capture",
+    description: "Ask, paste, upload, or record messy context about a company, person, market, event, or account.",
     Icon: MessageSquare,
   },
   {
-    label: "See gaps",
-    description: "Get the invisible scorecard: what VCs check, what you're missing, and what could kill the deal",
+    label: "Preserve",
+    description: "NodeBench turns the answer into a living report with sources, claims, notes, relationships, and follow-ups.",
     Icon: BarChart3,
   },
   {
-    label: "Act",
-    description: "Ranked next steps, pitch-ready memos, and evidence packets you can share with investors or your team",
+    label: "Scale",
+    description: "Reuse your style, rubric, and evidence rules across the next entity list instead of starting over.",
     Icon: Activity,
   },
 ];
@@ -145,10 +145,11 @@ function StepWelcome() {
 
       <h2 className="text-2xl font-semibold text-content">Welcome to NodeBench</h2>
       <p className="mt-2 text-base font-medium text-accent-primary">
-        See the invisible checklist investors use to judge you
+        Turn messy context into reusable entity intelligence.
       </p>
       <p className="mt-4 text-sm leading-relaxed text-content-muted">
-        Describe your idea in one sentence. NodeBench shows you the hidden criteria VCs, accelerators, and banks use — so you know exactly what's missing before you pitch.
+        Chat creates the intelligence. Reports preserve it. Notebooks edit it. Sources verify it.
+        Start with one question, then keep compounding the report instead of rebuilding from scratch.
       </p>
     </div>
   );
@@ -190,21 +191,21 @@ function StepTryIt() {
             1
           </span>
           <span>
-            <strong className="text-content">Describe your idea</strong> in one sentence — even "AI tutoring for students" works
+            <strong className="text-content">Ask or capture anything</strong> about a company, person, market, event, or account
           </span>
         </li>
         <li className="flex items-start gap-3">
           <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-primary/10 text-[10px] font-bold text-accent-primary">
             2
           </span>
-          <span>See the investor checklist: gaps, objections, and what to build first</span>
+          <span>Get a sourced answer that saves into a reusable report, not a disposable chat turn</span>
         </li>
         <li className="flex items-start gap-3">
           <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-primary/10 text-[10px] font-bold text-accent-primary">
             3
           </span>
           <span>
-            Export a pitch-ready memo, share with co-founders, or connect:{" "}
+            Export a memo, resume the attached chat, or connect automation through:{" "}
             <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-xs text-accent-primary">
               npx nodebench-mcp
             </code>

@@ -55,16 +55,31 @@ function pathToReportId(pathname: string): string | null {
   return match?.[1] ?? null;
 }
 
+type WorkspaceTab = "brief" | "cards" | "notebook" | "sources" | "chat" | "map";
+
+function workspaceParams(search: string): { reportId: string; tab: WorkspaceTab } {
+  const params = new URLSearchParams(search);
+  const reportId = params.get("report") || "rep_orbital";
+  const tab = params.get("tab");
+  const workspaceTab: WorkspaceTab =
+    tab === "cards" || tab === "notebook" || tab === "sources" || tab === "chat" || tab === "map"
+      ? tab
+      : "brief";
+  return { reportId, tab: workspaceTab };
+}
+
 export default function RedesignShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [forceMobile, setForceMobile] = useState(false);
   const isMobile = useViewportMobile() || forceMobile;
+  const showQaChrome = useQaChromeFlag(location.search);
   const cmdk = useCommandPalette();
 
   const surface = useMemo(() => pathToSurface(location.pathname), [location.pathname]);
   const reportId = useMemo(() => pathToReportId(location.pathname), [location.pathname]);
+  const workspace = useMemo(() => workspaceParams(location.search), [location.search]);
   const goSurface = (id: SurfaceId) => {
     navigate(id === "home" ? "/redesign" : `/redesign/${id}`);
   };
@@ -85,8 +100,8 @@ export default function RedesignShell() {
     return (
       <div data-redesign data-redesign-theme={theme} style={{ height: "100dvh", overflow: "hidden" }}>
         <MobileShell active={mobileSurface} onChange={(id) => goSurface(id)} />
-        <ThemeFab theme={theme} setTheme={setTheme} />
-        <ViewportFab forceMobile={forceMobile} setForceMobile={setForceMobile} />
+        {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}
+        {showQaChrome && <ViewportFab forceMobile={forceMobile} setForceMobile={setForceMobile} />}
         <NavBanner pathname={location.pathname} />
         <CommandPalette open={cmdk.open} onClose={() => cmdk.setOpen(false)} />
         <ShortcutsOverlay />
@@ -105,10 +120,10 @@ export default function RedesignShell() {
             onOpenWorkspace={goWorkspace}
           />
           <main className="rd-pane" style={{ borderRight: "none" }}>
-            <WorkspaceSurface />
+            <WorkspaceSurface reportId={workspace.reportId} initialTab={workspace.tab} />
           </main>
         </div>
-        <ThemeFab theme={theme} setTheme={setTheme} />
+        {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}
         <CommandPalette open={cmdk.open} onClose={() => cmdk.setOpen(false)} />
         <ShortcutsOverlay />
         <ToastViewport />
@@ -147,6 +162,11 @@ export default function RedesignShell() {
             {surface === "reports" && !reportId && (
               <ReportsSurface
                 onOpen={(id, tab) => {
+                  if (id.startsWith("li_") || id.startsWith("daily_") || id.startsWith("run_")) {
+                    const workspaceTab = tab === "chat" ? "chat" : tab === "cards" ? "sources" : "brief";
+                    navigate(`/redesign/workspace?report=${id}&tab=${workspaceTab}`);
+                    return;
+                  }
                   if (tab === "brief") navigate(`/redesign/reports/${id}`);
                   else navigate(`/redesign/workspace?report=${id}&tab=${tab}`);
                 }}
@@ -161,8 +181,8 @@ export default function RedesignShell() {
         )}
       </div>
 
-      <ThemeFab theme={theme} setTheme={setTheme} />
-      <ViewportFab forceMobile={forceMobile} setForceMobile={setForceMobile} />
+      {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}
+      {showQaChrome && <ViewportFab forceMobile={forceMobile} setForceMobile={setForceMobile} />}
       <NavBanner pathname={location.pathname} />
 
       {/* Cross-surface primitives — Cmd+K palette, ? shortcuts, toasts */}
@@ -171,6 +191,19 @@ export default function RedesignShell() {
       <ToastViewport />
     </div>
   );
+}
+
+function useQaChromeFlag(search: string): boolean {
+  return useMemo(() => {
+    if (import.meta.env.DEV) return true;
+    const params = new URLSearchParams(search);
+    if (params.get("qaChrome") === "1" || params.get("debugUi") === "1") return true;
+    try {
+      return window.localStorage.getItem("nodebench-redesign-qa-chrome") === "1";
+    } catch {
+      return false;
+    }
+  }, [search]);
 }
 
 function useViewportMobile() {

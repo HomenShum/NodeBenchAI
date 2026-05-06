@@ -12,10 +12,13 @@
  */
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { SurfaceId } from "../fixtures";
 import { Pill } from "./Pill";
 import { reports, inboxItems, memoryPulse, sampleAnswer } from "../fixtures";
 import { UniversalComposer, type RouterTier } from "./UniversalComposer";
+import { useLiveArtifacts } from "../hooks/useLiveArtifacts";
+import { useReportsLive } from "../hooks/useReportsLive";
 
 interface MobileShellProps {
   active: SurfaceId;
@@ -61,7 +64,7 @@ export function MobileShell({ active, onChange }: MobileShellProps) {
 
       {/* Surface body — single column */}
       <div style={{ overflow: "auto", padding: "14px 14px 8px" }}>
-        {active === "home" && <MobileHome />}
+        {active === "home" && <MobileHome onOpenReports={() => onChange("reports")} onOpenChat={() => onChange("chat")} />}
         {active === "reports" && <MobileReports />}
         {active === "chat" && <MobileChat onOpenSheet={setSheet} />}
         {active === "inbox" && <MobileInbox />}
@@ -179,7 +182,26 @@ function TabIcon({ id, active }: { id: SurfaceId; active: boolean }) {
 
 /* ──────────────────────────── Surface bodies ──────────────────────────── */
 
-function MobileHome() {
+function MobileHome({ onOpenReports, onOpenChat }: { onOpenReports: () => void; onOpenChat: () => void }) {
+  const liveArtifacts = useLiveArtifacts(8);
+  const metrics = liveArtifacts.metrics.length > 0 ? liveArtifacts.metrics : memoryPulse;
+  const primaryReport = liveArtifacts.reports[0];
+  const pulseCards = liveArtifacts.pulse.length > 0
+    ? liveArtifacts.pulse
+    : [
+      {
+        kind: "memory_win" as const,
+        title: "Orbital Labs answered from event corpus",
+        body: "4 sources reused - 0 paid calls.",
+        meta: "2m ago",
+      },
+      {
+        kind: "follow_up" as const,
+        title: "Alex at Orbital Labs",
+        body: "Ask about healthcare pilot criteria.",
+        meta: "Due tomorrow",
+      },
+    ];
   return (
     <div className="rd-stack" style={{ gap: 14 }}>
       {/* Hero */}
@@ -195,17 +217,64 @@ function MobileHome() {
           fontFamily: "var(--rd-font-display)", fontSize: 22, fontWeight: 590,
           letterSpacing: "-0.4px", lineHeight: 1.2, margin: "10px 0 4px",
           color: "var(--rd-ink-strong)",
-        }}>What are we researching today?</h1>
+        }}>Capture now. Turn it into a report.</h1>
         <p className="rd-faint" style={{ fontSize: 12.5 }}>
-          Tap the composer below or speak a quick capture. NodeBench picks the right home.
+          Ask, paste, or record. NodeBench turns messy input into a source-backed entity workspace.
         </p>
       </div>
+
+      {liveArtifacts.isLive && (
+        <button
+          type="button"
+          className="rd-card"
+          onClick={onOpenReports}
+          style={{
+            width: "100%",
+            textAlign: "left",
+            padding: "12px 14px",
+            borderColor: "var(--rd-green-border)",
+            background: "var(--rd-green-bg)",
+          }}
+        >
+          <div className="rd-row" style={{ gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+            <Pill tone="green"><span className="rd-dot rd-dot--live" />Live public memory</Pill>
+            <Pill>{liveArtifacts.archiveCount} posts</Pill>
+            <Pill>{liveArtifacts.briefFeatureCount} brief checks</Pill>
+          </div>
+          <strong style={{ display: "block", fontSize: 13, color: "var(--rd-ink-strong)" }}>
+            {primaryReport?.entity ?? "Open the live coverage library"}
+          </strong>
+          <span style={{ display: "block", marginTop: 3, fontSize: 11.5, lineHeight: 1.35, color: "var(--rd-ink-mute)" }}>
+            {primaryReport?.description ?? "Recent NodeBench artifacts are already wired into Reports."}
+          </span>
+          <span className="rd-mono" style={{ display: "block", marginTop: 8, fontSize: 10.5, color: "var(--rd-green)" }}>
+            Open reports {">"}
+          </span>
+        </button>
+      )}
+
+      {!liveArtifacts.isLive && (
+        <button
+          type="button"
+          className="rd-card"
+          onClick={onOpenChat}
+          style={{ width: "100%", textAlign: "left", padding: "12px 14px" }}
+        >
+          <div className="rd-eyebrow" style={{ marginBottom: 5 }}>First run</div>
+          <strong style={{ display: "block", fontSize: 13, color: "var(--rd-ink-strong)" }}>
+            Ask one question, then multiply it across a list.
+          </strong>
+          <span className="rd-mono" style={{ display: "block", marginTop: 8, fontSize: 10.5, color: "var(--rd-accent-strong)" }}>
+            Start in chat {">"}
+          </span>
+        </button>
+      )}
 
       {/* Memory pulse condensed */}
       <div>
         <div className="rd-eyebrow" style={{ marginBottom: 8 }}>Memory pulse</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {memoryPulse.slice(0, 4).map((m) => (
+          {metrics.slice(0, 4).map((m) => (
             <div key={m.label} className="rd-card" style={{ padding: "10px 12px" }}>
               <div className="rd-eyebrow" style={{ fontSize: 9 }}>{m.label}</div>
               <div style={{
@@ -221,22 +290,18 @@ function MobileHome() {
       <div>
         <div className="rd-eyebrow" style={{ marginBottom: 8 }}>Today's intelligence</div>
         <div className="rd-stack" style={{ gap: 8 }}>
-          <article className="rd-card rd-card__pad-tight" style={{ padding: "12px 14px" }}>
-            <div className="rd-row" style={{ gap: 6 }}>
-              <Pill tone="green">Memory win</Pill>
-              <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)" }}>2m ago</span>
-            </div>
-            <h3 style={{ margin: "6px 0 2px", fontSize: 13, fontWeight: 590 }}>Orbital Labs answered from event corpus</h3>
-            <p className="rd-faint" style={{ fontSize: 12 }}>4 sources reused · 0 paid calls.</p>
-          </article>
-          <article className="rd-card rd-card__pad-tight" style={{ padding: "12px 14px" }}>
-            <div className="rd-row" style={{ gap: 6 }}>
-              <Pill tone="amber">Follow-up</Pill>
-              <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)" }}>Due tomorrow</span>
-            </div>
-            <h3 style={{ margin: "6px 0 2px", fontSize: 13, fontWeight: 590 }}>Alex at Orbital Labs</h3>
-            <p className="rd-faint" style={{ fontSize: 12 }}>Ask about healthcare pilot criteria.</p>
-          </article>
+          {pulseCards.slice(0, 3).map((card) => (
+            <article key={`${card.title}-${card.meta}`} className="rd-card rd-card__pad-tight" style={{ padding: "12px 14px" }}>
+              <div className="rd-row" style={{ gap: 6 }}>
+                <Pill tone={card.kind === "follow_up" ? "amber" : card.kind === "report_update" ? "blue" : "green"}>
+                  {card.kind.replace(/_/g, " ")}
+                </Pill>
+                <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)" }}>{card.meta}</span>
+              </div>
+              <h3 style={{ margin: "6px 0 2px", fontSize: 13, fontWeight: 590 }}>{card.title}</h3>
+              <p className="rd-faint" style={{ fontSize: 12 }}>{card.body}</p>
+            </article>
+          ))}
         </div>
       </div>
     </div>
@@ -244,6 +309,12 @@ function MobileHome() {
 }
 
 function MobileReports() {
+  const navigate = useNavigate();
+  const liveReports = useReportsLive();
+  const visibleReports = liveReports.reports.length > 0 ? liveReports.reports : reports;
+  const openReport = (reportId: string, tab: "brief" | "cards" | "chat") => {
+    navigate(`/redesign/workspace?report=${encodeURIComponent(reportId)}&tab=${tab}`);
+  };
   return (
     <div className="rd-stack" style={{ gap: 12 }}>
       <div className="rd-card" style={{
@@ -263,6 +334,9 @@ function MobileReports() {
       </div>
 
       <div className="rd-row" style={{ gap: 6, overflow: "auto", paddingBottom: 4 }}>
+        {liveReports.isLive && (
+          <Pill tone="green"><span className="rd-dot rd-dot--live" />{liveReports.sourceLabel}</Pill>
+        )}
         {["All", "Verified", "Watching", "Review"].map((l, i) => (
           <button
             key={l}
@@ -278,7 +352,7 @@ function MobileReports() {
       </div>
 
       <div className="rd-stack" style={{ gap: 10 }}>
-        {reports.map((r) => (
+        {visibleReports.slice(0, 10).map((r) => (
           <article key={r.id} className="rd-card rd-card__pad-tight" style={{ padding: "12px 14px" }}>
             <div className="rd-row--between">
               <div className="rd-row" style={{ gap: 6 }}>
@@ -297,9 +371,9 @@ function MobileReports() {
               <span style={{ marginLeft: "auto" }}>{r.updatedAt}</span>
             </div>
             <div className="rd-row" style={{ gap: 4, marginTop: 8 }}>
-              <button className="rd-btn rd-btn--ghost" style={{ flex: 1, padding: "6px 8px", fontSize: 11, justifyContent: "center" }}>Brief</button>
-              <button className="rd-btn rd-btn--quiet" style={{ flex: 1, padding: "6px 8px", fontSize: 11, justifyContent: "center" }}>Explore</button>
-              <button className="rd-btn rd-btn--quiet" style={{ flex: 1, padding: "6px 8px", fontSize: 11, justifyContent: "center" }}>Chat</button>
+              <button className="rd-btn rd-btn--ghost" style={{ flex: 1, padding: "6px 8px", fontSize: 11, justifyContent: "center" }} onClick={() => openReport(r.id, "brief")}>Brief</button>
+              <button className="rd-btn rd-btn--quiet" style={{ flex: 1, padding: "6px 8px", fontSize: 11, justifyContent: "center" }} onClick={() => openReport(r.id, "cards")}>Explore</button>
+              <button className="rd-btn rd-btn--quiet" style={{ flex: 1, padding: "6px 8px", fontSize: 11, justifyContent: "center" }} onClick={() => openReport(r.id, "chat")}>Chat</button>
             </div>
           </article>
         ))}

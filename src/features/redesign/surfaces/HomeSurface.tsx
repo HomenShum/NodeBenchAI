@@ -18,6 +18,7 @@ import { Pill } from "../components/Pill";
 import { StyleGalleryCard } from "../components/StyleGalleryCard";
 import { WhatChangedStrip } from "../components/WhatChangedStrip";
 import { useHomePulseLive } from "../hooks/useHomePulseLive";
+import { useLiveArtifacts } from "../hooks/useLiveArtifacts";
 import { showToast } from "../components/Toast";
 import {
   memoryPulse,
@@ -68,10 +69,22 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
   const isFirstVisit = useFirstVisit();
   // Sprint S4 (partial): pulse cards from live batchAutopilot briefMarkdown — falls back to fixture
   const { pulse: livePulse } = useHomePulseLive();
-  const pulseCards = livePulse.length > 0 ? livePulse : fixturePulseCards;
+  const liveArtifacts = useLiveArtifacts(24);
+  const pulseCards = liveArtifacts.pulse.length > 0 ? liveArtifacts.pulse : livePulse.length > 0 ? livePulse : fixturePulseCards;
+  const effectiveMemoryPulse = liveArtifacts.metrics.length > 0 ? liveArtifacts.metrics : memoryPulse;
+  const effectivePublicResearch = liveArtifacts.publicResearch.length > 0 ? liveArtifacts.publicResearch : publicResearch;
   const tryStyle = (style: MemoStyle, entity: string) => {
     setActiveStyle(style);
     onAsk(`Run a ${style.name.toLowerCase()} on ${entity}.`);
+  };
+  const primaryLiveReport = liveArtifacts.reports[0];
+  const bankerStyle = memoStyles.find((s) => s.id === "gs.banker.brief") ?? memoStyles[0];
+  const openPrimaryLiveArtifact = () => {
+    if (primaryLiveReport) {
+      navigate(`/redesign/workspace?report=${primaryLiveReport.id}&tab=brief`);
+      return;
+    }
+    tryStyle(bankerStyle, "Apple");
   };
 
   const filteredSituations = useMemo(
@@ -80,12 +93,12 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
   );
 
   const filteredEntities = useMemo(() => {
-    let list = entityFilter === "all" ? publicResearch : publicResearch.filter((e) => e.entityClass === entityFilter);
+    let list = entityFilter === "all" ? effectivePublicResearch : effectivePublicResearch.filter((e) => e.entityClass === entityFilter);
     list = [...list];
     if (entitySort === "confidence") list.sort((a, b) => b.confidence - a.confidence);
     else if (entitySort === "delta") list.sort((a, b) => b.delta - a.delta);
     return list;
-  }, [entityFilter, entitySort]);
+  }, [effectivePublicResearch, entityFilter, entitySort]);
 
   return (
     <div className="rd-stack" style={{ padding: "20px 40px 40px", gap: 28, maxWidth: 1180, margin: "0 auto" }}>
@@ -99,13 +112,62 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
 
       {/* ─── 1. Hero ─── */}
       <header className="rd-stack" style={{ gap: 12, alignItems: "center", textAlign: "center", paddingTop: 16 }}>
-        <span className="rd-eyebrow" style={{ fontSize: 11, letterSpacing: "0.18em" }}>On-the-go intelligence</span>
-        <h1 className="rd-display" style={{ textAlign: "center" }}>Get the read before you walk in.</h1>
+        <span className="rd-eyebrow" style={{ fontSize: 11, letterSpacing: "0.18em" }}>
+          {liveArtifacts.isLive ? "Live public memory ready" : "Entity intelligence"}
+        </span>
+        <h1 className="rd-display" style={{ textAlign: "center" }}>Ask once. Turn it into reusable intelligence.</h1>
         <p className="rd-body rd-faint" style={{ maxWidth: 600, fontSize: 15, lineHeight: 1.55, textAlign: "center" }}>
-          Research a person, school, company, product, or meeting. NodeBench keeps working server-side and turns the
-          answer into sources, reports, notes, and exports.
+          Chat creates the intelligence. Reports preserve it. Notebook edits it. Sources prove it. The live feed below
+          is pulled from first-party NodeBench artifacts, not static demo cards.
         </p>
       </header>
+
+      <section
+        className="rd-card"
+        aria-label="Immediate start"
+        style={{
+          maxWidth: 860,
+          width: "100%",
+          margin: "0 auto",
+          padding: "14px 16px",
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) auto",
+          gap: 14,
+          alignItems: "center",
+          borderColor: liveArtifacts.isLive ? "var(--rd-green-border)" : "var(--rd-accent-ring)",
+          background: liveArtifacts.isLive ? "var(--rd-green-bg)" : "var(--rd-accent-tint)",
+        }}
+      >
+        <div className="rd-stack" style={{ gap: 4 }}>
+          <div className="rd-row" style={{ gap: 6, flexWrap: "wrap" }}>
+            <Pill tone={liveArtifacts.isLive ? "green" : "accent"}>
+              <span className={liveArtifacts.isLive ? "rd-dot rd-dot--live" : "rd-dot"} />
+              {liveArtifacts.isLive ? liveArtifacts.sourceLabel : "Starter style gallery"}
+            </Pill>
+            {primaryLiveReport && <Pill>{primaryLiveReport.claims} claims</Pill>}
+            {primaryLiveReport && <Pill>{primaryLiveReport.sources} sources</Pill>}
+          </div>
+          <strong style={{ fontSize: 14, color: "var(--rd-ink-strong)" }}>
+            {primaryLiveReport ? primaryLiveReport.entity : "No sign-in needed: generate a banker-style report sample."}
+          </strong>
+          <span style={{ fontSize: 12.5, color: "var(--rd-ink-mute)", lineHeight: 1.45 }}>
+            {primaryLiveReport
+              ? primaryLiveReport.description
+              : "Pick a public memo style, run it on a familiar entity, then save the result as reusable memory."}
+          </span>
+        </div>
+        <div className="rd-row" style={{ gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={openPrimaryLiveArtifact}>
+            {primaryLiveReport ? "Open live brief >" : "Try banker brief >"}
+          </button>
+          <button
+            className="rd-btn rd-btn--quiet rd-btn--sm"
+            onClick={() => tryStyle(activeStyle, primaryLiveReport?.entity ?? "Apple")}
+          >
+            Multiply this {">"}
+          </button>
+        </div>
+      </section>
 
       <div style={{ maxWidth: 760, width: "100%", margin: "0 auto" }}>
         <UniversalComposer
@@ -187,7 +249,7 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
 
       {/* ─── 3. Memory Pulse TICKER (Bloomberg-style ribbon) ─── */}
       <section aria-label="Memory pulse" className="rd-ticker" style={{ marginTop: -8 }}>
-        {memoryPulse.map((m, i) => (
+        {effectiveMemoryPulse.map((m, i) => (
           <div key={m.label} className="rd-ticker__cell" style={i === 0 ? { paddingLeft: 0 } : undefined}>
             <span className="rd-ticker__label">{m.label}</span>
             <span className="rd-ticker__value">{m.value}</span>
@@ -295,10 +357,16 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
       <section aria-label="Latest public research" className="rd-stack" style={{ gap: 10 }}>
         <div className="rd-row--between" style={{ alignItems: "flex-end" }}>
           <div>
-            <div className="rd-eyebrow">Latest public research</div>
-            <h2 className="rd-h2" style={{ marginTop: 4 }}>Reusable public memory from recent entity runs.</h2>
+            <div className="rd-eyebrow">{liveArtifacts.isLive ? "Live public artifacts" : "Latest public research"}</div>
+            <h2 className="rd-h2" style={{ marginTop: 4 }}>
+              {liveArtifacts.isLive
+                ? "LinkedIn archive + daily brief memory, ready to reuse."
+                : "Reusable public memory from recent entity runs."}
+            </h2>
           </div>
-          <Pill tone="accent">Public claims only</Pill>
+          <Pill tone={liveArtifacts.isLive ? "green" : "accent"}>
+            {liveArtifacts.isLive ? liveArtifacts.sourceLabel : "Public claims only"}
+          </Pill>
         </div>
 
         <div className="rd-filter-bar">
@@ -326,7 +394,11 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
 
         <div className="rd-entity-grid">
           {filteredEntities.map((e) => (
-            <EntityCard key={e.entity} card={e} onOpen={() => onOpenReport(`rep_${e.entity.toLowerCase().replace(/\s+/g, "_")}`)} />
+            <EntityCard
+              key={e.entity}
+              card={e}
+              onOpen={() => onOpenReport(e.reportId ?? `rep_${e.entity.toLowerCase().replace(/\s+/g, "_")}`)}
+            />
           ))}
         </div>
       </section>
