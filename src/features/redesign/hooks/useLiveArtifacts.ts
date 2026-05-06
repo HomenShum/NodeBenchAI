@@ -65,8 +65,64 @@ export interface LiveArtifactsResult {
   pulse: PulseCard[];
   publicResearch: PublicResearchCard[];
   reports: ReportCardData[];
+  details: LiveArtifactDetail[];
   archiveCount: number;
   briefFeatureCount: number;
+}
+
+export interface LiveArtifactSourceRow {
+  id: string;
+  type: string;
+  title: string;
+  refreshed: string;
+  reused: number;
+  excerpt: string;
+  href?: string;
+  status?: string;
+  confidence?: number;
+}
+
+export interface LiveArtifactSection {
+  title: string;
+  body: string;
+  items?: Array<{
+    label: string;
+    body: string;
+    meta?: string;
+    status?: "verified" | "review" | "watching";
+  }>;
+}
+
+export interface LiveArtifactMapNode {
+  id: string;
+  title: string;
+  subtitle: string;
+  tone: "default" | "accent" | "blue" | "green" | "amber";
+}
+
+export interface LiveArtifactMapEdge {
+  from: string;
+  to: string;
+}
+
+export interface LiveArtifactDetail {
+  id: string;
+  title: string;
+  kind: string;
+  status: ReportCardData["status"];
+  summary: string;
+  updatedAt: string;
+  updatedAtMs: number;
+  sourceCount: number;
+  claimCount: number;
+  followUps: number;
+  tags: string[];
+  sections: LiveArtifactSection[];
+  sourceRows: LiveArtifactSourceRow[];
+  nodes: LiveArtifactMapNode[];
+  edges: LiveArtifactMapEdge[];
+  notebookHtml: string;
+  primaryAction: string;
 }
 
 type QueryRef = Parameters<typeof useQuery>[0];
@@ -156,6 +212,168 @@ function countSourceRefs(value: unknown): number {
   return 0;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function sourceRefLabels(value: unknown, max = 6): string[] {
+  const labels: string[] = [];
+  const visit = (item: unknown) => {
+    if (labels.length >= max || !item) return;
+    if (Array.isArray(item)) {
+      for (const child of item) visit(child);
+      return;
+    }
+    if (typeof item === "string") {
+      const clean = normalizeSpace(item);
+      if (clean) labels.push(clean.slice(0, 90));
+      return;
+    }
+    if (typeof item === "object") {
+      const record = item as Record<string, unknown>;
+      const label =
+        typeof record.title === "string" ? record.title :
+        typeof record.name === "string" ? record.name :
+        typeof record.url === "string" ? record.url :
+        typeof record.source === "string" ? record.source :
+        typeof record.id === "string" ? record.id :
+        "";
+      if (label) {
+        labels.push(normalizeSpace(label).slice(0, 90));
+        return;
+      }
+      for (const child of Object.values(record)) visit(child);
+    }
+  };
+  visit(value);
+  return Array.from(new Set(labels)).slice(0, max);
+}
+
+function sourceRefHref(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const href = sourceRefHref(item);
+      if (href) return href;
+    }
+    return undefined;
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (typeof record.url === "string") return record.url;
+    if (typeof record.href === "string") return record.href;
+    for (const child of Object.values(record)) {
+      const href = sourceRefHref(child);
+      if (href) return href;
+    }
+  }
+  return undefined;
+}
+
+function statusToReportStatus(status: DailyBriefFeature["status"]): ReportCardData["status"] {
+  if (status === "passing") return "verified";
+  if (status === "pending") return "watching";
+  return "review";
+}
+
+function statusLabel(status: DailyBriefFeature["status"]): string {
+  if (status === "passing") return "verified";
+  if (status === "pending") return "watching";
+  return "needs review";
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function getExecutiveBrief(memory: DailyBriefMemory): Record<string, any> | null {
+  const context = asRecord(memory.context);
+  if (!context) return null;
+  const direct = asRecord(context.executiveBrief);
+  if (direct) return direct as Record<string, any>;
+  const record = asRecord(context.executiveBriefRecord);
+  const nested = asRecord(record?.brief);
+  return nested ? nested as Record<string, any> : null;
+}
+
+function collectFeedItems(value: unknown, max = 12): Array<Record<string, any>> {
+  const items: Array<Record<string, any>> = [];
+  const visit = (item: unknown) => {
+    if (items.length >= max || !item) return;
+    if (Array.isArray(item)) {
+      for (const child of item) visit(child);
+      return;
+    }
+    const record = asRecord(item);
+    if (!record) return;
+    if (typeof record.title === "string" && (typeof record.url === "string" || typeof record.source === "string")) {
+      items.push(record as Record<string, any>);
+      return;
+    }
+    for (const child of Object.values(record)) visit(child);
+  };
+  visit(value);
+  return items;
+}
+
+function executiveSignals(brief: Record<string, any> | null): Array<Record<string, any>> {
+  const signals = brief?.actII?.signals;
+  return Array.isArray(signals) ? signals : [];
+}
+
+function executiveActions(brief: Record<string, any> | null): Array<Record<string, any>> {
+  const actions = brief?.actIII?.actions;
+  return Array.isArray(actions) ? actions : [];
+}
+
+function executiveEvidenceRows(brief: Record<string, any> | null): LiveArtifactSourceRow[] {
+  return executiveSignals(brief).flatMap((signal, signalIndex) => {
+    const evidence = Array.isArray(signal.evidence) ? signal.evidence : [];
+    return evidence.map((row: Record<string, any>, index: number) => ({
+      id: row.id ?? `signal-${signalIndex}-evidence-${index}`,
+      type: row.source ?? row.sourceDomain ?? "evidence",
+      title: row.title ?? signal.headline ?? "Evidence item",
+      refreshed: row.publishedAt ? timeAgo(new Date(row.publishedAt).getTime()) : "today",
+      reused: 1,
+      excerpt: normalizeSpace(row.relevance ?? signal.synthesis ?? "Evidence captured by the daily brief pipeline.").slice(0, 240),
+      href: typeof row.url === "string" ? row.url : undefined,
+      status: "verified",
+      confidence: typeof row.score === "number" ? Math.min(0.95, Math.max(0.55, row.score / 1000)) : 0.78,
+    }));
+  });
+}
+
+function cleanMarkdownLine(value: string): string {
+  return normalizeSpace(value.replace(/^#+\s*/, "").replace(/^[-*]\s*/, ""));
+}
+
+function archiveContentToHtml(markdown: string): string {
+  const blocks = markdown
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+  if (!blocks.length) return "<p>Archived NodeBench intelligence artifact.</p>";
+  return blocks.map((block) => {
+    const escaped = escapeHtml(block);
+    if (/^#+\s/.test(block)) return `<h2>${escapeHtml(cleanMarkdownLine(block))}</h2>`;
+    if (/^[-*]\s/m.test(block)) {
+      const items = block
+        .split(/\r?\n/)
+        .map(cleanMarkdownLine)
+        .filter(Boolean)
+        .map((item) => `<li>${escapeHtml(item)}</li>`)
+        .join("");
+      return `<ul>${items}</ul>`;
+    }
+    return `<p>${escaped.replace(/\r?\n/g, "<br />")}</p>`;
+  }).join("");
+}
+
 function confidenceFromStatus(status: DailyBriefFeature["status"]): number {
   if (status === "passing") return 0.86;
   if (status === "pending") return 0.62;
@@ -213,6 +431,276 @@ function dailyBriefToReport(memory: DailyBriefMemory): ReportCardData {
     followUps: features.filter((f) => f.status !== "passing").length,
     updatedAt: timeAgo(memory.generatedAt),
   };
+}
+
+function dailyBriefToDetail(memory: DailyBriefMemory): LiveArtifactDetail {
+  const features = [...(memory.features ?? [])].sort((a, b) => {
+    const statusRank = { failing: 0, pending: 1, passing: 2 } as const;
+    return statusRank[a.status] - statusRank[b.status] || (a.priority ?? 99) - (b.priority ?? 99);
+  });
+  const sources = Math.max(1, countSourceRefs(features.map((f) => f.sourceRefs)));
+  const failing = features.filter((f) => f.status === "failing").length;
+  const followUps = features.filter((f) => f.status !== "passing").length;
+  const title = `Daily Brief - ${memory.dateString}`;
+  const summary = normalizeSpace(memory.goal || "Daily brief memory generated by NodeBench.");
+  const brief = getExecutiveBrief(memory);
+  const briefMeta = asRecord(brief?.meta);
+  const signals = executiveSignals(brief);
+  const actions = executiveActions(brief);
+  const executiveRows = executiveEvidenceRows(brief);
+  const sourceRows: LiveArtifactSourceRow[] = [
+    ...executiveRows,
+    ...features.map((feature, index) => {
+    const feedItems = collectFeedItems(feature.sourceRefs, 3);
+    const primaryFeed = feedItems[0];
+    return {
+      id: feature.id || `feature-${index}`,
+      type: `${feature.type || "check"} / ${statusLabel(feature.status)}`,
+      title: primaryFeed?.title ?? feature.name,
+      refreshed: timeAgo(feature.updatedAt || memory.generatedAt),
+      reused: Math.max(1, countSourceRefs(feature.sourceRefs)),
+      excerpt: normalizeSpace(primaryFeed?.summary || feature.notes || feature.testCriteria || summary).slice(0, 220),
+      href: typeof primaryFeed?.url === "string" ? primaryFeed.url : sourceRefHref(feature.sourceRefs),
+      status: statusLabel(feature.status),
+      confidence: confidenceFromStatus(feature.status),
+    };
+  })].slice(0, 40);
+  const signalItems = signals.length
+    ? signals.slice(0, 10).map((signal) => ({
+        label: signal.headline ?? "Daily brief signal",
+        body: normalizeSpace(signal.synthesis ?? "Signal captured by the daily brief pipeline."),
+        meta: `${Array.isArray(signal.evidence) ? signal.evidence.length : 0} evidence refs - executive brief`,
+        status: "verified" as const,
+      }))
+    : features.slice(0, 10).map((feature) => ({
+        label: feature.name,
+        body: normalizeSpace(feature.notes || feature.testCriteria || summary),
+        meta: `${statusLabel(feature.status)} - ${Math.max(1, countSourceRefs(feature.sourceRefs))} source refs - updated ${timeAgo(feature.updatedAt || memory.generatedAt)}`,
+        status: statusToReportStatus(feature.status),
+      }));
+  const actionItems = actions.slice(0, 8).map((action) => ({
+    label: action.label ?? "Follow-up action",
+    body: normalizeSpace(action.content ?? "Investigate this item and summarize implications, risks, and suggested next actions."),
+    meta: `priority ${action.priority ?? "normal"} - ${action.status ?? "proposed"}`,
+    status: "watching" as const,
+  }));
+  const needsReview = features.filter((feature) => feature.status !== "passing").slice(0, 8).map((feature) => ({
+    label: feature.name,
+    body: normalizeSpace(feature.testCriteria || feature.notes || "Review this daily brief signal before promoting it."),
+    meta: `${statusLabel(feature.status)} - priority ${feature.priority ?? "normal"}`,
+    status: statusToReportStatus(feature.status),
+  }));
+  const sections: LiveArtifactSection[] = [
+    {
+      title: "Executive read",
+      body: normalizeSpace(String(briefMeta?.summary ?? brief?.actI?.synthesis ?? summary)),
+      items: [
+        {
+          label: briefMeta?.headline ? String(briefMeta.headline) : `${features.length} checks captured`,
+          body: `${features.filter((f) => f.status === "passing").length} verified, ${followUps} waiting for review, ${sources} source references available. ${briefMeta?.confidence ? `Executive confidence ${briefMeta.confidence}%.` : ""}`.trim(),
+          meta: `Generated ${timeAgo(memory.generatedAt)} from the daily brief pipeline`,
+          status: failing > 0 ? "review" : "verified",
+        },
+      ],
+    },
+    ...(brief?.actI ? [{
+      title: brief.actI.title ?? "Act I: Coverage and freshness",
+      body: normalizeSpace(brief.actI.synthesis ?? "Coverage and source freshness summary."),
+      items: Array.isArray(brief.actI.topSources)
+        ? brief.actI.topSources.slice(0, 4).map((source: Record<string, any>) => ({
+            label: source.source ?? "Source",
+            body: `${source.count ?? 0} items contributed to this brief.`,
+            meta: `${brief.actI.sourcesCount ?? 0} source groups - ${brief.actI.totalItems ?? features.length} total items`,
+            status: "verified" as const,
+          }))
+        : undefined,
+    }] : []),
+    {
+      title: brief?.actII?.title ?? "Signals to review",
+      body: normalizeSpace(brief?.actII?.synthesis ?? "These are the live daily-brief checks available to preserve as claims, notebook blocks, or follow-up tasks."),
+      items: signalItems,
+    },
+    ...(actionItems.length ? [{
+      title: brief?.actIII?.title ?? "Deep-dive actions",
+      body: normalizeSpace(brief?.actIII?.synthesis ?? "Follow-ups convert today's signals into concrete investigations."),
+      items: actionItems,
+    }] : []),
+    {
+      title: "Review queue",
+      body: needsReview.length
+        ? "Items below need source verification, stronger evidence, or a human decision before they become reusable memory."
+        : "No failing or pending checks remain in the latest daily brief.",
+      items: needsReview,
+    },
+    {
+      title: "Next action",
+      body: "Convert the strongest verified signals into notebook claims, attach their source references, and run the same rubric across the active coverage universe.",
+    },
+  ];
+  const mapItems = signals.length
+    ? signals.slice(0, 6).map((signal, index) => ({
+        id: signal.id ?? `signal-${index}`,
+        title: String(signal.headline ?? "Daily signal").slice(0, 28),
+        subtitle: `${Array.isArray(signal.evidence) ? signal.evidence.length : 0} evidence refs`,
+        tone: "green" as const,
+      }))
+    : features.slice(0, 6).map((feature) => ({
+        id: feature.id,
+        title: feature.name.slice(0, 28),
+        subtitle: `${feature.type} - ${statusLabel(feature.status)}`,
+        tone: feature.status === "passing" ? "green" as const : feature.status === "pending" ? "blue" as const : "amber" as const,
+      }));
+  const nodes: LiveArtifactMapNode[] = [
+    { id: "root", title, subtitle: "Daily brief - root", tone: "accent" },
+    ...mapItems,
+  ];
+  const edges: LiveArtifactMapEdge[] = nodes.slice(1).map((node) => ({ from: "root", to: node.id }));
+  const signalClaimHtml = signals.length
+    ? signals.map((signal) => {
+        const evidence = Array.isArray(signal.evidence) ? signal.evidence : [];
+        const sourceLabel = evidence
+          .map((row: Record<string, any>) => row.url ?? row.title ?? row.source)
+          .filter(Boolean)
+          .slice(0, 3)
+          .join(" | ");
+        return [
+          `<div data-block="claim" data-status="verified">`,
+          `<span data-claim-label>${escapeHtml(String(signal.headline ?? "Daily brief signal"))} - verified</span>`,
+          `<p>${escapeHtml(normalizeSpace(signal.synthesis ?? "Signal captured by the daily brief pipeline."))}</p>`,
+          `<span data-claim-source>${evidence.length} evidence refs${sourceLabel ? ` - ${escapeHtml(sourceLabel)}` : ""}</span>`,
+          `</div>`,
+        ].join("");
+      })
+    : features.map((feature) => {
+        const refs = sourceRefLabels(feature.sourceRefs, 3);
+        const sourceLabel = refs.length ? ` - ${escapeHtml(refs.join(" | "))}` : "";
+        const status = statusToReportStatus(feature.status) === "verified" ? "verified" : "review";
+        return [
+          `<div data-block="claim" data-status="${status}">`,
+          `<span data-claim-label>${escapeHtml(feature.name)} - ${escapeHtml(statusLabel(feature.status))}</span>`,
+          `<p>${escapeHtml(normalizeSpace(feature.notes || feature.testCriteria || summary))}</p>`,
+          `<span data-claim-source>${Math.max(1, countSourceRefs(feature.sourceRefs))} source refs${sourceLabel} - refreshed ${escapeHtml(timeAgo(feature.updatedAt || memory.generatedAt))}</span>`,
+          `</div>`,
+        ].join("");
+      });
+  const notebookHtml = [
+    `<h1>${escapeHtml(title)}</h1>`,
+    `<p>${escapeHtml(normalizeSpace(String(briefMeta?.summary ?? summary)))}</p>`,
+    brief?.actI ? `<h2>${escapeHtml(String(brief.actI.title ?? "Act I"))}</h2><p>${escapeHtml(normalizeSpace(brief.actI.synthesis ?? ""))}</p>` : "",
+    `<h2>Signals to review</h2>`,
+    ...signalClaimHtml,
+    actionItems.length ? `<h2>Deep-dive actions</h2>${actionItems.map((action) => `<p><strong>${escapeHtml(action.label)}</strong>: ${escapeHtml(action.body)}</p>`).join("")}` : "",
+    `<h2>Review plan</h2>`,
+    `<p>Promote verified checks into reusable claims, request source refresh for pending checks, and keep failing checks in the Inbox review queue until they have stronger evidence.</p>`,
+  ].join("");
+
+  return {
+    id: `daily_${memory._id}`,
+    title,
+    kind: "Daily Brief",
+    status: failing > 0 ? "review" : "verified",
+    summary,
+    updatedAt: timeAgo(memory.generatedAt),
+    updatedAtMs: memory.generatedAt,
+    sourceCount: sources,
+    claimCount: features.length,
+    followUps,
+    tags: ["Daily Brief", "Live memory", memory.dateString, ...features.slice(0, 3).map((f) => f.type)],
+    sections,
+    sourceRows,
+    nodes,
+    edges,
+    notebookHtml,
+    primaryAction: "Promote verified signals into notebook claims",
+  };
+}
+
+function archivePostToDetail(post: ArchivePost): LiveArtifactDetail {
+  const report = archivePostToReport(post);
+  const metadata = (post.metadata ?? {}) as Record<string, unknown>;
+  const sourceLabels = sourceRefLabels(metadata.sourcesUsed ?? metadata.sourceRefs ?? metadata.sources, 8);
+  const sourceCount = Math.max(1, report.sources);
+  const sourceRows: LiveArtifactSourceRow[] = sourceLabels.length
+    ? sourceLabels.map((label, index) => ({
+        id: `source-${index}`,
+        type: "source",
+        title: label,
+        refreshed: timeAgo(post.postedAt),
+        reused: 1,
+        excerpt: excerpt(post.content, 180),
+        href: /^https?:\/\//.test(label) ? label : undefined,
+        confidence: post.postUrl ? 0.84 : 0.72,
+      }))
+    : [{
+        id: "archive-row",
+        type: postTypeLabel(post.postType),
+        title: post.postUrl ? "LinkedIn archive post" : "NodeBench archive row",
+        refreshed: timeAgo(post.postedAt),
+        reused: sourceCount,
+        excerpt: excerpt(post.content, 180),
+        href: post.postUrl,
+        confidence: post.postUrl ? 0.84 : 0.72,
+      }];
+  const paragraphs = post.content.split(/\n{2,}/).map(cleanMarkdownLine).filter(Boolean);
+  const sections: LiveArtifactSection[] = [
+    {
+      title: "Published read",
+      body: excerpt(post.content, 360),
+      items: paragraphs.slice(0, 5).map((body, index) => ({
+        label: index === 0 ? report.entity : `Evidence block ${index + 1}`,
+        body,
+        meta: `${postTypeLabel(post.postType)} - ${timeAgo(post.postedAt)}`,
+        status: report.status,
+      })),
+    },
+    {
+      title: "Next action",
+      body: "Preserve the strongest public claim, attach the archive row as evidence, and decide whether to track this topic in a recurring universe.",
+    },
+  ];
+  const nodes: LiveArtifactMapNode[] = [
+    { id: "root", title: report.entity.slice(0, 28), subtitle: `${report.kind} - root`, tone: "accent" },
+    { id: "archive", title: "Archive post", subtitle: `${sourceCount} sources`, tone: "blue" },
+    { id: "persona", title: post.persona, subtitle: "persona", tone: "default" },
+  ];
+  const edges: LiveArtifactMapEdge[] = [
+    { from: "root", to: "archive" },
+    { from: "root", to: "persona" },
+  ];
+  const notebookHtml = [
+    `<h1>${escapeHtml(report.entity)}</h1>`,
+    `<p><strong>${escapeHtml(report.kind)}</strong> - ${escapeHtml(report.description)}</p>`,
+    archiveContentToHtml(post.content),
+    `<div data-block="claim" data-status="${report.status === "verified" ? "verified" : "review"}">`,
+    `<span data-claim-label>Archived public claim - ${escapeHtml(report.status)}</span>`,
+    `<p>${escapeHtml(report.description)}</p>`,
+    `<span data-claim-source>${sourceCount} sources - ${escapeHtml(timeAgo(post.postedAt))}${post.postUrl ? ` - ${escapeHtml(post.postUrl)}` : ""}</span>`,
+    `</div>`,
+  ].join("");
+
+  return {
+    id: report.id,
+    title: report.entity,
+    kind: report.kind,
+    status: report.status,
+    summary: report.description,
+    updatedAt: report.updatedAt,
+    updatedAtMs: post.postedAt,
+    sourceCount,
+    claimCount: report.claims,
+    followUps: report.followUps,
+    tags: [report.kind, post.persona, post.dateString].filter(Boolean),
+    sections,
+    sourceRows,
+    nodes,
+    edges,
+    notebookHtml,
+    primaryAction: "Preserve as reusable public memory",
+  };
+}
+
+export function buildLiveArtifactNotebookHtml(detail: LiveArtifactDetail): string {
+  return detail.notebookHtml;
 }
 
 function featureToPublicCard(feature: DailyBriefFeature, memory: DailyBriefMemory): PublicResearchCard {
@@ -297,6 +785,10 @@ export function useLiveArtifacts(limit = 24): LiveArtifactsResult {
       ...(memory ? [dailyBriefToReport(memory)] : []),
       ...posts.map(archivePostToReport),
     ].slice(0, limit);
+    const details = [
+      ...(memory ? [dailyBriefToDetail(memory)] : []),
+      ...posts.map(archivePostToDetail),
+    ].slice(0, limit);
     const publicResearch = [
       ...(memory?.features ?? []).slice(0, 6).map((feature) => featureToPublicCard(feature, memory)),
       ...posts.map(archivePostToPublicCard),
@@ -314,6 +806,7 @@ export function useLiveArtifacts(limit = 24): LiveArtifactsResult {
       pulse: buildPulse(memory, posts),
       publicResearch,
       reports: artifactReports,
+      details,
       archiveCount,
       briefFeatureCount,
     };

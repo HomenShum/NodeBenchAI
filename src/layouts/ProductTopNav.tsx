@@ -64,6 +64,14 @@ export const ProductTopNav = memo(function ProductTopNav({
           })}
         </nav>
 
+        <a
+          href="/redesign"
+          className="hidden shrink-0 rounded-[12px] border border-[#f0c4b2] bg-[#fff7f3] px-3 py-2 text-[12px] font-semibold text-[#b45335] shadow-sm transition hover:border-[#e98d68] hover:bg-[#fff1ea] md:inline-flex"
+          aria-label="Open the redesigned NodeBench experience"
+        >
+          Redesign
+        </a>
+
         <div className="flex flex-1 justify-center">
           <button
             type="button"
