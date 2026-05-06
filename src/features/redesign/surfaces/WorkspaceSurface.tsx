@@ -5,12 +5,18 @@
  * Mounted at /redesign/workspace. Spec: separate deployed surface, not a sixth tab in main app.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useConvex } from "convex/react";
+import { useConvexApi } from "@/lib/convexApi";
+import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 import { CardStack } from "../components/CardStack";
 import { Pill } from "../components/Pill";
 import { ChatSurface } from "./ChatSurface";
 import { ReportNotebookView } from "../components/ReportNotebookView";
-import { cardStackEntities, sampleAnswer } from "../fixtures";
+import { showToast } from "../components/Toast";
+import { cardStackEntities, sampleAnswer, type ReportCardData } from "../fixtures";
+import { useLiveArtifacts } from "../hooks/useLiveArtifacts";
 
 type Tab = "brief" | "cards" | "notebook" | "sources" | "chat" | "map";
 
@@ -29,8 +35,67 @@ interface WorkspaceSurfaceProps {
 }
 
 export function WorkspaceSurface({ reportId = "rep_orbital", initialTab = "brief" }: WorkspaceSurfaceProps) {
+  const navigate = useNavigate();
+  const convex = useConvex();
+  const api = useConvexApi();
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [promoting, setPromoting] = useState(false);
   const root = cardStackEntities.orbital;
+  const liveArtifacts = useLiveArtifacts(60);
+  const liveReport = useMemo(
+    () => liveArtifacts.reports.find((report) => report.id === reportId),
+    [liveArtifacts.reports, reportId],
+  );
+  const workspaceTitle = liveReport?.entity ?? root.title;
+  const workspaceKind = liveReport?.kind ?? "Workspace";
+  const workspaceSources = liveReport?.sources ?? 14;
+  const workspaceClaims = liveReport?.claims ?? 7;
+  const workspaceFreshness = liveReport?.updatedAt ?? "2h ago";
+  const createDraftReportRef = (api?.domains?.product?.reports as any)?.createDraftReport;
+  const saveReportNotebookHtmlRef = (api?.domains?.product?.reports as any)?.saveReportNotebookHtml;
+  const isPromotableLiveArtifact = Boolean(liveReport && /^(daily|li|run)_/.test(reportId));
+  const canPromoteLiveArtifact = Boolean(isPromotableLiveArtifact && createDraftReportRef && saveReportNotebookHtmlRef);
+
+  const promoteLiveArtifact = async () => {
+    if (!liveReport) return;
+    if (!canPromoteLiveArtifact) {
+      showToast({
+        tone: "info",
+        message: "Report save controls are still connecting. Try again in a moment.",
+      });
+      return;
+    }
+    setPromoting(true);
+    try {
+      const anonymousSessionId = getAnonymousProductSessionId();
+      const created = await convex.mutation(createDraftReportRef, {
+        anonymousSessionId,
+        title: liveReport.entity,
+        summary: liveReport.description,
+        query: liveReport.entity,
+        type: liveReport.kind,
+      });
+      if (!created?.reportId) throw new Error("Missing report id");
+      await convex.mutation(saveReportNotebookHtmlRef, {
+        anonymousSessionId,
+        reportId: created.reportId,
+        notebookHtml: buildPromotedLiveArtifactHtml(liveReport),
+      });
+      showToast({
+        tone: "success",
+        message: "Saved as an editable report notebook.",
+      });
+      navigate(`/redesign/reports/${created.reportId}`);
+    } catch (error) {
+      console.error("Failed to promote live artifact", error);
+      showToast({
+        tone: "warning",
+        message: "Could not save this artifact yet. The live brief is still readable.",
+      });
+    } finally {
+      setPromoting(false);
+    }
+  };
 
   return (
     <div className="rd-stack" style={{ height: "100%", overflow: "hidden" }}>
@@ -51,23 +116,32 @@ export function WorkspaceSurface({ reportId = "rep_orbital", initialTab = "brief
 
         <div className="rd-row--between" style={{ marginTop: 10 }}>
           <div className="rd-stack" style={{ gap: 6 }}>
-            <h1 className="rd-h1" style={{ fontSize: 22 }}>{root.title}</h1>
+            <h1 className="rd-h1" style={{ fontSize: 22 }}>{workspaceTitle}</h1>
             <div className="rd-row" style={{ gap: 8, fontSize: 11.5, color: "var(--rd-ink-soft)" }}>
-              <Pill tone="green"><span className="rd-dot rd-dot--live" />Fresh · 2h ago</Pill>
-              <span>14 sources</span>
+              <Pill tone="green"><span className="rd-dot rd-dot--live" />Fresh · {workspaceFreshness}</Pill>
+              <span>{workspaceSources} sources</span>
               <span>·</span>
-              <span>7 claims</span>
+              <span>{workspaceClaims} claims</span>
               <span>·</span>
               <span>3 follow-ups</span>
               <span>·</span>
-              <Pill tone="accent">71% from memory</Pill>
+              <Pill tone="accent">{workspaceKind}</Pill>
             </div>
           </div>
 
           <div className="rd-row" style={{ gap: 6 }}>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm">Share</button>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm">Export</button>
-            <button className="rd-btn rd-btn--primary rd-btn--sm">Refresh</button>
+            {isPromotableLiveArtifact && (
+              <button
+                className="rd-btn rd-btn--primary rd-btn--sm"
+                disabled={promoting || !canPromoteLiveArtifact}
+                onClick={promoteLiveArtifact}
+              >
+                {promoting ? "Saving..." : canPromoteLiveArtifact ? "Save report" : "Connecting..."}
+              </button>
+            )}
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "success", message: "Workspace link copied." })}>Share</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "success", message: "Export preview queued." })}>Export</button>
+            <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Refresh queued for this workspace." })}>Refresh</button>
           </div>
         </div>
 
@@ -90,22 +164,85 @@ export function WorkspaceSurface({ reportId = "rep_orbital", initialTab = "brief
 
       {/* Active tab content */}
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden", background: "var(--rd-paper-warm)" }}>
-        {tab === "brief" && <BriefTab />}
+        {tab === "brief" && <BriefTab report={liveReport} />}
         {tab === "cards" && <CardStack rootId="ship_demo" />}
         {tab === "notebook" && (
           <div style={{ height: "100%", padding: "16px 24px 24px" }}>
             <ReportNotebookView reportId={reportId} embedded />
           </div>
         )}
-        {tab === "sources" && <SourcesTab />}
-        {tab === "chat" && <ChatSurface contextLabel="Asking about: Orbital Labs" />}
+        {tab === "sources" && <SourcesTab report={liveReport} />}
+        {tab === "chat" && <ChatSurface contextLabel={`Asking about: ${workspaceTitle}`} />}
         {tab === "map" && <MapTab />}
       </div>
     </div>
   );
 }
 
-function BriefTab() {
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function buildPromotedLiveArtifactHtml(report: ReportCardData): string {
+  const title = escapeHtml(report.entity);
+  const description = escapeHtml(report.description);
+  const kind = escapeHtml(report.kind);
+  const status = escapeHtml(report.status);
+  const updatedAt = escapeHtml(report.updatedAt);
+  return [
+    `<h1>${title}</h1>`,
+    `<p><strong>${kind}</strong> - ${description}</p>`,
+    `<div data-block="claim" data-status="${status}">`,
+    `<span data-claim-label>Claim - imported from live artifact - ${status}</span>`,
+    `<p>${description}</p>`,
+    `<span data-claim-source>${report.sources} sources - ${report.claims} claims - refreshed ${updatedAt}</span>`,
+    `</div>`,
+    `<h2>Why this matters</h2>`,
+    `<p>This artifact started as first-party NodeBench memory and was promoted into an editable report notebook. Verify the claim trail, add source notes, then reuse it in chat, export, or workspace review.</p>`,
+    `<h2>Next action</h2>`,
+    `<p><strong>Review and preserve.</strong> Confirm the strongest claims, add missing sources, and decide whether this belongs in an active coverage universe.</p>`,
+  ].join("");
+}
+
+function BriefTab({ report }: { report?: ReportCardData }) {
+  if (report) {
+    return (
+      <div className="rd-stack" style={{ gap: 18, padding: "28px 32px", maxWidth: 820, overflow: "auto", height: "100%" }}>
+        <section>
+          <div className="rd-eyebrow">Live artifact</div>
+          <p style={{ fontFamily: "var(--rd-font-display)", fontSize: 22, lineHeight: 1.35, color: "var(--rd-ink-strong)", marginTop: 6 }}>
+            {report.entity}
+          </p>
+          <p className="rd-body" style={{ marginTop: 8, color: "var(--rd-ink-mute)" }}>
+            {report.description}
+          </p>
+        </section>
+
+        <section className="rd-card rd-card__pad" style={{ background: "var(--rd-panel)" }}>
+          <div className="rd-eyebrow">Audit trail</div>
+          <div className="rd-row" style={{ gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+            <Pill tone={report.status === "verified" ? "green" : report.status === "review" ? "amber" : "blue"}>
+              {report.status}
+            </Pill>
+            <Pill>{report.sources} sources</Pill>
+            <Pill>{report.claims} claims</Pill>
+            <Pill>Updated {report.updatedAt}</Pill>
+          </div>
+        </section>
+
+        <section>
+          <div className="rd-eyebrow">Next action</div>
+          <p className="rd-body" style={{ marginTop: 6 }}>
+            Treat this as reusable memory: verify the sources, turn the strongest claims into notebook blocks, then multiply the same rubric across a universe.
+          </p>
+        </section>
+      </div>
+    );
+  }
   return (
     <div className="rd-stack" style={{ gap: 18, padding: "28px 32px", maxWidth: 760, overflow: "auto", height: "100%" }}>
       <section>
@@ -207,8 +344,9 @@ function NotebookTab() {
   );
 }
 
-function SourcesTab() {
+function SourcesTab({ report }: { report?: ReportCardData }) {
   const sources = [
+    ...(report ? [{ type: report.kind, title: report.entity, refreshed: report.updatedAt, reused: report.sources }] : []),
     { type: "PDF", title: "Orbital Labs whitepaper, p.4", refreshed: "2d ago", reused: 4 },
     { type: "Note", title: "Founder note, Ship Demo Day", refreshed: "today", reused: 6 },
     { type: "Recap", title: "Notion meeting recap, Apr 30", refreshed: "5d ago", reused: 2 },

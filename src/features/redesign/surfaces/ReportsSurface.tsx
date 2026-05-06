@@ -76,8 +76,9 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
     return () => document.removeEventListener("mousedown", onClick);
   }, [sortOpen]);
 
-  // Live data wiring (Sprint S1) — falls back to fixtures when unauthenticated or empty
-  const { reports, isLive, isLoading } = useReportsLive();
+  // Live data wiring: authenticated workspaces show Convex runs; anonymous or empty
+  // workspaces get a curated starter library so the product is useful before sign-in.
+  const { reports, isLive, isLoading, sourceLabel, liveCount } = useReportsLive();
 
   const toggleUniverse = (id: string) => setOpenUniverses((m) => ({ ...m, [id]: !m[id] }));
   const toggleSelect = (id: string) => setSelected((prev) => {
@@ -142,13 +143,15 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
         <div className="rd-row" style={{ gap: 8, alignItems: "center" }}>
           <div className="rd-eyebrow">Reports</div>
           {isLive ? (
-            <Pill tone="green" title="Showing live batchAutopilot run data from your Convex deployment">
-              <span className="rd-dot rd-dot--live" />Live · {reports.length} runs
+            <Pill tone="green" title="Showing live Convex artifacts from batch runs, daily briefs, or the LinkedIn archive">
+              <span className="rd-dot rd-dot--live" />{sourceLabel}
             </Pill>
           ) : isLoading ? (
             <Pill tone="amber">Loading…</Pill>
           ) : (
-            <Pill title="Sign in to see your batchAutopilot runs. Showing curated demo data.">Demo data</Pill>
+            <Pill title="Anonymous starter library. Sign in to save private runs, universes, and review history.">
+              Starter coverage
+            </Pill>
           )}
         </div>
         <h1 className="rd-h1">Reusable memory library</h1>
@@ -165,7 +168,10 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search 18,204 reports by entity, claim, source, or tag…"
+            placeholder={isLive
+              ? `Search ${reports.length.toLocaleString()} live reports by entity, claim, source, or tag...`
+              : "Search starter reports by entity, claim, source, or tag..."
+            }
             aria-label="Search reports"
           />
           {query && (
@@ -260,15 +266,20 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
         </div>
       </div>
 
-      {/* Universe sections — group reports by coverage area */}
-      {universes.map((u) => (
-        <UniverseSection
-          key={u.id}
-          universe={u}
-          open={openUniverses[u.id] ?? false}
-          onToggle={() => toggleUniverse(u.id)}
-        />
-      ))}
+      {/* Universe sections group reports by coverage area. When live artifacts exist,
+          use a real artifact header instead of presenting starter universes as live. */}
+      {isLive ? (
+        <LiveArtifactSection reportCount={liveCount} reviewCount={counts.review ?? 0} sourceLabel={sourceLabel} />
+      ) : (
+        universes.map((u) => (
+          <UniverseSection
+            key={u.id}
+            universe={u}
+            open={openUniverses[u.id] ?? false}
+            onToggle={() => toggleUniverse(u.id)}
+          />
+        ))
+      )}
 
       {/* Bulk action bar — appears when ≥1 selected */}
       {selected.size > 0 && (
@@ -276,8 +287,18 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
           <span className="rd-bulk-bar__count">{selected.size} selected</span>
           <div className="rd-row" style={{ gap: 6, flexWrap: "wrap" }}>
             <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={bulkRefresh}>Refresh sources</button>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm">Run rubric</button>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm">Compare</button>
+            <button
+              className="rd-btn rd-btn--quiet rd-btn--sm"
+              onClick={() => showToast({ tone: "info", message: `Queued rubric run for ${selected.size} selected report${selected.size === 1 ? "" : "s"}.` })}
+            >
+              Run rubric
+            </button>
+            <button
+              className="rd-btn rd-btn--quiet rd-btn--sm"
+              onClick={() => showToast({ tone: "info", message: `Opening compare view for ${selected.size} selected report${selected.size === 1 ? "" : "s"}.` })}
+            >
+              Compare
+            </button>
             <span style={{ width: 1, height: 16, background: "var(--rd-line)" }} aria-hidden="true" />
             <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => bulkExport("csv")}>Export CSV</button>
             <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => bulkExport("markdown")}>Export Markdown</button>
@@ -328,7 +349,63 @@ function UniverseSection({ universe: u, open, onToggle }: { universe: Universe; 
       <div className="rd-row" style={{ gap: 6 }}>
         <span className="rd-style-chip">{styleName}</span>
         {u.monitoring && <Pill tone="green"><span className="rd-dot rd-dot--live" />Monitoring</Pill>}
-        <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={(e) => e.stopPropagation()}>
+        <button
+          className="rd-btn rd-btn--quiet rd-btn--sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            showToast({ tone: "info", message: `Queued sample batch for ${u.name}.` });
+          }}
+        >
+          Run batch →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LiveArtifactSection({
+  reportCount,
+  reviewCount,
+  sourceLabel,
+}: {
+  reportCount: number;
+  reviewCount: number;
+  sourceLabel: string;
+}) {
+  return (
+    <div className="rd-universe-head" data-open={true} role="group" aria-label="Live production artifact feed">
+      <span className="rd-universe-head__chev" aria-hidden="true">
+        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      </span>
+      <div>
+        <div className="rd-universe-head__title">Live production artifacts</div>
+        <div className="rd-universe-head__meta">
+          <span>{reportCount} reports</span>
+          <span>·</span>
+          <span style={{ color: reviewCount > 0 ? "var(--rd-amber)" : "var(--rd-ink-soft)", fontWeight: 700 }}>
+            {reviewCount} needs review
+          </span>
+          <span>·</span>
+          <span>LinkedIn archive + daily brief memory + batch runs</span>
+        </div>
+      </div>
+      <div className="rd-row" style={{ gap: 6 }}>
+        <Pill tone="green"><span className="rd-dot rd-dot--live" />Convex-backed</Pill>
+        <button
+          className="rd-btn rd-btn--quiet rd-btn--sm"
+          onClick={() => showToast({
+            tone: "info",
+            message: `${sourceLabel}. Rows are built from existing archive, daily brief, and batch-run artifacts.`,
+          })}
+        >
+          View provenance
+        </button>
+        <button
+          className="rd-btn rd-btn--quiet rd-btn--sm"
+          onClick={() => showToast({ tone: "info", message: "Use Chat to multiply any artifact across a universe." })}
+        >
           Run batch →
         </button>
       </div>

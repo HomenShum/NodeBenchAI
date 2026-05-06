@@ -682,12 +682,12 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-height: 0;
-  margin-top: 0;
-  opacity: 0;
+  max-height: 72px;
+  margin-top: 4px;
+  opacity: 1;
   overflow: hidden;
-  pointer-events: none;
-  transform: translateY(4px);
+  pointer-events: auto;
+  transform: translateY(0);
   transition: max-height 180ms var(--ease-out-expo), margin-top 180ms var(--ease-out-expo), opacity 160ms ease, transform 180ms var(--ease-out-expo);
 }
 

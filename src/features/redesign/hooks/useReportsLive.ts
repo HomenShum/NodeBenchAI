@@ -5,13 +5,14 @@
  *   convex/domains/operations/batchAutopilot/queries.ts:getRecentRuns
  *     → derive ReportCardData[] (id, entity, kind, status, description, sources, claims, followUps, updatedAt)
  *
- * When the user is unauthenticated or has no runs yet, the hook returns the fixture array so
- * the redesign route still renders for guest visitors / dogfood demos.
+ * When the user is unauthenticated or has no runs yet, the hook returns the curated starter
+ * library so the redesign route is still useful for guest visitors.
  */
 
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { reports as fixtureReports, type ReportCardData } from "../fixtures";
+import { useLiveArtifacts } from "./useLiveArtifacts";
 
 interface BatchAutopilotRun {
   _id: string;
@@ -67,7 +68,7 @@ function runToReport(run: BatchAutopilotRun): ReportCardData {
     .trim()
     .slice(0, 220);
   return {
-    id: run._id,
+    id: `run_${run._id}`,
     entity: deriveEntity(run),
     kind: "Brief",
     status: deriveStatus(run),
@@ -85,9 +86,12 @@ export interface UseReportsLiveResult {
   isLive: boolean;
   /** True while the query is loading for the first time. */
   isLoading: boolean;
+  sourceLabel: string;
+  liveCount: number;
 }
 
 export function useReportsLive(): UseReportsLiveResult {
+  const liveArtifacts = useLiveArtifacts(30);
   // Cast through unknown because the api shape may not match exactly until codegen runs.
   const liveRuns = useQuery(
     (api as unknown as { domains: { operations: { batchAutopilot: { queries: { getRecentRuns: unknown } } } } })
@@ -96,14 +100,32 @@ export function useReportsLive(): UseReportsLiveResult {
   ) as BatchAutopilotRun[] | undefined;
 
   if (liveRuns === undefined) {
-    return { reports: fixtureReports, isLive: false, isLoading: true };
+    return {
+      reports: liveArtifacts.reports.length > 0 ? liveArtifacts.reports : fixtureReports,
+      isLive: liveArtifacts.isLive,
+      isLoading: true,
+      sourceLabel: liveArtifacts.sourceLabel,
+      liveCount: liveArtifacts.reports.length,
+    };
   }
-  if (liveRuns.length === 0) {
-    return { reports: fixtureReports, isLive: false, isLoading: false };
+  const runReports = liveRuns.map(runToReport);
+  const reports = [...runReports, ...liveArtifacts.reports].slice(0, 60);
+  if (reports.length === 0) {
+    return {
+      reports: fixtureReports,
+      isLive: false,
+      isLoading: liveArtifacts.isLoading,
+      sourceLabel: "Starter coverage",
+      liveCount: 0,
+    };
   }
   return {
-    reports: liveRuns.map(runToReport),
+    reports,
     isLive: true,
     isLoading: false,
+    sourceLabel: runReports.length > 0
+      ? `Live runs + artifacts - ${runReports.length} runs - ${liveArtifacts.reports.length} artifacts`
+      : liveArtifacts.sourceLabel,
+    liveCount: reports.length,
   };
 }
