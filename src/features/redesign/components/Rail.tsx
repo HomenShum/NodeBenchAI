@@ -103,8 +103,10 @@ export function Rail({ active, onChange, onOpenWorkspace, liveStats }: RailProps
             title="Open Sources workspace — manage all entities, sources, and watchlist"
             style={{
               background: "transparent",
-              border: "none",
-              padding: 0,
+              border: "1px solid transparent",
+              borderRadius: 8,
+              minHeight: 30,
+              padding: "5px 8px",
               fontSize: 10,
               color: "var(--rd-accent-strong)",
               cursor: "pointer",

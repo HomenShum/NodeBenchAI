@@ -330,8 +330,8 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
             <span className="rd-ops__title">What changed</span>
             <span className="rd-ops__count">today · {pulseCards.length}</span>
           </div>
-          {pulseCards.map((card) => (
-            <div key={card.title} className="rd-ops__row">
+          {pulseCards.map((card, index) => (
+            <div key={`${card.meta}-${card.title}-${index}`} className="rd-ops__row">
               <div className="rd-row" style={{ gap: 6 }}>
                 <KindBadge kind={card.kind} />
                 <span className="rd-ops__row-meta">{card.meta}</span>
@@ -393,9 +393,9 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
         </div>
 
         <div className="rd-entity-grid">
-          {filteredEntities.map((e) => (
+          {filteredEntities.map((e, index) => (
             <EntityCard
-              key={e.entity}
+              key={`${e.reportId ?? e.entity}-${e.kind}-${index}`}
               card={e}
               onOpen={() => onOpenReport(e.reportId ?? `rep_${e.entity.toLowerCase().replace(/\s+/g, "_")}`)}
             />

@@ -178,7 +178,7 @@ export function MeSurface() {
           {/* Hero label + minimal toolbar — Save pill now lives in page header */}
           <div className="rd-row--between" style={{ paddingBottom: 8, borderBottom: "1px solid var(--rd-line-faint)" }}>
             <div className="rd-eyebrow" style={{ fontSize: 11, color: "var(--rd-accent-strong)" }}>USER.md · editable durable memory</div>
-            <div className="rd-row" style={{ gap: 3, flexWrap: "wrap" }}>
+            <div className="rd-row" style={{ gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
               {(["H2", "B", "I", "UL", "1.", "''", "Undo", "Redo"] as const).map((label) => (
                 <button
                   key={label}
@@ -186,7 +186,7 @@ export function MeSurface() {
                   aria-label={`TipTap ${label}`}
                   className="rd-btn rd-btn--quiet"
                   style={{
-                    width: 26, height: 26, padding: 0,
+                    width: label.length > 2 ? 44 : 32, height: 32, padding: 0,
                     borderRadius: 6,
                     border: "1px solid var(--rd-line-faint)",
                     background: "transparent",
@@ -332,14 +332,24 @@ export function MeSurface() {
                     background: "var(--rd-panel)",
                     flexDirection: "column",
                     alignItems: "flex-start",
+                    whiteSpace: "normal",
                     gap: 2,
                   }}>
-                    <strong style={{ display: "block", color: "var(--rd-ink-strong)", fontSize: 11.5, fontWeight: 590, fontFamily: "var(--rd-font-sans)" }}>{hook.strong}</strong>
+                    <strong style={{
+                      display: "block",
+                      color: "var(--rd-ink-strong)",
+                      fontSize: 11.5,
+                      fontWeight: 590,
+                      fontFamily: "var(--rd-font-sans)",
+                      overflowWrap: "anywhere",
+                    }}>{hook.strong}</strong>
                     <span style={{
                       color: "var(--rd-ink-mute)",
                       fontFamily: "var(--rd-font-mono)",
                       fontSize: 10.5,
                       lineHeight: 1.45,
+                      overflowWrap: "anywhere",
+                      whiteSpace: "normal",
                     }}>{hook.body}</span>
                   </button>
                 </li>
@@ -746,9 +756,9 @@ function PolicySwitch({ label, checked, onChange }: { label: string; checked: bo
       <span style={{ flex: 1, minWidth: 0 }}>{label}</span>
       <input
         type="checkbox"
+        className="rd-policy-switch__input"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        style={{ accentColor: "var(--rd-accent)", flexShrink: 0 }}
       />
     </label>
   );

@@ -34,6 +34,7 @@ import { ReportNotebookEditor, NotebookSaveStatePill, type ReportNotebookEditorH
 import { Pill } from "./Pill";
 import { showToast } from "./Toast";
 import { reportNotebookHtml, reports as reportFixtures, reportBacklinks } from "../fixtures";
+import type { LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 
 interface ReportNotebookViewProps {
   reportId: string;
@@ -41,6 +42,8 @@ interface ReportNotebookViewProps {
   showSidebar?: boolean;
   /** Hide the workspace breadcrumb header (used when embedded in WorkspaceSurface). */
   embedded?: boolean;
+  /** Full live artifact payload for daily briefs, archive rows, and production runs. */
+  liveDetail?: LiveArtifactDetail;
 }
 
 /** Cmd/Ctrl + \\ toggles distraction-free mode (Karpathy-flow).
@@ -83,7 +86,64 @@ interface PendingPatch {
   patch: NotebookPatch;
 }
 
-export function ReportNotebookView({ reportId, showSidebar = true, embedded = false }: ReportNotebookViewProps) {
+function liveIcon(kind?: string): string {
+  if (!kind) return "📝";
+  if (/daily/i.test(kind)) return "🗞";
+  if (/funding|deal/i.test(kind)) return "📈";
+  if (/fda|regulatory/i.test(kind)) return "⚕️";
+  return "🧠";
+}
+
+function buildLiveAudit(detail?: LiveArtifactDetail): AuditEntry[] {
+  if (!detail) {
+    return [
+      { source: "user", label: "Created report from Ship Demo Day capture", at: Date.now() - 3600_000 * 3 },
+      { source: "agent", label: "Imported claim from Orbital Labs whitepaper p.4", at: Date.now() - 1800_000 },
+      { source: "user", label: "Marked claim 3 as needs-review", at: Date.now() - 720_000 },
+    ];
+  }
+  return [
+    { source: "agent", label: `Hydrated ${detail.kind} from live Convex artifact`, at: detail.updatedAtMs },
+    { source: "agent", label: `Attached ${detail.sourceCount} source references`, at: detail.updatedAtMs + 1 },
+    { source: "user", label: `Opened ${detail.title} for notebook review`, at: Date.now() },
+  ];
+}
+
+function buildLivePatches(detail?: LiveArtifactDetail): PendingPatch[] {
+  if (!detail) {
+    return [
+      {
+        id: "p1",
+        source: "agent",
+        label: "Agent: Hiring spike — refresh the Orbital team count?",
+        preview: "Adds a new claim: 'Headcount up to 18 (was 14 last week, +4 ML eval engineers per LinkedIn).'",
+        patch: {
+          source: "agent",
+          label: "Hiring spike claim",
+          html: `<div data-block="claim" data-status="review"><span data-claim-label>Claim · agent · needs review</span><p>Headcount up to 18 (was 14 last week, +4 ML eval engineers per LinkedIn).</p><span data-claim-source>LinkedIn delta · refreshed 12m ago</span></div>`,
+        },
+      },
+    ];
+  }
+  const firstRow = detail.sourceRows[0];
+  return [
+    {
+      id: `${detail.id}-promote`,
+      source: "agent",
+      label: `Agent: promote strongest ${detail.kind} signal?`,
+      preview: firstRow
+        ? `Adds a reviewed claim from "${firstRow.title}" with ${firstRow.reused} source references.`
+        : `Adds the strongest ${detail.kind} signal as a reviewable claim block.`,
+      patch: {
+        source: "agent",
+        label: `${detail.kind} claim`,
+        html: `<div data-block="claim" data-status="${detail.status === "verified" ? "verified" : "review"}"><span data-claim-label>${detail.kind} · live artifact</span><p>${detail.summary}</p><span data-claim-source>${detail.sourceCount} sources · refreshed ${detail.updatedAt}</span></div>`,
+      },
+    },
+  ];
+}
+
+export function ReportNotebookView({ reportId, showSidebar = true, embedded = false, liveDetail }: ReportNotebookViewProps) {
   const navigate = useNavigate();
   const convex = useConvex();
   const api = useConvexApi();
@@ -130,10 +190,15 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
   ]);
 
   const report = reportFixtures.find((r) => r.id === reportId);
-  const initialHtml = ownReport?.notebookHtml ?? reportNotebookHtml[reportId] ?? "<p>Report not found.</p>";
+  const isLiveArtifactId = /^(daily|li|run)_/.test(reportId);
+  const initialHtml =
+    ownReport?.notebookHtml ??
+    liveDetail?.notebookHtml ??
+    reportNotebookHtml[reportId] ??
+    (isLiveArtifactId ? "<p>Loading live artifact...</p>" : "<p>Report not found.</p>");
   const backlinks = reportBacklinks[reportId];
   const [pageIcon, setPageIcon] = useState<string>(report?.kind === "Event" ? "🎟" : report?.kind === "Theme" ? "📊" : "🏢");
-  const [pageTitle, setPageTitle] = useState<string>(ownReport?.title ?? report?.entity ?? "Untitled report");
+  const [pageTitle, setPageTitle] = useState<string>(ownReport?.title ?? liveDetail?.title ?? report?.entity ?? (isLiveArtifactId ? "Loading live artifact" : "Untitled report"));
 
   useEffect(() => {
     lastSavedHtmlRef.current = ownReport?.notebookHtml ?? "";
@@ -143,6 +208,18 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
     if (!ownReport?.title) return;
     setPageTitle((current) => current === "Untitled report" || current === report?.entity ? ownReport.title ?? current : current);
   }, [ownReport?.title, report?.entity]);
+
+  useEffect(() => {
+    if (!liveDetail) return;
+    setPageIcon(liveIcon(liveDetail.kind));
+    setPageTitle((current) =>
+      current === "Untitled report" || current === "Loading live artifact" || current === report?.entity
+        ? liveDetail.title
+        : current,
+    );
+    setAudit(buildLiveAudit(liveDetail));
+    setPendingPatches(buildLivePatches(liveDetail));
+  }, [liveDetail, report?.entity]);
 
   useEffect(() => {
     return () => {
@@ -296,6 +373,16 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
     );
   }, [insertNotebookBlock]);
 
+  const propertyStatus = liveDetail?.status ?? report?.status ?? "verified";
+  const propertyKind = liveDetail?.kind ?? report?.kind ?? "Diligence";
+  const propertySources = liveDetail?.sourceCount ?? report?.sources ?? 14;
+  const propertyClaims = liveDetail?.claimCount ?? report?.claims ?? 7;
+  const propertyFollowUps = liveDetail?.followUps ?? report?.followUps ?? 3;
+  const propertyUpdated = liveDetail?.updatedAt ? `${liveDetail.updatedAt}` : "12s ago by you";
+  const linkedTags = liveDetail?.tags?.length
+    ? liveDetail.tags.slice(0, 6)
+    : ["Mode Analytics", "Alex Chen", "Ship Demo Day", "Voice-agent evaluation"];
+
   return (
     <div
       className="rd-stack"
@@ -354,7 +441,7 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
               </button>
               <button
                 className="rd-btn rd-btn--quiet rd-btn--sm"
-                onClick={() => navigate("/redesign/workspace?tab=map")}
+                onClick={() => navigate(`/redesign/workspace?report=${encodeURIComponent(reportId)}&tab=map`)}
                 title="Open relationship graph"
               >
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: 4 }}>
@@ -417,44 +504,43 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
               <div className="rd-page-chrome__prop" role="listitem">
                 <span className="rd-page-chrome__prop-key">Status</span>
                 <span className="rd-page-chrome__prop-val">
-                  <Pill tone={report?.status === "verified" ? "green" : report?.status === "watching" ? "blue" : "amber"}>
-                    {report?.status === "review" ? "Needs review" : report?.status === "watching" ? "Watching" : "Verified"}
+                  <Pill tone={propertyStatus === "verified" ? "green" : propertyStatus === "watching" ? "blue" : "amber"}>
+                    {propertyStatus === "review" ? "Needs review" : propertyStatus === "watching" ? "Watching" : "Verified"}
                   </Pill>
                 </span>
               </div>
               <div className="rd-page-chrome__prop" role="listitem">
                 <span className="rd-page-chrome__prop-key">Type</span>
-                <span className="rd-page-chrome__prop-val"><strong>{report?.kind ?? "Diligence"}</strong></span>
+                <span className="rd-page-chrome__prop-val"><strong>{propertyKind}</strong></span>
               </div>
               <div className="rd-page-chrome__prop" role="listitem">
                 <span className="rd-page-chrome__prop-key">Sources</span>
-                <span className="rd-page-chrome__prop-val"><strong>{report?.sources ?? 14}</strong> · refreshed 2h ago</span>
+                <span className="rd-page-chrome__prop-val"><strong>{propertySources}</strong> - refreshed {liveDetail?.updatedAt ?? "2h ago"}</span>
               </div>
               <div className="rd-page-chrome__prop" role="listitem">
                 <span className="rd-page-chrome__prop-key">Claims</span>
-                <span className="rd-page-chrome__prop-val"><strong>{report?.claims ?? 7}</strong></span>
+                <span className="rd-page-chrome__prop-val"><strong>{propertyClaims}</strong></span>
               </div>
               <div className="rd-page-chrome__prop" role="listitem">
                 <span className="rd-page-chrome__prop-key">Follow-ups</span>
-                <span className="rd-page-chrome__prop-val"><strong>{report?.followUps ?? 3}</strong></span>
+                <span className="rd-page-chrome__prop-val"><strong>{propertyFollowUps}</strong></span>
               </div>
               <div className="rd-page-chrome__prop" role="listitem">
                 <span className="rd-page-chrome__prop-key">Updated</span>
-                <span className="rd-page-chrome__prop-val rd-page-chrome__meta-mono">12s ago by you</span>
+                <span className="rd-page-chrome__prop-val rd-page-chrome__meta-mono">{propertyUpdated}</span>
               </div>
               <div className="rd-page-chrome__prop" role="listitem">
                 <span className="rd-page-chrome__prop-key">Sync</span>
                 <span className="rd-page-chrome__prop-val rd-page-chrome__meta-mono">
-                  {canPersistNotebook ? "Convex notebook" : "workspace draft"}
+                  {canPersistNotebook ? "Convex notebook" : liveDetail ? "live artifact draft" : "workspace draft"}
                 </span>
               </div>
               <div className="rd-page-chrome__prop rd-page-chrome__prop--wide" role="listitem">
                 <span className="rd-page-chrome__prop-key">Linked</span>
                 <span className="rd-page-chrome__prop-val">
-                  <a className="rd-entity-link" href="#" data-entity="company:mode-analytics">Mode Analytics</a>
-                  <a className="rd-entity-link" href="#" data-entity="person:alex-chen">Alex Chen</a>
-                  <a className="rd-entity-link" href="#" data-entity="event:ship-demo-day">Ship Demo Day</a>
-                  <a className="rd-entity-link" href="#" data-entity="topic:voice-eval">Voice-agent evaluation</a>
+                  {linkedTags.map((tag) => (
+                    <a key={tag} className="rd-entity-link" href="#" data-entity={tag.toLowerCase().replace(/[^a-z0-9]+/g, "-")}>{tag}</a>
+                  ))}
                 </span>
               </div>
             </div>
@@ -472,6 +558,7 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
           {/* TipTap editor surface — page chrome owns the spacing above */}
           <div>
             <ReportNotebookEditor
+              key={`${reportId}:${liveDetail?.updatedAtMs ?? ownReport?.title ?? "static"}`}
               ref={editorRef}
               initialHtml={initialHtml}
               readOnly={readOnly}

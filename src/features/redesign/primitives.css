@@ -124,12 +124,14 @@
 [data-redesign] .rd-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--rd-s-2);
   font-family: inherit;
   font-size: 13px;
   font-weight: 510;
   line-height: 1;
   padding: 8px 14px;
+  min-height: 36px;
   border-radius: var(--rd-r-sm);
   border: 1px solid transparent;
   background: transparent;
@@ -174,7 +176,8 @@
 }
 
 [data-redesign] .rd-btn--sm {
-  padding: 5px 10px;
+  min-height: 32px;
+  padding: 7px 12px;
   font-size: 12px;
 }
 
@@ -323,7 +326,11 @@
 }
 
 [data-redesign] .rd-tab {
-  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 13px;
   font-size: 12.5px;
   font-weight: 510;
   border-radius: var(--rd-r-xs);
@@ -1479,7 +1486,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 
 [data-redesign] .rd-filter-chip {
-  padding: 4px 10px;
+  min-height: 32px;
+  padding: 6px 11px;
   border-radius: 999px;
   border: 1px solid var(--rd-line);
   background: var(--rd-panel);
@@ -1502,7 +1510,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 
 [data-redesign] .rd-sort-select {
-  padding: 4px 10px;
+  min-height: 32px;
+  padding: 6px 11px;
   border-radius: 8px;
   border: 1px solid var(--rd-line);
   background: var(--rd-panel);
@@ -2235,9 +2244,9 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 26px;
-  min-width: 26px;
-  padding: 0 6px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0 8px;
   border: none;
   background: transparent;
   border-radius: 5px;
@@ -2256,7 +2265,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-msg-actions__btn--text {
   font-size: 11px;
   font-weight: 600;
-  padding: 0 8px;
+  padding: 0 10px;
 }
 [data-redesign] .rd-msg-actions__copied {
   font-size: 10px;
@@ -2616,12 +2625,13 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-strong);
 }
 [data-redesign] .rd-whatchanged__dismiss {
+  min-height: 32px;
   font-size: 11px;
   color: var(--rd-ink-soft);
   background: transparent;
   border: 1px solid var(--rd-line-faint);
   border-radius: 999px;
-  padding: 3px 10px;
+  padding: 6px 12px;
   cursor: pointer;
 }
 [data-redesign] .rd-whatchanged__dismiss:hover { background: var(--rd-paper-warm); color: var(--rd-ink); }
@@ -2774,7 +2784,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
+  min-height: 32px;
+  padding: 6px 11px;
   background: var(--rd-paper-warm);
   border: 1px solid var(--rd-line-faint);
   border-radius: 6px;
@@ -2849,6 +2860,44 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 
 /* ───────── Skeleton placeholders ───────── */
+[data-redesign] .rd-policy-switch__input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 46px;
+  height: 30px;
+  margin: 0;
+  flex-shrink: 0;
+  border: 1px solid var(--rd-line-strong);
+  border-radius: 999px;
+  background: var(--rd-paper-warm);
+  cursor: pointer;
+  position: relative;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+[data-redesign] .rd-policy-switch__input::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--rd-panel);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+  transition: transform 120ms ease;
+}
+[data-redesign] .rd-policy-switch__input:checked {
+  background: var(--rd-accent);
+  border-color: var(--rd-accent);
+}
+[data-redesign] .rd-policy-switch__input:checked::after {
+  transform: translateX(16px);
+}
+[data-redesign] .rd-policy-switch__input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--rd-paper), 0 0 0 4px var(--rd-accent-ring);
+}
+
 [data-redesign] .rd-skel {
   background: linear-gradient(90deg,
     var(--rd-paper-warm) 25%,
@@ -3133,6 +3182,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-reports-filterbar__search input {
   flex: 1;
   min-width: 0;
+  min-height: 30px;
   border: none;
   outline: none;
   background: transparent;
@@ -3142,8 +3192,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 [data-redesign] .rd-reports-filterbar__search input::placeholder { color: var(--rd-ink-faint); }
 [data-redesign] .rd-reports-filterbar__clear {
-  width: 18px;
-  height: 18px;
+  width: 30px;
+  height: 30px;
   border: none;
   background: var(--rd-line);
   color: var(--rd-paper);
@@ -3196,8 +3246,10 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-facet__chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
-  padding: 4px 10px;
+  min-height: 30px;
+  padding: 5px 11px;
   border: none;
   background: transparent;
   border-radius: 4px;
@@ -3284,11 +3336,39 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   min-width: 0;
 }
 [data-redesign] .rd-report-card__check {
+  appearance: none;
+  -webkit-appearance: none;
   accent-color: var(--rd-accent);
   flex-shrink: 0;
-  width: 14px;
-  height: 14px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--rd-line);
+  border-radius: 8px;
+  background: var(--rd-paper-warm);
   cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+[data-redesign] .rd-report-card__check:hover {
+  border-color: var(--rd-accent-ring);
+  background: var(--rd-paper);
+}
+[data-redesign] .rd-report-card__check:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--rd-paper), 0 0 0 4px var(--rd-accent-ring);
+}
+[data-redesign] .rd-report-card__check:checked {
+  background: var(--rd-accent);
+  border-color: var(--rd-accent);
+}
+[data-redesign] .rd-report-card__check:checked::after {
+  content: "";
+  width: 7px;
+  height: 12px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-1px, -1px);
 }
 [data-redesign] .rd-report-card__title {
   display: inline-flex;
@@ -3637,6 +3717,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
   padding: 1px 7px;
   border-radius: 999px;
   background: var(--rd-paper-warm);
