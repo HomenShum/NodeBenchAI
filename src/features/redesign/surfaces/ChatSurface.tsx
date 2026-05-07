@@ -21,6 +21,37 @@ import { ChatEmptyState } from "../components/ChatEmptyState";
 import { showToast } from "../components/Toast";
 
 /**
+ * Sprint 3 P2.11 — fixture for the open-questions tray (claims flagged
+ * uncertain by the agent or 👎'd by the user). Once chat is live-wired,
+ * this becomes a `useAgentRunFeedback({ filter: "thumbs_down" })` query.
+ */
+const OPEN_QUESTIONS: Array<{
+  id: string;
+  label: string;
+  turnId: string;
+  flagged: "agent" | "user";
+  when: string;
+}> = [
+  { id: "oq1", label: "Procurement timing for Orbital Labs pilots", turnId: "a1", flagged: "agent", when: "2h ago" },
+  { id: "oq2", label: "Hippocratic AI traction vs Abridge",         turnId: "a2", flagged: "user",  when: "12m ago" },
+  { id: "oq3", label: "Voice-agent eval competitors within 6 months", turnId: "a1", flagged: "agent", when: "5h ago" },
+];
+
+/**
+ * Sprint 3 P2.9 — deterministic fixture for source freshness so each citation
+ * popover can show "refreshed Xh ago". Replace with `sourceRefs.lastFetchedAt`
+ * once chat is live-wired.
+ */
+function sourceFreshness(source: string): string {
+  let h = 0;
+  for (let i = 0; i < source.length; i++) h = (h * 31 + source.charCodeAt(i)) >>> 0;
+  const hours = h % 72;
+  if (hours < 1) return "just refreshed";
+  if (hours < 24) return `refreshed ${hours}h ago`;
+  return `refreshed ${Math.floor(hours / 24)}d ago`;
+}
+
+/**
  * Sprint 2 P0.2 — Streaming scratchpad fixture.
  *
  * Showcase content reflecting the same pipeline shape as the backend
@@ -368,6 +399,9 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
           </div>
         </header>
 
+        {/* Sprint 3 P2.11 — open-questions tray */}
+        <OpenQuestionsTray />
+
         {turns.length === 0 ? (
           <ChatEmptyState
             starters={liveStarters}
@@ -379,31 +413,33 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
           />
         ) : (
           turns.map((t) => {
-            if (t.role === "user") return <UserBubble key={t.id} text={t.text!} createdAt={t.createdAt} />;
-            if (t.thinking) return <ChatThinking key={t.id} />;
-            if (t.markdown) return (
-              <StreamingAnswer
-                key={t.id}
-                text={t.markdown}
-                streaming={t.streaming}
-                tier={t.tier ?? "auto"}
-                createdAt={t.createdAt}
-                onRegenerate={(tierOverride) => regenerate(t.id, tierOverride)}
-                onBranch={() => branchFromTurn(t.id)}
-              />
-            );
-            return (
-              <AnswerPacket
-                key={t.id}
-                packet={t.packet!}
-                tier={t.tier ?? "auto"}
-                toolCalls={t.toolCalls}
-                reportTitle={liveDetail?.title}
-                createdAt={t.createdAt}
-                onRegenerate={(tierOverride) => regenerate(t.id, tierOverride)}
-                onBranch={() => branchFromTurn(t.id)}
-              />
-            );
+            // Sprint 3 P2.11 — wrap with data-turn-id so OpenQuestionsTray jump can target it
+            const inner = (() => {
+              if (t.role === "user") return <UserBubble text={t.text!} createdAt={t.createdAt} />;
+              if (t.thinking) return <ChatThinking />;
+              if (t.markdown) return (
+                <StreamingAnswer
+                  text={t.markdown}
+                  streaming={t.streaming}
+                  tier={t.tier ?? "auto"}
+                  createdAt={t.createdAt}
+                  onRegenerate={(tierOverride) => regenerate(t.id, tierOverride)}
+                  onBranch={() => branchFromTurn(t.id)}
+                />
+              );
+              return (
+                <AnswerPacket
+                  packet={t.packet!}
+                  tier={t.tier ?? "auto"}
+                  toolCalls={t.toolCalls}
+                  reportTitle={liveDetail?.title}
+                  createdAt={t.createdAt}
+                  onRegenerate={(tierOverride) => regenerate(t.id, tierOverride)}
+                  onBranch={() => branchFromTurn(t.id)}
+                />
+              );
+            })();
+            return <div key={t.id} data-turn-id={t.id}>{inner}</div>;
           })
         )}
       </div>
@@ -446,7 +482,238 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
           />
         </div>
       </div>
+
+      {/* Sprint 3 P1.4 — selection-based inline correction */}
+      <InlineCorrection />
     </div>
+  );
+}
+
+/**
+ * Sprint 3 P2.11 — sticky tray surfacing claims that need verification.
+ * Today: fixture from OPEN_QUESTIONS. Once chat is live-wired, replace
+ * with `useAgentRunFeedback` query filtered to flagged + unresolved items.
+ */
+function OpenQuestionsTray() {
+  const [open, setOpen] = useState(true);
+  const [items, setItems] = useState(OPEN_QUESTIONS);
+  if (items.length === 0) return null;
+  const dismissOne = (id: string) => {
+    setItems((cur) => cur.filter((q) => q.id !== id));
+    showToast({ tone: "success", message: "Question marked verified." });
+  };
+  const jumpTo = (turnId: string) => {
+    const node = document.querySelector(`[data-turn-id="${turnId}"]`);
+    if (node instanceof HTMLElement) {
+      node.scrollIntoView({ block: "start", behavior: "smooth" });
+      node.classList.add("rd-flash-attention");
+      window.setTimeout(() => node.classList.remove("rd-flash-attention"), 1600);
+    }
+  };
+  return (
+    <aside className="rd-open-q" aria-label="Open questions worth verifying">
+      <div className="rd-open-q__head">
+        <button
+          type="button"
+          className="rd-open-q__toggle"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span aria-hidden="true">{open ? "▾" : "▸"}</span>
+          <span className="rd-eyebrow">Open questions</span>
+          <span className="rd-open-q__count">{items.length}</span>
+        </button>
+        <span className="rd-open-q__hint">Claims worth verifying — tap to jump, ✓ to clear</span>
+      </div>
+      {open && (
+        <ul className="rd-open-q__list">
+          {items.map((q) => (
+            <li key={q.id} className="rd-open-q__item">
+              <span
+                className="rd-open-q__pill"
+                data-flag={q.flagged}
+                title={q.flagged === "agent" ? "Flagged by the agent" : "Flagged by you"}
+              >
+                {q.flagged === "agent" ? "🤖" : "👎"}
+              </span>
+              <button
+                type="button"
+                className="rd-open-q__label"
+                onClick={() => jumpTo(q.turnId)}
+              >
+                {q.label}
+              </button>
+              <span className="rd-open-q__when">{q.when}</span>
+              <button
+                type="button"
+                className="rd-open-q__clear"
+                aria-label={`Mark "${q.label}" verified`}
+                title="Mark verified"
+                onClick={() => dismissOne(q.id)}
+              >
+                ✓
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </aside>
+  );
+}
+
+/**
+ * Sprint 3 P1.4 — selection-based inline correction.
+ *
+ * Listens for text selections inside `.rd-chat-msg__body` (assistant
+ * messages only). When the user highlights 5–300 chars, a floating
+ * "Correct →" bubble appears at the selection's bounding rect. Clicking
+ * opens an inline edit dialog pre-filled with the selection. Saving
+ * fires a toast and (today) is no-op; once chat is live-wired this calls
+ * `proposeMemoryPatch` from convex/domains/operatorProfile/manifest.ts
+ * (PR #239) so the correction lands in /redesign/me's Memory Update Inbox.
+ */
+function InlineCorrection() {
+  const [bubble, setBubble] = useState<{
+    x: number;
+    y: number;
+    text: string;
+  } | null>(null);
+  const [editing, setEditing] = useState<{ original: string; draft: string } | null>(null);
+
+  useEffect(() => {
+    if (editing) return; // pause selection observer while editing
+    const onSelectionChange = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        setBubble(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      const txt = sel.toString().trim();
+      if (txt.length < 5 || txt.length > 300) {
+        setBubble(null);
+        return;
+      }
+      // Confirm selection is inside an assistant message body
+      const ancestor = range.commonAncestorContainer;
+      const el = ancestor instanceof Element ? ancestor : ancestor.parentElement;
+      if (!el?.closest(".rd-chat-msg--assistant")) {
+        setBubble(null);
+        return;
+      }
+      const rect = range.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) {
+        setBubble(null);
+        return;
+      }
+      setBubble({
+        x: rect.left + rect.width / 2,
+        y: rect.top - 6,
+        text: txt,
+      });
+    };
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => document.removeEventListener("selectionchange", onSelectionChange);
+  }, [editing]);
+
+  // Esc closes editor
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setEditing(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editing]);
+
+  const startCorrection = () => {
+    if (!bubble) return;
+    setEditing({ original: bubble.text, draft: bubble.text });
+    setBubble(null);
+    window.getSelection()?.removeAllRanges();
+  };
+
+  const save = () => {
+    if (!editing) return;
+    if (editing.draft.trim() === editing.original.trim()) {
+      showToast({ tone: "info", message: "No change to save." });
+    } else {
+      showToast({
+        tone: "success",
+        message: "Memory patch queued. Review at /redesign/me.",
+        action: {
+          label: "Open Me",
+          onClick: () => {
+            window.location.href = "/redesign/me";
+          },
+        },
+      });
+    }
+    setEditing(null);
+  };
+
+  return (
+    <>
+      {bubble && !editing && (
+        <button
+          type="button"
+          className="rd-correct-bubble"
+          style={{
+            position: "fixed",
+            top: bubble.y,
+            left: bubble.x,
+            transform: "translate(-50%, -100%)",
+          }}
+          onMouseDown={(e) => e.preventDefault() /* keep selection alive */}
+          onClick={startCorrection}
+        >
+          <span aria-hidden="true">✏️</span>
+          <span>Correct this</span>
+        </button>
+      )}
+      {editing && (
+        <div className="rd-correct-overlay" role="dialog" aria-modal="true" aria-label="Correct claim">
+          <div className="rd-correct-dialog">
+            <div className="rd-correct-dialog__head">
+              <span className="rd-eyebrow">Correct this claim</span>
+              <button
+                type="button"
+                className="rd-correct-dialog__close"
+                aria-label="Cancel correction"
+                onClick={() => setEditing(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="rd-correct-dialog__original">
+              <span className="rd-mono rd-correct-dialog__label">Original</span>
+              <p>{editing.original}</p>
+            </div>
+            <div className="rd-correct-dialog__edit">
+              <label className="rd-mono rd-correct-dialog__label" htmlFor="rd-correct-input">
+                Correction (writes a memory patch — review required)
+              </label>
+              <textarea
+                id="rd-correct-input"
+                className="rd-correct-dialog__textarea"
+                value={editing.draft}
+                onChange={(e) => setEditing({ ...editing, draft: e.target.value })}
+                rows={4}
+                autoFocus
+              />
+            </div>
+            <div className="rd-correct-dialog__actions">
+              <button type="button" className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => setEditing(null)}>
+                Cancel
+              </button>
+              <button type="button" className="rd-btn rd-btn--primary rd-btn--sm" onClick={save}>
+                Queue patch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -947,6 +1214,8 @@ function renderInlineWithCites(
         >
           <span className="rd-cite-popover__quote">&ldquo;{cite.quote}&rdquo;</span>
           <span className="rd-cite-popover__source">{cite.source}</span>
+          {/* Sprint 3 P2.9 — source freshness */}
+          <span className="rd-cite-popover__freshness">{sourceFreshness(cite.source)}</span>
         </span>
       </span>,
     );

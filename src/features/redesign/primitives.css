@@ -2255,10 +2255,307 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-soft);
   letter-spacing: 0.02em;
 }
+/* Sprint 3 P2.9 — source freshness pill inside popover */
+[data-redesign] .rd-cite-popover__freshness {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 6px;
+  font-family: var(--rd-font-mono);
+  font-size: 9.5px;
+  color: var(--rd-ink-mute);
+  background: var(--rd-line-faint);
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
 @media (prefers-reduced-motion: reduce) {
   [data-redesign] .rd-cite-wrap .rd-cite-popover {
     transition: none;
   }
+}
+
+/* ───────── Sprint 3 P2.11 — Open-questions tray ───────── */
+[data-redesign] .rd-open-q {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  background: var(--rd-paper);
+  border: 1px solid var(--rd-line-strong);
+  border-radius: var(--rd-r-sm);
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+}
+[data-redesign] .rd-open-q__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rd-line-faint);
+}
+[data-redesign] .rd-open-q__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--rd-ink);
+  cursor: pointer;
+  font-family: inherit;
+}
+[data-redesign] .rd-open-q__toggle:focus-visible {
+  outline: 2px solid var(--rd-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+[data-redesign] .rd-open-q__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  font-family: var(--rd-font-mono);
+  font-size: 10px;
+  font-weight: 590;
+  color: var(--rd-accent-strong);
+  background: var(--rd-accent-tint);
+  border: 1px solid var(--rd-accent-ring);
+  border-radius: 8px;
+}
+[data-redesign] .rd-open-q__hint {
+  margin-left: auto;
+  font-family: var(--rd-font-mono);
+  font-size: 10.5px;
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-open-q__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-redesign] .rd-open-q__item {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rd-line-faint);
+}
+[data-redesign] .rd-open-q__item:last-child {
+  border-bottom: 0;
+}
+[data-redesign] .rd-open-q__pill {
+  font-size: 14px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  background: var(--rd-line-faint);
+}
+[data-redesign] .rd-open-q__pill[data-flag="user"] {
+  background: rgba(212, 145, 60, 0.15);
+}
+[data-redesign] .rd-open-q__label {
+  display: block;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--rd-ink);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-redesign] .rd-open-q__label:hover,
+[data-redesign] .rd-open-q__label:focus-visible {
+  color: var(--rd-accent-strong);
+  outline: none;
+  text-decoration: underline;
+  text-decoration-color: var(--rd-accent-ring);
+  text-underline-offset: 3px;
+}
+[data-redesign] .rd-open-q__when {
+  font-family: var(--rd-font-mono);
+  font-size: 10.5px;
+  color: var(--rd-ink-soft);
+  white-space: nowrap;
+}
+[data-redesign] .rd-open-q__clear {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--rd-line-strong);
+  border-radius: 5px;
+  color: var(--rd-ink-mute);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 80ms ease, color 80ms ease, border-color 80ms ease;
+}
+[data-redesign] .rd-open-q__clear:hover,
+[data-redesign] .rd-open-q__clear:focus-visible {
+  background: var(--rd-accent-tint);
+  border-color: var(--rd-accent-ring);
+  color: var(--rd-accent-strong);
+  outline: none;
+}
+
+/* Flash highlight when jumping to a turn from open-questions */
+[data-redesign] .rd-flash-attention {
+  animation: rd-flash-attn 1.6s ease-out;
+}
+@keyframes rd-flash-attn {
+  0%   { box-shadow: 0 0 0 0 var(--rd-accent); background: var(--rd-accent-tint); }
+  40%  { box-shadow: 0 0 0 4px var(--rd-accent-soft); background: var(--rd-accent-tint); }
+  100% { box-shadow: 0 0 0 0 transparent; background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-flash-attention {
+    animation: none;
+    outline: 2px solid var(--rd-accent);
+    outline-offset: 2px;
+  }
+}
+
+/* ───────── Sprint 3 P1.4 — inline correction ───────── */
+
+/* Floating "Correct this" bubble shown above text selection */
+[data-redesign] .rd-correct-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--rd-paper);
+  color: var(--rd-ink);
+  border: 1px solid var(--rd-line-strong);
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.20);
+  font-family: var(--rd-font-display);
+  font-size: 12.5px;
+  font-weight: 590;
+  cursor: pointer;
+  z-index: 95;
+  white-space: nowrap;
+  animation: rd-correct-bubble-in 120ms ease-out;
+}
+@keyframes rd-correct-bubble-in {
+  from { opacity: 0; transform: translate(-50%, calc(-100% + 4px)); }
+  to   { opacity: 1; transform: translate(-50%, -100%); }
+}
+[data-redesign] .rd-correct-bubble:hover,
+[data-redesign] .rd-correct-bubble:focus-visible {
+  background: var(--rd-accent);
+  color: #fff;
+  border-color: var(--rd-accent);
+  outline: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-correct-bubble {
+    animation: none;
+  }
+}
+
+/* Modal overlay + dialog for the correction editor */
+[data-redesign] .rd-correct-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+  display: grid;
+  place-items: center;
+  z-index: 110;
+  animation: rd-correct-fade-in 140ms ease-out;
+}
+@keyframes rd-correct-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+[data-redesign] .rd-correct-dialog {
+  background: var(--rd-paper);
+  border: 1px solid var(--rd-line-strong);
+  border-radius: var(--rd-r-sm);
+  width: min(560px, calc(100vw - 32px));
+  padding: 18px 18px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.40);
+}
+[data-redesign] .rd-correct-dialog__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+[data-redesign] .rd-correct-dialog__close {
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: 0;
+  color: var(--rd-ink-mute);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+[data-redesign] .rd-correct-dialog__close:hover {
+  background: var(--rd-line-faint);
+  color: var(--rd-ink);
+}
+[data-redesign] .rd-correct-dialog__label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  color: var(--rd-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+[data-redesign] .rd-correct-dialog__original {
+  padding: 10px 12px;
+  background: var(--rd-line-faint);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--rd-ink);
+  line-height: 1.5;
+}
+[data-redesign] .rd-correct-dialog__original p {
+  margin: 0;
+}
+[data-redesign] .rd-correct-dialog__edit {
+  display: flex;
+  flex-direction: column;
+}
+[data-redesign] .rd-correct-dialog__textarea {
+  background: var(--rd-paper);
+  border: 1px solid var(--rd-line-strong);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: var(--rd-font-display);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--rd-ink);
+  resize: vertical;
+}
+[data-redesign] .rd-correct-dialog__textarea:focus-visible {
+  outline: 2px solid var(--rd-accent);
+  outline-offset: 1px;
+  border-color: var(--rd-accent);
+}
+[data-redesign] .rd-correct-dialog__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* ───────── Sprint 2 P0.3 — counterfactual probe ───────── */
