@@ -151,9 +151,9 @@ interface Turn {
 
 const STARTER_ANSWER: ChatAnswer = {
   shortAnswer:
-    "NodeBench can turn one question into a reusable report with claims, source rows, notebook blocks, and a next action.",
+    "NodeBench turns one question into a reusable report with claims [1], source rows [2], notebook blocks, and a next action [3].",
   whyItMatters:
-    "The important shift is not a one-off answer. The useful artifact is the reusable entity memory that can be reviewed, exported, and multiplied across a list.",
+    "The important shift is not a one-off answer. The useful artifact is the reusable entity memory [1] that can be reviewed, exported, and multiplied across a list [2].",
   evidence: [
     { idx: 1, quote: "Live artifacts hydrate from Convex when available.", source: "NodeBench runtime" },
     { idx: 2, quote: "Reports preserve notebook, claim, source, and follow-up state.", source: "Redesign route contract" },
@@ -289,6 +289,13 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
     ];
   }, [liveArtifacts.reports]);
   const liveSeedKey = liveDetail?.id ?? (liveArtifacts.isLoading ? "loading" : "empty");
+  // Demo / showcase escape hatch: ?fresh=1 forces an empty thread so the
+  // ChatEmptyState starter chips appear, regardless of any live artifact.
+  // Used by scripts/ui/recordChatSprintsDemo.mjs to exercise inline-cite
+  // affordances (P0.1 hover popover, P2.9 freshness, P0.3 probe) which
+  // require [N] markers in body prose.
+  const skipLiveSeed = typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).has("fresh");
   const liveStarters = useMemo(() => {
     if (!liveDetail) return undefined;
     return [
@@ -330,6 +337,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
   const compareTurn = compareTurnId ? turns.find((t) => t.id === compareTurnId) : undefined;
 
   useEffect(() => {
+    if (skipLiveSeed) return;
     if (liveSeedKey === "loading" || seedKey === liveSeedKey) return;
     setTurns(buildSeedTurns(liveDetail));
     setCtx(liveDetail ? `Asking about: ${liveDetail.title}` : contextLabel);
