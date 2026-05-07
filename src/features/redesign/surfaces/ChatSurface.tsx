@@ -148,8 +148,12 @@ interface Turn {
   createdAt?: number;
   packet?: ChatAnswer;
   tier?: RouterTier;
-  /** Phase 1 real chat — reproducibility hash for /redesign/chat/r/{hash}. */
+  /** Phase 1+ real chat — reproducibility hash for /redesign/chat/r/{hash}. */
   runHash?: string;
+  /** Phase 2 streaming — Convex runId; while set, this turn is awaiting completion. */
+  chatRunId?: string;
+  /** Phase 2 streaming — live working-notes scratchpad text from the agent. */
+  liveScratchpad?: string;
 }
 
 /** Phase 1: map server-side trace rows to the existing ChatToolCall shape so
@@ -361,6 +365,67 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
     setSeedKey(liveSeedKey);
   }, [contextLabel, liveDetail, liveSeedKey, seedKey]);
 
+  // Phase 2 — when the streamed chat run completes, commit the final packet
+  // onto whichever turn carries the matching chatRunId. While in flight,
+  // also project the live scratchpad + partial tool calls into the turn so
+  // the UI shows progressive streaming. Convex's reactive queries re-run
+  // chatRun.state.run on every event, which triggers this effect.
+  useEffect(() => {
+    const real = chatRun.state.run;
+    if (!real) return;
+    setTurns((prev) => {
+      const idx = prev.findIndex((t) => t.chatRunId === real.runId);
+      if (idx < 0) return prev;
+      const t = prev[idx];
+      // Always reflect live scratchpad + tool-call cards as they grow.
+      const live = {
+        ...t,
+        liveScratchpad: real.scratchpad || t.liveScratchpad,
+        toolCalls: real.toolCalls.length > 0
+          ? real.toolCalls.map((tc) => ({
+              step: tc.step,
+              detail: tc.detail,
+              status: (tc.status === "ok" ? "ok"
+                : tc.status === "error" ? "error"
+                : tc.status === "warn" ? "warn"
+                : "ok") as ToolCall["status"],
+              durationMs: tc.durationMs,
+              tool: tc.step.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
+            }))
+          : t.toolCalls,
+      };
+      // Once the run is complete, snap to the final packet.
+      if (real.status === "complete" && real.packet?.shortAnswer) {
+        const next = { ...live, thinking: false, packet: real.packet, runHash: real.hash };
+        const out = [...prev];
+        out[idx] = next;
+        return out;
+      }
+      // Error → fall back to a fixture so the user isn't left staring.
+      if (real.status === "error") {
+        const next = {
+          ...live,
+          thinking: false,
+          packet: liveDetail ? liveAnswer(liveDetail) : STARTER_ANSWER,
+          toolCalls: liveDetail ? liveToolCalls(liveDetail) : SAMPLE_TOOL_CALLS,
+        };
+        const out = [...prev];
+        out[idx] = next;
+        showToast({
+          tone: "warning",
+          message: real.errorMessage
+            ? `Real chat failed: ${real.errorMessage.slice(0, 100)}. Showing showcase fallback.`
+            : "Real chat failed — showing showcase fallback.",
+        });
+        return out;
+      }
+      // Otherwise still in flight — keep thinking, but reflect live progress.
+      const out = [...prev];
+      out[idx] = live;
+      return out;
+    });
+  }, [chatRun.state.run, liveDetail]);
+
   const sendMessage = (text: string, submittedTier: RouterTier) => {
     const now = Date.now();
     const userId = `u${turns.length + 1}`;
@@ -370,20 +435,21 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
       { id: userId, role: "user", text, createdAt: now },
       { id: assistantId, role: "assistant", thinking: true, tier: submittedTier, createdAt: now + 50 },
     ]);
-    // Phase 1: if real chat is available (authenticated user, no ?fresh=1),
-    // run the Convex action that calls Gemini with web-search grounding and
-    // returns a real AnswerPacket with grounded source URLs. Fixture fallback
-    // for unauthenticated visitors / showcase mode keeps demos working offline.
+    // Phase 2: if real chat is available, kick off a streaming run via
+    // Convex scheduler. submit() returns a runId in <100ms; the projected
+    // run state (packet + scratchpad + tool calls + grounding) arrives
+    // reactively via Convex queries. The effect below watches for
+    // status === "complete" to commit the final packet onto this turn.
     if (chatRun.state.available && !_skipLiveSeed) {
-      void chatRun.submit(text, submittedTier, liveDetail?.id).then((real) => {
-        if (real) {
+      void chatRun.submit(text, submittedTier, liveDetail?.id).then((runId) => {
+        if (runId) {
           setTurns((prev) => prev.map((t) =>
             t.id === assistantId
-              ? { ...t, thinking: false, toolCalls: traceToToolCalls(real.packet.trace), packet: real.packet, runHash: real.hash }
+              ? { ...t, chatRunId: runId }
               : t,
           ));
         } else {
-          // Real chat failed — fall back to fixture so the user gets *something*
+          // Submit failed (e.g. auth lost) — fall back to fixture
           setTurns((prev) => prev.map((t) =>
             t.id === assistantId
               ? { ...t, thinking: false, toolCalls: liveDetail ? liveToolCalls(liveDetail) : SAMPLE_TOOL_CALLS, packet: liveDetail ? liveAnswer(liveDetail) : STARTER_ANSWER }
