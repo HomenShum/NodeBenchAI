@@ -79,18 +79,39 @@ async function pause(page, ms, label) {
   try {
     // Scene 0 — Land on /redesign/chat?fresh=1 (skips live-detail seed)
     note("scene-0: navigate /redesign/chat?fresh=1 (no live seed → starter chips)");
-    await page.goto(`${BASE_URL}/redesign/chat?fresh=1`, { waitUntil: "networkidle", timeout: 30_000 });
-    await pause(page, 2000);
-
-    // Scene 1 — Click the "Run diligence on a company" starter chip → STARTER_ANSWER with inline cites
-    note("scene-1: click starter chip");
-    const starter = page.locator('button:has-text("Run diligence on a company")').first();
-    const starterReady = await starter.count();
-    check("starter-chip-visible", starterReady > 0);
-    if (starterReady) {
-      await starter.click();
-      await pause(page, 3500, "wait for AnswerPacket to render");
+    // Disable SW before first nav so headless Chromium doesn't get stale cache
+    await context.addInitScript(() => {
+      if (navigator.serviceWorker) {
+        navigator.serviceWorker.getRegistrations()
+          .then((rs) => rs.forEach((r) => r.unregister()))
+          .catch(() => {});
+      }
+    });
+    await page.goto(`${BASE_URL}/redesign/chat?fresh=1`, { waitUntil: "domcontentloaded", timeout: 30_000 });
+    // Wait for either: empty state (preferred) OR a chat message header
+    // (fallback if ?fresh=1 was overridden).
+    const emptyOrMsg = await Promise.race([
+      page.waitForSelector(".rd-chat-empty", { timeout: 20_000, state: "visible" }).then(() => "empty"),
+      page.waitForSelector(".rd-chat-msg--assistant", { timeout: 20_000, state: "visible" }).then(() => "msg"),
+    ]).catch(() => "neither");
+    note(`scene-0 hydration: ${emptyOrMsg}`);
+    check("hydration-reaches-chat", emptyOrMsg !== "neither", emptyOrMsg);
+    if (emptyOrMsg === "neither") {
+      const html = await page.content();
+      const snippet = html.slice(0, 400).replace(/\s+/g, " ");
+      note(`hydration-debug: ${snippet}`);
     }
+    await pause(page, 1500);
+
+    // Scene 1 — Wait for SEED_TURNS to populate with STARTER_ANSWER.
+    // With ?fresh=1 in place, ChatSurface aliases liveDetail=null which makes
+    // buildSeedTurns return SEED_TURNS (containing STARTER_ANSWER with inline
+    // [N] markers). No starter-chip click needed.
+    note("scene-1: wait for SEED_TURNS / STARTER_ANSWER render");
+    await page.waitForSelector(".rd-chat-msg__meta", { timeout: 15_000, state: "visible" }).catch(() => {});
+    const starterAnswerRendered = await page.locator(".rd-chat-msg--assistant").count();
+    check("starter-answer-rendered", starterAnswerRendered > 0, `${starterAnswerRendered} assistant turns`);
+    await pause(page, 1500, "AnswerPacket rendered");
 
     // Scene 2 — Cost-per-turn header (P1.5)
     note("scene-2: cost-per-turn header");
