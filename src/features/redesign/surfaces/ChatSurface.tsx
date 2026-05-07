@@ -580,7 +580,7 @@ function AnswerPacket({
         <header className="rd-chat-msg__header">
           <span className="rd-chat-msg__name">NodeBench</span>
           <span className="rd-chat-msg__sep">·</span>
-          <span className="rd-chat-msg__meta">{tierMeta.label} tier · {packet.sourceCount} sources</span>
+          <span className="rd-chat-msg__meta">{tierMeta.label} tier · {packet.sourceCount} sources · {formatTraceCost(packet)}</span>
           {createdAt && <span className="rd-chat-msg__when"><LiveTime at={createdAt} /></span>}
         </header>
 
@@ -610,7 +610,7 @@ function AnswerPacket({
           letterSpacing: "-0.18px",
           margin: 0,
         }}>
-          {renderInlineWithCites(packet.shortAnswer, packet.evidence.length, handleCiteEnter, handleCiteLeave)}
+          {renderInlineWithCites(packet.shortAnswer, packet.evidence, handleCiteEnter, handleCiteLeave)}
         </p>
       </section>
 
@@ -714,12 +714,27 @@ function AnswerPacket({
 }
 
 /**
+ * Sprint 1 P1.5 — total elapsed + estimated cost from trace durations.
+ * Showcase rate: $0.005/sec (replace with real provider billing once chat is live-wired).
+ */
+function formatTraceCost(packet: typeof sampleAnswer): string {
+  const totalMs = packet.trace.reduce((sum, step) => sum + (step.durationMs ?? 0), 0);
+  const timeStr = totalMs < 1000 ? `${totalMs}ms` : `${(totalMs / 1000).toFixed(1)}s`;
+  const usd = (totalMs / 1000) * 0.005;
+  const costStr = usd >= 0.01 ? `$${usd.toFixed(3)}` : `<$0.01`;
+  return `${timeStr} · ${costStr}`;
+}
+
+/**
  * Render text with [N] citation patterns turned into interactive chips.
- * Hovering a [N] in body fires the linkage handler so the evidence row highlights.
+ *
+ * Sprint 1 P0.1 — hover the chip to see the source quote + provenance in a popover.
+ * The popover is pure-CSS positioned (`.rd-cite-wrap`) so no JS positioning math.
+ * Hovering a [N] also fires the linkage handler so the evidence row highlights.
  */
 function renderInlineWithCites(
   text: string,
-  maxIdx: number,
+  evidence: typeof sampleAnswer.evidence,
   onEnter: (idx: number) => void,
   onLeave: () => void,
 ): ReactNode[] {
@@ -729,22 +744,35 @@ function renderInlineWithCites(
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     const idx = Number(m[1]);
-    if (idx < 1 || idx > maxIdx) continue;
+    const cite = evidence.find((e) => e.idx === idx);
+    if (!cite) continue;
     if (m.index > last) out.push(<span key={`t${last}`}>{text.slice(last, m.index)}</span>);
     out.push(
-      <a
-        key={`c${m.index}`}
-        href={`#cite-${idx}`}
-        className="rd-cite"
-        data-cite={idx}
-        onMouseEnter={() => onEnter(idx)}
-        onMouseLeave={onLeave}
-        onClick={(e) => {
-          e.preventDefault();
-          const target = document.querySelector(`.rd-evidence-row[data-cite="${idx}"]`);
-          target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-        }}
-      >{idx}</a>,
+      <span key={`c${m.index}`} className="rd-cite-wrap">
+        <a
+          href={`#cite-${idx}`}
+          className="rd-cite"
+          data-cite={idx}
+          aria-describedby={`rd-cite-pop-${idx}`}
+          onMouseEnter={() => onEnter(idx)}
+          onMouseLeave={onLeave}
+          onFocus={() => onEnter(idx)}
+          onBlur={onLeave}
+          onClick={(e) => {
+            e.preventDefault();
+            const target = document.querySelector(`.rd-evidence-row[data-cite="${idx}"]`);
+            target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          }}
+        >{idx}</a>
+        <span
+          id={`rd-cite-pop-${idx}`}
+          className="rd-cite-popover"
+          role="tooltip"
+        >
+          <span className="rd-cite-popover__quote">&ldquo;{cite.quote}&rdquo;</span>
+          <span className="rd-cite-popover__source">{cite.source}</span>
+        </span>
+      </span>,
     );
     last = m.index + m[0].length;
   }
