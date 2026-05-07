@@ -15595,20 +15595,55 @@ export default defineSchema({
    */
   redesignChatRuns: defineTable({
     runId: v.string(),
-    hash: v.string(),
+    hash: v.optional(v.string()),
     userId: v.optional(v.id("users")),
     prompt: v.string(),
     tier: v.string(),
     model: v.string(),
-    /** Full AnswerPacket payload — shortAnswer/evidence/risks/etc. */
-    packet: v.any(),
-    totalLatencyMs: v.number(),
-    totalTokens: v.number(),
-    estimatedCostUsd: v.number(),
+    /**
+     * Phase 2 lifecycle:
+     *   "pending"  — scheduled, not yet picked up by internal action
+     *   "running"  — events flowing
+     *   "complete" — final packet bound; hash computed
+     *   "error"    — failed (errorMessage populated)
+     */
+    status: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    /** Final AnswerPacket — populated when status === "complete". */
+    packet: v.optional(v.any()),
+    totalLatencyMs: v.optional(v.number()),
+    totalTokens: v.optional(v.number()),
+    estimatedCostUsd: v.optional(v.number()),
     createdAt: v.number(),
+    completedAt: v.optional(v.number()),
   })
+    .index("by_runId", ["runId"])
     .index("by_hash", ["hash"])
     .index("by_user_created", ["userId", "createdAt"]),
+
+  /**
+   * Phase 2 streaming event log. Frontend useQuery subscribes by runId
+   * and gets reactive updates as each event lands — Convex's native
+   * streaming pattern (no HTTP SSE plumbing required).
+   *
+   * Event types:
+   *   "stage"           — classify / context / synthesis / bind orchestrator stages
+   *   "scratchpad"      — agent's working notes (streamed prose chunks)
+   *   "tool_call"       — tool fired with detail + status + duration
+   *   "grounding_chunk" — a single grounded source URL + title arrived
+   *   "section"         — a structured AnswerPacket section committed
+   *   "packet_complete" — final assembly; full packet now in redesignChatRuns
+   *   "error"           — terminal failure
+   */
+  redesignChatStreamEvents: defineTable({
+    runId: v.string(),
+    /** Monotonic sequence number per runId, for ordering. */
+    idx: v.number(),
+    eventType: v.string(),
+    payload: v.any(),
+    createdAt: v.number(),
+  })
+    .index("by_run_idx", ["runId", "idx"]),
 
   /** Inbox snooze records — soft-hide an inbox item until a future timestamp. */
   inboxSnoozes: defineTable({
