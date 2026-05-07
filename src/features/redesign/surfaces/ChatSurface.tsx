@@ -272,7 +272,12 @@ function buildSeedTurns(detail?: LiveArtifactDetail): Turn[] {
 
 export function ChatSurface({ contextLabel = "Asking about: current context" }: ChatSurfaceProps) {
   const liveArtifacts = useLiveArtifacts(24);
-  const liveDetail = liveArtifacts.details[0];
+  const _rawLiveDetail = liveArtifacts.details[0];
+  // ?fresh=1 escape hatch: treat as if no live artifact is loaded (uses
+  // STARTER_ANSWER with inline [N] cites for the chat-sprints demo recorder).
+  const _skipLiveSeed = typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).has("fresh");
+  const liveDetail = _skipLiveSeed ? null : _rawLiveDetail;
   const batchTargets = useMemo<BatchTarget[]>(() => {
     if (liveArtifacts.reports.length === 0) return [];
     return [
@@ -289,13 +294,6 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
     ];
   }, [liveArtifacts.reports]);
   const liveSeedKey = liveDetail?.id ?? (liveArtifacts.isLoading ? "loading" : "empty");
-  // Demo / showcase escape hatch: ?fresh=1 forces an empty thread so the
-  // ChatEmptyState starter chips appear, regardless of any live artifact.
-  // Used by scripts/ui/recordChatSprintsDemo.mjs to exercise inline-cite
-  // affordances (P0.1 hover popover, P2.9 freshness, P0.3 probe) which
-  // require [N] markers in body prose.
-  const skipLiveSeed = typeof window !== "undefined"
-    && new URLSearchParams(window.location.search).has("fresh");
   const liveStarters = useMemo(() => {
     if (!liveDetail) return undefined;
     return [
@@ -337,7 +335,6 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
   const compareTurn = compareTurnId ? turns.find((t) => t.id === compareTurnId) : undefined;
 
   useEffect(() => {
-    if (skipLiveSeed) return;
     if (liveSeedKey === "loading" || seedKey === liveSeedKey) return;
     setTurns(buildSeedTurns(liveDetail));
     setCtx(liveDetail ? `Asking about: ${liveDetail.title}` : contextLabel);
