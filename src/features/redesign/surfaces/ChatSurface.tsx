@@ -20,6 +20,8 @@ import { MessageActions } from "../components/MessageActions";
 import { ChatEmptyState } from "../components/ChatEmptyState";
 import { showToast } from "../components/Toast";
 import { useRedesignChatRun } from "../hooks/useRedesignChatRun";
+import { useMutation } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
 
 /**
  * Sprint 3 P2.11 — fixture for the open-questions tray (claims flagged
@@ -297,6 +299,8 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
   const _rawLiveDetail = liveArtifacts.details[0];
   // Phase 1 — real LLM chat behind the composer for authenticated users.
   const chatRun = useRedesignChatRun();
+  // Phase 4 — real reactions for inline correction + 👍/👎 toolbar.
+  const recordReaction = useMutation(api.domains.redesign.agentRunFeedback.recordReaction);
   // ?fresh=1 escape hatch: treat as if no live artifact is loaded (uses
   // STARTER_ANSWER with inline [N] cites for the chat-sprints demo recorder).
   const _skipLiveSeed = typeof window !== "undefined"
@@ -693,8 +697,27 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
         </div>
       </div>
 
-      {/* Sprint 3 P1.4 — selection-based inline correction */}
-      <InlineCorrection />
+      {/* Sprint 3 P1.4 + Phase 4 — selection-based inline correction.
+          When authenticated, save persists the correction as a 👎 reaction
+          with note via recordReaction (eval-flywheel signal). */}
+      <InlineCorrection
+        onSave={chatRun.state.available && chatRun.state.run?.runId ? (
+          async (original, correction) => {
+            try {
+              await recordReaction({
+                runId: chatRun.state.run!.runId,
+                runSource: "redesign-chat",
+                turnId: undefined,
+                reaction: "down",
+                note: `[correction] original: "${original.slice(0, 200)}" → corrected: "${correction.slice(0, 280)}"`,
+              });
+              return { ok: true };
+            } catch (err: any) {
+              return { ok: false, message: (err?.message || String(err)).slice(0, 200) };
+            }
+          }
+        ) : undefined}
+      />
 
       {/* Sprint 4 P2.7 — A/B compare modal */}
       {compareTurn?.packet && (
@@ -798,13 +821,19 @@ function OpenQuestionsTray() {
  * `proposeMemoryPatch` from convex/domains/operatorProfile/manifest.ts
  * (PR #239) so the correction lands in /redesign/me's Memory Update Inbox.
  */
-function InlineCorrection() {
+interface InlineCorrectionProps {
+  /** Phase 4 — when set, save calls a real mutation against this run. */
+  onSave?: (original: string, correction: string) => Promise<{ ok: boolean; message?: string }>;
+}
+
+function InlineCorrection({ onSave }: InlineCorrectionProps = {}) {
   const [bubble, setBubble] = useState<{
     x: number;
     y: number;
     text: string;
   } | null>(null);
   const [editing, setEditing] = useState<{ original: string; draft: string } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (editing) return; // pause selection observer while editing
@@ -859,22 +888,44 @@ function InlineCorrection() {
     window.getSelection()?.removeAllRanges();
   };
 
-  const save = () => {
+  const save = async () => {
     if (!editing) return;
     if (editing.draft.trim() === editing.original.trim()) {
       showToast({ tone: "info", message: "No change to save." });
-    } else {
-      showToast({
-        tone: "success",
-        message: "Memory patch queued. Review at /redesign/me.",
-        action: {
-          label: "Open Me",
-          onClick: () => {
-            window.location.href = "/redesign/me";
-          },
-        },
-      });
+      setEditing(null);
+      return;
     }
+    if (onSave) {
+      // Phase 4 — real persistence path. Calls recordReaction with the
+      // correction text as a 👎 note; the eval flywheel surfaces it.
+      setBusy(true);
+      try {
+        const result = await onSave(editing.original, editing.draft);
+        showToast({
+          tone: result.ok ? "success" : "warning",
+          message: result.message || (result.ok
+            ? "Correction saved. Review at /redesign/me."
+            : "Could not save correction — try again."),
+          action: result.ok ? {
+            label: "Open Me",
+            onClick: () => { window.location.href = "/redesign/me"; },
+          } : undefined,
+        });
+      } finally {
+        setBusy(false);
+        setEditing(null);
+      }
+      return;
+    }
+    // Showcase fallback — anonymous user / fixture mode
+    showToast({
+      tone: "info",
+      message: "Sign in to persist corrections to memory.",
+      action: {
+        label: "Open Me",
+        onClick: () => { window.location.href = "/redesign/me"; },
+      },
+    });
     setEditing(null);
   };
 
@@ -932,8 +983,8 @@ function InlineCorrection() {
               <button type="button" className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => setEditing(null)}>
                 Cancel
               </button>
-              <button type="button" className="rd-btn rd-btn--primary rd-btn--sm" onClick={save}>
-                Queue patch
+              <button type="button" className="rd-btn rd-btn--primary rd-btn--sm" onClick={save} disabled={busy}>
+                {busy ? "Saving…" : "Queue patch"}
               </button>
             </div>
           </div>
