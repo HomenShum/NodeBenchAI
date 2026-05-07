@@ -32,6 +32,7 @@ import { ChatSurface } from "./surfaces/ChatSurface";
 import { InboxSurface } from "./surfaces/InboxSurface";
 import { MeSurface } from "./surfaces/MeSurface";
 import { WorkspaceSurface } from "./surfaces/WorkspaceSurface";
+import { ReproducibleChatPage } from "./pages/ReproducibleChatPage";
 import { useLiveArtifacts } from "./hooks/useLiveArtifacts";
 import type { SurfaceId } from "./fixtures";
 
@@ -53,6 +54,12 @@ function pathToSurface(pathname: string): SurfaceId | "workspace" {
 function pathToReportId(pathname: string): string | null {
   // /redesign/reports/<id> → <id>
   const match = pathname.match(/^\/redesign\/reports\/([^/]+)/);
+  return match?.[1] ?? null;
+}
+
+function pathToChatHash(pathname: string): string | null {
+  // /redesign/chat/r/<hash> → <hash> (Phase 3 reproducibility URL)
+  const match = pathname.match(/^\/redesign\/chat\/r\/([A-Za-z0-9_-]+)/);
   return match?.[1] ?? null;
 }
 
@@ -80,6 +87,7 @@ export default function RedesignShell() {
 
   const surface = useMemo(() => pathToSurface(location.pathname), [location.pathname]);
   const reportId = useMemo(() => pathToReportId(location.pathname), [location.pathname]);
+  const chatHash = useMemo(() => pathToChatHash(location.pathname), [location.pathname]);
   const workspace = useMemo(() => workspaceParams(location.search), [location.search]);
   const shellLiveArtifacts = useLiveArtifacts(24);
   const railStats = useMemo(() => ({
@@ -141,7 +149,9 @@ export default function RedesignShell() {
 
   // Single-pane surfaces (Home, Reports, Inbox, Me) → no right rail
   // Two-pane surfaces (Chat) → right inspector visible
-  const showInspector = surface === "chat";
+  // Phase 3 — /redesign/chat/r/{hash} is a chat sub-route but renders a
+  // standalone reproducible answer page; suppress the right inspector.
+  const showInspector = surface === "chat" && !chatHash;
 
   return (
     <div data-redesign data-redesign-theme={theme} style={{ height: "100vh", overflow: "hidden" }}>
@@ -162,6 +172,8 @@ export default function RedesignShell() {
           </div>
         ) : (
           <main className="rd-pane" style={{ borderRight: "none" }}>
+            {/* Phase 3 — /redesign/chat/r/{hash} renders the immutable cached run. */}
+            {surface === "chat" && chatHash && <ReproducibleChatPage hash={chatHash} />}
             {surface === "home" && (
               <HomeSurface
                 onAsk={() => goSurface("chat")}
