@@ -19,6 +19,7 @@ import { ChatToolCall, type ToolCall } from "../components/ChatToolCall";
 import { MessageActions } from "../components/MessageActions";
 import { ChatEmptyState } from "../components/ChatEmptyState";
 import { showToast } from "../components/Toast";
+import { useRedesignChatRun } from "../hooks/useRedesignChatRun";
 
 /**
  * Sprint 3 P2.11 — fixture for the open-questions tray (claims flagged
@@ -147,6 +148,23 @@ interface Turn {
   createdAt?: number;
   packet?: ChatAnswer;
   tier?: RouterTier;
+  /** Phase 1 real chat — reproducibility hash for /redesign/chat/r/{hash}. */
+  runHash?: string;
+}
+
+/** Phase 1: map server-side trace rows to the existing ChatToolCall shape so
+ *  the inline tool-call card list (Sprint 1 affordance) renders real timings. */
+function traceToToolCalls(trace: ChatAnswer["trace"]): ToolCall[] {
+  return trace.map((row) => ({
+    step: row.step,
+    detail: row.detail,
+    status: row.status === "ok" ? "ok"
+      : row.status === "error" ? "error"
+      : row.status === "warn" ? "warn"
+      : "ok",
+    durationMs: row.durationMs,
+    tool: row.step.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
+  }));
 }
 
 const STARTER_ANSWER: ChatAnswer = {
@@ -273,6 +291,8 @@ function buildSeedTurns(detail?: LiveArtifactDetail): Turn[] {
 export function ChatSurface({ contextLabel = "Asking about: current context" }: ChatSurfaceProps) {
   const liveArtifacts = useLiveArtifacts(24);
   const _rawLiveDetail = liveArtifacts.details[0];
+  // Phase 1 — real LLM chat behind the composer for authenticated users.
+  const chatRun = useRedesignChatRun();
   // ?fresh=1 escape hatch: treat as if no live artifact is loaded (uses
   // STARTER_ANSWER with inline [N] cites for the chat-sprints demo recorder).
   const _skipLiveSeed = typeof window !== "undefined"
@@ -350,7 +370,30 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
       { id: userId, role: "user", text, createdAt: now },
       { id: assistantId, role: "assistant", thinking: true, tier: submittedTier, createdAt: now + 50 },
     ]);
-    // Simulate the tool-call sequence streaming in over ~2.5s, then snap to the final packet
+    // Phase 1: if real chat is available (authenticated user, no ?fresh=1),
+    // run the Convex action that calls Gemini with web-search grounding and
+    // returns a real AnswerPacket with grounded source URLs. Fixture fallback
+    // for unauthenticated visitors / showcase mode keeps demos working offline.
+    if (chatRun.state.available && !_skipLiveSeed) {
+      void chatRun.submit(text, submittedTier, liveDetail?.id).then((real) => {
+        if (real) {
+          setTurns((prev) => prev.map((t) =>
+            t.id === assistantId
+              ? { ...t, thinking: false, toolCalls: traceToToolCalls(real.packet.trace), packet: real.packet, runHash: real.hash }
+              : t,
+          ));
+        } else {
+          // Real chat failed — fall back to fixture so the user gets *something*
+          setTurns((prev) => prev.map((t) =>
+            t.id === assistantId
+              ? { ...t, thinking: false, toolCalls: liveDetail ? liveToolCalls(liveDetail) : SAMPLE_TOOL_CALLS, packet: liveDetail ? liveAnswer(liveDetail) : STARTER_ANSWER }
+              : t,
+          ));
+        }
+      });
+      return;
+    }
+    // Showcase / fixture path
     window.setTimeout(() => {
       setTurns((prev) => prev.map((t) =>
         t.id === assistantId

@@ -15583,6 +15583,33 @@ export default defineSchema({
   })
     .index("by_user_monitoring", ["userId", "monitoring"]),
 
+  /**
+   * Phase 1 of production-fidelity chat — every real chat run is persisted
+   * by reproducibility hash so the Sprint 4 P2.13 share URL
+   * (/redesign/chat/r/{hash}) can serve the immutable answer back to anyone
+   * with the link. Same packet → same hash → same URL across deploys.
+   *
+   * runId is unique per run; hash is unique per {prompt, tier, model,
+   * shortAnswer, sortedEvidenceUrls} combination — same input → same cached
+   * run, idempotent re-runs collapse onto the same row.
+   */
+  redesignChatRuns: defineTable({
+    runId: v.string(),
+    hash: v.string(),
+    userId: v.optional(v.id("users")),
+    prompt: v.string(),
+    tier: v.string(),
+    model: v.string(),
+    /** Full AnswerPacket payload — shortAnswer/evidence/risks/etc. */
+    packet: v.any(),
+    totalLatencyMs: v.number(),
+    totalTokens: v.number(),
+    estimatedCostUsd: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_hash", ["hash"])
+    .index("by_user_created", ["userId", "createdAt"]),
+
   /** Inbox snooze records — soft-hide an inbox item until a future timestamp. */
   inboxSnoozes: defineTable({
     userId: v.id("users"),
