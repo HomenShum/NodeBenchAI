@@ -991,6 +991,7 @@ import type * as domains_recommendations_behaviorTracking from "../domains/recom
 import type * as domains_recommendations_index from "../domains/recommendations/index.js";
 import type * as domains_recommendations_recommendationEngine from "../domains/recommendations/recommendationEngine.js";
 import type * as domains_redesign_agentRunFeedback from "../domains/redesign/agentRunFeedback.js";
+import type * as domains_redesign_chatRuns from "../domains/redesign/chatRuns.js";
 import type * as domains_redesign_documentPatches from "../domains/redesign/documentPatches.js";
 import type * as domains_redesign_inboxSnoozes from "../domains/redesign/inboxSnoozes.js";
 import type * as domains_redesign_styleProfile from "../domains/redesign/styleProfile.js";
@@ -2468,6 +2469,7 @@ declare const fullApi: ApiFromModules<{
   "domains/recommendations/index": typeof domains_recommendations_index;
   "domains/recommendations/recommendationEngine": typeof domains_recommendations_recommendationEngine;
   "domains/redesign/agentRunFeedback": typeof domains_redesign_agentRunFeedback;
+  "domains/redesign/chatRuns": typeof domains_redesign_chatRuns;
   "domains/redesign/documentPatches": typeof domains_redesign_documentPatches;
   "domains/redesign/inboxSnoozes": typeof domains_redesign_inboxSnoozes;
   "domains/redesign/styleProfile": typeof domains_redesign_styleProfile;
