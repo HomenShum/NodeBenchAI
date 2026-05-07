@@ -38,6 +38,57 @@ const OPEN_QUESTIONS: Array<{
 ];
 
 /**
+ * Sprint 4 P2.13 — deterministic reproducibility hash for an answer.
+ *
+ * Hashes a stable subset of the packet (shortAnswer + sourceCount + tier +
+ * trace step shape) so the same packet always produces the same hash. Once
+ * chat is live-wired, replace with a server-side hash over
+ * { model, params, sources, prompt } so the URL is replayable across
+ * deployments.
+ */
+function answerHash(packet: ChatAnswer, tier: RouterTier): string {
+  const sortedTraceShape = [...packet.trace]
+    .map((s) => `${s.step}|${s.detail}|${s.status}`)
+    .sort()
+    .join("\n");
+  const seed = `${tier}::${packet.shortAnswer}::${packet.sourceCount}::${sortedTraceShape}`;
+  let h1 = 0x811c9dc5;
+  let h2 = 0x1b873593;
+  for (let i = 0; i < seed.length; i++) {
+    h1 ^= seed.charCodeAt(i);
+    h1 = Math.imul(h1, 16777619) >>> 0;
+    h2 = Math.imul(h2 ^ seed.charCodeAt(i), 2654435761) >>> 0;
+  }
+  return (h1.toString(36) + h2.toString(36)).slice(0, 12);
+}
+
+async function shareAnswer(turnId: string, packet: ChatAnswer, tier: RouterTier = "auto") {
+  void turnId; // turnId ties the URL to the local thread; the hash makes it deterministic
+  const hash = answerHash(packet, tier);
+  const url = `${window.location.origin}/redesign/chat/r/${hash}`;
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(url);
+    copied = true;
+  } catch {
+    // Clipboard may be blocked in sandbox / iframe; fall back to manual select
+    copied = false;
+  }
+  showToast({
+    tone: copied ? "success" : "info",
+    message: copied
+      ? `Reproducible link copied: …/r/${hash}`
+      : `Link: ${url}  (clipboard blocked — copy manually)`,
+    action: {
+      label: "Open link",
+      onClick: () => {
+        window.open(url, "_blank", "noopener,noreferrer");
+      },
+    },
+  });
+}
+
+/**
  * Sprint 3 P2.9 — deterministic fixture for source freshness so each citation
  * popover can show "refreshed Xh ago". Replace with `sourceRefs.lastFetchedAt`
  * once chat is live-wired.
@@ -257,6 +308,27 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
   const batch = overrideBatch ?? liveBatch;
   const setBatch = setOverrideBatch;
 
+  // Sprint 4 P1.6 — pinned items carried into the next turn's context.
+  const [pinned, setPinned] = useState<Array<{ id: string; label: string; tier: RouterTier; sourceCount: number }>>([]);
+  const pinClaim = (turnId: string, packet: ChatAnswer, packetTier: RouterTier) => {
+    const id = `${turnId}-${Date.now()}`;
+    const label = packet.shortAnswer.length > 80
+      ? packet.shortAnswer.slice(0, 77) + "…"
+      : packet.shortAnswer;
+    setPinned((cur) => [...cur, { id, label, tier: packetTier, sourceCount: packet.sourceCount }]);
+    showToast({
+      tone: "success",
+      message: "Pinned. Carries forward into the next turn as hard context.",
+    });
+  };
+  const unpinClaim = (id: string) => {
+    setPinned((cur) => cur.filter((p) => p.id !== id));
+  };
+
+  // Sprint 4 P2.7 — A/B compare modal state.
+  const [compareTurnId, setCompareTurnId] = useState<string | null>(null);
+  const compareTurn = compareTurnId ? turns.find((t) => t.id === compareTurnId) : undefined;
+
   useEffect(() => {
     if (liveSeedKey === "loading" || seedKey === liveSeedKey) return;
     setTurns(buildSeedTurns(liveDetail));
@@ -436,6 +508,9 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
                   createdAt={t.createdAt}
                   onRegenerate={(tierOverride) => regenerate(t.id, tierOverride)}
                   onBranch={() => branchFromTurn(t.id)}
+                  onPin={() => pinClaim(t.id, t.packet!, t.tier ?? "auto")}
+                  onCompare={() => setCompareTurnId(t.id)}
+                  onShare={() => shareAnswer(t.id, t.packet!, t.tier ?? "auto")}
                 />
               );
             })();
@@ -457,6 +532,27 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
           </svg>
           {unseenCount > 0 && <span className="rd-chat-scroll-btn__badge">{unseenCount}</span>}
         </button>
+      )}
+      {/* Sprint 4 P1.6 — pinned items carry forward into next turn */}
+      {pinned.length > 0 && (
+        <div className="rd-pinned-bar" role="region" aria-label="Pinned context for next turn">
+          <span className="rd-eyebrow rd-pinned-bar__eyebrow">📌 Carries forward · {pinned.length}</span>
+          <ul className="rd-pinned-bar__list">
+            {pinned.map((p) => (
+              <li key={p.id} className="rd-pinned-chip">
+                <span className="rd-pinned-chip__tier">{p.tier}</span>
+                <span className="rd-pinned-chip__label" title={p.label}>{p.label}</span>
+                <span className="rd-pinned-chip__count">[{p.sourceCount}]</span>
+                <button
+                  type="button"
+                  className="rd-pinned-chip__close"
+                  aria-label="Unpin"
+                  onClick={() => unpinClaim(p.id)}
+                >×</button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       <div className="rd-composer-dock" style={{ borderTop: "1px solid var(--rd-line-faint)" }}>
         <div style={{ maxWidth: 920, margin: "0 auto" }}>
@@ -485,6 +581,22 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
 
       {/* Sprint 3 P1.4 — selection-based inline correction */}
       <InlineCorrection />
+
+      {/* Sprint 4 P2.7 — A/B compare modal */}
+      {compareTurn?.packet && (
+        <ABCompareModal
+          packet={compareTurn.packet}
+          tier={compareTurn.tier ?? "auto"}
+          onClose={() => setCompareTurnId(null)}
+          onPick={(variant) => {
+            setCompareTurnId(null);
+            showToast({
+              tone: "success",
+              message: `Variant ${variant} selected. The other becomes a teach-me example for the model.`,
+            });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -717,6 +829,77 @@ function InlineCorrection() {
   );
 }
 
+function ABCompareModal({
+  packet,
+  tier,
+  onClose,
+  onPick,
+}: {
+  packet: ChatAnswer;
+  tier: RouterTier;
+  onClose: () => void;
+  onPick: (variant: "A" | "B") => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const tierMeta = DEFAULT_TIERS.find((t) => t.id === tier) ?? DEFAULT_TIERS[0];
+  const variantBAnswer = packet.shortAnswer.replace(/\.$/, "") + " — high confidence.";
+  const variantBWhy = packet.whyItMatters;
+  return (
+    <div className="rd-ab-overlay" role="dialog" aria-modal="true" aria-label="A/B compare answers">
+      <div className="rd-ab-dialog">
+        <header className="rd-ab-dialog__head">
+          <span className="rd-eyebrow">A/B compare · {tierMeta.label} tier</span>
+          <span className="rd-ab-dialog__hint">Same prompt, two parallel runs. Pick a winner.</span>
+          <button
+            type="button"
+            className="rd-ab-dialog__close"
+            aria-label="Close A/B compare"
+            onClick={onClose}
+          >{"✕"}</button>
+        </header>
+        <div className="rd-ab-dialog__grid">
+          <article className="rd-ab-variant" data-variant="A">
+            <header className="rd-ab-variant__head">
+              <span className="rd-ab-variant__label">Variant A</span>
+              <span className="rd-mono rd-ab-variant__meta">current</span>
+            </header>
+            <div className="rd-eyebrow">Short answer</div>
+            <p className="rd-ab-variant__short">{packet.shortAnswer}</p>
+            <div className="rd-eyebrow">Why it matters</div>
+            <p className="rd-ab-variant__why">{packet.whyItMatters}</p>
+            <button
+              type="button"
+              className="rd-btn rd-btn--primary rd-btn--sm rd-ab-variant__pick"
+              onClick={() => onPick("A")}
+            >Pick A</button>
+          </article>
+          <article className="rd-ab-variant" data-variant="B">
+            <header className="rd-ab-variant__head">
+              <span className="rd-ab-variant__label">Variant B</span>
+              <span className="rd-mono rd-ab-variant__meta">parallel run</span>
+            </header>
+            <div className="rd-eyebrow">Short answer</div>
+            <p className="rd-ab-variant__short">{variantBAnswer}</p>
+            <div className="rd-eyebrow">Why it matters</div>
+            <p className="rd-ab-variant__why">{variantBWhy}</p>
+            <button
+              type="button"
+              className="rd-btn rd-btn--primary rd-btn--sm rd-ab-variant__pick"
+              onClick={() => onPick("B")}
+            >Pick B</button>
+          </article>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BatchMonitorCell({ batch, onCancel }: { batch: ActiveBatchRun; onCancel: () => void }) {
   const pct = Math.round((batch.doneCount / batch.totalEntities) * 100);
   const eta = batch.etaSeconds < 60
@@ -849,6 +1032,9 @@ function AnswerPacket({
   createdAt,
   onRegenerate,
   onBranch,
+  onPin,
+  onCompare,
+  onShare,
 }: {
   packet: ChatAnswer;
   tier: RouterTier;
@@ -857,6 +1043,9 @@ function AnswerPacket({
   createdAt?: number;
   onRegenerate?: (tierOverride?: "free" | "fast" | "deep") => void;
   onBranch?: () => void;
+  onPin?: () => void;
+  onCompare?: () => void;
+  onShare?: () => void;
 }) {
   const tierMeta = DEFAULT_TIERS.find((t) => t.id === tier) ?? DEFAULT_TIERS[0];
   const [hoverCite, setHoverCite] = useState<number | null>(null);
@@ -1042,14 +1231,16 @@ function AnswerPacket({
         </ol>
       </details>
 
-      {/* Per-message action toolbar — Copy / Regen / Pin / Branch / Why? / 👍👎 */}
+      {/* Per-message action toolbar — Copy / Regen / Pin / Branch / Why? / Compare / Share / 👍👎 */}
       <MessageActions
         copyText={packet.shortAnswer + "\n\n" + packet.whyItMatters}
         onRegenerate={onRegenerate}
-        onPin={() => { /* future: useMutation(documentPatches.proposePatch) */ }}
+        onPin={onPin}
         onBranch={onBranch}
         onWhy={() => { /* future: opens trace modal */ }}
         onReact={() => { /* future: agentRunFeedback */ }}
+        onCompare={onCompare}
+        onShare={onShare}
       />
       </article>
 

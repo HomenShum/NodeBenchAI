@@ -26,9 +26,13 @@ interface MessageActionsProps {
   onWhy?: () => void;
   /** Called for thumbs up / down feedback. */
   onReact?: (kind: "up" | "down") => void;
+  /** Sprint 4 P2.7 — Compare A/B parallel variants. */
+  onCompare?: () => void;
+  /** Sprint 4 P2.13 — Reproducibility hash share URL. */
+  onShare?: () => void;
 }
 
-export function MessageActions({ copyText, onRegenerate, onPin, onBranch, onWhy, onReact }: MessageActionsProps) {
+export function MessageActions({ copyText, onRegenerate, onPin, onBranch, onWhy, onReact, onCompare, onShare }: MessageActionsProps) {
   const [copied, setCopied] = useState(false);
   const [reaction, setReaction] = useState<"up" | "down" | null>(null);
   const [regenOpen, setRegenOpen] = useState(false);
@@ -112,6 +116,26 @@ export function MessageActions({ copyText, onRegenerate, onPin, onBranch, onWhy,
         >Why?</button>
       )}
 
+      {onCompare && (
+        <button
+          type="button"
+          className="rd-msg-actions__btn"
+          onClick={onCompare}
+          title="Compare two variants of this answer (A/B)"
+          aria-label="Compare A/B"
+        ><CompareIcon /></button>
+      )}
+
+      {onShare && (
+        <button
+          type="button"
+          className="rd-msg-actions__btn"
+          onClick={onShare}
+          title="Copy a reproducible link to this exact answer"
+          aria-label="Share answer link"
+        ><ShareIcon /></button>
+      )}
+
       <span className="rd-msg-actions__sep" aria-hidden="true" />
 
       <button
@@ -177,6 +201,25 @@ function ThumbsDownIcon() {
   return (
     <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M17 14V2M10 19l2-5H5.5a2 2 0 0 1-2-2.4l1.4-7A2 2 0 0 1 6.9 3H17v9.5L13 21a2 2 0 0 1-3-2z" />
+    </svg>
+  );
+}
+function CompareIcon() {
+  return (
+    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="7" height="14" rx="1" />
+      <rect x="14" y="5" width="7" height="14" rx="1" />
+      <path d="M10 12h4" />
+    </svg>
+  );
+}
+function ShareIcon() {
+  return (
+    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
     </svg>
   );
 }
