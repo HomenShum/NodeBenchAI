@@ -7,7 +7,7 @@
  * Bottom: UniversalComposer.
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { UniversalComposer, DEFAULT_TIERS, type RouterTier, type BatchTarget } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
 import { StreamingMarkdown } from "../components/StreamingMarkdown";
@@ -18,6 +18,32 @@ import { ChatThinking } from "../components/ChatThinking";
 import { ChatToolCall, type ToolCall } from "../components/ChatToolCall";
 import { MessageActions } from "../components/MessageActions";
 import { ChatEmptyState } from "../components/ChatEmptyState";
+import { showToast } from "../components/Toast";
+
+/**
+ * Sprint 2 P0.2 — Streaming scratchpad fixture.
+ *
+ * Showcase content reflecting the same pipeline shape as the backend
+ * agent's scratchpad (orchestrator + sub-agent notes per `.claude/rules/scratchpad_first.md`).
+ * Once chat is live-wired this becomes a live subscription to the
+ * `agentScratchpads` Convex table.
+ */
+const WORKING_NOTES_MARKDOWN = `**Plan**
+1. Confirm Orbital Labs' wedge from prior research notes
+2. Check what changed since last touch (2h ago)
+3. Look for procurement / pilot signals worth flagging this week
+4. Cross-check headcount + funding + competitive position
+
+**Notes during run**
+- Memory hit: 3 prior reports, last touched 2h ago. High familiarity → terse output, skip backstory.
+- Web search: 4 fresh results, 1 from TechCrunch (Mar 2026), Crunchbase headcount delta +4 (eval engineers).
+- Open question: 6-month procurement cycle could compress timing — flag as risk, not blocker.
+- Cross-checked: HIPAA-aware grading wedge confirmed in Orbital whitepaper p.4 + TechCrunch piece.
+
+**Confidence**
+- Wedge claim: high (3 sources agree)
+- Pilot intent: medium (founder note + 1 LinkedIn signal, no procurement docs yet)
+- Hiring spike: high (Crunchbase + LinkedIn agree)`;
 
 interface ChatSurfaceProps {
   contextLabel?: string;
@@ -567,10 +593,51 @@ function AnswerPacket({
 }) {
   const tierMeta = DEFAULT_TIERS.find((t) => t.id === tier) ?? DEFAULT_TIERS[0];
   const [hoverCite, setHoverCite] = useState<number | null>(null);
+  // Sprint 2 P0.3 — counterfactual probe state
+  const [maskedIdx, setMaskedIdx] = useState<number | null>(null);
+  const [probeMenu, setProbeMenu] = useState<{ idx: number; x: number; y: number } | null>(null);
 
   // Wire citation interactivity: hover [N] in body → highlight matching source row in evidence list
   const handleCiteEnter = (idx: number) => setHoverCite(idx);
   const handleCiteLeave = () => setHoverCite(null);
+  // Right-click on a cite chip → counterfactual probe menu
+  const handleCiteContext = (idx: number, e: ReactMouseEvent) => {
+    e.preventDefault();
+    setProbeMenu({ idx, x: e.clientX, y: e.clientY });
+  };
+  const probeWithoutSource = (idx: number) => {
+    setMaskedIdx(idx);
+    setProbeMenu(null);
+    showToast({
+      tone: "info",
+      message: `Probing without source [${idx}]…`,
+    });
+    // Simulate model re-eval delay
+    window.setTimeout(() => {
+      showToast({
+        tone: "warning",
+        message: `Probed: claim weakens without [${idx}]. Other evidence still supports the conclusion.`,
+      });
+    }, 1100);
+  };
+  const restoreProbe = () => {
+    setMaskedIdx(null);
+    showToast({ tone: "success", message: "Source restored. Original answer in view." });
+  };
+  // Dismiss probe menu on outside click / Escape
+  useEffect(() => {
+    if (!probeMenu) return;
+    const onDoc = () => setProbeMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setProbeMenu(null);
+    };
+    window.addEventListener("click", onDoc);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", onDoc);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [probeMenu]);
   return (
     <div className="rd-chat-msg rd-chat-msg--assistant" data-hover-cite={hoverCite ?? undefined}>
       {/* Avatar gutter — parity-studio bot icon pattern */}
@@ -598,6 +665,14 @@ function AnswerPacket({
           </div>
         )}
 
+        {/* Sprint 2 P0.2 — collapsible streaming-scratchpad / working notes */}
+        <WorkingNotes markdown={WORKING_NOTES_MARKDOWN} />
+
+        {/* Sprint 2 P0.3 — counterfactual probe banner (visible when a source is masked) */}
+        {maskedIdx !== null && (
+          <ProbeBanner idx={maskedIdx} onRestore={restoreProbe} />
+        )}
+
       {/* Short answer — citations clickable + hover-linked to evidence list */}
       <section>
         <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Short answer</div>
@@ -610,7 +685,7 @@ function AnswerPacket({
           letterSpacing: "-0.18px",
           margin: 0,
         }}>
-          {renderInlineWithCites(packet.shortAnswer, packet.evidence, handleCiteEnter, handleCiteLeave)}
+          {renderInlineWithCites(packet.shortAnswer, packet.evidence, handleCiteEnter, handleCiteLeave, handleCiteContext, maskedIdx)}
         </p>
       </section>
 
@@ -630,6 +705,7 @@ function AnswerPacket({
               className="rd-evidence-row rd-card rd-card__pad-tight"
               data-cite={e.idx}
               data-active={hoverCite === e.idx || undefined}
+              data-masked={maskedIdx === e.idx || undefined}
               style={{
                 display: "grid",
                 gridTemplateColumns: "auto 1fr auto",
@@ -709,6 +785,101 @@ function AnswerPacket({
         onReact={() => { /* future: agentRunFeedback */ }}
       />
       </article>
+
+      {/* Sprint 2 P0.3 — counterfactual probe context menu (right-click on cite chip) */}
+      {probeMenu && (
+        <div
+          className="rd-cite-menu"
+          role="menu"
+          style={{ position: "fixed", top: probeMenu.y, left: probeMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="rd-cite-menu__item"
+            role="menuitem"
+            onClick={() => probeWithoutSource(probeMenu.idx)}
+          >
+            <span aria-hidden="true">🔬</span>
+            <span>Probe without source [{probeMenu.idx}]</span>
+            <span className="rd-cite-menu__hint">re-eval the answer if this source were absent</span>
+          </button>
+          <button
+            type="button"
+            className="rd-cite-menu__item"
+            role="menuitem"
+            onClick={() => {
+              const target = document.querySelector(`.rd-evidence-row[data-cite="${probeMenu.idx}"]`);
+              target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+              setProbeMenu(null);
+            }}
+          >
+            <span aria-hidden="true">↓</span>
+            <span>Jump to evidence row</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Sprint 2 P0.2 — collapsible "Working notes" preview of the agent's scratchpad.
+ *
+ * Mirrors the `agentScratchpads` Convex table shape (per `.claude/rules/scratchpad_first.md`).
+ * Once chat is live-wired, this becomes a `useScratchpadLive(runId)` subscription.
+ * Today: fixture-driven preview that bridges the gap between thinking dots
+ * and the structured AnswerPacket.
+ */
+function WorkingNotes({ markdown }: { markdown: string }) {
+  const [open, setOpen] = useState(false);
+  const lineCount = useMemo(() => markdown.split("\n").filter((l) => l.trim()).length, [markdown]);
+  return (
+    <details
+      className="rd-working-notes"
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+    >
+      <summary className="rd-working-notes__summary">
+        <span className="rd-eyebrow rd-working-notes__eyebrow">Working notes</span>
+        <span className="rd-working-notes__count">{lineCount} lines</span>
+        <span className="rd-working-notes__chevron" aria-hidden="true">{open ? "▾" : "▸"}</span>
+      </summary>
+      <div className="rd-working-notes__body">
+        {markdown.split("\n").map((line, i) => {
+          if (!line.trim()) return <span key={i} className="rd-working-notes__br" />;
+          if (line.startsWith("**") && line.endsWith("**")) {
+            return (
+              <div key={i} className="rd-working-notes__heading">{line.replace(/\*\*/g, "")}</div>
+            );
+          }
+          return <div key={i} className="rd-working-notes__line">{line}</div>;
+        })}
+      </div>
+    </details>
+  );
+}
+
+/**
+ * Sprint 2 P0.3 — counterfactual probe banner shown when a source is masked.
+ * The full feature would re-run the model with that source filtered out and
+ * diff the answers; today we surface the affordance + a degradation note.
+ */
+function ProbeBanner({ idx, onRestore }: { idx: number; onRestore: () => void }) {
+  return (
+    <div className="rd-probe-banner" role="status" aria-live="polite">
+      <span className="rd-probe-banner__icon" aria-hidden="true">🔬</span>
+      <div className="rd-stack" style={{ gap: 2, flex: 1, minWidth: 0 }}>
+        <span className="rd-probe-banner__title">
+          Probing without source [{idx}]
+        </span>
+        <span className="rd-probe-banner__detail">
+          Source is dimmed below. Other evidence still supports the conclusion — claim weakens but doesn't flip.
+        </span>
+      </div>
+      <button type="button" className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onRestore}>
+        Restore
+      </button>
     </div>
   );
 }
@@ -717,7 +888,7 @@ function AnswerPacket({
  * Sprint 1 P1.5 — total elapsed + estimated cost from trace durations.
  * Showcase rate: $0.005/sec (replace with real provider billing once chat is live-wired).
  */
-function formatTraceCost(packet: typeof sampleAnswer): string {
+function formatTraceCost(packet: ChatAnswer): string {
   const totalMs = packet.trace.reduce((sum, step) => sum + (step.durationMs ?? 0), 0);
   const timeStr = totalMs < 1000 ? `${totalMs}ms` : `${(totalMs / 1000).toFixed(1)}s`;
   const usd = (totalMs / 1000) * 0.005;
@@ -734,9 +905,11 @@ function formatTraceCost(packet: typeof sampleAnswer): string {
  */
 function renderInlineWithCites(
   text: string,
-  evidence: typeof sampleAnswer.evidence,
+  evidence: ChatAnswer["evidence"],
   onEnter: (idx: number) => void,
   onLeave: () => void,
+  onContextMenu?: (idx: number, e: ReactMouseEvent) => void,
+  maskedIdx?: number | null,
 ): ReactNode[] {
   const re = /\[(\d+)\]/g;
   const out: ReactNode[] = [];
@@ -753,11 +926,14 @@ function renderInlineWithCites(
           href={`#cite-${idx}`}
           className="rd-cite"
           data-cite={idx}
+          data-masked={maskedIdx === idx || undefined}
           aria-describedby={`rd-cite-pop-${idx}`}
+          title="Right-click to probe without this source"
           onMouseEnter={() => onEnter(idx)}
           onMouseLeave={onLeave}
           onFocus={() => onEnter(idx)}
           onBlur={onLeave}
+          onContextMenu={onContextMenu ? (e) => onContextMenu(idx, e) : undefined}
           onClick={(e) => {
             e.preventDefault();
             const target = document.querySelector(`.rd-evidence-row[data-cite="${idx}"]`);

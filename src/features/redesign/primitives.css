@@ -2260,8 +2260,169 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
     transition: none;
   }
 }
+
+/* ───────── Sprint 2 P0.3 — counterfactual probe ───────── */
+
+/* Right-click context menu on citation chip */
+[data-redesign] .rd-cite-menu {
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  padding: 4px;
+  background: var(--rd-paper);
+  border: 1px solid var(--rd-line-strong);
+  border-radius: var(--rd-r-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  font-family: var(--rd-font-display);
+  animation: rd-cite-menu-in 100ms ease-out;
+}
+@keyframes rd-cite-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+[data-redesign] .rd-cite-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--rd-ink);
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 80ms ease;
+}
+[data-redesign] .rd-cite-menu__item:hover,
+[data-redesign] .rd-cite-menu__item:focus-visible {
+  background: var(--rd-accent-soft);
+  outline: none;
+}
+[data-redesign] .rd-cite-menu__hint {
+  margin-left: auto;
+  padding-left: 12px;
+  font-family: var(--rd-font-mono);
+  font-size: 10px;
+  color: var(--rd-ink-soft);
+}
+
+/* Probe banner above the answer when a source is masked */
+[data-redesign] .rd-probe-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(212, 145, 60, 0.10);
+  border: 1px solid rgba(212, 145, 60, 0.30);
+  border-radius: var(--rd-r-sm);
+  font-size: 12.5px;
+  color: var(--rd-ink);
+}
+[data-redesign] .rd-probe-banner__icon {
+  font-size: 16px;
+  line-height: 1;
+  margin-top: 1px;
+}
+[data-redesign] .rd-probe-banner__title {
+  font-weight: 590;
+  color: var(--rd-ink-strong);
+}
+[data-redesign] .rd-probe-banner__detail {
+  color: var(--rd-ink-mute);
+  line-height: 1.45;
+}
+
+/* Masked cite chip in body prose — dimmed, struck through */
+[data-redesign] .rd-cite[data-masked] {
+  opacity: 0.4;
+  text-decoration: line-through;
+  text-decoration-color: var(--rd-ink-soft);
+}
+
+/* ───────── Sprint 2 P0.2 — collapsible "Working notes" ───────── */
+[data-redesign] .rd-working-notes {
+  border: 1px dashed var(--rd-line-faint);
+  border-radius: var(--rd-r-sm);
+  background: rgba(255, 255, 255, 0.015);
+}
+[data-redesign] .rd-working-notes[open] {
+  border-style: solid;
+  border-color: var(--rd-line-strong);
+  background: rgba(255, 255, 255, 0.02);
+}
+[data-redesign] .rd-working-notes__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+[data-redesign] .rd-working-notes__summary::-webkit-details-marker { display: none; }
+[data-redesign] .rd-working-notes__eyebrow {
+  margin: 0;
+}
+[data-redesign] .rd-working-notes__count {
+  margin-left: auto;
+  font-family: var(--rd-font-mono);
+  font-size: 10.5px;
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-working-notes__chevron {
+  font-size: 11px;
+  color: var(--rd-ink-soft);
+  width: 10px;
+  text-align: center;
+}
+[data-redesign] .rd-working-notes__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 14px 12px 14px;
+  font-family: var(--rd-font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--rd-ink-mute);
+}
+[data-redesign] .rd-working-notes__heading {
+  margin-top: 8px;
+  margin-bottom: 2px;
+  color: var(--rd-ink-strong);
+  font-family: var(--rd-font-display);
+  font-size: 11px;
+  font-weight: 590;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+[data-redesign] .rd-working-notes__heading:first-child {
+  margin-top: 0;
+}
+[data-redesign] .rd-working-notes__br {
+  display: block;
+  height: 4px;
+}
+[data-redesign] .rd-working-notes__line {
+  display: block;
+  white-space: pre-wrap;
+}
+
 [data-redesign] .rd-evidence-row {
-  transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+  transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease, opacity 160ms ease, filter 160ms ease;
+}
+[data-redesign] .rd-evidence-row[data-masked] {
+  opacity: 0.45;
+  filter: saturate(0.4);
+  text-decoration: line-through;
+  text-decoration-color: var(--rd-ink-soft);
+  text-decoration-thickness: 1px;
+}
+[data-redesign] .rd-evidence-row[data-masked] .rd-cite,
+[data-redesign] .rd-evidence-row[data-masked] .rd-cite--block {
+  text-decoration: line-through;
 }
 [data-redesign] .rd-evidence-row[data-active] {
   border-color: var(--rd-accent);
