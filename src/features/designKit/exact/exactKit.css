@@ -4840,8 +4840,21 @@
     padding-inline: 12px;
   }
 
+  /* QA fix (2026-05-08): tabs were clipping after "Brief" because flex
+     children default to flex-shrink:1 and squeezed instead of overflowing.
+     Pin shrink:0 + smooth iOS scroll + scroll-snap so each tab anchors
+     cleanly when the user swipes. */
   .ws-kit .ws-tabs {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    /* Hide horizontal scrollbar on mobile — gesture-driven, not chrome-driven. */
+  }
+  .ws-kit .ws-tabs::-webkit-scrollbar { display: none; }
+  .ws-kit .ws-tabs .ws-tab {
+    flex-shrink: 0;
+    scroll-snap-align: start;
   }
 
   .ws-kit .ws-entity-meta,
@@ -4863,6 +4876,32 @@
   .ws-kit .brief-layout,
   .ws-kit .map-layout {
     grid-template-columns: 1fr;
+  }
+
+  /* QA fix (2026-05-08): on mobile, .brief-toc was rendered first in the
+     DOM and pushed the actual memo (.brief-main) below the fold. Audit
+     screenshot mobile-workspace-brief.png shows Contents + Report Health
+     before the title. Use flex+order to put memo first; toc reads as a
+     drawer-style appendix below. */
+  .ws-kit .brief-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .ws-kit .brief-main { order: 1; }
+  .ws-kit .brief-toc { order: 2; }
+
+  /* Memo title was cut off when the parent flex item lacked a min-width:0
+     reset. Title is now allowed to wrap freely on narrow viewports and
+     reduces font-size + tightens line-height. */
+  .ws-kit .brief-main {
+    min-width: 0;
+  }
+  .ws-kit .brief-title {
+    font-size: 22px;
+    line-height: 1.2;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    /* Allow modern engines to balance multi-line wrap nicely. */
   }
 
   .ws-kit .chat-history,
