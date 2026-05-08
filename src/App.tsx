@@ -170,12 +170,9 @@ function App() {
 
   const rootParams = new URLSearchParams(location.search);
   const rootSurface = rootParams.get("surface");
-  const isCompactLandingViewport =
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 760px)").matches : false;
   const shouldUseRedesignLanding =
     location.pathname === "/" &&
     (rootSurface === null || rootSurface === "home") &&
-    !isCompactLandingViewport &&
     !rootParams.has("doc") &&
     !rootParams.has("session") &&
     !rootParams.has("reportId");

@@ -80,7 +80,7 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
     pendingFromAgent: index === 0 && report.followUps > 0 ? report.followUps : undefined,
   }));
   const effectiveWatchlist: WatchlistEntity[] = liveArtifacts.publicResearch.slice(0, 5).map((card, index) => ({
-    id: `live_watch_${card.reportId ?? index}`,
+    id: `live_watch_${card.reportId ?? "research"}_${index}`,
     entity: card.entity,
     kind: card.entityClass === "role" ? "topic" : card.entityClass,
     signal: card.signal,

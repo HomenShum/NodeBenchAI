@@ -28,17 +28,33 @@ import { api } from "../../../../convex/_generated/api";
  * uncertain by the agent or 👎'd by the user). Once chat is live-wired,
  * this becomes a `useAgentRunFeedback({ filter: "thumbs_down" })` query.
  */
-const OPEN_QUESTIONS: Array<{
+type OpenQuestion = {
   id: string;
   label: string;
   turnId: string;
   flagged: "agent" | "user";
   when: string;
-}> = [
+};
+
+const OPEN_QUESTIONS: OpenQuestion[] = [
   { id: "oq1", label: "Procurement timing for Orbital Labs pilots", turnId: "a1", flagged: "agent", when: "2h ago" },
   { id: "oq2", label: "Hippocratic AI traction vs Abridge",         turnId: "a2", flagged: "user",  when: "12m ago" },
   { id: "oq3", label: "Voice-agent eval competitors within 6 months", turnId: "a1", flagged: "agent", when: "5h ago" },
 ];
+
+function liveOpenQuestions(detail: LiveArtifactDetail): OpenQuestion[] {
+  const sectionItems = detail.sections.flatMap((section) => section.items ?? []);
+  const candidates = sectionItems.length > 0
+    ? sectionItems
+    : [{ label: detail.title, body: detail.summary }];
+  return candidates.slice(0, 3).map((item, index) => ({
+    id: `live-oq-${detail.id}-${index}`,
+    label: `${item.label}: verify source support`,
+    turnId: index === 1 ? "a2" : "a1",
+    flagged: index === 1 ? "user" : "agent",
+    when: index === 0 ? detail.updatedAt : "live",
+  }));
+}
 
 /**
  * Sprint 4 P2.13 — deterministic reproducibility hash for an answer.
@@ -130,8 +146,38 @@ const WORKING_NOTES_MARKDOWN = `**Plan**
 - Pilot intent: medium (founder note + 1 LinkedIn signal, no procurement docs yet)
 - Hiring spike: high (Crunchbase + LinkedIn agree)`;
 
+function liveWorkingNotesMarkdown(detail: LiveArtifactDetail): string {
+  const topSources = detail.sourceRows
+    .slice(0, 3)
+    .map((source, index) => `${index + 1}. ${source.title}${source.host ? ` (${source.host})` : ""}`)
+    .join("\n");
+  const topItems = detail.sections
+    .flatMap((section) => section.items ?? [])
+    .slice(0, 3)
+    .map((item) => `- ${item.label}: ${item.body}`)
+    .join("\n");
+  return `**Plan**
+1. Load ${detail.title} from live Convex memory
+2. Reuse cached sources before any paid refresh
+3. Check claim support and review gaps
+4. Convert strongest signal into notebook-ready next action
+
+**Live artifact**
+- ${detail.sourceCount} sources
+- ${detail.claimCount} claims
+- ${detail.followUps} follow-ups
+- Status: ${detail.status}
+
+**Top signals**
+${topItems || `- ${detail.summary}`}
+
+**Source refs**
+${topSources || "- No source rows returned yet"}`;
+}
+
 interface ChatSurfaceProps {
   contextLabel?: string;
+  workspaceDetail?: LiveArtifactDetail;
 }
 
 interface Turn {
@@ -332,7 +378,7 @@ function buildSeedTurns(detail?: LiveArtifactDetail): Turn[] {
   ];
 }
 
-export function ChatSurface({ contextLabel = "Asking about: current context" }: ChatSurfaceProps) {
+export function ChatSurface({ contextLabel = "Asking about: current context", workspaceDetail }: ChatSurfaceProps) {
   const liveArtifacts = useLiveArtifacts(24);
   const _rawLiveDetail = liveArtifacts.details[0];
   // Phase 1 — real LLM chat behind the composer for authenticated users.
@@ -345,7 +391,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
   // STARTER_ANSWER with inline [N] cites for the chat-sprints demo recorder).
   const _skipLiveSeed = typeof window !== "undefined"
     && new URLSearchParams(window.location.search).has("fresh");
-  const liveDetail = _skipLiveSeed ? null : _rawLiveDetail;
+  const liveDetail = workspaceDetail ?? (_skipLiveSeed ? null : _rawLiveDetail);
   const batchTargets = useMemo<BatchTarget[]>(() => {
     if (liveArtifacts.reports.length === 0) return [];
     return [
@@ -362,6 +408,14 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
     ];
   }, [liveArtifacts.reports]);
   const liveSeedKey = liveDetail?.id ?? (liveArtifacts.isLoading ? "loading" : "empty");
+  const openQuestions = useMemo(
+    () => (liveDetail ? liveOpenQuestions(liveDetail) : OPEN_QUESTIONS),
+    [liveDetail],
+  );
+  const workingNotesMarkdown = useMemo(
+    () => (liveDetail ? liveWorkingNotesMarkdown(liveDetail) : WORKING_NOTES_MARKDOWN),
+    [liveDetail],
+  );
   const liveStarters = useMemo(() => {
     if (!liveDetail) return undefined;
     return [
@@ -675,7 +729,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
         </header>
 
         {/* Sprint 3 P2.11 — open-questions tray */}
-        <OpenQuestionsTray />
+        <OpenQuestionsTray questions={openQuestions} />
 
         {turns.length === 0 ? (
           <ChatEmptyState
@@ -708,6 +762,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
                   tier={t.tier ?? "auto"}
                   toolCalls={t.toolCalls}
                   reportTitle={liveDetail?.title}
+                  workingNotesMarkdown={workingNotesMarkdown}
                   createdAt={t.createdAt}
                   onRegenerate={(tierOverride) => regenerate(t.id, tierOverride)}
                   onBranch={() => branchFromTurn(t.id)}
@@ -849,9 +904,12 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
  * Today: fixture from OPEN_QUESTIONS. Once chat is live-wired, replace
  * with `useAgentRunFeedback` query filtered to flagged + unresolved items.
  */
-function OpenQuestionsTray() {
+function OpenQuestionsTray({ questions }: { questions: OpenQuestion[] }) {
   const [open, setOpen] = useState(true);
-  const [items, setItems] = useState(OPEN_QUESTIONS);
+  const [items, setItems] = useState(questions);
+  useEffect(() => {
+    setItems(questions);
+  }, [questions]);
   if (items.length === 0) return null;
   const dismissOne = (id: string) => {
     setItems((cur) => cur.filter((q) => q.id !== id));
@@ -1397,6 +1455,7 @@ function AnswerPacket({
   tier,
   toolCalls,
   reportTitle,
+  workingNotesMarkdown,
   createdAt,
   onRegenerate,
   onBranch,
@@ -1410,6 +1469,7 @@ function AnswerPacket({
   tier: RouterTier;
   toolCalls?: ToolCall[];
   reportTitle?: string;
+  workingNotesMarkdown?: string;
   createdAt?: number;
   onRegenerate?: (tierOverride?: "free" | "fast" | "deep") => void;
   onBranch?: () => void;
@@ -1514,7 +1574,7 @@ function AnswerPacket({
         )}
 
         {/* Sprint 2 P0.2 — collapsible streaming-scratchpad / working notes */}
-        <WorkingNotes markdown={WORKING_NOTES_MARKDOWN} />
+        <WorkingNotes markdown={workingNotesMarkdown ?? WORKING_NOTES_MARKDOWN} />
 
         {/* Sprint 2 P0.3 — counterfactual probe banner (visible when a source is masked) */}
         {maskedIdx !== null && (
