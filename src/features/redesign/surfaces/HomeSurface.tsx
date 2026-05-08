@@ -26,10 +26,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Mic } from "lucide-react";
 import { UniversalComposer } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
 import { StyleGalleryCard } from "../components/StyleGalleryCard";
 import { WhatChangedStrip } from "../components/WhatChangedStrip";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { useHomePulseLive } from "../hooks/useHomePulseLive";
 import { useLiveArtifacts } from "../hooks/useLiveArtifacts";
 import { showToast } from "../components/Toast";
@@ -76,6 +78,15 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
   const [entitySort, setEntitySort] = useState<"newest" | "confidence" | "delta">("newest");
   const [activeStyle, setActiveStyle] = useState<MemoStyle>(memoStyles.find((s) => s.id === "user.inferred") ?? memoStyles[0]);
   const isFirstVisit = useFirstVisit();
+  const pulseVoice = useVoiceInput({
+    mode: "browser",
+    continuous: false,
+    onTranscript: () => undefined,
+    onEnd: (finalText) => {
+      const text = finalText.trim();
+      if (text) onAsk(text);
+    },
+  });
   // Sprint S4: pulse cards from durable live artifacts; optional supplements stay non-blocking.
   const { pulse: livePulse } = useHomePulseLive();
   const liveArtifacts = useLiveArtifacts(24);
@@ -160,6 +171,31 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
           <span className="rd-mono rd-faint" style={{ fontSize: 10.5 }}>
             {liveArtifacts.isLive ? `${effectiveContinueWorking.length} active reports · ${effectiveWatchlist.length} watched entities` : "starter pulse — sign in for live signals"}
           </span>
+          <button
+            type="button"
+            aria-label={pulseVoice.isListening ? "Stop voice input" : "Voice input using browser mode"}
+            title={pulseVoice.isListening ? "Stop voice input" : "Voice input using browser mode"}
+            onClick={pulseVoice.toggle}
+            data-state={pulseVoice.isListening ? "active" : "idle"}
+            style={{
+              marginLeft: "auto",
+              width: 44,
+              height: 44,
+              borderRadius: 999,
+              border: "1px solid var(--rd-line)",
+              background: pulseVoice.isListening ? "var(--rd-accent-tint)" : "var(--rd-paper)",
+              color: pulseVoice.isListening ? "var(--rd-accent-strong)" : "var(--rd-ink-mute)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 700,
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.72)",
+            }}
+          >
+            <Mic size={16} aria-hidden="true" />
+          </button>
         </header>
         <div className="rd-stack" style={{ gap: 4 }}>
           {pulseLastResearch ? (

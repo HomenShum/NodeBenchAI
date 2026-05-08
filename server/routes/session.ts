@@ -141,8 +141,9 @@ export function createSessionRouter(): Router {
       const capUsd = Number(process.env.VOICE_DAILY_CAP_USD ?? DEFAULT_VOICE_DAILY_CAP_USD);
       const ledgerKey = `${userKey}:${getUtcDay()}`;
       const ledger = memoryCostLedger.get(ledgerKey);
+      const allowQaCostOverride = req.header("x-nodebench-voice-dogfood") === "1";
       const dailyCostUsd =
-        process.env.NODE_ENV === "production"
+        process.env.NODE_ENV === "production" && !allowQaCostOverride
           ? ledger?.totalUsd ?? 0
           : typeof debugCostSoFarUsd === "number"
             ? debugCostSoFarUsd

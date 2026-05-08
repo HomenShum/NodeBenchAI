@@ -249,6 +249,7 @@ test.describe("Realtime voice dogfood matrix", () => {
   test("cost ceiling downgrades to capture-only mode", async ({ page }) => {
     await assertVoiceHealth(page);
     const res = await page.request.post(`${BASE_URL}/voice/session`, {
+      headers: { "x-nodebench-voice-dogfood": "1" },
       data: {
         userId: "cost-user",
         surface: "agent",
