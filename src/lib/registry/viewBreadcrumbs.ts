@@ -17,9 +17,7 @@ const RESEARCH_TAB_LABELS: Record<ResearchTab, string> = {
   changelog: "Changelog",
 };
 
-const LABEL_OVERRIDES: Partial<Record<MainView, string>> = {
-  "control-plane": "Ask",
-};
+const LABEL_OVERRIDES: Partial<Record<MainView, string>> = {};
 
 function breadcrumbLabel(view: MainView) {
   return LABEL_OVERRIDES[view] ?? VIEW_MAP[view]?.title ?? view;

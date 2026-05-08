@@ -3,7 +3,7 @@ import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const setCurrentView = vi.fn();
-let mockCurrentView: "oracle" | "research" | "control-plane" = "oracle";
+let mockCurrentView: "mcp-ledger" | "research" | "control-plane" = "mcp-ledger";
 
 vi.mock("../hooks/useCockpitRouting", () => ({
   useCockpitRouting: () => ({
@@ -21,11 +21,13 @@ vi.mock("../hooks/useCockpitRouting", () => ({
 }));
 
 import { useCockpitMode } from "./useCockpitMode";
+import { ALL_VIEW_IDS } from "@/lib/registry/viewRegistry";
+import { MODES } from "./cockpitModes";
 
 describe("useCockpitMode", () => {
   beforeEach(() => {
     setCurrentView.mockReset();
-    mockCurrentView = "oracle";
+    mockCurrentView = "mcp-ledger";
     window.localStorage.clear();
   });
 
@@ -33,11 +35,11 @@ describe("useCockpitMode", () => {
     vi.clearAllMocks();
   });
 
-  it("does not restore a saved cockpit mode over an explicit oracle deep link", () => {
+  it("does not restore a saved cockpit mode over an explicit trace deep link", () => {
     window.localStorage.setItem("nodebench-cockpit-mode", "mission");
 
     renderHook(() => useCockpitMode(), {
-      wrapper: ({ children }) => <MemoryRouter initialEntries={["/oracle"]}>{children}</MemoryRouter>,
+      wrapper: ({ children }) => <MemoryRouter initialEntries={["/mcp/ledger"]}>{children}</MemoryRouter>,
     });
 
     expect(setCurrentView).not.toHaveBeenCalled();
@@ -52,5 +54,11 @@ describe("useCockpitMode", () => {
     });
 
     expect(setCurrentView).not.toHaveBeenCalled();
+  });
+
+  it("maps every registered view to exactly one cockpit mode", () => {
+    const mappedViews = MODES.flatMap((mode) => mode.views);
+    expect(new Set(mappedViews).size).toBe(mappedViews.length);
+    expect([...mappedViews].sort()).toEqual([...ALL_VIEW_IDS].sort());
   });
 });

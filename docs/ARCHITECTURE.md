@@ -15,11 +15,11 @@ or open a PR — this doc is owned by everyone.
 ## TL;DR — what NodeBench is
 
 NodeBench is the **operating-memory and entity-context layer for agent-native
-businesses.** A single-tenant cockpit (5 surfaces: Home / Reports / Chat /
-Inbox / Me) plus a 304-tool MCP server. Backend on Convex. Frontend on Vite +
-React, deployed via Vercel. Design system is canonical — every cockpit
-surface routes to an `Exact*Surface` component in
-`src/features/designKit/exact/ExactKit.tsx`, which holds the kit-aligned UI.
+businesses.** The product has five locked web surfaces: Home / Reports / Chat /
+Inbox / Me. Desktop root traffic currently promotes into the modern
+`/redesign` shell, while mobile and compatibility routes still preserve the
+five-surface cockpit contracts. Backend state lives in Convex. Frontend runs on
+Vite + React and deploys via Vercel.
 
 **The one-flow invariant** the entire product is gated against:
 
@@ -36,9 +36,10 @@ If your change breaks it, CI blocks the merge.
 
 These are project commitments, not preferences:
 
-1. **Kit alignment is canonical.** When the design kit zip drops, ExactKit
-   absorbs it. Every cockpit surface routes through ExactKit. Don't add a
-   parallel "premium" or "redesigned" surface — extend the kit.
+1. **Kit alignment is canonical.** When a design kit packet drops, implement
+   the delta against the current prod-parity shell. `/redesign` is the active
+   modern shell; `ExactKit` remains a compatibility/cockpit surface and should
+   not receive unrelated new forks.
 2. **Convex is canonical for backend state.** No SQL dual-store, no Postgres,
    no custom session DB. If a surface needs persisted data, it's a Convex
    table.
@@ -53,8 +54,8 @@ These are project commitments, not preferences:
 5. **Live data is canonical for authenticated users; seed is canonical for
    anonymous demo.** Components must gate `useQuery` results with the
    correct shape: `useQuery(api?.X ?? "skip", args)` — never
-   `useQuery(api?.X ?? { args })`. (See ChatHome `@deprecated` for the
-   anti-pattern this fights.)
+   `useQuery(api?.X ?? { args })`. This prevents legacy/demo components from
+   accidentally shadowing live Convex-backed paths.
 6. **PRs ≤ 400 LOC of substantive change.** Larger PRs split or
    pre-discuss. The auto-merge gate doesn't enforce this; reviewer (you)
    does.
@@ -72,10 +73,10 @@ These are project commitments, not preferences:
 |---|---|---|
 | Package manager | npm | Lockfile is `package-lock.json` (committed) |
 | Runtime | Node 22 LTS | Pinned by `.nvmrc` and `engines` |
-| Build | Vite 5 + esbuild | `npm run build` |
+| Build | Vite 8 + esbuild | `npm run build` |
 | Type-check | TypeScript strict | `npx tsc --noEmit` |
 | Linter | Biome (some surfaces); legacy ESLint elsewhere | Migration in progress |
-| Frontend framework | React 18 | No React 19 yet |
+| Frontend framework | React 19 | Keep compatibility with current Vite/React toolchain |
 | Routing | Custom dispatcher: `src/lib/registry/viewRegistry.ts` + `src/layouts/ActiveSurfaceHost.tsx` | Not React Router |
 | State | Convex live queries (no Redux/Recoil/MobX/Zustand for product data) | App-local UI state uses `useState`/`useReducer` |
 | Styling | Tailwind v3 + CSS variables; kit-specific CSS in `exactKit.css` | No CSS-in-JS |
@@ -95,12 +96,12 @@ These are project commitments, not preferences:
 ```text
 src/
   features/
-    designKit/exact/           # KIT canonical — every cockpit surface
+    redesign/                  # Active modern shell mounted at /redesign
+                               # Home / Reports / Chat / Inbox / Me + Workspace
+    designKit/exact/           # Compatibility cockpit surfaces
                                # ExactKit.tsx + exactKit.css
-    chat/                      # @deprecated ChatHome.tsx (DO NOT EDIT for behavior)
-                               # MobileChatSurface.tsx (responsive variant)
-    reports/                   # ReportsHome (cockpit list view)
-                               # ReportNotebookDetail (notebook tab — legacy direct-link)
+    chat/                      # Shared chat lane/components, not the primary shell
+    reports/                   # ReportNotebookDetail (notebook tab, legacy direct-link)
                                # PublicReportView (public /report/:id route)
     research/                  # ReportDetailPage (legacy /reports/:id/graph route)
                                # ResearchHub (the /research surface)
@@ -109,7 +110,7 @@ src/
                                # EntityNotebookSurface + EntityNotebookView (lazy-load pair)
     agents/                    # FastAgentPanel (Ask NodeBench right-rail)
                                # primitives/AgentComposer (future composer canonical)
-    home/views/                # HomeLanding (legacy, may still serve deep-link routes)
+    home/views/                # HomeLanding (mobile/root compatibility)
     me/views/                  # MeHome (cockpit)
   layouts/
     ActiveSurfaceHost.tsx      # ★ ROUTING DISPATCHER — read this first
@@ -271,12 +272,12 @@ You want to change something. Here's the deterministic answer:
 
 | Goal | Edit this | DON'T edit this |
 |---|---|---|
-| Change how the chat surface looks/behaves | `src/features/designKit/exact/ExactKit.tsx::ExactChatSurface` + `exactKit.css` | `src/features/chat/views/ChatHome.tsx` (`@deprecated`, never rendered) |
+| Change how the modern chat surface looks/behaves | `src/features/redesign/surfaces/ChatSurface.tsx` + `src/features/redesign/primitives.css` | Reintroducing deleted `ChatHome`/parallel premium surfaces |
 | Add a new field to entity reports | `convex/schema.ts` (productReports table) → mutation in `convex/domains/product/entities.ts` → render in `ExactReportDetailSurface` | A separate "EnhancedReportDetail" component |
 | Add a new MCP tool | `packages/mcp-local/src/tools/<your-tool>.ts` + register in `toolRegistry.ts` | A new tool file outside `packages/mcp-local/` |
 | Change a Convex backend handler | The relevant `convex/domains/<domain>/<file>.ts` | Don't import provider SDKs directly — go through `pi-agent-core` |
 | Add a route | `src/lib/registry/viewRegistry.ts` (add view ID + path) → handler in `ActiveSurfaceHost.tsx` switch | Don't add direct routes in `App.tsx` unless you specifically need to bypass the cockpit dispatcher (e.g. anonymous public share URLs) |
-| Change a stat shown in the avatar status panel | `src/features/designKit/exact/ExactKit.tsx::ExactAvatarMenu` (around line 1690) | The shape of the underlying Convex query has fallback semantics — read `Hard constraints #5` first |
+| Change a compatibility cockpit stat | `src/features/designKit/exact/ExactKit.tsx` | The shape of the underlying Convex query has fallback semantics — read `Hard constraints #5` first |
 
 ### The 4-axis canonical determination rule
 
@@ -294,9 +295,8 @@ guess which is canonical.** Run all 4:
 
 If 4-axis says one is canonical and the other isn't, **stamp the
 non-canonical with `@deprecated` JSDoc + redirect comment** (see
-`src/features/chat/views/ChatHome.tsx` for the pattern). Don't delete
-immediately — there may be test imports or transitive references. Stamp
-first, delete in a follow-up PR.
+the existing deprecation patterns). Don't delete immediately if a route still
+imports the file; stamp first, then delete after route/test confirmation.
 
 ---
 

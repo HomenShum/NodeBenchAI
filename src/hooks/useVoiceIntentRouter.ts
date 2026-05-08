@@ -50,64 +50,66 @@ export interface ParsedVoiceIntent {
   params: Record<string, string | number>;
 }
 
-// Voice-friendly spoken phrases mapped to view ids. Some ids here predate the
-// current `MainView` union (e.g. legacy analytics/feedback views that were
-// consolidated). We keep them for backward-compat with trained voice models;
-// invalid ids simply no-op at `navigateToView` time. Widened to `string` so
-// strict `MainView` typing doesn't flag the historical aliases.
-const VIEW_ALIASES: Record<string, string> = {
-  activity: "activity",
+// Voice-friendly spoken phrases mapped to live view ids. Legacy product names
+// are intentionally remapped onto the current five-tab IA instead of navigating
+// to removed routes.
+const VIEW_ALIASES: Record<string, MainView> = {
+  activity: "mcp-ledger",
   agents: "agents",
   assistants: "agents",
-  benchmarks: "benchmarks",
-  calendar: "calendar",
-  costs: "cost-dashboard",
-  "cost dashboard": "cost-dashboard",
-  documents: "documents",
+  benchmarks: "benchmark-comparison",
+  calendar: "nudges-home",
+  costs: "mcp-ledger",
+  "cost dashboard": "mcp-ledger",
+  documents: "chat-home",
+  docs: "chat-home",
   dogfood: "dogfood",
-  engine: "engine-demo",
-  "engine demo": "engine-demo",
+  engine: "developers",
+  "engine demo": "developers",
   entity: "entity",
-  feedback: "analytics-recommendations",
-  footnotes: "footnotes",
-  "for you": "for-you-feed",
-  "for you feed": "for-you-feed",
-  funding: "funding",
-  github: "github-explorer",
-  "github explorer": "github-explorer",
-  home: "research",
-  industry: "industry-updates",
-  "industry updates": "industry-updates",
-  linkedin: "linkedin-posts",
-  "linkedin posts": "linkedin-posts",
-  marketplace: "agent-marketplace",
+  feedback: "dogfood",
+  footnotes: "reports-home",
+  "for you": "control-plane",
+  "for you feed": "control-plane",
+  funding: "research",
+  github: "developers",
+  "github explorer": "developers",
+  home: "control-plane",
+  industry: "research",
+  "industry updates": "research",
+  inbox: "nudges-home",
+  linkedin: "reports-home",
+  "linkedin posts": "reports-home",
+  marketplace: "agents",
+  me: "me-home",
   mcp: "mcp-ledger",
   "mcp ledger": "mcp-ledger",
   "mcp log": "mcp-ledger",
-  performance: "analytics-components",
-  "pr suggestions": "pr-suggestions",
-  "pull request": "pr-suggestions",
-  "pull requests": "pr-suggestions",
-  public: "public",
+  performance: "benchmark-comparison",
+  "pr suggestions": "developers",
+  "pull request": "developers",
+  "pull requests": "developers",
+  public: "reports-home",
   qa: "dogfood",
-  recommendations: "document-recommendations",
+  recommendations: "control-plane",
+  reports: "reports-home",
   research: "research",
-  review: "analytics-hitl",
-  roadmap: "roadmap",
-  shared: "public",
-  showcase: "showcase",
-  signals: "signals",
-  sources: "footnotes",
-  spreadsheets: "spreadsheets",
-  suggestions: "document-recommendations",
-  timeline: "timeline",
-  workspace: "documents",
-  observability: "observability",
-  health: "observability",
-  "system health": "observability",
-  "self healing": "observability",
-  slo: "observability",
-  monitoring: "observability",
+  review: "dogfood",
+  roadmap: "product-direction",
+  shared: "reports-home",
+  showcase: "control-plane",
+  signals: "research",
+  sources: "reports-home",
+  spreadsheets: "chat-home",
+  suggestions: "control-plane",
+  timeline: "pulse-home",
+  workspace: "chat-home",
+  observability: "agents",
+  health: "agents",
+  "system health": "agents",
+  "self healing": "agents",
+  slo: "agents",
+  monitoring: "agents",
   // Voice-friendly phrases
   "denied actions": "receipts",
   "agent actions": "receipts",
@@ -119,8 +121,9 @@ const VIEW_ALIASES: Record<string, string> = {
   briefing: "research",
   receipts: "receipts",
   delegation: "delegation",
-  investigation: "investigation",
-  "deep sim": "deep-sim",
+  investigation: "execution-trace",
+  trace: "execution-trace",
+  "deep sim": "research",
 };
 
 const MODE_ALIASES: Record<string, CockpitMode> = {
@@ -155,13 +158,13 @@ function resolveViewAlias(spoken: string): MainView | null {
   if (!normalized) return null;
 
   const exact = VIEW_ALIASES[normalized];
-  if (exact) return exact as MainView;
+  if (exact) return exact;
 
   const candidates = Object.keys(VIEW_ALIASES).filter(
     (alias) => alias.startsWith(normalized) || normalized.startsWith(alias),
   );
   const uniqueViews = [...new Set(candidates.map((alias) => VIEW_ALIASES[alias]))];
-  return uniqueViews.length === 1 ? (uniqueViews[0] as MainView) : null;
+  return uniqueViews.length === 1 ? uniqueViews[0] : null;
 }
 
 function resolveModeAlias(spoken: string): CockpitMode | null {

@@ -19,8 +19,25 @@ import { mutation, query } from "../../../_generated/server";
 
 const DEFAULT_CAP_USD = 5.0;
 
+type VoiceTier = "geminiLive" | "whisper" | "realtimeMini" | "realtime2" | "translate";
+type TierSpend = Record<VoiceTier, number>;
+
 function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function emptyTierSpend(): TierSpend {
+  return {
+    geminiLive: 0,
+    whisper: 0,
+    realtimeMini: 0,
+    realtime2: 0,
+    translate: 0,
+  };
+}
+
+function sumTierSpend(byTier: TierSpend): number {
+  return Object.values(byTier).reduce((sum: number, value: number) => sum + value, 0);
 }
 
 const tierValidator = v.union(
@@ -92,15 +109,9 @@ export const incrementSpend = mutation({
       .first();
 
     if (!existing) {
-      const byTier = {
-        geminiLive: 0,
-        whisper: 0,
-        realtimeMini: 0,
-        realtime2: 0,
-        translate: 0,
-      } as const;
+      const byTier = emptyTierSpend();
       const updated = { ...byTier, [args.tier]: args.deltaUsd };
-      const totalUsd = Object.values(updated).reduce((a, b) => a + b, 0);
+      const totalUsd = sumTierSpend(updated);
       const capUsd = args.capUsd ?? DEFAULT_CAP_USD;
       const id = await ctx.db.insert("voiceCostLedger", {
         userId: args.userId,
@@ -114,9 +125,13 @@ export const incrementSpend = mutation({
       return { id, totalUsd, capUsd, hit: totalUsd >= capUsd };
     }
 
-    const nextByTier = { ...existing.byTier, [args.tier]: existing.byTier[args.tier] + args.deltaUsd };
+    const existingByTier = existing.byTier as TierSpend;
+    const nextByTier: TierSpend = {
+      ...existingByTier,
+      [args.tier]: existingByTier[args.tier] + args.deltaUsd,
+    };
     // HONEST_SCORES — recompute total from byTier; do not accept a caller's value
-    const totalUsd = Object.values(nextByTier).reduce((a, b) => a + b, 0);
+    const totalUsd = sumTierSpend(nextByTier);
     const capUsd = args.capUsd ?? existing.capUsd;
     const hit = totalUsd >= capUsd;
     await ctx.db.patch(existing._id, {
@@ -151,7 +166,7 @@ export const setUserCap = mutation({
       const id = await ctx.db.insert("voiceCostLedger", {
         userId: args.userId,
         dayUtc: day,
-        byTier: { geminiLive: 0, whisper: 0, realtimeMini: 0, realtime2: 0, translate: 0 },
+        byTier: emptyTierSpend(),
         totalUsd: 0,
         capUsd: args.capUsd,
         updatedAt: Date.now(),

@@ -242,13 +242,13 @@ function MetricBar({
 }
 
 /**
- * LatencyBadge — shows average tool dispatch latency with color coding.
- * Fetches from the MCP gateway health endpoint. Falls back to demo value.
+ * LatencyBadge shows average tool dispatch latency with color coding.
+ * Fetches from the MCP gateway health endpoint.
  *
  * Color thresholds:
- *   < 200ms  → emerald (fast)
- *   200-500ms → amber (acceptable)
- *   > 500ms  → rose (slow)
+ *   < 200ms  -> emerald (fast)
+ *   200-500ms -> amber (acceptable)
+ *   > 500ms  -> rose (slow)
  */
 const GATEWAY_HEALTH_URL = "/mcp/health";
 
@@ -266,21 +266,25 @@ function LatencyBadge() {
         }
       })
       .catch(() => {
-        // Gateway unavailable — show demo value
-        if (!cancelled) setAvgMs(142);
+        if (!cancelled) setAvgMs(null);
       });
     return () => { cancelled = true; };
   }, []);
 
-  const displayMs = avgMs ?? 142;
+  const hasLatency = avgMs != null;
+  const displayMs = avgMs ?? 0;
   const color =
-    displayMs < 200
+    !hasLatency
+      ? "text-content-muted"
+      : displayMs < 200
       ? "text-emerald-400"
       : displayMs <= 500
         ? "text-amber-400"
         : "text-rose-400";
   const dotColor =
-    displayMs < 200
+    !hasLatency
+      ? "bg-content-muted"
+      : displayMs < 200
       ? "bg-emerald-400"
       : displayMs <= 500
         ? "bg-amber-400"
@@ -294,7 +298,7 @@ function LatencyBadge() {
       </div>
       <div className={cn("flex items-center gap-1.5 text-xs font-semibold tabular-nums", color)}>
         <span className={cn("inline-block h-1.5 w-1.5 rounded-full", dotColor)} />
-        {displayMs}ms
+        {hasLatency ? `${displayMs}ms` : "Unavailable"}
       </div>
     </div>
   );

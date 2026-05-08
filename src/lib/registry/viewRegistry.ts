@@ -1109,7 +1109,7 @@ export function resolvePathToView(rawPathname: string): {
 /** All view IDs (for type checking and iteration) */
 export const ALL_VIEW_IDS: MainView[] = VIEW_REGISTRY.map((e) => e.id);
 
-// ─── Route group derived sets (replace hardcoded sets in MainLayout/CleanSidebar) ──
+// ─── Route group derived sets (replace hardcoded shell-specific sets) ──
 
 /** Map: group → set of view ids in that group */
 export const GROUP_VIEW_MAP: Record<RouteGroup, Set<MainView>> = VIEW_REGISTRY.reduce(

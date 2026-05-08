@@ -40,6 +40,18 @@ describe("resolvePathToView", () => {
     });
   });
 
+  it("canonicalizes legacy MCP ledger aliases to the live audit route", () => {
+    for (const path of ["/mcp-ledger", "/internal/mcp-ledger", "/activity-log"]) {
+      expect(resolvePathToCockpitState(path)).toMatchObject({
+        surfaceId: "trace",
+        view: "mcp-ledger",
+        canonicalPath: "/mcp/ledger",
+        isLegacyRedirect: true,
+        isUnknownRoute: false,
+      });
+    }
+  });
+
   it("emits clean public surface params for product routes", () => {
     expect(buildCockpitPath({ surfaceId: "ask" })).toBe("/?surface=home");
     expect(buildCockpitPath({ surfaceId: "workspace" })).toBe("/?surface=chat");

@@ -1,14 +1,13 @@
 /**
- * cockpitModes.ts — Maps 28 MainView routes into 5 Jarvis-style focal modes.
+ * cockpitModes.ts - maps live MainView routes into five focal modes.
  *
- * Each mode groups related views under a single icon in the ModeRail.
  * Within a mode, individual views are accessible via CommandBar tabs or Cmd+K.
  */
 
 import type { MainView } from "@/lib/registry/viewRegistry";
 export { VIEW_TITLES, VIEW_PATH_MAP } from "@/lib/registry/viewRegistry";
 import type { LucideIcon } from "lucide-react";
-import { Target, Radar, Code, Bot, Settings } from "lucide-react";
+import { Bot, Code, Radar, Settings, Target } from "lucide-react";
 
 export type CockpitMode = "mission" | "intel" | "build" | "agents" | "system";
 
@@ -31,58 +30,69 @@ export const MODES: ModeConfig[] = [
   {
     id: "mission",
     label: "Mission",
-    description: "Home, live chat, and saved reports",
+    description: "Locked product surfaces: Home, Reports, Chat, Inbox, and Me",
     icon: "Target",
-    views: ["control-plane", "chat-home", "reports-home"],
+    views: ["control-plane", "reports-home", "chat-home", "nudges-home", "me-home", "pulse-home"],
     defaultView: "control-plane",
     color: "var(--accent-primary, #d97757)",
   },
   {
     id: "intel",
     label: "Intel",
-    description: "Research, investigation, and entity context",
+    description: "Research, report details, entity context, and comparison work",
     icon: "Radar",
-    views: ["research", "investigation", "entity"] as MainView[],
+    views: [
+      "research",
+      "product-direction",
+      "world-monitor",
+      "watchlists",
+      "entity",
+      "entity-pulse",
+      "report-detail",
+      "report-detail-workspace",
+      "role-lens-output",
+      "entity-compare",
+      "conference-capture",
+      "homes-hub-session",
+    ],
     defaultView: "research",
     color: "var(--accent-primary, #d97757)",
   },
   {
     id: "build",
     label: "Build",
-    description: "Documents, spreadsheets, and reusable library work",
+    description: "Developer, pricing, legal, and platform-facing utility surfaces",
     icon: "Code",
-    views: ["documents", "spreadsheets", "library-home"] as MainView[],
-    defaultView: "documents" as MainView,
+    views: ["developers", "financial-operator", "pricing", "changelog", "legal", "about"],
+    defaultView: "developers",
     color: "var(--accent-primary, #d97757)",
   },
   {
     id: "agents",
     label: "Agents",
-    description: "Agent orchestration, receipts, and tool activity",
+    description: "Agent orchestration, receipts, delegation, execution trace, and tool activity",
     icon: "Bot",
-    views: ["agents", "receipts", "mcp-ledger"] as MainView[],
-    defaultView: "agents" as MainView,
+    views: ["agents", "receipts", "delegation", "execution-trace", "mcp-ledger"],
+    defaultView: "agents",
     color: "var(--accent-primary, #d97757)",
   },
   {
     id: "system",
     label: "System",
-    description: "Operational health, benchmarks, and developer-facing internals",
+    description: "Internal quality, benchmark, and personal wiki surfaces",
     icon: "Settings",
-    views: ["oracle", "benchmark-comparison", "developers"] as MainView[],
-    defaultView: "oracle" as MainView,
+    views: ["dogfood", "benchmark-comparison", "me-wiki-landing", "me-wiki-page-detail"],
+    defaultView: "dogfood",
     color: "var(--accent-primary, #d97757)",
   },
 ];
 
-/** Reverse map: MainView → CockpitMode */
+/** Reverse map: MainView -> CockpitMode */
 export const VIEW_TO_MODE: Record<MainView, CockpitMode> = Object.fromEntries(
-  MODES.flatMap((m) => m.views.map((v) => [v, m.id])),
+  MODES.flatMap((mode) => mode.views.map((view) => [view, mode.id])),
 ) as Record<MainView, CockpitMode>;
 
-// VIEW_TITLES and VIEW_PATH_MAP are now exported from @/lib/viewRegistry (re-exported above)
-
-/** Shared icon map for mode buttons — single source of truth for ModeRail and CommandBar */
+/** Shared icon map for mode buttons - single source of truth for ModeRail and CommandBar */
 export const ICON_MAP: Record<string, LucideIcon> = {
   Target,
   Radar,
@@ -93,5 +103,5 @@ export const ICON_MAP: Record<string, LucideIcon> = {
 
 export function getModeForView(view: MainView): ModeConfig {
   const modeId = VIEW_TO_MODE[view];
-  return MODES.find((m) => m.id === modeId) ?? MODES[0];
+  return MODES.find((mode) => mode.id === modeId) ?? MODES[0];
 }

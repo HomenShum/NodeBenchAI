@@ -376,8 +376,8 @@ function guessFilesFromTestTitle(title) {
   if (clean.includes('calendar')) return ['src/features/calendar/views/CalendarView.tsx'];
   if (clean.includes('document')) return ['src/features/documents/views/'];
   if (clean.includes('research')) return ['src/features/research/views/ResearchHub.tsx'];
-  if (clean.includes('sidebar')) return ['src/components/CleanSidebar.tsx'];
-  if (clean.includes('setting')) return ['src/components/SettingsModal.tsx'];
+  if (clean.includes('sidebar')) return ['src/features/redesign/components/Rail.tsx', 'src/layouts/WorkspaceRail.tsx'];
+  if (clean.includes('setting')) return ['src/layouts/settings/SettingsModal.tsx'];
   if (clean.includes('funding')) return ['src/features/research/views/FundingBriefView.tsx'];
   if (clean.includes('benchmark')) return ['src/features/benchmarks/views/WorkbenchView.tsx'];
   return ['src/'];

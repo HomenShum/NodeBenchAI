@@ -1,5 +1,5 @@
 /**
- * useContextualToolSuggestions — View-aware tool/action suggestions.
+ * useContextualToolSuggestions - view-aware tool/action suggestions.
  *
  * Given the current view ID + optional buyer preference, returns a ranked
  * list of suggestion chips (label, description, action) that are contextually
@@ -27,9 +27,9 @@ export interface ToolSuggestion {
 
 /**
  * Time-of-day context buckets.
- * Morning: review overnight agent runs → receipts, investigation
- * Afternoon: active work → agents, workspace, research
- * Evening: planning/reflection → product direction, benchmarks, oracle
+ * Morning: review overnight agent runs -> receipts, execution trace
+ * Afternoon: active work -> agents, chat, research
+ * Evening: planning/reflection -> product direction, benchmarks, dogfood
  */
 type DayPart = "morning" | "afternoon" | "evening";
 
@@ -66,8 +66,8 @@ const SUGGESTION_POOL: Array<
     id: "investigate-run",
     label: "Investigate a run",
     description: "Trace from action to evidence to approval for any agent session",
-    target: "investigation" as any,
-    path: "/investigation",
+    target: "execution-trace",
+    path: "/execution-trace",
     score: 0.65,
     tags: ["qa", "debug", "trace", "evidence"],
     dayPartBoost: ["morning"],
@@ -98,7 +98,7 @@ const SUGGESTION_POOL: Array<
     id: "launch-agent",
     label: "Launch an agent workflow",
     description: "Start a new task, monitor active threads, or clear blockers",
-    target: "agents" as any,
+    target: "agents",
     path: "/agents",
     score: 0.5,
     tags: ["agent", "workflow", "execution"],
@@ -107,9 +107,9 @@ const SUGGESTION_POOL: Array<
   {
     id: "open-workspace",
     label: "Open workspace",
-    description: "Documents, spreadsheets, and work in progress",
-    target: "documents" as any,
-    path: "/workspace",
+    description: "Chat with documents, evidence, and work in progress",
+    target: "chat-home",
+    path: "/?surface=chat",
     score: 0.45,
     tags: ["workspace", "documents", "productivity"],
     dayPartBoost: ["afternoon"],
@@ -118,8 +118,8 @@ const SUGGESTION_POOL: Array<
     id: "check-benchmarks",
     label: "Check benchmark results",
     description: "Run evals, compare agent runs, and review quality scores",
-    target: "benchmarks" as any,
-    path: "/internal/benchmarks",
+    target: "benchmark-comparison",
+    path: "/benchmarks",
     score: 0.4,
     tags: ["qa", "eval", "benchmark", "performance"],
     dayPartBoost: ["evening"],
@@ -170,9 +170,9 @@ const SUGGESTION_POOL: Array<
 /**
  * Returns ranked, contextual suggestions for the current view + user state.
  *
- * @param currentView — The active view (used to filter out current page)
- * @param preferredPath — User's saved buyer preference (boosts matching suggestions)
- * @param limit — Max suggestions to return (default 4)
+ * @param currentView - The active view (used to filter out current page)
+ * @param preferredPath - User's saved buyer preference (boosts matching suggestions)
+ * @param limit - Max suggestions to return (default 4)
  */
 export function useContextualToolSuggestions(
   currentView: MainView | null,

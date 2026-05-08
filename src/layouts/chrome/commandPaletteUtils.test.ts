@@ -24,20 +24,21 @@ describe("rankCommandPaletteCommands", () => {
   it("biases empty-query results toward the default buyer journey", () => {
     const ranked = rankCommandPaletteCommands(
       [
-        makeCommand("nav-benchmarks"),
-        makeCommand("nav-tool-activity"),
-        makeCommand("nav-delegation"),
-        makeCommand("nav-investigation"),
-        makeCommand("nav-receipts"),
+        makeCommand("nav-me"),
+        makeCommand("nav-chat"),
+        makeCommand("nav-inbox"),
+        makeCommand("nav-home"),
+        makeCommand("nav-reports"),
       ],
       "",
     );
 
-    expect(ranked.slice(0, 4).map((item) => item.id)).toEqual([
-      "nav-receipts",
-      "nav-delegation",
-      "nav-investigation",
-      "nav-tool-activity",
+    expect(ranked.map((item) => item.id)).toEqual([
+      "nav-home",
+      "nav-reports",
+      "nav-chat",
+      "nav-inbox",
+      "nav-me",
     ]);
   });
 
@@ -46,23 +47,22 @@ describe("rankCommandPaletteCommands", () => {
 
     const ranked = rankCommandPaletteCommands(
       [
-        makeCommand("nav-benchmarks"),
-        makeCommand("nav-tool-activity"),
-        makeCommand("nav-delegation"),
-        makeCommand("nav-investigation"),
-        makeCommand("nav-receipts"),
+        makeCommand("nav-reports"),
+        makeCommand("nav-chat"),
+        makeCommand("nav-inbox"),
+        makeCommand("nav-home"),
       ],
       "",
     );
 
-    expect(ranked[0]?.id).toBe("nav-tool-activity");
+    expect(ranked[0]?.id).toBe("nav-home");
   });
 
   it("does not reorder typed search results", () => {
     const commands = [
-      makeCommand("nav-investigation"),
-      makeCommand("nav-receipts"),
-      makeCommand("nav-tool-activity"),
+      makeCommand("nav-home"),
+      makeCommand("nav-inbox"),
+      makeCommand("nav-chat"),
     ];
 
     expect(rankCommandPaletteCommands(commands, "invest")).toEqual(commands);

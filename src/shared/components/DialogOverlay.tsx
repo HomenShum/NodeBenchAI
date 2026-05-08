@@ -99,6 +99,8 @@ export function DialogOverlay({
         />
         <div
           {...containerProps}
+          role="dialog"
+          aria-modal="true"
           aria-label={ariaLabel}
           className={cn("relative z-10", contentClassName)}
           onClick={(e) => e.stopPropagation()}
@@ -130,6 +132,8 @@ export function DialogOverlay({
           />
           <motion.div
             {...containerProps}
+            role="dialog"
+            aria-modal="true"
             aria-label={ariaLabel}
             className={cn("relative z-10", contentClassName)}
             variants={contentVariants}

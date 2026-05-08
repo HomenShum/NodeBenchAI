@@ -87,10 +87,10 @@ export function useGlobalEventListeners(options: UseGlobalEventListenersOptions)
                 const ids: Id<"documents">[] = Array.isArray(maybeIds) ? maybeIds : [];
                 if (ids.length === 0) return;
 
-                goToView('documents' as MainView);
+                goToView('chat-home');
                 setIsGridMode(true);
 
-                // Select each document to let TabManager add them as tabs
+                // Select each document in sequence so the active document surface can hydrate context.
                 onDocumentSelect(ids[0]);
                 ids.slice(1).forEach((id, idx) => {
                     setTimeout(() => onDocumentSelect(id), (idx + 1) * 50);
@@ -118,7 +118,7 @@ export function useGlobalEventListeners(options: UseGlobalEventListenersOptions)
                 const sourceId = e.detail?.sourceDocumentId as Id<"documents"> | undefined;
                 const openInGrid = Boolean(e.detail?.openInGrid);
 
-                goToView('documents' as MainView);
+                goToView('chat-home');
 
                 if (openInGrid) {
                     setIsGridMode(true);
@@ -218,11 +218,11 @@ export function useGlobalEventListeners(options: UseGlobalEventListenersOptions)
 
     // Global Navigation Shortcuts
     useEffect(() => {
-        const toCalendar = () => goToView('calendar' as MainView);
-        const toTimeline = () => goToView('documents' as MainView);
-        const toDocuments = () => goToView('documents' as MainView);
-        const toRoadmap = () => goToView('roadmap' as MainView);
-        const toAgents = () => goToView('agents' as MainView);
+        const toCalendar = () => goToView('nudges-home');
+        const toTimeline = () => goToView('pulse-home');
+        const toDocuments = () => goToView('chat-home');
+        const toRoadmap = () => goToView('product-direction');
+        const toAgents = () => goToView('agents');
 
         window.addEventListener('navigate:calendar', toCalendar as unknown as EventListener);
         window.addEventListener('navigate:timeline', toTimeline as unknown as EventListener);
