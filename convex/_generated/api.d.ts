@@ -883,7 +883,6 @@ import type * as domains_operations_utilities_seedGoldenDataset from "../domains
 import type * as domains_operations_utilities_snapshotMigrations from "../domains/operations/utilities/snapshotMigrations.js";
 import type * as domains_operations_validationWorkflow from "../domains/operations/validationWorkflow.js";
 import type * as domains_operatorProfile_filesystemSync from "../domains/operatorProfile/filesystemSync.js";
-import type * as domains_operatorProfile_manifest from "../domains/operatorProfile/manifest.js";
 import type * as domains_operatorProfile_mutations from "../domains/operatorProfile/mutations.js";
 import type * as domains_operatorProfile_parser from "../domains/operatorProfile/parser.js";
 import type * as domains_operatorProfile_queries from "../domains/operatorProfile/queries.js";
@@ -1016,6 +1015,7 @@ import type * as domains_research_dashboardQueries from "../domains/research/das
 import type * as domains_research_dealFlow from "../domains/research/dealFlow.js";
 import type * as domains_research_dealFlowQueries from "../domains/research/dealFlowQueries.js";
 import type * as domains_research_documentDiscovery from "../domains/research/documentDiscovery.js";
+import type * as domains_research_editionQueries from "../domains/research/editionQueries.js";
 import type * as domains_research_entities_decayManager from "../domains/research/entities/decayManager.js";
 import type * as domains_research_entities_entityLifecycle from "../domains/research/entities/entityLifecycle.js";
 import type * as domains_research_entities_index from "../domains/research/entities/index.js";
@@ -2365,7 +2365,6 @@ declare const fullApi: ApiFromModules<{
   "domains/operations/utilities/snapshotMigrations": typeof domains_operations_utilities_snapshotMigrations;
   "domains/operations/validationWorkflow": typeof domains_operations_validationWorkflow;
   "domains/operatorProfile/filesystemSync": typeof domains_operatorProfile_filesystemSync;
-  "domains/operatorProfile/manifest": typeof domains_operatorProfile_manifest;
   "domains/operatorProfile/mutations": typeof domains_operatorProfile_mutations;
   "domains/operatorProfile/parser": typeof domains_operatorProfile_parser;
   "domains/operatorProfile/queries": typeof domains_operatorProfile_queries;
@@ -2498,6 +2497,7 @@ declare const fullApi: ApiFromModules<{
   "domains/research/dealFlow": typeof domains_research_dealFlow;
   "domains/research/dealFlowQueries": typeof domains_research_dealFlowQueries;
   "domains/research/documentDiscovery": typeof domains_research_documentDiscovery;
+  "domains/research/editionQueries": typeof domains_research_editionQueries;
   "domains/research/entities/decayManager": typeof domains_research_entities_decayManager;
   "domains/research/entities/entityLifecycle": typeof domains_research_entities_entityLifecycle;
   "domains/research/entities/index": typeof domains_research_entities_index;

@@ -109,9 +109,35 @@ export default function RedesignShell() {
     };
   }, []);
 
+  // Phase 7a edition flag — when `?edition=1` is present, the editorial
+  // home is the single source of truth for /redesign on both mobile +
+  // desktop (per docs/architecture/HOME_EDITORIAL_REDESIGN.md §3
+  // Variant C: "mobile and desktop are identical").
+  const isEditionFlag =
+    typeof window !== "undefined" &&
+    new URLSearchParams(location.search).get("edition") === "1";
+
   // Mobile path overrides everything except /redesign/workspace (which keeps its own surface).
   if (isMobile && surface !== "workspace") {
     const mobileSurface: SurfaceId = (surface === "workspace" ? "reports" : surface) as SurfaceId;
+    // Edition flag bypasses MobileShell at the home surface so the
+    // single-column editorial layout stays responsive at any width.
+    if (isEditionFlag && mobileSurface === "home") {
+      return (
+        <div data-redesign data-redesign-theme={theme} style={{ minHeight: "100dvh", overflow: "auto" }}>
+          <HomeSurface
+            onAsk={(text) => navigate(`/redesign/chat?q=${encodeURIComponent(text)}`)}
+            onOpenReport={(id) => navigate(`/redesign/reports/${id}`)}
+          />
+          {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}
+          {showQaChrome && <ViewportFab forceMobile={forceMobile} setForceMobile={setForceMobile} />}
+          <NavBanner pathname={location.pathname} />
+          <CommandPalette open={cmdk.open} onClose={() => cmdk.setOpen(false)} />
+          <ShortcutsOverlay />
+          <ToastViewport />
+        </div>
+      );
+    }
     return (
       <div data-redesign data-redesign-theme={theme} style={{ height: "100dvh", overflow: "hidden" }}>
         <MobileShell active={mobileSurface} onChange={(id) => goSurface(id)} />
