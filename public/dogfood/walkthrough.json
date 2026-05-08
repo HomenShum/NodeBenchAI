@@ -1,5 +1,5 @@
 {
-  "capturedAtIso": "2026-04-23T01:08:23.043Z",
+  "capturedAtIso": "2026-05-08T12:35:35.993Z",
   "baseURL": "http://127.0.0.1:4317",
   "mime": "video/mp4",
   "publish": "static",
@@ -44,22 +44,22 @@
       "index": 7,
       "name": "Interaction: Theme toggle",
       "path": "(interaction)",
-      "startSec": 11
+      "startSec": 12
     },
     {
       "index": 8,
       "name": "Interaction: Reports to Chat",
       "path": "(interaction)",
-      "startSec": 11
+      "startSec": 12
     },
     {
       "index": 9,
       "name": "End",
       "path": "(end)",
-      "startSec": 11.3
+      "startSec": 12.5
     }
   ],
   "videoUrl": null,
   "videoPath": "/dogfood/walkthrough.mp4",
-  "_localVideoPath": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.tmp\\dogfood-video\\dogfood-walkthrough_2026-04-22_180802.mp4"
+  "_localVideoPath": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\chat-live-resolve\\.tmp\\dogfood-video\\dogfood-walkthrough_2026-05-08_053509.mp4"
 }

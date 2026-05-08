@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, internalMutation } from "../../../_generated/server";
 import { internal } from "../../../_generated/api";
 
@@ -10,26 +11,20 @@ export const upsertSchedule = mutation({
     intervalMs: v.number(),
   },
   handler: async (ctx, { intervalMs }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-      .unique();
-    if (!user) throw new Error("User not found");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
 
     // Need an operator profile
     const profile = await ctx.db
       .query("operatorProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
     if (!profile) throw new Error("Create an Operator Profile first");
 
     const now = Date.now();
     const existing = await ctx.db
       .query("batchAutopilotSchedules")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
 
     if (existing) {
@@ -42,7 +37,7 @@ export const upsertSchedule = mutation({
     }
 
     return await ctx.db.insert("batchAutopilotSchedules", {
-      userId: user._id,
+      userId,
       profileId: profile._id,
       intervalMs,
       isEnabled: true,
@@ -60,18 +55,12 @@ export const upsertSchedule = mutation({
 export const toggleEnabled = mutation({
   args: { enabled: v.boolean() },
   handler: async (ctx, { enabled }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-      .unique();
-    if (!user) throw new Error("User not found");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
 
     const schedule = await ctx.db
       .query("batchAutopilotSchedules")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
     if (!schedule) throw new Error("No schedule found");
 
@@ -91,24 +80,18 @@ export const toggleEnabled = mutation({
 export const triggerManualRun = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-      .unique();
-    if (!user) throw new Error("User not found");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
 
     const profile = await ctx.db
       .query("operatorProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
     if (!profile) throw new Error("Create an Operator Profile first");
 
     let schedule = await ctx.db
       .query("batchAutopilotSchedules")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
 
     const now = Date.now();
@@ -116,7 +99,7 @@ export const triggerManualRun = mutation({
     // Create schedule if it doesn't exist
     if (!schedule) {
       const scheduleId = await ctx.db.insert("batchAutopilotSchedules", {
-        userId: user._id,
+        userId,
         profileId: profile._id,
         intervalMs: 43200000, // 12h default
         isEnabled: false,     // Manual trigger doesn't auto-enable
@@ -134,7 +117,7 @@ export const triggerManualRun = mutation({
 
     // Create run entry
     const runId = await ctx.db.insert("batchAutopilotRuns", {
-      userId: user._id,
+      userId,
       scheduleId: schedule._id,
       status: "collecting",
       startedAt: now,

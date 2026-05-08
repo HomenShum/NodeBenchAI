@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { query, internalQuery } from "../../../_generated/server";
 
 /**
@@ -7,18 +8,12 @@ import { query, internalQuery } from "../../../_generated/server";
 export const getSchedule = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-      .unique();
-    if (!user) return null;
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
 
     return await ctx.db
       .query("batchAutopilotSchedules")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
   },
 });
@@ -29,20 +24,14 @@ export const getSchedule = query({
 export const getRecentRuns = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-      .unique();
-    if (!user) return [];
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
 
     return await ctx.db
       .query("batchAutopilotRuns")
       .withIndex("by_started")
       .order("desc")
-      .filter((q) => q.eq(q.field("userId"), user._id))
+      .filter((q) => q.eq(q.field("userId"), userId))
       .take(limit || 20);
   },
 });

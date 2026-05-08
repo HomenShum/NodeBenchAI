@@ -92,6 +92,22 @@ function generateRunId(): string {
   return `chat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+type NormalizedChatTier = "free" | "fast" | "auto" | "deep";
+
+function normalizeChatTier(tier: string): NormalizedChatTier {
+  if (tier === "free" || tier === "fast" || tier === "auto" || tier === "deep") return tier;
+  if (tier === "answer") return "fast";
+  if (tier === "compare") return "deep";
+  return "auto";
+}
+
+function modelForTier(tier: string): string {
+  const normalized = normalizeChatTier(tier);
+  if (normalized === "deep") return "gemini-3.1-pro-preview";
+  if (normalized === "free") return "gemini-3.1-flash-lite-preview";
+  return "gemini-3-flash-preview";
+}
+
 function classifyPrompt(prompt: string): { kind: string; entity?: string } {
   const lower = prompt.toLowerCase();
   const capMatch = prompt.match(/(?:about |on |for |re )?([A-Z][A-Za-z0-9]+(?:\s[A-Z][A-Za-z0-9]+)*)/);
@@ -140,7 +156,14 @@ function parseMemo(text: string): ParsedMemo {
 export const startChat = mutation({
   args: {
     prompt: v.string(),
-    tier: v.union(v.literal("free"), v.literal("fast"), v.literal("auto"), v.literal("deep")),
+    tier: v.union(
+      v.literal("free"),
+      v.literal("fast"),
+      v.literal("auto"),
+      v.literal("deep"),
+      v.literal("answer"),
+      v.literal("compare"),
+    ),
     contextRef: v.optional(v.string()),
     /** Phase 5 — pinned claims from prior turns to carry forward as hard
      *  context. Each item: short text + optional source URL. Server prepends
@@ -160,9 +183,8 @@ export const startChat = mutation({
     if (prompt.trim().length < 3) {
       throw new Error("Prompt too short — write at least a 3-character question.");
     }
-    const model = args.tier === "deep" ? "gemini-3.1-pro-preview"
-      : args.tier === "free" ? "gemini-3.1-flash-lite-preview"
-      : "gemini-3-flash-preview";
+    const normalizedTier = normalizeChatTier(args.tier);
+    const model = modelForTier(normalizedTier);
     const runId = generateRunId();
     let userId: any = undefined;
     try {
@@ -180,7 +202,7 @@ export const startChat = mutation({
       runId,
       userId,
       prompt,
-      tier: args.tier,
+      tier: normalizedTier,
       model,
       status: "pending",
       createdAt: Date.now(),
@@ -188,7 +210,7 @@ export const startChat = mutation({
     await ctx.scheduler.runAfter(0, internal.domains.redesign.chatRuns.runStreamingChat, {
       runId,
       prompt,
-      tier: args.tier,
+      tier: normalizedTier,
       contextRef: args.contextRef,
       model,
       pinnedClaims: args.pinnedClaims,
@@ -228,9 +250,8 @@ export const probeRun = mutation({
     const masked = evidence.find((e) => e.idx === args.maskedSourceIdx);
     if (!masked) throw new Error(`No source [${args.maskedSourceIdx}] in original run`);
     // Reuse startChat semantics for auth, scheduling, etc.
-    const model = orig.tier === "deep" ? "gemini-3.1-pro-preview"
-      : orig.tier === "free" ? "gemini-3.1-flash-lite-preview"
-      : "gemini-3-flash-preview";
+    const normalizedTier = normalizeChatTier(orig.tier);
+    const model = modelForTier(normalizedTier);
     const runId = generateRunId();
     let userId: any = undefined;
     try {
@@ -248,7 +269,7 @@ export const probeRun = mutation({
       runId,
       userId,
       prompt: orig.prompt,
-      tier: orig.tier,
+      tier: normalizedTier,
       model,
       status: "pending",
       createdAt: Date.now(),
@@ -256,7 +277,7 @@ export const probeRun = mutation({
     await ctx.scheduler.runAfter(0, internal.domains.redesign.chatRuns.runStreamingChat, {
       runId,
       prompt: orig.prompt,
-      tier: orig.tier as any,
+      tier: normalizedTier,
       contextRef: undefined,
       model,
       probeOriginRunId: args.originalRunId,
