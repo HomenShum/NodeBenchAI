@@ -266,7 +266,7 @@ export function SyncBridgeAccountPanel() {
         />
         <StatCard
           label="Shared ops"
-          value={snapshot?.recentOperations.length ?? 0}
+          value={snapshot?.recentOperations?.length ?? 0}
         />
       </div>
 

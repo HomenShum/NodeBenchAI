@@ -208,6 +208,7 @@ export const CommandBar = memo(function CommandBar({
           aria-label="Open command palette"
           data-agent-id="cockpit:action:palette"
           data-agent-action="search"
+          data-agent-label="Open command palette"
         >
           <kbd className="rounded border border-white/[0.06] bg-white/[0.02] px-1.5 py-0.5">{isMac ? "⌘K" : "Ctrl+K"}</kbd>
         </button>

@@ -400,12 +400,16 @@ export function SharedContextProtocolPanel() {
         </div>
       </div>
 
+      {/* QA fix (2026-05-08): chain optional through `counts` too — anonymous
+          users hit this panel with snapshot defined but counts undefined,
+          which threw "Cannot read properties of undefined (reading
+          'activePeers')" and triggered the ErrorBoundary on /mcp/ledger. */}
       <div className="mt-4 grid gap-3 md:grid-cols-5">
-        <Stat icon={<Users className="h-3.5 w-3.5" />} label="Active peers" value={snapshot?.counts.activePeers ?? 0} />
-        <Stat icon={<Boxes className="h-3.5 w-3.5" />} label="Active packets" value={snapshot?.counts.activePackets ?? 0} />
-        <Stat icon={<Link2 className="h-3.5 w-3.5" />} label="Invalidated" value={snapshot?.counts.invalidatedPackets ?? 0} />
-        <Stat icon={<RefreshCw className="h-3.5 w-3.5" />} label="Open tasks" value={snapshot?.counts.openTasks ?? 0} />
-        <Stat icon={<Mail className="h-3.5 w-3.5" />} label="Unread" value={snapshot?.counts.unreadMessages ?? 0} />
+        <Stat icon={<Users className="h-3.5 w-3.5" />} label="Active peers" value={snapshot?.counts?.activePeers ?? 0} />
+        <Stat icon={<Boxes className="h-3.5 w-3.5" />} label="Active packets" value={snapshot?.counts?.activePackets ?? 0} />
+        <Stat icon={<Link2 className="h-3.5 w-3.5" />} label="Invalidated" value={snapshot?.counts?.invalidatedPackets ?? 0} />
+        <Stat icon={<RefreshCw className="h-3.5 w-3.5" />} label="Open tasks" value={snapshot?.counts?.openTasks ?? 0} />
+        <Stat icon={<Mail className="h-3.5 w-3.5" />} label="Unread" value={snapshot?.counts?.unreadMessages ?? 0} />
       </div>
 
       {loading && <div className="mt-4 text-sm text-content-secondary">Loading shared context snapshot...</div>}
