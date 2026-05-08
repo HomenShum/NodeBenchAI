@@ -1,14 +1,27 @@
 /**
- * Home — magnetic restructure (Pitchbook + Bloomberg + Stratechery + Notion).
+ * Home — reduced layout (2026-05-08).
+ *
+ * Replaces the prior 11-section scroll with 5 visible sections, two
+ * progressive-disclosure <details> sections, and zero redundant cards.
+ *
+ * Visible (above the fold): pulse hero + composer.
+ * Then on scroll: ops dashboard, public research feed.
+ * Then on demand: <details> for style gallery + situation templates.
+ *
+ * Removed (each had a duplicate signal somewhere else):
+ *   - "Immediate start" CTA card  →  same data in pulse hero `continue` row
+ *   - "First public dossier" banner  →  copy moved to composer placeholder
+ *   - Memory-pulse ticker  →  vanity metrics; pulse hero text already gives the count
+ *   - Active-event COVER HERO  →  duplicates pulse `action` row + Daily Brief
  *
  * Section order (top → bottom):
- *   1. Hero composer + dual CTA + runtime ribbon (kept)
- *   2. First-public-dossier banner (kept)
- *   3. Memory pulse TICKER (Bloomberg slim ribbon, was a section)
- *   4. Active-event COVER HERO (Apple News-style, when an event is live)
- *   5. 3-column ops dashboard: Continue working · What changed · Watchlist
- *   6. LATEST PUBLIC RESEARCH — Pitchbook entity-card feed with delta arrows + filter/sort
- *   7. PICK THE SITUATION — Notion templates gallery with previews + time + uses count
+ *   1. Daily Intelligence Pulse — sparse 5-row hero (primary)
+ *   2. WhatChangedStrip — single line, returning users only
+ *   3. Headline + composer (tight)
+ *   4. 3-column ops dashboard: Continue · Changed · Watchlist
+ *   5. Latest public research — Pitchbook entity feed
+ *   6. <details> Try a memo style (collapsed by default)
+ *   7. <details> Pick the situation (collapsed by default)
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -67,7 +80,6 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
   const { pulse: livePulse } = useHomePulseLive();
   const liveArtifacts = useLiveArtifacts(24);
   const pulseCards = liveArtifacts.pulse.length > 0 ? liveArtifacts.pulse : livePulse;
-  const effectiveMemoryPulse = liveArtifacts.metrics;
   const effectivePublicResearch = liveArtifacts.publicResearch;
   const primaryLiveReport = liveArtifacts.reports[0];
   const effectiveContinueWorking: ContinueItem[] = liveArtifacts.reports.slice(0, 3).map((report, index) => ({
@@ -101,14 +113,6 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
     setActiveStyle(style);
     onAsk(`Run a ${style.name.toLowerCase()} on ${entity}.`);
   };
-  const bankerStyle = memoStyles.find((s) => s.id === "gs.banker.brief") ?? memoStyles[0];
-  const openPrimaryLiveArtifact = () => {
-    if (primaryLiveReport) {
-      navigate(`/redesign/workspace?report=${primaryLiveReport.id}&tab=brief`);
-      return;
-    }
-    tryStyle(bankerStyle, "Apple");
-  };
 
   const filteredSituations = useMemo(
     () => situations.filter((s) => s.window === situationWindow),
@@ -122,22 +126,8 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
     else if (entitySort === "delta") list.sort((a, b) => b.delta - a.delta);
     return list;
   }, [effectivePublicResearch, entityFilter, entitySort]);
-  const displayMemoryPulse = effectiveMemoryPulse.length > 0
-    ? effectiveMemoryPulse
-    : [
-        {
-          label: "Live artifacts",
-          value: liveArtifacts.isLoading ? "Loading" : "0",
-          hint: liveArtifacts.isLoading ? "Convex query in flight" : "No archive or daily brief rows returned",
-        },
-      ];
 
-  // QA fix (2026-05-08): Daily Intelligence Pulse — sparse 5-row hero
-  // addressing audit P1 "Desktop Home is collapsed into composer/examples".
-  // Distills five immediate signals at the top of the page: continue last
-  // research / one relevant update / one tracked entity changed / one
-  // recommended action / start new research. Existing hero+composer and
-  // downstream sections continue to mount unchanged below this strip.
+  // Daily Intelligence Pulse — sparse 5-row hero (continues from prior version).
   const pulseLastResearch = effectiveContinueWorking[0];
   const pulseRelevantUpdate = whatChangedItems[0];
   const pulseEntityChanged = effectiveWatchlist.find((e) => e.delta !== 0) ?? effectiveWatchlist[0];
@@ -148,8 +138,8 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
       : null;
 
   return (
-    <div className="rd-stack" style={{ padding: "20px 40px 40px", gap: 28, maxWidth: 1180, margin: "0 auto" }}>
-      {/* ─── 0a. Daily Intelligence Pulse — sparse 5-row hero (audit P1) ─── */}
+    <div className="rd-stack" style={{ padding: "20px 40px 40px", gap: 20, maxWidth: 1180, margin: "0 auto" }}>
+      {/* ─── 1. Daily Intelligence Pulse — sparse 5-row hero ─── */}
       <section
         className="rd-card"
         aria-label="Daily Intelligence Pulse"
@@ -236,7 +226,7 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
         </div>
       </section>
 
-      {/* ─── 0. What changed since last visit (returning users) ─── */}
+      {/* ─── 2. What changed since last visit (returning users) ─── */}
       <WhatChangedStrip
         items={whatChangedItems}
         onOpen={(item) => {
@@ -245,64 +235,13 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
         }}
       />
 
-      {/* ─── 1. Hero ─── */}
-      <header className="rd-stack" style={{ gap: 12, alignItems: "center", textAlign: "center", paddingTop: 16 }}>
-        <span className="rd-eyebrow" style={{ fontSize: 11, letterSpacing: "0.18em" }}>
-          {liveArtifacts.isLive ? "Live public memory ready" : "Entity intelligence"}
-        </span>
-        <h1 className="rd-display" style={{ textAlign: "center" }}>Ask once. Turn it into reusable intelligence.</h1>
-        <p className="rd-body rd-faint" style={{ maxWidth: 600, fontSize: 15, lineHeight: 1.55, textAlign: "center" }}>
-          Chat creates the intelligence. Reports preserve it. Notebook edits it. Sources prove it. The live feed below
-          is pulled from first-party NodeBench artifacts, not static demo cards.
+      {/* ─── 3. Headline + composer (tight) ─── */}
+      <header className="rd-stack" style={{ gap: 6, alignItems: "center", textAlign: "center", paddingTop: 4 }}>
+        <h1 className="rd-display" style={{ textAlign: "center", margin: 0 }}>Ask once. Turn it into reusable intelligence.</h1>
+        <p className="rd-body rd-faint" style={{ maxWidth: 600, fontSize: 14, lineHeight: 1.5, textAlign: "center", margin: 0 }}>
+          Chat creates the intelligence. Reports preserve it. Notebook edits it. Sources prove it.
         </p>
       </header>
-
-      <section
-        className="rd-card"
-        aria-label="Immediate start"
-        style={{
-          maxWidth: 860,
-          width: "100%",
-          margin: "0 auto",
-          padding: "14px 16px",
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) auto",
-          gap: 14,
-          alignItems: "center",
-          borderColor: liveArtifacts.isLive ? "var(--rd-green-border)" : "var(--rd-accent-ring)",
-          background: liveArtifacts.isLive ? "var(--rd-green-bg)" : "var(--rd-accent-tint)",
-        }}
-      >
-        <div className="rd-stack" style={{ gap: 4 }}>
-          <div className="rd-row" style={{ gap: 6, flexWrap: "wrap" }}>
-            <Pill tone={liveArtifacts.isLive ? "green" : "accent"}>
-              <span className={liveArtifacts.isLive ? "rd-dot rd-dot--live" : "rd-dot"} />
-              {liveArtifacts.isLive ? liveArtifacts.sourceLabel : "Starter style gallery"}
-            </Pill>
-            {primaryLiveReport && <Pill>{primaryLiveReport.claims} claims</Pill>}
-            {primaryLiveReport && <Pill>{primaryLiveReport.sources} sources</Pill>}
-          </div>
-          <strong style={{ fontSize: 14, color: "var(--rd-ink-strong)" }}>
-            {primaryLiveReport ? primaryLiveReport.entity : "No sign-in needed: run a banker-style first report."}
-          </strong>
-          <span style={{ fontSize: 12.5, color: "var(--rd-ink-mute)", lineHeight: 1.45 }}>
-            {primaryLiveReport
-              ? primaryLiveReport.description
-              : "Pick a public memo style, run it on a familiar entity, then save the result as reusable memory."}
-          </span>
-        </div>
-        <div className="rd-row" style={{ gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
-          <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={openPrimaryLiveArtifact}>
-            {primaryLiveReport ? "Open live brief >" : "Try banker brief >"}
-          </button>
-          <button
-            className="rd-btn rd-btn--quiet rd-btn--sm"
-            onClick={() => tryStyle(activeStyle, primaryLiveReport?.entity ?? "Apple")}
-          >
-            Multiply this {">"}
-          </button>
-        </div>
-      </section>
 
       <div style={{ maxWidth: 760, width: "100%", margin: "0 auto" }}>
         <UniversalComposer
@@ -315,141 +254,11 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
           onSubmit={(text) => onAsk(text)}
           onChatNow={(text) => onAsk(text)}
           showRuntimeRibbon
-          placeholder="Ask anything — a company, a market, or a question..."
+          placeholder="First public dossier works without sign-in — ask a company, market, or question…"
         />
       </div>
 
-      {/* ─── 2. Public-dossier banner ─── */}
-      <div
-        className="rd-card"
-        style={{
-          maxWidth: 760, width: "100%", margin: "0 auto",
-          padding: "12px 18px",
-          display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center",
-        }}
-      >
-        <div aria-hidden="true" style={{
-          width: 28, height: 28, borderRadius: 8,
-          background: "var(--rd-accent-soft)", color: "var(--rd-accent-strong)",
-          display: "grid", placeItems: "center",
-        }}>
-          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-          </svg>
-        </div>
-        <div className="rd-stack" style={{ gap: 1 }}>
-          <strong style={{ fontSize: 12.5, color: "var(--rd-ink-strong)" }}>First public dossier works without sign-in.</strong>
-          <span style={{ fontSize: 11.5, color: "var(--rd-ink-mute)" }}>Link NodeBench after the first sourced result to keep memory, raise limits, and add team controls.</span>
-        </div>
-        <button className="rd-btn rd-btn--quiet rd-btn--sm">Link when ready</button>
-      </div>
-
-      {/* ─── Style strip (always visible, magnetic for first-time visitors) ─── */}
-      <section
-        aria-label={isFirstVisit ? "Try a style" : "Your style"}
-        className="rd-stack"
-        style={{ gap: 10 }}
-      >
-        <div className="rd-row--between" style={{ alignItems: "flex-end" }}>
-          <div>
-            <div className="rd-eyebrow">{isFirstVisit ? "Try a style" : "Your style + public references"}</div>
-            <h2 className="rd-h2" style={{ marginTop: 4 }}>
-              {isFirstVisit
-                ? "Pick a memo style — see what NodeBench can become for you."
-                : <>Active: <span style={{ color: "var(--rd-accent-strong)" }}>{activeStyle.name}</span> · drives every report you generate.</>}
-            </h2>
-          </div>
-          {!isFirstVisit && (
-            <button
-              className="rd-btn rd-btn--quiet rd-btn--sm"
-              onClick={() => navigate("/redesign/me")}
-            >Manage style →</button>
-          )}
-        </div>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: 10,
-        }}>
-          {(isFirstVisit ? memoStyles.filter((s) => s.id !== "user.inferred") : memoStyles).slice(0, 4).map((s) => (
-            <StyleGalleryCard
-              key={s.id}
-              style={s}
-              defaultTryEntity="Apple"
-              selected={s.id === activeStyle.id}
-              onSelect={(st) => setActiveStyle(st)}
-              onTry={tryStyle}
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* ─── 3. Memory Pulse TICKER (Bloomberg-style ribbon) ─── */}
-      <section aria-label="Memory pulse" className="rd-ticker" style={{ marginTop: -8 }}>
-        {displayMemoryPulse.map((m, i) => (
-          <div key={m.label} className="rd-ticker__cell" style={i === 0 ? { paddingLeft: 0 } : undefined}>
-            <span className="rd-ticker__label">{m.label}</span>
-            <span className="rd-ticker__value">{m.value}</span>
-            {m.delta && (
-              <span className={`rd-ticker__delta ${m.delta.startsWith("+") || m.delta.includes("avoided") ? "rd-ticker__delta--up" : ""}`}>
-                {m.delta.startsWith("+") || m.delta.match(/^\d/) ? `↑ ${m.delta}` : m.delta}
-              </span>
-            )}
-            {m.hint && !m.delta && (
-              <span className="rd-ticker__delta" style={{ color: "var(--rd-ink-soft)", fontWeight: 510 }}>{m.hint}</span>
-            )}
-          </div>
-        ))}
-      </section>
-
-      {/* ─── 4. Active-event COVER HERO ─── */}
-      <section aria-label="Active event" className="rd-stack" style={{ gap: 10 }}>
-        <div className="rd-row--between">
-          <div className="rd-eyebrow">{primaryLiveReport ? "Active live artifact" : "Active coverage"}</div>
-          <button className="rd-btn rd-btn--quiet rd-btn--sm">Mute</button>
-        </div>
-        <article className="rd-cover-hero">
-          <span className="rd-cover-hero__pulse">LIVE</span>
-          <div className="rd-stack" style={{ gap: 12, color: "#fff" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", opacity: 0.85 }}>
-              {liveArtifacts.isLive
-                ? `Today · ${liveArtifacts.archiveCount} archive posts · ${liveArtifacts.briefFeatureCount} brief signals`
-                : liveArtifacts.isLoading ? "Checking live artifacts" : "No live artifacts yet"}
-            </span>
-            <h2 style={{ fontSize: 36, fontWeight: 700, letterSpacing: "-1.2px", margin: 0, lineHeight: 1.05, color: "#fff" }}>
-              {primaryLiveReport?.entity ?? "Live coverage memory"}
-            </h2>
-            <p style={{ fontSize: 14.5, lineHeight: 1.55, color: "rgba(255,255,255,0.92)", margin: 0, maxWidth: 480 }}>
-              {primaryLiveReport
-                ? primaryLiveReport.description
-                : "Answers serve from reusable memory first, then preserve the result as reports, claims, sources, and follow-ups."}{" "}
-              <strong style={{ color: "#fff" }}>
-                {primaryLiveReport ? `${primaryLiveReport.claims} claims · ${primaryLiveReport.sources} sources.` : "Run one question, then multiply it."}
-              </strong>
-            </p>
-            <div className="rd-row" style={{ gap: 8, marginTop: 6 }}>
-              <button
-                className="rd-btn rd-btn--sm"
-                style={{ background: "#fff", color: "var(--rd-accent-strong)", border: "1px solid #fff", fontWeight: 700 }}
-                onClick={openPrimaryLiveArtifact}
-              >
-                {primaryLiveReport ? "Open live brief →" : "Try banker brief →"}
-              </button>
-              <button className="rd-btn rd-btn--sm" style={{ background: "rgba(255,255,255,0.16)", color: "#fff", border: "1px solid rgba(255,255,255,0.30)", fontWeight: 590 }}>
-                Capture quick note
-              </button>
-            </div>
-          </div>
-          <dl style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, margin: 0 }}>
-            <CoverStat label="Reports" value={String(liveArtifacts.reports.length)} hint={liveArtifacts.isLive ? "live artifacts ready" : "awaiting artifact"} />
-            <CoverStat label="Sources" value={String(primaryLiveReport?.sources ?? 0)} hint="attached evidence" />
-            <CoverStat label="Claims" value={String(primaryLiveReport?.claims ?? 0)} hint="reviewable blocks" />
-            <CoverStat label="Follow-ups" value={String(primaryLiveReport?.followUps ?? 0)} hint="waiting on user" />
-          </dl>
-        </article>
-      </section>
-
-      {/* ─── 5. 3-column ops dashboard ─── */}
+      {/* ─── 4. 3-column ops dashboard ─── */}
       <section aria-label="Operations dashboard" className="rd-ops">
         <div className="rd-ops__col">
           <div className="rd-ops__head">
@@ -525,7 +334,7 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
         </div>
       </section>
 
-      {/* ─── 6. Latest Public Research (Pitchbook entity feed) ─── */}
+      {/* ─── 5. Latest Public Research (Pitchbook entity feed) ─── */}
       <section aria-label="Latest public research" className="rd-stack" style={{ gap: 10 }}>
         <div className="rd-row--between" style={{ alignItems: "flex-end" }}>
           <div>
@@ -573,7 +382,7 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
               </p>
             </div>
           )}
-          {filteredEntities.map((e, index) => (
+          {filteredEntities.slice(0, 6).map((e, index) => (
             <EntityCard
               key={`${e.reportId ?? e.entity}-${e.kind}-${index}`}
               card={e}
@@ -581,16 +390,97 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
             />
           ))}
         </div>
+        {filteredEntities.length > 6 && (
+          <button
+            type="button"
+            className="rd-btn rd-btn--quiet rd-btn--sm"
+            style={{ alignSelf: "flex-start" }}
+            onClick={() => navigate("/redesign/reports")}
+          >
+            View all {filteredEntities.length} →
+          </button>
+        )}
       </section>
 
-      {/* ─── 7. Pick the situation (Notion-templates) ─── */}
-      <section aria-label="Pick the situation" className="rd-stack" style={{ gap: 12 }}>
-        <div className="rd-row--between" style={{ alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <div className="rd-eyebrow">Pick the situation</div>
-            <h2 className="rd-h2" style={{ marginTop: 4 }}>NodeBench turns scattered context into a saved report.</h2>
+      {/* ─── 6. <details> Try a memo style (collapsed) ─── */}
+      <details
+        className="rd-card"
+        style={{ padding: "14px 18px" }}
+      >
+        <summary
+          style={{
+            cursor: "pointer",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            listStyle: "none",
+            gap: 10,
+          }}
+        >
+          <div className="rd-stack" style={{ gap: 2 }}>
+            <span className="rd-eyebrow">{isFirstVisit ? "Try a memo style" : "Your style + public references"}</span>
+            <h2 className="rd-h2" style={{ marginTop: 0, fontSize: 16 }}>
+              {isFirstVisit
+                ? "Pick a memo style — see what NodeBench can become for you."
+                : <>Active: <span style={{ color: "var(--rd-accent-strong)" }}>{activeStyle.name}</span></>}
+            </h2>
           </div>
-          <div className="rd-tabs" role="tablist" aria-label="Situation window">
+          <span className="rd-mono rd-faint" style={{ fontSize: 11 }}>open ▾</span>
+        </summary>
+        <div style={{ marginTop: 12 }}>
+          {!isFirstVisit && (
+            <div className="rd-row--between" style={{ alignItems: "center", marginBottom: 10 }}>
+              <span className="rd-faint" style={{ fontSize: 12.5 }}>Drives every report you generate.</span>
+              <button
+                className="rd-btn rd-btn--quiet rd-btn--sm"
+                onClick={() => navigate("/redesign/me")}
+              >Manage style →</button>
+            </div>
+          )}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: 10,
+          }}>
+            {(isFirstVisit ? memoStyles.filter((s) => s.id !== "user.inferred") : memoStyles).slice(0, 4).map((s) => (
+              <StyleGalleryCard
+                key={s.id}
+                style={s}
+                defaultTryEntity="Apple"
+                selected={s.id === activeStyle.id}
+                onSelect={(st) => setActiveStyle(st)}
+                onTry={tryStyle}
+              />
+            ))}
+          </div>
+        </div>
+      </details>
+
+      {/* ─── 7. <details> Pick the situation (collapsed) ─── */}
+      <details
+        className="rd-card"
+        style={{ padding: "14px 18px" }}
+      >
+        <summary
+          style={{
+            cursor: "pointer",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            listStyle: "none",
+            gap: 10,
+          }}
+        >
+          <div className="rd-stack" style={{ gap: 2 }}>
+            <span className="rd-eyebrow">Pick the situation</span>
+            <h2 className="rd-h2" style={{ marginTop: 0, fontSize: 16 }}>
+              NodeBench turns scattered context into a saved report.
+            </h2>
+          </div>
+          <span className="rd-mono rd-faint" style={{ fontSize: 11 }}>open ▾</span>
+        </summary>
+        <div style={{ marginTop: 12 }}>
+          <div className="rd-tabs" role="tablist" aria-label="Situation window" style={{ marginBottom: 12 }}>
             {[
               { id: "today" as const, label: "Today", hint: "meeting or field note" },
               { id: "week" as const, label: "This week", hint: "compare options" },
@@ -609,62 +499,52 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
               </button>
             ))}
           </div>
-        </div>
 
-        <div className="rd-sit-grid">
-          {filteredSituations.map((s) => (
-            <article key={s.title} className="rd-sit-card">
-              <div className="rd-sit-card__preview" aria-hidden="true">
-                {s.previewLines.map((line, i) => (
-                  <span key={i} className="rd-sit-card__preview-line">{line}</span>
-                ))}
-              </div>
-              <div className="rd-sit-card__body">
-                <div className="rd-row" style={{ gap: 6, justifyContent: "space-between" }}>
-                  <Pill tone="accent">{s.persona}</Pill>
-                  <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)" }}>
-                    ~{s.estimateMinutes} min · used {s.usesCount.toLocaleString()}×
-                  </span>
-                </div>
-                <h3 className="rd-sit-card__title">{s.title}</h3>
-                <p className="rd-sit-card__desc">{s.description}</p>
-                <div className="rd-row" style={{ gap: 5, flexWrap: "wrap" }}>
-                  {s.chips.map((chip) => (
-                    <span key={chip} className="rd-pill" style={{ background: "transparent", fontSize: 10.5 }}>
-                      <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--rd-green)" }}>
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
-                      {chip}
-                    </span>
+          <div className="rd-sit-grid">
+            {filteredSituations.map((s) => (
+              <article key={s.title} className="rd-sit-card">
+                <div className="rd-sit-card__preview" aria-hidden="true">
+                  {s.previewLines.map((line, i) => (
+                    <span key={i} className="rd-sit-card__preview-line">{line}</span>
                   ))}
                 </div>
-              </div>
-              <div className="rd-sit-card__foot">
-                <div
-                  className="rd-sit-card__stats"
-                  title={`Exports: ${s.exports.join(", ")}`}
-                >
-                  Exports: <span style={{ color: "var(--rd-ink)", fontWeight: 600 }}>{s.exports.join(" · ")}</span>
+                <div className="rd-sit-card__body">
+                  <div className="rd-row" style={{ gap: 6, justifyContent: "space-between" }}>
+                    <Pill tone="accent">{s.persona}</Pill>
+                    <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)" }}>
+                      ~{s.estimateMinutes} min · used {s.usesCount.toLocaleString()}×
+                    </span>
+                  </div>
+                  <h3 className="rd-sit-card__title">{s.title}</h3>
+                  <p className="rd-sit-card__desc">{s.description}</p>
+                  <div className="rd-row" style={{ gap: 5, flexWrap: "wrap" }}>
+                    {s.chips.map((chip) => (
+                      <span key={chip} className="rd-pill" style={{ background: "transparent", fontSize: 10.5 }}>
+                        <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--rd-green)" }}>
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                        {chip}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div className="rd-row" style={{ gap: 6 }}>
-                  <button className="rd-btn rd-btn--quiet rd-btn--sm">Fill prompt</button>
-                  <button className="rd-btn rd-btn--primary rd-btn--sm">Run research →</button>
+                <div className="rd-sit-card__foot">
+                  <div
+                    className="rd-sit-card__stats"
+                    title={`Exports: ${s.exports.join(", ")}`}
+                  >
+                    Exports: <span style={{ color: "var(--rd-ink)", fontWeight: 600 }}>{s.exports.join(" · ")}</span>
+                  </div>
+                  <div className="rd-row" style={{ gap: 6 }}>
+                    <button className="rd-btn rd-btn--quiet rd-btn--sm">Fill prompt</button>
+                    <button className="rd-btn rd-btn--primary rd-btn--sm">Run research →</button>
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            ))}
+          </div>
         </div>
-      </section>
-    </div>
-  );
-}
-
-function CoverStat({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div>
-      <dt style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.78)" }}>{label}</dt>
-      <dd style={{ margin: "4px 0 0", fontSize: 26, fontWeight: 700, color: "#fff", letterSpacing: "-0.4px" }}>{value}</dd>
-      <div style={{ color: "rgba(255,255,255,0.74)", fontSize: 11, marginTop: 2 }}>{hint}</div>
+      </details>
     </div>
   );
 }
