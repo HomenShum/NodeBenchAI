@@ -65,6 +65,8 @@ const MAX_PROMPT_CHARS = 4_000;
 const TIMEOUT_MS = 45_000;
 const GEMINI_INPUT_USD_PER_1M_TOKENS = 0.075;
 const GEMINI_OUTPUT_USD_PER_1M_TOKENS = 0.30;
+const FALLBACK_SOURCE_TIMEOUT_MS = 12_000;
+const FALLBACK_SOURCE_LIMIT = 5;
 
 // ───────── Helpers ─────────
 
@@ -106,6 +108,93 @@ function modelForTier(tier: string): string {
   if (normalized === "deep") return "gemini-3.1-pro-preview";
   if (normalized === "free") return "gemini-3.1-flash-lite-preview";
   return "gemini-3-flash-preview";
+}
+
+type FallbackSourceSnippet = {
+  url: string;
+  title: string;
+  snippet: string;
+  provider: "linkup";
+};
+
+function clipText(input: unknown, max: number): string {
+  const text = typeof input === "string" ? input.replace(/\s+/g, " ").trim() : "";
+  return text.length > max ? `${text.slice(0, max - 1)}...` : text;
+}
+
+async function runFallbackSourceSearch(query: string): Promise<{
+  snippets: FallbackSourceSnippet[];
+  detail: string;
+}> {
+  const apiKey = process.env.LINKUP_API_KEY;
+  if (!apiKey) {
+    return { snippets: [], detail: "LINKUP_API_KEY not configured" };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FALLBACK_SOURCE_TIMEOUT_MS);
+  try {
+    const res = await fetch("https://api.linkup.so/v1/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        q: query,
+        depth: "standard",
+        outputType: "searchResults",
+        includeImages: false,
+        maxResults: FALLBACK_SOURCE_LIMIT,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      return {
+        snippets: [],
+        detail: `linkup_http_${res.status}: ${clipText(errText, 160)}`,
+      };
+    }
+
+    const json = await res.json() as {
+      results?: Array<{
+        type?: string;
+        url?: string;
+        name?: string;
+        content?: string;
+      }>;
+    };
+    const seen = new Set<string>();
+    const snippets = (json.results ?? [])
+      .filter((row) => row?.type === "text" && typeof row.url === "string" && row.url.startsWith("http"))
+      .filter((row) => {
+        const url = row.url!;
+        if (seen.has(url)) return false;
+        seen.add(url);
+        return true;
+      })
+      .slice(0, FALLBACK_SOURCE_LIMIT)
+      .map((row): FallbackSourceSnippet => ({
+        url: row.url!,
+        title: clipText(row.name ?? row.url, 160) || row.url!,
+        snippet: clipText(row.content, 600) || `Search result from ${row.url}`,
+        provider: "linkup",
+      }));
+
+    return {
+      snippets,
+      detail: `${snippets.length} Linkup source results`,
+    };
+  } catch (err: any) {
+    return {
+      snippets: [],
+      detail: err?.name === "AbortError" ? "linkup_timeout" : clipText(err?.message ?? err, 160),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function classifyPrompt(prompt: string): { kind: string; entity?: string } {
@@ -599,9 +688,33 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
       }
 
       // Stage 4 — bind evidence
+      let fallbackSources: FallbackSourceSnippet[] = [];
+      if (groundingChunks.length === 0) {
+        const tFallback = Date.now();
+        const fallback = await runFallbackSourceSearch(args.prompt);
+        fallbackSources = fallback.snippets;
+        for (const [i, source] of fallbackSources.entries()) {
+          await append("grounding_chunk", {
+            idx: i + 1,
+            url: source.url,
+            title: source.title,
+            provider: source.provider,
+            fallback: true,
+          });
+        }
+        const trFallback = {
+          step: "Fallback source search",
+          detail: fallback.detail,
+          status: (fallbackSources.length > 0 ? "ok" : "warn") as "ok" | "warn",
+          durationMs: Date.now() - tFallback,
+        };
+        trace.push(trFallback);
+        await append("tool_call", trFallback);
+      }
+
       const t4 = Date.now();
       const parsed = parseMemo(rawText);
-      const evidence: EvidenceRow[] = groundingChunks.slice(0, 6).map((chunk, i) => {
+      const geminiEvidence: EvidenceRow[] = groundingChunks.slice(0, 6).map((chunk, i) => {
         const url = chunk.web?.uri ?? "";
         let host = url;
         try { host = new URL(url || "https://example.com").hostname; } catch { /* ignore */ }
@@ -610,9 +723,21 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
         const quote = support?.segment?.text?.trim() || `Cited from ${title}`;
         return { idx: i + 1, quote: quote.slice(0, 240), source: url || title };
       });
+      const fallbackEvidence: EvidenceRow[] = fallbackSources.map((source, i) => ({
+        idx: i + 1,
+        quote: source.snippet.slice(0, 240),
+        source: source.url,
+      }));
+      const evidence = geminiEvidence.length > 0 ? geminiEvidence : fallbackEvidence;
+      if (evidence.length > 0 && !/\[\d+\]/.test(parsed.shortAnswer)) {
+        parsed.shortAnswer = `${parsed.shortAnswer} [1]`;
+      }
+      if (evidence.length > 0 && !/\[\d+\]/.test(parsed.whyItMatters)) {
+        parsed.whyItMatters = `${parsed.whyItMatters} [1]`;
+      }
       const tr4 = {
         step: "Bind evidence",
-        detail: `${evidence.length} grounded citations from ${groundingChunks.length} chunks`,
+        detail: `${evidence.length} citations from ${groundingChunks.length} Gemini chunks + ${fallbackSources.length} fallback sources`,
         status: (evidence.length > 0 ? "ok" : "warn") as "ok" | "warn",
         durationMs: Date.now() - t4,
       };
