@@ -270,7 +270,7 @@
 
 @media (max-width: 1280px) {
   [data-redesign] .rd-shell {
-    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-columns: 188px minmax(0, 1fr);
   }
   [data-redesign] .rd-shell__main {
     grid-template-columns: minmax(0, 1fr);
