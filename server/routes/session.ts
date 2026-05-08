@@ -1,23 +1,11 @@
 /**
- * Voice session routes — Gemini 3.1 Flash Live API + Realtime Adapter routing.
+ * Voice session routes — Gemini 3.1 Flash Live API
  *
- * Two roles:
- *   1. Generates ephemeral tokens for client-side WebSocket connections
- *      to Gemini Live API (existing behavior — provider-specific).
- *   2. Returns deterministic `routingDecision` envelopes for the
- *      provider-agnostic Realtime Adapter contract — capture-only
- *      sessions, translation, agent mode, daily cost-cap downgrade.
- *      See: docs/architecture/REALTIME_VOICE_INTEGRATION.md §4
+ * Generates ephemeral tokens for client-side WebSocket connections
+ * to Gemini Live API. The browser connects directly to Gemini —
+ * no server-side WebRTC proxy needed.
  *
- * Reliability invariants (.claude/rules/agentic_reliability.md):
- *   - BOUND          — sessions Map bounded MAX_SESSIONS with eviction
- *   - HONEST_STATUS  — 503 returned when realtime-2 isn't reachable, with
- *                      `routingDecision.gate: "agent_mode"` so callers can
- *                      tell why the fallback fired (instead of a fake 200)
- *   - HONEST_SCORES  — daily cost cap is real input, not an estimate
- *   - DETERMINISTIC  — selectRoutingDecision is a pure function
- *
- * Flow (Gemini Live path):
+ * Flow:
  *   1. Client calls POST /voice/session
  *   2. Server generates ephemeral token using GEMINI_API_KEY
  *   3. Client opens WebSocket to Gemini with ephemeral token
@@ -25,7 +13,19 @@
  */
 
 import { Router } from "express";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../../convex/_generated/api";
 import { getGeminiVoiceTools, executeVoiceTool } from "../agents/voiceAgent.js";
+import {
+  DEFAULT_VOICE_DAILY_CAP_USD,
+  buildVoiceFollowUps,
+  extractVoiceEntities,
+  getUtcDay,
+  redactPII,
+  selectVoiceModelTier,
+  type RedactedSpan,
+  type VoiceRoutingDecision,
+} from "../agents/realtimeVoicePolicy.js";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -43,96 +43,38 @@ const WS_URL_EPHEMERAL = `${WS_BASE}.v1alpha.GenerativeService.BidiGenerateConte
 // Session tracking (in-memory, bounded)
 const MAX_SESSIONS = 100;
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
-const sessions = new Map<string, { userId: string; createdAt: number; model: string }>();
+const sessions = new Map<string, { userId: string; createdAt: number; model: string; tier?: string }>();
+const memoryCostLedger = new Map<string, { totalUsd: number; updatedAt: number }>();
+const memoryCaptures = new Map<string, RealtimeVoiceCaptureResult>();
 
-// ── Realtime Adapter routing policy (pure fn — DETERMINISTIC) ──────────────
-
-const DAILY_COST_CAP_USD = 5.0;
-const REALTIME_AGENT_TIER = "openai-realtime-2"; // Phase 3 target tier
-
-type ModelTier =
-  | "gemini-flash-live"
-  | "openai-realtime-2"
-  | "openai-realtime-mini"
-  | "openai-realtime-translate"
-  | "openai-realtime-whisper"
-  | "capture-only";
-
-interface RoutingDecision {
-  gate:
-    | "capture_only"
-    | "agent_mode"
-    | "translation_mode"
-    | "deep_research_async"
-    | "daily_cost_cap_hit";
-  tier: ModelTier;
-  captureOnly?: boolean;
-  rationale: string;
-}
-
-interface SessionRequestBody {
-  userId?: string;
-  model?: string;
-  systemInstruction?: string;
-  surface?: "chat" | "translation" | "agent" | "report" | "event";
-  transcriptionOnly?: boolean;
-  translationMode?: boolean;
-  agentMode?: boolean;
-  deepWork?: boolean;
-  debugCostSoFarUsd?: number;
-}
-
-function selectRoutingDecision(input: SessionRequestBody): RoutingDecision {
-  const spend = input.debugCostSoFarUsd ?? 0;
-  if (spend >= DAILY_COST_CAP_USD) {
-    return {
-      gate: "daily_cost_cap_hit",
-      tier: "capture-only",
-      captureOnly: true,
-      rationale: `daily voice spend $${spend.toFixed(2)} >= $${DAILY_COST_CAP_USD.toFixed(2)} cap`,
-    };
-  }
-  if (input.deepWork) {
-    return {
-      gate: "deep_research_async",
-      tier: "capture-only",
-      captureOnly: true,
-      rationale: "deep_research escalates to async pipeline; live session captures only",
-    };
-  }
-  if (input.translationMode || input.surface === "translation") {
-    // Phase 4 prefers openai-realtime-translate; Gemini Live transcription is
-    // an honest fallback when OpenAI realtime tier isn't wired yet.
-    const hasOpenAi = Boolean(process.env.OPENAI_API_KEY);
-    return {
-      gate: "translation_mode",
-      tier: hasOpenAi ? "openai-realtime-translate" : "openai-realtime-whisper",
-      captureOnly: input.transcriptionOnly ?? true,
-      rationale: hasOpenAi
-        ? "translate tier active"
-        : "transcription-only fallback (no OpenAI realtime tier configured)",
-    };
-  }
-  if (input.agentMode) {
-    return {
-      gate: "agent_mode",
-      tier: REALTIME_AGENT_TIER,
-      rationale: "phone-grade tool calling requested",
-    };
-  }
-  if (input.transcriptionOnly) {
-    return {
-      gate: "capture_only",
-      tier: "openai-realtime-whisper",
-      captureOnly: true,
-      rationale: "transcriptionOnly flag set; capture-only path",
-    };
-  }
-  return {
-    gate: "capture_only",
-    tier: "gemini-flash-live",
-    rationale: "default cheap_voice_chat tier",
+type RealtimeVoiceCaptureResult = {
+  ok: boolean;
+  captureId: string;
+  auditId?: string;
+  idempotent: boolean;
+  persisted: boolean;
+  gate: string;
+  transcript: string;
+  translatedTranscript?: string;
+  redactedSpans: RedactedSpan[];
+  entities: Array<{ label: string; type: "person" | "company" | "topic"; confidence: number }>;
+  followUps: string[];
+  confidence: "needs_review";
+  provenance: "voice";
+  inboxRequired: boolean;
+  asyncHandoff?: {
+    queued: boolean;
+    kind: "deep_research" | "source_refresh";
+    status: "queued";
   };
+};
+
+let _convex: ConvexHttpClient | null = null;
+function getConvex(): ConvexHttpClient | null {
+  const convexUrl = process.env.CONVEX_URL || process.env.VITE_CONVEX_URL;
+  if (!convexUrl) return null;
+  if (!_convex) _convex = new ConvexHttpClient(convexUrl);
+  return _convex;
 }
 
 function evictStaleSessions(): void {
@@ -167,74 +109,179 @@ export function createSessionRouter(): Router {
    */
   router.post("/session", async (req, res) => {
     try {
-      const body = req.body as SessionRequestBody;
       const {
         userId,
         model = GEMINI_MODEL,
         systemInstruction,
-      } = body;
+        anonymousSessionId,
+        requestedTier,
+        surface,
+        agentMode,
+        translationMode,
+        transcriptionOnly,
+        deepWork,
+        networkQuality,
+        debugCostSoFarUsd,
+      } = req.body as {
+        userId?: string;
+        model?: string;
+        systemInstruction?: string;
+        anonymousSessionId?: string;
+        requestedTier?: string;
+        surface?: string;
+        agentMode?: boolean;
+        translationMode?: boolean;
+        transcriptionOnly?: boolean;
+        deepWork?: boolean;
+        networkQuality?: "good" | "poor" | "offline";
+        debugCostSoFarUsd?: number;
+      };
 
-      if (!userId) {
-        return res.status(400).json({ error: "userId is required" });
-      }
+      const userKey = userId || (anonymousSessionId ? `anon:${anonymousSessionId}` : "anonymous");
+      const capUsd = Number(process.env.VOICE_DAILY_CAP_USD ?? DEFAULT_VOICE_DAILY_CAP_USD);
+      const ledgerKey = `${userKey}:${getUtcDay()}`;
+      const ledger = memoryCostLedger.get(ledgerKey);
+      const dailyCostUsd =
+        process.env.NODE_ENV === "production"
+          ? ledger?.totalUsd ?? 0
+          : typeof debugCostSoFarUsd === "number"
+            ? debugCostSoFarUsd
+            : ledger?.totalUsd ?? 0;
+      const routingDecision = selectVoiceModelTier({
+        userKey,
+        requestedTier,
+        surface,
+        agentMode,
+        translationMode,
+        transcriptionOnly,
+        deepWork,
+        networkQuality,
+        dailyCostUsd,
+        dailyCapUsd: capUsd,
+      });
 
-      // Realtime Adapter routing — runs FIRST, before any provider call.
-      // Lets the dogfood matrix (scenarios 3, 6, 8, 10 + cost-cap test) drive
-      // the contract without burning a Gemini token for capture-only paths.
-      const routingDecision = selectRoutingDecision(body);
+      void recordRoutingDecision({
+        userKey,
+        anonymousSessionId,
+        surface,
+        requestedTier,
+        decision: routingDecision,
+      });
 
-      // Daily cost cap — HONEST_STATUS: 200 with capHit:true is the contract,
-      // not a fake success. The capHit + banner + captureOnly:true flags tell
-      // the client to refuse to escalate.
-      if (routingDecision.gate === "daily_cost_cap_hit") {
+      if (routingDecision.capHit || routingDecision.captureOnly) {
+        const sessionId = `voice-capture-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        sessions.set(sessionId, {
+          userId: userKey,
+          createdAt: Date.now(),
+          model: routingDecision.model,
+          tier: routingDecision.tier,
+        });
         return res.json({
           ok: true,
+          sessionId,
+          provider: routingDecision.provider,
+          tier: routingDecision.tier,
+          model: routingDecision.model,
           captureOnly: true,
-          capHit: true,
+          capHit: routingDecision.capHit,
+          banner: routingDecision.banner,
           routingDecision,
-          banner:
-            "Daily voice spend limit reached. Capture-only mode until midnight UTC.",
+          config: {
+            mode: "capture-only",
+            reason: routingDecision.reason,
+          },
         });
       }
 
-      // Capture-only paths (transcription-only, translation, deep_research)
-      // do NOT require a Gemini Live ephemeral token — captures flow through
-      // POST /voice/capture. Return early with a routing-decision-only envelope.
-      if (routingDecision.captureOnly) {
+      if (routingDecision.provider === "openai") {
+        const openaiKey = process.env.OPENAI_API_KEY;
+        if (!openaiKey) {
+          return res.status(503).json({
+            ok: false,
+            error: "OPENAI_API_KEY not configured",
+            fallback: "gemini-or-browser",
+            routingDecision,
+          });
+        }
+
+        const sessionId = `openai-realtime-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const sessionConfig = {
+          session: {
+            type: "realtime",
+            model: routingDecision.model,
+            audio: {
+              output: {
+                voice: "marin",
+              },
+            },
+            instructions:
+              systemInstruction ??
+              [
+                "You are NodeBench, the realtime interaction layer for an entity intelligence workspace.",
+                "Use voice for fast capture and interaction. Do not perform deep research in realtime.",
+                "When work requires sources, durable reports, exports, or batch analysis, acknowledge it and queue the async NodeBench pipeline.",
+                "Before high-impact writes, ask for confirmation.",
+              ].join(" "),
+          },
+        };
+
+        const tokenRes = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${openaiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(sessionConfig),
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!tokenRes.ok) {
+          const detail = await tokenRes.text().catch(() => "");
+          return res.status(502).json({
+            ok: false,
+            error: "OpenAI realtime client secret creation failed",
+            status: tokenRes.status,
+            detail: detail.slice(0, 500),
+            routingDecision,
+          });
+        }
+
+        const tokenData = (await tokenRes.json()) as {
+          value?: string;
+          client_secret?: { value?: string };
+          [key: string]: unknown;
+        };
+        const clientSecret = tokenData.value ?? tokenData.client_secret?.value;
+        sessions.set(sessionId, {
+          userId: userKey,
+          createdAt: Date.now(),
+          model: routingDecision.model,
+          tier: routingDecision.tier,
+        });
+
         return res.json({
           ok: true,
-          captureOnly: true,
+          sessionId,
+          provider: "openai",
+          transport: "webrtc",
+          tier: routingDecision.tier,
+          model: routingDecision.model,
+          captureOnly: false,
+          capHit: false,
           routingDecision,
+          clientSecret,
+          clientSecretResponse: tokenData,
+          callsUrl: "https://api.openai.com/v1/realtime/calls",
+          config: sessionConfig.session,
         });
       }
 
       const apiKey = process.env.GEMINI_API_KEY;
-
-      // Agent mode without OpenAI realtime-2 access AND no Gemini fallback —
-      // return 503 with routingDecision so callers know the fallback path.
-      if (routingDecision.gate === "agent_mode" && !apiKey && !process.env.OPENAI_API_KEY) {
-        return res.status(503).json({
-          ok: false,
-          error: "no realtime tier available",
-          fallback: "browser",
-          routingDecision: { ...routingDecision, gate: "agent_mode" },
-        });
-      }
-
-      // Agent mode with no realtime-2 but with Gemini Live — honest fallback.
-      if (routingDecision.gate === "agent_mode" && !process.env.OPENAI_API_KEY) {
-        return res.status(503).json({
-          ok: false,
-          error: "openai-realtime-2 not configured; gemini fallback available",
-          fallback: "gemini-or-browser",
-          routingDecision: { ...routingDecision, gate: "agent_mode" },
-        });
-      }
-
       if (!apiKey) {
         return res.status(503).json({
           error: "GEMINI_API_KEY not configured",
           fallback: "browser",
+          ok: false,
           routingDecision,
         });
       }
@@ -305,7 +352,7 @@ export function createSessionRouter(): Router {
       };
 
       // Track session
-      sessions.set(sessionId, { userId, createdAt: Date.now(), model });
+      sessions.set(sessionId, { userId: userKey, createdAt: Date.now(), model, tier: routingDecision.tier });
 
       res.json({
         ok: true,
@@ -314,13 +361,232 @@ export function createSessionRouter(): Router {
         token: token ?? undefined,
         apiKey: token ? undefined : apiKey, // Only send raw key if no ephemeral token
         model,
-        config,
+        provider: routingDecision.provider,
+        tier: routingDecision.tier,
+        captureOnly: false,
+        capHit: false,
         routingDecision,
+        config,
       });
     } catch (error) {
       console.error("[POST /voice/session] Error:", error);
       res.status(500).json({
         error: "Failed to create session",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
+
+  /**
+   * POST /voice/capture
+   *
+   * Turns a finalized realtime transcript into a durable NodeBench voice
+   * capture contract. This endpoint is intentionally provider-agnostic:
+   * Gemini Live, OpenAI Realtime, browser speech, or uploaded audio all land
+   * here after transcript finalization.
+   */
+  router.post("/capture", async (req, res) => {
+    try {
+      const {
+        userId,
+        anonymousSessionId,
+        sessionId,
+        transcript,
+        translatedTranscript,
+        sourceLanguage,
+        targetLanguage,
+        surface,
+        contextLabel,
+        idempotencyKey,
+        persistPrivateMemory,
+        audioQuality,
+        deepWork,
+      } = req.body as {
+        userId?: string;
+        anonymousSessionId?: string;
+        sessionId?: string;
+        transcript?: string;
+        translatedTranscript?: string;
+        sourceLanguage?: string;
+        targetLanguage?: string;
+        surface?: string;
+        contextLabel?: string;
+        idempotencyKey?: string;
+        persistPrivateMemory?: boolean;
+        audioQuality?: "clean" | "noisy" | "partial";
+        deepWork?: boolean;
+      };
+
+      const rawTranscript = String(transcript ?? "").trim();
+      if (!rawTranscript) {
+        return res.status(400).json({ ok: false, error: "transcript is required" });
+      }
+
+      const userKey = userId || (anonymousSessionId ? `anon:${anonymousSessionId}` : "anonymous");
+      const redacted = redactPII(rawTranscript);
+      const translatedRedacted = translatedTranscript ? redactPII(translatedTranscript) : null;
+      const entities = extractVoiceEntities(`${redacted.text} ${translatedRedacted?.text ?? ""}`);
+      const followUps = buildVoiceFollowUps(redacted.text, entities);
+      const gate = userId && persistPrivateMemory
+        ? "persisted_voice_capture"
+        : "anonymous_no_private_memory";
+      const inboxRequired =
+        audioQuality === "noisy" ||
+        audioQuality === "partial" ||
+        redacted.spans.length > 0 ||
+        entities.some((entity) => entity.confidence < 0.72);
+      const asyncHandoff =
+        deepWork || /\b(deep research|diligence|source refresh|refresh sources)\b/i.test(rawTranscript)
+          ? { queued: true, kind: "deep_research" as const, status: "queued" as const }
+          : undefined;
+
+      const fallbackCaptureId = idempotencyKey
+        ? `voicecap_${hashStable(`${userKey}:${idempotencyKey}`)}`
+        : `voicecap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+      if (idempotencyKey && memoryCaptures.has(`${userKey}:${idempotencyKey}`)) {
+        const existing = memoryCaptures.get(`${userKey}:${idempotencyKey}`)!;
+        return res.json({ ...existing, idempotent: true });
+      }
+
+      let result: RealtimeVoiceCaptureResult = {
+        ok: true,
+        captureId: fallbackCaptureId,
+        idempotent: false,
+        persisted: false,
+        gate,
+        transcript: redacted.text,
+        translatedTranscript: translatedRedacted?.text,
+        redactedSpans: [...redacted.spans, ...(translatedRedacted?.spans ?? [])],
+        entities,
+        followUps,
+        confidence: "needs_review",
+        provenance: "voice",
+        inboxRequired,
+        asyncHandoff,
+      };
+
+      const convex = getConvex();
+      if (convex) {
+        try {
+          const convexResult = await convex.mutation(
+            (api as any).domains.integrations.voice.realtimeGateway.ingestRealtimeVoiceCapture,
+            {
+              userKey,
+              userId: userId || undefined,
+              anonymousSessionId,
+              sessionId,
+              transcript: redacted.text,
+              originalTranscript: rawTranscript,
+              translatedTranscript: translatedRedacted?.text,
+              sourceLanguage,
+              targetLanguage,
+              surface,
+              contextLabel,
+              idempotencyKey,
+              gate,
+              redactedSpans: result.redactedSpans,
+              entities,
+              followUps,
+              inboxRequired,
+              asyncHandoff,
+              metadata: {
+                audioQuality,
+                persistPrivateMemory: Boolean(persistPrivateMemory),
+              },
+            },
+          ) as { captureId?: string; auditId?: string; idempotent?: boolean };
+          result = {
+            ...result,
+            captureId: convexResult.captureId ?? result.captureId,
+            auditId: convexResult.auditId,
+            idempotent: Boolean(convexResult.idempotent),
+            persisted: true,
+          };
+        } catch (error) {
+          if (process.env.NODE_ENV === "production") {
+            throw error;
+          }
+          result = {
+            ...result,
+            persisted: false,
+            gate: `${gate}:dev_memory_fallback`,
+          };
+        }
+      }
+
+      if (idempotencyKey) memoryCaptures.set(`${userKey}:${idempotencyKey}`, result);
+
+      res.json(result);
+    } catch (error) {
+      console.error("[POST /voice/capture] Error:", error);
+      res.status(500).json({
+        ok: false,
+        error: "Failed to ingest voice capture",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
+
+  /**
+   * POST /voice/link
+   *
+   * Links anonymous realtime captures to a durable user key after signup.
+   * This is the explicit consent boundary for first-run voice users.
+   */
+  router.post("/link", async (req, res) => {
+    try {
+      const { anonymousSessionId, userId } = req.body as {
+        anonymousSessionId?: string;
+        userId?: string;
+      };
+      if (!anonymousSessionId || !userId) {
+        return res.status(400).json({
+          ok: false,
+          error: "anonymousSessionId and userId are required",
+        });
+      }
+
+      const convex = getConvex();
+      if (!convex) {
+        return res.json({
+          ok: true,
+          linked: 0,
+          persisted: false,
+          gate: "dev_no_convex_link_ack",
+        });
+      }
+
+      try {
+        const result = await convex.mutation(
+          (api as any).domains.integrations.voice.realtimeGateway.linkAnonymousVoiceCaptures,
+          {
+            anonymousSessionId,
+            userKey: userId,
+          },
+        ) as { linked: number };
+
+        return res.json({
+          ok: true,
+          persisted: true,
+          gate: "linked_after_signup",
+          ...result,
+        });
+      } catch (error) {
+        if (process.env.NODE_ENV === "production") throw error;
+        return res.json({
+          ok: true,
+          linked: countMemoryCapturesForUser(`anon:${anonymousSessionId}`),
+          persisted: false,
+          gate: "dev_convex_link_fallback",
+          message: error instanceof Error ? error.message : "Convex link failed in dev",
+        });
+      }
+    } catch (error) {
+      console.error("[POST /voice/link] Error:", error);
+      res.status(500).json({
+        ok: false,
+        error: "Failed to link anonymous voice captures",
         message: error instanceof Error ? error.message : "Unknown error",
       });
     }
@@ -370,14 +636,67 @@ export function createSessionRouter(): Router {
     const hasKey = !!process.env.GEMINI_API_KEY;
     res.json({
       ok: true,
-      realtimeGateway: "ready",
       status: hasKey ? "ok" : "unconfigured",
       provider: "gemini-live",
       model: GEMINI_MODEL,
+      realtimeGateway: "ready",
+      configured: {
+        gemini: hasKey,
+        convex: Boolean(process.env.CONVEX_URL || process.env.VITE_CONVEX_URL),
+      },
+      tiers: [
+        "gemini-flash-live",
+        "openai-whisper",
+        "openai-realtime-mini",
+        "openai-realtime-2",
+        "openai-realtime-translate",
+      ],
+      capUsd: Number(process.env.VOICE_DAILY_CAP_USD ?? DEFAULT_VOICE_DAILY_CAP_USD),
       activeSessions: sessions.size,
       maxSessions: MAX_SESSIONS,
     });
   });
 
   return router;
+}
+
+async function recordRoutingDecision(input: {
+  userKey: string;
+  anonymousSessionId?: string;
+  surface?: string;
+  requestedTier?: string;
+  decision: VoiceRoutingDecision;
+}): Promise<void> {
+  const convex = getConvex();
+  if (!convex) return;
+  try {
+    await convex.mutation(
+      (api as any).domains.integrations.voice.realtimeGateway.recordVoiceRoutingDecision,
+      {
+        userKey: input.userKey,
+        anonymousSessionId: input.anonymousSessionId,
+        surface: input.surface,
+        requestedTier: input.requestedTier,
+        decision: input.decision,
+      },
+    );
+  } catch (error) {
+    if (process.env.NODE_ENV === "production") throw error;
+  }
+}
+
+function hashStable(value: string): string {
+  let hash = 5381;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = ((hash << 5) + hash) ^ value.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function countMemoryCapturesForUser(userKey: string): number {
+  let count = 0;
+  for (const key of memoryCaptures.keys()) {
+    if (key.startsWith(`${userKey}:`)) count += 1;
+  }
+  return count;
 }

@@ -97,6 +97,10 @@ export default defineConfig(({ mode }) => {
   const minify = (process.env.NODEBENCH_MINIFY ?? "esbuild") === "terser" ? "terser" : "esbuild";
   const useTerser = minify === "terser";
   const enableCriticalCss = mode === "production" && process.env.NODEBENCH_CRITICAL_CSS === "1";
+  const nodebenchServerTarget =
+    process.env.VITE_NODEBENCH_SERVER_TARGET ??
+    process.env.NODEBENCH_SERVER_TARGET ??
+    "http://localhost:3100";
 
   return ({
     server: {
@@ -118,47 +122,47 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/api\/search-health/, "/health"),
         },
         "/api/search-history": {
-          target: "http://localhost:3100",
+          target: nodebenchServerTarget,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/search-history/, "/search/history"),
         },
         "/api/search-sync-status": {
-          target: "http://localhost:3100",
+          target: nodebenchServerTarget,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/search-sync-status/, "/search/sync-status"),
         },
         "/api/sync-bridge": {
-          target: "http://localhost:3100",
+          target: nodebenchServerTarget,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/sync-bridge/, "/api/sync-bridge"),
         },
         "/api/hyperloop": {
-          target: "http://localhost:3100",
+          target: nodebenchServerTarget,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/hyperloop/, "/api/hyperloop"),
         },
         "/api/pipeline": {
-          target: "http://localhost:3100",
+          target: nodebenchServerTarget,
           changeOrigin: true,
         },
         "/api/improvements": {
-          target: "http://localhost:3100",
+          target: nodebenchServerTarget,
           changeOrigin: true,
         },
         "/api/retention": {
-          target: "http://localhost:3100",
+          target: nodebenchServerTarget,
           changeOrigin: true,
         },
         "/api/search/stream": {
-          target: "http://localhost:3100",
+          target: nodebenchServerTarget,
           changeOrigin: true,
         },
         "/api/product": {
-          target: "http://localhost:3100",
+          target: nodebenchServerTarget,
           changeOrigin: true,
         },
         "/voice": {
-          target: "http://localhost:3100",
+          target: nodebenchServerTarget,
           changeOrigin: true,
         },
       },

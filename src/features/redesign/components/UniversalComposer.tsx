@@ -14,6 +14,7 @@
  */
 
 import { useState, useRef, useEffect } from "react";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
 
 export type RouterTier = "auto" | "answer" | "deep" | "compare";
 
@@ -102,17 +103,16 @@ export function UniversalComposer({
   streaming = false,
   onStop,
   entitySuggestions = [
-    { slug: "latest_brief", label: "Latest live brief", kind: "report" },
-    { slug: "daily_brief", label: "Daily Brief", kind: "artifact" },
-    { slug: "source_review", label: "Source review queue", kind: "workflow" },
-    { slug: "coverage_library", label: "Coverage library", kind: "workspace" },
-    { slug: "entity_universe", label: "Entity universe", kind: "universe" },
-    { slug: "claim_evidence", label: "Claim evidence", kind: "source" },
+    { slug: "orbital", label: "Orbital Labs", kind: "company" },
+    { slug: "anthropic", label: "Anthropic", kind: "company" },
+    { slug: "mode", label: "Mode Analytics", kind: "company" },
+    { slug: "alex", label: "Alex Chen", kind: "person" },
+    { slug: "ship_demo", label: "Ship Demo Day", kind: "event" },
+    { slug: "voice_eval", label: "Voice-agent evaluation", kind: "topic" },
   ],
 }: UniversalComposerProps) {
   const [batchOpen, setBatchOpen] = useState(false);
   const [text, setText] = useState("");
-  const [recording, setRecording] = useState(false);
   const [tierInternal, setTierInternal] = useState<RouterTier>("auto");
   const [tierMenuOpen, setTierMenuOpen] = useState(false);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
@@ -130,6 +130,17 @@ export function UniversalComposer({
   const tierBtnRef = useRef<HTMLButtonElement | null>(null);
   const toolsBtnRef = useRef<HTMLButtonElement | null>(null);
   const activeTier = tiers.find((t) => t.id === tier) ?? tiers[0];
+  const voice = useVoiceInput({
+    mode: "browser",
+    continuous: false,
+    onTranscript: (next) => {
+      if (next.trim()) setText(next);
+    },
+    onEnd: (finalText) => {
+      if (finalText.trim()) setText(finalText);
+    },
+  });
+  const recording = voice.isListening || voice.isTranscribing;
 
   useEffect(() => {
     if (!taRef.current) return;
@@ -164,6 +175,11 @@ export function UniversalComposer({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
+
+  useEffect(() => {
+    if (!voice.error) return;
+    console.warn("[UniversalComposer] Voice input failed:", voice.error);
+  }, [voice.error]);
 
   const handleSubmit = (mode: ComposerMode = "research") => {
     const trimmed = text.trim();
@@ -601,9 +617,9 @@ export function UniversalComposer({
 
               <button
                 type="button"
-                aria-label={recording ? "Stop recording" : "Voice capture"}
-                title={recording ? "Click to stop" : "Hold or click to record"}
-                onClick={() => setRecording((r) => !r)}
+                aria-label={recording ? "Stop voice input" : `Voice input using ${voice.mode} mode`}
+                title={recording ? "Stop voice input" : `Voice input (${voice.mode})`}
+                onClick={voice.toggle}
                 className="rd-btn rd-btn--quiet"
                 style={{
                   width: 32, height: 32, padding: 0, borderRadius: "50%",
@@ -619,7 +635,7 @@ export function UniversalComposer({
             </>
           )}
           <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)", marginLeft: 6 }}>
-            {recording ? "Listening…" : "⌘↵ Run research · Shift↵ newline"}
+            {voice.isTranscribing ? "Transcribing..." : recording ? "Listening..." : "Cmd+Enter run research · Shift+Enter newline"}
           </span>
         </div>
 

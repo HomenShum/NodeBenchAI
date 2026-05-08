@@ -66,22 +66,53 @@ export function useVoiceInput({
     const analyserRef = useRef<AnalyserNode | null>(null);
     const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
     const meterFrameRef = useRef<number | null>(null);
+    const lastRealtimeCaptureRef = useRef<{ text: string; at: number } | null>(null);
 
     const whisperTranscribe = useAction(api.domains.ai.whisperTranscribe.transcribe);
+
+    const recordRealtimeCapture = useCallback((finalText: string) => {
+        const text = finalText.trim();
+        if (!text || text === 'Listening...' || text === 'Transcribing...') return;
+
+        const now = Date.now();
+        const previous = lastRealtimeCaptureRef.current;
+        if (previous && previous.text === text && now - previous.at < 2500) return;
+        lastRealtimeCaptureRef.current = { text, at: now };
+
+        const anonymousSessionId = getOrCreateRealtimeVoiceSessionId();
+        const surface = inferRealtimeVoiceSurface();
+        const idempotencyKey = `voice-${anonymousSessionId}-${now}-${hashClientString(text)}`;
+
+        void fetch('/voice/capture', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                anonymousSessionId,
+                transcript: text,
+                surface,
+                idempotencyKey,
+            }),
+        }).catch(() => undefined);
+    }, []);
+
+    const handleFinalText = useCallback((finalText: string) => {
+        onEnd?.(finalText);
+        recordRealtimeCapture(finalText);
+    }, [onEnd, recordRealtimeCapture]);
 
     // Streaming transcription (OpenAI Realtime via WebRTC — legacy)
     const streaming = useStreamingTranscription({
         onTranscript,
-        onUtterance: onEnd,
-        onEnd,
+        onUtterance: handleFinalText,
+        onEnd: handleFinalText,
         lang: lang.split('-')[0],
     });
 
     // Gemini 3.1 Flash Live (primary voice mode)
     const gemini = useGeminiLiveSession({
         onTranscript,
-        onUtterance: onEnd,
-        onEnd,
+        onUtterance: handleFinalText,
+        onEnd: handleFinalText,
         lang: lang.split('-')[0],
     });
 
@@ -243,7 +274,7 @@ export function useVoiceInput({
             recognitionRef.current = null;
             stopMediaStream();
             stopAudioMeter();
-            onEnd?.(finalTextRef.current);
+            handleFinalText(finalTextRef.current);
         };
 
         recognitionRef.current = recognition;
@@ -257,7 +288,7 @@ export function useVoiceInput({
             setError(err?.message || 'Speech recognition failed to start');
             setIsListening(false);
         }
-    }, [continuous, isListening, lang, onEnd, onTranscript, startAudioMeter, stopAudioMeter, stopBrowser, stopMediaStream]);
+    }, [continuous, handleFinalText, isListening, lang, onTranscript, startAudioMeter, stopAudioMeter, stopBrowser, stopMediaStream]);
 
     const stopWhisper = useCallback(async () => {
         const recorder = mediaRecorderRef.current;
@@ -311,7 +342,7 @@ export function useVoiceInput({
                 if (audioBlob.size < 1000) {
                     setError('No speech detected - try speaking louder or closer to the mic');
                     onTranscript('');
-                    onEnd?.('');
+                    handleFinalText('');
                     return;
                 }
 
@@ -330,12 +361,12 @@ export function useVoiceInput({
 
                     setLatencyMs(result.durationMs);
                     onTranscript(result.text);
-                    onEnd?.(result.text);
+                    handleFinalText(result.text);
                 } catch (err: any) {
                     const msg = err?.message || 'Transcription failed';
                     setError(msg);
                     onTranscript('');
-                    onEnd?.('');
+                    handleFinalText('');
                 } finally {
                     setIsTranscribing(false);
                 }
@@ -350,7 +381,7 @@ export function useVoiceInput({
             stopAudioMeter();
             setIsListening(false);
         }
-    }, [isListening, lang, onEnd, onTranscript, startAudioMeter, stopAudioMeter, stopMediaStream, stopWhisper, whisperTranscribe]);
+    }, [handleFinalText, isListening, lang, onTranscript, startAudioMeter, stopAudioMeter, stopMediaStream, stopWhisper, whisperTranscribe]);
 
     const toggle = mode === 'gemini' ? gemini.toggle : mode === 'streaming' ? streaming.toggle : mode === 'browser' ? toggleBrowser : toggleWhisper;
 
@@ -414,4 +445,35 @@ export function useVoiceInput({
         speechState: isGemini ? gemini.speechState : isStreaming ? streaming.speechState : 'idle',
         confidence: isGemini ? gemini.confidence : isStreaming ? streaming.confidence : 0,
     };
+}
+
+function getOrCreateRealtimeVoiceSessionId(): string {
+    if (typeof window === 'undefined') return 'server';
+    const key = 'nodebench-realtime-voice-session';
+    const existing = window.localStorage.getItem(key);
+    if (existing) return existing;
+    const next =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `voice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    window.localStorage.setItem(key, next);
+    return next;
+}
+
+function inferRealtimeVoiceSurface(): string {
+    if (typeof window === 'undefined') return 'unknown';
+    const url = new URL(window.location.href);
+    if (url.pathname.includes('workspace') || url.search.includes('workspace')) return 'report';
+    if (url.pathname.includes('chat') || url.search.includes('surface=chat')) return 'chat';
+    if (url.pathname.includes('inbox') || url.search.includes('surface=inbox')) return 'event';
+    if (url.pathname.includes('redesign')) return 'home';
+    return 'home';
+}
+
+function hashClientString(value: string): string {
+    let hash = 5381;
+    for (let i = 0; i < value.length; i += 1) {
+        hash = ((hash << 5) + hash) ^ value.charCodeAt(i);
+    }
+    return (hash >>> 0).toString(36);
 }

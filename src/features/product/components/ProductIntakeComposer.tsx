@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { LENSES, type LensId } from "@/features/controlPlane/components/searchTypes";
 import type { ProductDraftFile } from "@/features/product/lib/productSession";
 import { useScreenCapture } from "@/hooks/useScreenCapture";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import {
   useRollbackInterceptor,
@@ -130,6 +131,16 @@ export function ProductIntakeComposer({
     stopRecording,
     clearRecording,
   } = useVoiceRecording();
+  const realtimeVoice = useVoiceInput({
+    mode: "browser",
+    continuous: false,
+    onTranscript: (text) => {
+      if (text.trim()) onChange(text);
+    },
+    onEnd: (finalText) => {
+      if (finalText.trim()) onChange(finalText);
+    },
+  });
   const { isCapturing, captureScreen, clearScreenshot } = useScreenCapture();
 
   const captureModes: Array<{ id: ProductComposerMode; label: string; icon: typeof FileText }> = [
@@ -137,7 +148,11 @@ export function ProductIntakeComposer({
     { id: "note", label: "Note", icon: FileText },
     { id: "task", label: "Task", icon: CheckSquare },
   ];
-  const voiceActive = voicePending || isRecording;
+  const voiceActive =
+    voicePending ||
+    isRecording ||
+    realtimeVoice.isListening ||
+    realtimeVoice.isTranscribing;
   const showChatHelperText =
     !isChatVariant || isCaptureMode || dragActive || files.length > 0 || voiceActive || captureAttachmentPending;
   const showChatTextareaShell = isChatVariant;
@@ -265,6 +280,14 @@ export function ProductIntakeComposer({
 
   const handleVoiceCapture = async () => {
     if (disabled || isCaptureMode || captureAttachmentPending) return;
+    if (realtimeVoice.isListening || realtimeVoice.isTranscribing) {
+      realtimeVoice.stop();
+      return;
+    }
+    if (realtimeVoice.isSupported) {
+      realtimeVoice.toggle();
+      return;
+    }
     if (isRecording) {
       setVoicePending(false);
       stopRecording();
@@ -316,6 +339,11 @@ export function ProductIntakeComposer({
     if (!voiceError) return;
     toast.error(voiceError);
   }, [voiceError]);
+
+  useEffect(() => {
+    if (!realtimeVoice.error) return;
+    toast.error(realtimeVoice.error);
+  }, [realtimeVoice.error]);
 
   useEffect(() => {
     if (!isCaptureMode || !isRecording) return;
@@ -592,10 +620,14 @@ export function ProductIntakeComposer({
                   </div>
                   {voiceActive ? (
                     <div className="mt-1 text-[11px] font-medium text-[var(--accent-primary)]">
-                    {voicePending
+                    {realtimeVoice.isListening
+                        ? "Listening for realtime capture..."
+                        : realtimeVoice.isTranscribing
+                          ? "Transcribing realtime capture..."
+                          : voicePending
                         ? "Starting voice memo..."
                         : "Recording voice memo... "}
-                      {!voicePending ? `${Math.floor(duration / 60)}:${`${duration % 60}`.padStart(2, "0")}` : null}
+                      {!voicePending && isRecording ? `${Math.floor(duration / 60)}:${`${duration % 60}`.padStart(2, "0")}` : null}
                     </div>
                   ) : null}
                 </div>
@@ -723,7 +755,20 @@ export function ProductIntakeComposer({
                           : "text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/[0.06] dark:hover:text-gray-100"
                     }`}
                   disabled={disabled || captureAttachmentPending}
-                  aria-label={isRecording ? "Stop voice capture" : voicePending ? "Starting voice capture" : "Record voice memo"}
+                  aria-label={
+                    realtimeVoice.isListening || realtimeVoice.isTranscribing || isRecording
+                      ? "Stop voice input"
+                      : realtimeVoice.isSupported
+                        ? `Voice input using ${realtimeVoice.mode} mode`
+                        : "Voice input fallback recorder"
+                  }
+                  title={
+                    realtimeVoice.isListening || realtimeVoice.isTranscribing || isRecording
+                      ? "Stop voice input"
+                      : realtimeVoice.isSupported
+                        ? `Voice input (${realtimeVoice.mode})`
+                        : "Voice input fallback recorder"
+                  }
                   aria-pressed={voiceActive}
                 >
                   <Mic className="h-4.5 w-4.5" />

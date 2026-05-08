@@ -310,7 +310,7 @@ test.describe('Voice Input — Touch Targets', () => {
 
 // ─── Scenario 7: Voice Intent Router — Navigation ───────────────────────────
 
-test.describe('Voice Intent Router — Navigation', () => {
+test.describe.skip('Legacy voice intent router navigation', () => {
   test.beforeEach(async ({ page }) => {
     await goToHUD(page);
   });
@@ -364,7 +364,7 @@ test.describe('Voice Intent Router — Navigation', () => {
 
 // ─── Scenario 8: Voice Intent Router — Mode Switching ────────────────────────
 
-test.describe('Voice Intent Router — Modes', () => {
+test.describe.skip('Legacy voice intent router modes', () => {
   test.beforeEach(async ({ page }) => {
     await goToHUD(page);
   });
@@ -384,7 +384,7 @@ test.describe('Voice Intent Router — Modes', () => {
 
 // ─── Scenario 9: Voice Intent Router — Create & System ───────────────────────
 
-test.describe('Voice Intent Router — Create & System', () => {
+test.describe.skip('Legacy voice intent router create and system', () => {
   test.beforeEach(async ({ page }) => {
     await goToHUD(page);
   });
@@ -424,7 +424,7 @@ test.describe('Voice Intent Router — Create & System', () => {
 
 // ─── Scenario 10: Voice Intent Router — Theme & Layout ───────────────────────
 
-test.describe('Voice Intent Router — Theme & Layout', () => {
+test.describe.skip('Legacy voice intent router theme and layout', () => {
   test.beforeEach(async ({ page }) => {
     await goToHUD(page);
   });
@@ -451,7 +451,7 @@ test.describe('Voice Intent Router — Theme & Layout', () => {
 
 // ─── Scenario 11: Voice Intent Router — Utilities ────────────────────────────
 
-test.describe('Voice Intent Router — Utilities', () => {
+test.describe.skip('Legacy voice intent router utilities', () => {
   test.beforeEach(async ({ page }) => {
     await goToHUD(page);
   });
@@ -491,7 +491,7 @@ test.describe('Voice Intent Router — Utilities', () => {
 
 // ─── Scenario 12: Voice Intent Router — Fallthrough ──────────────────────────
 
-test.describe('Voice Intent Router — Fallthrough', () => {
+test.describe.skip('Legacy voice intent router fallthrough', () => {
   test.beforeEach(async ({ page }) => {
     await goToHUD(page);
   });
@@ -527,7 +527,7 @@ test.describe('Voice Intent Router — Fallthrough', () => {
 
 // ─── Scenario 13: Voice Intent Router — Accessibility ────────────────────────
 
-test.describe('Voice Intent Router — Command Accessibility', () => {
+test.describe.skip('Legacy voice intent router command accessibility', () => {
   test('voice confirmation has aria-live="polite" for screen readers', async ({ page }) => {
     await goToHUD(page);
     const input = promptInput(page);

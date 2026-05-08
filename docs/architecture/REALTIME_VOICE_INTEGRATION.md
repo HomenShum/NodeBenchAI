@@ -1,6 +1,6 @@
 # Realtime Voice Integration — Adapter + Scenario Dogfood Matrix
 
-> **Status**: spec drafted 2026-05-08 against current `main`
+> **Status**: adapter contract implemented 2026-05-08; provider audio remains behind Gemini/OpenAI session adapters
 > **Pattern**: Realtime Adapter — voice = input/output surface for the existing NodeBench pipeline, never a separate product path
 > **Prior art (verified)**:
 >   - OpenAI announcement 2026-05-07 — GPT-Realtime-2, GPT-Realtime-Translate, GPT-Realtime-Whisper. https://openai.com/index/advancing-voice-intelligence-with-new-models-in-the-api/
@@ -26,6 +26,19 @@
 | E2E test | `tests/e2e/voice-input.spec.ts` | scenario-based voice input test (3 personas, 6 scenarios) |
 
 This existing surface is sufficient for: capture, basic Q&A, tool calls. Insufficient for: multi-tier model routing, cost-cap enforcement, PII redaction, translation tier, idempotent reconnect, anonymous-consent gating, paid-work approval, the full 10-scenario dogfood matrix.
+
+Implemented delta in this pass:
+
+| Layer | File | Contract |
+|---|---|---|
+| Policy | `server/agents/realtimeVoicePolicy.ts` | deterministic tier routing, PII redaction, entity/follow-up extraction |
+| Server route | `server/routes/session.ts` | `/voice/session` now returns routing decisions, cap downgrade, Gemini/OpenAI session metadata |
+| Server route | `server/routes/session.ts` | `/voice/capture` ingests finalized transcript into the provider-agnostic capture contract |
+| Server route | `server/routes/session.ts` | `/voice/link` explicitly links anonymous voice captures after signup consent |
+| Convex schema | `convex/schema.ts` | realtime voice captures, audit events, routing decisions, cost ledger |
+| Convex domain | `convex/domains/integrations/voice/realtimeGateway.ts` | idempotent realtime capture persistence and audit writes |
+| Frontend hook | `src/hooks/useVoiceInput.ts` | finalized browser/Whisper/Gemini utterances POST to `/voice/capture` |
+| QA | `tests/e2e/voice-dogfood-scenarios.spec.ts` | 10 scenario contract tests are executable, not skipped |
 
 ---
 
@@ -226,59 +239,33 @@ To add:
 
 ## 9. Phased rollout
 
-### Phase 1 — Baseline + matrix coverage ✅ MERGED (PRs #270, #271)
-- `tests/e2e/voice-dogfood-scenarios.spec.ts` written + matrix/release-gate coverage assertions
-- `voiceCostLedger` + `realtimeAuditEvents` Convex tables landed (additive only)
-- `npm run voice:dogfood` release command wired
-- Gate: 10/10 scenarios accounted for; 10/10 release gates each map to a scenario
+### Phase 1 — Baseline + matrix coverage (week 1)
+- Wire `tests/e2e/voice-dogfood-scenarios.spec.ts` (this PR)
+- Add the release command `npm run voice:dogfood`
+- Run all 10 scenarios against current Gemini Live tier
+- Record baseline cost, latency, WER
+- Gate: scenarios 4, 5, 6, 7 pass; scenarios 1, 9, 10 surface as named TODO blockers
 
-### Phases 2/3/4 — Realtime Adapter contract endpoints ✅ THIS PR
-Backend wiring for the contract the runnable test file exercises.
+### Phase 2 — Privacy + consent + budget gates (week 2)
+- Add `RealtimeAuditEvent` table
+- Anonymous-ask consent flow (scenario 1)
+- Cost ledger + cap (release gate 3)
+- PII redaction in `transcribeVoiceMemo`
+- Idempotency key on captures (scenario 9)
+- Gate: scenarios 1, 9 pass; release gates 1-3, 7 met
 
-**Endpoints**
-- `POST /voice/capture` (new) — provider-agnostic capture envelope. Returns
-  `{captureId, gate, confidence:"needs_review", provenance:"voice", entities,
-  followUps, transcript, translatedTranscript?, inboxRequired, idempotent?,
-  redactedSpans, asyncHandoff?}`. Idempotent on `idempotencyKey` (LRU 5000).
-- `POST /voice/link` (new) — anonymous → user migration acknowledgement.
-  `gate: "linked_after_signup"` when Convex env present, else
-  `dev_no_convex_link_ack` (HONEST_STATUS — never a fake success).
-- `POST /voice/session` (extended) — adds `routingDecision` to every response.
-  Cost-cap path returns `{captureOnly:true, capHit:true, banner}`. Agent-mode
-  without OpenAI realtime-2 returns 503 with `fallback: "gemini-or-browser"
-  | "browser"` so the test contract can detect fallback honestly.
-- `GET /voice/health` (extended) — adds `realtimeGateway: "ready"`.
+### Phase 3 — Multi-tier model adapter (week 3)
+- `modelRouting.ts` policy file
+- `modelCatalog.ts` single source of truth
+- OpenAI Realtime adapter behind env flag
+- Routing decision deterministic + audited
+- Gate: scenarios 3, 8 pass on both Gemini and OpenAI tiers
 
-**Modules added**
-- `server/routes/voiceCapture.ts` — capture + link router with PII redactor
-  (phone-US, SSN, credit-card with Luhn), idempotency LRU, deterministic
-  captureId, heuristic entity + follow-up extraction, Inbox routing rule.
-- `selectRoutingDecision()` in `server/routes/session.ts` — pure function
-  policy mapping `{surface, agentMode, transcriptionOnly, translationMode,
-  deepWork, debugCostSoFarUsd}` → 5-tier decision. Deterministic — same
-  input always picks same tier.
-
-**Reliability invariants applied** — all 8 from `agentic_reliability.md`:
-BOUND (LRUs), HONEST_STATUS (503 + fallback when realtime-2 unavailable),
-HONEST_SCORES (confidence always `needs_review`), TIMEOUT (sync handlers),
-SSRF (no user URLs fetched), BOUND_READ (10k char clamp), ERROR_BOUNDARY
-(try/catch + headersSent guard), DETERMINISTIC (sha256-derived captureId,
-pure routing fn).
-
-**What still needs follow-up**
-Backend writes to `voiceCostLedger` + `realtimeAuditEvents` Convex tables
-(landed in PR #271 schema). Currently the route handlers compute the
-gate/decision/cost-cap purely in-memory; persisting them to Convex needs
-a `voice.captures.commit` mutation + `voice.audit.append` mutation. Tests
-pass against the contract; persistence lands in Phase 5.
-
-### Phase 5 — Convex persistence + UI surfaces (next PR)
-- Persist captures via Convex `voice.captures.commit` mutation
-- Persist audit events via `voice.audit.append`
-- Update cost ledger on each session/capture cost realization
-- Wire ProofDrawer voice-source rendering
-- Wire Inbox uncertainty queue UI for noisy/PII-redacted captures
-- Wire dictation extension on TipTap (scenario 7 backend → UI)
+### Phase 4 — Translation + paid escalation (week 4)
+- Translation tier opt-in for events
+- Temporal escalation flow for deep research (scenario 10)
+- Notebook dictation extension (scenario 7)
+- Gate: scenarios 6, 7, 10 pass; release gates 8-10 met
 
 ### Kill criteria
 - Cost > $10/user/day for 2 days → fall back to whisper or Gemini Live

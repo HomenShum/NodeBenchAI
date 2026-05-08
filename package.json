@@ -39,7 +39,7 @@
     "test:run:openclaw-mcp": "node scripts/testing/runVitestSegment.mjs --cwd packages/openclaw-mcp-nodebench --target src --mode filter",
     "test:run:overstory": "node scripts/testing/runOverstoryTests.mjs",
     "test:e2e": "playwright test",
-    "voice:dogfood": "playwright test tests/e2e/voice-input.spec.ts tests/e2e/voice-dogfood-scenarios.spec.ts --project=chromium --workers=1 --reporter=list",
+    "voice:dogfood": "node node_modules/@playwright/test/cli.js test tests/e2e/voice-input.spec.ts tests/e2e/voice-dogfood-scenarios.spec.ts --project=chromium --workers=1 --reporter=list",
     "live-smoke": "playwright test tests/e2e/live-smoke.spec.ts --project=chromium --workers=1",
     "live-smoke:mobile": "playwright test tests/e2e/live-smoke-mobile.spec.ts --project=chromium --workers=1",
     "live-smoke:all": "npm run live-smoke && npm run live-smoke:mobile",

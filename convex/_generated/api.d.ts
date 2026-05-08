@@ -659,6 +659,9 @@ import type * as domains_integrations_sms from "../domains/integrations/sms.js";
 import type * as domains_integrations_spreadsheets from "../domains/integrations/spreadsheets.js";
 import type * as domains_integrations_telegram from "../domains/integrations/telegram.js";
 import type * as domains_integrations_telegramAgent from "../domains/integrations/telegramAgent.js";
+import type * as domains_integrations_voice_costLedger from "../domains/integrations/voice/costLedger.js";
+import type * as domains_integrations_voice_realtimeAudit from "../domains/integrations/voice/realtimeAudit.js";
+import type * as domains_integrations_voice_realtimeGateway from "../domains/integrations/voice/realtimeGateway.js";
 import type * as domains_integrations_voice_voiceActions from "../domains/integrations/voice/voiceActions.js";
 import type * as domains_integrations_voice_voiceAgent from "../domains/integrations/voice/voiceAgent.js";
 import type * as domains_integrations_voice_voiceMutations from "../domains/integrations/voice/voiceMutations.js";
@@ -2138,6 +2141,9 @@ declare const fullApi: ApiFromModules<{
   "domains/integrations/spreadsheets": typeof domains_integrations_spreadsheets;
   "domains/integrations/telegram": typeof domains_integrations_telegram;
   "domains/integrations/telegramAgent": typeof domains_integrations_telegramAgent;
+  "domains/integrations/voice/costLedger": typeof domains_integrations_voice_costLedger;
+  "domains/integrations/voice/realtimeAudit": typeof domains_integrations_voice_realtimeAudit;
+  "domains/integrations/voice/realtimeGateway": typeof domains_integrations_voice_realtimeGateway;
   "domains/integrations/voice/voiceActions": typeof domains_integrations_voice_voiceActions;
   "domains/integrations/voice/voiceAgent": typeof domains_integrations_voice_voiceAgent;
   "domains/integrations/voice/voiceMutations": typeof domains_integrations_voice_voiceMutations;
@@ -5964,7 +5970,6 @@ export declare const components: {
         "internal",
         {
           before?: number;
-          limit?: number;
           logLevel: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
         },
         any

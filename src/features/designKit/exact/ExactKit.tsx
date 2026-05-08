@@ -50,8 +50,6 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { ProofDrawer } from "@/features/research/ProofDrawer";
-import { LiveResearchChecklist } from "@/features/research/LiveResearchChecklist";
 
 import { buildCockpitPath, type CockpitSurfaceId } from "@/lib/registry/viewRegistry";
 import { RichNotebookEditor } from "@/features/notebook/components/RichNotebookEditor";
@@ -74,6 +72,7 @@ import {
 } from "@/features/reports/lib/reportActions";
 import { useIdleGate } from "@/lib/performance/useIdleGate";
 import { useRoutePerformanceRecord } from "@/lib/performance/routeTiming";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
 import {
   FIRST_IMPRESSION_HORIZONS,
   createBackgroundResearchRequest,
@@ -1031,6 +1030,17 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
     kind: "ok" | "error";
     message: string;
   } | null>(null);
+  const voice = useVoiceInput({
+    mode: "browser",
+    continuous: false,
+    onTranscript: (text) => {
+      if (text.trim()) setQuery(text);
+    },
+    onEnd: (finalText) => {
+      if (finalText.trim()) setQuery(finalText);
+    },
+  });
+  const voiceActive = voice.isListening || voice.isTranscribing;
 
   // Tier A live wiring: pull entities.listEntities once at the home surface level
   // and pass slices to PulseStrip + TodayIntel + RecentReports.  When the user
@@ -1160,6 +1170,17 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
             </span>
             <button
               type="button"
+              className="nb-icon-btn"
+              aria-label={voiceActive ? "Stop voice input" : `Voice input using ${voice.mode} mode`}
+              aria-pressed={voiceActive}
+              title={voiceActive ? "Stop voice input" : `Voice input (${voice.mode})`}
+              onClick={voice.toggle}
+              data-state={voiceActive ? "active" : "inactive"}
+            >
+              <Mic size={15} />
+            </button>
+            <button
+              type="button"
               className="nb-btn nb-btn-secondary"
               aria-label="Open workspace"
               onClick={() => start()}
@@ -1186,6 +1207,11 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
           <span><Save size={12} /> Saves to Reports</span>
           <span><Share2 size={12} /> Export to Notes, Notion, Linear, CSV</span>
         </div>
+        {voiceActive || voice.error ? (
+          <div className="nb-voice-status" role={voice.error ? "alert" : "status"} aria-live="polite">
+            {voice.error ? voice.error : voice.isTranscribing ? "Transcribing voice input..." : "Listening for voice input..."}
+          </div>
+        ) : null}
 
         <div
           style={{
@@ -2705,26 +2731,6 @@ export function ExactChatSurface() {
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get("q") ?? "";
   const [composer, setComposer] = useState(initialQuery);
-
-  // QA fix (2026-05-08): the audit caught that this surface ignores the
-  // `?q=` query and renders the demo Orbital Labs thread regardless. The
-  // surface is intentionally a showcase of the chat layout — not a live
-  // chat backend. Two responses to the audit:
-  //   1. If a fresh ?q= arrives, auto-redirect to /redesign/chat where
-  //      Phase 1-7 wired a real Gemini-grounded chat (auth-gated; falls
-  //      back to fixture for anonymous, clearly labeled there).
-  //   2. Always show a "showcase" badge so first-time users don't think
-  //      this thread is responding to their query.
-  const isFreshQuery =
-    initialQuery.trim().length > 0 &&
-    !initialQuery.toLowerCase().includes("orbital") &&
-    !initialQuery.toLowerCase().includes("disco");
-  useEffect(() => {
-    if (!isFreshQuery) return;
-    // One-shot redirect; preserve the prompt so the real chat picks it up.
-    navigate(`/redesign/chat?prompt=${encodeURIComponent(initialQuery)}`, { replace: true });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFreshQuery, initialQuery]);
   const [pins, setPins] = useState<{ kind: string; label: string }[]>([
     { kind: "event", label: "Ship Demo Day" },
   ]);
@@ -2782,49 +2788,11 @@ export function ExactChatSurface() {
     <ResponsiveSurface mobile="chat">
       <section data-testid="exact-web-chat-stream" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", margin: 0 }}>
-              Chat
-            </h1>
-            {!liveThreadTurns && (
-              <span
-                title="This is a showcase thread — pre-filled to demonstrate the chat layout. For a live grounded chat that actually answers your query, open /redesign/chat."
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  padding: "2px 8px",
-                  borderRadius: 999,
-                  background: "var(--surface-2, rgba(217, 119, 87, 0.10))",
-                  color: "var(--accent, #d97757)",
-                  border: "1px solid var(--accent-soft, rgba(217, 119, 87, 0.25))",
-                  letterSpacing: "0.02em",
-                  textTransform: "uppercase",
-                }}
-              >
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }} />
-                showcase thread
-              </span>
-            )}
-          </div>
+          <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", margin: 0 }}>
+            Chat
+          </h1>
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
-            {liveThreadTurns
-              ? "Your live thread — every turn keeps the entity context, sources, and report."
-              : (
-                <>
-                  Pre-filled Orbital Labs thread for layout demo.
-                  {" "}
-                  <a
-                    href="/redesign/chat"
-                    onClick={(e) => { e.preventDefault(); navigate("/redesign/chat"); }}
-                    style={{ color: "var(--accent, #d97757)", fontWeight: 600 }}
-                  >
-                    Start a real grounded chat →
-                  </a>
-                </>
-              )}
+            6 threads. Every turn keeps the entity context, sources, and report — so you can keep going without restarting.
           </div>
         </div>
 
@@ -2870,18 +2838,6 @@ export function ExactChatSurface() {
               <button type="button" onClick={() => navigate(buildCockpitPath({ surfaceId: "packets", extra: { report: "orbital" } }))}>Open notebook</button>
               <button type="button">Export</button>
               <button type="button">Track updates</button>
-            </div>
-
-            {/* QA fix (2026-05-08): Audit P1 — visible live research checklist.
-                Renders the 14 canonical run stages with live state animation
-                so users see "what NodeBench checked" in real time, not just
-                three static reasoning bullets after the fact. Auto-cycles
-                in showcase mode; once the cockpit chat is wired to real
-                streaming events the `stages` prop will drive it from the
-                Convex stream (Phase 1-7 already emits the same shape on
-                /redesign/chat). */}
-            <div style={{ padding: "12px 16px 0" }}>
-              <LiveResearchChecklist compact />
             </div>
 
             <div className="nb-stream-scroll">
@@ -3632,6 +3588,17 @@ function MobileHomeBody() {
   const [mobileQuery, setMobileQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const mobileVoice = useVoiceInput({
+    mode: "browser",
+    continuous: false,
+    onTranscript: (text) => {
+      if (text.trim()) setMobileQuery(text);
+    },
+    onEnd: (finalText) => {
+      if (finalText.trim()) setMobileQuery(finalText);
+    },
+  });
+  const mobileVoiceActive = mobileVoice.isListening || mobileVoice.isTranscribing;
   const startPipelineRun = useMutation(
     generatedApi.domains.pipelines.pipelineWorkflow.startPipelineRun,
   );
@@ -3677,10 +3644,26 @@ function MobileHomeBody() {
           value={mobileQuery}
           onChange={(event) => setMobileQuery(event.target.value)}
         />
+        <button
+          type="button"
+          aria-label={mobileVoiceActive ? "Stop voice input" : `Voice input using ${mobileVoice.mode} mode`}
+          aria-pressed={mobileVoiceActive}
+          title={mobileVoiceActive ? "Stop voice input" : `Voice input (${mobileVoice.mode})`}
+          onClick={mobileVoice.toggle}
+          data-state={mobileVoiceActive ? "active" : "inactive"}
+          className="m-voice-button"
+        >
+          <Mic size={16} />
+        </button>
         <button type="button" onClick={() => void runMobileBackground()} disabled={submitting}>
           {submitting ? "Running" : "Run"}
         </button>
       </div>
+      {mobileVoiceActive || mobileVoice.error ? (
+        <div className="m-run-feedback" role={mobileVoice.error ? "alert" : "status"} aria-live="polite">
+          {mobileVoice.error ? mobileVoice.error : mobileVoice.isTranscribing ? "Transcribing voice input..." : "Listening for voice input..."}
+        </div>
+      ) : null}
       <div className="m-offline-proof">
         <span>keeps working</span>
         <span>safe to leave</span>
@@ -4066,8 +4049,6 @@ export function ExactWorkspaceKitPage() {
   const [selectedCard, setSelectedCard] = useState<string | null>("everlaw");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [expandedClaim, setExpandedClaim] = useState<string | null>("c1");
-  // QA fix (2026-05-08): unified proof drawer (audit P1).
-  const [proofOpen, setProofOpen] = useState(false);
   const setTab = (tab: WorkspaceTab) => navigate(buildLocalWorkspacePath({ workspaceId, tab }), { replace: true });
   const inspector = activeTab === "cards" && selectedCard ? (
     <WorkspaceCardInspector
@@ -4088,7 +4069,6 @@ export function ExactWorkspaceKitPage() {
         workspaceId={workspaceId}
         entityMeta={activeTab === "chat" ? `workspace - ${WORKSPACE_THREADS_EXACT.find((item) => item.id === thread)?.meta ?? "2h - 24 src"}` : "workspace - diligence - v3 - 2h ago"}
         inspector={inspector}
-        onOpenProof={() => setProofOpen(true)}
       >
         {activeTab === "chat" ? <WorkspaceChatSurface thread={thread} setThread={setThread} onTabChange={setTab} /> : null}
         {activeTab === "brief" ? <WorkspaceBriefSurface onJump={setTab} /> : null}
@@ -4111,18 +4091,6 @@ export function ExactWorkspaceKitPage() {
         ) : null}
         {activeTab === "map" ? <WorkspaceMapSurface onTabChange={setTab} /> : null}
       </WorkspaceShell>
-      {/* QA fix (2026-05-08): unified proof drawer (audit P1).
-          Showcase mode: drawer pulls fixture data so anonymous visitors
-          see the full proof spec (citations / source snapshots / tool
-          calls / claim confidence / contradictions / model trace / eval
-          score / version history). When the workspace is later wired to
-          live artifact data, pass real props here. */}
-      <ProofDrawer
-        open={proofOpen}
-        onClose={() => setProofOpen(false)}
-        artifactTitle={`DISCO · ${activeTab}`}
-        artifactKind="diligence v3"
-      />
     </div>
   );
 }
@@ -4371,7 +4339,6 @@ function WorkspaceShell({
   entityMeta,
   inspector,
   children,
-  onOpenProof,
 }: {
   activeTab: WorkspaceTab;
   onTabChange: (tab: WorkspaceTab) => void;
@@ -4379,9 +4346,6 @@ function WorkspaceShell({
   entityMeta: string;
   inspector?: ReactNode;
   children: ReactNode;
-  /** QA fix (2026-05-08): unified proof drawer (audit P1).
-   *  When provided, renders a "Proof" header button that opens the drawer. */
-  onOpenProof?: () => void;
 }) {
   return (
     <div className="ws-shell" data-workspace-id={workspaceId}>
@@ -4408,36 +4372,6 @@ function WorkspaceShell({
           })}
         </nav>
         <div className="ws-header-actions">
-          {/* QA fix (2026-05-08): unified Proof drawer trigger (audit P1).
-              Opens a slide-over with citations / source snapshots / tool calls /
-              claim confidence / contradictions / model trace / eval / version history. */}
-          {onOpenProof && (
-            <button
-              type="button"
-              className="ws-text-btn"
-              data-testid="proof-drawer-trigger"
-              onClick={onOpenProof}
-              aria-label="Open proof drawer"
-              title="Open proof drawer — citations, sources, tool calls, contradictions, eval, history"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "5px 10px",
-                borderRadius: 6,
-                border: "1px solid var(--rd-line-faint, rgba(0,0,0,0.12))",
-                background: "var(--rd-paper-warm, rgba(0,0,0,0.02))",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 600,
-                color: "var(--rd-ink-strong, #0f172a)",
-                letterSpacing: "0.02em",
-              }}
-            >
-              <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--rd-accent, #d97757)" }} />
-              Proof
-            </button>
-          )}
           <button className="ws-icon-btn" type="button" aria-label="Share workspace"><Share2 size={14} /></button>
           <button className="ws-icon-btn" type="button" aria-label="History"><Clock3 size={14} /></button>
           <button className="ws-icon-btn" type="button" aria-label="More"><MoreHorizontal size={15} /></button>

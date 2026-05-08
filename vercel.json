@@ -44,11 +44,15 @@
     },
     "api/harness.js": {
       "maxDuration": 60
+    },
+    "api/voice.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [
     { "source": "/api/og/:id", "destination": "/api/og/[id]" },
     { "source": "/api/harness/:path*", "destination": "/api/harness" },
+    { "source": "/voice/:path*", "destination": "/api/voice?path=:path*" },
     { "source": "/api/shared-context/episodes", "destination": "/api/shared-context/snapshot?__nb_shared_context_path=episodes" },
     { "source": "/api/shared-context/episodes/start", "destination": "/api/shared-context/snapshot?__nb_shared_context_path=episodes/start" },
     { "source": "/api/shared-context/episodes/:episodeId", "destination": "/api/shared-context/snapshot?__nb_shared_context_path=episodes/:episodeId" },

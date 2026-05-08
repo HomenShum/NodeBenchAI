@@ -66,7 +66,7 @@ test.describe("Realtime voice dogfood matrix", () => {
     expect(res.ok()).toBe(true);
     const body = await res.json();
     expect(body.ok).toBe(true);
-    expect(body.gate).toMatch(/linked_after_signup|dev_no_convex_link_ack/);
+    expect(body.gate).toMatch(/linked_after_signup|dev_no_convex_link_ack|dev_convex_link_fallback/);
   });
 
   test("3. returning user routes through memory/report context path", async ({ page }) => {

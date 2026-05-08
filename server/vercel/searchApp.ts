@@ -15,6 +15,7 @@ import { createSharedContextRouter } from "../routes/sharedContext.js";
 import { createHarnessRouter } from "../routes/harness.js";
 import { createSubconsciousRouter } from "../routes/subconscious.js";
 import { createHyperloopRouter } from "../routes/hyperloop.js";
+import { createSessionRouter } from "../routes/session.js";
 import { SyncBridgeServer } from "../syncBridge.js";
 
 if (!process.env.CONVEX_URL && process.env.VITE_CONVEX_URL) {
@@ -54,6 +55,8 @@ app.use("/subconscious", createSubconsciousRouter());
 app.use("/api/subconscious", createSubconsciousRouter());
 app.use("/hyperloop", createHyperloopRouter());
 app.use("/api/hyperloop", createHyperloopRouter());
+app.use("/voice", createSessionRouter());
+app.use("/api/voice", createSessionRouter());
 
 // Sweep API — live signal intelligence
 try { initSweepTables(); } catch { /* tables init */ }
