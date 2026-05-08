@@ -138,14 +138,19 @@ export function useRedesignChatRun() {
   }, [projected?.status, projected?.errorMessage]);
 
   const submit = useCallback(
-    async (prompt: string, tier: RouterTier, contextRef?: string): Promise<string | null> => {
+    async (
+      prompt: string,
+      tier: RouterTier,
+      contextRef?: string,
+      pinnedClaims?: Array<{ text: string; source?: string }>,
+    ): Promise<string | null> => {
       if (!isAuthenticated) {
         setError("Sign in to run a real chat with grounded sources.");
         return null;
       }
       setError(null);
       try {
-        const runId = await startChat({ prompt, tier, contextRef });
+        const runId = await startChat({ prompt, tier, contextRef, pinnedClaims });
         setActiveRunId(runId);
         return runId;
       } catch (err: any) {
@@ -160,6 +165,17 @@ export function useRedesignChatRun() {
   const reset = useCallback(() => {
     setActiveRunId(null);
     setError(null);
+  }, []);
+
+  /**
+   * Phase 5 — point the hook at an existing runId (e.g. one returned
+   * by a separate `probeRun` mutation) so its events stream into the
+   * same projected state. Caller is responsible for inserting the
+   * matching turn into the conversation.
+   */
+  const subscribeTo = useCallback((runId: string) => {
+    setError(null);
+    setActiveRunId(runId);
   }, []);
 
   const externalStatus: ChatRunState["status"] =
@@ -178,6 +194,7 @@ export function useRedesignChatRun() {
     } as ChatRunState,
     submit,
     reset,
+    subscribeTo,
     hash: projected?.hash ?? null,
   };
 }

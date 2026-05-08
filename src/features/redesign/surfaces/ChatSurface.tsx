@@ -301,6 +301,8 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
   const chatRun = useRedesignChatRun();
   // Phase 4 — real reactions for inline correction + 👍/👎 toolbar.
   const recordReaction = useMutation(api.domains.redesign.agentRunFeedback.recordReaction);
+  // Phase 5 — counterfactual probe re-run with masked source.
+  const probeRun = useMutation(api.domains.redesign.chatRuns.probeRun);
   // ?fresh=1 escape hatch: treat as if no live artifact is loaded (uses
   // STARTER_ANSWER with inline [N] cites for the chat-sprints demo recorder).
   const _skipLiveSeed = typeof window !== "undefined"
@@ -356,6 +358,45 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
   };
   const unpinClaim = (id: string) => {
     setPinned((cur) => cur.filter((p) => p.id !== id));
+  };
+
+  // Phase 5 — real counterfactual probe via the probeRun mutation.
+  // Looks up the original run, kicks off a new run with the masked
+  // source flagged unreliable in the system prompt, inserts a new
+  // assistant turn that subscribes to the probed run's stream.
+  const probeWithoutSourceReal = (originalTurnId: string, originalRunId: string, maskedIdx: number) => {
+    const probeId = `a${turns.length + 1}`;
+    setTurns((prev) => [
+      ...prev,
+      {
+        id: probeId,
+        role: "assistant",
+        thinking: true,
+        tier: "auto",
+        createdAt: Date.now(),
+        chatRunId: undefined,
+      },
+    ]);
+    void probeRun({ originalRunId, maskedSourceIdx: maskedIdx })
+      .then((probedRunId) => {
+        setTurns((prev) => prev.map((t) =>
+          t.id === probeId
+            ? { ...t, chatRunId: probedRunId }
+            : t,
+        ));
+        // Point the streaming hook at the probed run so its events
+        // project into projected.run and the effect commits the packet.
+        chatRun.subscribeTo(probedRunId);
+        showToast({
+          tone: "info",
+          message: `Re-running without source [${maskedIdx}] — diff will appear inline.`,
+        });
+      })
+      .catch((err: any) => {
+        const msg = (err?.message || String(err)).slice(0, 200);
+        setTurns((prev) => prev.filter((t) => t.id !== probeId));
+        showToast({ tone: "warning", message: `Probe failed: ${msg}` });
+      });
   };
 
   // Sprint 4 P2.7 — A/B compare modal state.
@@ -445,7 +486,13 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
     // reactively via Convex queries. The effect below watches for
     // status === "complete" to commit the final packet onto this turn.
     if (chatRun.state.available && !_skipLiveSeed) {
-      void chatRun.submit(text, submittedTier, liveDetail?.id).then((runId) => {
+      // Phase 5 — carry pinned claims forward as hard context in the
+      // system prompt. Each pin has a short label (the answer's tier +
+      // shortAnswer) plus the source URL if grounded.
+      const pinnedClaims = pinned.length > 0
+        ? pinned.map((p) => ({ text: p.label || "pinned claim", source: undefined as string | undefined }))
+        : undefined;
+      void chatRun.submit(text, submittedTier, liveDetail?.id, pinnedClaims).then((runId) => {
         if (runId) {
           setTurns((prev) => prev.map((t) =>
             t.id === assistantId
@@ -629,6 +676,19 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
                   onPin={() => pinClaim(t.id, t.packet!, t.tier ?? "auto")}
                   onCompare={() => setCompareTurnId(t.id)}
                   onShare={() => shareAnswer(t.id, t.packet!, t.tier ?? "auto")}
+                  onProbeRunWithoutSource={t.chatRunId ? (idx) => probeWithoutSourceReal(t.id, t.chatRunId!, idx) : undefined}
+                  onReact={t.chatRunId ? (kind) => {
+                    void recordReaction({
+                      runId: t.chatRunId!,
+                      runSource: "redesign-chat",
+                      turnId: t.id,
+                      reaction: kind,
+                    }).then(() => {
+                      showToast({ tone: kind === "up" ? "success" : "info", message: kind === "up" ? "Thanks — recorded as 👍." : "Recorded as 👎. Feeds the eval flywheel." });
+                    }).catch((err: any) => {
+                      showToast({ tone: "warning", message: `Could not save reaction: ${(err?.message || String(err)).slice(0, 100)}` });
+                    });
+                  } : undefined}
                 />
               );
             })();
@@ -1200,6 +1260,8 @@ function AnswerPacket({
   onPin,
   onCompare,
   onShare,
+  onReact,
+  onProbeRunWithoutSource,
 }: {
   packet: ChatAnswer;
   tier: RouterTier;
@@ -1211,6 +1273,12 @@ function AnswerPacket({
   onPin?: () => void;
   onCompare?: () => void;
   onShare?: () => void;
+  /** Phase 5 — when set, the 👍/👎 buttons persist via recordReaction. */
+  onReact?: (kind: "up" | "down") => void;
+  /** Phase 5 — when set, "Probe without [N]" calls a real action that
+   *  re-runs the model with that source masked. The handler returns the
+   *  probedRunId so the AnswerPacket can swap into the probed answer. */
+  onProbeRunWithoutSource?: (maskedSourceIdx: number) => void;
 }) {
   const tierMeta = DEFAULT_TIERS.find((t) => t.id === tier) ?? DEFAULT_TIERS[0];
   const [hoverCite, setHoverCite] = useState<number | null>(null);
@@ -1229,11 +1297,21 @@ function AnswerPacket({
   const probeWithoutSource = (idx: number) => {
     setMaskedIdx(idx);
     setProbeMenu(null);
+    // Phase 5 — if a real probe handler is wired (authenticated user with
+    // an active runId on this turn), call the real action; otherwise fall
+    // back to the showcase toast pair.
+    if (onProbeRunWithoutSource) {
+      showToast({
+        tone: "info",
+        message: `Re-running model without source [${idx}]…`,
+      });
+      onProbeRunWithoutSource(idx);
+      return;
+    }
     showToast({
       tone: "info",
       message: `Probing without source [${idx}]…`,
     });
-    // Simulate model re-eval delay
     window.setTimeout(() => {
       showToast({
         tone: "warning",
@@ -1403,7 +1481,7 @@ function AnswerPacket({
         onPin={onPin}
         onBranch={onBranch}
         onWhy={() => { /* future: opens trace modal */ }}
-        onReact={() => { /* future: agentRunFeedback */ }}
+        onReact={onReact}
         onCompare={onCompare}
         onShare={onShare}
       />

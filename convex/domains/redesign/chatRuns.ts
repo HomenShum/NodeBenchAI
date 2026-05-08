@@ -142,6 +142,18 @@ export const startChat = mutation({
     prompt: v.string(),
     tier: v.union(v.literal("free"), v.literal("fast"), v.literal("auto"), v.literal("deep")),
     contextRef: v.optional(v.string()),
+    /** Phase 5 — pinned claims from prior turns to carry forward as hard
+     *  context. Each item: short text + optional source URL. Server prepends
+     *  these to the system prompt so the next answer respects them. */
+    pinnedClaims: v.optional(v.array(v.object({
+      text: v.string(),
+      source: v.optional(v.string()),
+    }))),
+    /** Phase 5 — counterfactual probe. When set, the run is a probe
+     *  re-evaluation of an earlier run with the cited source masked. */
+    probeOriginRunId: v.optional(v.string()),
+    probeMaskedSourceUrl: v.optional(v.string()),
+    probeMaskedSourceIdx: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<string> => {
     const prompt = args.prompt.slice(0, MAX_PROMPT_CHARS);
@@ -156,7 +168,6 @@ export const startChat = mutation({
     try {
       const identity = await ctx.auth.getUserIdentity();
       if (identity?.subject) {
-        // Best-effort lookup; not strictly required for the run to succeed.
         const found = await ctx.db
           .query("users")
           .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
@@ -180,6 +191,77 @@ export const startChat = mutation({
       tier: args.tier,
       contextRef: args.contextRef,
       model,
+      pinnedClaims: args.pinnedClaims,
+      probeOriginRunId: args.probeOriginRunId,
+      probeMaskedSourceUrl: args.probeMaskedSourceUrl,
+      probeMaskedSourceIdx: args.probeMaskedSourceIdx,
+    });
+    return runId;
+  },
+});
+
+/**
+ * Phase 5 — counterfactual probe. Re-runs a prior chat with one source
+ * marked unreliable in the system prompt. Looks up the original run by
+ * runId, reads the prompt + masked source URL, calls startChat with
+ * probeOriginRunId set so the new run carries the masking instruction.
+ *
+ * Returns the new probedRunId; frontend subscribes via the same
+ * streamEventsForRun pattern. The Sprint 4 P0.3 ProbeBanner can show
+ * "Probed without [N]: <new shortAnswer>" when complete.
+ */
+export const probeRun = mutation({
+  args: {
+    originalRunId: v.string(),
+    maskedSourceIdx: v.number(),
+  },
+  handler: async (ctx, args): Promise<string> => {
+    const orig = await ctx.db
+      .query("redesignChatRuns")
+      .withIndex("by_runId", (q) => q.eq("runId", args.originalRunId))
+      .first();
+    if (!orig) throw new Error("Original run not found");
+    if (!orig.packet || orig.status !== "complete") {
+      throw new Error("Original run not complete — cannot probe yet");
+    }
+    const evidence = (orig.packet.evidence ?? []) as Array<{ idx: number; source: string; quote?: string }>;
+    const masked = evidence.find((e) => e.idx === args.maskedSourceIdx);
+    if (!masked) throw new Error(`No source [${args.maskedSourceIdx}] in original run`);
+    // Reuse startChat semantics for auth, scheduling, etc.
+    const model = orig.tier === "deep" ? "gemini-3.1-pro-preview"
+      : orig.tier === "free" ? "gemini-3.1-flash-lite-preview"
+      : "gemini-3-flash-preview";
+    const runId = generateRunId();
+    let userId: any = undefined;
+    try {
+      const identity = await ctx.auth.getUserIdentity();
+      if (identity?.subject) {
+        const found = await ctx.db
+          .query("users")
+          .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+          .first()
+          .catch(() => null);
+        userId = found?._id;
+      }
+    } catch { /* anonymous OK */ }
+    await ctx.db.insert("redesignChatRuns", {
+      runId,
+      userId,
+      prompt: orig.prompt,
+      tier: orig.tier,
+      model,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+    await ctx.scheduler.runAfter(0, internal.domains.redesign.chatRuns.runStreamingChat, {
+      runId,
+      prompt: orig.prompt,
+      tier: orig.tier as any,
+      contextRef: undefined,
+      model,
+      probeOriginRunId: args.originalRunId,
+      probeMaskedSourceUrl: masked.source,
+      probeMaskedSourceIdx: args.maskedSourceIdx,
     });
     return runId;
   },
@@ -313,6 +395,15 @@ export const runStreamingChat = internalAction({
     tier: v.string(),
     contextRef: v.optional(v.string()),
     model: v.string(),
+    /** Phase 5 — pinned claims to prepend to system prompt */
+    pinnedClaims: v.optional(v.array(v.object({
+      text: v.string(),
+      source: v.optional(v.string()),
+    }))),
+    /** Phase 5 — counterfactual probe origin */
+    probeOriginRunId: v.optional(v.string()),
+    probeMaskedSourceUrl: v.optional(v.string()),
+    probeMaskedSourceIdx: v.optional(v.number()),
   },
   handler: async (ctx: ActionCtx, args) => {
     const t0 = Date.now();
@@ -360,6 +451,14 @@ export const runStreamingChat = internalAction({
 
       // Stage 3 — Gemini streaming with grounding
       const t3 = Date.now();
+      // Phase 5 — pinned claims carry-forward as hard context
+      const pinnedSection = args.pinnedClaims && args.pinnedClaims.length > 0
+        ? `\n\nPinned claims (carry forward as established context — do not contradict without explicit re-grounding):\n${args.pinnedClaims.map((p, i) => `  ${i + 1}. ${p.text}${p.source ? ` (source: ${p.source})` : ""}`).join("\n")}`
+        : "";
+      // Phase 5 — counterfactual probe instruction
+      const probeSection = args.probeMaskedSourceUrl
+        ? `\n\nIMPORTANT — counterfactual probe: The source previously at <${args.probeMaskedSourceUrl}> (originally cited as [${args.probeMaskedSourceIdx ?? "?"}] in run ${args.probeOriginRunId ?? "?"}) is being treated as UNRELIABLE for this answer. DO NOT cite it. DO NOT use it as the basis for any claim. Re-answer the same prompt and explicitly note in "Risks / unknowns" how the conclusion changes (or holds) if that source is excluded. Prefer alternative grounded sources.`
+        : "";
       const systemPrompt = `You are NodeBench's evidence-first analyst. Produce a banker-style memo with:
 1. Short answer (one sentence with citation markers like [1] [2])
 2. Why it matters (one paragraph with citation markers)
@@ -369,7 +468,14 @@ export const runStreamingChat = internalAction({
 
 Use [1], [2], [3] inline cite markers in the prose. Keep claims grounded in the web sources you retrieve. Prefer recency. If you can't find grounded evidence, say so explicitly.
 
-Context: ${JSON.stringify(contextBundle)}`;
+Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
+      // Emit a stage event so the UI can show "Probing without [N]" / "Carrying forward N pins"
+      if (probeSection) {
+        await append("stage", { stage: "probe", maskedUrl: args.probeMaskedSourceUrl, maskedIdx: args.probeMaskedSourceIdx, originRunId: args.probeOriginRunId });
+      }
+      if (pinnedSection) {
+        await append("stage", { stage: "pinned", count: args.pinnedClaims!.length });
+      }
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
