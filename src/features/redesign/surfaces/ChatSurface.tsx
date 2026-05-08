@@ -1416,7 +1416,28 @@ function AnswerPacket({
               onMouseLeave={handleCiteLeave}
             >
               <span className="rd-cite rd-cite--block" data-cite={e.idx}>[{e.idx}]</span>
-              <p className="rd-body" style={{ margin: 0, fontSize: 13 }}>{e.quote}</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                <p className="rd-body" style={{ margin: 0, fontSize: 13 }}>{e.quote}</p>
+                {/* Phase 6 — substring-validation pill */}
+                {(e as any).verified === true && (
+                  <span
+                    className="rd-mono"
+                    title={`Quote substring confirmed in source body${(e as any).verifiedAt ? ` at ${new Date((e as any).verifiedAt).toLocaleTimeString()}` : ""}`}
+                    style={{ fontSize: 10, color: "var(--rd-green, #15803d)", display: "inline-flex", alignItems: "center", gap: 4 }}
+                  >
+                    ✓ verified in source body
+                  </span>
+                )}
+                {(e as any).verified === false && (
+                  <span
+                    className="rd-mono"
+                    title={`Source URL did not return the cited quote: ${(e as any).validationError ?? "unknown reason"}`}
+                    style={{ fontSize: 10, color: "var(--rd-amber, #b45309)", display: "inline-flex", alignItems: "center", gap: 4 }}
+                  >
+                    ⚠ unverified ({(e as any).validationError ?? "no_match"})
+                  </span>
+                )}
+              </div>
               <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>{e.source}</span>
             </li>
           ))}
