@@ -639,6 +639,16 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
         estimatedCostUsd,
       });
       await append("packet_complete", { hash, totalLatencyMs, totalTokens, estimatedCostUsd });
+
+      // Phase 6 — schedule background source-URL substring validation.
+      // Runs after the packet is sealed so the user sees the answer
+      // immediately; verification flags are patched onto evidence rows
+      // when they land, frontend re-renders via reactive subscription.
+      if (evidence.length > 0) {
+        await ctx.scheduler.runAfter(0, internal.domains.redesign.chatRuns.validateRunSources, {
+          runId: args.runId,
+        });
+      }
     } catch (err: any) {
       const errorMessage = (err?.message || String(err)).slice(0, 280);
       await append("error", { errorMessage });
@@ -651,3 +661,173 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
 });
 
 // (Phase 2 hook uses startChat + streamEventsForRun + getRun directly.)
+
+// ───────── Phase 6 — Source URL substring validation ─────────
+
+function isUrlSafe(rawUrl: string): { ok: boolean; reason?: string } {
+  let url: URL;
+  try { url = new URL(rawUrl); } catch { return { ok: false, reason: "malformed" }; }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    return { ok: false, reason: `bad_protocol:${url.protocol}` };
+  }
+  const host = url.hostname.toLowerCase();
+  if (host === "metadata.google.internal" || host === "169.254.169.254") return { ok: false, reason: "cloud_metadata" };
+  if (host === "localhost" || host === "0.0.0.0" || host === "::1" || host === "[::1]") return { ok: false, reason: "loopback" };
+  if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host)) return { ok: false, reason: "rfc1918" };
+  if (/^172\.(1[6-9]|2[0-9]|3[01])\./.test(host)) return { ok: false, reason: "rfc1918" };
+  if (/^169\.254\./.test(host)) return { ok: false, reason: "link_local" };
+  return { ok: true };
+}
+
+const VALIDATION_FETCH_TIMEOUT_MS = 8_000;
+const VALIDATION_MAX_BYTES = 256 * 1024;
+const VALIDATION_TOTAL_TIMEOUT_MS = 30_000;
+
+async function fetchPageText(url: string): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  const safety = isUrlSafe(url);
+  if (!safety.ok) return { ok: false, reason: safety.reason ?? "unsafe" };
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), VALIDATION_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "User-Agent": "NodeBench-SourceValidator/0.1 (+https://www.nodebenchai.com)",
+        "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
+      },
+      signal: controller.signal,
+      redirect: "follow",
+    });
+    clearTimeout(tid);
+    if (!res.ok) return { ok: false, reason: `http_${res.status}` };
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!/^text\/|^application\/(xhtml|json|xml)/i.test(contentType)) {
+      return { ok: false, reason: `bad_content_type:${contentType.split(";")[0]}` };
+    }
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let total = 0;
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      buf += decoder.decode(value, { stream: true });
+      if (total >= VALIDATION_MAX_BYTES) {
+        await reader.cancel();
+        break;
+      }
+    }
+    const text = buf
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .trim();
+    return { ok: true, text };
+  } catch (err: any) {
+    clearTimeout(tid);
+    return { ok: false, reason: err?.name === "AbortError" ? "timeout" : (err?.message || "fetch_error").slice(0, 80) };
+  }
+}
+
+function quoteIsSubstring(quote: string, pageText: string): boolean {
+  const norm = quote.replace(/\s+/g, " ").toLowerCase().trim();
+  if (norm.length < 8) return false;
+  if (pageText.includes(norm)) return true;
+  const words = norm.split(/\s+/);
+  if (words.length >= 8) {
+    const window = words.slice(0, Math.min(8, words.length)).join(" ");
+    if (pageText.includes(window)) return true;
+  }
+  return false;
+}
+
+export const validateRunSources = internalAction({
+  args: { runId: v.string() },
+  handler: async (ctx: ActionCtx, args) => {
+    const totalDeadline = Date.now() + VALIDATION_TOTAL_TIMEOUT_MS;
+    const row: any = await ctx.runQuery(internal.domains.redesign.chatRuns.getRunForValidation, { runId: args.runId });
+    if (!row?.packet?.evidence?.length) return;
+    const evidence: Array<{ idx: number; source: string; quote: string }> = row.packet.evidence;
+    const updates: Array<{ idx: number; verified: boolean; validationError?: string }> = [];
+    const tasks = evidence.map((e) => async () => {
+      if (Date.now() > totalDeadline) return { idx: e.idx, verified: false, validationError: "global_timeout" };
+      const url = e.source;
+      if (!/^https?:\/\//i.test(url)) return { idx: e.idx, verified: false, validationError: "not_a_url" };
+      const fetched = await fetchPageText(url);
+      if (!fetched.ok) return { idx: e.idx, verified: false, validationError: fetched.reason };
+      const ok = quoteIsSubstring(e.quote, fetched.text);
+      return { idx: e.idx, verified: ok, validationError: ok ? undefined : "quote_not_in_body" };
+    });
+    const POOL = 4;
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(POOL, tasks.length) }, async () => {
+      while (cursor < tasks.length) {
+        const i = cursor++;
+        try { updates.push(await tasks[i]()); }
+        catch (err: any) { updates.push({ idx: evidence[i].idx, verified: false, validationError: (err?.message || "error").slice(0, 60) }); }
+      }
+    });
+    await Promise.all(workers);
+    await ctx.runMutation(internal.domains.redesign.chatRuns.patchEvidenceVerification, {
+      runId: args.runId,
+      verifications: updates,
+    });
+    const verifiedCount = updates.filter((u) => u.verified).length;
+    await ctx.runMutation(internal.domains.redesign.chatRuns.appendEvent, {
+      runId: args.runId,
+      eventType: "sources_validated",
+      payload: {
+        verified: verifiedCount,
+        total: updates.length,
+        unverified: updates.filter((u) => !u.verified).map((u) => ({ idx: u.idx, reason: u.validationError })),
+      } as any,
+    });
+  },
+});
+
+export const getRunForValidation = query({
+  args: { runId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("redesignChatRuns")
+      .withIndex("by_runId", (q) => q.eq("runId", args.runId))
+      .first();
+  },
+});
+
+export const patchEvidenceVerification = internalMutation({
+  args: {
+    runId: v.string(),
+    verifications: v.array(v.object({
+      idx: v.number(),
+      verified: v.boolean(),
+      validationError: v.optional(v.string()),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query("redesignChatRuns")
+      .withIndex("by_runId", (q) => q.eq("runId", args.runId))
+      .first();
+    if (!row?.packet) return;
+    const byIdx = new Map<number, { verified: boolean; validationError?: string }>();
+    for (const u of args.verifications) byIdx.set(u.idx, { verified: u.verified, validationError: u.validationError });
+    const evidence = (row.packet.evidence ?? []).map((e: any) => {
+      const u = byIdx.get(e.idx);
+      if (!u) return e;
+      return { ...e, verified: u.verified, verifiedAt: Date.now(), validationError: u.validationError };
+    });
+    const verifiedCount = evidence.filter((e: any) => e.verified).length;
+    await ctx.db.patch(row._id, {
+      packet: {
+        ...row.packet,
+        evidence,
+        sourceCount: evidence.length,
+        verifiedSourceCount: verifiedCount,
+      },
+    });
+  },
+});
