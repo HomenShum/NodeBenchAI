@@ -32,6 +32,7 @@ import { mountProviderBus } from "./providerBus.js";
 import { SyncBridgeServer } from "./syncBridge.js";
 import type { McpTool } from "../packages/mcp-local/src/types.js";
 import { createSessionRouter } from "./routes/session.js";
+import { createVoiceCaptureRouter } from "./routes/voiceCapture.js";
 import { createTtsRouter } from "./routes/tts.js";
 import { mountNemoClaw } from "./nemoclaw/index.js";
 import { createSearchRouter } from "./routes/search.js";
@@ -270,6 +271,10 @@ async function main(): Promise<void> {
   // ── Voice session routes ───────────────────────────────────────────
 
   app.use("/voice", createSessionRouter());
+  // Realtime Adapter contract endpoints (POST /voice/capture, /voice/link).
+  // Provider-agnostic; mounted alongside the Gemini Live session router.
+  // See: docs/architecture/REALTIME_VOICE_INTEGRATION.md
+  app.use("/voice", createVoiceCaptureRouter());
 
   // ── TTS proxy (ElevenLabs) ────────────────────────────────────────
 
