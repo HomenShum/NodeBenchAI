@@ -28,6 +28,8 @@
 
 import { Router } from "express";
 import crypto from "node:crypto";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../../convex/_generated/api.js";
 
 // ── Constants (BOUND, BOUND_READ) ─────────────────────────────────────────────
 
@@ -35,6 +37,89 @@ const MAX_TRANSCRIPT_CHARS = 10_000;
 const MAX_USER_EDITS_CHARS = 4_000;
 const IDEMPOTENCY_LRU_MAX = 5_000;
 const DAILY_COST_CAP_USD = 5.0;
+
+// ── Convex client (optional — graceful fallback when env not configured) ─────
+
+let _convex: ConvexHttpClient | null = null;
+let _convexInitTried = false;
+
+function getConvexOptional(): ConvexHttpClient | null {
+  if (_convexInitTried) return _convex;
+  _convexInitTried = true;
+  const url = process.env.CONVEX_URL || process.env.VITE_CONVEX_URL;
+  if (!url) return null;
+  try {
+    _convex = new ConvexHttpClient(url);
+    return _convex;
+  } catch (err) {
+    console.warn("[voiceCapture] ConvexHttpClient init failed; persistence disabled:", err);
+    return null;
+  }
+}
+
+// Local mirror of the schema enums — avoids tsc-on-stale-codegen failure when
+// the new mutation file hasn't been codegen'd yet. Keep in sync with
+// convex/domains/integrations/voice/realtimeAudit.ts schema validators.
+type AuditGate =
+  | "anonymous_no_persist"
+  | "anonymous_to_linked"
+  | "budget_cap_hit"
+  | "budget_warning_80pct"
+  | "pii_redacted"
+  | "idempotent_replay"
+  | "escalation_to_async"
+  | "approval_required"
+  | "approval_granted"
+  | "approval_rejected"
+  | "model_routing"
+  | "session_terminated_pii"
+  | "session_terminated_cap";
+type AuditDecision =
+  | "allowed"
+  | "denied"
+  | "needs_consent"
+  | "needs_approval"
+  | "downgraded";
+
+/**
+ * Fire-and-forget audit event write. Failures are logged once and swallowed —
+ * the caller's response is unaffected (ERROR_BOUNDARY). Critical: never
+ * await this in a hot path; use `void fireAudit(...)` so the route returns
+ * synchronously and audit is best-effort telemetry.
+ */
+function fireAudit(args: {
+  gate: AuditGate;
+  decision: AuditDecision;
+  anonId?: string;
+  sessionId?: string;
+  rationale?: string;
+  metadata?: {
+    modelTier?: string;
+    capUsd?: number;
+    spentUsd?: number;
+    idempotencyKey?: string;
+    redactedSpanCount?: number;
+    temporalJobId?: string;
+  };
+}): void {
+  const convex = getConvexOptional();
+  if (!convex) return;
+  // Note: userId field requires v.id("users") — Express routes don't have
+  // auth-validated user ids, so we route through anonId. Phase 6 will add
+  // auth middleware that validates real user ids.
+  void convex
+    .mutation(api.domains.integrations.voice.realtimeAudit.append, {
+      anonId: args.anonId,
+      sessionId: args.sessionId,
+      gate: args.gate,
+      decision: args.decision,
+      rationale: args.rationale,
+      metadata: args.metadata,
+    })
+    .catch((err) => {
+      console.warn(`[voiceCapture] audit append failed (${args.gate}):`, err?.message ?? err);
+    });
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -311,6 +396,14 @@ export function createVoiceCaptureRouter(): Router {
       // Idempotency: same key returns the prior capture untouched (scenario 9)
       const cached = idempotencyStore.get(body.idempotencyKey);
       if (cached) {
+        fireAudit({
+          gate: "idempotent_replay",
+          decision: "allowed",
+          anonId: body.anonymousSessionId ?? body.userId,
+          sessionId: body.sessionId,
+          rationale: "duplicate idempotencyKey returned cached envelope",
+          metadata: { idempotencyKey: body.idempotencyKey },
+        });
         return res.json({ ...cached, idempotent: true });
       }
 
@@ -358,6 +451,37 @@ export function createVoiceCaptureRouter(): Router {
       idempotencyStore.set(body.idempotencyKey, response);
       evictIdempotency();
 
+      // Audit telemetry — chosen gate determines the audit signal so the
+      // operator dashboard can rollup by gate. Decision is "allowed" for
+      // standard captures, "downgraded" when PII was redacted (privacy
+      // gate fired), "needs_consent" for anonymous (private memory blocked).
+      const auditGate: AuditGate =
+        gate === "anonymous_no_private_memory"
+          ? "anonymous_no_persist"
+          : gate === "deep_research_async_handoff"
+            ? "escalation_to_async"
+            : hasPii
+              ? "pii_redacted"
+              : "model_routing";
+      const auditDecision: AuditDecision =
+        gate === "anonymous_no_private_memory"
+          ? "needs_consent"
+          : hasPii
+            ? "downgraded"
+            : "allowed";
+      fireAudit({
+        gate: auditGate,
+        decision: auditDecision,
+        anonId: body.anonymousSessionId ?? body.userId,
+        sessionId: body.sessionId,
+        rationale: gate,
+        metadata: {
+          idempotencyKey: body.idempotencyKey,
+          redactedSpanCount: spans.length,
+          temporalJobId: response.asyncHandoff?.handoffId,
+        },
+      });
+
       res.json(response);
     } catch (err) {
       // ERROR_BOUNDARY — never leak stack traces; always structured envelope
@@ -394,6 +518,13 @@ export function createVoiceCaptureRouter(): Router {
       // honest "dev_no_convex_link_ack" gate so dogfood scenario 2 can
       // detect that the route exists but persistence hasn't shipped.
       const hasConvex = Boolean(process.env.VITE_CONVEX_URL || process.env.CONVEX_DEPLOYMENT);
+
+      fireAudit({
+        gate: "anonymous_to_linked",
+        decision: "allowed",
+        anonId: body.anonymousSessionId,
+        rationale: hasConvex ? "convex link acked" : "dev mode — no convex link wire",
+      });
 
       res.json({
         ok: true,
