@@ -1,15 +1,15 @@
 /**
- * useViewWebMcpTools — Per-view WebMCP tool registration.
+ * useViewWebMcpTools - per-view WebMCP tool registration.
  *
  * Registers contextually relevant tools when a view is mounted, and
  * unregisters them when the view changes. Matches WebMCP's per-page
- * tool exposure model — agents only see tools relevant to the current page.
+ * tool exposure model: agents only see tools relevant to the current page.
  *
  * Tools with a `gatewayFn` are routed to real Convex endpoints.
  * Tools without a gateway mapping return a structured stub with instructions.
  *
- * Example: navigating to /funding registers nb_get_funding_brief,
- * nb_list_deals, nb_filter_by_stage. Leaving /funding removes them.
+ * Example: navigating to Research registers research search, signal, and
+ * funding-brief tools. Leaving Research removes them.
  */
 
 import { useEffect, useRef } from "react";
@@ -19,7 +19,7 @@ import type { MainView } from "@/lib/registry/viewRegistry";
 import { getViewTools, type ViewToolDefinition } from "@/lib/registry/viewToolMap";
 
 // ---------------------------------------------------------------------------
-// Typed route dispatch — maps gateway function names to Convex API refs
+// Typed route dispatch - maps gateway function names to Convex API refs
 // ---------------------------------------------------------------------------
 
 type ConvexRoute = {
@@ -28,7 +28,7 @@ type ConvexRoute = {
 };
 
 /**
- * Maps ALLOWLIST function names → typed Convex API references.
+ * Maps ALLOWLIST function names to typed Convex API references.
  * Only includes public queries callable from the browser client.
  * Auth-required operations (Group B/C) use the MCP Gateway HTTP endpoint.
  */
@@ -39,7 +39,7 @@ const GATEWAY_ROUTES: Record<string, ConvexRoute> = {
   getDealFlow: { type: "query", ref: api.domains.research.dealFlowQueries.getDealFlow },
   getTrendingRepos: { type: "query", ref: api.domains.research.githubExplorer.getTrendingRepos },
   getLatestDashboardSnapshot: { type: "query", ref: api.domains.research.dashboardQueries.getLatestDashboardSnapshot },
-  // hybridSearch — research search (public)
+  // hybridSearch - research search (public)
   hybridSearch: { type: "query", ref: api.domains.research.hybridSearch.hybridSearch },
 };
 
@@ -55,7 +55,7 @@ async function executeTool(
 ): Promise<Record<string, unknown>> {
   const gatewayFn = def.gatewayFn;
   if (!gatewayFn) {
-    // No backend endpoint — return structured stub
+    // No backend endpoint - return structured stub
     return {
       success: true,
       tool: def.name,

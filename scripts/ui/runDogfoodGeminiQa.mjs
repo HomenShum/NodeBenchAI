@@ -4105,8 +4105,9 @@ async function main() {
     const files = new Set();
     files.add(path.join(repoRoot, "src", "index.css"));
     files.add(path.join(repoRoot, "tailwind.config.js"));
-    files.add(path.join(repoRoot, "src", "components", "CleanSidebar.tsx"));
-    files.add(path.join(repoRoot, "src", "components", "MainLayout.tsx"));
+    files.add(path.join(repoRoot, "src", "features", "redesign", "RedesignShell.tsx"));
+    files.add(path.join(repoRoot, "src", "features", "redesign", "primitives.css"));
+    files.add(path.join(repoRoot, "src", "layouts", "CockpitLayout.tsx"));
 
     const opportunities = Array.isArray(designReport?.opportunities) ? designReport.opportunities : [];
     const hint = JSON.stringify(opportunities.slice(0, 8));
@@ -4123,7 +4124,8 @@ async function main() {
     }
 
     if (wantsSidebar) {
-      files.add(path.join(repoRoot, "src", "components", "CleanSidebar.tsx"));
+      files.add(path.join(repoRoot, "src", "features", "redesign", "components", "Rail.tsx"));
+      files.add(path.join(repoRoot, "src", "layouts", "WorkspaceRail.tsx"));
     }
 
     return Array.from(files).slice(0, 10);

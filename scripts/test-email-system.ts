@@ -155,12 +155,9 @@ async function main() {
   console.log("✅ Batch processing working");
   console.log("✅ Daily report generation working");
   console.log("");
-  console.log("Frontend Components Created:");
-  console.log("  - src/components/widgets/EmailDashboardWidget.tsx");
-  console.log("  - src/components/email/EmailInboxView.tsx");
-  console.log("  - src/components/email/EmailThreadDetail.tsx");
-  console.log("  - src/components/email/EmailReportViewer.tsx");
-  console.log("  - src/pages/EmailPage.tsx");
+  console.log("Frontend status:");
+  console.log("  - Legacy local email widgets were retired from src/components/");
+  console.log("  - Email intelligence remains a backend/integration workflow");
   console.log("");
   console.log("Cron Jobs Configured:");
   console.log("  - Email sync & process: Every 30 minutes");

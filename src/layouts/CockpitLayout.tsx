@@ -475,19 +475,19 @@ export function CockpitLayout({
       navigateToView(v);
     },
     openSettings: () => openSettings(),
-    openCommandPalette: () => commandPalette.open(),
+    openCommandPalette: () => window.setTimeout(() => commandPalette.open(), 0),
     createDocument: () => {
-      navigateToView("documents" as MainView);
+      navigateToView("chat-home");
       onDocumentSelect(null);
       dispatchDeferred("document:create");
     },
     createTask: () => {
-      navigateToView("documents" as MainView);
+      navigateToView("chat-home");
       onDocumentSelect(null);
       dispatchDeferred("voice:create-task");
     },
     createEvent: () => {
-      navigateToView("documents" as MainView);
+      navigateToView("nudges-home");
       onDocumentSelect(null);
       dispatchDeferred("voice:create-event");
     },
@@ -589,7 +589,7 @@ export function CockpitLayout({
     openSettings,
   });
 
-  // Deep link: ?doc=<id> navigates to documents view and opens that document
+  // Deep link: ?doc=<id> opens document context in the current shell.
   useEffect(() => {
     if (documentParam) {
       onDocumentSelect(documentParam as Id<"documents">);
@@ -609,7 +609,7 @@ export function CockpitLayout({
       command.id.startsWith("nav-")
         ? command.id.replace("nav-", "")
         : command.id === "create-document" || command.id === "create-task"
-          ? "documents"
+          ? "chat-home"
           : currentView;
     const action =
       command.section === "navigation"
@@ -984,12 +984,12 @@ export function CockpitLayout({
           onClose={commandPalette.close}
           onCommandExecuted={trackCommandPaletteExecution}
           onCreateDocument={() => {
-            navigateToView("documents" as MainView);
+            navigateToView("chat-home");
             onDocumentSelect(null);
             window.dispatchEvent(new CustomEvent("document:create"));
           }}
           onCreateTask={() => {
-            navigateToView("documents" as MainView);
+            navigateToView("chat-home");
             onDocumentSelect(null);
             dispatchDeferred("voice:create-task");
           }}

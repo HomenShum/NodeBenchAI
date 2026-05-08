@@ -1073,12 +1073,12 @@ export function FastAgentInputBar({
               }
             }}
             className={cn(
-              "p-2 rounded-lg transition-all duration-200",
+              "flex h-[44px] w-[44px] flex-none items-center justify-center rounded-lg transition-all duration-200",
               isListening
                 ? "text-red-500 bg-red-50 dark:bg-red-900/20 motion-safe:animate-pulse"
                 : "text-content-muted hover:text-content hover:bg-surface-secondary"
             )}
-            title={isListening ? "Stop listening" : "Voice input (speech-to-text)"}
+            title={isListening ? "Stop listening" : "Voice input (browser speech-to-text)"}
             aria-label={isListening ? "Stop listening" : "Voice input using speech recognition"}
           >
             <Mic className="w-4.5 h-4.5" />
