@@ -1,0 +1,481 @@
+/**
+ * Editorial home — Phase 7a styles.
+ *
+ * Scoped under [data-redesign] [data-edition] so the legacy home is
+ * untouched. Single column, max 720px, body 17px / line-height 1.65,
+ * Manrope at editorial scale (no new font for Phase 7a per
+ * docs/architecture/HOME_EDITORIAL_REDESIGN.md §6).
+ */
+
+[data-redesign] [data-edition] {
+  --rd-edition-max: 720px;
+  --rd-edition-body-size: 17px;
+  --rd-edition-body-leading: 1.65;
+  --rd-edition-rule: rgba(21, 20, 15, 0.10);
+  --rd-edition-rule-strong: rgba(21, 20, 15, 0.16);
+}
+
+[data-redesign] [data-edition] {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+[data-redesign] [data-edition] .rd-edition-root {
+  max-width: var(--rd-edition-max);
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 24px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+  font-size: var(--rd-edition-body-size);
+  line-height: var(--rd-edition-body-leading);
+  color: var(--rd-ink);
+  overflow-x: hidden;
+}
+
+/* Embedded composer (UniversalComposer) shouldn't grow past the
+   editorial column on narrow widths.  Phase 7a defensive cap. */
+[data-redesign] [data-edition] .rd-edition-root > * {
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  [data-redesign] [data-edition] .rd-edition-root {
+    padding: 16px 16px 64px;
+    gap: 28px;
+  }
+}
+
+[data-redesign] [data-edition] .rd-edition-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+[data-redesign] [data-edition] .rd-edition-section + .rd-edition-section {
+  border-top: 1px solid var(--rd-edition-rule);
+  padding-top: 32px;
+}
+
+[data-redesign] [data-edition] .rd-edition-section__eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--rd-ink-soft);
+  margin: 0;
+}
+
+[data-redesign] [data-edition] .rd-edition-section__h2 {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  line-height: 1.22;
+  color: var(--rd-ink-strong);
+  margin: 0;
+}
+
+[data-redesign] [data-edition] .rd-edition-prose {
+  font-size: var(--rd-edition-body-size);
+  line-height: var(--rd-edition-body-leading);
+  color: var(--rd-ink);
+}
+
+[data-redesign] [data-edition] .rd-edition-prose p { margin: 0 0 14px; }
+[data-redesign] [data-edition] .rd-edition-prose p:last-child { margin-bottom: 0; }
+[data-redesign] [data-edition] .rd-edition-prose strong { font-weight: 600; color: var(--rd-ink-strong); }
+[data-redesign] [data-edition] .rd-edition-prose em { font-style: italic; }
+
+[data-redesign] [data-edition] .rd-edition-meta {
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--rd-ink-mute);
+}
+
+[data-redesign] [data-edition] .rd-edition-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--rd-accent-tint);
+  color: var(--rd-accent-strong);
+  letter-spacing: 0.04em;
+}
+
+/* ─── Dot grid (the visual signature) ───────────────────────────── */
+[data-redesign] [data-edition] .rd-dot-grid {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-redesign] [data-edition] .rd-dot-grid__strip {
+  display: inline-flex;
+  gap: 4px;
+}
+
+[data-redesign] [data-edition] .rd-dot-grid__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--rd-line-strong);
+  display: inline-block;
+  border: 1px solid transparent;
+}
+
+[data-redesign] [data-edition] .rd-dot-grid__dot--filled {
+  background: var(--rd-accent);
+  border-color: var(--rd-accent-strong);
+}
+
+[data-redesign] [data-edition] .rd-dot-grid__caption {
+  font-family: ui-monospace, "JetBrains Mono", "Roboto Mono", monospace;
+  font-size: 11px;
+  color: var(--rd-ink-soft);
+  letter-spacing: 0.02em;
+}
+
+/* ─── Hypothesis block ─────────────────────────────────────────── */
+[data-redesign] [data-edition] .rd-edition-hypothesis {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--rd-edition-rule);
+}
+
+[data-redesign] [data-edition] .rd-edition-hypothesis:last-child {
+  border-bottom: none;
+}
+
+[data-redesign] [data-edition] .rd-edition-hypothesis__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+[data-redesign] [data-edition] .rd-edition-hypothesis__label {
+  font-family: ui-monospace, "JetBrains Mono", "Roboto Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--rd-accent-strong);
+}
+
+[data-redesign] [data-edition] .rd-edition-hypothesis__title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--rd-ink-strong);
+  margin: 0;
+}
+
+[data-redesign] [data-edition] .rd-edition-hypothesis__claim {
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+  color: var(--rd-ink);
+}
+
+[data-redesign] [data-edition] .rd-edition-hypothesis__falsify {
+  font-size: 13.5px;
+  font-style: italic;
+  color: var(--rd-ink-mute);
+  margin: 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--rd-line);
+}
+
+[data-redesign] [data-edition] .rd-edition-hypothesis__tally {
+  font-family: ui-monospace, "JetBrains Mono", "Roboto Mono", monospace;
+  font-size: 11.5px;
+  color: var(--rd-ink-soft);
+  letter-spacing: 0.02em;
+}
+
+/* ─── Forecast row ─────────────────────────────────────────────── */
+[data-redesign] [data-edition] .rd-edition-forecast {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rd-edition-rule);
+}
+
+[data-redesign] [data-edition] .rd-edition-forecast:last-child {
+  border-bottom: none;
+}
+
+[data-redesign] [data-edition] .rd-edition-forecast__claim {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--rd-ink-strong);
+  margin: 0;
+  line-height: 1.45;
+}
+
+[data-redesign] [data-edition] .rd-edition-forecast__row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+[data-redesign] [data-edition] .rd-edition-forecast__prob {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--rd-ink-strong);
+  letter-spacing: -0.4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Scoreboard table ─────────────────────────────────────────── */
+[data-redesign] [data-edition] .rd-edition-scoreboard {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+[data-redesign] [data-edition] .rd-edition-scoreboard__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rd-edition-rule);
+}
+
+[data-redesign] [data-edition] .rd-edition-scoreboard__row:first-child {
+  border-top: 1px solid var(--rd-edition-rule-strong);
+}
+
+[data-redesign] [data-edition] .rd-edition-scoreboard__row:last-child {
+  border-bottom: 1px solid var(--rd-edition-rule-strong);
+}
+
+[data-redesign] [data-edition] .rd-edition-scoreboard__label {
+  font-size: 13px;
+  color: var(--rd-ink-mute);
+  font-weight: 500;
+}
+
+[data-redesign] [data-edition] .rd-edition-scoreboard__value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--rd-ink-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-redesign] [data-edition] .rd-edition-scoreboard__delta {
+  font-family: ui-monospace, "JetBrains Mono", "Roboto Mono", monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+[data-redesign] [data-edition] .rd-edition-scoreboard__delta--up { color: var(--rd-green); }
+[data-redesign] [data-edition] .rd-edition-scoreboard__delta--down { color: var(--rd-red); }
+[data-redesign] [data-edition] .rd-edition-scoreboard__delta--flat { color: var(--rd-ink-soft); }
+
+/* ─── Capabilities map ─────────────────────────────────────────── */
+[data-redesign] [data-edition] .rd-edition-capability-row {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+@media (max-width: 480px) {
+  [data-redesign] [data-edition] .rd-edition-capability-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+
+[data-redesign] [data-edition] .rd-edition-capability-row__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--rd-ink-strong);
+}
+
+[data-redesign] [data-edition] .rd-edition-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+[data-redesign] [data-edition] .rd-edition-capability-card {
+  border: 1px solid var(--rd-line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--rd-paper-warm);
+}
+
+[data-redesign] [data-edition] .rd-edition-capability-card__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rd-ink-strong);
+}
+
+[data-redesign] [data-edition] .rd-edition-capability-card__level {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--rd-ink-mute);
+  font-weight: 500;
+}
+
+/* ─── Operations accordion ─────────────────────────────────────── */
+[data-redesign] [data-edition] .rd-edition-ops-details {
+  margin-top: 8px;
+  border-top: 1px solid var(--rd-edition-rule);
+  padding-top: 16px;
+}
+
+[data-redesign] [data-edition] .rd-edition-ops-details > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rd-ink-mute);
+  padding: 6px 0;
+  list-style: none;
+}
+
+[data-redesign] [data-edition] .rd-edition-ops-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+[data-redesign] [data-edition] .rd-edition-ops-details > summary::before {
+  content: "▸ ";
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 200ms ease;
+}
+
+[data-redesign] [data-edition] .rd-edition-ops-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+[data-redesign] [data-edition] .rd-edition-ops-details .rd-ops {
+  margin-top: 12px;
+}
+
+/* ─── Footnotes ───────────────────────────────────────────────── */
+[data-redesign] [data-edition] .rd-edition-footnotes {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--rd-ink-mute);
+}
+
+[data-redesign] [data-edition] .rd-edition-footnotes ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  counter-reset: footnote;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+[data-redesign] [data-edition] .rd-edition-footnotes li {
+  counter-increment: footnote;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 8px;
+  padding-left: 0;
+}
+
+[data-redesign] [data-edition] .rd-edition-footnotes li::before {
+  content: counter(footnote) ".";
+  font-family: ui-monospace, "JetBrains Mono", "Roboto Mono", monospace;
+  font-size: 11.5px;
+  color: var(--rd-ink-soft);
+  text-align: right;
+  font-weight: 600;
+}
+
+[data-redesign] [data-edition] .rd-edition-footnotes a {
+  color: var(--rd-accent-strong);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--rd-accent-soft);
+}
+
+[data-redesign] [data-edition] .rd-edition-footnotes a:hover,
+[data-redesign] [data-edition] .rd-edition-footnotes a:focus-visible {
+  border-bottom-style: solid;
+  outline: none;
+}
+
+[data-redesign] [data-edition] sup.rd-edition-footnote-ref {
+  font-size: 0.75em;
+  vertical-align: super;
+  margin-left: 1px;
+}
+
+[data-redesign] [data-edition] sup.rd-edition-footnote-ref a {
+  color: var(--rd-accent-strong);
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0 2px;
+}
+
+/* ─── Empty state ─────────────────────────────────────────────── */
+[data-redesign] [data-edition] .rd-edition-empty {
+  font-size: 14px;
+  color: var(--rd-ink-mute);
+  font-style: italic;
+  padding: 12px 0;
+}
+
+/* ─── Skeleton ────────────────────────────────────────────────── */
+[data-redesign] [data-edition] .rd-edition-skeleton {
+  height: 18px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--rd-line) 0%,
+    var(--rd-line-faint) 50%,
+    var(--rd-line) 100%
+  );
+  background-size: 200% 100%;
+  animation: rd-edition-shimmer 1.4s ease-in-out infinite;
+  margin-bottom: 8px;
+}
+
+@keyframes rd-edition-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ─── Reduced motion ───────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] [data-edition] .rd-edition-skeleton {
+    animation: none;
+    background: var(--rd-line);
+  }
+  [data-redesign] [data-edition] .rd-edition-ops-details > summary::before {
+    transition: none;
+  }
+}
+
+/* ─── Focus visible ────────────────────────────────────────────── */
+[data-redesign] [data-edition] a:focus-visible,
+[data-redesign] [data-edition] summary:focus-visible,
+[data-redesign] [data-edition] button:focus-visible {
+  outline: 2px solid var(--rd-accent-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

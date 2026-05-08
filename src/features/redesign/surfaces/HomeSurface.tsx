@@ -27,6 +27,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Mic } from "lucide-react";
+import { EditorialHomeSurface } from "./EditorialHomeSurface";
 import { UniversalComposer } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
 import { StyleGalleryCard } from "../components/StyleGalleryCard";
@@ -70,7 +71,32 @@ interface HomeSurfaceProps {
   onOpenReport: (id: string) => void;
 }
 
-export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
+/**
+ * Read the `?edition=1` flag from the current URL.  Phase 7a gate per
+ * docs/architecture/HOME_EDITORIAL_REDESIGN.md §8 — when present, the
+ * editorial daily-edition render replaces the legacy home.  Absent =
+ * existing render path is preserved unchanged.  Computed once per
+ * render (no useEffect) so SSR / first-paint match the URL state.
+ */
+function readEditionFlag(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return new URLSearchParams(window.location.search).get("edition") === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function HomeSurface(props: HomeSurfaceProps) {
+  // Gate the entire surface choice at the top level so each branch
+  // owns its own hook order — avoids the "conditional hooks" lint.
+  if (readEditionFlag()) {
+    return <EditorialHomeSurface onAsk={props.onAsk} onOpenReport={props.onOpenReport} />;
+  }
+  return <LegacyHomeSurface {...props} />;
+}
+
+function LegacyHomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
   const navigate = useNavigate();
   const [contextLabel, setContextLabel] = useState("Auto: current context");
   const [situationWindow, setSituationWindow] = useState<SituationWindow>("today");
