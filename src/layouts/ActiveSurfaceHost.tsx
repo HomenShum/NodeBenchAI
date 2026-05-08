@@ -40,6 +40,7 @@ import {
   type CockpitSurfaceId,
   type MainView,
   type ResearchTab,
+  SURFACE_DEFAULT_VIEW,
   SURFACE_TITLES,
   VIEW_MAP,
 } from "@/lib/registry/viewRegistry";
@@ -166,8 +167,16 @@ export function ActiveSurfaceHost(props: ActiveSurfaceHostProps) {
         return <ExactInboxSurface />;
       case "connect":
         return <ExactMeSurface />;
-      case "trace":
-        return <NotFoundPage />;
+      case "trace": {
+        // QA fix (2026-05-08): /mcp/ledger landed on NotFoundPage because
+        // the trace surface had no real renderer. The view registry maps
+        // /mcp/ledger → "mcp-ledger" view → McpLedgerPage component, but
+        // ActiveSurfaceHost's switch hardcoded NotFoundPage for "trace".
+        // Resolve via SURFACE_DEFAULT_VIEW so the same fix covers
+        // any future trace-surface views (audit, activity, receipts).
+        const TraceComponent = VIEW_MAP[SURFACE_DEFAULT_VIEW.trace]?.component;
+        return TraceComponent ? <TraceComponent /> : <NotFoundPage />;
+      }
       default:
         return <ExactHomeSurface />;
     }

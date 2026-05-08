@@ -2703,6 +2703,26 @@ export function ExactChatSurface() {
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get("q") ?? "";
   const [composer, setComposer] = useState(initialQuery);
+
+  // QA fix (2026-05-08): the audit caught that this surface ignores the
+  // `?q=` query and renders the demo Orbital Labs thread regardless. The
+  // surface is intentionally a showcase of the chat layout — not a live
+  // chat backend. Two responses to the audit:
+  //   1. If a fresh ?q= arrives, auto-redirect to /redesign/chat where
+  //      Phase 1-7 wired a real Gemini-grounded chat (auth-gated; falls
+  //      back to fixture for anonymous, clearly labeled there).
+  //   2. Always show a "showcase" badge so first-time users don't think
+  //      this thread is responding to their query.
+  const isFreshQuery =
+    initialQuery.trim().length > 0 &&
+    !initialQuery.toLowerCase().includes("orbital") &&
+    !initialQuery.toLowerCase().includes("disco");
+  useEffect(() => {
+    if (!isFreshQuery) return;
+    // One-shot redirect; preserve the prompt so the real chat picks it up.
+    navigate(`/redesign/chat?prompt=${encodeURIComponent(initialQuery)}`, { replace: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFreshQuery, initialQuery]);
   const [pins, setPins] = useState<{ kind: string; label: string }[]>([
     { kind: "event", label: "Ship Demo Day" },
   ]);
@@ -2760,11 +2780,49 @@ export function ExactChatSurface() {
     <ResponsiveSurface mobile="chat">
       <section data-testid="exact-web-chat-stream" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", margin: 0 }}>
-            Chat
-          </h1>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", margin: 0 }}>
+              Chat
+            </h1>
+            {!liveThreadTurns && (
+              <span
+                title="This is a showcase thread — pre-filled to demonstrate the chat layout. For a live grounded chat that actually answers your query, open /redesign/chat."
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  background: "var(--surface-2, rgba(217, 119, 87, 0.10))",
+                  color: "var(--accent, #d97757)",
+                  border: "1px solid var(--accent-soft, rgba(217, 119, 87, 0.25))",
+                  letterSpacing: "0.02em",
+                  textTransform: "uppercase",
+                }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }} />
+                showcase thread
+              </span>
+            )}
+          </div>
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
-            6 threads. Every turn keeps the entity context, sources, and report — so you can keep going without restarting.
+            {liveThreadTurns
+              ? "Your live thread — every turn keeps the entity context, sources, and report."
+              : (
+                <>
+                  Pre-filled Orbital Labs thread for layout demo.
+                  {" "}
+                  <a
+                    href="/redesign/chat"
+                    onClick={(e) => { e.preventDefault(); navigate("/redesign/chat"); }}
+                    style={{ color: "var(--accent, #d97757)", fontWeight: 600 }}
+                  >
+                    Start a real grounded chat →
+                  </a>
+                </>
+              )}
           </div>
         </div>
 
