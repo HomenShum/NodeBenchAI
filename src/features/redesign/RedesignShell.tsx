@@ -128,7 +128,7 @@ export default function RedesignShell() {
   if (surface === "workspace") {
     return (
       <div data-redesign data-redesign-theme={theme} style={{ height: "100vh", overflow: "hidden" }}>
-        <main className="rd-pane rd-workspace-standalone">
+        <main id="main-content" data-main-content className="rd-pane rd-workspace-standalone">
           <WorkspaceSurface reportId={workspace.reportId} initialTab={workspace.tab} />
         </main>
         {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}
@@ -157,13 +157,13 @@ export default function RedesignShell() {
 
         {showInspector ? (
           <div className="rd-shell__main">
-            <main className="rd-pane" style={{ borderRight: "1px solid var(--rd-line-faint)" }}>
+            <main id="main-content" data-main-content className="rd-pane" style={{ borderRight: "1px solid var(--rd-line-faint)" }}>
               <ChatSurface />
             </main>
             <RightInspector />
           </div>
         ) : (
-          <main className="rd-pane" style={{ borderRight: "none" }}>
+          <main id="main-content" data-main-content className="rd-pane" style={{ borderRight: "none" }}>
             {/* Phase 3 — /redesign/chat/r/{hash} renders the immutable cached run. */}
             {surface === "chat" && chatHash && <ReproducibleChatPage hash={chatHash} />}
             {surface === "home" && (

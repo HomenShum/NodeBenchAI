@@ -1,5 +1,5 @@
 {
-  "capturedAtIso": "2026-04-23T01:07:50.087Z",
+  "capturedAtIso": "2026-05-08T12:34:53.220Z",
   "basePath": "/dogfood/screenshots",
   "variants": {
     "darkDesktop": 8,
@@ -93,27 +93,6 @@
       "viewport": "mobile"
     },
     {
-      "file": "interaction-home-to-chat.png",
-      "kind": "route",
-      "label": "Interaction Home To Chat",
-      "theme": "dark",
-      "viewport": "desktop"
-    },
-    {
-      "file": "interaction-reports-to-chat.png",
-      "kind": "route",
-      "label": "Interaction Reports To Chat",
-      "theme": "dark",
-      "viewport": "desktop"
-    },
-    {
-      "file": "interaction-theme-toggle.png",
-      "kind": "route",
-      "label": "Interaction Theme Toggle",
-      "theme": "dark",
-      "viewport": "desktop"
-    },
-    {
       "file": "me.png",
       "kind": "route",
       "label": "Me",
@@ -168,6 +147,27 @@
       "label": "Reports",
       "theme": "light",
       "viewport": "mobile"
+    },
+    {
+      "file": "interaction-home-to-chat.png",
+      "kind": "interaction",
+      "label": "Home To Chat",
+      "theme": "dark",
+      "viewport": "desktop"
+    },
+    {
+      "file": "interaction-reports-to-chat.png",
+      "kind": "interaction",
+      "label": "Reports To Chat",
+      "theme": "dark",
+      "viewport": "desktop"
+    },
+    {
+      "file": "settings-theme-toggle.png",
+      "kind": "settings",
+      "label": "Theme Toggle",
+      "theme": "dark",
+      "viewport": "desktop"
     }
   ]
 }
