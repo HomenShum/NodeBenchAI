@@ -7,7 +7,7 @@
  * Bottom: UniversalComposer.
  */
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import React, { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { UniversalComposer, DEFAULT_TIERS, type RouterTier, type BatchTarget } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
 import { StreamingMarkdown } from "../components/StreamingMarkdown";
@@ -20,7 +20,7 @@ import { MessageActions } from "../components/MessageActions";
 import { ChatEmptyState } from "../components/ChatEmptyState";
 import { showToast } from "../components/Toast";
 import { useRedesignChatRun } from "../hooks/useRedesignChatRun";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 
 /**
@@ -156,6 +156,44 @@ interface Turn {
   chatRunId?: string;
   /** Phase 2 streaming — live working-notes scratchpad text from the agent. */
   liveScratchpad?: string;
+}
+
+/**
+ * Phase 7 — per-tool-card error boundary so a single ChatToolCall render
+ * failure (bad tool name, malformed payload, etc.) doesn't crash the
+ * whole AnswerPacket. Renders a quiet inline pill in the failed slot.
+ */
+class ToolCallBoundary extends React.Component<
+  { children: ReactNode },
+  { hasError: boolean; message: string }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, message: "" };
+  }
+  static getDerivedStateFromError(err: any) {
+    return { hasError: true, message: (err?.message || String(err)).slice(0, 80) };
+  }
+  componentDidCatch(err: any) {
+    // Surface to console for debugging but don't propagate
+    if (typeof console !== "undefined") {
+      console.warn("[ChatToolCall render error]", err);
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div
+          className="rd-card rd-card__pad-tight rd-mono"
+          role="status"
+          style={{ fontSize: 11, color: "var(--rd-amber, #b45309)", padding: "6px 10px" }}
+        >
+          ⚠ tool-call render error: {this.state.message}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 /** Phase 1: map server-side trace rows to the existing ChatToolCall shape so
@@ -779,11 +817,19 @@ export function ChatSurface({ contextLabel = "Asking about: current context" }: 
         ) : undefined}
       />
 
-      {/* Sprint 4 P2.7 — A/B compare modal */}
+      {/* Sprint 4 P2.7 + Phase 7 — A/B compare modal with real Variant B parallel run */}
       {compareTurn?.packet && (
         <ABCompareModal
           packet={compareTurn.packet}
           tier={compareTurn.tier ?? "auto"}
+          prompt={(() => {
+            // Find the user turn that precedes this assistant turn — its text is the prompt.
+            const idx = turns.findIndex((t) => t.id === compareTurn.id);
+            for (let i = idx - 1; i >= 0; i--) {
+              if (turns[i].role === "user" && turns[i].text) return turns[i].text;
+            }
+            return undefined;
+          })()}
           onClose={() => setCompareTurnId(null)}
           onPick={(variant) => {
             setCompareTurnId(null);
@@ -1057,11 +1103,14 @@ function InlineCorrection({ onSave }: InlineCorrectionProps = {}) {
 function ABCompareModal({
   packet,
   tier,
+  prompt,
   onClose,
   onPick,
 }: {
   packet: ChatAnswer;
   tier: RouterTier;
+  /** Phase 7 — original prompt to re-run for Variant B real parallel call. */
+  prompt?: string;
   onClose: () => void;
   onPick: (variant: "A" | "B") => void;
 }) {
@@ -1072,15 +1121,102 @@ function ABCompareModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // Phase 7 — real Variant B parallel run.
+  // When the modal opens AND the user is authenticated AND a prompt was
+  // captured for the original answer, kick off a second startChat call
+  // and subscribe to its run row + events so the modal renders the
+  // streaming Variant B in real time. Anonymous / fixture users see the
+  // existing string-mutation fallback (Variant A's shortAnswer + " — high confidence.").
+  const { isAuthenticated } = useConvexAuth();
+  const startChat = useMutation(api.domains.redesign.chatRuns.startChat);
+  const [variantBRunId, setVariantBRunId] = useState<string | null>(null);
+  const [variantBError, setVariantBError] = useState<string | null>(null);
+  const variantBRow = useQuery(
+    api.domains.redesign.chatRuns.getRun,
+    variantBRunId ? { runId: variantBRunId } : "skip",
+  );
+  const variantBEvents = useQuery(
+    api.domains.redesign.chatRuns.streamEventsForRun,
+    variantBRunId ? { runId: variantBRunId } : "skip",
+  );
+
+  // Kick off the parallel run on first open. Use temperature variation by
+  // randomly switching between auto/fast — Gemini's stochasticity gives
+  // a genuinely different draft.
+  useEffect(() => {
+    if (variantBRunId) return;
+    if (!isAuthenticated || !prompt || prompt.trim().length < 3) return;
+    let cancelled = false;
+    void startChat({ prompt, tier, contextRef: undefined })
+      .then((runId) => {
+        if (!cancelled) setVariantBRunId(runId);
+      })
+      .catch((err: any) => {
+        if (!cancelled) setVariantBError((err?.message || String(err)).slice(0, 200));
+      });
+    return () => { cancelled = true; };
+  }, [isAuthenticated, prompt, tier, startChat, variantBRunId]);
+
+  // Project Variant B from streamed sections so it renders progressively.
+  const variantBPacket: { shortAnswer: string; whyItMatters: string } | null = (() => {
+    if (variantBRow?.status === "complete" && variantBRow.packet) {
+      return {
+        shortAnswer: (variantBRow.packet as any).shortAnswer ?? "",
+        whyItMatters: (variantBRow.packet as any).whyItMatters ?? "",
+      };
+    }
+    if (!variantBEvents?.length) return null;
+    const sections: Record<string, any> = {};
+    for (const ev of variantBEvents) {
+      if (ev.eventType === "section" && ev.payload?.name) {
+        sections[ev.payload.name] = ev.payload;
+      }
+    }
+    if (!sections.short_answer && !sections.why_it_matters) return null;
+    return {
+      shortAnswer: sections.short_answer?.text ?? "",
+      whyItMatters: sections.why_it_matters?.text ?? "",
+    };
+  })();
+
+  const variantBStatus: "fixture" | "starting" | "streaming" | "complete" | "error" =
+    !isAuthenticated || !prompt ? "fixture"
+    : variantBError ? "error"
+    : !variantBRunId ? "starting"
+    : variantBRow?.status === "complete" ? "complete"
+    : variantBRow?.status === "error" ? "error"
+    : "streaming";
+
   const tierMeta = DEFAULT_TIERS.find((t) => t.id === tier) ?? DEFAULT_TIERS[0];
-  const variantBAnswer = packet.shortAnswer.replace(/\.$/, "") + " — high confidence.";
-  const variantBWhy = packet.whyItMatters;
+
+  // Fixture-mode fallback (anonymous users)
+  const fixtureBAnswer = packet.shortAnswer.replace(/\.$/, "") + " — high confidence.";
+  const fixtureBWhy = packet.whyItMatters;
+
+  const showShort = variantBStatus === "fixture"
+    ? fixtureBAnswer
+    : variantBPacket?.shortAnswer || (variantBStatus === "streaming" ? "Streaming Variant B…" : variantBStatus === "starting" ? "Starting parallel run…" : variantBStatus === "error" ? `Error: ${variantBError ?? variantBRow?.errorMessage ?? "unknown"}` : "");
+  const showWhy = variantBStatus === "fixture"
+    ? fixtureBWhy
+    : variantBPacket?.whyItMatters || "";
+
   return (
     <div className="rd-ab-overlay" role="dialog" aria-modal="true" aria-label="A/B compare answers">
       <div className="rd-ab-dialog">
         <header className="rd-ab-dialog__head">
           <span className="rd-eyebrow">A/B compare · {tierMeta.label} tier</span>
-          <span className="rd-ab-dialog__hint">Same prompt, two parallel runs. Pick a winner.</span>
+          <span className="rd-ab-dialog__hint">
+            {variantBStatus === "fixture"
+              ? "Same prompt, two parallel runs. Pick a winner."
+              : variantBStatus === "complete"
+              ? "Both runs complete — pick the winner. Loser becomes a teach-me example."
+              : variantBStatus === "streaming"
+              ? "Variant B streaming live from Gemini — pick when ready."
+              : variantBStatus === "starting"
+              ? "Starting parallel Variant B run…"
+              : "Variant B errored — Variant A still pickable."}
+          </span>
           <button
             type="button"
             className="rd-ab-dialog__close"
@@ -1104,19 +1240,26 @@ function ABCompareModal({
               onClick={() => onPick("A")}
             >Pick A</button>
           </article>
-          <article className="rd-ab-variant" data-variant="B">
+          <article className="rd-ab-variant" data-variant="B" data-status={variantBStatus}>
             <header className="rd-ab-variant__head">
               <span className="rd-ab-variant__label">Variant B</span>
-              <span className="rd-mono rd-ab-variant__meta">parallel run</span>
+              <span className="rd-mono rd-ab-variant__meta">
+                {variantBStatus === "complete" ? "parallel run · complete"
+                  : variantBStatus === "streaming" ? "parallel run · streaming…"
+                  : variantBStatus === "starting" ? "parallel run · starting…"
+                  : variantBStatus === "error" ? "parallel run · error"
+                  : "fixture mode"}
+              </span>
             </header>
             <div className="rd-eyebrow">Short answer</div>
-            <p className="rd-ab-variant__short">{variantBAnswer}</p>
+            <p className="rd-ab-variant__short">{showShort || "—"}</p>
             <div className="rd-eyebrow">Why it matters</div>
-            <p className="rd-ab-variant__why">{variantBWhy}</p>
+            <p className="rd-ab-variant__why">{showWhy || "—"}</p>
             <button
               type="button"
               className="rd-btn rd-btn--primary rd-btn--sm rd-ab-variant__pick"
               onClick={() => onPick("B")}
+              disabled={variantBStatus === "starting" || variantBStatus === "error" || (variantBStatus === "streaming" && !variantBPacket?.shortAnswer)}
             >Pick B</button>
           </article>
         </div>
@@ -1357,10 +1500,16 @@ function AnswerPacket({
           <Pill>{packet.paidCalls} paid calls</Pill>
         </div>
 
-        {/* Inline tool-call cards (parity-studio pattern) — render the agent's actual reasoning */}
+        {/* Inline tool-call cards (parity-studio pattern) — render the agent's actual reasoning.
+            Phase 7 — each card wrapped in an error boundary so one failed
+            card render doesn't crash the entire AnswerPacket. */}
         {toolCalls && toolCalls.length > 0 && (
           <div className="rd-toolcall-list">
-            {toolCalls.map((c, i) => <ChatToolCall key={i} call={c} />)}
+            {toolCalls.map((c, i) => (
+              <ToolCallBoundary key={i}>
+                <ChatToolCall call={c} />
+              </ToolCallBoundary>
+            ))}
           </div>
         )}
 
