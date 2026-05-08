@@ -290,14 +290,99 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
-function getExecutiveBrief(memory: DailyBriefMemory): Record<string, any> | null {
+function toTimestampMs(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value > 10_000_000_000 ? value : value * 1000;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function uniqueDailyBriefFeatures(features: DailyBriefFeature[]): DailyBriefFeature[] {
+  const seen = new Set<string>();
+  return features.filter((feature) => {
+    const key = normalizeSpace(`${feature.type}|${feature.name}|${feature.testCriteria}`).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function isCustomerFacingFeature(feature: DailyBriefFeature): boolean {
+  const text = normalizeSpace(`${feature.name} ${feature.testCriteria} ${feature.notes ?? ""}`).toLowerCase();
+  if (/worker returned insufficient output|insufficient output|empty output|model timeout|retry/i.test(text)) return false;
+  if (/^summarize (research paper|top signal):/i.test(feature.name)) return false;
+  return true;
+}
+
+function getExecutiveBriefRecord(memory: DailyBriefMemory): Record<string, unknown> | null {
   const context = asRecord(memory.context);
   if (!context) return null;
-  const direct = asRecord(context.executiveBrief);
-  if (direct) return direct as Record<string, any>;
   const record = asRecord(context.executiveBriefRecord);
+  if (record) return record;
+  const direct = asRecord(context.executiveBrief);
+  return direct
+    ? {
+        status: "valid",
+        brief: direct,
+        generatedAt: context.executiveBriefGeneratedAt ?? memory.generatedAt,
+      }
+    : null;
+}
+
+function getExecutiveBrief(memory: DailyBriefMemory): Record<string, any> | null {
+  const record = getExecutiveBriefRecord(memory);
   const nested = asRecord(record?.brief);
-  return nested ? nested as Record<string, any> : null;
+  if (nested) return nested as Record<string, any>;
+  return record && (record.actI || record.actII || record.actIII || record.meta)
+    ? record as Record<string, any>
+    : null;
+}
+
+function getExecutiveBriefGeneratedAt(memory: DailyBriefMemory): number {
+  const context = asRecord(memory.context);
+  const record = getExecutiveBriefRecord(memory);
+  return (
+    toTimestampMs(record?.generatedAt) ??
+    toTimestampMs(record?.updatedAt) ??
+    toTimestampMs(context?.executiveBriefGeneratedAt) ??
+    memory.generatedAt
+  );
+}
+
+function isValidExecutiveBrief(memory: DailyBriefMemory, brief: Record<string, any> | null): boolean {
+  if (!brief) return false;
+  const record = getExecutiveBriefRecord(memory);
+  const validation = asRecord(record?.validation) ?? asRecord(record?.validationResult);
+  const status = String(record?.status ?? validation?.status ?? "").toLowerCase();
+  const validFlag =
+    record?.valid === true ||
+    validation?.valid === true ||
+    status === "valid" ||
+    status === "verified" ||
+    status === "succeeded";
+  const invalidFlag =
+    record?.valid === false ||
+    validation?.valid === false ||
+    status === "invalid" ||
+    status === "failed" ||
+    status === "failing" ||
+    status === "error";
+  const errors = Array.isArray(validation?.errors) ? validation.errors : [];
+  const hasSubstance =
+    executiveSignals(brief).length > 0 ||
+    executiveActions(brief).length > 0 ||
+    Boolean(brief.actI || brief.actII || brief.actIII || brief.meta);
+  if (invalidFlag) return false;
+  return Boolean(hasSubstance && (validFlag || errors.length === 0));
+}
+
+function executiveSummary(brief: Record<string, any> | null, fallback: string): string {
+  const briefMeta = asRecord(brief?.meta);
+  return normalizeSpace(String(briefMeta?.summary ?? brief?.actI?.synthesis ?? fallback));
 }
 
 function collectFeedItems(value: unknown, max = 12): Array<Record<string, any>> {
@@ -417,37 +502,48 @@ function archivePostToPublicCard(post: ArchivePost): PublicResearchCard {
 }
 
 function dailyBriefToReport(memory: DailyBriefMemory): ReportCardData {
-  const features = memory.features ?? [];
-  const failing = features.filter((f) => f.status === "failing").length;
-  const sources = Math.max(1, countSourceRefs(features.map((f) => f.sourceRefs)));
+  const features = uniqueDailyBriefFeatures(memory.features ?? []).filter(isCustomerFacingFeature);
+  const brief = getExecutiveBrief(memory);
+  const validBrief = isValidExecutiveBrief(memory, brief);
+  const signals = executiveSignals(brief);
+  const actions = executiveActions(brief);
+  const executiveRows = executiveEvidenceRows(brief);
+  const failing = validBrief ? 0 : features.filter((f) => f.status === "failing").length;
+  const sources = Math.max(1, executiveRows.length || countSourceRefs(features.map((f) => f.sourceRefs)));
+  const claims = Math.max(1, signals.length || features.filter((f) => f.status === "passing").length || features.length);
+  const followUps = actions.length || (validBrief ? 0 : features.filter((f) => f.status !== "passing").length);
   return {
     id: `daily_${memory._id}`,
     entity: `Daily Brief - ${memory.dateString}`,
     kind: "Daily Brief",
     status: failing > 0 ? "review" : "verified",
-    description: normalizeSpace(memory.goal || "Daily brief memory generated by NodeBench."),
+    description: executiveSummary(brief, memory.goal || "Daily brief memory generated by NodeBench."),
     sources,
-    claims: features.length,
-    followUps: features.filter((f) => f.status !== "passing").length,
-    updatedAt: timeAgo(memory.generatedAt),
+    claims,
+    followUps,
+    updatedAt: timeAgo(getExecutiveBriefGeneratedAt(memory)),
   };
 }
 
 function dailyBriefToDetail(memory: DailyBriefMemory): LiveArtifactDetail {
-  const features = [...(memory.features ?? [])].sort((a, b) => {
+  const allFeatures = uniqueDailyBriefFeatures(memory.features ?? []);
+  const features = allFeatures.filter(isCustomerFacingFeature).sort((a, b) => {
     const statusRank = { failing: 0, pending: 1, passing: 2 } as const;
     return statusRank[a.status] - statusRank[b.status] || (a.priority ?? 99) - (b.priority ?? 99);
   });
-  const sources = Math.max(1, countSourceRefs(features.map((f) => f.sourceRefs)));
-  const failing = features.filter((f) => f.status === "failing").length;
-  const followUps = features.filter((f) => f.status !== "passing").length;
   const title = `Daily Brief - ${memory.dateString}`;
-  const summary = normalizeSpace(memory.goal || "Daily brief memory generated by NodeBench.");
   const brief = getExecutiveBrief(memory);
+  const validBrief = isValidExecutiveBrief(memory, brief);
+  const generatedAtMs = getExecutiveBriefGeneratedAt(memory);
+  const summary = executiveSummary(brief, memory.goal || "Daily brief memory generated by NodeBench.");
   const briefMeta = asRecord(brief?.meta);
   const signals = executiveSignals(brief);
   const actions = executiveActions(brief);
   const executiveRows = executiveEvidenceRows(brief);
+  const sources = Math.max(1, executiveRows.length || countSourceRefs(features.map((f) => f.sourceRefs)));
+  const claims = Math.max(1, signals.length || features.filter((f) => f.status === "passing").length || features.length);
+  const followUps = actions.length || (validBrief ? 0 : features.filter((f) => f.status !== "passing").length);
+  const failing = validBrief ? 0 : features.filter((f) => f.status === "failing").length;
   const sourceRows: LiveArtifactSourceRow[] = [
     ...executiveRows,
     ...features.map((feature, index) => {
@@ -490,6 +586,11 @@ function dailyBriefToDetail(memory: DailyBriefMemory): LiveArtifactDetail {
     meta: `${statusLabel(feature.status)} - priority ${feature.priority ?? "normal"}`,
     status: statusToReportStatus(feature.status),
   }));
+  const reviewQueueBody = needsReview.length
+    ? "These items still need source verification, stronger evidence, or a human decision before they become reusable memory."
+    : validBrief
+      ? "The public brief is validated. Lower-confidence worker retries stay out of the customer-facing report surface."
+      : "No failing or pending checks remain in the latest daily brief.";
   const sections: LiveArtifactSection[] = [
     {
       title: "Executive read",
@@ -497,8 +598,8 @@ function dailyBriefToDetail(memory: DailyBriefMemory): LiveArtifactDetail {
       items: [
         {
           label: briefMeta?.headline ? String(briefMeta.headline) : `${features.length} checks captured`,
-          body: `${features.filter((f) => f.status === "passing").length} verified, ${followUps} waiting for review, ${sources} source references available. ${briefMeta?.confidence ? `Executive confidence ${briefMeta.confidence}%.` : ""}`.trim(),
-          meta: `Generated ${timeAgo(memory.generatedAt)} from the daily brief pipeline`,
+          body: `${claims} reusable signals, ${actions.length} recommended actions, ${sources} evidence rows available. ${briefMeta?.confidence ? `Executive confidence ${briefMeta.confidence}%.` : ""}`.trim(),
+          meta: `Generated ${timeAgo(generatedAtMs)} from the daily brief pipeline`,
           status: failing > 0 ? "review" : "verified",
         },
       ],
@@ -527,9 +628,7 @@ function dailyBriefToDetail(memory: DailyBriefMemory): LiveArtifactDetail {
     }] : []),
     {
       title: "Review queue",
-      body: needsReview.length
-        ? "Items below need source verification, stronger evidence, or a human decision before they become reusable memory."
-        : "No failing or pending checks remain in the latest daily brief.",
+      body: reviewQueueBody,
       items: needsReview,
     },
     {
@@ -600,12 +699,17 @@ function dailyBriefToDetail(memory: DailyBriefMemory): LiveArtifactDetail {
     kind: "Daily Brief",
     status: failing > 0 ? "review" : "verified",
     summary,
-    updatedAt: timeAgo(memory.generatedAt),
-    updatedAtMs: memory.generatedAt,
+    updatedAt: timeAgo(generatedAtMs),
+    updatedAtMs: generatedAtMs,
     sourceCount: sources,
-    claimCount: features.length,
+    claimCount: claims,
     followUps,
-    tags: ["Daily Brief", "Live memory", memory.dateString, ...features.slice(0, 3).map((f) => f.type)],
+    tags: [
+      "Daily Brief",
+      validBrief ? "Validated executive brief" : "Live memory",
+      memory.dateString,
+      ...features.slice(0, 3).map((f) => f.type),
+    ],
     sections,
     sourceRows,
     nodes,
@@ -722,16 +826,60 @@ function featureToPublicCard(feature: DailyBriefFeature, memory: DailyBriefMemor
   };
 }
 
+function signalToPublicCard(signal: Record<string, any>, memory: DailyBriefMemory, index: number): PublicResearchCard {
+  const evidence = Array.isArray(signal.evidence) ? signal.evidence : [];
+  const headline = String(signal.headline ?? `Daily brief signal ${index + 1}`);
+  return {
+    reportId: `daily_${memory._id}`,
+    entity: headline.slice(0, 56),
+    entityClass: "topic",
+    kind: "Daily brief - verified",
+    whenAgo: timeAgo(getExecutiveBriefGeneratedAt(memory)),
+    signal: normalizeSpace(String(signal.synthesis ?? memory.goal ?? "Validated daily brief signal.")).slice(0, 150),
+    signalClass: "research",
+    delta: Math.max(1, evidence.length),
+    trendUp: true,
+    claims: 1,
+    sources: Math.max(1, evidence.length),
+    confidence: 0.86,
+    iconChar: "DB",
+  };
+}
+
+function dailyBriefPublicCards(memory: DailyBriefMemory): PublicResearchCard[] {
+  const brief = getExecutiveBrief(memory);
+  const signals = executiveSignals(brief);
+  if (isValidExecutiveBrief(memory, brief) && signals.length) {
+    return signals.slice(0, 6).map((signal, index) => signalToPublicCard(signal, memory, index));
+  }
+  return uniqueDailyBriefFeatures(memory.features ?? [])
+    .filter((feature) => feature.status === "passing" && isCustomerFacingFeature(feature))
+    .slice(0, 6)
+    .map((feature) => featureToPublicCard(feature, memory));
+}
+
 function buildPulse(memory: DailyBriefMemory | null, posts: ArchivePost[]): PulseCard[] {
   const cards: PulseCard[] = [];
   if (memory) {
-    const passing = memory.features.filter((f) => f.status === "passing").length;
-    const needsWork = memory.features.length - passing;
+    const brief = getExecutiveBrief(memory);
+    const validBrief = isValidExecutiveBrief(memory, brief);
+    const signals = executiveSignals(brief);
+    const actions = executiveActions(brief);
+    const evidenceRows = executiveEvidenceRows(brief);
+    const features = uniqueDailyBriefFeatures(memory.features ?? []).filter(isCustomerFacingFeature);
+    const passing = features.filter((f) => f.status === "passing").length;
+    const needsWork = validBrief ? 0 : features.length - passing;
     cards.push({
       kind: needsWork > 0 ? "follow_up" : "report_update",
-      title: `Daily Brief memory advanced ${passing}/${memory.features.length} checks`,
-      body: normalizeSpace(memory.goal || "Daily brief memory is available for reuse in the redesign."),
-      meta: `${timeAgo(memory.generatedAt)} - ${memory.dateString}`,
+      title: validBrief
+        ? `Daily Brief validated ${Math.max(1, signals.length || passing)} reusable signals`
+        : `Daily Brief needs review on ${needsWork}/${features.length} checks`,
+      body: validBrief
+        ? executiveSummary(brief, memory.goal || "Daily brief memory is available for reuse in the redesign.")
+        : normalizeSpace(memory.goal || "Daily brief memory is available for reuse in the redesign."),
+      meta: validBrief
+        ? `${evidenceRows.length || countSourceRefs(features.map((f) => f.sourceRefs))} evidence rows - ${actions.length} actions - ${timeAgo(getExecutiveBriefGeneratedAt(memory))}`
+        : `${timeAgo(memory.generatedAt)} - ${memory.dateString}`,
       cta: "Open brief",
     });
   }
@@ -750,12 +898,16 @@ function buildPulse(memory: DailyBriefMemory | null, posts: ArchivePost[]): Puls
 function buildMetrics(stats: ArchiveStats | null, memory: DailyBriefMemory | null): PulseMetric[] {
   if (!stats && !memory) return [];
   const features = memory?.features ?? [];
+  const brief = memory ? getExecutiveBrief(memory) : null;
+  const validBrief = memory ? isValidExecutiveBrief(memory, brief) : false;
+  const signals = executiveSignals(brief);
+  const sourceRows = executiveEvidenceRows(brief);
   const passing = features.filter((f) => f.status === "passing").length;
   return [
     { label: "Public artifacts", value: String(stats?.totalPosts ?? 0), delta: `${stats?.recentDates.length ?? 0} active days` },
     { label: "Artifact types", value: String(stats?.byType.length ?? 0), hint: "LinkedIn archive" },
-    { label: "Brief features", value: String(features.length), delta: `${passing} passing` },
-    { label: "Source refs", value: String(Math.max(0, countSourceRefs(features.map((f) => f.sourceRefs)))), hint: "daily brief" },
+    { label: "Brief signals", value: String(signals.length || passing || features.length), delta: validBrief ? "validated" : `${passing} passing` },
+    { label: "Evidence rows", value: String(Math.max(0, sourceRows.length || countSourceRefs(features.map((f) => f.sourceRefs)))), hint: "daily brief" },
     { label: "Latest brief", value: memory?.dateString ?? "none" },
     { label: "Frontend feed", value: "Live", delta: "Convex-backed" },
   ];
@@ -789,18 +941,19 @@ export function useLiveArtifacts(limit = 24): LiveArtifactsResult {
       ...(memory ? [dailyBriefToDetail(memory)] : []),
       ...posts.map(archivePostToDetail),
     ].slice(0, limit);
+    const dailyBriefCards = memory ? dailyBriefPublicCards(memory) : [];
     const publicResearch = [
-      ...(memory?.features ?? []).slice(0, 6).map((feature) => featureToPublicCard(feature, memory)),
+      ...dailyBriefCards,
       ...posts.map(archivePostToPublicCard),
     ].slice(0, limit);
     const isLive = artifactReports.length > 0 || publicResearch.length > 0;
     const archiveCount = posts.length;
-    const briefFeatureCount = memory?.features.length ?? 0;
+    const briefFeatureCount = dailyBriefCards.length || (memory ? uniqueDailyBriefFeatures(memory.features ?? []).filter(isCustomerFacingFeature).length : 0);
     return {
       isLoading,
       isLive,
       sourceLabel: isLive
-        ? `Live artifacts - ${archiveCount} posts - ${briefFeatureCount} brief checks`
+        ? `Live artifacts - ${archiveCount} posts - ${briefFeatureCount} brief signals`
         : "No live artifacts yet",
       metrics: buildMetrics(archiveStats ?? null, memory),
       pulse: buildPulse(memory, posts),

@@ -300,7 +300,16 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
         {tab === "brief" && (
           (workspaceNeedsSelection || (selectedIsLiveArtifact && !effectiveLiveDetail))
             ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
-            : <BriefTab report={effectiveLiveReport} detail={effectiveLiveDetail} />
+            : (
+              <BriefTab
+                report={effectiveLiveReport}
+                detail={effectiveLiveDetail}
+                verification={sourceVerification}
+                onOpenSources={() => setWorkspaceTab("sources")}
+                onOpenNotebook={() => setWorkspaceTab("notebook")}
+                onVerifySupport={(label, claimText) => verifySourceSupport(label, claimText)}
+              />
+            )
         )}
         {tab === "cards" && (
           effectiveLiveDetail
@@ -405,7 +414,21 @@ function buildPromotedLiveArtifactHtml(report: ReportCardData): string {
   ].join("");
 }
 
-function BriefTab({ report, detail }: { report?: ReportCardData; detail?: LiveArtifactDetail }) {
+function BriefTab({
+  report,
+  detail,
+  verification,
+  onOpenSources,
+  onOpenNotebook,
+  onVerifySupport,
+}: {
+  report?: ReportCardData;
+  detail?: LiveArtifactDetail;
+  verification?: SourceVerificationState;
+  onOpenSources?: () => void;
+  onOpenNotebook?: () => void;
+  onVerifySupport?: (label: string, claimText: string) => void;
+}) {
   if (detail) {
     return (
       <div className="rd-stack" style={{ gap: 18, padding: "28px 32px", maxWidth: 820, overflow: "auto", height: "100%" }}>
@@ -430,7 +453,19 @@ function BriefTab({ report, detail }: { report?: ReportCardData; detail?: LiveAr
             <Pill>{detail.followUps} follow-ups</Pill>
             <Pill>Updated {detail.updatedAt}</Pill>
           </div>
+          <div className="rd-row" style={{ gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={onOpenSources}>Open sources</button>
+            <button
+              className="rd-btn rd-btn--quiet rd-btn--sm"
+              onClick={() => onVerifySupport?.(detail.title, `${detail.title}. ${detail.summary}`)}
+            >
+              Verify evidence
+            </button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onOpenNotebook}>Promote to notebook</button>
+          </div>
         </section>
+
+        {verification && <SourceVerificationPanel verification={verification} />}
 
         {detail.sections.map((section) => (
           <section key={section.title} className="rd-stack" style={{ gap: 10 }}>
@@ -467,6 +502,16 @@ function BriefTab({ report, detail }: { report?: ReportCardData; detail?: LiveAr
                       <strong style={{ fontSize: 13, color: "var(--rd-ink-strong)" }}>{item.label}</strong>
                       <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.45, color: "var(--rd-ink-mute)" }}>{item.body}</p>
                       {item.meta && <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>{item.meta}</span>}
+                      <div className="rd-row" style={{ gap: 6, flexWrap: "wrap", marginTop: 5 }}>
+                        <button
+                          className="rd-btn rd-btn--quiet rd-btn--sm"
+                          onClick={() => onVerifySupport?.(item.label, `${item.label}. ${item.body}`)}
+                        >
+                          Verify
+                        </button>
+                        <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onOpenSources}>Sources</button>
+                        <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onOpenNotebook}>Notebook</button>
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -505,6 +550,16 @@ function BriefTab({ report, detail }: { report?: ReportCardData; detail?: LiveAr
             <Pill>{report.sources} sources</Pill>
             <Pill>{report.claims} claims</Pill>
             <Pill>Updated {report.updatedAt}</Pill>
+          </div>
+          <div className="rd-row" style={{ gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={onOpenSources}>Open sources</button>
+            <button
+              className="rd-btn rd-btn--quiet rd-btn--sm"
+              onClick={() => onVerifySupport?.(report.entity, `${report.entity}. ${report.description}`)}
+            >
+              Verify evidence
+            </button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onOpenNotebook}>Promote to notebook</button>
           </div>
         </section>
 
