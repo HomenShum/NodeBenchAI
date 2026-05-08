@@ -3068,7 +3068,86 @@ const voiceSessions = defineTable({
   .index("by_last_activity", ["lastActivityAt"]);
 
 /* ------------------------------------------------------------------ */
-/* REALTIME VOICE ADAPTER - Provider-agnostic voice capture/audit      */
+/* VOICE COST LEDGER - Per-user, per-day spend tracking by tier       */
+/* See: docs/architecture/REALTIME_VOICE_INTEGRATION.md §2 (Phase 2)  */
+/* Invariants: HONEST_SCORES (totalUsd from API response, not estimate)*/
+/* ------------------------------------------------------------------ */
+const voiceCostLedger = defineTable({
+  userId: v.id("users"),
+  dayUtc: v.string(), // YYYY-MM-DD UTC — deterministic reset boundary
+  byTier: v.object({
+    geminiLive: v.number(), // accumulator for current Gemini 3.1 Flash Live tier
+    whisper: v.number(), // future: openai realtime transcription
+    realtimeMini: v.number(), // future: openai realtime mini chat
+    realtime2: v.number(), // future: openai realtime-2 phone-grade
+    translate: v.number(), // future: openai realtime translation
+  }),
+  totalUsd: v.number(), // sum across all tiers — verified == sum(byTier)
+  capUsd: v.number(), // user's daily cap, default $5
+  capHitAt: v.optional(v.number()), // first ms timestamp cap was hit today
+  updatedAt: v.number(),
+})
+  .index("by_user_day", ["userId", "dayUtc"])
+  .index("by_day", ["dayUtc"]) // for daily admin rollups
+  .index("by_user_recent", ["userId", "updatedAt"]);
+
+/* ------------------------------------------------------------------ */
+/* REALTIME AUDIT EVENTS - Privacy/budget/consent gate decisions      */
+/* See: docs/architecture/REALTIME_VOICE_INTEGRATION.md §2 (Phase 2)  */
+/* Invariants: BOUND (90d TTL), HONEST_STATUS, DETERMINISTIC          */
+/* ------------------------------------------------------------------ */
+const realtimeAuditEvents = defineTable({
+  // Subject of the event — userId for authed users, anonId for anonymous
+  userId: v.optional(v.id("users")),
+  anonId: v.optional(v.string()),
+  sessionId: v.optional(v.string()), // links to voiceSessions when applicable
+  // Bounded enum of gate decisions — extend with care; dashboards depend on stability
+  gate: v.union(
+    v.literal("anonymous_no_persist"), // scenario 1: no private memory writes before consent
+    v.literal("anonymous_to_linked"), // scenario 2: signup migrates anon session
+    v.literal("budget_cap_hit"), // scenario 8: daily $/user cap reached
+    v.literal("budget_warning_80pct"), // pre-emptive warning at 80% cap
+    v.literal("pii_redacted"), // scenario 7: PII detected + redacted
+    v.literal("idempotent_replay"), // scenario 9: same key returned existing capture
+    v.literal("escalation_to_async"), // scenario 10: deep_research routed to Temporal
+    v.literal("approval_required"), // scenario 8: phone-agent waiting for confirmation
+    v.literal("approval_granted"),
+    v.literal("approval_rejected"),
+    v.literal("model_routing"), // deterministic routing decision recorded
+    v.literal("session_terminated_pii"), // close 4005
+    v.literal("session_terminated_cap"), // close 4004
+  ),
+  decision: v.union(
+    v.literal("allowed"),
+    v.literal("denied"),
+    v.literal("needs_consent"),
+    v.literal("needs_approval"),
+    v.literal("downgraded"),
+  ),
+  // Hashed inputs for replay (DETERMINISTIC invariant)
+  decisionHash: v.optional(v.string()),
+  // Human-readable rationale, capped 500 chars
+  rationale: v.optional(v.string()),
+  // Optional structured payload — keep small, never store transcripts here
+  metadata: v.optional(
+    v.object({
+      modelTier: v.optional(v.string()),
+      capUsd: v.optional(v.number()),
+      spentUsd: v.optional(v.number()),
+      idempotencyKey: v.optional(v.string()),
+      redactedSpanCount: v.optional(v.number()),
+      temporalJobId: v.optional(v.string()),
+    }),
+  ),
+  createdAt: v.number(),
+})
+  .index("by_user_recent", ["userId", "createdAt"])
+  .index("by_anon_recent", ["anonId", "createdAt"])
+  .index("by_session", ["sessionId"])
+  .index("by_gate", ["gate", "createdAt"]); // dashboard aggregation
+
+/* ------------------------------------------------------------------ */
+/* REALTIME VOICE ADAPTER - Provider-agnostic capture/audit writes    */
 /* ------------------------------------------------------------------ */
 const realtimeVoiceCaptures = defineTable({
   userKey: v.string(),
@@ -3121,20 +3200,7 @@ const voiceRoutingDecisions = defineTable({
   requestedTier: v.optional(v.string()),
   decision: v.any(),
   createdAt: v.number(),
-})
-  .index("by_user_created", ["userKey", "createdAt"]);
-
-const voiceCostLedger = defineTable({
-  userKey: v.string(),
-  dayUtc: v.string(),
-  totalUsd: v.number(),
-  capUsd: v.number(),
-  byTier: v.optional(v.any()),
-  capHitAt: v.optional(v.number()),
-  updatedAt: v.number(),
-})
-  .index("by_user_day", ["userKey", "dayUtc"])
-  .index("by_day", ["dayUtc"]);
+}).index("by_user_created", ["userKey", "createdAt"]);
 
 /* ------------------------------------------------------------------ */
 /* FEED ITEMS - Central Newsstand for live intelligence feed          */
@@ -4177,10 +4243,11 @@ export default defineSchema({
   agentTimelineRuns,
   agentImageResults,
   voiceSessions,
+  voiceCostLedger,
+  realtimeAuditEvents,
   realtimeVoiceCaptures,
   realtimeVoiceAuditEvents,
   voiceRoutingDecisions,
-  voiceCostLedger,
   landingPageLog,
   feedItems,
   repoStatsCache,
@@ -15655,6 +15722,68 @@ export default defineSchema({
     refreshedAt: v.number(),
   })
     .index("by_user_monitoring", ["userId", "monitoring"]),
+
+  /**
+   * Phase 1 of production-fidelity chat — every real chat run is persisted
+   * by reproducibility hash so the Sprint 4 P2.13 share URL
+   * (/redesign/chat/r/{hash}) can serve the immutable answer back to anyone
+   * with the link. Same packet → same hash → same URL across deploys.
+   *
+   * runId is unique per run; hash is unique per {prompt, tier, model,
+   * shortAnswer, sortedEvidenceUrls} combination — same input → same cached
+   * run, idempotent re-runs collapse onto the same row.
+   */
+  redesignChatRuns: defineTable({
+    runId: v.string(),
+    hash: v.optional(v.string()),
+    userId: v.optional(v.id("users")),
+    prompt: v.string(),
+    tier: v.string(),
+    model: v.string(),
+    /**
+     * Phase 2 lifecycle:
+     *   "pending"  — scheduled, not yet picked up by internal action
+     *   "running"  — events flowing
+     *   "complete" — final packet bound; hash computed
+     *   "error"    — failed (errorMessage populated)
+     */
+    status: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    /** Final AnswerPacket — populated when status === "complete". */
+    packet: v.optional(v.any()),
+    totalLatencyMs: v.optional(v.number()),
+    totalTokens: v.optional(v.number()),
+    estimatedCostUsd: v.optional(v.number()),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_runId", ["runId"])
+    .index("by_hash", ["hash"])
+    .index("by_user_created", ["userId", "createdAt"]),
+
+  /**
+   * Phase 2 streaming event log. Frontend useQuery subscribes by runId
+   * and gets reactive updates as each event lands — Convex's native
+   * streaming pattern (no HTTP SSE plumbing required).
+   *
+   * Event types:
+   *   "stage"           — classify / context / synthesis / bind orchestrator stages
+   *   "scratchpad"      — agent's working notes (streamed prose chunks)
+   *   "tool_call"       — tool fired with detail + status + duration
+   *   "grounding_chunk" — a single grounded source URL + title arrived
+   *   "section"         — a structured AnswerPacket section committed
+   *   "packet_complete" — final assembly; full packet now in redesignChatRuns
+   *   "error"           — terminal failure
+   */
+  redesignChatStreamEvents: defineTable({
+    runId: v.string(),
+    /** Monotonic sequence number per runId, for ordering. */
+    idx: v.number(),
+    eventType: v.string(),
+    payload: v.any(),
+    createdAt: v.number(),
+  })
+    .index("by_run_idx", ["runId", "idx"]),
 
   /** Inbox snooze records — soft-hide an inbox item until a future timestamp. */
   inboxSnoozes: defineTable({
