@@ -50,6 +50,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import { ProofDrawer } from "@/features/research/ProofDrawer";
 import { LiveResearchChecklist } from "@/features/research/LiveResearchChecklist";
 
 import { buildCockpitPath, type CockpitSurfaceId } from "@/lib/registry/viewRegistry";
@@ -4065,6 +4066,8 @@ export function ExactWorkspaceKitPage() {
   const [selectedCard, setSelectedCard] = useState<string | null>("everlaw");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [expandedClaim, setExpandedClaim] = useState<string | null>("c1");
+  // QA fix (2026-05-08): unified proof drawer (audit P1).
+  const [proofOpen, setProofOpen] = useState(false);
   const setTab = (tab: WorkspaceTab) => navigate(buildLocalWorkspacePath({ workspaceId, tab }), { replace: true });
   const inspector = activeTab === "cards" && selectedCard ? (
     <WorkspaceCardInspector
@@ -4085,6 +4088,7 @@ export function ExactWorkspaceKitPage() {
         workspaceId={workspaceId}
         entityMeta={activeTab === "chat" ? `workspace - ${WORKSPACE_THREADS_EXACT.find((item) => item.id === thread)?.meta ?? "2h - 24 src"}` : "workspace - diligence - v3 - 2h ago"}
         inspector={inspector}
+        onOpenProof={() => setProofOpen(true)}
       >
         {activeTab === "chat" ? <WorkspaceChatSurface thread={thread} setThread={setThread} onTabChange={setTab} /> : null}
         {activeTab === "brief" ? <WorkspaceBriefSurface onJump={setTab} /> : null}
@@ -4107,6 +4111,18 @@ export function ExactWorkspaceKitPage() {
         ) : null}
         {activeTab === "map" ? <WorkspaceMapSurface onTabChange={setTab} /> : null}
       </WorkspaceShell>
+      {/* QA fix (2026-05-08): unified proof drawer (audit P1).
+          Showcase mode: drawer pulls fixture data so anonymous visitors
+          see the full proof spec (citations / source snapshots / tool
+          calls / claim confidence / contradictions / model trace / eval
+          score / version history). When the workspace is later wired to
+          live artifact data, pass real props here. */}
+      <ProofDrawer
+        open={proofOpen}
+        onClose={() => setProofOpen(false)}
+        artifactTitle={`DISCO · ${activeTab}`}
+        artifactKind="diligence v3"
+      />
     </div>
   );
 }
@@ -4355,6 +4371,7 @@ function WorkspaceShell({
   entityMeta,
   inspector,
   children,
+  onOpenProof,
 }: {
   activeTab: WorkspaceTab;
   onTabChange: (tab: WorkspaceTab) => void;
@@ -4362,6 +4379,9 @@ function WorkspaceShell({
   entityMeta: string;
   inspector?: ReactNode;
   children: ReactNode;
+  /** QA fix (2026-05-08): unified proof drawer (audit P1).
+   *  When provided, renders a "Proof" header button that opens the drawer. */
+  onOpenProof?: () => void;
 }) {
   return (
     <div className="ws-shell" data-workspace-id={workspaceId}>
@@ -4388,6 +4408,36 @@ function WorkspaceShell({
           })}
         </nav>
         <div className="ws-header-actions">
+          {/* QA fix (2026-05-08): unified Proof drawer trigger (audit P1).
+              Opens a slide-over with citations / source snapshots / tool calls /
+              claim confidence / contradictions / model trace / eval / version history. */}
+          {onOpenProof && (
+            <button
+              type="button"
+              className="ws-text-btn"
+              data-testid="proof-drawer-trigger"
+              onClick={onOpenProof}
+              aria-label="Open proof drawer"
+              title="Open proof drawer — citations, sources, tool calls, contradictions, eval, history"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "5px 10px",
+                borderRadius: 6,
+                border: "1px solid var(--rd-line-faint, rgba(0,0,0,0.12))",
+                background: "var(--rd-paper-warm, rgba(0,0,0,0.02))",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 600,
+                color: "var(--rd-ink-strong, #0f172a)",
+                letterSpacing: "0.02em",
+              }}
+            >
+              <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--rd-accent, #d97757)" }} />
+              Proof
+            </button>
+          )}
           <button className="ws-icon-btn" type="button" aria-label="Share workspace"><Share2 size={14} /></button>
           <button className="ws-icon-btn" type="button" aria-label="History"><Clock3 size={14} /></button>
           <button className="ws-icon-btn" type="button" aria-label="More"><MoreHorizontal size={15} /></button>
