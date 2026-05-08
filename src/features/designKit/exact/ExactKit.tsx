@@ -50,6 +50,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import { LiveResearchChecklist } from "@/features/research/LiveResearchChecklist";
 
 import { buildCockpitPath, type CockpitSurfaceId } from "@/lib/registry/viewRegistry";
 import { RichNotebookEditor } from "@/features/notebook/components/RichNotebookEditor";
@@ -2868,6 +2869,18 @@ export function ExactChatSurface() {
               <button type="button" onClick={() => navigate(buildCockpitPath({ surfaceId: "packets", extra: { report: "orbital" } }))}>Open notebook</button>
               <button type="button">Export</button>
               <button type="button">Track updates</button>
+            </div>
+
+            {/* QA fix (2026-05-08): Audit P1 — visible live research checklist.
+                Renders the 14 canonical run stages with live state animation
+                so users see "what NodeBench checked" in real time, not just
+                three static reasoning bullets after the fact. Auto-cycles
+                in showcase mode; once the cockpit chat is wired to real
+                streaming events the `stages` prop will drive it from the
+                Convex stream (Phase 1-7 already emits the same shape on
+                /redesign/chat). */}
+            <div style={{ padding: "12px 16px 0" }}>
+              <LiveResearchChecklist compact />
             </div>
 
             <div className="nb-stream-scroll">
