@@ -5,6 +5,9 @@
  * Workspace is intentionally NOT a sixth tab — it lives at /redesign/workspace.
  */
 
+import { useState } from "react";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvexAuth } from "convex/react";
 import type { SurfaceId } from "../fixtures";
 
 interface RailProps {
@@ -32,6 +35,15 @@ const ICONS: Record<SurfaceId, string> = {
 };
 
 export function Rail({ active, onChange, onOpenWorkspace, liveStats, inboxCount = 0 }: RailProps) {
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { signIn } = useAuthActions();
+  const [signingIn, setSigningIn] = useState(false);
+  const showAuthCta = !isLoading && !isAuthenticated;
+  const signInAnonymously = () => {
+    setSigningIn(true);
+    void signIn("anonymous").catch(() => undefined).finally(() => setSigningIn(false));
+  };
+
   return (
     <aside className="rd-pane" aria-label="Primary navigation" style={{ padding: "20px 14px", gap: 24 }}>
       <a href="/" style={{
@@ -95,6 +107,17 @@ export function Rail({ active, onChange, onOpenWorkspace, liveStats, inboxCount 
       </button>
 
       <div style={{ marginTop: "auto", padding: "12px 8px", borderTop: "1px solid var(--rd-line-faint)" }}>
+        {showAuthCta && (
+          <button
+            type="button"
+            onClick={signInAnonymously}
+            disabled={signingIn}
+            className="rd-btn rd-btn--primary"
+            style={{ width: "100%", justifyContent: "center", marginBottom: 12, minHeight: 34 }}
+          >
+            {signingIn ? "Signing in..." : "Sign in anonymously"}
+          </button>
+        )}
         <div className="rd-row--between" style={{ marginBottom: 8 }}>
           <div className="rd-eyebrow">Memory</div>
           <button

@@ -40,7 +40,7 @@ export function InboxSurface() {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
 
-  // Sprint S3: live aggregator over batchAutopilotRuns + pipelineRuns
+  // Sprint S3: live aggregator over pipeline runs.
   const { items: allItems, isLive, liveCount } = useInboxLive();
 
   const items = useMemo(() => {
@@ -131,7 +131,7 @@ export function InboxSurface() {
           <div className="rd-row" style={{ gap: 8, alignItems: "center" }}>
             <div className="rd-eyebrow">Inbox · review queue</div>
             {isLive ? (
-              <Pill tone="green" title="Live data: batchAutopilotRuns + pipelineRuns from Convex">
+              <Pill tone="green" title="Live pipeline review data from Convex">
                 <span className="rd-dot rd-dot--live" />Live · {liveCount} from runs
               </Pill>
             ) : (

@@ -19,9 +19,10 @@ import { ChatToolCall, type ToolCall } from "../components/ChatToolCall";
 import { MessageActions } from "../components/MessageActions";
 import { ChatEmptyState } from "../components/ChatEmptyState";
 import { showToast } from "../components/Toast";
-import { useRedesignChatRun } from "../hooks/useRedesignChatRun";
+import { normalizeRouterTierForChatRun, useRedesignChatRun } from "../hooks/useRedesignChatRun";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { LiveResearchChecklist, type ResearchStage, type ResearchStageId } from "../../research/LiveResearchChecklist";
 
 /**
  * Sprint 3 P2.11 — fixture for the open-questions tray (claims flagged
@@ -81,9 +82,9 @@ function answerHash(packet: ChatAnswer, tier: RouterTier): string {
   return (h1.toString(36) + h2.toString(36)).slice(0, 12);
 }
 
-async function shareAnswer(turnId: string, packet: ChatAnswer, tier: RouterTier = "auto") {
+async function shareAnswer(turnId: string, packet: ChatAnswer, tier: RouterTier = "auto", serverHash?: string) {
   void turnId; // turnId ties the URL to the local thread; the hash makes it deterministic
-  const hash = answerHash(packet, tier);
+  const hash = serverHash || answerHash(packet, tier);
   const url = `${window.location.origin}/redesign/chat/r/${hash}`;
   let copied = false;
   try {
@@ -105,6 +106,24 @@ async function shareAnswer(turnId: string, packet: ChatAnswer, tier: RouterTier 
       },
     },
   });
+}
+
+function sourceUrlFromText(source: string): string | null {
+  const match = source.match(/https?:\/\/[^\s)>\]]+/i);
+  if (!match) return null;
+  return match[0].replace(/[.,;:]+$/, "");
+}
+
+function sourceLabel(source: string): string {
+  const url = sourceUrlFromText(source);
+  if (!url) return source;
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    const title = source.slice(0, source.indexOf(url)).replace(/\s+[^\w\s]\s*$/g, "").trim();
+    return title ? `${title} - ${host}` : host;
+  } catch {
+    return source;
+  }
 }
 
 /**
@@ -242,6 +261,37 @@ class ToolCallBoundary extends React.Component<
   }
 }
 
+function BatchLiveBridge({ onBatch }: { onBatch: (batch: ActiveBatchRun | null) => void }) {
+  const { batch } = useBatchLive();
+  useEffect(() => {
+    onBatch(batch);
+  }, [batch, onBatch]);
+  return null;
+}
+
+class BatchLiveBoundary extends React.Component<
+  { children: ReactNode; onError: () => void },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; onError: () => void }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(err: any) {
+    this.props.onError();
+    if (typeof console !== "undefined") {
+      console.warn("[BatchLiveBridge error]", err);
+    }
+  }
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
+
 /** Phase 1: map server-side trace rows to the existing ChatToolCall shape so
  *  the inline tool-call card list (Sprint 1 affordance) renders real timings. */
 function traceToToolCalls(trace: ChatAnswer["trace"]): ToolCall[] {
@@ -312,7 +362,7 @@ const SEED_TURNS: Turn[] = [
   { id: "u1", role: "user", text: "Turn this research question into reusable entity intelligence.", createdAt: NOW - 4 * 60_000 },
   { id: "a1", role: "assistant", packet: STARTER_ANSWER, tier: "auto", toolCalls: SAMPLE_TOOL_CALLS, createdAt: NOW - 4 * 60_000 + 3000 },
   { id: "u2", role: "user", text: "What should happen after the answer?", createdAt: NOW - 30_000 },
-  { id: "a2", role: "assistant", markdown: STREAMING_FOLLOWUP_MARKDOWN, streaming: true, tier: "auto", createdAt: NOW - 25_000 },
+  { id: "a2", role: "assistant", markdown: STREAMING_FOLLOWUP_MARKDOWN, streaming: false, tier: "auto", createdAt: NOW - 25_000 },
 ];
 
 function liveAnswer(detail: LiveArtifactDetail): ChatAnswer {
@@ -374,8 +424,82 @@ function buildSeedTurns(detail?: LiveArtifactDetail): Turn[] {
     { id: "u1", role: "user", text: `What is the latest read on ${detail.title}?`, createdAt: now - 4 * 60_000 },
     { id: "a1", role: "assistant", packet: liveAnswer(detail), tier: "auto", toolCalls: liveToolCalls(detail), createdAt: now - 4 * 60_000 + 3000 },
     { id: "u2", role: "user", text: "Turn the strongest signal into a notebook-ready follow-up.", createdAt: now - 30_000 },
-    { id: "a2", role: "assistant", markdown: liveFollowupMarkdown(detail), streaming: true, tier: "auto", createdAt: now - 25_000 },
+    { id: "a2", role: "assistant", markdown: liveFollowupMarkdown(detail), streaming: false, tier: "auto", createdAt: now - 25_000 },
   ];
+}
+
+type ResearchTraceLike = { step: string; detail?: string; status?: string; tool?: string };
+
+const RESEARCH_STAGE_TEMPLATE: Array<{ id: ResearchStageId; label: string }> = [
+  { id: "understanding", label: "Understanding the prompt" },
+  { id: "entity", label: "Entity identification" },
+  { id: "memory", label: "Memory check" },
+  { id: "source_plan", label: "Source plan" },
+  { id: "official", label: "Official sources" },
+  { id: "news_web", label: "News / web" },
+  { id: "primary_reading", label: "Primary reading" },
+  { id: "claims", label: "Claims extraction" },
+  { id: "contradictions", label: "Contradictions check" },
+  { id: "graph", label: "Graph build" },
+  { id: "evidence_scoring", label: "Evidence scoring" },
+  { id: "memo_draft", label: "Memo drafting" },
+  { id: "citations", label: "Citations" },
+  { id: "vault_save", label: "Vault save" },
+];
+
+function buildResearchStages(trace: ResearchTraceLike[] = [], complete = false): ResearchStage[] {
+  const steps = trace.map((t) => `${t.step} ${t.detail} ${t.tool ?? ""}`.toLowerCase());
+  const has = (pattern: RegExp) => steps.some((s) => pattern.test(s));
+  const hasWarning = (pattern: RegExp) => trace.some((t) =>
+    pattern.test(`${t.step} ${t.detail} ${t.tool ?? ""}`.toLowerCase()) && (t.status === "warn" || t.status === "error")
+  );
+  const passed = new Set<ResearchStageId>();
+
+  if (trace.length > 0 || complete) passed.add("understanding");
+  if (has(/classif|entit|query/)) passed.add("entity");
+  if (has(/context|memory|bundle|artifact/)) {
+    passed.add("memory");
+    passed.add("source_plan");
+  }
+  if (has(/gemini|ground|search|official|source|synthesis/)) {
+    passed.add("official");
+    passed.add("news_web");
+    passed.add("primary_reading");
+    passed.add("claims");
+  }
+  if (has(/bind|evidence|citation|ground/)) {
+    passed.add("evidence_scoring");
+    passed.add("citations");
+  }
+  if (complete) {
+    passed.add("contradictions");
+    passed.add("memo_draft");
+    passed.add("vault_save");
+  }
+
+  let firstWaiting = RESEARCH_STAGE_TEMPLATE.findIndex((stage) => !passed.has(stage.id));
+  if (firstWaiting < 0) firstWaiting = RESEARCH_STAGE_TEMPLATE.length;
+
+  return RESEARCH_STAGE_TEMPLATE.map((stage, index) => {
+    const key = stage.id.split("_")[0];
+    const matchingTrace = trace.find((t) => `${t.step} ${t.detail} ${t.tool ?? ""}`.toLowerCase().includes(key));
+    if (hasWarning(new RegExp(key))) {
+      return {
+        ...stage,
+        state: "warning",
+        detail: matchingTrace?.detail,
+        tool: matchingTrace?.tool,
+        warning: "Agent step returned a warning",
+      };
+    }
+    if (passed.has(stage.id)) {
+      return { ...stage, state: "passed", detail: matchingTrace?.detail, tool: matchingTrace?.tool };
+    }
+    if (!complete && index === firstWaiting) {
+      return { ...stage, state: "running", detail: trace.at(-1)?.detail ?? "waiting for next streamed event" };
+    }
+    return { ...stage, state: "waiting" };
+  });
 }
 
 export function ChatSurface({ contextLabel = "Asking about: current context", workspaceDetail }: ChatSurfaceProps) {
@@ -427,10 +551,12 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
   }, [liveDetail]);
   const [seedKey, setSeedKey] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const [ctx, setCtx] = useState(contextLabel);
   const [tier, setTier] = useState<RouterTier>("auto");
-  // Sprint S2: live batch monitor from Convex batchAutopilotRuns.
-  const { batch: liveBatch } = useBatchLive();
+  // Sprint S2: optional live batch monitor. Supporting telemetry is isolated
+  // so it cannot collapse the primary research surface.
+  const [liveBatch, setLiveBatch] = useState<ActiveBatchRun | null>(null);
   const [overrideBatch, setOverrideBatch] = useState<ActiveBatchRun | null>(null);
   const batch = overrideBatch ?? liveBatch;
   const setBatch = setOverrideBatch;
@@ -458,6 +584,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
   // assistant turn that subscribes to the probed run's stream.
   const probeWithoutSourceReal = (originalTurnId: string, originalRunId: string, maskedIdx: number) => {
     const probeId = `a${turns.length + 1}`;
+    setHasUserInteracted(true);
     setTurns((prev) => [
       ...prev,
       {
@@ -497,10 +624,14 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
 
   useEffect(() => {
     if (liveSeedKey === "loading" || seedKey === liveSeedKey) return;
+    if (hasUserInteracted) {
+      setSeedKey(liveSeedKey);
+      return;
+    }
     setTurns(buildSeedTurns(liveDetail));
     setCtx(liveDetail ? `Asking about: ${liveDetail.title}` : contextLabel);
     setSeedKey(liveSeedKey);
-  }, [contextLabel, liveDetail, liveSeedKey, seedKey]);
+  }, [contextLabel, hasUserInteracted, liveDetail, liveSeedKey, seedKey]);
 
   // Phase 2 — when the streamed chat run completes, commit the final packet
   // onto whichever turn carries the matching chatRunId. While in flight,
@@ -567,6 +698,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
     const now = Date.now();
     const userId = `u${turns.length + 1}`;
     const assistantId = `a${turns.length + 1}`;
+    setHasUserInteracted(true);
     setTurns((prev) => [
       ...prev,
       { id: userId, role: "user", text, createdAt: now },
@@ -630,11 +762,13 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
   const branchFromTurn = (turnId: string) => {
     const idx = turns.findIndex((t) => t.id === turnId);
     if (idx < 0) return;
+    setHasUserInteracted(true);
     setTurns(turns.slice(0, idx + 1));
     setCtx(`Branched from message ${turnId}`);
   };
 
   const runOnList = (text: string, _t: RouterTier, target: BatchTarget) => {
+    setHasUserInteracted(true);
     const totalEntities = Math.max(1, target.entityCount);
     const recentSteps = liveArtifacts.reports.slice(0, 5).map((report, index) => ({
       entity: report.entity,
@@ -715,6 +849,9 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
 
   return (
     <div className="rd-stack" style={{ height: "100%", overflow: "hidden", position: "relative" }}>
+      <BatchLiveBoundary onError={() => setLiveBatch(null)}>
+        <BatchLiveBridge onBatch={setLiveBatch} />
+      </BatchLiveBoundary>
       <div ref={scrollRef} className="rd-stack" style={{ flex: 1, overflow: "auto", padding: "24px 40px 24px", gap: 18, maxWidth: 920, width: "100%", margin: "0 auto" }}>
         {batch && <BatchMonitorCell batch={batch} onCancel={() => setBatch(null)} />}
 
@@ -745,7 +882,16 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
             // Sprint 3 P2.11 — wrap with data-turn-id so OpenQuestionsTray jump can target it
             const inner = (() => {
               if (t.role === "user") return <UserBubble text={t.text!} createdAt={t.createdAt} />;
-              if (t.thinking) return <ChatThinking />;
+              if (t.thinking) return (
+                <div className="rd-stack" style={{ gap: 10 }}>
+                  <ChatThinking />
+                  <LiveResearchChecklist
+                    compact
+                    title="Live research run"
+                    stages={buildResearchStages(t.toolCalls ?? [], false)}
+                  />
+                </div>
+              );
               if (t.markdown) return (
                 <StreamingAnswer
                   text={t.markdown}
@@ -768,7 +914,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
                   onBranch={() => branchFromTurn(t.id)}
                   onPin={() => pinClaim(t.id, t.packet!, t.tier ?? "auto")}
                   onCompare={() => setCompareTurnId(t.id)}
-                  onShare={() => shareAnswer(t.id, t.packet!, t.tier ?? "auto")}
+                  onShare={() => shareAnswer(t.id, t.packet!, t.tier ?? "auto", t.runHash)}
                   onProbeRunWithoutSource={t.chatRunId ? (idx) => probeWithoutSourceReal(t.id, t.chatRunId!, idx) : undefined}
                   onReact={t.chatRunId ? (kind) => {
                     void recordReaction({
@@ -886,11 +1032,39 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
             return undefined;
           })()}
           onClose={() => setCompareTurnId(null)}
-          onPick={(variant) => {
+          onPick={(variant, variantBRunId) => {
             setCompareTurnId(null);
-            showToast({
-              tone: "success",
-              message: `Variant ${variant} selected. The other becomes a teach-me example for the model.`,
+            const writes: Array<Promise<unknown>> = [];
+            if (compareTurn.chatRunId) {
+              writes.push(recordReaction({
+                runId: compareTurn.chatRunId,
+                runSource: "redesign-chat",
+                turnId: compareTurn.id,
+                reaction: variant === "A" ? "up" : "down",
+                note: `[ab_compare] picked ${variant}; original=A; variantB=${variantBRunId ?? "fixture"}`,
+              }));
+            }
+            if (variantBRunId) {
+              writes.push(recordReaction({
+                runId: variantBRunId,
+                runSource: "redesign-chat",
+                turnId: undefined,
+                reaction: variant === "B" ? "up" : "down",
+                note: `[ab_compare] picked ${variant}; variantB=B; original=${compareTurn.chatRunId ?? "fixture"}`,
+              }));
+            }
+            if (writes.length === 0) {
+              showToast({ tone: "info", message: `Variant ${variant} selected locally.` });
+              return;
+            }
+            void Promise.allSettled(writes).then((results) => {
+              const failures = results.filter((r) => r.status === "rejected").length;
+              showToast({
+                tone: failures === writes.length ? "warning" : "success",
+                message: failures === writes.length
+                  ? `Variant ${variant} selected, but A/B feedback was not saved.`
+                  : `Variant ${variant} selected and saved to the eval flywheel.`,
+              });
             });
           }}
         />
@@ -1170,7 +1344,7 @@ function ABCompareModal({
   /** Phase 7 — original prompt to re-run for Variant B real parallel call. */
   prompt?: string;
   onClose: () => void;
-  onPick: (variant: "A" | "B") => void;
+  onPick: (variant: "A" | "B", variantBRunId?: string) => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1206,7 +1380,7 @@ function ABCompareModal({
     if (variantBRunId) return;
     if (!isAuthenticated || !prompt || prompt.trim().length < 3) return;
     let cancelled = false;
-    void startChat({ prompt, tier, contextRef: undefined })
+    void startChat({ prompt, tier: normalizeRouterTierForChatRun(tier), contextRef: undefined })
       .then((runId) => {
         if (!cancelled) setVariantBRunId(runId);
       })
@@ -1295,7 +1469,7 @@ function ABCompareModal({
             <button
               type="button"
               className="rd-btn rd-btn--primary rd-btn--sm rd-ab-variant__pick"
-              onClick={() => onPick("A")}
+              onClick={() => onPick("A", variantBRunId ?? undefined)}
             >Pick A</button>
           </article>
           <article className="rd-ab-variant" data-variant="B" data-status={variantBStatus}>
@@ -1316,7 +1490,7 @@ function ABCompareModal({
             <button
               type="button"
               className="rd-btn rd-btn--primary rd-btn--sm rd-ab-variant__pick"
-              onClick={() => onPick("B")}
+              onClick={() => onPick("B", variantBRunId ?? undefined)}
               disabled={variantBStatus === "starting" || variantBStatus === "error" || (variantBStatus === "streaming" && !variantBPacket?.shortAnswer)}
             >Pick B</button>
           </article>
@@ -1560,6 +1734,12 @@ function AnswerPacket({
           <Pill>{packet.paidCalls} paid calls</Pill>
         </div>
 
+        <LiveResearchChecklist
+          compact
+          title="Research run"
+          stages={buildResearchStages(toolCalls ?? packet.trace, true)}
+        />
+
         {/* Inline tool-call cards (parity-studio pattern) — render the agent's actual reasoning.
             Phase 7 — each card wrapped in an error boundary so one failed
             card render doesn't crash the entire AnswerPacket. */}
@@ -1647,7 +1827,19 @@ function AnswerPacket({
                   </span>
                 )}
               </div>
-              <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>{e.source}</span>
+              {sourceUrlFromText(e.source) ? (
+                <a
+                  className="rd-mono"
+                  href={sourceUrlFromText(e.source) ?? undefined}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: 10.5, color: "var(--rd-accent-strong)", textDecoration: "none", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                >
+                  {sourceLabel(e.source)}
+                </a>
+              ) : (
+                <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>{e.source}</span>
+              )}
             </li>
           ))}
         </ol>
@@ -1850,11 +2042,12 @@ function renderInlineWithCites(
     const idx = Number(m[1]);
     const cite = evidence.find((e) => e.idx === idx);
     if (!cite) continue;
+    const sourceUrl = sourceUrlFromText(cite.source);
     if (m.index > last) out.push(<span key={`t${last}`}>{text.slice(last, m.index)}</span>);
     out.push(
       <span key={`c${m.index}`} className="rd-cite-wrap">
         <a
-          href={`#cite-${idx}`}
+          href={sourceUrl ?? `#cite-${idx}`}
           className="rd-cite"
           data-cite={idx}
           data-masked={maskedIdx === idx || undefined}
@@ -1867,6 +2060,10 @@ function renderInlineWithCites(
           onContextMenu={onContextMenu ? (e) => onContextMenu(idx, e) : undefined}
           onClick={(e) => {
             e.preventDefault();
+            if (sourceUrl) {
+              window.open(sourceUrl, "_blank", "noopener,noreferrer");
+              return;
+            }
             const target = document.querySelector(`.rd-evidence-row[data-cite="${idx}"]`);
             target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
           }}
@@ -1877,7 +2074,7 @@ function renderInlineWithCites(
           role="tooltip"
         >
           <span className="rd-cite-popover__quote">&ldquo;{cite.quote}&rdquo;</span>
-          <span className="rd-cite-popover__source">{cite.source}</span>
+          <span className="rd-cite-popover__source">{sourceLabel(cite.source)}</span>
           {/* Sprint 3 P2.9 — source freshness */}
           <span className="rd-cite-popover__freshness">{sourceFreshness(cite.source)}</span>
         </span>

@@ -5,7 +5,7 @@ const ROUTES = [
   {
     path: "/?surface=home",
     name: "home",
-    readyHeading: /(Get the read before you walk in\.|Need the read before you walk in\?)/i,
+    readyHeading: /(Ask once\. Turn it into reusable intelligence\.|Daily intelligence pulse)/i,
   },
   {
     path: "/?surface=chat",
@@ -20,12 +20,12 @@ const ROUTES = [
   {
     path: "/?surface=inbox",
     name: "inbox",
-    readyHeading: "What changed, and what needs your attention.",
+    readyHeading: "Where you decide. Everything else runs in the background.",
   },
   {
     path: "/?surface=me",
     name: "me",
-    readyHeading: "Your context",
+    readyHeading: "This is what NodeBench remembers about you.",
   },
 ] as const;
 
@@ -220,7 +220,7 @@ async function ensureSurfaceReady(
       return;
     }
     await expect(
-      page.getByRole("textbox", { name: /paste notes, links, or your ask/i }).first(),
+      page.locator("textarea:visible").first(),
     ).toBeVisible({ timeout: 20_000 });
     return;
   }
@@ -228,7 +228,7 @@ async function ensureSurfaceReady(
 }
 
 async function ensureChatRunReady(page: Page, query: string) {
-  await expect(page).toHaveURL(/surface=chat/, { timeout: 20_000 });
+  await expect(page).toHaveURL(/(?:surface=chat|\/redesign\/chat(?:$|[/?#]))/, { timeout: 20_000 });
   await expect(page.getByText("Something went wrong")).toHaveCount(0);
   const queryHeading = page.getByRole("heading", { name: query }).first();
   const headingVisible = await queryHeading.isVisible().catch(() => false);
@@ -240,7 +240,7 @@ async function ensureChatRunReady(page: Page, query: string) {
   if (queryEchoVisible) {
     return;
   }
-  const primaryComposer = page.getByRole("textbox", { name: /paste notes, links, or your ask/i }).first();
+  const primaryComposer = page.locator("textarea:visible").first();
   if (await primaryComposer.count()) {
     await expect(primaryComposer).toBeVisible({ timeout: 20_000 });
     return;
@@ -263,6 +263,7 @@ async function setTheme(page: Page, theme: "dark" | "light") {
       }),
     );
     localStorage.setItem("theme", t);
+    localStorage.setItem("nodebench-redesign-qa-chrome", "1");
   }, theme);
 }
 
@@ -317,6 +318,7 @@ test.describe("Full UI Dogfood", () => {
         }),
       );
       localStorage.setItem("theme", "dark");
+      localStorage.setItem("nodebench-redesign-qa-chrome", "1");
     });
 
     activeRoute = "/";
@@ -350,12 +352,10 @@ test.describe("Full UI Dogfood", () => {
       activeRoute = "/?surface=home";
       await navigateWithinApp(page, "/?surface=home");
       const homeQuery = "What does Ditto AI do and what matters most right now?";
-      const homeInput = page
-        .getByRole("textbox", { name: /Ask anything - a company, a market, or a question|Paste notes, links, or your ask/ })
-        .first();
+      const homeInput = page.locator("textarea:visible").first();
       await expect(homeInput).toBeVisible({ timeout: 20_000 });
       await homeInput.fill(homeQuery);
-      await page.getByRole("button", { name: /^open workspace$/i }).first().click();
+      await page.getByRole("button", { name: /^run research$/i }).first().click();
       await page.waitForTimeout(2500);
       await ensureChatRunReady(page, homeQuery);
       await page.screenshot({
@@ -363,7 +363,7 @@ test.describe("Full UI Dogfood", () => {
         fullPage: true,
       });
 
-      const themeToggle = page.getByRole("button", { name: /switch to (light|dark) mode/i }).first();
+      const themeToggle = page.getByRole("button", { name: /toggle theme|switch to (light|dark) mode/i }).first();
       await expect(themeToggle).toBeVisible({ timeout: 20_000 });
       await themeToggle.click();
       await page.waitForTimeout(700);

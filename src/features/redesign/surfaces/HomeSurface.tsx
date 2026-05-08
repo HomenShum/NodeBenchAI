@@ -63,7 +63,7 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
   const [entitySort, setEntitySort] = useState<"newest" | "confidence" | "delta">("newest");
   const [activeStyle, setActiveStyle] = useState<MemoStyle>(memoStyles.find((s) => s.id === "user.inferred") ?? memoStyles[0]);
   const isFirstVisit = useFirstVisit();
-  // Sprint S4 (partial): pulse cards from live batchAutopilot briefMarkdown.
+  // Sprint S4: pulse cards from durable live artifacts; optional supplements stay non-blocking.
   const { pulse: livePulse } = useHomePulseLive();
   const liveArtifacts = useLiveArtifacts(24);
   const pulseCards = liveArtifacts.pulse.length > 0 ? liveArtifacts.pulse : livePulse;

@@ -19,6 +19,14 @@ import { api } from "../../../../convex/_generated/api";
 import type { ChatAnswer } from "../fixtures";
 import type { RouterTier } from "../components/UniversalComposer";
 
+export type ChatRunTier = "free" | "fast" | "auto" | "deep";
+
+export function normalizeRouterTierForChatRun(tier: RouterTier): ChatRunTier {
+  if (tier === "answer") return "fast";
+  if (tier === "compare") return "deep";
+  return tier;
+}
+
 type EvidenceRow = ChatAnswer["evidence"][number];
 type TraceRow = ChatAnswer["trace"][number];
 
@@ -150,7 +158,7 @@ export function useRedesignChatRun() {
       }
       setError(null);
       try {
-        const runId = await startChat({ prompt, tier, contextRef, pinnedClaims });
+        const runId = await startChat({ prompt, tier: normalizeRouterTierForChatRun(tier), contextRef, pinnedClaims });
         setActiveRunId(runId);
         return runId;
       } catch (err: any) {

@@ -1,32 +1,14 @@
 /**
- * useInboxLive — Sprint Step 3 (client-side aggregator).
+ * useInboxLive - client-side live Inbox aggregator.
  *
- * Unions live data from two existing Convex endpoints into the redesign's `InboxItem` shape:
- *   - convex/domains/operations/batchAutopilot/queries.ts:getRecentRuns
- *       → lane = "batch_review" when status === "completed"
- *   - convex/domains/pipelines/pipelineRunsQueries.ts:listRecentRuns
- *       → lane = "agent_suggestions" when verdict in {needs_review}
- *
- * For lanes without backend data yet (`captures`, `watchlist`, `approvals`), the hook
- * returns no rows instead of falling back to fixtures. The proper fix is a server-side
- * aggregator (`convex/domains/inbox/queries.ts:listItems`) - see the backend sprint plan.
+ * The public Inbox should survive supporting operations outages. Keep the
+ * stable pipeline-run feed live, and do not call batch-autopilot telemetry
+ * from the web shell until the deployed auth-safe query is available.
  */
 
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { InboxItem } from "../fixtures";
-
-interface BatchAutopilotRun {
-  _id: string;
-  status: string;
-  startedAt: number;
-  completedAt?: number;
-  feedItemsCount: number;
-  signalsCount: number;
-  narrativeEventsCount: number;
-  briefMarkdown?: string;
-  briefDocumentId?: string;
-}
 
 interface PipelineRun {
   _id: string;
@@ -51,22 +33,6 @@ function timeAgo(at: number): string {
   return `${d}d ago`;
 }
 
-function batchToInbox(run: BatchAutopilotRun): InboxItem {
-  const total = run.feedItemsCount + run.signalsCount + run.narrativeEventsCount;
-  const heading = (run.briefMarkdown ?? "").match(/^#+\s+(.+)$/m)?.[1]?.slice(0, 64);
-  return {
-    id: `bar_${run._id}`,
-    lane: "batch_review",
-    category: "automation",
-    whyHere: "BATCH COMPLETE",
-    whyTone: "amber",
-    title: heading ?? "Operator brief ready",
-    body: (run.briefMarkdown ?? "Batch run completed. Review the brief and accept to publish.").slice(0, 280),
-    meta: `${timeAgo(run.completedAt ?? run.startedAt)} · ${total} signals collected`,
-    confidence: total > 50 ? 0.8 : total > 20 ? 0.65 : 0.5,
-  };
-}
-
 function pipelineToInbox(run: PipelineRun): InboxItem {
   const verdictMap: Record<string, { tone: InboxItem["whyTone"]; label: string; confidence: number }> = {
     needs_review: { tone: "amber", label: "NEEDS REVIEW", confidence: 0.55 },
@@ -74,17 +40,17 @@ function pipelineToInbox(run: PipelineRun): InboxItem {
     failed: { tone: "amber", label: "FAILED", confidence: 0.3 },
     verified: { tone: "green", label: "VERIFIED", confidence: 0.92 },
   };
-  const v = verdictMap[run.verdict ?? "needs_review"] ?? verdictMap.needs_review;
+  const verdict = verdictMap[run.verdict ?? "needs_review"] ?? verdictMap.needs_review;
   return {
     id: `pr_${run._id}`,
     lane: "agent_suggestions",
     category: "automation",
-    whyHere: v.label,
-    whyTone: v.tone,
+    whyHere: verdict.label,
+    whyTone: verdict.tone,
     title: run.title,
-    body: run.errorMessage ?? `Pipeline run · ${run.pipelineKind} · model ${run.modelId}.`,
-    meta: `${timeAgo(run.createdAt)} · pipeline run #${run.runId.slice(-6)}`,
-    confidence: v.confidence,
+    body: run.errorMessage ?? `Pipeline run - ${run.pipelineKind} - model ${run.modelId}.`,
+    meta: `${timeAgo(run.createdAt)} - pipeline run #${run.runId.slice(-6)}`,
+    confidence: verdict.confidence,
   };
 }
 
@@ -96,25 +62,19 @@ export interface UseInboxLiveResult {
 }
 
 export function useInboxLive(): UseInboxLiveResult {
-  const liveBatch = useQuery(
-    (api as unknown as { domains: { operations: { batchAutopilot: { queries: { getRecentRuns: unknown } } } } })
-      .domains.operations.batchAutopilot.queries.getRecentRuns as Parameters<typeof useQuery>[0],
-    { limit: 20 } as Parameters<typeof useQuery>[1],
-  ) as BatchAutopilotRun[] | undefined;
-
   const livePipeline = useQuery(
     (api as unknown as { domains: { pipelines: { pipelineRunsQueries: { listRecentRuns: unknown } } } })
       .domains.pipelines.pipelineRunsQueries.listRecentRuns as Parameters<typeof useQuery>[0],
     { limit: 20 } as Parameters<typeof useQuery>[1],
   ) as PipelineRun[] | undefined;
 
-  const isLoading = liveBatch === undefined || livePipeline === undefined;
-  if (isLoading) return { items: [], isLive: false, isLoading: true, liveCount: 0 };
+  if (livePipeline === undefined) {
+    return { items: [], isLive: false, isLoading: true, liveCount: 0 };
+  }
 
-  const liveItems: InboxItem[] = [
-    ...(liveBatch ?? []).filter((r) => r.status === "completed").map(batchToInbox),
-    ...(livePipeline ?? []).filter((r) => r.verdict === "needs_review" || r.verdict === "failed").map(pipelineToInbox),
-  ];
+  const liveItems = livePipeline
+    .filter((run) => run.verdict === "needs_review" || run.verdict === "failed")
+    .map(pipelineToInbox);
 
   if (liveItems.length === 0) {
     return { items: [], isLive: false, isLoading: false, liveCount: 0 };
