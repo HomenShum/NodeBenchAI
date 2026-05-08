@@ -1005,6 +1005,7 @@ import type * as domains_research_dailyBriefMemoryQueries from "../domains/resea
 import type * as domains_research_dailyBriefPersonalOverlay from "../domains/research/dailyBriefPersonalOverlay.js";
 import type * as domains_research_dailyBriefPersonalOverlayMutations from "../domains/research/dailyBriefPersonalOverlayMutations.js";
 import type * as domains_research_dailyBriefPersonalOverlayQueries from "../domains/research/dailyBriefPersonalOverlayQueries.js";
+import type * as domains_research_dailyBriefSourceVerification from "../domains/research/dailyBriefSourceVerification.js";
 import type * as domains_research_dailyBriefWorker from "../domains/research/dailyBriefWorker.js";
 import type * as domains_research_dashboardMetrics from "../domains/research/dashboardMetrics.js";
 import type * as domains_research_dashboardMutations from "../domains/research/dashboardMutations.js";
@@ -2483,6 +2484,7 @@ declare const fullApi: ApiFromModules<{
   "domains/research/dailyBriefPersonalOverlay": typeof domains_research_dailyBriefPersonalOverlay;
   "domains/research/dailyBriefPersonalOverlayMutations": typeof domains_research_dailyBriefPersonalOverlayMutations;
   "domains/research/dailyBriefPersonalOverlayQueries": typeof domains_research_dailyBriefPersonalOverlayQueries;
+  "domains/research/dailyBriefSourceVerification": typeof domains_research_dailyBriefSourceVerification;
   "domains/research/dailyBriefWorker": typeof domains_research_dailyBriefWorker;
   "domains/research/dashboardMetrics": typeof domains_research_dashboardMetrics;
   "domains/research/dashboardMutations": typeof domains_research_dashboardMutations;

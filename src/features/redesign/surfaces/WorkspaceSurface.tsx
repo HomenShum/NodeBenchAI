@@ -5,7 +5,7 @@
  * Mounted at /redesign/workspace. Spec: separate deployed surface, not a sixth tab in main app.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useConvex } from "convex/react";
 import { useConvexApi } from "@/lib/convexApi";
@@ -23,6 +23,35 @@ import {
 } from "../hooks/useLiveArtifacts";
 
 type Tab = "brief" | "cards" | "notebook" | "sources" | "chat" | "map";
+
+type SourceVerificationResult = {
+  runId: string;
+  generatedAt: number;
+  verdict: "supported" | "needs_review" | "unreachable";
+  score: number;
+  checked: number;
+  passed: number;
+  results: Array<{
+    title: string;
+    url: string;
+    host: string;
+    ok: boolean;
+    status?: number;
+    contentHash?: string;
+    contentBytes?: number;
+    contentType?: string;
+    cacheAction?: string;
+    supportScore: number;
+    verdict: "supports" | "partial" | "weak" | "unreachable";
+    reason: string;
+  }>;
+};
+
+type SourceVerificationState =
+  | { status: "idle" }
+  | { status: "running"; label: string }
+  | { status: "done"; label: string; result: SourceVerificationResult }
+  | { status: "error"; label: string; message: string };
 
 const TABS: Array<{ id: Tab; label: string; hint: string }> = [
   { id: "brief", label: "Brief", hint: "Read summary" },
@@ -42,16 +71,28 @@ function isLiveArtifactReportId(id: string): boolean {
   return /^(daily|li|run)_/.test(id);
 }
 
+function hostFromHref(href: string): string {
+  try {
+    return new URL(href).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
 export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSurfaceProps) {
   const navigate = useNavigate();
   const convex = useConvex();
   const api = useConvexApi();
   const [tab, setTab] = useState<Tab>(initialTab);
   const [promoting, setPromoting] = useState(false);
+  const [sourceVerification, setSourceVerification] = useState<SourceVerificationState>({ status: "idle" });
   const liveArtifacts = useLiveArtifacts(60);
   const selectedReportId = reportId ?? liveArtifacts.reports[0]?.id ?? "";
   const workspaceNeedsSelection = !selectedReportId;
   const selectedIsLiveArtifact = selectedReportId ? isLiveArtifactReportId(selectedReportId) : false;
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
   const liveReport = useMemo(
     () => liveArtifacts.reports.find((report) => report.id === selectedReportId),
     [liveArtifacts.reports, selectedReportId],
@@ -60,11 +101,24 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
     () => liveArtifacts.details.find((detail) => detail.id === selectedReportId),
     [liveArtifacts.details, selectedReportId],
   );
-  const liveArtifactUnavailable = Boolean(selectedIsLiveArtifact && !liveDetail && !liveArtifacts.isLoading);
+  const latestLiveDetail = liveArtifacts.details[0];
+  const latestLiveReport = latestLiveDetail
+    ? liveArtifacts.reports.find((report) => report.id === latestLiveDetail.id)
+    : liveArtifacts.reports[0];
+  const shouldFallForwardToLatest = Boolean(
+    selectedIsLiveArtifact &&
+    !liveDetail &&
+    !liveArtifacts.isLoading &&
+    latestLiveDetail,
+  );
+  const effectiveLiveDetail = liveDetail ?? (shouldFallForwardToLatest ? latestLiveDetail : undefined);
+  const effectiveLiveReport = liveReport ?? (shouldFallForwardToLatest ? latestLiveReport : undefined);
+  const effectiveReportId = effectiveLiveDetail?.id ?? effectiveLiveReport?.id ?? selectedReportId;
+  const liveArtifactUnavailable = Boolean(selectedIsLiveArtifact && !liveDetail && !liveArtifacts.isLoading && !latestLiveDetail);
   const liveArtifactResolving = Boolean(selectedIsLiveArtifact && !liveDetail && liveArtifacts.isLoading);
   const workspaceTitle =
-    liveDetail?.title ??
-    liveReport?.entity ??
+    effectiveLiveDetail?.title ??
+    effectiveLiveReport?.entity ??
     (workspaceNeedsSelection
       ? "Loading live workspace"
       : liveArtifactResolving
@@ -72,18 +126,68 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
         : liveArtifactUnavailable
           ? "Live artifact unavailable"
           : "Workspace draft");
-  const workspaceKind = liveDetail?.kind ?? liveReport?.kind ?? "Workspace";
-  const workspaceSources = liveDetail?.sourceCount ?? liveReport?.sources ?? 0;
-  const workspaceClaims = liveDetail?.claimCount ?? liveReport?.claims ?? 0;
-  const workspaceFollowUps = liveDetail?.followUps ?? liveReport?.followUps ?? 0;
-  const workspaceFreshness = liveDetail?.updatedAt ?? liveReport?.updatedAt ?? "awaiting live artifact";
+  const workspaceKind = effectiveLiveDetail?.kind ?? effectiveLiveReport?.kind ?? "Workspace";
+  const workspaceSources = effectiveLiveDetail?.sourceCount ?? effectiveLiveReport?.sources ?? 0;
+  const workspaceClaims = effectiveLiveDetail?.claimCount ?? effectiveLiveReport?.claims ?? 0;
+  const workspaceFollowUps = effectiveLiveDetail?.followUps ?? effectiveLiveReport?.followUps ?? 0;
+  const workspaceFreshness = effectiveLiveDetail?.updatedAt ?? effectiveLiveReport?.updatedAt ?? "awaiting live artifact";
   const createDraftReportRef = (api?.domains?.product?.reports as any)?.createDraftReport;
   const saveReportNotebookHtmlRef = (api?.domains?.product?.reports as any)?.saveReportNotebookHtml;
-  const isPromotableLiveArtifact = Boolean(liveReport && selectedIsLiveArtifact);
+  const verifySourceSupportRef = (api?.domains?.research?.dailyBriefSourceVerification as any)?.verifyDailyBriefSourceSupport;
+  const isPromotableLiveArtifact = Boolean(effectiveLiveReport && selectedIsLiveArtifact);
   const canPromoteLiveArtifact = Boolean(isPromotableLiveArtifact && createDraftReportRef && saveReportNotebookHtmlRef);
 
+  const setWorkspaceTab = (nextTab: Tab) => {
+    setTab(nextTab);
+    const params = new URLSearchParams();
+    if (effectiveReportId) params.set("report", effectiveReportId);
+    params.set("tab", nextTab);
+    navigate(`/redesign/workspace?${params.toString()}`, { replace: false });
+  };
+
+  const verifySourceSupport = async (
+    label: string,
+    claimText: string,
+    rows = effectiveLiveDetail?.sourceRows ?? [],
+  ) => {
+    const sources = rows
+      .filter((source) => source.href)
+      .slice(0, 4)
+      .map((source) => ({
+        title: source.title || source.type || "Source",
+        url: source.href!,
+        host: hostFromHref(source.href!) || source.type || "source",
+        relevance: source.excerpt,
+      }));
+    if (!verifySourceSupportRef) {
+      showToast({ tone: "warning", message: "Source verification action is still connecting." });
+      return;
+    }
+    if (!sources.length) {
+      showToast({ tone: "info", message: "No public source URLs are attached to this selection yet." });
+      return;
+    }
+    setSourceVerification({ status: "running", label });
+    try {
+      const result = await convex.action(verifySourceSupportRef, {
+        claimText,
+        sources,
+        maxSources: sources.length,
+      }) as SourceVerificationResult;
+      setSourceVerification({ status: "done", label, result });
+      showToast({
+        tone: result.verdict === "supported" ? "success" : result.verdict === "needs_review" ? "warning" : "info",
+        message: `Checked ${result.checked} sources. Verdict: ${result.verdict.replace("_", " ")}.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown verification error";
+      setSourceVerification({ status: "error", label, message });
+      showToast({ tone: "warning", message: `Source verification failed: ${message.slice(0, 90)}` });
+    }
+  };
+
   const promoteLiveArtifact = async () => {
-    if (!liveReport) return;
+    if (!effectiveLiveReport) return;
     if (!canPromoteLiveArtifact) {
       showToast({
         tone: "info",
@@ -96,16 +200,16 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
       const anonymousSessionId = getAnonymousProductSessionId();
       const created = await convex.mutation(createDraftReportRef, {
         anonymousSessionId,
-        title: liveReport.entity,
-        summary: liveReport.description,
-        query: liveReport.entity,
-        type: liveReport.kind,
+        title: effectiveLiveReport.entity,
+        summary: effectiveLiveReport.description,
+        query: effectiveLiveReport.entity,
+        type: effectiveLiveReport.kind,
       });
       if (!created?.reportId) throw new Error("Missing report id");
       await convex.mutation(saveReportNotebookHtmlRef, {
         anonymousSessionId,
         reportId: created.reportId,
-        notebookHtml: liveDetail ? buildLiveArtifactNotebookHtml(liveDetail) : buildPromotedLiveArtifactHtml(liveReport),
+        notebookHtml: effectiveLiveDetail ? buildLiveArtifactNotebookHtml(effectiveLiveDetail) : buildPromotedLiveArtifactHtml(effectiveLiveReport),
       });
       showToast({
         tone: "success",
@@ -124,9 +228,9 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
   };
 
   return (
-    <div className="rd-stack" style={{ height: "100%", overflow: "hidden" }}>
+    <div className="rd-stack rd-workspace-surface" style={{ height: "100%", overflow: "hidden" }}>
       {/* Workspace header */}
-      <header style={{
+      <header className="rd-workspace-header" style={{
         padding: "16px 28px",
         borderBottom: "1px solid var(--rd-line-faint)",
         background: "var(--rd-paper)",
@@ -134,16 +238,19 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
       }}>
           <div className="rd-row" style={{ gap: 8 }}>
           <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>
-            REPORTS / {(selectedReportId || "LIVE").toUpperCase()}
+            REPORTS / {(effectiveReportId || "LIVE").toUpperCase()}
           </span>
           <span style={{ color: "var(--rd-ink-faint)" }}>›</span>
           <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink)" }}>WORKSPACE</span>
+          {shouldFallForwardToLatest && (
+            <Pill tone="amber">Requested artifact aged out - showing latest live brief</Pill>
+          )}
         </div>
 
-        <div className="rd-row--between" style={{ marginTop: 10 }}>
+        <div className="rd-row--between" style={{ marginTop: 10, gap: 14, flexWrap: "wrap" }}>
           <div className="rd-stack" style={{ gap: 6 }}>
             <h1 className="rd-h1" style={{ fontSize: 22 }}>{workspaceTitle}</h1>
-            <div className="rd-row" style={{ gap: 8, fontSize: 11.5, color: "var(--rd-ink-soft)" }}>
+            <div className="rd-row" style={{ gap: 8, fontSize: 11.5, color: "var(--rd-ink-soft)", flexWrap: "wrap" }}>
               <Pill tone="green"><span className="rd-dot rd-dot--live" />Fresh · {workspaceFreshness}</Pill>
               <span>{workspaceSources} sources</span>
               <span>·</span>
@@ -155,7 +262,7 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
             </div>
           </div>
 
-          <div className="rd-row" style={{ gap: 6 }}>
+          <div className="rd-row rd-workspace-actions" style={{ gap: 6, flexWrap: "wrap" }}>
             {isPromotableLiveArtifact && (
               <button
                 className="rd-btn rd-btn--primary rd-btn--sm"
@@ -173,7 +280,7 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
 
         {/* Tabs */}
         <div style={{ marginTop: 14 }}>
-          <div className="rd-tabs" role="tablist" aria-label="Workspace tabs">
+          <div className="rd-tabs rd-workspace-tabs" role="tablist" aria-label="Workspace tabs">
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -181,7 +288,7 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
                 aria-selected={tab === t.id}
                 title={t.hint}
                 className="rd-tab"
-                onClick={() => setTab(t.id)}
+                onClick={() => setWorkspaceTab(t.id)}
               >{t.label}</button>
             ))}
           </div>
@@ -191,38 +298,60 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
       {/* Active tab content */}
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden", background: "var(--rd-paper-warm)" }}>
         {tab === "brief" && (
-          (workspaceNeedsSelection || (selectedIsLiveArtifact && !liveDetail))
+          (workspaceNeedsSelection || (selectedIsLiveArtifact && !effectiveLiveDetail))
             ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
-            : <BriefTab report={liveReport} detail={liveDetail} />
+            : <BriefTab report={effectiveLiveReport} detail={effectiveLiveDetail} />
         )}
         {tab === "cards" && (
-          liveDetail
-            ? <LiveCardsTab detail={liveDetail} />
+          effectiveLiveDetail
+            ? (
+              <LiveCardsTab
+                detail={effectiveLiveDetail}
+                onOpenSources={() => setWorkspaceTab("sources")}
+                onOpenNotebook={() => setWorkspaceTab("notebook")}
+                onVerifySupport={(label, claimText) => verifySourceSupport(label, claimText)}
+              />
+            )
             : <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
         )}
         {tab === "notebook" && (
-          (workspaceNeedsSelection || (selectedIsLiveArtifact && !liveDetail))
+          (workspaceNeedsSelection || (selectedIsLiveArtifact && !effectiveLiveDetail))
             ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
             : (
               <div style={{ height: "100%", padding: "16px 24px 24px" }}>
-                <ReportNotebookView reportId={selectedReportId || "workspace-draft"} embedded liveDetail={liveDetail} />
+                <ReportNotebookView reportId={effectiveReportId || "workspace-draft"} embedded liveDetail={effectiveLiveDetail} />
               </div>
             )
         )}
         {tab === "sources" && (
-          liveDetail
-            ? <SourcesTab report={liveReport} detail={liveDetail} />
+          effectiveLiveDetail
+            ? (
+              <SourcesTab
+                report={effectiveLiveReport}
+                detail={effectiveLiveDetail}
+                verification={sourceVerification}
+                onVerifySupport={(label, claimText, rows) => verifySourceSupport(label, claimText, rows)}
+              />
+            )
             : workspaceNeedsSelection || selectedIsLiveArtifact
               ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
-              : <SourcesTab report={liveReport} />
+              : <SourcesTab report={effectiveLiveReport} />
         )}
-        {tab === "chat" && <ChatSurface contextLabel={`Asking about: ${workspaceTitle}`} />}
+        {tab === "chat" && <ChatSurface contextLabel={`Asking about: ${workspaceTitle}`} workspaceDetail={effectiveLiveDetail} />}
         {tab === "map" && (
-          liveDetail
-            ? <MapTab detail={liveDetail} />
+          effectiveLiveDetail
+            ? (
+              <MapTab
+                detail={effectiveLiveDetail}
+                verification={sourceVerification}
+                onOpenCards={() => setWorkspaceTab("cards")}
+                onOpenSources={() => setWorkspaceTab("sources")}
+                onVerifySupport={(label, claimText) => verifySourceSupport(label, claimText)}
+              />
+            )
             : workspaceNeedsSelection || selectedIsLiveArtifact
               ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
-              : <MapTab />
+              : <MapTab onOpenCards={() => setWorkspaceTab("cards")} />
         )}
       </div>
     </div>
@@ -468,7 +597,17 @@ function NotebookTab() {
   );
 }
 
-function LiveCardsTab({ detail }: { detail: LiveArtifactDetail }) {
+function LiveCardsTab({
+  detail,
+  onOpenSources,
+  onOpenNotebook,
+  onVerifySupport,
+}: {
+  detail: LiveArtifactDetail;
+  onOpenSources: () => void;
+  onOpenNotebook: () => void;
+  onVerifySupport: (label: string, claimText: string) => void;
+}) {
   const items = detail.sections.flatMap((section) => section.items ?? []).slice(0, 12);
   return (
     <div className="rd-stack" style={{ gap: 14, padding: "28px 32px", overflow: "auto", height: "100%" }}>
@@ -480,7 +619,15 @@ function LiveCardsTab({ detail }: { detail: LiveArtifactDetail }) {
             Live artifact cards turn each signal into a reviewable node before it moves into notebook memory.
           </p>
         </div>
-        <button className="rd-btn rd-btn--primary rd-btn--sm">Promote top card</button>
+        <button
+          className="rd-btn rd-btn--primary rd-btn--sm"
+          onClick={() => {
+            onOpenNotebook();
+            showToast({ tone: "success", message: "Opened the notebook so the top card can be promoted into editable memory." });
+          }}
+        >
+          Promote top card
+        </button>
       </header>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12, maxWidth: 1040 }}>
@@ -495,9 +642,30 @@ function LiveCardsTab({ detail }: { detail: LiveArtifactDetail }) {
             <h3 style={{ fontSize: 15, lineHeight: 1.25, color: "var(--rd-ink-strong)", margin: 0 }}>{item.label}</h3>
             <p style={{ fontSize: 12.5, color: "var(--rd-ink-mute)", lineHeight: 1.45, margin: "8px 0 12px" }}>{item.body}</p>
             <div className="rd-row" style={{ gap: 6 }}>
-              <button className="rd-btn rd-btn--quiet rd-btn--sm">Open</button>
-              <button className="rd-btn rd-btn--quiet rd-btn--sm">Add to notebook</button>
-              <button className="rd-btn rd-btn--quiet rd-btn--sm">Verify</button>
+              <button
+                className="rd-btn rd-btn--quiet rd-btn--sm"
+                onClick={() => {
+                  onOpenSources();
+                  showToast({ tone: "info", message: `Opening source rows for ${item.label}.` });
+                }}
+              >
+                Open
+              </button>
+              <button
+                className="rd-btn rd-btn--quiet rd-btn--sm"
+                onClick={() => {
+                  onOpenNotebook();
+                  showToast({ tone: "success", message: `Notebook opened for ${item.label}.` });
+                }}
+              >
+                Add to notebook
+              </button>
+              <button
+                className="rd-btn rd-btn--quiet rd-btn--sm"
+                onClick={() => onVerifySupport(item.label, `${item.label}. ${item.body}`)}
+              >
+                Verify
+              </button>
             </div>
           </article>
         ))}
@@ -506,7 +674,75 @@ function LiveCardsTab({ detail }: { detail: LiveArtifactDetail }) {
   );
 }
 
-function SourcesTab({ report, detail }: { report?: ReportCardData; detail?: LiveArtifactDetail }) {
+function SourceVerificationPanel({ verification }: { verification: SourceVerificationState }) {
+  if (verification.status === "idle") return null;
+  if (verification.status === "running") {
+    return (
+      <section className="rd-card rd-card__pad-tight" style={{ background: "var(--rd-panel)" }}>
+        <div className="rd-row--between" style={{ gap: 12 }}>
+          <div>
+            <div className="rd-eyebrow">Source support check</div>
+            <p className="rd-faint" style={{ marginTop: 4, fontSize: 12.5 }}>
+              Re-fetching public sources for {verification.label}. This writes a canonical content hash when the source is safe to cache.
+            </p>
+          </div>
+          <Pill tone="blue">Running</Pill>
+        </div>
+      </section>
+    );
+  }
+  if (verification.status === "error") {
+    return (
+      <section className="rd-card rd-card__pad-tight" style={{ background: "var(--rd-panel)" }}>
+        <div className="rd-eyebrow">Source support check failed</div>
+        <p className="rd-faint" style={{ marginTop: 4, fontSize: 12.5 }}>{verification.message}</p>
+      </section>
+    );
+  }
+  const { result } = verification;
+  return (
+    <section className="rd-card rd-card__pad-tight" style={{ background: "var(--rd-panel)" }}>
+      <div className="rd-row--between" style={{ gap: 12, alignItems: "flex-start" }}>
+        <div>
+          <div className="rd-eyebrow">Source support check</div>
+          <h3 style={{ margin: "5px 0 0", fontSize: 14, color: "var(--rd-ink-strong)" }}>
+            {verification.label} - {result.verdict.replace("_", " ")} ({Math.round(result.score)}/100)
+          </h3>
+          <p className="rd-faint" style={{ marginTop: 5, fontSize: 12.5 }}>
+            Checked {result.checked} public sources, {result.passed} passed support threshold. Run {result.runId}.
+          </p>
+        </div>
+        <Pill tone={result.verdict === "supported" ? "green" : result.verdict === "needs_review" ? "amber" : "blue"}>
+          {result.verdict.replace("_", " ")}
+        </Pill>
+      </div>
+      <div className="rd-stack" style={{ gap: 6, marginTop: 10 }}>
+        {result.results.slice(0, 4).map((row) => (
+          <div key={`${row.url}-${row.contentHash ?? row.status ?? row.verdict}`} className="rd-row--between" style={{ gap: 10, fontSize: 11.5 }}>
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {row.host || row.title} - {row.reason}
+            </span>
+            <span className="rd-mono" style={{ color: "var(--rd-ink-soft)", flexShrink: 0 }}>
+              {row.contentHash ? `sha256 ${row.contentHash.slice(0, 10)}` : row.verdict}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SourcesTab({
+  report,
+  detail,
+  verification = { status: "idle" },
+  onVerifySupport,
+}: {
+  report?: ReportCardData;
+  detail?: LiveArtifactDetail;
+  verification?: SourceVerificationState;
+  onVerifySupport?: (label: string, claimText: string, rows?: LiveArtifactDetail["sourceRows"]) => void;
+}) {
   if (detail) {
     return (
       <div className="rd-stack" style={{ gap: 14, padding: "28px 32px", maxWidth: 920, overflow: "auto", height: "100%" }}>
@@ -517,6 +753,8 @@ function SourcesTab({ report, detail }: { report?: ReportCardData; detail?: Live
             Each row is tied to a claim, daily-brief check, or published archive artifact.
           </p>
         </header>
+
+        <SourceVerificationPanel verification={verification} />
 
         <div className="rd-card" style={{ padding: 0 }}>
           {detail.sourceRows.map((s, i) => (
@@ -549,7 +787,12 @@ function SourcesTab({ report, detail }: { report?: ReportCardData; detail?: Live
                 >
                   Open
                 </button>
-                <button className="rd-btn rd-btn--quiet rd-btn--sm">Verify</button>
+                <button
+                  className="rd-btn rd-btn--quiet rd-btn--sm"
+                  onClick={() => onVerifySupport?.(s.title, `${s.title}. ${s.excerpt}`, [s])}
+                >
+                  Verify
+                </button>
               </div>
             </div>
           ))}
@@ -596,8 +839,18 @@ function SourcesTab({ report, detail }: { report?: ReportCardData; detail?: Live
               </div>
             </div>
             <div className="rd-row" style={{ gap: 4 }}>
-              <button className="rd-btn rd-btn--quiet rd-btn--sm">Open</button>
-              <button className="rd-btn rd-btn--quiet rd-btn--sm">Verify</button>
+              <button
+                className="rd-btn rd-btn--quiet rd-btn--sm"
+                onClick={() => showToast({ tone: "info", message: "This starter source needs a live URL before it can open." })}
+              >
+                Open
+              </button>
+              <button
+                className="rd-btn rd-btn--quiet rd-btn--sm"
+                onClick={() => showToast({ tone: "info", message: "Open a live artifact to verify source support." })}
+              >
+                Verify
+              </button>
             </div>
           </div>
         ))}
@@ -606,17 +859,40 @@ function SourcesTab({ report, detail }: { report?: ReportCardData; detail?: Live
   );
 }
 
-function MapTab({ detail }: { detail?: LiveArtifactDetail }) {
+function MapTab({
+  detail,
+  verification = { status: "idle" },
+  onOpenCards,
+  onOpenSources,
+  onVerifySupport,
+}: {
+  detail?: LiveArtifactDetail;
+  verification?: SourceVerificationState;
+  onOpenCards?: () => void;
+  onOpenSources?: () => void;
+  onVerifySupport?: (label: string, claimText: string) => void;
+}) {
+  const [selectedNodeId, setSelectedNodeId] = useState("root");
   if (detail) {
     const positions = buildMapPositions(detail.nodes);
+    const selectedNode = detail.nodes.find((node) => node.id === selectedNodeId) ?? detail.nodes[0];
+    const selectedItems = detail.sections
+      .flatMap((section) => section.items ?? [])
+      .filter((item) => selectedNode?.id === "root" || item.label.toLowerCase().includes((selectedNode?.title ?? "").toLowerCase().slice(0, 12)))
+      .slice(0, 2);
+    const selectedClaim = selectedItems[0]
+      ? `${selectedItems[0].label}. ${selectedItems[0].body}`
+      : `${selectedNode?.title ?? detail.title}. ${detail.summary}`;
     return (
       <div style={{ position: "relative", height: "100%", padding: 32, overflow: "hidden" }}>
-        <div className="rd-row--between" style={{ position: "absolute", top: 16, left: 32, right: 32, zIndex: 2 }}>
-          <Pill tone="blue">Map - wide-angle relationships</Pill>
-          <div className="rd-row" style={{ gap: 6 }}>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm">Filter</button>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm">Confidence &gt;= 0.7</button>
-            <button className="rd-btn rd-btn--primary rd-btn--sm">Open in Cards</button>
+        <div className="rd-row--between rd-map-toolbar" style={{ position: "absolute", top: 16, left: 32, right: 32, zIndex: 2, gap: 10 }}>
+          <Pill tone="blue">Top recommended flows</Pill>
+          <div className="rd-row" style={{ gap: 6, flexWrap: "wrap" }}>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Map is filtered to the strongest live relationships." })}>Top flows</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Showing confidence >= 0.7 relationships." })}>Confidence &gt;= 0.7</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onOpenSources}>Sources</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => onVerifySupport?.(selectedNode?.title ?? detail.title, selectedClaim)}>Verify support</button>
+            <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={onOpenCards}>Open in Cards</button>
           </div>
         </div>
 
@@ -650,14 +926,28 @@ function MapTab({ detail }: { detail?: LiveArtifactDetail }) {
                 subtitle={node.subtitle}
                 tone={node.tone}
                 size={node.id === "root" ? "lg" : "md"}
+                selected={node.id === selectedNode?.id}
+                onSelect={() => setSelectedNodeId(node.id)}
               />
             );
           })}
         </svg>
 
-        <p className="rd-mono" style={{ position: "absolute", bottom: 16, left: 32, fontSize: 10.5, color: "var(--rd-ink-soft)" }}>
-          Graph preview is generated from the selected report artifact. Cards remain the primary review surface.
-        </p>
+        <aside className="rd-card rd-map-node-panel" style={{ position: "absolute", right: 32, bottom: 28, width: 360, maxWidth: "calc(100% - 64px)", padding: 14, background: "var(--rd-panel)" }}>
+          <div className="rd-eyebrow">Selected flow</div>
+          <h3 style={{ margin: "5px 0 0", fontSize: 15, color: "var(--rd-ink-strong)" }}>{selectedNode?.title ?? detail.title}</h3>
+          <p className="rd-faint" style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.45 }}>
+            {selectedItems[0]?.body ?? detail.primaryAction}
+          </p>
+          <div className="rd-row" style={{ gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onOpenSources}>Evidence</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => onVerifySupport?.(selectedNode?.title ?? detail.title, selectedClaim)}>Verify support</button>
+            <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={onOpenCards}>Open cards</button>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <SourceVerificationPanel verification={verification} />
+          </div>
+        </aside>
       </div>
     );
   }
@@ -665,11 +955,11 @@ function MapTab({ detail }: { detail?: LiveArtifactDetail }) {
   return (
     <div style={{ position: "relative", height: "100%", padding: 32, overflow: "hidden" }}>
       <div className="rd-row--between" style={{ position: "absolute", top: 16, left: 32, right: 32, zIndex: 2 }}>
-        <Pill tone="blue">Map · wide-angle relationships</Pill>
+        <Pill tone="blue">Map - wide-angle relationships</Pill>
         <div className="rd-row" style={{ gap: 6 }}>
-          <button className="rd-btn rd-btn--quiet rd-btn--sm">Filter</button>
-          <button className="rd-btn rd-btn--quiet rd-btn--sm">Confidence ≥ 0.7</button>
-          <button className="rd-btn rd-btn--primary rd-btn--sm">Open in Cards</button>
+          <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Open a live report to filter graph relationships." })}>Filter</button>
+          <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Confidence filtering needs a live artifact." })}>Confidence &gt;= 0.7</button>
+          <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={onOpenCards}>Open in Cards</button>
         </div>
       </div>
 
@@ -693,7 +983,7 @@ function MapTab({ detail }: { detail?: LiveArtifactDetail }) {
 
         {/* Root placeholder graph */}
         <circle cx="400" cy="240" r="80" fill="url(#rd-glow)" />
-        <MapNode cx={400} cy={240} title="Live report" subtitle="Artifact · root" tone="accent" size="lg" />
+        <MapNode cx={400} cy={240} title="Live report" subtitle="Artifact - root" tone="accent" size="lg" />
 
         {/* Spokes */}
         <MapNode cx={240} cy={140} title="Claim" subtitle="Needs evidence" tone="blue" />
@@ -727,9 +1017,11 @@ function buildMapPositions(nodes: LiveArtifactMapNode[]): Record<string, { x: nu
   return positions;
 }
 
-function MapNode({ cx, cy, title, subtitle, tone = "default", size = "md" }: {
+function MapNode({ cx, cy, title, subtitle, tone = "default", size = "md", selected = false, onSelect }: {
   cx: number; cy: number; title: string; subtitle: string;
   tone?: "default" | "accent" | "blue" | "green" | "amber"; size?: "md" | "lg";
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   const r = size === "lg" ? 36 : 26;
   const fillMap: Record<string, string> = {
@@ -747,8 +1039,21 @@ function MapNode({ cx, cy, title, subtitle, tone = "default", size = "md" }: {
     amber: "var(--rd-amber)",
   };
   return (
-    <g>
-      <circle cx={cx} cy={cy} r={r} fill={fillMap[tone]} stroke={colorMap[tone]} strokeWidth={1.2} />
+    <g
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (!onSelect) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      style={{ cursor: onSelect ? "pointer" : "default", outline: "none" }}
+    >
+      <circle cx={cx} cy={cy} r={r + (selected ? 5 : 0)} fill="transparent" stroke={selected ? "var(--rd-accent)" : "transparent"} strokeWidth={selected ? 2 : 0} />
+      <circle cx={cx} cy={cy} r={r} fill={fillMap[tone]} stroke={colorMap[tone]} strokeWidth={selected ? 2 : 1.2} />
       <text x={cx} y={cy + r + 16} textAnchor="middle" fontSize={12} fontWeight={590} fill="var(--rd-ink-strong)">{title}</text>
       <text x={cx} y={cy + r + 30} textAnchor="middle" fontSize={10.5} fill="var(--rd-ink-soft)">{subtitle}</text>
     </g>

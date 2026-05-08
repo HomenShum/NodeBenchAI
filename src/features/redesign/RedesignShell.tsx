@@ -128,17 +128,9 @@ export default function RedesignShell() {
   if (surface === "workspace") {
     return (
       <div data-redesign data-redesign-theme={theme} style={{ height: "100vh", overflow: "hidden" }}>
-        <div className="rd-shell rd-shell--single">
-          <Rail
-            active="reports"
-            onChange={(id) => goSurface(id)}
-            onOpenWorkspace={goWorkspace}
-            liveStats={railStats}
-          />
-          <main className="rd-pane" style={{ borderRight: "none" }}>
-            <WorkspaceSurface reportId={workspace.reportId} initialTab={workspace.tab} />
-          </main>
-        </div>
+        <main className="rd-pane rd-workspace-standalone">
+          <WorkspaceSurface reportId={workspace.reportId} initialTab={workspace.tab} />
+        </main>
         {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}
         <CommandPalette open={cmdk.open} onClose={() => cmdk.setOpen(false)} />
         <ShortcutsOverlay />
