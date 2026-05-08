@@ -132,8 +132,110 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
         },
       ];
 
+  // QA fix (2026-05-08): Daily Intelligence Pulse — sparse 5-row hero
+  // addressing audit P1 "Desktop Home is collapsed into composer/examples".
+  // Distills five immediate signals at the top of the page: continue last
+  // research / one relevant update / one tracked entity changed / one
+  // recommended action / start new research. Existing hero+composer and
+  // downstream sections continue to mount unchanged below this strip.
+  const pulseLastResearch = effectiveContinueWorking[0];
+  const pulseRelevantUpdate = whatChangedItems[0];
+  const pulseEntityChanged = effectiveWatchlist.find((e) => e.delta !== 0) ?? effectiveWatchlist[0];
+  const pulseRecommendedAction = primaryLiveReport && primaryLiveReport.followUps > 0
+    ? { title: `${primaryLiveReport.followUps} follow-up${primaryLiveReport.followUps === 1 ? "" : "s"} pending`, detail: primaryLiveReport.entity, href: `/redesign/workspace?report=${primaryLiveReport.id}&tab=brief` }
+    : pulseRelevantUpdate
+      ? { title: "Re-run the latest brief", detail: pulseRelevantUpdate.title, href: pulseRelevantUpdate.href }
+      : null;
+
   return (
     <div className="rd-stack" style={{ padding: "20px 40px 40px", gap: 28, maxWidth: 1180, margin: "0 auto" }}>
+      {/* ─── 0a. Daily Intelligence Pulse — sparse 5-row hero (audit P1) ─── */}
+      <section
+        className="rd-card"
+        aria-label="Daily Intelligence Pulse"
+        data-testid="daily-pulse-hero"
+        style={{
+          padding: "14px 18px",
+          background: "var(--rd-paper-warm, #faf7f3)",
+          borderColor: "var(--rd-line-faint)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        <header className="rd-row" style={{ alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <span className="rd-eyebrow" style={{ fontSize: 10, letterSpacing: "0.18em", color: "var(--rd-accent-strong)" }}>
+            Daily intelligence pulse
+          </span>
+          <span className="rd-mono rd-faint" style={{ fontSize: 10.5 }}>
+            {liveArtifacts.isLive ? `${effectiveContinueWorking.length} active reports · ${effectiveWatchlist.length} watched entities` : "starter pulse — sign in for live signals"}
+          </span>
+        </header>
+        <div className="rd-stack" style={{ gap: 4 }}>
+          {pulseLastResearch ? (
+            <button
+              type="button"
+              onClick={() => onOpenReport(pulseLastResearch.reportId)}
+              style={{ display: "flex", gap: 12, padding: "8px 10px", borderRadius: 6, background: "transparent", border: "1px solid transparent", textAlign: "left", cursor: "pointer", alignItems: "center" }}
+            >
+              <span className="rd-mono rd-faint" style={{ width: 70, fontSize: 10.5, letterSpacing: "0.06em" }}>continue</span>
+              <strong style={{ fontSize: 13.5, color: "var(--rd-ink-strong)", flex: 1 }}>{pulseLastResearch.title}</strong>
+              <span className="rd-faint" style={{ fontSize: 11.5 }}>{pulseLastResearch.whatYouLeft}</span>
+              <span className="rd-mono rd-faint" style={{ fontSize: 10 }}>{pulseLastResearch.lastTouched}</span>
+            </button>
+          ) : null}
+          {pulseRelevantUpdate ? (
+            <button
+              type="button"
+              onClick={() => { if (pulseRelevantUpdate.href) navigate(pulseRelevantUpdate.href); }}
+              style={{ display: "flex", gap: 12, padding: "8px 10px", borderRadius: 6, background: "transparent", border: "1px solid transparent", textAlign: "left", cursor: "pointer", alignItems: "center" }}
+            >
+              <span className="rd-mono rd-faint" style={{ width: 70, fontSize: 10.5, letterSpacing: "0.06em" }}>update</span>
+              <strong style={{ fontSize: 13.5, color: "var(--rd-ink-strong)", flex: 1 }}>{pulseRelevantUpdate.title}</strong>
+              <span className="rd-faint" style={{ fontSize: 11.5 }}>{pulseRelevantUpdate.detail}</span>
+              <span className="rd-mono rd-faint" style={{ fontSize: 10 }}>{pulseRelevantUpdate.whenAgo}</span>
+            </button>
+          ) : null}
+          {pulseEntityChanged ? (
+            <button
+              type="button"
+              onClick={() => onAsk(`What changed at ${pulseEntityChanged.entity}?`)}
+              style={{ display: "flex", gap: 12, padding: "8px 10px", borderRadius: 6, background: "transparent", border: "1px solid transparent", textAlign: "left", cursor: "pointer", alignItems: "center" }}
+            >
+              <span className="rd-mono rd-faint" style={{ width: 70, fontSize: 10.5, letterSpacing: "0.06em" }}>watchlist</span>
+              <strong style={{ fontSize: 13.5, color: "var(--rd-ink-strong)", flex: 1 }}>
+                {pulseEntityChanged.entity}
+                <span style={{ marginLeft: 8, fontSize: 11.5, color: pulseEntityChanged.trendUp ? "var(--rd-green, #15803d)" : "var(--rd-amber, #b45309)" }}>
+                  {pulseEntityChanged.delta > 0 ? "↑" : pulseEntityChanged.delta < 0 ? "↓" : "·"} {pulseEntityChanged.signal}
+                </span>
+              </strong>
+              <span className="rd-mono rd-faint" style={{ fontSize: 10 }}>{pulseEntityChanged.lastSignalAt}</span>
+            </button>
+          ) : null}
+          {pulseRecommendedAction ? (
+            <button
+              type="button"
+              onClick={() => { if (pulseRecommendedAction.href) navigate(pulseRecommendedAction.href); }}
+              style={{ display: "flex", gap: 12, padding: "8px 10px", borderRadius: 6, background: "var(--rd-accent-tint)", border: "1px solid var(--rd-accent-ring)", textAlign: "left", cursor: "pointer", alignItems: "center" }}
+            >
+              <span className="rd-mono" style={{ width: 70, fontSize: 10.5, letterSpacing: "0.06em", color: "var(--rd-accent-strong)" }}>action</span>
+              <strong style={{ fontSize: 13.5, color: "var(--rd-ink-strong)", flex: 1 }}>{pulseRecommendedAction.title}</strong>
+              <span className="rd-faint" style={{ fontSize: 11.5 }}>{pulseRecommendedAction.detail}</span>
+              <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-accent-strong)", fontWeight: 600 }}>open →</span>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => onAsk("")}
+            style={{ display: "flex", gap: 12, padding: "8px 10px", borderRadius: 6, background: "transparent", border: "1px dashed var(--rd-line-faint)", textAlign: "left", cursor: "pointer", alignItems: "center" }}
+          >
+            <span className="rd-mono rd-faint" style={{ width: 70, fontSize: 10.5, letterSpacing: "0.06em" }}>new</span>
+            <strong style={{ fontSize: 13.5, color: "var(--rd-ink-mute)", flex: 1, fontWeight: 500 }}>Start new research</strong>
+            <span className="rd-mono rd-faint" style={{ fontSize: 10 }}>jump to composer</span>
+          </button>
+        </div>
+      </section>
+
       {/* ─── 0. What changed since last visit (returning users) ─── */}
       <WhatChangedStrip
         items={whatChangedItems}

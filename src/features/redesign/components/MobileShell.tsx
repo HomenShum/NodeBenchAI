@@ -35,6 +35,13 @@ export function MobileShell({ active, onChange }: MobileShellProps) {
 
   return (
     <div
+      // QA fix (2026-05-08): preserve legacy `mobile-home-surface` testid
+      // on the redesign mobile shell so existing live-smoke-mobile tests
+      // (live-smoke-mobile.spec.ts:35,273) still find a stable anchor at /.
+      // The redirect from / → /redesign was added in PR #260; this keeps
+      // the back-compat contract without reverting the redirect.
+      data-testid="mobile-home-surface"
+      data-redesign-mobile-shell="true"
       className="rd-stack"
       style={{
         height: "100dvh",

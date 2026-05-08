@@ -170,8 +170,21 @@ function App() {
 
   const rootParams = new URLSearchParams(location.search);
   const rootSurface = rootParams.get("surface");
+  // QA fix (2026-05-08): the / → /redesign redirect (PR #260) broke mobile
+  // because mobile clients lost the legacy MobileHomeSurface — which the
+  // audit (NODEBENCH_DESIGN_PRINCIPLES_AUDIT.md) explicitly called out as
+  // the closest existing thing to the Daily Intelligence Pulse vision.
+  // Detect mobile via UA + viewport so mobile / continues to render
+  // HomeLanding → MobileHomeSurface, restoring the smoke contract
+  // (live-smoke-mobile.spec.ts:35,273) without losing the redesign route
+  // for desktop users who actively prefer it.
+  const isMobileViewport = typeof window !== "undefined" && (
+    window.matchMedia?.("(max-width: 767px)").matches ||
+    /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
+  );
   const shouldUseRedesignLanding =
     location.pathname === "/" &&
+    !isMobileViewport &&
     (rootSurface === null || rootSurface === "home") &&
     !rootParams.has("doc") &&
     !rootParams.has("session") &&
