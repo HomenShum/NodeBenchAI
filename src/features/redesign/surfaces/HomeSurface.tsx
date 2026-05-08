@@ -413,7 +413,7 @@ export function HomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
           <div className="rd-stack" style={{ gap: 12, color: "#fff" }}>
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", opacity: 0.85 }}>
               {liveArtifacts.isLive
-                ? `Today · ${liveArtifacts.archiveCount} archive posts · ${liveArtifacts.briefFeatureCount} brief checks`
+                ? `Today · ${liveArtifacts.archiveCount} archive posts · ${liveArtifacts.briefFeatureCount} brief signals`
                 : liveArtifacts.isLoading ? "Checking live artifacts" : "No live artifacts yet"}
             </span>
             <h2 style={{ fontSize: 36, fontWeight: 700, letterSpacing: "-1.2px", margin: 0, lineHeight: 1.05, color: "#fff" }}>

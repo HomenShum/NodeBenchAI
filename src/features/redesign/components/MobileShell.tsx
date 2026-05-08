@@ -241,7 +241,7 @@ function MobileHome({ onOpenReports, onOpenChat }: { onOpenReports: () => void; 
           <div className="rd-row" style={{ gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
             <Pill tone="green"><span className="rd-dot rd-dot--live" />Live public memory</Pill>
             <Pill>{liveArtifacts.archiveCount} posts</Pill>
-            <Pill>{liveArtifacts.briefFeatureCount} brief checks</Pill>
+            <Pill>{liveArtifacts.briefFeatureCount} brief signals</Pill>
           </div>
           <strong style={{ display: "block", fontSize: 13, color: "var(--rd-ink-strong)" }}>
             {primaryReport?.entity ?? "Open the live coverage library"}

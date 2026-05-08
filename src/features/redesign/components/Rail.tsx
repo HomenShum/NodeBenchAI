@@ -34,7 +34,7 @@ const ICONS: Record<SurfaceId, string> = {
 export function Rail({ active, onChange, onOpenWorkspace, liveStats, inboxCount = 0 }: RailProps) {
   return (
     <aside className="rd-pane" aria-label="Primary navigation" style={{ padding: "20px 14px", gap: 24 }}>
-      <a href="/" style={{
+      <a href="/redesign" style={{
         display: "flex", alignItems: "center", gap: 8, padding: "0 6px 16px",
         borderBottom: "1px solid var(--rd-line-faint)", textDecoration: "none", color: "inherit",
       }}>
