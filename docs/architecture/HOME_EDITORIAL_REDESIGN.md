@@ -232,3 +232,151 @@ User directive: *"do no need new route, build revamp ontop of existing redeisgn"
 ---
 
 **Next action**: open PR #279 implementing Phase 7a — editorial render of `HomeSurface.tsx` behind `?edition=1` flag, binding §1-§5 to the existing Convex queries per §5.
+
+---
+
+## 9. Phase 7a — shipped
+
+- **Status**: ✅ shipped 2026-05-08 in PR #280, commit `8cb0c19a` on `main`.
+- **Live**: https://www.nodebenchai.com/redesign?edition=1
+- **Outcome**: All §5 sections render against live Convex queries. The
+  legacy home is preserved when the flag is absent. Single-column,
+  720px max, mobile-parity-by-construction (Variant C).
+
+### Phase 7a follow-ups (Bug 0a + Bug 0b — fixed 2026-05-08)
+
+The first live render exposed two editorial-rhythm bugs that weren't
+caught by the structural smoke. Both fixed in this rev:
+
+**Bug 0a — non-consecutive section numbers.** Sections were labeled
+statically `01..06`. When `competing-explanations` honestly hid (no
+active hypotheses), the visible sequence read `01, 03, 04, 05, 06` —
+the eye stuttered on the gap. Root cause: section numbers should be
+DYNAMIC, derived from each section's index in the visible list.
+
+Fix: `EditorialHomeSurface.tsx` now builds a `visibleSections`
+array, computes `numberForId` once per render, and passes the
+zero-padded number to `<EditorialSection number=... kicker=... />`.
+The numbers always read 01 → 02 → 03 → ... regardless of which
+conditional sections are present. Verified by E2E **Scenario D**.
+
+**Bug 0b — kicker drift between sessions.** Some sections rendered
+the eyebrow as `01 · {dateString}` (e.g. `01 · 2026-05-08`) instead
+of a labeled subtitle like `01 · TODAY'S EDITION`. Root cause:
+date strings are session-coupled and break the editorial voice.
+
+Fix: `EditorialSection` now takes `number` and `kicker` as separate
+props. The kicker is a STABLE label (`Today's edition`, `Hypotheses
+under test`, etc.); the date appears once in the FormatStrip
+(`Today's edition · {dateString}`) where it belongs. The eyebrow
+rendering is `{number} · {kicker}` for every section. Each section
+also exposes `data-section-number` and `data-section-kicker` so e2e
+can verify the contract.
+
+---
+
+## 10. Phase 7b — implementation notes
+
+Shipped together with Phase 7c in PR #281 (this rev).
+
+### Footnote anchors
+
+Each `<sup data-footnote>` superscript renders an `<a href="#fn-N">`
+that targets a `<li id="fn-N" tabindex="-1">` in §6 Footnotes. The
+`tabindex="-1"` lets screen readers focus the footnote target on
+anchor click without making it a tab-order interruption.
+
+Footnote IDs are computed contiguously across the artifact list and
+the industry-update fallback list, so the user sees `fn-1, fn-2, ...`
+even when the data sources mix.
+
+### Scroll-spy + table of contents
+
+- **Hook**: `src/features/redesign/hooks/useScrollSpy.ts`. Watches
+  `[data-section]` elements, picks the one with the highest
+  intersection ratio (NOT the first to cross threshold — that
+  thrashes mid-scroll). `rootMargin: "-20% 0px -55% 0px"` biases
+  toward the upper-third of the viewport, mirroring ai-2027.com.
+- **Component**: `src/features/redesign/components/edition/EditionTOC.tsx`.
+  Position is `fixed` at the right edge so the rail never displaces
+  the 720px center column. Rendered only when
+  `(min-width: 1024px)` matches; mobile is intentionally
+  single-column with no rail.
+- **Source list**: derived from the same `visibleSections` array the
+  surface uses — no hard-coded duplication.
+- **Reduced motion**: smooth-scroll → instant snap when
+  `(prefers-reduced-motion: reduce)`.
+
+Verified by E2E **Scenario F** (desktop has TOC, mobile doesn't).
+
+---
+
+## 11. Phase 7c — implementation notes
+
+### Format strip
+
+`src/features/redesign/components/edition/FormatStrip.tsx` renders
+beneath the §1 header (not the global page header) reading:
+
+```
+Today's edition · {dateString} · PDF · Copy share-link
+```
+
+- **PDF**: opens `/redesign/edition/print?id={editionId}` in a new
+  tab. The print page is a stripped-down render of the editorial
+  layout backed by the same Convex queries; on data-load it
+  auto-triggers `window.print()` so the user lands directly in the
+  print dialog. Approach chosen per spec §7c "do NOT introduce new
+  heavy dependencies" — no puppeteer, no server-side renderer, no
+  PDFKit. The browser's print engine produces the artifact.
+- **Copy share-link**: writes
+  `https://www.nodebenchai.com/redesign?edition=1&share={editionId}`
+  via `navigator.clipboard.writeText`. On success → `Copied!`
+  toast; on failure → warning toast surfacing the URL so the user
+  can copy manually (HONEST_STATUS — never claim success when the
+  clipboard API is unavailable).
+- **Listen + watch**: deferred to Phase 8 per spec §6 — no stubs
+  rendered, per `agentic_reliability.md` "don't render disabled
+  placeholders that imply functionality which doesn't exist".
+
+`editionId` resolves to the daily-brief snapshot `_id` when
+present, falling back to `dateKey` so the URL is always stable.
+Verified by E2E **Scenario G**.
+
+### Discoverability affordance
+
+Phase 7d will promote `?edition=1` to default at `/redesign` after
+dogfood. Until then, both directions are one click:
+
+- **Legacy → editorial**: `<a data-edition-discover href="?edition=1">`
+  in `LegacyHomeSurface`'s pulse-hero header. Quiet anchor with
+  terracotta accent, no banner.
+- **Editorial → legacy**: `<button data-edition-switch>` in the
+  editorial header. Removes `edition` from the URLSearchParams and
+  navigates with `replace: true` so the back button doesn't
+  re-enter the loop.
+
+Both have `aria-label`, focus rings via the existing
+`a:focus-visible` rule, and respect `prefers-reduced-motion`.
+Verified by E2E **Scenario C**.
+
+### Print page route
+
+`src/features/redesign/pages/EditionPrintPage.tsx` is wired in
+`src/App.tsx` BEFORE the general `/redesign/*` match so it renders
+without the surrounding shell chrome (no rail, no toast viewport,
+no body-overflow lock). The print stylesheet
+`edition-print.css` strips interactive chrome and adds
+`page-break-inside: avoid` to each section.
+
+---
+
+## 12. Verification evidence (Phase 7b + 7c)
+
+- `npx convex codegen` — clean
+- `npx tsc --noEmit --pretty false` — 0 errors
+- `npx vite build` — clean
+- `BASE_URL=http://127.0.0.1:4173 npx playwright test tests/e2e/edition-home.spec.ts` —
+  **7/7 passing** (Scenarios A, B, C, D, E, F, G)
+- `BASE_URL=http://127.0.0.1:4173 npx playwright test tests/e2e/live-smoke.spec.ts` —
+  **9/9 passing** (no regression on Tier B)

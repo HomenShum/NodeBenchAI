@@ -479,3 +479,152 @@
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* ─── Phase 7b: Edition TOC (right-rail scroll-spy) ─────────────── */
+/* Hidden on mobile (single column rules); shown on >=1024px as a
+   fixed rail that doesn't displace the 720px center column.        */
+[data-redesign] [data-edition] .rd-edition-toc {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  [data-redesign] [data-edition] .rd-edition-toc {
+    display: block;
+    position: fixed;
+    top: 96px;
+    right: 24px;
+    width: 180px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    border-left: 1px solid var(--rd-edition-rule);
+    padding: 8px 0 8px 16px;
+    z-index: 5;
+    /* The center column is centered by `margin: 0 auto` on .rd-edition-root
+       so this fixed rail sits independently. */
+  }
+}
+
+@media (min-width: 1280px) {
+  [data-redesign] [data-edition] .rd-edition-toc {
+    /* On wide viewports, push the rail farther from the column. */
+    right: max(24px, calc((100vw - 720px) / 2 - 240px));
+  }
+}
+
+[data-redesign] [data-edition] .rd-edition-toc__eyebrow {
+  font-size: 10px;
+  font-family: ui-monospace, "JetBrains Mono", "Roboto Mono", monospace;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rd-ink-soft);
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+[data-redesign] [data-edition] .rd-edition-toc__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-redesign] [data-edition] .rd-edition-toc__item {
+  margin: 0;
+  padding: 0;
+}
+
+[data-redesign] [data-edition] .rd-edition-toc__link {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  text-decoration: none;
+  padding: 4px 0;
+  font-family: ui-monospace, "JetBrains Mono", "Roboto Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--rd-ink-soft);
+  border-radius: 3px;
+  transition: color 120ms ease;
+}
+
+[data-redesign] [data-edition] .rd-edition-toc__link:hover {
+  color: var(--rd-ink-strong);
+}
+
+[data-redesign] [data-edition] .rd-edition-toc__link--active {
+  color: var(--rd-accent-strong, #d97757);
+  font-weight: 700;
+}
+
+[data-redesign] [data-edition] .rd-edition-toc__num {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: inherit;
+  min-width: 22px;
+  display: inline-block;
+}
+
+[data-redesign] [data-edition] .rd-edition-toc__label {
+  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.10em;
+  font-weight: 600;
+}
+
+/* ─── Phase 7c: Format strip ───────────────────────────────────── */
+[data-redesign] [data-edition] .rd-edition-format-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 0 12px;
+  border-bottom: 1px solid var(--rd-edition-rule);
+  margin-bottom: 4px;
+  font-family: ui-monospace, "JetBrains Mono", "Roboto Mono", monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+}
+
+[data-redesign] [data-edition] .rd-edition-format-strip__caption {
+  color: var(--rd-ink-soft);
+  font-weight: 500;
+}
+
+[data-redesign] [data-edition] .rd-edition-format-strip__sep {
+  color: var(--rd-ink-soft);
+  opacity: 0.6;
+}
+
+[data-redesign] [data-edition] .rd-edition-format-strip__btn {
+  background: transparent;
+  border: none;
+  color: var(--rd-accent-strong, #d97757);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+[data-redesign] [data-edition] .rd-edition-format-strip__btn:hover {
+  color: var(--rd-accent-strong, #d97757);
+  text-decoration-thickness: 2px;
+}
+
+/* ─── Phase 7c: Switch to classic link in editorial header ─────── */
+[data-redesign] [data-edition] .rd-edition-switch:hover {
+  color: var(--rd-ink-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] [data-edition] .rd-edition-toc__link {
+    transition: none;
+  }
+}
