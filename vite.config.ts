@@ -212,9 +212,39 @@ export default defineConfig(({ mode }) => {
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
+        // CRITICAL: navigateFallbackDenylist with NetworkFirst on navigation
+        // requests means HTML responses are NEVER cache-served. This is the
+        // single biggest cause of "users see stale bundle after deploy".
+        // With NetworkFirst, every navigation goes to the network first,
+        // and only falls back to cache when offline. New deploys reach
+        // users on the next page load, not after manual cache clear.
+        //
+        // The hashed JS/CSS chunks below stay on StaleWhileRevalidate —
+        // they're content-addressed (index-COn3r21_.js) so cache is safe.
+        // It's the entry HTML that points to those chunks that must NOT
+        // be cached, otherwise users get the OLD HTML pointing at OLD chunks.
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        // Cache Google Fonts
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//, /^\/voice\//, /^\/install\.sh/],
         runtimeCaching: [
+          // Navigation requests — NetworkFirst with short timeout.
+          // Users see new deploys on the next page load, not after cache clear.
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'navigation-cache',
+              networkTimeoutSeconds: 3,
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24, // 1 day max for HTML
+              },
+              cacheableResponse: {
+                statuses: [200],
+              },
+            },
+          },
+          // Cache Google Fonts
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
