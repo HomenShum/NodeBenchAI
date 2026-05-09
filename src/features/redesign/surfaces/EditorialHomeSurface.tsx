@@ -52,6 +52,17 @@ import { useActiveHypotheses, type EditionHypothesis } from "../hooks/useActiveH
 import { useTopForecasts, type EditionForecast } from "../hooks/useTopForecasts";
 import { useLatestDailyBriefSnapshot } from "../hooks/useLatestDailyBriefSnapshot";
 import { useEditionFootnotes } from "../hooks/useEditionFootnotes";
+// P0 #3 — temporal browsing imports.  Note: useHomePulseLive +
+// fixturePulseCards / watchlist / continueWorking from #285's branch
+// were intentionally NOT carried forward here — P0 #1 removed those
+// from the editorial path and they must not return.
+import { useEditionView } from "../hooks/useEditionView";
+import {
+  useDailyEdition,
+  useWeeklyDigest,
+  useMonthlyRetrospective,
+} from "../hooks/useTemporalEdition";
+import { EditionSelector } from "../components/edition/EditionSelector";
 import { Pill } from "../components/Pill";
 import "../components/edition/edition.css";
 
@@ -602,11 +613,580 @@ function FootnotesSection({
   );
 }
 
+/* ─── Archived-day render branch (P0 #3) ────────────────────────── */
+
+function ArchivedDayBranch({
+  dateKey,
+  selection,
+  onSwitchToClassic,
+}: {
+  dateKey: string;
+  selection: { kind: "day"; dateKey: string };
+  onSwitchToClassic: () => void;
+}) {
+  const navigate = useNavigate();
+  const data = useDailyEdition(dateKey);
+  // While loading we keep the chrome so the selector remains responsive.
+  return (
+    <div data-edition data-edition-kind="day">
+      <div className="rd-edition-root">
+        <header
+          className="rd-edition-header"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            paddingBottom: 8,
+            borderBottom: "1px solid var(--rd-edition-rule-strong)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <Pill tone="accent">Daily edition</Pill>
+            <span className="rd-edition-meta">
+              Archive view · {dateKey}
+            </span>
+            <button
+              type="button"
+              onClick={onSwitchToClassic}
+              className="rd-edition-switch"
+              aria-label="Switch to classic home"
+              data-edition-switch
+              style={{
+                marginLeft: "auto",
+                background: "transparent",
+                border: "none",
+                color: "var(--rd-ink-mute)",
+                fontSize: 12,
+                fontWeight: 500,
+                letterSpacing: "0.04em",
+                cursor: "pointer",
+                padding: "4px 8px",
+                borderRadius: 4,
+                textDecoration: "underline",
+                textUnderlineOffset: 3,
+              }}
+            >
+              ← Switch to classic home
+            </button>
+          </div>
+          <EditionSelector
+            selection={selection}
+            earliestDateKey={
+              data && !data.available ? data.earliestDateKey : null
+            }
+          />
+          <h1
+            style={{
+              fontSize: 32,
+              fontWeight: 700,
+              letterSpacing: "-0.6px",
+              margin: 0,
+              lineHeight: 1.18,
+              color: "var(--rd-ink-strong)",
+            }}
+          >
+            Edition · {dateKey}
+          </h1>
+        </header>
+
+        {data === undefined && (
+          <section data-section="day-loading" className="rd-edition-section">
+            <div className="rd-edition-skeleton" style={{ width: "85%" }} />
+            <div className="rd-edition-skeleton" style={{ width: "62%" }} />
+          </section>
+        )}
+
+        {data && !data.available && (
+          <section
+            data-section="archive-empty"
+            className="rd-edition-section"
+            role="region"
+            aria-label="No edition for this date"
+          >
+            <p className="rd-edition-empty">
+              No edition for {dateKey}.
+              {data.earliestDateKey ? (
+                <>
+                  {" "}
+                  Earliest available edition:{" "}
+                  <button
+                    type="button"
+                    className="rd-btn rd-btn--quiet rd-btn--sm"
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      params.set("edition", data.earliestDateKey ?? "");
+                      navigate(`/redesign?${params.toString()}`);
+                    }}
+                  >
+                    {data.earliestDateKey}
+                  </button>
+                  .
+                </>
+              ) : null}
+            </p>
+          </section>
+        )}
+
+        {data && data.available && (
+          <>
+            <section
+              data-section="archive-summary"
+              data-section-number="01"
+              data-section-kicker="Archived edition"
+              className="rd-edition-section"
+              role="region"
+              aria-label={`Archived edition for ${dateKey}`}
+            >
+              <p className="rd-edition-meta">
+                01 · Archived edition · {dateKey}
+              </p>
+              <p>
+                Pulses captured this day: <strong>{data.pulses.length}</strong>.
+                Hypotheses updated: <strong>{data.hypothesisCount}</strong>.
+                Forecasts active: <strong>{data.forecastCount}</strong>.
+              </p>
+              {data.snapshot ? (
+                <p className="rd-edition-meta">
+                  Daily brief snapshot v{data.snapshot.version} captured at{" "}
+                  {new Date(data.snapshot.generatedAt).toISOString().slice(0, 16)}Z.
+                </p>
+              ) : (
+                <p className="rd-edition-empty" style={{ padding: 0 }}>
+                  No daily-brief snapshot was captured this day.
+                </p>
+              )}
+            </section>
+
+            {data.snapshot && (
+              <EditionErrorBoundary label="archive-scoreboard">
+                <ScoreboardSection
+                  number="02"
+                  kicker="Scoreboard"
+                  heading="Day's scoreboard"
+                  snapshot={
+                    data.snapshot as ReturnType<typeof useLatestDailyBriefSnapshot>
+                  }
+                />
+              </EditionErrorBoundary>
+            )}
+
+            {data.snapshot && (
+              <EditionErrorBoundary label="archive-capabilities">
+                <CapabilitiesSection
+                  number={data.snapshot ? "03" : "02"}
+                  kicker="The capability landscape"
+                  heading="Capabilities map"
+                  snapshot={
+                    data.snapshot as ReturnType<typeof useLatestDailyBriefSnapshot>
+                  }
+                />
+              </EditionErrorBoundary>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Weekly-digest render branch (P0 #3) ───────────────────────── */
+
+function WeeklyBranch({
+  weekKey,
+  selection,
+  onSwitchToClassic,
+}: {
+  weekKey: string;
+  selection: { kind: "week"; weekKey: string };
+  onSwitchToClassic: () => void;
+}) {
+  const data = useWeeklyDigest(weekKey);
+  return (
+    <div data-edition data-edition-kind="week">
+      <div className="rd-edition-root">
+        <header
+          className="rd-edition-header"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            paddingBottom: 8,
+            borderBottom: "1px solid var(--rd-edition-rule-strong)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <Pill tone="accent">This week</Pill>
+            <span className="rd-edition-meta">
+              {data && data.available
+                ? `${data.startDateKey} → ${data.endDateKey}`
+                : weekKey}
+            </span>
+            <button
+              type="button"
+              onClick={onSwitchToClassic}
+              className="rd-edition-switch"
+              aria-label="Switch to classic home"
+              data-edition-switch
+              style={{
+                marginLeft: "auto",
+                background: "transparent",
+                border: "none",
+                color: "var(--rd-ink-mute)",
+                fontSize: 12,
+                fontWeight: 500,
+                letterSpacing: "0.04em",
+                cursor: "pointer",
+                padding: "4px 8px",
+                borderRadius: 4,
+                textDecoration: "underline",
+                textUnderlineOffset: 3,
+              }}
+            >
+              ← Switch to classic home
+            </button>
+          </div>
+          <EditionSelector selection={selection} />
+          <h1
+            style={{
+              fontSize: 32,
+              fontWeight: 700,
+              letterSpacing: "-0.6px",
+              margin: 0,
+              lineHeight: 1.18,
+              color: "var(--rd-ink-strong)",
+            }}
+          >
+            This week
+          </h1>
+        </header>
+
+        {data === undefined && (
+          <section data-section="week-loading" className="rd-edition-section">
+            <div className="rd-edition-skeleton" style={{ width: "90%" }} />
+            <div className="rd-edition-skeleton" style={{ width: "70%" }} />
+          </section>
+        )}
+
+        {data && !data.available && (
+          <section
+            data-section="archive-empty"
+            className="rd-edition-section"
+            role="region"
+            aria-label="No edition for this week"
+          >
+            <p className="rd-edition-empty">No edition for {weekKey}.</p>
+          </section>
+        )}
+
+        {data && data.available && (
+          <>
+            <section
+              data-section="week-totals"
+              data-section-number="01"
+              data-section-kicker="Week in totals"
+              className="rd-edition-section"
+              role="region"
+              aria-label="This week in totals"
+            >
+              <p className="rd-edition-meta">01 · Week in totals</p>
+              <p>
+                <strong>{data.totals.materialChanges}</strong> material
+                change{data.totals.materialChanges === 1 ? "" : "s"} across{" "}
+                <strong>{data.totals.pulseCount}</strong> pulse
+                {data.totals.pulseCount === 1 ? "" : "s"}.
+              </p>
+            </section>
+
+            {data.topForecasts.length > 0 && (
+              <section
+                data-section="week-forecasts"
+                data-section-number="02"
+                data-section-kicker="Top forecast moves"
+                className="rd-edition-section"
+                role="region"
+                aria-label="Top forecast moves"
+              >
+                <p className="rd-edition-meta">02 · Top forecast moves</p>
+                <ul>
+                  {data.topForecasts.map((f) => {
+                    const pp = Math.round(f.probabilityDelta * 100);
+                    const tone = pp > 0 ? "up" : pp < 0 ? "down" : "flat";
+                    return (
+                      <li key={f._id} style={{ marginBottom: 8 }}>
+                        <strong>{f.question}</strong>{" "}
+                        <span
+                          className={`rd-edition-scoreboard__delta rd-edition-scoreboard__delta--${tone}`}
+                        >
+                          [
+                          {pp > 0 ? "+" : ""}
+                          {pp}pp]
+                        </span>{" "}
+                        <span className="rd-edition-meta">
+                          → {Math.round(f.probability * 100)}% by{" "}
+                          {f.resolutionDate}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
+
+            {data.topHypotheses.length > 0 && (
+              <section
+                data-section="week-hypotheses"
+                data-section-number="03"
+                data-section-kicker="Hypotheses moved"
+                className="rd-edition-section"
+                role="region"
+                aria-label="Hypotheses moved this week"
+              >
+                <p className="rd-edition-meta">03 · Hypotheses moved</p>
+                <ul>
+                  {data.topHypotheses.map((h) => (
+                    <li key={h._id} style={{ marginBottom: 8 }}>
+                      <strong>
+                        {h.label} {h.title}
+                      </strong>
+                      <p className="rd-edition-meta">
+                        {h.supportingEvidenceCount} supporting ·{" "}
+                        {h.contradictingEvidenceCount} contradicting
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Monthly retrospective render branch (P0 #3, minimal) ──────── */
+
+function MonthlyBranch({
+  monthKey,
+  selection,
+  onSwitchToClassic,
+}: {
+  monthKey: string;
+  selection: { kind: "month"; monthKey: string };
+  onSwitchToClassic: () => void;
+}) {
+  const data = useMonthlyRetrospective(monthKey);
+  return (
+    <div data-edition data-edition-kind="month">
+      <div className="rd-edition-root">
+        <header
+          className="rd-edition-header"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            paddingBottom: 8,
+            borderBottom: "1px solid var(--rd-edition-rule-strong)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <Pill tone="accent">This month</Pill>
+            <span className="rd-edition-meta">{monthKey}</span>
+            <button
+              type="button"
+              onClick={onSwitchToClassic}
+              className="rd-edition-switch"
+              aria-label="Switch to classic home"
+              data-edition-switch
+              style={{
+                marginLeft: "auto",
+                background: "transparent",
+                border: "none",
+                color: "var(--rd-ink-mute)",
+                fontSize: 12,
+                fontWeight: 500,
+                letterSpacing: "0.04em",
+                cursor: "pointer",
+                padding: "4px 8px",
+                borderRadius: 4,
+                textDecoration: "underline",
+                textUnderlineOffset: 3,
+              }}
+            >
+              ← Switch to classic home
+            </button>
+          </div>
+          <EditionSelector selection={selection} />
+          <h1
+            style={{
+              fontSize: 32,
+              fontWeight: 700,
+              letterSpacing: "-0.6px",
+              margin: 0,
+              lineHeight: 1.18,
+              color: "var(--rd-ink-strong)",
+            }}
+          >
+            This month
+          </h1>
+        </header>
+
+        {data === undefined && (
+          <section data-section="month-loading" className="rd-edition-section">
+            <div className="rd-edition-skeleton" style={{ width: "85%" }} />
+          </section>
+        )}
+
+        {data && !data.available && (
+          <section
+            data-section="archive-empty"
+            className="rd-edition-section"
+            role="region"
+            aria-label="No edition for this month"
+          >
+            <p className="rd-edition-empty">No edition for {monthKey}.</p>
+          </section>
+        )}
+
+        {data && data.available && (
+          <>
+            <section
+              data-section="month-summary"
+              data-section-number="01"
+              data-section-kicker="Top edition per week"
+              className="rd-edition-section"
+              role="region"
+              aria-label="Top edition per week"
+            >
+              <p className="rd-edition-meta">01 · Top edition per week</p>
+              {data.topPerWeek.length === 0 ? (
+                <p className="rd-edition-empty" style={{ padding: 0 }}>
+                  No daily-brief snapshots were captured in {monthKey}.
+                </p>
+              ) : (
+                <ul>
+                  {data.topPerWeek.map((w) => (
+                    <li key={w.weekKey} style={{ marginBottom: 4 }}>
+                      <strong>{w.weekKey}</strong> — top day {w.dateString}{" "}
+                      <span className="rd-edition-meta">
+                        ({w.keyStatCount} key stats)
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section
+              data-section="month-brier"
+              data-section-number="02"
+              data-section-kicker="Forecast resolution"
+              className="rd-edition-section"
+              role="region"
+              aria-label="Forecast resolution"
+            >
+              <p className="rd-edition-meta">02 · Forecast resolution</p>
+              <p>
+                <strong>{data.resolvedForecastCount}</strong> forecast
+                {data.resolvedForecastCount === 1 ? "" : "s"} resolved this
+                month.
+                {data.meanBrier !== null
+                  ? ` Mean Brier score: ${data.meanBrier.toFixed(3)}.`
+                  : " No Brier scores recorded."}
+              </p>
+            </section>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ─── EditorialHomeSurface root ─────────────────────────────────── */
 
 export function EditorialHomeSurface({ onAsk }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
+  const selection = useEditionView();
+  const onSwitchToClassic = () => {
+    const params = new URLSearchParams(location.search);
+    params.delete("edition");
+    params.set("classic", "1");
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+  };
+
+  // P0 #3: temporal branches use their own queries.  The "today"
+  // branch (default + ?edition=1) keeps the existing today-render
+  // path intact.
+  if (selection.kind === "day") {
+    return (
+      <ArchivedDayBranch
+        dateKey={selection.dateKey}
+        selection={selection}
+        onSwitchToClassic={onSwitchToClassic}
+      />
+    );
+  }
+  if (selection.kind === "week") {
+    return (
+      <WeeklyBranch
+        weekKey={selection.weekKey}
+        selection={selection}
+        onSwitchToClassic={onSwitchToClassic}
+      />
+    );
+  }
+  if (selection.kind === "month") {
+    return (
+      <MonthlyBranch
+        monthKey={selection.monthKey}
+        selection={selection}
+        onSwitchToClassic={onSwitchToClassic}
+      />
+    );
+  }
+
+  return (
+    <TodayRender
+      onAsk={onAsk}
+      selection={selection}
+      onSwitchToClassic={onSwitchToClassic}
+    />
+  );
+}
+
+/* ─── Today render (Phase 7a-d body, lifted into a helper) ──────── */
+
+function TodayRender({
+  onAsk,
+  selection,
+  onSwitchToClassic,
+}: {
+  onAsk: Props["onAsk"];
+  selection: { kind: "today" };
+  onSwitchToClassic: () => void;
+}) {
   const hypotheses = useActiveHypotheses(5);
   const forecasts = useTopForecasts(5);
   const todayPulse = useTodayPulse(12);
@@ -701,17 +1281,6 @@ export function EditorialHomeSurface({ onAsk }: Props) {
   const editionId =
     snapshot?._id ?? (todayPulse?.dateKey ?? "current");
 
-  // Phase 7d (2026-05-08): editorial is now the default at /redesign,
-  // so opt-out to the legacy classic home requires explicitly setting
-  // `?classic=1`.  Uses navigate() so React-Router state stays in sync.
-  // Old `?edition` param is cleared on the round-trip so URLs stay clean.
-  const onSwitchToClassic = () => {
-    const params = new URLSearchParams(location.search);
-    params.delete("edition");
-    params.set("classic", "1");
-    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
-  };
-
   // Helper to look up a section's data and bail out cleanly when it's
   // not in the visible list.
   const find = (id: string) =>
@@ -773,6 +1342,7 @@ export function EditorialHomeSurface({ onAsk }: Props) {
               ← Switch to classic home
             </button>
           </div>
+          <EditionSelector selection={selection} />
           <h1
             style={{
               fontSize: 32,

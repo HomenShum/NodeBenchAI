@@ -116,6 +116,42 @@
  *              never a fake material-change tally).
  * Edge cases:  Convex query unavailable → §1 stays in skeleton state
  *              and the test waits up to 10s; should not falsely pass.
+ *
+ * ─── Scenario J — temporal: archived day path (P0 #3 — 2026-05-09)
+ * User:        Reader exploring past editions via URL param.
+ * Goal:        Navigate to /redesign?edition=YYYY-MM-DD and see either
+ *              the archived day's content OR an honest "no edition for
+ *              this date" empty state with the earliest-edition link.
+ * Prior state: dailyBriefSnapshots may or may not have rows for the
+ *              requested date; the test does not pre-seed.
+ * Actions:     1) /redesign?edition=2025-01-01 (way past) → assert
+ *                 [data-section="archive-empty"] OR
+ *                 [data-section="archive-summary"] is visible.  Both
+ *                 are valid renderings depending on data state.
+ *              2) /redesign?edition=banana → asserts that we fall
+ *                 back to today (no error toasts, [data-edition-kind]
+ *                 absent or "today").
+ * Scale:       1 user.
+ * Duration:    Two page loads.
+ * Expected:    No console errors on either path; URL param controls
+ *              the render branch deterministically.
+ *
+ * ─── Scenario K — chip click writes URL (P0 #3) ──────────────────
+ * User:        Reader on the editorial home today.
+ * Goal:        Click "This week" → URL gains ?edition=week:..., header
+ *              switches to the weekly digest layout.
+ * Actions:     /redesign → click [data-edition-chip="week"] → assert
+ *              URL matches /[?&]edition=week:/ AND
+ *              [data-edition-kind="week"] is in the DOM.
+ * Edge cases:  Returning to "Today" via the chip removes the param
+ *              cleanly.
+ *
+ * ─── Scenario L — malformed param falls back honestly (P0 #3) ────
+ * User:        Reader who copy-pastes a corrupted URL.
+ * Goal:        See the editorial home, not a crash.
+ * Actions:     /redesign?edition=banana → assert page renders without
+ *              console errors AND [data-section="what-moved"] is
+ *              visible (today branch).
  */
 
 import { test, expect } from "@playwright/test";
@@ -442,5 +478,82 @@ test.describe("Editorial home — Phase 7b + 7c", () => {
         `§1 must not contain fixture string "${signal}"`,
       ).toBe(false);
     }
+  });
+
+  test("Scenario J: archived-day URL param renders day branch (P0 #3)", async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") errors.push(`console.error: ${msg.text()}`);
+    });
+
+    // Pick a far-past date most likely to have no archived edition.
+    await page.goto(`${BASE_URL}/redesign?edition=2025-01-01`, {
+      waitUntil: "domcontentloaded",
+    });
+    await page.waitForLoadState("networkidle");
+    await page.waitForSelector('[data-edition][data-edition-kind="day"]', {
+      timeout: 10_000,
+    });
+
+    // Either archive-empty OR archive-summary is acceptable.
+    const empty = page.locator('[data-section="archive-empty"]');
+    const summary = page.locator('[data-section="archive-summary"]');
+    const visibleCount = (await empty.count()) + (await summary.count());
+    expect(visibleCount).toBeGreaterThanOrEqual(1);
+
+    expect(errors, `Errors:\n${errors.join("\n")}`).toEqual([]);
+  });
+
+  test("Scenario K: chip click writes URL + renders week branch (P0 #3)", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE_URL}/redesign`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle");
+    await page.waitForSelector("[data-edition]", { timeout: 10_000 });
+
+    const weekChip = page.locator('[data-edition-chip="week"]').first();
+    await expect(weekChip).toBeVisible({ timeout: 5_000 });
+    await weekChip.click();
+    await page.waitForLoadState("networkidle");
+
+    await expect(page).toHaveURL(/[?&]edition=week:/);
+    await page.waitForSelector('[data-edition][data-edition-kind="week"]', {
+      timeout: 10_000,
+    });
+
+    // Click "Today" chip to clear the param.
+    const todayChip = page.locator('[data-edition-chip="today"]').first();
+    await todayChip.click();
+    await page.waitForLoadState("networkidle");
+    await expect(page).not.toHaveURL(/[?&]edition=week:/);
+    await expect(page.locator("[data-edition]")).toBeVisible();
+  });
+
+  test("Scenario L: malformed ?edition=banana falls back to today (P0 #3)", async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") errors.push(`console.error: ${msg.text()}`);
+    });
+
+    await page.goto(`${BASE_URL}/redesign?edition=banana`, {
+      waitUntil: "domcontentloaded",
+    });
+    await page.waitForLoadState("networkidle");
+    await page.waitForSelector("[data-edition]", { timeout: 10_000 });
+
+    // Today branch carries the §1 "what-moved" section.
+    const whatMoved = page.locator('[data-section="what-moved"]');
+    await expect(whatMoved).toBeVisible({ timeout: 10_000 });
+    // The day branch wrapper marker should NOT be present.
+    const dayBranch = page.locator('[data-edition-kind="day"]');
+    expect(await dayBranch.count()).toBe(0);
+
+    expect(errors, `Errors:\n${errors.join("\n")}`).toEqual([]);
   });
 });

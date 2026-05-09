@@ -525,3 +525,537 @@ export const getEditionFootnotes = query({
     return { artifacts, industry };
   },
 });
+
+/**
+ * PulseProjection — the public shape returned by today / daily / weekly
+ * pulse queries.  Defined here so the temporal queries can use it
+ * without depending on P0 #2's getTodayPulse refactor (which
+ * introduces the same type at the top of the file when it merges).
+ *
+ * If both PRs land, the duplicate is deduped by leaving only one
+ * `type PulseProjection = ...` declaration.
+ */
+type PulseProjection = {
+  _id: string;
+  entitySlug: string;
+  dateKey: string;
+  status: "generating" | "ready" | "failed";
+  summaryMarkdown: string | null;
+  changeCount: number;
+  materialChangeCount: number;
+  generatedAt: number;
+};
+
+/* ════════════════════════════════════════════════════════════════════
+ * P0 #3 (2026-05-09) — Temporal browsing.
+ *
+ * The editorial home has only ever shown "today."  This block adds
+ * three sibling queries that let the surface render an arbitrary day,
+ * a 7-day digest, or a 4-5-week monthly retrospective — all bounded,
+ * all honest about empty windows, and all returning shapes that are
+ * compatible with the existing today-render path so WhatMovedSection,
+ * ScoreboardSection, and friends don't need to branch on edition kind.
+ *
+ * URL contract (read by EditorialHomeSurface):
+ *   /redesign?edition=YYYY-MM-DD       → getDailyEdition
+ *   /redesign?edition=week:YYYY-Www    → getWeeklyDigest
+ *   /redesign?edition=month:YYYY-MM    → getMonthlyRetrospective
+ *   /redesign or ?edition=1            → today (existing queries)
+ *
+ * 8-point checklist:
+ *   - BOUND          per-section caps reuse the existing constants
+ *   - HONEST_STATUS  empty arrays + `available: false` flag, no fakes
+ *   - HONEST_SCORES  brier counts come from forecastResolutions, not
+ *                    invented; "top edition per week" picks the row
+ *                    with the highest dashboardMetrics.keyStats count
+ *   - TIMEOUT        n/a (Convex)
+ *   - SSRF           n/a
+ *   - BOUND_READ     n/a
+ *   - ERROR_BOUNDARY malformed args fail-fast via boundLimit; route
+ *                    layer falls back to today on a parse error
+ *   - DETERMINISTIC  no JSON.stringify on dynamic-key objects.
+ * ──────────────────────────────────────────────────────────────── */
+
+/** ISO YYYY-MM-DD pattern. */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** ISO YYYY-Www pattern (week 01-53). */
+const ISO_WEEK_RE = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/;
+/** ISO YYYY-MM pattern (month 01-12). */
+const ISO_MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+function isValidDateKey(s: string): boolean {
+  if (!ISO_DATE_RE.test(s)) return false;
+  const t = Date.parse(`${s}T00:00:00Z`);
+  if (!Number.isFinite(t)) return false;
+  // Round-trip — guards against e.g. 2026-02-30 being parsed forgivingly.
+  const back = new Date(t).toISOString().slice(0, 10);
+  return back === s;
+}
+
+function dateKeyFromMs(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/** Compute ISO-week boundaries (Mon..Sun UTC) from a YYYY-Www key. */
+function isoWeekRange(weekKey: string): { startMs: number; endMs: number } | null {
+  const m = weekKey.match(/^(\d{4})-W(\d{2})$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const week = Number(m[2]);
+  // ISO week 1 contains Jan 4. Find Monday on/before Jan 4.
+  const jan4 = Date.UTC(year, 0, 4);
+  const jan4Day = new Date(jan4).getUTCDay() || 7; // 1..7 (Mon..Sun)
+  const week1Mon = jan4 - (jan4Day - 1) * 86_400_000;
+  const startMs = week1Mon + (week - 1) * 7 * 86_400_000;
+  const endMs = startMs + 7 * 86_400_000 - 1;
+  return { startMs, endMs };
+}
+
+/** Compute month boundaries from a YYYY-MM key. */
+function monthRange(monthKey: string): { startMs: number; endMs: number } | null {
+  const m = monthKey.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const startMs = Date.UTC(year, month - 1, 1);
+  const endMs = Date.UTC(year, month, 1) - 1;
+  return { startMs, endMs };
+}
+
+/* ────────────────────────────────────────────────────────────────────
+ * Daily edition — a specific past (or today) date.  Uses the same
+ * shape as the today-queries combined: { pulses, hypotheses, forecasts,
+ * snapshot, footnotes }.  The surface threads each piece through to
+ * the existing section components.
+ * ────────────────────────────────────────────────────────────────── */
+export const getDailyEdition = query({
+  args: {
+    dateKey: v.string(),
+    anonymousSessionId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!isValidDateKey(args.dateKey)) {
+      // HONEST_STATUS: malformed input → available: false, no body.
+      return {
+        available: false as const,
+        reason: "invalid_date" as const,
+        dateKey: args.dateKey,
+        earliestDateKey: null as string | null,
+      };
+    }
+    const dateKey = args.dateKey;
+    const dayStartMs = Date.parse(`${dateKey}T00:00:00Z`);
+    const dayEndMs = dayStartMs + 86_400_000 - 1;
+
+    // 1. Snapshot for that day (dailyBriefSnapshots is keyed by
+    //    dateString === dateKey).
+    const snapshot = await ctx.db
+      .query("dailyBriefSnapshots")
+      .withIndex("by_date_string", (q) => q.eq("dateString", dateKey))
+      .first();
+
+    // Earliest snapshot date — used as the "no edition for this date"
+    // fallback link target.
+    let earliestDateKey: string | null = null;
+    if (!snapshot) {
+      const earliest = await ctx.db
+        .query("dailyBriefSnapshots")
+        .withIndex("by_date_string")
+        .order("asc")
+        .first();
+      earliestDateKey = earliest?.dateString ?? null;
+    }
+
+    // 2. Pulses for that owner+day (auth-aware).
+    const identity = await resolveProductIdentitySafely(
+      ctx,
+      args.anonymousSessionId,
+    );
+    let pulses: PulseProjection[] = [];
+    if (identity) {
+      const ownerKey =
+        identity.anonymousSessionId ?? (identity.ownerKey as string);
+      const rows = await ctx.db
+        .query("pulseReports")
+        .withIndex("by_owner_date", (q) =>
+          q.eq("ownerKey", ownerKey).eq("dateKey", dateKey),
+        )
+        .order("desc")
+        .take(PULSE_DEFAULT);
+      pulses = rows.map<PulseProjection>((p) => ({
+        _id: p._id,
+        entitySlug: p.entitySlug,
+        dateKey: p.dateKey,
+        status: p.status,
+        summaryMarkdown: p.summaryMarkdown ?? null,
+        changeCount: p.changeCount,
+        materialChangeCount: p.materialChangeCount,
+        generatedAt: p.generatedAt,
+      }));
+    }
+
+    // 3. Hypotheses updated within the requested day (UTC bounds).
+    const hypothesesAll = await Promise.all(
+      Array.from(ACTIVE_STATUSES).map((status) =>
+        ctx.db
+          .query("narrativeHypotheses")
+          .withIndex("by_status", (q) => q.eq("status", status))
+          .order("desc")
+          .take(HYPOTHESIS_MAX * 3),
+      ),
+    );
+    const hypMerged: Doc<"narrativeHypotheses">[] = [];
+    const hypSeen = new Set<string>();
+    for (const batch of hypothesesAll) {
+      for (const h of batch) {
+        if (hypSeen.has(h._id)) continue;
+        if (h.updatedAt < dayStartMs || h.updatedAt > dayEndMs) continue;
+        hypSeen.add(h._id);
+        hypMerged.push(h);
+      }
+    }
+    hypMerged.sort((a, b) => b.updatedAt - a.updatedAt);
+
+    // 4. Forecasts active that day, with last-update history.
+    const forecastRows = await ctx.db
+      .query("forecasts")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .take(FORECAST_MAX * 4);
+    const forecasts = forecastRows
+      .filter((f) => f.updateCount > 0 && f.probability != null)
+      .filter((f) => (f.lastRefreshedAt ?? f.createdAt) <= dayEndMs)
+      .slice(0, FORECAST_MAX);
+
+    if (!snapshot && pulses.length === 0 && hypMerged.length === 0 && forecasts.length === 0) {
+      return {
+        available: false as const,
+        reason: "no_edition" as const,
+        dateKey,
+        earliestDateKey,
+      };
+    }
+
+    return {
+      available: true as const,
+      dateKey,
+      earliestDateKey,
+      snapshot: snapshot
+        ? {
+            _id: snapshot._id,
+            dateString: snapshot.dateString,
+            generatedAt: snapshot.generatedAt,
+            version: snapshot.version,
+            dashboardMetrics: snapshot.dashboardMetrics,
+            sourceSummary: snapshot.sourceSummary,
+          }
+        : null,
+      pulses,
+      hypothesisCount: hypMerged.length,
+      forecastCount: forecasts.length,
+    };
+  },
+});
+
+/* ────────────────────────────────────────────────────────────────────
+ * Weekly digest — 7-day window, aggregated.
+ * Returns: total material-changes, top forecasts by abs Δ, hypothesis
+ * count, and a span-summary (start/end dateKey).
+ * ────────────────────────────────────────────────────────────────── */
+export const getWeeklyDigest = query({
+  args: {
+    weekKey: v.string(),
+    anonymousSessionId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const range = isoWeekRange(args.weekKey);
+    if (!range) {
+      return {
+        available: false as const,
+        reason: "invalid_week" as const,
+        weekKey: args.weekKey,
+        startDateKey: null as string | null,
+        endDateKey: null as string | null,
+      };
+    }
+    const { startMs, endMs } = range;
+    const startDateKey = dateKeyFromMs(startMs);
+    const endDateKey = dateKeyFromMs(endMs);
+
+    // 1. Pulses across the window.
+    const identity = await resolveProductIdentitySafely(
+      ctx,
+      args.anonymousSessionId,
+    );
+    let totalMaterial = 0;
+    let totalChanges = 0;
+    let pulseCount = 0;
+    let topPulses: PulseProjection[] = [];
+    if (identity) {
+      const ownerKey =
+        identity.anonymousSessionId ?? (identity.ownerKey as string);
+      // Iterate per-day; pulseReports.by_owner_date supports
+      // (ownerKey, dateKey) point queries.  We take 7 day-keys.
+      const dayKeys: string[] = [];
+      for (let d = startMs; d <= endMs; d += 86_400_000) {
+        dayKeys.push(dateKeyFromMs(d));
+      }
+      const dayRows = await Promise.all(
+        dayKeys.map((dk) =>
+          ctx.db
+            .query("pulseReports")
+            .withIndex("by_owner_date", (q) =>
+              q.eq("ownerKey", ownerKey).eq("dateKey", dk),
+            )
+            .order("desc")
+            .take(PULSE_DEFAULT),
+        ),
+      );
+      const all = dayRows.flat();
+      totalMaterial = all.reduce(
+        (n, p) => n + (p.materialChangeCount ?? 0),
+        0,
+      );
+      totalChanges = all.reduce((n, p) => n + (p.changeCount ?? 0), 0);
+      pulseCount = all.length;
+      // Top by material change, then change count.
+      topPulses = all
+        .slice()
+        .sort(
+          (a, b) =>
+            (b.materialChangeCount ?? 0) - (a.materialChangeCount ?? 0) ||
+            (b.changeCount ?? 0) - (a.changeCount ?? 0),
+        )
+        .slice(0, 5)
+        .map<PulseProjection>((p) => ({
+          _id: p._id,
+          entitySlug: p.entitySlug,
+          dateKey: p.dateKey,
+          status: p.status,
+          summaryMarkdown: p.summaryMarkdown ?? null,
+          changeCount: p.changeCount,
+          materialChangeCount: p.materialChangeCount,
+          generatedAt: p.generatedAt,
+        }));
+    }
+
+    // 2. Top forecasts by abs probability movement in the window.
+    const forecastRows = await ctx.db
+      .query("forecasts")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .take(FORECAST_MAX * 6);
+    const movements: Array<{
+      forecast: Doc<"forecasts">;
+      delta: number;
+      previousProbability: number;
+      newProbability: number;
+    }> = [];
+    for (const f of forecastRows) {
+      const updates = await ctx.db
+        .query("forecastUpdateHistory")
+        .withIndex("by_forecast_date", (q) => q.eq("forecastId", f._id))
+        .order("desc")
+        .take(20);
+      const inWindow = updates.filter(
+        (u) => u.updatedAt >= startMs && u.updatedAt <= endMs,
+      );
+      if (inWindow.length === 0) continue;
+      const newest = inWindow[0];
+      const oldest = inWindow[inWindow.length - 1];
+      const delta = newest.newProbability - oldest.previousProbability;
+      movements.push({
+        forecast: f,
+        delta,
+        previousProbability: oldest.previousProbability,
+        newProbability: newest.newProbability,
+      });
+    }
+    movements.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    const topForecasts = movements.slice(0, 3).map((m) => ({
+      _id: m.forecast._id,
+      question: m.forecast.question,
+      forecastType: m.forecast.forecastType,
+      probability: m.newProbability,
+      previousProbability: m.previousProbability,
+      probabilityDelta: m.delta,
+      resolutionDate: m.forecast.resolutionDate,
+    }));
+
+    // 3. Hypotheses updated in the window.
+    const hypothesesAll = await Promise.all(
+      Array.from(ACTIVE_STATUSES).map((status) =>
+        ctx.db
+          .query("narrativeHypotheses")
+          .withIndex("by_status", (q) => q.eq("status", status))
+          .order("desc")
+          .take(HYPOTHESIS_MAX * 3),
+      ),
+    );
+    const hypMerged: Doc<"narrativeHypotheses">[] = [];
+    const hypSeen = new Set<string>();
+    for (const batch of hypothesesAll) {
+      for (const h of batch) {
+        if (hypSeen.has(h._id)) continue;
+        if (h.updatedAt < startMs || h.updatedAt > endMs) continue;
+        hypSeen.add(h._id);
+        hypMerged.push(h);
+      }
+    }
+    hypMerged.sort((a, b) => b.updatedAt - a.updatedAt);
+    const topHypotheses = hypMerged.slice(0, 5).map((h) => ({
+      _id: h._id,
+      label: h.label,
+      title: h.title,
+      claimForm: h.claimForm,
+      status: h.status,
+      updatedAt: h.updatedAt,
+      supportingEvidenceCount: h.supportingEvidenceCount,
+      contradictingEvidenceCount: h.contradictingEvidenceCount,
+    }));
+
+    if (
+      pulseCount === 0 &&
+      topForecasts.length === 0 &&
+      topHypotheses.length === 0
+    ) {
+      return {
+        available: false as const,
+        reason: "no_edition" as const,
+        weekKey: args.weekKey,
+        startDateKey,
+        endDateKey,
+      };
+    }
+
+    return {
+      available: true as const,
+      weekKey: args.weekKey,
+      startDateKey,
+      endDateKey,
+      totals: {
+        pulseCount,
+        materialChanges: totalMaterial,
+        changes: totalChanges,
+      },
+      topPulses,
+      topForecasts,
+      topHypotheses,
+    };
+  },
+});
+
+/* ────────────────────────────────────────────────────────────────────
+ * Monthly retrospective (P0-minimal): top edition per week + brier-
+ * resolved forecast count.  Per spec, this is intentionally small —
+ * deeper per-month synthesis is deferred to a follow-up.
+ * ────────────────────────────────────────────────────────────────── */
+export const getMonthlyRetrospective = query({
+  args: {
+    monthKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const range = monthRange(args.monthKey);
+    if (!range) {
+      return {
+        available: false as const,
+        reason: "invalid_month" as const,
+        monthKey: args.monthKey,
+      };
+    }
+    const { startMs, endMs } = range;
+
+    // 1. All daily-brief snapshots in the month — pick the one with
+    //    the longest keyStats per ISO week (deterministic top pick).
+    const snapshotsAll = await ctx.db
+      .query("dailyBriefSnapshots")
+      .withIndex("by_date_string")
+      .order("desc")
+      .take(60);
+    const inMonth = snapshotsAll.filter((s) => {
+      const t = Date.parse(`${s.dateString}T00:00:00Z`);
+      return t >= startMs && t <= endMs;
+    });
+    // Bucket by ISO-week.
+    const weekBuckets = new Map<string, Doc<"dailyBriefSnapshots">[]>();
+    for (const s of inMonth) {
+      const t = Date.parse(`${s.dateString}T00:00:00Z`);
+      const isoWeek = isoWeekKeyFromMs(t);
+      const list = weekBuckets.get(isoWeek) ?? [];
+      list.push(s);
+      weekBuckets.set(isoWeek, list);
+    }
+    const topPerWeek: Array<{
+      weekKey: string;
+      dateString: string;
+      keyStatCount: number;
+    }> = [];
+    for (const [weekKey, snaps] of weekBuckets.entries()) {
+      const top = snaps
+        .slice()
+        .sort(
+          (a, b) =>
+            (b.dashboardMetrics?.keyStats?.length ?? 0) -
+            (a.dashboardMetrics?.keyStats?.length ?? 0),
+        )[0];
+      if (!top) continue;
+      topPerWeek.push({
+        weekKey,
+        dateString: top.dateString,
+        keyStatCount: top.dashboardMetrics?.keyStats?.length ?? 0,
+      });
+    }
+    topPerWeek.sort((a, b) => a.dateString.localeCompare(b.dateString));
+
+    // 2. Brier-resolved forecasts whose resolvedAt fell in the month.
+    const resolutions = await ctx.db
+      .query("forecastResolutions")
+      .order("desc")
+      .take(200);
+    const inMonthRes = resolutions.filter(
+      (r) => r.resolvedAt >= startMs && r.resolvedAt <= endMs,
+    );
+    const brierScores = inMonthRes
+      .map((r) => r.brierScore)
+      .filter((b): b is number => typeof b === "number" && Number.isFinite(b));
+    const meanBrier =
+      brierScores.length > 0
+        ? brierScores.reduce((s, n) => s + n, 0) / brierScores.length
+        : null;
+
+    if (topPerWeek.length === 0 && inMonthRes.length === 0) {
+      return {
+        available: false as const,
+        reason: "no_edition" as const,
+        monthKey: args.monthKey,
+      };
+    }
+
+    return {
+      available: true as const,
+      monthKey: args.monthKey,
+      topPerWeek,
+      resolvedForecastCount: inMonthRes.length,
+      meanBrier,
+    };
+  },
+});
+
+/** Compute YYYY-Www key from a UTC ms timestamp. */
+function isoWeekKeyFromMs(ms: number): string {
+  const d = new Date(ms);
+  const year = d.getUTCFullYear();
+  const jan4 = Date.UTC(year, 0, 4);
+  const jan4Day = new Date(jan4).getUTCDay() || 7;
+  const week1Mon = jan4 - (jan4Day - 1) * 86_400_000;
+  const week = Math.floor((ms - week1Mon) / (7 * 86_400_000)) + 1;
+  // Edge case: year boundary — if the value falls in week 1 of next
+  // year, recurse on next year.
+  if (week > 52) {
+    const nextJan4 = Date.UTC(year + 1, 0, 4);
+    const nextJan4Day = new Date(nextJan4).getUTCDay() || 7;
+    const nextWeek1Mon = nextJan4 - (nextJan4Day - 1) * 86_400_000;
+    if (ms >= nextWeek1Mon) {
+      return `${year + 1}-W${"01".padStart(2, "0")}`;
+    }
+  }
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}

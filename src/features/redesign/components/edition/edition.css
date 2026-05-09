@@ -628,3 +628,16 @@
     transition: none;
   }
 }
+
+/* ─── P0 #3: EditionSelector responsive chip text ─────────────── */
+[data-redesign] [data-edition] [data-edition-selector] .rd-edition-chip__short {
+  display: none;
+}
+@media (max-width: 480px) {
+  [data-redesign] [data-edition] [data-edition-selector] .rd-edition-chip__full {
+    display: none;
+  }
+  [data-redesign] [data-edition] [data-edition-selector] .rd-edition-chip__short {
+    display: inline;
+  }
+}
