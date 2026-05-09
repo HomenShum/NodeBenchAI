@@ -77,14 +77,15 @@ const EDITION_SECTIONS = [
 ] as const;
 
 test.describe("Editorial home — Phase 7a", () => {
-  test("Scenario A: ?edition=1 renders the editorial layout", async ({ page }) => {
+  test("Scenario A: /redesign default renders the editorial layout (Phase 7d)", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (err) => errors.push(err.message));
     page.on("console", (msg) => {
       if (msg.type() === "error") errors.push(`console.error: ${msg.text()}`);
     });
 
-    await page.goto(`${BASE_URL}/redesign?edition=1`, { waitUntil: "domcontentloaded" });
+    // Phase 7d: editorial is now the default at /redesign, no flag required.
+    await page.goto(`${BASE_URL}/redesign`, { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle");
 
     const editionRoot = page.locator("[data-edition]");
@@ -116,8 +117,21 @@ test.describe("Editorial home — Phase 7a", () => {
     expect(errors, `Errors:\n${errors.join("\n")}`).toEqual([]);
   });
 
-  test("Scenario B: legacy home preserved without the flag", async ({ page }) => {
-    await page.goto(`${BASE_URL}/redesign`, { waitUntil: "domcontentloaded" });
+  test("Scenario B: legacy home preserved via ?classic=1 opt-out (Phase 7d)", async ({ page }) => {
+    // Phase 7d: legacy is now opt-out, requires explicit ?classic=1 flag.
+    await page.goto(`${BASE_URL}/redesign?classic=1`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle");
+
+    const editionRoot = page.locator("[data-edition]");
+    expect(await editionRoot.count()).toBe(0);
+
+    const legacyOps = page.locator('section[aria-label="Operations dashboard"]');
+    await expect(legacyOps).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("Scenario B-compat: ?edition=0 still routes to legacy (back-compat)", async ({ page }) => {
+    // Old bookmarks with ?edition=0 should keep working after Phase 7d.
+    await page.goto(`${BASE_URL}/redesign?edition=0`, { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle");
 
     const editionRoot = page.locator("[data-edition]");
@@ -129,28 +143,29 @@ test.describe("Editorial home — Phase 7a", () => {
 });
 
 test.describe("Editorial home — Phase 7b + 7c", () => {
-  test("Scenario C: discoverability round-trip via legacy → editorial → classic", async ({ page }) => {
-    await page.goto(`${BASE_URL}/redesign`, { waitUntil: "domcontentloaded" });
+  test("Scenario C: round-trip via classic → editorial → classic (Phase 7d)", async ({ page }) => {
+    // Phase 7d: enter via the legacy opt-out, verify the discoverability
+    // link returns the user to default editorial, then verify the
+    // reciprocal "Switch to classic" sets ?classic=1 and lands on legacy.
+    await page.goto(`${BASE_URL}/redesign?classic=1`, { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle");
 
-    // Discoverability link is present on the legacy home.
-    const tryEdition = page.locator("[data-edition-discover]").first();
-    await expect(tryEdition).toBeVisible({ timeout: 10_000 });
+    // Discoverability link ("← Back to daily edition") on legacy home.
+    const backToEdition = page.locator("[data-edition-discover]").first();
+    await expect(backToEdition).toBeVisible({ timeout: 10_000 });
 
-    // Click it — URL should now include ?edition=1, editorial mounts.
-    await tryEdition.click();
+    // Click it — URL clears the classic flag, default editorial mounts.
+    await backToEdition.click();
     await page.waitForLoadState("networkidle");
-    await expect(page).toHaveURL(/\?edition=1$/);
+    await expect(page).not.toHaveURL(/[?&]classic=1/);
     await expect(page.locator("[data-edition]")).toBeVisible({ timeout: 10_000 });
 
-    // Reciprocal "Switch to classic" returns the user.
+    // Reciprocal "Switch to classic" sets ?classic=1 and returns to legacy.
     const switchToClassic = page.locator("[data-edition-switch]").first();
     await expect(switchToClassic).toBeVisible({ timeout: 5_000 });
     await switchToClassic.click();
     await page.waitForLoadState("networkidle");
-
-    // URL no longer carries the flag, legacy ops dashboard is back.
-    await expect(page).not.toHaveURL(/edition=1/);
+    await expect(page).toHaveURL(/[?&]classic=1(?:&|$)/);
     const legacyOps = page.locator('section[aria-label="Operations dashboard"]');
     await expect(legacyOps).toBeVisible({ timeout: 10_000 });
   });

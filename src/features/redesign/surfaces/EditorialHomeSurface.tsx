@@ -681,16 +681,15 @@ export function EditorialHomeSurface({ onAsk }: Props) {
   const editionId =
     snapshot?._id ?? (todayPulse?.dateKey ?? "current");
 
-  // Reciprocal of the LegacyHomeSurface "Try the daily edition →"
-  // discoverability link — return to the legacy home with the flag
-  // cleared.  Uses navigate() so React-Router state stays in sync.
+  // Phase 7d (2026-05-08): editorial is now the default at /redesign,
+  // so opt-out to the legacy classic home requires explicitly setting
+  // `?classic=1`.  Uses navigate() so React-Router state stays in sync.
+  // Old `?edition` param is cleared on the round-trip so URLs stay clean.
   const onSwitchToClassic = () => {
     const params = new URLSearchParams(location.search);
     params.delete("edition");
-    const search = params.toString();
-    navigate(search ? `${location.pathname}?${search}` : location.pathname, {
-      replace: true,
-    });
+    params.set("classic", "1");
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
   };
 
   // Helper to look up a section's data and bail out cleanly when it's

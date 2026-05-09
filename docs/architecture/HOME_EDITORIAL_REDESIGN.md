@@ -231,7 +231,22 @@ User directive: *"do no need new route, build revamp ontop of existing redeisgn"
 
 ---
 
-**Next action**: open PR #279 implementing Phase 7a — editorial render of `HomeSurface.tsx` behind `?edition=1` flag, binding §1-§5 to the existing Convex queries per §5.
+**Phase 7d (2026-05-08): editorial promoted to default at `/redesign`.** Decision per dogfood evidence — legacy redesign for unauthenticated visitors was mostly fixture data (Daily Brief, HSBC review, Vast Data raise, etc., all hard-coded). Editorial renders honestly sparse but truthful. Per `agentic_reliability.md` HONEST_SCORES + `usability_scorecard.md` "output is the distribution," honest sparse > pretty fake.
+
+Routing semantics post-7d:
+
+| URL | Renders |
+|---|---|
+| `/redesign` (no flag) | Editorial (DEFAULT) |
+| `/redesign?edition=1` | Editorial (explicit, no-op) |
+| `/redesign?classic=1` | Legacy (canonical opt-out) |
+| `/redesign?edition=0` | Legacy (back-compat for old bookmarks) |
+
+Affordance flips:
+- Legacy home now shows `← Back to daily edition` (clears `?classic=1`).
+- Editorial home `← Switch to classic home` now sets `?classic=1` (was: cleared `?edition=1`).
+
+Known follow-up: PWA service worker uses cache-first navigation; existing visitors with the old SW silently keep seeing the previous bundle until manual hard-refresh. Forensic evidence captured during 7b verification — origin served correct bundle but client served stale until `navigator.serviceWorker.unregister()` + `caches.delete()`. Tracked separately; fix is `registerType: "autoUpdate"` + `NetworkFirst` for navigation. Until that lands, expect a 1-load delay before existing users see the new editorial default.
 
 ---
 

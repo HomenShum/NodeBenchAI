@@ -72,16 +72,22 @@ interface HomeSurfaceProps {
 }
 
 /**
- * Read the `?edition=1` flag from the current URL.  Phase 7a gate per
- * docs/architecture/HOME_EDITORIAL_REDESIGN.md §8 — when present, the
- * editorial daily-edition render replaces the legacy home.  Absent =
- * existing render path is preserved unchanged.  Computed once per
- * render (no useEffect) so SSR / first-paint match the URL state.
+ * Per docs/architecture/HOME_EDITORIAL_REDESIGN.md §8 (Phase 7d, 2026-05-08):
+ * the editorial daily-edition render is now the DEFAULT at /redesign.
+ * Legacy is opt-out via `?classic=1` (canonical) or `?edition=0`
+ * (back-compat for existing bookmarks).  `?edition=1` is harmless and
+ * still resolves to editorial since editorial is now default.
+ *
+ * Computed once per render (no useEffect) so SSR / first-paint match
+ * the URL state.
  */
-function readEditionFlag(): boolean {
+function shouldRenderLegacy(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return new URLSearchParams(window.location.search).get("edition") === "1";
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("classic") === "1") return true;
+    if (params.get("edition") === "0") return true;
+    return false;
   } catch {
     return false;
   }
@@ -90,10 +96,10 @@ function readEditionFlag(): boolean {
 export function HomeSurface(props: HomeSurfaceProps) {
   // Gate the entire surface choice at the top level so each branch
   // owns its own hook order — avoids the "conditional hooks" lint.
-  if (readEditionFlag()) {
-    return <EditorialHomeSurface onAsk={props.onAsk} onOpenReport={props.onOpenReport} />;
+  if (shouldRenderLegacy()) {
+    return <LegacyHomeSurface {...props} />;
   }
-  return <LegacyHomeSurface {...props} />;
+  return <EditorialHomeSurface onAsk={props.onAsk} onOpenReport={props.onOpenReport} />;
 }
 
 function LegacyHomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
@@ -197,16 +203,18 @@ function LegacyHomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
           <span className="rd-mono rd-faint" style={{ fontSize: 10.5 }}>
             {liveArtifacts.isLive ? `${effectiveContinueWorking.length} active reports · ${effectiveWatchlist.length} watched entities` : "starter pulse — sign in for live signals"}
           </span>
-          {/* Phase 7c — discoverability affordance for the editorial
-              home.  Quiet anchor, not a banner — the user decides
-              when to opt in.  Reciprocal "Switch to classic" lives
-              in EditorialHomeSurface.tsx so the round-trip is one
-              click in either direction. */}
+          {/* Phase 7d — return path to the editorial home.  After 7d,
+              editorial is the default at /redesign and reaching this
+              legacy surface means the user has `?classic=1` (or back-
+              compat `?edition=0`) set.  Clicking this clears the
+              query string and lands on default = editorial.  Reciprocal
+              "← Switch to classic home" lives in EditorialHomeSurface
+              and sets `?classic=1`. */}
           <a
-            href="?edition=1"
+            href="?"
             className="rd-edition-discover-link"
             data-edition-discover
-            aria-label="Try the daily edition (single-document brief)"
+            aria-label="Back to the daily edition (single-document brief)"
             style={{
               marginLeft: "auto",
               fontSize: 11,
@@ -221,7 +229,7 @@ function LegacyHomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
               whiteSpace: "nowrap",
             }}
           >
-            Try the daily edition →
+            ← Back to daily edition
           </a>
           <button
             type="button"
