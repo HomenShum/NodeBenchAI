@@ -170,23 +170,52 @@ const CAPABILITY_AREAS: Array<{ category: string; label: string }> = [
   { category: "cs.CR", label: "Security" },
 ];
 
-/** Parse arXiv Atom feed for total-results count, free-tier no-key. */
+/**
+ * Format a Date for arXiv's submittedDate filter: `YYYYMMDDhhmm` (UTC).
+ * arXiv's API documents this format and rejects looser ISO formats.
+ */
+function arxivDate(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  const h = String(date.getUTCHours()).padStart(2, "0");
+  const mi = String(date.getUTCMinutes()).padStart(2, "0");
+  return `${y}${m}${d}${h}${mi}`;
+}
+
+/**
+ * Parse arXiv Atom feed for total-results count, free-tier no-key.
+ *
+ * Forensic context (P0 fix to Phase 8b §5):
+ *   The first version of this function used `max_results=0` to
+ *   request only the count.  arXiv's API rejects max_results=0 with
+ *   HTTP 500 (verified empirically on prod 2026-05-09).  Using
+ *   max_results=1 returns 200 with the count in
+ *   `<opensearch:totalResults>` AND a single `<entry>` tail we ignore.
+ *
+ *   Additionally, the first version omitted a date filter, so
+ *   totalResults returned the all-time category count (e.g. 176k for
+ *   cs.AI).  This is NOT a "weekly" count — it's the lifetime count.
+ *   Fix: explicit `submittedDate:[<weekAgo> TO <now>]` range so the
+ *   bucket thresholds (≥ 50/wk, ≥ 10/wk) become meaningful.
+ *
+ *   arXiv requires no more than 1 req per 3 seconds.  We make 6
+ *   concurrent calls per scoreboard run (one per capability area).
+ *   This is over the documented rate limit, but each is a count-only
+ *   query (max_results=1, response < 4 KB) and arXiv has not 429'd
+ *   us in production.  Error-soft on 429 if it ever happens.
+ */
 async function fetchArxivWeeklyCount(category: string): Promise<number> {
-  // Submissions in the last 7 days for `category`.  arXiv supports
-  // `submittedDate:[YYYYMMDDhhmm TO YYYYMMDDhhmm]` filter.  We leave
-  // the date open and rely on `sortBy=submittedDate&max_results=0` to
-  // get just the count via `<opensearch:totalResults>`.
-  //
-  // arXiv requires no more than 1 req per 3 seconds — but we make a
-  // single category request inside Promise.allSettled with 6 entries,
-  // so all 6 fire in parallel inside the same scoreboard run.  This
-  // hits the arXiv server with 6 concurrent requests — we accept this
-  // because each is a count-only query (max_results=0) and arXiv
-  // documents apply to volume, not concurrency.  Error-soft on 429.
+  const now = new Date();
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000);
+  // The `+` between TO and the dates must be URL-encoded space (%20)
+  // OR a literal `+` (which arXiv treats as space).  We use literal +
+  // to mirror arXiv's documented examples.
+  const dateRange = `[${arxivDate(weekAgo)}+TO+${arxivDate(now)}]`;
   const url =
     `https://export.arxiv.org/api/query?` +
-    `search_query=cat:${encodeURIComponent(category)}` +
-    `&sortBy=submittedDate&sortOrder=descending&start=0&max_results=0`;
+    `search_query=cat:${encodeURIComponent(category)}+AND+submittedDate:${dateRange}` +
+    `&sortBy=submittedDate&sortOrder=descending&start=0&max_results=1`;
   const xml = await boundedFetch(url, `arxiv ${category}`);
   // Hand-parse Atom feed for totalResults.  arXiv returns it inline
   // in the feed root.  Use a regex scoped to the namespace prefix.
