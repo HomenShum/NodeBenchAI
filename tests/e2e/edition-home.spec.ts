@@ -62,6 +62,34 @@
  * Actions:     Stub `navigator.clipboard.writeText`, click
  *              `[data-format-share]`, assert the stub was called
  *              with a URL containing `?edition=1&share=`.
+ *
+ * ─── Scenario H — operations accordion is gone (P0 #1 — 2026-05-09)
+ * User:        Anonymous visitor on the public editorial home
+ * Goal:        Never see fixture data on the editorial surface.
+ * Prior state: useHomePulseLive was a stub returning [] forever; the
+ *              §4 ScoreboardSection had a `<details>` accordion that
+ *              fell through to fixture imports
+ *              (pulseCards/continueWorking/watchlist) whenever the
+ *              hook was empty (i.e. always).
+ * Actions:     1) Navigate /redesign → wait for [data-edition].
+ *              2) Search the editorial DOM for the accordion summary
+ *                 text "Today's operations".
+ *              3) Search the editorial DOM for known fixture strings
+ *                 ("Series B 9/12 patents tracked", "Anchor doc:",
+ *                 "Continue working") that the legacy fixture export
+ *                 surfaces verbatim.
+ * Scale:       1 user — but the assertion runs over the entire editorial
+ *              DOM in one DOMContentLoaded tick, so the regression bar
+ *              applies to every editorial render going forward.
+ * Duration:    Single page load.
+ * Expected:    Zero accordion summary, zero fixture strings inside the
+ *              editorial DOM.  HONEST_STATUS — no fake operational
+ *              signal masquerading as live.
+ * Edge cases:  CSS-hidden accordion does not satisfy this — must be
+ *              fully absent from the DOM (queryByText / count === 0).
+ *              Strings allowed elsewhere in the document (e.g. SEO
+ *              meta) are filtered out by scoping the search to
+ *              [data-edition].
  */
 
 import { test, expect } from "@playwright/test";
@@ -279,5 +307,49 @@ test.describe("Editorial home — Phase 7b + 7c", () => {
     expect(copied.length).toBeGreaterThanOrEqual(1);
     expect(copied[0]).toMatch(/[?&]edition=1(?:&|$)/);
     expect(copied[0]).toMatch(/[?&]share=/);
+  });
+
+  test("Scenario H: operations accordion + fixture data are absent (P0 #1)", async ({ page }) => {
+    await page.goto(`${BASE_URL}/redesign`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle");
+    await page.waitForSelector("[data-edition]", { timeout: 10_000 });
+
+    // 1. The accordion summary must be gone.
+    const accordionSummary = page.locator(
+      "[data-edition] details.rd-edition-ops-details",
+    );
+    expect(await accordionSummary.count()).toBe(0);
+    const accordionByText = page
+      .locator("[data-edition]")
+      .getByText("Today's operations", { exact: true });
+    expect(await accordionByText.count()).toBe(0);
+
+    // 2. Known fixture strings must not appear inside the editorial DOM.
+    //    These are surface verbatim from src/features/redesign/fixtures.ts.
+    const editionRoot = page.locator("[data-edition]");
+    const editionText = (await editionRoot.textContent()) ?? "";
+    // Strings copied verbatim from src/features/redesign/fixtures.ts
+    // (pulseCards / continueWorking / watchlist).  If any of these
+    // appears inside [data-edition], the operations accordion
+    // regressed and a fixture is leaking onto the public surface.
+    const fixtureSignals = [
+      "Orbital Labs answered from event corpus",
+      "Ship Demo Day report updated",
+      "Orbital Labs — pilot pre-read",
+      "Voice-agent evaluation — theme",
+      "MCP host extensions confirmed for Q3",
+      "Hiring spike: 4× ML eval engineers this week",
+    ];
+    for (const signal of fixtureSignals) {
+      expect(
+        editionText.includes(signal),
+        `Editorial DOM must not contain fixture string "${signal}"`,
+      ).toBe(false);
+    }
+
+    // 3. Belt-and-suspenders — the data attribute we used to mark the
+    //    legacy-fallback accordion source is gone too.
+    const opsSourceMark = page.locator("[data-edition] [data-ops-source]");
+    expect(await opsSourceMark.count()).toBe(0);
   });
 });

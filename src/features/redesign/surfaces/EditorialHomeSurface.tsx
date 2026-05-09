@@ -52,8 +52,6 @@ import { useActiveHypotheses, type EditionHypothesis } from "../hooks/useActiveH
 import { useTopForecasts, type EditionForecast } from "../hooks/useTopForecasts";
 import { useLatestDailyBriefSnapshot } from "../hooks/useLatestDailyBriefSnapshot";
 import { useEditionFootnotes } from "../hooks/useEditionFootnotes";
-import { useHomePulseLive } from "../hooks/useHomePulseLive";
-import { pulseCards as fixturePulseCards, watchlist, continueWorking } from "../fixtures";
 import { Pill } from "../components/Pill";
 import "../components/edition/edition.css";
 
@@ -374,9 +372,23 @@ function ScoreboardSection({
   heading: string;
   snapshot: ReturnType<typeof useLatestDailyBriefSnapshot>;
 }) {
-  const { pulse: livePulseCards } = useHomePulseLive();
-  const opsCards = livePulseCards.length > 0 ? livePulseCards : fixturePulseCards;
-
+  // Operations accordion removed (P0 #1 — 2026-05-09).
+  //
+  // The previous render leaned on `useHomePulseLive`, which has been a
+  // stub since Sprint S4 (`{ pulse: [], isLive: false, isLoading: false }`),
+  // and on a fixture import (`fixturePulseCards`, `continueWorking`,
+  // `watchlist` from ../fixtures).  When the hook returned empty (always),
+  // the accordion fell through to fixture data — exactly the kind of
+  // silent fake the editorial home was promoted as the antidote to
+  // (HOME_EDITORIAL_REDESIGN.md §0 / §3 Variant C).
+  //
+  // Per analyst-diagnostic + agentic_reliability HONEST_STATUS, we
+  // delete the accordion entirely.  If a future iteration wants
+  // operations on the editorial home, it should source from
+  // `useLiveArtifacts` (the same path the legacy home now uses) — not
+  // a direct call to `batchAutopilot.queries.getRecentRuns`, which the
+  // stub's header comment explicitly forbade ("must not call unstable
+  // operations queries from the public shell").
   if (snapshot === undefined) {
     return (
       <EditorialSection
@@ -404,48 +416,6 @@ function ScoreboardSection({
       heading={heading}
     >
       <Scoreboard stats={stats} />
-
-      <details className="rd-edition-ops-details">
-        <summary>Today's operations</summary>
-        <div className="rd-ops" data-ops-source="legacy-fallback">
-          <div className="rd-ops__col">
-            <div className="rd-ops__head">
-              <span className="rd-ops__title">Continue working</span>
-              <span className="rd-ops__count">{continueWorking.length} open</span>
-            </div>
-            {continueWorking.slice(0, 3).map((c) => (
-              <div key={c.id} className="rd-ops__row">
-                <div className="rd-ops__row-title">{c.title}</div>
-                <span className="rd-ops__row-meta">{c.kind} · {c.lastTouched}</span>
-              </div>
-            ))}
-          </div>
-          <div className="rd-ops__col">
-            <div className="rd-ops__head">
-              <span className="rd-ops__title">What changed</span>
-              <span className="rd-ops__count">{opsCards.length}</span>
-            </div>
-            {opsCards.slice(0, 3).map((card) => (
-              <div key={card.title} className="rd-ops__row">
-                <div className="rd-ops__row-title" style={{ fontSize: 13 }}>{card.title}</div>
-                <span style={{ fontSize: 12, color: "var(--rd-ink-mute)" }}>{card.body}</span>
-              </div>
-            ))}
-          </div>
-          <div className="rd-ops__col">
-            <div className="rd-ops__head">
-              <span className="rd-ops__title">Watchlist</span>
-              <span className="rd-ops__count">{watchlist.length}</span>
-            </div>
-            {watchlist.slice(0, 3).map((w) => (
-              <div key={w.id} className="rd-ops__row">
-                <div className="rd-ops__row-title">{w.entity}</div>
-                <span style={{ fontSize: 12, color: "var(--rd-ink-mute)" }}>{w.signal}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </details>
     </EditorialSection>
   );
 }
