@@ -738,6 +738,7 @@ import type * as domains_models_modelRouterQueries from "../domains/models/model
 import type * as domains_monitoring_industryUpdates from "../domains/monitoring/industryUpdates.js";
 import type * as domains_monitoring_industryUpdatesEnhanced from "../domains/monitoring/industryUpdatesEnhanced.js";
 import type * as domains_monitoring_integrationHelpers from "../domains/monitoring/integrationHelpers.js";
+import type * as domains_monitoring_publicTrendingSeed from "../domains/monitoring/publicTrendingSeed.js";
 import type * as domains_monitoring_worldMonitor from "../domains/monitoring/worldMonitor.js";
 import type * as domains_narrative_actions_competingExplanations from "../domains/narrative/actions/competingExplanations.js";
 import type * as domains_narrative_actions_hypothesisLifecycle from "../domains/narrative/actions/hypothesisLifecycle.js";
@@ -2221,6 +2222,7 @@ declare const fullApi: ApiFromModules<{
   "domains/monitoring/industryUpdates": typeof domains_monitoring_industryUpdates;
   "domains/monitoring/industryUpdatesEnhanced": typeof domains_monitoring_industryUpdatesEnhanced;
   "domains/monitoring/integrationHelpers": typeof domains_monitoring_integrationHelpers;
+  "domains/monitoring/publicTrendingSeed": typeof domains_monitoring_publicTrendingSeed;
   "domains/monitoring/worldMonitor": typeof domains_monitoring_worldMonitor;
   "domains/narrative/actions/competingExplanations": typeof domains_narrative_actions_competingExplanations;
   "domains/narrative/actions/hypothesisLifecycle": typeof domains_narrative_actions_hypothesisLifecycle;

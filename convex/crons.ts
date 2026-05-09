@@ -71,6 +71,21 @@ crons.daily(
   {}
 );
 
+// Public-trending seed for editorial home §1 (Track B, 2026-05-09).
+// The enhancedIndustryScan above writes to prSuggestions only — it never
+// inserts industryUpdates rows (the original write path is commented out
+// at industryUpdatesEnhanced.ts line 209). That left getTodayPulse's
+// public-trending fallback returning provenance:"empty" for every guest.
+// This cron pulls HN top + arXiv cs.AI recent (free, no API key) every
+// 6 hours so guest §1 always renders trending content. Idempotent —
+// dedupes by URL so re-runs don't double-insert.
+crons.interval(
+  "public-trending seed (HN + arXiv)",
+  { hours: 6 },
+  internal.domains.monitoring.publicTrendingSeed.seedPublicTrending,
+  {},
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // X ALGORITHM FEATURES - Phoenix ML powered discovery (Phase 2-6)
 // ═══════════════════════════════════════════════════════════════════════════
