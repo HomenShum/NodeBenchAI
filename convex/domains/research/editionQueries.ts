@@ -529,22 +529,10 @@ export const getEditionFootnotes = query({
 /**
  * PulseProjection — the public shape returned by today / daily / weekly
  * pulse queries.  Defined here so the temporal queries can use it
- * without depending on P0 #2's getTodayPulse refactor (which
- * introduces the same type at the top of the file when it merges).
- *
- * If both PRs land, the duplicate is deduped by leaving only one
- * `type PulseProjection = ...` declaration.
+ * `PulseProjection` is declared once at the top of this file (line 94,
+ * introduced by P0 #2 / `getTodayPulse`).  P0 #3 reuses that single
+ * declaration — the predicted duplicate has been deduped post-rebase.
  */
-type PulseProjection = {
-  _id: string;
-  entitySlug: string;
-  dateKey: string;
-  status: "generating" | "ready" | "failed";
-  summaryMarkdown: string | null;
-  changeCount: number;
-  materialChangeCount: number;
-  generatedAt: number;
-};
 
 /* ════════════════════════════════════════════════════════════════════
  * P0 #3 (2026-05-09) — Temporal browsing.
