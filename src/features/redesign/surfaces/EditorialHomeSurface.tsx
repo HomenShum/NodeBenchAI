@@ -146,6 +146,10 @@ function WhatMovedSection({
     (n, p) => n + (p.materialChangeCount ?? 0),
     0,
   );
+  // P0 #2: provenance tells us whether this is the user's own pulse or
+  // the public-trending fallback (or honestly empty).
+  const provenance = pulses.provenance;
+  const isTrending = provenance === "public-trending";
 
   return (
     <EditorialSection
@@ -154,8 +158,45 @@ function WhatMovedSection({
       number={number}
       kicker={kicker}
       heading={heading}
+      data-provenance={provenance}
     >
       <FormatStrip dateString={dateString} editionId={editionId} />
+      {isTrending && (
+        <p
+          className="rd-edition-trending-leadin"
+          data-trending-leadin
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "baseline",
+            gap: 8,
+            margin: "0 0 10px",
+            color: "var(--rd-ink-mute)",
+            fontSize: 14,
+          }}
+        >
+          <span
+            data-provenance-badge
+            aria-label="Public trending fallback"
+            style={{
+              fontFamily: "var(--rd-mono, ui-monospace, monospace)",
+              fontSize: 11,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "var(--rd-accent, #d97757)",
+              border: "1px solid var(--rd-accent, #d97757)",
+              padding: "2px 6px",
+              borderRadius: 3,
+            }}
+          >
+            Public · trending
+          </span>
+          <span>
+            You haven&rsquo;t run a pulse today. Here&rsquo;s what&rsquo;s
+            trending publicly.
+          </span>
+        </p>
+      )}
       {pulses.pulses.length === 0 ? (
         <p className="rd-edition-empty">
           No pulse generated yet today.
@@ -163,12 +204,18 @@ function WhatMovedSection({
         </p>
       ) : (
         <>
-          <p className="rd-edition-meta">
-            <span className="rd-edition-delta" aria-label={`${totalMaterial} material changes`}>
-              {totalMaterial} material change{totalMaterial === 1 ? "" : "s"}
-            </span>{" "}
-            across {pulses.pulses.length} entit{pulses.pulses.length === 1 ? "y" : "ies"}
-          </p>
+          {!isTrending && (
+            <p className="rd-edition-meta">
+              <span
+                className="rd-edition-delta"
+                aria-label={`${totalMaterial} material changes`}
+              >
+                {totalMaterial} material change{totalMaterial === 1 ? "" : "s"}
+              </span>{" "}
+              across {pulses.pulses.length} entit
+              {pulses.pulses.length === 1 ? "y" : "ies"}
+            </p>
+          )}
           <div className="rd-edition-prose">
             {pulses.pulses.map((p, i) => (
               <article
@@ -181,10 +228,13 @@ function WhatMovedSection({
                     {p.entitySlug.replace(/-/g, " ")}
                   </strong>{" "}
                   <span className="rd-edition-meta">
-                    · {p.changeCount} change{p.changeCount === 1 ? "" : "s"}
-                    {p.materialChangeCount > 0
-                      ? `, ${p.materialChangeCount} material`
-                      : ""}
+                    {isTrending
+                      ? "· trending"
+                      : `· ${p.changeCount} change${p.changeCount === 1 ? "" : "s"}${
+                          p.materialChangeCount > 0
+                            ? `, ${p.materialChangeCount} material`
+                            : ""
+                        }`}
                   </span>
                   <Footnote
                     id={`pulse-${i + 1}`}
