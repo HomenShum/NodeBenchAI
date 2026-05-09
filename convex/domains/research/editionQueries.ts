@@ -472,7 +472,15 @@ export const getEditionFootnotes = query({
       FOOTNOTE_ARTIFACT_MAX,
     );
 
-    // 1. Evidence artifacts by (string) artifactId.
+    // 1. Evidence artifacts.
+    //
+    // Two paths:
+    //  - When `artifactIds` is provided, look up each by deterministic
+    //    artifactId (existing behaviour, used by per-thread renders).
+    //  - When omitted, fall back to a recent-feed read sorted by
+    //    `by_created_at` desc.  Phase 8a §6: this lets the editorial
+    //    home surface public-trending footnotes (artifactId prefix
+    //    `pt:`) automatically without callers tracking each id.
     const requestedIds = (args.artifactIds ?? []).slice(0, artifactLimit);
     const artifacts: Array<{
       _id: Id<"evidenceArtifacts">;
@@ -485,24 +493,47 @@ export const getEditionFootnotes = query({
       firstQuote: string | null;
     }> = [];
     const seen = new Set<string>();
-    for (const id of requestedIds) {
-      if (seen.has(id)) continue;
-      seen.add(id);
-      const row = await ctx.db
+    if (requestedIds.length > 0) {
+      for (const id of requestedIds) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const row = await ctx.db
+          .query("evidenceArtifacts")
+          .withIndex("by_artifact_id", (q) => q.eq("artifactId", id))
+          .first();
+        if (!row) continue;
+        artifacts.push({
+          _id: row._id,
+          artifactId: row.artifactId,
+          url: row.url,
+          canonicalUrl: row.canonicalUrl,
+          publisher: row.publisher,
+          publishedAt: row.publishedAt ?? null,
+          credibilityTier: row.credibilityTier,
+          firstQuote: row.extractedQuotes[0]?.text ?? null,
+        });
+      }
+    } else {
+      // Recent-feed: BOUND read at artifactLimit.
+      const rows = await ctx.db
         .query("evidenceArtifacts")
-        .withIndex("by_artifact_id", (q) => q.eq("artifactId", id))
-        .first();
-      if (!row) continue;
-      artifacts.push({
-        _id: row._id,
-        artifactId: row.artifactId,
-        url: row.url,
-        canonicalUrl: row.canonicalUrl,
-        publisher: row.publisher,
-        publishedAt: row.publishedAt ?? null,
-        credibilityTier: row.credibilityTier,
-        firstQuote: row.extractedQuotes[0]?.text ?? null,
-      });
+        .withIndex("by_created_at")
+        .order("desc")
+        .take(artifactLimit);
+      for (const row of rows) {
+        if (seen.has(row.artifactId)) continue;
+        seen.add(row.artifactId);
+        artifacts.push({
+          _id: row._id,
+          artifactId: row.artifactId,
+          url: row.url,
+          canonicalUrl: row.canonicalUrl,
+          publisher: row.publisher,
+          publishedAt: row.publishedAt ?? null,
+          credibilityTier: row.credibilityTier,
+          firstQuote: row.extractedQuotes[0]?.text ?? null,
+        });
+      }
     }
 
     // 2. Industry updates — most recent first.

@@ -86,6 +86,17 @@ crons.interval(
   {},
 );
 
+// Phase 8a §4: live editorial scoreboard.  Pulls OpenAlex cs.AI paper
+// count, HN Algolia AI front-page volume, and GitHub trending AI-agent
+// repo median stars.  Writes/patches today's dailyBriefSnapshots row's
+// keyStats.  Daily at 09:00 UTC so it lands before US morning traffic.
+crons.daily(
+  "editorial scoreboard (OpenAlex + HN + GitHub)",
+  { hourUTC: 9, minuteUTC: 0 },
+  internal.domains.research.editionScoreboardSeed.seedDailyKeyStats,
+  {},
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // X ALGORITHM FEATURES - Phoenix ML powered discovery (Phase 2-6)
 // ═══════════════════════════════════════════════════════════════════════════

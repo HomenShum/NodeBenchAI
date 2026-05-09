@@ -1018,6 +1018,7 @@ import type * as domains_research_dealFlow from "../domains/research/dealFlow.js
 import type * as domains_research_dealFlowQueries from "../domains/research/dealFlowQueries.js";
 import type * as domains_research_documentDiscovery from "../domains/research/documentDiscovery.js";
 import type * as domains_research_editionQueries from "../domains/research/editionQueries.js";
+import type * as domains_research_editionScoreboardSeed from "../domains/research/editionScoreboardSeed.js";
 import type * as domains_research_entities_decayManager from "../domains/research/entities/decayManager.js";
 import type * as domains_research_entities_entityLifecycle from "../domains/research/entities/entityLifecycle.js";
 import type * as domains_research_entities_index from "../domains/research/entities/index.js";
@@ -1058,6 +1059,7 @@ import type * as domains_research_forecasting_cronHandlers_resolutionCheck from 
 import type * as domains_research_forecasting_cronHandlers_weeklyCalibration from "../domains/research/forecasting/cronHandlers/weeklyCalibration.js";
 import type * as domains_research_forecasting_forecastManager from "../domains/research/forecasting/forecastManager.js";
 import type * as domains_research_forecasting_scoringEngine from "../domains/research/forecasting/scoringEngine.js";
+import type * as domains_research_forecasting_seedEvergreenForecasts from "../domains/research/forecasting/seedEvergreenForecasts.js";
 import type * as domains_research_forecasting_signalMatcher from "../domains/research/forecasting/signalMatcher.js";
 import type * as domains_research_forecasting_traceWrapper from "../domains/research/forecasting/traceWrapper.js";
 import type * as domains_research_forecasting_validators from "../domains/research/forecasting/validators.js";
@@ -2502,6 +2504,7 @@ declare const fullApi: ApiFromModules<{
   "domains/research/dealFlowQueries": typeof domains_research_dealFlowQueries;
   "domains/research/documentDiscovery": typeof domains_research_documentDiscovery;
   "domains/research/editionQueries": typeof domains_research_editionQueries;
+  "domains/research/editionScoreboardSeed": typeof domains_research_editionScoreboardSeed;
   "domains/research/entities/decayManager": typeof domains_research_entities_decayManager;
   "domains/research/entities/entityLifecycle": typeof domains_research_entities_entityLifecycle;
   "domains/research/entities/index": typeof domains_research_entities_index;
@@ -2542,6 +2545,7 @@ declare const fullApi: ApiFromModules<{
   "domains/research/forecasting/cronHandlers/weeklyCalibration": typeof domains_research_forecasting_cronHandlers_weeklyCalibration;
   "domains/research/forecasting/forecastManager": typeof domains_research_forecasting_forecastManager;
   "domains/research/forecasting/scoringEngine": typeof domains_research_forecasting_scoringEngine;
+  "domains/research/forecasting/seedEvergreenForecasts": typeof domains_research_forecasting_seedEvergreenForecasts;
   "domains/research/forecasting/signalMatcher": typeof domains_research_forecasting_signalMatcher;
   "domains/research/forecasting/traceWrapper": typeof domains_research_forecasting_traceWrapper;
   "domains/research/forecasting/validators": typeof domains_research_forecasting_validators;
