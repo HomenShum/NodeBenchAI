@@ -1,0 +1,63 @@
+/**
+ * Edition print stylesheet — Phase 7c.
+ *
+ * Used by `EditionPrintPage` (route: /redesign/edition/print) to
+ * generate a clean PDF via the browser's print dialog.  No new
+ * dependencies — just media-print rules that strip chrome and let
+ * the same editorial markup render as a long-form document.
+ */
+
+[data-redesign][data-edition-print] {
+  background: #ffffff;
+  color: #15140f;
+}
+
+[data-redesign][data-edition-print] .rd-edition-root--print {
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 32px 64px;
+  background: #ffffff;
+}
+
+[data-redesign][data-edition-print] .rd-edition-print-header {
+  margin-bottom: 28px;
+  border-bottom: 1px solid rgba(21, 20, 15, 0.18);
+  padding-bottom: 16px;
+}
+
+[data-redesign][data-edition-print] .rd-edition-print-title {
+  font-size: 30px;
+  font-weight: 700;
+  color: #15140f;
+  margin: 6px 0 0 0;
+  letter-spacing: -0.5px;
+}
+
+@media print {
+  [data-redesign][data-edition-print] {
+    background: white !important;
+    color: black !important;
+  }
+  [data-redesign][data-edition-print] .rd-edition-root--print {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+  [data-redesign][data-edition-print] .rd-edition-section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  [data-redesign][data-edition-print] .rd-edition-skeleton {
+    display: none !important;
+  }
+  /* Skip the auto-print toolbar and any links — make every link a
+     plain underline so the printed page reads as prose. */
+  [data-redesign][data-edition-print] a {
+    color: black !important;
+    text-decoration: underline !important;
+  }
+  /* Drop the dotted underlines on footnotes for cleaner print. */
+  [data-redesign][data-edition-print] .rd-edition-footnotes a {
+    border-bottom: none !important;
+  }
+}

@@ -24,6 +24,11 @@ import { WorkspaceModeToggle } from "@/features/financialOperator/components/Wor
 import { WorkspaceModePane } from "@/features/financialOperator/components/WorkspaceModePane";
 
 const RedesignShell = lazy(() => import("@/features/redesign/RedesignShell"));
+const EditionPrintPage = lazy(() =>
+  import("@/features/redesign/pages/EditionPrintPage").then((m) => ({
+    default: m.EditionPrintPage,
+  })),
+);
 const ShareableMemoView = lazy(() => import("@/features/founder/views/ShareableMemoView"));
 const PublicEntityShareView = lazy(() => import("@/features/share/views/PublicEntityShareView"));
 const PublicCompanyProfileView = lazy(() => import("@/features/founder/views/PublicCompanyProfileView"));
@@ -193,6 +198,25 @@ function App() {
     rootParams.delete("surface");
     const nextSearch = rootParams.toString();
     return <Navigate to={`/redesign${nextSearch ? `?${nextSearch}` : ""}`} replace />;
+  }
+
+  // Phase 7c — print-friendly edition route at /redesign/edition/print.
+  // MUST be checked before the general /redesign/* match below so the
+  // page renders without the surrounding shell chrome (no rail, no
+  // toast viewport, no body-overflow lock).
+  const isEditionPrintRoute = location.pathname === "/redesign/edition/print";
+  if (isEditionPrintRoute) {
+    return (
+      <ThemeProvider>
+        <ErrorBoundary title="Something went wrong">
+          <Suspense fallback={<ViewSkeleton />}>
+            <div key="edition-print" className="route-fade-in">
+              <EditionPrintPage />
+            </div>
+          </Suspense>
+        </ErrorBoundary>
+      </ThemeProvider>
+    );
   }
 
   // Standalone route: /redesign* showcases the parity-studio + open-design redesign.

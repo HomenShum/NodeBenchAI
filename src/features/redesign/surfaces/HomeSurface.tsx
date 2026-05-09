@@ -197,6 +197,32 @@ function LegacyHomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
           <span className="rd-mono rd-faint" style={{ fontSize: 10.5 }}>
             {liveArtifacts.isLive ? `${effectiveContinueWorking.length} active reports · ${effectiveWatchlist.length} watched entities` : "starter pulse — sign in for live signals"}
           </span>
+          {/* Phase 7c — discoverability affordance for the editorial
+              home.  Quiet anchor, not a banner — the user decides
+              when to opt in.  Reciprocal "Switch to classic" lives
+              in EditorialHomeSurface.tsx so the round-trip is one
+              click in either direction. */}
+          <a
+            href="?edition=1"
+            className="rd-edition-discover-link"
+            data-edition-discover
+            aria-label="Try the daily edition (single-document brief)"
+            style={{
+              marginLeft: "auto",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+              color: "var(--rd-accent-strong, #d97757)",
+              textDecoration: "none",
+              padding: "4px 10px",
+              borderRadius: 999,
+              border: "1px solid var(--rd-accent-soft, rgba(217,119,87,0.32))",
+              background: "var(--rd-accent-tint, rgba(217,119,87,0.08))",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Try the daily edition →
+          </a>
           <button
             type="button"
             aria-label={pulseVoice.isListening ? "Stop voice input" : "Voice input using browser mode"}
@@ -204,7 +230,6 @@ function LegacyHomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
             onClick={pulseVoice.toggle}
             data-state={pulseVoice.isListening ? "active" : "idle"}
             style={{
-              marginLeft: "auto",
               width: 44,
               height: 44,
               borderRadius: 999,
