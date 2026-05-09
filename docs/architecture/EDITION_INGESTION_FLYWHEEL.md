@@ -187,7 +187,18 @@ These three deliver the largest user-visible delta with minimal new infra:
 9. Crossref DOI lookup for arXiv-cited journals.
 10. SEC EDGAR ingestion for company filings mentioned in pulse.
 11. Multi-language: GDELT + Wikimedia in non-English locales.
-12. **Monthly retrospective expansion** — currently stub. Use a 30-day rolling window over `dailyBriefSnapshots` to compose a retrospective doc with month-over-month metric changes.
+12. ~~**Monthly retrospective expansion**~~ — SHIPPED in Phase 8c misc PR (#293). Now returns `topResolved`, `weeklyPulseTotals`, `dailyHistogram`, `dayKeys`, `pulseSource`.
+
+### Phase 9 — deferred (separate infrastructure required)
+
+These items were intentionally deferred from Phase 8 because they require infrastructure not currently in scope.  Each is documented with the specific blocker so a future sprint can pick it up cleanly.
+
+13. **`format-strip / listen` (audio rendering of editions)** — needs TTS pipeline.  ElevenLabs is integrated for the voice-bot path but rendering an editorial-edition audio file is a separate UX (long-form, chapter-marked, downloadable).  Estimated effort: M (2-3 days) once TTS path decided.
+14. **`format-strip / watch` (video rendering of editions)** — needs a video pipeline (Remotion or similar).  Currently no video-render infrastructure in repo.  Estimated effort: L (5-7 days).
+15. **GDELT integration** — paid tier (~$50/mo Cloud API) OR self-hosted BigQuery (free with Google Cloud).  Phase 8a/8b shipped without GDELT; Phase 8c judged not-essential.  Defer until macro-news angle becomes a user-requested feature.
+16. **FRED API for macro stats** — requires free API key registration + Convex env var.  Phase 8a deferred this; not yet wired.  Estimated effort: S (1 day) once key obtained.
+17. **MCP-server-count auto-counter** — `mcpservers.org` doesn't expose a public API; would need a scrape pattern + retention policy + brittle-source monitoring.  Manual count works for now.
+18. **§5 capability page deltas** — currently per-day weekly snapshots overwrite each other; a 7-day rolling window with delta arrows would let readers see week-over-week movement.  Estimated effort: S (½ day).
 
 ---
 
