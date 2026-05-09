@@ -130,6 +130,41 @@ const CHECKS: ReadonlyArray<Check> = [
     contains: 'id="root"',
     optional: true,
   },
+
+  // ─────────────────────────────────────────────────────────────────
+  // Phase 8 misc PR: editorial home signals.
+  //
+  // Honest limitations on a Vite SPA:
+  //   - Section testids (e.g. `data-section`) and per-row content only
+  //     appear AFTER hydration.  Tier A (this script) cannot grep for
+  //     them — that's Tier B (Playwright).
+  //   - What Tier A CAN verify mechanically:
+  //       (i)   /redesign route returns 200 and SPA shell, not 404
+  //       (ii)  Title carries "NodeBench"
+  //       (iii) Bundle hash present (dedupes from main checks above)
+  //   - These three signals are SUFFICIENT to detect:
+  //       - Vercel webhook silently disconnected (no new bundle hash)
+  //       - /redesign route disabled (404 / 500)
+  //       - CDN-cached stale HTML (bundle hash mismatch on rerun)
+  //   - For section-level checks (e.g. "footnotes count ≥ 8",
+  //     "capability dot grids non-empty"), use Tier B in
+  //     `tests/e2e/live-smoke.spec.ts`.
+  // ─────────────────────────────────────────────────────────────────
+  {
+    name: "/redesign editorial home reachable",
+    path: "/redesign",
+    contains: 'id="root"',
+  },
+  {
+    name: "/redesign serves Vite bundle (deploy fingerprint)",
+    path: "/redesign",
+    contains: /assets\/(index|entry)[-.]/i,
+  },
+  {
+    name: "/redesign title carries NodeBench",
+    path: "/redesign",
+    contains: /<title[^>]*>[^<]*NodeBench[^<]*<\/title>/i,
+  },
 ];
 
 type Result = {
