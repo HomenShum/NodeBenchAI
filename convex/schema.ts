@@ -14088,6 +14088,65 @@ export default defineSchema({
     .index("by_status", ["status", "updatedAt"]),
 
   /**
+   * Editorial Hypotheses (Phase 8b §2) — public-by-default standalone
+   * hypotheses for the editorial home's "competing explanations"
+   * section.  Independent of narrativeThreads/users so the editorial
+   * home can render without auth + without threading the LinkedIn
+   * pipeline through them.
+   *
+   * Each row stores the deterministic 6-bool evidenceChecklist at seed
+   * time (per the misc PR also addresses the "stored vs derived"
+   * note from the original P0 list).  The checklist is computed from
+   * the claim's source quality and explicitly stored — readers see the
+   * stored value rather than re-derived heuristics.
+   */
+  editorialHypotheses: defineTable({
+    hypothesisId: v.string(),                      // stable string id
+    label: v.string(),                             // e.g. "H1"
+    title: v.string(),                             // short headline
+    topicSlug: v.string(),                         // e.g. "agent-stack-2026"
+    topicName: v.string(),                         // human-readable topic
+    claimForm: v.string(),                         // testable claim
+    measurementApproach: v.string(),               // how we'd evaluate
+    falsificationCriteria: v.string(),             // what would change our minds
+    competingHypothesisIds: v.array(v.string()),   // sibling hypotheses
+    supportingEvidenceCount: v.number(),
+    contradictingEvidenceCount: v.number(),
+    confidence: v.number(),                        // 0..1 analyst prior
+    speculativeRisk: v.union(
+      v.literal("grounded"),
+      v.literal("mixed"),
+      v.literal("speculative"),
+    ),
+    status: v.union(
+      v.literal("active"),
+      v.literal("supported"),
+      v.literal("weakened"),
+      v.literal("inconclusive"),
+      v.literal("retired"),
+    ),
+    // STORED checklist — computed at seed time, not re-derived on read.
+    // This addresses the misc-PR note about evidenceChecklist being
+    // derived rather than stored.  Reading code falls back to derived
+    // values only when this field is missing.
+    evidenceChecklist: v.object({
+      hasPrimarySource: v.boolean(),
+      hasCorroboration: v.boolean(),
+      hasFalsifiableClaim: v.boolean(),
+      hasQuantitativeData: v.boolean(),
+      hasNamedAttribution: v.boolean(),
+      isReproducible: v.boolean(),
+    }),
+    sourceUrls: v.array(v.string()),
+    createdByAgent: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_topic", ["topicSlug", "status"])
+    .index("by_hypothesis_id", ["hypothesisId"])
+    .index("by_status", ["status", "updatedAt"]),
+
+  /**
    * Narrative Signal Metrics - Quantitative data products for hypothesis evaluation
    * Stores time-series measurements for attention, policy, labor, and market signals.
    * These feed directly into hypothesis scoring and narrative generation.
