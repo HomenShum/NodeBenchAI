@@ -21,9 +21,19 @@
  * (Scenario D verifies consecutive numbering).
  */
 
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
-interface Props {
+/**
+ * Accept any `data-*` attribute via index signature so callers can
+ * attach extra testids (e.g. `data-provenance` for the §1 trending
+ * fallback added in P0 #2).  We do NOT widen to arbitrary HTML props
+ * — only `data-*` is forwarded.
+ */
+type DataAttributes = {
+  [K in `data-${string}`]?: HTMLAttributes<HTMLElement>[K];
+};
+
+interface Props extends DataAttributes {
   /** The data-section testid; used by Playwright + the live-smoke. */
   id: string;
   /** Plain-language ARIA label for the region. */
@@ -44,6 +54,7 @@ export function EditorialSection({
   kicker,
   heading,
   children,
+  ...dataAttrs
 }: Props) {
   const eyebrow = `${number} · ${kicker}`;
   return (
@@ -55,6 +66,7 @@ export function EditorialSection({
       data-section-number={number}
       data-section-kicker={kicker}
       data-eyebrow={eyebrow}
+      {...dataAttrs}
     >
       <header style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <p className="rd-edition-section__eyebrow">{eyebrow}</p>

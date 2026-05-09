@@ -90,6 +90,32 @@
  *              Strings allowed elsewhere in the document (e.g. SEO
  *              meta) are filtered out by scoping the search to
  *              [data-edition].
+ *
+ * ─── Scenario I — guest sees public-trending fallback or honest empty
+ * User:        Anonymous guest (no auth, no anonymousSession yet)
+ * Goal:        Find something useful in §1 instead of a blank "no
+ *              pulse" message.
+ * Prior state: `pulseReports` for this guest is necessarily empty
+ *              (they have no ownerKey).  `industryUpdates` may or may
+ *              not have rows depending on cron freshness.
+ * Actions:     1) Navigate to /redesign as a guest.
+ *              2) Read [data-section="what-moved"]'s data-provenance.
+ *              3) If "public-trending": assert the
+ *                 [data-provenance-badge] is visible AND the lead-in
+ *                 text matches.
+ *              4) If "empty": assert the genuine empty state copy is
+ *                 visible AND no provenance badge renders.
+ *              5) FAIL if a fixture string from
+ *                 src/features/redesign/fixtures.ts leaks into the
+ *                 §1 prose (HONEST_STATUS).
+ * Scale:       1 user.
+ * Duration:    Single page load.
+ * Expected:    The §1 affordance is honest about where its content
+ *              came from; signal counts are not fabricated (HONEST_
+ *              SCORES — fallback rows always render `· trending`,
+ *              never a fake material-change tally).
+ * Edge cases:  Convex query unavailable → §1 stays in skeleton state
+ *              and the test waits up to 10s; should not falsely pass.
  */
 
 import { test, expect } from "@playwright/test";
@@ -325,13 +351,8 @@ test.describe("Editorial home — Phase 7b + 7c", () => {
     expect(await accordionByText.count()).toBe(0);
 
     // 2. Known fixture strings must not appear inside the editorial DOM.
-    //    These are surface verbatim from src/features/redesign/fixtures.ts.
     const editionRoot = page.locator("[data-edition]");
     const editionText = (await editionRoot.textContent()) ?? "";
-    // Strings copied verbatim from src/features/redesign/fixtures.ts
-    // (pulseCards / continueWorking / watchlist).  If any of these
-    // appears inside [data-edition], the operations accordion
-    // regressed and a fixture is leaking onto the public surface.
     const fixtureSignals = [
       "Orbital Labs answered from event corpus",
       "Ship Demo Day report updated",
@@ -347,9 +368,79 @@ test.describe("Editorial home — Phase 7b + 7c", () => {
       ).toBe(false);
     }
 
-    // 3. Belt-and-suspenders — the data attribute we used to mark the
+    // 3. Belt-and-suspenders — the data attribute used to mark the
     //    legacy-fallback accordion source is gone too.
     const opsSourceMark = page.locator("[data-edition] [data-ops-source]");
     expect(await opsSourceMark.count()).toBe(0);
+  });
+
+  test("Scenario I: guest §1 shows trending fallback OR honest empty (P0 #2)", async ({
+    page,
+    context,
+  }) => {
+    // Clear any anonymous-session state so the visit is a clean guest.
+    await context.clearCookies();
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.clear();
+        window.sessionStorage.clear();
+      } catch {
+        /* ignore — storage may be unavailable in test mode */
+      }
+    });
+
+    await page.goto(`${BASE_URL}/redesign`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle");
+
+    const whatMoved = page.locator('[data-section="what-moved"]');
+    await expect(whatMoved).toBeVisible({ timeout: 10_000 });
+
+    // Wait for the provenance attribute (proves the query resolved).
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('[data-section="what-moved"]');
+        return el?.hasAttribute("data-provenance") ?? false;
+      },
+      { timeout: 10_000 },
+    );
+    const provenance = await whatMoved.getAttribute("data-provenance");
+
+    expect(["user", "public-trending", "empty"]).toContain(provenance ?? "");
+
+    if (provenance === "public-trending") {
+      const badge = whatMoved.locator("[data-provenance-badge]");
+      await expect(badge).toBeVisible({ timeout: 5_000 });
+      await expect(badge).toContainText(/Public/i);
+      await expect(badge).toContainText(/trending/i);
+
+      const leadIn = whatMoved.locator("[data-trending-leadin]");
+      await expect(leadIn).toBeVisible();
+      const leadInText = (await leadIn.textContent()) ?? "";
+      expect(leadInText.toLowerCase()).toContain("trending publicly");
+
+      // BOUND assertion: at most 5 trending rows in §1.
+      const items = whatMoved.locator("[data-pulse-entity]");
+      const count = await items.count();
+      expect(count).toBeGreaterThan(0);
+      expect(count).toBeLessThanOrEqual(5);
+    } else if (provenance === "empty") {
+      await expect(whatMoved).toContainText(/No pulse generated yet today/i);
+      const badge = whatMoved.locator("[data-provenance-badge]");
+      expect(await badge.count()).toBe(0);
+    }
+
+    // HONEST_STATUS regression — no known fixture string in §1.
+    const sectionText = (await whatMoved.textContent()) ?? "";
+    const fixtureSignals = [
+      "Orbital Labs answered from event corpus",
+      "Ship Demo Day report updated",
+      "Voice-agent evaluation",
+    ];
+    for (const signal of fixtureSignals) {
+      expect(
+        sectionText.includes(signal),
+        `§1 must not contain fixture string "${signal}"`,
+      ).toBe(false);
+    }
   });
 });

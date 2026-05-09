@@ -23,6 +23,7 @@
 
 import { v } from "convex/values";
 import { query } from "../../_generated/server";
+import type { QueryCtx } from "../../_generated/server";
 import type { Doc, Id } from "../../_generated/dataModel";
 import { resolveProductIdentitySafely } from "../product/helpers";
 import {
@@ -71,7 +72,78 @@ function boundLimit(value: number | undefined, def: number, max: number): number
 
 /* ────────────────────────────────────────────────────────────────────
  * §1 — "What moved today" : today's pulses for the current owner.
+ *
+ * P0 #2 (2026-05-09) — bootstrap content for guests + empty users.
+ * When the caller has no pulse for today (anonymous, or signed-in but
+ * inactive), fall back to a "public-trending" feed sourced from
+ * `industryUpdates`.  The fallback is labelled `provenance:
+ * "public-trending"` so the surface can render an explicit affordance
+ * ("You haven't run a pulse today.  Here's what's trending publicly").
+ *
+ * agentic_reliability invariants:
+ *  - BOUND: fallback hard-capped at PULSE_FALLBACK_MAX (5) regardless
+ *    of `args.limit`.
+ *  - HONEST_STATUS: when both pulse AND industryUpdates are empty, we
+ *    return `provenance: "empty"` and `pulses: []` — no fabrication.
+ *  - HONEST_SCORES: change counts are TRUE counts (1) per industry
+ *    update; we do not invent material-change counts.  The
+ *    `summaryMarkdown` field is the actual provider summary.
  * ────────────────────────────────────────────────────────────────── */
+const PULSE_FALLBACK_MAX = 5;
+
+type PulseProjection = {
+  _id: string;
+  entitySlug: string;
+  dateKey: string;
+  status: "generating" | "ready" | "failed";
+  summaryMarkdown: string | null;
+  changeCount: number;
+  materialChangeCount: number;
+  generatedAt: number;
+};
+
+/**
+ * Slugify a provider name into a stable entitySlug-shaped string.
+ * Keeps the rendering path's `entitySlug.replace(/-/g, " ")` cosmetic
+ * happy without inventing a fake entity.
+ */
+function providerNameToSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64) || "trending";
+}
+
+/** Compose a public-trending fallback from industryUpdates. */
+async function loadPublicTrendingFallback(
+  ctx: QueryCtx,
+  dateKey: string,
+): Promise<PulseProjection[]> {
+  // Read at most PULSE_FALLBACK_MAX rows directly from the
+  // most-recent `by_scanned_at` ordering — bounded read.
+  const rows = await ctx.db
+    .query("industryUpdates")
+    .withIndex("by_scanned_at")
+    .order("desc")
+    .take(PULSE_FALLBACK_MAX);
+  return rows.map((u) => ({
+    _id: u._id as string,
+    entitySlug: providerNameToSlug(u.providerName ?? u.provider ?? "trending"),
+    dateKey,
+    status: "ready" as const,
+    summaryMarkdown:
+      typeof u.summary === "string" && u.summary.trim().length > 0
+        ? `**${u.title}**\n\n${u.summary}`
+        : (u.title as string) ?? null,
+    // honest counts: 1 update = 1 change, 0 material claims (we don't
+    // know whether a public update is "material" to any owner).
+    changeCount: 1,
+    materialChangeCount: 0,
+    generatedAt: typeof u.scannedAt === "number" ? u.scannedAt : Date.now(),
+  }));
+}
+
 export const getTodayPulse = query({
   args: {
     anonymousSessionId: v.optional(v.string()),
@@ -79,49 +151,85 @@ export const getTodayPulse = query({
   },
   handler: async (ctx, args) => {
     const limit = boundLimit(args.limit, PULSE_DEFAULT, 50);
+    const dateKey = todayDateKey();
     const identity = await resolveProductIdentitySafely(
       ctx,
       args.anonymousSessionId,
     );
-    if (!identity) {
-      return { pulses: [], dateKey: todayDateKey(), lastDateKey: null as string | null };
-    }
-    const ownerKey = identity.anonymousSessionId ?? (identity.ownerKey as string);
-    const dateKey = todayDateKey();
 
-    // Today's pulses.
-    const today = await ctx.db
-      .query("pulseReports")
-      .withIndex("by_owner_date", (q) =>
-        q.eq("ownerKey", ownerKey).eq("dateKey", dateKey),
-      )
-      .order("desc")
-      .take(limit);
+    // ── Branch A: identifiable user (authed or anonymous-session). ──
+    if (identity) {
+      const ownerKey =
+        identity.anonymousSessionId ?? (identity.ownerKey as string);
+      const today = await ctx.db
+        .query("pulseReports")
+        .withIndex("by_owner_date", (q) =>
+          q.eq("ownerKey", ownerKey).eq("dateKey", dateKey),
+        )
+        .order("desc")
+        .take(limit);
 
-    // If empty, surface the most-recent dateKey so the empty state can be honest.
-    let lastDateKey: string | null = null;
-    if (today.length === 0) {
+      if (today.length > 0) {
+        return {
+          provenance: "user" as const,
+          pulses: today.map<PulseProjection>((p) => ({
+            _id: p._id,
+            entitySlug: p.entitySlug,
+            dateKey: p.dateKey,
+            status: p.status,
+            summaryMarkdown: p.summaryMarkdown ?? null,
+            changeCount: p.changeCount,
+            materialChangeCount: p.materialChangeCount,
+            generatedAt: p.generatedAt,
+          })),
+          dateKey,
+          lastDateKey: null as string | null,
+        };
+      }
+
+      // Empty for today — surface the user's most-recent pulse date so
+      // the affordance line can be honest ("Last pulse: 2026-05-04").
       const last = await ctx.db
         .query("pulseReports")
         .withIndex("by_owner_date", (q) => q.eq("ownerKey", ownerKey))
         .order("desc")
         .first();
-      lastDateKey = last?.dateKey ?? null;
+      const lastDateKey = last?.dateKey ?? null;
+
+      // Fall through to the public-trending fallback when even the
+      // user's history is empty (cold-start).
+      const fallback = await loadPublicTrendingFallback(ctx, dateKey);
+      if (fallback.length === 0) {
+        return {
+          provenance: "empty" as const,
+          pulses: [],
+          dateKey,
+          lastDateKey,
+        };
+      }
+      return {
+        provenance: "public-trending" as const,
+        pulses: fallback,
+        dateKey,
+        lastDateKey,
+      };
     }
 
+    // ── Branch B: anonymous, no resolvable session — guest visitor. ──
+    const fallback = await loadPublicTrendingFallback(ctx, dateKey);
+    if (fallback.length === 0) {
+      return {
+        provenance: "empty" as const,
+        pulses: [],
+        dateKey,
+        lastDateKey: null as string | null,
+      };
+    }
     return {
-      pulses: today.map((p) => ({
-        _id: p._id,
-        entitySlug: p.entitySlug,
-        dateKey: p.dateKey,
-        status: p.status,
-        summaryMarkdown: p.summaryMarkdown ?? null,
-        changeCount: p.changeCount,
-        materialChangeCount: p.materialChangeCount,
-        generatedAt: p.generatedAt,
-      })),
+      provenance: "public-trending" as const,
+      pulses: fallback,
       dateKey,
-      lastDateKey,
+      lastDateKey: null as string | null,
     };
   },
 });
