@@ -260,6 +260,42 @@ function deriveHypothesisChecklist(
   };
 }
 
+/**
+ * Phase 8b §2: Public-shaped hypothesis returned by getActiveHypotheses.
+ *
+ * Two backends merge into this shape:
+ *  - editorialHypotheses (standalone, public-by-default, has STORED
+ *    evidenceChecklist)
+ *  - narrativeHypotheses on `thread.isPublic === true` threads
+ *    (legacy/LinkedIn pipeline; checklist DERIVED on read)
+ *
+ * The `provenance` field tells the UI which path produced the row, so
+ * the surface can render a small "stored" vs "derived" badge if useful.
+ */
+type EditionHypothesis = {
+  _id: string;                                       // string (not Id) since merging two tables
+  provenance: "editorial" | "narrative";
+  hypothesisId: string;
+  threadName: string | null;                         // null for editorial (carry topicName instead)
+  label: string;
+  title: string;
+  claimForm: string;
+  measurementApproach: string;
+  falsificationCriteria: string | null;
+  status: Doc<"narrativeHypotheses">["status"];
+  confidence: number;
+  speculativeRisk: Doc<"narrativeHypotheses">["speculativeRisk"];
+  supportingEvidenceCount: number;
+  contradictingEvidenceCount: number;
+  evidenceArtifactIds: string[];
+  competingHypothesisIds: string[];
+  updatedAt: number;
+  evidenceChecklist: EvidenceChecklist;
+  evidenceChecksPassing: number;
+  evidenceChecksTotal: number;
+  evidenceLevel: ReturnType<typeof deriveEvidenceLevel>;
+};
+
 export const getActiveHypotheses = query({
   args: {
     limit: v.optional(v.number()),
@@ -268,8 +304,63 @@ export const getActiveHypotheses = query({
     const limit = boundLimit(args.limit, HYPOTHESIS_DEFAULT, HYPOTHESIS_MAX);
     const cutoff = Date.now() - RECENT_WINDOW_MS;
 
-    // Fetch each status separately via the by_status index, then merge.
-    const statusBatches = await Promise.all(
+    const result: EditionHypothesis[] = [];
+
+    // ── Path A: editorialHypotheses (standalone) ──────────────────
+    //
+    // No recent-window filter — these are evergreen seeds, not daily
+    // narrative output.  Take by status, merge by status, dedupe.
+    const editorialBatches = await Promise.all(
+      Array.from(ACTIVE_STATUSES).map((status) =>
+        ctx.db
+          .query("editorialHypotheses")
+          .withIndex("by_status", (q) => q.eq("status", status))
+          .order("desc")
+          .take(limit * 3),
+      ),
+    );
+    const editorialMerged: Doc<"editorialHypotheses">[] = [];
+    const editorialSeen = new Set<string>();
+    for (const batch of editorialBatches) {
+      for (const h of batch) {
+        if (editorialSeen.has(h._id)) continue;
+        editorialSeen.add(h._id);
+        editorialMerged.push(h);
+      }
+    }
+    editorialMerged.sort((a, b) => b.updatedAt - a.updatedAt);
+    for (const h of editorialMerged) {
+      // STORED checklist — read directly, no derivation.
+      const checklist = h.evidenceChecklist;
+      const passing = countPassingChecks(checklist);
+      const evidenceLevel = deriveEvidenceLevel(checklist);
+      result.push({
+        _id: h._id,
+        provenance: "editorial" as const,
+        hypothesisId: h.hypothesisId,
+        threadName: h.topicName,
+        label: h.label,
+        title: h.title,
+        claimForm: h.claimForm,
+        measurementApproach: h.measurementApproach,
+        falsificationCriteria: h.falsificationCriteria,
+        status: h.status,
+        confidence: h.confidence,
+        speculativeRisk: h.speculativeRisk,
+        supportingEvidenceCount: h.supportingEvidenceCount,
+        contradictingEvidenceCount: h.contradictingEvidenceCount,
+        evidenceArtifactIds: [],          // editorial doesn't use artifact ids
+        competingHypothesisIds: h.competingHypothesisIds,
+        updatedAt: h.updatedAt,
+        evidenceChecklist: checklist,
+        evidenceChecksPassing: passing,
+        evidenceChecksTotal: 6,
+        evidenceLevel,
+      });
+    }
+
+    // ── Path B: narrativeHypotheses (legacy, public-thread only) ──
+    const narrativeBatches = await Promise.all(
       Array.from(ACTIVE_STATUSES).map((status) =>
         ctx.db
           .query("narrativeHypotheses")
@@ -278,48 +369,18 @@ export const getActiveHypotheses = query({
           .take(limit * 3),
       ),
     );
-
-    const merged: Doc<"narrativeHypotheses">[] = [];
-    const seen = new Set<string>();
-    for (const batch of statusBatches) {
+    const narrativeMerged: Doc<"narrativeHypotheses">[] = [];
+    const narrativeSeen = new Set<string>();
+    for (const batch of narrativeBatches) {
       for (const h of batch) {
-        if (seen.has(h._id)) continue;
+        if (narrativeSeen.has(h._id)) continue;
         if (h.updatedAt < cutoff) continue;
-        seen.add(h._id);
-        merged.push(h);
+        narrativeSeen.add(h._id);
+        narrativeMerged.push(h);
       }
     }
-    merged.sort((a, b) => b.updatedAt - a.updatedAt);
-    const recent = merged.slice(0, limit);
-
-    // Resolve thread for visibility — only return hypotheses on
-    // threads marked public.  Authenticated callers can use the
-    // existing per-thread query for private threads.
-    type EditionHypothesis = {
-      _id: Id<"narrativeHypotheses">;
-      hypothesisId: string;
-      threadId: Id<"narrativeThreads">;
-      threadName: string;
-      label: string;
-      title: string;
-      claimForm: string;
-      measurementApproach: string;
-      falsificationCriteria: string | null;
-      status: Doc<"narrativeHypotheses">["status"];
-      confidence: number;
-      speculativeRisk: Doc<"narrativeHypotheses">["speculativeRisk"];
-      supportingEvidenceCount: number;
-      contradictingEvidenceCount: number;
-      evidenceArtifactIds: string[];
-      competingHypothesisIds: string[];
-      updatedAt: number;
-      evidenceChecklist: EvidenceChecklist;
-      evidenceChecksPassing: number;
-      evidenceChecksTotal: number;
-      evidenceLevel: ReturnType<typeof deriveEvidenceLevel>;
-    };
-    const result: EditionHypothesis[] = [];
-    for (const h of recent) {
+    narrativeMerged.sort((a, b) => b.updatedAt - a.updatedAt);
+    for (const h of narrativeMerged) {
       const thread = await ctx.db.get(h.threadId);
       if (!thread || !thread.isPublic) continue;
       const checklist = deriveHypothesisChecklist(h);
@@ -327,8 +388,8 @@ export const getActiveHypotheses = query({
       const evidenceLevel = deriveEvidenceLevel(checklist);
       result.push({
         _id: h._id,
+        provenance: "narrative" as const,
         hypothesisId: h.hypothesisId,
-        threadId: h.threadId,
         threadName: thread.name,
         label: h.label,
         title: h.title,
@@ -349,7 +410,10 @@ export const getActiveHypotheses = query({
         evidenceLevel,
       });
     }
-    return result;
+
+    // Final sort + cap.
+    result.sort((a, b) => b.updatedAt - a.updatedAt);
+    return result.slice(0, limit);
   },
 });
 

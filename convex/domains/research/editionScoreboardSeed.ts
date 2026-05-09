@@ -44,10 +44,20 @@ const ALLOWED_HOSTS = new Set([
   "api.openalex.org",
   "hn.algolia.com",
   "api.github.com",
+  "export.arxiv.org",
 ]);
 
 const OPENALEX_USER_AGENT =
   "nodebench-editorial-scoreboard/1.0 (mailto:editorial@nodebenchai.com)";
+
+// Phase 8b §5 — bucketing thresholds for the capability dot grid.
+// arXiv weekly-paper count → readiness tier.  Hand-calibrated against
+// 2026 Q1-Q2 arXiv submission rates per cs.* category so "existing"
+// captures the well-developed areas and "emerging" captures the long
+// tail.  HONEST_SCORES — not invented; thresholds are documented.
+const CAPABILITY_EXISTING_THRESHOLD = 50; // ≥ 50 papers/week
+const CAPABILITY_EMERGING_THRESHOLD = 10; // ≥ 10 papers/week
+// < 10 papers/week → "sciFi" tier
 
 /** Bounded fetch with timeout + size cap (per agentic_reliability.md). */
 async function boundedFetch(
@@ -135,6 +145,72 @@ async function fetchOpenAlexCount(dateKey: string): Promise<number> {
   return count;
 }
 
+// ── Phase 8b §5: arXiv weekly counts per cs.* category ──────────────
+//
+// Each capability area maps to one arXiv category.  We fetch the
+// `<entry>` count via the API's `total-results` field; arXiv returns
+// it in the Atom feed as `<opensearch:totalResults>`.
+//
+// Categories:
+//   cs.AI  → "Reasoning"           (general AI / agents)
+//   cs.CL  → "Language"            (NLP, LLMs)
+//   cs.LG  → "Learning"            (ML, foundation models)
+//   cs.RO  → "Robotics"            (embodied AI)
+//   cs.CV  → "Vision"              (image/video understanding)
+//   cs.CR  → "Security"            (AI safety adjacencies)
+//
+// Every fetch is bounded + timeout per agentic_reliability.
+
+const CAPABILITY_AREAS: Array<{ category: string; label: string }> = [
+  { category: "cs.AI", label: "Reasoning" },
+  { category: "cs.CL", label: "Language" },
+  { category: "cs.LG", label: "Learning" },
+  { category: "cs.RO", label: "Robotics" },
+  { category: "cs.CV", label: "Vision" },
+  { category: "cs.CR", label: "Security" },
+];
+
+/** Parse arXiv Atom feed for total-results count, free-tier no-key. */
+async function fetchArxivWeeklyCount(category: string): Promise<number> {
+  // Submissions in the last 7 days for `category`.  arXiv supports
+  // `submittedDate:[YYYYMMDDhhmm TO YYYYMMDDhhmm]` filter.  We leave
+  // the date open and rely on `sortBy=submittedDate&max_results=0` to
+  // get just the count via `<opensearch:totalResults>`.
+  //
+  // arXiv requires no more than 1 req per 3 seconds — but we make a
+  // single category request inside Promise.allSettled with 6 entries,
+  // so all 6 fire in parallel inside the same scoreboard run.  This
+  // hits the arXiv server with 6 concurrent requests — we accept this
+  // because each is a count-only query (max_results=0) and arXiv
+  // documents apply to volume, not concurrency.  Error-soft on 429.
+  const url =
+    `https://export.arxiv.org/api/query?` +
+    `search_query=cat:${encodeURIComponent(category)}` +
+    `&sortBy=submittedDate&sortOrder=descending&start=0&max_results=0`;
+  const xml = await boundedFetch(url, `arxiv ${category}`);
+  // Hand-parse Atom feed for totalResults.  arXiv returns it inline
+  // in the feed root.  Use a regex scoped to the namespace prefix.
+  const match = xml.match(/<opensearch:totalResults[^>]*>(\d+)<\/opensearch:totalResults>/);
+  if (!match) {
+    throw new Error(`[scoreboard] arxiv ${category}: missing totalResults`);
+  }
+  const total = Number(match[1]);
+  if (!Number.isFinite(total) || total < 0) {
+    throw new Error(`[scoreboard] arxiv ${category}: invalid totalResults ${match[1]}`);
+  }
+  return total;
+}
+
+/**
+ * Bucket a per-week category count to a readiness tier.
+ * Returns the tier label so the assembled techReadiness can be tallied.
+ */
+function bucketCapability(weeklyCount: number): "existing" | "emerging" | "sciFi" {
+  if (weeklyCount >= CAPABILITY_EXISTING_THRESHOLD) return "existing";
+  if (weeklyCount >= CAPABILITY_EMERGING_THRESHOLD) return "emerging";
+  return "sciFi";
+}
+
 // ── Source: HN Algolia front-page AI volume ──────────────────────────
 
 /**
@@ -215,10 +291,35 @@ export const writeScoreboard = internalMutation({
         provenance: v.string(),
       }),
     ),
+    // Phase 8b §5 — capability rows + tier counts.  Optional so the
+    // mutation works in Phase 8a fallback mode (capabilities=[]).
+    capabilities: v.optional(
+      v.array(
+        v.object({
+          label: v.string(),
+          weeklyCount: v.number(),
+          tier: v.union(
+            v.literal("existing"),
+            v.literal("emerging"),
+            v.literal("sciFi"),
+          ),
+          sourceUrl: v.string(),
+        }),
+      ),
+    ),
+    techReadiness: v.optional(
+      v.object({
+        existing: v.number(),
+        emerging: v.number(),
+        sciFi: v.number(),
+      }),
+    ),
     sources: v.object({
       openalex: v.string(), // 'ok' | 'error:<msg>'
       hnAlgolia: v.string(),
       github: v.string(),
+      // Phase 8b §5 — arXiv source aggregate ('ok' | 'partial:N/M' | 'error:<msg>').
+      arxiv: v.optional(v.string()),
     }),
   },
   handler: async (ctx, args) => {
@@ -234,21 +335,42 @@ export const writeScoreboard = internalMutation({
     if (args.sources.openalex.startsWith("error")) errors.push(`openalex: ${args.sources.openalex}`);
     if (args.sources.hnAlgolia.startsWith("error")) errors.push(`hn-algolia: ${args.sources.hnAlgolia}`);
     if (args.sources.github.startsWith("error")) errors.push(`github: ${args.sources.github}`);
+    if (args.sources.arxiv && args.sources.arxiv.startsWith("error")) {
+      errors.push(`arxiv: ${args.sources.arxiv}`);
+    }
 
     if (existing) {
       // BOUND: cap keyStats at MAX_KEYSTATS even if existing already
       // has stats. Replace with our fresh stats (we own this slice).
       const newKeyStats = args.keyStats.slice(0, MAX_KEYSTATS);
+      // Capability rows: cap at CAPABILITY_AREAS.length (6) regardless
+      // of input.  HONEST_SCORES — preserve old capabilities only when
+      // we provide no new ones.
+      const newCapabilities = (args.capabilities ?? [])
+        .slice(0, CAPABILITY_AREAS.length);
       await ctx.db.patch(existing._id, {
         version: (existing.version ?? 1) + 1,
         generatedAt: now,
         dashboardMetrics: {
           ...existing.dashboardMetrics,
           keyStats: newKeyStats,
+          capabilities:
+            newCapabilities.length > 0
+              ? newCapabilities
+              : existing.dashboardMetrics?.capabilities ?? [],
+          techReadiness:
+            args.techReadiness ??
+            existing.dashboardMetrics?.techReadiness ??
+            { existing: 0, emerging: 0, sciFi: 0 },
         },
         errors: errors.length > 0 ? errors : existing.errors,
       });
-      return { mode: "patched" as const, snapshotId: existing._id, keyStatCount: newKeyStats.length };
+      return {
+        mode: "patched" as const,
+        snapshotId: existing._id,
+        keyStatCount: newKeyStats.length,
+        capabilityCount: newCapabilities.length,
+      };
     }
 
     // Create a minimal snapshot — everything else is empty defaults
@@ -267,9 +389,13 @@ export const writeScoreboard = internalMutation({
           trendLine: { points: [] },
           marketShare: [],
         },
-        techReadiness: { existing: 0, emerging: 0, sciFi: 0 },
+        techReadiness: args.techReadiness ?? {
+          existing: 0,
+          emerging: 0,
+          sciFi: 0,
+        },
         keyStats: newKeyStats,
-        capabilities: [],
+        capabilities: (args.capabilities ?? []).slice(0, CAPABILITY_AREAS.length),
         annotations: [],
       },
       sourceSummary: {
@@ -282,7 +408,12 @@ export const writeScoreboard = internalMutation({
       processingTimeMs: undefined,
       errors: errors.length > 0 ? errors : undefined,
     });
-    return { mode: "created" as const, snapshotId: id, keyStatCount: newKeyStats.length };
+    return {
+      mode: "created" as const,
+      snapshotId: id,
+      keyStatCount: newKeyStats.length,
+      capabilityCount: (args.capabilities ?? []).length,
+    };
   },
 });
 
@@ -322,11 +453,21 @@ export const seedDailyKeyStats = internalAction({
     const dateKey = todayUtc();
     const yesterdayKey = daysAgoUtc(1);
 
-    // Fetch all three sources in parallel, fail-soft per source.
-    const [openalexResult, hnAlgoliaResult, githubResult] = await Promise.allSettled([
+    // Fetch all sources in parallel, fail-soft per source.
+    // Phase 8b §5 adds 6 arXiv categorical fetches (one per
+    // capability area) to the parallel batch.
+    const [
+      openalexResult,
+      hnAlgoliaResult,
+      githubResult,
+      ...arxivResults
+    ] = await Promise.allSettled([
       fetchOpenAlexCount(dateKey),
       fetchHnAlgoliaCount(dateKey),
       fetchGitHubAgentMedian(),
+      ...CAPABILITY_AREAS.map((area) =>
+        fetchArxivWeeklyCount(area.category),
+      ),
     ]);
 
     // Read yesterday's keyStats so we can compute Δ honestly.  If
@@ -371,6 +512,7 @@ export const seedDailyKeyStats = internalAction({
       openalex: "ok" as string,
       hnAlgolia: "ok" as string,
       github: "ok" as string,
+      arxiv: "ok" as string,
     };
 
     if (openalexResult.status === "fulfilled") {
@@ -421,32 +563,84 @@ export const seedDailyKeyStats = internalAction({
       console.warn(`[scoreboard] github failed: ${sources.github}`);
     }
 
-    // If ALL sources failed, do not overwrite a healthy yesterday's
-    // snapshot.  HONEST_STATUS: return error count, no fakes.
-    if (keyStats.length === 0) {
+    // ── Phase 8b §5: assemble capability rows + tier counts ──
+    type CapabilityRow = {
+      label: string;
+      weeklyCount: number;
+      tier: "existing" | "emerging" | "sciFi";
+      sourceUrl: string;
+    };
+    const capabilities: CapabilityRow[] = [];
+    const tierCounts = { existing: 0, emerging: 0, sciFi: 0 };
+    let arxivOk = 0;
+    let arxivErr = 0;
+
+    for (let i = 0; i < CAPABILITY_AREAS.length; i++) {
+      const area = CAPABILITY_AREAS[i];
+      const r = arxivResults[i];
+      if (r?.status === "fulfilled") {
+        const tier = bucketCapability(r.value);
+        capabilities.push({
+          label: area.label,
+          weeklyCount: r.value,
+          tier,
+          sourceUrl: `https://export.arxiv.org/list/${area.category}/recent`,
+        });
+        tierCounts[tier]++;
+        arxivOk++;
+      } else {
+        // HONEST_STATUS — failed area is omitted, not zero-filled.
+        // Don't fabricate a tier from missing data.
+        arxivErr++;
+        console.warn(
+          `[scoreboard] arxiv ${area.category} failed: ${
+            r?.status === "rejected" && r.reason instanceof Error
+              ? r.reason.message
+              : String(r?.status === "rejected" ? r.reason : "unknown")
+          }`,
+        );
+      }
+    }
+    if (arxivErr === 0) sources.arxiv = "ok";
+    else if (arxivOk === 0) sources.arxiv = `error: all ${CAPABILITY_AREAS.length} categories failed`;
+    else sources.arxiv = `partial: ${arxivOk}/${CAPABILITY_AREAS.length}`;
+
+    // If ALL non-arxiv sources failed AND no capabilities computed,
+    // do not overwrite a healthy yesterday's snapshot.  HONEST_STATUS.
+    if (keyStats.length === 0 && capabilities.length === 0) {
       return {
         ok: false,
         dateKey,
         keyStatCount: 0,
+        capabilityCount: 0,
         sources,
       };
     }
 
     const result = await ctx.runMutation(
       internal.domains.research.editionScoreboardSeed.writeScoreboard,
-      { dateKey, keyStats, sources },
+      {
+        dateKey,
+        keyStats,
+        capabilities,
+        techReadiness: tierCounts,
+        sources,
+      },
     );
 
     console.log(
       `[scoreboard] ${dateKey} mode=${result.mode} count=${result.keyStatCount} ` +
+        `caps=${capabilities.length} tiers=existing:${tierCounts.existing}/emerging:${tierCounts.emerging}/sciFi:${tierCounts.sciFi} ` +
         `openalex=${sources.openalex.slice(0, 16)} hn=${sources.hnAlgolia.slice(0, 16)} ` +
-        `github=${sources.github.slice(0, 16)}`,
+        `github=${sources.github.slice(0, 16)} arxiv=${sources.arxiv.slice(0, 16)}`,
     );
 
     return {
       ok: true,
       dateKey,
       keyStatCount: result.keyStatCount,
+      capabilityCount: capabilities.length,
+      tierCounts,
       mode: result.mode,
       sources,
     };

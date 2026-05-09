@@ -1154,6 +1154,7 @@ import type * as domains_research_researchSessionJit from "../domains/research/r
 import type * as domains_research_researchSessionLifecycle from "../domains/research/researchSessionLifecycle.js";
 import type * as domains_research_researchSessionOrchestrator from "../domains/research/researchSessionOrchestrator.js";
 import type * as domains_research_researchSessionSmoke from "../domains/research/researchSessionSmoke.js";
+import type * as domains_research_seedEditorialHypotheses from "../domains/research/seedEditorialHypotheses.js";
 import type * as domains_research_semanticDeduplicator from "../domains/research/semanticDeduplicator.js";
 import type * as domains_research_semanticDeduplicatorQueries from "../domains/research/semanticDeduplicatorQueries.js";
 import type * as domains_research_signalTimeseries from "../domains/research/signalTimeseries.js";
@@ -2640,6 +2641,7 @@ declare const fullApi: ApiFromModules<{
   "domains/research/researchSessionLifecycle": typeof domains_research_researchSessionLifecycle;
   "domains/research/researchSessionOrchestrator": typeof domains_research_researchSessionOrchestrator;
   "domains/research/researchSessionSmoke": typeof domains_research_researchSessionSmoke;
+  "domains/research/seedEditorialHypotheses": typeof domains_research_seedEditorialHypotheses;
   "domains/research/semanticDeduplicator": typeof domains_research_semanticDeduplicator;
   "domains/research/semanticDeduplicatorQueries": typeof domains_research_semanticDeduplicatorQueries;
   "domains/research/signalTimeseries": typeof domains_research_signalTimeseries;
