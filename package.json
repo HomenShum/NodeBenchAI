@@ -43,6 +43,8 @@
     "live-smoke": "playwright test tests/e2e/live-smoke.spec.ts --project=chromium --workers=1",
     "live-smoke:mobile": "playwright test tests/e2e/live-smoke-mobile.spec.ts --project=chromium --workers=1",
     "live-smoke:all": "npm run live-smoke && npm run live-smoke:mobile",
+    "verify-live": "tsx scripts/verify-live.ts",
+    "verify-live:editorial": "tsx scripts/verify-live.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",

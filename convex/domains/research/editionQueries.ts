@@ -1027,13 +1027,28 @@ export const getWeeklyDigest = query({
 });
 
 /* ────────────────────────────────────────────────────────────────────
- * Monthly retrospective (P0-minimal): top edition per week + brier-
- * resolved forecast count.  Per spec, this is intentionally small —
- * deeper per-month synthesis is deferred to a follow-up.
+ * Monthly retrospective (Phase 8c expansion).
+ *
+ * Original P0-minimal: top edition per week + brier-resolved count.
+ * Phase 8c adds (per the gap registry):
+ *   - per-week pulse totals (sum of materialChangeCount per ISO week)
+ *   - top 3 resolved forecasts with final probability + outcome bool
+ *   - per-day pulse-count histogram (28-31 nums, sparkline-ready)
+ *
+ * BOUND: pulses capped at PULSE_DEFAULT * 31 = 372 reads (still
+ * comfortably under HARD_CAP).  Resolutions capped at 200 (existing).
+ * Top forecasts capped at 3 (deterministic top by recency).
+ *
+ * The expansion is GUARDED — when no auth identity is present, the
+ * pulse-derived fields are populated from public-trending fallback
+ * counts (we use the snapshot-day's industryUpdates count as a proxy
+ * for "public daily volume").  HONEST_STATUS — the response carries a
+ * `pulseSource: "user" | "public-trending" | "none"` flag.
  * ────────────────────────────────────────────────────────────────── */
 export const getMonthlyRetrospective = query({
   args: {
     monthKey: v.string(),
+    anonymousSessionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const range = monthRange(args.monthKey);
@@ -1104,7 +1119,124 @@ export const getMonthlyRetrospective = query({
         ? brierScores.reduce((s, n) => s + n, 0) / brierScores.length
         : null;
 
-    if (topPerWeek.length === 0 && inMonthRes.length === 0) {
+    // ── Phase 8c: top 3 resolved forecasts with final probability + outcome ──
+    //
+    // Take the 3 most-recently-resolved.  Each carries:
+    //   - question (pulled via forecast lookup)
+    //   - finalProbability (from forecast.probability at resolve time)
+    //   - outcome ("yes" | "no" | "ambiguous")
+    //   - brierScore
+    //
+    // BOUND: capped at 3.  HONEST_SCORES: missing fields stay null.
+    inMonthRes.sort((a, b) => b.resolvedAt - a.resolvedAt);
+    const topResolved: Array<{
+      _id: Id<"forecastResolutions">;
+      forecastId: Id<"forecasts">;
+      question: string | null;
+      outcome: "yes" | "no" | "ambiguous";
+      finalProbability: number | null;
+      brierScore: number | null;
+      resolvedAt: number;
+    }> = [];
+    for (const r of inMonthRes.slice(0, 3)) {
+      const fc = await ctx.db.get(r.forecastId);
+      topResolved.push({
+        _id: r._id,
+        forecastId: r.forecastId,
+        question: fc?.question ?? null,
+        outcome: r.outcome,
+        finalProbability: typeof fc?.probability === "number" ? fc.probability : null,
+        brierScore: typeof r.brierScore === "number" ? r.brierScore : null,
+        resolvedAt: r.resolvedAt,
+      });
+    }
+
+    // ── Phase 8c: per-week pulse totals + per-day histogram ──
+    //
+    // For an authenticated identity, sum each week's
+    // materialChangeCount across pulseReports in the window.  Build
+    // sparkline as 28-31 numbers (one per UTC day in the month).
+    //
+    // For guests (no identity), fall back to public-trending: use
+    // the count of industryUpdates rows scanned each day as a proxy.
+    // HONEST_STATUS: tag the response with `pulseSource`.
+    const identity = await resolveProductIdentitySafely(
+      ctx,
+      args.anonymousSessionId,
+    );
+    let pulseSource: "user" | "public-trending" | "none" = "none";
+    const weeklyPulseTotals = new Map<string, number>(); // weekKey → sum materialChange
+    const dailyHistogram: number[] = [];
+
+    // Build day list for the month (sparkline indices).
+    const dayKeys: string[] = [];
+    for (let d = startMs; d <= endMs; d += 86_400_000) {
+      dayKeys.push(dateKeyFromMs(d));
+      dailyHistogram.push(0);
+    }
+
+    if (identity) {
+      const ownerKey =
+        identity.anonymousSessionId ?? (identity.ownerKey as string);
+      // Per-day pulse fetch.  BOUND: PULSE_DEFAULT (12) per day × ~31
+      // days = 372 reads max.  Acceptable for a monthly query.
+      for (let i = 0; i < dayKeys.length; i++) {
+        const dk = dayKeys[i];
+        const rows = await ctx.db
+          .query("pulseReports")
+          .withIndex("by_owner_date", (q) =>
+            q.eq("ownerKey", ownerKey).eq("dateKey", dk),
+          )
+          .order("desc")
+          .take(PULSE_DEFAULT);
+        const dayMaterial = rows.reduce(
+          (n, p) => n + (p.materialChangeCount ?? 0),
+          0,
+        );
+        dailyHistogram[i] = dayMaterial;
+        const t = Date.parse(`${dk}T00:00:00Z`);
+        const isoWeek = isoWeekKeyFromMs(t);
+        weeklyPulseTotals.set(
+          isoWeek,
+          (weeklyPulseTotals.get(isoWeek) ?? 0) + dayMaterial,
+        );
+      }
+      // We treat pulseSource="user" only when at least 1 day has rows.
+      if (dailyHistogram.some((n) => n > 0)) pulseSource = "user";
+    }
+
+    if (pulseSource === "none") {
+      // Guest fallback: use industryUpdates row count per day.
+      // BOUND: take 200 most-recent industryUpdates and bucket by day.
+      // Honest proxy — labelled in pulseSource.
+      const recentUpdates = await ctx.db
+        .query("industryUpdates")
+        .withIndex("by_scanned_at")
+        .order("desc")
+        .take(200);
+      for (const u of recentUpdates) {
+        const dk = dateKeyFromMs(u.scannedAt);
+        const idx = dayKeys.indexOf(dk);
+        if (idx < 0) continue;
+        dailyHistogram[idx] += 1;
+        const isoWeek = isoWeekKeyFromMs(u.scannedAt);
+        weeklyPulseTotals.set(
+          isoWeek,
+          (weeklyPulseTotals.get(isoWeek) ?? 0) + 1,
+        );
+      }
+      if (dailyHistogram.some((n) => n > 0)) pulseSource = "public-trending";
+    }
+
+    const weeklyPulseTotalsArray = Array.from(weeklyPulseTotals.entries())
+      .map(([weekKey, materialChanges]) => ({ weekKey, materialChanges }))
+      .sort((a, b) => a.weekKey.localeCompare(b.weekKey));
+
+    if (
+      topPerWeek.length === 0 &&
+      inMonthRes.length === 0 &&
+      pulseSource === "none"
+    ) {
       return {
         available: false as const,
         reason: "no_edition" as const,
@@ -1118,6 +1250,12 @@ export const getMonthlyRetrospective = query({
       topPerWeek,
       resolvedForecastCount: inMonthRes.length,
       meanBrier,
+      // Phase 8c expansion fields:
+      topResolved,
+      weeklyPulseTotals: weeklyPulseTotalsArray,
+      dailyHistogram,
+      dayKeys,
+      pulseSource,
     };
   },
 });
