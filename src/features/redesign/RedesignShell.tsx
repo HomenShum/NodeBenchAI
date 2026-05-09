@@ -109,13 +109,21 @@ export default function RedesignShell() {
     };
   }, []);
 
-  // Phase 7a edition flag — when `?edition=1` is present, the editorial
-  // home is the single source of truth for /redesign on both mobile +
-  // desktop (per docs/architecture/HOME_EDITORIAL_REDESIGN.md §3
-  // Variant C: "mobile and desktop are identical").
+  // Phase 7d (2026-05-08): editorial is the default at /redesign on
+  // both mobile + desktop.  Legacy is opt-out via `?classic=1`
+  // (canonical) or `?edition=0` (back-compat).  Per
+  // docs/architecture/HOME_EDITORIAL_REDESIGN.md §3 Variant C
+  // ("mobile and desktop are identical"), the editorial single-column
+  // layout bypasses MobileShell at the home surface so it stays
+  // responsive at any width.
   const isEditionFlag =
-    typeof window !== "undefined" &&
-    new URLSearchParams(location.search).get("edition") === "1";
+    typeof window === "undefined" ||
+    (() => {
+      const params = new URLSearchParams(location.search);
+      if (params.get("classic") === "1") return false;
+      if (params.get("edition") === "0") return false;
+      return true;
+    })();
 
   // Mobile path overrides everything except /redesign/workspace (which keeps its own surface).
   if (isMobile && surface !== "workspace") {
