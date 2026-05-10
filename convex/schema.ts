@@ -879,13 +879,20 @@ const sourceArtifacts = defineTable({
   sizeBytes: v.optional(v.number()),
   title: v.optional(v.string()),
   extractedData: v.optional(v.any()),
+  // Denormalized concat of title + sourceUrl (capped) for the federated
+  // `search_sources` index. Optional — backfilled lazily on next upsert.
+  searchableText: v.optional(v.string()),
   fetchedAt: v.number(),
   expiresAt: v.optional(v.number()),
 })
   .index("by_run", ["runId", "fetchedAt"])
   .index("by_hash", ["contentHash"])
   .index("by_sourceUrl_hash", ["sourceUrl", "contentHash"])
-  .index("by_sourceUrl", ["sourceUrl", "fetchedAt"]);
+  .index("by_sourceUrl", ["sourceUrl", "fetchedAt"])
+  .searchIndex("search_sources", {
+    searchField: "searchableText",
+    filterFields: ["sourceType"],
+  });
 
 /* ------------------------------------------------------------------ */
 /* ARTIFACT CHUNKS - addressable evidence units for retrieval           */
@@ -1339,7 +1346,13 @@ const chatThreadsStream = defineTable({
   .index("by_user_updatedAt", ["userId", "updatedAt"])
   .index("by_agentThreadId", ["agentThreadId"])
   .index("by_anonymous_session", ["anonymousSessionId"])
-  .index("by_swarmId", ["swarmId"]);
+  .index("by_swarmId", ["swarmId"])
+  // Federated search: title is the cheapest searchable signal for threads.
+  // Filter by userId so per-user scoping is enforced at index level.
+  .searchIndex("search_threads", {
+    searchField: "title",
+    filterFields: ["userId", "anonymousSessionId"],
+  });
 
 const chatMessagesStream = defineTable({
   threadId: v.id("chatThreadsStream"),
@@ -1695,7 +1708,14 @@ const quickCaptures = defineTable({
   .index("by_user", ["userId"])
   .index("by_user_type", ["userId", "type"])
   .index("by_user_created", ["userId", "createdAt"])
-  .index("by_processed", ["userId", "processed"]);
+  .index("by_processed", ["userId", "processed"])
+  // Federated search: search across the capture content (note text /
+  // task / voice transcription is rendered into `content` by callers).
+  // Filter by userId so per-user scoping is enforced at index level.
+  .searchIndex("search_captures", {
+    searchField: "content",
+    filterFields: ["userId", "type", "processed"],
+  });
 
 /* ------------------------------------------------------------------ */
 /* USER BEHAVIOR EVENTS - Track user actions for pattern recognition  */
@@ -15895,4 +15915,53 @@ export default defineSchema({
   })
     .index("by_cache_key", ["cacheKey"])
     .index("by_date_key", ["dateKey"]),
+
+  /* ------------------------------------------------------------------ */
+  /* PHASE 10b — Video lite-embed oEmbed metadata cache                 */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Cached oEmbed metadata for video URLs (YouTube/Vimeo/Twitch/Loom)
+   * that appear inside editorial sections (§1 What moved, §3 Forecasts,
+   * §6 Footnotes).  Exists so the editorial home can render thumbnail
+   * cards instead of bare links without hammering oEmbed providers on
+   * every page render.
+   *
+   * Cache key is sha256(url) — DETERMINISTIC.  TTL is 7 days
+   * (`fetchedAt + 7d`) per the spec; lookup callers MUST check
+   * `ttlExpiresAt` and treat expired rows as cache misses.
+   *
+   * HONEST_STATUS: failed fetches are persisted with an `errorMessage`
+   * and null thumbnail/title so the read path returns a well-typed
+   * "tried, failed" answer instead of silently re-querying every load.
+   *
+   * BOUND: one row per distinct video URL.  Worst case is 10s of
+   * thousands of rows, all tiny (~512 B) — acceptable for the
+   * editorial use-case.  No background eviction yet; the schema is
+   * append-only with TTL-aware reads.
+   *
+   * Bound + SSRF defense lives in the writer
+   * (convex/domains/integrations/video/oembedFetcher.ts) — schema
+   * itself is just a key/value store.
+   */
+  videoOembedCache: defineTable({
+    urlHash: v.string(),                     // sha256(url) hex — stable cache key
+    url: v.string(),                         // raw URL the user/editorial referenced
+    provider: v.union(
+      v.literal("youtube"),
+      v.literal("vimeo"),
+      v.literal("twitch"),
+      v.literal("loom"),
+    ),
+    thumbnailUrl: v.optional(v.string()),    // remote https thumbnail (CDN)
+    title: v.optional(v.string()),           // oEmbed title
+    author: v.optional(v.string()),          // oEmbed author_name
+    durationSec: v.optional(v.number()),     // optional duration if provider returns it
+    embedUrl: v.string(),                    // privacy-friendly embed URL (lazy-loaded on click)
+    fetchedAt: v.number(),                   // ms epoch when row was last refreshed
+    ttlExpiresAt: v.number(),                // fetchedAt + 7d — read path treats older rows as misses
+    errorMessage: v.optional(v.string()),    // populated when oEmbed fetch failed (null thumbnail/title)
+  })
+    .index("by_url_hash", ["urlHash"])
+    .index("by_ttl", ["ttlExpiresAt"]),
 });

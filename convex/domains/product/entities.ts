@@ -13,6 +13,7 @@ import {
   summarizeText,
 } from "./helpers";
 import { productNoteBlockValidator } from "./schema";
+import { composeSearchableText } from "../search/federatedHelpers";
 import { getEntityMemoryDocumentWorkspace } from "./documents";
 import {
   buildEntityAliasKey,
@@ -386,20 +387,34 @@ export async function ensureEntityForReport(
   });
 
   if (!entity) {
+    const entitySummary = summarizeText(
+      args.summary,
+      `${entityName} memory workspace`,
+    );
+    const savedBecause = inferProductSavedBecause({
+      entityType,
+      title: args.title,
+      query: args.query,
+      lens: args.lens,
+    });
     const entityId = await ctx.db.insert("productEntities", {
       ownerKey: args.ownerKey,
       slug: entitySlug,
       name: entityName,
       entityType,
-      summary: summarizeText(args.summary, `${entityName} memory workspace`),
-      savedBecause: inferProductSavedBecause({
-        entityType,
-        title: args.title,
-        query: args.query,
-        lens: args.lens,
-      }),
+      summary: entitySummary,
+      savedBecause,
       latestRevision: 0,
       reportCount: 0,
+      // Denormalized for federated search index `search_entities`. Same
+      // fields concatenated as `composeSearchableText` so search hits
+      // immediately on insert without a backfill round-trip.
+      searchableText: composeSearchableText([
+        entityName,
+        entitySlug,
+        entitySummary,
+        savedBecause,
+      ]),
       createdAt: args.now,
       updatedAt: args.now,
     });
@@ -625,13 +640,22 @@ async function upsertStandaloneEntity(
     return existing;
   }
 
+  const relatedSummary = summarizeText(args.summary, `${args.name} related entity`);
+  const relatedSavedBecause =
+    args.entityType === "person" ? "people research" : "company briefing";
   const entityId = await ctx.db.insert("productEntities", {
     ownerKey: args.ownerKey,
     slug: args.slug,
     name: args.name,
     entityType: args.entityType,
-    summary: summarizeText(args.summary, `${args.name} related entity`),
-    savedBecause: args.entityType === "person" ? "people research" : "company briefing",
+    summary: relatedSummary,
+    savedBecause: relatedSavedBecause,
+    searchableText: composeSearchableText([
+      args.name,
+      args.slug,
+      relatedSummary,
+      relatedSavedBecause,
+    ]),
     latestRevision: 0,
     reportCount: 0,
     createdAt: args.now,
@@ -1694,13 +1718,25 @@ export const ensureEntity = mutation({
     }
 
     const now = Date.now();
+    const seedName = args.name ?? args.slug;
+    const seedSummary = summarizeText(
+      args.summary ?? `${seedName} workspace`,
+      `${args.slug} workspace`,
+    );
+    const seedSavedBecause = args.savedBecause?.trim() || "load-test-seed";
     const entityId = await ctx.db.insert("productEntities", {
       ownerKey,
       slug: args.slug,
-      name: args.name ?? args.slug,
+      name: seedName,
       entityType: args.entityType ?? "company",
-      summary: summarizeText(args.summary ?? `${args.name ?? args.slug} workspace`, `${args.slug} workspace`),
-      savedBecause: args.savedBecause?.trim() || "load-test-seed",
+      summary: seedSummary,
+      savedBecause: seedSavedBecause,
+      searchableText: composeSearchableText([
+        seedName,
+        args.slug,
+        seedSummary,
+        seedSavedBecause,
+      ]),
       latestRevision: 0,
       reportCount: 0,
       createdAt: now,
@@ -1764,13 +1800,23 @@ export const resolveOrCreateEntityForChat = mutation({
     const now = Date.now();
     let isNew = false;
     if (!entity) {
+      const tier0Summary = summarizeText(
+        `${displayName} workspace`,
+        `${slug} workspace`,
+      );
       const entityId = await ctx.db.insert("productEntities", {
         ownerKey,
         slug,
         name: displayName,
         entityType: args.entityType ?? "company",
-        summary: summarizeText(`${displayName} workspace`, `${slug} workspace`),
+        summary: tier0Summary,
         savedBecause: "chat-tier0",
+        searchableText: composeSearchableText([
+          displayName,
+          slug,
+          tier0Summary,
+          "chat-tier0",
+        ]),
         latestRevision: 0,
         reportCount: 0,
         createdAt: now,

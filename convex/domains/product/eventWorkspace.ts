@@ -6,6 +6,7 @@ import {
   resolveProductReadOwnerKeys,
   toAnonymousProductOwnerKey,
 } from "./helpers";
+import { composeSearchableText } from "../search/federatedHelpers";
 import {
   productEventBudgetDecisionInputValidator,
   productEventCaptureInputValidator,
@@ -417,6 +418,12 @@ async function upsertProductEntityFromNotebookPatch(
     createdAt: args.now,
     latestRevision: 1,
     reportCount: args.reportId ? 1 : 0,
+    searchableText: composeSearchableText([
+      patch.name,
+      slug,
+      patch.summary,
+      patch.savedBecause,
+    ]),
     ...patch,
   });
 }

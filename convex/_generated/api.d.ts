@@ -1171,6 +1171,8 @@ import type * as domains_search_analytics_componentMetrics from "../domains/sear
 import type * as domains_search_analytics_intentSignals from "../domains/search/analytics/intentSignals.js";
 import type * as domains_search_analytics_ossStats from "../domains/search/analytics/ossStats.js";
 import type * as domains_search_deepDiligence from "../domains/search/deepDiligence.js";
+import type * as domains_search_federatedHelpers from "../domains/search/federatedHelpers.js";
+import type * as domains_search_federatedSearch from "../domains/search/federatedSearch.js";
 import type * as domains_search_fusion_actions from "../domains/search/fusion/actions.js";
 import type * as domains_search_fusion_adapters_arxivAdapter from "../domains/search/fusion/adapters/arxivAdapter.js";
 import type * as domains_search_fusion_adapters_braveAdapter from "../domains/search/fusion/adapters/braveAdapter.js";
@@ -2662,6 +2664,8 @@ declare const fullApi: ApiFromModules<{
   "domains/search/analytics/intentSignals": typeof domains_search_analytics_intentSignals;
   "domains/search/analytics/ossStats": typeof domains_search_analytics_ossStats;
   "domains/search/deepDiligence": typeof domains_search_deepDiligence;
+  "domains/search/federatedHelpers": typeof domains_search_federatedHelpers;
+  "domains/search/federatedSearch": typeof domains_search_federatedSearch;
   "domains/search/fusion/actions": typeof domains_search_fusion_actions;
   "domains/search/fusion/adapters/arxivAdapter": typeof domains_search_fusion_adapters_arxivAdapter;
   "domains/search/fusion/adapters/braveAdapter": typeof domains_search_fusion_adapters_braveAdapter;
