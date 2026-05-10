@@ -15868,4 +15868,31 @@ export default defineSchema({
   })
     .index("by_user_created", ["userId", "createdAt"])
     .index("by_run", ["runId"]),
+
+  /* ------------------------------------------------------------------ */
+  /* PHASE 9a — Editorial-edition TTS audio cache                       */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Cache entries for the editorial home's "Listen" button.  Idempotency
+   * by `cacheKey = ${dateKey}|${voiceId}` so swapping voices regenerates
+   * cleanly and same-day clicks are free.
+   *
+   * Bound: tiny — one row per (dateKey, voiceId) pair.  Old days remain
+   * playable until manual eviction.  Cost: ~$0.30 per generation
+   * (ElevenLabs eleven_turbo_v2_5 priced ~$0.30/1K chars; cap is 2K
+   * chars/script per editionTts.ts MAX_SCRIPT_CHARS).
+   *
+   * See convex/domains/integrations/voice/editionTts.ts.
+   */
+  editionAudioCache: defineTable({
+    cacheKey: v.string(),                    // ${dateKey}|${voiceId}
+    dateKey: v.string(),                     // YYYY-MM-DD
+    voiceId: v.string(),                     // ElevenLabs voice id
+    storageId: v.id("_storage"),             // mp3 blob in Convex storage
+    generatedAt: v.number(),                 // ms epoch
+    charCount: v.number(),                   // length of script that was synthesized
+  })
+    .index("by_cache_key", ["cacheKey"])
+    .index("by_date_key", ["dateKey"]),
 });
