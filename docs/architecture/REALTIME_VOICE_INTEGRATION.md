@@ -1,9 +1,9 @@
 # Realtime Voice Integration — Adapter + Scenario Dogfood Matrix
 
-> **Status**: adapter contract implemented 2026-05-08; provider audio remains behind Gemini/OpenAI session adapters
+> **Status**: adapter contract implemented 2026-05-08; May-7 OpenAI realtime models wired with fallback chain 2026-05-10
 > **Pattern**: Realtime Adapter — voice = input/output surface for the existing NodeBench pipeline, never a separate product path
 > **Prior art (verified)**:
->   - OpenAI announcement 2026-05-07 — GPT-Realtime-2, GPT-Realtime-Translate, GPT-Realtime-Whisper. https://openai.com/index/advancing-voice-intelligence-with-new-models-in-the-api/
+>   - OpenAI announcement 2026-05-07 — `gpt-realtime-2` ($32/1M audio in, $64/1M audio out, $0.40/1M cached in), `gpt-realtime-translate` ($0.034/min, 70→13 langs), `gpt-realtime-whisper` ($0.017/min, streaming STT). https://openai.com/index/advancing-voice-intelligence-with-new-models-in-the-api/
 >   - OpenAI Realtime WebRTC docs — recommends WebRTC for browser/mobile sessions, ephemeral keys, server-mediated session flow. https://platform.openai.com/docs/guides/realtime-webrtc
 >   - Existing NodeBench Gemini 3.1 Flash Live integration (2026-03-28) — already in `server/routes/session.ts`
 
@@ -123,20 +123,27 @@ BASE_URL=http://127.0.0.1:4173 npm run voice:dogfood
 
 **Do not scatter model names through UI code. Put routing behind policy.**
 
-```
-transcription_only        → realtime transcription model (whisper)
-cheap_voice_chat          → lightweight realtime model (mini)
-tool_calling_voice_agent  → strongest realtime voice model (realtime-2)
-translation               → realtime translation model (translate)
-deep_research             → async text/research pipeline (Temporal worker)
-```
+| Routing tier | Wire model (May 7, 2026) | Pricing | Use case | Legacy fallback |
+|---|---|---|---|---|
+| `gemini-flash-live` | `gemini-3.1-flash-live-preview` | per token | default conversational + cheap chat | n/a |
+| `openai-realtime-2` | `gpt-realtime-2` | $32/1M audio in, $64/1M out, $0.40/1M cached | phone-grade tool-calling agent | `gpt-4o-realtime-preview` |
+| `openai-realtime-translate` | `gpt-realtime-translate` | $0.034/min flat | live translation, 70→13 langs | n/a (no preview equivalent) |
+| `openai-realtime-mini` | `gpt-realtime-mini` | per token | lightweight chat / deep-work handoff | n/a |
+| `openai-whisper` | `gpt-realtime-whisper` | $0.017/min flat | streaming STT (event capture, dictation, capture-only mode) | n/a |
 
-**Implementation**:
-- Config file: `convex/domains/integrations/voice/modelRouting.ts` exports `RoutingPolicy` keyed by `IntentRoute`
-- Model IDs + pricing in `convex/domains/integrations/voice/modelCatalog.ts` — single source of truth, rechecked against OpenAI docs at implementation time
-- Routing decision is **deterministic** (hashed inputs) and persisted to `RealtimeAuditEvent` for replay
-- Existing Gemini 3.1 Flash Live remains the default for `cheap_voice_chat` and `tool_calling_voice_agent` until OpenAI tier is benchmarked head-to-head
-- UI code consumes the policy decision — never references provider names
+**Cost shape per typical session** (informs $5/user/day default cap):
+- 5-min agent voice with `gpt-realtime-2`: ~5min × ($32 in + $64 out)/1M × ~10K tokens/min ≈ ~$0.05
+- 10-min translation with `gpt-realtime-translate`: 10min × $0.034 = $0.34
+- 10-min Whisper streaming: 10min × $0.017 = $0.17
+
+**Implementation** (current, not aspirational):
+- Policy lives in `server/agents/realtimeVoicePolicy.ts` — `selectVoiceModelTier()` is pure + deterministic.
+- `MODEL_BY_TIER` is the single source of truth for tier name → wire model ID.
+- `LEDGER_KEY_BY_TIER` maps the routing tier to the `voiceCostLedger.byTier` schema key (HONEST_SCORES — callers can't mis-attribute spend).
+- Routing decision is recorded to `voiceRoutingDecisions` Convex table for replay.
+- `/voice/session` for the OpenAI provider attempts the May-7 model first, then `gpt-4o-realtime-preview` as a fallback (HONEST_STATUS via `routingDecision.actualTierUsed` + `fallbackReason` + `fallbackChain`). Both attempts failing returns 502 with `fallback: "gemini-or-browser"` so the client can degrade to Gemini Live or browser speech.
+- Cost-cap downgrade: when `dailyCostUsd >= dailyCapUsd`, the router returns `tier: "openai-whisper", captureOnly: true, capHit: true, gate: "daily_cost_cap_hit"`. This applies regardless of `agentMode` / `translationMode` — quality enhancement does NOT mean unbounded spend. Operator override via `setUserCap` mutation in `convex/domains/integrations/voice/costLedger.ts`.
+- UI code consumes the policy decision — never references provider names or model IDs directly.
 
 ---
 

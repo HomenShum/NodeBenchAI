@@ -1,15 +1,27 @@
 /**
- * Voice session routes — Gemini 3.1 Flash Live API
+ * Voice session routes — multi-provider realtime adapter.
  *
- * Generates ephemeral tokens for client-side WebSocket connections
- * to Gemini Live API. The browser connects directly to Gemini —
- * no server-side WebRTC proxy needed.
+ * Routing policy (server/agents/realtimeVoicePolicy.ts) picks one of:
+ *   - gemini-flash-live     (Gemini 3.1 Flash Live, default)
+ *   - openai-realtime-2     (OpenAI gpt-realtime-2 — May 7, 2026)
+ *     ↳ legacy fallback: gpt-4o-realtime-preview
+ *   - openai-realtime-translate (gpt-realtime-translate)
+ *   - openai-realtime-mini  (gpt-realtime-mini)
+ *   - openai-whisper        (gpt-realtime-whisper, streaming STT)
  *
- * Flow:
- *   1. Client calls POST /voice/session
- *   2. Server generates ephemeral token using GEMINI_API_KEY
- *   3. Client opens WebSocket to Gemini with ephemeral token
- *   4. All audio streams directly between browser and Gemini
+ * Provider selection:
+ *   - Gemini path: server mints ephemeral token, browser opens WS direct.
+ *   - OpenAI path: server creates client_secret via /v1/realtime/client_secrets,
+ *     browser uses WebRTC against /v1/realtime/calls.
+ *
+ * HONEST_STATUS invariant: every response carries `routingDecision` with
+ * `tier` (what was requested) and `actualTierUsed` (what served). When
+ * fallback fires, `fallbackReason` and `fallbackChain` are populated.
+ *
+ * Sources:
+ *   - OpenAI 2026-05-07: https://openai.com/index/advancing-voice-intelligence-with-new-models-in-the-api/
+ *   - OpenAI Realtime WebRTC: https://platform.openai.com/docs/guides/realtime-webrtc
+ *   - Spec: docs/architecture/REALTIME_VOICE_INTEGRATION.md
  */
 
 import { Router } from "express";
@@ -18,6 +30,8 @@ import { api } from "../../convex/_generated/api";
 import { getGeminiVoiceTools, executeVoiceTool } from "../agents/voiceAgent.js";
 import {
   DEFAULT_VOICE_DAILY_CAP_USD,
+  LEGACY_OPENAI_REALTIME_MODEL,
+  applyFallback,
   buildVoiceFollowUps,
   extractVoiceEntities,
   getUtcDay,
@@ -196,54 +210,124 @@ export function createSessionRouter(): Router {
 
       if (routingDecision.provider === "openai") {
         const openaiKey = process.env.OPENAI_API_KEY;
+
+        // HONEST_STATUS — never silently degrade. If the key is missing the
+        // session response carries `fallback` and a routingDecision marked
+        // as fallen back to gemini-flash-live so the client can route to
+        // Gemini Live or browser speech. Status 503 is honest: OpenAI
+        // realtime is unavailable on this server right now.
         if (!openaiKey) {
           return res.status(503).json({
             ok: false,
             error: "OPENAI_API_KEY not configured",
             fallback: "gemini-or-browser",
-            routingDecision,
+            routingDecision: applyFallback(
+              routingDecision,
+              "gemini-flash-live",
+              "openai_key_missing",
+            ),
           });
         }
 
-        const sessionId = `openai-realtime-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const sessionConfig = {
-          session: {
-            type: "realtime",
-            model: routingDecision.model,
-            audio: {
-              output: {
-                voice: "marin",
+        // Fallback chain: gpt-realtime-2 (May 7, 2026) → gpt-4o-realtime-preview
+        //                 (legacy stable) → 502 with gemini-or-browser hint.
+        // The May-7 models roll out by account; if the primary returns 4xx
+        // we degrade to the legacy realtime model BEFORE failing entirely.
+        // Each attempt is reported back via routingDecision.actualTierUsed
+        // and fallbackReason so the operator dashboard knows what served.
+        // Whisper-streaming and translate are point-products with no
+        // preview-era equivalent — they only attempt the May-7 model.
+        const attempts: Array<{
+          model: string;
+          tier: VoiceRoutingDecision["tier"];
+          fallbackReason?: NonNullable<VoiceRoutingDecision["fallbackReason"]>;
+        }> = [
+          { model: routingDecision.model, tier: routingDecision.tier },
+        ];
+        if (routingDecision.tier === "openai-realtime-2") {
+          attempts.push({
+            model: LEGACY_OPENAI_REALTIME_MODEL,
+            tier: "openai-realtime-2",
+            fallbackReason: "openai_realtime_unavailable",
+          });
+        }
+
+        let activeDecision = routingDecision;
+        let tokenRes: Response | null = null;
+        let lastDetail = "";
+        let lastStatus = 0;
+        let sessionConfig: {
+          session: { type: string; model: string; audio?: unknown; instructions: string };
+        } | null = null;
+
+        for (const attempt of attempts) {
+          sessionConfig = {
+            session: {
+              type: "realtime",
+              model: attempt.model,
+              audio: {
+                output: {
+                  voice: "marin",
+                },
               },
+              instructions:
+                systemInstruction ??
+                [
+                  "You are NodeBench, the realtime interaction layer for an entity intelligence workspace.",
+                  "Use voice for fast capture and interaction. Do not perform deep research in realtime.",
+                  "When work requires sources, durable reports, exports, or batch analysis, acknowledge it and queue the async NodeBench pipeline.",
+                  "Before high-impact writes, ask for confirmation.",
+                ].join(" "),
             },
-            instructions:
-              systemInstruction ??
-              [
-                "You are NodeBench, the realtime interaction layer for an entity intelligence workspace.",
-                "Use voice for fast capture and interaction. Do not perform deep research in realtime.",
-                "When work requires sources, durable reports, exports, or batch analysis, acknowledge it and queue the async NodeBench pipeline.",
-                "Before high-impact writes, ask for confirmation.",
-              ].join(" "),
-          },
-        };
+          };
 
-        const tokenRes = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${openaiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(sessionConfig),
-          signal: AbortSignal.timeout(10000),
-        });
+          // TIMEOUT — bounded fetch budget per attempt
+          const attemptRes = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${openaiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(sessionConfig),
+            signal: AbortSignal.timeout(10000),
+          });
 
-        if (!tokenRes.ok) {
-          const detail = await tokenRes.text().catch(() => "");
+          if (attemptRes.ok) {
+            tokenRes = attemptRes;
+            if (attempt.fallbackReason) {
+              activeDecision = applyFallback(
+                routingDecision,
+                attempt.tier,
+                attempt.fallbackReason,
+              );
+              // Override the served model — applyFallback uses the catalog
+              // map, but the legacy preview model isn't in MODEL_BY_TIER.
+              activeDecision = { ...activeDecision, model: attempt.model };
+            }
+            break;
+          }
+
+          lastStatus = attemptRes.status;
+          lastDetail = (await attemptRes.text().catch(() => "")).slice(0, 500);
+          // 4xx on the May-7 model usually means account hasn't been
+          // upgraded — try legacy. 5xx may also be model-specific. Either
+          // way, fall through to the next attempt if any.
+        }
+
+        if (!tokenRes || !sessionConfig) {
+          // HONEST_STATUS — both attempts failed. Surface the fallback hint
+          // so the client can route to Gemini Live or browser speech.
           return res.status(502).json({
             ok: false,
             error: "OpenAI realtime client secret creation failed",
-            status: tokenRes.status,
-            detail: detail.slice(0, 500),
-            routingDecision,
+            status: lastStatus,
+            detail: lastDetail,
+            fallback: "gemini-or-browser",
+            routingDecision: applyFallback(
+              routingDecision,
+              "gemini-flash-live",
+              "session_create_failed",
+            ),
           });
         }
 
@@ -253,11 +337,12 @@ export function createSessionRouter(): Router {
           [key: string]: unknown;
         };
         const clientSecret = tokenData.value ?? tokenData.client_secret?.value;
+        const sessionId = `openai-realtime-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         sessions.set(sessionId, {
           userId: userKey,
           createdAt: Date.now(),
-          model: routingDecision.model,
-          tier: routingDecision.tier,
+          model: activeDecision.model,
+          tier: activeDecision.tier,
         });
 
         return res.json({
@@ -265,11 +350,17 @@ export function createSessionRouter(): Router {
           sessionId,
           provider: "openai",
           transport: "webrtc",
-          tier: routingDecision.tier,
-          model: routingDecision.model,
+          tier: activeDecision.tier,
+          // HONEST_STATUS — actualTierUsed reflects what actually served.
+          // Clients use actualTierUsed for cost reporting; tier for routing
+          // analytics ("what was requested").
+          actualTierUsed: activeDecision.actualTierUsed,
+          fallbackReason: activeDecision.fallbackReason,
+          fallbackChain: activeDecision.fallbackChain,
+          model: activeDecision.model,
           captureOnly: false,
           capHit: false,
-          routingDecision,
+          routingDecision: activeDecision,
           clientSecret,
           clientSecretResponse: tokenData,
           callsUrl: "https://api.openai.com/v1/realtime/calls",
@@ -634,23 +725,30 @@ export function createSessionRouter(): Router {
    * Voice subsystem health check
    */
   router.get("/health", (_req, res) => {
-    const hasKey = !!process.env.GEMINI_API_KEY;
+    const hasGeminiKey = !!process.env.GEMINI_API_KEY;
+    const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
     res.json({
       ok: true,
-      status: hasKey ? "ok" : "unconfigured",
+      status: hasGeminiKey || hasOpenAIKey ? "ok" : "unconfigured",
       provider: "gemini-live",
       model: GEMINI_MODEL,
       realtimeGateway: "ready",
       configured: {
-        gemini: hasKey,
+        gemini: hasGeminiKey,
+        openai: hasOpenAIKey,
         convex: Boolean(process.env.CONVEX_URL || process.env.VITE_CONVEX_URL),
       },
+      // OpenAI 2026-05-07 release: gpt-realtime-2/translate/whisper. Each
+      // tier has a stable routing identifier and a wire-level model ID.
+      // realtime-2 falls back to gpt-4o-realtime-preview while accounts
+      // are still being upgraded.
+      // Source: https://openai.com/index/advancing-voice-intelligence-with-new-models-in-the-api/
       tiers: [
-        "gemini-flash-live",
-        "openai-whisper",
-        "openai-realtime-mini",
-        "openai-realtime-2",
-        "openai-realtime-translate",
+        { tier: "gemini-flash-live", model: GEMINI_MODEL, provider: "gemini" },
+        { tier: "openai-whisper", model: "gpt-realtime-whisper", provider: "openai", role: "streaming-stt" },
+        { tier: "openai-realtime-mini", model: "gpt-realtime-mini", provider: "openai", role: "lightweight-chat" },
+        { tier: "openai-realtime-2", model: "gpt-realtime-2", provider: "openai", role: "agent-tool-calling", legacyFallback: LEGACY_OPENAI_REALTIME_MODEL },
+        { tier: "openai-realtime-translate", model: "gpt-realtime-translate", provider: "openai", role: "live-translation" },
       ],
       capUsd: Number(process.env.VOICE_DAILY_CAP_USD ?? DEFAULT_VOICE_DAILY_CAP_USD),
       activeSessions: sessions.size,

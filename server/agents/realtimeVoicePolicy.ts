@@ -39,7 +39,32 @@ export type VoiceRoutingDecision = {
   banner?: string;
   dailyCostUsd: number;
   dailyCapUsd: number;
+  /**
+   * HONEST_STATUS — when present, the request was downgraded from the
+   * routed `tier` to a fallback. UI MUST surface this to the user instead
+   * of silently degrading. Set by the /voice/session route after attempting
+   * the primary provider and falling back. Pre-fallback equals `tier`.
+   */
+  actualTierUsed?: VoiceTier;
+  fallbackReason?:
+    | "openai_key_missing"
+    | "openai_realtime_unavailable"
+    | "openai_legacy_realtime_unavailable"
+    | "rate_limited"
+    | "session_create_failed";
+  fallbackChain?: VoiceTier[];
 };
+
+/**
+ * OpenAI realtime fallback model — used when `gpt-realtime-2` (May-7 release)
+ * is unavailable to the account. The legacy `gpt-4o-realtime-preview` is the
+ * stable predecessor; routing degrades to it before falling through to
+ * Gemini Live or capture-only mode.
+ *
+ * Source: OpenAI 2026-05-07 release notes — accounts gain access in waves.
+ * https://openai.com/index/advancing-voice-intelligence-with-new-models-in-the-api/
+ */
+export const LEGACY_OPENAI_REALTIME_MODEL = "gpt-4o-realtime-preview";
 
 export type RedactedSpan = {
   start: number;
@@ -62,6 +87,19 @@ export type ExtractedVoiceEntity = {
 export const DEFAULT_VOICE_DAILY_CAP_USD = 5;
 export const GEMINI_LIVE_MODEL = "gemini-3.1-flash-live-preview";
 
+/**
+ * OpenAI 2026-05-07 voice model release.
+ * Pricing reference (per OpenAI release notes):
+ *   - gpt-realtime-2:         $32 audio in / $64 audio out / $0.40 cached in (per 1M tokens)
+ *   - gpt-realtime-translate: $0.034/min flat
+ *   - gpt-realtime-whisper:   $0.017/min flat (streaming STT)
+ *   - gpt-realtime-mini:      lightweight chat tier
+ *
+ * Routing tier name → wire-level OpenAI model ID. Centralized so callers
+ * never reference raw model strings (DETERMINISTIC + grep-safe).
+ *
+ * Source: https://openai.com/index/advancing-voice-intelligence-with-new-models-in-the-api/
+ */
 const MODEL_BY_TIER: Record<VoiceTier, string> = {
   "gemini-flash-live": GEMINI_LIVE_MODEL,
   "openai-whisper": "gpt-realtime-whisper",
@@ -69,6 +107,27 @@ const MODEL_BY_TIER: Record<VoiceTier, string> = {
   "openai-realtime-2": "gpt-realtime-2",
   "openai-realtime-translate": "gpt-realtime-translate",
 };
+
+/**
+ * Cost-ledger tier key — maps the routing tier identifier to the
+ * `voiceCostLedger.byTier` schema key. Centralized so callers can't
+ * silently mis-attribute spend to the wrong bucket (HONEST_SCORES).
+ *
+ * Schema source: convex/schema.ts → voiceCostLedger.byTier
+ */
+export type LedgerTierKey = "geminiLive" | "whisper" | "realtimeMini" | "realtime2" | "translate";
+
+const LEDGER_KEY_BY_TIER: Record<VoiceTier, LedgerTierKey> = {
+  "gemini-flash-live": "geminiLive",
+  "openai-whisper": "whisper",
+  "openai-realtime-mini": "realtimeMini",
+  "openai-realtime-2": "realtime2",
+  "openai-realtime-translate": "translate",
+};
+
+export function ledgerKeyForTier(tier: VoiceTier): LedgerTierKey {
+  return LEDGER_KEY_BY_TIER[tier];
+}
 
 export function getUtcDay(timestamp = Date.now()): string {
   return new Date(timestamp).toISOString().slice(0, 10);
@@ -196,6 +255,43 @@ function decisionForTier(
     reason,
     dailyCostUsd,
     dailyCapUsd,
+    // HONEST_STATUS — pre-fallback, actualTierUsed equals the routed tier.
+    // The /voice/session handler overrides this if the primary tier fails
+    // and we degrade to a legacy model or capture-only mode.
+    actualTierUsed: tier,
+  };
+}
+
+/**
+ * HONEST_STATUS — caller-side helper to express that the request fell back
+ * from the originally routed tier. Returns a NEW decision with
+ * `actualTierUsed`, `fallbackReason`, and `fallbackChain` populated; the
+ * original `tier` field is preserved so dashboards can attribute "what was
+ * requested" vs "what was actually served".
+ *
+ * Use case: /voice/session attempts gpt-realtime-2 → 4xx → calls
+ * applyFallback(decision, "openai-realtime-2", "openai_realtime_unavailable")
+ * BEFORE retrying with the legacy model. Chain extends per attempt.
+ */
+export function applyFallback(
+  decision: VoiceRoutingDecision,
+  fallbackTier: VoiceTier,
+  fallbackReason: NonNullable<VoiceRoutingDecision["fallbackReason"]>,
+): VoiceRoutingDecision {
+  const provider = fallbackTier.startsWith("openai") ? "openai" : "gemini";
+  const chain = decision.fallbackChain ?? [decision.tier];
+  return {
+    ...decision,
+    actualTierUsed: fallbackTier,
+    fallbackReason,
+    fallbackChain: [...chain, fallbackTier],
+    // model/provider reflect what was ACTUALLY served, not what was routed
+    model: MODEL_BY_TIER[fallbackTier],
+    provider,
+    captureOnly: fallbackTier === "openai-whisper",
+    banner:
+      decision.banner ??
+      `Routed to ${decision.tier} but using ${fallbackTier} (${fallbackReason}). Quality may differ — call still durable.`,
   };
 }
 
