@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, internalAction, internalQuery, internalMutation } from "../../_generated/server";
 import type { Doc, Id } from "../../_generated/dataModel";
 import { internal } from "../../_generated/api";
+import { recomputeSourceSearchableText } from "../search/searchableTextRecompute";
 
 type BugColumn =
   | "inbox"
@@ -173,6 +174,12 @@ export const reportClientError = mutation({
         sizeBytes: occurrenceRaw.length,
         title: `Bug occurrence ${signature}`,
         extractedData: occurrencePayload,
+        // PR D: populate searchableText for the federated `search_sources`.
+        searchableText: recomputeSourceSearchableText({
+          title: `Bug occurrence ${signature}`,
+          sourceUrl,
+          mimeType: "application/json",
+        }),
         fetchedAt: now,
         expiresAt: undefined,
       }));

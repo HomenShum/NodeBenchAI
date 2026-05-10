@@ -11,6 +11,7 @@
 import { v } from "convex/values";
 import { query, mutation, internalMutation, internalQuery } from "../../_generated/server";
 import type { Doc, Id } from "../../_generated/dataModel";
+import { recomputeReportSearchableText } from "../search/searchableTextRecompute";
 
 // ====================================================================
 // Constants
@@ -801,6 +802,7 @@ export const _createMockReport = internalMutation({
   handler: async (ctx, { ownerKey, entitySlug, title, summary, type, updatedAt }) => {
     const createdAt = updatedAt;
     
+    const queryStr = `Research on ${entitySlug}`;
     await ctx.db.insert("productReports", {
       ownerKey,
       entitySlug,
@@ -809,12 +811,21 @@ export const _createMockReport = internalMutation({
       type,
       status: "saved",
       lens: "founder",
-      query: `Research on ${entitySlug}`,
+      query: queryStr,
       sections: [],
       sources: [],
       evidenceItemIds: [],
       pinned: false,
       visibility: "private",
+      // PR D: populate searchableText so the federated `search_reports` index
+      // sees this mock report immediately.
+      searchableText: recomputeReportSearchableText({
+        title,
+        summary,
+        query: queryStr,
+        primaryEntity: undefined,
+        entitySlug,
+      }),
       createdAt,
       updatedAt,
     });
@@ -912,6 +923,7 @@ export const _batchInsertMockData = internalMutation({
     const inserted = { reports: 0, claims: 0, evidence: 0 };
 
     for (const report of reports) {
+      const queryStr = `Research on ${entitySlug}`;
       await ctx.db.insert("productReports", {
         ownerKey,
         entitySlug,
@@ -920,12 +932,21 @@ export const _batchInsertMockData = internalMutation({
         type: report.type,
         status: "saved",
         lens: "founder",
-        query: `Research on ${entitySlug}`,
+        query: queryStr,
         sections: [],
         sources: [],
         evidenceItemIds: [],
         pinned: false,
         visibility: "private",
+        // PR D: populate searchableText for the federated `search_reports`
+        // index. Backfill is also a thing — but new inserts should be live.
+        searchableText: recomputeReportSearchableText({
+          title: report.title,
+          summary: report.summary,
+          query: queryStr,
+          primaryEntity: undefined,
+          entitySlug,
+        }),
         createdAt: report.updatedAt,
         updatedAt: report.updatedAt,
       });

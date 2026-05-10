@@ -12,6 +12,7 @@ import {
 import { insertProductActivity } from "./activity";
 import { upsertOpenProductNudge } from "./nudgeHelpers";
 import { productReportExportFormatValidator } from "./schema";
+import { recomputeReportSearchableText } from "../search/searchableTextRecompute";
 import {
   buildEntityAliasKey,
   chooseEntityDisplayName,
@@ -475,11 +476,13 @@ export const createDraftReport = mutation({
     const title = args.title.trim().slice(0, REPORT_DRAFT_TITLE_MAX);
     if (!title) throw new Error("Title is required");
     const now = Date.now();
+    const draftSummary = (args.summary ?? "").slice(0, 1000);
+    const draftQuery = (args.query ?? title).slice(0, 1000);
     const id = await ctx.db.insert("productReports", {
       ownerKey,
       title,
-      summary: (args.summary ?? "").slice(0, 1000),
-      query: (args.query ?? title).slice(0, 1000),
+      summary: draftSummary,
+      query: draftQuery,
       type: (args.type ?? "report").slice(0, 64),
       lens: "founder",
       status: "draft",
@@ -488,6 +491,16 @@ export const createDraftReport = mutation({
       sections: [],
       sources: [],
       evidenceItemIds: [],
+      // PR D: populate searchableText so the federated `search_reports` index
+      // sees this draft immediately. Schema docs the shape; this insert was
+      // missing it at PR #310 ship time.
+      searchableText: recomputeReportSearchableText({
+        title,
+        summary: draftSummary,
+        query: draftQuery,
+        primaryEntity: undefined,
+        entitySlug: undefined,
+      }),
       createdAt: now,
       updatedAt: now,
     });

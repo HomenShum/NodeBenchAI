@@ -1214,6 +1214,8 @@ import type * as domains_search_searchCache from "../domains/search/searchCache.
 import type * as domains_search_searchForecastGate from "../domains/search/searchForecastGate.js";
 import type * as domains_search_searchPipeline from "../domains/search/searchPipeline.js";
 import type * as domains_search_searchPipelineNode from "../domains/search/searchPipelineNode.js";
+import type * as domains_search_searchableTextBackfill from "../domains/search/searchableTextBackfill.js";
+import type * as domains_search_searchableTextRecompute from "../domains/search/searchableTextRecompute.js";
 import type * as domains_search_sharedCache from "../domains/search/sharedCache.js";
 import type * as domains_search_signalTaxonomy from "../domains/search/signalTaxonomy.js";
 import type * as domains_signals_index from "../domains/signals/index.js";
@@ -2709,6 +2711,8 @@ declare const fullApi: ApiFromModules<{
   "domains/search/searchForecastGate": typeof domains_search_searchForecastGate;
   "domains/search/searchPipeline": typeof domains_search_searchPipeline;
   "domains/search/searchPipelineNode": typeof domains_search_searchPipelineNode;
+  "domains/search/searchableTextBackfill": typeof domains_search_searchableTextBackfill;
+  "domains/search/searchableTextRecompute": typeof domains_search_searchableTextRecompute;
   "domains/search/sharedCache": typeof domains_search_sharedCache;
   "domains/search/signalTaxonomy": typeof domains_search_signalTaxonomy;
   "domains/signals/index": typeof domains_signals_index;

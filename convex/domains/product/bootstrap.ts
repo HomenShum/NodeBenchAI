@@ -5,6 +5,10 @@ import type { Doc } from "../../_generated/dataModel";
 import { requireProductIdentity } from "./helpers";
 import { ensureEntityForReport, upsertEntityContextItem } from "./entities";
 import { upsertOpenProductNudge } from "./nudgeHelpers";
+import {
+  recomputeEntitySearchableText,
+  recomputeReportSearchableText,
+} from "../search/searchableTextRecompute";
 
 const PRODUCT_SCHEMA_VERSION = "2026-04-12-entity-v3";
 
@@ -362,6 +366,16 @@ export const ensureCanonicalProductBootstrap = mutation({
           evidenceItemIds,
           pinned: !!document.isFavorite,
           visibility: document.isPublic ? "public" : "private",
+          // PR D: populate searchableText for the federated `search_reports`
+          // index. Bootstrap migrates legacy documents into reports, so this
+          // makes those rows searchable from day one.
+          searchableText: recomputeReportSearchableText({
+            title: document.title,
+            summary,
+            query: document.title,
+            primaryEntity: document.title,
+            entitySlug: undefined,
+          }),
           createdAt: document._creationTime ?? now,
           updatedAt: document.lastModified ?? now,
           lastRefreshAt: document.lastModified ?? now,
@@ -443,13 +457,32 @@ export const ensureCanonicalProductBootstrap = mutation({
           now: report.updatedAt,
         });
 
+        // PR D: refresh searchableText since entitySlug is part of the
+        // composed search field for the federated `search_reports` index.
+        const nextReportSearchableText = recomputeReportSearchableText({
+          title: report.title,
+          summary: report.summary,
+          query: report.query,
+          primaryEntity: report.primaryEntity,
+          entitySlug: entityMeta.entitySlug,
+        });
         await ctx.db.patch(report._id, {
           entityId: entityMeta.entityId,
           entitySlug: entityMeta.entitySlug,
           revision: entityMeta.revision,
           previousReportId: entityMeta.previousReportId ?? undefined,
+          searchableText: nextReportSearchableText,
         });
 
+        // PR D: refresh searchableText for the federated `search_entities`
+        // index when the entity name/summary changes via legacy bootstrap.
+        const existingEntityForBootstrap = await ctx.db.get(entityMeta.entityId);
+        const nextEntitySearchableText = recomputeEntitySearchableText({
+          name: entityMeta.entityName,
+          slug: existingEntityForBootstrap?.slug ?? entityMeta.entitySlug,
+          summary: report.summary,
+          savedBecause: existingEntityForBootstrap?.savedBecause,
+        });
         await ctx.db.patch(entityMeta.entityId, {
           name: entityMeta.entityName,
           entityType: entityMeta.entityType,
@@ -458,6 +491,7 @@ export const ensureCanonicalProductBootstrap = mutation({
           latestReportUpdatedAt: report.updatedAt,
           latestRevision: entityMeta.revision,
           reportCount: entityMeta.revision,
+          searchableText: nextEntitySearchableText,
           updatedAt: report.updatedAt,
         });
 
