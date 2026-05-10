@@ -1,0 +1,104 @@
+name: PR demo video
+
+# When a PR merges, render a 30-60s walkthrough of the surfaces it
+# changed and post a download link in the PR comments.
+#
+# NOTE (2026-05-10): GitHub Actions for this account is currently
+# blocked.  This workflow ships now so the moment the block lifts,
+# automated PR demos start working with no further changes.  In the
+# meantime, run manually:
+#
+#   npm run pr-demo -- --pr-number=N --base-url=https://www.nodebenchai.com
+#
+# The script writes dist/pr-videos/PR-{N}.mp4 + PR-{N}.json (manifest).
+#
+# Reliability invariants (.claude/rules/agentic_reliability.md):
+#   - HONEST_STATUS  Step `record` exits non-zero on failure; the
+#                    comment-PR step uses `if: success()` so we don't
+#                    post a fake "demo recorded" message when the
+#                    recording crashed.
+#   - TIMEOUT        Workflow timeout-minutes: 10 (script's internal
+#                    hard cap is 5 min; this is 2x grace).
+#   - BOUND          Single PR per workflow run.  No fan-out.
+#   - ERROR_BOUNDARY The recorder writes a sibling JSON manifest with
+#                    `{ ok: false, reason }` even on failure; we upload
+#                    it as an artifact so the failure mode is visible.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  record:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          # Check out the merged commit so the demo reflects what
+          # users will actually see post-merge.
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Record PR demo
+        id: record
+        env:
+          # gh CLI uses GITHUB_TOKEN to authenticate `gh pr view`.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Recording target — defaults to prod, but the workflow
+          # accepts a repo variable for non-prod targets.
+          BASE_URL: ${{ vars.PR_DEMO_BASE_URL || 'https://www.nodebenchai.com' }}
+        run: |
+          npm run pr-demo -- \
+            --pr-number=${{ github.event.pull_request.number }} \
+            --base-url="$BASE_URL" \
+            --output=dist/pr-videos/PR-${{ github.event.pull_request.number }}.mp4
+
+      - name: Upload demo video as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-demo-${{ github.event.pull_request.number }}
+          path: dist/pr-videos/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Comment on PR with artifact link
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # The artifact URL isn't directly available in this step
+          # context, so we link to the workflow run page where the
+          # artifact lives.  HONEST_STATUS — we don't fabricate a
+          # download URL.
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "Demo: walkthrough of the surfaces this PR changed is available as a workflow artifact (\`pr-demo-${{ github.event.pull_request.number }}\`) at $RUN_URL"
+
+      - name: Comment on PR if recording failed
+        if: failure() && steps.record.outcome == 'failure'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "Demo recording FAILED. Manifest with failure reason uploaded as artifact \`pr-demo-${{ github.event.pull_request.number }}\` at $RUN_URL"
