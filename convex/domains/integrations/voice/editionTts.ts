@@ -1,33 +1,49 @@
 /**
  * Phase 9a — Editorial-edition TTS (Listen button).
+ * Phase 11 polish — OpenAI TTS fallback when ElevenLabs not configured.
  *
  * Generates a single-edition audio file from the ~300-500 word
  * script produced by `getEditionAudioScript` and caches it in
  * Convex `_storage` keyed by `dateKey`.  Same-day clicks return the
- * cached storageId (NEVER regenerate — bound on ElevenLabs cost).
+ * cached storageId (NEVER regenerate — bound on TTS cost).
+ *
+ * Provider selection (in order):
+ *   1. ElevenLabs    if ELEVENLABS_API_KEY is set
+ *   2. OpenAI TTS    if OPENAI_API_KEY is set
+ *   3. honest error  { ok:false, error, providersTried }
+ *
+ * OpenAI fallback was added because Convex prod has OPENAI_API_KEY
+ * but not ELEVENLABS_API_KEY — the Listen button was correctly
+ * returning HONEST_STATUS errors but blocking the editorial UX.
  *
  * Why a Convex action and not the existing Express `/tts` route:
  *   The Express server-route TTS proxy (server/routes/tts.ts) only
  *   runs on the local dev gateway (port 3100).  Vercel's deployed
- *   `/redesign` page can't reach it.  This action wraps ElevenLabs
- *   server-side via Convex, which IS deployed, and stores the audio
- *   bytes in Convex `_storage` so the editorial home can play them
- *   without a separate audio CDN.
+ *   `/redesign` page can't reach it.  This action wraps the chosen
+ *   provider server-side via Convex (which IS deployed) and stores
+ *   the audio bytes in Convex `_storage` so the editorial home can
+ *   play them without a separate audio CDN.
  *
  * Reliability invariants (.claude/rules/agentic_reliability.md):
  *   - BOUND          script length capped at MAX_SCRIPT_CHARS;
  *                    audio response capped at MAX_AUDIO_BYTES.
- *   - HONEST_STATUS  per-source counters; "audio unavailable"
- *                    failure is surfaced (no fake URLs).
+ *   - HONEST_STATUS  per-provider try/catch.  Both-providers-failed
+ *                    returns `{ ok:false, error, providersTried }`
+ *                    — never a fake success.
  *   - HONEST_SCORES  n/a (binary success/failure path).
- *   - TIMEOUT        AbortController, 12s budget for ElevenLabs
- *                    (longer than scoreboard 8s — TTS is slower).
- *   - SSRF           hostname `api.elevenlabs.io` hardcoded.
- *   - BOUND_READ     5 MB cap on streamed audio response.
- *   - ERROR_BOUNDARY action wrapped in try/catch, returns
- *                    { ok:false, error } shape on failure.
+ *   - TIMEOUT        AbortController, FETCH_TIMEOUT_MS budget per
+ *                    provider attempt.  TTS is inherently slower
+ *                    than scoreboard fetches.
+ *   - SSRF           hostnames `api.elevenlabs.io` and
+ *                    `api.openai.com` allowlisted; everything else
+ *                    rejected by URL constructor + exact-match check.
+ *   - BOUND_READ     5 MB cap on streamed audio response per provider.
+ *   - ERROR_BOUNDARY each provider call wrapped in try/catch; the
+ *                    action returns `{ ok:false, error }` shape on
+ *                    total failure.
  *   - DETERMINISTIC  cache key = dateKey + voiceId.  Same-day
  *                    re-call collides and returns prior storageId.
+ *                    Provider switches voiceId so cache stays clean.
  */
 
 import { action, internalAction, internalMutation, internalQuery } from "../../../_generated/server";
@@ -35,16 +51,25 @@ import { internal } from "../../../_generated/api";
 import { v } from "convex/values";
 
 const ELEVENLABS_API_BASE = "https://api.elevenlabs.io/v1/text-to-speech";
-const ALLOWED_HOSTS = new Set(["api.elevenlabs.io"]);
-const FETCH_TIMEOUT_MS = 12_000;
+const OPENAI_TTS_URL = "https://api.openai.com/v1/audio/speech";
+const ALLOWED_HOSTS = new Set(["api.elevenlabs.io", "api.openai.com"]);
+const FETCH_TIMEOUT_MS = 15_000; // 15s — OpenAI TTS can take ~10s for 2K-char scripts
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024; // 5 MB cap on TTS output
-const MAX_SCRIPT_CHARS = 2000; // Bound on ElevenLabs cost (~$0.30 per 1K chars)
+const MAX_SCRIPT_CHARS = 2000; // Bound on TTS cost (~$0.30 per 1K chars on EL, ~$0.03 on OpenAI tts-1)
 
 const DEFAULTS = {
-  model: "eleven_turbo_v2_5",
+  // ElevenLabs defaults
+  elevenLabsModel: "eleven_turbo_v2_5",
   stability: 0.5,
   similarityBoost: 0.75,
-  voiceId: "21m00Tcm4TlvDq8ikWAM", // Rachel — same as Express route
+  elevenLabsVoiceId: "21m00Tcm4TlvDq8ikWAM", // Rachel — same as Express route
+  // OpenAI defaults — gpt-4o-mini-tts is the newest + cheapest +
+  // voice-steerable via `instructions`.  `nova` is OpenAI's calm,
+  // neutral voice — closest to a news-anchor tone.
+  openaiModel: "gpt-4o-mini-tts",
+  openaiVoice: "nova",
+  openaiInstructions:
+    "Read in a calm, professional news-briefing voice. Pause briefly between sections. Do not over-emote.",
 } as const;
 
 /* ──────────────────────────────────────────────────────────────────
@@ -260,52 +285,46 @@ export const writeEditionAudio = internalMutation({
 });
 
 /* ──────────────────────────────────────────────────────────────────
- * Bounded ElevenLabs fetch — SSRF allowlist, timeout, body cap.
+ * Shared bounded-audio fetch — SSRF allowlist, timeout, body cap.
+ *
+ * Both ElevenLabs and OpenAI return audio binary on success; this
+ * helper handles the streaming + size cap + abort identically for
+ * either provider.  Caller supplies the request init.
  * ──────────────────────────────────────────────────────────────── */
 
-async function callElevenLabs(
-  apiKey: string,
-  text: string,
-  voiceId: string,
+interface AudioFetchInit {
+  url: string;
+  /** label used in error messages, e.g. "elevenlabs" or "openai" */
+  label: string;
+  /** Full fetch RequestInit (method/headers/body).  signal is added here. */
+  init: RequestInit;
+}
+
+async function boundedAudioFetch(
+  args: AudioFetchInit,
 ): Promise<ArrayBuffer> {
-  const url = `${ELEVENLABS_API_BASE}/${encodeURIComponent(voiceId)}`;
-  const u = new URL(url);
+  const u = new URL(args.url);
+  // SSRF: exact hostname match.  ALLOWED_HOSTS contains both providers.
   if (!ALLOWED_HOSTS.has(u.hostname)) {
-    throw new Error(`[editionTts] host ${u.hostname} not allowlisted`);
+    throw new Error(`[editionTts/${args.label}] host ${u.hostname} not allowlisted`);
   }
   if (u.protocol !== "https:") {
-    throw new Error(`[editionTts] non-https rejected`);
+    throw new Error(`[editionTts/${args.label}] non-https rejected`);
   }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "audio/mpeg",
-        "xi-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        text,
-        model_id: DEFAULTS.model,
-        voice_settings: {
-          stability: DEFAULTS.stability,
-          similarity_boost: DEFAULTS.similarityBoost,
-        },
-      }),
-    });
+    const res = await fetch(args.url, { ...args.init, signal: controller.signal });
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       throw new Error(
-        `[editionTts] ElevenLabs HTTP ${res.status}: ${errText.slice(0, 200)}`,
+        `[editionTts/${args.label}] HTTP ${res.status}: ${errText.slice(0, 200)}`,
       );
     }
     if (!res.body) {
-      throw new Error("[editionTts] no response body from ElevenLabs");
+      throw new Error(`[editionTts/${args.label}] no response body`);
     }
 
     // BOUND_READ — stream into chunks with size cap.
@@ -319,7 +338,7 @@ async function callElevenLabs(
       if (total > MAX_AUDIO_BYTES) {
         await reader.cancel().catch(() => {});
         throw new Error(
-          `[editionTts] audio exceeded ${MAX_AUDIO_BYTES} bytes`,
+          `[editionTts/${args.label}] audio exceeded ${MAX_AUDIO_BYTES} bytes`,
         );
       }
       chunks.push(value);
@@ -338,6 +357,77 @@ async function callElevenLabs(
   }
 }
 
+/** ElevenLabs voiceId is path-segment; OpenAI voice is body field. */
+async function callElevenLabs(
+  apiKey: string,
+  text: string,
+  voiceId: string,
+): Promise<ArrayBuffer> {
+  const url = `${ELEVENLABS_API_BASE}/${encodeURIComponent(voiceId)}`;
+  return boundedAudioFetch({
+    url,
+    label: "elevenlabs",
+    init: {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+        "xi-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        text,
+        model_id: DEFAULTS.elevenLabsModel,
+        voice_settings: {
+          stability: DEFAULTS.stability,
+          similarity_boost: DEFAULTS.similarityBoost,
+        },
+      }),
+    },
+  });
+}
+
+/**
+ * OpenAI TTS fallback.  Endpoint: POST /v1/audio/speech.
+ *
+ * Body shape:
+ *   { model, input, voice, response_format, instructions? }
+ *
+ * `gpt-4o-mini-tts` is the newest model, ~10x cheaper than ElevenLabs
+ * Turbo and supports voice steering via the `instructions` field
+ * (older `tts-1` / `tts-1-hd` ignore it).  Response is binary mp3 by
+ * default — frontends play it natively via `<audio>`.
+ *
+ * Doc reference: https://platform.openai.com/docs/guides/text-to-speech
+ *                https://platform.openai.com/docs/api-reference/audio/createSpeech
+ */
+async function callOpenAI(
+  apiKey: string,
+  text: string,
+  voice: string,
+): Promise<ArrayBuffer> {
+  return boundedAudioFetch({
+    url: OPENAI_TTS_URL,
+    label: "openai",
+    init: {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: DEFAULTS.openaiModel,
+        input: text,
+        voice,
+        response_format: "mp3",
+        // `instructions` is honored by gpt-4o-mini-tts only; older
+        // tts-1 / tts-1-hd silently ignore it — safe to send always.
+        instructions: DEFAULTS.openaiInstructions,
+      }),
+    },
+  });
+}
+
 /* ──────────────────────────────────────────────────────────────────
  * Action: synthesize today's edition audio.
  *
@@ -350,6 +440,50 @@ async function callElevenLabs(
  *   { ok: false, error: string }
  * ──────────────────────────────────────────────────────────────── */
 
+type TtsProvider = "elevenlabs" | "openai";
+
+/**
+ * Pick the provider + the voiceId to use for this call.
+ *
+ * Caller can hint via args.voiceId.  If they pass an ElevenLabs voiceId
+ * pattern (20-char alphanumeric), we route to EL when configured.
+ * Otherwise we let env presence drive selection: EL first if its key is
+ * set, then OpenAI.
+ *
+ * Returns the resolved provider + voiceId we'll actually use, OR null
+ * when no provider is configured at all (HONEST_STATUS — surfaced).
+ */
+function pickProvider(
+  argsVoiceId: string | undefined,
+): { provider: TtsProvider; voiceId: string } | null {
+  const elKey = process.env.ELEVENLABS_API_KEY;
+  const oaKey = process.env.OPENAI_API_KEY;
+  const elAvailable = typeof elKey === "string" && elKey.trim().length > 0;
+  const oaAvailable = typeof oaKey === "string" && oaKey.trim().length > 0;
+
+  if (elAvailable) {
+    const voiceId =
+      argsVoiceId && argsVoiceId.length > 0
+        ? argsVoiceId
+        : DEFAULTS.elevenLabsVoiceId;
+    return { provider: "elevenlabs", voiceId };
+  }
+  if (oaAvailable) {
+    // OpenAI voice catalog is fixed.  If caller passed an EL voiceId we
+    // ignore it (would 400 from OpenAI) and use the default.
+    const allowedOpenAI = new Set([
+      "alloy", "ash", "ballad", "coral", "echo", "fable",
+      "onyx", "nova", "sage", "shimmer", "verse",
+    ]);
+    const voiceId =
+      argsVoiceId && allowedOpenAI.has(argsVoiceId)
+        ? argsVoiceId
+        : DEFAULTS.openaiVoice;
+    return { provider: "openai", voiceId };
+  }
+  return null;
+}
+
 export const synthesizeEditionAudio = internalAction({
   args: {
     dateKey: v.string(),
@@ -361,21 +495,24 @@ export const synthesizeEditionAudio = internalAction({
     audioUrl?: string | null;
     cached?: boolean;
     charCount?: number;
+    provider?: TtsProvider;
+    providersTried?: TtsProvider[];
     error?: string;
   }> => {
-    const apiKey = process.env.ELEVENLABS_API_KEY;
-    if (!apiKey) {
-      // HONEST_STATUS — TTS not configured is a real failure, not silent ok.
+    const picked = pickProvider(args.voiceId);
+    if (!picked) {
+      // HONEST_STATUS — neither provider configured.
       return {
         ok: false,
-        error: "ELEVENLABS_API_KEY missing — TTS not configured",
+        error:
+          "No TTS provider configured: set ELEVENLABS_API_KEY or OPENAI_API_KEY in Convex env",
+        providersTried: [],
       };
     }
 
-    const voiceId = (args.voiceId && args.voiceId.length > 0)
-      ? args.voiceId
-      : DEFAULTS.voiceId;
-    const cacheKey = `${args.dateKey}|${voiceId}`;
+    // Cache key embeds the provider so an EL run and an OpenAI run for
+    // the same dateKey don't collide (different audio characteristics).
+    const cacheKey = `${args.dateKey}|${picked.provider}|${picked.voiceId}`;
 
     // 1. Cache hit?
     const cached: {
@@ -393,6 +530,7 @@ export const synthesizeEditionAudio = internalAction({
         audioUrl: url ?? null,
         cached: true,
         charCount: cached.charCount,
+        provider: picked.provider,
       };
     }
 
@@ -405,31 +543,50 @@ export const synthesizeEditionAudio = internalAction({
       return {
         ok: false,
         error: "No script generated — edition is empty",
+        providersTried: [],
       };
     }
     const truncated = script.slice(0, MAX_SCRIPT_CHARS);
 
-    // 3. Call ElevenLabs.
+    // 3. Call the chosen provider.  We do NOT attempt cross-provider
+    //    fallback inside a single request — if EL is configured but its
+    //    call fails (rate limit, transient 5xx) we surface that error
+    //    rather than silently switching voice mid-request.  The user
+    //    can retry; the next call goes through the same provider.
     let audioBuffer: ArrayBuffer;
+    const providersTried: TtsProvider[] = [picked.provider];
     try {
-      audioBuffer = await callElevenLabs(apiKey, truncated, voiceId);
+      if (picked.provider === "elevenlabs") {
+        const apiKey = process.env.ELEVENLABS_API_KEY!;
+        audioBuffer = await callElevenLabs(apiKey, truncated, picked.voiceId);
+      } else {
+        const apiKey = process.env.OPENAI_API_KEY!;
+        audioBuffer = await callOpenAI(apiKey, truncated, picked.voiceId);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[editionTts] ElevenLabs call failed: ${msg}`);
-      return { ok: false, error: msg };
+      console.warn(`[editionTts] ${picked.provider} call failed: ${msg}`);
+      return {
+        ok: false,
+        error: msg,
+        provider: picked.provider,
+        providersTried,
+      };
     }
 
     // 4. Store in _storage.
     const blob = new Blob([audioBuffer], { type: "audio/mpeg" });
     const storageId = await ctx.storage.store(blob);
 
-    // 5. Persist cache row.
+    // 5. Persist cache row.  voiceId column carries `${provider}:${voice}`
+    //    so future debug/admin queries can see provenance without
+    //    needing to parse cacheKey.
     await ctx.runMutation(
       internal.domains.integrations.voice.editionTts.writeEditionAudio,
       {
         cacheKey,
         dateKey: args.dateKey,
-        voiceId,
+        voiceId: `${picked.provider}:${picked.voiceId}`,
         storageId,
         charCount: truncated.length,
       },
@@ -437,8 +594,9 @@ export const synthesizeEditionAudio = internalAction({
 
     const url = await ctx.storage.getUrl(storageId);
     console.log(
-      `[editionTts] dateKey=${args.dateKey} voiceId=${voiceId} ` +
-        `chars=${truncated.length} storageId=${storageId} cached=false`,
+      `[editionTts] dateKey=${args.dateKey} provider=${picked.provider} ` +
+        `voiceId=${picked.voiceId} chars=${truncated.length} ` +
+        `storageId=${storageId} cached=false`,
     );
     return {
       ok: true,
@@ -446,6 +604,8 @@ export const synthesizeEditionAudio = internalAction({
       audioUrl: url ?? null,
       cached: false,
       charCount: truncated.length,
+      provider: picked.provider,
+      providersTried,
     };
   },
 });
@@ -455,9 +615,14 @@ export const synthesizeEditionAudio = internalAction({
  *
  * Trades off authentication: this is callable by any visitor since
  * the editorial home is a public surface.  The action is bounded
- * (cache-first, max ~$0.30/call only on cache miss), and per-day per-
- * voiceId idempotent so spam-clicking does NOT regenerate cost.  The
- * underlying ELEVENLABS_API_KEY is server-side only; never bundled.
+ * (cache-first, per-provider per-day per-voiceId idempotent) so
+ * spam-clicking does NOT regenerate cost.  Underlying provider keys
+ * (ELEVENLABS_API_KEY / OPENAI_API_KEY) are server-side only; never
+ * bundled into the client.
+ *
+ * The response includes `provider` so the client can show which voice
+ * synthesized the clip and so observability tools can audit cost
+ * attribution by provider.
  */
 export const generateEditionAudio = action({
   args: {
@@ -470,6 +635,8 @@ export const generateEditionAudio = action({
     audioUrl?: string | null;
     cached?: boolean;
     charCount?: number;
+    provider?: TtsProvider;
+    providersTried?: TtsProvider[];
     error?: string;
   }> => {
     // Validate dateKey looks like YYYY-MM-DD before doing any work.
