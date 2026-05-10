@@ -15895,4 +15895,53 @@ export default defineSchema({
   })
     .index("by_cache_key", ["cacheKey"])
     .index("by_date_key", ["dateKey"]),
+
+  /* ------------------------------------------------------------------ */
+  /* PHASE 10b — Video lite-embed oEmbed metadata cache                 */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Cached oEmbed metadata for video URLs (YouTube/Vimeo/Twitch/Loom)
+   * that appear inside editorial sections (§1 What moved, §3 Forecasts,
+   * §6 Footnotes).  Exists so the editorial home can render thumbnail
+   * cards instead of bare links without hammering oEmbed providers on
+   * every page render.
+   *
+   * Cache key is sha256(url) — DETERMINISTIC.  TTL is 7 days
+   * (`fetchedAt + 7d`) per the spec; lookup callers MUST check
+   * `ttlExpiresAt` and treat expired rows as cache misses.
+   *
+   * HONEST_STATUS: failed fetches are persisted with an `errorMessage`
+   * and null thumbnail/title so the read path returns a well-typed
+   * "tried, failed" answer instead of silently re-querying every load.
+   *
+   * BOUND: one row per distinct video URL.  Worst case is 10s of
+   * thousands of rows, all tiny (~512 B) — acceptable for the
+   * editorial use-case.  No background eviction yet; the schema is
+   * append-only with TTL-aware reads.
+   *
+   * Bound + SSRF defense lives in the writer
+   * (convex/domains/integrations/video/oembedFetcher.ts) — schema
+   * itself is just a key/value store.
+   */
+  videoOembedCache: defineTable({
+    urlHash: v.string(),                     // sha256(url) hex — stable cache key
+    url: v.string(),                         // raw URL the user/editorial referenced
+    provider: v.union(
+      v.literal("youtube"),
+      v.literal("vimeo"),
+      v.literal("twitch"),
+      v.literal("loom"),
+    ),
+    thumbnailUrl: v.optional(v.string()),    // remote https thumbnail (CDN)
+    title: v.optional(v.string()),           // oEmbed title
+    author: v.optional(v.string()),          // oEmbed author_name
+    durationSec: v.optional(v.number()),     // optional duration if provider returns it
+    embedUrl: v.string(),                    // privacy-friendly embed URL (lazy-loaded on click)
+    fetchedAt: v.number(),                   // ms epoch when row was last refreshed
+    ttlExpiresAt: v.number(),                // fetchedAt + 7d — read path treats older rows as misses
+    errorMessage: v.optional(v.string()),    // populated when oEmbed fetch failed (null thumbnail/title)
+  })
+    .index("by_url_hash", ["urlHash"])
+    .index("by_ttl", ["ttlExpiresAt"]),
 });

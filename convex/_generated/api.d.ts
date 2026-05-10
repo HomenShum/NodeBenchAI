@@ -660,6 +660,8 @@ import type * as domains_integrations_sms from "../domains/integrations/sms.js";
 import type * as domains_integrations_spreadsheets from "../domains/integrations/spreadsheets.js";
 import type * as domains_integrations_telegram from "../domains/integrations/telegram.js";
 import type * as domains_integrations_telegramAgent from "../domains/integrations/telegramAgent.js";
+import type * as domains_integrations_video_oembedFetcher from "../domains/integrations/video/oembedFetcher.js";
+import type * as domains_integrations_video_oembedFetcherQueries from "../domains/integrations/video/oembedFetcherQueries.js";
 import type * as domains_integrations_voice_costLedger from "../domains/integrations/voice/costLedger.js";
 import type * as domains_integrations_voice_editionTts from "../domains/integrations/voice/editionTts.js";
 import type * as domains_integrations_voice_realtimeAudit from "../domains/integrations/voice/realtimeAudit.js";
@@ -2151,6 +2153,8 @@ declare const fullApi: ApiFromModules<{
   "domains/integrations/spreadsheets": typeof domains_integrations_spreadsheets;
   "domains/integrations/telegram": typeof domains_integrations_telegram;
   "domains/integrations/telegramAgent": typeof domains_integrations_telegramAgent;
+  "domains/integrations/video/oembedFetcher": typeof domains_integrations_video_oembedFetcher;
+  "domains/integrations/video/oembedFetcherQueries": typeof domains_integrations_video_oembedFetcherQueries;
   "domains/integrations/voice/costLedger": typeof domains_integrations_voice_costLedger;
   "domains/integrations/voice/editionTts": typeof domains_integrations_voice_editionTts;
   "domains/integrations/voice/realtimeAudit": typeof domains_integrations_voice_realtimeAudit;

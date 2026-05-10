@@ -44,9 +44,11 @@ import { EditionErrorBoundary } from "../components/edition/EditionErrorBoundary
 import { EditionTOC, type EditionTOCEntry } from "../components/edition/EditionTOC";
 import { FormatStrip } from "../components/edition/FormatStrip";
 import { Footnote } from "../components/edition/Footnote";
+import { VideoLiteEmbed } from "../components/edition/VideoLiteEmbed";
 import { Scoreboard } from "../components/edition/Scoreboard";
 import { CapabilitiesMap } from "../components/edition/CapabilitiesMap";
 import { EvidenceChecklistStrip } from "../components/edition/EvidenceChecklistStrip";
+import { isVideoUrl } from "../utils/videoProvider";
 import { useTodayPulse } from "../hooks/useTodayPulse";
 import { useActiveHypotheses, type EditionHypothesis } from "../hooks/useActiveHypotheses";
 import { useTopForecasts, type EditionForecast } from "../hooks/useTopForecasts";
@@ -107,6 +109,35 @@ function renderPulseMarkdown(md: string): string[] {
     .map((p) => p.trim())
     .filter(Boolean)
     .slice(0, 4);
+}
+
+/**
+ * Extract video URLs from a chunk of markdown / prose text.  Returns
+ * a deduped list capped at MAX_VIDEOS_PER_PULSE so a single rogue
+ * pulse can't render 50 thumbnails.
+ *
+ * Captures bare URLs and markdown link syntax `[text](url)`.  The
+ * detection regex is permissive (`https://...` until whitespace or `)`);
+ * downstream `isVideoUrl` rejects anything that isn't a supported
+ * provider.
+ */
+const MAX_VIDEOS_PER_PULSE = 3;
+
+function extractVideoUrlsFromText(text: string): string[] {
+  if (!text) return [];
+  const matches = text.match(/https:\/\/[^\s)\]]+/g) ?? [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of matches) {
+    // Strip trailing punctuation that often follows a URL in prose.
+    const cleaned = raw.replace(/[.,;:'"!?]+$/, "");
+    if (seen.has(cleaned)) continue;
+    if (!isVideoUrl(cleaned)) continue;
+    seen.add(cleaned);
+    out.push(cleaned);
+    if (out.length >= MAX_VIDEOS_PER_PULSE) break;
+  }
+  return out;
 }
 
 /* ─── Section descriptors ──────────────────────────────────────── */
@@ -263,6 +294,19 @@ function WhatMovedSection({
                       Pulse generated; full summary pending.
                     </p>
                   )}
+                {/* Video lite-embed: render a thumbnail card for any
+                 * supported video URL that appears in the pulse
+                 * markdown.  Capped at MAX_VIDEOS_PER_PULSE per
+                 * article so one rogue pulse can't flood §1. */}
+                {p.summaryMarkdown
+                  ? extractVideoUrlsFromText(p.summaryMarkdown).map((vurl) => (
+                      <VideoLiteEmbed
+                        key={vurl}
+                        url={vurl}
+                        fallbackTitle={p.entitySlug.replace(/-/g, " ")}
+                      />
+                    ))
+                  : null}
               </article>
             ))}
           </div>
@@ -584,40 +628,62 @@ function FootnotesSection({
       ) : (
         <div className="rd-edition-footnotes">
           <ol>
-            {data.artifacts.map((a, i) => (
-              <li key={a._id} id={`fn-${i + 1}`} tabIndex={-1}>
-                <span>
-                  <a href={a.url} target="_blank" rel="noopener noreferrer">
-                    {a.publisher || (() => {
-                      try { return new URL(a.url).hostname; }
-                      catch { return a.url; }
-                    })()}
-                  </a>
-                  {a.firstQuote ? <> — &ldquo;{a.firstQuote}&rdquo;</> : null}
-                  {a.publishedAt ? (
-                    <span className="rd-edition-meta">
-                      {" "}· {new Date(a.publishedAt).toISOString().slice(0, 10)}
-                    </span>
-                  ) : null}
-                </span>
-              </li>
-            ))}
-            {data.industry.map((u, i) => (
-              <li
-                key={u._id}
-                id={`fn-${data.artifacts.length + i + 1}`}
-                tabIndex={-1}
-              >
-                <span>
-                  <a href={u.url} target="_blank" rel="noopener noreferrer">
-                    {u.providerName} — {u.title}
-                  </a>
-                  <span className="rd-edition-meta">
-                    {" "}· {new Date(u.scannedAt).toISOString().slice(0, 10)}
+            {data.artifacts.map((a, i) => {
+              const isVid = isVideoUrl(a.url);
+              return (
+                <li key={a._id} id={`fn-${i + 1}`} tabIndex={-1}>
+                  <span>
+                    <a href={a.url} target="_blank" rel="noopener noreferrer">
+                      {a.publisher || (() => {
+                        try { return new URL(a.url).hostname; }
+                        catch { return a.url; }
+                      })()}
+                    </a>
+                    {a.firstQuote ? <> — &ldquo;{a.firstQuote}&rdquo;</> : null}
+                    {a.publishedAt ? (
+                      <span className="rd-edition-meta">
+                        {" "}· {new Date(a.publishedAt).toISOString().slice(0, 10)}
+                      </span>
+                    ) : null}
                   </span>
-                </span>
-              </li>
-            ))}
+                  {isVid ? (
+                    <div style={{ marginTop: 6, maxWidth: 480 }}>
+                      <VideoLiteEmbed
+                        url={a.url}
+                        fallbackTitle={a.publisher || a.firstQuote || a.url}
+                      />
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+            {data.industry.map((u, i) => {
+              const isVid = isVideoUrl(u.url);
+              return (
+                <li
+                  key={u._id}
+                  id={`fn-${data.artifacts.length + i + 1}`}
+                  tabIndex={-1}
+                >
+                  <span>
+                    <a href={u.url} target="_blank" rel="noopener noreferrer">
+                      {u.providerName} — {u.title}
+                    </a>
+                    <span className="rd-edition-meta">
+                      {" "}· {new Date(u.scannedAt).toISOString().slice(0, 10)}
+                    </span>
+                  </span>
+                  {isVid ? (
+                    <div style={{ marginTop: 6, maxWidth: 480 }}>
+                      <VideoLiteEmbed
+                        url={u.url}
+                        fallbackTitle={`${u.providerName} — ${u.title}`}
+                      />
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
           </ol>
         </div>
       )}
