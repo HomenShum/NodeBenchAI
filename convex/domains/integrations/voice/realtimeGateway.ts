@@ -129,6 +129,37 @@ export const recordVoiceRoutingDecision = mutation({
   },
 });
 
+/**
+ * Returns the most recent routing decision for a user. The UI subscribes to
+ * this so the VoiceCostBadge can surface tier-fallback transparency
+ * (HONEST_STATUS — when actualTierUsed differs from tier, the user sees a
+ * fallback chip instead of silent degradation).
+ *
+ * BOUND — single-row read by indexed (userKey, createdAt) descending.
+ * HONEST_STATUS — returns null when there is no decision yet, never a
+ *   fabricated "all good" state.
+ */
+export const getLatestVoiceRoutingDecision = query({
+  args: {
+    userKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const db = ctx.db as any;
+    const row = await db
+      .query("voiceRoutingDecisions")
+      .withIndex("by_user_created", (q: any) => q.eq("userKey", args.userKey))
+      .order("desc")
+      .first();
+    if (!row) return null;
+    return {
+      createdAt: row.createdAt as number,
+      surface: row.surface as string | undefined,
+      requestedTier: row.requestedTier as string | undefined,
+      decision: row.decision as Record<string, unknown>,
+    };
+  },
+});
+
 export const linkAnonymousVoiceCaptures = mutation({
   args: {
     anonymousSessionId: v.string(),
