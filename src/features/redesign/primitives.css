@@ -2960,6 +2960,82 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-soft);
 }
 
+/* ───────── Federated search additions ───────── */
+[data-redesign] .rd-cmdk__status {
+  padding: 6px 14px;
+  font-family: var(--rd-font-mono);
+  font-size: 10.5px;
+  color: var(--rd-ink-soft);
+  border-bottom: 1px solid var(--rd-line-faint);
+  background: var(--rd-paper-warm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+[data-redesign] .rd-cmdk__status[data-tone="warn"] { color: var(--rd-ink); }
+[data-redesign] .rd-cmdk__group-error {
+  padding: 6px 12px 8px;
+  font-size: 11.5px;
+  color: var(--rd-ink-soft);
+  font-style: italic;
+}
+[data-redesign] .rd-cmdk__row-snippet {
+  font-size: 11.5px;
+  color: var(--rd-ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  grid-column: 1 / -1;
+  margin-top: 2px;
+}
+[data-redesign] .rd-cmdk__row-source {
+  font-family: var(--rd-font-mono);
+  font-size: 9.5px;
+  color: var(--rd-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border: 1px solid var(--rd-line-faint);
+  border-radius: 3px;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+[data-redesign] .rd-cmdk__row-more {
+  font-size: 11.5px;
+  color: var(--rd-ink-soft);
+  padding: 4px 12px;
+  text-align: right;
+}
+[data-redesign] .rd-cmdk__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+}
+[data-redesign] .rd-cmdk__skeleton-line {
+  height: 12px;
+  background: linear-gradient(
+    90deg,
+    var(--rd-line-faint) 25%,
+    var(--rd-paper-warm) 50%,
+    var(--rd-line-faint) 75%
+  );
+  background-size: 200% 100%;
+  animation: rd-cmdk-shimmer 1.4s infinite;
+  border-radius: 3px;
+  width: 80%;
+}
+@keyframes rd-cmdk-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-cmdk__skeleton-line { animation: none; }
+  [data-redesign] .rd-cmdk { animation: none; }
+  [data-redesign] .rd-cmdk__backdrop { animation: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
 /* ───────── ? Shortcuts overlay ───────── */
 [data-redesign] .rd-shortcuts__backdrop {
   position: fixed;
