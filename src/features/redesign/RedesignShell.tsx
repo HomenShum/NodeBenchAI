@@ -22,6 +22,7 @@ import "./primitives.css";
 import { Rail } from "./components/Rail";
 import { RightInspector } from "./components/RightInspector";
 import { MobileShell } from "./components/MobileShell";
+import { TopNav } from "./components/TopNav";
 import { ReportNotebookView } from "./components/ReportNotebookView";
 import { CommandPalette, useCommandPalette } from "./components/CommandPalette";
 import { ShortcutsOverlay } from "./components/ShortcutsOverlay";
@@ -180,8 +181,27 @@ export default function RedesignShell() {
   const showInspector = surface === "chat" && !chatHash;
 
   return (
-    <div data-redesign data-redesign-theme={theme} style={{ height: "100vh", overflow: "hidden" }}>
-      <div className={`rd-shell ${showInspector ? "" : "rd-shell--single"}`}>
+    <div
+      data-redesign
+      data-redesign-theme={theme}
+      style={{
+        height: "100vh",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <TopNav
+        active={surface as SurfaceId}
+        onChange={(id) => goSurface(id)}
+        onOpenPalette={() => cmdk.setOpen(true)}
+        theme={theme}
+        onToggleTheme={() => setTheme(theme === "light" ? "dark" : "light")}
+      />
+      <div
+        className={`rd-shell ${showInspector ? "" : "rd-shell--single"}`}
+        style={{ flex: 1, minHeight: 0 }}
+      >
         <Rail
           active={surface as SurfaceId}
           onChange={(id) => goSurface(id)}
