@@ -72,10 +72,22 @@ interface FredSeriesSpec {
    * How to format the latest observation into the Scoreboard's `value`.
    *   - "percent"     → `${n.toFixed(2)}%`
    *   - "billions"    → `$${n.toLocaleString()}B`
-   *   - "yoyPercent"  → compute YoY using observation 12 entries back
-   *                     (caller fetches limit=13 in this case).
+   *   - "yoyPercent"  → compute YoY using the observation `obsPerYear`
+   *                     entries back (e.g. 12 for monthly, 4 for
+   *                     quarterly).
    */
   format: "percent" | "billions" | "yoyPercent";
+  /**
+   * How many observations FRED publishes per year for this series.
+   * Required for YoY computation.  HONEST_SCORES: getting this wrong
+   * means the "YoY %" we emit is actually multi-year drift.
+   *   - 12 → monthly (CPIAUCSL, UNRATE, M2SL)
+   *   - 4  → quarterly (GDP)
+   *   - 252→ daily business days (DFF, DGS10) — but we don't compute
+   *           YoY for daily series; their format is "percent" not
+   *           "yoyPercent".
+   */
+  obsPerYear: 12 | 4 | 252;
   /**
    * Whether to additionally publish a YoY % alongside the level.
    * Used for GDP — the level (in $B) is itself useful, but the YoY
@@ -91,24 +103,28 @@ const FRED_SERIES: FredSeriesSpec[] = [
     id: "CPIAUCSL",
     label: "CPI (YoY %)",
     format: "yoyPercent",
+    obsPerYear: 12, // monthly
     sourceUrl: "https://fred.stlouisfed.org/series/CPIAUCSL",
   },
   {
     id: "DFF",
     label: "Fed funds rate",
     format: "percent",
+    obsPerYear: 252, // daily, no YoY computed
     sourceUrl: "https://fred.stlouisfed.org/series/DFF",
   },
   {
     id: "UNRATE",
     label: "Unemployment rate",
     format: "percent",
+    obsPerYear: 12, // monthly, no YoY computed (format is percent not yoyPercent)
     sourceUrl: "https://fred.stlouisfed.org/series/UNRATE",
   },
   {
     id: "GDP",
     label: "GDP (level $B)",
     format: "billions",
+    obsPerYear: 4, // quarterly — 4 obs back is 1 year
     alsoYoyPercent: true,
     sourceUrl: "https://fred.stlouisfed.org/series/GDP",
   },
@@ -116,12 +132,14 @@ const FRED_SERIES: FredSeriesSpec[] = [
     id: "M2SL",
     label: "M2 money supply ($B)",
     format: "billions",
+    obsPerYear: 12, // monthly
     sourceUrl: "https://fred.stlouisfed.org/series/M2SL",
   },
   {
     id: "DGS10",
     label: "10Y Treasury yield",
     format: "percent",
+    obsPerYear: 252, // daily, no YoY computed
     sourceUrl: "https://fred.stlouisfed.org/series/DGS10",
   },
 ];
@@ -312,9 +330,14 @@ async function fetchOneSeries(
   spec: FredSeriesSpec,
   apiKey: string,
 ): Promise<FredKeyStat | FredKeyStat[] | null> {
-  // YoY series need 13 observations (current + 12-back).  Level/percent
-  // series need 2 (current + previous).
-  const limit = spec.format === "yoyPercent" || spec.alsoYoyPercent ? 13 : 2;
+  // YoY series need (obsPerYear + 1) observations so we can fetch the
+  // year-ago comparison.  Level/percent series need 2 (current + prior).
+  // GUARD: never fetch more than 24 observations regardless of obsPerYear
+  // — daily series (DFF, DGS10) don't compute YoY (format != yoyPercent),
+  // so this cap only ever bites if we mis-configure obsPerYear for a
+  // monthly/quarterly YoY series.  BOUND.
+  const yoyLimit = Math.min(24, spec.obsPerYear + 1);
+  const limit = spec.format === "yoyPercent" || spec.alsoYoyPercent ? yoyLimit : 2;
   const url = buildFredUrl(spec.id, apiKey, limit);
 
   let body: string;
@@ -351,10 +374,15 @@ async function fetchOneSeries(
     return null;
   }
 
-  // Determine "previous" observation for the delta.  For YoY series
-  // it's 12 entries back; for level/percent it's the immediately prior
-  // observation.
-  const prevIndex = spec.format === "yoyPercent" || spec.alsoYoyPercent ? 12 : 1;
+  // Determine "previous" observation for the delta.
+  //   - YoY series: obsPerYear entries back (12 for monthly, 4 for
+  //     quarterly).  HONEST_SCORES: hardcoding 12 here would silently
+  //     compute multi-year drift for quarterly series.
+  //   - Level/percent series: the immediately prior observation.
+  const prevIndex =
+    spec.format === "yoyPercent" || spec.alsoYoyPercent
+      ? spec.obsPerYear
+      : 1;
   const previous = observations[prevIndex];
   const prevVal = parseObservationValue(previous?.value);
 
@@ -417,9 +445,12 @@ async function fetchOneSeries(
   };
 
   if (spec.alsoYoyPercent) {
-    // Also fetch the 12-back observation for the YoY view.  We already
-    // have observations[12] from the limit=13 fetch above.
-    const yearAgoVal = parseObservationValue(observations[12]?.value);
+    // Also fetch the year-ago observation for the YoY view.  We already
+    // have observations[obsPerYear] from the limit=obsPerYear+1 fetch
+    // above.  HONEST_SCORES: indexing by obsPerYear means a quarterly
+    // series (GDP, obsPerYear=4) compares to 4 quarters ago = 1 year,
+    // not 12 quarters ago = 3 years.
+    const yearAgoVal = parseObservationValue(observations[spec.obsPerYear]?.value);
     if (yearAgoVal === null || yearAgoVal === 0) {
       // Fall through with just the level row — HONEST_STATUS.
       return [levelRow];
