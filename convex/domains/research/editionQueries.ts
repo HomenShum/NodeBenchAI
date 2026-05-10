@@ -514,6 +514,108 @@ export const getLatestDailyBriefSnapshot = query({
   },
 });
 
+/**
+ * Phase 9a §5 — Capability delta vs window.
+ *
+ * Returns today's `techReadiness` plus the same field from
+ * `windowDays` ago, plus per-bucket deltas.  `null` for a bucket
+ * means "no comparison available" (HONEST_STATUS — never invent
+ * a "→" indicator if there's no prior snapshot to compare against).
+ *
+ * Bounds: `windowDays` is clamped to [1, 30].  Reads at most 2 rows
+ * (today's + the closest snapshot ≤ priorKey).
+ */
+export const getCapabilitiesDelta = query({
+  args: { windowDays: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const windowDays = (() => {
+      const n = Math.floor(args.windowDays ?? 1);
+      if (!Number.isFinite(n) || n <= 0) return 1;
+      return Math.min(n, 30);
+    })();
+
+    // 1. Today's snapshot — most recent by generatedAt.
+    const today = await ctx.db
+      .query("dailyBriefSnapshots")
+      .withIndex("by_generated_at")
+      .order("desc")
+      .first();
+    if (!today) {
+      return {
+        windowDays,
+        today: null,
+        prior: null,
+        priorDateString: null,
+        deltas: null,
+      };
+    }
+
+    const todayTr = today.dashboardMetrics?.techReadiness ?? null;
+    const todayDate = today.dateString;
+
+    // 2. Prior snapshot — find the latest with dateString ≤ priorKey.
+    //    We use "by_date_string" filter scan with a take(1) ordered desc.
+    const priorKey = (() => {
+      // Prefer arithmetic from today's dateString (always YYYY-MM-DD).
+      const t = Date.parse(`${todayDate}T00:00:00Z`);
+      if (!Number.isFinite(t)) return null;
+      const prior = new Date(t - windowDays * 86_400_000);
+      return prior.toISOString().slice(0, 10);
+    })();
+
+    let prior: typeof today | null = null;
+    if (priorKey) {
+      // Look for an EXACT match first — scoreboard cron writes one row
+      // per dateString, so this is usually the right hit.
+      const exact = await ctx.db
+        .query("dailyBriefSnapshots")
+        .withIndex("by_date_string", (q) => q.eq("dateString", priorKey))
+        .first();
+      if (exact) {
+        prior = exact;
+      } else {
+        // Fall back: scan all snapshots ordered desc and pick the
+        // first whose dateString is ≤ priorKey.  Bounded scan capped
+        // at 90 rows (~3 months of daily snapshots).
+        const recent = await ctx.db
+          .query("dailyBriefSnapshots")
+          .withIndex("by_generated_at")
+          .order("desc")
+          .take(90);
+        for (const row of recent) {
+          if (row.dateString && row.dateString <= priorKey) {
+            prior = row;
+            break;
+          }
+        }
+      }
+    }
+
+    const priorTr = prior?.dashboardMetrics?.techReadiness ?? null;
+
+    // 3. Compute deltas — null per-bucket if either side is missing.
+    const deltas: {
+      existing: number | null;
+      emerging: number | null;
+      sciFi: number | null;
+    } | null = todayTr && priorTr
+      ? {
+          existing: (todayTr.existing ?? 0) - (priorTr.existing ?? 0),
+          emerging: (todayTr.emerging ?? 0) - (priorTr.emerging ?? 0),
+          sciFi: (todayTr.sciFi ?? 0) - (priorTr.sciFi ?? 0),
+        }
+      : null;
+
+    return {
+      windowDays,
+      today: todayTr,
+      prior: priorTr,
+      priorDateString: prior?.dateString ?? null,
+      deltas,
+    };
+  },
+});
+
 /* ────────────────────────────────────────────────────────────────────
  * §6 — Footnotes : evidenceArtifacts referenced by §1–§3 plus recent
  * industryUpdates capped at MAX.
