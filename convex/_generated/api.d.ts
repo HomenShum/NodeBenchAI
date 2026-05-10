@@ -643,6 +643,7 @@ import type * as domains_integrations_gmail_types from "../domains/integrations/
 import type * as domains_integrations_index from "../domains/integrations/index.js";
 import type * as domains_integrations_integrations from "../domains/integrations/integrations.js";
 import type * as domains_integrations_landing_landingPageLog from "../domains/integrations/landing/landingPageLog.js";
+import type * as domains_integrations_macro_fredSeed from "../domains/integrations/macro/fredSeed.js";
 import type * as domains_integrations_ntfy from "../domains/integrations/ntfy.js";
 import type * as domains_integrations_polar from "../domains/integrations/polar.js";
 import type * as domains_integrations_resend from "../domains/integrations/resend.js";
@@ -2133,6 +2134,7 @@ declare const fullApi: ApiFromModules<{
   "domains/integrations/index": typeof domains_integrations_index;
   "domains/integrations/integrations": typeof domains_integrations_integrations;
   "domains/integrations/landing/landingPageLog": typeof domains_integrations_landing_landingPageLog;
+  "domains/integrations/macro/fredSeed": typeof domains_integrations_macro_fredSeed;
   "domains/integrations/ntfy": typeof domains_integrations_ntfy;
   "domains/integrations/polar": typeof domains_integrations_polar;
   "domains/integrations/resend": typeof domains_integrations_resend;
