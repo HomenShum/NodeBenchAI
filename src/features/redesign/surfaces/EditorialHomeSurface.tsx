@@ -51,6 +51,7 @@ import { useTodayPulse } from "../hooks/useTodayPulse";
 import { useActiveHypotheses, type EditionHypothesis } from "../hooks/useActiveHypotheses";
 import { useTopForecasts, type EditionForecast } from "../hooks/useTopForecasts";
 import { useLatestDailyBriefSnapshot } from "../hooks/useLatestDailyBriefSnapshot";
+import { useCapabilitiesDelta } from "../hooks/useCapabilitiesDelta";
 import { useEditionFootnotes } from "../hooks/useEditionFootnotes";
 // P0 #3 — temporal browsing imports.  Note: useHomePulseLive +
 // fixturePulseCards / watchlist / continueWorking from #285's branch
@@ -513,6 +514,11 @@ function CapabilitiesSection({
   const tr = snapshot?.dashboardMetrics?.techReadiness ?? null;
   const caps = snapshot?.dashboardMetrics?.capabilities ?? null;
 
+  // Phase 9a §5: optional 7-day delta badges next to each readiness
+  // bucket.  `null` while loading or if no prior snapshot to compare
+  // — CapabilitiesMap renders nothing in that case (HONEST_STATUS).
+  const delta = useCapabilitiesDelta(7);
+
   return (
     <EditorialSection
       id="capabilities"
@@ -521,7 +527,13 @@ function CapabilitiesSection({
       kicker={kicker}
       heading={heading}
     >
-      <CapabilitiesMap techReadiness={tr} capabilities={caps} />
+      <CapabilitiesMap
+        techReadiness={tr}
+        capabilities={caps}
+        deltas={delta?.deltas ?? null}
+        windowDays={delta?.windowDays}
+        priorDateString={delta?.priorDateString ?? null}
+      />
     </EditorialSection>
   );
 }

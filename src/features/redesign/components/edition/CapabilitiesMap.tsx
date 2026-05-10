@@ -4,8 +4,15 @@
  * `dashboardMetrics.capabilities`.  THIS IS THE VISUAL SIGNATURE of
  * the editorial home (matches ai-2027 "Currently Exists / Emerging /
  * Science Fiction" indicator).
+ *
+ * Phase 9a: optional `deltas` prop renders week-over-week (or
+ * day-over-day) movement next to each bucket count.  Honest —
+ * if a delta is null (no prior snapshot to compare), NOTHING is
+ * rendered (NOT "→") so the user isn't misled about whether a
+ * comparison happened.  Per agentic_reliability HONEST_STATUS.
  */
 
+import type { CSSProperties } from "react";
 import { DotGrid } from "./DotGrid";
 
 interface TechReadiness {
@@ -21,9 +28,21 @@ interface CapabilityEntry {
   description?: string;
 }
 
+export interface CapabilityDeltas {
+  existing: number | null;
+  emerging: number | null;
+  sciFi: number | null;
+}
+
 interface Props {
   techReadiness: TechReadiness | null;
   capabilities: CapabilityEntry[] | null;
+  /** Optional deltas vs prior snapshot (Phase 9a). */
+  deltas?: CapabilityDeltas | null;
+  /** When provided, the badge tooltip references the comparison window. */
+  windowDays?: number;
+  /** Date string of the prior snapshot for hover context. */
+  priorDateString?: string | null;
 }
 
 const READINESS_ROWS: Array<{
@@ -36,7 +55,51 @@ const READINESS_ROWS: Array<{
   { key: "sciFi", label: "Science Fiction", total: 6 },
 ];
 
-export function CapabilitiesMap({ techReadiness, capabilities }: Props) {
+/**
+ * Format a delta number for the visible badge.  Returns null when
+ * the delta itself is null (no comparison data) — caller renders
+ * nothing in that case.  `0` renders as "→" (no change), positive as
+ * `+N`, negative as `-N`.
+ */
+function formatDeltaBadge(
+  delta: number | null,
+): { text: string; tone: "up" | "down" | "flat" } | null {
+  if (delta === null) return null;
+  if (!Number.isFinite(delta)) return null;
+  if (delta === 0) return { text: "→", tone: "flat" };
+  return {
+    text: delta > 0 ? `+${delta}` : `${delta}`,
+    tone: delta > 0 ? "up" : "down",
+  };
+}
+
+function deltaBadgeStyle(tone: "up" | "down" | "flat"): CSSProperties {
+  const base: CSSProperties = {
+    marginLeft: 8,
+    fontFamily: "var(--rd-mono, monospace)",
+    fontSize: 11,
+    letterSpacing: "0.04em",
+    padding: "1px 6px",
+    borderRadius: 4,
+    border: "1px solid currentColor",
+    opacity: 0.85,
+  };
+  if (tone === "up") {
+    return { ...base, color: "var(--rd-accent, #d97757)" };
+  }
+  if (tone === "down") {
+    return { ...base, color: "rgb(120, 160, 220)" };
+  }
+  return { ...base, color: "var(--rd-ink-mute, #888)" };
+}
+
+export function CapabilitiesMap({
+  techReadiness,
+  capabilities,
+  deltas,
+  windowDays,
+  priorDateString,
+}: Props) {
   const hasReadiness =
     techReadiness &&
     (techReadiness.existing > 0 ||
@@ -52,6 +115,13 @@ export function CapabilitiesMap({ techReadiness, capabilities }: Props) {
     );
   }
 
+  const windowLabel =
+    windowDays === 7
+      ? "vs 7 days ago"
+      : windowDays && windowDays > 1
+        ? `vs ${windowDays} days ago`
+        : "vs yesterday";
+
   return (
     <div>
       {hasReadiness && (
@@ -61,11 +131,18 @@ export function CapabilitiesMap({ techReadiness, capabilities }: Props) {
               0,
               Math.min(row.total, techReadiness![row.key] ?? 0),
             );
+            const delta = deltas ? formatDeltaBadge(deltas[row.key]) : null;
+            const tooltipText = delta
+              ? priorDateString
+                ? `${windowLabel} (${priorDateString}): ${delta.text}`
+                : `${windowLabel}: ${delta.text}`
+              : undefined;
             return (
               <div
                 key={row.key}
                 className="rd-edition-capability-row"
                 role="listitem"
+                data-capability-row={row.key}
               >
                 <span className="rd-edition-capability-row__label">
                   {row.label}
@@ -76,6 +153,21 @@ export function CapabilitiesMap({ techReadiness, capabilities }: Props) {
                   caption={`${filled}/${row.total}`}
                   ariaLabel={`${row.label}: ${filled} of ${row.total}`}
                 />
+                {delta && (
+                  <span
+                    style={deltaBadgeStyle(delta.tone)}
+                    title={tooltipText}
+                    aria-label={
+                      delta.tone === "flat"
+                        ? `No change ${windowLabel}`
+                        : `Change ${delta.text} ${windowLabel}`
+                    }
+                    data-capability-delta={row.key}
+                    data-delta-tone={delta.tone}
+                  >
+                    {delta.text}
+                  </span>
+                )}
               </div>
             );
           })}
