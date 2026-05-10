@@ -736,6 +736,7 @@ import type * as domains_models_index from "../domains/models/index.js";
 import type * as domains_models_livePerformanceEval from "../domains/models/livePerformanceEval.js";
 import type * as domains_models_modelRouter from "../domains/models/modelRouter.js";
 import type * as domains_models_modelRouterQueries from "../domains/models/modelRouterQueries.js";
+import type * as domains_monitoring_gdeltSeed from "../domains/monitoring/gdeltSeed.js";
 import type * as domains_monitoring_industryUpdates from "../domains/monitoring/industryUpdates.js";
 import type * as domains_monitoring_industryUpdatesEnhanced from "../domains/monitoring/industryUpdatesEnhanced.js";
 import type * as domains_monitoring_integrationHelpers from "../domains/monitoring/integrationHelpers.js";
@@ -2225,6 +2226,7 @@ declare const fullApi: ApiFromModules<{
   "domains/models/livePerformanceEval": typeof domains_models_livePerformanceEval;
   "domains/models/modelRouter": typeof domains_models_modelRouter;
   "domains/models/modelRouterQueries": typeof domains_models_modelRouterQueries;
+  "domains/monitoring/gdeltSeed": typeof domains_monitoring_gdeltSeed;
   "domains/monitoring/industryUpdates": typeof domains_monitoring_industryUpdates;
   "domains/monitoring/industryUpdatesEnhanced": typeof domains_monitoring_industryUpdatesEnhanced;
   "domains/monitoring/integrationHelpers": typeof domains_monitoring_integrationHelpers;
