@@ -33,7 +33,12 @@
  *   - HONEST_SCORES  Never invent observations.  If FRED returns a
  *                    "." (their missing-value sentinel), skip.  Delta
  *                    only computed when both current + previous are
- *                    real numbers.
+ *                    real numbers.  Each row's delta is computed at
+ *                    the row's natural frequency: level rows use
+ *                    QoQ/MoM (prevIndex=1); paired YoY rows use
+ *                    obsPerYear-entries-back.  Earlier this file shared
+ *                    a single prevIndex across both rows, which made
+ *                    the GDP level row display the YoY % twice.
  *   - TIMEOUT        AbortController, 8s budget per series fetch.
  *   - SSRF           Hostname `api.stlouisfed.org` hardcoded; URL
  *                    constructor + exact-match check rejects anything
@@ -375,14 +380,20 @@ async function fetchOneSeries(
   }
 
   // Determine "previous" observation for the delta.
-  //   - YoY series: obsPerYear entries back (12 for monthly, 4 for
-  //     quarterly).  HONEST_SCORES: hardcoding 12 here would silently
-  //     compute multi-year drift for quarterly series.
-  //   - Level/percent series: the immediately prior observation.
-  const prevIndex =
-    spec.format === "yoyPercent" || spec.alsoYoyPercent
-      ? spec.obsPerYear
-      : 1;
+  //
+  //   HONEST_SCORES: each row's delta must be the actual computed
+  //   delta for that row's frequency, not a copy of an adjacent row.
+  //
+  //   - Pure YoY series (format === "yoyPercent"): the row IS the YoY,
+  //     so the only "previous" we need is `obsPerYear` entries back.
+  //   - Level/percent series (including GDP with alsoYoyPercent=true):
+  //     the level row's delta is QoQ (quarterly) or MoM (monthly) — i.e.
+  //     `prevIndex = 1`.  Without this the GDP level row would show the
+  //     SAME +6.04% as the paired YoY row, making the level redundant.
+  //   - The YoY-row branch below (alsoYoyPercent) reads
+  //     `observations[spec.obsPerYear]` separately for its own delta, so
+  //     no cross-talk.
+  const prevIndex = spec.format === "yoyPercent" ? spec.obsPerYear : 1;
   const previous = observations[prevIndex];
   const prevVal = parseObservationValue(previous?.value);
 
