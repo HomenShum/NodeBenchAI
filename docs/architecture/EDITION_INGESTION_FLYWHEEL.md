@@ -189,16 +189,40 @@ These three deliver the largest user-visible delta with minimal new infra:
 11. Multi-language: GDELT + Wikimedia in non-English locales.
 12. ~~**Monthly retrospective expansion**~~ — SHIPPED in Phase 8c misc PR (#293). Now returns `topResolved`, `weeklyPulseTotals`, `dailyHistogram`, `dayKeys`, `pulseSource`.
 
-### Phase 9 — deferred (separate infrastructure required)
+### Phase 9a — SHIPPED (2026-05-09)
 
-These items were intentionally deferred from Phase 8 because they require infrastructure not currently in scope.  Each is documented with the specific blocker so a future sprint can pick it up cleanly.
+The original Phase 9 deferred list (PR #296) was overly conservative — four of the six items turned out to be shippable without the new infrastructure I claimed was required.  Phase 9a sprint shipped them as four independent PRs, each with verification floor + live-verify per `.claude/rules/live_dom_verification.md`.
 
-13. **`format-strip / listen` (audio rendering of editions)** — needs TTS pipeline.  ElevenLabs is integrated for the voice-bot path but rendering an editorial-edition audio file is a separate UX (long-form, chapter-marked, downloadable).  Estimated effort: M (2-3 days) once TTS path decided.
-14. **`format-strip / watch` (video rendering of editions)** — needs a video pipeline (Remotion or similar).  Currently no video-render infrastructure in repo.  Estimated effort: L (5-7 days).
-15. **GDELT integration** — paid tier (~$50/mo Cloud API) OR self-hosted BigQuery (free with Google Cloud).  Phase 8a/8b shipped without GDELT; Phase 8c judged not-essential.  Defer until macro-news angle becomes a user-requested feature.
-16. **FRED API for macro stats** — requires free API key registration + Convex env var.  Phase 8a deferred this; not yet wired.  Estimated effort: S (1 day) once key obtained.
-17. **MCP-server-count auto-counter** — `mcpservers.org` doesn't expose a public API; would need a scrape pattern + retention policy + brittle-source monitoring.  Manual count works for now.
-18. **§5 capability page deltas** — currently per-day weekly snapshots overwrite each other; a 7-day rolling window with delta arrows would let readers see week-over-week movement.  Estimated effort: S (½ day).
+13. **`format-strip / listen`** — ✅ SHIPPED in **PR #297** (commit `7a83e2f0`).
+    Architecture: new Convex action `domains/integrations/voice/editionTts.generateEditionAudio` wraps ElevenLabs server-side (key never bundled).  Audio cached in Convex `_storage` keyed by `${dateKey}|${voiceId}`.  Same-day clicks cost $0.  FormatStrip renders Listen button with idle/loading/ready/error states + inline `<audio controls>`.
+    Cost cap: `MAX_SCRIPT_CHARS=2000` → ~$0.30/generation max → ~$18/month worst case at 1 generation/day.
+    Live: action returns `ok:false, error:"ELEVENLABS_API_KEY missing — TTS not configured"` until the env var is set on Convex prod.  HONEST_STATUS path verified.
+
+14. **`format-strip / watch`** — ❌ STILL DEFERRED.  Still needs a video pipeline (Remotion or similar).  No new video-render infrastructure landed in Phase 9a.  Estimated effort: L (5-7 days).  See Phase 10 backlog.
+
+15. **GDELT integration** — ✅ SHIPPED in **PR #300** (commit `5ca4d209`).
+    The "paid tier required" claim was wrong — `https://api.gdeltproject.org/api/v2/doc/doc?...&format=json` is FREE with no key (rate-limited ~1 req/5s).  Once-daily cron at 08:00 UTC fits comfortably.
+    New `convex/domains/monitoring/gdeltSeed.ts` writes to `industryUpdates` (provider="gdelt") + paired `evidenceArtifacts`.  Diversifies §1 trending (was HN+arXiv US-tech-heavy) with global-news angle.  Reuses existing `upsertPublicTrending` + `upsertPublicTrendingFootnotes` so URL dedupe is shared.
+    Live: action returns `ok:false, error:"AbortError"` or `error:"HTTP 429"` when rate-limited (HONEST_STATUS) — confirmed both failure modes.  Production cron will run once daily, well within rate limits.
+
+16. **FRED API for macro stats** — ❌ STILL DEFERRED.  Requires free API key registration.  No FRED wiring landed in Phase 9a.  Estimated effort: S (1 day) once key obtained.  See Phase 10 backlog.
+
+17. **MCP-server-count auto-counter** — ✅ SHIPPED in **PR #299** (commit `6ad60a8d`).
+    The "no public API" claim was correct, but the rendered HTML at `https://mcpservers.org/all` includes a `Showing 1-30 of N servers` SEO tagline that's stable enough to scrape daily.
+    New `convex/domains/research/mcpServerCountSeed.ts` regex-extracts the integer and patches today's `dailyBriefSnapshots.dashboardMetrics.keyStats` with a `MCP servers tracked` row + day-over-day delta.  Cron at 06:00 UTC daily.  No frontend change — existing Scoreboard component picks it up.
+    Live: verified via `npx convex run` — wrote `count=8173` to today's snapshot.
+
+18. **§5 capability page deltas** — ✅ SHIPPED in **PR #298** (commit `3f0e7cba`).
+    New query `getCapabilitiesDelta(windowDays)` reads today's `techReadiness` + the closest snapshot ≤ today - windowDays, computes per-bucket deltas honestly.  New hook `useCapabilitiesDelta(7)`.  CapabilitiesMap renders `+N` / `-N` / `→` badges with tooltip referencing the comparison window.
+    HONEST_STATUS: `null` per-bucket when no prior snapshot to compare → component renders **nothing** (NOT "→") so the user is never misled about whether a comparison happened.
+    Live: query verified — returns `today/prior/deltas` for `windowDays=7` with `priorDateString: "2026-05-03"`.
+
+### Phase 10 — genuinely deferred
+
+Two items genuinely need new infrastructure beyond what Phase 9a could ship without scope creep:
+
+19. **`format-strip / watch` (video rendering)** — Phase 10.  No video pipeline in the repo.  Would need Remotion/ffmpeg/similar, an asset rendering server, and storage for rendered MP4s.  Effort: L (5-7 days).
+20. **FRED API for macro stats at scale** — Phase 10 backlog.  Free tier limits + key registration required.  Adding 1-2 macro indicators (CPI, unemployment) is straightforward once the key is plumbed; doing it RIGHT (cache by datapoint, handle revisions) is the real work.  Effort: S (1 day) for minimal, M (3 days) for production-ready.
 
 ---
 
