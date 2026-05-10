@@ -178,12 +178,28 @@ test.describe("Realtime voice dogfood matrix", () => {
     });
     const body = await res.json();
     if (res.status() === 503) {
+      // OpenAI key missing — fallback hint must be honest.
       expect(body.fallback).toMatch(/gemini-or-browser|browser/);
       expect(body.routingDecision.gate).toBe("agent_mode");
+      // HONEST_STATUS — fallback must be visible in actualTierUsed/fallbackReason.
+      expect(body.routingDecision.actualTierUsed).toBe("gemini-flash-live");
+      expect(body.routingDecision.fallbackReason).toBe("openai_key_missing");
+    } else if (res.status() === 502) {
+      // OpenAI realtime call failed after both attempts (May-7 + legacy).
+      // Per HONEST_STATUS, the body must surface what was tried and why.
+      expect(body.fallback).toMatch(/gemini-or-browser|browser/);
+      expect(body.routingDecision.fallbackReason).toBe("session_create_failed");
     } else {
       expect(body.ok).toBe(true);
       expect(body.routingDecision.gate).toBe("agent_mode");
+      // tier = what was REQUESTED (always gpt-realtime-2 on agent_mode).
       expect(body.routingDecision.tier).toBe("openai-realtime-2");
+      // actualTierUsed = what SERVED. Equals tier on success.
+      // If gpt-realtime-2 succeeded, model is "gpt-realtime-2".
+      // If fallback to legacy fired, actualTierUsed is still "openai-realtime-2"
+      //   (analytics stay stable) but model is "gpt-4o-realtime-preview".
+      expect(body.actualTierUsed).toBe("openai-realtime-2");
+      expect(body.model).toMatch(/^gpt-(realtime-2|4o-realtime-preview)$/);
     }
   });
 
