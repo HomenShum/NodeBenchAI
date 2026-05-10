@@ -39,6 +39,7 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { UniversalComposer } from "../components/UniversalComposer";
+import { StreamingMarkdown } from "../components/StreamingMarkdown";
 import { EditorialSection } from "../components/edition/EditorialSection";
 import { EditionErrorBoundary } from "../components/edition/EditionErrorBoundary";
 import { EditionTOC, type EditionTOCEntry } from "../components/edition/EditionTOC";
@@ -287,7 +288,11 @@ function WhatMovedSection({
                 </p>
                 {p.summaryMarkdown
                   ? renderPulseMarkdown(p.summaryMarkdown).map((para, j) => (
-                      <p key={j}>{para.replace(/^#+\s*/, "")}</p>
+                      <StreamingMarkdown
+                        key={j}
+                        text={para.replace(/^#+\s*/, "")}
+                        streaming={false}
+                      />
                     ))
                   : (
                     <p className="rd-edition-empty" style={{ padding: 0 }}>
