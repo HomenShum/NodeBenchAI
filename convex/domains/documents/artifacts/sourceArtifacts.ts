@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "../../../_generated/server";
 import type { Doc } from "../../../_generated/dataModel";
+import { recomputeSourceSearchableText } from "../../search/searchableTextRecompute";
 
 async function sha256Hex(input: string): Promise<string> {
   const bytes = new TextEncoder().encode(input);
@@ -106,6 +107,14 @@ export const upsertSourceArtifact = internalMutation({
       sizeBytes: args.sizeBytes,
       title: args.title,
       extractedData: args.extractedData,
+      // PR D: populate searchableText for the federated `search_sources`
+      // index. Sources are de-facto public artifacts of crawled URLs, so
+      // both anonymous and authenticated callers can search them.
+      searchableText: recomputeSourceSearchableText({
+        title: args.title,
+        sourceUrl,
+        mimeType: args.mimeType,
+      }),
       fetchedAt,
       expiresAt: args.expiresAt,
     });

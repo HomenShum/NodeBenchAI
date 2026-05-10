@@ -44,6 +44,7 @@ import {
   productBlockKindValidator,
   productBlockRelationKindValidator,
 } from "./schema";
+import { recomputeBlockSearchableText } from "../search/searchableTextRecompute";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Input-size guard — prevent a single oversized block from OOMing the function
@@ -1365,6 +1366,12 @@ export const appendBlock = mutation({
         sourceRefIds: args.sourceRefIds,
         attributes: args.attributes,
         revision: 1,
+        // PR D: populate searchableText for the federated `search_blocks`
+        // index. Inserts at PR #310 ship time were missing this.
+        searchableText: recomputeBlockSearchableText({
+          content: args.content,
+          deletedAt: undefined,
+        }),
         createdAt: now,
         updatedAt: now,
       });
@@ -1447,6 +1454,11 @@ export const insertBlockBetween = mutation({
       sourceRefIds: args.sourceRefIds,
       attributes: args.attributes,
       revision: 1,
+      // PR D: populate searchableText for the federated `search_blocks` index.
+      searchableText: recomputeBlockSearchableText({
+        content: args.content,
+        deletedAt: undefined,
+      }),
       createdAt: now,
       updatedAt: now,
     });
@@ -1528,13 +1540,23 @@ export const updateBlock = mutation({
         previousBlockId: existing.previousBlockId,
         revision: existing.revision,
         deletedAt: now,
+        // PR D: deleted snapshot row gets empty searchableText so it drops
+        // out of the federated `search_blocks` index immediately.
+        searchableText: "",
         createdAt: existing.createdAt,
         updatedAt: existing.updatedAt,
       });
     }
 
+    const nextContent = args.content ?? existing.content;
+    // PR D: refresh searchableText so the federated `search_blocks` index
+    // reflects the edited content. This is the hottest block write path.
+    const nextBlockSearchableText = recomputeBlockSearchableText({
+      content: nextContent,
+      deletedAt: undefined,
+    });
     await ctx.db.patch(args.blockId, {
-      content: args.content ?? existing.content,
+      content: nextContent,
       kind: args.kind ?? existing.kind,
       isChecked: args.isChecked ?? existing.isChecked,
       sourceRefIds: args.sourceRefIds ?? existing.sourceRefIds,
@@ -1543,6 +1565,7 @@ export const updateBlock = mutation({
       revision: existing.revision + 1,
       authorKind: args.editedByAuthorKind ?? existing.authorKind,
       authorId: args.editedByAuthorId ?? existing.authorId,
+      searchableText: nextBlockSearchableText,
       updatedAt: now,
     });
     return args.blockId;
@@ -1570,7 +1593,13 @@ export const deleteBlock = mutation({
     if (existing.accessMode !== "edit") {
       throw convexError({ code: "BLOCK_READ_ONLY", blockId: args.blockId });
     }
-    await ctx.db.patch(args.blockId, { deletedAt: Date.now(), updatedAt: Date.now() });
+    // PR D: clear searchableText on soft-delete so the federated
+    // `search_blocks` index drops the row from results immediately.
+    await ctx.db.patch(args.blockId, {
+      deletedAt: Date.now(),
+      searchableText: "",
+      updatedAt: Date.now(),
+    });
   },
 });
 
@@ -1922,6 +1951,9 @@ export const promoteLinkToEvidence = mutation({
     const pos = positionBetween(beforePos, afterPos);
 
     const now = Date.now();
+    const evidenceContent = [
+      { type: "link", value: args.label, url: args.url },
+    ];
     const evidenceBlockId = await ctx.db.insert("productBlocks", {
       ownerKey: citing.ownerKey,
       entityId: citing.entityId,
@@ -1929,12 +1961,17 @@ export const promoteLinkToEvidence = mutation({
       kind: "evidence",
       authorKind: "user",
       authorId: "user:promote",
-      content: [{ type: "link", value: args.label, url: args.url }],
+      content: evidenceContent,
       positionInt: pos.int,
       positionFrac: pos.frac,
       accessMode: "edit",
       isPublic: false,
       revision: 1,
+      // PR D: populate searchableText for the federated `search_blocks` index.
+      searchableText: recomputeBlockSearchableText({
+        content: evidenceContent,
+        deletedAt: undefined,
+      }),
       createdAt: now,
       updatedAt: now,
     });
@@ -2037,7 +2074,13 @@ export const backfillEntityBlocks = mutation({
         block.authorKind === "agent" ||
         (shouldResetPlaceholderBlocks && isPlaceholderNotebookBlock(block))
       ) {
-        await ctx.db.patch(block._id, { deletedAt: Date.now(), updatedAt: Date.now() });
+        // PR D: clear searchableText so the federated `search_blocks` index
+        // drops these soft-deleted rows immediately (no stale results).
+        await ctx.db.patch(block._id, {
+          deletedAt: Date.now(),
+          searchableText: "",
+          updatedAt: Date.now(),
+        });
         cleared += 1;
       }
     }
@@ -2119,6 +2162,7 @@ export const backfillEntityBlocks = mutation({
       const positions = positionsBetween(null, null, 1 + sectionCount * 2);
       let posIdx = 0;
 
+      const briefHeadingContent = [{ type: "text" as const, value: seedTitle }];
       const briefHeadingId = await ctx.db.insert("productBlocks", {
         ownerKey: entity.ownerKey,
         entityId: entity._id,
@@ -2126,13 +2170,18 @@ export const backfillEntityBlocks = mutation({
         kind: "heading_2",
         authorKind: "agent",
         authorId: seedAuthorId,
-        content: [{ type: "text", value: seedTitle }],
+        content: briefHeadingContent,
         positionInt: positions[posIdx].int,
         positionFrac: positions[posIdx].frac,
         accessMode: "edit",
         isPublic: false,
         sourceSessionId: seedSessionId,
         revision: 1,
+        // PR D: populate searchableText for the federated `search_blocks`.
+        searchableText: recomputeBlockSearchableText({
+          content: briefHeadingContent,
+          deletedAt: undefined,
+        }),
         createdAt: now,
         updatedAt: now,
       });
@@ -2140,6 +2189,9 @@ export const backfillEntityBlocks = mutation({
       inserted += 1;
 
       for (const section of seedSections) {
+        const sectionHeadingContent = [
+          { type: "text" as const, value: section.title },
+        ];
         const headingId = await ctx.db.insert("productBlocks", {
           ownerKey: entity.ownerKey,
           entityId: entity._id,
@@ -2147,19 +2199,27 @@ export const backfillEntityBlocks = mutation({
           kind: "heading_3",
           authorKind: "agent",
           authorId: seedAuthorId,
-          content: [{ type: "text", value: section.title }],
+          content: sectionHeadingContent,
           positionInt: positions[posIdx].int,
           positionFrac: positions[posIdx].frac,
           accessMode: "edit",
           isPublic: false,
           sourceSessionId: seedSessionId,
           revision: 1,
+          // PR D: populate searchableText for the federated `search_blocks`.
+          searchableText: recomputeBlockSearchableText({
+            content: sectionHeadingContent,
+            deletedAt: undefined,
+          }),
           createdAt: now,
           updatedAt: now,
         });
         posIdx += 1;
         inserted += 1;
 
+        const sectionBodyContent = [
+          { type: "text" as const, value: section.body },
+        ];
         await ctx.db.insert("productBlocks", {
           ownerKey: entity.ownerKey,
           entityId: entity._id,
@@ -2167,7 +2227,7 @@ export const backfillEntityBlocks = mutation({
           kind: "text",
           authorKind: "agent",
           authorId: seedAuthorId,
-          content: [{ type: "text", value: section.body }],
+          content: sectionBodyContent,
           positionInt: positions[posIdx].int,
           positionFrac: positions[posIdx].frac,
           accessMode: "edit",
@@ -2175,6 +2235,11 @@ export const backfillEntityBlocks = mutation({
           sourceSessionId: seedSessionId,
           sourceRefIds: section.sourceRefIds,
           revision: 1,
+          // PR D: populate searchableText for the federated `search_blocks`.
+          searchableText: recomputeBlockSearchableText({
+            content: sectionBodyContent,
+            deletedAt: undefined,
+          }),
           createdAt: now,
           updatedAt: now,
         });
@@ -2192,24 +2257,30 @@ export const backfillEntityBlocks = mutation({
       const positions = positionsBetween(null, null, evidenceItems.length);
       for (let i = 0; i < evidenceItems.length; i++) {
         const item = evidenceItems[i];
+        const evidenceLinkContent = [
+          {
+            type: "link" as const,
+            value: item.label,
+            url: item.sourceUrl,
+          },
+        ];
         await ctx.db.insert("productBlocks", {
           ownerKey: entity.ownerKey,
           entityId: entity._id,
           kind: "evidence",
           authorKind: "agent",
           authorId: "harness:evidence",
-          content: [
-            {
-              type: "link",
-              value: item.label,
-              url: item.sourceUrl,
-            },
-          ],
+          content: evidenceLinkContent,
           positionInt: positions[i].int,
           positionFrac: positions[i].frac,
           accessMode: "edit",
           isPublic: false,
           revision: 1,
+          // PR D: populate searchableText for the federated `search_blocks`.
+          searchableText: recomputeBlockSearchableText({
+            content: evidenceLinkContent,
+            deletedAt: undefined,
+          }),
           createdAt: now,
           updatedAt: now,
         });

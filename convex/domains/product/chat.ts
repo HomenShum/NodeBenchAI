@@ -8,6 +8,10 @@ import { isProductRuntimeFlagEnabled } from "../../lib/featureFlags";
 import { deriveCanonicalReportSections } from "../../../shared/reportSections";
 import { buildPrepBriefTitle, deriveReportArtifactMode, type ReportArtifactMode } from "../../../shared/reportArtifacts";
 import { upsertOpenProductNudge } from "./nudgeHelpers";
+import {
+  recomputeEntitySearchableText,
+  recomputeReportSearchableText,
+} from "../search/searchableTextRecompute";
 import { syncGenericDiligenceProjectionDrafts, buildGenericDiligenceProjectionDrafts } from "./diligenceProjectionRuntime";
 import {
   buildProductProviderBudgetSummary,
@@ -1957,6 +1961,20 @@ export const completeSession = mutation({
         revision: entityMeta.revision,
         previousReportId: entityMeta.previousReportId ?? undefined,
         lastRefreshAt: now,
+        // PR D: populate searchableText so the federated `search_reports`
+        // index sees both the chat-driven insert AND any subsequent patch.
+        // This is the hottest report write path — every chat finalization
+        // flows through here.
+        searchableText: recomputeReportSearchableText({
+          title: reportTitle,
+          summary: reportSummary,
+          query: session.query,
+          primaryEntity:
+            typeof args.packet?.entityName === "string"
+              ? args.packet.entityName
+              : (resolution.entityName ?? undefined),
+          entitySlug: entityMeta.entitySlug ?? undefined,
+        }),
         updatedAt: now,
       };
 
@@ -2132,6 +2150,15 @@ export const completeSession = mutation({
     }
 
     if (entityMeta.entityId && reportId && effectiveArtifactState === "saved") {
+      // PR D: refresh searchableText on the entity row when chat saves a
+      // report (entity name/summary may have changed during finalization).
+      const existingEntityForChat = await ctx.db.get(entityMeta.entityId);
+      const nextEntitySearchableText = recomputeEntitySearchableText({
+        name: entityMeta.entityName,
+        slug: existingEntityForChat?.slug ?? entityMeta.entitySlug,
+        summary: reportSummary,
+        savedBecause: existingEntityForChat?.savedBecause,
+      });
       await ctx.db.patch(entityMeta.entityId, {
         name: entityMeta.entityName,
         entityType: entityMeta.entityType,
@@ -2140,6 +2167,7 @@ export const completeSession = mutation({
         latestReportUpdatedAt: now,
         latestRevision: entityMeta.revision,
         reportCount: entityMeta.reportCount,
+        searchableText: nextEntitySearchableText,
         updatedAt: now,
       });
 

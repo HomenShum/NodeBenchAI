@@ -14,6 +14,10 @@ import {
 } from "./helpers";
 import { productNoteBlockValidator } from "./schema";
 import { composeSearchableText } from "../search/federatedHelpers";
+import {
+  recomputeEntitySearchableText,
+  recomputeReportSearchableText,
+} from "../search/searchableTextRecompute";
 import { getEntityMemoryDocumentWorkspace } from "./documents";
 import {
   buildEntityAliasKey,
@@ -1431,8 +1435,15 @@ export const updateEntitySavedBecause = mutation({
     }
 
     const nextValue = args.savedBecause.trim().slice(0, 120);
+    // Refresh searchableText so the federated `search_entities` index sees the
+    // updated savedBecause value (PR D — patch-site hook).
+    const nextSearchableText = recomputeEntitySearchableText({
+      ...entity,
+      savedBecause: nextValue,
+    });
     await ctx.db.patch(entity._id, {
       savedBecause: nextValue,
+      searchableText: nextSearchableText,
       updatedAt: Date.now(),
     });
 
@@ -1552,30 +1563,54 @@ export const ensureEntityBackfill = mutation({
         now: report.updatedAt,
       });
 
+      // PR D: refresh searchableText for the federated `search_reports`
+      // index — entitySlug is part of the composed string.
+      const nextReportSearchableText = recomputeReportSearchableText({
+        title: report.title,
+        summary: report.summary,
+        query: report.query,
+        primaryEntity: report.primaryEntity,
+        entitySlug: entityMeta.entitySlug,
+      });
       await ctx.db.patch(report._id, {
         entityId: entityMeta.entityId,
         entitySlug: entityMeta.entitySlug,
         revision: entityMeta.revision,
         previousReportId: entityMeta.previousReportId ?? undefined,
+        searchableText: nextReportSearchableText,
       });
 
       const existingEntity = await ctx.db.get(entityMeta.entityId);
+      const nextEntitySummary = summarizeText(
+        report.summary,
+        entityMeta.entityName,
+      );
+      const nextEntitySavedBecause =
+        existingEntity?.savedBecause ??
+        inferProductSavedBecause({
+          entityType: entityMeta.entityType,
+          title: report.title,
+          query: report.query,
+          lens: report.lens,
+        });
+      // Refresh searchableText so the federated `search_entities` index sees
+      // the renamed/retyped entity (PR D — patch-site hook).
+      const nextEntitySearchableText = recomputeEntitySearchableText({
+        name: entityMeta.entityName,
+        slug: existingEntity?.slug ?? entityMeta.entitySlug,
+        summary: nextEntitySummary,
+        savedBecause: nextEntitySavedBecause,
+      });
       await ctx.db.patch(entityMeta.entityId, {
         name: entityMeta.entityName,
         entityType: entityMeta.entityType,
-        summary: summarizeText(report.summary, entityMeta.entityName),
-        savedBecause:
-          existingEntity?.savedBecause ??
-          inferProductSavedBecause({
-            entityType: entityMeta.entityType,
-            title: report.title,
-            query: report.query,
-            lens: report.lens,
-          }),
+        summary: nextEntitySummary,
+        savedBecause: nextEntitySavedBecause,
         latestReportId: report._id,
         latestReportUpdatedAt: report.updatedAt,
         latestRevision: entityMeta.revision,
         reportCount: entityMeta.revision,
+        searchableText: nextEntitySearchableText,
         updatedAt: report.updatedAt,
       });
       await upsertEntityContextItem(ctx, {
@@ -1642,10 +1677,20 @@ export const repairEntityModelBackfill = mutation({
       });
 
       if (entity.name !== nextName || entity.entityType !== nextType) {
+        const nextSummary = entity.summary || report.summary;
+        // Refresh searchableText so the federated `search_entities` index sees
+        // the renamed entity (PR D — patch-site hook).
+        const nextSearchableText = recomputeEntitySearchableText({
+          name: nextName,
+          slug: entity.slug,
+          summary: nextSummary,
+          savedBecause: entity.savedBecause,
+        });
         await ctx.db.patch(entity._id, {
           name: nextName,
           entityType: nextType,
-          summary: entity.summary || report.summary,
+          summary: nextSummary,
+          searchableText: nextSearchableText,
           updatedAt: Date.now(),
         });
         repairedEntities += 1;
