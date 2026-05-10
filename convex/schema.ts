@@ -879,13 +879,20 @@ const sourceArtifacts = defineTable({
   sizeBytes: v.optional(v.number()),
   title: v.optional(v.string()),
   extractedData: v.optional(v.any()),
+  // Denormalized concat of title + sourceUrl (capped) for the federated
+  // `search_sources` index. Optional — backfilled lazily on next upsert.
+  searchableText: v.optional(v.string()),
   fetchedAt: v.number(),
   expiresAt: v.optional(v.number()),
 })
   .index("by_run", ["runId", "fetchedAt"])
   .index("by_hash", ["contentHash"])
   .index("by_sourceUrl_hash", ["sourceUrl", "contentHash"])
-  .index("by_sourceUrl", ["sourceUrl", "fetchedAt"]);
+  .index("by_sourceUrl", ["sourceUrl", "fetchedAt"])
+  .searchIndex("search_sources", {
+    searchField: "searchableText",
+    filterFields: ["sourceType"],
+  });
 
 /* ------------------------------------------------------------------ */
 /* ARTIFACT CHUNKS - addressable evidence units for retrieval           */
@@ -1339,7 +1346,13 @@ const chatThreadsStream = defineTable({
   .index("by_user_updatedAt", ["userId", "updatedAt"])
   .index("by_agentThreadId", ["agentThreadId"])
   .index("by_anonymous_session", ["anonymousSessionId"])
-  .index("by_swarmId", ["swarmId"]);
+  .index("by_swarmId", ["swarmId"])
+  // Federated search: title is the cheapest searchable signal for threads.
+  // Filter by userId so per-user scoping is enforced at index level.
+  .searchIndex("search_threads", {
+    searchField: "title",
+    filterFields: ["userId", "anonymousSessionId"],
+  });
 
 const chatMessagesStream = defineTable({
   threadId: v.id("chatThreadsStream"),
@@ -1695,7 +1708,14 @@ const quickCaptures = defineTable({
   .index("by_user", ["userId"])
   .index("by_user_type", ["userId", "type"])
   .index("by_user_created", ["userId", "createdAt"])
-  .index("by_processed", ["userId", "processed"]);
+  .index("by_processed", ["userId", "processed"])
+  // Federated search: search across the capture content (note text /
+  // task / voice transcription is rendered into `content` by callers).
+  // Filter by userId so per-user scoping is enforced at index level.
+  .searchIndex("search_captures", {
+    searchField: "content",
+    filterFields: ["userId", "type", "processed"],
+  });
 
 /* ------------------------------------------------------------------ */
 /* USER BEHAVIOR EVENTS - Track user actions for pattern recognition  */

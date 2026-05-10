@@ -773,7 +773,13 @@ export const productClaims = defineTable({
   .index("by_owner_publishable", ["ownerKey", "publishable"])
   .index("by_owner_claim_type", ["ownerKey", "claimType"])
   .index("by_owner_slot_key", ["ownerKey", "slotKey"])
-  .index("by_owner_created", ["ownerKey", "createdAt"]);
+  .index("by_owner_created", ["ownerKey", "createdAt"])
+  // Federated search: index claimText directly (already a single string).
+  // Filter by ownerKey + claimType + publishable for surface-specific queries.
+  .searchIndex("search_claims", {
+    searchField: "claimText",
+    filterFields: ["ownerKey", "claimType", "publishable"],
+  });
 
 export const productClaimSupports = defineTable({
   ownerKey: v.string(),
@@ -825,12 +831,20 @@ export const productEntities = defineTable({
   latestReportUpdatedAt: v.optional(v.number()),
   latestRevision: v.number(),
   reportCount: v.number(),
+  // Denormalized concat of name + slug + summary + savedBecause for the
+  // federated `search_entities` index. Maintained by entity upsert helpers.
+  // Optional because existing rows are backfilled lazily on next mutation.
+  searchableText: v.optional(v.string()),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
   .index("by_owner_updated", ["ownerKey", "updatedAt"])
   .index("by_owner_slug", ["ownerKey", "slug"])
-  .index("by_owner_name", ["ownerKey", "name"]);
+  .index("by_owner_name", ["ownerKey", "name"])
+  .searchIndex("search_entities", {
+    searchField: "searchableText",
+    filterFields: ["ownerKey", "entityType"],
+  });
 
 export const productEntityNotes = defineTable({
   ownerKey: v.string(),
@@ -1093,6 +1107,9 @@ export const productReports = defineTable({
   // don't fragment notebook semantics across multiple tables; the workspace
   // surface continues to use sections/compiledAnswerV2 directly.
   notebookHtml: v.optional(v.string()),
+  // Denormalized concat of title + summary + query + primaryEntity for the
+  // federated `search_reports` index. Maintained by report mutations.
+  searchableText: v.optional(v.string()),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
@@ -1100,7 +1117,11 @@ export const productReports = defineTable({
   .index("by_owner_pinned", ["ownerKey", "pinned"])
   .index("by_owner_legacy_document", ["ownerKey", "legacyDocumentId"])
   .index("by_owner_session", ["ownerKey", "sessionId"])
-  .index("by_owner_entity_updated", ["ownerKey", "entitySlug", "updatedAt"]);
+  .index("by_owner_entity_updated", ["ownerKey", "entitySlug", "updatedAt"])
+  .searchIndex("search_reports", {
+    searchField: "searchableText",
+    filterFields: ["ownerKey", "type", "status", "visibility"],
+  });
 
 export const productReportRefreshes = defineTable({
   ownerKey: v.string(),
@@ -1489,6 +1510,10 @@ export const productBlocks = defineTable({
   previousBlockId: v.optional(v.id("productBlocks")),
   revision: v.number(),
   deletedAt: v.optional(v.number()),
+  // Denormalized text content for the federated `search_blocks` index.
+  // Maintained on block upsert/edit. Optional so existing rows are
+  // backfilled lazily on next mutation; deleted blocks have undefined.
+  searchableText: v.optional(v.string()),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
@@ -1514,7 +1539,11 @@ export const productBlocks = defineTable({
   ])
   .index("by_entity_author_updated", ["entityId", "authorKind", "updatedAt"])
   .index("by_session_step", ["sourceSessionId", "sourceToolStep"])
-  .index("by_previous", ["previousBlockId"]);
+  .index("by_previous", ["previousBlockId"])
+  .searchIndex("search_blocks", {
+    searchField: "searchableText",
+    filterFields: ["ownerKey", "entityId", "kind", "authorKind"],
+  });
 
 export const productBlockRelationKindValidator = v.union(
   v.literal("mention"),

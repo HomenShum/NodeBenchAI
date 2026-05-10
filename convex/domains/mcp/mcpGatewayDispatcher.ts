@@ -206,6 +206,15 @@ const ALLOWLIST: Record<string, AllowlistEntry> = {
     ref: api.domains.publicResearch.actions.searchPublicSources,
     type: "action",
   },
+
+  // ── Federated search (PR1: Convex-native) ────────────────────────────────
+  // Replaces the deferred Typesense plan (PR #306). Single action, fans out
+  // to 7 collections in parallel via internal queries. Privacy-scoped by
+  // resolved identity; anonymous callers see only public collections.
+  federatedSearch: {
+    ref: api.domains.search.federatedSearch.federatedSearch,
+    type: "action",
+  },
   getDimensionProfile: {
     ref: api.domains.deepTrace.dimensions.getDimensionProfile,
     type: "query",

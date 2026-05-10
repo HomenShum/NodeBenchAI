@@ -278,6 +278,10 @@ export const TOOLSET_LOADERS: Record<string, () => Promise<McpTool[]>> = {
     const { deepSimTools } = await import("./tools/deepSimTools.js");
     return deepSimTools;
   },
+  federated_search: async () => {
+    const { federatedSearchTools } = await import("./tools/federatedSearchTools.js");
+    return federatedSearchTools;
+  },
   dogfood_judge: async () => {
     const [dj, lj] = await Promise.all([
       import("./tools/dogfoodJudgeTools.js"),
