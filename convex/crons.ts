@@ -97,6 +97,17 @@ crons.daily(
   {},
 );
 
+// Phase 9a: MCP server count daily counter.  Scrapes mcpservers.org
+// for the current "Showing N of TOTAL servers" tagline and patches
+// today's keyStats with one extra row labelled "MCP servers tracked".
+// Runs at 06:00 UTC — lands before the editorial scoreboard at 09:00.
+crons.daily(
+  "MCP server count (mcpservers.org)",
+  { hourUTC: 6, minuteUTC: 0 },
+  internal.domains.research.mcpServerCountSeed.seedMcpServerCount,
+  {},
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // X ALGORITHM FEATURES - Phoenix ML powered discovery (Phase 2-6)
 // ═══════════════════════════════════════════════════════════════════════════
