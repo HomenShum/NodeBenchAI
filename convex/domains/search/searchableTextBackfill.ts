@@ -62,11 +62,18 @@ import {
 /** BOUND: rows scanned per page. Tuned to stay under Convex's 8 MB read budget. */
 const ROWS_PER_PAGE = 200;
 /**
- * BOUND: max pages per single call. 1000 pages × 200 rows = 200 000 rows
- * per invocation, which fits in Convex's 60s mutation budget with margin.
- * Callers re-invoke if `done: false` is returned with the next cursor.
+ * BOUND: pages per mutation invocation.  Convex disallows multiple
+ * `.paginate()` calls within a single mutation function, so each per-table
+ * mutation does ONE page and returns the cursor.  The orchestrator action
+ * (`backfillAll`) loops `runMutation` calls until `done: true` — that
+ * pattern is allowed because actions invoke mutations as separate calls.
+ *
+ * Hot-fix 2026-05-10: was 1000, which triggered Convex's "multiple
+ * paginated queries" error at runtime.  Per analyst_diagnostic the bug
+ * was treating page count as a per-call BOUND when it's actually a
+ * per-Convex-execution constraint.
  */
-const MAX_PAGES_PER_CALL = 1000;
+const MAX_PAGES_PER_CALL = 1;
 
 /* -------------------------------------------------------------------------- */
 /* Shape                                                                       */
@@ -334,9 +341,11 @@ export const backfillAll = internalAction({
       let totalWritten = 0;
       let totalSkipped = 0;
       let totalDuration = 0;
-      // Safety cap so a runaway loop can't run forever — 50 iterations ×
-      // 200 000 rows = 10M rows max. Far more than any production table.
-      for (let iter = 0; iter < 50; iter += 1) {
+      // Safety cap so a runaway loop can't run forever.
+      // After hot-fix: each per-table mutation does ONE page (200 rows),
+      // so 500 iterations × 200 rows = 100K rows per table per backfillAll
+      // invocation.  Adequate for current data; re-invoke if more remain.
+      for (let iter = 0; iter < 500; iter += 1) {
         const ref =
           table === "entities"
             ? internal.domains.search.searchableTextBackfill.backfillEntities
