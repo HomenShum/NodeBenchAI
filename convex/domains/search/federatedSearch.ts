@@ -39,14 +39,17 @@ import {
   type ActionCtx,
 } from "../../_generated/server";
 import { internal } from "../../_generated/api";
+import type { Id } from "../../_generated/dataModel";
 import {
   boundSnippet,
   clampLimit,
   composeSearchableText,
   FEDERATED_TIMEOUT_MS,
   MAX_TOTAL_RESULTS,
+  rrfMerge,
 } from "./federatedHelpers";
 import { resolveProductIdentitySafely } from "../product/helpers";
+import { embedQuery } from "./embedSearchableText";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
@@ -89,6 +92,15 @@ export type FederatedSearchResponse = {
   timedOut: boolean;
   partial: boolean;
   identityScope: "authenticated" | "anonymous";
+  /**
+   * True when the vector hybrid path was used for at least one collection.
+   * False when:
+   *   - OPENAI_API_KEY is missing (degraded to keyword-only)
+   *   - Embedding fetch failed
+   *   - Empty query
+   * Surfaces honest degradation to the caller (HONEST_STATUS rule).
+   */
+  hybridUsed: boolean;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -306,6 +318,193 @@ export const searchThreads = internalQuery({
 });
 
 /* -------------------------------------------------------------------------- */
+/* Vector hydration queries (PR E)                                             */
+/*                                                                             */
+/* The vector search step happens INSIDE the action (vectorSearch is only     */
+/* available on action ctx). After we get a ranked list of ids, these         */
+/* internal queries fetch the full rows in one shot and shape them into the   */
+/* same FederatedHandle contract used by the keyword path.                    */
+/* -------------------------------------------------------------------------- */
+
+const HYDRATE_ARGS = { ids: v.array(v.string()), ownerKey: v.string() };
+
+export const hydrateEntitiesByIds = internalQuery({
+  args: HYDRATE_ARGS,
+  handler: async (ctx, args): Promise<FederatedHandle[]> => {
+    const handles: FederatedHandle[] = [];
+    for (const id of args.ids) {
+      const row = await ctx.db.get(id as Id<"productEntities">);
+      if (!row) continue;
+      // Privacy floor — vectorIndex filter is best-effort; double-check
+      // ownerKey here so a misconfigured filter can never leak.
+      if (row.ownerKey !== args.ownerKey) continue;
+      handles.push({
+        type: "nb_entities",
+        uri: `entity://${row.slug}`,
+        title: row.name,
+        snippet: boundSnippet(row.summary),
+        score: 1,
+        source: row.entityType,
+        actions: ["open_entity", "lookup_entity", "suggest_related"],
+      });
+    }
+    return handles;
+  },
+});
+
+export const hydrateReportsByIds = internalQuery({
+  args: HYDRATE_ARGS,
+  handler: async (ctx, args): Promise<FederatedHandle[]> => {
+    const handles: FederatedHandle[] = [];
+    for (const id of args.ids) {
+      const row = await ctx.db.get(id as Id<"productReports">);
+      if (!row) continue;
+      if (row.ownerKey !== args.ownerKey) continue;
+      handles.push({
+        type: "nb_reports",
+        uri: `report://${row._id}`,
+        title: row.title,
+        snippet: boundSnippet(row.summary),
+        score: 1,
+        source: row.lens ?? "report",
+        actions: ["open_report", "search_report_context"],
+      });
+    }
+    return handles;
+  },
+});
+
+export const hydrateBlocksByIds = internalQuery({
+  args: HYDRATE_ARGS,
+  handler: async (ctx, args): Promise<FederatedHandle[]> => {
+    const handles: FederatedHandle[] = [];
+    for (const id of args.ids) {
+      const row = await ctx.db.get(id as Id<"productBlocks">);
+      if (!row) continue;
+      if (row.ownerKey !== args.ownerKey) continue;
+      // Soft-deleted blocks have empty searchableText (PR D) so they
+      // shouldn't appear in vector results either. Defense-in-depth.
+      if (row.deletedAt) continue;
+      handles.push({
+        type: "nb_notebook_blocks",
+        uri: `block://${row._id}`,
+        title: row.kind,
+        snippet: boundSnippet(row.searchableText ?? ""),
+        score: 1,
+        source: row.authorKind,
+        actions: ["open_block", "open_entity"],
+      });
+    }
+    return handles;
+  },
+});
+
+/* -------------------------------------------------------------------------- */
+/* Vector + RRF hybrid path                                                    */
+/*                                                                             */
+/* Per-collection helper that:                                                 */
+/*   1. Runs ctx.vectorSearch on the vec_* index with the cached query        */
+/*      embedding                                                              */
+/*   2. Hydrates ids -> full rows via the internal query                       */
+/*   3. Merges with the keyword path's ids via rrfMerge                        */
+/*   4. Returns ranked FederatedHandle[] in the merged order                  */
+/*                                                                             */
+/* Both keyword and vector results carry their own ranks; rrfMerge produces   */
+/* a single deterministic order. If either side returns zero, the merged      */
+/* output equals the non-empty side (HONEST_STATUS — no fake matches).        */
+/* -------------------------------------------------------------------------- */
+
+type HybridConfig = {
+  collection: "nb_entities" | "nb_reports" | "nb_notebook_blocks";
+  vectorIndex: "vec_entities" | "vec_reports" | "vec_blocks";
+  table: "productEntities" | "productReports" | "productBlocks";
+  hydrateRef:
+    | typeof internal.domains.search.federatedSearch.hydrateEntitiesByIds
+    | typeof internal.domains.search.federatedSearch.hydrateReportsByIds
+    | typeof internal.domains.search.federatedSearch.hydrateBlocksByIds;
+};
+
+const HYBRID_CONFIGS: Record<string, HybridConfig> = {
+  nb_entities: {
+    collection: "nb_entities",
+    vectorIndex: "vec_entities",
+    table: "productEntities",
+    hydrateRef: internal.domains.search.federatedSearch.hydrateEntitiesByIds,
+  },
+  nb_reports: {
+    collection: "nb_reports",
+    vectorIndex: "vec_reports",
+    table: "productReports",
+    hydrateRef: internal.domains.search.federatedSearch.hydrateReportsByIds,
+  },
+  nb_notebook_blocks: {
+    collection: "nb_notebook_blocks",
+    vectorIndex: "vec_blocks",
+    table: "productBlocks",
+    hydrateRef: internal.domains.search.federatedSearch.hydrateBlocksByIds,
+  },
+};
+
+async function vectorSearchOne(
+  ctx: ActionCtx,
+  collection: keyof typeof HYBRID_CONFIGS,
+  embedding: number[],
+  ownerKey: string,
+  limit: number,
+): Promise<FederatedHandle[]> {
+  const config = HYBRID_CONFIGS[collection];
+  // BOUND: cap vector search at the same per-collection limit (clamped
+  // upstream). Convex caps at 256 results per vectorSearch call anyway.
+  const ranked = await ctx.vectorSearch(config.table, config.vectorIndex, {
+    vector: embedding,
+    limit,
+    filter: (q) => q.eq("ownerKey", ownerKey),
+  });
+  if (ranked.length === 0) return [];
+  // Hydrate in the ranked order so handles[i] corresponds to ranked[i].
+  const ids = ranked.map((r) => String(r._id));
+  const handles: FederatedHandle[] = await ctx.runQuery(config.hydrateRef, {
+    ids,
+    ownerKey,
+  });
+  return handles;
+}
+
+/**
+ * Merges the keyword path's handles with the vector path's handles via RRF,
+ * preserving handle metadata from whichever side supplied it first.
+ *
+ * Deterministic — same inputs always produce the same order
+ * (rrfMerge tiebreaks by id ascending).
+ */
+function mergeHybridResults(
+  keyword: FederatedHandle[],
+  vector: FederatedHandle[],
+  limit: number,
+): FederatedHandle[] {
+  if (vector.length === 0) return keyword.slice(0, limit);
+  if (keyword.length === 0) return vector.slice(0, limit);
+  const handleByUri = new Map<string, FederatedHandle>();
+  for (const handle of [...keyword, ...vector]) {
+    if (!handleByUri.has(handle.uri)) {
+      handleByUri.set(handle.uri, handle);
+    }
+  }
+  const ranked = rrfMerge(
+    keyword.map((h) => ({ id: h.uri })),
+    vector.map((h) => ({ id: h.uri })),
+  );
+  return ranked
+    .map(({ id, score }) => {
+      const handle = handleByUri.get(id);
+      if (!handle) return null;
+      return { ...handle, score };
+    })
+    .filter((h): h is FederatedHandle => h !== null)
+    .slice(0, limit);
+}
+
+/* -------------------------------------------------------------------------- */
 /* Orchestrator                                                                */
 /* -------------------------------------------------------------------------- */
 
@@ -315,6 +514,15 @@ type DispatchArgs = {
   ownerKey: string | null;
   userId: string | null;
   anonymousSessionId: string | null;
+  /**
+   * Pre-computed OpenAI embedding for the query. Computed once per
+   * federatedSearch call (not per collection) so we never pay the
+   * embedding latency more than once. null when:
+   *   - Query is empty
+   *   - OPENAI_API_KEY is missing (HONEST_STATUS — no fake vectors)
+   *   - Embedding fetch failed (caller falls back to keyword-only)
+   */
+  queryEmbedding: number[] | null;
 };
 
 async function dispatchOne(
@@ -322,31 +530,63 @@ async function dispatchOne(
   collection: FederatedCollection,
   args: DispatchArgs,
 ): Promise<FederatedHandle[]> {
-  const { q, limit, ownerKey, userId, anonymousSessionId } = args;
+  const { q, limit, ownerKey, userId, anonymousSessionId, queryEmbedding } =
+    args;
   switch (collection) {
-    case "nb_entities":
+    case "nb_entities": {
       if (!ownerKey) return [];
-      return ctx.runQuery(internal.domains.search.federatedSearch.searchEntities, {
-        q,
-        limit,
+      const keyword = await ctx.runQuery(
+        internal.domains.search.federatedSearch.searchEntities,
+        { q, limit, ownerKey },
+      );
+      if (!queryEmbedding) return keyword;
+      // Hybrid path — run vector search in parallel with keyword path is
+      // not possible here (we need keyword first), but we run vector
+      // immediately after.
+      const vector = await vectorSearchOne(
+        ctx,
+        "nb_entities",
+        queryEmbedding,
         ownerKey,
-      });
-    case "nb_reports":
+        limit,
+      );
+      return mergeHybridResults(keyword, vector, limit);
+    }
+    case "nb_reports": {
       if (!ownerKey) return [];
-      return ctx.runQuery(internal.domains.search.federatedSearch.searchReports, {
-        q,
-        limit,
+      const keyword = await ctx.runQuery(
+        internal.domains.search.federatedSearch.searchReports,
+        { q, limit, ownerKey },
+      );
+      if (!queryEmbedding) return keyword;
+      const vector = await vectorSearchOne(
+        ctx,
+        "nb_reports",
+        queryEmbedding,
         ownerKey,
-      });
-    case "nb_notebook_blocks":
+        limit,
+      );
+      return mergeHybridResults(keyword, vector, limit);
+    }
+    case "nb_notebook_blocks": {
       if (!ownerKey) return [];
-      return ctx.runQuery(internal.domains.search.federatedSearch.searchBlocks, {
-        q,
-        limit,
+      const keyword = await ctx.runQuery(
+        internal.domains.search.federatedSearch.searchBlocks,
+        { q, limit, ownerKey },
+      );
+      if (!queryEmbedding) return keyword;
+      const vector = await vectorSearchOne(
+        ctx,
+        "nb_notebook_blocks",
+        queryEmbedding,
         ownerKey,
-      });
+        limit,
+      );
+      return mergeHybridResults(keyword, vector, limit);
+    }
     case "nb_claims":
       if (!ownerKey) return [];
+      // Claims have no vectorIndex (yet) — keyword only.
       return ctx.runQuery(internal.domains.search.federatedSearch.searchClaims, {
         q,
         limit,
@@ -354,20 +594,21 @@ async function dispatchOne(
       });
     case "nb_sources":
       // Sources are system-fetched and de-facto public; safe for both
-      // anonymous and authenticated callers.
+      // anonymous and authenticated callers. No vector index (yet).
       return ctx.runQuery(internal.domains.search.federatedSearch.searchSources, {
         q,
         limit,
         ownerKey: ownerKey ?? "anonymous",
       });
     case "nb_captures":
-      // quickCaptures is auth-only; anonymous gets [].
+      // quickCaptures is auth-only; anonymous gets []. No vector index (yet).
       return ctx.runQuery(internal.domains.search.federatedSearch.searchCaptures, {
         q,
         limit,
         userId: userId ? (userId as any) : undefined,
       });
     case "nb_threads":
+      // Title-only search — no vector index.
       return ctx.runQuery(internal.domains.search.federatedSearch.searchThreads, {
         q,
         limit,
@@ -431,8 +672,15 @@ export const federatedSearch = action({
         timedOut: false,
         partial: false,
         identityScope,
+        hybridUsed: false,
       };
     }
+
+    // PR E: compute the query embedding ONCE per federatedSearch call so
+    // every per-collection vector search reuses the same vector. Returns
+    // null if OPENAI_API_KEY is missing or the call failed — collections
+    // gracefully degrade to keyword-only (HONEST_STATUS).
+    const queryEmbedding = await embedQuery(trimmedQuery);
 
     const dispatchArgs: DispatchArgs = {
       q: trimmedQuery,
@@ -440,6 +688,7 @@ export const federatedSearch = action({
       ownerKey,
       userId,
       anonymousSessionId,
+      queryEmbedding,
     };
 
     // TIMEOUT: race the parallel fan-out against a hard wall-clock budget.
@@ -517,6 +766,12 @@ export const federatedSearch = action({
       timedOut,
       partial,
       identityScope,
+      // hybridUsed = true if we were able to compute a query embedding.
+      // Per-collection vector hybrid only ran for entities/reports/blocks;
+      // other collections were keyword-only regardless. The flag tells the
+      // caller "vector hybrid was available for this call" — actual per-
+      // result origin is encoded in the rrfMerge score on each handle.
+      hybridUsed: queryEmbedding !== null,
     };
   },
 });
