@@ -86,6 +86,18 @@ crons.interval(
   {},
 );
 
+// Phase 9a: GDELT-lite ingestion for §1 + §6 source diversity.
+// GDELT Doc 2.0 free-tier endpoint requires no key.  Fires once daily
+// (more than once = no extra signal — GDELT updates every 15 min but
+// our 8-article window doesn't churn faster than daily).  Reuses
+// publicTrendingSeed's upsert mutations so URL dedupe is shared.
+crons.daily(
+  "GDELT-lite trending seed",
+  { hourUTC: 8, minuteUTC: 0 },
+  internal.domains.monitoring.gdeltSeed.seedGdeltTrending,
+  {},
+);
+
 // Phase 8a §4: live editorial scoreboard.  Pulls OpenAlex cs.AI paper
 // count, HN Algolia AI front-page volume, and GitHub trending AI-agent
 // repo median stars.  Writes/patches today's dailyBriefSnapshots row's
