@@ -205,7 +205,11 @@ The original Phase 9 deferred list (PR #296) was overly conservative — four of
     New `convex/domains/monitoring/gdeltSeed.ts` writes to `industryUpdates` (provider="gdelt") + paired `evidenceArtifacts`.  Diversifies §1 trending (was HN+arXiv US-tech-heavy) with global-news angle.  Reuses existing `upsertPublicTrending` + `upsertPublicTrendingFootnotes` so URL dedupe is shared.
     Live: action returns `ok:false, error:"AbortError"` or `error:"HTTP 429"` when rate-limited (HONEST_STATUS) — confirmed both failure modes.  Production cron will run once daily, well within rate limits.
 
-16. **FRED API for macro stats** — ❌ STILL DEFERRED.  Requires free API key registration.  No FRED wiring landed in Phase 9a.  Estimated effort: S (1 day) once key obtained.  See Phase 10 backlog.
+16. **FRED API for macro stats** — ✅ SHIPPED in Phase 10a.
+    User registered the free FRED API key and `FRED_API_KEY` was set on Convex prod.  New `convex/domains/integrations/macro/fredSeed.ts` fetches 6 macroeconomic series daily (CPI YoY %, fed funds rate, unemployment, GDP level + YoY %, M2 money supply, 10Y Treasury yield) and patches today's `dailyBriefSnapshots.dashboardMetrics.keyStats` with one row per series (GDP emits two rows: level + YoY).  Each row carries `provenance: "fred:<seriesId>"` so the upsert is idempotent — re-runs cleanly drop + re-append fred:* rows without touching the existing scoreboard rows.
+    Cron at 08:00 UTC daily — sits between MCP-count (06:00 UTC) and the editorial scoreboard (09:00 UTC).
+    HONEST_STATUS: per-series try/catch.  A failed series is skipped (NOT zero-filled).  Returns `{ ok, succeeded, failed, errors }`.
+    Live: verified via `npx convex run domains/integrations/macro/fredSeed:seedFredStats`.
 
 17. **MCP-server-count auto-counter** — ✅ SHIPPED in **PR #299** (commit `6ad60a8d`).
     The "no public API" claim was correct, but the rendered HTML at `https://mcpservers.org/all` includes a `Showing 1-30 of N servers` SEO tagline that's stable enough to scrape daily.
@@ -222,7 +226,7 @@ The original Phase 9 deferred list (PR #296) was overly conservative — four of
 Two items genuinely need new infrastructure beyond what Phase 9a could ship without scope creep:
 
 19. **`format-strip / watch` (video rendering)** — Phase 10.  No video pipeline in the repo.  Would need Remotion/ffmpeg/similar, an asset rendering server, and storage for rendered MP4s.  Effort: L (5-7 days).
-20. **FRED API for macro stats at scale** — Phase 10 backlog.  Free tier limits + key registration required.  Adding 1-2 macro indicators (CPI, unemployment) is straightforward once the key is plumbed; doing it RIGHT (cache by datapoint, handle revisions) is the real work.  Effort: S (1 day) for minimal, M (3 days) for production-ready.
+20. **FRED-at-scale (Phase 10b)** — Phase 10a shipped the minimal "latest observation per series" path (see item #16 above).  Phase 10b would add: full historical series caching (last 5 years per indicator), revision tracking (FRED issues post-publication revisions to GDP, CPI), per-datapoint caching by FRED's `realtime_start`/`realtime_end` window, and long-window aggregations (e.g. 90-day rolling average for DGS10).  Effort: M (3 days) for cache + revisions; L (5-7 days) for the full historical store + UI plumbing.
 
 ---
 

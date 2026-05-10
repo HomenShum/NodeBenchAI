@@ -120,6 +120,19 @@ crons.daily(
   {},
 );
 
+// Phase 10a: FRED-lite macro indicators (CPI, fed funds, unemployment,
+// GDP, M2, 10Y Treasury) for the editorial home's §4 Scoreboard.
+// FRED's daily release window closes ~16:00 ET (~21:00 UTC); 08:00 UTC
+// the next morning catches the previous day's release.  Runs after
+// MCP-count (06:00 UTC) and before the editorial scoreboard (09:00 UTC)
+// so all three sets land in today's snapshot before US morning traffic.
+crons.daily(
+  "FRED-lite macro stats",
+  { hourUTC: 8, minuteUTC: 0 },
+  internal.domains.integrations.macro.fredSeed.seedFredStats,
+  {},
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // X ALGORITHM FEATURES - Phoenix ML powered discovery (Phase 2-6)
 // ═══════════════════════════════════════════════════════════════════════════
