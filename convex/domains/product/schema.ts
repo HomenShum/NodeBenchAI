@@ -835,6 +835,12 @@ export const productEntities = defineTable({
   // federated `search_entities` index. Maintained by entity upsert helpers.
   // Optional because existing rows are backfilled lazily on next mutation.
   searchableText: v.optional(v.string()),
+  // Vector embedding of `searchableText` for the federated `vec_entities`
+  // hybrid search index (PR E). 1536-dim from OpenAI text-embedding-3-small
+  // — matches the model already used by knowledgeGraph.ts. Optional because
+  // existing rows are backfilled lazily; un-embedded rows still appear in
+  // keyword results, just not vector results.
+  embedding: v.optional(v.array(v.float64())),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
@@ -843,6 +849,11 @@ export const productEntities = defineTable({
   .index("by_owner_name", ["ownerKey", "name"])
   .searchIndex("search_entities", {
     searchField: "searchableText",
+    filterFields: ["ownerKey", "entityType"],
+  })
+  .vectorIndex("vec_entities", {
+    vectorField: "embedding",
+    dimensions: 1536,
     filterFields: ["ownerKey", "entityType"],
   });
 
@@ -1110,6 +1121,11 @@ export const productReports = defineTable({
   // Denormalized concat of title + summary + query + primaryEntity for the
   // federated `search_reports` index. Maintained by report mutations.
   searchableText: v.optional(v.string()),
+  // Vector embedding of `searchableText` for the federated `vec_reports`
+  // hybrid search index (PR E). 1536-dim from OpenAI text-embedding-3-small.
+  // Optional — backfilled lazily; missing embeddings simply skip vector
+  // matching for the row.
+  embedding: v.optional(v.array(v.float64())),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
@@ -1120,6 +1136,11 @@ export const productReports = defineTable({
   .index("by_owner_entity_updated", ["ownerKey", "entitySlug", "updatedAt"])
   .searchIndex("search_reports", {
     searchField: "searchableText",
+    filterFields: ["ownerKey", "type", "status", "visibility"],
+  })
+  .vectorIndex("vec_reports", {
+    vectorField: "embedding",
+    dimensions: 1536,
     filterFields: ["ownerKey", "type", "status", "visibility"],
   });
 
@@ -1514,6 +1535,11 @@ export const productBlocks = defineTable({
   // Maintained on block upsert/edit. Optional so existing rows are
   // backfilled lazily on next mutation; deleted blocks have undefined.
   searchableText: v.optional(v.string()),
+  // Vector embedding of `searchableText` for the federated `vec_blocks`
+  // hybrid search index (PR E). 1536-dim from OpenAI text-embedding-3-small.
+  // Optional; soft-deleted blocks have empty searchableText so we skip
+  // generating an embedding for them.
+  embedding: v.optional(v.array(v.float64())),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
@@ -1542,6 +1568,11 @@ export const productBlocks = defineTable({
   .index("by_previous", ["previousBlockId"])
   .searchIndex("search_blocks", {
     searchField: "searchableText",
+    filterFields: ["ownerKey", "entityId", "kind", "authorKind"],
+  })
+  .vectorIndex("vec_blocks", {
+    vectorField: "embedding",
+    dimensions: 1536,
     filterFields: ["ownerKey", "entityId", "kind", "authorKind"],
   });
 
