@@ -56,6 +56,7 @@
     "qa:infer-style": "tsx scripts/qa/inferStyle.ts --self",
     "dogfood:publish": "node scripts/ui/publishDogfoodGallery.mjs",
     "dogfood:record": "node scripts/ui/recordDogfoodWalkthrough.mjs --publish blob",
+    "pr-demo": "node scripts/ui/recordPrDemo.mjs",
     "dogfood:record:static": "node scripts/ui/recordDogfoodWalkthrough.mjs --publish static",
     "dogfood:record:chat-mobile": "node scripts/ui/recordChatMobileQa.mjs",
     "dogfood:frames": "node scripts/ui/extractDogfoodFrames.mjs",
