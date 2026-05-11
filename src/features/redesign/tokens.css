@@ -187,6 +187,26 @@
   --rd-accent-soft: rgba(232, 143, 110, 0.16);
   --rd-accent-tint: rgba(232, 143, 110, 0.08);
   --rd-accent-ring: rgba(232, 143, 110, 0.40);
+  --rd-green: #4ade80;
+  --rd-green-bg: rgba(74, 222, 128, 0.12);
+  --rd-green-border: rgba(74, 222, 128, 0.25);
+  --rd-blue: #7aa2ff;
+  --rd-blue-bg: rgba(122, 162, 255, 0.12);
+  --rd-blue-border: rgba(122, 162, 255, 0.25);
+  --rd-amber: #fbbf24;
+  --rd-amber-bg: rgba(251, 191, 36, 0.12);
+  --rd-red: #f87171;
+  --rd-red-bg: rgba(248, 113, 113, 0.12);
+  --rd-red-border: rgba(248, 113, 113, 0.25);
+  --rd-shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.4);
+  --rd-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --rd-shadow-md:
+    rgb(27, 28, 30) 0 0 0 1px,
+    rgb(7, 8, 10) 0 0 0 1px inset,
+    0 8px 24px rgba(0, 0, 0, 0.5);
+  --rd-shadow-lg:
+    rgb(27, 28, 30) 0 0 0 1px,
+    0 24px 60px rgba(0, 0, 0, 0.6);
 }
 
 @media (prefers-reduced-motion: reduce) {

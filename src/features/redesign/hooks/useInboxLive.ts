@@ -81,16 +81,16 @@ function nudgeToInbox(nudge: ProductNudge): InboxItem {
     title,
     body: nudge.summary,
     meta: `${timeAgo(nudge.updatedAt)} - ${nudge.actionLabel ?? "Open"}`,
-    confidence: nudge.priority === "high" ? 0.82 : nudge.priority === "medium" ? 0.7 : 0.58,
+    confidence: undefined,
   };
 }
 
 function pipelineToInbox(run: PipelineRun): InboxItem {
-  const verdictMap: Record<string, { tone: InboxItem["whyTone"]; label: string; confidence: number }> = {
-    needs_review: { tone: "amber", label: "NEEDS REVIEW", confidence: 0.55 },
-    provisionally_verified: { tone: "blue", label: "PROVISIONAL", confidence: 0.75 },
-    failed: { tone: "amber", label: "FAILED", confidence: 0.3 },
-    verified: { tone: "green", label: "VERIFIED", confidence: 0.92 },
+  const verdictMap: Record<string, { tone: InboxItem["whyTone"]; label: string }> = {
+    needs_review: { tone: "amber", label: "NEEDS REVIEW" },
+    provisionally_verified: { tone: "blue", label: "PROVISIONAL" },
+    failed: { tone: "amber", label: "FAILED" },
+    verified: { tone: "green", label: "VERIFIED" },
   };
   const verdict = verdictMap[run.verdict ?? "needs_review"] ?? verdictMap.needs_review;
   return {
@@ -102,7 +102,6 @@ function pipelineToInbox(run: PipelineRun): InboxItem {
     title: run.title,
     body: run.errorMessage ?? `Pipeline run - ${run.pipelineKind} - model ${run.modelId}.`,
     meta: `${timeAgo(run.createdAt)} - pipeline run #${run.runId.slice(-6)}`,
-    confidence: verdict.confidence,
   };
 }
 

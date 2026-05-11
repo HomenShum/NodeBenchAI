@@ -12,7 +12,6 @@ import { UniversalComposer, DEFAULT_TIERS, type RouterTier, type BatchTarget } f
 import { Pill } from "../components/Pill";
 import { StreamingMarkdown } from "../components/StreamingMarkdown";
 import type { ActiveBatchRun, ChatAnswer } from "../fixtures";
-import { useBatchLive } from "../hooks/useBatchLive";
 import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 import { ChatThinking } from "../components/ChatThinking";
 import { ChatToolCall, type ToolCall } from "../components/ChatToolCall";
@@ -257,37 +256,6 @@ class ToolCallBoundary extends React.Component<
         </div>
       );
     }
-    return this.props.children;
-  }
-}
-
-function BatchLiveBridge({ onBatch }: { onBatch: (batch: ActiveBatchRun | null) => void }) {
-  const { batch } = useBatchLive();
-  useEffect(() => {
-    onBatch(batch);
-  }, [batch, onBatch]);
-  return null;
-}
-
-class BatchLiveBoundary extends React.Component<
-  { children: ReactNode; onError: () => void },
-  { hasError: boolean }
-> {
-  constructor(props: { children: ReactNode; onError: () => void }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  componentDidCatch(err: any) {
-    this.props.onError();
-    if (typeof console !== "undefined") {
-      console.warn("[BatchLiveBridge error]", err);
-    }
-  }
-  render() {
-    if (this.state.hasError) return null;
     return this.props.children;
   }
 }
@@ -554,11 +522,8 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const [ctx, setCtx] = useState(contextLabel);
   const [tier, setTier] = useState<RouterTier>("auto");
-  // Sprint S2: optional live batch monitor. Supporting telemetry is isolated
-  // so it cannot collapse the primary research surface.
-  const [liveBatch, setLiveBatch] = useState<ActiveBatchRun | null>(null);
   const [overrideBatch, setOverrideBatch] = useState<ActiveBatchRun | null>(null);
-  const batch = overrideBatch ?? liveBatch;
+  const batch = overrideBatch;
   const setBatch = setOverrideBatch;
 
   // Sprint 4 P1.6 — pinned items carried into the next turn's context.
@@ -849,9 +814,6 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
 
   return (
     <div className="rd-stack" style={{ height: "100%", overflow: "hidden", position: "relative" }}>
-      <BatchLiveBoundary onError={() => setLiveBatch(null)}>
-        <BatchLiveBridge onBatch={setLiveBatch} />
-      </BatchLiveBoundary>
       <div ref={scrollRef} className="rd-stack" style={{ flex: 1, overflow: "auto", padding: "24px 40px 24px", gap: 18, maxWidth: 920, width: "100%", margin: "0 auto" }}>
         {batch && <BatchMonitorCell batch={batch} onCancel={() => setBatch(null)} />}
 

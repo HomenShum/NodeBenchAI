@@ -13,7 +13,7 @@
  *   /redesign/workspace[/...]  → Workspace (separate full-height surface)
  */
 
-import { useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { useViewportMobile } from "@/hooks/useViewportMobile";
@@ -29,15 +29,25 @@ import { ReportNotebookView } from "./components/ReportNotebookView";
 import { CommandPalette, useCommandPalette } from "./components/CommandPalette";
 import { ShortcutsOverlay } from "./components/ShortcutsOverlay";
 import { ToastViewport } from "./components/Toast";
-import { HomeSurface } from "./surfaces/HomeSurface";
-import { ReportsSurface } from "./surfaces/ReportsSurface";
-import { ChatSurface } from "./surfaces/ChatSurface";
-import { InboxSurface } from "./surfaces/InboxSurface";
-import { MeSurface } from "./surfaces/MeSurface";
-import { WorkspaceSurface } from "./surfaces/WorkspaceSurface";
-import { ReproducibleChatPage } from "./pages/ReproducibleChatPage";
+const HomeSurface = React.lazy(() => import("./surfaces/HomeSurface").then(m => ({ default: m.HomeSurface })));
+const ReportsSurface = React.lazy(() => import("./surfaces/ReportsSurface").then(m => ({ default: m.ReportsSurface })));
+const ChatSurface = React.lazy(() => import("./surfaces/ChatSurface").then(m => ({ default: m.ChatSurface })));
+const InboxSurface = React.lazy(() => import("./surfaces/InboxSurface").then(m => ({ default: m.InboxSurface })));
+const MeSurface = React.lazy(() => import("./surfaces/MeSurface").then(m => ({ default: m.MeSurface })));
+const WorkspaceSurface = React.lazy(() => import("./surfaces/WorkspaceSurface").then(m => ({ default: m.WorkspaceSurface })));
+const ReproducibleChatPage = React.lazy(() => import("./pages/ReproducibleChatPage").then(m => ({ default: m.ReproducibleChatPage })));
 import { useLiveArtifacts } from "./hooks/useLiveArtifacts";
 import type { SurfaceId } from "./fixtures";
+
+function SurfaceLoader() {
+  return (
+    <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--rd-ink-soft)" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+        <div style={{ width: 24, height: 24, border: "2px solid var(--rd-line)", borderTopColor: "var(--rd-accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      </div>
+    </div>
+  );
+}
 
 const PATH_TO_SURFACE: Record<string, SurfaceId | "workspace"> = {
   "": "home",
@@ -139,10 +149,12 @@ export default function RedesignShell() {
     if (isEditionFlag && mobileSurface === "home") {
       return (
         <div data-redesign data-redesign-theme={theme} style={{ minHeight: "100dvh", overflow: "auto" }}>
+          <Suspense fallback={<SurfaceLoader />}>
           <HomeSurface
             onAsk={(text) => navigate(`/redesign/chat?q=${encodeURIComponent(text)}`)}
             onOpenReport={(id) => navigate(`/redesign/reports/${id}`)}
           />
+          </Suspense>
           {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}
           {showQaChrome && <ViewportFab forceMobile={forceMobile} setForceMobile={setForceMobile} />}
           <NavBanner pathname={location.pathname} />
@@ -169,7 +181,9 @@ export default function RedesignShell() {
     return (
       <div data-redesign data-redesign-theme={theme} style={{ height: "100vh", overflow: "hidden" }}>
         <main id="main-content" data-main-content className="rd-pane rd-workspace-standalone">
-          <WorkspaceSurface reportId={workspace.reportId} initialTab={workspace.tab} />
+          <Suspense fallback={<SurfaceLoader />}>
+            <WorkspaceSurface reportId={workspace.reportId} initialTab={workspace.tab} />
+          </Suspense>
         </main>
         {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}
         <CommandPalette open={cmdk.open} onClose={() => cmdk.setOpen(false)} />
@@ -214,6 +228,7 @@ export default function RedesignShell() {
           liveStats={railStats}
         />
 
+        <Suspense fallback={<SurfaceLoader />}>
         {showInspector ? (
           <div className="rd-shell__main">
             <main id="main-content" data-main-content className="rd-pane" style={{ borderRight: "1px solid var(--rd-line-faint)" }}>
@@ -223,7 +238,6 @@ export default function RedesignShell() {
           </div>
         ) : (
           <main id="main-content" data-main-content className="rd-pane" style={{ borderRight: "none" }}>
-            {/* Phase 3 — /redesign/chat/r/{hash} renders the immutable cached run. */}
             {surface === "chat" && chatHash && <ReproducibleChatPage hash={chatHash} />}
             {surface === "home" && (
               <HomeSurface
@@ -249,6 +263,7 @@ export default function RedesignShell() {
             {surface === "me" && <MeSurface />}
           </main>
         )}
+        </Suspense>
       </div>
 
       {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}

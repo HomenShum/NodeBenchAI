@@ -108,6 +108,28 @@ export function TopNav({
         flexShrink: 0,
       }}
     >
+      <a
+        href="#main-content"
+        className="rd-skip-link"
+        style={{
+          position: "absolute",
+          left: -9999,
+          top: 8,
+          zIndex: 100,
+          padding: "8px 16px",
+          background: "var(--rd-panel)",
+          color: "var(--rd-ink-strong)",
+          border: "2px solid var(--rd-accent)",
+          borderRadius: "var(--rd-r-sm)",
+          fontSize: 13,
+          fontWeight: 590,
+          textDecoration: "none",
+        }}
+        onFocus={(e) => { e.currentTarget.style.left = "20px"; }}
+        onBlur={(e) => { e.currentTarget.style.left = "-9999px"; }}
+      >
+        Skip to main content
+      </a>
       <button
         type="button"
         onClick={() => onChange("home")}

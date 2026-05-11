@@ -33,7 +33,6 @@ import { Pill } from "../components/Pill";
 import { StyleGalleryCard } from "../components/StyleGalleryCard";
 import { WhatChangedStrip } from "../components/WhatChangedStrip";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
-import { useHomePulseLive } from "../hooks/useHomePulseLive";
 import { useLiveArtifacts } from "../hooks/useLiveArtifacts";
 import { showToast } from "../components/Toast";
 import {
@@ -119,10 +118,8 @@ function LegacyHomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
       if (text) onAsk(text);
     },
   });
-  // Sprint S4: pulse cards from durable live artifacts; optional supplements stay non-blocking.
-  const { pulse: livePulse } = useHomePulseLive();
   const liveArtifacts = useLiveArtifacts(24);
-  const pulseCards = liveArtifacts.pulse.length > 0 ? liveArtifacts.pulse : livePulse;
+  const pulseCards = liveArtifacts.pulse;
   const effectivePublicResearch = liveArtifacts.publicResearch;
   const primaryLiveReport = liveArtifacts.reports[0];
   const effectiveContinueWorking: ContinueItem[] = liveArtifacts.reports.slice(0, 3).map((report, index) => ({
