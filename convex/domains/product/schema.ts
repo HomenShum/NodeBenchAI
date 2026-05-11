@@ -858,6 +858,11 @@ export const productEntities = defineTable({
   visibility: v.optional(
     v.union(v.literal("public"), v.literal("team"), v.literal("private")),
   ),
+  // Fingerprint (SHA-256 hex) of `searchableText` at the time `embedding`
+  // was last computed. Auto-hooks (PR F) skip re-embedding when content
+  // is unchanged; the daily cron uses it to detect drift on existing rows
+  // that have an embedding but a different current searchableText.
+  searchableTextHash: v.optional(v.string()),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
@@ -1146,6 +1151,9 @@ export const productReports = defineTable({
   // Optional — backfilled lazily; missing embeddings simply skip vector
   // matching for the row.
   embedding: v.optional(v.array(v.float64())),
+  // Fingerprint (SHA-256 hex) of `searchableText` at the time `embedding`
+  // was last computed. See productEntities.searchableTextHash for rationale.
+  searchableTextHash: v.optional(v.string()),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
@@ -1567,6 +1575,9 @@ export const productBlocks = defineTable({
   visibility: v.optional(
     v.union(v.literal("public"), v.literal("team"), v.literal("private")),
   ),
+  // Fingerprint (SHA-256 hex) of `searchableText` at the time `embedding`
+  // was last computed. See productEntities.searchableTextHash for rationale.
+  searchableTextHash: v.optional(v.string()),
   createdAt: v.number(),
   updatedAt: v.number(),
 })

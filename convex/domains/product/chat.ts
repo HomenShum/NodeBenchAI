@@ -1990,6 +1990,15 @@ export const completeSession = mutation({
           ...reportPatch,
         });
       }
+      // PR E: schedule per-row embedding for the inserted or patched report.
+      // Idempotent on searchableTextHash, so the patch path doesn't double-embed.
+      if (reportId) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domains.search.embedRowOnUpdate.embedReportRow,
+          { reportId },
+        );
+      }
 
       // Wiki-maintainer ingest hook (Stage 1 INGEST of the four-stage
       // pipeline in docs/architecture/ME_AGENT_DESIGN.md). Fire-and-forget
@@ -2170,6 +2179,12 @@ export const completeSession = mutation({
         searchableText: nextEntitySearchableText,
         updatedAt: now,
       });
+      // PR E: schedule per-row embedding for the chat-finalized entity.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domains.search.embedRowOnUpdate.embedEntityRow,
+        { entityId: entityMeta.entityId },
+      );
 
       if (entityMeta.entitySlug) {
         await upsertEntityContextItem(ctx, {

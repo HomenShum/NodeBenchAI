@@ -1027,4 +1027,25 @@ crons.interval(
   { limit: 50 }
 );
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PR E — Embedding pipeline auto-hooks: daily stale sweep
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Belt-and-suspenders cron for the per-row embed scheduler. Every mutation
+// that touches a productEntities / productReports / productBlocks row now
+// schedules embedRowOnUpdate.embedXxxRow immediately after the write. This
+// cron is the safety net for rows that slipped through (e.g. scheduler
+// dropouts, pre-PR-E rows that never had a hook fire).
+//
+// BOUND: batchSize=200, ~25 KB OpenAI bodies, MAX_STALE_PAGES=20 — total
+// upper bound per sweep is ~$0.02 at current text-embedding-3-small pricing.
+// HONEST_STATUS: skipped/embedded/failed counts returned in telemetry.
+// TIMEOUT: per-call 30s, total cron capped by Convex 10-min action budget.
+crons.interval(
+  "embed stale product rows (daily)",
+  { hours: 24 },
+  internal.domains.search.embedRowOnUpdate.embedStaleRows,
+  { batchSize: 200 },
+);
+
 export default crons;

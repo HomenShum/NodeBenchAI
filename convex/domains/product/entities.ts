@@ -1,4 +1,5 @@
 import { mutation, query } from "../../_generated/server";
+import { internal } from "../../_generated/api";
 import type { Doc, Id } from "../../_generated/dataModel";
 import { v } from "convex/values";
 import {
@@ -422,6 +423,14 @@ export async function ensureEntityForReport(
       createdAt: args.now,
       updatedAt: args.now,
     });
+    // PR E: schedule per-row OpenAI embedding so the vector index sees this
+    // entity without waiting for the daily backfill. Idempotent on
+    // searchableTextHash — re-schedule is safe.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.domains.search.embedRowOnUpdate.embedEntityRow,
+      { entityId },
+    );
     entity = await ctx.db.get(entityId);
   }
 
@@ -665,6 +674,12 @@ async function upsertStandaloneEntity(
     createdAt: args.now,
     updatedAt: args.now,
   });
+  // PR E: schedule per-row embedding for the new related entity.
+  await ctx.scheduler.runAfter(
+    0,
+    internal.domains.search.embedRowOnUpdate.embedEntityRow,
+    { entityId },
+  );
 
   return await ctx.db.get(entityId);
 }
@@ -1446,6 +1461,12 @@ export const updateEntitySavedBecause = mutation({
       searchableText: nextSearchableText,
       updatedAt: Date.now(),
     });
+    // PR E: searchableText changed — refresh the embedding.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.domains.search.embedRowOnUpdate.embedEntityRow,
+      { entityId: entity._id },
+    );
 
     return { ok: true, savedBecause: nextValue };
   },
@@ -1579,6 +1600,12 @@ export const ensureEntityBackfill = mutation({
         previousReportId: entityMeta.previousReportId ?? undefined,
         searchableText: nextReportSearchableText,
       });
+      // PR E: schedule per-row embedding for the patched report.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domains.search.embedRowOnUpdate.embedReportRow,
+        { reportId: report._id },
+      );
 
       const existingEntity = await ctx.db.get(entityMeta.entityId);
       const nextEntitySummary = summarizeText(
@@ -1613,6 +1640,12 @@ export const ensureEntityBackfill = mutation({
         searchableText: nextEntitySearchableText,
         updatedAt: report.updatedAt,
       });
+      // PR E: schedule per-row embedding for the patched entity.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domains.search.embedRowOnUpdate.embedEntityRow,
+        { entityId: entityMeta.entityId },
+      );
       await upsertEntityContextItem(ctx, {
         ownerKey,
         entitySlug: entityMeta.entitySlug,
@@ -1693,6 +1726,12 @@ export const repairEntityModelBackfill = mutation({
           searchableText: nextSearchableText,
           updatedAt: Date.now(),
         });
+        // PR E: schedule per-row embedding for the repaired entity.
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domains.search.embedRowOnUpdate.embedEntityRow,
+          { entityId: entity._id },
+        );
         repairedEntities += 1;
       }
 
@@ -1787,6 +1826,12 @@ export const ensureEntity = mutation({
       createdAt: now,
       updatedAt: now,
     });
+    // PR E: schedule per-row embedding for the seeded entity.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.domains.search.embedRowOnUpdate.embedEntityRow,
+      { entityId },
+    );
     return { entityId, slug: args.slug, created: true };
   },
 });
@@ -1867,6 +1912,12 @@ export const resolveOrCreateEntityForChat = mutation({
         createdAt: now,
         updatedAt: now,
       });
+      // PR E: schedule per-row embedding for the tier-0 chat entity.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domains.search.embedRowOnUpdate.embedEntityRow,
+        { entityId },
+      );
       entity = await ctx.db.get(entityId);
       isNew = true;
     }
