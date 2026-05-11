@@ -668,3 +668,39 @@
     background: transparent;
   }
 }
+
+/* ─── Offline banner (Phase: editorial-home SWR + offline) ──────
+ *
+ * Renders when the browser reports offline OR the Convex websocket
+ * has dropped.  Cached editorial data is still usable, so the tone
+ * is amber (warning), not red (error).
+ *
+ * Per `.claude/rules/reexamine_a11y.md`:
+ *  - role="status" + aria-live="polite" — don't interrupt
+ *  - Color is paired with the literal text "You're offline" /
+ *    "Reconnecting" so color-blind users get the signal too
+ *  - Reduced motion: drop the tinted background to keep contrast
+ *    without animation
+ */
+[data-redesign] [data-edition] .rd-offline-banner {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--rd-ink-mute);
+  background: rgba(245, 158, 11, 0.08);
+  border-left: 2px solid rgba(245, 158, 11, 0.5);
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  border-radius: 0 3px 3px 0;
+}
+
+[data-redesign] [data-edition] .rd-offline-banner strong {
+  color: var(--rd-ink-strong);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] [data-edition] .rd-offline-banner {
+    background: transparent;
+    transition: none;
+  }
+}
