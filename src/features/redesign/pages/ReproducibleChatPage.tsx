@@ -176,7 +176,7 @@ export function ReproducibleChatPage({ hash }: ReproducibleChatPageProps) {
         </section>
 
         <section>
-          <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Why it matters</div>
+          <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Why useful</div>
           <p className="rd-body" style={{ color: "var(--rd-ink-mute)", margin: 0 }}>{packet.whyItMatters}</p>
         </section>
 

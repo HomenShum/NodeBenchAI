@@ -10,6 +10,12 @@ import { memoStyles, type ReportCardData, type Density, type Universe } from "..
 import { Pill } from "../components/Pill";
 import { useReportsLive } from "../hooks/useReportsLive";
 import { showToast } from "../components/Toast";
+import {
+  buildReportsDecisionQueue,
+  ProductDecisionQueue,
+  type ProductDecisionItem,
+  sanitizeDecisionText,
+} from "./ProductDecisionQueue";
 
 type SortKey = "updated" | "entity" | "sources" | "claims" | "status";
 const SORT_OPTIONS: Array<{ id: SortKey; label: string }> = [
@@ -36,6 +42,10 @@ function StyleChip({ reportId }: { reportId: string }) {
       {displayName}
     </span>
   );
+}
+
+function displayReportDescription(description: string): string {
+  return sanitizeDecisionText(description);
 }
 
 interface ReportsSurfaceProps {
@@ -118,6 +128,14 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
     });
   }, [reports, filter, kindFilter, query, sortKey]);
 
+  const reportDecisionQueue = useMemo(
+    () => buildReportsDecisionQueue(filtered.length > 0 ? filtered : reports),
+    [filtered, reports],
+  );
+  const openDecisionItem = (item: ProductDecisionItem) => {
+    if (item.reportId) onOpen(item.reportId, "brief");
+  };
+
   const hasActiveFilter = filter !== "all" || kindFilter !== "all" || query.length > 0;
   const resetFilters = () => { setFilter("all"); setKindFilter("all"); setQuery(""); };
 
@@ -165,6 +183,16 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
           follow-ups, and graph relationships, all in one place.
         </p>
       </header>
+
+      <ProductDecisionQueue
+        compact
+        eyebrow="Review queue"
+        title="Open the report that needs a decision first."
+        subtitle="The library stays searchable, but the first useful move is ranked by review state, follow-ups, and source depth."
+        items={reportDecisionQueue}
+        emptyLabel="No report review queue yet. Run research from Chat to create the first live artifact."
+        onOpenItem={openDecisionItem}
+      />
 
       {/* Crunchbase / Pitchbook style filter bar — search + facets + density */}
       <div className="rd-reports-filterbar">
@@ -491,7 +519,7 @@ function ReportGrid({
                 <span className="rd-h3">{r.entity}</span>
                 <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>{r.kind}</span>
               </div>
-              <p className="rd-faint" style={{ fontSize: 12.5 }}>{r.description}</p>
+              <p className="rd-faint" style={{ fontSize: 12.5 }}>{displayReportDescription(r.description)}</p>
             </div>
             <div className="rd-mono" style={{ fontSize: 11, color: "var(--rd-ink-soft)" }}>
               {r.sources} sources · {r.claims} claims · {r.followUps} follow-ups · {r.updatedAt}
@@ -549,7 +577,7 @@ function ReportGrid({
           </header>
 
           {/* Row 2: 1-line description with ellipsis */}
-          <p className="rd-report-card__desc">{r.description}</p>
+          <p className="rd-report-card__desc">{displayReportDescription(r.description)}</p>
 
           {/* Row 3: metrics + style chip + updated */}
           <div className="rd-report-card__metrics">

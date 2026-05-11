@@ -19,6 +19,7 @@ import { UniversalComposer, type RouterTier } from "./UniversalComposer";
 import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 import { useReportsLive } from "../hooks/useReportsLive";
 import { useInboxLive } from "../hooks/useInboxLive";
+import { sanitizeDecisionText } from "../surfaces/ProductDecisionQueue";
 
 interface MobileShellProps {
   active: SurfaceId;
@@ -247,7 +248,7 @@ function MobileHome({ onOpenReports, onOpenChat }: { onOpenReports: () => void; 
             {primaryReport?.entity ?? "Open the live coverage library"}
           </strong>
           <span style={{ display: "block", marginTop: 3, fontSize: 11.5, lineHeight: 1.35, color: "var(--rd-ink-mute)" }}>
-            {primaryReport?.description ?? "Recent NodeBench artifacts are already wired into Reports."}
+            {primaryReport?.description ? sanitizeDecisionText(primaryReport.description) : "Recent NodeBench artifacts are already wired into Reports."}
           </span>
           <span className="rd-mono" style={{ display: "block", marginTop: 8, fontSize: 10.5, color: "var(--rd-green)" }}>
             Open reports {">"}
@@ -381,7 +382,7 @@ function MobileReports() {
                 {r.status === "review" ? "Review" : r.status === "watching" ? "Watching" : "Verified"}
               </Pill>
             </div>
-            <p className="rd-faint" style={{ fontSize: 12, marginTop: 4 }}>{r.description}</p>
+            <p className="rd-faint" style={{ fontSize: 12, marginTop: 4 }}>{sanitizeDecisionText(r.description)}</p>
             <div className="rd-row" style={{ gap: 8, marginTop: 6, fontSize: 10.5, color: "var(--rd-ink-soft)" }}>
               <span>{r.sources} src</span>
               <span>{r.claims} claims</span>

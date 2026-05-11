@@ -192,7 +192,7 @@ function CardColumn({ entity, isActive, onPromote, onDrill }: CardColumnProps) {
 
       {entity.whyItMatters && (
         <section className="rd-card rd-card__pad-tight" style={{ background: "var(--rd-accent-tint)", borderColor: "var(--rd-accent-ring)" }}>
-          <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)", fontSize: 10 }}>Why it matters</div>
+          <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)", fontSize: 10 }}>Why useful</div>
           <p className="rd-body" style={{ marginTop: 4, fontSize: 12.5 }}>{entity.whyItMatters}</p>
         </section>
       )}

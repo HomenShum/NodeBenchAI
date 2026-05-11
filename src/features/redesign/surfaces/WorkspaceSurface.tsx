@@ -21,6 +21,7 @@ import {
   type LiveArtifactDetail,
   type LiveArtifactMapNode,
 } from "../hooks/useLiveArtifacts";
+import { buildWorkspaceDecision, sanitizeDecisionText } from "./ProductDecisionQueue";
 
 type Tab = "brief" | "cards" | "notebook" | "sources" | "chat" | "map";
 
@@ -136,6 +137,26 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
   const verifySourceSupportRef = (api?.domains?.research?.dailyBriefSourceVerification as any)?.verifyDailyBriefSourceSupport;
   const isPromotableLiveArtifact = Boolean(effectiveLiveReport && selectedIsLiveArtifact);
   const canPromoteLiveArtifact = Boolean(isPromotableLiveArtifact && createDraftReportRef && saveReportNotebookHtmlRef);
+  const workspaceDecision = useMemo(
+    () =>
+      buildWorkspaceDecision({
+        title: workspaceTitle,
+        sourceCount: workspaceSources,
+        claimCount: workspaceClaims,
+        followUps: workspaceFollowUps,
+        primaryAction: effectiveLiveDetail?.primaryAction,
+        canVerifySources: Boolean(verifySourceSupportRef && effectiveLiveDetail?.sourceRows?.length),
+      }),
+    [
+      workspaceTitle,
+      workspaceSources,
+      workspaceClaims,
+      workspaceFollowUps,
+      effectiveLiveDetail?.primaryAction,
+      effectiveLiveDetail?.sourceRows?.length,
+      verifySourceSupportRef,
+    ],
+  );
 
   const setWorkspaceTab = (nextTab: Tab) => {
     setTab(nextTab);
@@ -201,7 +222,7 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
       const created = await convex.mutation(createDraftReportRef, {
         anonymousSessionId,
         title: effectiveLiveReport.entity,
-        summary: effectiveLiveReport.description,
+        summary: sanitizeDecisionText(effectiveLiveReport.description),
         query: effectiveLiveReport.entity,
         type: effectiveLiveReport.kind,
       });
@@ -292,6 +313,30 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
               >{t.label}</button>
             ))}
           </div>
+        </div>
+
+        <div className="rd-workspace-decision" data-workspace-decision>
+          <span className="rd-workspace-decision__lane">{workspaceDecision.lane}</span>
+          <strong>{workspaceDecision.title}</strong>
+          <span>{workspaceDecision.context}</span>
+          <button
+            type="button"
+            className="rd-btn rd-btn--quiet rd-btn--sm"
+            onClick={() => {
+              if (workspaceDecision.id === "workspace-source-check") setWorkspaceTab("sources");
+              else if (workspaceDecision.id === "workspace-followups") setWorkspaceTab("chat");
+              else if (isPromotableLiveArtifact) void promoteLiveArtifact();
+              else setWorkspaceTab("brief");
+            }}
+          >
+            {workspaceDecision.id === "workspace-source-check"
+              ? "Open sources"
+              : workspaceDecision.id === "workspace-followups"
+                ? "Open chat"
+                : isPromotableLiveArtifact
+                  ? "Save report"
+                  : "Review brief"}
+          </button>
         </div>
       </header>
 
@@ -395,7 +440,7 @@ function escapeHtml(value: string): string {
 
 function buildPromotedLiveArtifactHtml(report: ReportCardData): string {
   const title = escapeHtml(report.entity);
-  const description = escapeHtml(report.description);
+  const description = escapeHtml(sanitizeDecisionText(report.description));
   const kind = escapeHtml(report.kind);
   const status = escapeHtml(report.status);
   const updatedAt = escapeHtml(report.updatedAt);
@@ -438,7 +483,7 @@ function BriefTab({
             {detail.title}
           </p>
           <p className="rd-body" style={{ marginTop: 8, color: "var(--rd-ink-mute)" }}>
-            {detail.summary}
+            {sanitizeDecisionText(detail.summary)}
           </p>
         </section>
 
@@ -471,7 +516,7 @@ function BriefTab({
           <section key={section.title} className="rd-stack" style={{ gap: 10 }}>
             <div>
               <div className="rd-eyebrow">{section.title}</div>
-              <p className="rd-body" style={{ marginTop: 6, color: "var(--rd-ink-mute)" }}>{section.body}</p>
+              <p className="rd-body" style={{ marginTop: 6, color: "var(--rd-ink-mute)" }}>{sanitizeDecisionText(section.body)}</p>
             </div>
             {section.items && section.items.length > 0 && (
               <div className="rd-stack" style={{ gap: 8 }}>
@@ -500,7 +545,7 @@ function BriefTab({
                     />
                     <div className="rd-stack" style={{ gap: 4 }}>
                       <strong style={{ fontSize: 13, color: "var(--rd-ink-strong)" }}>{item.label}</strong>
-                      <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.45, color: "var(--rd-ink-mute)" }}>{item.body}</p>
+                      <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.45, color: "var(--rd-ink-mute)" }}>{sanitizeDecisionText(item.body)}</p>
                       {item.meta && <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>{item.meta}</span>}
                       <div className="rd-row" style={{ gap: 6, flexWrap: "wrap", marginTop: 5 }}>
                         <button
@@ -522,7 +567,7 @@ function BriefTab({
 
         <section className="rd-card rd-card__pad" style={{ background: "var(--rd-accent-tint)", borderColor: "var(--rd-accent-ring)" }}>
           <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)" }}>Recommended next action</div>
-          <p className="rd-body" style={{ marginTop: 6 }}>{detail.primaryAction}</p>
+          <p className="rd-body" style={{ marginTop: 6 }}>{sanitizeDecisionText(detail.primaryAction)}</p>
         </section>
       </div>
     );
@@ -537,7 +582,7 @@ function BriefTab({
             {report.entity}
           </p>
           <p className="rd-body" style={{ marginTop: 8, color: "var(--rd-ink-mute)" }}>
-            {report.description}
+            {sanitizeDecisionText(report.description)}
           </p>
         </section>
 
