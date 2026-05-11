@@ -11,6 +11,7 @@
     "build": "npm run build:search-api-bundle && vite build",
     "build:search-api-bundle": "npx esbuild server/vercel/searchApp.ts --bundle --packages=external --platform=node --format=esm --target=node20 --outfile=api/_searchApp.bundle.mjs",
     "deploy:convex": "convex deploy -y --typecheck=enable",
+    "deploy:prod": "bash scripts/deploy-prod.sh",
     "preflight": "node scripts/preflight-deploy.mjs",
     "preflight:production": "node scripts/preflight-deploy.mjs --target=production",
     "preflight:fast": "node scripts/preflight-deploy.mjs --skip=tsc-convex,search-api,size",

@@ -58,18 +58,17 @@ import { type EditionForecast } from "../hooks/useTopForecasts";
 import { useTopForecastsSwr } from "../hooks/useTopForecastsSwr";
 import { useLatestDailyBriefSnapshot } from "../hooks/useLatestDailyBriefSnapshot";
 import { useLatestDailyBriefSnapshotSwr } from "../hooks/useLatestDailyBriefSnapshotSwr";
-import { useCapabilitiesDelta } from "../hooks/useCapabilitiesDelta";
-import { useEditionFootnotes } from "../hooks/useEditionFootnotes";
+import { useCapabilitiesDeltaSwr } from "../hooks/useCapabilitiesDeltaSwr";
+import { useEditionFootnotesSwr } from "../hooks/useEditionFootnotesSwr";
 // P0 #3 — temporal browsing imports.  Note: useHomePulseLive +
 // fixturePulseCards / watchlist / continueWorking from #285's branch
 // were intentionally NOT carried forward here — P0 #1 removed those
 // from the editorial path and they must not return.
 import { useEditionView } from "../hooks/useEditionView";
-import {
-  useDailyEdition,
-  useWeeklyDigest,
-  useMonthlyRetrospective,
-} from "../hooks/useTemporalEdition";
+import { useDailyEditionSwr } from "../hooks/useDailyEditionSwr";
+import { useWeeklyDigestSwr } from "../hooks/useWeeklyDigestSwr";
+import { useMonthlyRetrospectiveSwr } from "../hooks/useMonthlyRetrospectiveSwr";
+import { useOnlineStatus } from "../../../lib/performance/useOnlineStatus";
 import { EditionSelector } from "../components/edition/EditionSelector";
 import { Pill } from "../components/Pill";
 import "../components/edition/edition.css";
@@ -85,6 +84,68 @@ const ABSENT = Symbol("absent");
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
+}
+
+/**
+ * Format an age in ms into a short human-readable string.  Used by the
+ * offline banner so the user knows how stale the cached edition is.
+ * Returns a bare "moments ago" for sub-minute, then "Nm", "Nh", "Nd".
+ */
+function formatAge(ms: number | null | undefined): string {
+  if (ms === null || ms === undefined || !Number.isFinite(ms) || ms < 0) {
+    return "moments ago";
+  }
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return "moments ago";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  return `${day}d ago`;
+}
+
+/**
+ * OfflineBanner — informational, NOT an alert, per
+ * `.claude/rules/reexamine_a11y.md` (`role="status"` +
+ * `aria-live="polite"`).  Renders when the browser is offline OR the
+ * Convex websocket is disconnected; the cached edition is still
+ * usable, so the banner is amber (warning), not red (error).
+ *
+ * Color is paired with explicit "You're offline" text + an icon-free
+ * label so color-blind users still get the signal.
+ *
+ * Per `.claude/rules/agentic_reliability.md` HONEST_STATUS: this only
+ * renders when the system is actually in a degraded state — no
+ * theatre.
+ */
+function OfflineBanner({
+  online,
+  convexConnected,
+  ageMs,
+}: {
+  online: boolean;
+  convexConnected: boolean;
+  ageMs: number | null;
+}) {
+  if (online && convexConnected) return null;
+  const reason = !online ? "You're offline" : "Reconnecting to live data";
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="rd-offline-banner"
+      data-online={online ? "true" : "false"}
+      data-convex-connected={convexConnected ? "true" : "false"}
+      className="rd-offline-banner"
+    >
+      <strong style={{ fontWeight: 600 }}>{reason}</strong>
+      <span>
+        {" "}
+        — showing cached edition from {formatAge(ageMs)}.
+      </span>
+    </div>
+  );
 }
 
 function formatProbability(p: number | null): string {
@@ -548,6 +609,17 @@ function CapabilitiesSection({
   heading: string;
   snapshot: ReturnType<typeof useLatestDailyBriefSnapshot>;
 }) {
+  // Phase 9a §5: optional 7-day delta badges next to each readiness
+  // bucket.  `null` while loading or if no prior snapshot to compare
+  // — CapabilitiesMap renders nothing in that case (HONEST_STATUS).
+  //
+  // SWR-wrapped (Phase 9b follow-up, 2026-05-11): hydrate from IDB on
+  // warm visits so badges paint instantly while Convex revalidates.
+  // The hook is called unconditionally so the React hooks rule holds
+  // even when the section returns the skeleton early below.
+  const deltaSwr = useCapabilitiesDeltaSwr(7);
+  const delta = deltaSwr.data;
+
   if (snapshot === undefined) {
     return (
       <EditorialSection
@@ -566,11 +638,6 @@ function CapabilitiesSection({
 
   const tr = snapshot?.dashboardMetrics?.techReadiness ?? null;
   const caps = snapshot?.dashboardMetrics?.capabilities ?? null;
-
-  // Phase 9a §5: optional 7-day delta badges next to each readiness
-  // bucket.  `null` while loading or if no prior snapshot to compare
-  // — CapabilitiesMap renders nothing in that case (HONEST_STATUS).
-  const delta = useCapabilitiesDelta(7);
 
   return (
     <EditorialSection
@@ -604,7 +671,10 @@ function FootnotesSection({
   heading: string;
   artifactIds: string[];
 }) {
-  const data = useEditionFootnotes(artifactIds, 8, 24);
+  // SWR-wrapped (Phase 9b follow-up): footnotes paint from IDB cache on
+  // warm visits while Convex revalidates.  The cache key uses sorted
+  // ids so re-renders that produce the same logical set hit the cache.
+  const { data } = useEditionFootnotesSwr(artifactIds, 8, 24);
   if (data === undefined) {
     return (
       <EditorialSection
@@ -712,7 +782,9 @@ function ArchivedDayBranch({
   onSwitchToClassic: () => void;
 }) {
   const navigate = useNavigate();
-  const data = useDailyEdition(dateKey);
+  const dailySwr = useDailyEditionSwr(dateKey);
+  const data = dailySwr.data;
+  const { online, convexConnected } = useOnlineStatus();
   // While loading we keep the chrome so the selector remains responsive.
   return (
     <div data-edition data-edition-kind="day">
@@ -782,6 +854,12 @@ function ArchivedDayBranch({
             Edition · {dateKey}
           </h1>
         </header>
+
+        <OfflineBanner
+          online={online}
+          convexConnected={convexConnected}
+          ageMs={dailySwr.swr.ageMs}
+        />
 
         {data === undefined && (
           <section data-section="day-loading" className="rd-edition-section">
@@ -894,7 +972,9 @@ function WeeklyBranch({
   selection: { kind: "week"; weekKey: string };
   onSwitchToClassic: () => void;
 }) {
-  const data = useWeeklyDigest(weekKey);
+  const weeklySwr = useWeeklyDigestSwr(weekKey);
+  const data = weeklySwr.data;
+  const { online, convexConnected } = useOnlineStatus();
   return (
     <div data-edition data-edition-kind="week">
       <div className="rd-edition-root">
@@ -960,6 +1040,12 @@ function WeeklyBranch({
             This week
           </h1>
         </header>
+
+        <OfflineBanner
+          online={online}
+          convexConnected={convexConnected}
+          ageMs={weeklySwr.swr.ageMs}
+        />
 
         {data === undefined && (
           <section data-section="week-loading" className="rd-edition-section">
@@ -1076,7 +1162,9 @@ function MonthlyBranch({
   selection: { kind: "month"; monthKey: string };
   onSwitchToClassic: () => void;
 }) {
-  const data = useMonthlyRetrospective(monthKey);
+  const monthlySwr = useMonthlyRetrospectiveSwr(monthKey);
+  const data = monthlySwr.data;
+  const { online, convexConnected } = useOnlineStatus();
   return (
     <div data-edition data-edition-kind="month">
       <div className="rd-edition-root">
@@ -1138,6 +1226,12 @@ function MonthlyBranch({
             This month
           </h1>
         </header>
+
+        <OfflineBanner
+          online={online}
+          convexConnected={convexConnected}
+          ageMs={monthlySwr.swr.ageMs}
+        />
 
         {data === undefined && (
           <section data-section="month-loading" className="rd-edition-section">
@@ -1279,6 +1373,10 @@ function TodayRender({
   // src/lib/performance/idbSwrCache.ts for the bounded LRU + timeout
   // contract.  Per HONEST_STATUS, each `.swr` payload exposes
   // `hydratedFromCache` + `isLive` so we can render a quiet cache notice.
+  //
+  // Phase 9b follow-up (2026-05-11): footnotes + capabilities delta +
+  // temporal hooks are also SWR-wrapped (see imports).  The aggregate
+  // chip below + offline banner cover the editorial-home cache surface.
   const hypothesesSwr = useActiveHypothesesSwr(5);
   const forecastsSwr = useTopForecastsSwr(5);
   const todayPulseSwr = useTodayPulseSwr(12);
@@ -1290,12 +1388,37 @@ function TodayRender({
   const snapshot = snapshotSwr.data;
 
   // Aggregate cache state — chip renders only when at least one
-  // section is showing cached data and not yet swapped to live.
+  // section is showing cached data and not yet swapped to live.  The
+  // capabilities delta + footnotes + temporal sections wrap their own
+  // SWR inside the child components, but the four §1-§4 wrappers here
+  // are the dominant signal for the chip.  Aggregating all 7 would
+  // require lifting state out of §5 + §6, which is gold-plating: any
+  // of the four below being cached means the home is in cache mode.
   const cacheNoticeActive =
     (hypothesesSwr.swr.hydratedFromCache && !hypothesesSwr.swr.isLive) ||
     (forecastsSwr.swr.hydratedFromCache && !forecastsSwr.swr.isLive) ||
     (todayPulseSwr.swr.hydratedFromCache && !todayPulseSwr.swr.isLive) ||
     (snapshotSwr.swr.hydratedFromCache && !snapshotSwr.swr.isLive);
+
+  // Offline detection — when the browser reports offline OR the Convex
+  // websocket has dropped, we show an explicit banner so the user
+  // doesn't silently consume stale cache.  Pair with the cache-notice
+  // chip: chip = "we're getting fresh data", banner = "we can't right
+  // now".
+  const { online, convexConnected } = useOnlineStatus();
+  // Oldest cached value still in play — use it for the banner copy.
+  const oldestAgeMs = [
+    hypothesesSwr.swr,
+    forecastsSwr.swr,
+    todayPulseSwr.swr,
+    snapshotSwr.swr,
+  ]
+    .filter((s) => s.hydratedFromCache && !s.isLive)
+    .map((s) => s.ageMs ?? 0)
+    .reduce<number | null>(
+      (acc, v) => (acc === null || v > acc ? v : acc),
+      null,
+    );
 
   // Collect artifactIds from §2's hypotheses for footnotes (§6).
   const artifactIds = useMemo(() => {
@@ -1477,6 +1600,12 @@ function TodayRender({
           onSubmit={(text) => onAsk(text)}
           onChatNow={(text) => onAsk(text)}
           placeholder="Ask to extend today's edition…"
+        />
+
+        <OfflineBanner
+          online={online}
+          convexConnected={convexConnected}
+          ageMs={oldestAgeMs}
         />
 
         {cacheNoticeActive && (

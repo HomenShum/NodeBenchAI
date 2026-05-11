@@ -15,6 +15,22 @@ The repo's branch protection now enforces:
 
 **If a deploy is stuck:** prefer `vercel build --prod && vercel deploy --prebuilt --prod` over `vercel --prod` (latter uploads CWD's Windows-locked package-lock and breaks on `sharp` linux-x64). `vercel redeploy <url>` rebuilds the SAME commit, not current main — useless for getting recent merges live.
 
+**Vite env vars are build-time-inlined.** Running `vercel build --prod` locally
+does NOT auto-pull Vercel's env. If `VITE_CONVEX_URL` is missing during build,
+the deployed bundle ships with `import.meta.env.VITE_CONVEX_URL === undefined`
+and the app renders "Convex backend not configured" in production.
+
+**Always run `vercel env pull .env.production.local --environment=production`
+BEFORE `vercel build --prod`** when deploying via CLI. OR use `vercel deploy --prod`
+(without `--prebuilt`) which lets Vercel's cloud build inject env automatically.
+
+The canonical wrapper is `scripts/deploy-prod.sh` (also `npm run deploy:prod`).
+It runs `vercel env pull` → `vercel build --prod` → `vercel deploy --prebuilt --prod`
+in order so the env can never be missing.
+
+Forensic note: this caused a P0 regression on 2026-05-11 — the SWR cache PR
+shipped with a broken bundle until env was pulled and rebuild.
+
 
 ## Start here: prod-parity source of truth
 
