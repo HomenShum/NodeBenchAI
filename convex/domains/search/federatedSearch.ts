@@ -65,6 +65,7 @@ import {
 } from "./federatedHelpers";
 import { resolveProductIdentitySafely } from "../product/helpers";
 import { embedQuery } from "./embedSearchableText";
+import { buildFederatedCacheKey } from "./federatedSearchCache";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
@@ -801,6 +802,61 @@ export const federatedSearch = action({
       };
     }
 
+    /* ──────────────────────────────────────────────────────────────
+     * PHASE 12 — Anonymous-only response cache.
+     *
+     * Cache HIT: serve the previously-computed response, bypassing
+     * embedding fetch + 7-collection fan-out + RRF merge.  Expected
+     * savings: 300-500ms per cache hit.
+     *
+     * Privacy floor:
+     *   - Only ANONYMOUS calls touch the cache (no ownerKey/userId).
+     *   - The dispatchOne worker for anonymous calls only emits
+     *     `visibility="public"` rows, so cached payload contains no
+     *     per-user content.  Authenticated calls SKIP entirely.
+     *
+     * ERROR_BOUNDARY: lookup + write swallow errors silently inside
+     * their own modules — live computation always wins.
+     * ────────────────────────────────────────────────────────────── */
+    const cacheKey =
+      identityScope === "anonymous"
+        ? buildFederatedCacheKey({
+            q: trimmedQuery,
+            collections,
+            limit,
+          })
+        : null;
+
+    if (cacheKey) {
+      try {
+        const cached: {
+          response: string;
+          generatedAt: number;
+          hitCount: number;
+        } | null = await ctx.runQuery(
+          internal.domains.search.federatedSearchCache.lookupFederatedCache,
+          { cacheKey },
+        );
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached.response) as FederatedSearchResponse;
+            void ctx.runMutation(
+              internal.domains.search.federatedSearchCache.incrementHitCount,
+              { cacheKey },
+            );
+            return parsed;
+          } catch (err) {
+            console.warn(
+              "[federatedSearch] cached row failed to parse, falling through:",
+              err,
+            );
+          }
+        }
+      } catch (err) {
+        console.warn("[federatedSearch] cache lookup error, falling through:", err);
+      }
+    }
+
     // PR E: compute the query embedding ONCE per federatedSearch call so
     // every per-collection vector search reuses the same vector. Returns
     // null if OPENAI_API_KEY is missing or the call failed — collections
@@ -884,7 +940,7 @@ export const federatedSearch = action({
     }
 
     const partial = results.some((r) => !r.ok);
-    return {
+    const finalResponse: FederatedSearchResponse = {
       query: trimmedQuery,
       collections: results,
       total,
@@ -898,6 +954,34 @@ export const federatedSearch = action({
       // result origin is encoded in the rrfMerge score on each handle.
       hybridUsed: queryEmbedding !== null,
     };
+
+    /* ──────────────────────────────────────────────────────────────
+     * PHASE 12 — Cache WRITE.
+     *
+     * Persist the live response under the same cacheKey computed at
+     * the read step.  Skipped when:
+     *   - cacheKey is null (authenticated call — never cached)
+     *   - timedOut === true (don't cache partial-by-timeout responses)
+     *
+     * `partial === true` IS cacheable — the response shape is honest
+     * about which collections failed via per-collection ok flags.
+     *
+     * ERROR_BOUNDARY: void the write (no await on response path).
+     * ────────────────────────────────────────────────────────────── */
+    if (cacheKey && !timedOut) {
+      void ctx.runMutation(
+        internal.domains.search.federatedSearchCache.writeFederatedCache,
+        {
+          cacheKey,
+          queryNormalized: trimmedQuery.toLowerCase(),
+          collections: collections as string[],
+          limit,
+          response: JSON.stringify(finalResponse),
+        },
+      );
+    }
+
+    return finalResponse;
   },
 });
 
