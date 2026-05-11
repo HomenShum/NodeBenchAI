@@ -73,6 +73,7 @@ import {
 import { useIdleGate } from "@/lib/performance/useIdleGate";
 import { useRoutePerformanceRecord } from "@/lib/performance/routeTiming";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { useViewportMobile, TAILWIND_MD_QUERY } from "@/hooks/useViewportMobile";
 import {
   FIRST_IMPRESSION_HORIZONS,
   createBackgroundResearchRequest,
@@ -360,6 +361,26 @@ function MobileIcon({ name, size = 16 }: { name: string; size?: number }) {
   return <Icon size={size} strokeWidth={1.8} aria-hidden />;
 }
 
+/**
+ * ResponsiveSurface — conditionally renders the mobile OR desktop variant.
+ *
+ * Previously this mounted BOTH trees with CSS `md:hidden` / `hidden md:block`
+ * gates. That caused 3 distinct `<h1>` elements to ship in the raw DOM at
+ * production (mobile + desktop H1s + the desktop hero H1), failing SEO
+ * crawlers and screen readers even though only one was visible to sighted
+ * desktop users.
+ *
+ * Fix: subscribe to matchMedia and render only the matching variant. The
+ * inactive tree is unmounted entirely — no DOM presence, no duplicate H1s.
+ *
+ * We keep the Tailwind `md` breakpoint (767px) here so visual behavior is
+ * preserved bit-for-bit. The shared hook is parameterized so other call-
+ * sites (CockpitLayout's isCompactLayout at 1280px) can opt into their own
+ * breakpoint without forking the implementation.
+ *
+ * See `.claude/rules/live_dom_verification.md` — single-H1 in raw HTML is
+ * one of the concrete content signals this rule polices.
+ */
 function ResponsiveSurface({
   mobile,
   children,
@@ -367,15 +388,14 @@ function ResponsiveSurface({
   mobile: MobileSurface;
   children: ReactNode;
 }) {
+  const isMobile = useViewportMobile(TAILWIND_MD_QUERY);
+  if (isMobile) {
+    return <ExactMobileSurface surface={mobile} />;
+  }
   return (
-    <>
-      <div className="md:hidden">
-        <ExactMobileSurface surface={mobile} />
-      </div>
-      <div className="nb-kit hidden min-h-full md:block">
-        <div className="nb-shell">{children}</div>
-      </div>
-    </>
+    <div className="nb-kit min-h-full">
+      <div className="nb-shell">{children}</div>
+    </div>
   );
 }
 
