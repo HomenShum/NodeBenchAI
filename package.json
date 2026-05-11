@@ -10,7 +10,7 @@
     "dev:voice": "tsx --watch --env-file=.env.local server/index.ts",
     "build": "npm run build:search-api-bundle && vite build",
     "build:search-api-bundle": "npx esbuild server/vercel/searchApp.ts --bundle --packages=external --platform=node --format=esm --target=node20 --outfile=api/_searchApp.bundle.mjs",
-    "deploy:convex": "convex deploy -y --typecheck=enable",
+    "deploy:convex": "node scripts/deploy-convex-prod.mjs",
     "deploy:prod": "bash scripts/deploy-prod.sh",
     "preflight": "node scripts/preflight-deploy.mjs",
     "preflight:production": "node scripts/preflight-deploy.mjs --target=production",
