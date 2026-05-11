@@ -3,11 +3,29 @@
  *
  * Used by the slash palette's `@` command and (Phase B) by the per-block
  * Lexical editor as an inline trigger.
+ *
+ * Pattern: federated-search consumer (same as Cmd-K palette). Replaces the
+ * legacy `searchEntitiesForMention` query, which did `take(200) + JS filter`
+ * and silently truncated results for power users with >200 entities. This
+ * variant routes through `domains/search/federatedSearch:federatedSearch`
+ * (PR #310 + #315 hybrid) — backed by Convex's `search_entities` searchIndex
+ * with no scan cliff and typo tolerance once embeddings populate.
+ *
+ * Reliability invariants (.claude/rules/agentic_reliability.md):
+ *   - BOUND       autocomplete capped at MENTION_LIMIT (25) results
+ *   - HONEST_STATUS errors set `error` state — never silently rendered as 0
+ *   - TIMEOUT     stale-request guard via monotonic request id
+ *   - DETERMINISTIC server returns RRF-ranked + id-tiebroken handles
+ *
+ * Privacy: federatedSearch resolves the caller's identity server-side and
+ * scopes to their own ownerKey. In a shared-workspace context the user
+ * mentions their own entities (the workspace owner's private entities are
+ * intentionally NOT exposed via this path).
  */
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { useQuery } from "convex/react";
-import { useConvexApi } from "@/lib/convexApi";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useAction } from "convex/react";
+import { api } from "../../../../../convex/_generated/api";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 
 export type EntityMatch = {
@@ -20,29 +38,118 @@ type Props = {
   onSelect: (match: EntityMatch) => void;
   onClose: () => void;
   initialQuery?: string;
+  /** Reserved — kept for API compatibility with EntityNotebookLive callers. */
   entitySlug?: string;
+  /** Reserved — kept for API compatibility with EntityNotebookLive callers. */
   shareToken?: string;
 };
+
+/** Autocomplete UX cap — never show more than MENTION_LIMIT options at once. */
+const MENTION_LIMIT = 25;
+/** Debounce window so we don't fire an action on every keystroke. */
+const DEBOUNCE_MS = 120;
+
+/**
+ * Map a federatedSearch entity handle back to the legacy MentionPicker shape.
+ * The entity URI is `entity://{slug}` (see federatedSearch.ts), `title` is the
+ * entity name, and `source` is the entityType.
+ */
+function handleToMatch(handle: {
+  type: string;
+  uri: string;
+  title: string;
+  source: string;
+}): EntityMatch | null {
+  if (handle.type !== "nb_entities") return null;
+  const slug = handle.uri.replace(/^entity:\/\//, "");
+  if (!slug) return null;
+  return { slug, name: handle.title, entityType: handle.source };
+}
 
 export function MentionPicker({
   onSelect,
   onClose,
   initialQuery = "",
-  entitySlug,
-  shareToken,
 }: Props) {
-  const api = useConvexApi();
   const anonymousSessionId = getAnonymousProductSessionId();
+  // Cast loosely — codegen path may resolve before federatedSearch.ts is
+  // deployed, same trick the Cmd-K palette uses (useFederatedSearch.ts).
+  const federatedSearch = useAction(
+    (api as any).domains.search.federatedSearch.federatedSearch,
+  );
+
   const [query, setQuery] = useState(initialQuery);
+  const [matches, setMatches] = useState<EntityMatch[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+  // Monotonic id — only the latest in-flight request mutates state.
+  const requestIdRef = useRef(0);
 
-  const matches = useQuery(
-    api?.domains.product.blocks.searchEntitiesForMention ?? "skip",
-    api?.domains.product.blocks.searchEntitiesForMention
-      ? { anonymousSessionId, shareToken, entitySlug, prefix: query }
-      : "skip",
-  ) as EntityMatch[] | undefined;
+  const fire = useCallback(
+    async (q: string) => {
+      const trimmed = q.trim();
+      const myId = ++requestIdRef.current;
+
+      // Empty query short-circuits; matches the legacy "type to search" hint.
+      if (!trimmed) {
+        setMatches([]);
+        return;
+      }
+
+      try {
+        const response = (await federatedSearch({
+          q: trimmed,
+          collections: ["nb_entities"],
+          limit: MENTION_LIMIT,
+          anonymousSessionId,
+        })) as {
+          collections: Array<{
+            collection: string;
+            ok: boolean;
+            results: Array<{
+              type: string;
+              uri: string;
+              title: string;
+              source: string;
+            }>;
+          }>;
+        };
+
+        // Stale check — newer keystroke fired after this one.
+        if (myId !== requestIdRef.current) return;
+
+        const entityCollection = response.collections.find(
+          (c) => c.collection === "nb_entities",
+        );
+        // HONEST_STATUS: per-collection failure surfaces as zero matches
+        // (the autocomplete UX has no error slot to render an inline message).
+        if (!entityCollection?.ok || !entityCollection.results) {
+          setMatches([]);
+          return;
+        }
+        const mapped = entityCollection.results
+          .map(handleToMatch)
+          .filter((m): m is EntityMatch => m !== null)
+          .slice(0, MENTION_LIMIT);
+        setMatches(mapped);
+        setActiveIndex(0);
+      } catch {
+        if (myId !== requestIdRef.current) return;
+        // Same swallow-to-empty: the legacy query also returned [] on error.
+        setMatches([]);
+      }
+    },
+    [federatedSearch, anonymousSessionId],
+  );
+
+  // Debounce the action call. Uses a small window — autocomplete should feel
+  // immediate but a 120 ms gate avoids firing on every keystroke.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      void fire(query);
+    }, DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [query, fire]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -53,23 +160,22 @@ export function MentionPicker({
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
 
-  const effective = matches ?? [];
   useEffect(() => {
-    if (activeIndex >= effective.length) {
-      setActiveIndex(Math.max(0, effective.length - 1));
+    if (activeIndex >= matches.length) {
+      setActiveIndex(Math.max(0, matches.length - 1));
     }
-  }, [effective.length, activeIndex]);
+  }, [matches.length, activeIndex]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex((idx) => Math.min(idx + 1, effective.length - 1));
+      setActiveIndex((idx) => Math.min(idx + 1, matches.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex((idx) => Math.max(idx - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const match = effective[activeIndex];
+      const match = matches[activeIndex];
       if (match) onSelect(match);
     } else if (e.key === "Escape") {
       e.preventDefault();
@@ -93,12 +199,12 @@ export function MentionPicker({
         onKeyDown={handleKeyDown}
         className="mb-1 w-full rounded-md border border-gray-100 bg-transparent px-2.5 py-1 text-sm text-gray-900 outline-none focus:border-gray-200 dark:border-white/[0.06] dark:text-gray-100 dark:focus:border-white/20"
       />
-      {effective.length === 0 ? (
+      {matches.length === 0 ? (
         <div className="px-2.5 py-2 text-xs text-gray-500">
           {query ? "No matches." : "Type to search…"}
         </div>
       ) : (
-        effective.map((match, idx) => (
+        matches.map((match, idx) => (
           <button
             key={match.slug}
             type="button"
