@@ -49,7 +49,8 @@ export type MainView =
   | "entity-compare"
   | "benchmark-comparison"
   | "role-lens-output"
-  | "homes-hub-session";
+  | "homes-hub-session"
+  | "event-corpus";
 
 export type ResearchTab = "overview" | "signals" | "briefing" | "deals" | "changes" | "changelog";
 
@@ -608,6 +609,31 @@ export const VIEW_REGISTRY: ViewRegistryEntry[] = [
     commandPaletteVisible: false,
   },
 
+  // ── Event Corpus Explorer ───────────────────────────────────────────────
+  // Dynamic route /events/:eventId — corpus of sources, mentions, and linked
+  // entities for a single event. The active rendering lives in App.tsx's
+  // top-level routing block; this entry exists so resolveViewFromPath +
+  // Cmd-K know the route is real (otherwise the cockpit resolver short-
+  // circuits to control-plane / "isUnknownRoute: true"). The cockpit-state
+  // resolver also extracts the eventId into `entityName` — same channel
+  // /entity/:slug uses.
+  {
+    id: "event-corpus",
+    title: "Event Corpus",
+    subtitle: "Sources, mentions, and linked entities for one event",
+    path: "/events",
+    component: lazyView(() =>
+      import("@/features/events/views/EventCorpusExplorer").then((m) => ({
+        default: m.EventCorpusExplorer,
+      })),
+    ),
+    dynamic: true,
+    group: "nested",
+    navVisible: false,
+    surfaceId: "packets",
+    commandPaletteVisible: false,
+  },
+
   // ── Entity Compare ──────────────────────────────────────────────────────
   {
     id: "entity-compare",
@@ -1081,6 +1107,16 @@ export function resolvePathToView(rawPathname: string): {
     const match = (rawPathname || "").match(/^\/report[\\/](.+)$/i);
     const reportId = match ? decodeURIComponent(match[1]) : null;
     return { view: "report-detail", entityName: reportId, spreadsheetId: null, researchTab: "overview", isUnknownRoute: false };
+  }
+
+  // /events/:eventId — event corpus explorer. Same channel as /entity/:slug:
+  // the slug rides in `entityName`. Without this branch, the generic
+  // candidates loop below would resolve "/events" via prefix match but drop
+  // the slug, leaving the cockpit unable to tell which event was requested.
+  if (pathname.startsWith("/events/")) {
+    const match = (rawPathname || "").match(/^\/events[\\/](.+)$/i);
+    const eventId = match ? decodeURIComponent(match[1]) : null;
+    return { view: "event-corpus", entityName: eventId, spreadsheetId: null, researchTab: "overview", isUnknownRoute: false };
   }
 
   // General matching: longest path wins. Never let "/" swallow all routes.
