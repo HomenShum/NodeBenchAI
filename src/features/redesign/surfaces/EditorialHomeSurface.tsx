@@ -51,9 +51,13 @@ import { CapabilitiesMap } from "../components/edition/CapabilitiesMap";
 import { EvidenceChecklistStrip } from "../components/edition/EvidenceChecklistStrip";
 import { isVideoUrl } from "../utils/videoProvider";
 import { useTodayPulse } from "../hooks/useTodayPulse";
-import { useActiveHypotheses, type EditionHypothesis } from "../hooks/useActiveHypotheses";
-import { useTopForecasts, type EditionForecast } from "../hooks/useTopForecasts";
+import { useTodayPulseSwr } from "../hooks/useTodayPulseSwr";
+import { type EditionHypothesis } from "../hooks/useActiveHypotheses";
+import { useActiveHypothesesSwr } from "../hooks/useActiveHypothesesSwr";
+import { type EditionForecast } from "../hooks/useTopForecasts";
+import { useTopForecastsSwr } from "../hooks/useTopForecastsSwr";
 import { useLatestDailyBriefSnapshot } from "../hooks/useLatestDailyBriefSnapshot";
+import { useLatestDailyBriefSnapshotSwr } from "../hooks/useLatestDailyBriefSnapshotSwr";
 import { useCapabilitiesDelta } from "../hooks/useCapabilitiesDelta";
 import { useEditionFootnotes } from "../hooks/useEditionFootnotes";
 // P0 #3 — temporal browsing imports.  Note: useHomePulseLive +
@@ -1270,10 +1274,28 @@ function TodayRender({
   selection: { kind: "today" };
   onSwitchToClassic: () => void;
 }) {
-  const hypotheses = useActiveHypotheses(5);
-  const forecasts = useTopForecasts(5);
-  const todayPulse = useTodayPulse(12);
-  const snapshot = useLatestDailyBriefSnapshot();
+  // SWR wrappers: hydrate from IndexedDB cache on second-and-subsequent
+  // visits so /redesign paints instantly while Convex revalidates.  See
+  // src/lib/performance/idbSwrCache.ts for the bounded LRU + timeout
+  // contract.  Per HONEST_STATUS, each `.swr` payload exposes
+  // `hydratedFromCache` + `isLive` so we can render a quiet cache notice.
+  const hypothesesSwr = useActiveHypothesesSwr(5);
+  const forecastsSwr = useTopForecastsSwr(5);
+  const todayPulseSwr = useTodayPulseSwr(12);
+  const snapshotSwr = useLatestDailyBriefSnapshotSwr();
+
+  const hypotheses = hypothesesSwr.data;
+  const forecasts = forecastsSwr.data;
+  const todayPulse = todayPulseSwr.data;
+  const snapshot = snapshotSwr.data;
+
+  // Aggregate cache state — chip renders only when at least one
+  // section is showing cached data and not yet swapped to live.
+  const cacheNoticeActive =
+    (hypothesesSwr.swr.hydratedFromCache && !hypothesesSwr.swr.isLive) ||
+    (forecastsSwr.swr.hydratedFromCache && !forecastsSwr.swr.isLive) ||
+    (todayPulseSwr.swr.hydratedFromCache && !todayPulseSwr.swr.isLive) ||
+    (snapshotSwr.swr.hydratedFromCache && !snapshotSwr.swr.isLive);
 
   // Collect artifactIds from §2's hypotheses for footnotes (§6).
   const artifactIds = useMemo(() => {
@@ -1456,6 +1478,17 @@ function TodayRender({
           onChatNow={(text) => onAsk(text)}
           placeholder="Ask to extend today's edition…"
         />
+
+        {cacheNoticeActive && (
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="rd-cache-notice"
+            className="rd-cache-notice"
+          >
+            Showing cached edition · refreshing…
+          </div>
+        )}
 
         <EditionErrorBoundary label="what-moved">
           <WhatMovedSection
