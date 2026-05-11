@@ -481,13 +481,19 @@
 }
 
 /* ─── Phase 7b: Edition TOC (right-rail scroll-spy) ─────────────── */
-/* Hidden on mobile (single column rules); shown on >=1024px as a
-   fixed rail that doesn't displace the 720px center column.        */
+/* Hidden on mobile + narrow desktops (single column rules); shown
+   on >=1200px as a fixed rail that doesn't overlap the 720px center
+   column.
+   Math: center column right edge at viewport vw is (vw+720)/2.  TOC
+   left edge is vw-24-180 = vw-204.  Non-overlap requires
+   vw-204 >= (vw+720)/2 → vw >= 1128.  Round up to 1200 to leave a
+   visible gap.  Hot-fix 2026-05-11: was 1024, which caused
+   14-52px overlap on viewports 1024-1180px (analyst_diagnostic). */
 [data-redesign] [data-edition] .rd-edition-toc {
   display: none;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1200px) {
   [data-redesign] [data-edition] .rd-edition-toc {
     display: block;
     position: fixed;
