@@ -27,6 +27,7 @@ export { useVoiceOutput } from "./useVoiceOutput";
 export { useZoom } from "./useZoom";
 export { useScreenCapture } from "./useScreenCapture";
 export { useReducedMotion } from "./useReducedMotion";
+export { useViewportMobile, COMPACT_LAYOUT_QUERY, TAILWIND_MD_QUERY } from "./useViewportMobile";
 export { useRevealOnMount } from "./useRevealOnMount";
 export { useStableQuery } from "./useStableQuery";
 export { useTimeContext } from "./useTimeContext";
