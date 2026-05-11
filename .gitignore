@@ -104,6 +104,7 @@ public/dogfood/scribe/userdata/
 
 # Overstory multi-agent orchestration
 .worktrees/
+.claude/worktrees/
 .overstory/engine/
 .overstory/worktrees/
 .overstory/overstory.db
