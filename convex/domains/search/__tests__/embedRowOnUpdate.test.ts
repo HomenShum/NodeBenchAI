@@ -180,12 +180,16 @@ describe("bounded — HONEST_STATUS reason cap", () => {
 
 describe("embedSingle — OpenAI fetch wire shape", () => {
   let originalKey: string | undefined;
-  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  // The DOM fetch type has overload signatures vi.spyOn can't infer cleanly;
+  // typing as the loose vi.MockInstance so the rest of the suite stays strict.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fetchSpy: any;
 
   beforeEach(() => {
     originalKey = process.env.OPENAI_API_KEY;
     process.env.OPENAI_API_KEY = "sk-test-key-for-fetch-mock";
-    fetchSpy = vi.spyOn(globalThis, "fetch");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetchSpy = vi.spyOn(globalThis as any, "fetch");
   });
 
   afterEach(() => {
