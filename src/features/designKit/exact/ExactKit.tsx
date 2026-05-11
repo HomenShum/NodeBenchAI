@@ -625,8 +625,8 @@ function NBPulseStrip({ liveEntities }: { liveEntities?: Array<any> | null }) {
     <section className="nb-pulse" data-layout="card-grid" data-scale="big" data-testid="exact-home-pulse-strip">
       <header className="nb-pulse-head">
         <div>
-          <div className="nb-kicker">Memory pulse</div>
-          <h2 className="nb-pulse-title">Every chat makes the next one faster.</h2>
+          <div className="nb-kicker">Today's signals</div>
+          <h2 className="nb-pulse-title">What changed across your watched entities.</h2>
           <p className="nb-pulse-sub">Public context compounds. Private notes stay private.</p>
         </div>
         <span className="nb-pulse-priv" title="Private notes never leak into public counters.">
