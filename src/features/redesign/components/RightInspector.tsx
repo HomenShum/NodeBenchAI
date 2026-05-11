@@ -2,10 +2,24 @@
  * RightInspector — chat-page right rail.
  *
  * Spec: active entity card · graph preview · sources · prior threads · report status.
+ *
+ * Mounted widgets (top → bottom):
+ *   - Report status
+ *   - VoiceCostBadge (signed-in only — daily voice spend + tier-fallback
+ *     transparency. The widget shape — `<section>` with rounded border +
+ *     padding — matches the existing `rd-card` cadence. Mounted here per
+ *     the design pattern: sticky widgets in the right rail. HONEST_STATUS:
+ *     the badge is suppressed entirely for signed-out viewers (no fake
+ *     userId), and renders its own loading skeleton when Convex query
+ *     is undefined.)
+ *   - Active entity card
+ *   - Graph preview · sources · prior threads
  */
 
 import { Pill } from "./Pill";
 import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtifacts";
+import { VoiceCostBadge } from "@/features/voice";
+import { useCurrentUserId } from "@/hooks/useCurrentUser";
 
 export function RightInspector() {
   const liveArtifacts = useLiveArtifacts(12);
@@ -14,6 +28,9 @@ export function RightInspector() {
   const summary = detail?.summary ?? "Ask a question, capture a note, or open a live artifact to hydrate this inspector.";
   const sources = detail?.sourceRows.slice(0, 4) ?? [];
   const nodes = detail?.nodes.slice(0, 5) ?? [];
+  // HONEST_STATUS — only mount VoiceCostBadge for signed-in viewers.
+  // `null` = signed out (skip), `undefined` = loading auth (skip until known).
+  const userId = useCurrentUserId();
 
   return (
     <aside className="rd-pane rd-pane--right" style={{ padding: "20px 18px", gap: 16 }}>
@@ -30,6 +47,11 @@ export function RightInspector() {
           <span>{detail?.followUps ?? 0} follow-ups</span>
         </div>
       </section>
+
+      {/* Voice cost badge — signed-in only. Reuses the existing widget
+          shipped in PR #312 (was tree-shaken because nothing imported it).
+          See module header for HONEST_STATUS rationale. */}
+      {userId && <VoiceCostBadge userId={userId} />}
 
       {/* Active entity card */}
       <section className="rd-card rd-card__pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
