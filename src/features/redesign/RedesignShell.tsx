@@ -16,6 +16,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { useViewportMobile } from "@/hooks/useViewportMobile";
+
 import "./tokens.css";
 import "./primitives.css";
 
@@ -82,7 +84,10 @@ export default function RedesignShell() {
   const navigate = useNavigate();
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [forceMobile, setForceMobile] = useState(false);
-  const isMobile = useViewportMobile() || forceMobile;
+  // Phase 7d preserves the redesign-specific 760px phone breakpoint.
+  // The shared hook is parameterized so other call-sites (CockpitLayout,
+  // ExactKit) can opt into their own breakpoint without forking.
+  const isMobile = useViewportMobile("(max-width: 760px)") || forceMobile;
   const showQaChrome = useQaChromeFlag(location.search);
   const cmdk = useCommandPalette();
 
@@ -274,19 +279,6 @@ function useQaChromeFlag(search: string): boolean {
       return false;
     }
   }, [search]);
-}
-
-function useViewportMobile() {
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 760px)").matches : false
-  );
-  useEffect(() => {
-    const mql = window.matchMedia("(max-width: 760px)");
-    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
-  return isMobile;
 }
 
 function ViewportFab({ forceMobile, setForceMobile }: { forceMobile: boolean; setForceMobile: (v: boolean) => void }) {
