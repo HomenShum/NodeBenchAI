@@ -14,7 +14,9 @@
  *     fails the whole call (HONEST_STATUS).
  *
  * Reliability invariants (per .claude/rules/agentic_reliability.md):
- *   - BOUND: per-collection limit clamped to 25; total cap 50.
+ *   - BOUND: per-collection limit clamped to 25; total cap 50. Each
+ *     visibility branch ALSO clamped to the same per-collection limit
+ *     (so the merged worst case is still 2*limit pre-dedupe, not 7×).
  *   - HONEST_STATUS: per-collection error returns { ok: false, error }
  *     in the response, the action itself never throws.
  *   - HONEST_SCORES: RRF score is computed from actual rank positions.
@@ -23,13 +25,26 @@
  *   - BOUND_READ: per-result snippet capped at MAX_SNIPPET_CHARS.
  *   - ERROR_BOUNDARY: each per-collection search wrapped in try/catch.
  *   - DETERMINISTIC: same args + same data → same order; RRF tiebreaks
- *     by id ascending.
+ *     by id ascending. Visibility merge dedupes by row _id so a row owned
+ *     by the current user with visibility="public" appears exactly once.
  *
- * Privacy: every per-collection search filters on the resolved identity's
- * ownerKey (anonymous: anonymous-prefixed key only; authenticated: user's
- * ownerKey only). Cross-tenant leaks are not possible by construction.
+ * Visibility model (PR public-visibility, May 2026):
+ *   - Each owner-scoped collection (entities/reports/blocks/claims) has a
+ *     per-row `visibility: "public" | "team" | "private"` field
+ *     (productReports uses the legacy `"workspace"` literal in lieu of
+ *     `"team"` — semantically equivalent for the public-or-not gate).
+ *   - PUBLIC branch: every caller (anonymous or authenticated) runs an
+ *     eq("visibility", "public") search.
+ *   - OWNER branch: only authenticated/anon-session callers with a
+ *     resolved ownerKey ALSO run an eq("ownerKey", X) search to see their
+ *     own private + team rows.
+ *   - Merge dedupes by row _id so a public row owned by the caller
+ *     appears exactly once. Anonymous callers see PUBLIC rows from any
+ *     owner — that's the point. Cross-tenant private leaks are impossible
+ *     by construction (the OWNER branch is gated on the resolved key, the
+ *     PUBLIC branch is gated on `visibility="public"`).
  *
- * See: docs/architecture/CONVEX_FEDERATED_SEARCH.md (this PR).
+ * See: docs/architecture/CONVEX_FEDERATED_SEARCH.md.
  */
 
 import { v } from "convex/values";
@@ -75,6 +90,14 @@ export type FederatedHandle = {
   score: number;
   source: string;
   actions: string[];
+  /**
+   * Stable row identifier used to DEDUPE across the public-visibility
+   * branch and the owner-scoped branch. A row owned by the caller with
+   * visibility="public" matches BOTH branches; we keep the first one and
+   * drop the duplicate. Stringified Convex Id; `undefined` for handles
+   * synthesized by tests where the id is not material.
+   */
+  rowId?: string;
 };
 
 export type CollectionResult = {
@@ -113,24 +136,73 @@ export type FederatedSearchResponse = {
 /*   - returns shaped FederatedHandle[]                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Args for the owner-scoped search workers. `ownerKey` is nullable now —
+ * anonymous callers without a session pass `null` and only the public
+ * branch runs.
+ */
 const SEARCH_QUERY_ARGS = {
   q: v.string(),
   limit: v.number(),
-  ownerKey: v.string(),
+  ownerKey: v.union(v.string(), v.null()),
 };
+
+/**
+ * Merge two ranked handle lists, preserving order, deduping by `rowId`.
+ * Public-branch entries come first (the caller wants public results to
+ * surface even when they own a row), then owner-scoped entries that the
+ * public branch did NOT already include.
+ *
+ * DETERMINISTIC — same inputs always produce the same merged list because
+ * (a) each branch's input order is deterministic (Convex search index +
+ * `.take(N)`), and (b) we walk the inputs in fixed order using a Set for
+ * dedupe membership.
+ */
+function mergeVisibilityBranches(
+  publicResults: FederatedHandle[],
+  ownerResults: FederatedHandle[],
+  limit: number,
+): FederatedHandle[] {
+  const seen = new Set<string>();
+  const out: FederatedHandle[] = [];
+  for (const handle of publicResults) {
+    if (handle.rowId && seen.has(handle.rowId)) continue;
+    if (handle.rowId) seen.add(handle.rowId);
+    out.push(handle);
+    if (out.length >= limit) return out;
+  }
+  for (const handle of ownerResults) {
+    if (handle.rowId && seen.has(handle.rowId)) continue;
+    if (handle.rowId) seen.add(handle.rowId);
+    out.push(handle);
+    if (out.length >= limit) return out;
+  }
+  return out;
+}
 
 export const searchEntities = internalQuery({
   args: SEARCH_QUERY_ARGS,
   handler: async (ctx, args): Promise<FederatedHandle[]> => {
     const limit = clampLimit(args.limit);
     if (!args.q.trim()) return [];
-    const rows = await ctx.db
+    // PUBLIC branch — every caller, including anonymous, sees these.
+    const publicRows = await ctx.db
       .query("productEntities")
       .withSearchIndex("search_entities", (q) =>
-        q.search("searchableText", args.q).eq("ownerKey", args.ownerKey),
+        q.search("searchableText", args.q).eq("visibility", "public"),
       )
       .take(limit);
-    return rows.map((row) => ({
+    // OWNER branch — only callers with a resolved ownerKey see their own
+    // private + team rows. Skipped entirely for anonymous-no-session.
+    const ownerRows = args.ownerKey
+      ? await ctx.db
+          .query("productEntities")
+          .withSearchIndex("search_entities", (q) =>
+            q.search("searchableText", args.q).eq("ownerKey", args.ownerKey!),
+          )
+          .take(limit)
+      : [];
+    const shape = (row: typeof publicRows[number]): FederatedHandle => ({
       type: "nb_entities" as const,
       uri: `entity://${row.slug}`,
       title: row.name,
@@ -138,7 +210,13 @@ export const searchEntities = internalQuery({
       score: 1,
       source: row.entityType,
       actions: ["open_entity", "lookup_entity", "suggest_related"],
-    }));
+      rowId: String(row._id),
+    });
+    return mergeVisibilityBranches(
+      publicRows.map(shape),
+      ownerRows.map(shape),
+      limit,
+    );
   },
 });
 
@@ -147,13 +225,21 @@ export const searchReports = internalQuery({
   handler: async (ctx, args): Promise<FederatedHandle[]> => {
     const limit = clampLimit(args.limit);
     if (!args.q.trim()) return [];
-    const rows = await ctx.db
+    const publicRows = await ctx.db
       .query("productReports")
       .withSearchIndex("search_reports", (q) =>
-        q.search("searchableText", args.q).eq("ownerKey", args.ownerKey),
+        q.search("searchableText", args.q).eq("visibility", "public"),
       )
       .take(limit);
-    return rows.map((row) => ({
+    const ownerRows = args.ownerKey
+      ? await ctx.db
+          .query("productReports")
+          .withSearchIndex("search_reports", (q) =>
+            q.search("searchableText", args.q).eq("ownerKey", args.ownerKey!),
+          )
+          .take(limit)
+      : [];
+    const shape = (row: typeof publicRows[number]): FederatedHandle => ({
       type: "nb_reports" as const,
       uri: `report://${row._id}`,
       title: row.title,
@@ -161,7 +247,13 @@ export const searchReports = internalQuery({
       score: 1,
       source: row.lens ?? "report",
       actions: ["open_report", "search_report_context"],
-    }));
+      rowId: String(row._id),
+    });
+    return mergeVisibilityBranches(
+      publicRows.map(shape),
+      ownerRows.map(shape),
+      limit,
+    );
   },
 });
 
@@ -170,13 +262,21 @@ export const searchBlocks = internalQuery({
   handler: async (ctx, args): Promise<FederatedHandle[]> => {
     const limit = clampLimit(args.limit);
     if (!args.q.trim()) return [];
-    const rows = await ctx.db
+    const publicRows = await ctx.db
       .query("productBlocks")
       .withSearchIndex("search_blocks", (q) =>
-        q.search("searchableText", args.q).eq("ownerKey", args.ownerKey),
+        q.search("searchableText", args.q).eq("visibility", "public"),
       )
       .take(limit);
-    return rows.map((row) => ({
+    const ownerRows = args.ownerKey
+      ? await ctx.db
+          .query("productBlocks")
+          .withSearchIndex("search_blocks", (q) =>
+            q.search("searchableText", args.q).eq("ownerKey", args.ownerKey!),
+          )
+          .take(limit)
+      : [];
+    const shape = (row: typeof publicRows[number]): FederatedHandle => ({
       type: "nb_notebook_blocks" as const,
       uri: `block://${row._id}`,
       title: row.kind,
@@ -184,7 +284,13 @@ export const searchBlocks = internalQuery({
       score: 1,
       source: row.authorKind,
       actions: ["open_block", "open_entity"],
-    }));
+      rowId: String(row._id),
+    });
+    return mergeVisibilityBranches(
+      publicRows.map(shape),
+      ownerRows.map(shape),
+      limit,
+    );
   },
 });
 
@@ -193,13 +299,21 @@ export const searchClaims = internalQuery({
   handler: async (ctx, args): Promise<FederatedHandle[]> => {
     const limit = clampLimit(args.limit);
     if (!args.q.trim()) return [];
-    const rows = await ctx.db
+    const publicRows = await ctx.db
       .query("productClaims")
       .withSearchIndex("search_claims", (q) =>
-        q.search("claimText", args.q).eq("ownerKey", args.ownerKey),
+        q.search("claimText", args.q).eq("visibility", "public"),
       )
       .take(limit);
-    return rows.map((row) => ({
+    const ownerRows = args.ownerKey
+      ? await ctx.db
+          .query("productClaims")
+          .withSearchIndex("search_claims", (q) =>
+            q.search("claimText", args.q).eq("ownerKey", args.ownerKey!),
+          )
+          .take(limit)
+      : [];
+    const shape = (row: typeof publicRows[number]): FederatedHandle => ({
       type: "nb_claims" as const,
       uri: `claim://${row._id}`,
       title: boundSnippet(row.claimText),
@@ -207,7 +321,13 @@ export const searchClaims = internalQuery({
       score: 1,
       source: row.claimType,
       actions: ["open_claim", "open_report", "lookup_entity"],
-    }));
+      rowId: String(row._id),
+    });
+    return mergeVisibilityBranches(
+      publicRows.map(shape),
+      ownerRows.map(shape),
+      limit,
+    );
   },
 });
 
@@ -534,15 +654,20 @@ async function dispatchOne(
     args;
   switch (collection) {
     case "nb_entities": {
-      if (!ownerKey) return [];
+      // PR public-visibility: NO early `if (!ownerKey) return []` — the
+      // public visibility branch is allowed for anonymous callers. The
+      // searchEntities worker handles the public+owner merge internally.
       const keyword = await ctx.runQuery(
         internal.domains.search.federatedSearch.searchEntities,
         { q, limit, ownerKey },
       );
       if (!queryEmbedding) return keyword;
-      // Hybrid path — run vector search in parallel with keyword path is
-      // not possible here (we need keyword first), but we run vector
-      // immediately after.
+      // Vector hybrid only runs for owner-scoped rows for now — vector
+      // index visibility filter would require a separate vector call per
+      // branch. Keyword path already surfaces public rows, so this is a
+      // strict superset of pre-PR behavior; vector adds typo recovery
+      // for the owner's private rows. Anonymous callers skip vector.
+      if (!ownerKey) return keyword;
       const vector = await vectorSearchOne(
         ctx,
         "nb_entities",
@@ -553,12 +678,12 @@ async function dispatchOne(
       return mergeHybridResults(keyword, vector, limit);
     }
     case "nb_reports": {
-      if (!ownerKey) return [];
       const keyword = await ctx.runQuery(
         internal.domains.search.federatedSearch.searchReports,
         { q, limit, ownerKey },
       );
       if (!queryEmbedding) return keyword;
+      if (!ownerKey) return keyword;
       const vector = await vectorSearchOne(
         ctx,
         "nb_reports",
@@ -569,12 +694,12 @@ async function dispatchOne(
       return mergeHybridResults(keyword, vector, limit);
     }
     case "nb_notebook_blocks": {
-      if (!ownerKey) return [];
       const keyword = await ctx.runQuery(
         internal.domains.search.federatedSearch.searchBlocks,
         { q, limit, ownerKey },
       );
       if (!queryEmbedding) return keyword;
+      if (!ownerKey) return keyword;
       const vector = await vectorSearchOne(
         ctx,
         "nb_notebook_blocks",
@@ -585,8 +710,8 @@ async function dispatchOne(
       return mergeHybridResults(keyword, vector, limit);
     }
     case "nb_claims":
-      if (!ownerKey) return [];
-      // Claims have no vectorIndex (yet) — keyword only.
+      // Claims have no vectorIndex (yet) — keyword only. Public branch
+      // runs unconditionally; owner branch runs when ownerKey is set.
       return ctx.runQuery(internal.domains.search.federatedSearch.searchClaims, {
         q,
         limit,
