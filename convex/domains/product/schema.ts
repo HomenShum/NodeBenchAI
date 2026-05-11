@@ -764,6 +764,13 @@ export const productClaims = defineTable({
   publishable: v.boolean(),
   rejectionReasons: v.array(v.string()),
   gateResults: v.optional(v.array(productRunGateResultValidator)),
+  // Public-by-default visibility for federated search. Optional so existing
+  // rows back-compat to "public" (claims about public entities are
+  // public-research-derived). Owner-private claims set "private".
+  // See docs/architecture/CONVEX_FEDERATED_SEARCH.md (PR public-visibility).
+  visibility: v.optional(
+    v.union(v.literal("public"), v.literal("team"), v.literal("private")),
+  ),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
@@ -775,10 +782,12 @@ export const productClaims = defineTable({
   .index("by_owner_slot_key", ["ownerKey", "slotKey"])
   .index("by_owner_created", ["ownerKey", "createdAt"])
   // Federated search: index claimText directly (already a single string).
-  // Filter by ownerKey + claimType + publishable for surface-specific queries.
+  // Filter by ownerKey + claimType + publishable + visibility — visibility
+  // lets the federated search action surface public claims to anonymous
+  // callers via a separate eq("visibility", "public") branch.
   .searchIndex("search_claims", {
     searchField: "claimText",
-    filterFields: ["ownerKey", "claimType", "publishable"],
+    filterFields: ["ownerKey", "claimType", "publishable", "visibility"],
   });
 
 export const productClaimSupports = defineTable({
@@ -841,6 +850,14 @@ export const productEntities = defineTable({
   // existing rows are backfilled lazily; un-embedded rows still appear in
   // keyword results, just not vector results.
   embedding: v.optional(v.array(v.float64())),
+  // Public-by-default visibility for federated entity search. Optional —
+  // pre-existing rows are backfilled to "public" (most NodeBench entities
+  // like "Anthropic" or "OpenAI" are public-research-derived). Owners who
+  // want to keep an entity private explicitly set "private".
+  // See docs/architecture/CONVEX_FEDERATED_SEARCH.md (PR public-visibility).
+  visibility: v.optional(
+    v.union(v.literal("public"), v.literal("team"), v.literal("private")),
+  ),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
@@ -849,12 +866,15 @@ export const productEntities = defineTable({
   .index("by_owner_name", ["ownerKey", "name"])
   .searchIndex("search_entities", {
     searchField: "searchableText",
-    filterFields: ["ownerKey", "entityType"],
+    // visibility is filterable so anonymous federated search can run a
+    // separate eq("visibility", "public") branch in parallel with the
+    // owner-scoped branch — and dedupe the merged result.
+    filterFields: ["ownerKey", "entityType", "visibility"],
   })
   .vectorIndex("vec_entities", {
     vectorField: "embedding",
     dimensions: 1536,
-    filterFields: ["ownerKey", "entityType"],
+    filterFields: ["ownerKey", "entityType", "visibility"],
   });
 
 export const productEntityNotes = defineTable({
@@ -1540,6 +1560,13 @@ export const productBlocks = defineTable({
   // Optional; soft-deleted blocks have empty searchableText so we skip
   // generating an embedding for them.
   embedding: v.optional(v.array(v.float64())),
+  // Public-by-default visibility for federated block search. Optional —
+  // pre-existing rows are backfilled to "public" (the surrounding entity is
+  // typically public; blocks that anchor private notes set "private").
+  // See docs/architecture/CONVEX_FEDERATED_SEARCH.md (PR public-visibility).
+  visibility: v.optional(
+    v.union(v.literal("public"), v.literal("team"), v.literal("private")),
+  ),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
@@ -1568,12 +1595,14 @@ export const productBlocks = defineTable({
   .index("by_previous", ["previousBlockId"])
   .searchIndex("search_blocks", {
     searchField: "searchableText",
-    filterFields: ["ownerKey", "entityId", "kind", "authorKind"],
+    // visibility is filterable so anonymous callers can hit
+    // eq("visibility", "public") in parallel with the owner-scoped branch.
+    filterFields: ["ownerKey", "entityId", "kind", "authorKind", "visibility"],
   })
   .vectorIndex("vec_blocks", {
     vectorField: "embedding",
     dimensions: 1536,
-    filterFields: ["ownerKey", "entityId", "kind", "authorKind"],
+    filterFields: ["ownerKey", "entityId", "kind", "authorKind", "visibility"],
   });
 
 export const productBlockRelationKindValidator = v.union(

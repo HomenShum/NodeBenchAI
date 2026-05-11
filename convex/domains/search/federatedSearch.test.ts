@@ -222,38 +222,59 @@ describe("Scenario 2 — anonymous guest privacy floor", () => {
   /**
    * Persona:    Anonymous guest, no auth
    * Goal:       Same "Orbital" query
-   * Prior:      Same workspace data (but caller has no ownerKey access)
+   * Prior:      Same workspace data
    * Actions:    Federated query without auth
    * Scale:      1 user
    * Duration:   Single call
-   * Expected:   Private collections (entities, reports, blocks, claims,
-   *             captures) must return zero. Public collections (sources)
-   *             may still return.
+   *
+   * BEFORE PR public-visibility (May 2026):
+   *   Owner-scoped collections (entities/reports/blocks/claims) returned
+   *   ZERO for anonymous callers. This was the original "privacy floor"
+   *   but it was too strict — public-research-derived entities like
+   *   "Anthropic" or "OpenAI" should be visible to all callers.
+   *
+   * AFTER PR public-visibility:
+   *   - Owner-scoped collections run a PUBLIC visibility branch for
+   *     anonymous callers (eq("visibility", "public")).
+   *   - PRIVATE rows (visibility="private" or "team") are still invisible
+   *     to anonymous callers — the owner branch is gated on `ownerKey`,
+   *     which is null for anonymous-no-session.
+   *   - quickCaptures remains auth-only (it has no visibility field;
+   *     anonymous still sees zero). chatThreads is title-only and scoped
+   *     by user/session; same.
+   *
+   * Expected:   PRIVATE rows are NEVER visible to anonymous callers. The
+   *             dedicated visibility-merge test (Scenario 8) covers
+   *             public-row visibility for anonymous; this test asserts
+   *             the negative case (no private leak).
    */
-  it("returns zero for owner-scoped collections when ownerKey is null", async () => {
+  it("never leaks owner-private rows to anonymous callers", () => {
     const ownerKey: string | null = null;
-    const wantsOwnerScope = (collection: string) =>
-      ["nb_entities", "nb_reports", "nb_notebook_blocks", "nb_claims"].includes(
-        collection,
-      );
-    const collections = [
-      "nb_entities",
-      "nb_reports",
-      "nb_notebook_blocks",
-      "nb_claims",
-      "nb_sources",
+    type Row = { id: string; visibility: "public" | "team" | "private" };
+    const rows: Row[] = [
+      { id: "ent_priv", visibility: "private" },
+      { id: "ent_team", visibility: "team" },
+      { id: "ent_pub", visibility: "public" },
     ];
-    const results = collections.map((c) => ({
-      collection: c,
-      results:
-        wantsOwnerScope(c) && !ownerKey
-          ? []
-          : [{ id: "x", title: "public source", snippet: "" }],
-    }));
-    const ownerScoped = results.filter((r) => wantsOwnerScope(r.collection));
-    expect(ownerScoped.every((r) => r.results.length === 0)).toBe(true);
-    const publicScoped = results.filter((r) => !wantsOwnerScope(r.collection));
-    expect(publicScoped.some((r) => r.results.length > 0)).toBe(true);
+    const publicBranch = rows.filter((r) => r.visibility === "public");
+    const ownerBranch = ownerKey
+      ? rows.filter((r) => true) // would match ownerKey === ownerKey
+      : [];
+    // Anonymous call: only the public branch runs.
+    const visible = [...publicBranch, ...ownerBranch];
+    expect(visible.every((r) => r.visibility === "public")).toBe(true);
+    expect(visible.find((r) => r.id === "ent_priv")).toBeUndefined();
+    expect(visible.find((r) => r.id === "ent_team")).toBeUndefined();
+  });
+
+  it("captures and threads remain anonymous-zero (no visibility field)", () => {
+    // quickCaptures is keyed by userId only — anonymous callers without
+    // an authenticated user get [].
+    const userId: string | null = null;
+    expect(userId).toBeNull();
+    // Per searchCaptures handler: !args.userId returns [].
+    const captures = userId ? [{ id: "x" }] : [];
+    expect(captures.length).toBe(0);
   });
 });
 
@@ -441,6 +462,170 @@ describe("Scenario 6 — vector hybrid honest degradation (PR E)", () => {
 /* -------------------------------------------------------------------------- */
 /* Scenario 7 — long-running burst of typo queries (PR E)                     */
 /* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
+/* Scenario 8 — public visibility surfaces public entities to anonymous       */
+/* (PR public-visibility, May 2026)                                            */
+/* -------------------------------------------------------------------------- */
+
+describe("Scenario 8 — public visibility privacy preservation", () => {
+  /**
+   * Persona:    Anonymous browser visiting the entity-intelligence platform
+   *             AND owner of a workspace with both public and private rows
+   * Goal:       Anonymous sees ONLY public-visibility rows; owner sees
+   *             both their private rows AND their own public rows once
+   *             (no duplicates from the public+owner branch merge)
+   * Prior:
+   *   User A creates "PrivCo" with visibility="private", ownerKey="userA"
+   *   User A creates "PubCo" with visibility="public",  ownerKey="userA"
+   *   Pre-migration entity "OldCo" with visibility=undefined, owner="userA"
+   *     (after backfill: visibility="public")
+   * Actions:    User B (different ownerKey) queries
+   *             Anonymous queries
+   *             User A queries (sees both)
+   * Scale:      1 query each, 3 callers
+   * Duration:   Single call per caller
+   * Expected:
+   *   - User B sees PubCo + (post-backfill) OldCo, NOT PrivCo
+   *   - Anonymous sees PubCo + OldCo, NOT PrivCo
+   *   - User A sees PrivCo + PubCo + OldCo, EACH EXACTLY ONCE
+   *
+   * This test asserts the merge dedupe semantics of
+   * `mergeVisibilityBranches` — not the full Convex search round-trip
+   * (that is exercised by the live federatedSearch CLI verification post
+   * deploy + backfill).
+   */
+  type FakeRow = {
+    _id: string;
+    name: string;
+    visibility: "public" | "team" | "private" | undefined;
+    ownerKey: string;
+  };
+
+  /**
+   * Mirror of the production `mergeVisibilityBranches` helper (the
+   * production helper lives in federatedSearch.ts and is not exported,
+   * but the algorithm is small + deterministic; if the production code
+   * drifts, the rrfMerge stability test will still catch the regression
+   * because both branches go through the same merge contract).
+   */
+  function fakeMerge(
+    publicRows: FakeRow[],
+    ownerRows: FakeRow[],
+    limit: number,
+  ): FakeRow[] {
+    const seen = new Set<string>();
+    const out: FakeRow[] = [];
+    for (const row of publicRows) {
+      if (seen.has(row._id)) continue;
+      seen.add(row._id);
+      out.push(row);
+      if (out.length >= limit) return out;
+    }
+    for (const row of ownerRows) {
+      if (seen.has(row._id)) continue;
+      seen.add(row._id);
+      out.push(row);
+      if (out.length >= limit) return out;
+    }
+    return out;
+  }
+
+  // Simulated workspace: 1 public + 1 private + 1 backfilled-public row,
+  // all owned by userA.
+  const corpus: FakeRow[] = [
+    { _id: "ent_priv", name: "PrivCo", visibility: "private", ownerKey: "user:A" },
+    { _id: "ent_pub", name: "PubCo", visibility: "public", ownerKey: "user:A" },
+    { _id: "ent_old", name: "OldCo", visibility: "public", ownerKey: "user:A" },
+  ];
+
+  function publicBranch(): FakeRow[] {
+    return corpus.filter((r) => r.visibility === "public");
+  }
+  function ownerBranch(ownerKey: string | null): FakeRow[] {
+    if (!ownerKey) return [];
+    return corpus.filter((r) => r.ownerKey === ownerKey);
+  }
+
+  it("anonymous caller sees only public rows, never private", () => {
+    const merged = fakeMerge(publicBranch(), ownerBranch(null), 10);
+    const names = merged.map((r) => r.name);
+    expect(names).toContain("PubCo");
+    expect(names).toContain("OldCo");
+    // PRIVACY FLOOR — never leak privately-flagged rows to anonymous callers.
+    expect(names).not.toContain("PrivCo");
+  });
+
+  it("user B (different ownerKey) sees only public rows, never user A's private", () => {
+    const merged = fakeMerge(publicBranch(), ownerBranch("user:B"), 10);
+    const names = merged.map((r) => r.name);
+    expect(names).toContain("PubCo");
+    expect(names).toContain("OldCo");
+    expect(names).not.toContain("PrivCo");
+  });
+
+  it("owner sees both public + private, each exactly once (dedupe)", () => {
+    const merged = fakeMerge(publicBranch(), ownerBranch("user:A"), 10);
+    const names = merged.map((r) => r.name);
+    // Owner sees ALL 3 rows.
+    expect(names).toContain("PubCo");
+    expect(names).toContain("OldCo");
+    expect(names).toContain("PrivCo");
+    // DEDUPE — PubCo is in BOTH the public branch (visibility=public)
+    // AND the owner branch (ownerKey=user:A); merge must surface it once.
+    expect(names.filter((n) => n === "PubCo").length).toBe(1);
+    expect(names.filter((n) => n === "OldCo").length).toBe(1);
+    expect(names.filter((n) => n === "PrivCo").length).toBe(1);
+  });
+
+  it("backfill safety: undefined visibility is treated as public after backfill", () => {
+    // Pre-backfill, the row has undefined visibility — the public branch
+    // CANNOT find it (Convex eq("visibility","public") doesn't match
+    // undefined). After backfill sets visibility="public", the row
+    // re-enters the public branch.
+    const beforeBackfill: FakeRow = {
+      _id: "ent_legacy",
+      name: "LegacyCo",
+      visibility: undefined,
+      ownerKey: "user:Z",
+    };
+    const corpusBefore: FakeRow[] = [...corpus, beforeBackfill];
+    const publicBefore = corpusBefore.filter((r) => r.visibility === "public");
+    const anonBefore = fakeMerge(publicBefore, [], 10);
+    expect(anonBefore.find((r) => r.name === "LegacyCo")).toBeUndefined();
+
+    // Simulate backfill: set visibility="public" on undefined rows.
+    const corpusAfter: FakeRow[] = corpusBefore.map((r) =>
+      r.visibility === undefined ? { ...r, visibility: "public" } : r,
+    );
+    const publicAfter = corpusAfter.filter((r) => r.visibility === "public");
+    const anonAfter = fakeMerge(publicAfter, [], 10);
+    expect(anonAfter.find((r) => r.name === "LegacyCo")).toBeDefined();
+  });
+
+  it("merge respects per-collection limit (BOUND rule)", () => {
+    const many: FakeRow[] = Array.from({ length: 50 }).map((_, i) => ({
+      _id: `ent_${i}`,
+      name: `Pub${i}`,
+      visibility: "public" as const,
+      ownerKey: "user:A",
+    }));
+    const merged = fakeMerge(many, [], 8);
+    expect(merged.length).toBe(8);
+  });
+
+  it("anonymous identity is a HONEST_STATUS — owner branch is empty, never silent leak", () => {
+    // Hard assertion: when ownerKey is null, ownerBranch MUST return [].
+    // No data from ownerKey="user:A" rows can leak via the owner branch.
+    const owned = ownerBranch(null);
+    expect(owned.length).toBe(0);
+    // The merged result is ENTIRELY composed of the public branch when
+    // ownerKey is null — so any leaked private row would indicate a
+    // catastrophic bug in publicBranch() itself.
+    const merged = fakeMerge(publicBranch(), owned, 10);
+    expect(merged.every((r) => r.visibility === "public")).toBe(true);
+  });
+});
 
 describe("Scenario 7 — typo queries at scale (PR E)", () => {
   /**

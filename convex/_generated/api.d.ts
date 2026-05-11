@@ -979,6 +979,7 @@ import type * as domains_product_shell from "../domains/product/shell.js";
 import type * as domains_product_systemIntelligence from "../domains/product/systemIntelligence.js";
 import type * as domains_product_userWikiMaintainer from "../domains/product/userWikiMaintainer.js";
 import type * as domains_product_userWikiSchema from "../domains/product/userWikiSchema.js";
+import type * as domains_product_visibilityBackfill from "../domains/product/visibilityBackfill.js";
 import type * as domains_product_wikiDreamingEvalProduction from "../domains/product/wikiDreamingEvalProduction.js";
 import type * as domains_product_wikiDreamingEvaluation from "../domains/product/wikiDreamingEvaluation.js";
 import type * as domains_product_wikiDreamingEvaluationNatural from "../domains/product/wikiDreamingEvaluationNatural.js";
@@ -2477,6 +2478,7 @@ declare const fullApi: ApiFromModules<{
   "domains/product/systemIntelligence": typeof domains_product_systemIntelligence;
   "domains/product/userWikiMaintainer": typeof domains_product_userWikiMaintainer;
   "domains/product/userWikiSchema": typeof domains_product_userWikiSchema;
+  "domains/product/visibilityBackfill": typeof domains_product_visibilityBackfill;
   "domains/product/wikiDreamingEvalProduction": typeof domains_product_wikiDreamingEvalProduction;
   "domains/product/wikiDreamingEvaluation": typeof domains_product_wikiDreamingEvaluation;
   "domains/product/wikiDreamingEvaluationNatural": typeof domains_product_wikiDreamingEvaluationNatural;
