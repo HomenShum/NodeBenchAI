@@ -283,10 +283,16 @@ export const backfillAll = internalAction({
       let totalWritten = 0;
       let totalSkipped = 0;
       let totalDuration = 0;
-      // Safety cap: 500 iterations × 200 rows = 100K rows per table per
-      // backfillAll invocation. Adequate for current data; re-invoke if
-      // more remain (the CLI command is safe to re-run; it's idempotent).
-      for (let iter = 0; iter < 500; iter += 1) {
+      // Safety cap: 3000 iterations × 200 rows = 600K rows per table per
+      // backfillAll invocation.  Each iteration is ~168ms (paginate + recompute
+      // + idempotent skip), so 3000 ≈ 504s — comfortably inside Convex's
+      // 10-minute action wall-clock cap with ~1.5min margin.
+      //
+      // Bumped from 500 → 3000 (2026-05-11) so productBlocks (~100K+ rows)
+      // can finish in a single backfillAll invocation rather than restarting
+      // pagination from null on each call.  Idempotent — re-runs are safe
+      // and cheap (writes skipped when visibility already set).
+      for (let iter = 0; iter < 3000; iter += 1) {
         const ref =
           table === "entities"
             ? internal.domains.product.visibilityBackfill.backfillEntities
