@@ -22,6 +22,12 @@ import type {
   SDKConfig,
 } from "../types";
 import { DEFAULT_SDK_CONFIG } from "../types";
+import {
+  buildCachedSystem,
+  buildCachedTools,
+  extractCacheStats,
+  type AnthropicCacheStats,
+} from "./promptCacheHelpers";
 
 function resolveAnthropicSdkModelId(model: string): string {
   const approved = resolveModelAlias(model);
@@ -130,10 +136,14 @@ export function createAnthropicReasoningAdapter(
           messages,
         };
 
-        // Add system prompt if provided
-        if (systemPrompt) {
-          requestParams.system = systemPrompt;
-        }
+        // Add system prompt — wrap in cache_control when above the 1024-token
+        // floor so prefix-stable sub-agent runs (DeepReasoning, CodeAnalysis,
+        // any custom adapter with the same role) hit the cache on subsequent
+        // calls within the 5-min ephemeral window.  Below the floor the helper
+        // returns the plain string so we don't waste request bytes on a
+        // marker the API would silently drop.
+        const cachedSystem = buildCachedSystem(systemPrompt);
+        let systemCacheAttached = cachedSystem.attached;
 
         // Add extended thinking if enabled
         if (thinking.enabled) {
@@ -143,13 +153,21 @@ export function createAnthropicReasoningAdapter(
           };
         }
 
-        // Add tools if provided
+        // Add tools — same gating logic.  Tools are typically the largest
+        // stable block (10+ tools × full JSON schema = thousands of tokens),
+        // so caching them is the highest-leverage move on any agent that
+        // uses runWithTools or repeated single-turn `execute()` calls.
+        let toolsCacheAttached = false;
+        let preparedTools: Array<Anthropic.Tool> | undefined;
         if (tools.length > 0) {
-          requestParams.tools = tools.map((t) => ({
+          const rawTools = tools.map((t) => ({
             name: t.name,
             description: t.description,
             input_schema: zodToJsonSchema(t.inputSchema),
           }));
+          const cachedTools = buildCachedTools(rawTools);
+          toolsCacheAttached = cachedTools.attached;
+          preparedTools = cachedTools.tools as Anthropic.Tool[] | undefined;
         }
 
         // Execute the request - build non-streaming params properly
@@ -159,14 +177,27 @@ export function createAnthropicReasoningAdapter(
           messages: requestParams.messages as Anthropic.MessageParam[],
         };
 
-        if (requestParams.system) {
-          nonStreamingParams.system = requestParams.system as string;
+        if (cachedSystem.system !== undefined) {
+          // SDK accepts both `string` and `TextBlockParam[]`; the cast covers
+          // the structured-blocks branch produced when caching is attached.
+          nonStreamingParams.system =
+            cachedSystem.system as Anthropic.MessageCreateParamsNonStreaming["system"];
         }
-        if (requestParams.tools) {
-          nonStreamingParams.tools = requestParams.tools as Anthropic.Tool[];
+        if (preparedTools) {
+          nonStreamingParams.tools = preparedTools;
         }
 
         const response = await anthropic.messages.create(nonStreamingParams);
+
+        // HONEST_SCORES — record real cache stats from the API response.  No
+        // fabricated floors: if the marker was dropped (e.g. the prompt
+        // estimator was too generous) the stats will show
+        // cacheControlAttached=true with cacheReadInputTokens=0 on first
+        // call, which is exactly the signal the operator dashboard needs.
+        const cacheStats: AnthropicCacheStats = extractCacheStats(
+          response.usage,
+          systemCacheAttached || toolsCacheAttached,
+        );
 
         // Parse response blocks
         let thinkingContent = "";
@@ -196,6 +227,20 @@ export function createAnthropicReasoningAdapter(
           tokenUsage: {
             input: response.usage.input_tokens,
             output: response.usage.output_tokens,
+            // HONEST_SCORES — only emit `cache` when we actually attempted
+            // caching.  Downstream consumers can treat absence as "feature
+            // off" and presence with read=0 as "first call, expect hits next".
+            ...(cacheStats.cacheControlAttached
+              ? {
+                  cache: {
+                    cacheControlAttached: cacheStats.cacheControlAttached,
+                    cacheCreationInputTokens:
+                      cacheStats.cacheCreationInputTokens,
+                    cacheReadInputTokens: cacheStats.cacheReadInputTokens,
+                    cacheHitRate: cacheStats.cacheHitRate,
+                  },
+                }
+              : {}),
           },
         };
       } catch (error) {
@@ -288,16 +333,27 @@ export async function runWithTools(config: {
   const currentMessages: Anthropic.MessageParam[] = [{ role: "user", content: query }];
   let iteration = 0;
 
+  // Build the tools array ONCE outside the loop and attach a cache_control
+  // marker to the last tool when the catalog clears the 1024-token floor.
+  // Inside a tool-loop the catalog is byte-identical across every iteration,
+  // so the second iteration onward gets a cache hit on the entire schema
+  // block (~90% discount on tool tokens).  This is the highest-leverage
+  // single change in the file — multi-iteration tool loops were paying full
+  // price for the same schema 5–10× per agent run.
+  const rawTools = tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    input_schema: zodToJsonSchema(t.inputSchema),
+  }));
+  const cachedTools = buildCachedTools(rawTools);
+  const preparedTools = (cachedTools.tools as Anthropic.Tool[] | undefined) ?? [];
+
   while (iteration < maxIterations) {
     const response = await anthropic.messages.create({
       model,
       max_tokens: maxTokens,
       messages: currentMessages,
-      tools: tools.map((t) => ({
-        name: t.name,
-        description: t.description,
-        input_schema: zodToJsonSchema(t.inputSchema),
-      })),
+      tools: preparedTools,
     });
 
     // Check for tool use

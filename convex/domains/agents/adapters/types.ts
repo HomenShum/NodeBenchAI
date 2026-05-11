@@ -128,6 +128,26 @@ export interface AdapterResult<T = unknown> {
     input: number;
     output: number;
     thinking?: number; // For Anthropic extended thinking
+    /**
+     * Anthropic prompt-cache stats — populated when the adapter attaches a
+     * `cache_control` marker (system prompt or tool catalog ≥ 1024 tokens).
+     * All four fields are the literal Anthropic API values; absent caching
+     * support means the field is undefined, never zero (HONEST_SCORES).
+     *
+     * - cacheCreationInputTokens: tokens written to cache (~1.25× normal cost)
+     * - cacheReadInputTokens: tokens served from cache (~0.10× normal cost)
+     * - cacheControlAttached: true if the adapter sent a marker, regardless
+     *   of whether the API actually cached. Lets dashboards distinguish
+     *   "we didn't try" from "we tried, missed, expect a hit on retry".
+     * - cacheHitRate: cache_read / (input + cache_read + cache_creation),
+     *   clamped to [0,1].
+     */
+    cache?: {
+      cacheControlAttached: boolean;
+      cacheCreationInputTokens: number;
+      cacheReadInputTokens: number;
+      cacheHitRate: number;
+    };
   };
   /** If handoff occurred, target agent name */
   handoffTarget?: string;

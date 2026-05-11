@@ -29,6 +29,7 @@ import type * as crons_sloCalculation from "../crons/sloCalculation.js";
 import type * as dataAudit from "../dataAudit.js";
 import type * as debugEnv from "../debugEnv.js";
 import type * as domains_agents_adapters_anthropic_anthropicReasoningAdapter from "../domains/agents/adapters/anthropic/anthropicReasoningAdapter.js";
+import type * as domains_agents_adapters_anthropic_promptCacheHelpers from "../domains/agents/adapters/anthropic/promptCacheHelpers.js";
 import type * as domains_agents_adapters_convex_convexAgentAdapter from "../domains/agents/adapters/convex/convexAgentAdapter.js";
 import type * as domains_agents_adapters_google_googleInteractionsAdapter from "../domains/agents/adapters/google/googleInteractionsAdapter.js";
 import type * as domains_agents_adapters_handoffBridge from "../domains/agents/adapters/handoffBridge.js";
@@ -1530,6 +1531,7 @@ declare const fullApi: ApiFromModules<{
   dataAudit: typeof dataAudit;
   debugEnv: typeof debugEnv;
   "domains/agents/adapters/anthropic/anthropicReasoningAdapter": typeof domains_agents_adapters_anthropic_anthropicReasoningAdapter;
+  "domains/agents/adapters/anthropic/promptCacheHelpers": typeof domains_agents_adapters_anthropic_promptCacheHelpers;
   "domains/agents/adapters/convex/convexAgentAdapter": typeof domains_agents_adapters_convex_convexAgentAdapter;
   "domains/agents/adapters/google/googleInteractionsAdapter": typeof domains_agents_adapters_google_googleInteractionsAdapter;
   "domains/agents/adapters/handoffBridge": typeof domains_agents_adapters_handoffBridge;
