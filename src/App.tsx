@@ -50,6 +50,12 @@ const UniversalWorkspacePage = lazy(() =>
 );
 const EmbedView = lazy(() => import("@/features/founder/views/EmbedView"));
 const FounderRouteResolver = lazy(() => import("@/features/founder/views/FounderRouteResolver"));
+// /events/:eventId — corpus explorer for one event. See viewRegistry "event-corpus" entry.
+const EventCorpusExplorer = lazy(() =>
+  import("@/features/events/views/EventCorpusExplorer").then((m) => ({
+    default: m.EventCorpusExplorer,
+  })),
+);
 // My Wiki — Phase 1 routes. See docs/architecture/ME_AGENT_DESIGN.md
 const WikiLandingRoute = lazy(() => import("@/features/me/components/wiki/WikiLandingRoute"));
 const WikiPageDetailRoute = lazy(() => import("@/features/me/components/wiki/WikiPageDetailRoute"));
@@ -382,6 +388,29 @@ function App() {
           <Suspense fallback={<ViewSkeleton />}>
             <div key="embed" className="route-fade-in">
               <EmbedView />
+            </div>
+          </Suspense>
+        </ErrorBoundary>
+      </ThemeProvider>
+    );
+  }
+
+  // /events/:eventId — corpus explorer for one event. Mounted as a top-level
+  // standalone route (NOT inside the cockpit) because the cockpit's path
+  // resolver does prefix-style longest-match and would happily swallow
+  // /events/* into "/" if no explicit branch ran first.
+  // See viewRegistry.ts "event-corpus" entry — that entry exists so Cmd-K
+  // and other discovery surfaces know about the route, but the actual
+  // rendering happens here.
+  const eventsRouteMatch = location.pathname.match(/^\/events\/([^/]+)\/?$/);
+  if (eventsRouteMatch) {
+    const eventId = decodeURIComponent(eventsRouteMatch[1] ?? "");
+    return (
+      <ThemeProvider>
+        <ErrorBoundary title="Event corpus failed to load">
+          <Suspense fallback={<ViewSkeleton />}>
+            <div key={`events-${eventId}`} className="route-fade-in">
+              <EventCorpusExplorer eventId={eventId} />
             </div>
           </Suspense>
         </ErrorBoundary>
