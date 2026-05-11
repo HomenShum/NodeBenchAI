@@ -27,7 +27,7 @@
  * - Footnote `<sup>` anchors target `id="fn-{N}"` in §6, with
  *   `tabindex="-1"` on each `<li>` so screen readers focus the
  *   target.
- * - Right-rail `<EditionTOC>` (desktop only, ≥1024px) with scroll-spy
+ * - Right-rail `<EditionTOC>` (wide desktop only, ≥1440px) with scroll-spy
  *   active state.
  *
  * ─── Phase 7c additions ─────────────────────────────────────────
@@ -36,8 +36,10 @@
  *   discoverability link added to LegacyHomeSurface).
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useMutation } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
 import { UniversalComposer } from "../components/UniversalComposer";
 import { StreamingMarkdown } from "../components/StreamingMarkdown";
 import { EditorialSection } from "../components/edition/EditorialSection";
@@ -68,8 +70,18 @@ import { useEditionView } from "../hooks/useEditionView";
 import { useDailyEditionSwr } from "../hooks/useDailyEditionSwr";
 import { useWeeklyDigestSwr } from "../hooks/useWeeklyDigestSwr";
 import { useMonthlyRetrospectiveSwr } from "../hooks/useMonthlyRetrospectiveSwr";
+import {
+  useLiveArtifacts,
+  type LiveArtifactsResult,
+  type LiveArtifactSourceRow,
+} from "../hooks/useLiveArtifacts";
 import { useOnlineStatus } from "../../../lib/performance/useOnlineStatus";
-import { EditionSelector } from "../components/edition/EditionSelector";
+import { trackEvent } from "../../../lib/analytics";
+import { getAnonymousProductSessionId } from "../../product/lib/productIdentity";
+import {
+  EditionSelector,
+  type EditionSelection,
+} from "../components/edition/EditionSelector";
 import { Pill } from "../components/Pill";
 import "../components/edition/edition.css";
 
@@ -84,6 +96,49 @@ const ABSENT = Symbol("absent");
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
+}
+
+const DAY_MS = 86_400_000;
+
+function clientDateKey(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+function isoWeekWindow(weekKey: string): { start: string; end: string } {
+  const match = weekKey.match(/^(\d{4})-W(\d{2})$/);
+  if (!match) return { start: weekKey, end: weekKey };
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const jan4 = Date.UTC(year, 0, 4);
+  const jan4Day = new Date(jan4).getUTCDay() || 7;
+  const week1Mon = jan4 - (jan4Day - 1) * DAY_MS;
+  const startMs = week1Mon + (week - 1) * 7 * DAY_MS;
+  return { start: clientDateKey(startMs), end: clientDateKey(startMs + 6 * DAY_MS) };
+}
+
+function monthWindow(monthKey: string): { start: string; end: string } {
+  const match = monthKey.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return { start: monthKey, end: monthKey };
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const startMs = Date.UTC(year, month - 1, 1);
+  const endMs = Date.UTC(year, month, 1) - DAY_MS;
+  return { start: clientDateKey(startMs), end: clientDateKey(endMs) };
+}
+
+function quarterWindow(quarterKey: string): { start: string; end: string } {
+  const match = quarterKey.match(/^(\d{4})-Q([1-4])$/);
+  if (!match) return { start: quarterKey, end: quarterKey };
+  const year = Number(match[1]);
+  const quarter = Number(match[2]);
+  const startMonth = (quarter - 1) * 3;
+  const startMs = Date.UTC(year, startMonth, 1);
+  const endMs = Date.UTC(year, startMonth + 3, 1) - DAY_MS;
+  return { start: clientDateKey(startMs), end: clientDateKey(endMs) };
+}
+
+function yearWindow(yearKey: string): { start: string; end: string } {
+  return { start: `${yearKey}-01-01`, end: `${yearKey}-12-31` };
 }
 
 /**
@@ -145,6 +200,196 @@ function OfflineBanner({
         — showing cached edition from {formatAge(ageMs)}.
       </span>
     </div>
+  );
+}
+
+type CoordinatorStatus = "loading" | "ready" | "empty";
+
+function statusFromCount(
+  isLoading: boolean,
+  count: number | null | undefined,
+): CoordinatorStatus {
+  if (isLoading) return "loading";
+  return (count ?? 0) > 0 ? "ready" : "empty";
+}
+
+function HomePulseCoordinatorTrace({
+  period,
+  periodKey,
+  pulses,
+  hypotheses,
+  forecasts,
+  snapshot,
+  liveArtifacts,
+  artifactIds,
+  windowLabel,
+  windowStart,
+  windowEnd,
+  retrospectiveCount,
+  retrospectiveSource = "live",
+}: {
+  period: "today" | "week" | "month" | "quarter" | "year";
+  periodKey: string;
+  pulses: ReturnType<typeof useTodayPulse>;
+  hypotheses: EditionHypothesis[] | undefined;
+  forecasts: EditionForecast[] | undefined;
+  snapshot: ReturnType<typeof useLatestDailyBriefSnapshot>;
+  liveArtifacts: LiveArtifactsResult;
+  artifactIds: string[];
+  windowLabel: string;
+  windowStart: string;
+  windowEnd: string;
+  retrospectiveCount: number;
+  retrospectiveSource?: string;
+}) {
+  const reportCount = liveArtifacts.reports.length;
+  const sourceCount =
+    liveArtifacts.details.reduce((total, detail) => total + detail.sourceRows.length, 0) +
+    artifactIds.length;
+  const actionCount = liveArtifacts.reports.reduce(
+    (total, report) => total + report.followUps,
+    0,
+  );
+  const pulseCount = pulses?.pulses.length ?? 0;
+  const hypothesisCount = hypotheses?.length ?? 0;
+  const forecastCount = forecasts?.length ?? 0;
+  const cells = useMemo(() => [
+    {
+      label: "Memory",
+      value: reportCount,
+      status: statusFromCount(liveArtifacts.isLoading, reportCount),
+    },
+    {
+      label: "Pulse",
+      value: pulseCount,
+      status: statusFromCount(pulses === undefined, pulseCount),
+    },
+    {
+      label: "Reports",
+      value: reportCount,
+      status: statusFromCount(liveArtifacts.isLoading, reportCount),
+    },
+    {
+      label: "Sources",
+      value: sourceCount,
+      status: statusFromCount(false, sourceCount),
+    },
+    {
+      label: "Hypotheses",
+      value: hypothesisCount,
+      status: statusFromCount(hypotheses === undefined, hypothesisCount),
+    },
+    {
+      label: "Forecasts",
+      value: forecastCount,
+      status: statusFromCount(forecasts === undefined, forecastCount),
+    },
+    {
+      label: "Actions",
+      value: actionCount,
+      status: statusFromCount(liveArtifacts.isLoading, actionCount),
+    },
+    {
+      label: "Rollup",
+      value: retrospectiveCount,
+      status: statusFromCount(false, retrospectiveCount),
+    },
+  ], [
+    actionCount,
+    forecastCount,
+    forecasts,
+    hypothesisCount,
+    hypotheses,
+    liveArtifacts.isLoading,
+    pulseCount,
+    pulses,
+    reportCount,
+    retrospectiveCount,
+    sourceCount,
+  ]);
+  useEffect(() => {
+    trackEvent("HOME-010.start", {
+      period,
+      periodKey,
+      windowStart,
+      windowEnd,
+    });
+    trackEvent("rollup.window.selected", {
+      period,
+      periodKey,
+      windowStart,
+      windowEnd,
+      source: retrospectiveSource,
+      count: retrospectiveCount,
+    });
+    for (const cell of cells) {
+      trackEvent(`coordinator.fanIn.${cell.label.toLowerCase()}`, {
+        period,
+        periodKey,
+        source: cell.label,
+        status: cell.status,
+        count: cell.value,
+      });
+    }
+    trackEvent("HOME-010.complete", {
+      period,
+      periodKey,
+      reports: reportCount,
+      sources: sourceCount,
+      actions: actionCount,
+      retrospective: retrospectiveCount,
+    });
+  }, [
+    actionCount,
+    period,
+    periodKey,
+    reportCount,
+    retrospectiveCount,
+    retrospectiveSource,
+    sourceCount,
+    windowEnd,
+    windowStart,
+    cells,
+  ]);
+
+  return (
+    <section
+      className="rd-coordinator-trace"
+      aria-label="Pulse provenance"
+      data-home-pulse-coordinator
+      data-run-id={`home-pulse-${period}-${periodKey}`}
+      data-period={period}
+      data-period-key={periodKey}
+      data-window-start={windowStart}
+      data-window-end={windowEnd}
+      data-live-artifacts={liveArtifacts.isLive ? "true" : "false"}
+      data-snapshot={snapshot ? "ready" : snapshot === undefined ? "loading" : "empty"}
+      data-report-count={reportCount}
+      data-source-count={sourceCount}
+      data-action-count={actionCount}
+      data-retrospective-count={retrospectiveCount}
+      data-retrospective-source={retrospectiveSource}
+      data-telemetry-traces="HOME-010.start coordinator.fanIn.* rollup.window.selected HOME-010.complete"
+    >
+      <div className="rd-coordinator-trace__head">
+        <span className="rd-edition-meta">{windowLabel}</span>
+        <span className="rd-edition-meta">
+          {windowStart} to {windowEnd} - {retrospectiveSource}
+        </span>
+      </div>
+      <div className="rd-coordinator-trace__grid">
+        {cells.map((cell) => (
+          <span
+            key={cell.label}
+            className="rd-coordinator-trace__cell"
+            data-source={cell.label.toLowerCase()}
+            data-status={cell.status}
+          >
+            <strong>{cell.value}</strong> {cell.label}
+          </span>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -408,7 +653,12 @@ function CompetingExplanationsSection({
       heading={heading}
     >
       <div>
-        {hypotheses.map((h, i) => (
+        {hypotheses.length === 0 ? (
+          <p className="rd-edition-empty">
+            No active hypotheses changed in this edition. NodeBench will surface
+            competing explanations here once evidence starts moving.
+          </p>
+        ) : hypotheses.map((h, i) => (
           <article
             key={h._id}
             className="rd-edition-hypothesis"
@@ -598,6 +848,266 @@ function ScoreboardSection({
 
 /* ─── §5 — Capabilities map ─────────────────────────────────────── */
 
+function ReportsTouchedSection({
+  number,
+  kicker,
+  heading,
+  snapshot,
+  reports,
+}: {
+  number: string;
+  kicker: string;
+  heading: string;
+  snapshot: ReturnType<typeof useLatestDailyBriefSnapshot>;
+  reports?: LiveArtifactsResult["reports"];
+}) {
+  if (snapshot === undefined) {
+    return (
+      <EditorialSection
+        id="reports-touched"
+        ariaLabel="Reports touched"
+        number={number}
+        kicker={kicker}
+        heading={heading}
+      >
+        <div className="rd-edition-skeleton" style={{ width: "88%" }} />
+        <div className="rd-edition-skeleton" style={{ width: "64%" }} />
+      </EditorialSection>
+    );
+  }
+
+  const stats = snapshot?.dashboardMetrics?.keyStats ?? [];
+  const generatedAt = snapshot?.generatedAt
+    ? new Date(snapshot.generatedAt).toISOString().slice(0, 16)
+    : null;
+  const liveReports = reports ?? [];
+
+  return (
+    <EditorialSection
+      id="reports-touched"
+      ariaLabel="Reports touched"
+      number={number}
+      kicker={kicker}
+      heading={heading}
+    >
+      {snapshot ? (
+        <>
+          <p>
+            Latest daily brief snapshot: <strong>{snapshot.dateString}</strong>
+            {generatedAt ? (
+              <span className="rd-edition-meta"> - generated {generatedAt}Z</span>
+            ) : null}
+            .
+          </p>
+          {stats.length > 0 ? (
+            <ul>
+              {stats.slice(0, 4).map((stat: any, index: number) => (
+                <li key={`${stat.label ?? "stat"}-${index}`} style={{ marginBottom: 6 }}>
+                  <strong>{stat.label ?? "Metric"}</strong>
+                  {stat.value !== undefined ? `: ${stat.value}` : ""}
+                  {stat.delta !== undefined ? (
+                    <span className="rd-edition-meta"> - {stat.delta}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="rd-edition-empty" style={{ padding: 0 }}>
+              Snapshot loaded, but no report metrics were attached.
+            </p>
+          )}
+          {liveReports.length > 0 ? (
+            <>
+              <p className="rd-edition-meta" style={{ marginTop: 12 }}>
+                Live report handles
+              </p>
+              <ul>
+                {liveReports.map((report) => (
+                  <li key={report.id} style={{ marginBottom: 6 }}>
+                    <a href={`/redesign/reports/${report.id}`}>
+                      {report.entity}
+                    </a>{" "}
+                    <span className="rd-edition-meta">
+                      {report.kind} - {report.status} - {report.sources} sources -{" "}
+                      {report.claims} claims - {report.followUps} follow-ups
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="rd-edition-empty" style={{ padding: 0 }}>
+              No live report handles are available yet.
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="rd-edition-empty">
+          No daily brief snapshot is available yet, so there are no report
+          updates to attribute.
+        </p>
+      )}
+    </EditorialSection>
+  );
+}
+
+function ActionsCreatedSection({
+  number,
+  kicker,
+  heading,
+  pulses,
+  hypotheses,
+  forecasts,
+  onAsk,
+  reports,
+  actionPrompt = "Turn today's Home Pulse actions into follow-ups and notebook patch proposals.",
+  nudgeKey = "home-pulse-actions",
+}: {
+  number: string;
+  kicker: string;
+  heading: string;
+  pulses: ReturnType<typeof useTodayPulse>;
+  hypotheses: EditionHypothesis[] | undefined;
+  forecasts: EditionForecast[] | undefined;
+  onAsk: Props["onAsk"];
+  reports?: LiveArtifactsResult["reports"];
+  actionPrompt?: string;
+  nudgeKey?: string;
+}) {
+  const createHomePulseNudge = useMutation(
+    (api as unknown as {
+      domains: {
+        product: {
+          nudges: {
+            createHomePulseFollowupNudge: unknown;
+          };
+        };
+      };
+    }).domains.product.nudges.createHomePulseFollowupNudge as Parameters<
+      typeof useMutation
+    >[0],
+  );
+  const [nudgeState, setNudgeState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const materialChanges =
+    pulses?.pulses.reduce((n, p) => n + (p.materialChangeCount ?? 0), 0) ?? 0;
+  const reportFollowUps =
+    reports?.reduce((total, report) => total + (report.followUps ?? 0), 0) ?? 0;
+  const actionItems = [
+    reportFollowUps > 0
+      ? `${reportFollowUps} existing follow-up ${
+          reportFollowUps === 1 ? "record is" : "records are"
+        } already linked to live reports.`
+      : null,
+    materialChanges > 0
+      ? `Refresh reports touched by ${materialChanges} material change${
+          materialChanges === 1 ? "" : "s"
+        }.`
+      : null,
+    hypotheses && hypotheses.length > 0
+      ? `Review ${hypotheses.length} active hypothesis ${
+          hypotheses.length === 1 ? "thread" : "threads"
+        } before updating the notebook.`
+      : null,
+    forecasts && forecasts.length > 0
+      ? `Check ${forecasts.length} forecast ${
+          forecasts.length === 1 ? "move" : "moves"
+        } for follow-up timing.`
+      : null,
+  ].filter((item): item is string => item !== null);
+  const actionSummary =
+    actionItems.length > 0
+      ? actionItems.join(" ")
+      : "Review the latest Home Pulse and decide which report, notebook, or source trail needs a follow-up.";
+
+  const handleCreateNudge = async () => {
+    setNudgeState("saving");
+    trackEvent("HOME-015.start", {
+      target: nudgeKey,
+      actionCount: actionItems.length,
+    });
+    try {
+      await createHomePulseNudge({
+        anonymousSessionId: getAnonymousProductSessionId(),
+        title: "Home Pulse follow-up",
+        summary: actionSummary,
+        actionLabel: "Open in Chat",
+        actionTargetSurface: "chat",
+        actionTargetId: nudgeKey,
+      });
+      trackEvent("action.created", {
+        target: nudgeKey,
+        surface: "inbox",
+        actionCount: actionItems.length,
+      });
+      trackEvent("HOME-015.complete", {
+        target: nudgeKey,
+        status: "saved",
+      });
+      setNudgeState("saved");
+    } catch (error) {
+      console.error("[home-pulse] failed to create follow-up nudge", error);
+      trackEvent("HOME-015.failed", {
+        target: nudgeKey,
+        status: "error",
+      });
+      setNudgeState("error");
+    }
+  };
+
+  return (
+    <EditorialSection
+      id="actions-created"
+      ariaLabel="Actions created"
+      number={number}
+      kicker={kicker}
+      heading={heading}
+    >
+      {actionItems.length === 0 ? (
+        <p className="rd-edition-empty">
+          No automatic actions were created by this read-only Home render.
+          Ask NodeBench to create a follow-up, notebook patch, or report refresh
+          when a signal matters.
+        </p>
+      ) : (
+        <>
+          <ul>
+            {actionItems.map((item) => (
+              <li key={item} style={{ marginBottom: 8 }}>
+                {item}
+              </li>
+            ))}
+          </ul>
+          <p className="rd-edition-meta" style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              className="rd-btn rd-btn--quiet rd-btn--sm"
+              onClick={handleCreateNudge}
+              disabled={nudgeState === "saving"}
+              data-telemetry-traces="HOME-015.start action.created HOME-015.complete"
+            >
+              {nudgeState === "saving" ? "Creating..." : "Create Inbox follow-up"}
+            </button>{" "}
+            <button
+              type="button"
+              className="rd-btn rd-btn--quiet rd-btn--sm"
+              onClick={() => onAsk(actionPrompt)}
+            >
+              Open Chat
+            </button>
+            {nudgeState === "saved" ? (
+              <span className="rd-edition-meta"> Follow-up saved to Inbox.</span>
+            ) : nudgeState === "error" ? (
+              <span className="rd-edition-meta"> Could not save. Open Chat instead.</span>
+            ) : null}
+          </p>
+        </>
+      )}
+    </EditorialSection>
+  );
+}
+
 function CapabilitiesSection({
   number,
   kicker,
@@ -665,11 +1175,13 @@ function FootnotesSection({
   kicker,
   heading,
   artifactIds,
+  liveSourceRows = [],
 }: {
   number: string;
   kicker: string;
   heading: string;
   artifactIds: string[];
+  liveSourceRows?: LiveArtifactSourceRow[];
 }) {
   // SWR-wrapped (Phase 9b follow-up): footnotes paint from IDB cache on
   // warm visits while Convex revalidates.  The cache key uses sorted
@@ -690,7 +1202,14 @@ function FootnotesSection({
     );
   }
 
-  const totalCount = data.artifacts.length + data.industry.length;
+  const liveRows = liveSourceRows
+    .filter((row) => row.href)
+    .filter(
+      (row, index, rows) =>
+        rows.findIndex((candidate) => candidate.href === row.href) === index,
+    )
+    .slice(0, 24);
+  const totalCount = data.artifacts.length + data.industry.length + liveRows.length;
 
   return (
     <EditorialSection
@@ -763,6 +1282,23 @@ function FootnotesSection({
                 </li>
               );
             })}
+            {liveRows.map((row, i) => (
+              <li
+                key={`live-${row.id}`}
+                id={`fn-${data.artifacts.length + data.industry.length + i + 1}`}
+                tabIndex={-1}
+              >
+                <span>
+                  <a href={row.href} target="_blank" rel="noopener noreferrer">
+                    {row.title}
+                  </a>
+                  <span className="rd-edition-meta">
+                    {" "}Â· {row.refreshed}
+                  </span>
+                  {row.excerpt ? <> â€” &ldquo;{row.excerpt}&rdquo;</> : null}
+                </span>
+              </li>
+            ))}
           </ol>
         </div>
       )}
@@ -963,6 +1499,7 @@ function ArchivedDayBranch({
 
 /* ─── Weekly-digest render branch (P0 #3) ───────────────────────── */
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function WeeklyBranch({
   weekKey,
   selection,
@@ -1153,6 +1690,7 @@ function WeeklyBranch({
 
 /* ─── Monthly retrospective render branch (P0 #3, minimal) ──────── */
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function MonthlyBranch({
   monthKey,
   selection,
@@ -1306,6 +1844,402 @@ function MonthlyBranch({
 
 /* ─── EditorialHomeSurface root ─────────────────────────────────── */
 
+function LongHorizonBranch({
+  period,
+  periodKey,
+  selection,
+  onAsk,
+  onSwitchToClassic,
+}: {
+  period: "week" | "month" | "quarter" | "year";
+  periodKey: string;
+  selection:
+    | Extract<EditionSelection, { kind: "week" }>
+    | Extract<EditionSelection, { kind: "month" }>
+    | Extract<EditionSelection, { kind: "quarter" }>
+    | Extract<EditionSelection, { kind: "year" }>;
+  onAsk: Props["onAsk"];
+  onSwitchToClassic: () => void;
+}) {
+  const hypothesesSwr = useActiveHypothesesSwr(5);
+  const forecastsSwr = useTopForecastsSwr(5);
+  const todayPulseSwr = useTodayPulseSwr(12);
+  const snapshotSwr = useLatestDailyBriefSnapshotSwr();
+  const liveArtifacts = useLiveArtifacts(8);
+  const weeklySwr = useWeeklyDigestSwr(period === "week" ? periodKey : null);
+  const monthlySwr = useMonthlyRetrospectiveSwr(period === "month" ? periodKey : null);
+
+  const hypotheses = hypothesesSwr.data;
+  const forecasts = forecastsSwr.data;
+  const todayPulse = todayPulseSwr.data;
+  const snapshot = snapshotSwr.data;
+  const weeklyData = weeklySwr.data;
+  const monthlyData = monthlySwr.data;
+  const { online, convexConnected } = useOnlineStatus();
+
+  const oldestAgeMs = [
+    hypothesesSwr.swr,
+    forecastsSwr.swr,
+    todayPulseSwr.swr,
+    snapshotSwr.swr,
+    weeklySwr.swr,
+    monthlySwr.swr,
+  ]
+    .filter((s) => s.hydratedFromCache && !s.isLive)
+    .map((s) => s.ageMs ?? 0)
+    .reduce<number | null>(
+      (acc, v) => (acc === null || v > acc ? v : acc),
+      null,
+    );
+
+  const artifactIds = useMemo(() => {
+    const ids: string[] = [];
+    if (Array.isArray(hypotheses)) {
+      for (const h of hypotheses) {
+        for (const id of h.evidenceArtifactIds ?? []) ids.push(id);
+      }
+    }
+    return ids;
+  }, [hypotheses]);
+  const liveSourceRows = useMemo(
+    () => liveArtifacts.details.flatMap((detail) => detail.sourceRows),
+    [liveArtifacts.details],
+  );
+
+  const visibleSections: SectionDescriptor[] = useMemo(
+    () => [
+      {
+        id: "what-changed",
+        kicker:
+          period === "week"
+            ? "This week"
+            : period === "month"
+              ? "This month"
+              : period === "quarter"
+                ? "This quarter"
+                : "This year",
+        tocLabel: "Changed",
+        heading: "What changed",
+      },
+      {
+        id: "competing-explanations",
+        kicker: "Why it matters",
+        tocLabel: "So what",
+        heading: "So what",
+      },
+      {
+        id: "what-to-look-at",
+        kicker: "What to do next",
+        tocLabel: "Now what",
+        heading: "Now what",
+      },
+      {
+        id: "reports-touched",
+        kicker: "Reports touched",
+        tocLabel: "Reports",
+        heading: "Reports touched",
+      },
+      {
+        id: "footnotes",
+        kicker: "Sources used",
+        tocLabel: "Sources",
+        heading: "Sources used",
+      },
+      {
+        id: "actions-created",
+        kicker: "Actions created",
+        tocLabel: "Actions",
+        heading: "Actions created",
+      },
+    ],
+    [period],
+  );
+
+  const numberForId = useMemo(() => {
+    const map = new Map<string, string>();
+    visibleSections.forEach((s, i) => map.set(s.id, pad2(i + 1)));
+    return map;
+  }, [visibleSections]);
+
+  const tocEntries: EditionTOCEntry[] = useMemo(
+    () =>
+      visibleSections.map((s) => ({
+        id: s.id,
+        number: numberForId.get(s.id) ?? "",
+        label: s.tocLabel,
+      })),
+    [visibleSections, numberForId],
+  );
+
+  const title =
+    period === "week"
+      ? "This week"
+      : period === "month"
+        ? "This month"
+        : period === "quarter"
+          ? "This quarter"
+          : "This year";
+  const memoHeading =
+    period === "week"
+      ? "Weekly intelligence brief"
+      : period === "month"
+        ? "Monthly intelligence memo"
+        : period === "quarter"
+          ? "Quarterly intelligence memo"
+          : "Annual intelligence memo";
+  const pulseCount = todayPulse?.pulses.length ?? 0;
+  const materialChanges =
+    todayPulse?.pulses.reduce((n, p) => n + (p.materialChangeCount ?? 0), 0) ??
+    0;
+  const reportMetricCount = snapshot?.dashboardMetrics?.keyStats?.length ?? 0;
+  const liveSourceCount = liveArtifacts.details.reduce(
+    (total, detail) => total + detail.sourceRows.length,
+    0,
+  );
+  const fallbackWindow =
+    period === "week"
+      ? isoWeekWindow(periodKey)
+      : period === "month"
+        ? monthWindow(periodKey)
+        : period === "quarter"
+          ? quarterWindow(periodKey)
+          : yearWindow(periodKey);
+  const windowStart =
+    period === "week" && weeklyData?.available
+      ? weeklyData.startDateKey
+      : fallbackWindow.start;
+  const windowEnd =
+    period === "week" && weeklyData?.available
+      ? weeklyData.endDateKey
+      : fallbackWindow.end;
+  const retrospectiveCount =
+    period === "week" && weeklyData?.available
+      ? weeklyData.topPulses.length +
+        weeklyData.topForecasts.length +
+        weeklyData.topHypotheses.length
+      : period === "month" && monthlyData?.available
+        ? monthlyData.topPerWeek.length +
+          monthlyData.resolvedForecastCount +
+          (monthlyData.dailyHistogram?.filter((value) => value > 0).length ?? 0)
+        : period === "quarter" || period === "year"
+          ? reportMetricCount + liveSourceCount
+          : 0;
+  const retrospectiveSource =
+    period === "week"
+      ? "weekly Convex rollup"
+      : period === "month"
+        ? "monthly Convex rollup"
+        : "live coverage substrate";
+  const actionPrompt =
+    period === "week"
+      ? "Turn this week Home Pulse into a weekly intelligence brief with report refresh proposals."
+      : period === "month"
+        ? "Turn this month Home Pulse into a monthly intelligence memo with coverage-book updates."
+        : period === "quarter"
+      ? "Turn this quarter Home Pulse into a quarterly intelligence memo with report refresh proposals."
+      : "Turn this year Home Pulse into an annual intelligence memo with coverage-book updates.";
+
+  return (
+    <div data-edition data-edition-kind={period}>
+      <EditionTOC entries={tocEntries} />
+      <div className="rd-edition-root">
+        <header
+          className="rd-edition-header"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            paddingBottom: 8,
+            borderBottom: "1px solid var(--rd-edition-rule-strong)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <Pill tone="accent">{title}</Pill>
+            <span className="rd-edition-meta">{periodKey}</span>
+            <button
+              type="button"
+              onClick={onSwitchToClassic}
+              className="rd-edition-switch"
+              aria-label="Switch to classic home"
+              data-edition-switch
+              style={{
+                marginLeft: "auto",
+                background: "transparent",
+                border: "none",
+                color: "var(--rd-ink-mute)",
+                fontSize: 12,
+                fontWeight: 500,
+                letterSpacing: "0.04em",
+                cursor: "pointer",
+                padding: "4px 8px",
+                borderRadius: 4,
+                textDecoration: "underline",
+                textUnderlineOffset: 3,
+              }}
+            >
+              Switch to classic home
+            </button>
+          </div>
+          <EditionSelector selection={selection} />
+          <h1
+            style={{
+              fontSize: 32,
+              fontWeight: 700,
+              letterSpacing: "-0.6px",
+              margin: 0,
+              lineHeight: 1.18,
+              color: "var(--rd-ink-strong)",
+            }}
+          >
+            {memoHeading}
+          </h1>
+          <p
+            style={{
+              fontSize: 15.5,
+              lineHeight: 1.55,
+              color: "var(--rd-ink-mute)",
+              margin: 0,
+            }}
+          >
+            A long-horizon Home Pulse composed from live pulse, hypothesis,
+            forecast, source, and daily brief state. Historical aggregation is
+            explicit; no fixture fallback is used.
+          </p>
+        </header>
+
+        <UniversalComposer
+          onSubmit={(text) => onAsk(text)}
+          onChatNow={(text) => onAsk(text)}
+          placeholder={`Ask to extend ${title.toLowerCase()}...`}
+        />
+
+        <OfflineBanner
+          online={online}
+          convexConnected={convexConnected}
+          ageMs={oldestAgeMs}
+        />
+
+        <HomePulseCoordinatorTrace
+          period={period}
+          periodKey={periodKey}
+          pulses={todayPulse}
+          hypotheses={hypotheses}
+          forecasts={forecasts}
+          snapshot={snapshot}
+          liveArtifacts={liveArtifacts}
+          artifactIds={artifactIds}
+          windowLabel={`${memoHeading} coordinator`}
+          windowStart={windowStart}
+          windowEnd={windowEnd}
+          retrospectiveCount={retrospectiveCount}
+          retrospectiveSource={retrospectiveSource}
+        />
+
+        <EditorialSection
+          id="what-changed"
+          ariaLabel="What changed"
+          number={numberForId.get("what-changed") ?? "01"}
+          kicker={visibleSections[0].kicker}
+          heading="What changed"
+        >
+          <p>
+            NodeBench is tracking <strong>{pulseCount}</strong> current pulse
+            item{pulseCount === 1 ? "" : "s"} with{" "}
+            <strong>{materialChanges}</strong> material change
+            {materialChanges === 1 ? "" : "s"} in the live Home substrate.
+          </p>
+          {todayPulse === undefined ? (
+            <div className="rd-edition-skeleton" style={{ width: "82%" }} />
+          ) : todayPulse.pulses.length === 0 ? (
+            <p className="rd-edition-empty" style={{ padding: 0 }}>
+              No live pulse items are available for this rollup yet.
+            </p>
+          ) : (
+            <ul>
+              {todayPulse.pulses.slice(0, 4).map((p) => (
+                <li key={p._id} style={{ marginBottom: 6 }}>
+                  <strong>{p.entitySlug.replace(/-/g, " ")}</strong>:{" "}
+                  {p.changeCount} change{p.changeCount === 1 ? "" : "s"}
+                </li>
+              ))}
+            </ul>
+          )}
+        </EditorialSection>
+
+        <CompetingExplanationsSection
+          number={numberForId.get("competing-explanations") ?? "02"}
+          kicker="Why it matters"
+          heading="So what"
+          hypotheses={hypotheses ?? []}
+        />
+
+        <WhatToLookAtSection
+          number={numberForId.get("what-to-look-at") ?? "03"}
+          kicker="What to do next"
+          heading="Now what"
+          forecasts={forecasts}
+        />
+
+        <ReportsTouchedSection
+          number={numberForId.get("reports-touched") ?? "04"}
+          kicker="Reports touched"
+          heading="Reports touched"
+          snapshot={snapshot}
+          reports={liveArtifacts.reports}
+        />
+
+        <FootnotesSection
+          number={numberForId.get("footnotes") ?? "05"}
+          kicker="Sources used"
+          heading="Sources used"
+          artifactIds={artifactIds}
+          liveSourceRows={liveSourceRows}
+        />
+
+        <ActionsCreatedSection
+          number={numberForId.get("actions-created") ?? "06"}
+          kicker="Actions created"
+          heading="Actions created"
+          pulses={todayPulse}
+          hypotheses={hypotheses}
+          forecasts={forecasts}
+          reports={liveArtifacts.reports}
+          onAsk={onAsk}
+          actionPrompt={actionPrompt}
+          nudgeKey={`home-pulse-actions-${period}-${periodKey}`}
+        />
+
+        <section
+          data-section="memory-saved"
+          className="rd-edition-section"
+          role="region"
+          aria-label="Memory saved"
+        >
+          <p className="rd-edition-meta">
+            Memory saved: {reportMetricCount} live metric
+            {reportMetricCount === 1 ? "" : "s"} reused from the latest daily
+            brief snapshot instead of re-searching.
+          </p>
+          <button
+            type="button"
+            className="rd-btn rd-btn--quiet rd-btn--sm"
+            onClick={() => onAsk(actionPrompt)}
+          >
+            Build the memo in Chat
+          </button>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 export function EditorialHomeSurface({ onAsk }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1331,18 +2265,44 @@ export function EditorialHomeSurface({ onAsk }: Props) {
   }
   if (selection.kind === "week") {
     return (
-      <WeeklyBranch
-        weekKey={selection.weekKey}
+      <LongHorizonBranch
+        period="week"
+        periodKey={selection.weekKey}
         selection={selection}
+        onAsk={onAsk}
         onSwitchToClassic={onSwitchToClassic}
       />
     );
   }
   if (selection.kind === "month") {
     return (
-      <MonthlyBranch
-        monthKey={selection.monthKey}
+      <LongHorizonBranch
+        period="month"
+        periodKey={selection.monthKey}
         selection={selection}
+        onAsk={onAsk}
+        onSwitchToClassic={onSwitchToClassic}
+      />
+    );
+  }
+  if (selection.kind === "quarter") {
+    return (
+      <LongHorizonBranch
+        period="quarter"
+        periodKey={selection.quarterKey}
+        selection={selection}
+        onAsk={onAsk}
+        onSwitchToClassic={onSwitchToClassic}
+      />
+    );
+  }
+  if (selection.kind === "year") {
+    return (
+      <LongHorizonBranch
+        period="year"
+        periodKey={selection.yearKey}
+        selection={selection}
+        onAsk={onAsk}
         onSwitchToClassic={onSwitchToClassic}
       />
     );
@@ -1381,6 +2341,7 @@ function TodayRender({
   const forecastsSwr = useTopForecastsSwr(5);
   const todayPulseSwr = useTodayPulseSwr(12);
   const snapshotSwr = useLatestDailyBriefSnapshotSwr();
+  const liveArtifacts = useLiveArtifacts(8);
 
   const hypotheses = hypothesesSwr.data;
   const forecasts = forecastsSwr.data;
@@ -1432,6 +2393,10 @@ function TodayRender({
     void ABSENT;
     return ids;
   }, [hypotheses, todayPulse]);
+  const liveSourceRows = useMemo(
+    () => liveArtifacts.details.flatMap((detail) => detail.sourceRows),
+    [liveArtifacts.details],
+  );
 
   // ── Build the visible-section list ─────────────────────────────
   // Bug 0a fix — section numbers are derived from the index in this
@@ -1442,44 +2407,42 @@ function TodayRender({
     const sections: SectionDescriptor[] = [];
     sections.push({
       id: "what-moved",
-      kicker: "Today's edition",
-      tocLabel: "Pulse",
-      heading: "What moved today",
+      kicker: "Daily brief",
+      tocLabel: "Changed",
+      heading: "What changed",
     });
-    if (Array.isArray(hypotheses) && hypotheses.length > 0) {
-      sections.push({
-        id: "competing-explanations",
-        kicker: "Hypotheses under test",
-        tocLabel: "Hypotheses",
-        heading: "The competing explanations",
-      });
-    }
+    sections.push({
+      id: "competing-explanations",
+      kicker: "Why it matters",
+      tocLabel: "So what",
+      heading: "So what",
+    });
     sections.push({
       id: "what-to-look-at",
-      kicker: "Forecasts in motion",
-      tocLabel: "Forecasts",
-      heading: "What to look at this week",
+      kicker: "What to do next",
+      tocLabel: "Now what",
+      heading: "Now what",
     });
     sections.push({
-      id: "scoreboard",
-      kicker: "Scoreboard",
-      tocLabel: "Scoreboard",
-      heading: "Today's scoreboard",
-    });
-    sections.push({
-      id: "capabilities",
-      kicker: "The capability landscape",
-      tocLabel: "Capabilities",
-      heading: "Capabilities map",
+      id: "reports-touched",
+      kicker: "Reports touched",
+      tocLabel: "Reports",
+      heading: "Reports touched",
     });
     sections.push({
       id: "footnotes",
-      kicker: "Sources",
+      kicker: "Sources used",
       tocLabel: "Sources",
-      heading: "Footnotes",
+      heading: "Sources used",
+    });
+    sections.push({
+      id: "actions-created",
+      kicker: "Actions created",
+      tocLabel: "Actions",
+      heading: "Actions created",
     });
     return sections;
-  }, [hypotheses]);
+  }, []);
 
   // Map section id → its computed number for use in render.
   const numberForId = useMemo(() => {
@@ -1508,17 +2471,23 @@ function TodayRender({
   // points to a stable artifact; fall back to the date key.
   const editionId =
     snapshot?._id ?? (todayPulse?.dateKey ?? "current");
+  const todayRetrospectiveCount =
+    (snapshot?.dashboardMetrics?.keyStats?.length ?? 0) +
+    liveArtifacts.details.reduce(
+      (total, detail) => total + detail.sourceRows.length,
+      0,
+    );
 
   // Helper to look up a section's data and bail out cleanly when it's
   // not in the visible list.
   const find = (id: string) =>
     visibleSections.find((s) => s.id === id);
   const wm = find("what-moved")!;
-  const ce = find("competing-explanations");
+  const ce = find("competing-explanations")!;
   const wl = find("what-to-look-at")!;
-  const sb = find("scoreboard")!;
-  const cap = find("capabilities")!;
+  const rt = find("reports-touched")!;
   const fn = find("footnotes")!;
+  const ac = find("actions-created")!;
 
   return (
     <div data-edition>
@@ -1581,7 +2550,7 @@ function TodayRender({
               color: "var(--rd-ink-strong)",
             }}
           >
-            Today's intelligence brief
+            Daily Brief
           </h1>
           <p
             style={{
@@ -1591,8 +2560,8 @@ function TodayRender({
               margin: 0,
             }}
           >
-            Pulled live from your pulse, hypotheses, forecasts, and the latest
-            daily brief. Ask anything below to extend the edition.
+            What changed, why it matters, what to do next, reports touched,
+            sources used, and actions created from live NodeBench context.
           </p>
         </header>
 
@@ -1619,6 +2588,22 @@ function TodayRender({
           </div>
         )}
 
+        <HomePulseCoordinatorTrace
+          period="today"
+          periodKey={dateString}
+          pulses={todayPulse}
+          hypotheses={hypotheses}
+          forecasts={forecasts}
+          snapshot={snapshot}
+          liveArtifacts={liveArtifacts}
+          artifactIds={artifactIds}
+          windowLabel="Daily Brief coordinator"
+          windowStart={dateString}
+          windowEnd={dateString}
+          retrospectiveCount={todayRetrospectiveCount}
+          retrospectiveSource="daily Convex/live substrate"
+        />
+
         <EditionErrorBoundary label="what-moved">
           <WhatMovedSection
             number={numberForId.get(wm.id) ?? "01"}
@@ -1630,16 +2615,14 @@ function TodayRender({
           />
         </EditionErrorBoundary>
 
-        {ce && Array.isArray(hypotheses) && hypotheses.length > 0 && (
-          <EditionErrorBoundary label="competing-explanations">
-            <CompetingExplanationsSection
-              number={numberForId.get(ce.id) ?? "02"}
-              kicker={ce.kicker}
-              heading={ce.heading}
-              hypotheses={hypotheses}
-            />
-          </EditionErrorBoundary>
-        )}
+        <EditionErrorBoundary label="competing-explanations">
+          <CompetingExplanationsSection
+            number={numberForId.get(ce.id) ?? "02"}
+            kicker={ce.kicker}
+            heading={ce.heading}
+            hypotheses={hypotheses ?? []}
+          />
+        </EditionErrorBoundary>
 
         <EditionErrorBoundary label="what-to-look-at">
           <WhatToLookAtSection
@@ -1650,30 +2633,37 @@ function TodayRender({
           />
         </EditionErrorBoundary>
 
-        <EditionErrorBoundary label="scoreboard">
-          <ScoreboardSection
-            number={numberForId.get(sb.id) ?? "04"}
-            kicker={sb.kicker}
-            heading={sb.heading}
+        <EditionErrorBoundary label="reports-touched">
+          <ReportsTouchedSection
+            number={numberForId.get(rt.id) ?? "04"}
+            kicker={rt.kicker}
+            heading={rt.heading}
             snapshot={snapshot}
-          />
-        </EditionErrorBoundary>
-
-        <EditionErrorBoundary label="capabilities">
-          <CapabilitiesSection
-            number={numberForId.get(cap.id) ?? "05"}
-            kicker={cap.kicker}
-            heading={cap.heading}
-            snapshot={snapshot}
+            reports={liveArtifacts.reports}
           />
         </EditionErrorBoundary>
 
         <EditionErrorBoundary label="footnotes">
           <FootnotesSection
-            number={numberForId.get(fn.id) ?? "06"}
+            number={numberForId.get(fn.id) ?? "05"}
             kicker={fn.kicker}
             heading={fn.heading}
             artifactIds={artifactIds}
+            liveSourceRows={liveSourceRows}
+          />
+        </EditionErrorBoundary>
+
+        <EditionErrorBoundary label="actions-created">
+          <ActionsCreatedSection
+            number={numberForId.get(ac.id) ?? "06"}
+            kicker={ac.kicker}
+            heading={ac.heading}
+            pulses={todayPulse}
+            hypotheses={hypotheses}
+            forecasts={forecasts}
+            reports={liveArtifacts.reports}
+            onAsk={onAsk}
+            nudgeKey={`home-pulse-actions-${dateString}`}
           />
         </EditionErrorBoundary>
       </div>

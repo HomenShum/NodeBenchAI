@@ -1,8 +1,8 @@
 /**
  * EditionTOC — desktop-only sticky table-of-contents rail for the
  * editorial home (Phase 7b).  Shown to the right of the 720px center
- * column on viewports >= 1024px; hidden entirely on mobile so the
- * single-column reading flow is preserved.
+ * column on viewports >= 1440px; hidden entirely on mobile and
+ * medium desktop widths so the single-column reading flow is preserved.
  *
  * Behavior:
  *   - Lists every visible section in document order.
@@ -43,7 +43,7 @@ function prefersReducedMotion(): boolean {
 }
 
 export function EditionTOC({ entries }: Props) {
-  // Watch viewport — only render at >= 1024px.  We mount the
+  // Watch viewport — only render at >= 1440px.  We mount the
   // observer hook unconditionally so React's hook order stays
   // stable; the rail JSX itself is gated on the `isDesktop` flag.
   const ids = entries.map((e) => e.id);
@@ -52,7 +52,7 @@ export function EditionTOC({ entries }: Props) {
   const [isDesktop, setIsDesktop] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try {
-      return window.matchMedia("(min-width: 1024px)").matches;
+      return window.matchMedia("(min-width: 1440px)").matches;
     } catch {
       return false;
     }
@@ -60,7 +60,7 @@ export function EditionTOC({ entries }: Props) {
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia("(min-width: 1024px)");
+    const mq = window.matchMedia("(min-width: 1440px)");
     const onChange = () => setIsDesktop(mq.matches);
     mq.addEventListener?.("change", onChange);
     return () => mq.removeEventListener?.("change", onChange);

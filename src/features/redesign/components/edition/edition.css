@@ -481,19 +481,23 @@
 }
 
 /* ─── Phase 7b: Edition TOC (right-rail scroll-spy) ─────────────── */
-/* Hidden on mobile + narrow desktops (single column rules); shown
-   on >=1200px as a fixed rail that doesn't overlap the 720px center
-   column.
-   Math: center column right edge at viewport vw is (vw+720)/2.  TOC
-   left edge is vw-24-180 = vw-204.  Non-overlap requires
-   vw-204 >= (vw+720)/2 → vw >= 1128.  Round up to 1200 to leave a
-   visible gap.  Hot-fix 2026-05-11: was 1024, which caused
-   14-52px overlap on viewports 1024-1180px (analyst_diagnostic). */
+/* Hidden on mobile + medium desktops (single column rules); shown
+   on >=1440px as a fixed rail that doesn't overlap the 720px article
+   column inside the app shell.
+   Math: the raw viewport formula is not sufficient because the
+   article is centered inside the app content pane after the left
+   chrome. The 1440px breakpoint keeps the rail hidden until there is
+   real clearance.  Hot-fix 2026-05-11: was 1024, which caused
+   14-52px overlap on viewports 1024-1180px. Follow-up: the app shell
+   shifts the article right, so 1200px still overlapped in production. */
 [data-redesign] [data-edition] .rd-edition-toc {
   display: none;
 }
 
-@media (min-width: 1200px) {
+/* Production shell guard: the app chrome shifts the article column right, so
+   the rail remains hidden until 1440px and then uses a wider right offset. */
+
+@media (min-width: 1440px) {
   [data-redesign] [data-edition] .rd-edition-toc {
     display: block;
     position: fixed;
@@ -510,10 +514,10 @@
   }
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 1440px) {
   [data-redesign] [data-edition] .rd-edition-toc {
     /* On wide viewports, push the rail farther from the column. */
-    right: max(24px, calc((100vw - 720px) / 2 - 240px));
+    right: max(24px, calc((100vw - 720px) / 2 - 360px));
   }
 }
 
@@ -702,6 +706,51 @@
 [data-redesign] [data-edition] .rd-offline-banner strong {
   color: var(--rd-ink-strong);
   font-weight: 600;
+}
+
+[data-redesign] [data-edition] .rd-coordinator-trace {
+  border-top: 1px solid var(--rd-edition-rule);
+  border-bottom: 1px solid var(--rd-edition-rule);
+  padding: 10px 0;
+  margin: 0 0 12px;
+}
+
+[data-redesign] [data-edition] .rd-coordinator-trace__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+[data-redesign] [data-edition] .rd-coordinator-trace__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(124px, 1fr));
+  gap: 6px;
+}
+
+[data-redesign] [data-edition] .rd-coordinator-trace__cell {
+  min-height: 34px;
+  border: 1px solid var(--rd-edition-rule);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  color: var(--rd-ink-mute);
+  background: var(--rd-surface, transparent);
+}
+
+[data-redesign] [data-edition] .rd-coordinator-trace__cell strong {
+  color: var(--rd-ink-strong);
+  font-weight: 700;
+}
+
+[data-redesign] [data-edition] .rd-coordinator-trace__cell[data-status="loading"] {
+  opacity: 0.72;
+}
+
+[data-redesign] [data-edition] .rd-coordinator-trace__cell[data-status="empty"] {
+  border-style: dashed;
 }
 
 @media (prefers-reduced-motion: reduce) {
