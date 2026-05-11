@@ -51,7 +51,7 @@
  */
 
 import { v } from "convex/values";
-import { internalAction, internalMutation } from "../../_generated/server";
+import { action, internalAction, internalMutation } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 
@@ -437,6 +437,135 @@ export const backfillSearchableTextHash = internalAction({
       totalSkipped,
       totalFailed,
       pagesScanned,
+      durationMs: Date.now() - startedAt,
+    };
+  },
+});
+
+/**
+ * Public CLI-callable wrapper around the internalAction. Convex CLI
+ * (`npx convex run`) cannot invoke `internalAction` — this thin wrapper
+ * lets operators run the one-shot backfill via CLI with the prod deploy
+ * key. No args; idempotent; safe to re-run.
+ *
+ *   npx convex run domains/search/embedHashBackfill:runBackfill
+ *
+ * Times out on prod corpora >50k rows (Convex action wall-clock limit).
+ * Use `runBackfillForTable` for 139k+ block sweeps.
+ */
+export const runBackfill = action({
+  args: {},
+  returns: BACKFILL_RESULT,
+  handler: async (ctx): Promise<BackfillResult> => {
+    return await ctx.runAction(internal.domains.search.embedHashBackfill.backfillSearchableTextHash, {});
+  },
+});
+
+/**
+ * Public CLI-callable, per-table, page-resumable backfill. Operators
+ * call this in a loop, threading the returned cursor back in as the
+ * next call's `cursor` argument until `isDone: true`. Each call
+ * processes up to `maxPages` * PAGE_SIZE rows (PAGE_SIZE=500), so
+ * `maxPages: 10` = 5,000 rows / call ~= 30-60s under the action budget.
+ *
+ *   npx convex run domains/search/embedHashBackfill:runBackfillForTable \
+ *     --args '{"table":"blocks","maxPages":20}'
+ *   # response: { patched, scanned, cursor, isDone, durationMs }
+ *   # if !isDone: re-run with --args '{"table":"blocks","cursor":"<cursor>","maxPages":20}'
+ */
+export const runBackfillForTable = action({
+  args: {
+    table: v.union(v.literal("entities"), v.literal("reports"), v.literal("blocks")),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    maxPages: v.optional(v.number()),
+  },
+  returns: v.object({
+    table: v.string(),
+    patched: v.number(),
+    scanned: v.number(),
+    skipped: v.number(),
+    failed: v.number(),
+    pagesScanned: v.number(),
+    cursor: v.union(v.string(), v.null()),
+    isDone: v.boolean(),
+    durationMs: v.number(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    table: string;
+    patched: number;
+    scanned: number;
+    skipped: number;
+    failed: number;
+    pagesScanned: number;
+    cursor: string | null;
+    isDone: boolean;
+    durationMs: number;
+  }> => {
+    const startedAt = Date.now();
+    const maxPages = Math.max(1, Math.min(args.maxPages ?? 10, MAX_PAGES));
+    let cursor: string | null = args.cursor ?? null;
+    let patched = 0;
+    let scanned = 0;
+    let skipped = 0;
+    let failed = 0;
+    let pagesScanned = 0;
+    let isDone = false;
+
+    const scanRef =
+      args.table === "entities"
+        ? internal.domains.search.embedHashBackfill.scanEntitiesPage
+        : args.table === "reports"
+        ? internal.domains.search.embedHashBackfill.scanReportsPage
+        : internal.domains.search.embedHashBackfill.scanBlocksPage;
+
+    const patchRef =
+      args.table === "entities"
+        ? internal.domains.search.embedHashBackfill.patchEntityHash
+        : args.table === "reports"
+        ? internal.domains.search.embedHashBackfill.patchReportHash
+        : internal.domains.search.embedHashBackfill.patchBlockHash;
+
+    for (let page = 0; page < maxPages; page += 1) {
+      const result: { cursor: string | null; isDone: boolean; rows: Array<{ _id: string; hasEmbedding: boolean; hasHash: boolean }> } =
+        await ctx.runQuery(scanRef, { cursor, limit: PAGE_SIZE });
+      cursor = result.cursor;
+      pagesScanned += 1;
+
+      for (const row of result.rows) {
+        scanned += 1;
+        if (!row.hasEmbedding || row.hasHash) {
+          skipped += 1;
+          continue;
+        }
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const out: { patched: boolean } = await ctx.runMutation(patchRef as any, { id: row._id });
+          if (out.patched) patched += 1;
+          else skipped += 1;
+        } catch (e) {
+          failed += 1;
+          console.error(`[embedHashBackfill] ${args.table} ${row._id} failed:`, e);
+        }
+      }
+
+      if (result.isDone) {
+        isDone = true;
+        break;
+      }
+    }
+
+    return {
+      table: args.table,
+      patched,
+      scanned,
+      skipped,
+      failed,
+      pagesScanned,
+      cursor,
+      isDone,
       durationMs: Date.now() - startedAt,
     };
   },

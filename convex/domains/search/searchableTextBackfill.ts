@@ -44,6 +44,7 @@
 
 import { v } from "convex/values";
 import {
+  action,
   internalMutation,
   internalAction,
 } from "../../_generated/server";
@@ -398,5 +399,44 @@ export const backfillAll = internalAction({
         entities.done && reports.done && blocks.done && sources.done,
       totalDurationMs: Date.now() - startedAt,
     };
+  },
+});
+
+/* -------------------------------------------------------------------------- */
+/* Public CLI-callable wrappers — per-table, page-resumable                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Public dispatcher around the internalMutation per-table backfills.
+ * Convex CLI cannot invoke internalMutation directly. Each call
+ * processes ONE batch (~MAX_PAGES_PER_CALL pages × ROWS_PER_PAGE rows)
+ * so it fits within the mutation budget. Re-run with the returned
+ * cursor until `done: true`.
+ *
+ *   npx convex run domains/search/searchableTextBackfill:runBackfillForTable \
+ *     '{"table":"entities"}'
+ *   # next: '{"table":"entities","cursor":"<prev>"}' until done
+ */
+export const runBackfillForTable = action({
+  args: {
+    table: v.union(
+      v.literal("entities"),
+      v.literal("reports"),
+      v.literal("blocks"),
+      v.literal("sources"),
+    ),
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  returns: v.object(BACKFILL_RESULT_SHAPE),
+  handler: async (ctx, args): Promise<BackfillResult> => {
+    const ref =
+      args.table === "entities"
+        ? internal.domains.search.searchableTextBackfill.backfillEntities
+        : args.table === "reports"
+        ? internal.domains.search.searchableTextBackfill.backfillReports
+        : args.table === "blocks"
+        ? internal.domains.search.searchableTextBackfill.backfillBlocks
+        : internal.domains.search.searchableTextBackfill.backfillSources;
+    return await ctx.runMutation(ref, { cursor: args.cursor ?? null });
   },
 });

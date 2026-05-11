@@ -28,6 +28,7 @@
 
 import { v } from "convex/values";
 import {
+  action,
   internalAction,
   internalMutation,
   internalQuery,
@@ -423,6 +424,50 @@ export const embedEntitiesBackfill = internalAction({
   returns: v.object(EMBED_BACKFILL_RESULT_SHAPE),
   handler: async (ctx, args): Promise<EmbedBackfillResult> => {
     return runEmbedBackfill(ctx, "entities", args.cursor ?? null);
+  },
+});
+
+/**
+ * Public CLI-callable wrappers. Convex CLI cannot invoke internalAction
+ * directly; these thin wrappers let operators run per-table backfills
+ * with the prod deploy key. Each call processes ONE page (PAGE_SIZE
+ * rows) so it fits well inside the action wall-clock budget. Re-run
+ * with the returned cursor to continue.
+ *
+ *   npx convex run domains/search/embedSearchableText:runEmbedEntities
+ *   npx convex run domains/search/embedSearchableText:runEmbedReports
+ *   npx convex run domains/search/embedSearchableText:runEmbedBlocks '{"cursor":"<prev>"}'
+ */
+export const runEmbedEntities = action({
+  args: EMBED_ARGS,
+  returns: v.object(EMBED_BACKFILL_RESULT_SHAPE),
+  handler: async (ctx, args): Promise<EmbedBackfillResult> => {
+    return await ctx.runAction(
+      internal.domains.search.embedSearchableText.embedEntitiesBackfill,
+      { cursor: args.cursor ?? null },
+    );
+  },
+});
+
+export const runEmbedReports = action({
+  args: EMBED_ARGS,
+  returns: v.object(EMBED_BACKFILL_RESULT_SHAPE),
+  handler: async (ctx, args): Promise<EmbedBackfillResult> => {
+    return await ctx.runAction(
+      internal.domains.search.embedSearchableText.embedReportsBackfill,
+      { cursor: args.cursor ?? null },
+    );
+  },
+});
+
+export const runEmbedBlocks = action({
+  args: EMBED_ARGS,
+  returns: v.object(EMBED_BACKFILL_RESULT_SHAPE),
+  handler: async (ctx, args): Promise<EmbedBackfillResult> => {
+    return await ctx.runAction(
+      internal.domains.search.embedSearchableText.embedBlocksBackfill,
+      { cursor: args.cursor ?? null },
+    );
   },
 });
 
