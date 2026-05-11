@@ -48,6 +48,7 @@ export const MODES: ModeConfig[] = [
       "watchlists",
       "entity",
       "entity-pulse",
+      "event-corpus",
       "report-detail",
       "report-detail-workspace",
       "role-lens-output",
