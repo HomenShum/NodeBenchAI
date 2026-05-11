@@ -14,7 +14,7 @@
  * proposals[] or claims[] array. When those arrays are provided, they
  * are seeded into the editor document on first mount.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
@@ -35,6 +35,12 @@ import { NbClaim, type ClaimAttrs } from "../extensions/nbClaim";
 import { createSlashCommandExtension } from "../extensions/slashCommand";
 import { createSlashRenderer } from "../extensions/slashMenuRenderer";
 import "../styles/notebook.css";
+
+// Lazy-loaded so the finder bundle (~3KB) only ships when a caller passes a
+// reportId. Older callers (no reportId → no Cmd+F binding) pay nothing.
+const NotebookBlockFinder = lazy(() =>
+  import("./NotebookBlockFinder").then((m) => ({ default: m.NotebookBlockFinder })),
+);
 
 export type NotebookProposal = Omit<ProposalAttrs, "state"> & {
   state?: ProposalAttrs["state"];
@@ -65,6 +71,15 @@ type RichNotebookEditorProps = {
   saveDebounceMs?: number;
   /** Show the save-state indicator pill (default true). */
   showSaveState?: boolean;
+  /**
+   * Optional report id. When present:
+   *   - Cmd/Ctrl+F (while focus is inside this editor) opens the
+   *     NotebookBlockFinder, scoped to this reportId.
+   *   - The browser's native Find is preempted (`preventDefault`).
+   * When absent, Cmd+F is a no-op for this component (browser's native Find
+   * runs as usual).
+   */
+  reportId?: string;
 };
 
 type ToolbarButton = {
@@ -145,6 +160,7 @@ export function RichNotebookEditor({
   claims,
   saveDebounceMs = 900,
   showSaveState = true,
+  reportId,
 }: RichNotebookEditorProps) {
   const content = useMemo(
     () => buildSeedHtml(readStoredNotebook(storageKey, initialContent), proposals, claims),
@@ -157,6 +173,18 @@ export function RichNotebookEditor({
   const [saveState, setSaveState] = useState<"saved" | "saving">("saved");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAppendRequestIdRef = useRef<string | null>(null);
+  const rootRef = useRef<HTMLElement | null>(null);
+  const editorContainerRef = useRef<HTMLDivElement | null>(null);
+  const [finderOpen, setFinderOpen] = useState(false);
+  const closeFinder = useCallback(() => {
+    setFinderOpen(false);
+    // After closing, return focus to the editor host so the user can keep typing.
+    // ProseMirror's contenteditable is inside editorContainerRef.
+    const editable = editorContainerRef.current?.querySelector<HTMLElement>(
+      '[contenteditable="true"]',
+    );
+    editable?.focus();
+  }, []);
 
   const slashExtension = useMemo(
     () =>
@@ -202,6 +230,32 @@ export function RichNotebookEditor({
     lastAppendRequestIdRef.current = appendRequest.id;
     editor.chain().focus().insertContent(appendRequest.html).run();
   }, [appendRequest, editor]);
+
+  // Editor-scoped Cmd/Ctrl+F binding. Only fires when focus is inside the
+  // editor article (so the browser's native Find still works elsewhere on the
+  // page). No-op when `reportId` is undefined — older callers see no change.
+  useEffect(() => {
+    if (!reportId) return;
+    function onKeyDown(e: KeyboardEvent) {
+      // Cmd on macOS, Ctrl elsewhere — match the platform's Find shortcut.
+      const isCmdF =
+        (e.key === "f" || e.key === "F") && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
+      if (!isCmdF) return;
+      // Only intercept when focus is inside this editor. Browser-native Find
+      // continues to work everywhere else on the page.
+      const active = document.activeElement;
+      const host = rootRef.current;
+      if (!host || !active || !host.contains(active)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setFinderOpen(true);
+    }
+    // Keydown on document with focus guard — same as TipTap's own shortcut path.
+    // Capture phase so we beat the browser's native handler, which honors
+    // `preventDefault` only on the *first* listener to call it.
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [reportId]);
 
   const buttons: ToolbarButton[] = editor
     ? [
@@ -258,8 +312,9 @@ export function RichNotebookEditor({
 
   return (
     <article
+      ref={rootRef}
       className={cn(
-        "rounded-md border border-black/[0.08] bg-[#fffcf6] p-4 shadow-sm dark:border-white/[0.08] dark:bg-[#15130f]",
+        "relative rounded-md border border-black/[0.08] bg-[#fffcf6] p-4 shadow-sm dark:border-white/[0.08] dark:bg-[#15130f]",
         className,
       )}
     >
@@ -313,7 +368,7 @@ export function RichNotebookEditor({
           </div>
         ) : null}
       </div>
-      <div className="border-l-2 border-[#d97757] pl-5">
+      <div ref={editorContainerRef} className="border-l-2 border-[#d97757] pl-5">
         {editor ? (
           <EditorContent editor={editor} data-testid={testId} />
         ) : (
@@ -324,6 +379,15 @@ export function RichNotebookEditor({
         <div className="mt-4 border-t border-black/[0.05] pt-3 dark:border-white/[0.05]">
           {footer}
         </div>
+      ) : null}
+      {reportId && finderOpen ? (
+        <Suspense fallback={null}>
+          <NotebookBlockFinder
+            reportId={reportId}
+            containerRef={editorContainerRef}
+            onClose={closeFinder}
+          />
+        </Suspense>
       ) : null}
     </article>
   );

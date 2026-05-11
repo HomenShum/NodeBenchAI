@@ -817,6 +817,7 @@ export function ReportNotebookDetail() {
             className="min-h-[560px] p-5"
             onChange={onEditorChange}
             appendRequest={appendRequest}
+            reportId={reportId}
             footer={
               <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em] text-gray-400">
                 <span>
