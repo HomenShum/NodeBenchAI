@@ -15964,4 +15964,32 @@ export default defineSchema({
   })
     .index("by_url_hash", ["urlHash"])
     .index("by_ttl", ["ttlExpiresAt"]),
+
+  /* ------------------------------------------------------------------ */
+  /* PHASE 12 — Federated search response cache (anonymous hot queries) */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Server-side response cache for `federatedSearch`.  Anonymous-only
+   * by construction.  See convex/domains/search/federatedSearchCache.ts
+   * for full module docs (privacy invariant + 8-point reliability).
+   *
+   * BOUND:           response capped at MAX_CACHED_RESPONSE_BYTES (32 KB).
+   * HONEST_STATUS:   miss returns null; cache failures fall through.
+   * DETERMINISTIC:   key = cyrb53(sorted(q + collections + limit)).
+   * BOUND_READ:      single-doc lookup by indexed key.
+   */
+  federatedSearchCache: defineTable({
+    cacheKey: v.string(),                    // cyrb53(sorted(q + collections + limit))
+    queryNormalized: v.string(),             // lowercased trimmed q (debug aid)
+    collections: v.array(v.string()),        // requested collection names (sorted)
+    limit: v.number(),                       // limit used
+    response: v.string(),                    // JSON.stringify(FederatedSearchResponse)
+    responseBytes: v.number(),               // utf8 length of `response` (BOUND audit)
+    generatedAt: v.number(),                 // ms epoch when row was written
+    ttlExpiresAt: v.number(),                // generatedAt + FEDERATED_CACHE_TTL_MS
+    hitCount: v.number(),                    // monotonic counter (cache analytics)
+  })
+    .index("by_cache_key", ["cacheKey"])
+    .index("by_ttl", ["ttlExpiresAt"]),
 });
