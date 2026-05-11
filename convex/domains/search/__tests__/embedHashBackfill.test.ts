@@ -252,8 +252,12 @@ describe("backfill row-selection — what patches, what skips", () => {
    * empty-projection rows (no hash, no patch) instead of writing a hash for "".
    */
   it("returns empty projection for null/non-array block content (action will skip)", () => {
-    // @ts-expect-error — intentionally invalid shape to model schema drift
-    const projection = recomputeBlockSearchableText({ content: null, deletedAt: undefined });
+    // Intentionally invalid shape to model schema drift — recompute must
+    // tolerate non-array content and return "" so the action skips the row.
+    const projection = recomputeBlockSearchableText({
+      content: null as unknown as Array<{ value: string }>,
+      deletedAt: undefined,
+    });
     expect(projection).toBe("");
   });
 
