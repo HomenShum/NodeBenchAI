@@ -1989,53 +1989,19 @@ export const promoteLinkToEvidence = mutation({
 });
 
 /**
- * Search entities for @mention autocomplete.
- * Simple substring match by name or slug (case-insensitive). Returns top 10.
+ * NOTE: `searchEntitiesForMention` was removed in 2026-05. The legacy
+ * implementation did `query("productEntities").take(200)` then JS-filtered
+ * by name/slug substring, which silently truncated results for power users
+ * with >200 entities and offered no typo tolerance.
+ *
+ * MentionPicker now routes through the federated search action
+ * (`domains/search/federatedSearch:federatedSearch`) which is backed by the
+ * `search_entities` searchIndex (PR #310) + vector hybrid (PR #315) — no
+ * scan cliff, typo tolerance, deterministic ranking, and the same privacy
+ * gate as the rest of the federated surface.
+ *
+ * See: src/features/entities/components/notebook/MentionPicker.tsx
  */
-export const searchEntitiesForMention = query({
-  args: {
-    anonymousSessionId: v.optional(v.string()),
-    shareToken: v.optional(v.string()),
-    entitySlug: v.optional(v.string()),
-    prefix: v.string(),
-  },
-  handler: async (
-    ctx,
-    args,
-  ): Promise<Array<{ slug: string; name: string; entityType: string }>> => {
-    let ownerKeys = await resolveProductReadOwnerKeys(ctx, args.anonymousSessionId);
-    if (args.entitySlug) {
-      const workspaceAccess = await resolveEntityWorkspaceAccess(ctx, {
-        anonymousSessionId: args.anonymousSessionId,
-        shareToken: args.shareToken,
-        entitySlug: args.entitySlug,
-      });
-      if (workspaceAccess) {
-        ownerKeys = [workspaceAccess.entity.ownerKey];
-      } else if (args.shareToken) {
-        return [];
-      }
-    }
-    if (ownerKeys.length === 0) return [];
-    const needle = args.prefix.trim().toLowerCase();
-    if (!needle) return [];
-    const results: Array<{ slug: string; name: string; entityType: string }> = [];
-    for (const ownerKey of ownerKeys) {
-      const rows = await ctx.db
-        .query("productEntities")
-        .withIndex("by_owner_updated", (q) => q.eq("ownerKey", ownerKey))
-        .order("desc")
-        .take(200);
-      for (const row of rows) {
-        if (row.name.toLowerCase().includes(needle) || row.slug.toLowerCase().includes(needle)) {
-          results.push({ slug: row.slug, name: row.name, entityType: row.entityType });
-          if (results.length >= 10) return results;
-        }
-      }
-    }
-    return results;
-  },
-});
 
 /**
  * Migration: backfill productBlocks for an entity from its current
