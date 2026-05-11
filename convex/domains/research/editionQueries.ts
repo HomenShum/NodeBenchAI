@@ -767,6 +767,10 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_WEEK_RE = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/;
 /** ISO YYYY-MM pattern (month 01-12). */
 const ISO_MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+/** ISO YYYY-Qn pattern (quarter 1-4). */
+const ISO_QUARTER_RE = /^\d{4}-Q[1-4]$/;
+/** ISO YYYY pattern. */
+const ISO_YEAR_RE = /^\d{4}$/;
 
 function isValidDateKey(s: string): boolean {
   if (!ISO_DATE_RE.test(s)) return false;
@@ -805,6 +809,46 @@ function monthRange(monthKey: string): { startMs: number; endMs: number } | null
   const startMs = Date.UTC(year, month - 1, 1);
   const endMs = Date.UTC(year, month, 1) - 1;
   return { startMs, endMs };
+}
+
+function quarterRange(quarterKey: string): { startMs: number; endMs: number } | null {
+  if (!ISO_QUARTER_RE.test(quarterKey)) return null;
+  const [yearPart, quarterPart] = quarterKey.split("-Q");
+  const year = Number(yearPart);
+  const quarter = Number(quarterPart);
+  const startMonth = (quarter - 1) * 3;
+  return {
+    startMs: Date.UTC(year, startMonth, 1),
+    endMs: Date.UTC(year, startMonth + 3, 1) - 1,
+  };
+}
+
+function yearRange(yearKey: string): { startMs: number; endMs: number } | null {
+  if (!ISO_YEAR_RE.test(yearKey)) return null;
+  const year = Number(yearKey);
+  return {
+    startMs: Date.UTC(year, 0, 1),
+    endMs: Date.UTC(year + 1, 0, 1) - 1,
+  };
+}
+
+function longHorizonRange(
+  kind: "quarter" | "year",
+  periodKey: string,
+): { startMs: number; endMs: number } | null {
+  return kind === "quarter" ? quarterRange(periodKey) : yearRange(periodKey);
+}
+
+function sourceItemCount(snapshot: Doc<"dailyBriefSnapshots">): number {
+  const summary = snapshot.sourceSummary as any;
+  const candidates = [
+    summary?.totalItems,
+    summary?.itemCount,
+    summary?.sources,
+    Array.isArray(summary?.items) ? summary.items.length : undefined,
+  ];
+  const value = candidates.find((candidate) => typeof candidate === "number");
+  return Number.isFinite(value) ? Math.max(0, Number(value)) : 0;
 }
 
 /* ────────────────────────────────────────────────────────────────────
@@ -1358,6 +1402,140 @@ export const getMonthlyRetrospective = query({
       dailyHistogram,
       dayKeys,
       pulseSource,
+    };
+  },
+});
+
+export const getLongHorizonRetrospective = query({
+  args: {
+    kind: v.union(v.literal("quarter"), v.literal("year")),
+    periodKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const range = longHorizonRange(args.kind, args.periodKey);
+    if (!range) {
+      return {
+        available: false as const,
+        reason: "invalid_period" as const,
+        kind: args.kind,
+        periodKey: args.periodKey,
+        startDateKey: null as string | null,
+        endDateKey: null as string | null,
+      };
+    }
+
+    const { startMs, endMs } = range;
+    const startDateKey = dateKeyFromMs(startMs);
+    const endDateKey = dateKeyFromMs(endMs);
+    const snapshotCap = args.kind === "year" ? 420 : 120;
+    const snapshotsAll = await ctx.db
+      .query("dailyBriefSnapshots")
+      .withIndex("by_date_string")
+      .order("desc")
+      .take(snapshotCap);
+    const snapshots = snapshotsAll.filter((snapshot) => {
+      const t = Date.parse(`${snapshot.dateString}T00:00:00Z`);
+      return t >= startMs && t <= endMs;
+    });
+    snapshots.sort((left, right) => left.dateString.localeCompare(right.dateString));
+
+    const snapshotSummaries = snapshots
+      .map((snapshot) => ({
+        dateString: snapshot.dateString,
+        keyStatCount: snapshot.dashboardMetrics?.keyStats?.length ?? 0,
+        sourceItemCount: sourceItemCount(snapshot),
+      }))
+      .sort(
+        (left, right) =>
+          right.keyStatCount - left.keyStatCount ||
+          right.sourceItemCount - left.sourceItemCount ||
+          right.dateString.localeCompare(left.dateString),
+      )
+      .slice(0, 8);
+
+    const resolutions = await ctx.db
+      .query("forecastResolutions")
+      .order("desc")
+      .take(400);
+    const inWindowResolutions = resolutions.filter(
+      (resolution) => resolution.resolvedAt >= startMs && resolution.resolvedAt <= endMs,
+    );
+    const brierScores = inWindowResolutions
+      .map((resolution) => resolution.brierScore)
+      .filter((score): score is number => typeof score === "number" && Number.isFinite(score));
+    const meanBrier =
+      brierScores.length > 0
+        ? brierScores.reduce((sum, score) => sum + score, 0) / brierScores.length
+        : null;
+
+    const topResolved: Array<{
+      _id: Id<"forecastResolutions">;
+      forecastId: Id<"forecasts">;
+      question: string | null;
+      outcome: "yes" | "no" | "ambiguous";
+      finalProbability: number | null;
+      brierScore: number | null;
+      resolvedAt: number;
+    }> = [];
+    for (const resolution of inWindowResolutions.slice(0, 5)) {
+      const forecast = await ctx.db.get(resolution.forecastId);
+      topResolved.push({
+        _id: resolution._id,
+        forecastId: resolution.forecastId,
+        question: forecast?.question ?? null,
+        outcome: resolution.outcome,
+        finalProbability:
+          typeof forecast?.probability === "number" ? forecast.probability : null,
+        brierScore:
+          typeof resolution.brierScore === "number" ? resolution.brierScore : null,
+        resolvedAt: resolution.resolvedAt,
+      });
+    }
+
+    const recentUpdates = await ctx.db
+      .query("industryUpdates")
+      .withIndex("by_scanned_at")
+      .order("desc")
+      .take(500);
+    const sourceUpdateCount = recentUpdates.filter(
+      (update) => update.scannedAt >= startMs && update.scannedAt <= endMs,
+    ).length;
+
+    if (
+      snapshots.length === 0 &&
+      inWindowResolutions.length === 0 &&
+      sourceUpdateCount === 0
+    ) {
+      return {
+        available: false as const,
+        reason: "no_edition" as const,
+        kind: args.kind,
+        periodKey: args.periodKey,
+        startDateKey,
+        endDateKey,
+      };
+    }
+
+    return {
+      available: true as const,
+      kind: args.kind,
+      periodKey: args.periodKey,
+      startDateKey,
+      endDateKey,
+      snapshotCount: snapshots.length,
+      latestSnapshotDate: snapshots.length > 0 ? snapshots[snapshots.length - 1].dateString : null,
+      totalKeyStats: snapshots.reduce(
+        (total, snapshot) => total + (snapshot.dashboardMetrics?.keyStats?.length ?? 0),
+        0,
+      ),
+      sourceItemCount: snapshots.reduce(
+        (total, snapshot) => total + sourceItemCount(snapshot),
+        sourceUpdateCount,
+      ),
+      resolvedForecastCount: inWindowResolutions.length,
+      meanBrier,
+      topSnapshots: snapshotSummaries,
+      topResolved,
     };
   },
 });

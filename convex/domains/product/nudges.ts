@@ -216,6 +216,36 @@ export const completeNudge = mutation({
   },
 });
 
+export const createHomePulseFollowupNudge = mutation({
+  args: {
+    anonymousSessionId: v.optional(v.string()),
+    title: v.string(),
+    summary: v.string(),
+    actionLabel: v.optional(v.string()),
+    actionTargetSurface: v.optional(v.string()),
+    actionTargetId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireProductIdentity(ctx, args.anonymousSessionId);
+    const now = Date.now();
+    return await upsertOpenProductNudge(ctx, {
+      ownerKey: identity.ownerKey,
+      type: "follow_up_due",
+      title: args.title.trim().slice(0, 160) || "Home Pulse follow-up",
+      summary:
+        args.summary.trim().slice(0, 700) ||
+        "Review the latest Home Pulse and decide which report, notebook, or source trail needs a follow-up.",
+      priority: "medium",
+      dueAt: now + 24 * 60 * 60 * 1000,
+      actionLabel: args.actionLabel ?? "Open in Chat",
+      actionTargetSurface: args.actionTargetSurface ?? "chat",
+      actionTargetId: args.actionTargetId ?? "home-pulse",
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Internal: create a nudge (called by cron or other internal actions)
 // ---------------------------------------------------------------------------

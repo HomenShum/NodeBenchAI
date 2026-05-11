@@ -1,8 +1,8 @@
 /**
  * EditionSelector — temporal chip group above the §1 header.
  *
- * Renders five affordances:
- *   Today | Yesterday | This week | This month | Archive (date picker)
+ * Renders seven affordances:
+ *   Today | Yesterday | This week | This month | This quarter | This year | Archive
  *
  * Mobile (< 480px) collapses to: Today | 7d | 30d | →
  *
@@ -32,7 +32,9 @@ export type EditionSelection =
   | { kind: "today" }
   | { kind: "day"; dateKey: string }
   | { kind: "week"; weekKey: string }
-  | { kind: "month"; monthKey: string };
+  | { kind: "month"; monthKey: string }
+  | { kind: "quarter"; quarterKey: string }
+  | { kind: "year"; yearKey: string };
 
 interface Props {
   /** The currently-active selection, parsed by the surface. */
@@ -74,6 +76,16 @@ function currentWeekKey(): string {
 function currentMonthKey(): string {
   const now = todayUtc();
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function currentQuarterKey(): string {
+  const now = todayUtc();
+  const quarter = Math.floor(now.getUTCMonth() / 3) + 1;
+  return `${now.getUTCFullYear()}-Q${quarter}`;
+}
+
+function currentYearKey(): string {
+  return `${todayUtc().getUTCFullYear()}`;
 }
 
 /* ─── Chip styles ────────────────────────────────────────────────── */
@@ -128,10 +140,15 @@ export function EditionSelector({ selection, earliestDateKey }: Props) {
   const isDay = selection.kind === "day";
   const isWeek = selection.kind === "week";
   const isMonth = selection.kind === "month";
+  const isQuarter = selection.kind === "quarter";
+  const isYear = selection.kind === "year";
   const yKey = yesterdayKey();
   const isYesterday = isDay && selection.dateKey === yKey;
   const isThisWeek = isWeek && selection.weekKey === currentWeekKey();
   const isThisMonth = isMonth && selection.monthKey === currentMonthKey();
+  const isThisQuarter =
+    isQuarter && selection.quarterKey === currentQuarterKey();
+  const isThisYear = isYear && selection.yearKey === currentYearKey();
 
   const onPickDate = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,11 +219,33 @@ export function EditionSelector({ selection, earliestDateKey }: Props) {
       </button>
       <button
         type="button"
+        data-edition-chip="quarter"
+        aria-pressed={isThisQuarter}
+        style={isThisQuarter ? activeChipStyle : baseChipStyle}
+        onClick={() => setEdition(`quarter:${currentQuarterKey()}`)}
+      >
+        <span className="rd-edition-chip__full">This quarter</span>
+        <span className="rd-edition-chip__short">QTD</span>
+      </button>
+      <button
+        type="button"
+        data-edition-chip="year"
+        aria-pressed={isThisYear}
+        style={isThisYear ? activeChipStyle : baseChipStyle}
+        onClick={() => setEdition(`year:${currentYearKey()}`)}
+      >
+        <span className="rd-edition-chip__full">This year</span>
+        <span className="rd-edition-chip__short">YTD</span>
+      </button>
+      <button
+        type="button"
         data-edition-chip="archive"
         aria-pressed={
           (isDay && !isYesterday) ||
           (isMonth && !isThisMonth) ||
-          (isWeek && !isThisWeek)
+          (isWeek && !isThisWeek) ||
+          (isQuarter && !isThisQuarter) ||
+          (isYear && !isThisYear)
         }
         aria-expanded={pickerOpen}
         style={baseChipStyle}

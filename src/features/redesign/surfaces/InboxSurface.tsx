@@ -12,10 +12,13 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
 import { type InboxItem, type InboxLane } from "../fixtures";
 import { Pill } from "../components/Pill";
 import { useInboxLive } from "../hooks/useInboxLive";
 import { showToast } from "../components/Toast";
+import { getAnonymousProductSessionId } from "../../product/lib/productIdentity";
 
 type DateRange = "all" | "today" | "7d" | "30d";
 const DATE_RANGES: Array<{ id: DateRange; label: string }> = [
@@ -39,6 +42,16 @@ export function InboxSurface() {
   const [dateRange, setDateRange] = useState<DateRange>("all");
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
+  const completeNudge = useMutation(
+    (api as unknown as {
+      domains: { product: { nudges: { completeNudge: unknown } } };
+    }).domains.product.nudges.completeNudge as Parameters<typeof useMutation>[0],
+  );
+  const snoozeNudge = useMutation(
+    (api as unknown as {
+      domains: { product: { nudges: { snoozeNudge: unknown } } };
+    }).domains.product.nudges.snoozeNudge as Parameters<typeof useMutation>[0],
+  );
 
   // Sprint S3: live aggregator over pipeline runs.
   const { items: allItems, isLive, liveCount } = useInboxLive();
@@ -71,15 +84,54 @@ export function InboxSurface() {
     return next;
   });
   const clearChecked = () => setChecked(new Set());
+  const selectedNudgeIds = () =>
+    Array.from(checked)
+      .filter((id) => id.startsWith("nudge_"))
+      .map((id) => id.slice("nudge_".length));
+
+  const completeSelectedNudges = async () => {
+    const nudgeIds = selectedNudgeIds();
+    if (nudgeIds.length === 0) return;
+    const anonymousSessionId = getAnonymousProductSessionId();
+    await Promise.all(
+      nudgeIds.map((nudgeId) =>
+        completeNudge({ anonymousSessionId, nudgeId }),
+      ),
+    );
+  };
+
+  const snoozeSelectedNudges = async () => {
+    const nudgeIds = selectedNudgeIds();
+    if (nudgeIds.length === 0) return;
+    const anonymousSessionId = getAnonymousProductSessionId();
+    await Promise.all(
+      nudgeIds.map((nudgeId) =>
+        snoozeNudge({ anonymousSessionId, nudgeId }),
+      ),
+    );
+  };
+
   const acceptAll = () => {
+    void completeSelectedNudges().catch((error) => {
+      console.error("[inbox] failed to complete nudges", error);
+      showToast({ tone: "warning", message: "Some persisted nudges could not be completed." });
+    });
     showToast({ tone: "success", message: `Accepted ${checked.size} item${checked.size === 1 ? "" : "s"}.` });
     clearChecked();
   };
   const rejectAll = () => {
+    void completeSelectedNudges().catch((error) => {
+      console.error("[inbox] failed to dismiss nudges", error);
+      showToast({ tone: "warning", message: "Some persisted nudges could not be dismissed." });
+    });
     showToast({ tone: "warning", message: `Rejected ${checked.size} item${checked.size === 1 ? "" : "s"}.` });
     clearChecked();
   };
   const snoozeAll = (label: string) => {
+    void snoozeSelectedNudges().catch((error) => {
+      console.error("[inbox] failed to snooze nudges", error);
+      showToast({ tone: "warning", message: "Some persisted nudges could not be snoozed." });
+    });
     setSnoozed((prev) => new Set([...prev, ...checked]));
     showToast({
       tone: "info",

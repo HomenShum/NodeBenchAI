@@ -122,6 +122,19 @@ export type MonthlyRetrospectiveResult =
       }>;
       resolvedForecastCount: number;
       meanBrier: number | null;
+      topResolved?: Array<{
+        _id: string;
+        forecastId: string;
+        question: string | null;
+        outcome: "yes" | "no" | "ambiguous";
+        finalProbability: number | null;
+        brierScore: number | null;
+        resolvedAt: number;
+      }>;
+      weeklyPulseTotals?: Array<{ weekKey: string; materialChanges: number }>;
+      dailyHistogram?: number[];
+      dayKeys?: string[];
+      pulseSource?: "user" | "public-trending" | "none";
     }
   | {
       available: false;
@@ -132,9 +145,60 @@ export type MonthlyRetrospectiveResult =
 export function useMonthlyRetrospective(
   monthKey: string | null,
 ): MonthlyRetrospectiveResult | undefined {
+  const sessionId = getStoredAnonymousSessionId();
   const data = useQuery(
     api.domains.research.editionQueries.getMonthlyRetrospective,
-    monthKey ? { monthKey } : "skip",
+    monthKey ? { monthKey, anonymousSessionId: sessionId } : "skip",
   );
   return data as MonthlyRetrospectiveResult | undefined;
+}
+
+/* --- Quarter / year retrospective --------------------------------------- */
+
+export type LongHorizonRetrospectiveResult =
+  | {
+      available: true;
+      kind: "quarter" | "year";
+      periodKey: string;
+      startDateKey: string;
+      endDateKey: string;
+      snapshotCount: number;
+      latestSnapshotDate: string | null;
+      totalKeyStats: number;
+      sourceItemCount: number;
+      resolvedForecastCount: number;
+      meanBrier: number | null;
+      topSnapshots: Array<{
+        dateString: string;
+        keyStatCount: number;
+        sourceItemCount: number;
+      }>;
+      topResolved: Array<{
+        _id: string;
+        forecastId: string;
+        question: string | null;
+        outcome: "yes" | "no" | "ambiguous";
+        finalProbability: number | null;
+        brierScore: number | null;
+        resolvedAt: number;
+      }>;
+    }
+  | {
+      available: false;
+      reason: "invalid_period" | "no_edition";
+      kind: "quarter" | "year";
+      periodKey: string;
+      startDateKey: string | null;
+      endDateKey: string | null;
+    };
+
+export function useLongHorizonRetrospective(
+  kind: "quarter" | "year" | null,
+  periodKey: string | null,
+): LongHorizonRetrospectiveResult | undefined {
+  const data = useQuery(
+    api.domains.research.editionQueries.getLongHorizonRetrospective,
+    kind && periodKey ? { kind, periodKey } : "skip",
+  );
+  return data as LongHorizonRetrospectiveResult | undefined;
 }

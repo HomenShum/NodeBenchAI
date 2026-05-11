@@ -9,6 +9,7 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { InboxItem } from "../fixtures";
+import { getAnonymousProductSessionId } from "../../product/lib/productIdentity";
 
 interface PipelineRun {
   _id: string;
@@ -22,6 +23,24 @@ interface PipelineRun {
   errorMessage?: string;
 }
 
+interface ProductNudge {
+  _id: string;
+  type: string;
+  title: string;
+  summary: string;
+  priority: "low" | "medium" | "high";
+  bucket?: "action_required" | "update";
+  actionLabel?: string;
+  actionTargetSurface?: string;
+  actionTargetId?: string;
+  linkedReportTitle?: string;
+  updatedAt: number;
+}
+
+interface ProductNudgeSnapshot {
+  nudges: ProductNudge[];
+}
+
 function timeAgo(at: number): string {
   const delta = Math.max(0, Date.now() - at);
   const m = Math.floor(delta / 60_000);
@@ -31,6 +50,39 @@ function timeAgo(at: number): string {
   if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
   return `${d}d ago`;
+}
+
+function nudgeToInbox(nudge: ProductNudge): InboxItem {
+  const toneMap: Record<ProductNudge["priority"], NonNullable<InboxItem["whyTone"]>> = {
+    high: "amber",
+    medium: "accent",
+    low: "blue",
+  };
+  const lane =
+    nudge.bucket === "action_required" ||
+    nudge.type === "follow_up_due" ||
+    nudge.type === "refresh_recommended"
+      ? "agent_suggestions"
+      : "watchlist";
+  const title = nudge.linkedReportTitle
+    ? `${nudge.title} - ${nudge.linkedReportTitle}`
+    : nudge.title;
+  return {
+    id: `nudge_${nudge._id}`,
+    lane,
+    category: lane === "watchlist" ? "watchlist" : "automation",
+    whyHere:
+      nudge.type === "follow_up_due"
+        ? "FOLLOW-UP"
+        : nudge.type === "refresh_recommended"
+          ? "REFRESH"
+          : "NUDGE",
+    whyTone: toneMap[nudge.priority] ?? "accent",
+    title,
+    body: nudge.summary,
+    meta: `${timeAgo(nudge.updatedAt)} - ${nudge.actionLabel ?? "Open"}`,
+    confidence: nudge.priority === "high" ? 0.82 : nudge.priority === "medium" ? 0.7 : 0.58,
+  };
 }
 
 function pipelineToInbox(run: PipelineRun): InboxItem {
@@ -62,23 +114,31 @@ export interface UseInboxLiveResult {
 }
 
 export function useInboxLive(): UseInboxLiveResult {
+  const anonymousSessionId = getAnonymousProductSessionId();
   const livePipeline = useQuery(
     (api as unknown as { domains: { pipelines: { pipelineRunsQueries: { listRecentRuns: unknown } } } })
       .domains.pipelines.pipelineRunsQueries.listRecentRuns as Parameters<typeof useQuery>[0],
     { limit: 20 } as Parameters<typeof useQuery>[1],
   ) as PipelineRun[] | undefined;
+  const nudgeSnapshot = useQuery(
+    (api as unknown as { domains: { product: { nudges: { getNudgesSnapshot: unknown } } } })
+      .domains.product.nudges.getNudgesSnapshot as Parameters<typeof useQuery>[0],
+    { anonymousSessionId } as Parameters<typeof useQuery>[1],
+  ) as ProductNudgeSnapshot | undefined;
 
-  if (livePipeline === undefined) {
+  if (livePipeline === undefined && nudgeSnapshot === undefined) {
     return { items: [], isLive: false, isLoading: true, liveCount: 0 };
   }
 
-  const liveItems = livePipeline
+  const liveItems = (livePipeline ?? [])
     .filter((run) => run.verdict === "needs_review" || run.verdict === "failed")
     .map(pipelineToInbox);
+  const nudgeItems = (nudgeSnapshot?.nudges ?? []).map(nudgeToInbox);
+  const items = [...nudgeItems, ...liveItems];
 
-  if (liveItems.length === 0) {
+  if (items.length === 0) {
     return { items: [], isLive: false, isLoading: false, liveCount: 0 };
   }
 
-  return { items: liveItems, isLive: true, isLoading: false, liveCount: liveItems.length };
+  return { items, isLive: true, isLoading: false, liveCount: items.length };
 }

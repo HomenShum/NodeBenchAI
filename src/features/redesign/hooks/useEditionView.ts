@@ -21,6 +21,8 @@ import type { EditionSelection } from "../components/edition/EditionSelector";
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_WEEK_RE = /^week:(\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3]))$/;
 const ISO_MONTH_RE = /^month:(\d{4}-(?:0[1-9]|1[0-2]))$/;
+const ISO_QUARTER_RE = /^quarter:(\d{4}-Q[1-4])$/;
+const ISO_YEAR_RE = /^year:(\d{4})$/;
 
 function isValidDateKey(s: string): boolean {
   if (!ISO_DATE_RE.test(s)) return false;
@@ -43,6 +45,14 @@ export function parseEditionParam(value: string | null): EditionSelection {
   const mMatch = value.match(ISO_MONTH_RE);
   if (mMatch) {
     return { kind: "month", monthKey: mMatch[1] };
+  }
+  const qMatch = value.match(ISO_QUARTER_RE);
+  if (qMatch) {
+    return { kind: "quarter", quarterKey: qMatch[1] };
+  }
+  const yMatch = value.match(ISO_YEAR_RE);
+  if (yMatch) {
+    return { kind: "year", yearKey: yMatch[1] };
   }
   // ERROR_BOUNDARY: malformed → fall back to today; never throw.
   return { kind: "today" };
