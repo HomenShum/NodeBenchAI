@@ -291,6 +291,7 @@
     "fractional-indexing": "^3.2.0",
     "framer-motion": "^12.23.25",
     "googleapis": "^171.4.0",
+    "helmet": "^8.1.0",
     "install": "^0.13.0",
     "katex": "^0.16.28",
     "lexical": "^0.43.0",
