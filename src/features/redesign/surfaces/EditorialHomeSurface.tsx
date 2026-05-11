@@ -82,6 +82,11 @@ import {
   HOME_EVIDENCE_WATCHLIST_SECTION,
   HOME_AUDIENCE_RELEVANCE_SECTION,
 } from "./EditorialHomeAudienceRelevance";
+import {
+  buildHomeDecisionQueue,
+  ProductDecisionQueue,
+  type ProductDecisionItem,
+} from "./ProductDecisionQueue";
 import { useOnlineStatus } from "../../../lib/performance/useOnlineStatus";
 import { trackEvent } from "../../../lib/analytics";
 import { getAnonymousProductSessionId } from "../../product/lib/productIdentity";
@@ -1879,6 +1884,7 @@ function LongHorizonBranch({
   onAsk: Props["onAsk"];
   onSwitchToClassic: () => void;
 }) {
+  const navigate = useNavigate();
   const hypothesesSwr = useActiveHypothesesSwr(5);
   const forecastsSwr = useTopForecastsSwr(5);
   const todayPulseSwr = useTodayPulseSwr(12);
@@ -1923,7 +1929,24 @@ function LongHorizonBranch({
     () => liveArtifacts.details.flatMap((detail) => detail.sourceRows),
     [liveArtifacts.details],
   );
-
+  const decisionItems = useMemo(
+    () =>
+      buildHomeDecisionQueue({
+        pulses: todayPulse,
+        hypotheses,
+        forecasts,
+        reports: liveArtifacts.reports,
+        sourceRows: liveSourceRows,
+      }),
+    [todayPulse, hypotheses, forecasts, liveArtifacts.reports, liveSourceRows],
+  );
+  const openDecisionItem = (item: ProductDecisionItem) => {
+    if (item.reportId) {
+      navigate(`/redesign/workspace?report=${encodeURIComponent(item.reportId)}`);
+      return;
+    }
+    onAsk(item.prompt ?? item.next);
+  };
   const visibleSections: SectionDescriptor[] = useMemo(
     () => [
       {
@@ -2127,6 +2150,15 @@ function LongHorizonBranch({
             explicit; no fixture fallback is used.
           </p>
         </header>
+
+        <ProductDecisionQueue
+          eyebrow="Decision queue"
+          title={`One queue for ${title.toLowerCase()}.`}
+          subtitle="Read the top live decision first. Everything below is supporting evidence, report context, source support, or a saved action."
+          items={decisionItems}
+          emptyLabel={`No live decision queue yet for ${title.toLowerCase()}. Run a brief, source refresh, or report update to populate this surface.`}
+          onOpenItem={openDecisionItem}
+        />
 
         <UniversalComposer
           onSubmit={(text) => onAsk(text)}
@@ -2342,6 +2374,7 @@ function TodayRender({
   selection: { kind: "today" };
   onSwitchToClassic: () => void;
 }) {
+  const navigate = useNavigate();
   // SWR wrappers: hydrate from IndexedDB cache on second-and-subsequent
   // visits so /redesign paints instantly while Convex revalidates.  See
   // src/lib/performance/idbSwrCache.ts for the bounded LRU + timeout
@@ -2411,6 +2444,24 @@ function TodayRender({
     () => liveArtifacts.details.flatMap((detail) => detail.sourceRows),
     [liveArtifacts.details],
   );
+  const decisionItems = useMemo(
+    () =>
+      buildHomeDecisionQueue({
+        pulses: todayPulse,
+        hypotheses,
+        forecasts,
+        reports: liveArtifacts.reports,
+        sourceRows: liveSourceRows,
+      }),
+    [todayPulse, hypotheses, forecasts, liveArtifacts.reports, liveSourceRows],
+  );
+  const openDecisionItem = (item: ProductDecisionItem) => {
+    if (item.reportId) {
+      navigate(`/redesign/workspace?report=${encodeURIComponent(item.reportId)}`);
+      return;
+    }
+    onAsk(item.prompt ?? item.next);
+  };
 
   // ── Build the visible-section list ─────────────────────────────
   // Bug 0a fix — section numbers are derived from the index in this
@@ -2570,10 +2621,20 @@ function TodayRender({
               margin: 0,
             }}
           >
-            What changed, why it matters, what to do next, reports touched,
-            sources used, and actions created from live NodeBench context.
+            What changed, which evidence moved, what to check next, reports
+            touched, sources used, and actions created from live NodeBench
+            context.
           </p>
         </header>
+
+        <ProductDecisionQueue
+          eyebrow="Decision queue"
+          title="One queue for today's intelligence."
+          subtitle="Read the top live decision first. Everything below is supporting evidence, report context, source support, or a saved action."
+          items={decisionItems}
+          emptyLabel="No live decision queue yet. Run a brief, source refresh, or report update to populate this surface."
+          onOpenItem={openDecisionItem}
+        />
 
         <UniversalComposer
           onSubmit={(text) => onAsk(text)}

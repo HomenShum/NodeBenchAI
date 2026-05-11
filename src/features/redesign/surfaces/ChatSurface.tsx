@@ -1464,7 +1464,7 @@ function ABCompareModal({
             </header>
             <div className="rd-eyebrow">Short answer</div>
             <p className="rd-ab-variant__short">{packet.shortAnswer}</p>
-            <div className="rd-eyebrow">Why it matters</div>
+            <div className="rd-eyebrow">Why useful</div>
             <p className="rd-ab-variant__why">{packet.whyItMatters}</p>
             <button
               type="button"
@@ -1485,7 +1485,7 @@ function ABCompareModal({
             </header>
             <div className="rd-eyebrow">Short answer</div>
             <p className="rd-ab-variant__short">{showShort || "—"}</p>
-            <div className="rd-eyebrow">Why it matters</div>
+            <div className="rd-eyebrow">Why useful</div>
             <p className="rd-ab-variant__why">{showWhy || "—"}</p>
             <button
               type="button"
@@ -1777,9 +1777,9 @@ function AnswerPacket({
         </p>
       </section>
 
-      {/* Why it matters */}
+      {/* Why useful */}
       <section>
-        <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Why it matters</div>
+        <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Why useful</div>
         <p className="rd-body" style={{ color: "var(--rd-ink-mute)", margin: 0 }}>{packet.whyItMatters}</p>
       </section>
 
