@@ -38,6 +38,13 @@ import { useActiveHypotheses } from "../hooks/useActiveHypotheses";
 import { useTopForecasts } from "../hooks/useTopForecasts";
 import { useLatestDailyBriefSnapshot } from "../hooks/useLatestDailyBriefSnapshot";
 import { useEditionFootnotes } from "../hooks/useEditionFootnotes";
+import {
+  getForecastReviewSummary,
+  getHypothesisReviewSummary,
+  getHypothesisReviewTitle,
+  HOME_AUDIENCE_RELEVANCE_SECTION,
+  HOME_EVIDENCE_WATCHLIST_SECTION,
+} from "../surfaces/EditorialHomeAudienceRelevance";
 import "../components/edition/edition.css";
 import "../components/edition/edition-print.css";
 
@@ -107,14 +114,14 @@ export function EditionPrintPage() {
   if (Array.isArray(hypotheses) && hypotheses.length > 0) {
     visibleSections.push({
       id: "competing-explanations",
-      kicker: "Hypotheses under test",
-      heading: "The competing explanations",
+      kicker: HOME_AUDIENCE_RELEVANCE_SECTION.kicker,
+      heading: HOME_AUDIENCE_RELEVANCE_SECTION.heading,
     });
   }
   visibleSections.push({
     id: "what-to-look-at",
-    kicker: "Forecasts in motion",
-    heading: "What to look at this week",
+    kicker: HOME_EVIDENCE_WATCHLIST_SECTION.kicker,
+    heading: HOME_EVIDENCE_WATCHLIST_SECTION.heading,
   });
   visibleSections.push({
     id: "scoreboard",
@@ -192,25 +199,31 @@ export function EditionPrintPage() {
           <EditionErrorBoundary label="print-hypotheses">
             <section
               role="region"
-              aria-label="The competing explanations"
+              aria-label="Audience relevance and evidence review queue"
               className="rd-edition-section"
               data-section="competing-explanations"
               data-section-number={numberFor(visibleSections.findIndex((s) => s.id === "competing-explanations"))}
-              data-section-kicker="Hypotheses under test"
+              data-section-kicker={HOME_AUDIENCE_RELEVANCE_SECTION.kicker}
             >
               <header>
                 <p className="rd-edition-section__eyebrow">
-                  {numberFor(visibleSections.findIndex((s) => s.id === "competing-explanations"))} · Hypotheses under test
+                  {numberFor(visibleSections.findIndex((s) => s.id === "competing-explanations"))} · {HOME_AUDIENCE_RELEVANCE_SECTION.kicker}
                 </p>
-                <h2 className="rd-edition-section__h2">The competing explanations</h2>
+                <h2 className="rd-edition-section__h2">
+                  {HOME_AUDIENCE_RELEVANCE_SECTION.heading}
+                </h2>
               </header>
               {hypotheses.map((h) => (
                 <article key={h._id} className="rd-edition-hypothesis">
                   <div className="rd-edition-hypothesis__head">
                     <span className="rd-edition-hypothesis__label">{h.label}</span>
-                    <h3 className="rd-edition-hypothesis__title">{h.title}</h3>
+                    <h3 className="rd-edition-hypothesis__title">
+                      {getHypothesisReviewTitle(h)}
+                    </h3>
                   </div>
-                  <p className="rd-edition-hypothesis__claim">{h.claimForm}</p>
+                  <p className="rd-edition-hypothesis__claim">
+                    {getHypothesisReviewSummary(h)}
+                  </p>
                   <EvidenceChecklistStrip
                     checklist={h.evidenceChecklist}
                     passing={h.evidenceChecksPassing}
@@ -226,24 +239,31 @@ export function EditionPrintPage() {
         <EditionErrorBoundary label="print-forecasts">
           <section
             role="region"
-            aria-label="What to look at this week"
+            aria-label="Evidence watchlist"
             className="rd-edition-section"
             data-section="what-to-look-at"
             data-section-number={numberFor(visibleSections.findIndex((s) => s.id === "what-to-look-at"))}
-            data-section-kicker="Forecasts in motion"
+            data-section-kicker={HOME_EVIDENCE_WATCHLIST_SECTION.kicker}
           >
             <header>
               <p className="rd-edition-section__eyebrow">
-                {numberFor(visibleSections.findIndex((s) => s.id === "what-to-look-at"))} · Forecasts in motion
+                {numberFor(visibleSections.findIndex((s) => s.id === "what-to-look-at"))} · {HOME_EVIDENCE_WATCHLIST_SECTION.kicker}
               </p>
-              <h2 className="rd-edition-section__h2">What to look at this week</h2>
+              <h2 className="rd-edition-section__h2">
+                {HOME_EVIDENCE_WATCHLIST_SECTION.heading}
+              </h2>
             </header>
             {(forecasts ?? []).length === 0 ? (
-              <p className="rd-edition-empty">No active forecasts.</p>
+              <p className="rd-edition-empty">No evidence watchlist items.</p>
             ) : (
               (forecasts ?? []).slice(0, 5).map((f) => (
                 <article key={f._id} className="rd-edition-forecast">
-                  <p className="rd-edition-forecast__claim">{f.question}</p>
+                  <p className="rd-edition-forecast__claim">
+                    Forecast evidence review
+                  </p>
+                  <p className="rd-edition-meta">
+                    {getForecastReviewSummary(f)}
+                  </p>
                   <span className="rd-edition-forecast__prob">
                     {formatProbability(f.probability)}
                   </span>

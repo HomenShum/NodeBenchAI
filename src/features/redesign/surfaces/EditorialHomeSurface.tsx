@@ -75,6 +75,13 @@ import {
   type LiveArtifactsResult,
   type LiveArtifactSourceRow,
 } from "../hooks/useLiveArtifacts";
+import {
+  getForecastReviewSummary,
+  getHypothesisReviewSummary,
+  getHypothesisReviewTitle,
+  HOME_EVIDENCE_WATCHLIST_SECTION,
+  HOME_AUDIENCE_RELEVANCE_SECTION,
+} from "./EditorialHomeAudienceRelevance";
 import { useOnlineStatus } from "../../../lib/performance/useOnlineStatus";
 import { trackEvent } from "../../../lib/analytics";
 import { getAnonymousProductSessionId } from "../../product/lib/productIdentity";
@@ -647,7 +654,7 @@ function CompetingExplanationsSection({
   return (
     <EditorialSection
       id="competing-explanations"
-      ariaLabel="The competing explanations"
+      ariaLabel="Audience relevance and evidence review queue"
       number={number}
       kicker={kicker}
       heading={heading}
@@ -655,8 +662,10 @@ function CompetingExplanationsSection({
       <div>
         {hypotheses.length === 0 ? (
           <p className="rd-edition-empty">
-            No active hypotheses changed in this edition. NodeBench will surface
-            competing explanations here once evidence starts moving.
+            No active hypothesis evidence changed in this edition. Use the
+            changed reports, source rows, and actions below as the decision
+            queue; NodeBench only elevates a thesis when citations and evidence
+            checks move.
           </p>
         ) : hypotheses.map((h, i) => (
           <article
@@ -668,15 +677,17 @@ function CompetingExplanationsSection({
             <div className="rd-edition-hypothesis__head">
               <span className="rd-edition-hypothesis__label">{h.label}</span>
               <h3 className="rd-edition-hypothesis__title">
-                {h.title}
+                {getHypothesisReviewTitle(h)}
                 <Footnote
                   id={`hyp-${i + 1}`}
                   index={i + 1}
-                  label={`Source for ${h.title}`}
+                  label={`Source for ${getHypothesisReviewTitle(h)}`}
                 />
               </h3>
             </div>
-            <p className="rd-edition-hypothesis__claim">{h.claimForm}</p>
+            <p className="rd-edition-hypothesis__claim">
+              {getHypothesisReviewSummary(h)}
+            </p>
             <EvidenceChecklistStrip
               checklist={h.evidenceChecklist}
               passing={h.evidenceChecksPassing}
@@ -685,7 +696,7 @@ function CompetingExplanationsSection({
             />
             {h.falsificationCriteria && (
               <p className="rd-edition-hypothesis__falsify">
-                Would change my mind: {h.falsificationCriteria}
+                Escalate for review if: {h.falsificationCriteria}
               </p>
             )}
             <p className="rd-edition-hypothesis__tally">
@@ -716,7 +727,7 @@ function WhatToLookAtSection({
     return (
       <EditorialSection
         id="what-to-look-at"
-        ariaLabel="What to look at this week"
+        ariaLabel="Evidence watchlist"
         number={number}
         kicker={kicker}
         heading={heading}
@@ -731,14 +742,15 @@ function WhatToLookAtSection({
   return (
     <EditorialSection
       id="what-to-look-at"
-      ariaLabel="What to look at this week"
+      ariaLabel="Evidence watchlist"
       number={number}
       kicker={kicker}
       heading={heading}
     >
       {forecasts.length === 0 ? (
         <p className="rd-edition-empty">
-          No active forecasts have updates yet. Check back after the next refresh.
+          No evidence watchlist items have updates yet. Check back after the
+          next source refresh.
         </p>
       ) : (
         <>
@@ -747,7 +759,12 @@ function WhatToLookAtSection({
               const delta = formatProbabilityDelta(f.probability, f.previousProbability);
               return (
                 <article key={f._id} className="rd-edition-forecast" data-forecast-id={f._id}>
-                  <p className="rd-edition-forecast__claim">{f.question}</p>
+                  <p className="rd-edition-forecast__claim">
+                    Forecast evidence review
+                  </p>
+                  <p className="rd-edition-meta">
+                    {getForecastReviewSummary(f)}
+                  </p>
                   <div className="rd-edition-forecast__row">
                     <span className="rd-edition-forecast__prob">
                       {formatProbability(f.probability)}
@@ -1625,19 +1642,21 @@ function WeeklyBranch({
               <section
                 data-section="week-forecasts"
                 data-section-number="02"
-                data-section-kicker="Top forecast moves"
+                data-section-kicker={HOME_EVIDENCE_WATCHLIST_SECTION.kicker}
                 className="rd-edition-section"
                 role="region"
-                aria-label="Top forecast moves"
+                aria-label="Weekly evidence watchlist"
               >
-                <p className="rd-edition-meta">02 · Top forecast moves</p>
+                <p className="rd-edition-meta">
+                  02 · {HOME_EVIDENCE_WATCHLIST_SECTION.kicker}
+                </p>
                 <ul>
                   {data.topForecasts.map((f) => {
                     const pp = Math.round(f.probabilityDelta * 100);
                     const tone = pp > 0 ? "up" : pp < 0 ? "down" : "flat";
                     return (
                       <li key={f._id} style={{ marginBottom: 8 }}>
-                        <strong>{f.question}</strong>{" "}
+                        <strong>Forecast evidence review</strong>{" "}
                         <span
                           className={`rd-edition-scoreboard__delta rd-edition-scoreboard__delta--${tone}`}
                         >
@@ -1645,10 +1664,9 @@ function WeeklyBranch({
                           {pp > 0 ? "+" : ""}
                           {pp}pp]
                         </span>{" "}
-                        <span className="rd-edition-meta">
-                          → {Math.round(f.probability * 100)}% by{" "}
-                          {f.resolutionDate}
-                        </span>
+                        <p className="rd-edition-meta">
+                          {getForecastReviewSummary(f)}
+                        </p>
                       </li>
                     );
                   })}
@@ -1660,17 +1678,17 @@ function WeeklyBranch({
               <section
                 data-section="week-hypotheses"
                 data-section-number="03"
-                data-section-kicker="Hypotheses moved"
+                data-section-kicker="Evidence reviews"
                 className="rd-edition-section"
                 role="region"
-                aria-label="Hypotheses moved this week"
+                aria-label="Hypothesis evidence reviews this week"
               >
-                <p className="rd-edition-meta">03 · Hypotheses moved</p>
+                <p className="rd-edition-meta">03 · Evidence reviews</p>
                 <ul>
                   {data.topHypotheses.map((h) => (
                     <li key={h._id} style={{ marginBottom: 8 }}>
                       <strong>
-                        {h.label} {h.title}
+                        {getHypothesisReviewTitle({ label: h.label })}
                       </strong>
                       <p className="rd-edition-meta">
                         {h.supportingEvidenceCount} supporting ·{" "}
@@ -1923,15 +1941,11 @@ function LongHorizonBranch({
       },
       {
         id: "competing-explanations",
-        kicker: "Why it matters",
-        tocLabel: "So what",
-        heading: "So what",
+        ...HOME_AUDIENCE_RELEVANCE_SECTION,
       },
       {
         id: "what-to-look-at",
-        kicker: "What to do next",
-        tocLabel: "Now what",
-        heading: "Now what",
+        ...HOME_EVIDENCE_WATCHLIST_SECTION,
       },
       {
         id: "reports-touched",
@@ -2175,15 +2189,15 @@ function LongHorizonBranch({
 
         <CompetingExplanationsSection
           number={numberForId.get("competing-explanations") ?? "02"}
-          kicker="Why it matters"
-          heading="So what"
+          kicker={HOME_AUDIENCE_RELEVANCE_SECTION.kicker}
+          heading={HOME_AUDIENCE_RELEVANCE_SECTION.heading}
           hypotheses={hypotheses ?? []}
         />
 
         <WhatToLookAtSection
           number={numberForId.get("what-to-look-at") ?? "03"}
-          kicker="What to do next"
-          heading="Now what"
+          kicker={HOME_EVIDENCE_WATCHLIST_SECTION.kicker}
+          heading={HOME_EVIDENCE_WATCHLIST_SECTION.heading}
           forecasts={forecasts}
         />
 
@@ -2413,15 +2427,11 @@ function TodayRender({
     });
     sections.push({
       id: "competing-explanations",
-      kicker: "Why it matters",
-      tocLabel: "So what",
-      heading: "So what",
+      ...HOME_AUDIENCE_RELEVANCE_SECTION,
     });
     sections.push({
       id: "what-to-look-at",
-      kicker: "What to do next",
-      tocLabel: "Now what",
-      heading: "Now what",
+      ...HOME_EVIDENCE_WATCHLIST_SECTION,
     });
     sections.push({
       id: "reports-touched",
