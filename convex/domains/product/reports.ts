@@ -504,6 +504,12 @@ export const createDraftReport = mutation({
       createdAt: now,
       updatedAt: now,
     });
+    // PR E: schedule per-row embedding for the new draft report.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.domains.search.embedRowOnUpdate.embedReportRow,
+      { reportId: id },
+    );
     return { ok: true, reportId: id, createdAt: now };
   },
 });

@@ -1,5 +1,6 @@
 import { mutation, query } from "../../_generated/server";
 import { v } from "convex/values";
+import { internal } from "../../_generated/api";
 
 import {
   requireProductIdentity,
@@ -410,9 +411,15 @@ async function upsertProductEntityFromNotebookPatch(
       latestRevision: (existing.latestRevision ?? 0) + 1,
       reportCount: args.reportId ? Math.max(existing.reportCount ?? 1, 1) : existing.reportCount,
     });
+    // PR E: schedule per-row embedding for the patched entity.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.domains.search.embedRowOnUpdate.embedEntityRow,
+      { entityId: existing._id },
+    );
     return existing._id;
   }
-  return ctx.db.insert("productEntities", {
+  const entityId = await ctx.db.insert("productEntities", {
     ownerKey: args.ownerKey,
     slug,
     createdAt: args.now,
@@ -426,6 +433,13 @@ async function upsertProductEntityFromNotebookPatch(
     ]),
     ...patch,
   });
+  // PR E: schedule per-row embedding for the inserted entity.
+  await ctx.scheduler.runAfter(
+    0,
+    internal.domains.search.embedRowOnUpdate.embedEntityRow,
+    { entityId },
+  );
+  return entityId;
 }
 
 async function insertProductClaimFromNotebookPatch(

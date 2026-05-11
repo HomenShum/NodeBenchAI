@@ -10,6 +10,7 @@
 
 import { v } from "convex/values";
 import { query, mutation, internalMutation, internalQuery } from "../../_generated/server";
+import { internal } from "../../_generated/api";
 import type { Doc, Id } from "../../_generated/dataModel";
 import { recomputeReportSearchableText } from "../search/searchableTextRecompute";
 
@@ -803,7 +804,7 @@ export const _createMockReport = internalMutation({
     const createdAt = updatedAt;
     
     const queryStr = `Research on ${entitySlug}`;
-    await ctx.db.insert("productReports", {
+    const reportId = await ctx.db.insert("productReports", {
       ownerKey,
       entitySlug,
       title,
@@ -829,6 +830,12 @@ export const _createMockReport = internalMutation({
       createdAt,
       updatedAt,
     });
+    // PR E: schedule per-row embedding for the mock report.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.domains.search.embedRowOnUpdate.embedReportRow,
+      { reportId },
+    );
   },
 });
 
@@ -924,7 +931,7 @@ export const _batchInsertMockData = internalMutation({
 
     for (const report of reports) {
       const queryStr = `Research on ${entitySlug}`;
-      await ctx.db.insert("productReports", {
+      const reportId = await ctx.db.insert("productReports", {
         ownerKey,
         entitySlug,
         title: report.title,
@@ -950,6 +957,12 @@ export const _batchInsertMockData = internalMutation({
         createdAt: report.updatedAt,
         updatedAt: report.updatedAt,
       });
+      // PR E: schedule per-row embedding for the batched mock report.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domains.search.embedRowOnUpdate.embedReportRow,
+        { reportId },
+      );
       inserted.reports++;
     }
 

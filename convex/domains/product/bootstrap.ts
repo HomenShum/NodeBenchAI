@@ -1,6 +1,7 @@
 import { mutation } from "../../_generated/server";
 import type { MutationCtx } from "../../_generated/server";
 import { v } from "convex/values";
+import { internal } from "../../_generated/api";
 import type { Doc } from "../../_generated/dataModel";
 import { requireProductIdentity } from "./helpers";
 import { ensureEntityForReport, upsertEntityContextItem } from "./entities";
@@ -380,6 +381,12 @@ export const ensureCanonicalProductBootstrap = mutation({
           updatedAt: document.lastModified ?? now,
           lastRefreshAt: document.lastModified ?? now,
         });
+        // PR E: schedule per-row embedding for the bootstrap-migrated report.
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domains.search.embedRowOnUpdate.embedReportRow,
+          { reportId },
+        );
         migratedDocuments += 1;
         migratedReports += 1;
 
@@ -473,6 +480,12 @@ export const ensureCanonicalProductBootstrap = mutation({
           previousReportId: entityMeta.previousReportId ?? undefined,
           searchableText: nextReportSearchableText,
         });
+        // PR E: schedule per-row embedding for the patched report.
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domains.search.embedRowOnUpdate.embedReportRow,
+          { reportId: report._id },
+        );
 
         // PR D: refresh searchableText for the federated `search_entities`
         // index when the entity name/summary changes via legacy bootstrap.
@@ -494,6 +507,12 @@ export const ensureCanonicalProductBootstrap = mutation({
           searchableText: nextEntitySearchableText,
           updatedAt: report.updatedAt,
         });
+        // PR E: schedule per-row embedding for the patched entity.
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domains.search.embedRowOnUpdate.embedEntityRow,
+          { entityId: entityMeta.entityId },
+        );
 
         await upsertEntityContextItem(ctx, {
           ownerKey,

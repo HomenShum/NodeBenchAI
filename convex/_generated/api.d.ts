@@ -1174,6 +1174,7 @@ import type * as domains_search_analytics_componentMetrics from "../domains/sear
 import type * as domains_search_analytics_intentSignals from "../domains/search/analytics/intentSignals.js";
 import type * as domains_search_analytics_ossStats from "../domains/search/analytics/ossStats.js";
 import type * as domains_search_deepDiligence from "../domains/search/deepDiligence.js";
+import type * as domains_search_embedRowOnUpdate from "../domains/search/embedRowOnUpdate.js";
 import type * as domains_search_embedSearchableText from "../domains/search/embedSearchableText.js";
 import type * as domains_search_federatedHelpers from "../domains/search/federatedHelpers.js";
 import type * as domains_search_federatedSearch from "../domains/search/federatedSearch.js";
@@ -2673,6 +2674,7 @@ declare const fullApi: ApiFromModules<{
   "domains/search/analytics/intentSignals": typeof domains_search_analytics_intentSignals;
   "domains/search/analytics/ossStats": typeof domains_search_analytics_ossStats;
   "domains/search/deepDiligence": typeof domains_search_deepDiligence;
+  "domains/search/embedRowOnUpdate": typeof domains_search_embedRowOnUpdate;
   "domains/search/embedSearchableText": typeof domains_search_embedSearchableText;
   "domains/search/federatedHelpers": typeof domains_search_federatedHelpers;
   "domains/search/federatedSearch": typeof domains_search_federatedSearch;

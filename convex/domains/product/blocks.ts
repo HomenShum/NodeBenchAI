@@ -18,6 +18,7 @@
 
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
+import { internal } from "../../_generated/api";
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 import { mutation, query } from "../../_generated/server";
@@ -1375,6 +1376,12 @@ export const appendBlock = mutation({
         createdAt: now,
         updatedAt: now,
       });
+      // PR E: schedule per-row embedding for the new block.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domains.search.embedRowOnUpdate.embedBlockRow,
+        { blockId: id },
+      );
     } catch (error) {
       if (isWriteWindowOccFailure(error)) {
         throw convexError({
@@ -1439,7 +1446,7 @@ export const insertBlockBetween = mutation({
     const nextPos = positionBetween(beforePos, afterPos);
 
     const now = Date.now();
-    return ctx.db.insert("productBlocks", {
+    const blockId = await ctx.db.insert("productBlocks", {
       ownerKey: entity.ownerKey,
       entityId: entity._id,
       parentBlockId: args.parentBlockId,
@@ -1462,6 +1469,13 @@ export const insertBlockBetween = mutation({
       createdAt: now,
       updatedAt: now,
     });
+    // PR E: schedule per-row embedding for the inserted block.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.domains.search.embedRowOnUpdate.embedBlockRow,
+      { blockId },
+    );
+    return blockId;
   },
 });
 
@@ -1568,6 +1582,13 @@ export const updateBlock = mutation({
       searchableText: nextBlockSearchableText,
       updatedAt: now,
     });
+    // PR E: schedule per-row embedding for the edited block. Idempotent on
+    // searchableTextHash — same content → embed action skips re-fetch.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.domains.search.embedRowOnUpdate.embedBlockRow,
+      { blockId: args.blockId },
+    );
     return args.blockId;
   },
 });
@@ -1975,6 +1996,12 @@ export const promoteLinkToEvidence = mutation({
       createdAt: now,
       updatedAt: now,
     });
+    // PR E: schedule per-row embedding for the promoted evidence block.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.domains.search.embedRowOnUpdate.embedBlockRow,
+      { blockId: evidenceBlockId },
+    );
     await ctx.db.insert("productBlockRelations", {
       ownerKey: citing.ownerKey,
       fromBlockId: citing._id,
@@ -2151,6 +2178,12 @@ export const backfillEntityBlocks = mutation({
         createdAt: now,
         updatedAt: now,
       });
+      // PR E: schedule embedding for the seeded brief-heading block.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domains.search.embedRowOnUpdate.embedBlockRow,
+        { blockId: briefHeadingId },
+      );
       posIdx += 1;
       inserted += 1;
 
@@ -2180,13 +2213,19 @@ export const backfillEntityBlocks = mutation({
           createdAt: now,
           updatedAt: now,
         });
+        // PR E: schedule embedding for the section-heading block.
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domains.search.embedRowOnUpdate.embedBlockRow,
+          { blockId: headingId },
+        );
         posIdx += 1;
         inserted += 1;
 
         const sectionBodyContent = [
           { type: "text" as const, value: section.body },
         ];
-        await ctx.db.insert("productBlocks", {
+        const bodyId = await ctx.db.insert("productBlocks", {
           ownerKey: entity.ownerKey,
           entityId: entity._id,
           parentBlockId: headingId,
@@ -2209,6 +2248,12 @@ export const backfillEntityBlocks = mutation({
           createdAt: now,
           updatedAt: now,
         });
+        // PR E: schedule embedding for the section-body block.
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domains.search.embedRowOnUpdate.embedBlockRow,
+          { blockId: bodyId },
+        );
         posIdx += 1;
         inserted += 1;
       }
@@ -2230,7 +2275,7 @@ export const backfillEntityBlocks = mutation({
             url: item.sourceUrl,
           },
         ];
-        await ctx.db.insert("productBlocks", {
+        const evidenceLinkId = await ctx.db.insert("productBlocks", {
           ownerKey: entity.ownerKey,
           entityId: entity._id,
           kind: "evidence",
@@ -2250,6 +2295,12 @@ export const backfillEntityBlocks = mutation({
           createdAt: now,
           updatedAt: now,
         });
+        // PR E: schedule embedding for the harness-evidence block.
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domains.search.embedRowOnUpdate.embedBlockRow,
+          { blockId: evidenceLinkId },
+        );
         inserted += 1;
       }
     }
