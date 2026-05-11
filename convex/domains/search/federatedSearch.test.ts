@@ -33,6 +33,7 @@ import {
   MAX_TOTAL_RESULTS,
   rrfMerge,
 } from "./federatedHelpers";
+import { isSourceArtifactVisibleToCaller } from "./federatedSearch";
 
 /* -------------------------------------------------------------------------- */
 /* Pure helpers                                                                */
@@ -678,5 +679,48 @@ describe("Scenario 7 — typo queries at scale (PR E)", () => {
       // DETERMINISTIC — same inputs MUST produce same output every iteration.
       expect(json).toBe(lastJson);
     }
+  });
+});
+
+describe("Scenario 9 — source artifact search privacy", () => {
+  /**
+   * Persona:    Anonymous visitor and two authenticated users
+   * Goal:       Search sources without leaking run-backed private artifacts
+   * Prior:      One public/system source, one source created by user A's run
+   * Actions:    Check visibility for anonymous, user B, and user A
+   * Expected:   Public source is visible to all; run-backed source only to owner
+   */
+  it("anonymous callers never see run-backed source artifacts", () => {
+    expect(
+      isSourceArtifactVisibleToCaller(
+        { runId: undefined },
+        { userId: null },
+        null,
+      ),
+    ).toBe(true);
+    expect(
+      isSourceArtifactVisibleToCaller(
+        { runId: "run_user_a" },
+        { userId: null },
+        "user_a",
+      ),
+    ).toBe(false);
+  });
+
+  it("authenticated callers only see source artifacts from their own runs", () => {
+    expect(
+      isSourceArtifactVisibleToCaller(
+        { runId: "run_user_a" },
+        { userId: "user_b" },
+        "user_a",
+      ),
+    ).toBe(false);
+    expect(
+      isSourceArtifactVisibleToCaller(
+        { runId: "run_user_a" },
+        { userId: "user_a" },
+        "user_a",
+      ),
+    ).toBe(true);
   });
 });

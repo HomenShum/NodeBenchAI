@@ -332,18 +332,29 @@ export const searchClaims = internalQuery({
   },
 });
 
+export function isSourceArtifactVisibleToCaller(
+  row: { runId?: string },
+  args: { userId?: string | null },
+  runOwnerUserId?: string | null,
+): boolean {
+  if (!row.runId) return true;
+  if (!args.userId) return false;
+  return runOwnerUserId === args.userId;
+}
+
 /**
- * Sources have NO ownerKey on the row (sourceArtifacts is system-fetched).
- * Privacy floor: only return rows whose `runId` traces to the user's
- * agentRuns (when authenticated) OR rows with no runId (system-fetched
- * public URLs) when anonymous.
+ * Sources have no ownerKey on the row. The access floor is therefore:
+ *   - rows with no runId are treated as public/system-fetched source refs
+ *   - run-backed rows are only visible to the user who owns that agentRun
  *
- * For PR1, we keep this simple: return all matching rows (sources are
- * already de-facto public artifacts of crawled URLs). PR2 wires the
- * runId → ownerKey filter once that mapping is hot.
+ * This is intentionally post-filtered after the search index read because
+ * `sourceArtifacts.search_sources` only has sourceType as an index filter.
  */
 export const searchSources = internalQuery({
-  args: SEARCH_QUERY_ARGS,
+  args: {
+    ...SEARCH_QUERY_ARGS,
+    userId: v.optional(v.id("users")),
+  },
   handler: async (ctx, args): Promise<FederatedHandle[]> => {
     const limit = clampLimit(args.limit);
     if (!args.q.trim()) return [];
@@ -352,16 +363,44 @@ export const searchSources = internalQuery({
       .withSearchIndex("search_sources", (q) =>
         q.search("searchableText", args.q),
       )
-      .take(limit);
-    return rows.map((row) => ({
-      type: "nb_sources" as const,
-      uri: row.sourceUrl ?? `source://${row._id}`,
-      title: row.title ?? row.sourceUrl ?? "Untitled source",
-      snippet: boundSnippet(row.searchableText ?? row.sourceUrl ?? ""),
-      score: 1,
-      source: row.sourceType,
-      actions: ["open_source", "fetch_artifact"],
-    }));
+      .take(Math.min(limit * 4, 100));
+
+    const visible: FederatedHandle[] = [];
+    const runOwnerCache = new Map<string, string | null>();
+    for (const row of rows) {
+      let runOwnerUserId: string | null = null;
+      if (row.runId) {
+        const runId = String(row.runId);
+        if (runOwnerCache.has(runId)) {
+          runOwnerUserId = runOwnerCache.get(runId) ?? null;
+        } else {
+          const run = await ctx.db.get(row.runId);
+          runOwnerUserId = run?.userId ? String(run.userId) : null;
+          runOwnerCache.set(runId, runOwnerUserId);
+        }
+      }
+      if (
+        !isSourceArtifactVisibleToCaller(
+          { runId: row.runId ? String(row.runId) : undefined },
+          { userId: args.userId ? String(args.userId) : null },
+          runOwnerUserId,
+        )
+      ) {
+        continue;
+      }
+      visible.push({
+        type: "nb_sources" as const,
+        uri: row.sourceUrl ?? `source://${row._id}`,
+        title: row.title ?? row.sourceUrl ?? "Untitled source",
+        snippet: boundSnippet(row.searchableText ?? row.sourceUrl ?? ""),
+        score: 1,
+        source: row.sourceType,
+        actions: ["open_source", "fetch_artifact"],
+        rowId: String(row._id),
+      });
+      if (visible.length >= limit) break;
+    }
+    return visible;
   },
 });
 
@@ -719,12 +758,13 @@ async function dispatchOne(
         ownerKey,
       });
     case "nb_sources":
-      // Sources are system-fetched and de-facto public; safe for both
-      // anonymous and authenticated callers. No vector index (yet).
+      // Run-backed sources are owner-scoped via agentRuns.userId. Rows
+      // without runId remain public/system-fetched source refs.
       return ctx.runQuery(internal.domains.search.federatedSearch.searchSources, {
         q,
         limit,
-        ownerKey: ownerKey ?? "anonymous",
+        ownerKey,
+        userId: userId ? (userId as any) : undefined,
       });
     case "nb_captures":
       // quickCaptures is auth-only; anonymous gets []. No vector index (yet).
