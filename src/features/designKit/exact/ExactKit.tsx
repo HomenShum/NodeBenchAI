@@ -2853,8 +2853,9 @@ export function ExactChatSurface() {
                 value={composer}
                 onValueChange={setComposer}
                 onSubmit={() => sendTurn(composer)}
-                placeholder="Ask, capture, paste, upload, or record..."
+                placeholder="Ask, capture, paste, upload, or record... (@ to mention an entity)"
                 ariaLabel="Chat composer"
+                enableEntityMentions
                 pins={pins.map((pin) => ({ ...pin, removable: true }))}
                 onRemovePin={(index) => setPins((prev) => prev.filter((_, idx) => idx !== index))}
                 addPinLabel="Add context"
