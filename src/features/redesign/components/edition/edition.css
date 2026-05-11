@@ -641,3 +641,30 @@
     display: inline;
   }
 }
+
+/* ─── IndexedDB SWR cache notice (Phase: editorial-home SWR) ────
+ *
+ * Renders only when at least one editorial section is hydrated from
+ * the local IDB cache and Convex has not yet revalidated.  The chip
+ * is informational (role="status", aria-live="polite") — NOT an
+ * alert.  Hidden as soon as live data swaps in.
+ *
+ * Per `.claude/rules/reexamine_a11y.md`: reduced motion drops the
+ * accent background so the chip stays visible without animation.
+ */
+[data-redesign] [data-edition] .rd-cache-notice {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--rd-ink-mute);
+  background: rgba(217, 119, 87, 0.08);
+  border-left: 2px solid var(--rd-accent, #d97757);
+  padding: 6px 10px;
+  margin: 0 0 8px;
+  border-radius: 0 3px 3px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] [data-edition] .rd-cache-notice {
+    background: transparent;
+  }
+}

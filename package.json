@@ -369,6 +369,7 @@
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.5.2",
     "eslint-plugin-storybook": "^9.1.10",
+    "fake-indexeddb": "^6.2.5",
     "ffmpeg-static": "^5.2.0",
     "globals": "^15.15.0",
     "jsdom": "^25.0.1",
