@@ -85,10 +85,11 @@ test.describe("Home v2 /redesign parity", () => {
 
     await expect(page.getByRole("complementary", { name: "Edition browser" })).toBeVisible();
     await expect(page.getByTestId("home-v2-pulse-landing")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Your agent already did the first pass." })).toBeVisible();
-    await expect(page.getByText("What the agent did").first()).toBeVisible();
-    await expect(page.getByText("Who reads this").first()).toBeVisible();
-    await expect(page.getByText("Agent handoff").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "One useful thing surfaced while you were not looking." })).toBeVisible();
+    await expect(page.getByText("Daily nudge").first()).toBeVisible();
+    await expect(page.getByText("Found while scanning").first()).toBeVisible();
+    await expect(page.getByText("Small execution window").first()).toBeVisible();
+    await expect(page.getByText("Next-action question").first()).toBeVisible();
     await expect(page.getByText("Memory first").first()).toBeVisible();
     await expect(page.getByText("Report matching").first()).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Briefing agent" })).toBeVisible();
@@ -108,7 +109,7 @@ test.describe("Home v2 /redesign parity", () => {
     const pulseText = await page.getByTestId("home-v2-pulse-landing").innerText();
     expect(pulseText).not.toMatch(/r\/technology|random headline/i);
 
-    const primaryAction = page.getByRole("button", { name: "Ask the agent" });
+    const primaryAction = page.getByRole("button", { name: "Work this in Chat" });
     await expect(primaryAction).toBeVisible();
     await expect
       .poll(async () => await primaryAction.evaluate((node) => getComputedStyle(node).backgroundColor))
@@ -178,7 +179,7 @@ test.describe("Home v2 /redesign parity", () => {
     await page.setViewportSize(DESKTOP);
     await page.goto("/redesign/me", { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("heading", { name: "This is what NodeBench remembers about you." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your profile starts empty." })).toBeVisible();
     await expect(page.locator("aside.rd-pane--right")).toHaveCount(0);
   });
 

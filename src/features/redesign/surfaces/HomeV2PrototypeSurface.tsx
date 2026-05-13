@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { showToast } from "../components/Toast";
-import type { LiveArtifactsResult } from "../hooks/useLiveArtifacts";
+import type { LiveArtifactsResult, LiveArtifactSourceRow } from "../hooks/useLiveArtifacts";
 
 interface HomeV2SurfaceProps {
   onAsk?: (prompt: string) => void;
@@ -170,10 +170,27 @@ interface HomeV2BriefSection {
   layout?: "lead" | "cards" | "compact" | "sources" | "actions";
 }
 
+interface HomeV2Introspection {
+  kicker: string;
+  title: string;
+  body: string;
+  reflectionTitle: string;
+  reflectionBody: string;
+  question: string;
+  meta: string;
+  sourceTitle: string;
+  sourceBody: string;
+  sourceMeta: string;
+  windowTitle: string;
+  windowBody: string;
+  prompt: string;
+}
+
 interface HomeV2Model {
   editionItems: typeof editionItems;
   editionLine: string;
   heroSub: string;
+  dailyIntrospection: HomeV2Introspection;
   primaryTitle: string;
   primaryBody: string;
   sweepTitle: string;
@@ -235,6 +252,43 @@ function editorialSectionLabel(value: string | undefined, fallback: string): str
 function sourceLabel(value: string | undefined): string {
   const label = compact(value, "source").replace(/^r\//i, "");
   return label.length > 18 ? `${label.slice(0, 17).trim()}...` : label;
+}
+
+function isNoisyFirstViewportSource(source: LiveArtifactSourceRow | undefined): boolean {
+  const text = `${source?.type ?? ""} ${source?.title ?? ""} ${source?.href ?? ""}`.toLowerCase();
+  return /\breddit\b|(^|\s)r\/|discussion on r\//i.test(text);
+}
+
+function introspectionSourceTitle(source: LiveArtifactSourceRow | undefined, fallback: string): string {
+  if (!source) return fallback;
+  if (isNoisyFirstViewportSource(source)) return "A public discussion signal is already captured.";
+  return trimSentence(source.title, fallback, 96);
+}
+
+function introspectionSourceBody(source: LiveArtifactSourceRow | undefined, fallback: string): string {
+  if (!source) return fallback;
+  if (isNoisyFirstViewportSource(source)) {
+    return "The raw headline stays below the fold as evidence. The useful part is that provenance, reuse count, and confidence are ready for the agent to judge.";
+  }
+  return trimSentence(source.excerpt, fallback, 180);
+}
+
+function defaultIntrospection(): HomeV2Introspection {
+  return {
+    kicker: "Daily introspection",
+    title: "One useful thing surfaced while you were not looking.",
+    body: "NodeBench turns the morning stream into a small operator check-in: what is starting to drift, what evidence is reusable, and what one action would prevent another tab from becoming background noise.",
+    reflectionTitle: "The quiet cost is stale follow-through.",
+    reflectionBody: "A useful source is only useful if it changes a report, a note, or a next move. The loss is not missing another headline. It is letting already-found context decay into something you have to re-search later.",
+    question: "What should the agent prepare first: a short brief, a notebook patch, or a follow-up you can actually send?",
+    meta: "Daily introspection - memory first - source-backed - approval before writes",
+    sourceTitle: "Source rows become working material.",
+    sourceBody: "Raw news, reports, and public artifacts are kept as evidence. The landing read should be the human consequence and the next decision.",
+    sourceMeta: "Prototype packet - public evidence below",
+    windowTitle: "Give this 12 minutes.",
+    windowBody: "Open the packet with context loaded. The agent can turn it into a brief, notebook patch, or follow-up and ask before any write.",
+    prompt: "Use the Daily Introspection packet to identify the quiet cost, summarize the reusable evidence, and prepare the first concrete next action.",
+  };
 }
 
 function briefItems(
@@ -443,6 +497,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       editionItems,
       editionLine: "Sun, May 11 · 4 signals · 7 reports · 12 sources",
       heroSub: "No dashboard theater. Today is only the signals that can change your pipeline. Everything below is supporting evidence.",
+      dailyIntrospection: defaultIntrospection(),
       primaryTitle: "Book warm intro / YC AI Ops Co.",
       primaryBody: "Use Wednesday, May 13 at 11:30 AM PT if available. Backup Thursday afternoon or Friday morning. Then move on.",
       sweepTitle: "Public inbox tracker demo",
@@ -596,6 +651,48 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
         { label: "Reports", value: "0", tone: "blue" },
         { label: "Sources", value: "0" },
       ];
+  const topSource = liveArtifacts.details
+    .flatMap((detail) => detail.sourceRows)
+    .find((source) => compact(source.title || source.excerpt, "").length > 0);
+  const followUpTotal = reports.reduce((total, report) => total + report.followUps, 0);
+  const changedSignalCount = Math.max(liveArtifacts.briefFeatureCount, pulse.length, reports.length);
+  const sourceConfidence = typeof topSource?.confidence === "number"
+    ? `${Math.round(topSource.confidence * 100)}% confidence`
+    : "confidence pending";
+  const liveIntrospection: HomeV2Introspection = {
+    kicker: "Daily introspection",
+    title: "One useful thing surfaced while you were not looking.",
+    body: hasLive
+      ? `NodeBench found ${changedSignalCount} changed signal${changedSignalCount === 1 ? "" : "s"}, ${reports.length} report handle${reports.length === 1 ? "" : "s"}, and ${sourceCount} reusable source row${sourceCount === 1 ? "" : "s"}. The point is not to read the feed. It is to notice what is already prepared before it becomes background noise.`
+      : liveArtifacts.isLoading
+        ? "NodeBench is loading the live artifact packet before it shows a nudge. It will not replace missing memory with a fake headline."
+        : "NodeBench has the live path connected, but no public artifact packet returned yet. The useful move is to run a brief or report workflow and let the agent attach evidence before it asks you to act.",
+    reflectionTitle: hasLive ? "The quiet cost is stale follow-through." : "The quiet cost is an empty packet.",
+    reflectionBody: hasLive
+      ? `There are ${followUpTotal} follow-up${followUpTotal === 1 ? "" : "s"} and ${reports.length} touched report${reports.length === 1 ? "" : "s"} available. If none of them becomes a note, patch, or reply, tomorrow starts by re-searching what the system already found.`
+      : "When the packet is empty, the product should say that plainly and route the user to create the first reusable artifact.",
+    question: hasLive
+      ? "What should the agent prepare first: a short brief, a notebook patch, or a follow-up you can actually send?"
+      : "What should the agent create first: a report seed, a source pack, or a follow-up queue?",
+    meta: `Daily introspection - ${changedSignalCount} signals - ${reports.length} reports - ${sourceCount} sources - ${followUpTotal} follow-ups`,
+    sourceTitle: introspectionSourceTitle(topSource, topReport?.entity ?? "A reusable source row is ready."),
+    sourceBody: introspectionSourceBody(
+      topSource,
+      topReport?.description ?? "Source-backed evidence will appear here once a live report, daily brief, or public archive row returns.",
+    ),
+    sourceMeta: topSource
+      ? `${sourceLabel(topSource.type)} - ${topSource.reused} reuses - ${sourceConfidence}`
+      : hasLive
+        ? "No source row attached to the top packet"
+        : "Waiting for live evidence",
+    windowTitle: hasLive ? "Give this 12 minutes." : "Start with one packet.",
+    windowBody: hasLive
+      ? "Open Chat with the context loaded. The agent can turn this into a brief, notebook patch, or follow-up and ask before any write."
+      : "Create or refresh one report so the next landing read starts from memory instead of a blank state.",
+    prompt: hasLive
+      ? `Use the Daily Introspection packet from Home. Identify the quiet cost, summarize reusable evidence from ${reports.length} touched reports and ${sourceCount} source rows, then prepare the first concrete next action without writing externally unless I approve.`
+      : "Create the first Daily Introspection packet by finding a report seed, reusable source pack, and one next action. Do not fabricate live evidence.",
+  };
 
   return {
     editionItems: liveEditionItems.length > 0 ? liveEditionItems : liveStatusEditionItems,
@@ -603,6 +700,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     heroSub: hasLive
       ? "A source-backed brief ranks what changed, why it matters, and which reports need attention now."
       : "NodeBench is connected to the live memory path. This view stays explicit while Convex returns data instead of masking the state with fixture content.",
+    dailyIntrospection: liveIntrospection,
     primaryTitle: actionTitle,
     primaryBody: actionBody,
     sweepTitle: hasLive ? "Live intelligence sweep" : liveArtifacts.isLoading ? "Loading live intelligence sweep" : "No live intelligence sweep yet",
@@ -1402,6 +1500,7 @@ function LivePulseLanding({
   const sourceCount = countFromText(sourcesUsed.metric, model.dailyBriefStats[1]?.value ?? "0");
   const actionCount = countFromText(actionsCreated.metric, model.dailyBriefStats[2]?.value ?? "0");
   const cardSections = [reportsTouched, sourcesUsed, actionsCreated];
+  const introspection = model.dailyIntrospection;
   const agentSteps = [
     {
       title: "Memory first",
@@ -1423,23 +1522,34 @@ function LivePulseLanding({
   return (
     <section className="rd-v2-pulse" data-testid="home-v2-pulse-landing" aria-labelledby="home-v2-pulse-title">
       <div className="rd-v2-pulse-topline" aria-label="Daily Brief status">
-        <span>Agent brief</span>
+        <span>{introspection.kicker}</span>
         <span>{model.editionLine}</span>
       </div>
 
       <div className="rd-v2-pulse-head">
-        <p className="rd-v2-pulse-kicker">For builders, investors, and operators</p>
-        <h1 id="home-v2-pulse-title">Your agent already did the first pass.</h1>
-        <p>NodeBench turns a noisy daily stream into a sourced work packet: what changed, which reports it touches, what evidence backs it, and what the agent should do next.</p>
+        <p className="rd-v2-pulse-kicker">For the first decision of the day</p>
+        <h1 id="home-v2-pulse-title">{introspection.title}</h1>
+        <p>{introspection.body}</p>
       </div>
 
       <div className="rd-v2-pulse-grid">
         <article className="rd-v2-pulse-lead">
-          <div className="rd-v2-card-kicker">What the agent did</div>
-          <h2>Compressed today&apos;s research into report work.</h2>
-          <p>
-            It scanned live memory, ranked changed signals, reused source rows, and turned the result into a follow-up queue. The point is not to read a feed headline. The point is to see what the agent already prepared.
-          </p>
+          <div className="rd-v2-card-kicker">Daily nudge</div>
+          <h2>{introspection.reflectionTitle}</h2>
+          <p>{introspection.reflectionBody}</p>
+          <div className="rd-v2-introspection-question">
+            <span>Next-action question</span>
+            <strong>{introspection.question}</strong>
+          </div>
+          <p className="rd-v2-introspection-meta">{introspection.meta}</p>
+          <div className="rd-v2-pulse-actions">
+            <button className="rd-v2-btn-primary" onClick={() => onAsk?.(introspection.prompt)}>
+              Work this in Chat
+            </button>
+            <button onClick={() => onOpenReports?.()}>
+              Open touched reports
+            </button>
+          </div>
           <ul className="rd-v2-agent-steps" aria-label="Agent work completed">
             {agentSteps.map((item) => (
               <li key={item.title}>
@@ -1449,28 +1559,21 @@ function LivePulseLanding({
               </li>
             ))}
           </ul>
-          <div className="rd-v2-pulse-actions">
-            <button className="rd-v2-btn-primary" onClick={() => onAsk?.("Use the Daily Brief packet to brief me on the highest-leverage report updates and next actions.")}>
-              Ask the agent
-            </button>
-            <button onClick={() => onOpenReports?.()}>
-              Open touched reports
-            </button>
-          </div>
         </article>
 
         <div className="rd-v2-pulse-side">
           <article className="rd-v2-pulse-note">
-            <div className="rd-v2-card-kicker">Who reads this</div>
-            <h3>People who need the next diligence move, not another feed.</h3>
-            <p>Founder, investor, banker, and operator workflows need reusable reports, source-backed claims, and clear follow-through. Raw news stays below as evidence, not the headline.</p>
+            <div className="rd-v2-card-kicker">Found while scanning</div>
+            <h3>{introspection.sourceTitle}</h3>
+            <p>{introspection.sourceBody}</p>
+            <p className="rd-v2-source-meta">{introspection.sourceMeta}</p>
           </article>
           <article className="rd-v2-pulse-note rd-v2-pulse-note--accent">
-            <div className="rd-v2-card-kicker">Agent handoff</div>
-            <h3>Continue with the packet loaded.</h3>
-            <p>Open Chat with the report handles, source rows, and follow-up queue already attached. From there the agent can draft a memo, patch a notebook, or ask for approval before a write.</p>
-            <button onClick={() => onAsk?.("Continue from today's agent brief with report handles, source rows, and follow-up actions loaded.")}>
-              Continue in Chat
+            <div className="rd-v2-card-kicker">Small execution window</div>
+            <h3>{introspection.windowTitle}</h3>
+            <p>{introspection.windowBody}</p>
+            <button onClick={() => onAsk?.(introspection.prompt)}>
+              Prepare the next move
             </button>
           </article>
         </div>
