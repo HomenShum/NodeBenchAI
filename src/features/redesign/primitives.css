@@ -751,6 +751,248 @@
   line-height: 1.55;
 }
 
+[data-redesign] .rd-v2-pulse {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0 0 34px;
+}
+
+[data-redesign] .rd-v2-pulse-topline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--rd-ink-soft);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+[data-redesign] .rd-v2-pulse-topline span:first-child {
+  padding: 3px 9px;
+  border-radius: var(--rd-r-pill);
+  background: var(--rd-accent-tint);
+  color: var(--rd-accent-strong);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-redesign] .rd-v2-pulse-head {
+  max-width: 680px;
+}
+
+[data-redesign] .rd-v2-pulse-kicker {
+  margin: 0 0 4px;
+  color: var(--rd-ink-soft);
+  font-size: 13px;
+  font-weight: 560;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+[data-redesign] .rd-v2-pulse-head h1 {
+  margin: 0 0 10px;
+  color: var(--rd-ink-strong);
+  font-size: 54px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.02;
+}
+
+[data-redesign] .rd-v2-pulse-head p:last-child {
+  max-width: 600px;
+  margin: 0;
+  color: var(--rd-ink-mute);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+[data-redesign] .rd-v2-pulse-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(230px, 0.75fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+[data-redesign] .rd-v2-pulse-lead,
+[data-redesign] .rd-v2-pulse-note,
+[data-redesign] .rd-v2-pulse-mosaic article {
+  min-width: 0;
+  border: 1px solid var(--rd-line);
+  border-radius: var(--rd-r-lg);
+  background: var(--rd-panel-elevated);
+  box-shadow: var(--rd-shadow-sm);
+}
+
+[data-redesign] .rd-v2-pulse-lead {
+  padding: 26px;
+}
+
+[data-redesign] .rd-v2-pulse-lead h2 {
+  margin: 0 0 12px;
+  color: var(--rd-ink-strong);
+  font-size: 30px;
+  font-weight: 750;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+[data-redesign] .rd-v2-pulse-lead > p,
+[data-redesign] .rd-v2-pulse-note p,
+[data-redesign] .rd-v2-pulse-mosaic p {
+  margin: 0;
+  color: var(--rd-ink-mute);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+[data-redesign] .rd-v2-pulse-list {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-redesign] .rd-v2-pulse-list li {
+  display: grid;
+  gap: 3px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rd-line-faint);
+}
+
+[data-redesign] .rd-v2-pulse-list strong {
+  color: var(--rd-ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+[data-redesign] .rd-v2-pulse-list span {
+  color: var(--rd-ink-mute);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+[data-redesign] .rd-v2-pulse-side {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+[data-redesign] .rd-v2-pulse-note {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+}
+
+[data-redesign] .rd-v2-pulse-note--accent {
+  border-color: color-mix(in srgb, var(--rd-accent) 42%, var(--rd-line));
+  background: var(--rd-accent-tint);
+}
+
+[data-redesign] .rd-v2-pulse-note h3 {
+  margin: 0;
+  color: var(--rd-ink-strong);
+  font-size: 17px;
+  font-weight: 720;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+[data-redesign] .rd-v2-pulse-note button,
+[data-redesign] .rd-v2-pulse-actions button {
+  align-self: flex-start;
+  padding: 7px 14px;
+  border-radius: var(--rd-r-pill);
+  color: var(--rd-ink);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+[data-redesign] .rd-v2-pulse-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+[data-redesign] .rd-v2-pulse-statline {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--rd-line-faint);
+  border-radius: var(--rd-r-sm);
+  background: var(--rd-panel);
+}
+
+[data-redesign] .rd-v2-pulse-statline div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-right: 1px solid var(--rd-line-faint);
+}
+
+[data-redesign] .rd-v2-pulse-statline div:last-child {
+  border-right: 0;
+}
+
+[data-redesign] .rd-v2-pulse-statline strong {
+  color: var(--rd-accent-strong);
+  font-size: 20px;
+  font-weight: 780;
+  line-height: 1;
+}
+
+[data-redesign] .rd-v2-pulse-statline span {
+  color: var(--rd-ink);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+[data-redesign] .rd-v2-pulse-statline small {
+  color: var(--rd-ink-soft);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+[data-redesign] .rd-v2-pulse-mosaic {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+[data-redesign] .rd-v2-pulse-mosaic article {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+[data-redesign] .rd-v2-pulse-mosaic span {
+  color: var(--rd-ink-soft);
+  font-size: 10px;
+  font-weight: 740;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+[data-redesign] .rd-v2-pulse-mosaic strong {
+  color: var(--rd-ink-strong);
+  font-size: 22px;
+  line-height: 1;
+}
+
+[data-redesign] .rd-v2-share-bar--pulse {
+  margin: 0;
+}
+
 [data-redesign] .rd-v2-ed-selector {
   display: flex;
   flex-wrap: wrap;
@@ -1747,6 +1989,15 @@
     letter-spacing: -0.8px;
   }
 
+  [data-redesign] .rd-v2-pulse-head h1 {
+    font-size: 38px;
+  }
+
+  [data-redesign] .rd-v2-pulse-grid,
+  [data-redesign] .rd-v2-pulse-mosaic {
+    grid-template-columns: 1fr;
+  }
+
   [data-redesign] .rd-v2-twin-cards {
     grid-template-columns: 1fr;
   }
@@ -1773,6 +2024,36 @@
 
   [data-redesign] .rd-v2-hero {
     font-size: 28px;
+  }
+
+  [data-redesign] .rd-v2-pulse {
+    gap: 14px;
+  }
+
+  [data-redesign] .rd-v2-pulse-head h1 {
+    font-size: 34px;
+  }
+
+  [data-redesign] .rd-v2-pulse-lead,
+  [data-redesign] .rd-v2-pulse-note {
+    padding: 18px;
+  }
+
+  [data-redesign] .rd-v2-pulse-lead h2 {
+    font-size: 24px;
+  }
+
+  [data-redesign] .rd-v2-pulse-statline {
+    grid-template-columns: 1fr;
+  }
+
+  [data-redesign] .rd-v2-pulse-statline div {
+    border-right: 0;
+    border-bottom: 1px solid var(--rd-line-faint);
+  }
+
+  [data-redesign] .rd-v2-pulse-statline div:last-child {
+    border-bottom: 0;
   }
 
   [data-redesign] .rd-v2-proof-row,

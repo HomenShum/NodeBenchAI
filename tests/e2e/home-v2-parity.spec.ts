@@ -84,19 +84,26 @@ test.describe("Home v2 /redesign parity", () => {
     await page.goto("/redesign", { waitUntil: "domcontentloaded" });
 
     await expect(page.getByRole("complementary", { name: "Edition browser" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "One queue. One decision at a time." })).toBeVisible();
+    await expect(page.getByTestId("home-v2-pulse-landing")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Today for you" })).toBeVisible();
+    await expect(page.getByText("What changed").first()).toBeVisible();
+    await expect(page.getByText("Why it matters").first()).toBeVisible();
+    await expect(page.getByText("Next move").first()).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Briefing agent" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Find a person, company, or action" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in" })).toHaveCount(0);
     await expect(page.getByText("Public inbox tracker demo")).toHaveCount(0);
-    await expect(page.getByText(/Live edition · \d+ reports/).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Live edition/).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Career ops")).toHaveCount(0);
+    await expect(page.getByText("One queue. One decision at a time.")).toHaveCount(0);
+    await expect(page.getByText(/static UI kit/i)).toHaveCount(0);
     await expect(page.getByTestId("home-v2-daily-brief-content")).toBeVisible();
     await expect(page.getByTestId("home-v2-brief-section")).toHaveCount(6);
     await expect(page.getByText("Reports touched").first()).toBeVisible();
     await expect(page.getByText("Sources used").first()).toBeVisible();
     await expect(page.getByText("Actions created").first()).toBeVisible();
 
-    const primaryAction = page.getByRole("button", { name: "Show booking queue" });
+    const primaryAction = page.getByRole("button", { name: "Ask in Chat" });
     await expect(primaryAction).toBeVisible();
     await expect
       .poll(async () => await primaryAction.evaluate((node) => getComputedStyle(node).backgroundColor))
