@@ -11,7 +11,38 @@ import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtif
 import { VoiceCostBadge } from "@/features/voice";
 import { useCurrentUserId } from "@/hooks/useCurrentUser";
 
+export type AgentRailStatus = "done" | "running" | "queued" | "blocked" | "idle";
+
+export interface AgentRailItem {
+  id: string;
+  label: string;
+  status?: AgentRailStatus;
+  detail?: string;
+  meta?: string;
+  href?: string;
+}
+
+export interface AgentRailMetric {
+  label: string;
+  value: string;
+  tone?: "green" | "amber" | "accent";
+}
+
+export interface AgentRailSnapshot {
+  title: string;
+  subtitle?: string;
+  status: "idle" | "thinking" | "ok" | "error";
+  runId?: string;
+  progress: AgentRailItem[];
+  runDetails: AgentRailItem[];
+  artifacts: AgentRailItem[];
+  backgroundAgents: AgentRailItem[];
+  sources: AgentRailItem[];
+  metrics?: AgentRailMetric[];
+}
+
 const utilityTabs = [
+  { id: "agent", label: "Agent" },
   { id: "entity", label: "Entity" },
   { id: "graph", label: "Graph" },
   { id: "sources", label: "Sources" },
@@ -24,10 +55,11 @@ type UtilityTab = typeof utilityTabs[number]["id"];
 
 interface RightInspectorProps {
   activeLiveArtifactDetail?: LiveArtifactDetail | null;
+  agentSnapshot?: AgentRailSnapshot | null;
 }
 
-export function RightInspector({ activeLiveArtifactDetail }: RightInspectorProps = {}) {
-  const [activeTab, setActiveTab] = useState<UtilityTab>("entity");
+export function RightInspector({ activeLiveArtifactDetail, agentSnapshot }: RightInspectorProps = {}) {
+  const [activeTab, setActiveTab] = useState<UtilityTab>("agent");
   const liveArtifacts = useLiveArtifacts(12);
   const detail = activeLiveArtifactDetail === undefined
     ? liveArtifacts.details[0]
@@ -36,6 +68,7 @@ export function RightInspector({ activeLiveArtifactDetail }: RightInspectorProps
   const summary = detail?.summary ?? "Ask a question, capture a note, or open a live artifact to hydrate this inspector.";
   const sources = detail?.sourceRows.slice(0, 6) ?? [];
   const nodes = detail?.nodes.slice(0, 5) ?? [];
+  const resolvedAgentSnapshot = agentSnapshot ?? buildFallbackAgentSnapshot(detail, liveArtifacts.isLoading);
   // HONEST_STATUS: only mount VoiceCostBadge for signed-in viewers.
   // `null` = signed out (skip), `undefined` = loading auth (skip until known).
   const userId = useCurrentUserId();
@@ -49,7 +82,7 @@ export function RightInspector({ activeLiveArtifactDetail }: RightInspectorProps
           className="rd-tabs"
           role="tablist"
           aria-label="Chat utility panels"
-          style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", width: "100%" }}
+          style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", width: "100%" }}
         >
           {utilityTabs.map((tab) => (
             <button
@@ -69,6 +102,14 @@ export function RightInspector({ activeLiveArtifactDetail }: RightInspectorProps
         </div>
 
         <div>
+          <div
+            id="right-inspector-panel-agent"
+            role="tabpanel"
+            aria-labelledby="right-inspector-tab-agent"
+            hidden={activeTab !== "agent"}
+          >
+            <AgentProgressPanel snapshot={resolvedAgentSnapshot} />
+          </div>
           <div
             id="right-inspector-panel-entity"
             role="tabpanel"
@@ -120,6 +161,208 @@ export function RightInspector({ activeLiveArtifactDetail }: RightInspectorProps
         </div>
       </section>
     </aside>
+  );
+}
+
+function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLoading: boolean): AgentRailSnapshot {
+  const hasDetail = Boolean(detail);
+  const status: AgentRailSnapshot["status"] = isLoading ? "thinking" : hasDetail ? "ok" : "idle";
+  return {
+    title: isLoading ? "Hydrating agent context" : hasDetail ? "Agent ready on live artifact" : "Agent idle",
+    subtitle: hasDetail
+      ? `${detail.title} - ${detail.sourceCount} sources - ${detail.claimCount} claims`
+      : "Ask in Chat to start a Convex-backed run with traceable tool calls.",
+    status,
+    progress: [
+      {
+        id: "context",
+        label: "Resolve active context",
+        status: isLoading ? "running" : hasDetail ? "done" : "queued",
+        detail: hasDetail ? detail.title : "Waiting for a chat prompt or selected artifact.",
+      },
+      {
+        id: "memory",
+        label: "Search reusable memory",
+        status: hasDetail ? "done" : "queued",
+        detail: hasDetail ? `${detail.sourceCount} source refs already attached.` : "Runs before any paid refresh.",
+      },
+      {
+        id: "sources",
+        label: "Verify sources and evidence",
+        status: hasDetail && detail.sourceCount > 0 ? "done" : "queued",
+        detail: hasDetail ? `${detail.claimCount} claims available for review.` : "Hydrates when a run starts.",
+      },
+      {
+        id: "answer",
+        label: "Assemble answer packet",
+        status: hasDetail ? "done" : "queued",
+        detail: hasDetail ? detail.primaryAction : "Produces answer, evidence, risk, next action.",
+      },
+    ],
+    runDetails: [
+      { id: "state", label: "Run state", status, detail: isLoading ? "Subscribing to Convex live state." : "No active paid run in progress." },
+      { id: "writes", label: "Safe writes", status: "idle", detail: "Notebook, follow-up, and export writes require explicit user action." },
+    ],
+    artifacts: hasDetail
+      ? [
+          { id: "artifact", label: detail.title, status: "done", detail: detail.kind, href: `/redesign/workspace?report=${encodeURIComponent(detail.id)}&tab=brief` },
+          { id: "notebook", label: "Notebook handoff", status: detail.notebookHtml ? "done" : "queued", detail: detail.notebookHtml ? "Draft available" : "No notebook draft yet", href: `/redesign/workspace?report=${encodeURIComponent(detail.id)}&tab=notebook` },
+        ]
+      : [{ id: "empty", label: "No artifacts yet", status: "queued", detail: "Start with a question, source, or report." }],
+    backgroundAgents: [
+      { id: "coordinator", label: "Coordinator", status: hasDetail ? "done" : "queued", detail: "Plans context, tools, and safe write path." },
+      { id: "memory", label: "Memory agent", status: hasDetail ? "done" : "queued", detail: "Looks up reports, notebooks, sources, and prior chats." },
+      { id: "judge", label: "Judge", status: "queued", detail: "Checks citation support and unsupported claims." },
+    ],
+    sources: hasDetail
+      ? detail.sourceRows.slice(0, 5).map((source, index) => ({
+          id: source.id || `source-${index}`,
+          label: source.title,
+          status: "done",
+          detail: source.host || source.type,
+          href: source.href,
+        }))
+      : [{ id: "convex", label: "Convex live memory", status: isLoading ? "running" : "queued", detail: "Primary source of truth." }],
+    metrics: [
+      { label: "sources", value: String(detail?.sourceCount ?? 0), tone: "accent" },
+      { label: "claims", value: String(detail?.claimCount ?? 0), tone: "green" },
+      { label: "paid", value: "$0.00", tone: "green" },
+    ],
+  };
+}
+
+function AgentProgressPanel({ snapshot }: { snapshot: AgentRailSnapshot }) {
+  return (
+    <div className="rd-stack" style={{ gap: 14 }} data-testid="chat-agent-run-rail">
+      <div className="rd-stack" style={{ gap: 6 }}>
+        <div className="rd-row--between" style={{ gap: 10 }}>
+          <div className="rd-eyebrow">Agent run</div>
+          <StatusPill status={snapshot.status} />
+        </div>
+        <h3 className="rd-h2" style={{ fontSize: 16, lineHeight: 1.15, margin: 0 }}>{snapshot.title}</h3>
+        {snapshot.subtitle && (
+          <p className="rd-body" style={{ fontSize: 12.5, color: "var(--rd-ink-mute)", margin: 0 }}>
+            {snapshot.subtitle}
+          </p>
+        )}
+        {snapshot.runId && (
+          <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>run {snapshot.runId}</span>
+        )}
+      </div>
+
+      {snapshot.metrics?.length ? (
+        <div className="rd-row" style={{ gap: 6 }}>
+          {snapshot.metrics.map((metric) => (
+            <div
+              key={metric.label}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                border: "1px solid var(--rd-line)",
+                borderRadius: 6,
+                padding: "7px 8px",
+                background: "var(--rd-muted)",
+              }}
+            >
+              <div className="rd-h3" style={{ fontSize: 13, color: metric.tone === "amber" ? "var(--rd-amber)" : metric.tone === "green" ? "var(--rd-green)" : "var(--rd-ink)" }}>{metric.value}</div>
+              <div className="rd-mono" style={{ fontSize: 9, color: "var(--rd-ink-soft)", marginTop: 2 }}>{metric.label}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <AgentSection title="Progress" items={snapshot.progress} />
+      <AgentSection title="Run details" items={snapshot.runDetails} compact />
+      <AgentSection title="Artifacts" items={snapshot.artifacts} compact />
+      <AgentSection title="Background agents" items={snapshot.backgroundAgents} compact />
+      <AgentSection title="Sources" items={snapshot.sources} compact />
+    </div>
+  );
+}
+
+function AgentSection({ title, items, compact = false }: { title: string; items: AgentRailItem[]; compact?: boolean }) {
+  return (
+    <section className="rd-stack" style={{ gap: 7 }}>
+      <div className="rd-eyebrow">{title}</div>
+      {items.length ? (
+        <ul className="rd-stack" style={{ gap: compact ? 5 : 7, listStyle: "none", padding: 0, margin: 0 }}>
+          {items.map((item) => (
+            <li key={item.id} className="rd-row" style={{ alignItems: "flex-start", gap: 8, minWidth: 0 }}>
+              <StatusGlyph status={item.status ?? "idle"} />
+              <span style={{ minWidth: 0, flex: 1 }}>
+                {item.href ? (
+                  <a
+                    href={item.href}
+                    style={{
+                      color: "var(--rd-ink)",
+                      fontSize: compact ? 12 : 12.5,
+                      fontWeight: 590,
+                      textDecoration: "none",
+                    }}
+                  >
+                    {item.label}
+                  </a>
+                ) : (
+                  <span style={{ display: "block", color: "var(--rd-ink)", fontSize: compact ? 12 : 12.5, fontWeight: 590 }}>
+                    {item.label}
+                  </span>
+                )}
+                {item.detail && (
+                  <span style={{ display: "block", marginTop: 2, color: "var(--rd-ink-mute)", fontSize: compact ? 11 : 11.5, lineHeight: 1.35 }}>
+                    {item.detail}
+                  </span>
+                )}
+                {item.meta && (
+                  <span className="rd-mono" style={{ display: "block", marginTop: 2, color: "var(--rd-ink-soft)", fontSize: 10 }}>
+                    {item.meta}
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <EmptyPanel message={`No ${title.toLowerCase()} yet.`} />
+      )}
+    </section>
+  );
+}
+
+function StatusPill({ status }: { status: AgentRailSnapshot["status"] }) {
+  const label = status === "thinking" ? "Running" : status === "ok" ? "Ready" : status === "error" ? "Needs review" : "Idle";
+  const tone = status === "error" ? undefined : status === "ok" ? "green" : status === "thinking" ? "accent" : undefined;
+  return <Pill tone={tone}>{label}</Pill>;
+}
+
+function StatusGlyph({ status }: { status: AgentRailStatus }) {
+  const color =
+    status === "done" ? "var(--rd-green)"
+      : status === "running" ? "var(--rd-accent-strong)"
+      : status === "blocked" ? "var(--rd-amber)"
+      : "var(--rd-ink-soft)";
+  const label = status === "done" ? "done" : status === "running" ? "running" : status === "blocked" ? "blocked" : "queued";
+  return (
+    <span
+      aria-label={label}
+      title={label}
+      style={{
+        width: 16,
+        height: 16,
+        borderRadius: 999,
+        border: `1px solid ${color}`,
+        color,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flex: "0 0 auto",
+        marginTop: 1,
+        fontSize: 10,
+        fontWeight: 700,
+        lineHeight: 1,
+      }}
+    >
+      {status === "done" ? "✓" : status === "running" ? "…" : status === "blocked" ? "!" : ""}
+    </span>
   );
 }
 
