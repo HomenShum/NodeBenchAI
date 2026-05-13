@@ -10,8 +10,9 @@
  * Convex re-runs both whenever the underlying tables change → live
  * progress without any HTTP SSE plumbing.
  *
- * Auth-gated: state.available=false when unauthenticated; caller falls
- * back to fixture path.
+ * Anonymous-safe: the Convex mutation accepts anonymous runs and records
+ * userId only when auth is present. state.available=false only while auth
+ * is still loading, so guests can still exercise the real run pipeline.
  */
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
@@ -30,6 +31,123 @@ export function normalizeRouterTierForChatRun(tier: RouterTier): ChatRunTier {
 type EvidenceRow = ChatAnswer["evidence"][number];
 type TraceRow = ChatAnswer["trace"][number];
 
+export type PlannerArtifactStatus = "selected" | "candidate" | "deferred" | "pending" | "complete" | "blocked";
+
+export interface PlannerArtifact {
+  id: string;
+  label: string;
+  status: PlannerArtifactStatus;
+  detail: string;
+  confidence?: number;
+  riskTier?: "low" | "medium" | "high";
+  costUsd?: number;
+}
+
+export interface RuntimeMetrics {
+  runId?: string;
+  totalLatencyMs?: number;
+  totalTokens?: number;
+  estimatedCostUsd?: number;
+  paidCalls?: number;
+  sourceCount?: number;
+  verifiedSourceCount?: number;
+  toolCallCount?: number;
+  liveSearchCalls?: number;
+  memoryHitRate?: number;
+  sourceCacheHitRate?: number;
+  timeToFirstSourceMs?: number | null;
+  timeToFinalMs?: number;
+}
+
+export interface ClaimCheck {
+  idx: number;
+  status: string;
+  method?: string;
+  source?: string;
+  detail?: string;
+  verified?: boolean;
+  validationError?: string;
+}
+
+export interface RuntimeTrace {
+  boardState?: Record<string, unknown>;
+  contextCandidates: PlannerArtifact[];
+  toolDecisions: PlannerArtifact[];
+  claimChecks: ClaimCheck[];
+  metrics?: RuntimeMetrics;
+}
+
+function inferEntity(prompt: string): string | undefined {
+  return prompt.match(/(?:about |on |for |re )?([A-Z][A-Za-z0-9]+(?:\s[A-Z][A-Za-z0-9]+)*)/)?.[1];
+}
+
+function fallbackContextCandidates(prompt: string): PlannerArtifact[] {
+  const entity = inferEntity(prompt);
+  return [
+    {
+      id: "user_prompt",
+      label: "User prompt",
+      status: "selected",
+      confidence: 1,
+      detail: prompt || "Prompt loaded from the run row.",
+    },
+    {
+      id: "entity_mention",
+      label: entity ?? "Entity unresolved",
+      status: entity ? "candidate" : "deferred",
+      confidence: entity ? 0.72 : 0,
+      detail: entity ? "Detected from the prompt text." : "No stable entity mention found in the prompt.",
+    },
+    {
+      id: "active_report",
+      label: "Active report",
+      status: "deferred",
+      confidence: 0,
+      detail: "No report reference was available in the legacy run row.",
+    },
+  ];
+}
+
+function fallbackToolDecisions(trace: TraceRow[]): PlannerArtifact[] {
+  const hasFallback = trace.some((row) => /fallback/i.test(`${row.step} ${row.detail}`));
+  const hasGrounding = trace.some((row) => /gemini|ground/i.test(`${row.step} ${row.detail}`));
+  return [
+    {
+      id: "search_memory",
+      label: "search_memory",
+      status: "deferred",
+      riskTier: "low",
+      costUsd: 0,
+      detail: "Legacy run stream did not emit a memory-search decision.",
+    },
+    {
+      id: hasFallback ? "fallback_source_search" : "google_search_grounding",
+      label: hasFallback ? "fallback_source_search" : "google_search grounding",
+      status: hasFallback || hasGrounding ? "selected" : "pending",
+      riskTier: "medium",
+      detail: hasFallback
+        ? "Gemini returned no grounding chunks, so Linkup fallback sources were used."
+        : "Fresh evidence grounding was selected for this run.",
+    },
+    {
+      id: "verify_sources",
+      label: "verify_sources",
+      status: "pending",
+      riskTier: "low",
+      costUsd: 0,
+      detail: "Source URL substring validation runs after packet assembly.",
+    },
+    {
+      id: "patch_notebook",
+      label: "patch_notebook",
+      status: "deferred",
+      riskTier: "medium",
+      costUsd: 0,
+      detail: "Notebook writes require an explicit user action.",
+    },
+  ];
+}
+
 export interface RealChatRun {
   runId: string;
   hash?: string;
@@ -43,6 +161,8 @@ export interface RealChatRun {
   toolCalls: TraceRow[];
   /** Grounded source URLs as they arrive. */
   groundingChunks: EvidenceRow[];
+  /** Board-state, routing, tool-decision, claim-check, and metric artifacts. */
+  runtime: RuntimeTrace;
   status: "pending" | "running" | "complete" | "error";
   errorMessage?: string;
 }
@@ -51,12 +171,12 @@ export interface ChatRunState {
   status: "idle" | "thinking" | "ok" | "error";
   run: RealChatRun | null;
   error: string | null;
-  /** Whether the current user can run real chat (authenticated). */
+  /** Whether the real chat pipeline can be started from the current auth state. */
   available: boolean;
 }
 
 export function useRedesignChatRun() {
-  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const { isLoading: authLoading } = useConvexAuth();
   const startChat = useMutation(api.domains.redesign.chatRuns.startChat);
 
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
@@ -77,6 +197,11 @@ export function useRedesignChatRun() {
     let scratchpad = "";
     const toolCalls: TraceRow[] = [];
     const groundingChunks: EvidenceRow[] = [];
+    const contextCandidates: PlannerArtifact[] = [];
+    const toolDecisions: PlannerArtifact[] = [];
+    const claimChecks: ClaimCheck[] = [];
+    let boardState: RuntimeTrace["boardState"];
+    let metrics: RuntimeMetrics | undefined;
     const sections: Record<string, any> = {};
     let terminalError: string | undefined;
     for (const ev of list) {
@@ -101,6 +226,40 @@ export function useRedesignChatRun() {
         case "section":
           if (ev.payload?.name) sections[ev.payload.name] = ev.payload;
           break;
+        case "board_state":
+          boardState = ev.payload as RuntimeTrace["boardState"];
+          break;
+        case "context_candidate":
+          if (ev.payload?.id && ev.payload?.label) contextCandidates.push(ev.payload as PlannerArtifact);
+          break;
+        case "tool_decision":
+          if (ev.payload?.id && ev.payload?.label) toolDecisions.push(ev.payload as PlannerArtifact);
+          break;
+        case "claim_check":
+          if (typeof ev.payload?.idx === "number") claimChecks.push(ev.payload as ClaimCheck);
+          break;
+        case "sources_validated":
+          for (const item of ev.payload?.unverified ?? []) {
+            if (typeof item?.idx === "number") {
+              claimChecks.push({
+                idx: item.idx,
+                status: "source_validation_failed",
+                verified: false,
+                validationError: item.reason,
+              });
+            }
+          }
+          if (typeof ev.payload?.verified === "number" && typeof ev.payload?.total === "number") {
+            metrics = {
+              ...metrics,
+              sourceCount: ev.payload.total,
+              verifiedSourceCount: ev.payload.verified,
+            };
+          }
+          break;
+        case "run_metrics":
+          metrics = ev.payload as RuntimeMetrics;
+          break;
         case "error":
           terminalError = ev.payload?.errorMessage ?? "unknown error";
           break;
@@ -123,17 +282,35 @@ export function useRedesignChatRun() {
     const finalPacket = (runRow?.status === "complete" && runRow.packet)
       ? (runRow.packet as ChatAnswer)
       : partial;
+    const resolvedContextCandidates = contextCandidates.length > 0
+      ? contextCandidates
+      : fallbackContextCandidates(runRow?.prompt ?? "");
+    const resolvedToolDecisions = toolDecisions.length > 0
+      ? toolDecisions
+      : fallbackToolDecisions(toolCalls);
+    const runtime: RuntimeTrace = {
+      boardState,
+      contextCandidates: resolvedContextCandidates,
+      toolDecisions: resolvedToolDecisions,
+      claimChecks,
+      metrics,
+    };
+    const packet = {
+      ...finalPacket,
+      runtime,
+    };
 
     return {
       runId: activeRunId,
       hash: runRow?.hash ?? undefined,
-      packet: finalPacket,
+      packet,
       totalLatencyMs: runRow?.totalLatencyMs,
       totalTokens: runRow?.totalTokens,
       estimatedCostUsd: runRow?.estimatedCostUsd,
       scratchpad,
       toolCalls,
       groundingChunks,
+      runtime,
       status,
       errorMessage: terminalError ?? runRow?.errorMessage ?? undefined,
     };
@@ -152,8 +329,8 @@ export function useRedesignChatRun() {
       contextRef?: string,
       pinnedClaims?: Array<{ text: string; source?: string }>,
     ): Promise<string | null> => {
-      if (!isAuthenticated) {
-        setError("Sign in to run a real chat with grounded sources.");
+      if (authLoading) {
+        setError("Auth state is still loading. Try again in a moment.");
         return null;
       }
       setError(null);
@@ -167,7 +344,7 @@ export function useRedesignChatRun() {
         return null;
       }
     },
-    [isAuthenticated, startChat],
+    [authLoading, startChat],
   );
 
   const reset = useCallback(() => {
@@ -198,7 +375,7 @@ export function useRedesignChatRun() {
       status: externalStatus,
       run: projected,
       error,
-      available: !authLoading && isAuthenticated,
+      available: !authLoading,
     } as ChatRunState,
     submit,
     reset,

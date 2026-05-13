@@ -24,7 +24,8 @@
  * proposeMemoryPatch on inline correction, source-URL substring
  * validation, production load polish.
  *
- * Auth-gated: anonymous users still get the showcase fixture path.
+ * Anonymous-safe: userId is attached when auth is present, but guests still
+ * exercise the real Convex-backed run pipeline.
  */
 
 import { v } from "convex/values";
@@ -58,6 +59,16 @@ interface AnswerPacket {
   fromMemory: boolean;
   trace: TraceRow[];
 }
+
+type PlannerArtifact = {
+  id: string;
+  label: string;
+  status: "selected" | "candidate" | "deferred" | "pending" | "complete" | "blocked";
+  detail: string;
+  confidence?: number;
+  riskTier?: "low" | "medium" | "high";
+  costUsd?: number;
+};
 
 // ───────── Constants ─────────
 
@@ -204,6 +215,109 @@ function classifyPrompt(prompt: string): { kind: string; entity?: string } {
   if (lower.includes(" vs ") || lower.includes(" compare ")) return { kind: "competitor", entity };
   if (entity && entity.length > 2) return { kind: "company_search", entity };
   return { kind: "general" };
+}
+
+function buildBoardState(args: {
+  runId: string;
+  prompt: string;
+  tier: string;
+  model: string;
+  contextRef?: string;
+  classification: { kind: string; entity?: string };
+}): {
+  boardState: Record<string, unknown>;
+  contextCandidates: PlannerArtifact[];
+  toolDecisions: PlannerArtifact[];
+} {
+  const entityLabel = args.classification.entity ?? "unresolved entity";
+  const hasReportContext = Boolean(args.contextRef);
+  const contextCandidates: PlannerArtifact[] = [
+    {
+      id: "user_prompt",
+      label: "User prompt",
+      status: "selected",
+      confidence: 1,
+      detail: clipText(args.prompt, 180),
+    },
+    {
+      id: "active_report",
+      label: hasReportContext ? `Active report ${args.contextRef}` : "Active report",
+      status: hasReportContext ? "selected" : "deferred",
+      confidence: hasReportContext ? 0.86 : 0,
+      detail: hasReportContext
+        ? "Composer supplied a live report/context reference."
+        : "No active report reference was supplied, so the run stays answer-first.",
+    },
+    {
+      id: "entity_mention",
+      label: entityLabel,
+      status: args.classification.entity ? "candidate" : "deferred",
+      confidence: args.classification.entity ? 0.72 : 0,
+      detail: args.classification.entity
+        ? `Classifier detected ${args.classification.kind}.`
+        : "Prompt did not expose a stable entity name.",
+    },
+  ];
+
+  const toolDecisions: PlannerArtifact[] = [
+    {
+      id: "search_memory",
+      label: "search_memory",
+      status: hasReportContext ? "selected" : "deferred",
+      riskTier: "low",
+      costUsd: 0,
+      detail: hasReportContext
+        ? "Use the selected live report as memory context before live grounding."
+        : "No report context to search in this anonymous/public run.",
+    },
+    {
+      id: "google_search_grounding",
+      label: "google_search grounding",
+      status: "selected",
+      riskTier: "medium",
+      detail: "Fresh external evidence is needed, so Gemini grounded search is enabled.",
+    },
+    {
+      id: "verify_sources",
+      label: "verify_sources",
+      status: "pending",
+      riskTier: "low",
+      costUsd: 0,
+      detail: "Source URL substring validation is scheduled after packet assembly.",
+    },
+    {
+      id: "patch_notebook",
+      label: "patch_notebook",
+      status: "deferred",
+      riskTier: "medium",
+      costUsd: 0,
+      detail: "Notebook writes require an explicit user action from the answer packet.",
+    },
+  ];
+
+  return {
+    boardState: {
+      runId: args.runId,
+      surface: "redesign_chat",
+      goal: "answer_with_cited_research_and_action_trace",
+      status: "running",
+      promptKind: args.classification.kind,
+      entity: args.classification.entity ?? null,
+      tier: args.tier,
+      model: args.model,
+      targetReport: args.contextRef ?? null,
+      successCriteria: [
+        "classify intent",
+        "select available memory/context",
+        "ground answer in sources",
+        "bind evidence rows",
+        "schedule source validation",
+        "emit cost and latency",
+      ],
+    },
+    contextCandidates,
+    toolDecisions,
+  };
 }
 
 interface ParsedMemo {
@@ -539,6 +653,21 @@ export const runStreamingChat = internalAction({
       trace.push(tr1);
       await append("tool_call", tr1);
       await append("stage", { stage: "classified", classification });
+      const planner = buildBoardState({
+        runId: args.runId,
+        prompt: args.prompt,
+        tier: args.tier,
+        model: args.model,
+        contextRef: args.contextRef,
+        classification,
+      });
+      await append("board_state", planner.boardState);
+      for (const candidate of planner.contextCandidates) {
+        await append("context_candidate", candidate);
+      }
+      for (const decision of planner.toolDecisions) {
+        await append("tool_decision", decision);
+      }
 
       // Stage 2 — context
       const t2 = Date.now();
@@ -597,6 +726,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
       }> = [];
       let inputTokens = 0;
       let outputTokens = 0;
+      let firstSourceAt: number | undefined;
 
       try {
         // Use streamGenerateContent (alt=sse) for token-level streaming
@@ -647,6 +777,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
                   const uri = chunk?.web?.uri;
                   if (uri && !seenChunkUris.has(uri)) {
                     seenChunkUris.add(uri);
+                    firstSourceAt ??= Date.now();
                     await append("grounding_chunk", {
                       idx: groundingChunks.length + 1,
                       url: uri,
@@ -694,6 +825,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
         const fallback = await runFallbackSourceSearch(args.prompt);
         fallbackSources = fallback.snippets;
         for (const [i, source] of fallbackSources.entries()) {
+          firstSourceAt ??= Date.now();
           await append("grounding_chunk", {
             idx: i + 1,
             url: source.url,
@@ -743,6 +875,15 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
       };
       trace.push(tr4);
       await append("tool_call", tr4);
+      for (const row of evidence) {
+        await append("claim_check", {
+          idx: row.idx,
+          status: "pending_source_validation",
+          method: "url_substring_validation",
+          source: row.source,
+          detail: "Evidence row bound; background validator will confirm quote support.",
+        });
+      }
 
       // Section commits
       await append("section", { name: "short_answer", text: parsed.shortAnswer });
@@ -764,7 +905,46 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
         evidenceUrls: evidence.map((e) => e.source),
       });
 
-      const packet: AnswerPacket = {
+      const runtime = {
+        boardState: {
+          ...planner.boardState,
+          status: "complete",
+        },
+        contextCandidates: planner.contextCandidates,
+        toolDecisions: planner.toolDecisions.map((decision) =>
+          decision.id === "verify_sources" ? { ...decision, status: "pending" as const } : decision,
+        ),
+        claimChecks: evidence.map((row) => ({
+          idx: row.idx,
+          status: "pending_source_validation",
+          method: "url_substring_validation",
+          source: row.source,
+          detail: "Evidence row bound; background validator will confirm quote support.",
+        })),
+        metrics: {
+          runId: args.runId,
+          totalLatencyMs,
+          totalTokens,
+          estimatedCostUsd,
+          paidCalls: 1,
+          sourceCount: evidence.length,
+          toolCallCount: trace.length,
+          liveSearchCalls: 1,
+          memoryHitRate: args.contextRef ? 1 : 0,
+          sourceCacheHitRate: 0,
+          timeToFirstSourceMs: firstSourceAt ? firstSourceAt - t0 : null,
+          timeToFinalMs: totalLatencyMs,
+        },
+        actionOutputs: [
+          {
+            id: "next_action",
+            label: "Recommended next action",
+            status: "local_only_recommendation",
+            detail: parsed.nextAction,
+          },
+        ],
+      };
+      const packet: AnswerPacket & { runtime: typeof runtime } = {
         shortAnswer: parsed.shortAnswer,
         whyItMatters: parsed.whyItMatters,
         evidence,
@@ -774,6 +954,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
         paidCalls: 1,
         fromMemory: false,
         trace,
+        runtime,
       };
 
       await ctx.runMutation(internal.domains.redesign.chatRuns.finalizeRun, {
@@ -783,6 +964,20 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
         totalLatencyMs,
         totalTokens,
         estimatedCostUsd,
+      });
+      await append("run_metrics", {
+        runId: args.runId,
+        totalLatencyMs,
+        totalTokens,
+        estimatedCostUsd,
+        paidCalls: 1,
+        sourceCount: evidence.length,
+        toolCallCount: trace.length,
+        liveSearchCalls: 1,
+        memoryHitRate: args.contextRef ? 1 : 0,
+        sourceCacheHitRate: 0,
+        timeToFirstSourceMs: firstSourceAt ? firstSourceAt - t0 : null,
+        timeToFinalMs: totalLatencyMs,
       });
       await append("packet_complete", { hash, totalLatencyMs, totalTokens, estimatedCostUsd });
 
@@ -922,6 +1117,19 @@ export const validateRunSources = internalAction({
       verifications: updates,
     });
     const verifiedCount = updates.filter((u) => u.verified).length;
+    for (const update of updates) {
+      await ctx.runMutation(internal.domains.redesign.chatRuns.appendEvent, {
+        runId: args.runId,
+        eventType: "claim_check",
+        payload: {
+          idx: update.idx,
+          status: update.verified ? "source_validation_passed" : "source_validation_failed",
+          method: "url_substring_validation",
+          verified: update.verified,
+          validationError: update.validationError,
+        } as any,
+      });
+    }
     await ctx.runMutation(internal.domains.redesign.chatRuns.appendEvent, {
       runId: args.runId,
       eventType: "sources_validated",
@@ -967,12 +1175,32 @@ export const patchEvidenceVerification = internalMutation({
       return { ...e, verified: u.verified, verifiedAt: Date.now(), validationError: u.validationError };
     });
     const verifiedCount = evidence.filter((e: any) => e.verified).length;
+    const runtime = row.packet.runtime
+      ? {
+          ...row.packet.runtime,
+          claimChecks: evidence.map((e: any) => ({
+            idx: e.idx,
+            status: e.verified ? "source_validation_passed" : "source_validation_failed",
+            method: "url_substring_validation",
+            source: e.source,
+            verified: e.verified,
+            validationError: e.validationError,
+            detail: e.verified ? "Quote substring confirmed in source body." : "Quote substring was not confirmed in source body.",
+          })),
+          metrics: {
+            ...(row.packet.runtime.metrics ?? {}),
+            sourceCount: evidence.length,
+            verifiedSourceCount: verifiedCount,
+          },
+        }
+      : undefined;
     await ctx.db.patch(row._id, {
       packet: {
         ...row.packet,
         evidence,
         sourceCount: evidence.length,
         verifiedSourceCount: verifiedCount,
+        ...(runtime ? { runtime } : {}),
       },
     });
   },

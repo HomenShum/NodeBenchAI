@@ -1,9 +1,9 @@
 /**
- * Me — Personal Context Notebook (USER.md as durable memory).
+ * Me - Personal Context Notebook (USER.md as editable memory draft).
  *
  * Aligns with the locked design board (proposed-design-views.html#me-view):
  *   - 3-card runtime row: "How NodeBench sees you" · product.me profile · USER.md document
- *   - TipTap-style toolbar with "Saved to Convex" pill
+ *   - TipTap-style toolbar with local draft save-state pill
  *   - Per-section editable memory rows + permission pill stack
  *   - Patch inbox aside (suggested patch with Accept / Edit diff / Reject)
  *   - Agent implementation hooks list (RichNotebookEditor, teachability, operatorProfile, OpenClaw)
@@ -99,13 +99,55 @@ const INITIAL_SECTIONS: Section[] = [
 export function MeSurface() {
   const [sections, setSections] = useState<Section[]>(INITIAL_SECTIONS);
   const [purpose, setPurpose] = useState("Control, editable memory, privacy, budget, files, integrations.");
-  const [savedAt, setSavedAt] = useState("Saved to Convex");
+  const [savedAt, setSavedAt] = useState("Local draft saved");
   const [patch, setPatch] = useState("You often rewrite reports into banker-style next actions.");
   const [policies, setPolicies] = useState({
     autoSaveExplicit: true,
     suggestLowRisk: true,
     diffPrivacy: true,
   });
+
+  const markLocalSaved = () => {
+    setSavedAt("Saving local draft...");
+    setTimeout(() => setSavedAt("Local draft saved"), 600);
+  };
+
+  const previewAction = (label: string) => {
+    showToast({
+      tone: "info",
+      message: `${label} is a local Me-page preview. Durable profile writes run through the operator profile tools.`,
+    });
+  };
+
+  const acceptPatch = () => {
+    if (!patch.trim()) return;
+    setSections((prev) =>
+      prev.map((section) =>
+        section.id === "communication"
+          ? {
+              ...section,
+              body: section.body.includes(patch.trim())
+                ? section.body
+                : `${section.body}\n\n${patch.trim()}`,
+            }
+          : section,
+      ),
+    );
+    setPatch("");
+    markLocalSaved();
+    showToast({ tone: "success", message: "Applied the suggested patch to the local USER.md draft." });
+  };
+
+  const rejectPatch = () => {
+    setPatch("");
+    markLocalSaved();
+    showToast({ tone: "warning", message: "Rejected the suggested patch locally." });
+  };
+
+  const updatePolicy = (key: keyof typeof policies, value: boolean) => {
+    setPolicies((p) => ({ ...p, [key]: value }));
+    markLocalSaved();
+  };
 
   const togglePerm = (sectionId: SectionId, permId: PermissionId) => {
     setSections((prev) =>
@@ -120,14 +162,12 @@ export function MeSurface() {
           : s
       )
     );
-    setSavedAt("Saving…");
-    setTimeout(() => setSavedAt("Saved to Convex"), 600);
+    markLocalSaved();
   };
 
   const updateBody = (sectionId: SectionId, body: string) => {
     setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, body } : s)));
-    setSavedAt("Saving…");
-    setTimeout(() => setSavedAt("Saved to Convex"), 600);
+    markLocalSaved();
   };
 
   return (
@@ -154,7 +194,7 @@ export function MeSurface() {
               outline: "none",
               marginTop: 2,
             }}
-          >Editable, durable memory. Drives every report, chat, and agent action. Privacy and budget controls in the footer.</p>
+          >Editable memory draft. Live reports and chats can read persisted operator profile data once the profile tools save it.</p>
         </div>
         <div className="rd-row" style={{ gap: 6, flexWrap: "wrap" }}>
           <button
@@ -177,13 +217,14 @@ export function MeSurface() {
         <article className="rd-card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
           {/* Hero label + minimal toolbar — Save pill now lives in page header */}
           <div className="rd-row--between" style={{ paddingBottom: 8, borderBottom: "1px solid var(--rd-line-faint)" }}>
-            <div className="rd-eyebrow" style={{ fontSize: 11, color: "var(--rd-accent-strong)" }}>USER.md · editable durable memory</div>
+            <div className="rd-eyebrow" style={{ fontSize: 11, color: "var(--rd-accent-strong)" }}>USER.md · editable local draft</div>
             <div className="rd-row" style={{ gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
               {(["H2", "B", "I", "UL", "1.", "''", "Undo", "Redo"] as const).map((label) => (
                 <button
                   key={label}
                   type="button"
                   aria-label={`TipTap ${label}`}
+                  onClick={() => previewAction(`Toolbar ${label}`)}
                   className="rd-btn rd-btn--quiet"
                   style={{
                     width: label.length > 2 ? 44 : 32, height: 32, padding: 0,
@@ -306,9 +347,9 @@ export function MeSurface() {
               }}
             />
             <div className="rd-row" style={{ gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-              <button className="rd-btn rd-btn--primary rd-btn--sm">Accept</button>
-              <button className="rd-btn rd-btn--quiet rd-btn--sm">Edit diff</button>
-              <button className="rd-btn rd-btn--quiet rd-btn--sm">Reject</button>
+              <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={acceptPatch}>Accept local</button>
+              <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => previewAction("Edit diff")}>Edit diff preview</button>
+              <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={rejectPatch}>Reject local</button>
             </div>
           </div>
 
@@ -323,7 +364,11 @@ export function MeSurface() {
                 { strong: "Open OpenClaw audit tools", body: "spawn session, execute skill, retrieve audit, end session" },
               ].map((hook) => (
                 <li key={hook.strong}>
-                  <button type="button" className="rd-btn rd-btn--quiet" style={{
+                  <button
+                    type="button"
+                    className="rd-btn rd-btn--quiet"
+                    onClick={() => previewAction(hook.strong)}
+                    style={{
                     width: "100%",
                     textAlign: "left",
                     padding: "7px 10px",
@@ -364,22 +409,22 @@ export function MeSurface() {
               <PolicySwitch
                 label="Auto-save explicit remember-this"
                 checked={policies.autoSaveExplicit}
-                onChange={(v) => setPolicies((p) => ({ ...p, autoSaveExplicit: v }))}
+                onChange={(v) => updatePolicy("autoSaveExplicit", v)}
               />
               <PolicySwitch
                 label="Suggest low-risk preferences"
                 checked={policies.suggestLowRisk}
-                onChange={(v) => setPolicies((p) => ({ ...p, suggestLowRisk: v }))}
+                onChange={(v) => updatePolicy("suggestLowRisk", v)}
               />
               <PolicySwitch
                 label="Require diff for privacy, budget, connectors"
                 checked={policies.diffPrivacy}
-                onChange={(v) => setPolicies((p) => ({ ...p, diffPrivacy: v }))}
+                onChange={(v) => updatePolicy("diffPrivacy", v)}
               />
             </div>
             <div className="rd-row" style={{ gap: 6, marginTop: 12 }}>
-              <button className="rd-btn rd-btn--primary rd-btn--sm">Review policy</button>
-              <button className="rd-btn rd-btn--quiet rd-btn--sm">Open audit log</button>
+              <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={() => previewAction("Review policy")}>Policy preview</button>
+              <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => previewAction("Open audit log")}>Audit log preview</button>
             </div>
           </div>
         </aside>
@@ -549,8 +594,8 @@ function StyleProfileSection() {
           <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => setShowGallery((v) => !v)}>
             {showGallery ? "Hide gallery" : "Browse public styles"}
           </button>
-          <button className="rd-btn rd-btn--quiet rd-btn--sm">Recompute from history</button>
-          <button className="rd-btn rd-btn--primary rd-btn--sm">Save & apply</button>
+          <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Style recompute preview queued locally." })}>Recompute preview</button>
+          <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={() => showToast({ tone: "success", message: "Style profile saved locally for this session." })}>Save locally</button>
         </div>
       </header>
 
@@ -703,15 +748,15 @@ function RuntimeCard({
           background: "var(--rd-accent-soft)",
           color: "var(--rd-accent-strong)",
           border: "1px solid var(--rd-accent-ring)",
-        }}>{primaryAction}</button>
-        <button className="rd-btn rd-btn--quiet rd-btn--sm">{secondaryAction}</button>
+        }} onClick={() => showToast({ tone: "info", message: `${primaryAction} is a local runtime preview.` })}>{primaryAction}</button>
+        <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: `${secondaryAction} is a local runtime preview.` })}>{secondaryAction}</button>
       </div>
     </div>
   );
 }
 
 function SaveStatePill({ state }: { state: string }) {
-  const isSaving = state === "Saving…";
+  const isSaving = state.toLowerCase().includes("saving");
   return (
     <span
       role="status"

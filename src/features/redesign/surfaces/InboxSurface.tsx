@@ -161,6 +161,53 @@ export function InboxSurface() {
 
   const activeItem = useMemo(() => items.find((i) => i.id === activeId) ?? items[0] ?? null, [items, activeId]);
 
+  const completeOneNudge = async (itemId: string) => {
+    if (!itemId.startsWith("nudge_")) return false;
+    const anonymousSessionId = getAnonymousProductSessionId();
+    await completeNudge({ anonymousSessionId, nudgeId: itemId.slice("nudge_".length) });
+    return true;
+  };
+
+  const closePreviewItem = (item: InboxItem) => {
+    setSnoozed((prev) => new Set(prev).add(item.id));
+  };
+
+  const handlePreviewAction = (
+    item: InboxItem,
+    action: "accept" | "reject" | "edit" | "move" | "open",
+  ) => {
+    if (action === "accept" || action === "reject") {
+      closePreviewItem(item);
+      if (item.id.startsWith("nudge_")) {
+        void completeOneNudge(item.id)
+          .then(() => showToast({
+            tone: action === "accept" ? "success" : "warning",
+            message: `${action === "accept" ? "Accepted" : "Rejected"} and persisted this live nudge.`,
+          }))
+          .catch((error) => {
+            console.error(`[inbox] failed to ${action} nudge`, error);
+            showToast({ tone: "warning", message: "Local queue updated, but the persisted nudge write failed." });
+          });
+      } else {
+        showToast({
+          tone: action === "accept" ? "success" : "warning",
+          message: `${action === "accept" ? "Accepted" : "Rejected"} this starter item locally. Live artifacts persist through Convex nudges.`,
+        });
+      }
+      return;
+    }
+
+    if (action === "open") {
+      window.location.href = "/redesign/reports";
+      return;
+    }
+
+    showToast({
+      tone: "info",
+      message: `${action === "edit" ? "Edit" : "Move"} is a local preview until this item is attached to a live report or nudge.`,
+    });
+  };
+
   // Keyboard nav
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -169,12 +216,17 @@ export function InboxSurface() {
       if (e.key === "j") { e.preventDefault(); setActiveId(items[Math.min(items.length - 1, idx + 1)]?.id ?? null); }
       else if (e.key === "k") { e.preventDefault(); setActiveId(items[Math.max(0, idx - 1)]?.id ?? null); }
       else if (e.key === "a" || e.key === "r" || e.key === "e" || e.key === "m") {
-        // No-op handlers in showcase; production wires to mutations
+        if (!activeItem) return;
+        e.preventDefault();
+        if (e.key === "a") handlePreviewAction(activeItem, "accept");
+        if (e.key === "r") handlePreviewAction(activeItem, "reject");
+        if (e.key === "e") handlePreviewAction(activeItem, "edit");
+        if (e.key === "m") handlePreviewAction(activeItem, "move");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [items, activeId]);
+  }, [items, activeId, activeItem]);
 
   return (
     <div className="rd-stack" style={{ padding: "32px 40px 40px", gap: 18, maxWidth: 1280, height: "100%" }}>
@@ -280,7 +332,14 @@ export function InboxSurface() {
 
         <div className="rd-inbox-preview">
           {activeItem ? (
-            <InboxPreview item={activeItem} />
+            <InboxPreview
+              item={activeItem}
+              onAccept={() => handlePreviewAction(activeItem, "accept")}
+              onReject={() => handlePreviewAction(activeItem, "reject")}
+              onEdit={() => handlePreviewAction(activeItem, "edit")}
+              onMove={() => handlePreviewAction(activeItem, "move")}
+              onOpenReport={() => handlePreviewAction(activeItem, "open")}
+            />
           ) : (
             <div className="rd-inbox-preview__empty">
               Pick an item to preview it here.<br />
@@ -342,7 +401,21 @@ function InboxRow({ item, isActive, isChecked, onActivate, onToggleCheck }: { it
   );
 }
 
-function InboxPreview({ item }: { item: InboxItem }) {
+function InboxPreview({
+  item,
+  onAccept,
+  onReject,
+  onEdit,
+  onMove,
+  onOpenReport,
+}: {
+  item: InboxItem;
+  onAccept: () => void;
+  onReject: () => void;
+  onEdit: () => void;
+  onMove: () => void;
+  onOpenReport: () => void;
+}) {
   // Per nexu-io/open-design pattern: actions live in the header next to the title,
   // not anchored to viewport-bottom. Decision velocity wins; no "empty card / floating accept" feel.
   const confidencePct = typeof item.confidence === "number" ? Math.round(item.confidence * 100) : null;
@@ -369,16 +442,16 @@ function InboxPreview({ item }: { item: InboxItem }) {
           <span className="rd-mono rd-inbox-preview__meta">{item.meta}</span>
         </div>
         <div className="rd-inbox-preview__actions">
-          <button className="rd-btn rd-btn--primary rd-btn--sm" aria-keyshortcuts="a">
+          <button className="rd-btn rd-btn--primary rd-btn--sm" aria-keyshortcuts="a" onClick={onAccept}>
             ✓ Accept <span className="rd-kbd">a</span>
           </button>
-          <button className="rd-btn rd-btn--quiet rd-btn--sm" aria-keyshortcuts="r">
+          <button className="rd-btn rd-btn--quiet rd-btn--sm" aria-keyshortcuts="r" onClick={onReject}>
             Reject <span className="rd-kbd">r</span>
           </button>
-          <button className="rd-btn rd-btn--quiet rd-btn--sm" aria-keyshortcuts="e">
+          <button className="rd-btn rd-btn--quiet rd-btn--sm" aria-keyshortcuts="e" onClick={onEdit}>
             Edit <span className="rd-kbd">e</span>
           </button>
-          <button className="rd-btn rd-btn--quiet rd-btn--sm" aria-keyshortcuts="m">
+          <button className="rd-btn rd-btn--quiet rd-btn--sm" aria-keyshortcuts="m" onClick={onMove}>
             Move <span className="rd-kbd">m</span>
           </button>
         </div>
@@ -409,7 +482,7 @@ function InboxPreview({ item }: { item: InboxItem }) {
       )}
 
       <div className="rd-inbox-preview__deeplink">
-        <button className="rd-btn rd-btn--quiet rd-btn--sm">Open in report →</button>
+        <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onOpenReport}>Open in report →</button>
       </div>
     </>
   );
