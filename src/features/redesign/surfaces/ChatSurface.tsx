@@ -11,6 +11,7 @@ import React, { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMo
 import { useNavigate } from "react-router-dom";
 import { UniversalComposer, DEFAULT_TIERS, type RouterTier, type BatchTarget } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
+import type { AgentRailItem, AgentRailSnapshot, AgentRailStatus } from "../components/RightInspector";
 import { StreamingMarkdown } from "../components/StreamingMarkdown";
 import type { ActiveBatchRun, ChatAnswer } from "../fixtures";
 import { useBatchLive } from "../hooks/useBatchLive";
@@ -20,7 +21,7 @@ import { ChatToolCall, type ToolCall } from "../components/ChatToolCall";
 import { MessageActions } from "../components/MessageActions";
 import { ChatEmptyState } from "../components/ChatEmptyState";
 import { showToast } from "../components/Toast";
-import { normalizeRouterTierForChatRun, useRedesignChatRun } from "../hooks/useRedesignChatRun";
+import { normalizeRouterTierForChatRun, useRedesignChatRun, type ChatRunState, type RealChatRun } from "../hooks/useRedesignChatRun";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { LiveResearchChecklist, type ResearchStage, type ResearchStageId } from "../../research/LiveResearchChecklist";
@@ -200,6 +201,7 @@ interface ChatSurfaceProps {
   workspaceDetail?: LiveArtifactDetail;
   initialPrompt?: string;
   onActiveContextChange?: (detail: LiveArtifactDetail | null) => void;
+  onAgentRailChange?: (snapshot: AgentRailSnapshot | null) => void;
 }
 
 interface Turn {
@@ -224,6 +226,340 @@ interface Turn {
   chatRunId?: string;
   /** Phase 2 streaming — live working-notes scratchpad text from the agent. */
   liveScratchpad?: string;
+}
+
+function agentStatusFromPlanner(status?: string): AgentRailStatus {
+  if (!status) return "queued";
+  if (status === "complete" || status === "selected") return "done";
+  if (status === "blocked" || status === "source_validation_failed") return "blocked";
+  if (status === "candidate" || status === "pending") return "running";
+  return "queued";
+}
+
+function compactRunId(runId?: string): string | undefined {
+  if (!runId) return undefined;
+  if (runId.length <= 16) return runId;
+  return `${runId.slice(0, 6)}...${runId.slice(-6)}`;
+}
+
+function formatRailUsd(value?: number | null): string {
+  if (!value || !Number.isFinite(value) || value <= 0) return "$0.00";
+  if (value < 0.01) return `$${value.toFixed(4)}`;
+  return `$${value.toFixed(2)}`;
+}
+
+function formatLatency(value?: number | null): string {
+  if (!value || !Number.isFinite(value)) return "pending";
+  if (value < 1000) return `${Math.round(value)}ms`;
+  return `${(value / 1000).toFixed(1)}s`;
+}
+
+function buildChatAgentRailSnapshot(args: {
+  chatState: ChatRunState;
+  authLoading: boolean;
+  isAuthenticated: boolean;
+  liveDetail: LiveArtifactDetail | null | undefined;
+  turns: Turn[];
+  pinned: Array<{ id: string; label: string; tier: RouterTier; sourceCount: number }>;
+  followUps: Array<{ id: string; label: string; reportTitle?: string; createdAt: number }>;
+  batch: ActiveBatchRun | null;
+  tier: RouterTier;
+  skipLiveSeed: boolean;
+}): AgentRailSnapshot {
+  const {
+    chatState,
+    authLoading,
+    isAuthenticated,
+    liveDetail,
+    turns,
+    pinned,
+    followUps,
+    batch,
+    tier,
+    skipLiveSeed,
+  } = args;
+  const run: RealChatRun | null = chatState.run;
+  const lastUserPrompt = [...turns].reverse().find((turn) => turn.role === "user" && turn.text?.trim())?.text?.trim();
+  const lastAssistantPacket = [...turns].reverse().find((turn) => turn.role === "assistant" && turn.packet)?.packet;
+  const activePacket = run?.packet ?? lastAssistantPacket;
+  const isRunning = chatState.status === "thinking" || run?.status === "pending" || run?.status === "running";
+  const hasAnswer = Boolean(activePacket?.shortAnswer);
+  const runtime = run?.runtime ?? activePacket?.runtime;
+  const contextCandidates = runtime?.contextCandidates ?? [];
+  const toolDecisions = runtime?.toolDecisions ?? [];
+  const claimChecks = runtime?.claimChecks ?? [];
+  const metrics = runtime?.metrics;
+  const sourceCount = metrics?.sourceCount ?? run?.groundingChunks.length ?? activePacket?.sourceCount ?? liveDetail?.sourceCount ?? 0;
+  const verifiedSourceCount = metrics?.verifiedSourceCount ?? claimChecks.filter((check) => check.verified !== false).length;
+  const blockedClaimCount = claimChecks.filter((check) => check.verified === false || check.status === "source_validation_failed").length;
+  const toolCallCount = metrics?.toolCallCount ?? run?.toolCalls.length ?? activePacket?.trace.length ?? 0;
+  const estimatedCost = metrics?.estimatedCostUsd ?? run?.estimatedCostUsd ?? 0;
+  const latency = metrics?.timeToFinalMs ?? metrics?.totalLatencyMs ?? run?.totalLatencyMs;
+  const memoryHitRate = typeof metrics?.memoryHitRate === "number" ? `${Math.round(metrics.memoryHitRate * 100)}%` : "pending";
+  const cacheHitRate = typeof metrics?.sourceCacheHitRate === "number" ? `${Math.round(metrics.sourceCacheHitRate * 100)}%` : "pending";
+
+  const canRunLive = chatState.available && !skipLiveSeed;
+  const authDetail = skipLiveSeed
+    ? "fresh=1 disables live chat so QA can verify the empty paid-run path."
+    : authLoading
+      ? "Resolving account session before paid live research can start."
+      : canRunLive
+        ? "Email-backed account can start Convex scheduled research runs."
+        : !isAuthenticated
+          ? "Sign in before paid live research. Public memory remains browsable."
+          : "Account needs email or Google link before paid live research.";
+
+  const memoryStatus: AgentRailStatus =
+    contextCandidates.length > 0 || liveDetail ? "done" : isRunning ? "running" : "queued";
+  const sourceStatus: AgentRailStatus =
+    sourceCount > 0 ? "done" : isRunning ? "running" : "queued";
+  const verifyStatus: AgentRailStatus =
+    blockedClaimCount > 0 ? "blocked" : claimChecks.length > 0 || verifiedSourceCount > 0 ? "done" : isRunning && sourceCount > 0 ? "running" : "queued";
+
+  const progress: AgentRailItem[] = [
+    {
+      id: "goal",
+      label: "Define research goal and context",
+      status: lastUserPrompt || liveDetail ? "done" : "queued",
+      detail: lastUserPrompt ?? liveDetail?.title ?? "Waiting for a prompt.",
+    },
+    {
+      id: "memory",
+      label: "Search memory and current reports",
+      status: memoryStatus,
+      detail: contextCandidates[0]?.detail ?? (liveDetail ? `${liveDetail.title} selected from live Convex memory.` : "Runs before any live source refresh."),
+    },
+    {
+      id: "tools",
+      label: "Invoke tools and source retrieval",
+      status: toolDecisions.length > 0 ? agentStatusFromPlanner(toolDecisions[0].status) : sourceStatus,
+      detail: toolDecisions[0]?.detail ?? `${toolCallCount} tool-call cards, ${sourceCount} source rows.`,
+    },
+    {
+      id: "verify",
+      label: "Verify citations and claim support",
+      status: verifyStatus,
+      detail: blockedClaimCount > 0
+        ? `${blockedClaimCount} claim check${blockedClaimCount === 1 ? "" : "s"} need review.`
+        : `${verifiedSourceCount || 0}/${sourceCount || 0} sources verified or cached.`,
+    },
+    {
+      id: "packet",
+      label: "Assemble answer packet",
+      status: hasAnswer && !isRunning ? "done" : isRunning ? "running" : "queued",
+      detail: hasAnswer ? activePacket?.nextAction || activePacket?.shortAnswer : "Short answer, evidence, risks, next action.",
+    },
+    {
+      id: "handoff",
+      label: "Prepare notebook and follow-up handoff",
+      status: followUps.length || pinned.length ? "done" : hasAnswer ? "queued" : "queued",
+      detail: `${pinned.length} pinned context item${pinned.length === 1 ? "" : "s"}, ${followUps.length} queued follow-up${followUps.length === 1 ? "" : "s"}.`,
+    },
+    {
+      id: "telemetry",
+      label: "Record telemetry and QA evidence",
+      status: metrics ? "done" : isRunning ? "running" : "queued",
+      detail: `${formatLatency(latency)} final latency, ${formatRailUsd(estimatedCost)} estimated cost.`,
+    },
+  ];
+
+  const runDetails: AgentRailItem[] = [
+    {
+      id: "access",
+      label: "Live research access",
+      status: canRunLive ? "done" : authLoading ? "running" : "blocked",
+      detail: authDetail,
+    },
+    {
+      id: "routing",
+      label: "Router tier",
+      status: "done",
+      detail: `${normalizeRouterTierForChatRun(tier)} mode selected for this thread.`,
+    },
+    {
+      id: "run",
+      label: "Current run",
+      status: isRunning ? "running" : run?.status === "complete" ? "done" : run?.status === "error" ? "blocked" : "idle",
+      detail: run?.runId ? `${run.status} - ${compactRunId(run.runId)}` : "No active Convex run subscribed.",
+      meta: run?.hash ? `replay /r/${run.hash}` : undefined,
+      href: run?.hash ? `/redesign/chat/r/${encodeURIComponent(run.hash)}` : undefined,
+    },
+    {
+      id: "cost",
+      label: "Cost and cache",
+      status: estimatedCost > 0 || metrics ? "done" : "queued",
+      detail: `${formatRailUsd(estimatedCost)} estimated - memory ${memoryHitRate} - source cache ${cacheHitRate}.`,
+    },
+    {
+      id: "writes",
+      label: "Safe writes",
+      status: "idle",
+      detail: "Notebook patches, follow-ups, CRM exports, and shared writes stay user-approved.",
+    },
+  ];
+
+  const artifactItems: AgentRailItem[] = [];
+  if (liveDetail) {
+    artifactItems.push({
+      id: "active-report",
+      label: liveDetail.title,
+      status: "done",
+      detail: `${liveDetail.kind} - ${liveDetail.sourceCount} sources`,
+      href: `/redesign/workspace?report=${encodeURIComponent(liveDetail.id)}&tab=brief`,
+    });
+    artifactItems.push({
+      id: "notebook",
+      label: "Report notebook",
+      status: liveDetail.notebookHtml ? "done" : "queued",
+      detail: liveDetail.primaryAction,
+      href: `/redesign/workspace?report=${encodeURIComponent(liveDetail.id)}&tab=notebook`,
+    });
+  }
+  if (run?.hash) {
+    artifactItems.push({
+      id: "replay",
+      label: "Reproducible answer link",
+      status: "done",
+      detail: `/redesign/chat/r/${run.hash}`,
+      href: `/redesign/chat/r/${encodeURIComponent(run.hash)}`,
+    });
+  }
+  if (hasAnswer) {
+    artifactItems.push({
+      id: "answer",
+      label: "Answer packet",
+      status: run?.status === "complete" || !isRunning ? "done" : "running",
+      detail: `${activePacket?.sourceCount ?? sourceCount} sources - ${activePacket?.paidCalls ?? 0} paid calls`,
+    });
+  }
+  for (const item of pinned.slice(0, 2)) {
+    artifactItems.push({
+      id: `pin-${item.id}`,
+      label: item.label,
+      status: "done",
+      detail: `${item.tier} context - ${item.sourceCount} sources`,
+    });
+  }
+  for (const item of followUps.slice(0, 2)) {
+    artifactItems.push({
+      id: `followup-${item.id}`,
+      label: item.label,
+      status: "done",
+      detail: item.reportTitle ? `Queued for ${item.reportTitle}` : "Queued in chat",
+    });
+  }
+  if (batch) {
+    artifactItems.push({
+      id: "batch",
+      label: `Batch: ${batch.universeName}`,
+      status: batch.doneCount >= batch.totalEntities ? "done" : "running",
+      detail: `${batch.doneCount}/${batch.totalEntities} done - ${formatRailUsd(batch.spentUsd)} spent`,
+    });
+  }
+
+  const backgroundAgents: AgentRailItem[] = [
+    {
+      id: "coordinator",
+      label: "Coordinator",
+      status: lastUserPrompt || liveDetail ? isRunning ? "running" : "done" : "queued",
+      detail: "Selects context, routing, and safe write policy.",
+    },
+    {
+      id: "memory",
+      label: "Memory agent",
+      status: memoryStatus,
+      detail: contextCandidates[0]?.label ?? "Reports, notebook blocks, prior chats, and sources.",
+    },
+    {
+      id: "source",
+      label: "Source verifier",
+      status: verifyStatus,
+      detail: claimChecks[0]?.detail ?? `${sourceCount} source row${sourceCount === 1 ? "" : "s"} in scope.`,
+    },
+    {
+      id: "notebook",
+      label: "Notebook agent",
+      status: followUps.length || pinned.length ? "done" : hasAnswer ? "queued" : "idle",
+      detail: "Produces proposed handoffs; does not overwrite user-edited notebook text.",
+    },
+    {
+      id: "judge",
+      label: "Judge / eval",
+      status: claimChecks.length || metrics ? "done" : isRunning ? "running" : "queued",
+      detail: "Checks unsupported claims, source precision, privacy, cost, and final quality.",
+    },
+  ];
+
+  const sourceItems: AgentRailItem[] = [];
+  for (const chunk of run?.groundingChunks ?? []) {
+    sourceItems.push({
+      id: `grounding-${chunk.idx}`,
+      label: sourceLabel(chunk.source),
+      status: "done",
+      detail: chunk.quote,
+      href: sourceUrlFromText(chunk.source) ?? undefined,
+    });
+  }
+  for (const row of activePacket?.evidence ?? []) {
+    if (sourceItems.length >= 5) break;
+    sourceItems.push({
+      id: `evidence-${row.idx}`,
+      label: sourceLabel(row.source),
+      status: blockedClaimCount > 0 ? "blocked" : "done",
+      detail: row.quote,
+      href: sourceUrlFromText(row.source) ?? undefined,
+    });
+  }
+  for (const row of liveDetail?.sourceRows ?? []) {
+    if (sourceItems.length >= 5) break;
+    sourceItems.push({
+      id: `live-source-${row.id}`,
+      label: row.title,
+      status: "done",
+      detail: row.host || row.refreshed,
+      href: row.href,
+    });
+  }
+  if (sourceItems.length === 0) {
+    sourceItems.push(
+      { id: "convex", label: "Convex memory", status: liveDetail ? "done" : "queued", detail: "Source of truth for reports and artifacts." },
+      { id: "typesense", label: "Memory search", status: "queued", detail: "Fast retrieval layer before paid live search." },
+    );
+  }
+
+  const title = isRunning
+    ? "Agent is running"
+    : chatState.status === "error"
+      ? "Agent needs attention"
+      : hasAnswer
+        ? "Agent run complete"
+        : liveDetail
+          ? "Agent ready on report"
+          : "Agent ready";
+
+  const snapshotStatus: AgentRailSnapshot["status"] =
+    isRunning ? "thinking" : chatState.status === "error" ? "error" : hasAnswer || liveDetail ? "ok" : "idle";
+
+  return {
+    title,
+    subtitle: lastUserPrompt
+      ? lastUserPrompt
+      : liveDetail
+        ? `${liveDetail.title} - ${liveDetail.sourceCount} sources - ${liveDetail.followUps} follow-ups`
+        : "Ask a question to start a traceable research run.",
+    status: snapshotStatus,
+    runId: compactRunId(run?.runId),
+    progress,
+    runDetails,
+    artifacts: artifactItems.length ? artifactItems : [{ id: "none", label: "No artifacts yet", status: "queued", detail: "The next answer packet will appear here." }],
+    backgroundAgents,
+    sources: sourceItems,
+    metrics: [
+      { label: "sources", value: String(sourceCount), tone: "accent" },
+      { label: "tools", value: String(toolCallCount), tone: "green" },
+      { label: "cost", value: formatRailUsd(estimatedCost), tone: estimatedCost > 0 ? "amber" : "green" },
+    ],
+  };
 }
 
 /**
@@ -479,6 +815,7 @@ export function ChatSurface({
   workspaceDetail,
   initialPrompt,
   onActiveContextChange,
+  onAgentRailChange,
 }: ChatSurfaceProps) {
   const navigate = useNavigate();
   const liveArtifacts = useLiveArtifacts(24);
@@ -598,6 +935,31 @@ export function ChatSurface({
     }
     navigate("/redesign/reports");
   };
+
+  const agentRailSnapshot = useMemo(() => buildChatAgentRailSnapshot({
+    chatState: chatRun.state,
+    authLoading,
+    isAuthenticated,
+    liveDetail,
+    turns,
+    pinned,
+    followUps,
+    batch,
+    tier,
+    skipLiveSeed: _skipLiveSeed,
+  }), [authLoading, batch, chatRun.state, followUps, isAuthenticated, liveDetail, pinned, _skipLiveSeed, tier, turns]);
+  const lastAgentRailSnapshotKey = useRef<string>("");
+
+  useEffect(() => {
+    const nextKey = JSON.stringify(agentRailSnapshot);
+    if (lastAgentRailSnapshotKey.current === nextKey) return;
+    lastAgentRailSnapshotKey.current = nextKey;
+    onAgentRailChange?.(agentRailSnapshot);
+  }, [agentRailSnapshot, onAgentRailChange]);
+
+  useEffect(() => {
+    return () => onAgentRailChange?.(null);
+  }, [onAgentRailChange]);
 
   // Phase 5 — real counterfactual probe via the probeRun mutation.
   // Looks up the original run, kicks off a new run with the masked

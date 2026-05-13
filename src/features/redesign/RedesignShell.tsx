@@ -22,7 +22,7 @@ import "./tokens.css";
 import "./primitives.css";
 
 import { Rail } from "./components/Rail";
-import { RightInspector } from "./components/RightInspector";
+import { RightInspector, type AgentRailSnapshot } from "./components/RightInspector";
 import { AgentRail } from "./components/AgentRail";
 import { MobileShell } from "./components/MobileShell";
 import { TopNav } from "./components/TopNav";
@@ -122,6 +122,7 @@ export default function RedesignShell() {
   const [selectedReport, setSelectedReport] = useState<ReportCardData | null>(null);
   const [prototypeEntity, setPrototypeEntity] = useState("Anthropic");
   const [activeChatDetail, setActiveChatDetail] = useState<LiveArtifactDetail | null>(null);
+  const [activeChatAgentRail, setActiveChatAgentRail] = useState<AgentRailSnapshot | null>(null);
   const railStats = useMemo(() => ({
     entities: shellLiveArtifacts.publicResearch.length,
     reports: shellLiveArtifacts.reports.length,
@@ -294,6 +295,7 @@ export default function RedesignShell() {
                 <ChatSurface
                   initialPrompt={initialChatPrompt}
                   onActiveContextChange={setActiveChatDetail}
+                  onAgentRailChange={setActiveChatAgentRail}
                 />
               )}
               {!isPrototypeKit && surface === "home" && (
@@ -336,7 +338,10 @@ export default function RedesignShell() {
                 liveArtifacts={shellLiveArtifacts}
               />
             ) : surface === "chat" ? (
-              <RightInspector activeLiveArtifactDetail={activeChatDetail ?? undefined} />
+              <RightInspector
+                activeLiveArtifactDetail={activeChatDetail ?? undefined}
+                agentSnapshot={activeChatAgentRail}
+              />
             ) : (
               <AgentRail
                 surface={surface as SurfaceId}
