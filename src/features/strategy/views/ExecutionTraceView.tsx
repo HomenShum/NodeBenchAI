@@ -149,6 +149,11 @@ export function ExecutionTraceView() {
     if (!session || !/^[a-zA-Z0-9_-]+$/.test(session)) return null;
     return session as Id<"agentTaskSessions">;
   }, []);
+  const allowSeededDemo = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.get("demo") === "1";
+  }, []);
 
   const publicSessionsData = useQuery(
     api.domains.taskManager.queries.getPublicTaskSessions,
@@ -209,14 +214,20 @@ export function ExecutionTraceView() {
 
   const trace: any = liveTrace ?? SPREADSHEET_EXECUTION_TRACE;
   const usingLiveRun = Boolean(liveTrace);
+  const showingSeededDemo = !usingLiveRun && allowSeededDemo;
+  const hasVisibleTrace = usingLiveRun || showingSeededDemo;
   const activeWorkflowName = useMemo(
-    () =>
+    () => {
+      if (!hasVisibleTrace) return null;
+      return (
       sessionDetail?.traces?.[0]?.workflowName ??
       trace.meta.workflow_name ??
       trace.run.workflow_type ??
       trace.meta.workflow_template ??
-      null,
-    [sessionDetail?.traces, trace.meta.workflow_name, trace.meta.workflow_template, trace.run.workflow_type],
+        null
+      );
+    },
+    [hasVisibleTrace, sessionDetail?.traces, trace.meta.workflow_name, trace.meta.workflow_template, trace.run.workflow_type],
   );
   const trajectorySummary = useQuery(
     api.domains.trajectory.queries.getTrajectorySummary,
@@ -284,6 +295,48 @@ export function ExecutionTraceView() {
     }
   }, [activeTab, disclosureLevel]);
 
+  if (!hasVisibleTrace) {
+    return (
+      <div className="mx-auto flex min-h-full max-w-6xl flex-col gap-6 px-6 py-8" data-testid="execution-trace-view">
+        <header className="rounded-[28px] border border-edge bg-surface-secondary p-6">
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <span className="rounded-full border border-edge bg-surface-secondary/50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-content-muted">
+              Execution Trace
+            </span>
+            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-200">
+              No saved run selected
+            </span>
+          </div>
+          <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+            <div>
+              <h1 className="text-3xl font-semibold tracking-tight text-content">
+                No live execution trace is available yet.
+              </h1>
+              <p className="mt-3 max-w-3xl text-sm leading-relaxed text-content-secondary">
+                This operator surface only shows saved agent runs, tool receipts, evidence, decisions, verification checks,
+                and exported artifacts. It does not substitute a fixture trace when production has no matching run.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-edge bg-surface-secondary p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-content-muted">Run source</div>
+              <p className="mt-2 text-sm leading-relaxed text-content-secondary">
+                {isLoadingSessions || isLoadingDetail
+                  ? "Loading saved execution runs..."
+                  : "Start or select a saved agent run to populate this audit trail."}
+              </p>
+              <a
+                className="mt-4 inline-flex rounded-full border border-edge bg-surface px-3 py-1.5 text-sm text-content transition hover:border-primary/40"
+                href="/execution-trace?demo=1"
+              >
+                View explicit demo trace
+              </a>
+            </div>
+          </div>
+        </header>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto flex min-h-full max-w-6xl flex-col gap-6 px-6 py-8" data-testid="execution-trace-view">
       <header className="rounded-[28px] border border-edge bg-surface-secondary dark:bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.14),transparent_36%),rgba(5,5,5,0.92)] p-6">
@@ -302,7 +355,7 @@ export function ExecutionTraceView() {
                 : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200",
             )}
           >
-            {usingLiveRun ? "Live saved run" : "Seeded example"}
+            {usingLiveRun ? "Live saved run" : "Explicit demo trace"}
           </span>
         </div>
         <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
@@ -340,12 +393,12 @@ export function ExecutionTraceView() {
                   <DatabaseZap className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-300" />
                   {usingLiveRun
                     ? `${sessionDetail?.traceCount ?? 0} trace${sessionDetail?.traceCount === 1 ? "" : "s"} reconstructed from saved runs`
-                    : "No compatible saved runs found. Showing the seeded spreadsheet trace."}
+                    : "No compatible saved runs found. Showing the explicit demo trace."}
                 </div>
               </div>
             ) : (
               <p className="mt-2 text-sm leading-relaxed text-content-secondary">
-                No saved task runs are available yet. The seeded spreadsheet trace remains visible so the surface still demonstrates the contract.
+                No saved task runs are available yet. This explicit demo trace is visible because the URL includes demo=1.
               </p>
             )}
 

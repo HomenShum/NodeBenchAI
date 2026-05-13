@@ -151,7 +151,17 @@ function GraphPanel({ detail, nodes }: { detail?: LiveArtifactDetail; nodes: Arr
     <div className="rd-stack" style={{ gap: 10 }}>
       <div className="rd-row--between">
         <div className="rd-eyebrow">Graph preview</div>
-        <button className="rd-btn rd-btn--quiet rd-btn--sm" style={{ padding: "1px 6px", fontSize: 10 }}>Open Map</button>
+        {detail ? (
+          <a
+            className="rd-btn rd-btn--quiet rd-btn--sm"
+            href={`/redesign/workspace?report=${encodeURIComponent(detail.id)}&tab=map`}
+            style={{ padding: "1px 6px", fontSize: 10, textDecoration: "none" }}
+          >
+            Open Map
+          </a>
+        ) : (
+          <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)" }}>No map yet</span>
+        )}
       </div>
       <svg viewBox="0 0 240 120" width="100%" height={120}>
         <GraphPreview detail={detail} nodes={nodes} />
@@ -164,9 +174,10 @@ function GraphPanel({ detail, nodes }: { detail?: LiveArtifactDetail; nodes: Arr
 }
 
 function SourcesPanel({ detail, sources }: { detail?: LiveArtifactDetail; sources: LiveArtifactDetail["sourceRows"] }) {
+  const displayedTotal = Math.max(sources.length, detail?.sourceCount ?? 0);
   return (
     <div className="rd-stack" style={{ gap: 10 }}>
-      <div className="rd-eyebrow">Sources used ({sources.length} / {detail?.sourceCount ?? 0})</div>
+      <div className="rd-eyebrow">Sources used ({sources.length} / {displayedTotal})</div>
       {sources.length ? (
         <ul className="rd-stack" style={{ gap: 6, listStyle: "none", padding: 0, margin: 0 }}>
           {sources.map((source, i) => (
@@ -196,9 +207,21 @@ function SourcesPanel({ detail, sources }: { detail?: LiveArtifactDetail; source
 
 function ThreadsPanel({ detail }: { detail?: LiveArtifactDetail }) {
   const threads = [
-    { title: detail ? `Review ${detail.kind.toLowerCase()} claims` : "Start a research thread", when: detail?.updatedAt ?? "now" },
-    { title: detail ? "Open notebook handoff" : "Attach sources", when: "next" },
-    { title: detail ? "Export reusable memory" : "Create report", when: "later" },
+    {
+      title: detail ? `Review ${detail.kind.toLowerCase()} claims` : "Start a research thread",
+      when: detail?.updatedAt ?? "now",
+      href: detail ? `/redesign/workspace?report=${encodeURIComponent(detail.id)}&tab=chat` : "/redesign/chat",
+    },
+    {
+      title: detail ? "Open notebook handoff" : "Attach sources",
+      when: "next",
+      href: detail ? `/redesign/workspace?report=${encodeURIComponent(detail.id)}&tab=notebook` : "/redesign/workspace?tab=sources",
+    },
+    {
+      title: detail ? "Export reusable memory" : "Create report",
+      when: "later",
+      href: detail ? `/redesign/workspace?report=${encodeURIComponent(detail.id)}&tab=brief` : "/redesign/reports",
+    },
   ];
 
   return (
@@ -207,10 +230,10 @@ function ThreadsPanel({ detail }: { detail?: LiveArtifactDetail }) {
       <ul className="rd-stack" style={{ gap: 4, listStyle: "none", padding: 0, margin: 0 }}>
         {threads.map((thread, i) => (
           <li key={i}>
-            <button className="rd-btn rd-btn--quiet" style={{ width: "100%", justifyContent: "flex-start", padding: "5px 8px" }}>
+            <a className="rd-btn rd-btn--quiet" href={thread.href} style={{ width: "100%", justifyContent: "flex-start", padding: "5px 8px", textDecoration: "none" }}>
               <span style={{ flex: 1, textAlign: "left", fontSize: 12 }}>{thread.title}</span>
               <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)" }}>{thread.when}</span>
-            </button>
+            </a>
           </li>
         ))}
       </ul>

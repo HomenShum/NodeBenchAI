@@ -530,6 +530,14 @@ export const listToolCalls = query({
     hasMore: v.boolean(),
   }),
   handler: async (ctx, args) => {
+    if (!(await tryRequireAdmin(ctx))) {
+      return {
+        calls: [],
+        nextCursor: undefined,
+        hasMore: false,
+      };
+    }
+
     const limit = args.limit ?? 50;
     const cursor = typeof args.cursor === "string" ? args.cursor : null;
 
@@ -652,6 +660,22 @@ export const getPolicyAndUsage = query({
     const now = Date.now();
     const requested = typeof args.dateKey === "string" ? args.dateKey.trim() : "";
     const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : todayDateKeyUtc(now);
+    if (!(await tryRequireAdmin(ctx))) {
+      return {
+        dateKey,
+        config: {
+          name: "operator-only",
+          enforce: true,
+          dailyLimitsByTier: {},
+          dailyLimitsByTool: {},
+          blockedTools: {},
+          notes: "Sign in as an admin to view MCP policy and usage.",
+          updatedAt: undefined,
+        },
+        usageByTier: [],
+      };
+    }
+
     const cfg =
       (await ctx.db
         .query("mcpPolicyConfigs")
@@ -738,6 +762,25 @@ export const getUsageAndCostSnapshot = query({
     const now = Date.now();
     const requested = typeof args.dateKey === "string" ? args.dateKey.trim() : "";
     const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : todayDateKeyUtc(now);
+    if (!(await tryRequireAdmin(ctx))) {
+      return {
+        dateKey,
+        pricingVersion: PRICING_VERSION,
+        filters: {
+          accountKey: args.accountKey,
+          profileName: args.profileName,
+        },
+        totals: {
+          calls: 0,
+          costUnits: 0,
+          estimatedCostUsd: 0,
+        },
+        usageByProfile: [],
+        usageByTool: [],
+        usageByAccount: [],
+      };
+    }
+
     const limit = Math.min(Math.max(args.limit ?? 20, 1), 100);
 
     const normalizeRow = (row: Doc<"mcpToolUsageDaily">) => ({
@@ -835,6 +878,14 @@ async function requireAdmin(ctx: any): Promise<Id<"users">> {
   if (!adminUser) throw new Error("Access denied: Not an admin");
 
   return user._id;
+}
+
+async function tryRequireAdmin(ctx: any): Promise<Id<"users"> | null> {
+  try {
+    return await requireAdmin(ctx);
+  } catch {
+    return null;
+  }
 }
 
 export const upsertPolicyConfig = mutation({

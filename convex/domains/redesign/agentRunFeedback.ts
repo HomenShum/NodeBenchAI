@@ -36,11 +36,14 @@ export const recordReaction = mutation({
 export const listForRun = query({
   args: { runId: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const rows = await ctx.db
       .query("agentRunFeedback")
       .withIndex("by_run", (q) => q.eq("runId", args.runId))
       .order("desc")
       .take(50);
+    return rows.filter((row) => row.userId === userId);
   },
 });
 

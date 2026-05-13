@@ -10,9 +10,9 @@
  * Convex re-runs both whenever the underlying tables change → live
  * progress without any HTTP SSE plumbing.
  *
- * Anonymous-safe: the Convex mutation accepts anonymous runs and records
- * userId only when auth is present. state.available=false only while auth
- * is still loading, so guests can still exercise the real run pipeline.
+ * Auth-safe: paid live runs require an email-backed account. Guests are
+ * stopped client-side before the mutation call; Convex enforces the same
+ * policy server-side so anonymous sessions cannot start paid work either.
  */
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
@@ -173,14 +173,28 @@ export interface ChatRunState {
   error: string | null;
   /** Whether the real chat pipeline can be started from the current auth state. */
   available: boolean;
+  /** True only when the signed-in account is eligible for paid live research. */
+  paidEligible: boolean;
+}
+
+export function isPaidChatEligibleUser(user: unknown): boolean {
+  if (!user || typeof user !== "object") return false;
+  const record = user as Record<string, unknown>;
+  const email = typeof record.email === "string" ? record.email.trim() : "";
+  return /[^\s@]+@[^\s@]+\.[^\s@]+/.test(email);
 }
 
 export function useRedesignChatRun() {
-  const { isLoading: authLoading } = useConvexAuth();
+  const { isLoading: authLoading, isAuthenticated } = useConvexAuth();
   const startChat = useMutation(api.domains.redesign.chatRuns.startChat);
+  const user = useQuery(
+    api.domains.auth.auth.loggedInUser,
+    isAuthenticated ? {} : "skip",
+  );
 
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const paidEligible = isPaidChatEligibleUser(user);
 
   const events = useQuery(
     api.domains.redesign.chatRuns.streamEventsForRun,
@@ -333,18 +347,29 @@ export function useRedesignChatRun() {
         setError("Auth state is still loading. Try again in a moment.");
         return null;
       }
+      if (!isAuthenticated) {
+        setError("Sign in with an email-backed account before running paid live research.");
+        return null;
+      }
+      if (!paidEligible) {
+        setError("Link an email or Google account before running paid live research. Anonymous sessions can browse public memory only.");
+        return null;
+      }
       setError(null);
       try {
         const runId = await startChat({ prompt, tier: normalizeRouterTierForChatRun(tier), contextRef, pinnedClaims });
         setActiveRunId(runId);
         return runId;
       } catch (err: any) {
-        const msg = (err?.message ?? String(err)).slice(0, 280);
+        const raw = (err?.message ?? String(err)).slice(0, 280);
+        const msg = /server error|not authenticated|anonymous|sign in|account/i.test(raw)
+          ? "Sign in with an email-backed account before running paid live research."
+          : raw;
         setError(msg);
         return null;
       }
     },
-    [authLoading, startChat],
+    [authLoading, isAuthenticated, paidEligible, startChat],
   );
 
   const reset = useCallback(() => {
@@ -375,7 +400,8 @@ export function useRedesignChatRun() {
       status: externalStatus,
       run: projected,
       error,
-      available: !authLoading,
+      available: !authLoading && isAuthenticated && paidEligible,
+      paidEligible,
     } as ChatRunState,
     submit,
     reset,

@@ -127,6 +127,7 @@ export const McpLedgerPage = memo(function McpLedgerPage() {
   ) as PolicyPayload | undefined;
 
   const calls = ledger?.calls ?? [];
+  const operatorLocked = policy?.config.name === "operator-only";
   const stats = useMemo(() => {
     const blocked = calls.filter((call) => !call.allowed).length;
     const failed = calls.filter((call) => call.allowed && call.success === false).length;
@@ -201,7 +202,9 @@ export const McpLedgerPage = memo(function McpLedgerPage() {
               ))
             ) : calls.length === 0 ? (
               <div className="px-4 py-10 text-sm text-content-muted">
-                No MCP tool calls have been recorded yet.
+                {operatorLocked
+                  ? "MCP tool-call previews are operator-only. Sign in as an admin to inspect request metadata, results, account keys, and cost rows."
+                  : "No MCP tool calls have been recorded yet."}
               </div>
             ) : (
               calls.map((call) => {

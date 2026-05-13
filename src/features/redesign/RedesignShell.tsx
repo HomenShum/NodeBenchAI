@@ -139,6 +139,9 @@ export default function RedesignShell() {
       : `q=${encodeURIComponent(prompt)}`;
     navigate(`/redesign/chat?${query}`);
   };
+  const openTouchedReports = () => {
+    navigate(isPrototypeKit ? "/redesign/reports?qa=home-v2-implementation" : "/redesign/reports");
+  };
   const selectRelatedReport = (entity: string) => {
     const key = normalizeEntityKey(entity);
     const next = shellLiveArtifacts.reports.find((report) => normalizeEntityKey(report.entity) === key);
@@ -181,6 +184,7 @@ export default function RedesignShell() {
         <div data-redesign data-redesign-theme={theme} style={{ minHeight: "100dvh", overflow: "auto" }}>
           <HomeV2Surface
             onAsk={(text) => navigate(`/redesign/chat?q=${encodeURIComponent(text)}`)}
+            onOpenReports={() => navigate("/redesign/reports")}
             liveArtifacts={shellLiveArtifacts}
           />
           {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}
@@ -259,7 +263,7 @@ export default function RedesignShell() {
             onSelectEntity={setPrototypeEntity}
           />
         ) : isHomeV2 ? (
-          <HomeV2EditionRail liveArtifacts={shellLiveArtifacts} />
+          <HomeV2EditionRail liveArtifacts={shellLiveArtifacts} onAsk={sendPromptToChat} />
         ) : (
           <Rail
             active={surface as SurfaceId}
@@ -293,7 +297,11 @@ export default function RedesignShell() {
                 />
               )}
               {!isPrototypeKit && surface === "home" && (
-                <HomeV2Surface onAsk={sendPromptToChat} liveArtifacts={shellLiveArtifacts} />
+                <HomeV2Surface
+                  onAsk={sendPromptToChat}
+                  onOpenReports={openTouchedReports}
+                  liveArtifacts={shellLiveArtifacts}
+                />
               )}
             {!isPrototypeKit && surface === "reports" && !reportId && (
               <ReportsSurface
@@ -322,7 +330,11 @@ export default function RedesignShell() {
                 onSelectEntity={setPrototypeEntity}
               />
             ) : surface === "home" ? (
-              <HomeV2BriefingRail onAsk={sendPromptToChat} liveArtifacts={shellLiveArtifacts} />
+              <HomeV2BriefingRail
+                onAsk={sendPromptToChat}
+                onOpenReports={openTouchedReports}
+                liveArtifacts={shellLiveArtifacts}
+              />
             ) : surface === "chat" ? (
               <RightInspector activeLiveArtifactDetail={activeChatDetail ?? undefined} />
             ) : (

@@ -154,20 +154,16 @@ test.describe("Home v2 /redesign parity", () => {
     }
   });
 
-  test("desktop Chat starts the live run path without requiring sign-in", async ({ page }) => {
+  test("desktop Chat blocks paid live research for guests without fabricating an answer", async ({ page }) => {
     await page.setViewportSize(DESKTOP);
     await page.goto("/redesign/chat?q=what%20changed%20today", { waitUntil: "domcontentloaded" });
 
     await expect(page.getByText("what changed today").first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("Sign in is required before NodeBench can start a real Convex-backed chat run.")).toHaveCount(0);
     await expect(page.getByText("The UI is not inserting a showcase answer for this turn.")).toHaveCount(0);
-    await expect(page.getByText("Live chat was not started. The Convex-backed runtime is still preparing.")).toHaveCount(0);
-    await expect(page.locator("[data-chat-run-id]").first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("Live research run").first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("chat-runtime-board").first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText("Context candidates").first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText("Tool decisions").first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
+    await expect(page.locator("[data-chat-run-id]")).toHaveCount(0);
+    await expect(page.getByText(/Live chat is not running/i).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Sign in with an email-backed account/i).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/will not fabricate a showcase answer/i).first()).toBeVisible({ timeout: 15_000 });
   });
 
   test("desktop right rail remains visible at the narrow desktop breakpoint", async ({ page }) => {

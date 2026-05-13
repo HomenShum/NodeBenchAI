@@ -18,7 +18,29 @@ describe("ExecutionTraceView", () => {
     window.history.replaceState({}, "", "/execution-trace");
   });
 
-  it("falls back to the seeded example when no live runs are available", () => {
+  it("does not silently substitute the seeded example when no live runs are available", () => {
+    useConvexAuthMock.mockReturnValue({ isAuthenticated: false });
+    useQueryMock.mockImplementation((_queryRef: unknown, args: unknown) => {
+      if (typeof args === "object" && args !== null && "limit" in args) {
+        return { sessions: [] };
+      }
+      if (args === "skip") return undefined;
+      return null;
+    });
+
+    render(<ExecutionTraceView />);
+
+    expect(screen.getByText(/No live execution trace is available yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/does not substitute a fixture trace/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /View explicit demo trace/i })).toHaveAttribute(
+      "href",
+      "/execution-trace?demo=1",
+    );
+    expect(screen.queryByText(/Spreadsheet workflow: inspect, research, edit, verify, export/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the seeded example only when demo mode is explicit", () => {
+    window.history.replaceState({}, "", "/execution-trace?demo=1");
     useConvexAuthMock.mockReturnValue({ isAuthenticated: false });
     useQueryMock.mockImplementation((_queryRef: unknown, args: unknown) => {
       if (typeof args === "object" && args !== null && "limit" in args) {
@@ -31,7 +53,7 @@ describe("ExecutionTraceView", () => {
     render(<ExecutionTraceView />);
 
     expect(screen.getByText(/Spreadsheet workflow: inspect, research, edit, verify, export/i)).toBeInTheDocument();
-    expect(screen.getByText(/Seeded example/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Explicit demo trace/i).length).toBeGreaterThan(0);
     expect(screen.getByRole("tab", { name: /Outcome/i })).toBeInTheDocument();
     expect(screen.getByText(/Primary result/i)).toBeInTheDocument();
     expect(screen.getByText(/Trust Boundary/i)).toBeInTheDocument();

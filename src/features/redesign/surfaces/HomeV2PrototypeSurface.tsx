@@ -1,9 +1,10 @@
-import { useState } from "react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { showToast } from "../components/Toast";
 import type { LiveArtifactsResult } from "../hooks/useLiveArtifacts";
 
 interface HomeV2SurfaceProps {
   onAsk?: (prompt: string) => void;
+  onOpenReports?: () => void;
   liveArtifacts?: LiveArtifactsResult;
 }
 
@@ -387,9 +388,9 @@ function buildDailyBriefSections(liveArtifacts?: LiveArtifactsResult): {
       },
       {
         eyebrow: "02 - Why it matters",
-        title: "It changes the reading order before it changes the thesis",
-        deck: "The brief is useful because it tells you what deserves attention now.",
-        body: `${evidenceLine} Ranking favors items that touch a saved report, have reusable source rows, or create a concrete next step.`,
+        title: "Why this is worth your time",
+        deck: "The agent ranks work by coverage impact, evidence reuse, and next action.",
+        body: `${evidenceLine} This item earned the lead slot because it touches saved coverage, has reusable source rows, or creates a concrete follow-up. If it does not affect a report, watchlist, source, or action, it should not lead Home.`,
         items: briefItems(signalSection?.items ?? [], 4),
         metric: `${reportCount || reportItems.length} reports`,
         layout: "compact",
@@ -544,6 +545,39 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       today: pulse.length === 0 && index === 0,
     })),
   ].slice(0, 5);
+  const liveStatusEditionItems = [
+    {
+      day: "11",
+      title: liveArtifacts.isLoading ? "Loading live brief" : "Live memory status",
+      meta: liveArtifacts.isLoading ? "Convex query in flight" : "No public artifacts returned",
+      body: actionBody,
+      today: true,
+    },
+    {
+      day: "10",
+      title: "Memory first",
+      meta: `${reports.length} reports`,
+      body: "The agent checks reusable report memory before asking for new research.",
+    },
+    {
+      day: "9",
+      title: "Source-backed",
+      meta: `${sourceCount} sources`,
+      body: "Claims stay tied to source rows or remain marked for review.",
+    },
+    {
+      day: "8",
+      title: "Report handoff",
+      meta: `${liveArtifacts.briefFeatureCount} signals`,
+      body: "Brief items are framed as report updates, notebook patches, or follow-up work.",
+    },
+    {
+      day: "7",
+      title: "Private boundary",
+      meta: "Public pulse only",
+      body: "Private captures are intentionally kept out of the public home brief.",
+    },
+  ];
   const entityRows = reports.slice(0, 5).map((report) => [
     monogram(report.entity),
     report.entity,
@@ -564,11 +598,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       ];
 
   return {
-    editionItems: liveEditionItems.length > 0 ? liveEditionItems : editionItems.map((item) => ({
-      ...item,
-      title: item.today ? "Live status" : item.title,
-      body: item.today ? actionBody : item.body,
-    })),
+    editionItems: liveEditionItems.length > 0 ? liveEditionItems : liveStatusEditionItems,
     editionLine,
     heroSub: hasLive
       ? "A source-backed brief ranks what changed, why it matters, and which reports need attention now."
@@ -611,13 +641,13 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     dailyBriefStats: dailyBrief.stats,
     dailyBriefSections: dailyBrief.sections,
     agentMeta: editionLine,
-    agentLead: hasLive ? "Live memory returned reusable context." : liveArtifacts.isLoading ? "Loading live memory now." : "No live reports returned yet.",
+    agentLead: hasLive ? "Agent work packet ready." : liveArtifacts.isLoading ? "Loading live memory now." : "No live reports returned yet.",
     agentBody: hasLive
-      ? actionBody
+      ? `${reports.length} reports matched, ${sourceCount} source rows reused, ${liveArtifacts.briefFeatureCount} signals ranked, and ${reports.reduce((total, report) => total + report.followUps, 0)} follow-ups queued. Ask it to brief, patch a notebook, or open a touched report.`
       : liveArtifacts.isLoading
         ? "The briefing rail is waiting for Convex-backed archive and daily brief queries."
         : "Run a report, daily brief, or archive-backed workflow to populate this rail.",
-    agentTrace: hasLive ? ["convex_archive", "daily_brief", "signal_rank"] : ["convex_query", "empty_state", "no_fixture_fallback"],
+    agentTrace: hasLive ? ["memory_search", "report_match", "source_reuse", "handoff_ready"] : ["convex_query", "empty_state", "no_fixture_fallback"],
     agentEntities: entityRows.length > 0 ? entityRows : [["N", "No live report", liveArtifacts.isLoading ? "Loading" : "Empty", "0"]],
   };
 }
@@ -644,6 +674,55 @@ const inboxRows = [
   ["Waiting on others", "Partner intro - YC AI Ops Co.", "Warm intro sent · no reply yet", "5d", ""],
   ["Filed", "Stripe renewal note", "Sales ops · Filed after ARR sync", "6d", ""],
 ];
+
+function requestHomeV2Share(
+  channel: "email" | "linkedin" | "slack",
+  onAsk?: (prompt: string) => void,
+) {
+  const promptByChannel = {
+    email: "Draft an email digest from today's agent brief. Keep it source-backed, concise, and action-oriented.",
+    linkedin: "Draft a LinkedIn-ready summary from today's agent brief. Keep claims grounded and mark anything that needs approval before posting.",
+    slack: "Draft a Slack update from today's agent brief with what changed, report impact, evidence, and asks.",
+  };
+  onAsk?.(promptByChannel[channel]);
+}
+
+async function copyHomeV2ShareLink() {
+  const url = typeof window === "undefined"
+    ? "/redesign"
+    : `${window.location.origin}/redesign?edition=1`;
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+      showToast({ tone: "success", message: "Copied the Daily Brief link." });
+      return;
+    }
+    showToast({ tone: "info", message: `Copy this link: ${url}` });
+  } catch {
+    showToast({ tone: "warning", message: `Clipboard blocked. Copy this link: ${url}` });
+  }
+}
+
+function openHomeV2PrintView() {
+  if (typeof window === "undefined") return;
+  const child = window.open("/redesign/edition/print?id=home-v2-agent-brief", "_blank", "noopener,noreferrer");
+  if (!child) {
+    showToast({ tone: "warning", message: "Popup blocked. Open the print view from the browser menu." });
+  }
+}
+
+function HomeV2ShareBar({ onAsk, pulse = false }: { onAsk?: (prompt: string) => void; pulse?: boolean }) {
+  return (
+    <div className={`rd-v2-share-bar${pulse ? " rd-v2-share-bar--pulse" : ""}`} aria-label="Share edition">
+      <span>Share</span>
+      <button type="button" className="rd-v2-share-primary" onClick={() => requestHomeV2Share("email", onAsk)}>Email digest</button>
+      <button type="button" onClick={() => requestHomeV2Share("linkedin", onAsk)}>LinkedIn</button>
+      <button type="button" onClick={() => requestHomeV2Share("slack", onAsk)}>Slack</button>
+      <button type="button" onClick={() => void copyHomeV2ShareLink()}>Copy link</button>
+      <button type="button" onClick={openHomeV2PrintView}>PDF</button>
+    </div>
+  );
+}
 
 const inboxSourceByTitle = {
   "Customer escalation - Acme Corp": ["slack", "☁"],
@@ -673,8 +752,8 @@ const meLines = [
   ["2026-05-08:", "\"Interweave before execute on non-trivial tasks\""],
 ];
 
-export function PrototypeV2LeftRail({ surface, selectedEntity = "Anthropic", onSelectEntity }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
-  if (surface === "home") return <HomeV2EditionRail />;
+export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
+  if (surface === "home") return <HomeV2EditionRail onAsk={onAsk} />;
   if (surface === "reports") {
     return (
       <aside className="rd-v2-left rd-v2-left--nav" aria-label="Reports navigation">
@@ -765,7 +844,7 @@ export function PrototypeV2LeftRail({ surface, selectedEntity = "Anthropic", onS
 }
 
 export function PrototypeV2Center({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
-  if (surface === "home") return <HomeV2Surface onAsk={onAsk} />;
+  if (surface === "home") return <HomeV2Surface onAsk={onAsk} onOpenReports={() => onAsk?.("Open the reports touched by today's agent brief.")} />;
   if (surface === "reports") return <ReportsPrototypeCenter selectedEntity={selectedEntity} onSelectEntity={onSelectEntity} />;
   if (surface === "chat") return <ChatPrototypeCenter />;
   if (surface === "inbox") return <InboxPrototypeCenter />;
@@ -773,7 +852,7 @@ export function PrototypeV2Center({ surface, onAsk, selectedEntity = "Anthropic"
 }
 
 export function PrototypeV2RightRail({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
-  if (surface === "home") return <HomeV2BriefingRail onAsk={onAsk} />;
+  if (surface === "home") return <HomeV2BriefingRail onAsk={onAsk} onOpenReports={() => onAsk?.("Open the reports touched by today's agent brief.")} />;
   if (surface === "reports") return <ReportsPrototypeRail onAsk={onAsk} selectedEntity={selectedEntity} onSelectEntity={onSelectEntity} />;
   if (surface === "chat") return <ChatPrototypeRail />;
   if (surface === "inbox") return <InboxPrototypeRail onAsk={onAsk} />;
@@ -1251,14 +1330,27 @@ function MePrototypeRail({ onAsk }: HomeV2SurfaceProps) {
   );
 }
 
-export function HomeV2EditionRail({ liveArtifacts }: { liveArtifacts?: LiveArtifactsResult } = {}) {
+export function HomeV2EditionRail({
+  liveArtifacts,
+  onAsk,
+}: {
+  liveArtifacts?: LiveArtifactsResult;
+  onAsk?: (prompt: string) => void;
+} = {}) {
   const model = buildHomeV2Model(liveArtifacts);
+  const askAboutEdition = (label: string) => {
+    onAsk?.(`Open the ${label} agent brief and summarize what changed, which reports it touches, and what to do next.`);
+  };
   return (
     <aside className="rd-v2-left" aria-label="Edition browser">
       <div className="rd-v2-edition-month">May 2026</div>
       {model.editionItems.map((item) => (
         <div key={item.day} className="rd-v2-edition-block">
-          <button type="button" className={`rd-v2-edition-date ${item.today ? "is-today" : ""}`}>
+          <button
+            type="button"
+            className={`rd-v2-edition-date ${item.today ? "is-today" : ""}`}
+            onClick={() => askAboutEdition(item.title)}
+          >
             <span className="rd-v2-edition-day">{item.day}</span>
             <span className="rd-v2-edition-info">
               <span className="rd-v2-edition-label">{item.title}</span>
@@ -1269,14 +1361,14 @@ export function HomeV2EditionRail({ liveArtifacts }: { liveArtifacts?: LiveArtif
         </div>
       ))}
       <div className="rd-v2-rail-rule" />
-      <EditionGroup label="Week of May 4" count="5" />
-      <EditionGroup label="Week of Apr 27" count="7" />
+      <EditionGroup label="Week of May 4" count="5" onSelect={askAboutEdition} />
+      <EditionGroup label="Week of Apr 27" count="7" onSelect={askAboutEdition} />
       <div className="rd-v2-rail-rule" />
-      <EditionGroup label="April 2026" count="28" />
-      <EditionGroup label="March 2026" count="31" />
-      <EditionGroup label="February 2026" count="28" />
+      <EditionGroup label="April 2026" count="28" onSelect={askAboutEdition} />
+      <EditionGroup label="March 2026" count="31" onSelect={askAboutEdition} />
+      <EditionGroup label="February 2026" count="28" onSelect={askAboutEdition} />
       <div className="rd-v2-rail-rule" />
-      <EditionGroup label="Q4 2025" count="62" />
+      <EditionGroup label="Q4 2025" count="62" onSelect={askAboutEdition} />
     </aside>
   );
 }
@@ -1292,7 +1384,15 @@ function countFromText(value: string | undefined, fallback: string): string {
   return match?.[0] ?? fallback;
 }
 
-function LivePulseLanding({ model, onAsk }: { model: HomeV2Model; onAsk?: (text: string) => void }) {
+function LivePulseLanding({
+  model,
+  onAsk,
+  onOpenReports,
+}: {
+  model: HomeV2Model;
+  onAsk?: (text: string) => void;
+  onOpenReports?: () => void;
+}) {
   const whatChanged = findBriefSection(model, "changed", 0);
   const reportsTouched = findBriefSection(model, "reports", 3);
   const sourcesUsed = findBriefSection(model, "sources", 4);
@@ -1353,7 +1453,7 @@ function LivePulseLanding({ model, onAsk }: { model: HomeV2Model; onAsk?: (text:
             <button className="rd-v2-btn-primary" onClick={() => onAsk?.("Use the Daily Brief packet to brief me on the highest-leverage report updates and next actions.")}>
               Ask the agent
             </button>
-            <button onClick={() => onAsk?.("Open the reports touched by today's agent brief.")}>
+            <button onClick={() => onOpenReports?.()}>
               Open touched reports
             </button>
           </div>
@@ -1396,25 +1496,18 @@ function LivePulseLanding({ model, onAsk }: { model: HomeV2Model; onAsk?: (text:
         ))}
       </div>
 
-      <div className="rd-v2-share-bar rd-v2-share-bar--pulse" aria-label="Share edition">
-        <span>Share</span>
-        <button className="rd-v2-share-primary">Email digest</button>
-        <button>LinkedIn</button>
-        <button>Slack</button>
-        <button>Copy link</button>
-        <button>PDF</button>
-      </div>
+      <HomeV2ShareBar onAsk={onAsk} pulse />
     </section>
   );
 }
 
-export function HomeV2Surface({ onAsk, liveArtifacts }: HomeV2SurfaceProps) {
+export function HomeV2Surface({ onAsk, onOpenReports, liveArtifacts }: HomeV2SurfaceProps) {
   const model = buildHomeV2Model(liveArtifacts);
   const isLiveHome = Boolean(liveArtifacts);
   return (
     <div className="rd-v2-home">
       {isLiveHome ? (
-        <LivePulseLanding model={model} onAsk={onAsk} />
+        <LivePulseLanding model={model} onAsk={onAsk} onOpenReports={onOpenReports} />
       ) : (
         <>
           <div className="rd-v2-edition-row">
@@ -1422,14 +1515,7 @@ export function HomeV2Surface({ onAsk, liveArtifacts }: HomeV2SurfaceProps) {
             <span className="rd-v2-edition-subline">{model.editionLine}</span>
           </div>
 
-          <div className="rd-v2-share-bar" aria-label="Share edition">
-            <span>Share</span>
-            <button className="rd-v2-share-primary">Email digest</button>
-            <button>LinkedIn</button>
-            <button>Slack</button>
-            <button>Copy link</button>
-            <button>PDF</button>
-          </div>
+          <HomeV2ShareBar onAsk={onAsk} />
 
           <p className="rd-v2-hero-tagline">Career ops</p>
           <h1 className="rd-v2-hero">One queue. One decision at a time.</h1>
@@ -1580,8 +1666,9 @@ export function HomeV2Surface({ onAsk, liveArtifacts }: HomeV2SurfaceProps) {
   );
 }
 
-export function HomeV2BriefingRail({ onAsk, liveArtifacts }: HomeV2SurfaceProps) {
+export function HomeV2BriefingRail({ onAsk, onOpenReports, liveArtifacts }: HomeV2SurfaceProps) {
   const model = buildHomeV2Model(liveArtifacts);
+  const railSourceCount = liveArtifacts ? liveArtifacts.reports.reduce((total, report) => total + report.sources, 0) : 12;
   return (
     <aside className="rd-pane rd-pane--right rd-v2-briefing" aria-label="Briefing agent">
       <header className="rd-v2-agent-head">
@@ -1595,7 +1682,7 @@ export function HomeV2BriefingRail({ onAsk, liveArtifacts }: HomeV2SurfaceProps)
       <div className="rd-v2-agent-pills">
         <span>Home</span>
         <span className="is-entity">Daily edition</span>
-        <span className="is-source">{liveArtifacts ? `${liveArtifacts.reports.reduce((total, report) => total + report.sources, 0)} sources` : "12 sources"}</span>
+        <span className="is-source">{railSourceCount} sources</span>
         <span>Memory</span>
       </div>
       <div className="rd-v2-agent-thread">
@@ -1604,11 +1691,17 @@ export function HomeV2BriefingRail({ onAsk, liveArtifacts }: HomeV2SurfaceProps)
           <strong>{model.agentLead}</strong>
           <p>{model.agentBody}</p>
           <div className="rd-v2-trace">
-            <small>{model.agentTrace.length} steps completed</small>
+            <small>Trace - {model.agentTrace.length} steps completed</small>
             {model.agentTrace.map((step) => <span key={step}>{step}</span>)}
           </div>
         </div>
-        <button className="rd-v2-drawer-toggle">Context - 5 entities - 4 threads - 4 sources</button>
+        <button
+          type="button"
+          className="rd-v2-drawer-toggle"
+          onClick={() => onOpenReports?.()}
+        >
+          Context - {model.agentEntities.length} entities - 4 threads - {railSourceCount} sources
+        </button>
         <section className="rd-v2-agent-context">
           <div className="rd-v2-context-head"><span>Entities</span><span>{model.agentEntities.length}</span></div>
           {model.agentEntities.map(([icon, name, badge, score]) => (
@@ -1633,7 +1726,12 @@ export function HomeV2BriefingRail({ onAsk, liveArtifacts }: HomeV2SurfaceProps)
         <input placeholder="Ask about today's pulse..." onKeyDown={(event) => {
           if (event.key === "Enter") onAsk?.((event.currentTarget as HTMLInputElement).value);
         }} />
-        <button type="button" onClick={() => onAsk?.("What changed today?")}>{"\u2191"}</button>
+        <button
+          type="button"
+          onClick={() => onAsk?.("What changed today? Include report handles, source rows, tool trace, estimated cost, and next actions.")}
+        >
+          {"\u2191"}
+        </button>
         <div className="rd-v2-agent-tools">
           <span>+ Context</span>
           <span>@ Reference</span>
@@ -1646,9 +1744,9 @@ export function HomeV2BriefingRail({ onAsk, liveArtifacts }: HomeV2SurfaceProps)
   );
 }
 
-function EditionGroup({ label, count }: { label: string; count: string }) {
+function EditionGroup({ label, count, onSelect }: { label: string; count: string; onSelect?: (label: string) => void }) {
   return (
-    <button type="button" className="rd-v2-edition-group">
+    <button type="button" className="rd-v2-edition-group" onClick={() => onSelect?.(label)}>
       <span>&gt;</span>
       <span>{label}</span>
       <b>{count}</b>

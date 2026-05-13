@@ -366,13 +366,16 @@ function liveChatUnavailableMarkdown(reason: string, detail?: LiveArtifactDetail
   const context = detail
     ? `Current live context is **${detail.title}** with ${detail.sourceCount} sources and ${detail.claimCount} claims.`
     : "No live artifact context has loaded yet.";
+  const nextStep = /sign in|account/i.test(reason)
+    ? "Sign in with an email-backed account to run paid live research. The UI will not fabricate a showcase answer while the run is blocked."
+    : "Use the composer to start a Convex-backed chat run and stream tool events, scratchpad notes, evidence rows, and the final answer packet.";
   return `## Live chat is not running
 
 ${reason}
 
 ${context}
 
-The UI is not inserting a showcase answer for this turn. Use the composer to start a Convex-backed chat run and stream tool events, scratchpad notes, evidence rows, and the final answer packet.`;
+${nextStep}`;
 }
 
 function buildSeedTurns(detail?: LiveArtifactDetail): Turn[] {
@@ -482,7 +485,7 @@ export function ChatSurface({
   const _rawLiveDetail = liveArtifacts.details[0];
   // Phase 1 — real LLM chat behind the composer for authenticated users.
   const chatRun = useRedesignChatRun();
-  const { isAuthenticated } = useConvexAuth();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   // Phase 4 — real reactions for inline correction + 👍/👎 toolbar.
   const recordReaction = useMutation(api.domains.redesign.agentRunFeedback.recordReaction);
   // Phase 5 — counterfactual probe re-run with masked source.
@@ -512,7 +515,7 @@ export function ChatSurface({
   }, [liveArtifacts.reports]);
   const liveSeedKey = liveDetail?.id ?? (liveArtifacts.isLoading ? "loading" : "empty");
   const openQuestions = useMemo(
-    () => (liveDetail ? liveOpenQuestions(liveDetail) : OPEN_QUESTIONS),
+    () => (liveDetail ? liveOpenQuestions(liveDetail) : []),
     [liveDetail],
   );
   const workingNotesMarkdown = useMemo(
@@ -532,6 +535,7 @@ export function ChatSurface({
   const [turns, setTurns] = useState<Turn[]>([]);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const consumedInitialPromptRef = useRef<string | null>(null);
+  const hasInitialPrompt = Boolean(initialPrompt?.trim());
   const turnIdCounterRef = useRef(0);
   const nextTurnId = (prefix: "u" | "a") => {
     turnIdCounterRef.current += 1;
@@ -641,6 +645,11 @@ export function ChatSurface({
 
   useEffect(() => {
     if (liveSeedKey === "loading" || seedKey === liveSeedKey) return;
+    if (hasInitialPrompt && !hasUserInteracted) {
+      setCtx(liveDetail ? `Asking about: ${liveDetail.title}` : contextLabel);
+      setSeedKey(liveSeedKey);
+      return;
+    }
     if (hasUserInteracted) {
       setSeedKey(liveSeedKey);
       return;
@@ -648,7 +657,7 @@ export function ChatSurface({
     setTurns(buildSeedTurns(liveDetail));
     setCtx(liveDetail ? `Asking about: ${liveDetail.title}` : contextLabel);
     setSeedKey(liveSeedKey);
-  }, [contextLabel, hasUserInteracted, liveDetail, liveSeedKey, seedKey]);
+  }, [contextLabel, hasInitialPrompt, hasUserInteracted, liveDetail, liveSeedKey, seedKey]);
 
   // Phase 2 — when the streamed chat run completes, commit the final packet
   // onto whichever turn carries the matching chatRunId. While in flight,
@@ -726,7 +735,13 @@ export function ChatSurface({
     const canRunLiveChat = chatRun.state.available && !_skipLiveSeed;
     const unavailableReason = _skipLiveSeed
       ? "The `fresh=1` diagnostic flag disables live chat for this route."
-      : "NodeBench is still preparing the Convex-backed chat runtime.";
+      : authLoading
+        ? "NodeBench is still resolving your account session before it can run paid live research."
+        : !isAuthenticated
+          ? "Sign in with an email-backed account before running paid live research."
+          : !chatRun.state.paidEligible
+            ? "Link an email or Google account before running paid live research. Anonymous sessions can browse public memory only."
+            : "NodeBench is still preparing the Convex-backed chat runtime.";
     setHasUserInteracted(true);
     setTurns((prev) => [
       ...prev,
@@ -786,21 +801,23 @@ export function ChatSurface({
       tone: "info",
       message: _skipLiveSeed
         ? "Live chat was not started because fresh=1 disables the run path."
-        : "Live chat was not started. The Convex-backed runtime is still preparing.",
+        : !isAuthenticated
+          ? "Sign in to run paid live research. No showcase answer was inserted."
+          : "Live chat was not started. The Convex-backed runtime is still preparing.",
     });
   };
 
   useEffect(() => {
     const prompt = initialPrompt?.trim();
     if (!prompt || consumedInitialPromptRef.current === prompt) return;
-    if (!chatRun.state.available && !_skipLiveSeed) return;
+    if ((authLoading || liveArtifacts.isLoading) && !_skipLiveSeed) return;
     consumedInitialPromptRef.current = prompt;
     sendMessage(prompt, tier);
   // sendMessage intentionally stays outside the dependency list because it is
   // scoped to the current render state and this effect is keyed by URL prompt
   // plus live-run availability to avoid consuming q= while Convex auth loads.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatRun.state.available, initialPrompt, _skipLiveSeed, tier]);
+  }, [authLoading, chatRun.state.available, initialPrompt, liveArtifacts.isLoading, _skipLiveSeed, tier]);
 
   const regenerate = (turnId: string, _tierOverride?: "free" | "fast" | "deep") => {
     const targetIndex = turns.findIndex((t) => t.id === turnId);
