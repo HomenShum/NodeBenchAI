@@ -500,18 +500,18 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
   const topPulse = pulse[0];
   const topPublic = publicResearch[0];
   const sourceCount = reports.reduce((total, report) => total + report.sources, 0);
-  const liveSummary = liveArtifacts.sourceLabel;
+  const liveSummary = liveArtifacts.sourceLabel.replace(/\bartifacts?\b/gi, "signals");
   const statusPrefix = liveArtifacts.isLoading && !hasLive ? "Loading live edition" : hasLive ? "Live edition" : "No live artifacts yet";
   const editionLine = `${statusPrefix} · ${reports.length} reports · ${liveArtifacts.briefFeatureCount} brief signals · ${sourceCount} sources`;
   const actionTitle = compact(
     topPulse?.title ?? topReport?.entity ?? topPublic?.entity,
-    liveArtifacts.isLoading ? "Loading live artifact queue..." : "No live reports returned yet",
+    liveArtifacts.isLoading ? "Loading today's brief..." : "No live reports returned yet",
   );
   const actionBody = compact(
     topPulse?.body ?? topReport?.description ?? topPublic?.signal,
     liveArtifacts.isLoading
       ? "NodeBench is waiting for Convex-backed archive and daily-brief data before ranking the first action."
-      : "Run or refresh a report to populate the first ranked action from live artifacts.",
+      : "Run or refresh a report to populate the first ranked action from live memory.",
   );
   const queueSource = [
     ...pulse.map((card) => ({ title: card.title, next: card.cta ?? "Open brief", meta: card.meta })),
@@ -520,7 +520,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
   const liveQueueItems: HomeV2QueueItem[] = queueSource.slice(0, 8).map((item, index) => [
     String(index + 1),
     index < 2 ? "Now" : index < 5 ? "Prep" : "Report",
-    compact(item.title, "Untitled live artifact"),
+    compact(item.title, "Untitled live signal"),
     `${compact(item.next, "Review")} ->`,
   ]);
   const liveStats = metrics.slice(0, 3).map((metric, index) => ({
@@ -540,7 +540,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       day: String(Math.max(1, 11 - pulse.length - index)),
       title: report.entity.slice(0, 28),
       meta: `${report.sources} sources · ${report.claims} claims`,
-      body: compact(report.description, "Live report artifact").slice(0, 150),
+      body: compact(report.description, "Live report signal").slice(0, 150),
       today: pulse.length === 0 && index === 0,
     })),
   ].slice(0, 5);
@@ -550,7 +550,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     report.status === "verified" ? "Verified" : report.status === "review" ? "Review" : "",
     String(Math.round(Math.min(99, Math.max(40, report.sources * 7 + report.claims * 3)))),
   ] as [string, string, string, string]);
-  const sweepBullets = queueSource.slice(0, 4).map((item) => `${compact(item.next, "Review")} ${compact(item.title, "live artifact")}.`);
+  const sweepBullets = queueSource.slice(0, 4).map((item) => `${compact(item.next, "Review")} ${compact(item.title, "live signal")}.`);
   const fallbackStats = liveArtifacts.isLoading
     ? [
         { label: "Live status", value: "Loading", tone: "accent" },
@@ -571,18 +571,18 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     })),
     editionLine,
     heroSub: hasLive
-      ? "Live Convex-backed artifacts are ranked into the few decisions worth reading first. The static UI kit stays behind qa=home-v2-implementation."
-      : "NodeBench is connected to the live artifact path. This view stays explicit while Convex returns data instead of masking the state with fixture content.",
+      ? "A source-backed brief ranks what changed, why it matters, and which reports need attention now."
+      : "NodeBench is connected to the live memory path. This view stays explicit while Convex returns data instead of masking the state with fixture content.",
     primaryTitle: actionTitle,
     primaryBody: actionBody,
-    sweepTitle: hasLive ? "Live artifact sweep" : liveArtifacts.isLoading ? "Loading live artifact sweep" : "No live artifact sweep yet",
+    sweepTitle: hasLive ? "Live intelligence sweep" : liveArtifacts.isLoading ? "Loading live intelligence sweep" : "No live intelligence sweep yet",
     sweepBody: hasLive
       ? liveSummary
       : liveArtifacts.isLoading
         ? "Waiting for Convex-backed archive stats and latest daily brief memory."
         : "No Convex-backed public artifacts were returned for this session.",
     sweepBullets: sweepBullets.length > 0 ? sweepBullets : [
-      liveArtifacts.isLoading ? "Load archive posts from Convex." : "Run a research or daily brief workflow to create the first artifact.",
+      liveArtifacts.isLoading ? "Load archive posts from Convex." : "Run a research or daily brief workflow to create the first signal.",
       "Keep private captures out of the public pulse.",
       "Return an explicit empty state rather than a fixture dashboard.",
     ],
@@ -592,17 +592,17 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     selectedNext: topPulse?.cta ?? (topReport ? "Open the live report." : "Wait for live artifacts or run a new report."),
     selectedWhy: topReport
       ? `${topReport.sources} sources, ${topReport.claims} claims, ${topReport.followUps} follow-ups.`
-      : "This card is driven by the live artifact hook state, not static starter data.",
+      : "This card is driven by the live memory hook state, not static starter data.",
     selectedScore: hasLive ? "live" : liveArtifacts.isLoading ? "loading" : "empty",
     proofCards: [
       { title: "Live source", body: liveSummary, tag: hasLive ? "Convex-backed" : liveArtifacts.isLoading ? "loading" : "empty", highlight: hasLive },
-      { title: "Reports touched", body: `${reports.length} live report artifacts available.`, tag: `${reports.length} reports` },
-      { title: "Sources reused", body: `${sourceCount} source references available from current artifacts.`, tag: `${sourceCount} sources`, highlight: sourceCount > 0 },
+      { title: "Reports touched", body: `${reports.length} live reports available.`, tag: `${reports.length} reports` },
+      { title: "Sources reused", body: `${sourceCount} source references available from current signals.`, tag: `${sourceCount} sources`, highlight: sourceCount > 0 },
       { title: "Privacy boundary", body: "Home reads public archive and daily brief memory; private captures remain outside the public pulse." },
     ],
     queueItems: liveQueueItems.length > 0 ? liveQueueItems : [["1", "Now", actionTitle, "Refresh ->"]],
-    moreLabel: hasLive ? `Show ${Math.max(0, reports.length + pulse.length - 8)} more items` : "Show live artifact status",
-    whatChangedTitle: topPulse?.title ?? topReport?.entity ?? "Live artifact state",
+    moreLabel: hasLive ? `Show ${Math.max(0, reports.length + pulse.length - 8)} more items` : "Show live memory status",
+    whatChangedTitle: topPulse?.title ?? topReport?.entity ?? "Live memory state",
     whatChangedBody: topPulse?.body ?? topReport?.description ?? actionBody,
     dailyBriefEyebrow: dailyBrief.eyebrow,
     dailyBriefTitle: dailyBrief.title,
@@ -611,13 +611,13 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     dailyBriefStats: dailyBrief.stats,
     dailyBriefSections: dailyBrief.sections,
     agentMeta: editionLine,
-    agentLead: hasLive ? "Live memory returned reusable context." : liveArtifacts.isLoading ? "Loading live memory now." : "No live artifacts returned yet.",
+    agentLead: hasLive ? "Live memory returned reusable context." : liveArtifacts.isLoading ? "Loading live memory now." : "No live reports returned yet.",
     agentBody: hasLive
       ? actionBody
       : liveArtifacts.isLoading
         ? "The briefing rail is waiting for Convex-backed archive and daily brief queries."
         : "Run a report, daily brief, or archive-backed workflow to populate this rail.",
-    agentTrace: hasLive ? ["convex_archive", "daily_brief", "artifact_rank"] : ["convex_query", "empty_state", "no_fixture_fallback"],
+    agentTrace: hasLive ? ["convex_archive", "daily_brief", "signal_rank"] : ["convex_query", "empty_state", "no_fixture_fallback"],
     agentEntities: entityRows.length > 0 ? entityRows : [["N", "No live report", liveArtifacts.isLoading ? "Loading" : "Empty", "0"]],
   };
 }
@@ -1281,16 +1281,110 @@ export function HomeV2EditionRail({ liveArtifacts }: { liveArtifacts?: LiveArtif
   );
 }
 
-export function HomeV2Surface({ onAsk, liveArtifacts }: HomeV2SurfaceProps) {
-  const model = buildHomeV2Model(liveArtifacts);
+function findBriefSection(model: HomeV2Model, label: string, fallbackIndex: number): HomeV2BriefSection {
+  return model.dailyBriefSections.find((section) => section.title.toLowerCase().includes(label)) ??
+    model.dailyBriefSections[fallbackIndex] ??
+    model.dailyBriefSections[0];
+}
+
+function firstBriefItem(section: HomeV2BriefSection | undefined): HomeV2BriefItem | undefined {
+  return section?.items.find((item) => item.title || item.body);
+}
+
+function LivePulseLanding({ model, onAsk }: { model: HomeV2Model; onAsk?: (text: string) => void }) {
+  const whatChanged = findBriefSection(model, "changed", 0);
+  const whyMatters = findBriefSection(model, "matters", 1);
+  const nextMove = findBriefSection(model, "move", 2);
+  const reportsTouched = findBriefSection(model, "reports", 3);
+  const sourcesUsed = findBriefSection(model, "sources", 4);
+  const actionsCreated = findBriefSection(model, "actions", 5);
+  const nextItem = firstBriefItem(nextMove);
+  const leadTitle = model.dailyBriefTitle.toLowerCase();
+  const seenLeadItems = new Set<string>();
+  const leadItems = whatChanged.items.filter((item) => {
+    const key = item.title.toLowerCase();
+    if (!key || key === leadTitle || seenLeadItems.has(key)) return false;
+    seenLeadItems.add(key);
+    return true;
+  }).slice(0, 2);
+  const cardSections = [reportsTouched, sourcesUsed, actionsCreated];
+
   return (
-    <div className="rd-v2-home">
-      <div className="rd-v2-edition-row">
-        <span className="rd-v2-edition-pill">Daily edition</span>
-        <span className="rd-v2-edition-subline">{model.editionLine}</span>
+    <section className="rd-v2-pulse" data-testid="home-v2-pulse-landing" aria-labelledby="home-v2-pulse-title">
+      <div className="rd-v2-pulse-topline" aria-label="Daily Brief status">
+        <span>Daily Brief</span>
+        <span>{model.editionLine}</span>
       </div>
 
-      <div className="rd-v2-share-bar" aria-label="Share edition">
+      <div className="rd-v2-pulse-head">
+        <p className="rd-v2-pulse-kicker">For your coverage book</p>
+        <h1 id="home-v2-pulse-title">Today for you</h1>
+        <p>{model.heroSub}</p>
+      </div>
+
+      <div className="rd-v2-pulse-grid">
+        <article className="rd-v2-pulse-lead">
+          <div className="rd-v2-card-kicker">What changed</div>
+          <h2>{model.dailyBriefTitle}</h2>
+          <p>{whatChanged.body || model.dailyBriefDek}</p>
+          {leadItems.length > 0 && (
+            <ul className="rd-v2-pulse-list">
+              {leadItems.map((item, index) => (
+                <li key={`${item.title}-${index}`}>
+                  <strong>{item.title}</strong>
+                  <span>{item.body}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="rd-v2-pulse-actions">
+            <button className="rd-v2-btn-primary" onClick={() => onAsk?.(`Open today's Daily Brief: ${model.dailyBriefTitle}`)}>
+              Ask in Chat
+            </button>
+            <button onClick={() => onAsk?.("Open the reports touched by today's Daily Brief.")}>
+              Open reports
+            </button>
+          </div>
+        </article>
+
+        <div className="rd-v2-pulse-side">
+          <article className="rd-v2-pulse-note">
+            <div className="rd-v2-card-kicker">Why it matters</div>
+            <h3>{whyMatters.title}</h3>
+            <p>{whyMatters.body}</p>
+          </article>
+          <article className="rd-v2-pulse-note rd-v2-pulse-note--accent">
+            <div className="rd-v2-card-kicker">Next move</div>
+            <h3>{nextItem?.title ?? nextMove.title}</h3>
+            <p>{nextItem?.body ?? nextMove.body}</p>
+            <button onClick={() => onAsk?.(nextItem?.title ? `Help me with: ${nextItem.title}` : "Turn today's Daily Brief into next actions.")}>
+              Work this
+            </button>
+          </article>
+        </div>
+      </div>
+
+      <div className="rd-v2-pulse-statline" aria-label="Daily Brief evidence summary">
+        {model.dailyBriefStats.map((stat) => (
+          <div key={stat.label}>
+            <strong>{stat.value}</strong>
+            <span>{stat.label}</span>
+            <small>{stat.hint}</small>
+          </div>
+        ))}
+      </div>
+
+      <div className="rd-v2-pulse-mosaic" aria-label="Daily Brief follow-through">
+        {cardSections.map((section) => (
+          <article key={section.eyebrow}>
+            <span>{section.title}</span>
+            <strong>{section.metric ?? section.items.length}</strong>
+            <p>{section.deck ?? section.body}</p>
+          </article>
+        ))}
+      </div>
+
+      <div className="rd-v2-share-bar rd-v2-share-bar--pulse" aria-label="Share edition">
         <span>Share</span>
         <button className="rd-v2-share-primary">Email digest</button>
         <button>LinkedIn</button>
@@ -1298,49 +1392,77 @@ export function HomeV2Surface({ onAsk, liveArtifacts }: HomeV2SurfaceProps) {
         <button>Copy link</button>
         <button>PDF</button>
       </div>
+    </section>
+  );
+}
 
-      <p className="rd-v2-hero-tagline">Career ops</p>
-      <h1 className="rd-v2-hero">One queue. One decision at a time.</h1>
-      <p className="rd-v2-hero-sub">
-        {model.heroSub}
-      </p>
-
-      <div className="rd-v2-ed-selector" role="group" aria-label="Edition timeframe">
-        {["Today", "Yesterday", "This week", "This month", "Quarter", "Archive \u2192"].map((label, index) => (
-          <button key={label} className={index === 0 ? "is-active" : ""} aria-pressed={index === 0}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="rd-v2-twin-cards">
-        <article className="rd-v2-card">
-          <div className="rd-v2-card-kicker">Next best action</div>
-          <h2>{model.primaryTitle}</h2>
-          <p>{model.primaryBody}</p>
-          <div className="rd-v2-card-actions">
-            <button className="rd-v2-btn-primary" onClick={() => onAsk?.("Open today's booking queue.")}>Show booking queue</button>
-            <button onClick={() => onAsk?.("Open today's prep queue.")}>Show prep queue</button>
+export function HomeV2Surface({ onAsk, liveArtifacts }: HomeV2SurfaceProps) {
+  const model = buildHomeV2Model(liveArtifacts);
+  const isLiveHome = Boolean(liveArtifacts);
+  return (
+    <div className="rd-v2-home">
+      {isLiveHome ? (
+        <LivePulseLanding model={model} onAsk={onAsk} />
+      ) : (
+        <>
+          <div className="rd-v2-edition-row">
+            <span className="rd-v2-edition-pill">Daily edition</span>
+            <span className="rd-v2-edition-subline">{model.editionLine}</span>
           </div>
-        </article>
-        <article className="rd-v2-card">
-          <div className="rd-v2-card-kicker">Daily sweep / May 11</div>
-          <h3>{model.sweepTitle}</h3>
-          <p>{model.sweepBody}</p>
-          <ul className="rd-v2-sweep-list">
-            {model.sweepBullets.map((item) => <li key={item}>{item}</li>)}
-          </ul>
-        </article>
-      </div>
 
-      <div className="rd-v2-stats-row">
-        {model.stats.map((stat) => (
-          <StatCell key={stat.label} label={stat.label} value={stat.value} tone={stat.tone} />
-        ))}
-      </div>
+          <div className="rd-v2-share-bar" aria-label="Share edition">
+            <span>Share</span>
+            <button className="rd-v2-share-primary">Email digest</button>
+            <button>LinkedIn</button>
+            <button>Slack</button>
+            <button>Copy link</button>
+            <button>PDF</button>
+          </div>
+
+          <p className="rd-v2-hero-tagline">Career ops</p>
+          <h1 className="rd-v2-hero">One queue. One decision at a time.</h1>
+          <p className="rd-v2-hero-sub">
+            {model.heroSub}
+          </p>
+
+          <div className="rd-v2-ed-selector" role="group" aria-label="Edition timeframe">
+            {["Today", "Yesterday", "This week", "This month", "Quarter", "Archive \u2192"].map((label, index) => (
+              <button key={label} className={index === 0 ? "is-active" : ""} aria-pressed={index === 0}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="rd-v2-twin-cards">
+            <article className="rd-v2-card">
+              <div className="rd-v2-card-kicker">Next best action</div>
+              <h2>{model.primaryTitle}</h2>
+              <p>{model.primaryBody}</p>
+              <div className="rd-v2-card-actions">
+                <button className="rd-v2-btn-primary" onClick={() => onAsk?.("Open today's booking queue.")}>Show booking queue</button>
+                <button onClick={() => onAsk?.("Open today's prep queue.")}>Show prep queue</button>
+              </div>
+            </article>
+            <article className="rd-v2-card">
+              <div className="rd-v2-card-kicker">Daily sweep / May 11</div>
+              <h3>{model.sweepTitle}</h3>
+              <p>{model.sweepBody}</p>
+              <ul className="rd-v2-sweep-list">
+                {model.sweepBullets.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </article>
+          </div>
+
+          <div className="rd-v2-stats-row">
+            {model.stats.map((stat) => (
+              <StatCell key={stat.label} label={stat.label} value={stat.value} tone={stat.tone} />
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="rd-v2-queue-head">
-        <h3>Queue</h3>
+        <h3>{isLiveHome ? "Follow-up queue" : "Queue"}</h3>
         <div>
           {["All", "Now", "Prep", "Batch", "Later"].map((label, index) => (
             <button key={label} className={index === 0 ? "is-active" : ""}>{label}</button>
