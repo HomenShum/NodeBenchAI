@@ -1287,78 +1287,90 @@ function findBriefSection(model: HomeV2Model, label: string, fallbackIndex: numb
     model.dailyBriefSections[0];
 }
 
-function firstBriefItem(section: HomeV2BriefSection | undefined): HomeV2BriefItem | undefined {
-  return section?.items.find((item) => item.title || item.body);
+function countFromText(value: string | undefined, fallback: string): string {
+  const match = value?.match(/\d[\d,]*/);
+  return match?.[0] ?? fallback;
 }
 
 function LivePulseLanding({ model, onAsk }: { model: HomeV2Model; onAsk?: (text: string) => void }) {
   const whatChanged = findBriefSection(model, "changed", 0);
-  const whyMatters = findBriefSection(model, "matters", 1);
-  const nextMove = findBriefSection(model, "move", 2);
   const reportsTouched = findBriefSection(model, "reports", 3);
   const sourcesUsed = findBriefSection(model, "sources", 4);
   const actionsCreated = findBriefSection(model, "actions", 5);
-  const nextItem = firstBriefItem(nextMove);
-  const leadTitle = model.dailyBriefTitle.toLowerCase();
-  const seenLeadItems = new Set<string>();
-  const leadItems = whatChanged.items.filter((item) => {
-    const key = item.title.toLowerCase();
-    if (!key || key === leadTitle || seenLeadItems.has(key)) return false;
-    seenLeadItems.add(key);
-    return true;
-  }).slice(0, 2);
+  const changedCount = countFromText(whatChanged.metric, model.dailyBriefStats[0]?.value ?? "0");
+  const reportCount = countFromText(reportsTouched.metric, "0");
+  const sourceCount = countFromText(sourcesUsed.metric, model.dailyBriefStats[1]?.value ?? "0");
+  const actionCount = countFromText(actionsCreated.metric, model.dailyBriefStats[2]?.value ?? "0");
   const cardSections = [reportsTouched, sourcesUsed, actionsCreated];
+  const agentSteps = [
+    {
+      title: "Memory first",
+      body: `Searched the live brief and reusable report memory before asking the user to research again.`,
+      meta: `${changedCount} changed signals`,
+    },
+    {
+      title: "Report matching",
+      body: `Mapped the signal packet to existing coverage so the next click opens work in context.`,
+      meta: `${reportCount} reports touched`,
+    },
+    {
+      title: "Evidence and action",
+      body: `Kept sources and follow-ups visible so claims can be verified, patched, or routed to Chat.`,
+      meta: `${sourceCount} source rows · ${actionCount} follow-ups`,
+    },
+  ];
 
   return (
     <section className="rd-v2-pulse" data-testid="home-v2-pulse-landing" aria-labelledby="home-v2-pulse-title">
       <div className="rd-v2-pulse-topline" aria-label="Daily Brief status">
-        <span>Daily Brief</span>
+        <span>Agent brief</span>
         <span>{model.editionLine}</span>
       </div>
 
       <div className="rd-v2-pulse-head">
-        <p className="rd-v2-pulse-kicker">For your coverage book</p>
-        <h1 id="home-v2-pulse-title">Today for you</h1>
-        <p>{model.heroSub}</p>
+        <p className="rd-v2-pulse-kicker">For builders, investors, and operators</p>
+        <h1 id="home-v2-pulse-title">Your agent already did the first pass.</h1>
+        <p>NodeBench turns a noisy daily stream into a sourced work packet: what changed, which reports it touches, what evidence backs it, and what the agent should do next.</p>
       </div>
 
       <div className="rd-v2-pulse-grid">
         <article className="rd-v2-pulse-lead">
-          <div className="rd-v2-card-kicker">What changed</div>
-          <h2>{model.dailyBriefTitle}</h2>
-          <p>{whatChanged.body || model.dailyBriefDek}</p>
-          {leadItems.length > 0 && (
-            <ul className="rd-v2-pulse-list">
-              {leadItems.map((item, index) => (
-                <li key={`${item.title}-${index}`}>
-                  <strong>{item.title}</strong>
-                  <span>{item.body}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="rd-v2-card-kicker">What the agent did</div>
+          <h2>Compressed today&apos;s research into report work.</h2>
+          <p>
+            It scanned live memory, ranked changed signals, reused source rows, and turned the result into a follow-up queue. The point is not to read a feed headline. The point is to see what the agent already prepared.
+          </p>
+          <ul className="rd-v2-agent-steps" aria-label="Agent work completed">
+            {agentSteps.map((item) => (
+              <li key={item.title}>
+                <span>{item.meta}</span>
+                <strong>{item.title}</strong>
+                <p>{item.body}</p>
+              </li>
+            ))}
+          </ul>
           <div className="rd-v2-pulse-actions">
-            <button className="rd-v2-btn-primary" onClick={() => onAsk?.(`Open today's Daily Brief: ${model.dailyBriefTitle}`)}>
-              Ask in Chat
+            <button className="rd-v2-btn-primary" onClick={() => onAsk?.("Use the Daily Brief packet to brief me on the highest-leverage report updates and next actions.")}>
+              Ask the agent
             </button>
-            <button onClick={() => onAsk?.("Open the reports touched by today's Daily Brief.")}>
-              Open reports
+            <button onClick={() => onAsk?.("Open the reports touched by today's agent brief.")}>
+              Open touched reports
             </button>
           </div>
         </article>
 
         <div className="rd-v2-pulse-side">
           <article className="rd-v2-pulse-note">
-            <div className="rd-v2-card-kicker">Why it matters</div>
-            <h3>{whyMatters.title}</h3>
-            <p>{whyMatters.body}</p>
+            <div className="rd-v2-card-kicker">Who reads this</div>
+            <h3>People who need the next diligence move, not another feed.</h3>
+            <p>Founder, investor, banker, and operator workflows need reusable reports, source-backed claims, and clear follow-through. Raw news stays below as evidence, not the headline.</p>
           </article>
           <article className="rd-v2-pulse-note rd-v2-pulse-note--accent">
-            <div className="rd-v2-card-kicker">Next move</div>
-            <h3>{nextItem?.title ?? nextMove.title}</h3>
-            <p>{nextItem?.body ?? nextMove.body}</p>
-            <button onClick={() => onAsk?.(nextItem?.title ? `Help me with: ${nextItem.title}` : "Turn today's Daily Brief into next actions.")}>
-              Work this
+            <div className="rd-v2-card-kicker">Agent handoff</div>
+            <h3>Continue with the packet loaded.</h3>
+            <p>Open Chat with the report handles, source rows, and follow-up queue already attached. From there the agent can draft a memo, patch a notebook, or ask for approval before a write.</p>
+            <button onClick={() => onAsk?.("Continue from today's agent brief with report handles, source rows, and follow-up actions loaded.")}>
+              Continue in Chat
             </button>
           </article>
         </div>
