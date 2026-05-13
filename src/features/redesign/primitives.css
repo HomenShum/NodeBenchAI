@@ -884,6 +884,40 @@
   list-style: none;
 }
 
+[data-redesign] .rd-v2-introspection-question {
+  display: grid;
+  gap: 7px;
+  margin-top: 18px;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--rd-line-faint);
+}
+
+[data-redesign] .rd-v2-introspection-question span,
+[data-redesign] .rd-v2-source-meta {
+  color: var(--rd-accent-strong);
+  font-size: 10px;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+[data-redesign] .rd-v2-introspection-question strong {
+  max-width: 560px;
+  color: var(--rd-ink-strong);
+  font-size: 20px;
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 1.22;
+}
+
+[data-redesign] .rd-v2-introspection-meta {
+  margin-top: 12px !important;
+  color: var(--rd-ink-soft) !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+
 [data-redesign] .rd-v2-agent-steps li {
   display: grid;
   grid-template-columns: 112px minmax(0, 1fr);
