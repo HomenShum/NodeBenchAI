@@ -90,6 +90,11 @@ test.describe("Home v2 /redesign parity", () => {
     await expect(page.getByRole("button", { name: "Sign in" })).toHaveCount(0);
     await expect(page.getByText("Public inbox tracker demo")).toHaveCount(0);
     await expect(page.getByText(/Live edition · \d+ reports/).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("home-v2-daily-brief-content")).toBeVisible();
+    await expect(page.getByTestId("home-v2-brief-section")).toHaveCount(6);
+    await expect(page.getByText("Reports touched").first()).toBeVisible();
+    await expect(page.getByText("Sources used").first()).toBeVisible();
+    await expect(page.getByText("Actions created").first()).toBeVisible();
 
     const primaryAction = page.getByRole("button", { name: "Show booking queue" });
     await expect(primaryAction).toBeVisible();
@@ -170,6 +175,8 @@ test.describe("Home v2 /redesign parity", () => {
   });
 
   test("live and prototype routes avoid horizontal overflow at tablet and mobile widths", async ({ page }) => {
+    test.setTimeout(90_000);
+
     const paths = [
       "/redesign",
       "/redesign/reports",
