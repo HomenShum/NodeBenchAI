@@ -50,6 +50,8 @@ function displayReportDescription(description: string): string {
 
 interface ReportsSurfaceProps {
   onOpen: (id: string, tab: "brief" | "cards" | "chat") => void;
+  onSelectReport?: (report: ReportCardData) => void;
+  inspectedReportId?: string | null;
 }
 
 const STATUS_FILTERS = [
@@ -67,7 +69,7 @@ const KIND_FILTERS = [
   { id: "Coverage", label: "Coverage" },
 ] as const;
 
-export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
+export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: ReportsSurfaceProps) {
   const [filter, setFilter] = useState<typeof STATUS_FILTERS[number]["id"]>("all");
   const [kindFilter, setKindFilter] = useState<typeof KIND_FILTERS[number]["id"]>("all");
   const [density, setDensity] = useState<Density>("compact");
@@ -128,6 +130,12 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
     });
   }, [reports, filter, kindFilter, query, sortKey]);
 
+  useEffect(() => {
+    if (!onSelectReport || filtered.length === 0) return;
+    if (inspectedReportId && filtered.some((report) => report.id === inspectedReportId)) return;
+    onSelectReport(filtered[0]);
+  }, [filtered, inspectedReportId, onSelectReport]);
+
   const reportDecisionQueue = useMemo(
     () => buildReportsDecisionQueue(filtered.length > 0 ? filtered : reports),
     [filtered, reports],
@@ -142,8 +150,8 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
   const bulkExport = (format: "csv" | "markdown" | "notion" | "hubspot") => {
     showToast({
       tone: "success",
-      message: `Exporting ${selected.size} report${selected.size === 1 ? "" : "s"} as ${format.toUpperCase()}…`,
-      action: { label: "Open", onClick: () => { /* future: open downloads pane */ } },
+      message: `Prepared a local ${format.toUpperCase()} preview for ${selected.size} report${selected.size === 1 ? "" : "s"}. Connector writes still require approval.`,
+      action: { label: "Preview", onClick: () => { /* future: open downloads pane */ } },
     });
     setSelected(new Set());
   };
@@ -151,7 +159,7 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
   const bulkRefresh = () => {
     showToast({
       tone: "info",
-      message: `Triggered refresh for ${selected.size} entit${selected.size === 1 ? "y" : "ies"}. Briefs will appear here.`,
+      message: `Refresh preview queued locally for ${selected.size} entit${selected.size === 1 ? "y" : "ies"}. Live source refresh runs from Chat or scheduled agents.`,
     });
     setSelected(new Set());
   };
@@ -314,24 +322,24 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
         <div className="rd-bulk-bar">
           <span className="rd-bulk-bar__count">{selected.size} selected</span>
           <div className="rd-row" style={{ gap: 6, flexWrap: "wrap" }}>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={bulkRefresh}>Refresh sources</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={bulkRefresh}>Refresh preview</button>
             <button
               className="rd-btn rd-btn--quiet rd-btn--sm"
-              onClick={() => showToast({ tone: "info", message: `Queued rubric run for ${selected.size} selected report${selected.size === 1 ? "" : "s"}.` })}
+              onClick={() => showToast({ tone: "info", message: `Local rubric preview queued for ${selected.size} selected report${selected.size === 1 ? "" : "s"}. Run Chat to persist a scored artifact.` })}
             >
-              Run rubric
+              Rubric preview
             </button>
             <button
               className="rd-btn rd-btn--quiet rd-btn--sm"
-              onClick={() => showToast({ tone: "info", message: `Opening compare view for ${selected.size} selected report${selected.size === 1 ? "" : "s"}.` })}
+              onClick={() => showToast({ tone: "info", message: `Compare preview prepared for ${selected.size} selected report${selected.size === 1 ? "" : "s"}.` })}
             >
-              Compare
+              Compare preview
             </button>
             <span style={{ width: 1, height: 16, background: "var(--rd-line)" }} aria-hidden="true" />
-            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => bulkExport("csv")}>Export CSV</button>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => bulkExport("markdown")}>Export Markdown</button>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => bulkExport("notion")}>To Notion</button>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => bulkExport("hubspot")}>To HubSpot</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => bulkExport("csv")}>CSV preview</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => bulkExport("markdown")}>Markdown preview</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => bulkExport("notion")}>Notion preview</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => bulkExport("hubspot")}>HubSpot preview</button>
             <span style={{ width: 1, height: 16, background: "var(--rd-line)" }} aria-hidden="true" />
             <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={clearSelection}>Cancel</button>
           </div>
@@ -346,6 +354,8 @@ export function ReportsSurface({ onOpen }: ReportsSurfaceProps) {
         onToggleSelect={toggleSelect}
         hasActiveFilter={hasActiveFilter}
         onResetFilters={resetFilters}
+        inspectedReportId={inspectedReportId}
+        onSelectReport={onSelectReport}
       />
     </div>
   );
@@ -474,6 +484,8 @@ function ReportGrid({
   onToggleSelect,
   hasActiveFilter,
   onResetFilters,
+  inspectedReportId,
+  onSelectReport,
 }: {
   reports: ReportCardData[];
   density: Density;
@@ -482,6 +494,8 @@ function ReportGrid({
   onToggleSelect: (id: string) => void;
   hasActiveFilter?: boolean;
   onResetFilters?: () => void;
+  inspectedReportId?: string | null;
+  onSelectReport?: (report: ReportCardData) => void;
 }) {
   if (reports.length === 0) {
     return (
@@ -505,13 +519,31 @@ function ReportGrid({
     return (
       <div className="rd-card" style={{ padding: 0 }}>
         {reports.map((r, i) => (
-          <div key={r.id} style={{
+          <div
+            key={r.id}
+            role={onSelectReport ? "button" : undefined}
+            tabIndex={onSelectReport ? 0 : undefined}
+            aria-selected={inspectedReportId === r.id || undefined}
+            onClick={(event) => {
+              const target = event.target as HTMLElement;
+              if (target.closest("button, input")) return;
+              onSelectReport?.(r);
+            }}
+            onKeyDown={(event) => {
+              if (!onSelectReport) return;
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              onSelectReport(r);
+            }}
+            style={{
             display: "grid",
             gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr) auto",
             alignItems: "center",
             gap: 16,
             padding: "12px 16px",
             borderBottom: i === reports.length - 1 ? "none" : "1px solid var(--rd-line-faint)",
+            background: inspectedReportId === r.id ? "var(--rd-accent-soft)" : undefined,
+            cursor: onSelectReport ? "pointer" : undefined,
           }}>
             <div className="rd-stack" style={{ gap: 4 }}>
               <div className="rd-row" style={{ gap: 6 }}>
@@ -548,12 +580,13 @@ function ReportGrid({
           key={r.id}
           className="rd-report-card"
           data-status={r.status}
-          data-selected={selected.has(r.id) || undefined}
+          data-selected={selected.has(r.id) || inspectedReportId === r.id || undefined}
+          aria-selected={inspectedReportId === r.id || undefined}
           onClick={(e) => {
-            // Clicking the card body opens the brief; clicking a button or checkbox is excluded
+            // Clicking the card body inspects the report; footer buttons open the full workspace.
             const tgt = e.target as HTMLElement;
             if (tgt.closest("button, input")) return;
-            onOpen(r.id, "brief");
+            onSelectReport?.(r);
           }}
         >
           {/* Row 1: checkbox + entity + kind + status pill (Crunchbase row pattern) */}

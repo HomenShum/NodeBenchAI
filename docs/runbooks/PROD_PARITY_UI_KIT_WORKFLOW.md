@@ -120,3 +120,9 @@ Do not use hotfix/workspace-routing-export or old parity/design worktrees as imp
 
 Inspect the newly provided UI kit packet, compare it against the current prod-parity app, list visual/runtime deltas, implement only the needed delta, and verify with screenshots plus typecheck/build/tests.
 ```
+
+## Goal-Mode Autopilot
+
+For long UI parity or release-readiness loops, use `docs/runbooks/GOAL_MODE_RELEASE_AUTOPILOT.md`.
+
+The `/goal` prompt is the stop condition, not the implementation plan. It should name the exact views, workflows, checks, browser evidence, QA matrix updates, and residual-risk reporting required before an agent can call the task done.

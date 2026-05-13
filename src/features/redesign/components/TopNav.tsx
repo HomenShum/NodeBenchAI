@@ -35,6 +35,7 @@ interface TopNavProps {
   onOpenPalette: () => void;
   theme: "light" | "dark";
   onToggleTheme: () => void;
+  prototypeMode?: boolean;
 }
 
 interface NavItem {
@@ -58,6 +59,7 @@ export function TopNav({
   onOpenPalette,
   theme,
   onToggleTheme,
+  prototypeMode = false,
 }: TopNavProps) {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const { signIn } = useAuthActions();
@@ -88,6 +90,7 @@ export function TopNav({
     // RightInspector / MeSurface own the full identity story.
     return "NB";
   }, [isAuthenticated]);
+  const showAccountSlot = !prototypeMode && active !== "home";
 
   const onSignIn = () => {
     void signIn("anonymous").catch(() => undefined);
@@ -101,11 +104,12 @@ export function TopNav({
         display: "flex",
         alignItems: "center",
         gap: 16,
-        padding: "10px 20px",
-        height: 52,
+        padding: "8px 28px",
+        height: 46,
         borderBottom: "1px solid var(--rd-line-faint)",
         background: "var(--rd-paper)",
         flexShrink: 0,
+        zIndex: 20,
       }}
     >
       <button
@@ -116,41 +120,23 @@ export function TopNav({
         style={{
           display: "inline-flex",
           alignItems: "center",
-          gap: 9,
-          padding: "4px 8px",
+          gap: 0,
+          padding: 0,
           minWidth: 0,
+          flexShrink: 0,
           background: "transparent",
         }}
       >
         <span
-          aria-hidden="true"
           style={{
-            width: 24,
-            height: 24,
-            borderRadius: 6,
-            background: "var(--rd-accent)",
-            display: "grid",
-            placeItems: "center",
-            fontFamily: "var(--rd-font-mono)",
-            fontSize: 12,
+            fontSize: 15,
             fontWeight: 700,
-            color: "#fff",
-            lineHeight: 1,
-          }}
-        >
-          N
-        </span>
-        <span
-          style={{
-            fontSize: 13.5,
-            fontWeight: 590,
-            letterSpacing: "-0.01em",
+            letterSpacing: "-0.3px",
             color: "var(--rd-ink-strong)",
             whiteSpace: "nowrap",
           }}
         >
-          NodeBench{" "}
-          <span style={{ color: "var(--rd-accent-strong)" }}>AI</span>
+          Node<span style={{ color: "var(--rd-accent)" }}>Bench</span>
         </span>
       </button>
 
@@ -160,9 +146,9 @@ export function TopNav({
           display: "flex",
           alignItems: "center",
           gap: 2,
-          padding: 3,
+          padding: 0,
           borderRadius: "var(--rd-r-pill)",
-          background: "var(--rd-muted)",
+          background: "transparent",
         }}
       >
         {NAV.map((item) => {
@@ -177,14 +163,14 @@ export function TopNav({
               title={`${item.label} (Alt+${item.slot})`}
               className="rd-btn rd-btn--quiet"
               style={{
-                padding: "5px 12px",
-                minHeight: 28,
+                padding: "5px 10px",
+                minHeight: 26,
                 borderRadius: "var(--rd-r-pill)",
                 fontSize: 13,
-                fontWeight: isActive ? 590 : 510,
-                background: isActive ? "var(--rd-panel)" : "transparent",
-                color: isActive ? "var(--rd-ink-strong)" : "var(--rd-ink-mute)",
-                boxShadow: isActive ? "var(--rd-shadow-xs)" : "none",
+                fontWeight: isActive ? 590 : 500,
+                background: isActive ? "var(--rd-accent-soft)" : "transparent",
+                color: isActive ? "var(--rd-accent-strong)" : "var(--rd-ink-soft)",
+                boxShadow: "none",
               }}
             >
               {item.label}
@@ -193,44 +179,29 @@ export function TopNav({
         })}
       </nav>
 
-      <div style={{ flex: 1, display: "flex", justifyContent: "center", minWidth: 0 }}>
+      <div style={{ marginLeft: "auto", display: "flex", justifyContent: "flex-end", minWidth: 0 }}>
         <button
           type="button"
           onClick={onOpenPalette}
-          aria-label="Search reports, entities, inbox"
+          aria-label="Find a person, company, or action"
           aria-keyshortcuts="Meta+K Control+K"
           className="rd-btn rd-btn--quiet"
           data-rd-topnav-search
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: 8,
-            padding: "5px 10px 5px 12px",
-            minHeight: 30,
-            maxWidth: 420,
-            width: "100%",
-            borderRadius: "var(--rd-r-md)",
+            gap: 6,
+            padding: "5px 12px",
+            minHeight: 28,
+            width: prototypeMode ? 276 : 270,
+            borderRadius: "var(--rd-r-pill)",
             border: "1px solid var(--rd-line)",
             background: "var(--rd-panel)",
-            color: "var(--rd-ink-soft)",
-            fontSize: 12.5,
+            color: "var(--rd-ink-faint)",
+            fontSize: prototypeMode ? 11.5 : 12,
             justifyContent: "flex-start",
           }}
         >
-          <svg
-            width={14}
-            height={14}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.7}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
           <span
             style={{
               flex: 1,
@@ -240,7 +211,7 @@ export function TopNav({
               whiteSpace: "nowrap",
             }}
           >
-            Search reports, entities, inbox…
+            Find a person, company, or action
           </span>
           <kbd
             data-rd-topnav-kbd
@@ -255,12 +226,12 @@ export function TopNav({
               background: "var(--rd-muted)",
               border: "1px solid var(--rd-line-faint)",
               borderRadius: 4,
-              minWidth: 18,
-              justifyContent: "center",
-              lineHeight: 1.4,
-            }}
-          >
-            K
+            minWidth: 18,
+            justifyContent: "center",
+            lineHeight: 1.4,
+          }}
+        >
+            Ctrl K
           </kbd>
         </button>
       </div>
@@ -282,10 +253,12 @@ export function TopNav({
           title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           className="rd-btn rd-btn--quiet"
           style={{
-            width: 30,
-            height: 30,
+            width: 28,
+            height: 28,
             padding: 0,
-            borderRadius: 8,
+            borderRadius: "50%",
+            border: "1px solid var(--rd-line)",
+            background: "var(--rd-panel)",
             display: "grid",
             placeItems: "center",
             color: "var(--rd-ink-mute)",
@@ -303,7 +276,7 @@ export function TopNav({
           )}
         </button>
 
-        {isLoading ? (
+        {showAccountSlot && isLoading ? (
           <div
             aria-hidden="true"
             style={{
@@ -313,7 +286,7 @@ export function TopNav({
               background: "var(--rd-muted)",
             }}
           />
-        ) : initials ? (
+        ) : showAccountSlot && initials ? (
           <button
             type="button"
             aria-label="Account menu"
@@ -335,7 +308,7 @@ export function TopNav({
           >
             {initials}
           </button>
-        ) : (
+        ) : showAccountSlot ? (
           <button
             type="button"
             onClick={onSignIn}
@@ -349,7 +322,7 @@ export function TopNav({
           >
             Sign in
           </button>
-        )}
+        ) : null}
       </div>
     </header>
   );

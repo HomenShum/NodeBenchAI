@@ -70,6 +70,19 @@ export interface LiveArtifactsResult {
   briefFeatureCount: number;
 }
 
+const EMPTY_LIVE_ARTIFACTS: LiveArtifactsResult = {
+  isLoading: false,
+  isLive: false,
+  sourceLabel: "Live artifacts disabled",
+  metrics: [],
+  pulse: [],
+  publicResearch: [],
+  reports: [],
+  details: [],
+  archiveCount: 0,
+  briefFeatureCount: 0,
+};
+
 export interface LiveArtifactSourceRow {
   id: string;
   type: string;
@@ -913,23 +926,25 @@ function buildMetrics(stats: ArchiveStats | null, memory: DailyBriefMemory | nul
   ];
 }
 
-export function useLiveArtifacts(limit = 24): LiveArtifactsResult {
+export function useLiveArtifacts(limit = 24, options: { enabled?: boolean } = {}): LiveArtifactsResult {
+  const enabled = options.enabled ?? true;
   const archive = useQuery(
     liveArtifactApi.domains.social.linkedinArchiveQueries.getArchivedPosts,
-    { limit, dedupe: true } as Parameters<typeof useQuery>[1],
+    enabled ? ({ limit, dedupe: true } as Parameters<typeof useQuery>[1]) : "skip",
   ) as ArchivePostsResult | undefined;
 
   const archiveStats = useQuery(
     liveArtifactApi.domains.social.linkedinArchiveQueries.getArchiveStats,
-    { dedupe: true } as Parameters<typeof useQuery>[1],
+    enabled ? ({ dedupe: true } as Parameters<typeof useQuery>[1]) : "skip",
   ) as ArchiveStats | undefined;
 
   const latestMemory = useQuery(
     liveArtifactApi.domains.research.dailyBriefMemoryQueries.getLatestMemory,
-    {} as Parameters<typeof useQuery>[1],
+    enabled ? ({} as Parameters<typeof useQuery>[1]) : "skip",
   ) as DailyBriefMemory | null | undefined;
 
   return useMemo(() => {
+    if (!enabled) return EMPTY_LIVE_ARTIFACTS;
     const isLoading = archive === undefined || archiveStats === undefined || latestMemory === undefined;
     const posts = archive?.posts ?? [];
     const memory = latestMemory ?? null;
@@ -963,5 +978,5 @@ export function useLiveArtifacts(limit = 24): LiveArtifactsResult {
       archiveCount,
       briefFeatureCount,
     };
-  }, [archive, archiveStats, latestMemory, limit]);
+  }, [archive, archiveStats, enabled, latestMemory, limit]);
 }

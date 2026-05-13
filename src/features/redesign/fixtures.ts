@@ -329,6 +329,50 @@ export interface ChatTrace {
   durationMs?: number;
 }
 
+export interface ChatRuntimeArtifact {
+  id: string;
+  label: string;
+  status: string;
+  detail: string;
+  confidence?: number;
+  riskTier?: "low" | "medium" | "high";
+  costUsd?: number;
+}
+
+export interface ChatClaimCheck {
+  idx: number;
+  status: string;
+  method?: string;
+  source?: string;
+  detail?: string;
+  verified?: boolean;
+  validationError?: string;
+}
+
+export interface ChatRunMetrics {
+  runId?: string;
+  totalLatencyMs?: number;
+  totalTokens?: number;
+  estimatedCostUsd?: number;
+  paidCalls?: number;
+  sourceCount?: number;
+  verifiedSourceCount?: number;
+  toolCallCount?: number;
+  liveSearchCalls?: number;
+  memoryHitRate?: number;
+  sourceCacheHitRate?: number;
+  timeToFirstSourceMs?: number | null;
+  timeToFinalMs?: number;
+}
+
+export interface ChatRuntimeTrace {
+  boardState?: Record<string, unknown>;
+  contextCandidates?: ChatRuntimeArtifact[];
+  toolDecisions?: ChatRuntimeArtifact[];
+  claimChecks?: ChatClaimCheck[];
+  metrics?: ChatRunMetrics;
+}
+
 export interface ChatAnswer {
   shortAnswer: string;
   whyItMatters: string;
@@ -339,6 +383,7 @@ export interface ChatAnswer {
   paidCalls: number;
   fromMemory: boolean;
   trace: ChatTrace[];
+  runtime?: ChatRuntimeTrace;
 }
 
 export const sampleAnswer: ChatAnswer = {

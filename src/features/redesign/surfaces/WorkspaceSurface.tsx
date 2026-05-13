@@ -294,8 +294,8 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
               </button>
             )}
             <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "success", message: "Workspace link copied." })}>Share</button>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "success", message: "Export preview queued." })}>Export</button>
-            <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Refresh queued for this workspace." })}>Refresh</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "success", message: "Workspace export preview prepared locally." })}>Export preview</button>
+            <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Workspace refresh preview queued locally. Live refresh runs through Chat or scheduled agents." })}>Refresh preview</button>
           </div>
         </div>
 
@@ -648,9 +648,15 @@ function NotebookTab() {
   return (
     <div className="rd-stack" style={{ gap: 16, padding: "28px 32px", maxWidth: 760, overflow: "auto", height: "100%" }}>
       <div className="rd-row" style={{ gap: 8 }}>
-        <Pill tone="green"><span className="rd-dot rd-dot--live" />Saved · just now</Pill>
+        <Pill tone="green"><span className="rd-dot rd-dot--live" />Local draft · just now</Pill>
         <Pill>Public read-only mode</Pill>
-        <button className="rd-btn rd-btn--quiet rd-btn--sm" style={{ marginLeft: "auto" }}>Improve selection with AI</button>
+        <button
+          className="rd-btn rd-btn--quiet rd-btn--sm"
+          style={{ marginLeft: "auto" }}
+          onClick={() => showToast({ tone: "info", message: "Improve selection is a local notebook preview until a live artifact is selected." })}
+        >
+          Improve preview
+        </button>
       </div>
 
       <article className="rd-stack" style={{ gap: 14 }}>
@@ -988,8 +994,8 @@ function MapTab({
         <div className="rd-row--between rd-map-toolbar" style={{ position: "absolute", top: 16, left: 32, right: 32, zIndex: 2, gap: 10 }}>
           <Pill tone="blue">Top recommended flows</Pill>
           <div className="rd-row" style={{ gap: 6, flexWrap: "wrap" }}>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Map is filtered to the strongest live relationships." })}>Top flows</button>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Showing confidence >= 0.7 relationships." })}>Confidence &gt;= 0.7</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Top-flow filter preview applied to the local map view." })}>Top flows preview</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Confidence filter preview applied to the local map view." })}>Confidence preview</button>
             <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onOpenSources}>Sources</button>
             <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => onVerifySupport?.(selectedNode?.title ?? detail.title, selectedClaim)}>Verify support</button>
             <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={onOpenCards}>Open in Cards</button>
@@ -1058,7 +1064,7 @@ function MapTab({
         <Pill tone="blue">Map - wide-angle relationships</Pill>
         <div className="rd-row" style={{ gap: 6 }}>
           <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Open a live report to filter graph relationships." })}>Filter</button>
-          <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Confidence filtering needs a live artifact." })}>Confidence &gt;= 0.7</button>
+          <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Confidence filtering needs a live artifact." })}>Confidence preview</button>
           <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={onOpenCards}>Open in Cards</button>
         </div>
       </div>

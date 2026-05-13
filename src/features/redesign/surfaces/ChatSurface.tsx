@@ -8,6 +8,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { UniversalComposer, DEFAULT_TIERS, type RouterTier, type BatchTarget } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
 import { StreamingMarkdown } from "../components/StreamingMarkdown";
@@ -197,6 +198,8 @@ ${topSources || "- No source rows returned yet"}`;
 interface ChatSurfaceProps {
   contextLabel?: string;
   workspaceDetail?: LiveArtifactDetail;
+  initialPrompt?: string;
+  onActiveContextChange?: (detail: LiveArtifactDetail | null) => void;
 }
 
 interface Turn {
@@ -307,64 +310,6 @@ function traceToToolCalls(trace: ChatAnswer["trace"]): ToolCall[] {
   }));
 }
 
-const STARTER_ANSWER: ChatAnswer = {
-  shortAnswer:
-    "NodeBench turns one question into a reusable report with claims [1], source rows [2], notebook blocks, and a next action [3].",
-  whyItMatters:
-    "The important shift is not a one-off answer. The useful artifact is the reusable entity memory [1] that can be reviewed, exported, and multiplied across a list [2].",
-  evidence: [
-    { idx: 1, quote: "Live artifacts hydrate from Convex when available.", source: "NodeBench runtime" },
-    { idx: 2, quote: "Reports preserve notebook, claim, source, and follow-up state.", source: "Redesign route contract" },
-    { idx: 3, quote: "The composer can run a question once or multiply it across a universe.", source: "Batch run workflow" },
-  ],
-  risks: [
-    "If no live artifact is selected, the user needs a clear starter path instead of a fake company sample.",
-    "Claim verification still needs visible source actions before export.",
-  ],
-  nextAction: "Ask about a real company, paste a list, or open the latest live brief from Reports.",
-  sourceCount: 3,
-  paidCalls: 0,
-  fromMemory: true,
-  trace: [
-    { step: "Start thread", status: "ok", detail: "Ready for entity, market, person, or list input", durationMs: 20 },
-    { step: "Router prepared", status: "ok", detail: "Single answer or batch run can start from the same composer", durationMs: 34 },
-    { step: "Report handoff", status: "info", detail: "A saved answer becomes notebook, claims, sources, and follow-ups", durationMs: 0 },
-  ],
-};
-
-const STREAMING_FOLLOWUP_MARKDOWN = `## Quick follow-up on reusable intelligence
-
-Based on the current workspace, three things are worth keeping visible:
-
-- The answer should preserve a notebook block, not disappear into chat history.
-- Claims need source rows attached before export.
-- The same rubric should be reusable across a list.
-
-\`\`\`text
-risk: weak sources should stay in review
-risk: batch outputs need visible approval rails
-\`\`\`
-
-> **Bottom line:** Create the report, preserve the evidence, then multiply the same judgment across the universe.
-
-[Open Reports →](/redesign/reports)`;
-
-const SAMPLE_TOOL_CALLS: ToolCall[] = [
-  { step: "Classify query", detail: "company_search · single entity", status: "ok", durationMs: 28, tool: "classify_query" },
-  { step: "Build context bundle", detail: "memory + prior reports", status: "ok", durationMs: 142, tool: "build_context_bundle", resultPreview: "{ mode: 'entity-intelligence', priorReports: 'available' }" },
-  { step: "Check live artifacts", detail: "daily briefs + archive rows", status: "ok", durationMs: 1840, tool: "load_live_artifacts", resultPreview: "reports · sources · claims · notebook blocks" },
-  { step: "Extract structured signals", detail: "Gemini 3 Flash", status: "ok", durationMs: 612, tool: "llm_extract" },
-  { step: "Assemble answer", detail: "claim · evidence · risks · next action", status: "ok", durationMs: 88, tool: "assemble_response" },
-];
-
-const NOW = Date.now();
-const SEED_TURNS: Turn[] = [
-  { id: "u1", role: "user", text: "Turn this research question into reusable entity intelligence.", createdAt: NOW - 4 * 60_000 },
-  { id: "a1", role: "assistant", packet: STARTER_ANSWER, tier: "auto", toolCalls: SAMPLE_TOOL_CALLS, createdAt: NOW - 4 * 60_000 + 3000 },
-  { id: "u2", role: "user", text: "What should happen after the answer?", createdAt: NOW - 30_000 },
-  { id: "a2", role: "assistant", markdown: STREAMING_FOLLOWUP_MARKDOWN, streaming: false, tier: "auto", createdAt: NOW - 25_000 },
-];
-
 function liveAnswer(detail: LiveArtifactDetail): ChatAnswer {
   const firstSection = detail.sections[0];
   const evidence = detail.sourceRows.slice(0, 4).map((source, index) => ({
@@ -417,8 +362,32 @@ ${bullets || `- ${detail.summary}`}
 [Open live workspace →](/redesign/workspace?report=${detail.id}&tab=brief)`;
 }
 
+function liveChatUnavailableMarkdown(reason: string, detail?: LiveArtifactDetail | null): string {
+  const context = detail
+    ? `Current live context is **${detail.title}** with ${detail.sourceCount} sources and ${detail.claimCount} claims.`
+    : "No live artifact context has loaded yet.";
+  return `## Live chat is not running
+
+${reason}
+
+${context}
+
+The UI is not inserting a showcase answer for this turn. Use the composer to start a Convex-backed chat run and stream tool events, scratchpad notes, evidence rows, and the final answer packet.`;
+}
+
 function buildSeedTurns(detail?: LiveArtifactDetail): Turn[] {
-  if (!detail) return SEED_TURNS;
+  if (!detail) {
+    return [
+      {
+        id: "a1",
+        role: "assistant",
+        markdown: liveChatUnavailableMarkdown("Waiting for Convex-backed live artifacts before seeding the thread."),
+        streaming: false,
+        tier: "auto",
+        createdAt: Date.now(),
+      },
+    ];
+  }
   const now = Date.now();
   return [
     { id: "u1", role: "user", text: `What is the latest read on ${detail.title}?`, createdAt: now - 4 * 60_000 },
@@ -502,20 +471,30 @@ function buildResearchStages(trace: ResearchTraceLike[] = [], complete = false):
   });
 }
 
-export function ChatSurface({ contextLabel = "Asking about: current context", workspaceDetail }: ChatSurfaceProps) {
+export function ChatSurface({
+  contextLabel = "Asking about: current context",
+  workspaceDetail,
+  initialPrompt,
+  onActiveContextChange,
+}: ChatSurfaceProps) {
+  const navigate = useNavigate();
   const liveArtifacts = useLiveArtifacts(24);
   const _rawLiveDetail = liveArtifacts.details[0];
   // Phase 1 — real LLM chat behind the composer for authenticated users.
   const chatRun = useRedesignChatRun();
+  const { isAuthenticated } = useConvexAuth();
   // Phase 4 — real reactions for inline correction + 👍/👎 toolbar.
   const recordReaction = useMutation(api.domains.redesign.agentRunFeedback.recordReaction);
   // Phase 5 — counterfactual probe re-run with masked source.
   const probeRun = useMutation(api.domains.redesign.chatRuns.probeRun);
-  // ?fresh=1 escape hatch: treat as if no live artifact is loaded (uses
-  // STARTER_ANSWER with inline [N] cites for the chat-sprints demo recorder).
+  // ?fresh=1 escape hatch: treat as if no live artifact is loaded and show the
+  // explicit live-chat unavailable state instead of seeded showcase content.
   const _skipLiveSeed = typeof window !== "undefined"
     && new URLSearchParams(window.location.search).has("fresh");
   const liveDetail = workspaceDetail ?? (_skipLiveSeed ? null : _rawLiveDetail);
+  useEffect(() => {
+    onActiveContextChange?.(liveDetail ?? null);
+  }, [liveDetail, onActiveContextChange]);
   const batchTargets = useMemo<BatchTarget[]>(() => {
     if (liveArtifacts.reports.length === 0) return [];
     return [
@@ -552,6 +531,12 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
   const [seedKey, setSeedKey] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const consumedInitialPromptRef = useRef<string | null>(null);
+  const turnIdCounterRef = useRef(0);
+  const nextTurnId = (prefix: "u" | "a") => {
+    turnIdCounterRef.current += 1;
+    return `${prefix}-${Date.now().toString(36)}-${turnIdCounterRef.current}`;
+  };
   const [ctx, setCtx] = useState(contextLabel);
   const [tier, setTier] = useState<RouterTier>("auto");
   // Sprint S2: optional live batch monitor. Supporting telemetry is isolated
@@ -563,6 +548,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
 
   // Sprint 4 P1.6 — pinned items carried into the next turn's context.
   const [pinned, setPinned] = useState<Array<{ id: string; label: string; tier: RouterTier; sourceCount: number }>>([]);
+  const [followUps, setFollowUps] = useState<Array<{ id: string; label: string; reportTitle?: string; createdAt: number }>>([]);
   const pinClaim = (turnId: string, packet: ChatAnswer, packetTier: RouterTier) => {
     const id = `${turnId}-${Date.now()}`;
     const label = packet.shortAnswer.length > 80
@@ -577,13 +563,44 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
   const unpinClaim = (id: string) => {
     setPinned((cur) => cur.filter((p) => p.id !== id));
   };
+  const addFollowUp = (turnId: string, packet: ChatAnswer) => {
+    const label = packet.nextAction || packet.shortAnswer;
+    const id = `${turnId}-followup-${Date.now()}`;
+    setFollowUps((cur) => [
+      ...cur,
+      {
+        id,
+        label: label.length > 120 ? `${label.slice(0, 117)}...` : label,
+        reportTitle: liveDetail?.title,
+        createdAt: Date.now(),
+      },
+    ]);
+    showToast({
+      tone: "success",
+      message: "Follow-up queued in this chat. Open Inbox to promote it to shared workflow state.",
+      action: {
+        label: "Open Inbox",
+        onClick: () => navigate("/redesign/inbox"),
+      },
+    });
+  };
+  const removeFollowUp = (id: string) => {
+    setFollowUps((cur) => cur.filter((item) => item.id !== id));
+  };
+  const openCurrentReport = () => {
+    if (liveDetail?.id) {
+      navigate(`/redesign/workspace?report=${encodeURIComponent(liveDetail.id)}&tab=brief`);
+      return;
+    }
+    navigate("/redesign/reports");
+  };
 
   // Phase 5 — real counterfactual probe via the probeRun mutation.
   // Looks up the original run, kicks off a new run with the masked
   // source flagged unreliable in the system prompt, inserts a new
   // assistant turn that subscribes to the probed run's stream.
   const probeWithoutSourceReal = (originalTurnId: string, originalRunId: string, maskedIdx: number) => {
-    const probeId = `a${turns.length + 1}`;
+    const probeId = nextTurnId("a");
     setHasUserInteracted(true);
     setTurns((prev) => [
       ...prev,
@@ -669,21 +686,29 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
         out[idx] = next;
         return out;
       }
-      // Error → fall back to a fixture so the user isn't left staring.
+      if (real.packet?.runtime) {
+        live.packet = real.packet;
+      }
+      // Error: keep the turn honest and avoid inserting a synthetic answer.
       if (real.status === "error") {
         const next = {
           ...live,
           thinking: false,
-          packet: liveDetail ? liveAnswer(liveDetail) : STARTER_ANSWER,
-          toolCalls: liveDetail ? liveToolCalls(liveDetail) : SAMPLE_TOOL_CALLS,
+          packet: undefined,
+          markdown: liveChatUnavailableMarkdown(
+            real.errorMessage
+              ? `The Convex-backed chat run failed: ${real.errorMessage.slice(0, 180)}`
+              : "The Convex-backed chat run failed before producing a final packet.",
+            liveDetail,
+          ),
         };
         const out = [...prev];
         out[idx] = next;
         showToast({
           tone: "warning",
           message: real.errorMessage
-            ? `Real chat failed: ${real.errorMessage.slice(0, 100)}. Showing showcase fallback.`
-            : "Real chat failed — showing showcase fallback.",
+            ? `Real chat failed: ${real.errorMessage.slice(0, 100)}. No fixture answer inserted.`
+            : "Real chat failed. No fixture answer inserted.",
         });
         return out;
       }
@@ -696,20 +721,33 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
 
   const sendMessage = (text: string, submittedTier: RouterTier) => {
     const now = Date.now();
-    const userId = `u${turns.length + 1}`;
-    const assistantId = `a${turns.length + 1}`;
+    const userId = nextTurnId("u");
+    const assistantId = nextTurnId("a");
+    const canRunLiveChat = chatRun.state.available && !_skipLiveSeed;
+    const unavailableReason = _skipLiveSeed
+      ? "The `fresh=1` diagnostic flag disables live chat for this route."
+      : "NodeBench is still preparing the Convex-backed chat runtime.";
     setHasUserInteracted(true);
     setTurns((prev) => [
       ...prev,
       { id: userId, role: "user", text, createdAt: now },
-      { id: assistantId, role: "assistant", thinking: true, tier: submittedTier, createdAt: now + 50 },
+      canRunLiveChat
+        ? { id: assistantId, role: "assistant", thinking: true, tier: submittedTier, createdAt: now + 50 }
+        : {
+            id: assistantId,
+            role: "assistant",
+            markdown: liveChatUnavailableMarkdown(unavailableReason, liveDetail),
+            streaming: false,
+            tier: submittedTier,
+            createdAt: now + 50,
+          },
     ]);
     // Phase 2: if real chat is available, kick off a streaming run via
     // Convex scheduler. submit() returns a runId in <100ms; the projected
     // run state (packet + scratchpad + tool calls + grounding) arrives
     // reactively via Convex queries. The effect below watches for
     // status === "complete" to commit the final packet onto this turn.
-    if (chatRun.state.available && !_skipLiveSeed) {
+    if (canRunLiveChat) {
       // Phase 5 — carry pinned claims forward as hard context in the
       // system prompt. Each pin has a short label (the answer's tier +
       // shortAnswer) plus the source URL if grounded.
@@ -724,36 +762,97 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
               : t,
           ));
         } else {
-          // Submit failed (e.g. auth lost) — fall back to fixture
+          // Submit failed: keep the assistant turn explicit instead of
+          // fabricating a fallback answer packet.
           setTurns((prev) => prev.map((t) =>
             t.id === assistantId
-              ? { ...t, thinking: false, toolCalls: liveDetail ? liveToolCalls(liveDetail) : SAMPLE_TOOL_CALLS, packet: liveDetail ? liveAnswer(liveDetail) : STARTER_ANSWER }
+              ? {
+                  ...t,
+                  thinking: false,
+                  toolCalls: undefined,
+                  packet: undefined,
+                  markdown: liveChatUnavailableMarkdown(
+                    chatRun.state.error ?? "The Convex-backed chat run could not be started.",
+                    liveDetail,
+                  ),
+                }
               : t,
           ));
         }
       });
       return;
     }
-    // Showcase / fixture path
-    window.setTimeout(() => {
-      setTurns((prev) => prev.map((t) =>
-        t.id === assistantId
-          ? { ...t, thinking: false, toolCalls: liveDetail ? liveToolCalls(liveDetail) : SAMPLE_TOOL_CALLS, packet: liveDetail ? liveAnswer(liveDetail) : STARTER_ANSWER }
-          : t,
-      ));
-    }, 2200);
+    showToast({
+      tone: "info",
+      message: _skipLiveSeed
+        ? "Live chat was not started because fresh=1 disables the run path."
+        : "Live chat was not started. The Convex-backed runtime is still preparing.",
+    });
   };
 
+  useEffect(() => {
+    const prompt = initialPrompt?.trim();
+    if (!prompt || consumedInitialPromptRef.current === prompt) return;
+    if (!chatRun.state.available && !_skipLiveSeed) return;
+    consumedInitialPromptRef.current = prompt;
+    sendMessage(prompt, tier);
+  // sendMessage intentionally stays outside the dependency list because it is
+  // scoped to the current render state and this effect is keyed by URL prompt
+  // plus live-run availability to avoid consuming q= while Convex auth loads.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatRun.state.available, initialPrompt, _skipLiveSeed, tier]);
+
   const regenerate = (turnId: string, _tierOverride?: "free" | "fast" | "deep") => {
+    const targetIndex = turns.findIndex((t) => t.id === turnId);
+    const prompt = (() => {
+      for (let i = targetIndex - 1; i >= 0; i--) {
+        if (turns[i].role === "user" && turns[i].text?.trim()) return turns[i].text.trim();
+      }
+      return "";
+    })();
+    const requestedTier = (_tierOverride ?? turns[targetIndex]?.tier ?? tier) as RouterTier;
     setTurns((prev) => prev.map((t) =>
       t.id === turnId
         ? { ...t, thinking: true, packet: undefined, markdown: undefined, toolCalls: undefined, createdAt: Date.now() }
         : t,
     ));
+    if (prompt && chatRun.state.available && !_skipLiveSeed) {
+      const pinnedClaims = pinned.length > 0
+        ? pinned.map((p) => ({ text: p.label || "pinned claim", source: undefined as string | undefined }))
+        : undefined;
+      void chatRun.submit(prompt, requestedTier, liveDetail?.id, pinnedClaims).then((runId) => {
+        setTurns((prev) => prev.map((t) =>
+          t.id === turnId
+            ? runId
+              ? { ...t, chatRunId: runId, tier: requestedTier }
+              : {
+                  ...t,
+                  thinking: false,
+                  markdown: liveChatUnavailableMarkdown(
+                    chatRun.state.error ?? "Regenerate could not start a Convex-backed chat run.",
+                    liveDetail,
+                  ),
+                }
+            : t,
+        ));
+      });
+      return;
+    }
     window.setTimeout(() => {
       setTurns((prev) => prev.map((t) =>
         t.id === turnId
-          ? { ...t, thinking: false, toolCalls: liveDetail ? liveToolCalls(liveDetail) : SAMPLE_TOOL_CALLS, packet: liveDetail ? liveAnswer(liveDetail) : STARTER_ANSWER }
+          ? {
+              ...t,
+              thinking: false,
+              toolCalls: undefined,
+              packet: undefined,
+              markdown: liveChatUnavailableMarkdown(
+                prompt
+                  ? "Regenerate needs the Convex-backed chat runtime to be ready."
+                  : "Regenerate needs an original user prompt for this turn.",
+                liveDetail,
+              ),
+            }
           : t,
       ));
     }, 1800);
@@ -875,7 +974,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
             recentThread={liveDetail
               ? { id: liveDetail.id, entity: liveDetail.title, lastMessage: liveDetail.primaryAction, minutesAgo: 1 }
               : undefined}
-            onResume={() => { /* no-op in showcase */ }}
+            onResume={(threadId) => navigate(`/redesign/workspace?report=${encodeURIComponent(threadId)}&tab=chat`)}
           />
         ) : (
           turns.map((t) => {
@@ -890,6 +989,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
                     title="Live research run"
                     stages={buildResearchStages(t.toolCalls ?? [], false)}
                   />
+                  <RuntimeBoard runtime={t.packet?.runtime} />
                 </div>
               );
               if (t.markdown) return (
@@ -913,10 +1013,21 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
                   onRegenerate={(tierOverride) => regenerate(t.id, tierOverride)}
                   onBranch={() => branchFromTurn(t.id)}
                   onPin={() => pinClaim(t.id, t.packet!, t.tier ?? "auto")}
-                  onCompare={() => setCompareTurnId(t.id)}
+                  onAddFollowUp={() => addFollowUp(t.id, t.packet!)}
+                  onOpenReport={openCurrentReport}
+                  onCompare={t.chatRunId ? () => setCompareTurnId(t.id) : undefined}
                   onShare={() => shareAnswer(t.id, t.packet!, t.tier ?? "auto", t.runHash)}
                   onProbeRunWithoutSource={t.chatRunId ? (idx) => probeWithoutSourceReal(t.id, t.chatRunId!, idx) : undefined}
                   onReact={t.chatRunId ? (kind) => {
+                    if (!isAuthenticated) {
+                      showToast({
+                        tone: "info",
+                        message: kind === "up"
+                          ? "Marked helpful locally. Sign in to persist this to the eval flywheel."
+                          : "Marked not helpful locally. Sign in to persist this to the eval flywheel.",
+                      });
+                      return;
+                    }
                     void recordReaction({
                       runId: t.chatRunId!,
                       runSource: "redesign-chat",
@@ -931,7 +1042,15 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
                 />
               );
             })();
-            return <div key={t.id} data-turn-id={t.id}>{inner}</div>;
+            return (
+              <div
+                key={t.id}
+                data-turn-id={t.id}
+                data-chat-run-id={t.chatRunId || undefined}
+              >
+                {inner}
+              </div>
+            );
           })
         )}
       </div>
@@ -971,6 +1090,26 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
           </ul>
         </div>
       )}
+      {followUps.length > 0 && (
+        <div className="rd-pinned-bar" role="region" aria-label="Queued follow-ups from this chat">
+          <span className="rd-eyebrow rd-pinned-bar__eyebrow">Follow-ups queued · {followUps.length}</span>
+          <ul className="rd-pinned-bar__list">
+            {followUps.map((item) => (
+              <li key={item.id} className="rd-pinned-chip">
+                <span className="rd-pinned-chip__tier">next</span>
+                <span className="rd-pinned-chip__label" title={item.label}>{item.label}</span>
+                {item.reportTitle && <span className="rd-pinned-chip__count">{item.reportTitle}</span>}
+                <button
+                  type="button"
+                  className="rd-pinned-chip__close"
+                  aria-label="Remove queued follow-up"
+                  onClick={() => removeFollowUp(item.id)}
+                >×</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="rd-composer-dock" style={{ borderTop: "1px solid var(--rd-line-faint)" }}>
         <div style={{ maxWidth: 920, margin: "0 auto" }}>
           <UniversalComposer
@@ -988,7 +1127,15 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
             onStop={() => {
               setTurns((prev) => prev.map((t) =>
                 t.thinking || t.streaming
-                  ? { ...t, thinking: false, streaming: false, markdown: t.markdown ? t.markdown + "\n\n_(stopped by user)_" : t.markdown, packet: t.packet ?? (liveDetail ? liveAnswer(liveDetail) : STARTER_ANSWER) }
+                  ? {
+                      ...t,
+                      thinking: false,
+                      streaming: false,
+                      markdown: t.markdown
+                        ? `${t.markdown}\n\n_(stopped by user)_`
+                        : liveChatUnavailableMarkdown("Stopped before a live answer packet was available.", liveDetail),
+                      packet: t.packet,
+                    }
                   : t,
               ));
             }}
@@ -1000,7 +1147,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
           When authenticated, save persists the correction as a 👎 reaction
           with note via recordReaction (eval-flywheel signal). */}
       <InlineCorrection
-        onSave={chatRun.state.available && chatRun.state.run?.runId ? (
+        onSave={isAuthenticated && chatRun.state.run?.runId ? (
           async (original, correction) => {
             try {
               await recordReaction({
@@ -1034,6 +1181,13 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
           onClose={() => setCompareTurnId(null)}
           onPick={(variant, variantBRunId) => {
             setCompareTurnId(null);
+            if (!isAuthenticated) {
+              showToast({
+                tone: "info",
+                message: `Variant ${variant} selected locally. Sign in to persist A/B feedback to the eval flywheel.`,
+              });
+              return;
+            }
             const writes: Array<Promise<unknown>> = [];
             if (compareTurn.chatRunId) {
               writes.push(recordReaction({
@@ -1041,7 +1195,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
                 runSource: "redesign-chat",
                 turnId: compareTurn.id,
                 reaction: variant === "A" ? "up" : "down",
-                note: `[ab_compare] picked ${variant}; original=A; variantB=${variantBRunId ?? "fixture"}`,
+                note: `[ab_compare] picked ${variant}; original=A; variantB=${variantBRunId ?? "not-started"}`,
               }));
             }
             if (variantBRunId) {
@@ -1050,7 +1204,7 @@ export function ChatSurface({ contextLabel = "Asking about: current context", wo
                 runSource: "redesign-chat",
                 turnId: undefined,
                 reaction: variant === "B" ? "up" : "down",
-                note: `[ab_compare] picked ${variant}; variantB=B; original=${compareTurn.chatRunId ?? "fixture"}`,
+                note: `[ab_compare] picked ${variant}; variantB=B; original=${compareTurn.chatRunId ?? "not-recorded"}`,
               }));
             }
             if (writes.length === 0) {
@@ -1154,10 +1308,9 @@ function OpenQuestionsTray({ questions }: { questions: OpenQuestion[] }) {
  * Listens for text selections inside `.rd-chat-msg__body` (assistant
  * messages only). When the user highlights 5–300 chars, a floating
  * "Correct →" bubble appears at the selection's bounding rect. Clicking
- * opens an inline edit dialog pre-filled with the selection. Saving
- * fires a toast and (today) is no-op; once chat is live-wired this calls
- * `proposeMemoryPatch` from convex/domains/operatorProfile/manifest.ts
- * (PR #239) so the correction lands in /redesign/me's Memory Update Inbox.
+ * opens an inline edit dialog pre-filled with the selection. Saving persists
+ * against the current run when the user is authenticated; otherwise it gives
+ * an explicit sign-in prompt instead of pretending the correction was stored.
  */
 interface InlineCorrectionProps {
   /** Phase 4 — when set, save calls a real mutation against this run. */
@@ -1255,7 +1408,8 @@ function InlineCorrection({ onSave }: InlineCorrectionProps = {}) {
       }
       return;
     }
-    // Showcase fallback — anonymous user / fixture mode
+    // Unsigned persistence fallback: the correction still stays visible locally,
+    // but it is not written to the long-term feedback ledger.
     showToast({
       tone: "info",
       message: "Sign in to persist corrections to memory.",
@@ -1355,12 +1509,10 @@ function ABCompareModal({
   }, [onClose]);
 
   // Phase 7 — real Variant B parallel run.
-  // When the modal opens AND the user is authenticated AND a prompt was
-  // captured for the original answer, kick off a second startChat call
-  // and subscribe to its run row + events so the modal renders the
-  // streaming Variant B in real time. Anonymous / fixture users see the
-  // existing string-mutation fallback (Variant A's shortAnswer + " — high confidence.").
-  const { isAuthenticated } = useConvexAuth();
+  // When the modal opens and the original prompt was captured, kick off a
+  // second startChat call and subscribe to its run row + events so the modal
+  // renders the streaming Variant B in real time.
+  const { isLoading: authLoading } = useConvexAuth();
   const startChat = useMutation(api.domains.redesign.chatRuns.startChat);
   const [variantBRunId, setVariantBRunId] = useState<string | null>(null);
   const [variantBError, setVariantBError] = useState<string | null>(null);
@@ -1378,7 +1530,7 @@ function ABCompareModal({
   // a genuinely different draft.
   useEffect(() => {
     if (variantBRunId) return;
-    if (!isAuthenticated || !prompt || prompt.trim().length < 3) return;
+    if (authLoading || !prompt || prompt.trim().length < 3) return;
     let cancelled = false;
     void startChat({ prompt, tier: normalizeRouterTierForChatRun(tier), contextRef: undefined })
       .then((runId) => {
@@ -1388,7 +1540,7 @@ function ABCompareModal({
         if (!cancelled) setVariantBError((err?.message || String(err)).slice(0, 200));
       });
     return () => { cancelled = true; };
-  }, [isAuthenticated, prompt, tier, startChat, variantBRunId]);
+  }, [authLoading, prompt, tier, startChat, variantBRunId]);
 
   // Project Variant B from streamed sections so it renders progressively.
   const variantBPacket: { shortAnswer: string; whyItMatters: string } | null = (() => {
@@ -1412,8 +1564,8 @@ function ABCompareModal({
     };
   })();
 
-  const variantBStatus: "fixture" | "starting" | "streaming" | "complete" | "error" =
-    !isAuthenticated || !prompt ? "fixture"
+  const variantBStatus: "blocked" | "starting" | "streaming" | "complete" | "error" =
+    !prompt || prompt.trim().length < 3 ? "blocked"
     : variantBError ? "error"
     : !variantBRunId ? "starting"
     : variantBRow?.status === "complete" ? "complete"
@@ -1422,15 +1574,11 @@ function ABCompareModal({
 
   const tierMeta = DEFAULT_TIERS.find((t) => t.id === tier) ?? DEFAULT_TIERS[0];
 
-  // Fixture-mode fallback (anonymous users)
-  const fixtureBAnswer = packet.shortAnswer.replace(/\.$/, "") + " — high confidence.";
-  const fixtureBWhy = packet.whyItMatters;
-
-  const showShort = variantBStatus === "fixture"
-    ? fixtureBAnswer
+  const showShort = variantBStatus === "blocked"
+    ? "Variant B needs the original prompt to start a real parallel run."
     : variantBPacket?.shortAnswer || (variantBStatus === "streaming" ? "Streaming Variant B…" : variantBStatus === "starting" ? "Starting parallel run…" : variantBStatus === "error" ? `Error: ${variantBError ?? variantBRow?.errorMessage ?? "unknown"}` : "");
-  const showWhy = variantBStatus === "fixture"
-    ? fixtureBWhy
+  const showWhy = variantBStatus === "blocked"
+    ? "No fixture comparison is generated. Re-run from a turn with a captured user prompt."
     : variantBPacket?.whyItMatters || "";
 
   return (
@@ -1439,8 +1587,8 @@ function ABCompareModal({
         <header className="rd-ab-dialog__head">
           <span className="rd-eyebrow">A/B compare · {tierMeta.label} tier</span>
           <span className="rd-ab-dialog__hint">
-            {variantBStatus === "fixture"
-              ? "Same prompt, two parallel runs. Pick a winner."
+            {variantBStatus === "blocked"
+              ? "Original prompt unavailable — no fixture Variant B generated."
               : variantBStatus === "complete"
               ? "Both runs complete — pick the winner. Loser becomes a teach-me example."
               : variantBStatus === "streaming"
@@ -1480,7 +1628,7 @@ function ABCompareModal({
                   : variantBStatus === "streaming" ? "parallel run · streaming…"
                   : variantBStatus === "starting" ? "parallel run · starting…"
                   : variantBStatus === "error" ? "parallel run · error"
-                  : "fixture mode"}
+                  : "blocked"}
               </span>
             </header>
             <div className="rd-eyebrow">Short answer</div>
@@ -1491,7 +1639,7 @@ function ABCompareModal({
               type="button"
               className="rd-btn rd-btn--primary rd-btn--sm rd-ab-variant__pick"
               onClick={() => onPick("B", variantBRunId ?? undefined)}
-              disabled={variantBStatus === "starting" || variantBStatus === "error" || (variantBStatus === "streaming" && !variantBPacket?.shortAnswer)}
+              disabled={variantBStatus === "blocked" || variantBStatus === "starting" || variantBStatus === "error" || (variantBStatus === "streaming" && !variantBPacket?.shortAnswer)}
             >Pick B</button>
           </article>
         </div>
@@ -1614,10 +1762,7 @@ function StreamingAnswer({
         <MessageActions
           copyText={text}
           onRegenerate={onRegenerate}
-          onPin={() => { /* no-op showcase */ }}
           onBranch={onBranch}
-          onWhy={() => { /* no-op showcase */ }}
-          onReact={() => { /* no-op showcase */ }}
         />
       </article>
     </div>
@@ -1634,6 +1779,8 @@ function AnswerPacket({
   onRegenerate,
   onBranch,
   onPin,
+  onAddFollowUp,
+  onOpenReport,
   onCompare,
   onShare,
   onReact,
@@ -1648,6 +1795,8 @@ function AnswerPacket({
   onRegenerate?: (tierOverride?: "free" | "fast" | "deep") => void;
   onBranch?: () => void;
   onPin?: () => void;
+  onAddFollowUp?: () => void;
+  onOpenReport?: () => void;
   onCompare?: () => void;
   onShare?: () => void;
   /** Phase 5 — when set, the 👍/👎 buttons persist via recordReaction. */
@@ -1662,6 +1811,8 @@ function AnswerPacket({
   // Sprint 2 P0.3 — counterfactual probe state
   const [maskedIdx, setMaskedIdx] = useState<number | null>(null);
   const [probeMenu, setProbeMenu] = useState<{ idx: number; x: number; y: number } | null>(null);
+  const [traceOpen, setTraceOpen] = useState(false);
+  const traceRef = useRef<HTMLDetailsElement | null>(null);
 
   // Wire citation interactivity: hover [N] in body → highlight matching source row in evidence list
   const handleCiteEnter = (idx: number) => setHoverCite(idx);
@@ -1699,6 +1850,12 @@ function AnswerPacket({
   const restoreProbe = () => {
     setMaskedIdx(null);
     showToast({ tone: "success", message: "Source restored. Original answer in view." });
+  };
+  const showTrace = () => {
+    setTraceOpen(true);
+    window.setTimeout(() => {
+      traceRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }, 0);
   };
   // Dismiss probe menu on outside click / Escape
   useEffect(() => {
@@ -1739,6 +1896,7 @@ function AnswerPacket({
           title="Research run"
           stages={buildResearchStages(toolCalls ?? packet.trace, true)}
         />
+        <RuntimeBoard runtime={packet.runtime} />
 
         {/* Inline tool-call cards (parity-studio pattern) — render the agent's actual reasoning.
             Phase 7 — each card wrapped in an error boundary so one failed
@@ -1868,13 +2026,13 @@ function AnswerPacket({
         <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)", marginBottom: 4 }}>Next action</div>
         <p className="rd-body" style={{ margin: 0, color: "var(--rd-ink)" }}>{packet.nextAction}</p>
         <div className="rd-row" style={{ gap: 6, marginTop: 10 }}>
-          <button className="rd-btn rd-btn--primary rd-btn--sm">Add to follow-ups</button>
-          <button className="rd-btn rd-btn--quiet rd-btn--sm">Open {reportTitle ?? "report"}</button>
+          <button type="button" className="rd-btn rd-btn--primary rd-btn--sm" onClick={onAddFollowUp}>Add to follow-ups</button>
+          <button type="button" className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onOpenReport}>Open {reportTitle ?? "report"}</button>
         </div>
       </section>
 
       {/* Trace */}
-      <details>
+      <details ref={traceRef} open={traceOpen} onToggle={(e) => setTraceOpen((e.currentTarget as HTMLDetailsElement).open)}>
         <summary className="rd-eyebrow" style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: 6 }}>
           <span>How we got this answer</span>
           <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)" }}>{packet.trace.length} steps</span>
@@ -1902,7 +2060,7 @@ function AnswerPacket({
         onRegenerate={onRegenerate}
         onPin={onPin}
         onBranch={onBranch}
-        onWhy={() => { /* future: opens trace modal */ }}
+        onWhy={showTrace}
         onReact={onReact}
         onCompare={onCompare}
         onShare={onShare}
@@ -1988,6 +2146,89 @@ function WorkingNotes({ markdown }: { markdown: string }) {
  * The full feature would re-run the model with that source filtered out and
  * diff the answers; today we surface the affordance + a degradation note.
  */
+function RuntimeBoard({ runtime }: { runtime?: ChatAnswer["runtime"] }) {
+  const contextCandidates = runtime?.contextCandidates ?? [];
+  const toolDecisions = runtime?.toolDecisions ?? [];
+  const claimChecks = runtime?.claimChecks ?? [];
+  const metrics = runtime?.metrics;
+  const boardState = runtime?.boardState ?? {};
+  if (contextCandidates.length === 0 && toolDecisions.length === 0 && claimChecks.length === 0 && !metrics) {
+    return null;
+  }
+  const goal = typeof boardState.goal === "string" ? boardState.goal.replace(/_/g, " ") : "answer with cited research";
+  const entity = typeof boardState.entity === "string" ? boardState.entity : "no entity locked";
+  const targetReport = typeof boardState.targetReport === "string" ? boardState.targetReport : "no report selected";
+  return (
+    <details className="rd-runtime-board" data-testid="chat-runtime-board" open>
+      <summary className="rd-runtime-board__summary">
+        <span>
+          <span className="rd-eyebrow">Runtime board</span>
+          <span className="rd-runtime-board__title">{goal}</span>
+        </span>
+        <span className="rd-runtime-board__meta">
+          {contextCandidates.length} context · {toolDecisions.length} decisions · {claimChecks.length} checks
+        </span>
+      </summary>
+      <div className="rd-runtime-board__body">
+        <div className="rd-runtime-board__strip">
+          <RuntimeMetric label="Entity" value={entity} />
+          <RuntimeMetric label="Target" value={targetReport} />
+          <RuntimeMetric label="Cost" value={formatUsd(metrics?.estimatedCostUsd)} />
+          <RuntimeMetric label="Latency" value={formatMs(metrics?.totalLatencyMs ?? metrics?.timeToFinalMs)} />
+          <RuntimeMetric label="Memory hit" value={formatPct(metrics?.memoryHitRate)} />
+        </div>
+        <RuntimeArtifactTable title="Context candidates" rows={contextCandidates} />
+        <RuntimeArtifactTable title="Tool decisions" rows={toolDecisions} />
+        {claimChecks.length > 0 && (
+          <section className="rd-runtime-table">
+            <div className="rd-runtime-table__title">Claim checks</div>
+            <div className="rd-runtime-table__rows">
+              {claimChecks.slice(0, 6).map((row, index) => (
+                <div key={`${row.idx}-${row.status}-${index}`} className="rd-runtime-row">
+                  <span className="rd-runtime-row__status" data-status={row.verified === false ? "blocked" : row.status}>{row.status}</span>
+                  <span className="rd-runtime-row__main">Source [{row.idx}]</span>
+                  <span className="rd-runtime-row__detail">{row.validationError ?? row.detail ?? row.method ?? "verification queued"}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function RuntimeArtifactTable({ title, rows }: { title: string; rows: NonNullable<ChatAnswer["runtime"]>["contextCandidates"] }) {
+  if (!rows || rows.length === 0) return null;
+  return (
+    <section className="rd-runtime-table">
+      <div className="rd-runtime-table__title">{title}</div>
+      <div className="rd-runtime-table__rows">
+        {rows.map((row) => (
+          <div key={row.id} className="rd-runtime-row">
+            <span className="rd-runtime-row__status" data-status={row.status}>{row.status}</span>
+            <span className="rd-runtime-row__main">{row.label}</span>
+            <span className="rd-runtime-row__detail">
+              {row.confidence !== undefined ? `${Math.round(row.confidence * 100)}% · ` : ""}
+              {row.riskTier ? `${row.riskTier} risk · ` : ""}
+              {row.detail}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RuntimeMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="rd-runtime-metric">
+      <span className="rd-runtime-metric__label">{label}</span>
+      <span className="rd-runtime-metric__value">{value}</span>
+    </span>
+  );
+}
+
 function ProbeBanner({ idx, onRestore }: { idx: number; onRestore: () => void }) {
   return (
     <div className="rd-probe-banner" role="status" aria-live="polite">
@@ -2012,11 +2253,30 @@ function ProbeBanner({ idx, onRestore }: { idx: number; onRestore: () => void })
  * Showcase rate: $0.005/sec (replace with real provider billing once chat is live-wired).
  */
 function formatTraceCost(packet: ChatAnswer): string {
+  if (packet.runtime?.metrics) {
+    const metrics = packet.runtime.metrics;
+    return `${formatMs(metrics.totalLatencyMs ?? metrics.timeToFinalMs)} · ${formatUsd(metrics.estimatedCostUsd)}`;
+  }
   const totalMs = packet.trace.reduce((sum, step) => sum + (step.durationMs ?? 0), 0);
   const timeStr = totalMs < 1000 ? `${totalMs}ms` : `${(totalMs / 1000).toFixed(1)}s`;
   const usd = (totalMs / 1000) * 0.005;
   const costStr = usd >= 0.01 ? `$${usd.toFixed(3)}` : `<$0.01`;
   return `${timeStr} · ${costStr}`;
+}
+
+function formatUsd(value: number | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "pending";
+  return value >= 0.01 ? `$${value.toFixed(3)}` : "<$0.01";
+}
+
+function formatMs(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "pending";
+  return value < 1000 ? `${Math.round(value)}ms` : `${(value / 1000).toFixed(1)}s`;
+}
+
+function formatPct(value: number | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "pending";
+  return `${Math.round(value * 100)}%`;
 }
 
 /**

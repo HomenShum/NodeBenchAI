@@ -1180,6 +1180,7 @@ import type * as domains_search_embedRowOnUpdate from "../domains/search/embedRo
 import type * as domains_search_embedSearchableText from "../domains/search/embedSearchableText.js";
 import type * as domains_search_federatedHelpers from "../domains/search/federatedHelpers.js";
 import type * as domains_search_federatedSearch from "../domains/search/federatedSearch.js";
+import type * as domains_search_federatedSearchCache from "../domains/search/federatedSearchCache.js";
 import type * as domains_search_fusion_actions from "../domains/search/fusion/actions.js";
 import type * as domains_search_fusion_adapters_arxivAdapter from "../domains/search/fusion/adapters/arxivAdapter.js";
 import type * as domains_search_fusion_adapters_braveAdapter from "../domains/search/fusion/adapters/braveAdapter.js";
@@ -2682,6 +2683,7 @@ declare const fullApi: ApiFromModules<{
   "domains/search/embedSearchableText": typeof domains_search_embedSearchableText;
   "domains/search/federatedHelpers": typeof domains_search_federatedHelpers;
   "domains/search/federatedSearch": typeof domains_search_federatedSearch;
+  "domains/search/federatedSearchCache": typeof domains_search_federatedSearchCache;
   "domains/search/fusion/actions": typeof domains_search_fusion_actions;
   "domains/search/fusion/adapters/arxivAdapter": typeof domains_search_fusion_adapters_arxivAdapter;
   "domains/search/fusion/adapters/braveAdapter": typeof domains_search_fusion_adapters_braveAdapter;
