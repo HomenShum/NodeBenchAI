@@ -151,6 +151,19 @@ function getPrototypeEntity(name = "Anthropic"): PrototypeReportEntity {
 
 type HomeV2QueueItem = [string, string, string, string];
 
+interface HomeV2BriefItem {
+  title: string;
+  body: string;
+  meta?: string;
+}
+
+interface HomeV2BriefSection {
+  eyebrow: string;
+  title: string;
+  body: string;
+  items: HomeV2BriefItem[];
+}
+
 interface HomeV2Model {
   editionItems: typeof editionItems;
   editionLine: string;
@@ -171,6 +184,9 @@ interface HomeV2Model {
   moreLabel: string;
   whatChangedTitle: string;
   whatChangedBody: string;
+  dailyBriefTitle: string;
+  dailyBriefSubtitle: string;
+  dailyBriefSections: HomeV2BriefSection[];
   agentMeta: string;
   agentLead: string;
   agentBody: string;
@@ -190,8 +206,147 @@ function monogram(value: string): string {
   return `${words[0][0]}${words[1][0]}`.toUpperCase();
 }
 
+function trimSentence(value: string | undefined, fallback: string, limit = 340): string {
+  const text = compact(value, fallback);
+  return text.length > limit ? `${text.slice(0, limit - 1).trim()}...` : text;
+}
+
+function briefItems(
+  items: Array<{ label?: string; body?: string; meta?: string } | undefined>,
+  limit = 3,
+): HomeV2BriefItem[] {
+  return items
+    .filter(Boolean)
+    .slice(0, limit)
+    .map((item) => ({
+      title: compact(item?.label, "Brief item"),
+      body: trimSentence(item?.body, "No detail attached yet.", 220),
+      meta: item?.meta,
+    }));
+}
+
+function fallbackBriefSections(): HomeV2BriefSection[] {
+  return [
+    {
+      eyebrow: "01 - What changed",
+      title: "Waiting for the live Daily Brief artifact.",
+      body: "NodeBench is loading the Convex-backed daily brief before it ranks changed facts, evidence, affected reports, and next actions.",
+      items: [],
+    },
+    {
+      eyebrow: "02 - So what",
+      title: "Impact summary will render from live memory.",
+      body: "This section stays explicit while the artifact loads so Home never substitutes fixture analysis for user-facing intelligence.",
+      items: [],
+    },
+    {
+      eyebrow: "03 - Now what",
+      title: "Next actions will appear after source-backed synthesis.",
+      body: "The live brief decides whether to open a report, verify sources, propose a notebook patch, or create a follow-up.",
+      items: [],
+    },
+    {
+      eyebrow: "04 - Reports touched",
+      title: "Reports touched by today's edition",
+      body: "The live edition lists exact reports affected once Convex returns artifacts.",
+      items: [],
+    },
+    {
+      eyebrow: "05 - Sources used",
+      title: "Sources used by the brief",
+      body: "Sources are shown as first-class evidence rows instead of hidden behind a summary.",
+      items: [],
+    },
+    {
+      eyebrow: "06 - Actions created",
+      title: "Actions created from the brief",
+      body: "Follow-ups, notebook patches, and inbox approvals appear here when the agent proposes them.",
+      items: [],
+    },
+  ];
+}
+
+function buildDailyBriefSections(liveArtifacts?: LiveArtifactsResult): {
+  title: string;
+  subtitle: string;
+  sections: HomeV2BriefSection[];
+} {
+  const detail = liveArtifacts?.details.find((item) => item.kind === "Daily Brief") ?? liveArtifacts?.details[0];
+  if (!detail) {
+    return {
+      title: "Daily Brief loading",
+      subtitle: "Waiting for the Convex-backed daily-brief artifact. No fixture brief is being shown.",
+      sections: fallbackBriefSections(),
+    };
+  }
+
+  const executive = detail.sections[0];
+  const signalSection = detail.sections.find((section) => /signal|act ii|what changed/i.test(section.title)) ?? detail.sections[1];
+  const actionSection = detail.sections.find((section) => /action|follow|act iii|next/i.test(section.title));
+  const reviewSection = detail.sections.find((section) => /review/i.test(section.title));
+  const sourceItems = detail.sourceRows.slice(0, 5).map((source) => ({
+    label: source.title,
+    body: source.excerpt || `${source.type} refreshed ${source.refreshed}.`,
+    meta: `${source.type} - reused ${source.reused}x${source.href ? " - openable" : ""}`,
+  }));
+  const reportItems = (liveArtifacts?.reports ?? []).slice(0, 5).map((report) => ({
+    label: report.entity,
+    body: report.description,
+    meta: `${report.claims} claims - ${report.sources} sources - ${report.followUps} follow-ups`,
+  }));
+  const actionItems = actionSection?.items?.length
+    ? actionSection.items
+    : reviewSection?.items?.length
+      ? reviewSection.items
+      : [{ label: "Promote verified signals", body: detail.primaryAction, meta: `${detail.followUps} follow-ups` }];
+
+  return {
+    title: detail.title,
+    subtitle: `${detail.claimCount} claims - ${detail.sourceCount} sources - ${detail.followUps} follow-ups - updated ${detail.updatedAt}`,
+    sections: [
+      {
+        eyebrow: "01 - What changed",
+        title: executive?.items?.[0]?.label ?? detail.title,
+        body: trimSentence(executive?.body ?? detail.summary, detail.summary, 520),
+        items: briefItems(executive?.items ?? [], 3),
+      },
+      {
+        eyebrow: "02 - So what",
+        title: signalSection?.title ?? "Signals worth understanding",
+        body: trimSentence(signalSection?.body, "These are the live daily-brief signals available to preserve as claims, notebook blocks, or follow-up tasks.", 520),
+        items: briefItems(signalSection?.items ?? [], 4),
+      },
+      {
+        eyebrow: "03 - Now what",
+        title: actionSection?.title ?? "Recommended next actions",
+        body: trimSentence(actionSection?.body ?? detail.primaryAction, detail.primaryAction, 520),
+        items: briefItems(actionItems, 4),
+      },
+      {
+        eyebrow: "04 - Reports touched",
+        title: `${Math.max(1, reportItems.length)} report${reportItems.length === 1 ? "" : "s"} touched by this edition`,
+        body: "These are the reusable report artifacts Home reads before asking the model to search again.",
+        items: briefItems(reportItems, 5),
+      },
+      {
+        eyebrow: "05 - Sources used",
+        title: `${detail.sourceCount} source${detail.sourceCount === 1 ? "" : "s"} used by the brief`,
+        body: "The daily brief is backed by source rows that can be opened, verified, or promoted into report evidence.",
+        items: briefItems(sourceItems, 5),
+      },
+      {
+        eyebrow: "06 - Actions created",
+        title: `${detail.followUps} follow-up${detail.followUps === 1 ? "" : "s"} or review item${detail.followUps === 1 ? "" : "s"} created`,
+        body: "Action items stay explicit so the user sees what NodeBench wants to do next and what still needs approval.",
+        items: briefItems(actionItems, 5),
+      },
+    ],
+  };
+}
+
 function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
   const hasLive = Boolean(liveArtifacts?.isLive);
+  const dailyBrief = buildDailyBriefSections(liveArtifacts);
   if (!liveArtifacts) {
     return {
       editionItems,
@@ -227,6 +382,9 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       moreLabel: "Show 23 more items",
       whatChangedTitle: "Anthropic raised valuation ceiling; Sequoia counter-bid changes cap table math",
       whatChangedBody: "Two material signals converged overnight that shift the fundraise calculus. Anthropic's updated enterprise pricing model prices the partnership tier above Q1 rates, while Sequoia's revised term sheet introduces a ratchet clause that changes dilution math before the board call.",
+      dailyBriefTitle: dailyBrief.title,
+      dailyBriefSubtitle: dailyBrief.subtitle,
+      dailyBriefSections: dailyBrief.sections,
       agentMeta: "Daily Edition · 4 signals · 7 reports · 12 sources",
       agentLead: "Three items matter most this morning.",
       agentBody: "Anthropic repriced enterprise tier +40% effective June 1, Sequoia added a full-ratchet clause to the Series C term sheet, and SMB churn crossed the 3% threshold for the first time since Q3.",
@@ -353,6 +511,9 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     moreLabel: hasLive ? `Show ${Math.max(0, reports.length + pulse.length - 8)} more items` : "Show live artifact status",
     whatChangedTitle: topPulse?.title ?? topReport?.entity ?? "Live artifact state",
     whatChangedBody: topPulse?.body ?? topReport?.description ?? actionBody,
+    dailyBriefTitle: dailyBrief.title,
+    dailyBriefSubtitle: dailyBrief.subtitle,
+    dailyBriefSections: dailyBrief.sections,
     agentMeta: editionLine,
     agentLead: hasLive ? "Live memory returned reusable context." : liveArtifacts.isLoading ? "Loading live memory now." : "No live artifacts returned yet.",
     agentBody: hasLive
@@ -1133,11 +1294,31 @@ export function HomeV2Surface({ onAsk, liveArtifacts }: HomeV2SurfaceProps) {
       <div className="rd-v2-show-more"><button>{model.moreLabel}</button></div>
 
       <div className="rd-v2-editorial-divider" />
-      <section className="rd-v2-ed-section">
-        <span>01 - What changed</span>
-        <h3>{model.whatChangedTitle}</h3>
-        <p>{model.whatChangedBody}</p>
+      <section className="rd-v2-brief-head" aria-labelledby="home-daily-brief-title">
+        <span>Daily brief content</span>
+        <h2 id="home-daily-brief-title">{model.dailyBriefTitle}</h2>
+        <p>{model.dailyBriefSubtitle}</p>
       </section>
+      <div className="rd-v2-brief-sections" data-testid="home-v2-daily-brief-content">
+        {model.dailyBriefSections.map((section) => (
+          <section className="rd-v2-ed-section" data-testid="home-v2-brief-section" key={section.eyebrow}>
+            <span>{section.eyebrow}</span>
+            <h3>{section.title}</h3>
+            <p>{section.body}</p>
+            {section.items.length > 0 && (
+              <div className="rd-v2-brief-items">
+                {section.items.map((item, itemIndex) => (
+                  <article className="rd-v2-brief-item" key={`${section.eyebrow}-${item.title}-${itemIndex}`}>
+                    {item.meta && <small>{item.meta}</small>}
+                    <strong>{item.title}</strong>
+                    <p>{item.body}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
