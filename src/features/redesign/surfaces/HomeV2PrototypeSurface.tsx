@@ -155,6 +155,8 @@ interface HomeV2BriefItem {
   title: string;
   body: string;
   meta?: string;
+  status?: string;
+  tone?: "default" | "accent" | "blue" | "green" | "amber";
 }
 
 interface HomeV2BriefSection {
@@ -162,6 +164,9 @@ interface HomeV2BriefSection {
   title: string;
   body: string;
   items: HomeV2BriefItem[];
+  deck?: string;
+  metric?: string;
+  layout?: "lead" | "cards" | "compact" | "sources" | "actions";
 }
 
 interface HomeV2Model {
@@ -184,8 +189,11 @@ interface HomeV2Model {
   moreLabel: string;
   whatChangedTitle: string;
   whatChangedBody: string;
+  dailyBriefEyebrow: string;
   dailyBriefTitle: string;
   dailyBriefSubtitle: string;
+  dailyBriefDek: string;
+  dailyBriefStats: Array<{ label: string; value: string; hint: string }>;
   dailyBriefSections: HomeV2BriefSection[];
   agentMeta: string;
   agentLead: string;
@@ -211,8 +219,25 @@ function trimSentence(value: string | undefined, fallback: string, limit = 340):
   return text.length > limit ? `${text.slice(0, limit - 1).trim()}...` : text;
 }
 
+function cleanBriefTitle(value: string | undefined, fallback: string): string {
+  return compact(value, fallback)
+    .replace(/^Act\s+[IVX]+:\s*/i, "")
+    .replace(/^The Morning Dossier\s*[—-]\s*/i, "")
+    .trim();
+}
+
+function editorialSectionLabel(value: string | undefined, fallback: string): string {
+  const title = cleanBriefTitle(value, fallback);
+  return /morning dossier|rising action/i.test(title) ? fallback : title;
+}
+
+function sourceLabel(value: string | undefined): string {
+  const label = compact(value, "source").replace(/^r\//i, "");
+  return label.length > 18 ? `${label.slice(0, 17).trim()}...` : label;
+}
+
 function briefItems(
-  items: Array<{ label?: string; body?: string; meta?: string } | undefined>,
+  items: Array<{ label?: string; body?: string; meta?: string; status?: string } | undefined>,
   limit = 3,
 ): HomeV2BriefItem[] {
   return items
@@ -222,6 +247,8 @@ function briefItems(
       title: compact(item?.label, "Brief item"),
       body: trimSentence(item?.body, "No detail attached yet.", 220),
       meta: item?.meta,
+      status: item?.status,
+      tone: item?.status === "verified" ? "green" : item?.status === "review" ? "amber" : "default",
     }));
 }
 
@@ -229,116 +256,179 @@ function fallbackBriefSections(): HomeV2BriefSection[] {
   return [
     {
       eyebrow: "01 - What changed",
-      title: "Waiting for the live Daily Brief artifact.",
+      title: "Waiting for the live Daily Brief artifact",
+      deck: "Live memory is still hydrating.",
       body: "NodeBench is loading the Convex-backed daily brief before it ranks changed facts, evidence, affected reports, and next actions.",
       items: [],
+      metric: "Loading",
+      layout: "lead",
     },
     {
-      eyebrow: "02 - So what",
-      title: "Impact summary will render from live memory.",
+      eyebrow: "02 - Why it matters",
+      title: "Impact summary will render from live memory",
+      deck: "No unsourced market read is shown while the artifact loads.",
       body: "This section stays explicit while the artifact loads so Home never substitutes fixture analysis for user-facing intelligence.",
       items: [],
+      metric: "Memory",
+      layout: "compact",
     },
     {
-      eyebrow: "03 - Now what",
-      title: "Next actions will appear after source-backed synthesis.",
+      eyebrow: "03 - Next move",
+      title: "Next actions will appear after source-backed synthesis",
+      deck: "The brief becomes useful when it tells you what to open, verify, or defer.",
       body: "The live brief decides whether to open a report, verify sources, propose a notebook patch, or create a follow-up.",
       items: [],
+      metric: "Queue",
+      layout: "actions",
     },
     {
       eyebrow: "04 - Reports touched",
       title: "Reports touched by today's edition",
+      deck: "Coverage-book changes will appear here.",
       body: "The live edition lists exact reports affected once Convex returns artifacts.",
       items: [],
+      metric: "Reports",
+      layout: "cards",
     },
     {
       eyebrow: "05 - Sources used",
       title: "Sources used by the brief",
+      deck: "Evidence rows will appear here.",
       body: "Sources are shown as first-class evidence rows instead of hidden behind a summary.",
       items: [],
+      metric: "Sources",
+      layout: "sources",
     },
     {
       eyebrow: "06 - Actions created",
       title: "Actions created from the brief",
+      deck: "Follow-through stays separate from analysis.",
       body: "Follow-ups, notebook patches, and inbox approvals appear here when the agent proposes them.",
       items: [],
+      metric: "Actions",
+      layout: "actions",
     },
   ];
 }
 
 function buildDailyBriefSections(liveArtifacts?: LiveArtifactsResult): {
+  eyebrow: string;
   title: string;
   subtitle: string;
+  dek: string;
+  stats: Array<{ label: string; value: string; hint: string }>;
   sections: HomeV2BriefSection[];
 } {
   const detail = liveArtifacts?.details.find((item) => item.kind === "Daily Brief") ?? liveArtifacts?.details[0];
   if (!detail) {
     return {
+      eyebrow: "Daily brief",
       title: "Daily Brief loading",
       subtitle: "Waiting for the Convex-backed daily-brief artifact. No fixture brief is being shown.",
+      dek: "The brief will resolve into a prioritized read, a reason to care, and concrete next moves.",
+      stats: [
+        { label: "Reports", value: "0", hint: "loading" },
+        { label: "Sources", value: "0", hint: "loading" },
+        { label: "Actions", value: "0", hint: "loading" },
+      ],
       sections: fallbackBriefSections(),
     };
   }
 
   const executive = detail.sections[0];
   const signalSection = detail.sections.find((section) => /signal|act ii|what changed/i.test(section.title)) ?? detail.sections[1];
-  const actionSection = detail.sections.find((section) => /action|follow|act iii|next/i.test(section.title));
+  const actionSection = detail.sections.find((section) => /follow|act iii|next|recommended|to do|review/i.test(section.title));
   const reviewSection = detail.sections.find((section) => /review/i.test(section.title));
+  const topSignal = signalSection?.items?.[0] ?? executive?.items?.[0];
   const sourceItems = detail.sourceRows.slice(0, 5).map((source) => ({
     label: source.title,
     body: source.excerpt || `${source.type} refreshed ${source.refreshed}.`,
-    meta: `${source.type} - reused ${source.reused}x${source.href ? " - openable" : ""}`,
+    meta: `${sourceLabel(source.type)} - ${source.reused}x reused${source.status ? ` - ${source.status}` : ""}`,
+    status: source.status,
   }));
   const reportItems = (liveArtifacts?.reports ?? []).slice(0, 5).map((report) => ({
     label: report.entity,
     body: report.description,
     meta: `${report.claims} claims - ${report.sources} sources - ${report.followUps} follow-ups`,
+    status: report.status,
   }));
   const actionItems = actionSection?.items?.length
     ? actionSection.items
     : reviewSection?.items?.length
       ? reviewSection.items
       : [{ label: "Promote verified signals", body: detail.primaryAction, meta: `${detail.followUps} follow-ups` }];
+  const reportCount = liveArtifacts?.reports.length ?? 0;
+  const topReport = liveArtifacts?.reports[0];
+  const leadTitle = cleanBriefTitle(topSignal?.label ?? executive?.title ?? detail.title, detail.title);
+  const leadBody = trimSentence(topSignal?.body ?? executive?.body ?? detail.summary, detail.summary, 430);
+  const sourceCount = detail.sourceRows.length || detail.sourceCount;
+  const actionCount = Math.max(detail.followUps, actionItems.length);
+  const evidenceLine = `${detail.claimCount} claims, ${sourceCount} source rows, ${reportCount || reportItems.length} reports, ${actionCount} follow-ups.`;
 
   return {
-    title: detail.title,
-    subtitle: `${detail.claimCount} claims - ${detail.sourceCount} sources - ${detail.followUps} follow-ups - updated ${detail.updatedAt}`,
+    eyebrow: "Daily brief",
+    title: leadTitle,
+    subtitle: `${evidenceLine} Updated ${detail.updatedAt}.`,
+    dek: "Read the lead, check the reason it matters to your current queue, then open the affected reports or source rows. No broad prediction is promoted unless it has evidence or a saved follow-up.",
+    stats: [
+      { label: "Changed", value: String(Math.max(1, liveArtifacts?.briefFeatureCount ?? detail.sections.length)), hint: "signals" },
+      { label: "Evidence", value: String(sourceCount), hint: "sources" },
+      { label: "Follow-up", value: String(actionCount), hint: "next moves" },
+    ],
     sections: [
       {
         eyebrow: "01 - What changed",
-        title: executive?.items?.[0]?.label ?? detail.title,
-        body: trimSentence(executive?.body ?? detail.summary, detail.summary, 520),
-        items: briefItems(executive?.items ?? [], 3),
+        title: leadTitle,
+        deck: "The lead item is the highest-ranked changed fact in the live daily brief.",
+        body: leadBody,
+        items: briefItems([topSignal, ...(executive?.items ?? [])], 3),
+        metric: `${detail.claimCount} claims`,
+        layout: "lead",
       },
       {
-        eyebrow: "02 - So what",
-        title: signalSection?.title ?? "Signals worth understanding",
-        body: trimSentence(signalSection?.body, "These are the live daily-brief signals available to preserve as claims, notebook blocks, or follow-up tasks.", 520),
+        eyebrow: "02 - Why it matters",
+        title: "It changes the reading order before it changes the thesis",
+        deck: "The brief is useful because it tells you what deserves attention now.",
+        body: `${evidenceLine} Ranking favors items that touch a saved report, have reusable source rows, or create a concrete next step.`,
         items: briefItems(signalSection?.items ?? [], 4),
+        metric: `${reportCount || reportItems.length} reports`,
+        layout: "compact",
       },
       {
-        eyebrow: "03 - Now what",
-        title: actionSection?.title ?? "Recommended next actions",
-        body: trimSentence(actionSection?.body ?? detail.primaryAction, detail.primaryAction, 520),
+        eyebrow: "03 - Next move",
+        title: "Start with the highest-leverage follow-up",
+        deck: "Triage: act now, prep later, archive the rest.",
+        body: trimSentence(actionSection?.body ?? detail.primaryAction, detail.primaryAction, 420),
         items: briefItems(actionItems, 4),
+        metric: `${actionCount} actions`,
+        layout: "actions",
       },
       {
         eyebrow: "04 - Reports touched",
         title: `${Math.max(1, reportItems.length)} report${reportItems.length === 1 ? "" : "s"} touched by this edition`,
+        deck: "Coverage-book impact, not just news recency.",
         body: "These are the reusable report artifacts Home reads before asking the model to search again.",
         items: briefItems(reportItems, 5),
+        metric: `${reportItems.length} shown`,
+        layout: "cards",
       },
       {
         eyebrow: "05 - Sources used",
         title: `${detail.sourceCount} source${detail.sourceCount === 1 ? "" : "s"} used by the brief`,
+        deck: "Useful daily-read format: headline, provenance, reuse count.",
         body: "The daily brief is backed by source rows that can be opened, verified, or promoted into report evidence.",
         items: briefItems(sourceItems, 5),
+        metric: `${sourceCount} rows`,
+        layout: "sources",
       },
       {
         eyebrow: "06 - Actions created",
         title: `${detail.followUps} follow-up${detail.followUps === 1 ? "" : "s"} or review item${detail.followUps === 1 ? "" : "s"} created`,
+        deck: "The brief ends with workflow, not commentary.",
         body: "Action items stay explicit so the user sees what NodeBench wants to do next and what still needs approval.",
         items: briefItems(actionItems, 5),
+        metric: `${actionCount} queued`,
+        layout: "actions",
       },
     ],
   };
@@ -382,8 +472,11 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       moreLabel: "Show 23 more items",
       whatChangedTitle: "Anthropic raised valuation ceiling; Sequoia counter-bid changes cap table math",
       whatChangedBody: "Two material signals converged overnight that shift the fundraise calculus. Anthropic's updated enterprise pricing model prices the partnership tier above Q1 rates, while Sequoia's revised term sheet introduces a ratchet clause that changes dilution math before the board call.",
+      dailyBriefEyebrow: dailyBrief.eyebrow,
       dailyBriefTitle: dailyBrief.title,
       dailyBriefSubtitle: dailyBrief.subtitle,
+      dailyBriefDek: dailyBrief.dek,
+      dailyBriefStats: dailyBrief.stats,
       dailyBriefSections: dailyBrief.sections,
       agentMeta: "Daily Edition · 4 signals · 7 reports · 12 sources",
       agentLead: "Three items matter most this morning.",
@@ -511,8 +604,11 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     moreLabel: hasLive ? `Show ${Math.max(0, reports.length + pulse.length - 8)} more items` : "Show live artifact status",
     whatChangedTitle: topPulse?.title ?? topReport?.entity ?? "Live artifact state",
     whatChangedBody: topPulse?.body ?? topReport?.description ?? actionBody,
+    dailyBriefEyebrow: dailyBrief.eyebrow,
     dailyBriefTitle: dailyBrief.title,
     dailyBriefSubtitle: dailyBrief.subtitle,
+    dailyBriefDek: dailyBrief.dek,
+    dailyBriefStats: dailyBrief.stats,
     dailyBriefSections: dailyBrief.sections,
     agentMeta: editionLine,
     agentLead: hasLive ? "Live memory returned reusable context." : liveArtifacts.isLoading ? "Loading live memory now." : "No live artifacts returned yet.",
@@ -1295,21 +1391,48 @@ export function HomeV2Surface({ onAsk, liveArtifacts }: HomeV2SurfaceProps) {
 
       <div className="rd-v2-editorial-divider" />
       <section className="rd-v2-brief-head" aria-labelledby="home-daily-brief-title">
-        <span>Daily brief content</span>
+        <span>{model.dailyBriefEyebrow}</span>
         <h2 id="home-daily-brief-title">{model.dailyBriefTitle}</h2>
         <p>{model.dailyBriefSubtitle}</p>
+        <p className="rd-v2-brief-dek">{model.dailyBriefDek}</p>
+        <div className="rd-v2-brief-statline" aria-label="Daily brief evidence summary">
+          {model.dailyBriefStats.map((stat) => (
+            <div key={stat.label}>
+              <strong>{stat.value}</strong>
+              <span>{stat.label}</span>
+              <small>{stat.hint}</small>
+            </div>
+          ))}
+        </div>
       </section>
       <div className="rd-v2-brief-sections" data-testid="home-v2-daily-brief-content">
         {model.dailyBriefSections.map((section) => (
-          <section className="rd-v2-ed-section" data-testid="home-v2-brief-section" key={section.eyebrow}>
-            <span>{section.eyebrow}</span>
-            <h3>{section.title}</h3>
-            <p>{section.body}</p>
+          <section
+            className={`rd-v2-ed-section rd-v2-ed-section--${section.layout ?? "cards"}`}
+            data-testid="home-v2-brief-section"
+            key={section.eyebrow}
+          >
+            <div className="rd-v2-ed-section-copy">
+              <div className="rd-v2-ed-section-top">
+                <span>{section.eyebrow}</span>
+                {section.metric && <strong>{section.metric}</strong>}
+              </div>
+              <h3>{section.title}</h3>
+              {section.deck && <p className="rd-v2-brief-deck">{section.deck}</p>}
+              <p>{section.body}</p>
+            </div>
             {section.items.length > 0 && (
               <div className="rd-v2-brief-items">
                 {section.items.map((item, itemIndex) => (
-                  <article className="rd-v2-brief-item" key={`${section.eyebrow}-${item.title}-${itemIndex}`}>
-                    {item.meta && <small>{item.meta}</small>}
+                  <article
+                    className="rd-v2-brief-item"
+                    data-tone={item.tone ?? "default"}
+                    key={`${section.eyebrow}-${item.title}-${itemIndex}`}
+                  >
+                    <div className="rd-v2-brief-item-meta">
+                      {item.meta && <small>{item.meta}</small>}
+                      {item.status && <span>{item.status}</span>}
+                    </div>
                     <strong>{item.title}</strong>
                     <p>{item.body}</p>
                   </article>
