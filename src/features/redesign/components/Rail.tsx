@@ -1,13 +1,11 @@
 /**
- * Rail — left workspace rail with the canonical 5-tab nav.
+ * Rail - left contextual workspace rail.
  *
- * Spec: Home · Reports · Chat · Inbox · Me (preserves existing CLAUDE.md guarantee).
- * Workspace is intentionally NOT a sixth tab — it lives at /redesign/workspace.
+ * TopNav owns Home / Reports / Chat / Inbox / Me. This rail carries memory
+ * status and workspace context so desktop users do not see two competing
+ * primary navigation systems.
  */
 
-import { useState } from "react";
-import { useAuthActions } from "@convex-dev/auth/react";
-import { useConvexAuth } from "convex/react";
 import type { SurfaceId } from "../fixtures";
 
 interface RailProps {
@@ -18,80 +16,73 @@ interface RailProps {
   inboxCount?: number;
 }
 
-const NAV: Array<{ id: SurfaceId; label: string; hint: string; icon: string }> = [
-  { id: "home", label: "Home", hint: "Pulse + memory wins", icon: "" },
-  { id: "reports", label: "Reports", hint: "Reusable memory library", icon: "" },
-  { id: "chat", label: "Chat", hint: "Live operating surface", icon: "" },
-  { id: "inbox", label: "Inbox", hint: "Attention + uncertainty", icon: "" },
-  { id: "me", label: "Me", hint: "Memory + privacy + budget", icon: "" },
+const NAV: Array<{ id: SurfaceId; label: string; hint: string }> = [
+  { id: "home", label: "Home", hint: "Pulse plus memory wins" },
+  { id: "reports", label: "Reports", hint: "Reusable memory library" },
+  { id: "chat", label: "Chat", hint: "Live operating surface" },
+  { id: "inbox", label: "Inbox", hint: "Attention and uncertainty" },
+  { id: "me", label: "Me", hint: "Memory, privacy, and budget" },
 ];
 
-const ICONS: Record<SurfaceId, string> = {
-  home: "M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z",
-  reports: "M5 3h11l3 3v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm0 6h14M9 13h6M9 17h4",
-  chat: "M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4z",
-  inbox: "M3 13h6l1 2h4l1-2h6M3 13l3-8h12l3 8M3 13v6a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-6",
-  me: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 9a8 8 0 0 1 16 0",
-};
-
-export function Rail({ active, onChange, onOpenWorkspace, liveStats, inboxCount = 0 }: RailProps) {
-  const { isAuthenticated, isLoading } = useConvexAuth();
-  const { signIn } = useAuthActions();
-  const [signingIn, setSigningIn] = useState(false);
-  const showAuthCta = !isLoading && !isAuthenticated;
-  const signInAnonymously = () => {
-    setSigningIn(true);
-    void signIn("anonymous").catch(() => undefined).finally(() => setSigningIn(false));
-  };
+export function Rail({ active, onOpenWorkspace, liveStats, inboxCount = 0 }: RailProps) {
+  const activeItem = NAV.find((item) => item.id === active) ?? NAV[0];
 
   return (
-    <aside className="rd-pane" aria-label="Primary navigation" style={{ padding: "20px 14px", gap: 24 }}>
-      <a href="/redesign" style={{
-        display: "flex", alignItems: "center", gap: 8, padding: "0 6px 16px",
-        borderBottom: "1px solid var(--rd-line-faint)", textDecoration: "none", color: "inherit",
-      }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 8,
-          background: "var(--rd-accent)", display: "grid", placeItems: "center",
-          fontFamily: "var(--rd-font-mono)", fontSize: 13, fontWeight: 700, color: "#fff",
-        }}>N</div>
+    <aside className="rd-pane" aria-label="Workspace context" style={{ padding: "20px 14px", gap: 24 }}>
+      <a
+        href="/redesign"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "0 6px 16px",
+          borderBottom: "1px solid var(--rd-line-faint)",
+          textDecoration: "none",
+          color: "inherit",
+        }}
+      >
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            background: "var(--rd-accent)",
+            display: "grid",
+            placeItems: "center",
+            fontFamily: "var(--rd-font-mono)",
+            fontSize: 13,
+            fontWeight: 700,
+            color: "#fff",
+          }}
+        >
+          N
+        </div>
         <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
           <span style={{ fontSize: 13.5, fontWeight: 590, color: "var(--rd-ink-strong)" }}>NodeBench</span>
           <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>entity intelligence</span>
         </div>
       </a>
 
-      <nav aria-label="Surfaces" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {NAV.map((item) => {
-          const isActive = active === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onChange(item.id)}
-              aria-current={isActive ? "page" : undefined}
-              className="rd-btn rd-btn--quiet"
-              style={{
-                justifyContent: "flex-start",
-                gap: 10,
-                padding: "8px 10px",
-                width: "100%",
-                background: isActive ? "var(--rd-accent-soft)" : "transparent",
-                color: isActive ? "var(--rd-accent-strong)" : "var(--rd-ink-mute)",
-                fontWeight: isActive ? 590 : 510,
-              }}
-            >
-              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d={ICONS[item.id]} />
-              </svg>
-              <span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>
-              {item.id === "inbox" && inboxCount > 0 && (
-                <span className="rd-pill rd-pill--accent" style={{ padding: "1px 7px", fontSize: 10 }}>{inboxCount}</span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
+      <section
+        aria-label="Current surface"
+        className="rd-stack"
+        style={{
+          gap: 8,
+          padding: "12px 10px",
+          border: "1px solid var(--rd-line-faint)",
+          borderRadius: 12,
+          background: "var(--rd-panel)",
+        }}
+      >
+        <div className="rd-eyebrow">Current surface</div>
+        <div style={{ fontSize: 15, fontWeight: 650, color: "var(--rd-ink-strong)" }}>{activeItem.label}</div>
+        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: "var(--rd-ink-soft)" }}>{activeItem.hint}</p>
+        {active === "inbox" && inboxCount > 0 && (
+          <span className="rd-pill rd-pill--accent" style={{ width: "fit-content" }}>
+            {inboxCount} item{inboxCount === 1 ? "" : "s"} need attention
+          </span>
+        )}
+      </section>
 
       <button
         type="button"
@@ -107,24 +98,13 @@ export function Rail({ active, onChange, onOpenWorkspace, liveStats, inboxCount 
       </button>
 
       <div style={{ marginTop: "auto", padding: "12px 8px", borderTop: "1px solid var(--rd-line-faint)" }}>
-        {showAuthCta && (
-          <button
-            type="button"
-            onClick={signInAnonymously}
-            disabled={signingIn}
-            className="rd-btn rd-btn--primary"
-            style={{ width: "100%", justifyContent: "center", marginBottom: 12, minHeight: 34 }}
-          >
-            {signingIn ? "Signing in..." : "Sign in anonymously"}
-          </button>
-        )}
         <div className="rd-row--between" style={{ marginBottom: 8 }}>
           <div className="rd-eyebrow">Memory</div>
           <button
             type="button"
             onClick={onOpenWorkspace}
             className="rd-mono"
-            title="Open Sources workspace — manage all entities, sources, and watchlist"
+            title="Open Sources workspace - manage all entities, sources, and watchlist"
             style={{
               background: "transparent",
               border: "1px solid transparent",
@@ -138,7 +118,9 @@ export function Rail({ active, onChange, onOpenWorkspace, liveStats, inboxCount 
               letterSpacing: "0.04em",
               textTransform: "uppercase",
             }}
-          >Sources →</button>
+          >
+            Sources -&gt;
+          </button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 11 }}>
           <Stat label="Entities" value={liveStats?.entities ?? 0} />

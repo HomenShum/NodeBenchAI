@@ -955,6 +955,11 @@
   font-weight: 620;
 }
 
+[data-redesign] .rd-v2-pulse-note .rd-v2-btn-primary,
+[data-redesign] .rd-v2-pulse-actions .rd-v2-btn-primary {
+  color: var(--rd-paper);
+}
+
 [data-redesign] .rd-v2-pulse-actions {
   display: flex;
   flex-wrap: wrap;

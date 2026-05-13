@@ -33,6 +33,9 @@
     "api/shared-context/delegate.js": {
       "maxDuration": 10
     },
+    "api/shared-context/events.js": {
+      "maxDuration": 10
+    },
     "api/sync-bridge/health.js": {
       "maxDuration": 10
     },

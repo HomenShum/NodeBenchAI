@@ -26,7 +26,7 @@ import { render, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TopNav } from "./TopNav";
 
-// The TopNav reaches into Convex auth (anonymous sign-in CTA + auth state).
+// The TopNav reaches into Convex auth (account CTA + auth state).
 // In the test environment we stub these to a deterministic guest state.
 vi.mock("@convex-dev/auth/react", () => ({
   useAuthActions: () => ({ signIn: vi.fn() }),

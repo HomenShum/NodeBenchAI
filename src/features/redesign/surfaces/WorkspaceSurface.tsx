@@ -66,6 +66,7 @@ const TABS: Array<{ id: Tab; label: string; hint: string }> = [
 interface WorkspaceSurfaceProps {
   reportId?: string;
   initialTab?: Tab;
+  buildRoute?: (args: { reportId: string; tab: Tab }) => string;
 }
 
 function isLiveArtifactReportId(id: string): boolean {
@@ -80,7 +81,7 @@ function hostFromHref(href: string): string {
   }
 }
 
-export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSurfaceProps) {
+export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }: WorkspaceSurfaceProps) {
   const navigate = useNavigate();
   const convex = useConvex();
   const api = useConvexApi();
@@ -163,7 +164,10 @@ export function WorkspaceSurface({ reportId, initialTab = "brief" }: WorkspaceSu
     const params = new URLSearchParams();
     if (effectiveReportId) params.set("report", effectiveReportId);
     params.set("tab", nextTab);
-    navigate(`/redesign/workspace?${params.toString()}`, { replace: false });
+    const nextRoute = buildRoute && effectiveReportId
+      ? buildRoute({ reportId: effectiveReportId, tab: nextTab })
+      : `/redesign/workspace?${params.toString()}`;
+    navigate(nextRoute, { replace: false });
   };
 
   const verifySourceSupport = async (

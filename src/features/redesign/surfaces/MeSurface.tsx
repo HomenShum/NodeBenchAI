@@ -6,7 +6,7 @@
  *   - TipTap-style toolbar with local draft save-state pill
  *   - Per-section editable memory rows + permission pill stack
  *   - Patch inbox aside (suggested patch with Accept / Edit diff / Reject)
- *   - Agent implementation hooks list (RichNotebookEditor, teachability, operatorProfile, OpenClaw)
+ *   - User-facing memory, privacy, source, connector, and budget controls
  *   - Safety policy switches
  *
  * Locked rules preserved: Me shell, profile/files/plan/connectors, privacy + budget controls.
@@ -15,6 +15,8 @@
  */
 
 import { useMemo, useState } from "react";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvexAuth } from "convex/react";
 import { Pill } from "../components/Pill";
 import { StyleGalleryCard } from "../components/StyleGalleryCard";
 import { memoStyles, inferredStyleProvenance, type MemoStyle } from "../fixtures";
@@ -97,6 +99,8 @@ const INITIAL_SECTIONS: Section[] = [
 ];
 
 export function MeSurface() {
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { signIn } = useAuthActions();
   const [sections, setSections] = useState<Section[]>(INITIAL_SECTIONS);
   const [purpose, setPurpose] = useState("Control, editable memory, privacy, budget, files, integrations.");
   const [savedAt, setSavedAt] = useState("Local draft saved");
@@ -106,6 +110,75 @@ export function MeSurface() {
     suggestLowRisk: true,
     diffPrivacy: true,
   });
+  const showDevHooks = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.get("qa") === "1" || params.get("debugUi") === "1";
+  }, []);
+
+  if (!isLoading && !isAuthenticated) {
+    return (
+      <div className="rd-stack" style={{ padding: "28px 40px 40px", gap: 20, maxWidth: 1120 }}>
+        <header className="rd-row--between" style={{ gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div className="rd-stack" style={{ gap: 6, maxWidth: 760 }}>
+            <div className="rd-eyebrow">Me · Private Context</div>
+            <h1 className="rd-h1" style={{ fontSize: 30 }}>Your profile starts empty.</h1>
+            <p className="rd-faint" style={{ fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+              NodeBench does not show another operator's memory to visitors. Link an email or Google account to save preferences, watched entities, connector permissions, budget rules, and reusable writing style.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rd-btn rd-btn--primary"
+            onClick={() => void signIn("google", {
+              redirectTo: typeof window !== "undefined" ? window.location.href : "/redesign/me",
+            })}
+          >
+            Continue with Google
+          </button>
+        </header>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }} className="me-runtime-grid">
+          <section className="rd-card rd-card__pad">
+            <div className="rd-eyebrow">Memory</div>
+            <h3 style={{ margin: "8px 0 4px", fontSize: 17 }}>No saved profile yet</h3>
+            <p className="rd-faint" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+              Add communication style, evidence preferences, watched markets, and report defaults after sign-in.
+            </p>
+          </section>
+          <section className="rd-card rd-card__pad">
+            <div className="rd-eyebrow">Permissions</div>
+            <h3 style={{ margin: "8px 0 4px", fontSize: 17 }}>Connectors are off</h3>
+            <p className="rd-faint" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+              Gmail, Slack, Notion, CRM, and export writes require explicit account connection and approval rules.
+            </p>
+          </section>
+          <section className="rd-card rd-card__pad">
+            <div className="rd-eyebrow">Budget</div>
+            <h3 style={{ margin: "8px 0 4px", fontSize: 17 }}>Paid calls are blocked</h3>
+            <p className="rd-faint" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+              Public browsing stays read-only. Paid research runs only after an email-backed account is linked.
+            </p>
+          </section>
+        </div>
+        <section className="rd-card rd-card__pad" style={{ background: "var(--rd-paper-warm)" }}>
+          <div className="rd-eyebrow">What gets saved after sign-in</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, marginTop: 12 }} className="me-runtime-grid">
+            {[
+              ["Writing style", "How concise, technical, or source-heavy reports should be."],
+              ["Watchlists", "Companies, people, markets, and events you want tracked."],
+              ["Approval rules", "What the agent may update automatically versus ask first."],
+              ["Audit trail", "Profile changes, connector writes, paid calls, and exported artifacts."],
+            ].map(([title, body]) => (
+              <div key={title} className="rd-card" style={{ padding: 12, background: "var(--rd-panel)" }}>
+                <strong style={{ display: "block", fontSize: 12.5, color: "var(--rd-ink-strong)" }}>{title}</strong>
+                <p className="rd-faint" style={{ margin: "5px 0 0", fontSize: 11.5, lineHeight: 1.5 }}>{body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   const markLocalSaved = () => {
     setSavedAt("Saving local draft...");
@@ -115,7 +188,7 @@ export function MeSurface() {
   const previewAction = (label: string) => {
     showToast({
       tone: "info",
-      message: `${label} is a local Me-page preview. Durable profile writes run through the operator profile tools.`,
+      message: `${label} is queued as a local Me-page preview. Durable profile writes require an authenticated profile sync.`,
     });
   };
 
@@ -353,16 +426,23 @@ export function MeSurface() {
             </div>
           </div>
 
-          {/* Agent implementation hooks */}
+          {/* User-facing profile controls. Raw implementation hooks stay behind QA mode. */}
           <div className="rd-card rd-card__pad">
-            <div className="rd-eyebrow">Agent implementation hooks</div>
+            <div className="rd-eyebrow">{showDevHooks ? "Agent implementation hooks" : "Profile controls"}</div>
             <ul className="rd-stack" style={{ gap: 7, marginTop: 8, listStyle: "none", padding: 0 }}>
-              {[
-                { strong: "Open RichNotebookEditor", body: "TipTap toolbar, save-state, slash commands, proposals, claim blocks" },
-                { strong: "Open teachability memory tools", body: "analyzeAndStoreTeachings, storeTeaching, searchTeachings, getTopPreferencesTool" },
-                { strong: "Open operatorProfile contract", body: "upsertProfile, getProfileMarkdown, parseOperatorMarkdown, filesystem sync" },
-                { strong: "Open OpenClaw audit tools", body: "spawn session, execute skill, retrieve audit, end session" },
-              ].map((hook) => (
+              {(showDevHooks
+                ? [
+                    { strong: "Open RichNotebookEditor", body: "TipTap toolbar, save-state, slash commands, proposals, claim blocks" },
+                    { strong: "Open teachability memory tools", body: "analyzeAndStoreTeachings, storeTeaching, searchTeachings, getTopPreferencesTool" },
+                    { strong: "Open operatorProfile contract", body: "upsertProfile, getProfileMarkdown, parseOperatorMarkdown, filesystem sync" },
+                    { strong: "Open OpenClaw audit tools", body: "spawn session, execute skill, retrieve audit, end session" },
+                  ]
+                : [
+                    { strong: "Review remembered preferences", body: "See the working style and evidence rules the agent is allowed to reuse." },
+                    { strong: "Manage connected data", body: "Choose which files, inboxes, calendars, and source caches can inform reports." },
+                    { strong: "Set approval rules", body: "Require review before paid calls, connector writes, CRM exports, and shared artifacts." },
+                    { strong: "Download profile record", body: "Export the current memory, privacy, budget, and source-use settings." },
+                  ]).map((hook) => (
                 <li key={hook.strong}>
                   <button
                     type="button"
@@ -423,8 +503,8 @@ export function MeSurface() {
               />
             </div>
             <div className="rd-row" style={{ gap: 6, marginTop: 12 }}>
-              <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={() => previewAction("Review policy")}>Policy preview</button>
-              <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => previewAction("Open audit log")}>Audit log preview</button>
+              <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={() => previewAction("Review policy")}>Review policy</button>
+              <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => previewAction("Open activity log")}>Activity log</button>
             </div>
           </div>
         </aside>

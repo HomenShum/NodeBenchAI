@@ -24,19 +24,22 @@
  * proposeMemoryPatch on inline correction, source-URL substring
  * validation, production load polish.
  *
- * Anonymous-safe: userId is attached when auth is present, but guests still
- * exercise the real Convex-backed run pipeline.
+ * Release safety: live runs call paid model/search infrastructure. Guests can
+ * read public artifacts, but starting or reading a live run requires the
+ * owning non-anonymous account. Public sharing remains hash-based.
  */
 
 import { v } from "convex/values";
 import {
   internalAction,
   internalMutation,
+  internalQuery,
   mutation,
   query,
   type ActionCtx,
 } from "../../_generated/server";
 import { internal } from "../../_generated/api";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 // ───────── Types ─────────
 
@@ -78,6 +81,41 @@ const GEMINI_INPUT_USD_PER_1M_TOKENS = 0.075;
 const GEMINI_OUTPUT_USD_PER_1M_TOKENS = 0.30;
 const FALLBACK_SOURCE_TIMEOUT_MS = 12_000;
 const FALLBACK_SOURCE_LIMIT = 5;
+
+async function requirePaidChatUserId(ctx: any): Promise<any> {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) {
+    throw new Error("Sign in with an account before running live research.");
+  }
+  const accounts = await ctx.db
+    .query("authAccounts")
+    .withIndex("userIdAndProvider", (q: any) => q.eq("userId", userId))
+    .collect();
+  const hasNonAnonymousAccount = accounts.some((account: any) => account.provider !== "anonymous");
+  if (!hasNonAnonymousAccount) {
+    throw new Error("Live research requires a non-anonymous account. Sign in with email before running paid agent work.");
+  }
+  return userId;
+}
+
+async function assertRunReadable(ctx: any, runId: string): Promise<any> {
+  const row = await ctx.db
+    .query("redesignChatRuns")
+    .withIndex("by_runId", (q: any) => q.eq("runId", runId))
+    .first();
+  if (!row) throw new Error("Run not found");
+  const userId = await getAuthUserId(ctx);
+  if (!userId || !row.userId || row.userId !== userId) {
+    throw new Error("Run is private or unavailable.");
+  }
+  return row;
+}
+
+function redactSharedRun(row: any): any {
+  if (!row) return null;
+  const { userId: _userId, ...safeRow } = row;
+  return safeRow;
+}
 
 // ───────── Helpers ─────────
 
@@ -386,21 +424,10 @@ export const startChat = mutation({
     if (prompt.trim().length < 3) {
       throw new Error("Prompt too short — write at least a 3-character question.");
     }
+    const userId = await requirePaidChatUserId(ctx);
     const normalizedTier = normalizeChatTier(args.tier);
     const model = modelForTier(normalizedTier);
     const runId = generateRunId();
-    let userId: any = undefined;
-    try {
-      const identity = await ctx.auth.getUserIdentity();
-      if (identity?.subject) {
-        const found = await ctx.db
-          .query("users")
-          .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
-          .first()
-          .catch(() => null);
-        userId = found?._id;
-      }
-    } catch { /* anonymous OK */ }
     await ctx.db.insert("redesignChatRuns", {
       runId,
       userId,
@@ -441,11 +468,15 @@ export const probeRun = mutation({
     maskedSourceIdx: v.number(),
   },
   handler: async (ctx, args): Promise<string> => {
+    const userId = await requirePaidChatUserId(ctx);
     const orig = await ctx.db
       .query("redesignChatRuns")
       .withIndex("by_runId", (q) => q.eq("runId", args.originalRunId))
       .first();
     if (!orig) throw new Error("Original run not found");
+    if (!orig.userId || orig.userId !== userId) {
+      throw new Error("Original run is private or unavailable.");
+    }
     if (!orig.packet || orig.status !== "complete") {
       throw new Error("Original run not complete — cannot probe yet");
     }
@@ -456,18 +487,6 @@ export const probeRun = mutation({
     const normalizedTier = normalizeChatTier(orig.tier);
     const model = modelForTier(normalizedTier);
     const runId = generateRunId();
-    let userId: any = undefined;
-    try {
-      const identity = await ctx.auth.getUserIdentity();
-      if (identity?.subject) {
-        const found = await ctx.db
-          .query("users")
-          .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
-          .first()
-          .catch(() => null);
-        userId = found?._id;
-      }
-    } catch { /* anonymous OK */ }
     await ctx.db.insert("redesignChatRuns", {
       runId,
       userId,
@@ -498,6 +517,7 @@ export const probeRun = mutation({
 export const streamEventsForRun = query({
   args: { runId: v.string() },
   handler: async (ctx, args) => {
+    await assertRunReadable(ctx, args.runId);
     return await ctx.db
       .query("redesignChatStreamEvents")
       .withIndex("by_run_idx", (q) => q.eq("runId", args.runId))
@@ -510,10 +530,7 @@ export const streamEventsForRun = query({
 export const getRun = query({
   args: { runId: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query("redesignChatRuns")
-      .withIndex("by_runId", (q) => q.eq("runId", args.runId))
-      .first();
+    return await assertRunReadable(ctx, args.runId);
   },
 });
 
@@ -521,10 +538,11 @@ export const getRun = query({
 export const getByHash = query({
   args: { hash: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const row = await ctx.db
       .query("redesignChatRuns")
       .withIndex("by_hash", (q) => q.eq("hash", args.hash))
       .first();
+    return redactSharedRun(row);
   },
 });
 
@@ -1142,7 +1160,7 @@ export const validateRunSources = internalAction({
   },
 });
 
-export const getRunForValidation = query({
+export const getRunForValidation = internalQuery({
   args: { runId: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeRouterTierForChatRun } from "./useRedesignChatRun";
+import { isPaidChatEligibleUser, normalizeRouterTierForChatRun } from "./useRedesignChatRun";
 
 describe("normalizeRouterTierForChatRun", () => {
   it("maps UI-only tiers to Convex chat run tiers", () => {
@@ -10,5 +10,14 @@ describe("normalizeRouterTierForChatRun", () => {
   it("keeps backend-compatible tiers unchanged", () => {
     expect(normalizeRouterTierForChatRun("auto")).toBe("auto");
     expect(normalizeRouterTierForChatRun("deep")).toBe("deep");
+  });
+});
+
+describe("isPaidChatEligibleUser", () => {
+  it("requires an email-backed account for paid live research", () => {
+    expect(isPaidChatEligibleUser(null)).toBe(false);
+    expect(isPaidChatEligibleUser({})).toBe(false);
+    expect(isPaidChatEligibleUser({ email: "" })).toBe(false);
+    expect(isPaidChatEligibleUser({ email: "founder@example.com" })).toBe(true);
   });
 });

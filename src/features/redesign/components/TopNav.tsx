@@ -93,7 +93,9 @@ export function TopNav({
   const showAccountSlot = !prototypeMode && active !== "home";
 
   const onSignIn = () => {
-    void signIn("anonymous").catch(() => undefined);
+    void signIn("google", {
+      redirectTo: typeof window !== "undefined" ? window.location.href : "/redesign",
+    }).catch(() => undefined);
   };
 
   return (
@@ -105,7 +107,7 @@ export function TopNav({
         alignItems: "center",
         gap: 16,
         padding: "8px 28px",
-        height: 46,
+        height: 52,
         borderBottom: "1px solid var(--rd-line-faint)",
         background: "var(--rd-paper)",
         flexShrink: 0,
@@ -163,8 +165,8 @@ export function TopNav({
               title={`${item.label} (Alt+${item.slot})`}
               className="rd-btn rd-btn--quiet"
               style={{
-                padding: "5px 10px",
-                minHeight: 26,
+                padding: "7px 12px",
+                minHeight: 34,
                 borderRadius: "var(--rd-r-pill)",
                 fontSize: 13,
                 fontWeight: isActive ? 590 : 500,
@@ -191,8 +193,8 @@ export function TopNav({
             display: "inline-flex",
             alignItems: "center",
             gap: 6,
-            padding: "5px 12px",
-            minHeight: 28,
+            padding: "7px 12px",
+            minHeight: 34,
             width: prototypeMode ? 276 : 270,
             borderRadius: "var(--rd-r-pill)",
             border: "1px solid var(--rd-line)",
@@ -253,8 +255,8 @@ export function TopNav({
           title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           className="rd-btn rd-btn--quiet"
           style={{
-            width: 28,
-            height: 28,
+            width: 34,
+            height: 34,
             padding: 0,
             borderRadius: "50%",
             border: "1px solid var(--rd-line)",
@@ -280,8 +282,8 @@ export function TopNav({
           <div
             aria-hidden="true"
             style={{
-              width: 30,
-              height: 30,
+              width: 34,
+              height: 34,
               borderRadius: "50%",
               background: "var(--rd-muted)",
             }}
@@ -292,8 +294,8 @@ export function TopNav({
             aria-label="Account menu"
             className="rd-btn rd-btn--quiet"
             style={{
-              width: 30,
-              height: 30,
+              width: 34,
+              height: 34,
               padding: 0,
               borderRadius: "50%",
               background: "var(--rd-accent-soft)",
@@ -314,13 +316,13 @@ export function TopNav({
             onClick={onSignIn}
             className="rd-btn rd-btn--primary rd-btn--sm"
             style={{
-              padding: "5px 11px",
-              minHeight: 30,
+              padding: "7px 12px",
+              minHeight: 34,
               fontSize: 12.5,
               fontWeight: 590,
             }}
           >
-            Sign in
+            Continue
           </button>
         ) : null}
       </div>
