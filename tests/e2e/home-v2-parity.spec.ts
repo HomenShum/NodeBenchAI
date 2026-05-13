@@ -85,10 +85,12 @@ test.describe("Home v2 /redesign parity", () => {
 
     await expect(page.getByRole("complementary", { name: "Edition browser" })).toBeVisible();
     await expect(page.getByTestId("home-v2-pulse-landing")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Today for you" })).toBeVisible();
-    await expect(page.getByText("What changed").first()).toBeVisible();
-    await expect(page.getByText("Why it matters").first()).toBeVisible();
-    await expect(page.getByText("Next move").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your agent already did the first pass." })).toBeVisible();
+    await expect(page.getByText("What the agent did").first()).toBeVisible();
+    await expect(page.getByText("Who reads this").first()).toBeVisible();
+    await expect(page.getByText("Agent handoff").first()).toBeVisible();
+    await expect(page.getByText("Memory first").first()).toBeVisible();
+    await expect(page.getByText("Report matching").first()).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Briefing agent" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Find a person, company, or action" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in" })).toHaveCount(0);
@@ -103,7 +105,10 @@ test.describe("Home v2 /redesign parity", () => {
     await expect(page.getByText("Sources used").first()).toBeVisible();
     await expect(page.getByText("Actions created").first()).toBeVisible();
 
-    const primaryAction = page.getByRole("button", { name: "Ask in Chat" });
+    const pulseText = await page.getByTestId("home-v2-pulse-landing").innerText();
+    expect(pulseText).not.toMatch(/r\/technology|random headline/i);
+
+    const primaryAction = page.getByRole("button", { name: "Ask the agent" });
     await expect(primaryAction).toBeVisible();
     await expect
       .poll(async () => await primaryAction.evaluate((node) => getComputedStyle(node).backgroundColor))

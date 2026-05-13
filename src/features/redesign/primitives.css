@@ -876,6 +876,48 @@
   line-height: 1.45;
 }
 
+[data-redesign] .rd-v2-agent-steps {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-redesign] .rd-v2-agent-steps li {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 3px 12px;
+  min-width: 0;
+  padding: 11px 0;
+  border-top: 1px solid var(--rd-line-faint);
+}
+
+[data-redesign] .rd-v2-agent-steps li > span {
+  align-self: start;
+  color: var(--rd-accent-strong);
+  font-size: 10px;
+  font-weight: 760;
+  letter-spacing: 0.05em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+[data-redesign] .rd-v2-agent-steps strong {
+  color: var(--rd-ink);
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1.25;
+}
+
+[data-redesign] .rd-v2-agent-steps p {
+  grid-column: 2;
+  margin: 0;
+  color: var(--rd-ink-mute);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 [data-redesign] .rd-v2-pulse-side {
   display: grid;
   gap: 14px;
@@ -2041,6 +2083,14 @@
 
   [data-redesign] .rd-v2-pulse-lead h2 {
     font-size: 24px;
+  }
+
+  [data-redesign] .rd-v2-agent-steps li {
+    grid-template-columns: 1fr;
+  }
+
+  [data-redesign] .rd-v2-agent-steps p {
+    grid-column: 1;
   }
 
   [data-redesign] .rd-v2-pulse-statline {
