@@ -381,7 +381,7 @@ export default function RedesignShell() {
 function ReportDetailRoute({ reportId }: { reportId: string }) {
   const liveArtifacts = useLiveArtifacts(60);
   const liveDetail = liveArtifacts.details.find((detail) => detail.id === reportId);
-  return <ReportNotebookView reportId={reportId} liveDetail={liveDetail} showSidebar={false} />;
+  return <ReportNotebookView reportId={reportId} liveDetail={liveDetail} showSidebar />;
 }
 
 function useQaChromeFlag(search: string): boolean {

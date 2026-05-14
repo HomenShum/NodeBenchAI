@@ -70,12 +70,12 @@ const reportEntities = [
     status: "Verified",
     score: 91,
     sources: 12,
-    delta: "▲ 3 from last run",
+    delta: "Updated 2h ago",
     kind: "Partnership intelligence - Company",
     body: "Enterprise tier repriced +40%; Claude 4 Opus structure held. Managed Agent tier launched at $0.168/1K tokens.",
     tags: ["Partnership", "AI", "Enterprise"],
     ref: "Board prep - Q2 strategy - Vendor review",
-    meta: "Confidence 91 · 12 sources · 2 open claims · refreshed 2h ago",
+    meta: "5 of 5 claims verified · 12 sources · refreshed 2h ago",
     dims: { Sources: 95, Freshness: 92, Verification: 80, Coverage: 88 },
     signals: ["Enterprise pricing +40% effective June 1", "Managed Agent tier $0.168/1K tokens", "Partnership compressed $1.2M"],
     related: ["Sequoia Capital", "OpenAI", "Google DeepMind"],
@@ -87,12 +87,12 @@ const reportEntities = [
     status: "Needs review",
     score: 74,
     sources: 8,
-    delta: "▼ declining",
+    delta: "Last checked 1d ago",
     kind: "Term sheet analysis - Investor",
     body: "Full-ratchet anti-dilution at 1x in term sheet v3; 33% below market norm. Board observer seat added at $83M.",
     tags: ["Fundraising", "Term sheet", "Action needed"],
     ref: "Cap table model - Dilution analysis - Deal memo",
-    meta: "Confidence 74 · 8 sources · 3 open claims · review needed",
+    meta: "4 of 7 claims current · 8 sources · review needed",
     dims: { Sources: 72, Freshness: 65, Verification: 58, Coverage: 80 },
     signals: ["Full-ratchet anti-dilution clause added", "Board observer seat at $8.3M", "Counter-bid moved to $80M pre"],
     related: ["Anthropic", "Bug0", "OpenAI"],
@@ -103,12 +103,12 @@ const reportEntities = [
     status: "Verified",
     score: 88,
     sources: 5,
-    delta: "▲ 2 from last run",
+    delta: "Updated 1d ago",
     kind: "Competitive intelligence - Competitor",
     body: "Pricing dropped to $199/mo from $349; SOC 2 Type II obtained. Feature gap narrowing on automated QA.",
     tags: ["Competitive", "QA", "Enterprise"],
     ref: "Competitive matrix - Pricing comparison",
-    meta: "Confidence 88 · 5 sources · 1 open claim · refreshed 1d ago",
+    meta: "4 of 4 claims verified · 5 sources · refreshed 1d ago",
     dims: { Sources: 78, Freshness: 85, Verification: 90, Coverage: 82 },
     signals: ["Pricing dropped to $199/mo from $349", "SOC 2 Type II obtained", "Feature gap narrowing on automated QA"],
     related: ["Anthropic", "OpenAI", "Google DeepMind"],
@@ -119,12 +119,12 @@ const reportEntities = [
     status: "Stale",
     score: 62,
     sources: 4,
-    delta: "▼ stale",
+    delta: "Last checked 3d ago",
     kind: "Market intelligence - Company",
     body: "GPT-5 announcement rumored but unverified; 2 of 5 claims stale after 3 days. Refresh needed.",
     tags: ["AI", "Unverified"],
     ref: "Competitive matrix - API cost model",
-    meta: "Confidence 62 · 4 sources · 3 stale claims · refresh needed",
+    meta: "3 of 5 claims current · 4 sources · refresh needed",
     dims: { Sources: 55, Freshness: 42, Verification: 50, Coverage: 68 },
     signals: ["GPT-5 announcement rumored, unverified", "2 of 5 claims now stale", "API pricing restructure signal"],
     related: ["Anthropic", "Google DeepMind", "Bug0"],
@@ -135,12 +135,12 @@ const reportEntities = [
     status: "Stale",
     score: 55,
     sources: 3,
-    delta: "▼ stale",
+    delta: "Last checked 5d ago",
     kind: "Coverage gap - Company",
     body: "No new signals in 5 days; only 1 of 3 sources still verifiable. Refresh the research and update model capability notes.",
     tags: ["AI", "Research", "Refresh"],
     ref: "Model capability watch - Source ledger",
-    meta: "Confidence 55 · 3 sources · 2 stale claims · refresh needed",
+    meta: "1 of 3 sources still verifiable · 3 sources · refresh needed",
     dims: { Sources: 48, Freshness: 35, Verification: 45, Coverage: 55 },
     signals: ["No new signals in 5 days", "Only 1 of 3 sources still verifiable", "Research tracker needs owner review"],
     related: ["Anthropic", "OpenAI", "Sequoia Capital"],
@@ -152,7 +152,6 @@ type ReportsRailStatus = "verified" | "review" | "stale" | "drafting" | "monitor
 type ReportsRailItem = {
   icon: string;
   name: string;
-  score: string;
   status?: ReportsRailStatus;
   active?: boolean;
 };
@@ -162,42 +161,42 @@ const reportsRailGroups: Array<{ label: string; count: string; items: ReportsRai
     label: "Universes",
     count: "3",
     items: [
-      { icon: "AI", name: "AI Infrastructure", score: "87", active: true },
-      { icon: "BT", name: "Banking Targets", score: "34" },
-      { icon: "FW", name: "Fundraise Watch", score: "12" },
+      { icon: "AI", name: "AI Infrastructure", active: true },
+      { icon: "BT", name: "Banking Targets" },
+      { icon: "FW", name: "Fundraise Watch" },
     ],
   },
   {
     label: "Companies",
     count: "5",
     items: [
-      { icon: "A", name: "Anthropic", score: "91", status: "verified" },
-      { icon: "O", name: "OpenAI", score: "62", status: "stale" },
-      { icon: "M", name: "Mistral", score: "25", status: "drafting" },
-      { icon: "B", name: "Bug0", score: "88", status: "verified" },
-      { icon: "G", name: "Google DeepMind", score: "47", status: "stale" },
+      { icon: "A", name: "Anthropic", status: "verified" },
+      { icon: "O", name: "OpenAI", status: "stale" },
+      { icon: "M", name: "Mistral", status: "drafting" },
+      { icon: "B", name: "Bug0", status: "verified" },
+      { icon: "G", name: "Google DeepMind", status: "stale" },
     ],
   },
   {
     label: "People",
     count: "2",
     items: [
-      { icon: "D", name: "Dario Amodei", score: "87", status: "verified" },
-      { icon: "S", name: "Sequoia Capital", score: "74", status: "review" },
+      { icon: "D", name: "Dario Amodei", status: "verified" },
+      { icon: "S", name: "Sequoia Capital", status: "review" },
     ],
   },
   {
     label: "Briefs",
     count: "1",
     items: [
-      { icon: "D", name: "Daily Brief - May 13", score: "80", status: "review" },
+      { icon: "D", name: "Daily Brief - May 13", status: "review" },
     ],
   },
   {
     label: "Monitoring",
     count: "1",
     items: [
-      { icon: "C", name: "Cohere", score: "82", status: "monitoring" },
+      { icon: "C", name: "Cohere", status: "monitoring" },
     ],
   },
 ];
@@ -236,12 +235,12 @@ function liveReportToPrototypeEntity(report: ReportCardData): PrototypeReportEnt
     status,
     score,
     sources: report.sources,
-    delta: report.updatedAt,
+    delta: `Updated ${report.updatedAt}`,
     kind: `${report.kind} - Live report`,
     body: report.description,
     tags: [report.kind, status, report.followUps > 0 ? "Action needed" : "Current"],
     ref: "Live Convex artifacts - notebook - sources",
-    meta: `Confidence ${score} · ${report.sources} sources · ${report.claims} claims · ${report.followUps} follow-ups`,
+    meta: `${report.claims} claims · ${report.sources} sources · ${report.followUps} follow-ups · ${report.updatedAt}`,
     dims: { Sources: evidence, Freshness: freshness, Verification: actionability, Coverage: graphFit },
     signals: [
       report.description,
@@ -371,7 +370,7 @@ function introspectionSourceTitle(source: LiveArtifactSourceRow | undefined, fal
 function introspectionSourceBody(source: LiveArtifactSourceRow | undefined, fallback: string): string {
   if (!source) return fallback;
   if (isNoisyFirstViewportSource(source)) {
-    return "The raw headline stays below the fold as evidence. The useful part is that provenance, reuse count, and confidence are ready for the agent to judge.";
+    return "The raw headline stays below the fold as evidence. The useful part is that provenance, reuse count, and review state are ready for the agent to judge.";
   }
   return trimSentence(source.excerpt, fallback, 180);
 }
@@ -620,7 +619,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       selectedBody: "Active founder-recruiter lead after Earlier Startup Lead / Insurance AI Co context.",
       selectedNext: "Book Wed Wednesday 11:30 AM.",
       selectedWhy: "This is specific, current, and high enough signal to clear before recruiter batch work.",
-      selectedScore: "91 strong",
+      selectedScore: "Verified",
       proofCards: [
         { title: "Pinned match", body: "active thread, calendar-ready, vertical AI", tag: "active thread" },
         { title: "NodeBench proof", body: "Ready for action. 3 public-source signals attached.", tag: "ready" },
@@ -642,11 +641,11 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       agentBody: "Anthropic repriced enterprise tier +40% effective June 1, Sequoia added a full-ratchet clause to the Series C term sheet, and SMB churn crossed the 3% threshold for the first time since Q3.",
       agentTrace: ["entity_scan", "signal_rank", "source_verify"],
       agentEntities: [
-        ["A", "Anthropic", "Verified", "91"],
-        ["S", "Sequoia Capital", "Review", "74"],
-        ["B", "Bug0", "", "68"],
-        ["O", "OpenAI", "", "62"],
-        ["D", "DeepMind", "", "55"],
+        ["A", "Anthropic", "Verified", "12 sources"],
+        ["S", "Sequoia Capital", "Review", "8 sources"],
+        ["B", "Bug0", "", "5 sources"],
+        ["O", "OpenAI", "Stale", "4 sources"],
+        ["D", "DeepMind", "Stale", "3 sources"],
       ],
     };
   }
@@ -740,7 +739,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     monogram(report.entity),
     report.entity,
     report.status === "verified" ? "Verified" : report.status === "review" ? "Review" : "",
-    String(Math.round(Math.min(99, Math.max(40, report.sources * 7 + report.claims * 3)))),
+    `${report.sources} sources`,
   ] as [string, string, string, string]);
   const sweepBullets = queueSource.slice(0, 4).map((item) => `${compact(item.next, "Review")} ${compact(item.title, "live signal")}.`);
   const fallbackStats = liveArtifacts.isLoading
@@ -759,9 +758,9 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     .find((source) => compact(source.title || source.excerpt, "").length > 0);
   const followUpTotal = reports.reduce((total, report) => total + report.followUps, 0);
   const changedSignalCount = Math.max(liveArtifacts.briefFeatureCount, pulse.length, reports.length);
-  const sourceConfidence = typeof topSource?.confidence === "number"
-    ? `${Math.round(topSource.confidence * 100)}% confidence`
-    : "confidence pending";
+  const sourceReviewState = typeof topSource?.confidence === "number"
+    ? topSource.confidence >= 0.82 ? "verified source row" : "needs review"
+    : "review pending";
   const liveIntrospection: HomeV2Introspection = {
     kicker: "Daily introspection",
     title: "One useful thing surfaced while you were not looking.",
@@ -784,7 +783,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       topReport?.description ?? "Source-backed evidence will appear here once a live report, daily brief, or public archive row returns.",
     ),
     sourceMeta: topSource
-      ? `${sourceLabel(topSource.type)} - ${topSource.reused} reuses - ${sourceConfidence}`
+      ? `${sourceLabel(topSource.type)} - ${topSource.reused} reuses - ${sourceReviewState}`
       : hasLive
         ? "No source row attached to the top packet"
         : "Waiting for live evidence",
@@ -1165,7 +1164,6 @@ function ReportsRailGroup({
           >
             <span className="rd-v2-report-nav-icon">{item.icon}</span>
             <strong>{item.name}</strong>
-            <b>{item.score}</b>
             {item.status && <i aria-label={item.status} className="rd-v2-report-nav-dot" data-status={item.status} />}
           </button>
         );
@@ -1206,7 +1204,7 @@ function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }
         <div>
           <div className="rd-v3-kicker">Reports</div>
           <h1>AI Infrastructure Coverage</h1>
-          <p>87 reports, 48 sources, 7 need review, confidence 91/100.</p>
+          <p>87 reports, 312 sources, 18 need review.</p>
         </div>
         <div className="rd-v3-universe-actions">
           <button type="button">Review queue</button>
@@ -1227,7 +1225,7 @@ function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }
       </div>
       <div className="rd-v2-edition-row">
         <span className="rd-v2-edition-pill">Entity intelligence</span>
-        <span className="rd-v2-edition-subline">12 entities · 83% verified · avg score 87 · 48 sources</span>
+        <span className="rd-v2-edition-subline">12 entities · 83% verified · 48 sources · 7 notebook patches</span>
       </div>
       <div className="rd-v2-filter-row">
         {["All", "Watching", "Needs review", "Stale", "Updated"].map((item, index) => (
@@ -1469,14 +1467,51 @@ function AgentShell({
 
 function inspectorPipeline(entity: PrototypeReportEntity): Array<{ label: string; done: boolean }> {
   const isDraft = /draft|generating|gathering/i.test(entity.status);
-  const needsReview = entity.score < 75 || /review|stale/i.test(entity.status);
+  const needsReview = entityNeedsReview(entity);
+  const claimCount = claimCountForEntity(entity);
   return [
     { label: isDraft ? "Gathering sources" : `Gathered ${Math.max(8, entity.sources * 4)} sources`, done: !isDraft || entity.sources > 2 },
     { label: `Extracted ${Math.max(2, entity.signals.length)} entities`, done: !isDraft },
-    { label: `Generated ${Math.max(5, Math.round(entity.score / 4))} claims`, done: entity.score >= 45 },
+    { label: `Generated ${claimCount} source-backed claims`, done: entity.sources > 0 },
     { label: needsReview ? "Verifying evidence" : "Verified evidence", done: !needsReview },
     { label: needsReview ? "Notebook patch pending" : "Notebook published", done: !needsReview },
   ];
+}
+
+function entityNeedsReview(entity: PrototypeReportEntity): boolean {
+  return /review|stale|draft|generating|gathering/i.test(entity.status) || entity.sources < 5;
+}
+
+function claimCountForEntity(entity: PrototypeReportEntity): number {
+  return Math.max(3, Math.min(9, entity.signals.length + Math.ceil(entity.sources / 2)));
+}
+
+function entityStatusLabel(entity: PrototypeReportEntity): string {
+  if (/stale/i.test(entity.status)) return "Stale";
+  if (/review/i.test(entity.status)) return "Review";
+  if (/draft|generating|gathering/i.test(entity.status)) return "Drafting";
+  if (/watch/i.test(entity.status)) return "Watching";
+  return "Verified";
+}
+
+function entityEvidenceText(entity: PrototypeReportEntity): string {
+  const claims = claimCountForEntity(entity);
+  if (/stale/i.test(entity.status)) return `${Math.max(1, claims - 2)} of ${claims} claims current`;
+  if (entityNeedsReview(entity)) return `${Math.max(1, claims - 1)} of ${claims} claims need review`;
+  return `${claims} of ${claims} claims verified`;
+}
+
+function entityFreshnessText(entity: PrototypeReportEntity): string {
+  return entity.delta;
+}
+
+function entityCoverageText(entity: PrototypeReportEntity): string {
+  return entity.tags.slice(0, 3).join(" - ");
+}
+
+function relatedStatusLabel(entityName: string): string {
+  const related = reportEntities.find((item) => item.name === entityName);
+  return related ? entityStatusLabel(related) : "Related";
 }
 
 function inspectorWarnings(entity: PrototypeReportEntity): string[] {
@@ -1486,7 +1521,7 @@ function inspectorWarnings(entity: PrototypeReportEntity): string[] {
       "Refresh public sources before exporting this notebook.",
     ];
   }
-  if (entity.score < 75 || /review/i.test(entity.status)) {
+  if (entityNeedsReview(entity)) {
     return [
       "Open claims need human review before verification.",
       "Notebook patch should preserve the prior source trail.",
@@ -1503,16 +1538,17 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
   const [drawerOpen, setDrawerOpen] = useState(true);
   const pipeline = inspectorPipeline(entity);
   const warnings = inspectorWarnings(entity);
-  const reviewText = entity.score < 75 ? `${entity.name} needs review.` : `${entity.name} is in good shape.`;
-  const summaryText = entity.score < 75
-    ? `${entity.name} is below coverage threshold. Refresh sources, verify open claims, and decide whether the report needs a notebook patch.`
-    : `${entity.name} has current sources and enough verified claims for the present coverage task. Keep it on watch.`;
+  const needsReview = entityNeedsReview(entity);
+  const reviewText = needsReview ? `${entity.name} needs source review.` : `${entity.name} is ready for the current coverage task.`;
+  const summaryText = needsReview
+    ? `${entity.name} has open evidence work. Refresh stale rows, verify open claims, and decide whether the report needs a notebook patch.`
+    : `${entity.name} has current sources, verified claims, and a notebook trail the agent can reuse. Keep it on watch.`;
 
   return (
     <AgentShell
-      title="Agent Inspector"
-      context={`Reports - ${entity.name} - ${entity.sources} sources - score ${entity.score}`}
-      pills={["Reports", entity.name, `${entity.sources} sources`, `Score ${entity.score}`]}
+      title="Coverage agent"
+      context={`Reports - ${entity.name} - ${entityStatusLabel(entity)} - ${entity.sources} sources`}
+      pills={["Reports", entity.name, `${entity.sources} sources`, entityStatusLabel(entity)]}
       question="Which reports need work?"
       placeholder="Ask about these reports..."
       onAsk={onAsk}
@@ -1522,7 +1558,7 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
         <p>{summaryText}</p>
         <details className="rd-v2-trace" open>
           <summary><small>Agent run trace</small></summary>
-          <div className="rd-v2-trace-steps"><span>source_scan</span><span>claim_verify</span><span>score_compute</span><span>notebook_patch</span></div>
+          <div className="rd-v2-trace-steps"><span>source_scan</span><span>claim_verify</span><span>freshness_check</span><span>notebook_patch</span></div>
         </details>
         <div className="rd-v2-msg-actions">
           <button type="button" className="is-primary" onClick={() => onAsk?.(`Open the ${entity.name} notebook and summarize the next review step.`)}>Open notebook</button>
@@ -1544,19 +1580,15 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
         type="button"
         aria-expanded={drawerOpen}
         onClick={() => setDrawerOpen((value) => !value)}
-      >{`Context - ${entity.name} ${entity.score} - ${warnings.length} warnings - ${entity.sources} sources`}</button>
+      >{`Context - ${entity.name} - ${warnings.length} warnings - ${entity.sources} sources`}</button>
       {drawerOpen && (
         <>
           <section className="rd-v2-agent-context">
-            <div className="rd-v2-context-head"><span>Active entity</span><span>{entity.score}</span></div>
-            <div className="rd-v2-score-big">{entity.score} <small>{entity.delta}</small></div>
-            {Object.entries(entity.dims).map(([label, value]) => (
-              <div className="rd-v2-score-row" key={label}>
-                <span>{label}</span>
-                <b><i data-tone={value >= 80 ? "green" : value >= 58 ? "accent" : "amber"} style={{ width: `${value}%` }} /></b>
-                <strong>{value}</strong>
-              </div>
-            ))}
+            <div className="rd-v2-context-head"><span>Active entity</span><span>{entityStatusLabel(entity)}</span></div>
+            <div className="rd-v2-transparency-row"><span>Evidence</span><strong>{entityEvidenceText(entity)}</strong></div>
+            <div className="rd-v2-transparency-row"><span>Sources</span><strong>{entity.sources} source rows</strong></div>
+            <div className="rd-v2-transparency-row"><span>Freshness</span><strong>{entityFreshnessText(entity)}</strong></div>
+            <div className="rd-v2-transparency-row"><span>Coverage</span><strong>{entityCoverageText(entity)}</strong></div>
           </section>
           <section className="rd-v2-agent-context">
             <div className="rd-v2-context-head"><span>Warnings</span><span>{warnings.length}</span></div>
@@ -1574,13 +1606,12 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
           </section>
           <section className="rd-v2-agent-context">
             <div className="rd-v2-context-head"><span>Related entities</span><span>{entity.related.length}</span></div>
-            {entity.related.map((name, index) => {
+            {entity.related.map((name) => {
               const related = reportEntities.find((item) => item.name === name);
               const initial = related?.initial ?? name.slice(0, 1).toUpperCase();
-              const score = related?.score ?? Math.max(55, entity.score - (index + 1) * 4);
               return (
                 <button className="rd-v2-related-entity" key={name} onClick={() => onSelectEntity?.(name)}>
-                  <span>{initial}</span><strong>{name}</strong><b>{score}</b>
+                  <span>{initial}</span><strong>{name}</strong><b>{relatedStatusLabel(name)}</b>
                 </button>
               );
             })}
@@ -1697,7 +1728,7 @@ function InboxPrototypeRail({ onAsk }: HomeV2SurfaceProps) {
         <div className="rd-v2-report-title"><span>S</span><h2>Sequoia Capital</h2><b>74</b></div>
         <p>• Active term sheet negotiation<br />• $1.2M partnership · 3 prior rounds<br />• Last report: 6h ago</p>
       </article>
-      <div className="rd-v2-agent-insight"><strong>Agent insight</strong><span className="rd-v2-confidence">92% confidence</span><p>Full-ratchet clause creates 14.3pp dilution gap at $48M. Counter with narrow-based weighted-average as floor.</p></div>
+      <div className="rd-v2-agent-insight"><strong>Agent insight</strong><span className="rd-v2-confidence">Verified evidence</span><p>Full-ratchet clause creates 14.3pp dilution gap at $48M. Counter with narrow-based weighted-average as floor.</p></div>
       <section className="rd-v2-related-threads">
         <h3>Related threads</h3>
         <div className="rd-v2-thread-item"><span className="rd-v2-thread-dot" /><span>Term sheet v2 discussion</span><span className="rd-v2-thread-time">4d</span></div>
@@ -2208,12 +2239,12 @@ export function HomeV2BriefingRail({ onAsk, onOpenReports, liveArtifacts }: Home
         </button>
         <section className="rd-v2-agent-context">
           <div className="rd-v2-context-head"><span>Entities</span><span>{model.agentEntities.length}</span></div>
-          {model.agentEntities.map(([icon, name, badge, score]) => (
+          {model.agentEntities.map(([icon, name, badge, detail]) => (
             <div className="rd-v2-entity" key={name}>
               <span>{icon}</span>
               <strong>{name}</strong>
               {badge && <em>{badge}</em>}
-              <b>{score}</b>
+              <b>{detail}</b>
             </div>
           ))}
         </section>
