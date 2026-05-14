@@ -79,6 +79,29 @@ async function expectRailInViewport(rail: Locator, minWidth = 280): Promise<void
   expect(box.bottom, "right rail intersects the visible viewport").toBeGreaterThan(0);
 }
 
+async function expectV2CenterCanvas(page: Page, centerSelector: string): Promise<void> {
+  await expect(page.locator(centerSelector).first()).toBeVisible({ timeout: 10_000 });
+  const metrics = await page.locator(centerSelector).first().evaluate((node) => {
+    const center = node.getBoundingClientRect();
+    const pane = document.querySelector("[data-main-content]")?.getBoundingClientRect();
+    const paneStyle = document.querySelector("[data-main-content]")
+      ? getComputedStyle(document.querySelector("[data-main-content]") as Element)
+      : null;
+    return {
+      alignItems: paneStyle?.alignItems ?? "",
+      centerWidth: center.width,
+      leftGap: pane ? center.left - pane.left : 0,
+      rightGap: pane ? pane.right - center.right : 0,
+    };
+  });
+
+  expect(metrics.alignItems, "v2 center pane uses flex centering").toBe("center");
+  expect(metrics.leftGap, "v2 center pane keeps left whitespace").toBeGreaterThanOrEqual(24);
+  expect(metrics.rightGap, "v2 center pane keeps right whitespace").toBeGreaterThanOrEqual(24);
+  expect(Math.abs(metrics.leftGap - metrics.rightGap), "v2 center pane is visually centered").toBeLessThanOrEqual(2);
+  expect(metrics.centerWidth, "v2 center pane keeps the prototype content max width").toBeLessThanOrEqual(820);
+}
+
 test.describe("Home v2 /redesign parity", () => {
   test("desktop Home renders the live home-v2 layout", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -125,6 +148,7 @@ test.describe("Home v2 /redesign parity", () => {
     await expect(page.getByLabel("Filter entities")).toBeVisible();
     await expect(page.getByText("Entity intelligence").first()).toBeVisible();
     await expect(page.locator(".rd-v2-report-grid")).toBeVisible({ timeout: 15_000 });
+    await expectV2CenterCanvas(page, ".rd-v2-proto-center");
     await expect(page.getByRole("complementary", { name: "Coverage agent" })).toBeVisible();
     const rail = rightRail(page);
     await expectRailInViewport(rail);
@@ -157,6 +181,7 @@ test.describe("Home v2 /redesign parity", () => {
     await expect(page.getByText(/Ready for a live report packet|Saved to/i).first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Ask NodeBench to work the live packet").first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Prompt captured").first()).toBeVisible();
+    await expectV2CenterCanvas(page, ".rd-v2-chat-center");
     const rail = rightRail(page);
     await expectRailInViewport(rail);
 
@@ -196,6 +221,7 @@ test.describe("Home v2 /redesign parity", () => {
     await expect(page.getByRole("complementary", { name: "Inbox navigation" })).toBeVisible();
     await expect(page.getByLabel("Search inbox")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
+    await expectV2CenterCanvas(page, ".rd-v2-inbox-center");
     await expect(page.getByText("Requires action").first()).toBeVisible();
     await expect(page.getByText("To read").first()).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Triage agent" })).toBeVisible();
@@ -207,6 +233,7 @@ test.describe("Home v2 /redesign parity", () => {
 
     await expect(page.getByRole("complementary", { name: "Me navigation" })).toBeVisible();
     await expect(page.getByText("USER.md").first()).toBeVisible();
+    await expectV2CenterCanvas(page, ".rd-v2-me-center");
     await expect(page.getByText("Private Context").first()).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Settings agent" })).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Settings agent" })).toContainText("privacy_boundary");
