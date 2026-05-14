@@ -1259,6 +1259,7 @@ function AgentShell({
   placeholder: string;
   onAsk?: (prompt: string) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const pillClassName = (_pill: string, index: number) => {
     const classes = ["rd-v2-agent-pill"];
     if (index === 0) classes.push("is-active");
@@ -1271,12 +1272,12 @@ function AgentShell({
   };
 
   return (
-    <aside className="rd-pane rd-pane--right rd-v2-briefing" aria-label={title}>
+    <aside className="rd-pane rd-pane--right rd-v2-briefing" aria-label={title} data-width={expanded ? "expanded" : undefined}>
       <header className="rd-v2-agent-head">
         <div className="rd-v2-agent-head-row">
           <span className="rd-v2-agent-dot" />
           <strong>{title}</strong>
-          <button type="button" aria-label="Expand rail">{"\u2197"}</button>
+          <button type="button" aria-label={expanded ? "Collapse rail" : "Expand rail"} onClick={() => setExpanded(e => !e)}>{expanded ? "\u2921" : "\u2922"}</button>
         </div>
         <p>{context}</p>
       </header>
@@ -1319,8 +1320,16 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
       <div className="rd-v2-msg rd-v2-msg-agent">
         <strong>{reviewText}</strong>
         <p>{summaryText}</p>
-        <div className="rd-v2-trace"><small>3 steps completed</small><span>entity_health</span><span>freshness_scan</span><span>claim_verify</span></div>
+        <details className="rd-v2-trace">
+          <summary><small>3 steps completed</small></summary>
+          <div className="rd-v2-trace-steps"><span>entity_health</span><span>freshness_scan</span><span>claim_verify</span></div>
+        </details>
       </div>
+      <section className="rd-v2-action-card-list">
+        {[`Review ${entity.name}`, "Refresh stale sources", `Compare ${entity.related[0] ?? "entities"}`, "Export selected"].map((action, index) => (
+          <button key={action} className={index === 0 ? "is-primary" : ""} onClick={() => onAsk?.(`${action} for ${entity.name}`)}>{action}</button>
+        ))}
+      </section>
       <button className="rd-v2-drawer-toggle">{`Context · ${entity.name} ${entity.score} · ${entity.signals.length} signals · ${entity.related.length} entities`}</button>
       <section className="rd-v2-agent-context">
         <div className="rd-v2-context-head"><span>Active entity</span><span>{entity.score}</span></div>
@@ -1335,7 +1344,13 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
       </section>
       <section className="rd-v2-agent-context">
         <div className="rd-v2-context-head"><span>Recent signals</span><span>{entity.signals.length}</span></div>
-        {entity.signals.map((signal) => <p className="rd-v2-signal-line" key={signal}>{signal}</p>)}
+        {entity.signals.map((signal, index) => (
+          <div className="rd-v2-signal-tl" key={signal}>
+            <span className="rd-v2-signal-tl-time">{index === 0 ? "2h" : index === 1 ? "1d" : "3d"}</span>
+            <span className="rd-v2-signal-tl-dot" data-tone={index === 0 ? "accent" : index === 1 ? "blue" : "green"} />
+            <span className="rd-v2-signal-tl-text">{signal}</span>
+          </div>
+        ))}
       </section>
       <section className="rd-v2-agent-context">
         <div className="rd-v2-context-head"><span>Related entities</span><span>{entity.related.length}</span></div>
@@ -1372,11 +1387,45 @@ function ChatPrototypeRail() {
         </section>
       </>
     ),
-    Graph: <section className="rd-v2-util-list"><h3>Graph neighborhood</h3><p><strong>Sequoia</strong> connects to YC AI Ops, Alfred Lin, cap table model, and board prep.</p><p><strong>Closest report</strong><span>Term Sheet Analysis</span></p></section>,
+    Graph: (
+      <section className="rd-v2-util-list">
+        <h3>Graph neighborhood</h3>
+        <svg viewBox="0 0 300 160" xmlns="http://www.w3.org/2000/svg" className="rd-v2-graph-svg">
+          <line x1="150" y1="80" x2="50" y2="30" stroke="var(--rd-line)" strokeWidth="1" />
+          <line x1="150" y1="80" x2="250" y2="30" stroke="var(--rd-line)" strokeWidth="1" />
+          <line x1="150" y1="80" x2="60" y2="135" stroke="var(--rd-line)" strokeWidth="1" />
+          <line x1="150" y1="80" x2="240" y2="135" stroke="var(--rd-line)" strokeWidth="1" />
+          <line x1="50" y1="30" x2="250" y2="30" stroke="var(--rd-line-faint)" strokeWidth="1" strokeDasharray="4" />
+          <circle cx="150" cy="80" r="18" fill="var(--rd-accent-tint)" stroke="var(--rd-accent)" strokeWidth="1.5" />
+          <text x="150" y="84" textAnchor="middle" fontSize="8" fontWeight="700" fill="var(--rd-accent-strong)">You</text>
+          <circle cx="50" cy="30" r="14" fill="var(--rd-panel)" stroke="var(--rd-line)" strokeWidth="1" />
+          <text x="50" y="34" textAnchor="middle" fontSize="7" fill="var(--rd-ink-mute)">Anthropic</text>
+          <circle cx="250" cy="30" r="14" fill="var(--rd-panel)" stroke="var(--rd-line)" strokeWidth="1" />
+          <text x="250" y="34" textAnchor="middle" fontSize="7" fill="var(--rd-ink-mute)">Sequoia</text>
+          <circle cx="60" cy="135" r="14" fill="var(--rd-panel)" stroke="var(--rd-line)" strokeWidth="1" />
+          <text x="60" y="139" textAnchor="middle" fontSize="7" fill="var(--rd-ink-mute)">Bug0</text>
+          <circle cx="240" cy="135" r="14" fill="var(--rd-panel)" stroke="var(--rd-line)" strokeWidth="1" />
+          <text x="240" y="139" textAnchor="middle" fontSize="7" fill="var(--rd-ink-mute)">SMB</text>
+        </svg>
+        <p style={{ fontSize: "10px", color: "var(--rd-ink-faint)", textAlign: "center", marginTop: "8px" }}>4 entities · 6 relationships</p>
+      </section>
+    ),
     Sources: <section className="rd-v2-util-list"><h3>Sources</h3><p><strong>Term sheet v3</strong><span>PDF</span></p><p><strong>Cap table model</strong><span>Sheet</span></p><p><strong>Cooley primer</strong><span>Reference</span></p></section>,
     Threads: <section className="rd-v2-util-list"><h3>Threads</h3><p><strong>Ratchet clause analysis</strong><span>3 messages</span></p><p><strong>Board deck prep</strong><span>2 messages</span></p></section>,
     Notebook: <section className="rd-v2-util-list"><h3>Notebook patch</h3><p><strong>Proposed edit</strong><span>pending</span></p><p>Add dilution table, counsel review, and counterproposal summary.</p></section>,
-    Report: <section className="rd-v2-util-list"><h3>Report</h3><p><strong>Status</strong><span>Saved</span></p><p><strong>Claims</strong><span>7 total</span></p><p><strong>Open</strong><span>2 pending</span></p></section>,
+    Report: (
+      <section className="rd-v2-util-list">
+        <h3>Thread stats</h3>
+        <p><strong>Messages</strong><span>3</span></p>
+        <p><strong>Tools used</strong><span>5</span></p>
+        <p><strong>Cost</strong><span>$0.13</span></p>
+        <p><strong>Duration</strong><span>2m 14s</span></p>
+        <div className="rd-v2-action-card-list" style={{ marginTop: "12px" }}>
+          <button className="is-primary">Export report</button>
+          <button>Share</button>
+        </div>
+      </section>
+    ),
   };
 
   return (
@@ -1414,14 +1463,22 @@ function InboxPrototypeRail({ onAsk }: HomeV2SurfaceProps) {
       <div className="rd-v2-msg rd-v2-msg-agent">
         <strong>The ratchet clause needs legal review before Thursday's board call.</strong>
         <p>Full-ratchet creates a 14.3pp dilution gap at $48M. This is the single largest negotiation risk in the term sheet.</p>
-        <div className="rd-v2-trace"><small>3 steps completed</small><span>term_sheet_parse</span><span>dilution_calc</span><span>calendar_check</span></div>
+        <details className="rd-v2-trace">
+          <summary><small>3 steps completed</small></summary>
+          <div className="rd-v2-trace-steps"><span>term_sheet_parse</span><span>dilution_calc</span><span>calendar_check</span></div>
+        </details>
       </div>
       <button className="rd-v2-drawer-toggle">Context · Sequoia 74 · 2 threads</button>
       <article className="rd-v2-util-card">
         <div className="rd-v2-report-title"><span>S</span><h2>Sequoia Capital</h2><b>74</b></div>
         <p>• Active term sheet negotiation<br />• $1.2M partnership · 3 prior rounds<br />• Last report: 6h ago</p>
       </article>
-      <div className="rd-v2-agent-insight"><strong>Agent insight</strong><p>Full-ratchet clause creates 14.3pp dilution gap at $48M. Counter with narrow-based weighted-average as floor.</p></div>
+      <div className="rd-v2-agent-insight"><strong>Agent insight</strong><span className="rd-v2-confidence">92% confidence</span><p>Full-ratchet clause creates 14.3pp dilution gap at $48M. Counter with narrow-based weighted-average as floor.</p></div>
+      <section className="rd-v2-related-threads">
+        <h3>Related threads</h3>
+        <div className="rd-v2-thread-item"><span className="rd-v2-thread-dot" /><span>Term sheet v2 discussion</span><span className="rd-v2-thread-time">4d</span></div>
+        <div className="rd-v2-thread-item"><span className="rd-v2-thread-dot" /><span>Sequoia intro meeting notes</span><span className="rd-v2-thread-time">2w</span></div>
+      </section>
       <section className="rd-v2-action-card-list">
         {["Draft reply", "Flag for legal", "Forward to counsel", "Defer"].map((action, index) => (
           <button key={action} className={index === 0 ? "is-primary" : ""}>{action}</button>
@@ -1461,7 +1518,10 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
         <div className="rd-v2-msg rd-v2-msg-agent">
           <strong>{lead}</strong>
           <p>{detail}</p>
-          <div className="rd-v2-trace"><small>3 steps completed</small>{trace.map((step) => <span key={step}>{step}</span>)}</div>
+          <details className="rd-v2-trace">
+            <summary><small>3 steps completed</small></summary>
+            <div className="rd-v2-trace-steps">{trace.map((step) => <span key={step}>{step}</span>)}</div>
+          </details>
         </div>
         <button className="rd-v2-drawer-toggle">Context - Private profile - Permissions - Usage</button>
         <section className="rd-v2-settings-list">
@@ -1501,7 +1561,10 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
       <div className="rd-v2-msg rd-v2-msg-agent">
         <strong>You prefer concise banker-style memos over long-form analysis.</strong>
         <p>In the last 7 sessions, you shortened 4 of my outputs and asked for just the decision. I updated your voice profile to default to {"Decision -> Why -> Plan"} format.</p>
-        <div className="rd-v2-trace"><small>3 steps completed</small><span>memory_scan</span><span>preference_log</span><span>profile_update</span></div>
+        <details className="rd-v2-trace">
+          <summary><small>3 steps completed</small></summary>
+          <div className="rd-v2-trace-steps"><span>memory_scan</span><span>preference_log</span><span>profile_update</span></div>
+        </details>
       </div>
       <button className="rd-v2-drawer-toggle">Context · Voice · Permissions · Usage</button>
       <section className="rd-v2-settings-list">
