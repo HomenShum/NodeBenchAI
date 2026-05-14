@@ -897,23 +897,39 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
   if (surface === "reports") {
     return (
       <aside className="rd-v2-left rd-v2-left--nav" aria-label="Reports navigation">
-        <input className="rd-v2-rail-search" placeholder="Filter entities..." aria-label="Filter entities" />
+        <input className="rd-v2-rail-search" placeholder="Find report, entity, source..." aria-label="Filter reports" />
         <div className="rd-v2-rail-rule" />
-        <RailGroup label="Companies" count="12" selectedName={selectedEntity} onSelectItem={onSelectEntity} items={[
-          ["A", "Anthropic", "3", true],
-          ["S", "Sequoia Capital", "2"],
-          ["B", "Bug0", "1"],
-          ["O", "OpenAI", ""],
-          ["G", "Google DeepMind", ""],
-          ["M", "Mistral", ""],
+        <RailGroup label="Universes" count="3" selectedName={selectedEntity} onSelectItem={onSelectEntity} items={[
+          ["AI", "AI Infrastructure", "87", true],
+          ["CX", "Customer Agents", "24"],
+          ["VC", "Startup Banking Targets", "31"],
+        ]} />
+        <RailGroup label="Report types" count="8" selectedName={selectedEntity} onSelectItem={onSelectEntity} items={[
+          ["D", "Daily Brief", "9"],
+          ["C", "Company Report", "38"],
+          ["P", "Person Report", "12"],
+          ["T", "Topic Report", "16"],
+          ["M", "Market Map", "4"],
+          ["F", "Funding Tracker", "8"],
+        ]} />
+        <RailGroup label="Review work" count="18" items={[
+          ["!", "Needs evidence", "6"],
+          ["?", "Needs review", "7"],
+          ["V", "Verified", "30"],
+          ["E", "Export ready", "5"],
+        ]} />
+        <RailGroup label="Agent runs" count="5" items={[
+          ["R", "Active batches", "3"],
+          ["S", "Source refreshes", "2"],
+          ["N", "Notebook patches", "4"],
         ]} />
         <RailGroup label="People" count="8" items={[
           ["•", "Dario Amodei", ""],
           ["•", "Alfred Lin", ""],
           ["•", "Sam Altman", ""],
         ]} />
-        <RailGroup label="Topics" count="5" items={[["#", "Fundraise", ""], ["#", "Pricing", ""], ["#", "Hiring", ""]]} />
-        <button className="rd-v2-new-entity">+ New entity</button>
+        <RailGroup label="Entity tags" count="5" items={[["#", "Fundraise", ""], ["#", "Pricing", ""], ["#", "Hiring", ""]]} />
+        <button className="rd-v2-new-entity">+ New batch</button>
       </aside>
     );
   }
@@ -1058,7 +1074,30 @@ function ChatThreadGroup({ label, items }: { label: string; items: Array<[string
 
 function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }: PrototypeSelectionProps) {
   return (
-    <div className="rd-v2-proto-center">
+    <div className="rd-v2-proto-center rd-v3-reports">
+      <div className="rd-v3-universe-header">
+        <div>
+          <div className="rd-v3-kicker">Reports</div>
+          <h1>AI Infrastructure Coverage</h1>
+          <p>87 reports, 48 sources, 7 need review, confidence 91/100.</p>
+        </div>
+        <div className="rd-v3-universe-actions">
+          <button type="button">Review queue</button>
+          <button type="button" className="rd-v3-primary">+ New batch</button>
+        </div>
+      </div>
+      <section className="rd-v3-metrics" aria-label="Coverage metrics">
+        <span><strong>87</strong> reports</span>
+        <span><strong>83%</strong> verified</span>
+        <span><strong>7</strong> need review</span>
+        <span><strong>3</strong> active runs</span>
+        <span><strong>12</strong> notebook patches</span>
+      </section>
+      <div className="rd-v3-tabs" role="tablist" aria-label="Report views">
+        {["Gallery", "Board", "Table", "Graph"].map((item, index) => (
+          <button key={item} type="button" role="tab" aria-selected={index === 0} className={index === 0 ? "is-active" : ""}>{item}</button>
+        ))}
+      </div>
       <div className="rd-v2-edition-row">
         <span className="rd-v2-edition-pill">Entity intelligence</span>
         <span className="rd-v2-edition-subline">12 entities · 83% verified · avg score 87 · 48 sources</span>
@@ -1262,7 +1301,7 @@ function AgentShell({
   const pillClassName = (_pill: string, index: number) => {
     const classes = ["rd-v2-agent-pill"];
     if (index === 0) classes.push("is-active");
-    if (title === "Coverage agent") {
+    if (title === "Coverage agent" || title === "Agent Inspector") {
       if (index === 1) classes.push("is-entity");
       if (index === 2) classes.push("is-source");
     }
@@ -1309,8 +1348,8 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
 
   return (
     <AgentShell
-      title="Coverage agent"
-      context={`Reports · 5 entities · 48 sources · ${entity.sources} active`}
+      title="Agent Inspector"
+      context={`Reports · ${entity.name} · ${entity.sources} sources · score ${entity.score}`}
       pills={["Reports", entity.name, `${entity.sources} sources`, `Score ${entity.score}`]}
       question="Which reports need work?"
       placeholder="Ask about these reports..."
@@ -1319,7 +1358,7 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
       <div className="rd-v2-msg rd-v2-msg-agent">
         <strong>{reviewText}</strong>
         <p>{summaryText}</p>
-        <div className="rd-v2-trace"><small>3 steps completed</small><span>entity_health</span><span>freshness_scan</span><span>claim_verify</span></div>
+        <div className="rd-v2-trace"><small>Agent run trace</small><span>source_scan</span><span>claim_verify</span><span>notebook_patch</span></div>
       </div>
       <button className="rd-v2-drawer-toggle">{`Context · ${entity.name} ${entity.score} · ${entity.signals.length} signals · ${entity.related.length} entities`}</button>
       <section className="rd-v2-agent-context">

@@ -5,7 +5,7 @@
  * Default density: compact. Sticky filter row.
  */
 
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, type DragEvent } from "react";
 import { memoStyles, type ReportCardData, type Density, type Universe } from "../fixtures";
 import { Pill } from "../components/Pill";
 import { useReportsLive } from "../hooks/useReportsLive";
@@ -50,9 +50,28 @@ function displayReportDescription(description: string): string {
 
 interface ReportsSurfaceProps {
   onOpen: (id: string, tab: "brief" | "cards" | "chat") => void;
+  onRunBatch?: (prompt: string) => void;
   onSelectReport?: (report: ReportCardData) => void;
   inspectedReportId?: string | null;
 }
+
+type ReportViewMode = "gallery" | "board" | "table" | "graph";
+type ReportStage = "drafting" | "review" | "verified" | "stale" | "monitoring";
+
+const REPORT_VIEW_MODES: Array<{ id: ReportViewMode; label: string }> = [
+  { id: "gallery", label: "Gallery" },
+  { id: "board", label: "Board" },
+  { id: "table", label: "Table" },
+  { id: "graph", label: "Graph" },
+];
+
+const REPORT_STAGE_COLUMNS: Array<{ id: ReportStage; label: string; hint: string }> = [
+  { id: "drafting", label: "Drafting", hint: "Gathering sources" },
+  { id: "review", label: "Needs review", hint: "Claims need analyst review" },
+  { id: "verified", label: "Verified", hint: "Notebook ready" },
+  { id: "stale", label: "Stale", hint: "Refresh evidence" },
+  { id: "monitoring", label: "Monitoring", hint: "Watchlist active" },
+];
 
 const STATUS_FILTERS = [
   { id: "all", label: "All" },
@@ -69,14 +88,16 @@ const KIND_FILTERS = [
   { id: "Coverage", label: "Coverage" },
 ] as const;
 
-export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: ReportsSurfaceProps) {
+export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedReportId }: ReportsSurfaceProps) {
   const [filter, setFilter] = useState<typeof STATUS_FILTERS[number]["id"]>("all");
   const [kindFilter, setKindFilter] = useState<typeof KIND_FILTERS[number]["id"]>("all");
   const [density, setDensity] = useState<Density>("compact");
+  const [viewMode, setViewMode] = useState<ReportViewMode>("gallery");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("updated");
   const [sortOpen, setSortOpen] = useState(false);
+  const [stageOverrides, setStageOverrides] = useState<Record<string, ReportStage>>({});
   const sortRef = useRef<HTMLDivElement>(null);
 
   // Click-outside dismiss for sort dropdown
@@ -162,20 +183,71 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
     setSelected(new Set());
   };
 
-  const visibleReports = filtered.slice(0, 12);
+  const visibleReports = filtered.slice(0, 24);
   const verifiedShare = reports.length > 0 ? Math.round(((counts.verified ?? 0) / reports.length) * 100) : 0;
+  const totalSources = filtered.reduce((sum, report) => sum + report.sources, 0);
+  const reviewCount = filtered.filter((report) => getReportStage(report, stageOverrides[report.id]) === "review").length;
+  const staleCount = filtered.filter((report) => getReportStage(report, stageOverrides[report.id]) === "stale").length;
+  const draftingCount = filtered.filter((report) => getReportStage(report, stageOverrides[report.id]) === "drafting").length;
+  const confidenceScore = Math.max(0, Math.min(100, Math.round((verifiedShare * 0.62) + Math.min(totalSources, 120) * 0.18)));
+  const selectedReport = filtered.find((report) => report.id === inspectedReportId) ?? visibleReports[0] ?? null;
+  const runBatchPrompt = () => {
+    const prompt = "Run a coverage batch for my active report universe. Generate notebook-first reports, gather sources, extract claims, verify evidence, and create the review queue.";
+    if (onRunBatch) onRunBatch(prompt);
+    else onOpen("new", "chat");
+  };
+  const handleDragStart = (event: DragEvent<HTMLElement>, reportId: string) => {
+    event.dataTransfer.setData("text/plain", reportId);
+    event.dataTransfer.effectAllowed = "move";
+  };
+  const handleStageDrop = (event: DragEvent<HTMLElement>, stage: ReportStage) => {
+    event.preventDefault();
+    const reportId = event.dataTransfer.getData("text/plain");
+    if (!reportId) return;
+    setStageOverrides((prev) => ({ ...prev, [reportId]: stage }));
+    showToast({ tone: "success", message: `Moved report to ${stageLabel(stage)}. This is a local review-board preview until a write is approved.` });
+  };
 
   return (
-    <div className="rd-v2-proto-center">
-      <div className="rd-v2-edition-row">
-        <span className="rd-v2-edition-pill">Entity intelligence</span>
-        <span className="rd-v2-edition-subline">
-          {isLoading && reports.length === 0
-            ? "Checking Convex-backed artifacts"
-            : `${reports.length} live reports · ${verifiedShare}% verified · ${counts.review ?? 0} need review · ${reports.reduce((sum, report) => sum + report.sources, 0)} sources`}
-        </span>
-      </div>
-      <div className="rd-v2-filter-row" role="tablist" aria-label="Filter reports by status">
+    <div className="rd-v3-reports" data-view={viewMode}>
+      <header className="rd-v3-universe-header">
+        <div>
+          <div className="rd-v3-kicker">Reports</div>
+          <h1>AI Infrastructure Coverage</h1>
+          <p>
+            {isLoading && reports.length === 0
+              ? "Checking Convex-backed report artifacts."
+              : `${reports.length} reports, ${totalSources} sources, ${reviewCount} need review, confidence ${confidenceScore}/100.`}
+          </p>
+        </div>
+        <div className="rd-v3-universe-actions">
+          <button type="button" onClick={() => setViewMode("board")}>Review queue</button>
+          <button type="button" className="rd-v3-primary" onClick={runBatchPrompt}>+ New batch</button>
+        </div>
+      </header>
+      <section className="rd-v3-metrics" aria-label="Coverage metrics">
+        <span><strong>{reports.length}</strong> reports</span>
+        <span><strong>{verifiedShare}%</strong> verified</span>
+        <span><strong>{reviewCount}</strong> need review</span>
+        <span><strong>{staleCount}</strong> stale</span>
+        <span><strong>{draftingCount}</strong> drafting</span>
+      </section>
+      <div className="rd-v3-view-bar">
+        <div className="rd-v3-tabs" role="tablist" aria-label="Report views">
+          {REPORT_VIEW_MODES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={viewMode === item.id}
+              className={viewMode === item.id ? "is-active" : ""}
+              onClick={() => setViewMode(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      <div className="rd-v3-filter-pills" role="tablist" aria-label="Filter reports by status">
         {STATUS_FILTERS.map((item) => (
           <button
             key={item.id}
@@ -188,10 +260,10 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
           </button>
         ))}
         <button type="button" className={kindFilter !== "all" ? "is-active" : ""} onClick={() => setKindFilter(kindFilter === "all" ? "Diligence" : "all")}>
-          {kindFilter === "all" ? "Tags" : kindFilter} ▾
+          {kindFilter === "all" ? "Type" : kindFilter}
         </button>
       </div>
-      <div className="rd-v2-action-row" style={{ position: "relative" }}>
+      <div className="rd-v3-sort" style={{ position: "relative" }}>
         <button type="button" onClick={() => setSortOpen((v) => !v)}>
           {SORT_OPTIONS.find((s) => s.id === sortKey)?.label.split(" (")[0] ?? "Updated"} ▾
         </button>
@@ -211,40 +283,23 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
             ))}
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => showToast({ tone: isLive ? "success" : "info", message: isLive ? `${sourceLabel}. Reports are Convex-backed.` : "No live reports yet. The page will not substitute fixtures." })}
-        >
-          ● {isLive ? "Convex-backed" : "No fixture fallback"}
-        </button>
-        {query && <button type="button" onClick={resetFilters}>Clear filters</button>}
-        <button
-          type="button"
-          className="rd-v2-btn-primary"
-          onClick={() => showToast({ tone: "info", message: "Start a new entity report from Chat so the first write has source trace and approval context." })}
-        >
-          + New report
-        </button>
       </div>
-      <div className="rd-v2-action-row" aria-label="Search reports">
-        <label className="rd-sr-only" htmlFor="reports-v2-search">Search reports</label>
+      </div>
+      <div className="rd-v3-search-row" aria-label="Search reports">
+        <label className="rd-sr-only" htmlFor="reports-v3-search">Search reports</label>
         <input
-          id="reports-v2-search"
+          id="reports-v3-search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={isLive ? `Search ${reports.length} live reports...` : "Search live reports..."}
-          style={{
-            width: "100%",
-            border: "1px solid var(--rd-line)",
-            borderRadius: 999,
-            padding: "10px 14px",
-            background: "var(--rd-panel)",
-            color: "var(--rd-ink)",
-          }}
+          placeholder={isLive ? `Search ${reports.length} reports, sources, claims...` : "Search reports, sources, claims..."}
         />
+        <button type="button" onClick={() => showToast({ tone: isLive ? "success" : "info", message: isLive ? `${sourceLabel}. Reports are live.` : "No live reports yet. This view does not silently substitute fixtures." })}>
+          {isLive ? "Live memory" : "No fixture fallback"}
+        </button>
+        {query && <button type="button" onClick={resetFilters}>Clear</button>}
       </div>
       {visibleReports.length === 0 ? (
-        <article className="rd-v2-report-card rd-v2-report-card--add">
+        <article className="rd-v3-card rd-v3-card--empty">
           <h2>{hasActiveFilter ? "No matching live reports" : "No live coverage returned"}</h2>
           <p>
             {hasActiveFilter
@@ -255,56 +310,42 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
             {hasActiveFilter ? "Clear filters" : "+ Start in Chat"}
           </button>
         </article>
+      ) : viewMode === "board" ? (
+        <ReportBoard
+          reports={visibleReports}
+          stageOverrides={stageOverrides}
+          onDragStart={handleDragStart}
+          onStageDrop={handleStageDrop}
+          onOpen={onOpen}
+          onSelect={onSelectReport}
+        />
+      ) : viewMode === "table" ? (
+        <ReportTable reports={visibleReports} stageOverrides={stageOverrides} onOpen={onOpen} onSelect={onSelectReport} />
+      ) : viewMode === "graph" ? (
+        <ReportGraphPreview reports={visibleReports} selectedReport={selectedReport} onOpen={onOpen} onSelect={onSelectReport} />
       ) : (
-        <div className="rd-v2-report-grid">
-          {visibleReports.map((report) => {
-            const active = inspectedReportId === report.id;
-            return (
-              <article
-                key={report.id}
-                className={`rd-v2-report-card ${active ? "is-active" : ""}`}
-                onClick={() => onSelectReport?.(report)}
-                aria-selected={active}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  onSelectReport?.(report);
-                }}
-              >
-                <div className="rd-v2-report-title">
-                  <span>{report.entity.slice(0, 1).toUpperCase()}</span>
-                  <h2>{report.entity}</h2>
-                  <b data-state={report.status}>{report.status === "review" ? "review" : report.status}</b>
-                </div>
-                <p className="rd-v2-report-kind">{report.kind}</p>
-                <p>{displayReportDescription(report.description)}</p>
-                <div className="rd-v2-report-tags">
-                  <span>{report.sources} sources</span>
-                  <span>{report.claims} claims</span>
-                  <span>{report.followUps} follow-ups</span>
-                </div>
-                <p className="rd-v2-report-ref">Referenced in: {sourceLabel}</p>
-                <p className="rd-v2-report-meta">Updated {report.updatedAt}</p>
-                <div className="rd-v2-next-actions" style={{ marginTop: 8 }}>
-                  <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "brief"); }}>Open</button>
-                  <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "cards"); }}>Cards</button>
-                  <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "chat"); }}>Chat</button>
-                </div>
-              </article>
-            );
-          })}
-          <article className="rd-v2-report-card rd-v2-report-card--add">
-            <h2>Add entity</h2>
-            <p>Capture a company, person, topic, or source cluster and let the coverage agent hydrate the first report.</p>
-            <button type="button" onClick={() => onOpen("new", "chat")}>+ New entity</button>
+        <div className="rd-v3-grid" data-density={density}>
+          {visibleReports.map((report) => (
+            <ReportCardV3
+              key={report.id}
+              report={report}
+              active={inspectedReportId === report.id}
+              stage={getReportStage(report, stageOverrides[report.id])}
+              sourceLabel={sourceLabel}
+              onOpen={onOpen}
+              onSelect={onSelectReport}
+            />
+          ))}
+          <article className="rd-v3-card rd-v3-card--add">
+            <h2>Run a batch</h2>
+            <p>Import companies, people, or topics and let the agent generate notebooks, claims, sources, and review tasks.</p>
+            <button type="button" onClick={runBatchPrompt}>+ New batch</button>
           </article>
         </div>
       )}
       {filtered.length > visibleReports.length && (
-        <button className="rd-v2-show-more" type="button" onClick={() => showToast({ tone: "info", message: `${filtered.length - visibleReports.length} more live reports are available through search and filters.` })}>
-          Show {filtered.length - visibleReports.length} more entities
+        <button className="rd-v3-show-more" type="button" onClick={() => showToast({ tone: "info", message: `${filtered.length - visibleReports.length} more live reports are available through search and filters.` })}>
+          Show {filtered.length - visibleReports.length} more reports
         </button>
       )}
     </div>
@@ -504,6 +545,229 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
         onSelectReport={onSelectReport}
       />
     </div>
+  );
+}
+
+function getReportStage(report: ReportCardData, override?: ReportStage): ReportStage {
+  if (override) return override;
+  if (report.status === "review") return "review";
+  if (report.status === "watching") return "monitoring";
+  const staleSignals = /stale|expired|refresh|old|3d|5d|week/i.test(`${report.description} ${report.updatedAt}`);
+  if (staleSignals) return "stale";
+  if (report.sources <= 2 || /draft|gathering|queued|generating/i.test(report.description)) return "drafting";
+  return "verified";
+}
+
+function stageLabel(stage: ReportStage): string {
+  return REPORT_STAGE_COLUMNS.find((item) => item.id === stage)?.label ?? stage;
+}
+
+function stageTone(stage: ReportStage): "green" | "amber" | "blue" | undefined {
+  if (stage === "verified") return "green";
+  if (stage === "review" || stage === "stale" || stage === "drafting") return "amber";
+  if (stage === "monitoring") return "blue";
+  return undefined;
+}
+
+function reportSignals(report: ReportCardData): string[] {
+  const kind = report.kind || "Coverage";
+  const signals = [kind, report.sources > 5 ? "source-rich" : "needs sources", report.followUps > 0 ? "actionable" : "monitor"];
+  return Array.from(new Set(signals)).slice(0, 3);
+}
+
+function reportBacklinks(report: ReportCardData): string[] {
+  const words = report.description
+    .split(/\s+/)
+    .map((word) => word.replace(/[^A-Za-z0-9]/g, ""))
+    .filter((word) => word.length > 4 && /^[A-Z]/.test(word));
+  return Array.from(new Set(words)).slice(0, 3);
+}
+
+function notebookState(stage: ReportStage): string {
+  if (stage === "verified" || stage === "monitoring") return "Notebook ready";
+  if (stage === "review") return "Review patch";
+  if (stage === "stale") return "Refresh needed";
+  return "Drafting";
+}
+
+function ReportCardV3({
+  report,
+  active,
+  stage,
+  sourceLabel,
+  onOpen,
+  onSelect,
+}: {
+  report: ReportCardData;
+  active: boolean;
+  stage: ReportStage;
+  sourceLabel: string;
+  onOpen: ReportsSurfaceProps["onOpen"];
+  onSelect?: (report: ReportCardData) => void;
+}) {
+  const signals = reportSignals(report);
+  const backlinks = reportBacklinks(report);
+  return (
+    <article
+      className="rd-v3-card"
+      data-status={stage}
+      aria-selected={active}
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect?.(report)}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onSelect?.(report);
+      }}
+    >
+      <div className="rd-v3-card__head">
+        <span className="rd-v3-icon">{report.entity.slice(0, 1).toUpperCase()}</span>
+        <strong>{report.entity}</strong>
+        <Pill tone={stageTone(stage)}>{stageLabel(stage)}</Pill>
+        <button type="button" aria-label={`More actions for ${report.entity}`} onClick={(event) => event.stopPropagation()}>⋯</button>
+      </div>
+      <p className="rd-v3-card__kind">{report.kind}</p>
+      <p className="rd-v3-card__thesis">{displayReportDescription(report.description)}</p>
+      <div className="rd-v3-signals">
+        {signals.map((signal) => <span key={signal}>{signal}</span>)}
+      </div>
+      <div className="rd-v3-sources">
+        <span>{report.sources} sources</span>
+        <span>{report.claims} claims</span>
+        <span>{report.followUps} follow-ups</span>
+      </div>
+      {backlinks.length > 0 && (
+        <div className="rd-v3-backlinks">
+          {backlinks.map((item) => <span key={item}>→ {item}</span>)}
+        </div>
+      )}
+      <div className="rd-v3-card__foot">
+        <span>{sourceLabel} · {report.updatedAt}</span>
+        <span>{notebookState(stage)}</span>
+      </div>
+      <div className="rd-v3-card__actions">
+        <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "brief"); }}>Open notebook</button>
+        <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "cards"); }}>Review evidence</button>
+        <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "chat"); }}>Ask agent</button>
+      </div>
+    </article>
+  );
+}
+
+function ReportBoard({
+  reports,
+  stageOverrides,
+  onDragStart,
+  onStageDrop,
+  onOpen,
+  onSelect,
+}: {
+  reports: ReportCardData[];
+  stageOverrides: Record<string, ReportStage>;
+  onDragStart: (event: DragEvent<HTMLElement>, reportId: string) => void;
+  onStageDrop: (event: DragEvent<HTMLElement>, stage: ReportStage) => void;
+  onOpen: ReportsSurfaceProps["onOpen"];
+  onSelect?: (report: ReportCardData) => void;
+}) {
+  return (
+    <section className="rd-v3-board" aria-label="Draggable report review board">
+      {REPORT_STAGE_COLUMNS.map((column) => {
+        const columnReports = reports.filter((report) => getReportStage(report, stageOverrides[report.id]) === column.id);
+        return (
+          <div
+            key={column.id}
+            className="rd-v3-board-column"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => onStageDrop(event, column.id)}
+          >
+            <header><strong>{column.label}</strong><span>{columnReports.length}</span><small>{column.hint}</small></header>
+            {columnReports.map((report) => (
+              <button
+                key={report.id}
+                type="button"
+                className="rd-v3-mini"
+                draggable
+                onDragStart={(event) => onDragStart(event, report.id)}
+                onClick={() => onSelect?.(report)}
+                onDoubleClick={() => onOpen(report.id, "brief")}
+              >
+                <span>{report.entity.slice(0, 1).toUpperCase()}</span>
+                <strong>{report.entity}</strong>
+                <small>{report.sources} sources · {report.claims} claims</small>
+              </button>
+            ))}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function ReportTable({
+  reports,
+  stageOverrides,
+  onOpen,
+  onSelect,
+}: {
+  reports: ReportCardData[];
+  stageOverrides: Record<string, ReportStage>;
+  onOpen: ReportsSurfaceProps["onOpen"];
+  onSelect?: (report: ReportCardData) => void;
+}) {
+  return (
+    <div className="rd-v3-table-wrap" role="region" aria-label="Analyst report table">
+      <table className="rd-v3-table">
+        <thead><tr><th>Report</th><th>Status</th><th>Type</th><th>Sources</th><th>Claims</th><th>Notebook</th><th>Action</th></tr></thead>
+        <tbody>
+          {reports.map((report) => {
+            const stage = getReportStage(report, stageOverrides[report.id]);
+            return (
+              <tr key={report.id} onClick={() => onSelect?.(report)}>
+                <td><strong>{report.entity}</strong><span>{displayReportDescription(report.description)}</span></td>
+                <td>{stageLabel(stage)}</td>
+                <td>{report.kind}</td>
+                <td>{report.sources}</td>
+                <td>{report.claims}</td>
+                <td>{notebookState(stage)}</td>
+                <td><button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "brief"); }}>Open notebook</button></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ReportGraphPreview({
+  reports,
+  selectedReport,
+  onOpen,
+  onSelect,
+}: {
+  reports: ReportCardData[];
+  selectedReport: ReportCardData | null;
+  onOpen: ReportsSurfaceProps["onOpen"];
+  onSelect?: (report: ReportCardData) => void;
+}) {
+  const root = selectedReport ?? reports[0];
+  return (
+    <section className="rd-v3-graph" aria-label="Report relationship graph preview">
+      <div className="rd-v3-graph__root">
+        <span>{root?.entity.slice(0, 1).toUpperCase() ?? "R"}</span>
+        <strong>{root?.entity ?? "Select a report"}</strong>
+        <button type="button" onClick={() => root && onOpen(root.id, "brief")}>Open notebook</button>
+      </div>
+      <div className="rd-v3-graph__nodes">
+        {reports.slice(0, 10).map((report) => (
+          <button key={report.id} type="button" onClick={() => onSelect?.(report)} aria-pressed={root?.id === report.id}>
+            <span>{report.entity.slice(0, 1).toUpperCase()}</span>
+            {report.entity}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 

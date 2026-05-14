@@ -239,8 +239,8 @@ export default function RedesignShell() {
     isPrototypeKit;
   const suppressRightRail =
     !isPrototypeKit &&
-    ((surface === "chat" && Boolean(chatHash)) ||
-      (surface === "reports" && Boolean(reportId)));
+    surface === "chat" &&
+    Boolean(chatHash);
 
   return (
     <div
@@ -315,16 +315,12 @@ export default function RedesignShell() {
             {!isPrototypeKit && surface === "reports" && !reportId && (
               <ReportsSurface
                 onOpen={(id, tab) => {
-                  if (id.startsWith("li_") || id.startsWith("daily_") || id.startsWith("run_")) {
-                    const workspaceTab = tab === "chat" ? "chat" : tab === "cards" ? "cards" : "brief";
-                    navigate(`/redesign/workspace?report=${id}&tab=${workspaceTab}`);
-                    return;
-                  }
                   if (tab === "brief") navigate(`/redesign/reports/${id}`);
                   else navigate(`/redesign/workspace?report=${id}&tab=${tab}`);
                 }}
                 inspectedReportId={selectedReport?.id ?? null}
                 onSelectReport={selectLiveReport}
+                onRunBatch={sendPromptToChat}
               />
             )}
             {!isPrototypeKit && surface === "reports" && reportId && <ReportDetailRoute reportId={reportId} />}
@@ -378,7 +374,7 @@ export default function RedesignShell() {
 function ReportDetailRoute({ reportId }: { reportId: string }) {
   const liveArtifacts = useLiveArtifacts(60);
   const liveDetail = liveArtifacts.details.find((detail) => detail.id === reportId);
-  return <ReportNotebookView reportId={reportId} liveDetail={liveDetail} />;
+  return <ReportNotebookView reportId={reportId} liveDetail={liveDetail} showSidebar={false} />;
 }
 
 function useQaChromeFlag(search: string): boolean {
