@@ -1324,10 +1324,16 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
           <summary><small>3 steps completed</small></summary>
           <div className="rd-v2-trace-steps"><span>entity_health</span><span>freshness_scan</span><span>claim_verify</span></div>
         </details>
+        <div className="rd-v2-msg-tools"><span>entity_health</span><span>freshness_scan</span><span>claim_verify</span></div>
       </div>
       <section className="rd-v2-action-card-list">
-        {[`Review ${entity.name}`, "Refresh stale sources", `Compare ${entity.related[0] ?? "entities"}`, "Export selected"].map((action, index) => (
-          <button key={action} className={index === 0 ? "is-primary" : ""} onClick={() => onAsk?.(`${action} for ${entity.name}`)}>{action}</button>
+        {[
+          { icon: "🔍", label: `Review ${entity.name}` },
+          { icon: "↻", label: "Refresh stale sources" },
+          { icon: "⚖", label: `Compare ${entity.related[0] ?? "entities"}` },
+          { icon: "📤", label: "Export selected" },
+        ].map(({ icon, label }, index) => (
+          <button key={label} className={index === 0 ? "is-primary" : ""} onClick={() => onAsk?.(`${label} for ${entity.name}`)}><span className="rd-v2-action-icon">{icon}</span> {label}</button>
         ))}
       </section>
       <button className="rd-v2-drawer-toggle">{`Context · ${entity.name} ${entity.score} · ${entity.signals.length} signals · ${entity.related.length} entities`}</button>
@@ -1371,6 +1377,7 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
 
 function ChatPrototypeRail() {
   const [activeTab, setActiveTab] = useState("Entity");
+  const [expanded, setExpanded] = useState(false);
   const panels: Record<string, ReactNode> = {
     Entity: (
       <>
@@ -1410,9 +1417,9 @@ function ChatPrototypeRail() {
         <p style={{ fontSize: "10px", color: "var(--rd-ink-faint)", textAlign: "center", marginTop: "8px" }}>4 entities · 6 relationships</p>
       </section>
     ),
-    Sources: <section className="rd-v2-util-list"><h3>Sources</h3><p><strong>Term sheet v3</strong><span>PDF</span></p><p><strong>Cap table model</strong><span>Sheet</span></p><p><strong>Cooley primer</strong><span>Reference</span></p></section>,
-    Threads: <section className="rd-v2-util-list"><h3>Threads</h3><p><strong>Ratchet clause analysis</strong><span>3 messages</span></p><p><strong>Board deck prep</strong><span>2 messages</span></p></section>,
-    Notebook: <section className="rd-v2-util-list"><h3>Notebook patch</h3><p><strong>Proposed edit</strong><span>pending</span></p><p>Add dilution table, counsel review, and counterproposal summary.</p></section>,
+    Sources: <section className="rd-v2-util-list"><h3>Sources</h3><p><strong>Term sheet v3</strong><span>PDF</span></p><p><strong>Cap table model</strong><span>Sheet</span></p><p><strong>Cooley primer</strong><span>Reference</span></p><p><strong>Anti-dilution clause primer</strong><span>Web</span></p></section>,
+    Threads: <section className="rd-v2-util-list"><h3>Threads</h3><p><strong>Ratchet clause analysis</strong><span>3 messages</span></p><p><strong>Board deck prep</strong><span>2 messages</span></p><p><strong>Anti-dilution research</strong><span>1 message</span></p></section>,
+    Notebook: <section className="rd-v2-util-list"><h3>Notebook patch</h3><p><strong>Proposed edit</strong><span>pending</span></p><p>Add dilution table, counsel review, and counterproposal summary.</p><button className="rd-v2-note-add">+ New note</button></section>,
     Report: (
       <section className="rd-v2-util-list">
         <h3>Thread stats</h3>
@@ -1429,8 +1436,8 @@ function ChatPrototypeRail() {
   };
 
   return (
-    <aside className="rd-pane rd-pane--right rd-v2-utility" aria-label="Context">
-      <header className="rd-v2-util-head"><strong>Context</strong><button>{"\u2197"}</button></header>
+    <aside className="rd-pane rd-pane--right rd-v2-utility" aria-label="Context" data-width={expanded ? "expanded" : undefined}>
+      <header className="rd-v2-util-head"><strong>Context</strong><button type="button" aria-label={expanded ? "Collapse rail" : "Expand rail"} onClick={() => setExpanded(e => !e)}>{expanded ? "\u2921" : "\u2922"}</button></header>
       <input className="rd-v2-util-search" placeholder="Search sources, entities..." />
       <div className="rd-v2-util-tabs" role="tablist" aria-label="Chat utilities">
         {Object.keys(panels).map((tab) => (
@@ -1467,6 +1474,7 @@ function InboxPrototypeRail({ onAsk }: HomeV2SurfaceProps) {
           <summary><small>3 steps completed</small></summary>
           <div className="rd-v2-trace-steps"><span>term_sheet_parse</span><span>dilution_calc</span><span>calendar_check</span></div>
         </details>
+        <div className="rd-v2-msg-tools"><span>term_sheet_parse</span><span>dilution_calc</span><span>calendar_check</span></div>
       </div>
       <button className="rd-v2-drawer-toggle">Context · Sequoia 74 · 2 threads</button>
       <article className="rd-v2-util-card">
@@ -1480,8 +1488,13 @@ function InboxPrototypeRail({ onAsk }: HomeV2SurfaceProps) {
         <div className="rd-v2-thread-item"><span className="rd-v2-thread-dot" /><span>Sequoia intro meeting notes</span><span className="rd-v2-thread-time">2w</span></div>
       </section>
       <section className="rd-v2-action-card-list">
-        {["Draft reply", "Flag for legal", "Forward to counsel", "Defer"].map((action, index) => (
-          <button key={action} className={index === 0 ? "is-primary" : ""}>{action}</button>
+        {[
+          { icon: "✉", label: "Draft reply" },
+          { icon: "⚖", label: "Flag for legal" },
+          { icon: "↷", label: "Forward to counsel" },
+          { icon: "⏰", label: "Defer to Thursday" },
+        ].map(({ icon, label }, index) => (
+          <button key={label} className={index === 0 ? "is-primary" : ""}><span className="rd-v2-action-icon">{icon}</span> {label}</button>
         ))}
       </section>
     </AgentShell>
@@ -1522,6 +1535,7 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
             <summary><small>3 steps completed</small></summary>
             <div className="rd-v2-trace-steps">{trace.map((step) => <span key={step}>{step}</span>)}</div>
           </details>
+          <div className="rd-v2-msg-tools">{trace.map((step) => <span key={step}>{step}</span>)}</div>
         </div>
         <button className="rd-v2-drawer-toggle">Context - Private profile - Permissions - Usage</button>
         <section className="rd-v2-settings-list">
@@ -1565,6 +1579,7 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
           <summary><small>3 steps completed</small></summary>
           <div className="rd-v2-trace-steps"><span>memory_scan</span><span>preference_log</span><span>profile_update</span></div>
         </details>
+        <div className="rd-v2-msg-tools"><span>memory_scan</span><span>preference_log</span><span>profile_update</span></div>
       </div>
       <button className="rd-v2-drawer-toggle">Context · Voice · Permissions · Usage</button>
       <section className="rd-v2-settings-list">
@@ -1573,20 +1588,26 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
         <p><span>Format</span><strong>{"Decision -> Why -> Plan"}</strong></p>
         <p><span>Jargon level</span><strong>High (match user)</strong></p>
         <h3>Permissions</h3>
-        <p>• Web search: <b>Enabled</b></p>
-        <p>• File access: <b>Enabled</b></p>
-        <p>• Post to LinkedIn: <em>Approval required</em></p>
-        <p>• Send email: <em>Approval required</em></p>
-        <p>• Execute trades: <em>Disabled</em></p>
+        <p>• Web search: <b style={{ color: "var(--rd-green, #22c55e)" }}>Enabled</b></p>
+        <p>• File access: <b style={{ color: "var(--rd-green, #22c55e)" }}>Enabled</b></p>
+        <p>• Post to LinkedIn: <em style={{ color: "var(--rd-amber, #f59e0b)" }}>Approval required</em></p>
+        <p>• Send email: <em style={{ color: "var(--rd-amber, #f59e0b)" }}>Approval required</em></p>
+        <p>• Execute trades: <em style={{ color: "#b91c1c" }}>Disabled</em></p>
         <h3>Session stats</h3>
-        <p><span>Memory hits</span><strong>71%</strong></p>
-        <p><span>Corrections</span><strong>23</strong></p>
-        <p><span>Current mode</span><strong>Builder</strong></p>
+        <p><span>Threads today</span><strong>7</strong></p>
+        <p><span>Tools called</span><strong>34</strong></p>
+        <p><span>Cost today</span><strong>$0.87</strong></p>
+        <p><span>Avg latency</span><strong>1.4s</strong></p>
       </section>
       <section className="rd-v2-action-card-list">
-        <button className="is-primary">Review memory update</button>
-        <button>Export USER.md</button>
-        <button>Open permissions</button>
+        {[
+          { icon: "⚙", label: "Calibrate voice" },
+          { icon: "🔒", label: "Review permissions" },
+          { icon: "📊", label: "View usage" },
+          { icon: "↺", label: "Reset suggestion" },
+        ].map(({ icon, label }, index) => (
+          <button key={label} className={index === 0 ? "is-primary" : ""}><span className="rd-v2-action-icon">{icon}</span> {label}</button>
+        ))}
       </section>
     </AgentShell>
   );

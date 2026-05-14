@@ -8164,6 +8164,44 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   padding: 8px;
 }
 
+/* ── v2 parity: tool tag spans (below trace) ── */
+[data-redesign] .rd-v2-msg-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+[data-redesign] .rd-v2-msg-tools span {
+  padding: 2px 7px;
+  background: var(--rd-panel);
+  color: var(--rd-accent);
+  font-size: 9px;
+  border-radius: 3px;
+  font-family: var(--rd-font-mono, "JetBrains Mono", monospace);
+}
+
+/* ── v2 parity: action card icons ── */
+[data-redesign] .rd-v2-action-icon {
+  margin-right: 2px;
+}
+
+/* ── v2 parity: notebook new-note button ── */
+[data-redesign] .rd-v2-note-add {
+  display: block;
+  margin: 8px auto 0;
+  padding: 4px 14px;
+  border: 1px solid var(--rd-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--rd-ink-soft);
+  font-size: 11px;
+  cursor: pointer;
+}
+[data-redesign] .rd-v2-note-add:hover {
+  background: var(--rd-panel);
+  color: var(--rd-ink);
+}
+
 /* ── v2 parity: rail expand toggle ── */
 [data-redesign] .rd-v2-briefing[data-width="expanded"] {
   width: 480px;
