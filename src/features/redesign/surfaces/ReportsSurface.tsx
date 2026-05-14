@@ -5,7 +5,7 @@
  * Default density: compact. Sticky filter row.
  */
 
-import { useMemo, useState, useEffect, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
+import { useMemo, useState, useEffect, useRef, type DragEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { memoStyles, type ReportCardData, type Density, type Universe } from "../fixtures";
 import { Pill } from "../components/Pill";
 import { useReportsLive } from "../hooks/useReportsLive";
@@ -638,14 +638,27 @@ type ReportGraphNode = {
 type ReportGraphLink = {
   source: string;
   target: string;
-  type: "coverage" | "evidence" | "review" | "drafting" | "cluster";
+  type:
+    | "coverage"
+    | "evidence"
+    | "review"
+    | "drafting"
+    | "cluster"
+    | "funding"
+    | "competition"
+    | "integration"
+    | "leadership"
+    | "history";
   label: string;
 };
 
 function graphEdgeType(report: ReportCardData, stage: ReportStage): ReportGraphLink["type"] {
+  const text = `${report.kind} ${report.entity} ${report.description}`.toLowerCase();
+  if (text.includes("funding") || text.includes("raise") || text.includes("series ")) return "funding";
+  if (text.includes("pricing") || text.includes("compet")) return "competition";
+  if (text.includes("source") || text.includes("api") || text.includes("workflow")) return "integration";
   if (stage === "review" || stage === "stale") return "review";
   if (stage === "drafting") return "drafting";
-  if (report.kind.toLowerCase().includes("funding")) return "cluster";
   if (stage === "verified") return "evidence";
   return "coverage";
 }
@@ -907,13 +920,18 @@ function ReportGraphPreview({
   onSelect?: (report: ReportCardData) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const movedDuringPointerRef = useRef(false);
   const graph = useMemo(() => buildReportGraph(reports, selectedReport, stageOverrides), [reports, selectedReport, stageOverrides]);
   const [pinnedNodeId, setPinnedNodeId] = useState<string | null>(null);
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
-  const activeNodeId = graph.root?.id ?? pinnedNodeId ?? hoverNodeId ?? graph.nodes[0]?.id ?? null;
-  const activeNode = graph.nodes.find((node) => node.id === activeNodeId) ?? graph.root ?? graph.nodes[0] ?? null;
+  const [graphQuery, setGraphQuery] = useState("");
+  const [tooltip, setTooltip] = useState<{ nodeId: string; x: number; y: number } | null>(null);
+  const activeNodeId = pinnedNodeId ?? hoverNodeId ?? null;
+  const activeNode = graph.nodes.find((node) => node.id === activeNodeId) ?? null;
+  const pinnedNode = graph.nodes.find((node) => node.id === pinnedNodeId) ?? null;
   const byId = new Map(graph.nodes.map((node) => [node.id, node]));
   const connectedIds = useMemo(() => {
     if (!activeNodeId) return new Set<string>();
@@ -927,26 +945,64 @@ function ReportGraphPreview({
   const positionFor = (node: ReportGraphNode) => nodePositions[node.id] ?? { x: node.x, y: node.y };
   const linkedReportCount = Math.max(0, graph.nodes.filter((node) => node.report).length - 1);
   const totalSources = reports.reduce((sum, report) => sum + report.sources, 0);
+  const normalizedGraphQuery = graphQuery.trim().toLowerCase();
+  const matchedNodeIds = useMemo(() => {
+    if (!normalizedGraphQuery) return new Set<string>();
+    return new Set(graph.nodes.filter((node) => {
+      const haystack = [
+        node.label,
+        node.type,
+        node.stage,
+        node.sources,
+        node.freshness,
+        node.verified,
+        ...node.coverage,
+        ...node.signals,
+      ].join(" ").toLowerCase();
+      return haystack.includes(normalizedGraphQuery);
+    }).map((node) => node.id));
+  }, [graph.nodes, normalizedGraphQuery]);
 
   useEffect(() => {
     if (!pinnedNodeId || graph.nodes.some((node) => node.id === pinnedNodeId)) return;
-    setPinnedNodeId(graph.root?.id ?? null);
+    setPinnedNodeId(null);
   }, [graph.nodes, graph.root?.id, pinnedNodeId]);
 
   useEffect(() => {
-    if (!graph.root?.id) return;
-    setPinnedNodeId(graph.root.id);
-    setHoverNodeId(graph.root.id);
+    if (pinnedNodeId && pinnedNodeId !== graph.root?.id) setPinnedNodeId(null);
+    setHoverNodeId(null);
+    setTooltip(null);
+    // Only react to root changes here. If a node click selected the new root,
+    // keep that node pinned so the prototype-style peek card remains visible.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graph.root?.id]);
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setPinnedNodeId(null);
+      setHoverNodeId(null);
+      setTooltip(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const openNodeNotebook = (node: ReportGraphNode | null) => {
     const report = node?.report ?? graph.root?.report;
     if (report) onOpen(report.id, "brief");
   };
 
-  const selectNode = (node: ReportGraphNode) => {
+  const selectNode = (node: ReportGraphNode, event?: PointerEvent<Element> | MouseEvent<Element>) => {
+    if (pinnedNodeId === node.id) {
+      setPinnedNodeId(null);
+      setHoverNodeId(null);
+      setTooltip(null);
+      return;
+    }
     setPinnedNodeId(node.id);
-    setHoverNodeId(node.id);
+    setHoverNodeId(null);
+    if (event) setTooltip({ nodeId: node.id, x: event.clientX, y: event.clientY });
     if (node.report) onSelect?.(node.report);
   };
 
@@ -964,7 +1020,8 @@ function ReportGraphPreview({
   const onNodePointerDown = (event: PointerEvent<Element>, node: ReportGraphNode) => {
     event.currentTarget.setPointerCapture(event.pointerId);
     setDraggingNodeId(node.id);
-    selectNode(node);
+    pointerStartRef.current = { x: event.clientX, y: event.clientY };
+    movedDuringPointerRef.current = false;
   };
 
   const onGraphPointerMove = (event: PointerEvent<Element>) => {
@@ -979,17 +1036,32 @@ function ReportGraphPreview({
         y: Math.max(38, Math.min(502, y)),
       },
     }));
+    if (pointerStartRef.current) {
+      const dx = Math.abs(event.clientX - pointerStartRef.current.x);
+      const dy = Math.abs(event.clientY - pointerStartRef.current.y);
+      if (dx + dy > 6) movedDuringPointerRef.current = true;
+    }
   };
 
   const resetGraph = () => {
     setNodePositions({});
     setHoverNodeId(null);
-    setPinnedNodeId(graph.root?.id ?? null);
+    setPinnedNodeId(null);
+    setTooltip(null);
     showToast({ tone: "info", message: "Graph fit reset to the current report neighborhood." });
   };
 
   const activeStage = activeNode?.stage === "universe" ? "monitoring" : activeNode?.stage;
-  const shouldDim = Boolean(activeNodeId && connectedIds.size > 1);
+  const shouldDimForActive = Boolean(activeNodeId && connectedIds.size > 1);
+  const shouldDimForSearch = normalizedGraphQuery.length > 0;
+  const tooltipNode = tooltip ? graph.nodes.find((node) => node.id === tooltip.nodeId) : null;
+  const pinnedPosition = pinnedNode ? positionFor(pinnedNode) : null;
+  const peekStyle = pinnedPosition
+    ? ({
+        left: `${Math.min(72, Math.max(2, (pinnedPosition.x / 920) * 100 + 2))}%`,
+        top: `${Math.min(62, Math.max(2, (pinnedPosition.y / 540) * 100 - 8))}%`,
+      } as const)
+    : undefined;
 
   return (
     <section className="rd-v3-graph" aria-label="Report relationship graph">
@@ -1001,11 +1073,20 @@ function ReportGraphPreview({
         </div>
         <div className="rd-v3-graph__control-actions">
           <button type="button" onClick={resetGraph}>Fit</button>
+          <label className="rd-v3-graph__search">
+            <span aria-hidden="true">⌕</span>
+            <input
+              value={graphQuery}
+              onChange={(event) => setGraphQuery(event.target.value)}
+              placeholder="Search graph..."
+              aria-label="Search graph nodes"
+            />
+          </label>
           <span className="rd-v3-graph__legend" aria-label="Relationship legend">
-            <span><i data-edge="coverage" />Coverage</span>
-            <span><i data-edge="evidence" />Evidence</span>
+            <span><i data-edge="funding" />Funding</span>
+            <span><i data-edge="competition" />Competition</span>
+            <span><i data-edge="integration" />Integration</span>
             <span><i data-edge="review" />Review</span>
-            <span><i data-edge="drafting" />Drafting</span>
           </span>
         </div>
       </div>
@@ -1019,6 +1100,11 @@ function ReportGraphPreview({
           onPointerMove={onGraphPointerMove}
           onPointerUp={() => setDraggingNodeId(null)}
           onPointerCancel={() => setDraggingNodeId(null)}
+          onClick={() => {
+            setPinnedNodeId(null);
+            setHoverNodeId(null);
+            setTooltip(null);
+          }}
         >
           <defs>
             <radialGradient id="rd-v3-graph-glow" cx="50%" cy="50%" r="50%">
@@ -1034,10 +1120,11 @@ function ReportGraphPreview({
               const sourcePos = positionFor(source);
               const targetPos = positionFor(target);
               const isActive = !activeNodeId || link.source === activeNodeId || link.target === activeNodeId;
+              const isSearchMatch = !normalizedGraphQuery || matchedNodeIds.has(link.source) || matchedNodeIds.has(link.target);
               const midX = (sourcePos.x + targetPos.x) / 2;
               const midY = (sourcePos.y + targetPos.y) / 2;
               return (
-                <g key={`${link.source}-${link.target}`} data-edge={link.type} data-active={isActive}>
+                <g key={`${link.source}-${link.target}`} data-edge={link.type} data-active={isActive} data-search-match={isSearchMatch}>
                   <path d={`M ${sourcePos.x} ${sourcePos.y} L ${targetPos.x} ${targetPos.y}`} />
                   <text x={midX} y={midY - 5}>{link.label}</text>
                 </g>
@@ -1048,7 +1135,7 @@ function ReportGraphPreview({
             {graph.nodes.map((node) => {
               const pos = positionFor(node);
               const active = activeNodeId === node.id;
-              const dimmed = shouldDim && !connectedIds.has(node.id);
+              const dimmed = (shouldDimForActive && !connectedIds.has(node.id)) || (shouldDimForSearch && !matchedNodeIds.has(node.id));
               return (
                 <g
                   key={node.id}
@@ -1083,16 +1170,38 @@ function ReportGraphPreview({
                 }}
                 aria-label={`${node.label}, ${node.type}, ${node.verified}`}
                 aria-pressed={activeNodeId === node.id}
-                onMouseEnter={() => setHoverNodeId(node.id)}
-                onMouseDown={() => selectNode(node)}
-                onFocus={() => selectNode(node)}
-                onBlur={() => setHoverNodeId(null)}
+                onMouseEnter={(event) => {
+                  if (!pinnedNodeId) setHoverNodeId(node.id);
+                  setTooltip({ nodeId: node.id, x: event.clientX, y: event.clientY });
+                }}
+                onMouseMove={(event) => {
+                  if (!pinnedNodeId) setTooltip({ nodeId: node.id, x: event.clientX, y: event.clientY });
+                }}
+                onMouseLeave={() => {
+                  if (!pinnedNodeId) {
+                    setHoverNodeId(null);
+                    setTooltip(null);
+                  }
+                }}
+                onFocus={() => {
+                  if (!pinnedNodeId) setHoverNodeId(node.id);
+                }}
+                onBlur={() => {
+                  if (!pinnedNodeId) setHoverNodeId(null);
+                }}
                 onPointerDown={(event) => onNodePointerDown(event, node)}
                 onPointerMove={onGraphPointerMove}
                 onPointerUp={() => setDraggingNodeId(null)}
                 onPointerCancel={() => setDraggingNodeId(null)}
                 onKeyDown={(event) => onNodeKeyDown(event, node)}
-                onClick={() => selectNode(node)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (movedDuringPointerRef.current) {
+                    movedDuringPointerRef.current = false;
+                    return;
+                  }
+                  selectNode(node, event);
+                }}
               >
                 <span>{node.label.slice(0, 1).toUpperCase()}</span>
                 <strong>{node.label}</strong>
@@ -1102,7 +1211,21 @@ function ReportGraphPreview({
           })}
         </div>
 
-        <aside className="rd-v3-graph-peek" aria-label="Selected graph node">
+        {tooltipNode && !pinnedNode && (
+          <div
+            className="rd-v3-graph-tip"
+            data-visible="true"
+            style={{ left: tooltip.x + 14, top: tooltip.y - 12 }}
+            role="tooltip"
+          >
+            <strong>{tooltipNode.label}</strong>
+            <span>{tooltipNode.type} · {stageLabel(tooltipNode.stage === "universe" ? "monitoring" : tooltipNode.stage)}</span>
+            <span>{connectedIds.size > 0 ? connectedIds.size - 1 : 0} connections</span>
+          </div>
+        )}
+
+        {pinnedNode && (
+        <aside className="rd-v3-graph-peek" role="dialog" aria-label="Entity details" style={peekStyle}>
           <div className="rd-v3-graph-peek__head">
             <span>{activeNode?.label.slice(0, 1).toUpperCase() ?? "G"}</span>
             <div>
@@ -1143,6 +1266,7 @@ function ReportGraphPreview({
             </button>
           </div>
         </aside>
+        )}
       </div>
     </section>
   );
