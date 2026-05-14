@@ -5,7 +5,7 @@
  * Default density: compact. Sticky filter row.
  */
 
-import { useMemo, useState, useEffect, useRef, type DragEvent } from "react";
+import { useMemo, useState, useEffect, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import { memoStyles, type ReportCardData, type Density, type Universe } from "../fixtures";
 import { Pill } from "../components/Pill";
 import { useReportsLive } from "../hooks/useReportsLive";
@@ -102,6 +102,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
   const [sortKey, setSortKey] = useState<SortKey>("updated");
   const [sortOpen, setSortOpen] = useState(false);
   const [stageOverrides, setStageOverrides] = useState<Record<string, ReportStage>>({});
+  const [graphSelectedReportId, setGraphSelectedReportId] = useState<string | null>(null);
   const sortRef = useRef<HTMLDivElement>(null);
 
   // Click-outside dismiss for sort dropdown
@@ -195,7 +196,11 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
   const reviewCount = filtered.filter((report) => getReportStage(report, stageOverrides[report.id]) === "review").length;
   const staleCount = filtered.filter((report) => getReportStage(report, stageOverrides[report.id]) === "stale").length;
   const draftingCount = filtered.filter((report) => getReportStage(report, stageOverrides[report.id]) === "drafting").length;
-  const selectedReport = filtered.find((report) => report.id === inspectedReportId) ?? visibleReports[0] ?? null;
+  const selectedReport = filtered.find((report) => report.id === (graphSelectedReportId ?? inspectedReportId)) ?? visibleReports[0] ?? null;
+  const handleSelectReport = (report: ReportCardData) => {
+    setGraphSelectedReportId(report.id);
+    onSelectReport?.(report);
+  };
   const runBatchPrompt = () => {
     const prompt = "Run a coverage batch for my active report universe. Generate notebook-first reports, gather sources, extract claims, verify evidence, and create the review queue.";
     if (onRunBatch) onRunBatch(prompt);
@@ -322,12 +327,18 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
           onDragStart={handleDragStart}
           onStageDrop={handleStageDrop}
           onOpen={onOpen}
-          onSelect={onSelectReport}
+          onSelect={handleSelectReport}
         />
       ) : viewMode === "table" ? (
-        <ReportTable reports={visibleReports} stageOverrides={stageOverrides} onOpen={onOpen} onSelect={onSelectReport} />
+        <ReportTable reports={visibleReports} stageOverrides={stageOverrides} onOpen={onOpen} onSelect={handleSelectReport} />
       ) : viewMode === "graph" ? (
-        <ReportGraphPreview reports={visibleReports} selectedReport={selectedReport} onOpen={onOpen} onSelect={onSelectReport} />
+        <ReportGraphPreview
+          reports={visibleReports}
+          selectedReport={selectedReport}
+          stageOverrides={stageOverrides}
+          onOpen={onOpen}
+          onSelect={handleSelectReport}
+        />
       ) : (
         <div className="rd-v3-grid" data-density={density}>
           {visibleReports.map((report) => (
@@ -338,7 +349,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
               stage={getReportStage(report, stageOverrides[report.id])}
               sourceLabel={sourceLabel}
               onOpen={onOpen}
-              onSelect={onSelectReport}
+              onSelect={handleSelectReport}
             />
           ))}
           <article className="rd-v3-card rd-v3-card--add">
@@ -608,6 +619,121 @@ function freshnessText(report: ReportCardData, stage: ReportStage): string {
   return `Updated ${report.updatedAt}`;
 }
 
+type ReportGraphNode = {
+  id: string;
+  label: string;
+  type: string;
+  report?: ReportCardData;
+  stage: ReportStage | "universe";
+  x: number;
+  y: number;
+  radius: number;
+  sources: string;
+  freshness: string;
+  verified: string;
+  coverage: string[];
+  signals: string[];
+};
+
+type ReportGraphLink = {
+  source: string;
+  target: string;
+  type: "coverage" | "evidence" | "review" | "drafting" | "cluster";
+  label: string;
+};
+
+function graphEdgeType(report: ReportCardData, stage: ReportStage): ReportGraphLink["type"] {
+  if (stage === "review" || stage === "stale") return "review";
+  if (stage === "drafting") return "drafting";
+  if (report.kind.toLowerCase().includes("funding")) return "cluster";
+  if (stage === "verified") return "evidence";
+  return "coverage";
+}
+
+function buildReportGraph(
+  reports: ReportCardData[],
+  selectedReport: ReportCardData | null,
+  stageOverrides: Record<string, ReportStage>,
+): { nodes: ReportGraphNode[]; links: ReportGraphLink[]; root: ReportGraphNode | null } {
+  const rootReport = selectedReport && reports.some((report) => report.id === selectedReport.id)
+    ? selectedReport
+    : reports[0] ?? null;
+  if (!rootReport) return { nodes: [], links: [], root: null };
+
+  const related = reports.filter((report) => report.id !== rootReport.id).slice(0, 11);
+  const visible = [rootReport, ...related];
+  const totalSources = reports.reduce((sum, report) => sum + report.sources, 0);
+  const reviewCount = reports.filter((report) => {
+    const stage = getReportStage(report, stageOverrides[report.id]);
+    return stage === "review" || stage === "stale" || stage === "drafting";
+  }).length;
+
+  const nodes: ReportGraphNode[] = visible.map((report, index) => {
+    const stage = getReportStage(report, stageOverrides[report.id]);
+    const isRoot = report.id === rootReport.id;
+    const angle = related.length <= 1 ? -Math.PI / 2 : ((index - 1) / related.length) * Math.PI * 2 - Math.PI / 2;
+    return {
+      id: report.id,
+      label: report.entity,
+      type: report.kind,
+      report,
+      stage,
+      x: isRoot ? 460 : 460 + Math.cos(angle) * 270,
+      y: isRoot ? 250 : 250 + Math.sin(angle) * 170,
+      radius: isRoot ? 24 : 13 + Math.min(10, Math.max(2, report.sources)) * 0.75,
+      sources: `${report.sources} source row${report.sources === 1 ? "" : "s"}`,
+      freshness: freshnessText(report, stage),
+      verified: evidenceText(report, stage),
+      coverage: reportSignals(report),
+      signals: [
+        displayReportDescription(report.description),
+        `${report.followUps} follow-up${report.followUps === 1 ? "" : "s"} queued`,
+      ].filter(Boolean),
+    };
+  });
+
+  nodes.push({
+    id: "__universe__",
+    label: "AI Infra universe",
+    type: "Universe",
+    stage: "universe",
+    x: 460,
+    y: 470,
+    radius: 18,
+    sources: `${totalSources} source rows`,
+    freshness: `${reports.length} live reports`,
+    verified: reviewCount ? `${reviewCount} reports need work` : "All visible reports have a next step",
+    coverage: ["reports", "sources", "claims"],
+    signals: [
+      "This graph is derived from live report artifacts.",
+      "Open a node to jump into the durable notebook.",
+    ],
+  });
+
+  const links: ReportGraphLink[] = related.map((report) => {
+    const stage = getReportStage(report, stageOverrides[report.id]);
+    const sameKind = report.kind === rootReport.kind;
+    return {
+      source: rootReport.id,
+      target: report.id,
+      type: sameKind ? "cluster" : graphEdgeType(report, stage),
+      label: sameKind ? report.kind : stageLabel(stage),
+    };
+  });
+
+  links.push({ source: "__universe__", target: rootReport.id, type: "coverage", label: "active root" });
+  related.slice(0, 4).forEach((report) => {
+    links.push({
+      source: "__universe__",
+      target: report.id,
+      type: graphEdgeType(report, getReportStage(report, stageOverrides[report.id])),
+      label: "coverage",
+    });
+  });
+
+  return { nodes, links, root: nodes.find((node) => node.id === rootReport.id) ?? null };
+}
+
 function ReportCardV3({
   report,
   active,
@@ -770,45 +896,257 @@ function ReportTable({
 function ReportGraphPreview({
   reports,
   selectedReport,
+  stageOverrides,
   onOpen,
   onSelect,
 }: {
   reports: ReportCardData[];
   selectedReport: ReportCardData | null;
+  stageOverrides: Record<string, ReportStage>;
   onOpen: ReportsSurfaceProps["onOpen"];
   onSelect?: (report: ReportCardData) => void;
 }) {
-  const root = selectedReport ?? reports[0];
+  const svgRef = useRef<SVGSVGElement>(null);
+  const graph = useMemo(() => buildReportGraph(reports, selectedReport, stageOverrides), [reports, selectedReport, stageOverrides]);
+  const [pinnedNodeId, setPinnedNodeId] = useState<string | null>(null);
+  const [hoverNodeId, setHoverNodeId] = useState<string | null>(null);
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
+  const activeNodeId = graph.root?.id ?? pinnedNodeId ?? hoverNodeId ?? graph.nodes[0]?.id ?? null;
+  const activeNode = graph.nodes.find((node) => node.id === activeNodeId) ?? graph.root ?? graph.nodes[0] ?? null;
+  const byId = new Map(graph.nodes.map((node) => [node.id, node]));
+  const connectedIds = useMemo(() => {
+    if (!activeNodeId) return new Set<string>();
+    const connected = new Set<string>([activeNodeId]);
+    graph.links.forEach((link) => {
+      if (link.source === activeNodeId) connected.add(link.target);
+      if (link.target === activeNodeId) connected.add(link.source);
+    });
+    return connected;
+  }, [activeNodeId, graph.links]);
+  const positionFor = (node: ReportGraphNode) => nodePositions[node.id] ?? { x: node.x, y: node.y };
+  const linkedReportCount = Math.max(0, graph.nodes.filter((node) => node.report).length - 1);
+  const totalSources = reports.reduce((sum, report) => sum + report.sources, 0);
+
+  useEffect(() => {
+    if (!pinnedNodeId || graph.nodes.some((node) => node.id === pinnedNodeId)) return;
+    setPinnedNodeId(graph.root?.id ?? null);
+  }, [graph.nodes, graph.root?.id, pinnedNodeId]);
+
+  useEffect(() => {
+    if (!graph.root?.id) return;
+    setPinnedNodeId(graph.root.id);
+    setHoverNodeId(graph.root.id);
+  }, [graph.root?.id]);
+
+  const openNodeNotebook = (node: ReportGraphNode | null) => {
+    const report = node?.report ?? graph.root?.report;
+    if (report) onOpen(report.id, "brief");
+  };
+
+  const selectNode = (node: ReportGraphNode) => {
+    setPinnedNodeId(node.id);
+    setHoverNodeId(node.id);
+    if (node.report) onSelect?.(node.report);
+  };
+
+  const onNodeKeyDown = (event: KeyboardEvent<Element>, node: ReportGraphNode) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      selectNode(node);
+    }
+    if (event.key === "Escape") {
+      setPinnedNodeId(null);
+      setHoverNodeId(null);
+    }
+  };
+
+  const onNodePointerDown = (event: PointerEvent<Element>, node: ReportGraphNode) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDraggingNodeId(node.id);
+    selectNode(node);
+  };
+
+  const onGraphPointerMove = (event: PointerEvent<Element>) => {
+    if (!draggingNodeId || !svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 920;
+    const y = ((event.clientY - rect.top) / rect.height) * 540;
+    setNodePositions((prev) => ({
+      ...prev,
+      [draggingNodeId]: {
+        x: Math.max(38, Math.min(882, x)),
+        y: Math.max(38, Math.min(502, y)),
+      },
+    }));
+  };
+
+  const resetGraph = () => {
+    setNodePositions({});
+    setHoverNodeId(null);
+    setPinnedNodeId(graph.root?.id ?? null);
+    showToast({ tone: "info", message: "Graph fit reset to the current report neighborhood." });
+  };
+
+  const activeStage = activeNode?.stage === "universe" ? "monitoring" : activeNode?.stage;
+  const shouldDim = Boolean(activeNodeId && connectedIds.size > 1);
+
   return (
-    <section className="rd-v3-graph" aria-label="Report relationship graph preview">
-      <div className="rd-v3-graph__root">
-        <span>{root?.entity.slice(0, 1).toUpperCase() ?? "R"}</span>
-        <strong>{root?.entity ?? "Select a report"}</strong>
-        <button type="button" onClick={() => root && onOpen(root.id, "brief")}>Open notebook</button>
-        {root && getReportStage(root) === "stale" && (
-          <button
-            type="button"
-            className="rd-v3-delta-refresh"
-            title="Run a delta-only refresh from the last checked timestamp"
-            onClick={() => showToast({ tone: "info", message: `Delta refresh preview queued for ${root.entity}. New sources only; unchanged content skips extraction.` })}
-          >
-            ↻ Refresh delta
-          </button>
-        )}
+    <section className="rd-v3-graph" aria-label="Report relationship graph">
+      <div className="rd-v3-graph__controls">
+        <div>
+          <span className="rd-eyebrow">Relationship map</span>
+          <strong>{graph.root?.label ?? "Select a report"}</strong>
+          <small>{linkedReportCount} neighboring reports · {totalSources} source rows</small>
+        </div>
+        <div className="rd-v3-graph__control-actions">
+          <button type="button" onClick={resetGraph}>Fit</button>
+          <span className="rd-v3-graph__legend" aria-label="Relationship legend">
+            <span><i data-edge="coverage" />Coverage</span>
+            <span><i data-edge="evidence" />Evidence</span>
+            <span><i data-edge="review" />Review</span>
+            <span><i data-edge="drafting" />Drafting</span>
+          </span>
+        </div>
       </div>
-      <div className="rd-v3-graph__nodes">
-        {reports.slice(0, 10).map((report) => (
-          <button key={report.id} type="button" onClick={() => onSelect?.(report)} aria-pressed={root?.id === report.id}>
-            <span>{report.entity.slice(0, 1).toUpperCase()}</span>
-            <strong>{report.entity}</strong>
-            <small>{stageLabel(getReportStage(report))}</small>
-          </button>
-        ))}
+
+      <div className="rd-v3-graph__canvas">
+        <svg
+          ref={svgRef}
+          viewBox="0 0 920 540"
+          role="img"
+          aria-label="Draggable graph of report, entity, source, and review relationships"
+          onPointerMove={onGraphPointerMove}
+          onPointerUp={() => setDraggingNodeId(null)}
+          onPointerCancel={() => setDraggingNodeId(null)}
+        >
+          <defs>
+            <radialGradient id="rd-v3-graph-glow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="var(--rd-accent-soft)" />
+              <stop offset="100%" stopColor="var(--rd-paper)" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <g className="rd-v3-graph__links">
+            {graph.links.map((link) => {
+              const source = byId.get(link.source);
+              const target = byId.get(link.target);
+              if (!source || !target) return null;
+              const sourcePos = positionFor(source);
+              const targetPos = positionFor(target);
+              const isActive = !activeNodeId || link.source === activeNodeId || link.target === activeNodeId;
+              const midX = (sourcePos.x + targetPos.x) / 2;
+              const midY = (sourcePos.y + targetPos.y) / 2;
+              return (
+                <g key={`${link.source}-${link.target}`} data-edge={link.type} data-active={isActive}>
+                  <path d={`M ${sourcePos.x} ${sourcePos.y} L ${targetPos.x} ${targetPos.y}`} />
+                  <text x={midX} y={midY - 5}>{link.label}</text>
+                </g>
+              );
+            })}
+          </g>
+          <g className="rd-v3-graph__nodes" onPointerLeave={() => setHoverNodeId(null)}>
+            {graph.nodes.map((node) => {
+              const pos = positionFor(node);
+              const active = activeNodeId === node.id;
+              const dimmed = shouldDim && !connectedIds.has(node.id);
+              return (
+                <g
+                  key={node.id}
+                  className="rd-v3-graph-node"
+                  data-stage={node.stage}
+                  data-active={active}
+                  data-dimmed={dimmed}
+                  aria-hidden="true"
+                  transform={`translate(${pos.x} ${pos.y})`}
+                >
+                  <circle className="rd-v3-graph-node__halo" r={node.radius + 14} />
+                  <circle className="rd-v3-graph-node__ring" r={node.radius + 4} />
+                  <circle className="rd-v3-graph-node__dot" r={node.radius} />
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+
+        <div className="rd-v3-graph__hit-targets" aria-label="Interactive graph nodes">
+          {graph.nodes.map((node) => {
+            const pos = positionFor(node);
+            const size = Math.max(44, (node.radius + 18) * 2);
+            return (
+              <button
+                key={node.id}
+                type="button"
+                style={{
+                  left: `${(pos.x / 920) * 100}%`,
+                  top: `${(pos.y / 540) * 100}%`,
+                  width: node.id === "__universe__" ? 170 : Math.max(150, size * 3.4),
+                }}
+                aria-label={`${node.label}, ${node.type}, ${node.verified}`}
+                aria-pressed={activeNodeId === node.id}
+                onMouseEnter={() => setHoverNodeId(node.id)}
+                onMouseDown={() => selectNode(node)}
+                onFocus={() => selectNode(node)}
+                onBlur={() => setHoverNodeId(null)}
+                onPointerDown={(event) => onNodePointerDown(event, node)}
+                onPointerMove={onGraphPointerMove}
+                onPointerUp={() => setDraggingNodeId(null)}
+                onPointerCancel={() => setDraggingNodeId(null)}
+                onKeyDown={(event) => onNodeKeyDown(event, node)}
+                onClick={() => selectNode(node)}
+              >
+                <span>{node.label.slice(0, 1).toUpperCase()}</span>
+                <strong>{node.label}</strong>
+                <small>{node.stage === "universe" ? "coverage universe" : stageLabel(node.stage)}</small>
+              </button>
+            );
+          })}
+        </div>
+
+        <aside className="rd-v3-graph-peek" aria-label="Selected graph node">
+          <div className="rd-v3-graph-peek__head">
+            <span>{activeNode?.label.slice(0, 1).toUpperCase() ?? "G"}</span>
+            <div>
+              <strong>{activeNode?.label ?? "No node selected"}</strong>
+              <small>{activeNode?.type ?? "Graph"} · {activeStage ? stageLabel(activeStage) : "relationship map"}</small>
+            </div>
+          </div>
+          <dl>
+            <div><dt>Sources</dt><dd>{activeNode?.sources ?? "Open a report node"}</dd></div>
+            <div><dt>Freshness</dt><dd>{activeNode?.freshness ?? "No freshness state"}</dd></div>
+            <div><dt>Verified</dt><dd>{activeNode?.verified ?? "No evidence state"}</dd></div>
+            <div>
+              <dt>Coverage</dt>
+              <dd className="rd-v3-graph-peek__tags">
+                {(activeNode?.coverage ?? ["reports"]).map((tag) => <span key={tag}>{tag}</span>)}
+              </dd>
+            </div>
+          </dl>
+          <ul>
+            {(activeNode?.signals ?? ["Select a report node to inspect the relationship context."]).slice(0, 3).map((signal) => (
+              <li key={signal}>{signal}</li>
+            ))}
+          </ul>
+          <div className="rd-v3-graph-peek__actions">
+            <button type="button" onClick={() => openNodeNotebook(activeNode)}>Open notebook</button>
+            <button
+              type="button"
+              onClick={() => showToast({ tone: "info", message: `Comparison packet queued for ${activeNode?.label ?? "this graph neighborhood"}.` })}
+            >
+              Compare
+            </button>
+            <button
+              type="button"
+              className={activeNode?.stage === "stale" ? "rd-v3-delta-refresh" : undefined}
+              onClick={() => showToast({ tone: "info", message: `Delta refresh preview queued for ${activeNode?.label ?? "this neighborhood"}. New sources only; unchanged content skips extraction.` })}
+            >
+              Refresh delta
+            </button>
+          </div>
+        </aside>
       </div>
     </section>
   );
 }
-
 function ReportsLiveEmptyState() {
   return (
     <section className="rd-universe">
