@@ -1333,6 +1333,25 @@ export function ChatSurface({
       <div ref={scrollRef} className="rd-stack" style={{ flex: 1, overflow: "auto", padding: "24px 40px 24px", gap: 18, maxWidth: 920, width: "100%", margin: "0 auto" }}>
         {batch && <BatchMonitorCell batch={batch} onCancel={() => setBatch(null)} />}
 
+        <ChatV2ReportBanner
+          liveDetail={liveDetail}
+          turns={turns}
+          isLive={liveArtifacts.isLive}
+          paidEligible={chatRun.state.paidEligible}
+          runStatus={chatRun.state.run?.status}
+          onOpenReport={openCurrentReport}
+          onExport={() => showToast({ tone: "info", message: "Export preview stays approval-gated until a final answer packet exists." })}
+          onTrack={() => showToast({ tone: "success", message: liveDetail ? `${liveDetail.title} is already attached as the active report context.` : "Track updates after selecting or creating a report context." })}
+        />
+        <ChatV2CheckpointStrip
+          liveDetail={liveDetail}
+          turns={turns}
+          toolCallCount={chatRun.state.run?.toolCalls.length ?? 0}
+          runStatus={chatRun.state.run?.status}
+          authReady={!authLoading}
+          isAuthenticated={isAuthenticated}
+        />
+
         {/* Compact thread header — no marketing copy. Just status + thread context. */}
         <header className="rd-chat-thread-head">
           <div className="rd-row" style={{ gap: 8, flexWrap: "wrap" }}>
@@ -1432,6 +1451,13 @@ export function ChatSurface({
             );
           })
         )}
+        <ChatV2NextActions
+          liveDetail={liveDetail}
+          disabled={turns.some((t) => t.thinking || t.streaming)}
+          onOpenReport={openCurrentReport}
+          onPrompt={(prompt) => sendMessage(prompt, tier)}
+          onExport={() => showToast({ tone: "info", message: "Export will use the final sourced answer packet, not an unsourced draft." })}
+        />
       </div>
 
       {showScrollBtn && (
@@ -1611,6 +1637,117 @@ export function ChatSurface({
  * Today: fixture from OPEN_QUESTIONS. Once chat is live-wired, replace
  * with `useAgentRunFeedback` query filtered to flagged + unresolved items.
  */
+function ChatV2ReportBanner({
+  liveDetail,
+  turns,
+  isLive,
+  paidEligible,
+  runStatus,
+  onOpenReport,
+  onExport,
+  onTrack,
+}: {
+  liveDetail?: LiveArtifactDetail | null;
+  turns: Turn[];
+  isLive: boolean;
+  paidEligible: boolean;
+  runStatus?: string;
+  onOpenReport: () => void;
+  onExport: () => void;
+  onTrack: () => void;
+}) {
+  const savedLabel = liveDetail ? `Saved to ${liveDetail.title}` : "Ready for a live report packet";
+  const meta = liveDetail
+    ? `${liveDetail.sectionCount} sections · ${liveDetail.claimCount} claims · ${liveDetail.sourceCount} sources · notebook context loaded`
+    : `${turns.length} messages · ${isLive ? "memory hot" : "memory warming"} · ${paidEligible ? "paid eligible" : "free-first"} · ${runStatus ?? "idle"}`;
+
+  return (
+    <section className="rd-v2-saved-banner" aria-label="Current chat work packet">
+      <strong>{savedLabel}</strong>
+      <span>{meta}</span>
+      <button type="button" onClick={onOpenReport}>{liveDetail ? "Open notebook" : "Open reports"}</button>
+      <button type="button" onClick={onExport}>Export</button>
+      <button type="button" onClick={onTrack}>Track updates</button>
+    </section>
+  );
+}
+
+function ChatV2CheckpointStrip({
+  liveDetail,
+  turns,
+  toolCallCount,
+  runStatus,
+  authReady,
+  isAuthenticated,
+}: {
+  liveDetail?: LiveArtifactDetail | null;
+  turns: Turn[];
+  toolCallCount: number;
+  runStatus?: string;
+  authReady: boolean;
+  isAuthenticated: boolean;
+}) {
+  const hasUserTurn = turns.some((turn) => turn.role === "user");
+  const hasPacket = turns.some((turn) => turn.packet?.shortAnswer);
+  const hasFollowUp = turns.some((turn) => turn.markdown || turn.packet?.nextAction);
+  const running = runStatus === "running" || runStatus === "queued" || turns.some((turn) => turn.thinking || turn.streaming);
+  const checkpoints: Array<[string, string, boolean]> = [
+    ["✓", liveDetail ? "Report context loaded" : authReady ? "Memory checked" : "Resolving session", Boolean(liveDetail) || authReady],
+    [hasUserTurn ? "✓" : "○", "Prompt captured", hasUserTurn],
+    [toolCallCount > 0 ? "✓" : running ? "↻" : "○", `${toolCallCount} tool calls`, toolCallCount > 0 || running],
+    [hasPacket ? "✓" : running ? "↻" : "○", "Answer packet", hasPacket || running],
+    [hasFollowUp ? "✓" : "○", "Notebook / follow-up", hasFollowUp],
+    [isAuthenticated ? "✓" : "○", isAuthenticated ? "Telemetry persisted" : "Guest telemetry local", isAuthenticated],
+  ];
+
+  return (
+    <div className="rd-v2-chat-center">
+      <h1>{liveDetail ? `${liveDetail.title} workspace chat` : "Ask NodeBench to work the live packet"}</h1>
+      <p className="rd-v2-muted-line">
+        {runStatus ? `Run ${runStatus}` : "Idle"} · {turns.length} messages · context, tools, cost, and evidence stream through the rail.
+      </p>
+      <div className="rd-v2-checkpoints">
+        {checkpoints.map(([mark, label, active]) => (
+          <div key={label} data-active={active}>
+            <span>{mark}</span><strong>{label}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChatV2NextActions({
+  liveDetail,
+  disabled,
+  onOpenReport,
+  onPrompt,
+  onExport,
+}: {
+  liveDetail?: LiveArtifactDetail | null;
+  disabled: boolean;
+  onOpenReport: () => void;
+  onPrompt: (prompt: string) => void;
+  onExport: () => void;
+}) {
+  const title = liveDetail?.title ?? "current context";
+  const actions = [
+    ["Open notebook", onOpenReport],
+    ["Draft memo", () => onPrompt(`Draft a concise sourced memo for ${title}. Include answer, evidence, risks, and next action.`)],
+    ["Verify claims", () => onPrompt(`Verify the open claims for ${title}. Use memory first and list citation gaps explicitly.`)],
+    ["Compare", () => onPrompt(`Compare ${title} against the closest related reports already in memory.`)],
+    ["Export", onExport],
+  ] as const;
+
+  return (
+    <div className="rd-v2-next-actions" aria-label="Chat next actions">
+      {actions.map(([label, action]) => (
+        <button key={label} type="button" disabled={disabled} onClick={action}>{label}</button>
+      ))}
+    </div>
+  );
+}
+
 function OpenQuestionsTray({ questions }: { questions: OpenQuestion[] }) {
   const [open, setOpen] = useState(true);
   const [items, setItems] = useState(questions);

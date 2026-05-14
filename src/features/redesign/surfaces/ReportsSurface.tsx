@@ -136,6 +136,9 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
     onSelectReport(filtered[0]);
   }, [filtered, inspectedReportId, onSelectReport]);
 
+  const hasActiveFilter = filter !== "all" || kindFilter !== "all" || query.length > 0;
+  const resetFilters = () => { setFilter("all"); setKindFilter("all"); setQuery(""); };
+
   const reportDecisionQueue = useMemo(
     () => buildReportsDecisionQueue(filtered.length > 0 ? filtered : reports),
     [filtered, reports],
@@ -143,10 +146,6 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
   const openDecisionItem = (item: ProductDecisionItem) => {
     if (item.reportId) onOpen(item.reportId, "brief");
   };
-
-  const hasActiveFilter = filter !== "all" || kindFilter !== "all" || query.length > 0;
-  const resetFilters = () => { setFilter("all"); setKindFilter("all"); setQuery(""); };
-
   const bulkExport = (format: "csv" | "markdown" | "notion" | "hubspot") => {
     showToast({
       tone: "success",
@@ -155,7 +154,6 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
     });
     setSelected(new Set());
   };
-
   const bulkRefresh = () => {
     showToast({
       tone: "info",
@@ -163,6 +161,154 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
     });
     setSelected(new Set());
   };
+
+  const visibleReports = filtered.slice(0, 12);
+  const verifiedShare = reports.length > 0 ? Math.round(((counts.verified ?? 0) / reports.length) * 100) : 0;
+
+  return (
+    <div className="rd-v2-proto-center">
+      <div className="rd-v2-edition-row">
+        <span className="rd-v2-edition-pill">Entity intelligence</span>
+        <span className="rd-v2-edition-subline">
+          {isLoading && reports.length === 0
+            ? "Checking Convex-backed artifacts"
+            : `${reports.length} live reports · ${verifiedShare}% verified · ${counts.review ?? 0} need review · ${reports.reduce((sum, report) => sum + report.sources, 0)} sources`}
+        </span>
+      </div>
+      <div className="rd-v2-filter-row" role="tablist" aria-label="Filter reports by status">
+        {STATUS_FILTERS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={filter === item.id ? "is-active" : ""}
+            aria-selected={filter === item.id}
+            onClick={() => setFilter(item.id)}
+          >
+            {item.label} {counts[item.id] ?? 0}
+          </button>
+        ))}
+        <button type="button" className={kindFilter !== "all" ? "is-active" : ""} onClick={() => setKindFilter(kindFilter === "all" ? "Diligence" : "all")}>
+          {kindFilter === "all" ? "Tags" : kindFilter} ▾
+        </button>
+      </div>
+      <div className="rd-v2-action-row" style={{ position: "relative" }}>
+        <button type="button" onClick={() => setSortOpen((v) => !v)}>
+          {SORT_OPTIONS.find((s) => s.id === sortKey)?.label.split(" (")[0] ?? "Updated"} ▾
+        </button>
+        {sortOpen && (
+          <div className="rd-sort__menu" role="menu" style={{ left: 0, top: 36 }}>
+            {SORT_OPTIONS.map((s) => (
+              <button
+                key={s.id}
+                role="menuitemradio"
+                aria-selected={sortKey === s.id}
+                className="rd-sort__option"
+                onClick={() => { setSortKey(s.id); setSortOpen(false); }}
+              >
+                <span aria-hidden="true">{sortKey === s.id ? "✓" : ""}</span>
+                <span>{s.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => showToast({ tone: isLive ? "success" : "info", message: isLive ? `${sourceLabel}. Reports are Convex-backed.` : "No live reports yet. The page will not substitute fixtures." })}
+        >
+          ● {isLive ? "Convex-backed" : "No fixture fallback"}
+        </button>
+        {query && <button type="button" onClick={resetFilters}>Clear filters</button>}
+        <button
+          type="button"
+          className="rd-v2-btn-primary"
+          onClick={() => showToast({ tone: "info", message: "Start a new entity report from Chat so the first write has source trace and approval context." })}
+        >
+          + New report
+        </button>
+      </div>
+      <div className="rd-v2-action-row" aria-label="Search reports">
+        <label className="rd-sr-only" htmlFor="reports-v2-search">Search reports</label>
+        <input
+          id="reports-v2-search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={isLive ? `Search ${reports.length} live reports...` : "Search live reports..."}
+          style={{
+            width: "100%",
+            border: "1px solid var(--rd-line)",
+            borderRadius: 999,
+            padding: "10px 14px",
+            background: "var(--rd-panel)",
+            color: "var(--rd-ink)",
+          }}
+        />
+      </div>
+      {visibleReports.length === 0 ? (
+        <article className="rd-v2-report-card rd-v2-report-card--add">
+          <h2>{hasActiveFilter ? "No matching live reports" : "No live coverage returned"}</h2>
+          <p>
+            {hasActiveFilter
+              ? "Clear the filters to return to the live report set."
+              : "Convex returned zero report artifacts for this session. Run research from Chat to create the first report."}
+          </p>
+          <button type="button" onClick={hasActiveFilter ? resetFilters : () => onOpen("new", "chat")}>
+            {hasActiveFilter ? "Clear filters" : "+ Start in Chat"}
+          </button>
+        </article>
+      ) : (
+        <div className="rd-v2-report-grid">
+          {visibleReports.map((report) => {
+            const active = inspectedReportId === report.id;
+            return (
+              <article
+                key={report.id}
+                className={`rd-v2-report-card ${active ? "is-active" : ""}`}
+                onClick={() => onSelectReport?.(report)}
+                aria-selected={active}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  onSelectReport?.(report);
+                }}
+              >
+                <div className="rd-v2-report-title">
+                  <span>{report.entity.slice(0, 1).toUpperCase()}</span>
+                  <h2>{report.entity}</h2>
+                  <b data-state={report.status}>{report.status === "review" ? "review" : report.status}</b>
+                </div>
+                <p className="rd-v2-report-kind">{report.kind}</p>
+                <p>{displayReportDescription(report.description)}</p>
+                <div className="rd-v2-report-tags">
+                  <span>{report.sources} sources</span>
+                  <span>{report.claims} claims</span>
+                  <span>{report.followUps} follow-ups</span>
+                </div>
+                <p className="rd-v2-report-ref">Referenced in: {sourceLabel}</p>
+                <p className="rd-v2-report-meta">Updated {report.updatedAt}</p>
+                <div className="rd-v2-next-actions" style={{ marginTop: 8 }}>
+                  <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "brief"); }}>Open</button>
+                  <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "cards"); }}>Cards</button>
+                  <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "chat"); }}>Chat</button>
+                </div>
+              </article>
+            );
+          })}
+          <article className="rd-v2-report-card rd-v2-report-card--add">
+            <h2>Add entity</h2>
+            <p>Capture a company, person, topic, or source cluster and let the coverage agent hydrate the first report.</p>
+            <button type="button" onClick={() => onOpen("new", "chat")}>+ New entity</button>
+          </article>
+        </div>
+      )}
+      {filtered.length > visibleReports.length && (
+        <button className="rd-v2-show-more" type="button" onClick={() => showToast({ tone: "info", message: `${filtered.length - visibleReports.length} more live reports are available through search and filters.` })}>
+          Show {filtered.length - visibleReports.length} more entities
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div className="rd-stack" style={{ padding: "32px 40px 40px", gap: 20, maxWidth: 1440 }}>

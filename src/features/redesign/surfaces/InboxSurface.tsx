@@ -54,7 +54,7 @@ export function InboxSurface() {
   );
 
   // Sprint S3: live aggregator over pipeline runs.
-  const { items: allItems, isLive, liveCount } = useInboxLive();
+  const { items: allItems, isLive, isLoading, liveCount } = useInboxLive();
 
   const items = useMemo(() => {
     let base = allItems.filter((i) => !snoozed.has(i.id));
@@ -227,6 +227,82 @@ export function InboxSurface() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [items, activeId, activeItem]);
+
+  const inboxGroups = buildInboxV2Groups(items);
+
+  return (
+    <div className="rd-v2-proto-center rd-v2-inbox-center">
+      <div className="rd-v2-inbox-head">
+        <h1>Inbox</h1>
+        <span>
+          {isLive ? `${liveCount} live items` : isLoading ? "Checking live items" : "0 live items"} · {items.filter((item) => item.whyTone === "amber" || item.lane === "approvals").length} need action
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            if (items.length === 0) {
+              showToast({ tone: "info", message: "No live Inbox rows are available to mark read." });
+              return;
+            }
+            setSnoozed((prev) => new Set([...prev, ...items.map((item) => item.id)]));
+            showToast({ tone: "success", message: `Marked ${items.length} live Inbox item${items.length === 1 ? "" : "s"} read locally.` });
+          }}
+        >
+          Mark all read
+        </button>
+        <button
+          type="button"
+          className="rd-v2-btn-primary"
+          onClick={() => showToast({ tone: "info", message: "Auto-triage runs through the live nudge and pipeline queues. No starter rows were inserted." })}
+        >
+          Auto-triage
+        </button>
+      </div>
+      {inboxGroups.map((group) => (
+        <section key={group.label} className="rd-v2-inbox-group">
+          <div className="rd-v2-inbox-group-head"><span>{group.label}</span><b>{group.items.length}</b></div>
+          {group.items.length === 0 ? (
+            <article>
+              <span className="rd-v2-source-icon" data-source="system">·</span>
+              <div>
+                <span className="rd-v2-inbox-title-row"><strong>{group.empty}</strong></span>
+                <p>Convex returned no rows in this bucket for the current session.</p>
+              </div>
+              <time>live</time>
+            </article>
+          ) : (
+            group.items.map((item) => (
+              <article
+                key={item.id}
+                className={activeId === item.id ? "is-active" : ""}
+                onClick={() => setActiveId(item.id)}
+              >
+                <span className="rd-v2-source-icon" data-source={inboxV2Source(item)}>
+                  {inboxV2Icon(item)}
+                </span>
+                <div>
+                  <span className="rd-v2-inbox-title-row">
+                    {activeId === item.id && <i />}
+                    <strong>{item.title}</strong>
+                  </span>
+                  <p>{item.body}</p>
+                </div>
+                <time>{item.meta}</time>
+                <b>{item.whyHere ?? item.category.replace(/_/g, " ")}</b>
+              </article>
+            ))
+          )}
+        </section>
+      ))}
+      <button
+        className="rd-v2-show-more"
+        type="button"
+        onClick={() => showToast({ tone: "info", message: isLive ? "All live Inbox rows for this session are visible." : "Inbox is empty because no live nudges or pipeline review rows were returned." })}
+      >
+        {items.length > 0 ? `Show ${Math.max(0, allItems.length - items.length)} more items` : "No hidden fixture items"}
+      </button>
+    </div>
+  );
 
   return (
     <div className="rd-stack" style={{ padding: "32px 40px 40px", gap: 18, maxWidth: 1280, height: "100%" }}>
@@ -486,6 +562,65 @@ function InboxPreview({
       </div>
     </>
   );
+}
+
+function buildInboxV2Groups(items: InboxItem[]) {
+  const groups = [
+    {
+      label: "Requires action",
+      empty: "No approval or agent-action rows",
+      items: items.filter((item) =>
+        (item.lane ?? legacyToLane(item.category)) === "approvals" ||
+        (item.lane ?? legacyToLane(item.category)) === "agent_suggestions" ||
+        item.whyTone === "amber",
+      ),
+    },
+    {
+      label: "To read",
+      empty: "No watchlist or capture rows",
+      items: items.filter((item) =>
+        (item.lane ?? legacyToLane(item.category)) === "watchlist" ||
+        (item.lane ?? legacyToLane(item.category)) === "captures",
+      ),
+    },
+    {
+      label: "Waiting on others",
+      empty: "No waiting rows",
+      items: items.filter((item) =>
+        item.meta.toLowerCase().includes("waiting") ||
+        item.body.toLowerCase().includes("approval") ||
+        item.body.toLowerCase().includes("requires"),
+      ),
+    },
+    {
+      label: "Filed",
+      empty: "No filed rows",
+      items: items.filter((item) => item.whyTone === "green"),
+    },
+  ];
+
+  return groups.map((group, index) => ({
+    ...group,
+    items: index === 0
+      ? group.items
+      : group.items.filter((item) => !groups.slice(0, index).some((prior) => prior.items.some((priorItem) => priorItem.id === item.id))),
+  }));
+}
+
+function inboxV2Source(item: InboxItem): string {
+  const lane = item.lane ?? legacyToLane(item.category);
+  if (lane === "approvals") return "github";
+  if (lane === "watchlist") return "source";
+  if (lane === "agent_suggestions") return "agent";
+  return "email";
+}
+
+function inboxV2Icon(item: InboxItem): string {
+  const source = inboxV2Source(item);
+  if (source === "github") return "⌁";
+  if (source === "source") return "◦";
+  if (source === "agent") return "✦";
+  return "✉";
 }
 
 function LaneGlyph({ lane }: { lane: InboxLane }) {
