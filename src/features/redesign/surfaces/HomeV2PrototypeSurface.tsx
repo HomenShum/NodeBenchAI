@@ -1058,10 +1058,38 @@ function ChatThreadGroup({ label, items }: { label: string; items: Array<[string
 
 function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }: PrototypeSelectionProps) {
   return (
-    <div className="rd-v2-proto-center">
-      <div className="rd-v2-edition-row">
-        <span className="rd-v2-edition-pill">Entity intelligence</span>
-        <span className="rd-v2-edition-subline">12 entities · 83% verified · avg score 87 · 48 sources</span>
+    <div className="rd-v2-proto-center rd-v2-reports-command">
+      <section className="rd-v2-command-hero" aria-labelledby="prototype-reports-title">
+        <div className="rd-v2-edition-row">
+          <span className="rd-v2-edition-pill">Coverage Command Center</span>
+          <span className="rd-v2-edition-subline">12 reports · 83% verified · 3 need review · 48 source rows</span>
+        </div>
+        <div className="rd-v2-command-title-row">
+          <div>
+            <h1 id="prototype-reports-title">Reports</h1>
+            <p>Agent-generated notebooks organized by entity, evidence quality, lifecycle state, and the next review action.</p>
+          </div>
+          <div className="rd-v2-command-actions">
+            <button className="rd-v2-btn-primary">Run batch</button>
+            <button>Review queue</button>
+          </div>
+        </div>
+        <div className="rd-v2-command-metrics">
+          <span><strong>12</strong><small>reports</small></span>
+          <span><strong>4</strong><small>active runs</small></span>
+          <span><strong>3</strong><small>need review</small></span>
+          <span><strong>5</strong><small>export ready</small></span>
+        </div>
+      </section>
+      <div className="rd-v2-view-row">
+        <div className="rd-v2-view-switcher" role="tablist" aria-label="Reports view">
+          {["Gallery", "Board", "Table", "Notebook", "Canvas"].map((item, index) => (
+            <button key={item} role="tab" aria-selected={index === 0} className={index === 0 ? "is-active" : ""}>{item}</button>
+          ))}
+        </div>
+        <div className="rd-v2-density-switcher" aria-label="Gallery density">
+          {["Compact", "Standard", "Expanded"].map((item, index) => <button key={item} className={index === 1 ? "is-active" : ""}>{item}</button>)}
+        </div>
       </div>
       <div className="rd-v2-filter-row">
         {["All", "Watching", "Needs review", "Stale", "Updated"].map((item, index) => (
@@ -1072,13 +1100,13 @@ function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }
       <div className="rd-v2-action-row">
         <button>Updated ▾</button>
         <button>● Privacy</button>
-        <button className="rd-v2-btn-primary">+ New report</button>
+        <button className="rd-v2-btn-primary">+ New batch</button>
       </div>
-      <div className="rd-v2-report-grid">
+      <div className="rd-v2-report-grid" data-density="grid">
         {reportEntities.map((entity) => (
           <article
             key={entity.name}
-            className={`rd-v2-report-card ${selectedEntity === entity.name ? "is-active" : ""}`}
+            className={`rd-v2-report-card rd-v2-report-card-v2 ${selectedEntity === entity.name ? "is-active" : ""}`}
             onClick={() => onSelectEntity?.(entity.name)}
             aria-selected={selectedEntity === entity.name}
           >
@@ -1094,15 +1122,20 @@ function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }
             </div>
             <p className="rd-v2-report-ref">Referenced in: {entity.ref}</p>
             <p className="rd-v2-report-meta">{entity.meta}</p>
+            <div className="rd-v2-next-actions">
+              <button type="button" className="rd-v2-card-primary">Open Notebook</button>
+              <button type="button">Review Evidence</button>
+              <button type="button">Ask Agent</button>
+            </div>
           </article>
         ))}
         <article className="rd-v2-report-card rd-v2-report-card--add">
-          <h2>Add entity</h2>
-          <p>Capture a company, person, topic, or source cluster and let the coverage agent hydrate the first report.</p>
-          <button>+ New entity</button>
+          <h2>Run a batch</h2>
+          <p>Import companies, people, topics, or source clusters and let the coverage agent hydrate report notebooks.</p>
+          <button>+ New batch</button>
         </article>
       </div>
-      <button className="rd-v2-show-more">Show 7 more entities</button>
+      <button className="rd-v2-show-more">Show 7 more reports</button>
     </div>
   );
 }
@@ -1262,7 +1295,7 @@ function AgentShell({
   const pillClassName = (_pill: string, index: number) => {
     const classes = ["rd-v2-agent-pill"];
     if (index === 0) classes.push("is-active");
-    if (title === "Coverage agent") {
+    if (title === "Coverage agent" || title === "Agent Inspector") {
       if (index === 1) classes.push("is-entity");
       if (index === 2) classes.push("is-source");
     }
@@ -1302,16 +1335,17 @@ function AgentShell({
 
 function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedReport, onSelectEntity }: PrototypeSelectionProps) {
   const entity = selectedReport ? liveReportToPrototypeEntity(selectedReport) : getPrototypeEntity(selectedEntity);
-  const reviewText = entity.score < 75 ? `${entity.name} needs review.` : `${entity.name} is in good shape.`;
+  const reviewText = entity.score < 75 ? `${entity.name} needs report work.` : `${entity.name} is ready for the current coverage task.`;
   const summaryText = entity.score < 75
-    ? `${entity.name} is below coverage threshold. Refresh sources, verify open claims, and decide whether the report needs a notebook patch.`
-    : `${entity.name} has current sources and enough verified claims for the present coverage task. Keep it on watch.`;
+    ? `${entity.name} is below coverage threshold. Refresh sources, verify open claims, and decide whether the notebook needs a patch.`
+    : `${entity.name} has enough current sources and verified claims. Keep monitoring, but the notebook can be opened as the durable artifact.`;
+  const warningCount = entity.score < 75 ? 3 : 1;
 
   return (
     <AgentShell
-      title="Coverage agent"
-      context={`Reports · 5 entities · 48 sources · ${entity.sources} active`}
-      pills={["Reports", entity.name, `${entity.sources} sources`, `Score ${entity.score}`]}
+      title="Agent Inspector"
+      context={`Selected report · ${entity.name} · ${entity.sources} sources · ${warningCount} warnings`}
+      pills={["Pipeline", entity.name, `${entity.sources} sources`, `Score ${entity.score}`]}
       question="Which reports need work?"
       placeholder="Ask about these reports..."
       onAsk={onAsk}
@@ -1319,9 +1353,14 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
       <div className="rd-v2-msg rd-v2-msg-agent">
         <strong>{reviewText}</strong>
         <p>{summaryText}</p>
-        <div className="rd-v2-trace"><small>3 steps completed</small><span>entity_health</span><span>freshness_scan</span><span>claim_verify</span></div>
+        <div className="rd-v2-trace"><small>Agent run trace</small><span>sources_gathered</span><span>claims_extracted</span><span>notebook_checked</span></div>
       </div>
-      <button className="rd-v2-drawer-toggle">{`Context · ${entity.name} ${entity.score} · ${entity.signals.length} signals · ${entity.related.length} entities`}</button>
+      <button className="rd-v2-drawer-toggle">{`Inspector · ${entity.name} ${entity.score} · ${entity.signals.length} signals · ${entity.related.length} entities`}</button>
+      <section className="rd-v2-agent-context">
+        <div className="rd-v2-context-head"><span>Pipeline progress</span><span>{warningCount} warnings</span></div>
+        <p className="rd-v2-signal-line">Done: gathered sources, extracted claims, matched report target.</p>
+        <p className="rd-v2-signal-line">Next: verify weak claims, patch notebook, then approve export.</p>
+      </section>
       <section className="rd-v2-agent-context">
         <div className="rd-v2-context-head"><span>Active entity</span><span>{entity.score}</span></div>
         <div className="rd-v2-score-big">{entity.score} <small>{entity.delta}</small></div>

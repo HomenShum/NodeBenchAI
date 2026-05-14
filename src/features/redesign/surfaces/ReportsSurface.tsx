@@ -5,7 +5,7 @@
  * Default density: compact. Sticky filter row.
  */
 
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, type DragEvent } from "react";
 import { memoStyles, type ReportCardData, type Density, type Universe } from "../fixtures";
 import { Pill } from "../components/Pill";
 import { useReportsLive } from "../hooks/useReportsLive";
@@ -50,9 +50,36 @@ function displayReportDescription(description: string): string {
 
 interface ReportsSurfaceProps {
   onOpen: (id: string, tab: "brief" | "cards" | "chat") => void;
+  onRunBatch?: (prompt: string) => void;
   onSelectReport?: (report: ReportCardData) => void;
   inspectedReportId?: string | null;
 }
+
+type ReportViewMode = "gallery" | "board" | "table" | "notebook" | "canvas";
+type ReportStage = "Generating" | "Needs evidence" | "Needs review" | "Verified" | "Export ready" | "Monitoring";
+
+const REPORT_VIEW_MODES: Array<{ id: ReportViewMode; label: string }> = [
+  { id: "gallery", label: "Gallery" },
+  { id: "board", label: "Board" },
+  { id: "table", label: "Table" },
+  { id: "notebook", label: "Notebook" },
+  { id: "canvas", label: "Canvas" },
+];
+
+const REPORT_DENSITY_OPTIONS: Array<{ id: Density; label: string; detail: string }> = [
+  { id: "compact", label: "Compact", detail: "4-5 cards" },
+  { id: "grid", label: "Standard", detail: "3 cards" },
+  { id: "list", label: "Expanded", detail: "2 cards" },
+];
+
+const REPORT_STAGE_COLUMNS: ReportStage[] = [
+  "Generating",
+  "Needs evidence",
+  "Needs review",
+  "Verified",
+  "Export ready",
+  "Monitoring",
+];
 
 const STATUS_FILTERS = [
   { id: "all", label: "All" },
@@ -69,14 +96,16 @@ const KIND_FILTERS = [
   { id: "Coverage", label: "Coverage" },
 ] as const;
 
-export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: ReportsSurfaceProps) {
+export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedReportId }: ReportsSurfaceProps) {
   const [filter, setFilter] = useState<typeof STATUS_FILTERS[number]["id"]>("all");
   const [kindFilter, setKindFilter] = useState<typeof KIND_FILTERS[number]["id"]>("all");
-  const [density, setDensity] = useState<Density>("compact");
+  const [density, setDensity] = useState<Density>("grid");
+  const [viewMode, setViewMode] = useState<ReportViewMode>("gallery");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("updated");
   const [sortOpen, setSortOpen] = useState(false);
+  const [stageOverrides, setStageOverrides] = useState<Record<string, ReportStage>>({});
   const sortRef = useRef<HTMLDivElement>(null);
 
   // Click-outside dismiss for sort dropdown
@@ -162,18 +191,114 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
     setSelected(new Set());
   };
 
-  const visibleReports = filtered.slice(0, 12);
+  const visibleReports = filtered.slice(0, 24);
   const verifiedShare = reports.length > 0 ? Math.round(((counts.verified ?? 0) / reports.length) * 100) : 0;
+  const totalSources = filtered.reduce((sum, report) => sum + report.sources, 0);
+  const reviewCount = filtered.filter((report) => report.status === "review" || getReportStage(report, stageOverrides[report.id]) === "Needs review").length;
+  const exportReadyCount = filtered.filter((report) => getReportStage(report, stageOverrides[report.id]) === "Export ready").length;
+  const activeRunCount = filtered.filter((report) => {
+    const stage = getReportStage(report, stageOverrides[report.id]);
+    return stage === "Generating" || stage === "Needs evidence" || stage === "Needs review";
+  }).length;
+  const selectedReport = filtered.find((report) => report.id === inspectedReportId) ?? visibleReports[0] ?? reports[0] ?? null;
+  const selectedStage = selectedReport ? getReportStage(selectedReport, stageOverrides[selectedReport.id]) : null;
+
+  const boardReportsByStage = useMemo(() => {
+    const grouped = new Map<ReportStage, ReportCardData[]>();
+    for (const stage of REPORT_STAGE_COLUMNS) grouped.set(stage, []);
+    for (const report of visibleReports) {
+      grouped.get(getReportStage(report, stageOverrides[report.id]))?.push(report);
+    }
+    return grouped;
+  }, [stageOverrides, visibleReports]);
+
+  const runBatchPrompt = () => {
+    const prompt = "Run a research batch for my active entity universe. Generate banking-style report notebooks, verify sources, create review queue items, and show the agent run trace.";
+    if (onRunBatch) {
+      onRunBatch(prompt);
+      return;
+    }
+    onOpen("new", "chat");
+  };
+
+  const handleDragStart = (event: DragEvent<HTMLElement>, reportId: string) => {
+    event.dataTransfer.setData("text/plain", reportId);
+    event.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleStageDrop = (event: DragEvent<HTMLElement>, stage: ReportStage) => {
+    event.preventDefault();
+    const reportId = event.dataTransfer.getData("text/plain");
+    if (!reportId) return;
+    setStageOverrides((prev) => ({ ...prev, [reportId]: stage }));
+    showToast({ tone: "success", message: `Moved report to ${stage}. This is a local review-board preview until writes are approved.` });
+  };
+
+  const selectAndOpen = (report: ReportCardData, tab: "brief" | "cards" | "chat") => {
+    onSelectReport?.(report);
+    onOpen(report.id, tab);
+  };
 
   return (
-    <div className="rd-v2-proto-center">
-      <div className="rd-v2-edition-row">
-        <span className="rd-v2-edition-pill">Entity intelligence</span>
-        <span className="rd-v2-edition-subline">
-          {isLoading && reports.length === 0
-            ? "Checking Convex-backed artifacts"
-            : `${reports.length} live reports · ${verifiedShare}% verified · ${counts.review ?? 0} need review · ${reports.reduce((sum, report) => sum + report.sources, 0)} sources`}
-        </span>
+    <div className="rd-v2-proto-center rd-v2-reports-command">
+      <section className="rd-v2-command-hero" aria-labelledby="reports-command-title">
+        <div className="rd-v2-edition-row">
+          <span className="rd-v2-edition-pill">Coverage Command Center</span>
+          <span className="rd-v2-edition-subline">
+            {isLoading && reports.length === 0
+              ? "Checking Convex-backed artifacts"
+              : `${reports.length} live reports - ${verifiedShare}% verified - ${reviewCount} need review - ${totalSources} source rows`}
+          </span>
+        </div>
+        <div className="rd-v2-command-title-row">
+          <div>
+            <h1 id="reports-command-title">Reports</h1>
+            <p>
+              Agent-generated notebooks organized by entity, evidence quality, lifecycle state, and the next review action.
+            </p>
+          </div>
+          <div className="rd-v2-command-actions">
+            <button type="button" className="rd-v2-btn-primary" onClick={runBatchPrompt}>Run batch</button>
+            <button type="button" onClick={() => setViewMode("board")}>Review queue</button>
+          </div>
+        </div>
+        <div className="rd-v2-command-metrics" aria-label="Reports operational metrics">
+          <span><strong>{filtered.length}</strong><small>live reports</small></span>
+          <span><strong>{activeRunCount}</strong><small>active runs</small></span>
+          <span><strong>{reviewCount}</strong><small>need review</small></span>
+          <span><strong>{exportReadyCount}</strong><small>export ready</small></span>
+        </div>
+      </section>
+      <div className="rd-v2-view-row">
+        <div className="rd-v2-view-switcher" role="tablist" aria-label="Reports view">
+          {REPORT_VIEW_MODES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={viewMode === item.id}
+              className={viewMode === item.id ? "is-active" : ""}
+              onClick={() => setViewMode(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        {viewMode === "gallery" && (
+          <div className="rd-v2-density-switcher" aria-label="Gallery density">
+            {REPORT_DENSITY_OPTIONS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={density === item.id ? "is-active" : ""}
+                title={item.detail}
+                onClick={() => setDensity(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div className="rd-v2-filter-row" role="tablist" aria-label="Filter reports by status">
         {STATUS_FILTERS.map((item) => (
@@ -188,10 +313,10 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
           </button>
         ))}
         <button type="button" className={kindFilter !== "all" ? "is-active" : ""} onClick={() => setKindFilter(kindFilter === "all" ? "Diligence" : "all")}>
-          {kindFilter === "all" ? "Tags" : kindFilter} ▾
+          {kindFilter === "all" ? "Type" : kindFilter} ▾
         </button>
       </div>
-      <div className="rd-v2-action-row" style={{ position: "relative" }}>
+      <div className="rd-v2-action-row rd-v2-command-toolbar" style={{ position: "relative" }}>
         <button type="button" onClick={() => setSortOpen((v) => !v)}>
           {SORT_OPTIONS.find((s) => s.id === sortKey)?.label.split(" (")[0] ?? "Updated"} ▾
         </button>
@@ -221,26 +346,18 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
         <button
           type="button"
           className="rd-v2-btn-primary"
-          onClick={() => showToast({ tone: "info", message: "Start a new entity report from Chat so the first write has source trace and approval context." })}
+          onClick={runBatchPrompt}
         >
-          + New report
+          + New batch
         </button>
       </div>
-      <div className="rd-v2-action-row" aria-label="Search reports">
+      <div className="rd-v2-action-row rd-v2-search-row" aria-label="Search reports">
         <label className="rd-sr-only" htmlFor="reports-v2-search">Search reports</label>
         <input
           id="reports-v2-search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={isLive ? `Search ${reports.length} live reports...` : "Search live reports..."}
-          style={{
-            width: "100%",
-            border: "1px solid var(--rd-line)",
-            borderRadius: 999,
-            padding: "10px 14px",
-            background: "var(--rd-panel)",
-            color: "var(--rd-ink)",
-          }}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={isLive ? `Search ${reports.length} live reports by entity, claim, source, or action...` : "Search live reports by entity, claim, source, or action..."}
         />
       </div>
       {visibleReports.length === 0 ? (
@@ -251,60 +368,134 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
               ? "Clear the filters to return to the live report set."
               : "Convex returned zero report artifacts for this session. Run research from Chat to create the first report."}
           </p>
-          <button type="button" onClick={hasActiveFilter ? resetFilters : () => onOpen("new", "chat")}>
-            {hasActiveFilter ? "Clear filters" : "+ Start in Chat"}
+          <button type="button" onClick={hasActiveFilter ? resetFilters : runBatchPrompt}>
+            {hasActiveFilter ? "Clear filters" : "Run first batch"}
           </button>
         </article>
-      ) : (
-        <div className="rd-v2-report-grid">
-          {visibleReports.map((report) => {
-            const active = inspectedReportId === report.id;
+      ) : viewMode === "board" ? (
+        <section className="rd-v2-report-board" aria-label="Draggable report review board">
+          {REPORT_STAGE_COLUMNS.map((stage) => {
+            const stageReports = boardReportsByStage.get(stage) ?? [];
             return (
               <article
-                key={report.id}
-                className={`rd-v2-report-card ${active ? "is-active" : ""}`}
-                onClick={() => onSelectReport?.(report)}
-                aria-selected={active}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  onSelectReport?.(report);
-                }}
+                key={stage}
+                className="rd-v2-board-column"
+                onDrop={(event) => handleStageDrop(event, stage)}
+                onDragOver={(event) => event.preventDefault()}
               >
-                <div className="rd-v2-report-title">
-                  <span>{report.entity.slice(0, 1).toUpperCase()}</span>
-                  <h2>{report.entity}</h2>
-                  <b data-state={report.status}>{report.status === "review" ? "review" : report.status}</b>
-                </div>
-                <p className="rd-v2-report-kind">{report.kind}</p>
-                <p>{displayReportDescription(report.description)}</p>
-                <div className="rd-v2-report-tags">
-                  <span>{report.sources} sources</span>
-                  <span>{report.claims} claims</span>
-                  <span>{report.followUps} follow-ups</span>
-                </div>
-                <p className="rd-v2-report-ref">Referenced in: {sourceLabel}</p>
-                <p className="rd-v2-report-meta">Updated {report.updatedAt}</p>
-                <div className="rd-v2-next-actions" style={{ marginTop: 8 }}>
-                  <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "brief"); }}>Open</button>
-                  <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "cards"); }}>Cards</button>
-                  <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "chat"); }}>Chat</button>
-                </div>
+                <header><strong>{stage}</strong><span>{stageReports.length}</span></header>
+                {stageReports.map((report) => (
+                  <button
+                    key={report.id}
+                    className="rd-v2-board-card"
+                    draggable
+                    onDragStart={(event) => handleDragStart(event, report.id)}
+                    onClick={() => onSelectReport?.(report)}
+                  >
+                    <strong>{report.entity}</strong>
+                    <span>{getReportType(report)} - {report.sources} sources</span>
+                    <small>{getNotebookState(report)}</small>
+                  </button>
+                ))}
               </article>
             );
           })}
+        </section>
+      ) : viewMode === "table" ? (
+        <section className="rd-v2-report-table-wrap" aria-label="Analyst report table">
+          <table className="rd-v2-report-table">
+            <thead>
+              <tr>
+                <th>Report</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Sources</th>
+                <th>Claims</th>
+                <th>Scores</th>
+                <th>Notebook</th>
+                <th>Next</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleReports.map((report) => {
+                const scores = getReportScores(report);
+                return (
+                  <tr key={report.id} onClick={() => onSelectReport?.(report)}>
+                    <td><strong>{report.entity}</strong><span>{displayReportDescription(report.description)}</span></td>
+                    <td>{getReportType(report)}</td>
+                    <td>{getReportStage(report, stageOverrides[report.id])}</td>
+                    <td>{report.sources}</td>
+                    <td>{report.claims}</td>
+                    <td>{scores.evidence}/{scores.freshness}/{scores.confidence}</td>
+                    <td>{getNotebookState(report)}</td>
+                    <td><button type="button" onClick={(event) => { event.stopPropagation(); selectAndOpen(report, "brief"); }}>{getNextAction(report)}</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+      ) : viewMode === "notebook" && selectedReport ? (
+        <section className="rd-v2-notebook-preview" aria-label="Selected report notebook preview">
+          <aside>
+            <span className="rd-v2-mini-eyebrow">Outline</span>
+            {getNotebookSections(selectedReport).map((section) => <button key={section} type="button">{section}</button>)}
+          </aside>
+          <article>
+            <span className="rd-v2-mini-eyebrow">{getReportType(selectedReport)} - {selectedStage}</span>
+            <h2>{selectedReport.entity}</h2>
+            <p>{displayReportDescription(selectedReport.description)}</p>
+            <div className="rd-v2-notebook-stats">
+              <span>{selectedReport.sources} sources</span>
+              <span>{selectedReport.claims} claims</span>
+              <span>{getNotebookState(selectedReport)}</span>
+            </div>
+            <h3>Executive read</h3>
+            <p>{buildReportSignals(selectedReport)[0]}</p>
+            <h3>Evidence appendix</h3>
+            <p>Sources, claims, warnings, and prior chat handles stay attached to the notebook before any export or write.</p>
+            <button type="button" className="rd-v2-btn-primary" onClick={() => selectAndOpen(selectedReport, "brief")}>Open Notebook</button>
+          </article>
+        </section>
+      ) : viewMode === "canvas" ? (
+        <section className="rd-v2-report-canvas" aria-label="Entity and report relationship canvas preview">
+          {visibleReports.slice(0, 10).map((report, index) => (
+            <button
+              key={report.id}
+              type="button"
+              className={`rd-v2-canvas-node rd-v2-canvas-node--${index % 4}`}
+              onClick={() => onSelectReport?.(report)}
+            >
+              <strong>{report.entity}</strong>
+              <span>{getReportType(report)}</span>
+            </button>
+          ))}
+          <p>Canvas mode maps companies, people, sources, claims, and notebooks. Writes stay gated through the agent inspector.</p>
+        </section>
+      ) : (
+        <div className="rd-v2-report-grid" data-density={density}>
+          {visibleReports.map((report) => (
+            <ReportCardV2
+              key={report.id}
+              report={report}
+              active={inspectedReportId === report.id}
+              stage={getReportStage(report, stageOverrides[report.id])}
+              sourceLabel={sourceLabel}
+              onSelect={() => onSelectReport?.(report)}
+              onOpen={selectAndOpen}
+              onExport={() => showToast({ tone: "info", message: `Prepared export preview for ${report.entity}. Connector writes require approval.` })}
+            />
+          ))}
           <article className="rd-v2-report-card rd-v2-report-card--add">
-            <h2>Add entity</h2>
-            <p>Capture a company, person, topic, or source cluster and let the coverage agent hydrate the first report.</p>
-            <button type="button" onClick={() => onOpen("new", "chat")}>+ New entity</button>
+            <h2>Run a batch</h2>
+            <p>Import companies, people, topics, or source clusters and let the agent create report notebooks with review state.</p>
+            <button type="button" onClick={runBatchPrompt}>+ New batch</button>
           </article>
         </div>
       )}
       {filtered.length > visibleReports.length && (
         <button className="rd-v2-show-more" type="button" onClick={() => showToast({ tone: "info", message: `${filtered.length - visibleReports.length} more live reports are available through search and filters.` })}>
-          Show {filtered.length - visibleReports.length} more entities
+          Show {filtered.length - visibleReports.length} more reports
         </button>
       )}
     </div>
@@ -505,6 +696,140 @@ export function ReportsSurface({ onOpen, onSelectReport, inspectedReportId }: Re
       />
     </div>
   );
+}
+
+function ReportCardV2({
+  report,
+  active,
+  stage,
+  sourceLabel,
+  onSelect,
+  onOpen,
+  onExport,
+}: {
+  report: ReportCardData;
+  active: boolean;
+  stage: ReportStage;
+  sourceLabel: string;
+  onSelect: () => void;
+  onOpen: (report: ReportCardData, tab: "brief" | "cards" | "chat") => void;
+  onExport: () => void;
+}) {
+  const scores = getReportScores(report);
+  const signals = buildReportSignals(report);
+  const type = getReportType(report);
+
+  return (
+    <article
+      className={`rd-v2-report-card rd-v2-report-card-v2 ${active ? "is-active" : ""}`}
+      onClick={onSelect}
+      aria-selected={active}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onSelect();
+      }}
+    >
+      <div className="rd-v2-report-title">
+        <span>{type.slice(0, 1).toUpperCase()}</span>
+        <h2>{report.entity}</h2>
+        <b data-state={stage}>{stage}</b>
+      </div>
+      <p className="rd-v2-report-kind">{type} - {report.kind}</p>
+      <p className="rd-v2-report-thesis">{displayReportDescription(report.description)}</p>
+      <div className="rd-v2-signal-list" aria-label={`${report.entity} key signals`}>
+        {signals.map((signal) => <span key={signal}>{signal}</span>)}
+      </div>
+      <div className="rd-v2-score-strip" aria-label={`${report.entity} report scores`}>
+        <span><b>{scores.evidence}</b><small>Evidence</small></span>
+        <span><b>{scores.freshness}</b><small>Freshness</small></span>
+        <span><b>{scores.confidence}</b><small>Confidence</small></span>
+      </div>
+      <div className="rd-v2-report-tags">
+        <span>{report.sources} sources</span>
+        <span>{report.claims} claims</span>
+        <span>{report.followUps} follow-ups</span>
+      </div>
+      <p className="rd-v2-report-ref">Referenced in: {sourceLabel}</p>
+      <p className="rd-v2-report-meta">Notebook: {getNotebookState(report)} - Updated {report.updatedAt}</p>
+      <div className="rd-v2-next-actions">
+        <button type="button" className="rd-v2-card-primary" onClick={(event) => { event.stopPropagation(); onOpen(report, "brief"); }}>Open Notebook</button>
+        <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report, "cards"); }}>Review Evidence</button>
+        <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report, "chat"); }}>Ask Agent</button>
+        <button type="button" onClick={(event) => { event.stopPropagation(); onExport(); }}>Export</button>
+      </div>
+    </article>
+  );
+}
+
+function getReportType(report: ReportCardData): string {
+  const text = `${report.kind} ${report.entity} ${report.description}`.toLowerCase();
+  if (text.includes("daily brief") || text.includes("brief")) return "Daily Brief";
+  if (text.includes("funding") || text.includes("round") || text.includes("raise")) return "Funding Tracker";
+  if (text.includes("person") || text.includes("founder") || text.includes("operator")) return "Person Report";
+  if (text.includes("market map") || text.includes("landscape")) return "Market Map";
+  if (text.includes("batch") || report.id.startsWith("run_")) return "Batch Run";
+  if (text.includes("source") || text.includes("dossier")) return "Source Dossier";
+  if (text.includes("theme") || text.includes("topic")) return "Topic Report";
+  return "Company Report";
+}
+
+function getReportStage(report: ReportCardData, override?: ReportStage): ReportStage {
+  if (override) return override;
+  if (report.status === "review") return "Needs review";
+  if (report.sources === 0 || report.claims === 0) return "Needs evidence";
+  if (report.followUps > 3) return "Needs review";
+  if (report.status === "watching") return "Monitoring";
+  if (report.sources >= 8 && report.claims >= 3) return "Export ready";
+  return "Verified";
+}
+
+function getReportScores(report: ReportCardData): { evidence: number; freshness: number; confidence: number } {
+  const evidence = clampScore(48 + report.sources * 6 + Math.min(report.claims, 8) * 3);
+  const freshness = report.updatedAt.includes("h") || report.updatedAt.includes("m") ? 88 : report.updatedAt.includes("d") ? 76 : 64;
+  const confidence = clampScore(54 + report.claims * 5 + report.sources * 2 - report.followUps * 4);
+  return { evidence, freshness, confidence };
+}
+
+function clampScore(value: number): number {
+  return Math.max(42, Math.min(96, Math.round(value)));
+}
+
+function getNotebookState(report: ReportCardData): string {
+  if (report.status === "review" || report.followUps > 2) return "Patch suggested";
+  if (report.sources < 2 || report.claims < 1) return "Needs sources";
+  return "Ready";
+}
+
+function getNextAction(report: ReportCardData): string {
+  if (report.status === "review" || report.followUps > 2) return "Review evidence";
+  if (getNotebookState(report) === "Needs sources") return "Find sources";
+  return "Open notebook";
+}
+
+function buildReportSignals(report: ReportCardData): string[] {
+  const clean = displayReportDescription(report.description).replace(/\s+/g, " ").trim();
+  const split = clean
+    .split(/(?<=[.!?])\s+|\s+\|\s+|;\s+/)
+    .map((item) => item.replace(/^\d+\.\s*/, "").trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  while (split.length < 3) {
+    if (split.length === 0) split.push(`${report.sources} sources attached for evidence review.`);
+    else if (split.length === 1) split.push(`${report.claims} claims available for verification.`);
+    else split.push(`${report.followUps} follow-ups route into the review queue.`);
+  }
+  return split;
+}
+
+function getNotebookSections(report: ReportCardData): string[] {
+  const type = getReportType(report);
+  if (type === "Person Report") return ["Executive read", "Current role", "Relationship map", "Outreach angle", "Evidence appendix"];
+  if (type === "Topic Report" || type === "Market Map") return ["Executive read", "Market context", "Key entities", "Contradictions", "Recommended research", "Evidence appendix"];
+  if (type === "Daily Brief") return ["What changed", "Why it matters", "Top entities", "Reports needing review", "Recommended follow-ups", "Evidence appendix"];
+  return ["Executive read", "Business overview", "Product and market", "Traction signals", "Risks and unknowns", "Recommended action", "Evidence appendix"];
 }
 
 function ReportsLiveEmptyState() {

@@ -161,6 +161,11 @@ export default function RedesignShell() {
     };
   }, []);
 
+  useEffect(() => {
+    const centerPane = document.querySelector<HTMLElement>("[data-redesign] .rd-shell__main > .rd-pane:first-child");
+    centerPane?.scrollTo({ top: 0, left: 0 });
+  }, [location.pathname, location.search]);
+
   // Phase 7d (2026-05-08): editorial is the default at /redesign on
   // both mobile + desktop.  Legacy is opt-out via `?classic=1`
   // (canonical) or `?edition=0` (back-compat).  Per
@@ -323,6 +328,7 @@ export default function RedesignShell() {
                   if (tab === "brief") navigate(`/redesign/reports/${id}`);
                   else navigate(`/redesign/workspace?report=${id}&tab=${tab}`);
                 }}
+                onRunBatch={sendPromptToChat}
                 inspectedReportId={selectedReport?.id ?? null}
                 onSelectReport={selectLiveReport}
               />

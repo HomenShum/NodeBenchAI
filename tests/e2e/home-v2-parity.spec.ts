@@ -146,10 +146,10 @@ test.describe("Home v2 /redesign parity", () => {
 
     await expect(page.getByRole("complementary", { name: "Reports navigation" })).toBeVisible();
     await expect(page.getByLabel("Filter entities")).toBeVisible();
-    await expect(page.getByText("Entity intelligence").first()).toBeVisible();
+    await expect(page.getByText("Coverage Command Center").first()).toBeVisible();
     await expect(page.locator(".rd-v2-report-grid")).toBeVisible({ timeout: 15_000 });
     await expectV2CenterCanvas(page, ".rd-v2-proto-center");
-    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Agent Inspector" })).toBeVisible();
     const rail = rightRail(page);
     await expectRailInViewport(rail);
 
@@ -162,10 +162,18 @@ test.describe("Home v2 /redesign parity", () => {
     const firstTitle = await reportTitle(firstCard);
     const secondTitle = await reportTitle(secondCard);
 
+    await page.getByRole("tab", { name: "Board" }).click();
+    await expect(page.getByRole("region", { name: "Draggable report review board" })).toBeVisible();
+    await page.getByRole("tab", { name: "Table" }).click();
+    await expect(page.getByRole("region", { name: "Analyst report table" })).toBeVisible();
+    await page.getByRole("tab", { name: "Notebook" }).click();
+    await expect(page.getByRole("region", { name: "Selected report notebook preview" })).toBeVisible();
+    await page.getByRole("tab", { name: "Gallery" }).click();
+
     await selectReport(firstCard);
     await expect.poll(async () => await normalizedText(rail)).toContain(firstTitle);
     const firstRailText = await normalizedText(rail);
-    await expect(rail).toContainText("3 steps completed");
+    await expect(rail).toContainText("Agent run trace");
 
     await selectReport(secondCard);
     await expect.poll(async () => await normalizedText(rail)).toContain(secondTitle);
@@ -285,8 +293,8 @@ test.describe("Home v2 prototype kit mode", () => {
       {
         path: `/redesign/reports?${qa}`,
         nav: "Reports",
-        center: "Entity intelligence",
-        rail: "Coverage agent",
+        center: "Coverage Command Center",
+        rail: "Agent Inspector",
       },
       {
         path: `/redesign/chat?${qa}`,
@@ -325,7 +333,7 @@ test.describe("Home v2 prototype kit mode", () => {
 
     await page.getByRole("button", { name: "Reports" }).click();
     await expect(page).toHaveURL(/\/redesign\/reports\?qa=home-v2-implementation$/);
-    await expect(page.getByText("Entity intelligence").first()).toBeVisible();
+    await expect(page.getByText("Coverage Command Center").first()).toBeVisible();
 
     await page.getByRole("button", { name: "Chat" }).click();
     await expect(page).toHaveURL(/\/redesign\/chat\?qa=home-v2-implementation$/);
@@ -337,13 +345,13 @@ test.describe("Home v2 prototype kit mode", () => {
     await page.goto(`/redesign/reports?${qa}`, { waitUntil: "domcontentloaded" });
 
     await page.getByText("Sequoia Capital").first().click();
-    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toContainText("Sequoia Capital");
-    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toContainText("Score 74");
-    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toContainText("Full-ratchet anti-dilution clause added");
+    await expect(page.getByRole("complementary", { name: "Agent Inspector" })).toContainText("Sequoia Capital");
+    await expect(page.getByRole("complementary", { name: "Agent Inspector" })).toContainText("Score 74");
+    await expect(page.getByRole("complementary", { name: "Agent Inspector" })).toContainText("Full-ratchet anti-dilution clause added");
 
     await page.getByRole("button", { name: /OpenAI 62/i }).click();
-    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toContainText("OpenAI");
-    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toContainText("Score 62");
+    await expect(page.getByRole("complementary", { name: "Agent Inspector" })).toContainText("OpenAI");
+    await expect(page.getByRole("complementary", { name: "Agent Inspector" })).toContainText("Score 62");
   });
 
   test("prototype Chat includes answer packet details and interactive utility tabs", async ({ page }) => {
@@ -378,7 +386,7 @@ test.describe("Home v2 prototype kit mode", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/redesign/reports?${qa}`, { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByText("Entity intelligence").first()).toBeVisible();
+    await expect(page.getByText("Coverage Command Center").first()).toBeVisible();
     await expect(page.getByText("Enterprise tier repriced").first()).toBeVisible();
     await expect(page.getByText("No reports yet")).toHaveCount(0);
   });
