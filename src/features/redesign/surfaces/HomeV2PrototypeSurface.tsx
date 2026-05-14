@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { showToast } from "../components/Toast";
 import type { LiveArtifactsResult, LiveArtifactSourceRow } from "../hooks/useLiveArtifacts";
+import type { ReportCardData } from "../fixtures";
 
 interface HomeV2SurfaceProps {
   onAsk?: (prompt: string) => void;
@@ -10,7 +11,9 @@ interface HomeV2SurfaceProps {
 
 interface PrototypeSelectionProps extends HomeV2SurfaceProps {
   selectedEntity?: string;
+  selectedReport?: ReportCardData | null;
   onSelectEntity?: (entity: string) => void;
+  guestSafe?: boolean;
 }
 
 export type PrototypeSurface = "home" | "reports" | "chat" | "inbox" | "me";
@@ -148,6 +151,45 @@ type PrototypeReportEntity = (typeof reportEntities)[number];
 
 function getPrototypeEntity(name = "Anthropic"): PrototypeReportEntity {
   return reportEntities.find((entity) => entity.name === name) ?? reportEntities[0];
+}
+
+function getReportScore(report: ReportCardData): number {
+  const evidence = Math.max(42, Math.min(96, 44 + report.sources * 2 + report.claims));
+  const freshness = report.updatedAt.includes("m") || report.updatedAt.includes("h") ? 88 : report.updatedAt.toLowerCase().includes("yesterday") ? 72 : 62;
+  const actionability = Math.max(42, Math.min(96, 50 + report.followUps * 8 + (report.status === "review" ? 10 : 0)));
+  const graphFit = Math.max(42, Math.min(96, 54 + report.claims * 2 + report.sources));
+  return Math.round((evidence + freshness + actionability + graphFit) / 4);
+}
+
+function liveReportToPrototypeEntity(report: ReportCardData): PrototypeReportEntity {
+  const score = getReportScore(report);
+  const status = report.status === "verified" ? "Verified" : report.status === "watching" ? "Watching" : "Needs review";
+  const evidence = Math.max(42, Math.min(96, 44 + report.sources * 2 + report.claims));
+  const freshness = report.updatedAt.includes("m") || report.updatedAt.includes("h") ? 88 : report.updatedAt.toLowerCase().includes("yesterday") ? 72 : 62;
+  const actionability = Math.max(42, Math.min(96, 50 + report.followUps * 8 + (report.status === "review" ? 10 : 0)));
+  const graphFit = Math.max(42, Math.min(96, 54 + report.claims * 2 + report.sources));
+
+  return {
+    initial: report.entity.slice(0, 1).toUpperCase() || "R",
+    name: report.entity,
+    status,
+    score,
+    sources: report.sources,
+    delta: report.updatedAt,
+    kind: `${report.kind} - Live report`,
+    body: report.description,
+    tags: [report.kind, status, report.followUps > 0 ? "Action needed" : "Current"],
+    ref: "Live Convex artifacts - notebook - sources",
+    meta: `Confidence ${score} · ${report.sources} sources · ${report.claims} claims · ${report.followUps} follow-ups`,
+    dims: { Sources: evidence, Freshness: freshness, Verification: actionability, Coverage: graphFit },
+    signals: [
+      report.description,
+      `${report.sources} source rows and ${report.claims} claims available`,
+      report.followUps > 0 ? `${report.followUps} follow-ups need routing` : "No open follow-up pressure",
+    ],
+    related: ["People", "Sources", "Similar companies"],
+    active: true,
+  };
 }
 
 type HomeV2QueueItem = [string, string, string, string];
@@ -850,7 +892,7 @@ const meLines = [
   ["2026-05-08:", "\"Interweave before execute on non-trivial tasks\""],
 ];
 
-export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
+export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity, guestSafe = false }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
   if (surface === "home") return <HomeV2EditionRail onAsk={onAsk} />;
   if (surface === "reports") {
     return (
@@ -921,8 +963,8 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
   return (
     <aside className="rd-v2-left rd-v2-left--nav" aria-label="Me navigation">
       <div className="rd-v2-profile-mini">
-        <span>HS</span>
-        <div><strong>Homen Shum</strong><p>Founder · Builder</p></div>
+        <span>{guestSafe ? "P" : "HS"}</span>
+        <div><strong>{guestSafe ? "Private profile" : "Homen Shum"}</strong><p>{guestSafe ? "Sign in to sync" : "Founder · Builder"}</p></div>
       </div>
       <div className="rd-v2-rail-rule" />
       <NavItem label="Identity" active marker="🧠" />
@@ -949,12 +991,12 @@ export function PrototypeV2Center({ surface, onAsk, selectedEntity = "Anthropic"
   return <MePrototypeCenter />;
 }
 
-export function PrototypeV2RightRail({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
+export function PrototypeV2RightRail({ surface, onAsk, selectedEntity = "Anthropic", selectedReport, onSelectEntity, guestSafe = false }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
   if (surface === "home") return <HomeV2BriefingRail onAsk={onAsk} onOpenReports={() => onAsk?.("Open the reports touched by today's agent brief.")} />;
-  if (surface === "reports") return <ReportsPrototypeRail onAsk={onAsk} selectedEntity={selectedEntity} onSelectEntity={onSelectEntity} />;
+  if (surface === "reports") return <ReportsPrototypeRail onAsk={onAsk} selectedEntity={selectedEntity} selectedReport={selectedReport} onSelectEntity={onSelectEntity} />;
   if (surface === "chat") return <ChatPrototypeRail />;
   if (surface === "inbox") return <InboxPrototypeRail onAsk={onAsk} />;
-  return <MePrototypeRail onAsk={onAsk} />;
+  return <MePrototypeRail onAsk={onAsk} guestSafe={guestSafe} />;
 }
 
 function RailGroup({
@@ -1258,8 +1300,8 @@ function AgentShell({
   );
 }
 
-function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", onSelectEntity }: PrototypeSelectionProps) {
-  const entity = getPrototypeEntity(selectedEntity);
+function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedReport, onSelectEntity }: PrototypeSelectionProps) {
+  const entity = selectedReport ? liveReportToPrototypeEntity(selectedReport) : getPrototypeEntity(selectedEntity);
   const reviewText = entity.score < 75 ? `${entity.name} needs review.` : `${entity.name} is in good shape.`;
   const summaryText = entity.score < 75
     ? `${entity.name} is below coverage threshold. Refresh sources, verify open claims, and decide whether the report needs a notebook patch.`
@@ -1297,11 +1339,13 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", onSelectEnt
       </section>
       <section className="rd-v2-agent-context">
         <div className="rd-v2-context-head"><span>Related entities</span><span>{entity.related.length}</span></div>
-        {entity.related.map((name) => {
-          const related = getPrototypeEntity(name);
+        {entity.related.map((name, index) => {
+          const related = reportEntities.find((item) => item.name === name);
+          const initial = related?.initial ?? name.slice(0, 1).toUpperCase();
+          const score = related?.score ?? Math.max(55, entity.score - (index + 1) * 4);
           return (
             <button className="rd-v2-related-entity" key={name} onClick={() => onSelectEntity?.(name)}>
-              <span>{related.initial}</span><strong>{name}</strong><b>{related.score}</b>
+              <span>{initial}</span><strong>{name}</strong><b>{score}</b>
             </button>
           );
         })}
@@ -1387,7 +1431,64 @@ function InboxPrototypeRail({ onAsk }: HomeV2SurfaceProps) {
   );
 }
 
-function MePrototypeRail({ onAsk }: HomeV2SurfaceProps) {
+function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { guestSafe?: boolean }) {
+  const context = guestSafe
+    ? "Private context - connect an account to sync"
+    : "USER.md · 5 permissions · 7 sessions today";
+  const question = guestSafe
+    ? "What gets saved after sign-in?"
+    : "Why did you suggest this memory update?";
+  const lead = guestSafe
+    ? "No private operator memory is loaded for visitors."
+    : "You prefer concise banker-style memos over long-form analysis.";
+  const detail = guestSafe
+    ? "After sign-in, NodeBench can save writing style, watched entities, connector permissions, budget rules, and an audit trail. Until then, the public route stays read-only."
+    : "In the last 7 sessions, you shortened 4 of my outputs and asked for just the decision. I updated your voice profile to default to Decision -> Why -> Plan format.";
+  const trace = guestSafe
+    ? ["auth_check", "privacy_boundary", "permission_preview"]
+    : ["memory_scan", "preference_log", "profile_update"];
+
+  if (guestSafe) {
+    return (
+      <AgentShell
+        title="Settings agent"
+        context={context}
+        pills={["Me", "Private profile", "Permissions", "Usage"]}
+        question={question}
+        placeholder="Ask about your settings..."
+        onAsk={onAsk}
+      >
+        <div className="rd-v2-msg rd-v2-msg-agent">
+          <strong>{lead}</strong>
+          <p>{detail}</p>
+          <div className="rd-v2-trace"><small>3 steps completed</small>{trace.map((step) => <span key={step}>{step}</span>)}</div>
+        </div>
+        <button className="rd-v2-drawer-toggle">Context - Private profile - Permissions - Usage</button>
+        <section className="rd-v2-settings-list">
+          <h3>Private profile</h3>
+          <p><span>Tone</span><strong>Not loaded</strong></p>
+          <p><span>Format</span><strong>Sign in to sync</strong></p>
+          <p><span>Jargon level</span><strong>Private</strong></p>
+          <h3>Permissions</h3>
+          <p>Web search: <b>Read-only</b></p>
+          <p>File access: <b>Off</b></p>
+          <p>Post to LinkedIn: <em>Approval required</em></p>
+          <p>Send email: <em>Approval required</em></p>
+          <p>Execute trades: <em>Disabled</em></p>
+          <h3>Session stats</h3>
+          <p><span>Memory hits</span><strong>Locked</strong></p>
+          <p><span>Corrections</span><strong>Locked</strong></p>
+          <p><span>Current mode</span><strong>Public</strong></p>
+        </section>
+        <section className="rd-v2-action-card-list">
+          <button className="is-primary">Connect account</button>
+          <button>Preview USER.md</button>
+          <button>Open permissions</button>
+        </section>
+      </AgentShell>
+    );
+  }
+
   return (
     <AgentShell
       title="Settings agent"

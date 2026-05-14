@@ -120,6 +120,9 @@ test.describe("Home v2 /redesign parity", () => {
     await page.setViewportSize(DESKTOP);
     await page.goto("/redesign/reports", { waitUntil: "domcontentloaded" });
 
+    await expect(page.getByRole("complementary", { name: "Reports navigation" })).toBeVisible();
+    await expect(page.getByLabel("Filter entities")).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toBeVisible();
     const rail = rightRail(page);
     await expectRailInViewport(rail);
 
@@ -135,6 +138,7 @@ test.describe("Home v2 /redesign parity", () => {
     await selectReport(firstCard);
     await expect.poll(async () => await normalizedText(rail)).toContain(firstTitle);
     const firstRailText = await normalizedText(rail);
+    await expect(rail).toContainText("3 steps completed");
 
     await selectReport(secondCard);
     await expect.poll(async () => await normalizedText(rail)).toContain(secondTitle);
@@ -145,6 +149,8 @@ test.describe("Home v2 /redesign parity", () => {
     await page.setViewportSize(DESKTOP);
     await page.goto("/redesign/chat", { waitUntil: "domcontentloaded" });
 
+    await expect(page.getByRole("complementary", { name: "Chat threads" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "+ New thread" })).toBeVisible();
     const rail = rightRail(page);
     await expectRailInViewport(rail);
 
@@ -153,6 +159,8 @@ test.describe("Home v2 /redesign parity", () => {
     for (const label of ["Entity", "Graph", "Sources", "Threads"]) {
       await expect(rail.getByRole("tab", { name: new RegExp(`^${label}$`, "i") })).toBeVisible();
     }
+    await expect(rail.getByTestId("chat-agent-run-rail")).toBeVisible();
+    await expect(rail).toContainText("Progress");
   });
 
   test("desktop Chat blocks paid live research for guests without fabricating an answer", async ({ page }) => {
@@ -175,12 +183,26 @@ test.describe("Home v2 /redesign parity", () => {
     await expectRailInViewport(rightRail(page), 260);
   });
 
-  test("desktop Me keeps its notebook width instead of adding the global agent rail", async ({ page }) => {
+  test("desktop Inbox and Me use the v2 navigation and agent rails safely", async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+
+    await page.goto("/redesign/inbox", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("complementary", { name: "Inbox navigation" })).toBeVisible();
+    await expect(page.getByLabel("Search inbox")).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Triage agent" })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Triage agent" })).toContainText("3 steps completed");
+    await expect(page.getByRole("complementary", { name: "Triage agent" })).toContainText("Draft reply");
+
     await page.setViewportSize(DESKTOP);
     await page.goto("/redesign/me", { waitUntil: "domcontentloaded" });
 
+    await expect(page.getByRole("complementary", { name: "Me navigation" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Your profile starts empty." })).toBeVisible();
-    await expect(page.locator("aside.rd-pane--right")).toHaveCount(0);
+    await expect(page.getByRole("complementary", { name: "Settings agent" })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Settings agent" })).toContainText("privacy_boundary");
+    await expect(page.getByRole("complementary", { name: "Settings agent" })).toContainText("Connect account");
+    await expect(page.getByText("Homen Shum")).toHaveCount(0);
+    await expect(page.getByText("7 sessions today")).toHaveCount(0);
   });
 
   test("live and prototype routes avoid horizontal overflow at tablet and mobile widths", async ({ page }) => {

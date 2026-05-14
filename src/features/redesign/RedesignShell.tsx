@@ -21,9 +21,7 @@ import { useViewportMobile } from "@/hooks/useViewportMobile";
 import "./tokens.css";
 import "./primitives.css";
 
-import { Rail } from "./components/Rail";
 import { RightInspector, type AgentRailSnapshot } from "./components/RightInspector";
-import { AgentRail } from "./components/AgentRail";
 import { MobileShell } from "./components/MobileShell";
 import { TopNav } from "./components/TopNav";
 import { ReportNotebookView } from "./components/ReportNotebookView";
@@ -123,17 +121,11 @@ export default function RedesignShell() {
   const [prototypeEntity, setPrototypeEntity] = useState("Anthropic");
   const [activeChatDetail, setActiveChatDetail] = useState<LiveArtifactDetail | null>(null);
   const [activeChatAgentRail, setActiveChatAgentRail] = useState<AgentRailSnapshot | null>(null);
-  const railStats = useMemo(() => ({
-    entities: shellLiveArtifacts.publicResearch.length,
-    reports: shellLiveArtifacts.reports.length,
-    followUps: shellLiveArtifacts.reports.reduce((total, report) => total + report.followUps, 0),
-  }), [shellLiveArtifacts.publicResearch.length, shellLiveArtifacts.reports]);
   const goSurface = (id: SurfaceId) => {
     if (id !== "reports") setSelectedReport(null);
     const path = id === "home" ? "/redesign" : `/redesign/${id}`;
     navigate(isPrototypeKit ? `${path}?qa=home-v2-implementation` : path);
   };
-  const goWorkspace = () => navigate("/redesign/workspace");
   const sendPromptToChat = (prompt: string) => {
     const query = isPrototypeKit
       ? `qa=home-v2-implementation&q=${encodeURIComponent(prompt)}`
@@ -143,11 +135,21 @@ export default function RedesignShell() {
   const openTouchedReports = () => {
     navigate(isPrototypeKit ? "/redesign/reports?qa=home-v2-implementation" : "/redesign/reports");
   };
+  const selectPrototypeRailEntity = (entity: string) => {
+    setPrototypeEntity(entity);
+    if (!isPrototypeKit && surface === "reports") {
+      selectRelatedReport(entity);
+    }
+  };
   const selectRelatedReport = (entity: string) => {
     const key = normalizeEntityKey(entity);
     const next = shellLiveArtifacts.reports.find((report) => normalizeEntityKey(report.entity) === key);
     if (next) setSelectedReport(next);
     else sendPromptToChat(`Find or create coverage context for ${entity}.`);
+  };
+  const selectLiveReport = (report: ReportCardData | null) => {
+    setSelectedReport(report);
+    if (report) setPrototypeEntity(report.entity);
   };
 
   // Optionally lock body scroll while shell is mounted
@@ -231,8 +233,7 @@ export default function RedesignShell() {
   const suppressRightRail =
     !isPrototypeKit &&
     ((surface === "chat" && Boolean(chatHash)) ||
-      (surface === "reports" && Boolean(reportId)) ||
-      surface === "me");
+      (surface === "reports" && Boolean(reportId)));
 
   return (
     <div
@@ -266,11 +267,11 @@ export default function RedesignShell() {
         ) : isHomeV2 ? (
           <HomeV2EditionRail liveArtifacts={shellLiveArtifacts} onAsk={sendPromptToChat} />
         ) : (
-          <Rail
-            active={surface as SurfaceId}
-            onChange={(id) => goSurface(id)}
-            onOpenWorkspace={goWorkspace}
-            liveStats={railStats}
+          <PrototypeV2LeftRail
+            surface={prototypeSurface}
+            selectedEntity={prototypeEntity}
+            onSelectEntity={selectPrototypeRailEntity}
+            guestSafe={surface === "me"}
           />
         )}
 
@@ -278,7 +279,6 @@ export default function RedesignShell() {
           <main id="main-content" data-main-content className="rd-pane" style={{ borderRight: "none" }}>
             {surface === "chat" && chatHash && <ReproducibleChatPage hash={chatHash} />}
             {surface === "reports" && reportId && <ReportDetailRoute reportId={reportId} />}
-            {surface === "me" && <MeSurface />}
           </main>
         ) : (
           <div className="rd-shell__main">
@@ -317,7 +317,7 @@ export default function RedesignShell() {
                   else navigate(`/redesign/workspace?report=${id}&tab=${tab}`);
                 }}
                 inspectedReportId={selectedReport?.id ?? null}
-                onSelectReport={setSelectedReport}
+                onSelectReport={selectLiveReport}
               />
             )}
             {!isPrototypeKit && surface === "reports" && reportId && <ReportDetailRoute reportId={reportId} />}
@@ -343,11 +343,13 @@ export default function RedesignShell() {
                 agentSnapshot={activeChatAgentRail}
               />
             ) : (
-              <AgentRail
-                surface={surface as SurfaceId}
+              <PrototypeV2RightRail
+                surface={prototypeSurface}
+                onAsk={sendPromptToChat}
+                selectedEntity={surface === "reports" ? prototypeEntity : undefined}
                 selectedReport={surface === "reports" ? selectedReport : null}
-                onSelectRelated={selectRelatedReport}
-                onSendPrompt={sendPromptToChat}
+                onSelectEntity={selectPrototypeRailEntity}
+                guestSafe={surface === "me"}
               />
             )}
           </div>
