@@ -27,6 +27,7 @@ function reportCards(page: Page): Locator {
       '[data-testid="report-card"]',
       '[data-testid="redesign-report-card"]',
       "[data-report-card]",
+      ".rd-v3-card:not(.rd-v3-card--add):not(.rd-v3-card--empty)",
       ".rd-v2-report-card:not(.rd-v2-report-card--add)",
       ".rd-report-card",
     ].join(", "),
@@ -39,7 +40,7 @@ async function normalizedText(locator: Locator): Promise<string> {
 
 async function reportTitle(card: Locator): Promise<string> {
   const title = card
-    .locator('[data-report-title], .rd-report-card__entity, [role="heading"], h2, h3')
+    .locator('[data-report-title], .rd-v3-card__head strong, .rd-report-card__entity, [role="heading"], h2, h3')
     .first();
   const titleText = (await title.textContent().catch(() => null))?.trim();
   if (titleText) return titleText;
@@ -47,7 +48,7 @@ async function reportTitle(card: Locator): Promise<string> {
 }
 
 async function selectReport(card: Locator): Promise<void> {
-  const bodyTarget = card.locator(".rd-report-card__entity, [data-report-title], h2, h3").first();
+  const bodyTarget = card.locator(".rd-v3-card__head strong, .rd-report-card__entity, [data-report-title], h2, h3").first();
   if ((await bodyTarget.count()) > 0) {
     await bodyTarget.click();
   } else {
@@ -145,11 +146,11 @@ test.describe("Home v2 /redesign parity", () => {
     await page.goto("/redesign/reports", { waitUntil: "domcontentloaded" });
 
     await expect(page.getByRole("complementary", { name: "Reports navigation" })).toBeVisible();
-    await expect(page.getByLabel("Filter entities")).toBeVisible();
-    await expect(page.getByText("Entity intelligence").first()).toBeVisible();
-    await expect(page.locator(".rd-v2-report-grid")).toBeVisible({ timeout: 15_000 });
-    await expectV2CenterCanvas(page, ".rd-v2-proto-center");
-    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Filter reports" })).toBeVisible();
+    await expect(page.getByText("AI Infrastructure Coverage").first()).toBeVisible();
+    await expect(page.locator(".rd-v3-grid")).toBeVisible({ timeout: 15_000 });
+    await expectV2CenterCanvas(page, ".rd-v3-reports");
+    await expect(page.getByRole("complementary", { name: "Agent Inspector" })).toBeVisible();
     const rail = rightRail(page);
     await expectRailInViewport(rail);
 
@@ -165,7 +166,7 @@ test.describe("Home v2 /redesign parity", () => {
     await selectReport(firstCard);
     await expect.poll(async () => await normalizedText(rail)).toContain(firstTitle);
     const firstRailText = await normalizedText(rail);
-    await expect(rail).toContainText("3 steps completed");
+    await expect(rail).toContainText("Agent run trace");
 
     await selectReport(secondCard);
     await expect.poll(async () => await normalizedText(rail)).toContain(secondTitle);
@@ -285,8 +286,8 @@ test.describe("Home v2 prototype kit mode", () => {
       {
         path: `/redesign/reports?${qa}`,
         nav: "Reports",
-        center: "Entity intelligence",
-        rail: "Coverage agent",
+        center: "AI Infrastructure Coverage",
+        rail: "Agent Inspector",
       },
       {
         path: `/redesign/chat?${qa}`,
@@ -337,13 +338,13 @@ test.describe("Home v2 prototype kit mode", () => {
     await page.goto(`/redesign/reports?${qa}`, { waitUntil: "domcontentloaded" });
 
     await page.getByText("Sequoia Capital").first().click();
-    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toContainText("Sequoia Capital");
-    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toContainText("Score 74");
-    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toContainText("Full-ratchet anti-dilution clause added");
+    await expect(page.getByRole("complementary", { name: "Agent Inspector" })).toContainText("Sequoia Capital");
+    await expect(page.getByRole("complementary", { name: "Agent Inspector" })).toContainText("Score 74");
+    await expect(page.getByRole("complementary", { name: "Agent Inspector" })).toContainText("Full-ratchet anti-dilution clause added");
 
     await page.getByRole("button", { name: /OpenAI 62/i }).click();
-    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toContainText("OpenAI");
-    await expect(page.getByRole("complementary", { name: "Coverage agent" })).toContainText("Score 62");
+    await expect(page.getByRole("complementary", { name: "Agent Inspector" })).toContainText("OpenAI");
+    await expect(page.getByRole("complementary", { name: "Agent Inspector" })).toContainText("Score 62");
   });
 
   test("prototype Chat includes answer packet details and interactive utility tabs", async ({ page }) => {

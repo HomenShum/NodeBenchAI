@@ -119,10 +119,14 @@ export default function RedesignShell() {
   const shellLiveArtifacts = useLiveArtifacts(24, { enabled: !isPrototypeKit });
   const [selectedReport, setSelectedReport] = useState<ReportCardData | null>(null);
   const [prototypeEntity, setPrototypeEntity] = useState("Anthropic");
+  const [reportsRailEntityMode, setReportsRailEntityMode] = useState(false);
   const [activeChatDetail, setActiveChatDetail] = useState<LiveArtifactDetail | null>(null);
   const [activeChatAgentRail, setActiveChatAgentRail] = useState<AgentRailSnapshot | null>(null);
   const goSurface = (id: SurfaceId) => {
-    if (id !== "reports") setSelectedReport(null);
+    if (id !== "reports") {
+      setSelectedReport(null);
+      setReportsRailEntityMode(false);
+    }
     const path = id === "home" ? "/redesign" : `/redesign/${id}`;
     navigate(isPrototypeKit ? `${path}?qa=home-v2-implementation` : path);
   };
@@ -138,19 +142,22 @@ export default function RedesignShell() {
   const selectPrototypeRailEntity = (entity: string) => {
     setPrototypeEntity(entity);
     if (!isPrototypeKit && surface === "reports") {
-      selectRelatedReport(entity);
+      setSelectedReport(null);
+      setReportsRailEntityMode(true);
     }
   };
-  const selectRelatedReport = (entity: string) => {
-    const key = normalizeEntityKey(entity);
-    const next = shellLiveArtifacts.reports.find((report) => normalizeEntityKey(report.entity) === key);
-    if (next) setSelectedReport(next);
-    else sendPromptToChat(`Find or create coverage context for ${entity}.`);
-  };
   const selectLiveReport = (report: ReportCardData | null) => {
+    setReportsRailEntityMode(false);
     setSelectedReport(report);
     if (report) setPrototypeEntity(report.entity);
   };
+  const selectedRailReport =
+    surface === "reports" &&
+    !reportsRailEntityMode &&
+    selectedReport &&
+    normalizeEntityKey(selectedReport.entity) === normalizeEntityKey(prototypeEntity)
+      ? selectedReport
+      : null;
 
   // Optionally lock body scroll while shell is mounted
   useEffect(() => {
@@ -239,8 +246,8 @@ export default function RedesignShell() {
     isPrototypeKit;
   const suppressRightRail =
     !isPrototypeKit &&
-    ((surface === "chat" && Boolean(chatHash)) ||
-      (surface === "reports" && Boolean(reportId)));
+    surface === "chat" &&
+    Boolean(chatHash);
 
   return (
     <div
@@ -315,16 +322,12 @@ export default function RedesignShell() {
             {!isPrototypeKit && surface === "reports" && !reportId && (
               <ReportsSurface
                 onOpen={(id, tab) => {
-                  if (id.startsWith("li_") || id.startsWith("daily_") || id.startsWith("run_")) {
-                    const workspaceTab = tab === "chat" ? "chat" : tab === "cards" ? "cards" : "brief";
-                    navigate(`/redesign/workspace?report=${id}&tab=${workspaceTab}`);
-                    return;
-                  }
                   if (tab === "brief") navigate(`/redesign/reports/${id}`);
                   else navigate(`/redesign/workspace?report=${id}&tab=${tab}`);
                 }}
-                inspectedReportId={selectedReport?.id ?? null}
+                inspectedReportId={reportsRailEntityMode ? "__rail_entity_override__" : selectedReport?.id ?? null}
                 onSelectReport={selectLiveReport}
+                onRunBatch={sendPromptToChat}
               />
             )}
             {!isPrototypeKit && surface === "reports" && reportId && <ReportDetailRoute reportId={reportId} />}
@@ -354,7 +357,7 @@ export default function RedesignShell() {
                 surface={prototypeSurface}
                 onAsk={sendPromptToChat}
                 selectedEntity={surface === "reports" ? prototypeEntity : undefined}
-                selectedReport={surface === "reports" ? selectedReport : null}
+                selectedReport={selectedRailReport}
                 onSelectEntity={selectPrototypeRailEntity}
                 guestSafe={surface === "me"}
               />
@@ -378,7 +381,7 @@ export default function RedesignShell() {
 function ReportDetailRoute({ reportId }: { reportId: string }) {
   const liveArtifacts = useLiveArtifacts(60);
   const liveDetail = liveArtifacts.details.find((detail) => detail.id === reportId);
-  return <ReportNotebookView reportId={reportId} liveDetail={liveDetail} />;
+  return <ReportNotebookView reportId={reportId} liveDetail={liveDetail} showSidebar={false} />;
 }
 
 function useQaChromeFlag(search: string): boolean {

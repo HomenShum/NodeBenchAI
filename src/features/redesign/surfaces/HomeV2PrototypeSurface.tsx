@@ -148,6 +148,67 @@ const reportEntities = [
 ];
 
 type PrototypeReportEntity = (typeof reportEntities)[number];
+type ReportsRailStatus = "verified" | "review" | "stale" | "drafting" | "monitoring";
+type ReportsRailItem = {
+  icon: string;
+  name: string;
+  score: string;
+  status?: ReportsRailStatus;
+  active?: boolean;
+};
+
+const reportsRailGroups: Array<{ label: string; count: string; items: ReportsRailItem[] }> = [
+  {
+    label: "Universes",
+    count: "3",
+    items: [
+      { icon: "AI", name: "AI Infrastructure", score: "87", active: true },
+      { icon: "BT", name: "Banking Targets", score: "34" },
+      { icon: "FW", name: "Fundraise Watch", score: "12" },
+    ],
+  },
+  {
+    label: "Companies",
+    count: "5",
+    items: [
+      { icon: "A", name: "Anthropic", score: "91", status: "verified" },
+      { icon: "O", name: "OpenAI", score: "62", status: "stale" },
+      { icon: "M", name: "Mistral", score: "25", status: "drafting" },
+      { icon: "B", name: "Bug0", score: "88", status: "verified" },
+      { icon: "G", name: "Google DeepMind", score: "47", status: "stale" },
+    ],
+  },
+  {
+    label: "People",
+    count: "2",
+    items: [
+      { icon: "D", name: "Dario Amodei", score: "87", status: "verified" },
+      { icon: "S", name: "Sequoia Capital", score: "74", status: "review" },
+    ],
+  },
+  {
+    label: "Briefs",
+    count: "1",
+    items: [
+      { icon: "D", name: "Daily Brief - May 13", score: "80", status: "review" },
+    ],
+  },
+  {
+    label: "Monitoring",
+    count: "1",
+    items: [
+      { icon: "C", name: "Cohere", score: "82", status: "monitoring" },
+    ],
+  },
+];
+
+const reportRailFilters: Array<{ id: "all" | ReportsRailStatus; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "verified", label: "Verified" },
+  { id: "review", label: "Review" },
+  { id: "stale", label: "Stale" },
+  { id: "drafting", label: "Draft" },
+];
 
 function getPrototypeEntity(name = "Anthropic"): PrototypeReportEntity {
   return reportEntities.find((entity) => entity.name === name) ?? reportEntities[0];
@@ -893,27 +954,62 @@ const meLines = [
 ];
 
 export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity, guestSafe = false }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
+  const [reportsRailQuery, setReportsRailQuery] = useState("");
+  const [reportsRailFilter, setReportsRailFilter] = useState<(typeof reportRailFilters)[number]["id"]>("all");
   if (surface === "home") return <HomeV2EditionRail onAsk={onAsk} />;
   if (surface === "reports") {
+    const query = reportsRailQuery.trim().toLowerCase();
+    const filteredGroups = reportsRailGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => {
+          const matchesQuery = !query || `${group.label} ${item.name}`.toLowerCase().includes(query);
+          const matchesStatus = reportsRailFilter === "all" || item.status === reportsRailFilter;
+          return matchesQuery && matchesStatus;
+        }),
+      }))
+      .filter((group) => group.items.length > 0);
     return (
       <aside className="rd-v2-left rd-v2-left--nav" aria-label="Reports navigation">
-        <input className="rd-v2-rail-search" placeholder="Filter entities..." aria-label="Filter entities" />
+        <input
+          className="rd-v2-rail-search"
+          placeholder="Search reports..."
+          aria-label="Search reports"
+          value={reportsRailQuery}
+          onChange={(event) => setReportsRailQuery(event.currentTarget.value)}
+        />
+        <div className="rd-v2-rail-filters" role="tablist" aria-label="Filter reports by status">
+          {reportRailFilters.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              role="tab"
+              aria-selected={reportsRailFilter === filter.id}
+              className={reportsRailFilter === filter.id ? "is-active" : ""}
+              onClick={() => setReportsRailFilter(filter.id)}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
         <div className="rd-v2-rail-rule" />
-        <RailGroup label="Companies" count="12" selectedName={selectedEntity} onSelectItem={onSelectEntity} items={[
-          ["A", "Anthropic", "3", true],
-          ["S", "Sequoia Capital", "2"],
-          ["B", "Bug0", "1"],
-          ["O", "OpenAI", ""],
-          ["G", "Google DeepMind", ""],
-          ["M", "Mistral", ""],
-        ]} />
-        <RailGroup label="People" count="8" items={[
-          ["•", "Dario Amodei", ""],
-          ["•", "Alfred Lin", ""],
-          ["•", "Sam Altman", ""],
-        ]} />
-        <RailGroup label="Topics" count="5" items={[["#", "Fundraise", ""], ["#", "Pricing", ""], ["#", "Hiring", ""]]} />
-        <button className="rd-v2-new-entity">+ New entity</button>
+        <div className="rd-v2-rail-scroll">
+          {filteredGroups.map((group) => (
+            <ReportsRailGroup
+              key={group.label}
+              label={group.label}
+              count={group.count}
+              items={group.items}
+              selectedName={selectedEntity}
+              onSelectItem={onSelectEntity}
+            />
+          ))}
+          {filteredGroups.length === 0 && <div className="rd-v2-rail-empty">No reports match this filter.</div>}
+        </div>
+        <div className="rd-v2-rail-footer">
+          <button type="button" onClick={() => onAsk?.("Create a new report entity and hydrate its first notebook.")}>+ Entity</button>
+          <button type="button" onClick={() => onAsk?.("Import a company list and run a sample coverage batch.")}>+ Import</button>
+        </div>
       </aside>
     );
   }
@@ -1031,6 +1127,53 @@ function RailGroup({
   );
 }
 
+function ReportsRailGroup({
+  label,
+  count,
+  items,
+  selectedName,
+  onSelectItem,
+}: {
+  label: string;
+  count: string;
+  items: ReportsRailItem[];
+  selectedName?: string;
+  onSelectItem?: (name: string) => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <section className={`rd-v2-rail-section rd-v2-rail-section--reports ${collapsed ? "is-collapsed" : ""}`}>
+      <button
+        type="button"
+        className="rd-v2-rail-section-head rd-v2-rail-section-toggle"
+        aria-expanded={!collapsed}
+        onClick={() => setCollapsed((value) => !value)}
+      >
+        <span className="rd-v2-rail-chevron">{collapsed ? "\u25b8" : "\u25be"}</span>
+        <span>{label}</span>
+        <b>{count}</b>
+      </button>
+      {!collapsed && items.map((item) => {
+        const selected = selectedName ? selectedName === item.name : item.active;
+        return (
+          <button
+            key={`${label}-${item.name}`}
+            className={`rd-v2-nav-row rd-v2-report-nav-row ${selected ? "is-active" : ""}`}
+            type="button"
+            data-status={item.status}
+            onClick={() => onSelectItem?.(item.name)}
+          >
+            <span className="rd-v2-report-nav-icon">{item.icon}</span>
+            <strong>{item.name}</strong>
+            <b>{item.score}</b>
+            {item.status && <i aria-label={item.status} className="rd-v2-report-nav-dot" data-status={item.status} />}
+          </button>
+        );
+      })}
+    </section>
+  );
+}
+
 function NavItem({ label, count, marker, active, tone }: { label: string; count?: string; marker: string; active?: boolean; tone?: string }) {
   return (
     <button type="button" className={`rd-v2-nav-row ${active ? "is-active" : ""}`} data-tone={tone}>
@@ -1058,7 +1201,30 @@ function ChatThreadGroup({ label, items }: { label: string; items: Array<[string
 
 function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }: PrototypeSelectionProps) {
   return (
-    <div className="rd-v2-proto-center">
+    <div className="rd-v2-proto-center rd-v3-reports">
+      <div className="rd-v3-universe-header">
+        <div>
+          <div className="rd-v3-kicker">Reports</div>
+          <h1>AI Infrastructure Coverage</h1>
+          <p>87 reports, 48 sources, 7 need review, confidence 91/100.</p>
+        </div>
+        <div className="rd-v3-universe-actions">
+          <button type="button">Review queue</button>
+          <button type="button" className="rd-v3-primary">+ New batch</button>
+        </div>
+      </div>
+      <section className="rd-v3-metrics" aria-label="Coverage metrics">
+        <span><strong>87</strong> reports</span>
+        <span><strong>83%</strong> verified</span>
+        <span><strong>7</strong> need review</span>
+        <span><strong>3</strong> active runs</span>
+        <span><strong>12</strong> notebook patches</span>
+      </section>
+      <div className="rd-v3-tabs" role="tablist" aria-label="Report views">
+        {["Gallery", "Board", "Table", "Graph"].map((item, index) => (
+          <button key={item} type="button" role="tab" aria-selected={index === 0} className={index === 0 ? "is-active" : ""}>{item}</button>
+        ))}
+      </div>
       <div className="rd-v2-edition-row">
         <span className="rd-v2-edition-pill">Entity intelligence</span>
         <span className="rd-v2-edition-subline">12 entities · 83% verified · avg score 87 · 48 sources</span>
@@ -1263,7 +1429,7 @@ function AgentShell({
   const pillClassName = (_pill: string, index: number) => {
     const classes = ["rd-v2-agent-pill"];
     if (index === 0) classes.push("is-active");
-    if (title === "Coverage agent") {
+    if (title === "Coverage agent" || title === "Agent Inspector") {
       if (index === 1) classes.push("is-entity");
       if (index === 2) classes.push("is-source");
     }
@@ -1301,8 +1467,42 @@ function AgentShell({
   );
 }
 
+function inspectorPipeline(entity: PrototypeReportEntity): Array<{ label: string; done: boolean }> {
+  const isDraft = /draft|generating|gathering/i.test(entity.status);
+  const needsReview = entity.score < 75 || /review|stale/i.test(entity.status);
+  return [
+    { label: isDraft ? "Gathering sources" : `Gathered ${Math.max(8, entity.sources * 4)} sources`, done: !isDraft || entity.sources > 2 },
+    { label: `Extracted ${Math.max(2, entity.signals.length)} entities`, done: !isDraft },
+    { label: `Generated ${Math.max(5, Math.round(entity.score / 4))} claims`, done: entity.score >= 45 },
+    { label: needsReview ? "Verifying evidence" : "Verified evidence", done: !needsReview },
+    { label: needsReview ? "Notebook patch pending" : "Notebook published", done: !needsReview },
+  ];
+}
+
+function inspectorWarnings(entity: PrototypeReportEntity): string[] {
+  if (/stale/i.test(entity.status)) {
+    return [
+      "Evidence freshness is below the release threshold.",
+      "Refresh public sources before exporting this notebook.",
+    ];
+  }
+  if (entity.score < 75 || /review/i.test(entity.status)) {
+    return [
+      "Open claims need human review before verification.",
+      "Notebook patch should preserve the prior source trail.",
+    ];
+  }
+  return [
+    "Source coverage is current enough for the present task.",
+    "Keep monitoring for fresh signals before the next daily brief.",
+  ];
+}
+
 function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedReport, onSelectEntity }: PrototypeSelectionProps) {
   const entity = selectedReport ? liveReportToPrototypeEntity(selectedReport) : getPrototypeEntity(selectedEntity);
+  const [drawerOpen, setDrawerOpen] = useState(true);
+  const pipeline = inspectorPipeline(entity);
+  const warnings = inspectorWarnings(entity);
   const reviewText = entity.score < 75 ? `${entity.name} needs review.` : `${entity.name} is in good shape.`;
   const summaryText = entity.score < 75
     ? `${entity.name} is below coverage threshold. Refresh sources, verify open claims, and decide whether the report needs a notebook patch.`
@@ -1310,8 +1510,8 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
 
   return (
     <AgentShell
-      title="Coverage agent"
-      context={`Reports · 5 entities · 48 sources · ${entity.sources} active`}
+      title="Agent Inspector"
+      context={`Reports - ${entity.name} - ${entity.sources} sources - score ${entity.score}`}
       pills={["Reports", entity.name, `${entity.sources} sources`, `Score ${entity.score}`]}
       question="Which reports need work?"
       placeholder="Ask about these reports..."
@@ -1320,57 +1520,73 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
       <div className="rd-v2-msg rd-v2-msg-agent">
         <strong>{reviewText}</strong>
         <p>{summaryText}</p>
-        <details className="rd-v2-trace">
-          <summary><small>3 steps completed</small></summary>
-          <div className="rd-v2-trace-steps"><span>entity_health</span><span>freshness_scan</span><span>claim_verify</span></div>
+        <details className="rd-v2-trace" open>
+          <summary><small>Agent run trace</small></summary>
+          <div className="rd-v2-trace-steps"><span>source_scan</span><span>claim_verify</span><span>score_compute</span><span>notebook_patch</span></div>
         </details>
-        <div className="rd-v2-msg-tools"><span>entity_health</span><span>freshness_scan</span><span>claim_verify</span></div>
+        <div className="rd-v2-msg-actions">
+          <button type="button" className="is-primary" onClick={() => onAsk?.(`Open the ${entity.name} notebook and summarize the next review step.`)}>Open notebook</button>
+          <button type="button" onClick={() => onAsk?.(`Verify the weakest claims in ${entity.name}.`)}>Verify claims</button>
+          <button type="button" onClick={() => onAsk?.(`Export a memo preview for ${entity.name}.`)}>Export memo</button>
+        </div>
       </div>
-      <section className="rd-v2-action-card-list">
-        {[
-          { icon: "🔍", label: `Review ${entity.name}` },
-          { icon: "↻", label: "Refresh stale sources" },
-          { icon: "⚖", label: `Compare ${entity.related[0] ?? "entities"}` },
-          { icon: "📤", label: "Export selected" },
-        ].map(({ icon, label }, index) => (
-          <button key={label} className={index === 0 ? "is-primary" : ""} onClick={() => onAsk?.(`${label} for ${entity.name}`)}><span className="rd-v2-action-icon">{icon}</span> {label}</button>
-        ))}
-      </section>
-      <button className="rd-v2-drawer-toggle">{`Context · ${entity.name} ${entity.score} · ${entity.signals.length} signals · ${entity.related.length} entities`}</button>
-      <section className="rd-v2-agent-context">
-        <div className="rd-v2-context-head"><span>Active entity</span><span>{entity.score}</span></div>
-        <div className="rd-v2-score-big">{entity.score} <small>{entity.delta}</small></div>
-        {Object.entries(entity.dims).map(([label, value]) => (
-          <div className="rd-v2-score-row" key={label}>
-            <span>{label}</span>
-            <b><i data-tone={value >= 80 ? "green" : value >= 58 ? "accent" : "amber"} style={{ width: `${value}%` }} /></b>
-            <strong>{value}</strong>
+      <section className="rd-v2-pipeline" aria-label="Agent pipeline progress">
+        <div className="rd-v2-context-head"><span>Pipeline</span><span>{pipeline.filter((step) => step.done).length}/{pipeline.length}</span></div>
+        {pipeline.map((step) => (
+          <div key={step.label} className="rd-v2-pipeline-row" data-done={step.done}>
+            <span>{step.done ? "\u2713" : "\u25cb"}</span>
+            <strong>{step.label}</strong>
           </div>
         ))}
       </section>
-      <section className="rd-v2-agent-context">
-        <div className="rd-v2-context-head"><span>Recent signals</span><span>{entity.signals.length}</span></div>
-        {entity.signals.map((signal, index) => (
-          <div className="rd-v2-signal-tl" key={signal}>
-            <span className="rd-v2-signal-tl-time">{index === 0 ? "2h" : index === 1 ? "1d" : "3d"}</span>
-            <span className="rd-v2-signal-tl-dot" data-tone={index === 0 ? "accent" : index === 1 ? "blue" : "green"} />
-            <span className="rd-v2-signal-tl-text">{signal}</span>
-          </div>
-        ))}
-      </section>
-      <section className="rd-v2-agent-context">
-        <div className="rd-v2-context-head"><span>Related entities</span><span>{entity.related.length}</span></div>
-        {entity.related.map((name, index) => {
-          const related = reportEntities.find((item) => item.name === name);
-          const initial = related?.initial ?? name.slice(0, 1).toUpperCase();
-          const score = related?.score ?? Math.max(55, entity.score - (index + 1) * 4);
-          return (
-            <button className="rd-v2-related-entity" key={name} onClick={() => onSelectEntity?.(name)}>
-              <span>{initial}</span><strong>{name}</strong><b>{score}</b>
-            </button>
-          );
-        })}
-      </section>
+      <button
+        className="rd-v2-drawer-toggle"
+        type="button"
+        aria-expanded={drawerOpen}
+        onClick={() => setDrawerOpen((value) => !value)}
+      >{`Context - ${entity.name} ${entity.score} - ${warnings.length} warnings - ${entity.sources} sources`}</button>
+      {drawerOpen && (
+        <>
+          <section className="rd-v2-agent-context">
+            <div className="rd-v2-context-head"><span>Active entity</span><span>{entity.score}</span></div>
+            <div className="rd-v2-score-big">{entity.score} <small>{entity.delta}</small></div>
+            {Object.entries(entity.dims).map(([label, value]) => (
+              <div className="rd-v2-score-row" key={label}>
+                <span>{label}</span>
+                <b><i data-tone={value >= 80 ? "green" : value >= 58 ? "accent" : "amber"} style={{ width: `${value}%` }} /></b>
+                <strong>{value}</strong>
+              </div>
+            ))}
+          </section>
+          <section className="rd-v2-agent-context">
+            <div className="rd-v2-context-head"><span>Warnings</span><span>{warnings.length}</span></div>
+            {warnings.map((warning) => <p className="rd-v2-signal-line rd-v2-warning-line" key={warning}>{warning}</p>)}
+          </section>
+          <section className="rd-v2-agent-context">
+            <div className="rd-v2-context-head"><span>Recent signals</span><span>{entity.signals.length}</span></div>
+            {entity.signals.map((signal, index) => (
+              <div className="rd-v2-signal-tl" key={signal}>
+                <span className="rd-v2-signal-tl-time">{index === 0 ? "2h" : index === 1 ? "1d" : "3d"}</span>
+                <span className="rd-v2-signal-tl-dot" data-tone={index === 0 ? "accent" : index === 1 ? "blue" : "green"} />
+                <span className="rd-v2-signal-tl-text">{signal}</span>
+              </div>
+            ))}
+          </section>
+          <section className="rd-v2-agent-context">
+            <div className="rd-v2-context-head"><span>Related entities</span><span>{entity.related.length}</span></div>
+            {entity.related.map((name, index) => {
+              const related = reportEntities.find((item) => item.name === name);
+              const initial = related?.initial ?? name.slice(0, 1).toUpperCase();
+              const score = related?.score ?? Math.max(55, entity.score - (index + 1) * 4);
+              return (
+                <button className="rd-v2-related-entity" key={name} onClick={() => onSelectEntity?.(name)}>
+                  <span>{initial}</span><strong>{name}</strong><b>{score}</b>
+                </button>
+              );
+            })}
+          </section>
+        </>
+      )}
     </AgentShell>
   );
 }
