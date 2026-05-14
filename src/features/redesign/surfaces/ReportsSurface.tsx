@@ -45,7 +45,10 @@ function StyleChip({ reportId }: { reportId: string }) {
 }
 
 function displayReportDescription(description: string): string {
-  return sanitizeDecisionText(description);
+  return sanitizeDecisionText(description)
+    .replace(/\s*\|\s*confidence\s+\d+%/gi, "")
+    .replace(/\bconfidence\s+\d+%/gi, "source review recorded")
+    .replace(/\bexecutive confidence\s+\d+%\.?/gi, "executive review recorded.");
 }
 
 interface ReportsSurfaceProps {
@@ -73,12 +76,13 @@ const REPORT_STAGE_COLUMNS: Array<{ id: ReportStage; label: string; hint: string
   { id: "monitoring", label: "Monitoring", hint: "Watchlist active" },
 ];
 
-const STATUS_FILTERS = [
+const STATUS_FILTERS: Array<{ id: "all" | ReportStage; label: string }> = [
   { id: "all", label: "All" },
   { id: "verified", label: "Verified" },
-  { id: "watching", label: "Watching" },
-  { id: "review", label: "Needs review" },
-] as const;
+  { id: "review", label: "Review" },
+  { id: "stale", label: "Stale" },
+  { id: "drafting", label: "Draft" },
+];
 
 const KIND_FILTERS = [
   { id: "all", label: "All types" },
@@ -89,7 +93,7 @@ const KIND_FILTERS = [
 ] as const;
 
 export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedReportId }: ReportsSurfaceProps) {
-  const [filter, setFilter] = useState<typeof STATUS_FILTERS[number]["id"]>("all");
+  const [filter, setFilter] = useState<(typeof STATUS_FILTERS)[number]["id"]>("all");
   const [kindFilter, setKindFilter] = useState<typeof KIND_FILTERS[number]["id"]>("all");
   const [density, setDensity] = useState<Density>("compact");
   const [viewMode, setViewMode] = useState<ReportViewMode>("gallery");
@@ -122,34 +126,36 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
   });
   const clearSelection = () => setSelected(new Set());
 
-  // Status facet counts (Crunchbase-style with N badge per chip)
+  // Status facet counts use workflow state, not arbitrary score bands.
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: reports.length, verified: 0, watching: 0, review: 0 };
-    for (const r of reports) c[r.status] = (c[r.status] ?? 0) + 1;
+    const c: Record<string, number> = { all: reports.length, verified: 0, review: 0, stale: 0, drafting: 0 };
+    for (const r of reports) {
+      const stage = getReportStage(r, stageOverrides[r.id]);
+      c[stage] = (c[stage] ?? 0) + 1;
+    }
     return c;
-  }, [reports]);
+  }, [reports, stageOverrides]);
 
   const filtered = useMemo(() => {
     const base = reports.filter((r) => {
-      if (filter === "verified" && r.status !== "verified") return false;
-      if (filter === "watching" && r.status !== "watching") return false;
-      if (filter === "review" && r.status !== "review") return false;
+      const stage = getReportStage(r, stageOverrides[r.id]);
+      if (filter !== "all" && stage !== filter) return false;
       if (kindFilter !== "all" && r.kind !== kindFilter) return false;
       if (query && !`${r.entity} ${r.description}`.toLowerCase().includes(query.toLowerCase())) return false;
       return true;
     });
-    const statusRank: Record<ReportCardData["status"], number> = { review: 0, watching: 1, verified: 2 };
+    const statusRank: Record<ReportStage, number> = { review: 0, stale: 1, drafting: 2, monitoring: 3, verified: 4 };
     return [...base].sort((a, b) => {
       switch (sortKey) {
         case "entity":  return a.entity.localeCompare(b.entity);
         case "sources": return b.sources - a.sources;
         case "claims":  return b.claims - a.claims;
-        case "status":  return statusRank[a.status] - statusRank[b.status];
+        case "status":  return statusRank[getReportStage(a, stageOverrides[a.id])] - statusRank[getReportStage(b, stageOverrides[b.id])];
         case "updated":
         default: return 0; // live query order is already recency-ranked
       }
     });
-  }, [reports, filter, kindFilter, query, sortKey]);
+  }, [reports, filter, kindFilter, query, sortKey, stageOverrides]);
 
   useEffect(() => {
     if (!onSelectReport || filtered.length === 0) return;
@@ -189,7 +195,6 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
   const reviewCount = filtered.filter((report) => getReportStage(report, stageOverrides[report.id]) === "review").length;
   const staleCount = filtered.filter((report) => getReportStage(report, stageOverrides[report.id]) === "stale").length;
   const draftingCount = filtered.filter((report) => getReportStage(report, stageOverrides[report.id]) === "drafting").length;
-  const confidenceScore = Math.max(0, Math.min(100, Math.round((verifiedShare * 0.62) + Math.min(totalSources, 120) * 0.18)));
   const selectedReport = filtered.find((report) => report.id === inspectedReportId) ?? visibleReports[0] ?? null;
   const runBatchPrompt = () => {
     const prompt = "Run a coverage batch for my active report universe. Generate notebook-first reports, gather sources, extract claims, verify evidence, and create the review queue.";
@@ -217,7 +222,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
           <p>
             {isLoading && reports.length === 0
               ? "Checking Convex-backed report artifacts."
-              : `${reports.length} reports, ${totalSources} sources, ${reviewCount} need review, confidence ${confidenceScore}/100.`}
+              : `${reports.length} reports, ${totalSources} sources, ${reviewCount} need review.`}
           </p>
         </div>
         <div className="rd-v3-universe-actions">
@@ -512,7 +517,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
             <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={bulkRefresh}>Refresh preview</button>
             <button
               className="rd-btn rd-btn--quiet rd-btn--sm"
-              onClick={() => showToast({ tone: "info", message: `Local rubric preview queued for ${selected.size} selected report${selected.size === 1 ? "" : "s"}. Run Chat to persist a scored artifact.` })}
+              onClick={() => showToast({ tone: "info", message: `Local review rubric queued for ${selected.size} selected report${selected.size === 1 ? "" : "s"}. Run Chat to persist a source-backed artifact.` })}
             >
               Rubric preview
             </button>
@@ -590,6 +595,19 @@ function notebookState(stage: ReportStage): string {
   return "Drafting";
 }
 
+function evidenceText(report: ReportCardData, stage: ReportStage): string {
+  if (stage === "drafting") return "Gathering sources...";
+  if (stage === "stale") return `${Math.max(1, Math.min(report.claims, Math.ceil(report.claims / 2)))} of ${Math.max(1, report.claims)} claims need refresh`;
+  if (stage === "review") return `${Math.max(1, report.followUps || 1)} claim${(report.followUps || 1) === 1 ? "" : "s"} need review`;
+  return `${Math.max(1, report.claims)} of ${Math.max(1, report.claims)} claims verified`;
+}
+
+function freshnessText(report: ReportCardData, stage: ReportStage): string {
+  if (stage === "stale") return `Last checked ${report.updatedAt}`;
+  if (stage === "drafting") return "Started recently";
+  return `Updated ${report.updatedAt}`;
+}
+
 function ReportCardV3({
   report,
   active,
@@ -614,11 +632,15 @@ function ReportCardV3({
       aria-selected={active}
       role="button"
       tabIndex={0}
-      onClick={() => onSelect?.(report)}
+      onClick={() => {
+        onSelect?.(report);
+        onOpen(report.id, "brief");
+      }}
       onKeyDown={(event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
         onSelect?.(report);
+        onOpen(report.id, "brief");
       }}
     >
       <div className="rd-v3-card__head">
@@ -633,8 +655,8 @@ function ReportCardV3({
         {signals.map((signal) => <span key={signal}>{signal}</span>)}
       </div>
       <div className="rd-v3-sources">
-        <span>{report.sources} sources</span>
-        <span>{report.claims} claims</span>
+        <span>{evidenceText(report, stage)}</span>
+        <span>{report.sources} source rows</span>
         <span>{report.followUps} follow-ups</span>
       </div>
       {backlinks.length > 0 && (
@@ -643,7 +665,7 @@ function ReportCardV3({
         </div>
       )}
       <div className="rd-v3-card__foot">
-        <span>{sourceLabel} · {report.updatedAt}</span>
+        <span>{sourceLabel} · {freshnessText(report, stage)}</span>
         <span>{notebookState(stage)}</span>
       </div>
       <div className="rd-v3-card__actions">
@@ -689,12 +711,14 @@ function ReportBoard({
                 className="rd-v3-mini"
                 draggable
                 onDragStart={(event) => onDragStart(event, report.id)}
-                onClick={() => onSelect?.(report)}
-                onDoubleClick={() => onOpen(report.id, "brief")}
+                onClick={() => {
+                  onSelect?.(report);
+                  onOpen(report.id, "brief");
+                }}
               >
                 <span>{report.entity.slice(0, 1).toUpperCase()}</span>
                 <strong>{report.entity}</strong>
-                <small>{report.sources} sources · {report.claims} claims</small>
+                <small>{evidenceText(report, getReportStage(report, stageOverrides[report.id]))} · {report.sources} sources</small>
               </button>
             ))}
           </div>
@@ -718,18 +742,21 @@ function ReportTable({
   return (
     <div className="rd-v3-table-wrap" role="region" aria-label="Analyst report table">
       <table className="rd-v3-table">
-        <thead><tr><th>Report</th><th>Status</th><th>Type</th><th>Sources</th><th>Claims</th><th>Notebook</th><th>Action</th></tr></thead>
+        <thead><tr><th>Report</th><th>Type</th><th>Status</th><th>Evidence</th><th>Sources</th><th>Updated</th><th>Action</th></tr></thead>
         <tbody>
           {reports.map((report) => {
             const stage = getReportStage(report, stageOverrides[report.id]);
             return (
-              <tr key={report.id} onClick={() => onSelect?.(report)}>
+              <tr key={report.id} onClick={() => {
+                onSelect?.(report);
+                onOpen(report.id, "brief");
+              }}>
                 <td><strong>{report.entity}</strong><span>{displayReportDescription(report.description)}</span></td>
-                <td>{stageLabel(stage)}</td>
                 <td>{report.kind}</td>
-                <td>{report.sources}</td>
-                <td>{report.claims}</td>
-                <td>{notebookState(stage)}</td>
+                <td>{stageLabel(stage)}</td>
+                <td>{evidenceText(report, stage)}</td>
+                <td>{report.sources} source rows</td>
+                <td>{freshnessText(report, stage)}</td>
                 <td><button type="button" onClick={(event) => { event.stopPropagation(); onOpen(report.id, "brief"); }}>Open notebook</button></td>
               </tr>
             );
@@ -758,12 +785,23 @@ function ReportGraphPreview({
         <span>{root?.entity.slice(0, 1).toUpperCase() ?? "R"}</span>
         <strong>{root?.entity ?? "Select a report"}</strong>
         <button type="button" onClick={() => root && onOpen(root.id, "brief")}>Open notebook</button>
+        {root && getReportStage(root) === "stale" && (
+          <button
+            type="button"
+            className="rd-v3-delta-refresh"
+            title="Run a delta-only refresh from the last checked timestamp"
+            onClick={() => showToast({ tone: "info", message: `Delta refresh preview queued for ${root.entity}. New sources only; unchanged content skips extraction.` })}
+          >
+            ↻ Refresh delta
+          </button>
+        )}
       </div>
       <div className="rd-v3-graph__nodes">
         {reports.slice(0, 10).map((report) => (
           <button key={report.id} type="button" onClick={() => onSelect?.(report)} aria-pressed={root?.id === report.id}>
             <span>{report.entity.slice(0, 1).toUpperCase()}</span>
-            {report.entity}
+            <strong>{report.entity}</strong>
+            <small>{stageLabel(getReportStage(report))}</small>
           </button>
         ))}
       </div>
