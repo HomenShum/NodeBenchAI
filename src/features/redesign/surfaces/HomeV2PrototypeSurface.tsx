@@ -974,11 +974,11 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
       <NavItem label="Style profile" marker="🎨" />
       <div className="rd-v2-rail-rule" />
       <div className="rd-v2-memory-stats">
-        <div><span>Observations</span><strong>847</strong></div>
-        <div><span>Corrections</span><strong>23</strong></div>
-        <div><span>Last updated</span><strong>2m ago</strong></div>
+        <div><span>Observations</span><strong>{guestSafe ? "Locked" : "847"}</strong></div>
+        <div><span>Corrections</span><strong>{guestSafe ? "Locked" : "23"}</strong></div>
+        <div><span>Last updated</span><strong>{guestSafe ? "After sign-in" : "2m ago"}</strong></div>
       </div>
-      <button className="rd-v2-sign-out">Sign out</button>
+      <button className="rd-v2-sign-out">{guestSafe ? "Sign in" : "Sign out"}</button>
     </aside>
   );
 }

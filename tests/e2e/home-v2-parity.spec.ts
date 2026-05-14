@@ -27,6 +27,7 @@ function reportCards(page: Page): Locator {
       '[data-testid="report-card"]',
       '[data-testid="redesign-report-card"]',
       "[data-report-card]",
+      ".rd-v2-report-card:not(.rd-v2-report-card--add)",
       ".rd-report-card",
     ].join(", "),
   );
@@ -122,6 +123,8 @@ test.describe("Home v2 /redesign parity", () => {
 
     await expect(page.getByRole("complementary", { name: "Reports navigation" })).toBeVisible();
     await expect(page.getByLabel("Filter entities")).toBeVisible();
+    await expect(page.getByText("Entity intelligence").first()).toBeVisible();
+    await expect(page.locator(".rd-v2-report-grid")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("complementary", { name: "Coverage agent" })).toBeVisible();
     const rail = rightRail(page);
     await expectRailInViewport(rail);
@@ -151,6 +154,9 @@ test.describe("Home v2 /redesign parity", () => {
 
     await expect(page.getByRole("complementary", { name: "Chat threads" })).toBeVisible();
     await expect(page.getByRole("button", { name: "+ New thread" })).toBeVisible();
+    await expect(page.getByText(/Ready for a live report packet|Saved to/i).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Ask NodeBench to work the live packet").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Prompt captured").first()).toBeVisible();
     const rail = rightRail(page);
     await expectRailInViewport(rail);
 
@@ -189,6 +195,9 @@ test.describe("Home v2 /redesign parity", () => {
     await page.goto("/redesign/inbox", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("complementary", { name: "Inbox navigation" })).toBeVisible();
     await expect(page.getByLabel("Search inbox")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
+    await expect(page.getByText("Requires action").first()).toBeVisible();
+    await expect(page.getByText("To read").first()).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Triage agent" })).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Triage agent" })).toContainText("3 steps completed");
     await expect(page.getByRole("complementary", { name: "Triage agent" })).toContainText("Draft reply");
@@ -197,7 +206,8 @@ test.describe("Home v2 /redesign parity", () => {
     await page.goto("/redesign/me", { waitUntil: "domcontentloaded" });
 
     await expect(page.getByRole("complementary", { name: "Me navigation" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Your profile starts empty." })).toBeVisible();
+    await expect(page.getByText("USER.md").first()).toBeVisible();
+    await expect(page.getByText("Private Context").first()).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Settings agent" })).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Settings agent" })).toContainText("privacy_boundary");
     await expect(page.getByRole("complementary", { name: "Settings agent" })).toContainText("Connect account");

@@ -116,6 +116,22 @@ export function MeSurface() {
     return params.get("qa") === "1" || params.get("debugUi") === "1";
   }, []);
 
+  if (isLoading || !isAuthenticated) {
+    return (
+      <MeV2DocumentCenter
+        mode={isLoading ? "loading" : "guest"}
+        sections={[]}
+        savedAt={isLoading ? "Resolving private session" : "Sign in to create USER.md"}
+        onPrimary={() => {
+          if (isLoading) return;
+          void signIn("google", {
+            redirectTo: typeof window !== "undefined" ? window.location.href : "/redesign/me",
+          });
+        }}
+      />
+    );
+  }
+
   if (!isLoading && !isAuthenticated) {
     return (
       <div className="rd-stack" style={{ padding: "28px 40px 40px", gap: 20, maxWidth: 1120 }}>
@@ -242,6 +258,21 @@ export function MeSurface() {
     setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, body } : s)));
     markLocalSaved();
   };
+
+  return (
+    <MeV2DocumentCenter
+      mode="authenticated"
+      sections={sections}
+      savedAt={savedAt}
+      patch={patch}
+      onPrimary={() => {
+        markLocalSaved();
+        showToast({ tone: "success", message: "USER.md local draft saved. Durable profile sync remains approval-gated." });
+      }}
+      onPatch={acceptPatch}
+      onRejectPatch={rejectPatch}
+    />
+  );
 
   return (
     <div className="rd-stack" style={{ padding: "28px 40px 40px", gap: 20, maxWidth: 1280 }}>
@@ -602,6 +633,89 @@ export function MeSurface() {
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+function MeV2DocumentCenter({
+  mode,
+  sections,
+  savedAt,
+  patch,
+  onPrimary,
+  onPatch,
+  onRejectPatch,
+}: {
+  mode: "loading" | "guest" | "authenticated";
+  sections: Section[];
+  savedAt: string;
+  patch?: string;
+  onPrimary: () => void;
+  onPatch?: () => void;
+  onRejectPatch?: () => void;
+}) {
+  const guest = mode !== "authenticated";
+  const lines = guest
+    ? [
+        ["# Private Context", ""],
+        ["Profile:", mode === "loading" ? "Resolving private session." : "No signed-in profile is loaded."],
+        ["Memory:", "Watched entities, writing style, connector permissions, and budget rules are hidden until sign-in."],
+        ["Agent rule:", "No private captures, account names, connector rows, or prior profile data are rendered to public visitors."],
+        ["Next action:", mode === "loading" ? "Wait for auth resolution." : "Sign in to create a private USER.md file."],
+      ]
+    : sections.flatMap((section) => [
+        [section.heading, ""],
+        ["Policy:", section.permissions.filter((permission) => permission.pressed).map((permission) => PERM_LABEL[permission.id]).join(", ") || "review required"],
+        ["Memory:", section.body],
+      ]);
+
+  return (
+    <div className="rd-v2-proto-center rd-v2-me-center">
+      <div className="rd-v2-edition-row">
+        <span className="rd-v2-edition-pill">USER.md</span>
+        <span className="rd-v2-edition-subline">{guest ? savedAt : `Your identity file · ${savedAt}`}</span>
+      </div>
+      <div className="rd-v2-share-bar">
+        <span>Actions</span>
+        <button type="button" className="rd-v2-share-primary" onClick={onPrimary}>
+          {guest ? mode === "loading" ? "Loading" : "Sign in" : "Save"}
+        </button>
+        <button type="button" onClick={() => showToast({ tone: "info", message: guest ? "Exports unlock after sign-in." : "Export preview is local until connector approval." })}>Export</button>
+        <button type="button" onClick={() => showToast({ tone: "info", message: guest ? "No profile is loaded to reset." : "Reset requires diff review before mutating USER.md." })}>Reset</button>
+      </div>
+      <article className="rd-v2-user-md">
+        {lines.map(([key, value], index) => (
+          key.startsWith("#") ? <h2 key={`${key}-${index}`}>{key}</h2> : (
+            <p key={`${key}-${index}`}>
+              <span>{key}</span>{value}
+            </p>
+          )
+        ))}
+      </article>
+      {patch && !guest && (
+        <section className="rd-card rd-card__pad" style={{ background: "var(--rd-paper-warm)" }}>
+          <div className="rd-eyebrow">Suggested patch</div>
+          <p className="rd-faint" style={{ marginTop: 8 }}>{patch}</p>
+          <div className="rd-row" style={{ gap: 8, marginTop: 12 }}>
+            <button type="button" className="rd-btn rd-btn--primary rd-btn--sm" onClick={onPatch}>Accept</button>
+            <button type="button" className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onRejectPatch}>Reject</button>
+          </div>
+        </section>
+      )}
+      <section className="rd-v2-integrations-grid">
+        {[
+          ["GitHub", guest ? "Connect after sign-in" : "Available", guest ? "No repository memory shown" : "Repository context can be indexed"],
+          ["Convex", guest ? "Public read only" : "Connected runtime", guest ? "No private tables exposed" : "Live profile writes stay gated"],
+          ["LinkedIn", "Approval required", "Posting and CRM writes require review"],
+          ["Slack", guest ? "Off" : "Optional", "Team memory stays permission-scoped"],
+        ].map(([name, status, detail]) => (
+          <article key={name}>
+            <strong>{name}</strong>
+            <span>{status}</span>
+            <p>{detail}</p>
+          </article>
+        ))}
+      </section>
     </div>
   );
 }
