@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>NodeBench — Reports v3 Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;590;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <style>
 /* ─── Reset ─── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -45,7 +45,7 @@
   --r-pill: 999px;
   --shadow-sm: 0 1px 2px rgba(28,27,26,0.05), 0 1px 3px rgba(28,27,26,0.04);
   --shadow-md: 0 1px 3px rgba(0,0,0,0.01), 0 3px 7px rgba(0,0,0,0.02), 0 7px 15px rgba(0,0,0,0.02), 0 14px 28px rgba(0,0,0,0.04);
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --mono: 'JetBrains Mono', monospace;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -256,8 +256,9 @@ body {
   display: flex;
   flex-direction: column;
 }
-.v3-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-sm); }
+.v3-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .v3-card:hover .v3-hover-actions { opacity: 1; }
+.v3-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .v3-card[data-status="verified"] { border-left-color: var(--green); }
 .v3-card[data-status="review"]   { border-left-color: var(--amber); }
 .v3-card[data-status="stale"]    { border-left-color: var(--red); }
@@ -271,7 +272,7 @@ body {
 /* Card header: icon + title + type + status */
 .v3-head {
   display: flex; align-items: center; gap: 6px;
-  padding: 10px 10px 0;
+  padding: 12px 12px 0;
 }
 .v3-icon {
   width: 22px; height: 22px; border-radius: var(--r-sm);
@@ -306,7 +307,7 @@ body {
 .v3-badge[data-tone="purple"] { background: var(--purple-bg); color: var(--purple); }
 
 /* Card body: thesis + signals */
-.v3-body { padding: 6px 10px 0; flex: 1; }
+.v3-body { padding: 6px 12px 0; flex: 1; }
 .v3-thesis {
   font-size: 11px; line-height: 1.45; color: var(--ink-mute);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
@@ -328,23 +329,41 @@ body {
 
 /* Card footer: scores + notebook state */
 .v3-foot {
-  padding: 6px 10px 8px;
+  padding: 8px 12px 10px;
   margin-top: auto;
   border-top: 1px solid var(--line-faint);
   display: flex; align-items: center; gap: 8px;
   font-size: 10px; color: var(--ink-faint);
   font-variant-numeric: tabular-nums;
 }
-.v3-scores { display: flex; gap: 8px; flex: 1; }
-.v3-score { display: flex; align-items: center; gap: 3px; }
+.v3-scores { display: flex; gap: 10px; flex: 1; align-items: center; }
+.v3-score { display: flex; align-items: center; gap: 4px; }
+.v3-score-label { font-size: 9px; color: var(--ink-faint); min-width: 14px; }
 .v3-score-bar {
-  width: 28px; height: 3px; border-radius: 2px;
+  width: 32px; height: 4px; border-radius: 2px;
   background: var(--muted); overflow: hidden;
 }
 .v3-score-fill { height: 100%; border-radius: 2px; }
 .v3-score-fill[data-level="high"]  { background: var(--green); }
 .v3-score-fill[data-level="mid"]   { background: var(--amber); }
 .v3-score-fill[data-level="low"]   { background: var(--red); }
+.v3-quality {
+  display: flex; align-items: center; gap: 5px; flex: 1;
+}
+.v3-quality-num {
+  font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.v3-quality-num[data-level="high"] { color: var(--green); }
+.v3-quality-num[data-level="mid"]  { color: var(--amber); }
+.v3-quality-num[data-level="low"]  { color: var(--red); }
+.v3-quality-ring {
+  width: 20px; height: 20px; position: relative;
+}
+.v3-quality-ring svg { width: 20px; height: 20px; transform: rotate(-90deg); }
+.v3-quality-ring circle { fill: none; stroke-width: 2.5; }
+.v3-quality-track { stroke: var(--muted); }
+.v3-quality-value { stroke-linecap: round; transition: stroke-dashoffset 300ms var(--ease); }
 
 .v3-notebook-state {
   font-size: 9px; font-weight: 500; padding: 1px 5px;
@@ -404,6 +423,13 @@ body {
 }
 .v3-mini__title { font-size: 12px; font-weight: 590; color: var(--ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .v3-mini__meta { font-size: 10px; color: var(--ink-faint); }
+.v3-mini__score {
+  margin-left: auto; font-size: 10px; font-weight: 700;
+  font-variant-numeric: tabular-nums; flex-shrink: 0;
+}
+.v3-mini__score[data-level="high"] { color: var(--green); }
+.v3-mini__score[data-level="mid"] { color: var(--amber); }
+.v3-mini__score[data-level="low"] { color: var(--red); }
 
 /* ═══ TABLE VIEW ═══ */
 .v3-table-wrap { display: none; overflow-x: auto; }
@@ -443,12 +469,13 @@ body {
   padding: 12px; overflow-y: auto; flex-shrink: 0;
 }
 .v3-nb-outline h4 { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-faint); margin-bottom: 8px; }
-.v3-nb-outline a {
+.v3-nb-outline button {
   display: block; padding: 4px 6px; font-size: 12px; color: var(--ink-mute);
   border-radius: 3px; text-decoration: none; transition: all 100ms; cursor: pointer;
+  border: none; background: none; font: inherit; width: 100%; text-align: left;
 }
-.v3-nb-outline a:hover { background: var(--accent-tint); color: var(--ink); }
-.v3-nb-outline a.active { color: var(--accent-strong); font-weight: 590; background: var(--accent-tint); }
+.v3-nb-outline button:hover { background: var(--accent-tint); color: var(--ink); }
+.v3-nb-outline button.active { color: var(--accent-strong); font-weight: 590; background: var(--accent-tint); }
 .v3-nb-editor {
   flex: 1; padding: 24px 32px; overflow-y: auto;
 }
@@ -586,6 +613,16 @@ body {
   .left-rail, .right-rail { display: none; }
 }
 
+/* ─── Focus rings ─── */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
+button:focus-visible, [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ─── View transition ─── */
+.v3-grid, .v3-board, .v3-table-wrap, .v3-notebook-view, .v3-canvas-view {
+  animation: viewFadeIn 200ms var(--ease);
+}
+@keyframes viewFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
 /* ─── Motion safety ─── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition-duration: 0s !important; }
@@ -616,8 +653,8 @@ body {
     </nav>
     <div class="topbar-right">
       <div class="topbar-search"><span>Find entity, report, source&hellip;</span> <kbd>&#8984;K</kbd></div>
-      <button class="topbar-btn topbar-btn--ghost" onclick="toggleTheme()">&#9681;</button>
-      <button class="topbar-btn topbar-btn--primary">+ Run batch</button>
+      <button class="topbar-btn topbar-btn--ghost" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle theme" id="theme-btn">&#9789;</button>
+      <button class="topbar-btn topbar-btn--primary">+ New report</button>
     </div>
   </header>
 
@@ -667,8 +704,8 @@ body {
           Funding <span class="lr-count">15</span>
         </button>
         <button class="lr-item">
-          <span class="lr-icon" style="background:var(--green-bg);color:var(--green);">&#8631;</span>
-          Sources <span class="lr-count">312</span>
+          <span class="lr-icon" style="background:var(--green-bg);color:var(--green);">&#9678;</span>
+          Data sources <span class="lr-count">312</span>
         </button>
       </div>
 
@@ -677,11 +714,11 @@ body {
       <div class="lr-section">
         <div class="lr-header">Operations</div>
         <button class="lr-item">
-          <span class="lr-icon">&#9881;</span>
+          <span class="lr-icon">&#9654;</span>
           Batch runs <span class="lr-count">3</span>
         </button>
         <button class="lr-item">
-          <span class="lr-icon" style="background:var(--amber-bg);color:var(--amber);">!</span>
+          <span class="lr-icon" style="background:var(--amber-bg);color:var(--amber);">&#9873;</span>
           Review queue <span class="lr-count">7</span>
         </button>
         <button class="lr-item">
@@ -704,7 +741,7 @@ body {
           <div class="universe-title">AI Infrastructure Coverage</div>
           <div class="universe-meta">
             <span class="universe-meta__dot"></span>
-            <span>87 reports &middot; 312 sources &middot; 18 need review &middot; avg confidence 82</span>
+            <span>87 reports &middot; 312 sources &middot; 18 need review &middot; confidence 82/100</span>
           </div>
         </div>
 
@@ -733,9 +770,9 @@ body {
         <div class="v3-grid active" id="gallery-view">
 
           <!-- Anthropic -->
-          <div class="v3-card" data-status="verified" aria-selected="true">
+          <div class="v3-card" data-status="verified" aria-selected="true" tabindex="0">
             <div class="v3-hover-actions">
-              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#9998;</button>
               <button class="v3-act" aria-label="More" title="More">&#8943;</button>
             </div>
             <div class="v3-head">
@@ -752,19 +789,19 @@ body {
               </div>
             </div>
             <div class="v3-foot">
-              <div class="v3-scores">
-                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:91%"></span></span></span>
-                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:88%"></span></span></span>
-                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:91%"></span></span></span>
+              <div class="v3-quality" title="Evidence 91 · Freshness 88 · Confidence 91">
+                <span class="v3-quality-ring" data-pct="91"></span>
+                <span class="v3-quality-num" data-level="high">91</span>
               </div>
+              <span style="font-size:10px;color:var(--ink-faint);">12 sources</span>
               <span class="v3-notebook-state" data-state="ready">Notebook ready</span>
             </div>
           </div>
 
           <!-- Sequoia Capital -->
-          <div class="v3-card" data-status="review">
+          <div class="v3-card" data-status="review" tabindex="0">
             <div class="v3-hover-actions">
-              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#9998;</button>
               <button class="v3-act" aria-label="More" title="More">&#8943;</button>
             </div>
             <div class="v3-head">
@@ -780,19 +817,19 @@ body {
               </div>
             </div>
             <div class="v3-foot">
-              <div class="v3-scores">
-                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:74%"></span></span></span>
-                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:68%"></span></span></span>
-                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:74%"></span></span></span>
+              <div class="v3-quality" title="Evidence 74 · Freshness 68 · Confidence 74">
+                <span class="v3-quality-ring" data-pct="74"></span>
+                <span class="v3-quality-num" data-level="mid">74</span>
               </div>
+              <span style="font-size:10px;color:var(--ink-faint);">8 sources</span>
               <span class="v3-notebook-state" data-state="draft">Draft</span>
             </div>
           </div>
 
           <!-- Bug0 -->
-          <div class="v3-card" data-status="verified">
+          <div class="v3-card" data-status="verified" tabindex="0">
             <div class="v3-hover-actions">
-              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#9998;</button>
               <button class="v3-act" aria-label="More" title="More">&#8943;</button>
             </div>
             <div class="v3-head">
@@ -808,17 +845,17 @@ body {
               </div>
             </div>
             <div class="v3-foot">
-              <div class="v3-scores">
-                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:88%"></span></span></span>
-                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:82%"></span></span></span>
-                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:88%"></span></span></span>
+              <div class="v3-quality" title="Evidence 88 · Freshness 82 · Confidence 88">
+                <span class="v3-quality-ring" data-pct="88"></span>
+                <span class="v3-quality-num" data-level="high">88</span>
               </div>
+              <span style="font-size:10px;color:var(--ink-faint);">5 sources</span>
               <span class="v3-notebook-state" data-state="ready">Notebook ready</span>
             </div>
           </div>
 
           <!-- OpenAI -->
-          <div class="v3-card" data-status="stale">
+          <div class="v3-card" data-status="stale" tabindex="0">
             <div class="v3-hover-actions">
               <button class="v3-act" aria-label="Refresh" title="Refresh">&#8635;</button>
               <button class="v3-act" aria-label="More" title="More">&#8943;</button>
@@ -836,19 +873,19 @@ body {
               </div>
             </div>
             <div class="v3-foot">
-              <div class="v3-scores">
-                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:62%"></span></span></span>
-                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="low" style="width:38%"></span></span></span>
-                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:62%"></span></span></span>
+              <div class="v3-quality" title="Evidence 62 · Freshness 38 · Confidence 62">
+                <span class="v3-quality-ring" data-pct="54"></span>
+                <span class="v3-quality-num" data-level="mid">54</span>
               </div>
+              <span style="font-size:10px;color:var(--ink-faint);">4 sources</span>
               <span class="v3-notebook-state" data-state="stale">Stale</span>
             </div>
           </div>
 
           <!-- Mistral -->
-          <div class="v3-card" data-status="drafting">
+          <div class="v3-card" data-status="drafting" tabindex="0">
             <div class="v3-hover-actions">
-              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#9998;</button>
               <button class="v3-act" aria-label="More" title="More">&#8943;</button>
             </div>
             <div class="v3-head">
@@ -864,19 +901,19 @@ body {
               </div>
             </div>
             <div class="v3-foot">
-              <div class="v3-scores">
-                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="low" style="width:25%"></span></span></span>
-                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:95%"></span></span></span>
-                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="low" style="width:25%"></span></span></span>
+              <div class="v3-quality" title="Evidence 25 · Freshness 95 · Confidence 25">
+                <span class="v3-quality-ring" data-pct="25"></span>
+                <span class="v3-quality-num" data-level="low">25</span>
               </div>
+              <span style="font-size:10px;color:var(--ink-faint);">2 sources</span>
               <span class="v3-notebook-state" data-state="draft">Generating&hellip;</span>
             </div>
           </div>
 
           <!-- Dario Amodei (Person) -->
-          <div class="v3-card" data-status="verified">
+          <div class="v3-card" data-status="verified" tabindex="0">
             <div class="v3-hover-actions">
-              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#9998;</button>
               <button class="v3-act" aria-label="More" title="More">&#8943;</button>
             </div>
             <div class="v3-head">
@@ -892,17 +929,17 @@ body {
               </div>
             </div>
             <div class="v3-foot">
-              <div class="v3-scores">
-                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:85%"></span></span></span>
-                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:92%"></span></span></span>
-                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:85%"></span></span></span>
+              <div class="v3-quality" title="Evidence 85 · Freshness 92 · Confidence 85">
+                <span class="v3-quality-ring" data-pct="87"></span>
+                <span class="v3-quality-num" data-level="high">87</span>
               </div>
+              <span style="font-size:10px;color:var(--ink-faint);">7 sources</span>
               <span class="v3-notebook-state" data-state="ready">Notebook ready</span>
             </div>
           </div>
 
           <!-- Google DeepMind -->
-          <div class="v3-card" data-status="stale">
+          <div class="v3-card" data-status="stale" tabindex="0">
             <div class="v3-hover-actions">
               <button class="v3-act" aria-label="Refresh" title="Refresh">&#8635;</button>
               <button class="v3-act" aria-label="More" title="More">&#8943;</button>
@@ -920,19 +957,19 @@ body {
               </div>
             </div>
             <div class="v3-foot">
-              <div class="v3-scores">
-                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:55%"></span></span></span>
-                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="low" style="width:32%"></span></span></span>
-                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:55%"></span></span></span>
+              <div class="v3-quality" title="Evidence 55 · Freshness 32 · Confidence 55">
+                <span class="v3-quality-ring" data-pct="47"></span>
+                <span class="v3-quality-num" data-level="low">47</span>
               </div>
+              <span style="font-size:10px;color:var(--ink-faint);">3 sources</span>
               <span class="v3-notebook-state" data-state="stale">Stale</span>
             </div>
           </div>
 
           <!-- Daily Brief (Topic) -->
-          <div class="v3-card" data-status="review">
+          <div class="v3-card" data-status="review" tabindex="0">
             <div class="v3-hover-actions">
-              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#9998;</button>
               <button class="v3-act" aria-label="More" title="More">&#8943;</button>
             </div>
             <div class="v3-head">
@@ -948,19 +985,19 @@ body {
               </div>
             </div>
             <div class="v3-foot">
-              <div class="v3-scores">
-                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:72%"></span></span></span>
-                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:98%"></span></span></span>
-                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:72%"></span></span></span>
+              <div class="v3-quality" title="Evidence 72 · Freshness 98 · Confidence 72">
+                <span class="v3-quality-ring" data-pct="80"></span>
+                <span class="v3-quality-num" data-level="high">80</span>
               </div>
+              <span style="font-size:10px;color:var(--ink-faint);">5 sources</span>
               <span class="v3-notebook-state" data-state="draft">Needs patch</span>
             </div>
           </div>
 
           <!-- Cohere -->
-          <div class="v3-card" data-status="monitoring">
+          <div class="v3-card" data-status="monitoring" tabindex="0">
             <div class="v3-hover-actions">
-              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#9998;</button>
               <button class="v3-act" aria-label="More" title="More">&#8943;</button>
             </div>
             <div class="v3-head">
@@ -976,11 +1013,11 @@ body {
               </div>
             </div>
             <div class="v3-foot">
-              <div class="v3-scores">
-                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:83%"></span></span></span>
-                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:80%"></span></span></span>
-                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:83%"></span></span></span>
+              <div class="v3-quality" title="Evidence 83 · Freshness 80 · Confidence 83">
+                <span class="v3-quality-ring" data-pct="82"></span>
+                <span class="v3-quality-num" data-level="high">82</span>
               </div>
+              <span style="font-size:10px;color:var(--ink-faint);">6 sources</span>
               <span class="v3-notebook-state" data-state="ready">Notebook ready</span>
             </div>
           </div>
@@ -997,23 +1034,23 @@ body {
           </div>
           <div class="v3-column">
             <div class="v3-col-head"><span class="v3-col-dot" style="background:var(--amber)"></span> Needs review <span class="v3-col-count">4</span></div>
-            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--amber-bg);color:var(--amber);">S</span><span class="v3-mini__title">Sequoia Capital</span></div><div class="v3-mini__meta">3 claims &middot; Review term sheet</div></div>
-            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--green-bg);color:var(--green);">D</span><span class="v3-mini__title">Daily Brief May 13</span></div><div class="v3-mini__meta">3 unverified claims</div></div>
-            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">S</span><span class="v3-mini__title">Stability AI</span></div><div class="v3-mini__meta">2 conflicting sources</div></div>
-            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--blue-bg);color:var(--blue);">A</span><span class="v3-mini__title">Alfred Lin</span></div><div class="v3-mini__meta">Person report needs review</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--amber-bg);color:var(--amber);">S</span><span class="v3-mini__title">Sequoia Capital</span><span class="v3-mini__score" data-level="mid">74</span></div><div class="v3-mini__meta">3 claims &middot; Review term sheet</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--green-bg);color:var(--green);">D</span><span class="v3-mini__title">Daily Brief May 13</span><span class="v3-mini__score" data-level="high">80</span></div><div class="v3-mini__meta">3 unverified claims</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">S</span><span class="v3-mini__title">Stability AI</span><span class="v3-mini__score" data-level="mid">65</span></div><div class="v3-mini__meta">2 conflicting sources</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--blue-bg);color:var(--blue);">A</span><span class="v3-mini__title">Alfred Lin</span><span class="v3-mini__score" data-level="mid">72</span></div><div class="v3-mini__meta">Person report needs review</div></div>
           </div>
           <div class="v3-column">
             <div class="v3-col-head"><span class="v3-col-dot" style="background:var(--green)"></span> Verified <span class="v3-col-count">5</span></div>
-            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">A</span><span class="v3-mini__title">Anthropic</span></div><div class="v3-mini__meta">91 confidence &middot; 12 sources</div></div>
-            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">B</span><span class="v3-mini__title">Bug0</span></div><div class="v3-mini__meta">88 confidence &middot; 5 sources</div></div>
-            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--blue-bg);color:var(--blue);">D</span><span class="v3-mini__title">Dario Amodei</span></div><div class="v3-mini__meta">85 confidence &middot; Person</div></div>
-            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--purple-bg);color:var(--purple);">C</span><span class="v3-mini__title">Cohere</span></div><div class="v3-mini__meta">83 confidence &middot; Monitoring</div></div>
-            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">H</span><span class="v3-mini__title">Hugging Face</span></div><div class="v3-mini__meta">79 confidence &middot; 8 sources</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">A</span><span class="v3-mini__title">Anthropic</span><span class="v3-mini__score" data-level="high">91</span></div><div class="v3-mini__meta">12 sources &middot; Updated 2h ago</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">B</span><span class="v3-mini__title">Bug0</span><span class="v3-mini__score" data-level="high">88</span></div><div class="v3-mini__meta">5 sources &middot; Updated 1d ago</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--blue-bg);color:var(--blue);">D</span><span class="v3-mini__title">Dario Amodei</span><span class="v3-mini__score" data-level="high">87</span></div><div class="v3-mini__meta">7 sources &middot; Person report</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--purple-bg);color:var(--purple);">C</span><span class="v3-mini__title">Cohere</span><span class="v3-mini__score" data-level="high">82</span></div><div class="v3-mini__meta">6 sources &middot; Monitoring</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">H</span><span class="v3-mini__title">Hugging Face</span><span class="v3-mini__score" data-level="high">79</span></div><div class="v3-mini__meta">8 sources &middot; Updated 3d ago</div></div>
           </div>
           <div class="v3-column">
-            <div class="v3-col-head"><span class="v3-col-dot" style="background:var(--ink-faint)"></span> Export ready <span class="v3-col-count">2</span></div>
-            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">A</span><span class="v3-mini__title">Anthropic</span></div><div class="v3-mini__meta">PDF + Notion &middot; Ready</div></div>
-            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">B</span><span class="v3-mini__title">Bug0</span></div><div class="v3-mini__meta">Markdown &middot; Ready</div></div>
+            <div class="v3-col-head"><span class="v3-col-dot" style="background:var(--ink-faint)"></span> Archived <span class="v3-col-count">2</span></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">A</span><span class="v3-mini__title">Anthropic</span><span class="v3-mini__score" data-level="high">91</span></div><div class="v3-mini__meta">Exported &middot; PDF + Notion</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">B</span><span class="v3-mini__title">Bug0</span><span class="v3-mini__score" data-level="high">88</span></div><div class="v3-mini__meta">Exported &middot; Markdown</div></div>
           </div>
         </div>
 
@@ -1108,16 +1145,16 @@ body {
         <div class="v3-notebook-view" id="notebook-view">
           <nav class="v3-nb-outline">
             <h4>Outline</h4>
-            <a class="active">Executive read</a>
-            <a>Business overview</a>
-            <a>Product &amp; market</a>
-            <a>Traction signals</a>
-            <a>Funding &amp; ownership</a>
-            <a>Leadership</a>
-            <a>Strategic relevance</a>
-            <a>Risks &amp; unknowns</a>
-            <a>Recommended action</a>
-            <a>Evidence appendix</a>
+            <button class="active">Executive read</button>
+            <button>Business overview</button>
+            <button>Product &amp; market</button>
+            <button>Traction signals</button>
+            <button>Funding &amp; ownership</button>
+            <button>Leadership</button>
+            <button>Strategic relevance</button>
+            <button>Risks &amp; unknowns</button>
+            <button>Recommended action</button>
+            <button>Evidence appendix</button>
           </nav>
           <article class="v3-nb-editor">
             <h1>Anthropic &mdash; Company Report</h1>
@@ -1141,10 +1178,23 @@ body {
 
         <!-- ═══ CANVAS VIEW placeholder ═══ -->
         <div class="v3-canvas-view" id="canvas-view">
-          <div style="font-size:48px;margin-bottom:12px;">&#9671;</div>
-          <div style="font-size:14px;font-weight:590;">Entity Relationship Canvas</div>
-          <div style="font-size:12px;color:var(--ink-soft);margin-top:6px;">Map companies, people, investors, sources, and claims visually.</div>
-          <div style="font-size:12px;color:var(--ink-faint);margin-top:16px;">Coming soon</div>
+          <div style="position:relative;width:340px;height:200px;margin:0 auto 20px;">
+            <div style="position:absolute;top:20px;left:40px;width:80px;height:36px;border:1px solid var(--accent);border-radius:var(--r-sm);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-tint);">Anthropic</div>
+            <div style="position:absolute;top:80px;left:180px;width:80px;height:36px;border:1px solid var(--blue);border-radius:var(--r-sm);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--blue);background:var(--blue-bg);">D. Amodei</div>
+            <div style="position:absolute;top:140px;left:60px;width:80px;height:36px;border:1px solid var(--amber);border-radius:var(--r-sm);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--amber);background:var(--amber-bg);">Sequoia</div>
+            <div style="position:absolute;top:20px;left:220px;width:80px;height:36px;border:1px solid var(--green);border-radius:var(--r-sm);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--green);background:var(--green-bg);">Bug0</div>
+            <svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;" viewBox="0 0 340 200">
+              <line x1="120" y1="38" x2="180" y2="88" stroke="var(--line-strong)" stroke-width="1" stroke-dasharray="4 3" />
+              <line x1="80" y1="56" x2="100" y2="140" stroke="var(--line-strong)" stroke-width="1" stroke-dasharray="4 3" />
+              <line x1="220" y1="98" x2="140" y2="148" stroke="var(--line)" stroke-width="1" stroke-dasharray="4 3" />
+              <line x1="260" y1="56" x2="220" y2="80" stroke="var(--line)" stroke-width="1" stroke-dasharray="4 3" />
+            </svg>
+          </div>
+          <div style="font-size:14px;font-weight:600;color:var(--ink-strong);">Entity Relationship Canvas</div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-top:6px;max-width:320px;margin-left:auto;margin-right:auto;">Drag entities to map relationships between companies, people, investors, and claims.</div>
+          <div style="margin-top:16px;">
+            <button class="topbar-btn topbar-btn--ghost" style="font-size:11px;padding:5px 12px;">Request early access</button>
+          </div>
         </div>
 
         <div class="show-more" id="show-more"><button>Show 78 more reports</button></div>
@@ -1156,7 +1206,7 @@ body {
 
       <div class="ri-header">
         <span class="ri-dot"></span>
-        <span class="ri-title">Coverage Agent</span>
+        <span class="ri-title">Report Agent</span>
         <button class="ri-toggle" aria-label="Collapse inspector" onclick="toggleInspector()">&#10005;</button>
       </div>
 
@@ -1227,10 +1277,20 @@ body {
 </div><!-- /shell -->
 
 <script>
+/* ─── Quality rings — render on load ─── */
+document.querySelectorAll('.v3-quality-ring').forEach(ring => {
+  const pct = parseInt(ring.dataset.pct, 10) || 0;
+  const r = 8, c = 2 * Math.PI * r;
+  const color = pct >= 75 ? 'var(--green)' : pct >= 50 ? 'var(--amber)' : 'var(--red)';
+  ring.innerHTML = '<svg viewBox="0 0 20 20"><circle class="v3-quality-track" cx="10" cy="10" r="' + r + '"/><circle class="v3-quality-value" cx="10" cy="10" r="' + r + '" stroke="' + color + '" stroke-dasharray="' + c + '" stroke-dashoffset="' + (c * (1 - pct / 100)) + '"/></svg>';
+});
+
 /* ─── Theme toggle ─── */
 function toggleTheme() {
   const html = document.documentElement;
-  html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('theme-btn').innerHTML = isDark ? '&#9789;' : '&#9788;';
 }
 document.documentElement.setAttribute('data-theme', 'dark');
 
@@ -1261,11 +1321,70 @@ document.querySelectorAll('.view-tab').forEach(tab => {
   });
 });
 
-/* ─── Card selection ─── */
+/* ─── Card selection → updates right inspector ─── */
+const inspectorData = {
+  'Anthropic': { type: 'Company', score: 91, status: 'Verified', sources: 12, updated: '2h ago', pipeline: ['Gathered 48 sources','Extracted 5 entities','Generated 22 claims','Verified evidence','Notebook published'], pipelineDone: [true,true,true,true,true], scores: {Evidence:91,Freshness:88,Confidence:91,Coverage:83}, warnings: ['2 open claims pending verification in "Traction signals"','Competitive response section has no sources newer than 7 days'] },
+  'Sequoia Capital': { type: 'Investor', score: 74, status: 'Review', sources: 8, updated: '1d ago', pipeline: ['Gathered 22 sources','Extracted 3 entities','Generated 14 claims','Verifying evidence','Pending review'], pipelineDone: [true,true,true,false,false], scores: {Evidence:74,Freshness:68,Confidence:74,Coverage:62}, warnings: ['Term sheet v3 has unverified anti-dilution clause','3 claims awaiting manual review'] },
+  'OpenAI': { type: 'Company', score: 62, status: 'Stale', sources: 4, updated: '3d ago', pipeline: ['Gathered 18 sources','Extracted 4 entities','Generated 9 claims','Evidence expired','Needs refresh'], pipelineDone: [true,true,true,false,false], scores: {Evidence:62,Freshness:38,Confidence:62,Coverage:45}, warnings: ['2 of 5 claims stale after 3 days','GPT-5 rumors are unverified — no primary source'] },
+  'Mistral': { type: 'Company', score: 25, status: 'Drafting', sources: 2, updated: 'now', pipeline: ['Gathering sources','Extracting entities','Queued','Queued','Queued'], pipelineDone: [false,false,false,false,false], scores: {Evidence:25,Freshness:95,Confidence:25,Coverage:15}, warnings: ['Agent still gathering — report incomplete'] },
+  'Bug0': { type: 'Company', score: 88, status: 'Verified', sources: 5, updated: '1d ago', pipeline: ['Gathered 14 sources','Extracted 2 entities','Generated 11 claims','Verified evidence','Notebook published'], pipelineDone: [true,true,true,true,true], scores: {Evidence:88,Freshness:82,Confidence:88,Coverage:76}, warnings: ['Pricing dropped to $199/mo — competitive gap narrowing','SOC 2 Type II claimed but certificate not linked'] },
+  'Dario Amodei': { type: 'Person', score: 87, status: 'Verified', sources: 7, updated: '6h ago', pipeline: ['Gathered 22 sources','Extracted 1 entity','Generated 15 claims','Verified evidence','Notebook published'], pipelineDone: [true,true,true,true,true], scores: {Evidence:85,Freshness:92,Confidence:85,Coverage:80}, warnings: ['Senate testimony transcript pending official release','AGI timeline claims are opinion, not verifiable fact'] },
+  'Google DeepMind': { type: 'Company', score: 47, status: 'Stale', sources: 3, updated: '5d ago', pipeline: ['Gathered 9 sources','Extracted 3 entities','Generated 6 claims','Evidence expired','Needs refresh'], pipelineDone: [true,true,true,false,false], scores: {Evidence:55,Freshness:32,Confidence:55,Coverage:40}, warnings: ['No new signals in 5 days — score declining','Only 1 of 3 sources still verifiable'] },
+  'Daily Brief — May 13': { type: 'Brief', score: 80, status: 'Review', sources: 5, updated: 'today', pipeline: ['Collected 12 signals','Grouped by entity','Cross-referenced sources','Flagged 3 unverified','Pending review'], pipelineDone: [true,true,true,true,false], scores: {Evidence:72,Freshness:98,Confidence:72,Coverage:85}, warnings: ['3 claims need verification before publish','Funding activity signals lack secondary confirmation'] },
+  'Cohere': { type: 'Company', score: 82, status: 'Monitoring', sources: 6, updated: '12h ago', pipeline: ['Gathered 18 sources','Extracted 2 entities','Generated 13 claims','Verified evidence','Notebook published'], pipelineDone: [true,true,true,true,true], scores: {Evidence:83,Freshness:80,Confidence:83,Coverage:78}, warnings: ['Enterprise RAG pivot needs competitive comparison with Pinecone','4 case studies referenced but not linked'] },
+};
+function updateInspector(name) {
+  const d = inspectorData[name];
+  if (!d) return;
+  const iconEl = document.querySelector('.ri-selected__icon');
+  const nameEl = document.querySelector('.ri-selected__name');
+  const scoreEl = document.querySelector('.ri-selected__score');
+  const metaEl = document.querySelector('.ri-selected__meta');
+  if (iconEl) iconEl.textContent = name[0];
+  if (nameEl) nameEl.textContent = name;
+  if (scoreEl) scoreEl.textContent = d.score;
+  if (metaEl) metaEl.textContent = d.type + ' report · ' + d.status + ' · ' + d.sources + ' sources · Updated ' + d.updated;
+  // Pipeline
+  const pipe = document.querySelector('.ri-pipeline');
+  if (pipe) {
+    pipe.innerHTML = d.pipeline.map((step, i) => {
+      const cls = d.pipelineDone[i] ? 'ri-step--done' : (i === d.pipelineDone.indexOf(false) ? 'ri-step--active' : 'ri-step--pending');
+      const icon = d.pipelineDone[i] ? '✓' : (cls === 'ri-step--active' ? '○' : '·');
+      return '<div class="ri-step ' + cls + '"><span class="ri-step-icon">' + icon + '</span> ' + step + '</div>';
+    }).join('');
+  }
+  // Scores
+  const dims = document.querySelectorAll('.ri-dim');
+  const scoreKeys = Object.keys(d.scores);
+  dims.forEach((dim, i) => {
+    if (scoreKeys[i]) {
+      const val = d.scores[scoreKeys[i]];
+      dim.querySelector('.ri-dim-lbl').textContent = scoreKeys[i];
+      dim.querySelector('.ri-dim-fill').style.width = val + '%';
+      dim.querySelector('.ri-dim-fill').style.background = val >= 75 ? 'var(--green)' : val >= 50 ? 'var(--amber)' : 'var(--red)';
+      dim.querySelector('.ri-dim-val').textContent = val;
+    }
+  });
+  // Warnings
+  const warnSection = document.querySelectorAll('.ri-section')[3];
+  if (warnSection) {
+    const header = warnSection.querySelector('.ri-section-header');
+    warnSection.innerHTML = '';
+    warnSection.appendChild(header);
+    d.warnings.forEach(w => {
+      const div = document.createElement('div');
+      div.className = 'ri-warning';
+      div.innerHTML = '⚠ ' + w;
+      warnSection.appendChild(div);
+    });
+  }
+}
 document.querySelectorAll('.v3-card:not(.v3-card--add)').forEach(card => {
   card.addEventListener('click', () => {
     document.querySelectorAll('.v3-card').forEach(c => c.setAttribute('aria-selected', 'false'));
     card.setAttribute('aria-selected', 'true');
+    const name = card.querySelector('.v3-title').textContent.trim();
+    updateInspector(name);
   });
 });
 
@@ -1276,11 +1395,18 @@ function toggleInspector() {
   cols.setAttribute('data-inspector', collapsed ? '' : 'collapsed');
 }
 
-/* ─── Status filter pills ─── */
+/* ─── Status filter pills — actually filter cards ─── */
+const statusMap = { 'All': null, 'Verified': 'verified', 'Review': 'review', 'Stale': 'stale', 'Drafting': 'drafting' };
 document.querySelectorAll('.status-pill').forEach(pill => {
   pill.addEventListener('click', () => {
     document.querySelectorAll('.status-pill').forEach(p => p.classList.remove('active'));
     pill.classList.add('active');
+    const label = pill.textContent.trim().split(' ')[0];
+    const status = statusMap[label];
+    document.querySelectorAll('.v3-card').forEach(card => {
+      if (!status || card.dataset.status === status) { card.style.display = ''; }
+      else { card.style.display = 'none'; }
+    });
   });
 });
 
