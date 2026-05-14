@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NodeBench — Reports v3 Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;590;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ─── Reset ─── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --paper: #faf9f7;
+  --paper-warm: #f4f2ed;
+  --panel: #ffffff;
+  --panel-elevated: #ffffff;
+  --muted: #ece9e2;
+  --line-faint: rgba(21,20,15,0.05);
+  --line: rgba(21,20,15,0.10);
+  --line-strong: rgba(21,20,15,0.16);
+  --ink: #1a1916;
+  --ink-strong: #0d0c0a;
+  --ink-mute: #74716b;
+  --ink-soft: #989590;
+  --ink-faint: #b3b0a8;
+  --accent: #d97757;
+  --accent-strong: #c76648;
+  --accent-soft: rgba(217,119,87,0.10);
+  --accent-tint: rgba(217,119,87,0.06);
+  --green: #1f7a3a;
+  --green-bg: #e8f7ee;
+  --blue: #2348b8;
+  --blue-bg: #e8efff;
+  --amber: #b26200;
+  --amber-bg: #fff3e0;
+  --red: #b91c1c;
+  --red-bg: #fde8e8;
+  --purple: #7c3aed;
+  --purple-bg: rgba(139,92,246,0.1);
+  --r-sm: 6px;
+  --r: 10px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(28,27,26,0.05), 0 1px 3px rgba(28,27,26,0.04);
+  --shadow-md: 0 1px 3px rgba(0,0,0,0.01), 0 3px 7px rgba(0,0,0,0.02), 0 7px 15px rgba(0,0,0,0.02), 0 14px 28px rgba(0,0,0,0.04);
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="dark"] {
+  --paper: #0f1011;
+  --paper-warm: #161719;
+  --panel: #1c1d1f;
+  --panel-elevated: #28282c;
+  --muted: rgba(255,255,255,0.06);
+  --line-faint: rgba(255,255,255,0.06);
+  --line: rgba(255,255,255,0.10);
+  --line-strong: rgba(255,255,255,0.16);
+  --ink: #f0f1f3;
+  --ink-strong: #ffffff;
+  --ink-mute: #c8ced8;
+  --ink-soft: #9ea5b0;
+  --ink-faint: #7d838c;
+  --accent: #e88f6e;
+  --accent-strong: #f2a583;
+  --accent-soft: rgba(232,143,110,0.18);
+  --accent-tint: rgba(232,143,110,0.10);
+  --green: #4ade80;
+  --green-bg: rgba(74,222,128,0.14);
+  --blue: #7aa2ff;
+  --blue-bg: rgba(122,162,255,0.14);
+  --amber: #fbbf24;
+  --amber-bg: rgba(251,191,36,0.14);
+  --red: #f87171;
+  --red-bg: rgba(248,113,113,0.14);
+  --purple: #a78bfa;
+  --purple-bg: rgba(167,139,250,0.14);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
+  --shadow-md: rgb(27,28,30) 0 0 0 1px, rgb(7,8,10) 0 0 0 1px inset, 0 8px 24px rgba(0,0,0,0.5);
+}
+
+body {
+  font-family: var(--font);
+  font-feature-settings: 'cv01', 'ss03';
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  height: 100dvh;
+}
+[data-theme="dark"] body { -webkit-font-smoothing: auto; }
+
+.skip-link {
+  position: absolute; top: -48px; left: 16px; z-index: 100;
+  padding: 8px 16px; background: var(--accent); color: #fff;
+  border-radius: var(--r-sm); font-size: 13px; font-weight: 600;
+  text-decoration: none; transition: top 200ms;
+}
+.skip-link:focus { top: 8px; }
+
+/* ─── Shell ─── */
+.shell { display: flex; flex-direction: column; height: 100dvh; background: var(--paper); }
+
+.topbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 8px 28px; border-bottom: 1px solid var(--line-faint);
+  background: var(--paper); flex-shrink: 0; z-index: 20;
+}
+.topbar-logo { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; color: var(--ink-strong); }
+.topbar-logo span { color: var(--accent); }
+.topbar-nav { display: flex; gap: 2px; }
+.topbar-nav button {
+  background: none; border: none; font: inherit; font-size: 13px; font-weight: 500;
+  color: var(--ink-soft); padding: 5px 10px; border-radius: var(--r-pill);
+  cursor: pointer; transition: all 140ms;
+}
+.topbar-nav button:hover { color: var(--ink); background: var(--accent-tint); }
+.topbar-nav button.active { color: var(--accent-strong); background: var(--accent-soft); font-weight: 590; }
+.topbar-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.topbar-search {
+  display: flex; align-items: center; gap: 6px; padding: 5px 12px;
+  border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--panel);
+  font-size: 12px; color: var(--ink-faint); cursor: pointer; transition: border-color 140ms;
+}
+.topbar-search:hover { border-color: var(--accent); }
+.topbar-search kbd { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--muted); font-family: var(--font); }
+.topbar-btn {
+  padding: 6px 14px; border-radius: var(--r-pill); border: none; font: inherit;
+  font-size: 12px; font-weight: 590; cursor: pointer; transition: all 140ms;
+}
+.topbar-btn--primary { background: var(--accent); color: #fff; }
+.topbar-btn--primary:hover { background: var(--accent-strong); }
+.topbar-btn--ghost { background: transparent; color: var(--ink-mute); border: 1px solid var(--line); }
+.topbar-btn--ghost:hover { border-color: var(--line-strong); color: var(--ink); }
+
+/* ─── Columns ─── */
+.columns {
+  display: grid;
+  grid-template-columns: 200px 1fr 360px;
+  flex: 1; min-height: 0;
+}
+.columns[data-inspector="collapsed"] { grid-template-columns: 200px 1fr 0; }
+.columns[data-inspector="collapsed"] .right-rail { display: none; }
+
+/* ─── Left rail ─── */
+.left-rail {
+  overflow-y: auto; border-right: 1px solid var(--line-faint);
+  padding: 12px 0; background: var(--paper);
+}
+.lr-section { padding: 0 12px; margin-bottom: 16px; }
+.lr-header {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--ink-faint); padding: 0 4px 6px;
+}
+.lr-item {
+  display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+  border-radius: var(--r-sm); cursor: pointer; font-size: 13px;
+  color: var(--ink-mute); transition: all 100ms; border: none; background: none;
+  width: 100%; text-align: left; font: inherit;
+}
+.lr-item:hover { background: var(--accent-tint); color: var(--ink); }
+.lr-item.active { background: var(--accent-soft); color: var(--accent-strong); font-weight: 590; }
+.lr-icon {
+  width: 20px; height: 20px; border-radius: 4px; background: var(--muted);
+  display: grid; place-items: center; font-size: 10px; color: var(--ink-mute); flex-shrink: 0;
+}
+.lr-item.active .lr-icon { background: var(--accent-soft); color: var(--accent-strong); }
+.lr-count { margin-left: auto; font-size: 11px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.lr-divider { height: 1px; background: var(--line-faint); margin: 8px 12px; }
+.lr-add {
+  display: flex; align-items: center; gap: 6px; padding: 5px 12px;
+  font-size: 12px; color: var(--accent); cursor: pointer; border: none;
+  background: none; font: inherit; transition: color 100ms;
+}
+.lr-add:hover { color: var(--accent-strong); }
+
+/* ─── Center pane ─── */
+.center-pane {
+  overflow-y: auto; display: flex; justify-content: center;
+  padding: 16px 24px;
+}
+.center-content { width: 100%; max-width: 820px; }
+
+/* Universe header */
+.universe-header { margin-bottom: 16px; }
+.universe-title {
+  font-size: 18px; font-weight: 700; color: var(--ink-strong);
+  letter-spacing: -0.3px;
+}
+.universe-meta {
+  font-size: 12px; color: var(--ink-faint); margin-top: 2px;
+  display: flex; align-items: center; gap: 6px;
+}
+.universe-meta__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+/* ─── View switcher ─── */
+.view-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--line-faint);
+  margin-bottom: 16px; flex-wrap: wrap; row-gap: 8px;
+}
+.view-tabs { display: flex; gap: 2px; }
+.view-tab {
+  padding: 5px 12px; border-radius: var(--r-pill); border: none;
+  font: inherit; font-size: 12px; font-weight: 500; color: var(--ink-soft);
+  cursor: pointer; background: none; transition: all 140ms;
+}
+.view-tab:hover { color: var(--ink); background: var(--muted); }
+.view-tab.active { color: var(--accent-strong); background: var(--accent-soft); font-weight: 590; }
+.view-controls { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+.view-filter {
+  padding: 4px 10px; border: 1px solid var(--line); border-radius: var(--r-pill);
+  font: inherit; font-size: 11px; color: var(--ink-mute); background: var(--panel);
+  cursor: pointer; transition: all 100ms;
+}
+.view-filter:hover { border-color: var(--line-strong); color: var(--ink); }
+.view-sort {
+  padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  font: inherit; font-size: 11px; color: var(--ink-mute); background: var(--panel);
+  cursor: pointer;
+}
+
+/* Status filter pills */
+.status-pills { display: flex; gap: 4px; flex-wrap: wrap; }
+.status-pill {
+  padding: 3px 10px; border-radius: var(--r-pill); border: 1px solid var(--line);
+  font: inherit; font-size: 11px; font-weight: 500; color: var(--ink-mute);
+  background: none; cursor: pointer; transition: all 120ms;
+}
+.status-pill:hover { border-color: var(--line-strong); }
+.status-pill.active { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-tint); }
+.status-pill .pill-count { font-size: 10px; color: var(--ink-faint); margin-left: 2px; }
+
+/* ═══ GALLERY VIEW — 3 compact cards per row ═══ */
+.v3-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+@media (max-width: 760px) { .v3-grid { grid-template-columns: 1fr; } }
+@media (min-width: 761px) and (max-width: 1000px) { .v3-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* ─── Card v3 — compact research card ─── */
+.v3-card {
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  cursor: pointer;
+  transition: border-color 180ms var(--ease), box-shadow 180ms var(--ease);
+  border-left: 3px solid transparent;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.v3-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-sm); }
+.v3-card:hover .v3-hover-actions { opacity: 1; }
+.v3-card[data-status="verified"] { border-left-color: var(--green); }
+.v3-card[data-status="review"]   { border-left-color: var(--amber); }
+.v3-card[data-status="stale"]    { border-left-color: var(--red); }
+.v3-card[data-status="drafting"] { border-left-color: var(--blue); }
+.v3-card[data-status="monitoring"] { border-left-color: var(--purple); }
+.v3-card[aria-selected="true"] {
+  border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--shadow-sm);
+  background: color-mix(in srgb, var(--accent) 3%, var(--panel));
+}
+
+/* Card header: icon + title + type + status */
+.v3-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 10px 0;
+}
+.v3-icon {
+  width: 22px; height: 22px; border-radius: var(--r-sm);
+  display: grid; place-items: center; font-weight: 700;
+  font-size: 10px; flex-shrink: 0;
+}
+.v3-icon[data-type="company"] { background: var(--accent-soft); color: var(--accent-strong); }
+.v3-icon[data-type="person"]  { background: var(--blue-bg); color: var(--blue); }
+.v3-icon[data-type="topic"]   { background: var(--purple-bg); color: var(--purple); }
+.v3-icon[data-type="brief"]   { background: var(--green-bg); color: var(--green); }
+.v3-icon[data-type="funding"] { background: var(--amber-bg); color: var(--amber); }
+.v3-icon[data-type="batch"]   { background: var(--muted); color: var(--ink-mute); }
+
+.v3-title {
+  font-size: 12px; font-weight: 600; color: var(--ink-strong);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1; min-width: 0;
+}
+.v3-type {
+  font-size: 9px; color: var(--ink-faint); flex-shrink: 0;
+  text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500;
+}
+.v3-badge {
+  font-size: 8px; font-weight: 600; padding: 1px 6px;
+  border-radius: var(--r-pill); flex-shrink: 0; text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.v3-badge[data-tone="green"]  { background: var(--green-bg); color: var(--green); }
+.v3-badge[data-tone="amber"]  { background: var(--amber-bg); color: var(--amber); }
+.v3-badge[data-tone="red"]    { background: var(--red-bg); color: var(--red); }
+.v3-badge[data-tone="blue"]   { background: var(--blue-bg); color: var(--blue); }
+.v3-badge[data-tone="purple"] { background: var(--purple-bg); color: var(--purple); }
+
+/* Card body: thesis + signals */
+.v3-body { padding: 6px 10px 0; flex: 1; }
+.v3-thesis {
+  font-size: 11px; line-height: 1.45; color: var(--ink-mute);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.v3-signals {
+  display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px;
+}
+.v3-signal {
+  font-size: 9px; padding: 1px 6px; border-radius: var(--r-pill);
+  background: var(--muted); color: var(--ink-mute); font-weight: 500;
+  white-space: nowrap;
+}
+.v3-signal[data-color="blue"]   { background: rgba(59,130,246,0.08); color: #3b82f6; }
+.v3-signal[data-color="green"]  { background: var(--green-bg); color: var(--green); }
+.v3-signal[data-color="amber"]  { background: var(--amber-bg); color: var(--amber); }
+.v3-signal[data-color="red"]    { background: var(--red-bg); color: var(--red); }
+.v3-signal[data-color="purple"] { background: var(--purple-bg); color: var(--purple); }
+
+/* Card footer: scores + notebook state */
+.v3-foot {
+  padding: 6px 10px 8px;
+  margin-top: auto;
+  border-top: 1px solid var(--line-faint);
+  display: flex; align-items: center; gap: 8px;
+  font-size: 10px; color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.v3-scores { display: flex; gap: 8px; flex: 1; }
+.v3-score { display: flex; align-items: center; gap: 3px; }
+.v3-score-bar {
+  width: 28px; height: 3px; border-radius: 2px;
+  background: var(--muted); overflow: hidden;
+}
+.v3-score-fill { height: 100%; border-radius: 2px; }
+.v3-score-fill[data-level="high"]  { background: var(--green); }
+.v3-score-fill[data-level="mid"]   { background: var(--amber); }
+.v3-score-fill[data-level="low"]   { background: var(--red); }
+
+.v3-notebook-state {
+  font-size: 9px; font-weight: 500; padding: 1px 5px;
+  border-radius: 3px; background: var(--muted); color: var(--ink-mute);
+}
+.v3-notebook-state[data-state="ready"] { background: var(--green-bg); color: var(--green); }
+.v3-notebook-state[data-state="draft"] { background: var(--blue-bg); color: var(--blue); }
+.v3-notebook-state[data-state="stale"] { background: var(--amber-bg); color: var(--amber); }
+
+/* Hover actions overlay */
+.v3-hover-actions {
+  position: absolute; top: 8px; right: 8px;
+  display: flex; gap: 3px; opacity: 0; transition: opacity 100ms;
+}
+.v3-act {
+  width: 22px; height: 22px; border-radius: var(--r-sm);
+  border: 1px solid var(--line); background: var(--panel-elevated);
+  cursor: pointer; display: grid; place-items: center;
+  font-size: 10px; color: var(--ink-mute); transition: all 100ms;
+}
+.v3-act:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Add-entity card */
+.v3-card--add {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 140px; border-style: dashed; border-left-width: 1px;
+}
+.v3-card--add:hover { border-color: var(--accent); border-style: dashed; }
+
+/* ═══ BOARD VIEW — kanban columns ═══ */
+.v3-board { display: none; }
+.v3-board.active { display: flex; gap: 12px; overflow-x: auto; min-height: 400px; }
+.v3-column {
+  flex: 1; min-width: 200px; max-width: 260px;
+  background: var(--paper-warm); border-radius: var(--r-md);
+  padding: 10px; display: flex; flex-direction: column; gap: 8px;
+}
+.v3-col-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 0; font-size: 11px; font-weight: 600;
+  color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.04em;
+}
+.v3-col-dot { width: 8px; height: 8px; border-radius: 50%; }
+.v3-col-count { font-size: 10px; color: var(--ink-faint); font-weight: 500; margin-left: auto; }
+
+/* Board mini-card */
+.v3-mini {
+  padding: 8px 10px; border: 1px solid var(--line-faint);
+  border-radius: var(--r-sm); background: var(--panel);
+  cursor: pointer; transition: all 140ms;
+}
+.v3-mini:hover { border-color: var(--line-strong); box-shadow: var(--shadow-sm); }
+.v3-mini__head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.v3-mini__icon {
+  width: 18px; height: 18px; border-radius: 3px; display: grid;
+  place-items: center; font-size: 9px; font-weight: 700; flex-shrink: 0;
+}
+.v3-mini__title { font-size: 12px; font-weight: 590; color: var(--ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.v3-mini__meta { font-size: 10px; color: var(--ink-faint); }
+
+/* ═══ TABLE VIEW ═══ */
+.v3-table-wrap { display: none; overflow-x: auto; }
+.v3-table-wrap.active { display: block; }
+.v3-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.v3-table th {
+  text-align: left; padding: 8px 10px; font-size: 10px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--ink-faint); border-bottom: 1px solid var(--line);
+  background: var(--paper-warm); position: sticky; top: 0; z-index: 2;
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+.v3-table th:hover { color: var(--ink-mute); }
+.v3-table td {
+  padding: 8px 10px; border-bottom: 1px solid var(--line-faint);
+  color: var(--ink); vertical-align: middle; white-space: nowrap;
+}
+.v3-table tr { cursor: pointer; transition: background 80ms; }
+.v3-table tbody tr:hover { background: var(--accent-tint); }
+.v3-table .t-entity { display: flex; align-items: center; gap: 6px; }
+.v3-table .t-icon {
+  width: 18px; height: 18px; border-radius: 3px;
+  display: grid; place-items: center; font-size: 9px;
+  font-weight: 700; flex-shrink: 0;
+}
+.v3-table .t-name { font-weight: 590; color: var(--ink-strong); }
+.t-bar { width: 36px; height: 4px; border-radius: 2px; background: var(--muted); display: inline-block; vertical-align: middle; overflow: hidden; }
+.t-bar-fill { height: 100%; border-radius: 2px; display: block; }
+
+/* ═══ NOTEBOOK VIEW placeholder ═══ */
+.v3-notebook-view { display: none; }
+.v3-notebook-view.active { display: flex; gap: 0; height: calc(100dvh - 120px); }
+.v3-nb-outline {
+  width: 180px; border-right: 1px solid var(--line-faint);
+  padding: 12px; overflow-y: auto; flex-shrink: 0;
+}
+.v3-nb-outline h4 { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-faint); margin-bottom: 8px; }
+.v3-nb-outline a {
+  display: block; padding: 4px 6px; font-size: 12px; color: var(--ink-mute);
+  border-radius: 3px; text-decoration: none; transition: all 100ms; cursor: pointer;
+}
+.v3-nb-outline a:hover { background: var(--accent-tint); color: var(--ink); }
+.v3-nb-outline a.active { color: var(--accent-strong); font-weight: 590; background: var(--accent-tint); }
+.v3-nb-editor {
+  flex: 1; padding: 24px 32px; overflow-y: auto;
+}
+.v3-nb-editor h1 { font-size: 22px; font-weight: 700; color: var(--ink-strong); letter-spacing: -0.3px; margin-bottom: 4px; }
+.v3-nb-editor .nb-meta { font-size: 11px; color: var(--ink-faint); margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--line-faint); }
+.v3-nb-editor h2 { font-size: 14px; font-weight: 600; color: var(--ink-strong); margin: 20px 0 8px; }
+.v3-nb-editor p { font-size: 13px; line-height: 1.65; color: var(--ink); margin-bottom: 10px; }
+.v3-nb-editor .nb-claim {
+  padding: 8px 12px; border-left: 3px solid var(--accent);
+  background: var(--accent-tint); border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: 12px; color: var(--ink); margin: 8px 0;
+}
+.v3-nb-editor .nb-source {
+  font-size: 10px; color: var(--accent); font-family: var(--mono);
+  cursor: pointer;
+}
+.v3-nb-editor .nb-source:hover { text-decoration: underline; }
+
+/* ═══ CANVAS VIEW placeholder ═══ */
+.v3-canvas-view { display: none; text-align: center; padding: 60px 0; color: var(--ink-faint); }
+.v3-canvas-view.active { display: block; }
+
+/* ─── Right rail: Agent Inspector ─── */
+.right-rail {
+  border-left: 1px solid var(--line-faint);
+  background: var(--panel);
+  overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+.ri-header {
+  padding: 12px 16px; border-bottom: 1px solid var(--line-faint);
+  display: flex; align-items: center; gap: 8px;
+}
+.ri-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.ri-title { font-size: 13px; font-weight: 590; color: var(--ink-strong); flex: 1; }
+.ri-toggle {
+  width: 24px; height: 24px; border-radius: var(--r-sm); border: 1px solid var(--line);
+  background: none; cursor: pointer; display: grid; place-items: center;
+  font-size: 12px; color: var(--ink-mute); transition: all 100ms;
+}
+.ri-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Inspector sections */
+.ri-section {
+  padding: 12px 16px; border-bottom: 1px solid var(--line-faint);
+}
+.ri-section-header {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--ink-faint); margin-bottom: 8px;
+}
+.ri-selected {
+  padding: 10px; border: 1px solid var(--line-faint);
+  border-radius: var(--r-sm); background: var(--paper-warm);
+}
+.ri-selected__head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.ri-selected__icon {
+  width: 22px; height: 22px; border-radius: 4px; display: grid;
+  place-items: center; font-size: 10px; font-weight: 700;
+  background: var(--accent-soft); color: var(--accent-strong);
+}
+.ri-selected__name { font-size: 13px; font-weight: 590; color: var(--ink-strong); }
+.ri-selected__score { font-size: 12px; font-weight: 700; color: var(--accent); margin-left: auto; }
+.ri-selected__meta { font-size: 11px; color: var(--ink-faint); }
+
+/* Run state pipeline */
+.ri-pipeline { display: flex; flex-direction: column; gap: 4px; }
+.ri-step { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
+.ri-step-icon { width: 16px; text-align: center; flex-shrink: 0; font-size: 11px; }
+.ri-step--done .ri-step-icon { color: var(--green); }
+.ri-step--active .ri-step-icon { color: var(--accent); }
+.ri-step--pending .ri-step-icon { color: var(--ink-faint); }
+.ri-step--done { color: var(--ink-mute); }
+.ri-step--active { color: var(--ink-strong); font-weight: 500; }
+.ri-step--pending { color: var(--ink-faint); }
+.ri-step--warn .ri-step-icon { color: var(--amber); }
+.ri-step--warn { color: var(--amber); }
+
+/* Score bars */
+.ri-dim { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.ri-dim-lbl { font-size: 11px; color: var(--ink-mute); width: 70px; flex-shrink: 0; }
+.ri-dim-bar { flex: 1; height: 5px; border-radius: 3px; background: var(--muted); overflow: hidden; }
+.ri-dim-fill { height: 100%; border-radius: 3px; transition: width 300ms var(--ease); }
+.ri-dim-val { font-size: 11px; font-weight: 600; color: var(--ink-strong); width: 24px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Warnings / actions */
+.ri-warning {
+  display: flex; align-items: start; gap: 6px; padding: 6px 8px;
+  border-radius: var(--r-sm); background: var(--amber-bg); font-size: 11px;
+  color: var(--amber); margin-bottom: 6px;
+}
+.ri-action-btn {
+  display: block; width: 100%; padding: 8px; border: 1px solid var(--line);
+  border-radius: var(--r-sm); background: none; font: inherit;
+  font-size: 12px; font-weight: 500; color: var(--ink-mute);
+  cursor: pointer; transition: all 100ms; text-align: left;
+  margin-bottom: 4px;
+}
+.ri-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ri-action-btn--primary {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+  font-weight: 590;
+}
+.ri-action-btn--primary:hover { background: var(--accent-strong); }
+
+/* Chat composer at bottom */
+.ri-chat { padding: 12px 16px; margin-top: auto; border-top: 1px solid var(--line-faint); }
+.ri-chat-input {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--line);
+  border-radius: var(--r); font: inherit; font-size: 12px;
+  background: var(--paper); color: var(--ink); transition: border-color 140ms;
+  outline: none;
+}
+.ri-chat-input:focus { border-color: var(--accent); }
+.ri-chat-input::placeholder { color: var(--ink-faint); }
+.ri-suggestions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.ri-suggestion {
+  padding: 3px 8px; border: 1px solid var(--line); border-radius: var(--r-pill);
+  font: inherit; font-size: 10px; color: var(--ink-mute); background: none;
+  cursor: pointer; transition: all 100ms;
+}
+.ri-suggestion:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ─── Show more ─── */
+.show-more { text-align: center; padding: 16px 0; }
+.show-more button {
+  padding: 6px 16px; border: 1px solid var(--line); border-radius: var(--r-pill);
+  font: inherit; font-size: 12px; color: var(--ink-mute); background: none;
+  cursor: pointer; transition: all 140ms;
+}
+.show-more button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ─── Responsive ─── */
+@media (max-width: 1100px) {
+  .columns { grid-template-columns: 1fr; }
+  .left-rail, .right-rail { display: none; }
+}
+
+/* ─── Motion safety ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition-duration: 0s !important; }
+}
+
+/* ─── Print ─── */
+@media print {
+  .topbar, .left-rail, .right-rail, .view-bar, .show-more { display: none !important; }
+  .columns { display: block; }
+  .v3-card { break-inside: avoid; border: 1px solid #ccc; }
+}
+</style>
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+
+<div class="shell">
+
+  <!-- ═══ Topbar ═══ -->
+  <header class="topbar">
+    <div class="topbar-logo">Node<span>Bench</span></div>
+    <nav class="topbar-nav" aria-label="Main navigation">
+      <button>Home</button>
+      <button class="active">Reports</button>
+      <button>Chat</button>
+      <button>Inbox</button>
+      <button>Me</button>
+    </nav>
+    <div class="topbar-right">
+      <div class="topbar-search"><span>Find entity, report, source&hellip;</span> <kbd>&#8984;K</kbd></div>
+      <button class="topbar-btn topbar-btn--ghost" onclick="toggleTheme()">&#9681;</button>
+      <button class="topbar-btn topbar-btn--primary">+ Run batch</button>
+    </div>
+  </header>
+
+  <!-- ═══ Three-column layout ═══ -->
+  <div class="columns" id="columns">
+
+    <!-- ── Left rail: Entity intelligence navigation ── -->
+    <aside class="left-rail" aria-label="Entity navigation">
+
+      <div class="lr-section">
+        <div class="lr-header">Universes</div>
+        <button class="lr-item active">
+          <span class="lr-icon" style="background:var(--accent-soft);color:var(--accent-strong);">&#9670;</span>
+          AI Infrastructure
+          <span class="lr-count">87</span>
+        </button>
+        <button class="lr-item">
+          <span class="lr-icon">&#9670;</span>
+          Banking Targets
+          <span class="lr-count">34</span>
+        </button>
+        <button class="lr-item">
+          <span class="lr-icon">&#9670;</span>
+          Fundraise Watch
+          <span class="lr-count">12</span>
+        </button>
+      </div>
+
+      <div class="lr-divider"></div>
+
+      <div class="lr-section">
+        <div class="lr-header">Entities</div>
+        <button class="lr-item active">
+          <span class="lr-icon" style="background:var(--accent-soft);color:var(--accent-strong);">C</span>
+          Companies <span class="lr-count">42</span>
+        </button>
+        <button class="lr-item">
+          <span class="lr-icon" style="background:var(--blue-bg);color:var(--blue);">P</span>
+          People <span class="lr-count">18</span>
+        </button>
+        <button class="lr-item">
+          <span class="lr-icon" style="background:var(--purple-bg);color:var(--purple);">T</span>
+          Topics <span class="lr-count">9</span>
+        </button>
+        <button class="lr-item">
+          <span class="lr-icon" style="background:var(--amber-bg);color:var(--amber);">$</span>
+          Funding <span class="lr-count">15</span>
+        </button>
+        <button class="lr-item">
+          <span class="lr-icon" style="background:var(--green-bg);color:var(--green);">&#8631;</span>
+          Sources <span class="lr-count">312</span>
+        </button>
+      </div>
+
+      <div class="lr-divider"></div>
+
+      <div class="lr-section">
+        <div class="lr-header">Operations</div>
+        <button class="lr-item">
+          <span class="lr-icon">&#9881;</span>
+          Batch runs <span class="lr-count">3</span>
+        </button>
+        <button class="lr-item">
+          <span class="lr-icon" style="background:var(--amber-bg);color:var(--amber);">!</span>
+          Review queue <span class="lr-count">7</span>
+        </button>
+        <button class="lr-item">
+          <span class="lr-icon">&#8599;</span>
+          Exports <span class="lr-count">2</span>
+        </button>
+      </div>
+
+      <div class="lr-divider"></div>
+      <button class="lr-add">+ New entity</button>
+      <button class="lr-add">+ Import list</button>
+    </aside>
+
+    <!-- ── Center pane ── -->
+    <main class="center-pane" id="main-content">
+      <div class="center-content">
+
+        <!-- Universe header -->
+        <div class="universe-header">
+          <div class="universe-title">AI Infrastructure Coverage</div>
+          <div class="universe-meta">
+            <span class="universe-meta__dot"></span>
+            <span>87 reports &middot; 312 sources &middot; 18 need review &middot; avg confidence 82</span>
+          </div>
+        </div>
+
+        <!-- View switcher + filters -->
+        <div class="view-bar">
+          <div class="view-tabs" role="tablist" aria-label="Report views">
+            <button class="view-tab active" role="tab" aria-selected="true" data-view="gallery">Gallery</button>
+            <button class="view-tab" role="tab" aria-selected="false" data-view="board">Board</button>
+            <button class="view-tab" role="tab" aria-selected="false" data-view="table">Table</button>
+            <button class="view-tab" role="tab" aria-selected="false" data-view="notebook">Notebook</button>
+            <button class="view-tab" role="tab" aria-selected="false" data-view="canvas">Canvas</button>
+          </div>
+          <div class="view-controls">
+            <div class="status-pills">
+              <button class="status-pill active">All <span class="pill-count">87</span></button>
+              <button class="status-pill">Verified <span class="pill-count">52</span></button>
+              <button class="status-pill">Review <span class="pill-count">18</span></button>
+              <button class="status-pill">Stale <span class="pill-count">9</span></button>
+              <button class="status-pill">Drafting <span class="pill-count">8</span></button>
+            </div>
+            <select class="view-sort"><option>Updated</option><option>Confidence</option><option>Sources</option><option>Name</option></select>
+          </div>
+        </div>
+
+        <!-- ═══ GALLERY VIEW ═══ -->
+        <div class="v3-grid active" id="gallery-view">
+
+          <!-- Anthropic -->
+          <div class="v3-card" data-status="verified" aria-selected="true">
+            <div class="v3-hover-actions">
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="More" title="More">&#8943;</button>
+            </div>
+            <div class="v3-head">
+              <div class="v3-icon" data-type="company">A</div>
+              <span class="v3-title">Anthropic</span>
+              <span class="v3-badge" data-tone="green">Verified</span>
+            </div>
+            <div class="v3-body">
+              <div class="v3-thesis">Enterprise tier repriced +40%; Claude 4 structure held. Managed Agent tier at $0.168/1K.</div>
+              <div class="v3-signals">
+                <span class="v3-signal" data-color="blue">Partnership</span>
+                <span class="v3-signal" data-color="purple">AI</span>
+                <span class="v3-signal" data-color="green">Enterprise</span>
+              </div>
+            </div>
+            <div class="v3-foot">
+              <div class="v3-scores">
+                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:91%"></span></span></span>
+                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:88%"></span></span></span>
+                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:91%"></span></span></span>
+              </div>
+              <span class="v3-notebook-state" data-state="ready">Notebook ready</span>
+            </div>
+          </div>
+
+          <!-- Sequoia Capital -->
+          <div class="v3-card" data-status="review">
+            <div class="v3-hover-actions">
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="More" title="More">&#8943;</button>
+            </div>
+            <div class="v3-head">
+              <div class="v3-icon" data-type="funding">S</div>
+              <span class="v3-title">Sequoia Capital</span>
+              <span class="v3-badge" data-tone="amber">Review</span>
+            </div>
+            <div class="v3-body">
+              <div class="v3-thesis">Full-ratchet anti-dilution at 1x in term sheet v3; 33% below market. Board observer seat at $8.3M.</div>
+              <div class="v3-signals">
+                <span class="v3-signal" data-color="amber">Fundraising</span>
+                <span class="v3-signal" data-color="red">Action needed</span>
+              </div>
+            </div>
+            <div class="v3-foot">
+              <div class="v3-scores">
+                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:74%"></span></span></span>
+                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:68%"></span></span></span>
+                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:74%"></span></span></span>
+              </div>
+              <span class="v3-notebook-state" data-state="draft">Draft</span>
+            </div>
+          </div>
+
+          <!-- Bug0 -->
+          <div class="v3-card" data-status="verified">
+            <div class="v3-hover-actions">
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="More" title="More">&#8943;</button>
+            </div>
+            <div class="v3-head">
+              <div class="v3-icon" data-type="company">B</div>
+              <span class="v3-title">Bug0</span>
+              <span class="v3-badge" data-tone="green">Verified</span>
+            </div>
+            <div class="v3-body">
+              <div class="v3-thesis">Pricing dropped to $199/mo; SOC 2 Type II obtained. Feature gap narrowing on automated QA.</div>
+              <div class="v3-signals">
+                <span class="v3-signal" data-color="red">Competitive</span>
+                <span class="v3-signal" data-color="blue">QA</span>
+              </div>
+            </div>
+            <div class="v3-foot">
+              <div class="v3-scores">
+                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:88%"></span></span></span>
+                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:82%"></span></span></span>
+                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:88%"></span></span></span>
+              </div>
+              <span class="v3-notebook-state" data-state="ready">Notebook ready</span>
+            </div>
+          </div>
+
+          <!-- OpenAI -->
+          <div class="v3-card" data-status="stale">
+            <div class="v3-hover-actions">
+              <button class="v3-act" aria-label="Refresh" title="Refresh">&#8635;</button>
+              <button class="v3-act" aria-label="More" title="More">&#8943;</button>
+            </div>
+            <div class="v3-head">
+              <div class="v3-icon" data-type="company">O</div>
+              <span class="v3-title">OpenAI</span>
+              <span class="v3-badge" data-tone="red">Stale</span>
+            </div>
+            <div class="v3-body">
+              <div class="v3-thesis">GPT-5 rumored but unverified; 2 of 5 claims stale after 3 days. Refresh needed.</div>
+              <div class="v3-signals">
+                <span class="v3-signal" data-color="purple">AI</span>
+                <span class="v3-signal" data-color="red">Unverified</span>
+              </div>
+            </div>
+            <div class="v3-foot">
+              <div class="v3-scores">
+                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:62%"></span></span></span>
+                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="low" style="width:38%"></span></span></span>
+                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:62%"></span></span></span>
+              </div>
+              <span class="v3-notebook-state" data-state="stale">Stale</span>
+            </div>
+          </div>
+
+          <!-- Mistral -->
+          <div class="v3-card" data-status="drafting">
+            <div class="v3-hover-actions">
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="More" title="More">&#8943;</button>
+            </div>
+            <div class="v3-head">
+              <div class="v3-icon" data-type="company">M</div>
+              <span class="v3-title">Mistral</span>
+              <span class="v3-badge" data-tone="blue">Drafting</span>
+            </div>
+            <div class="v3-body">
+              <div class="v3-thesis">Agent gathering sources for European AI regulation impact and open-weight model strategy.</div>
+              <div class="v3-signals">
+                <span class="v3-signal" data-color="purple">AI</span>
+                <span class="v3-signal" data-color="blue">EU regulation</span>
+              </div>
+            </div>
+            <div class="v3-foot">
+              <div class="v3-scores">
+                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="low" style="width:25%"></span></span></span>
+                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:95%"></span></span></span>
+                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="low" style="width:25%"></span></span></span>
+              </div>
+              <span class="v3-notebook-state" data-state="draft">Generating&hellip;</span>
+            </div>
+          </div>
+
+          <!-- Dario Amodei (Person) -->
+          <div class="v3-card" data-status="verified">
+            <div class="v3-hover-actions">
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="More" title="More">&#8943;</button>
+            </div>
+            <div class="v3-head">
+              <div class="v3-icon" data-type="person">D</div>
+              <span class="v3-title">Dario Amodei</span>
+              <span class="v3-badge" data-tone="green">Verified</span>
+            </div>
+            <div class="v3-body">
+              <div class="v3-thesis">CEO Anthropic. Senate testimony on AI safety; public statements on AGI timeline moved markets.</div>
+              <div class="v3-signals">
+                <span class="v3-signal" data-color="blue">Leadership</span>
+                <span class="v3-signal" data-color="green">Public signal</span>
+              </div>
+            </div>
+            <div class="v3-foot">
+              <div class="v3-scores">
+                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:85%"></span></span></span>
+                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:92%"></span></span></span>
+                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:85%"></span></span></span>
+              </div>
+              <span class="v3-notebook-state" data-state="ready">Notebook ready</span>
+            </div>
+          </div>
+
+          <!-- Google DeepMind -->
+          <div class="v3-card" data-status="stale">
+            <div class="v3-hover-actions">
+              <button class="v3-act" aria-label="Refresh" title="Refresh">&#8635;</button>
+              <button class="v3-act" aria-label="More" title="More">&#8943;</button>
+            </div>
+            <div class="v3-head">
+              <div class="v3-icon" data-type="company">G</div>
+              <span class="v3-title">Google DeepMind</span>
+              <span class="v3-badge" data-tone="red">Stale</span>
+            </div>
+            <div class="v3-body">
+              <div class="v3-thesis">No new signals in 5 days; score declining. Only 1 of 3 sources still verifiable.</div>
+              <div class="v3-signals">
+                <span class="v3-signal" data-color="purple">AI</span>
+                <span class="v3-signal" data-color="amber">Needs refresh</span>
+              </div>
+            </div>
+            <div class="v3-foot">
+              <div class="v3-scores">
+                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:55%"></span></span></span>
+                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="low" style="width:32%"></span></span></span>
+                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:55%"></span></span></span>
+              </div>
+              <span class="v3-notebook-state" data-state="stale">Stale</span>
+            </div>
+          </div>
+
+          <!-- Daily Brief (Topic) -->
+          <div class="v3-card" data-status="review">
+            <div class="v3-hover-actions">
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="More" title="More">&#8943;</button>
+            </div>
+            <div class="v3-head">
+              <div class="v3-icon" data-type="brief">D</div>
+              <span class="v3-title">Daily Brief &mdash; May 13</span>
+              <span class="v3-badge" data-tone="amber">Review</span>
+            </div>
+            <div class="v3-body">
+              <div class="v3-thesis">12 new signals across 5 entities. Funding activity up. 3 claims need verification before publish.</div>
+              <div class="v3-signals">
+                <span class="v3-signal" data-color="green">Funding</span>
+                <span class="v3-signal" data-color="amber">3 unverified</span>
+              </div>
+            </div>
+            <div class="v3-foot">
+              <div class="v3-scores">
+                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:72%"></span></span></span>
+                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:98%"></span></span></span>
+                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="mid" style="width:72%"></span></span></span>
+              </div>
+              <span class="v3-notebook-state" data-state="draft">Needs patch</span>
+            </div>
+          </div>
+
+          <!-- Cohere -->
+          <div class="v3-card" data-status="monitoring">
+            <div class="v3-hover-actions">
+              <button class="v3-act" aria-label="Open notebook" title="Open notebook">&#128214;</button>
+              <button class="v3-act" aria-label="More" title="More">&#8943;</button>
+            </div>
+            <div class="v3-head">
+              <div class="v3-icon" data-type="company">C</div>
+              <span class="v3-title">Cohere</span>
+              <span class="v3-badge" data-tone="purple">Monitoring</span>
+            </div>
+            <div class="v3-body">
+              <div class="v3-thesis">Enterprise RAG pivot gaining traction. 4 new case studies. Pricing stable at enterprise tier.</div>
+              <div class="v3-signals">
+                <span class="v3-signal" data-color="purple">RAG</span>
+                <span class="v3-signal" data-color="green">Enterprise</span>
+              </div>
+            </div>
+            <div class="v3-foot">
+              <div class="v3-scores">
+                <span class="v3-score">E <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:83%"></span></span></span>
+                <span class="v3-score">F <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:80%"></span></span></span>
+                <span class="v3-score">C <span class="v3-score-bar"><span class="v3-score-fill" data-level="high" style="width:83%"></span></span></span>
+              </div>
+              <span class="v3-notebook-state" data-state="ready">Notebook ready</span>
+            </div>
+          </div>
+
+        </div><!-- /gallery -->
+
+        <!-- ═══ BOARD VIEW ═══ -->
+        <div class="v3-board" id="board-view">
+          <div class="v3-column">
+            <div class="v3-col-head"><span class="v3-col-dot" style="background:var(--blue)"></span> Drafting <span class="v3-col-count">3</span></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">M</span><span class="v3-mini__title">Mistral</span></div><div class="v3-mini__meta">Gathering sources&hellip; 25%</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--blue-bg);color:var(--blue);">P</span><span class="v3-mini__title">Perplexity</span></div><div class="v3-mini__meta">Extracting claims&hellip; 60%</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">R</span><span class="v3-mini__title">Runway</span></div><div class="v3-mini__meta">Queued</div></div>
+          </div>
+          <div class="v3-column">
+            <div class="v3-col-head"><span class="v3-col-dot" style="background:var(--amber)"></span> Needs review <span class="v3-col-count">4</span></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--amber-bg);color:var(--amber);">S</span><span class="v3-mini__title">Sequoia Capital</span></div><div class="v3-mini__meta">3 claims &middot; Review term sheet</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--green-bg);color:var(--green);">D</span><span class="v3-mini__title">Daily Brief May 13</span></div><div class="v3-mini__meta">3 unverified claims</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">S</span><span class="v3-mini__title">Stability AI</span></div><div class="v3-mini__meta">2 conflicting sources</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--blue-bg);color:var(--blue);">A</span><span class="v3-mini__title">Alfred Lin</span></div><div class="v3-mini__meta">Person report needs review</div></div>
+          </div>
+          <div class="v3-column">
+            <div class="v3-col-head"><span class="v3-col-dot" style="background:var(--green)"></span> Verified <span class="v3-col-count">5</span></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">A</span><span class="v3-mini__title">Anthropic</span></div><div class="v3-mini__meta">91 confidence &middot; 12 sources</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">B</span><span class="v3-mini__title">Bug0</span></div><div class="v3-mini__meta">88 confidence &middot; 5 sources</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--blue-bg);color:var(--blue);">D</span><span class="v3-mini__title">Dario Amodei</span></div><div class="v3-mini__meta">85 confidence &middot; Person</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--purple-bg);color:var(--purple);">C</span><span class="v3-mini__title">Cohere</span></div><div class="v3-mini__meta">83 confidence &middot; Monitoring</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">H</span><span class="v3-mini__title">Hugging Face</span></div><div class="v3-mini__meta">79 confidence &middot; 8 sources</div></div>
+          </div>
+          <div class="v3-column">
+            <div class="v3-col-head"><span class="v3-col-dot" style="background:var(--ink-faint)"></span> Export ready <span class="v3-col-count">2</span></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">A</span><span class="v3-mini__title">Anthropic</span></div><div class="v3-mini__meta">PDF + Notion &middot; Ready</div></div>
+            <div class="v3-mini"><div class="v3-mini__head"><span class="v3-mini__icon" style="background:var(--accent-soft);color:var(--accent-strong);">B</span><span class="v3-mini__title">Bug0</span></div><div class="v3-mini__meta">Markdown &middot; Ready</div></div>
+          </div>
+        </div>
+
+        <!-- ═══ TABLE VIEW ═══ -->
+        <div class="v3-table-wrap" id="table-view">
+          <table class="v3-table">
+            <thead>
+              <tr>
+                <th>Report</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Evidence</th>
+                <th>Fresh</th>
+                <th>Conf</th>
+                <th>Sources</th>
+                <th>Updated</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="t-entity"><span class="t-icon" style="background:var(--accent-soft);color:var(--accent-strong);">A</span><span class="t-name">Anthropic</span></div></td>
+                <td style="color:var(--ink-faint);font-size:11px;">Company</td>
+                <td><span class="v3-badge" data-tone="green">Verified</span></td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:91%;background:var(--green)"></span></span> 91</td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:88%;background:var(--green)"></span></span> 88</td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:91%;background:var(--green)"></span></span> 91</td>
+                <td>12</td>
+                <td style="color:var(--ink-faint);font-size:11px;">2h ago</td>
+                <td><span style="color:var(--accent);cursor:pointer;font-size:11px;font-weight:500;">Open</span></td>
+              </tr>
+              <tr>
+                <td><div class="t-entity"><span class="t-icon" style="background:var(--amber-bg);color:var(--amber);">S</span><span class="t-name">Sequoia Capital</span></div></td>
+                <td style="color:var(--ink-faint);font-size:11px;">Investor</td>
+                <td><span class="v3-badge" data-tone="amber">Review</span></td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:74%;background:var(--amber)"></span></span> 74</td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:68%;background:var(--amber)"></span></span> 68</td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:74%;background:var(--amber)"></span></span> 74</td>
+                <td>8</td>
+                <td style="color:var(--ink-faint);font-size:11px;">1d ago</td>
+                <td><span style="color:var(--amber);cursor:pointer;font-size:11px;font-weight:500;">Review</span></td>
+              </tr>
+              <tr>
+                <td><div class="t-entity"><span class="t-icon" style="background:var(--accent-soft);color:var(--accent-strong);">B</span><span class="t-name">Bug0</span></div></td>
+                <td style="color:var(--ink-faint);font-size:11px;">Company</td>
+                <td><span class="v3-badge" data-tone="green">Verified</span></td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:88%;background:var(--green)"></span></span> 88</td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:82%;background:var(--green)"></span></span> 82</td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:88%;background:var(--green)"></span></span> 88</td>
+                <td>5</td>
+                <td style="color:var(--ink-faint);font-size:11px;">1d ago</td>
+                <td><span style="color:var(--accent);cursor:pointer;font-size:11px;font-weight:500;">Open</span></td>
+              </tr>
+              <tr>
+                <td><div class="t-entity"><span class="t-icon" style="background:var(--accent-soft);color:var(--accent-strong);">O</span><span class="t-name">OpenAI</span></div></td>
+                <td style="color:var(--ink-faint);font-size:11px;">Company</td>
+                <td><span class="v3-badge" data-tone="red">Stale</span></td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:62%;background:var(--amber)"></span></span> 62</td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:38%;background:var(--red)"></span></span> 38</td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:62%;background:var(--amber)"></span></span> 62</td>
+                <td>4</td>
+                <td style="color:var(--ink-faint);font-size:11px;">3d ago</td>
+                <td><span style="color:var(--red);cursor:pointer;font-size:11px;font-weight:500;">Refresh</span></td>
+              </tr>
+              <tr>
+                <td><div class="t-entity"><span class="t-icon" style="background:var(--blue-bg);color:var(--blue);">D</span><span class="t-name">Dario Amodei</span></div></td>
+                <td style="color:var(--ink-faint);font-size:11px;">Person</td>
+                <td><span class="v3-badge" data-tone="green">Verified</span></td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:85%;background:var(--green)"></span></span> 85</td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:92%;background:var(--green)"></span></span> 92</td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:85%;background:var(--green)"></span></span> 85</td>
+                <td>7</td>
+                <td style="color:var(--ink-faint);font-size:11px;">6h ago</td>
+                <td><span style="color:var(--accent);cursor:pointer;font-size:11px;font-weight:500;">Open</span></td>
+              </tr>
+              <tr>
+                <td><div class="t-entity"><span class="t-icon" style="background:var(--accent-soft);color:var(--accent-strong);">M</span><span class="t-name">Mistral</span></div></td>
+                <td style="color:var(--ink-faint);font-size:11px;">Company</td>
+                <td><span class="v3-badge" data-tone="blue">Drafting</span></td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:25%;background:var(--blue)"></span></span> 25</td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:95%;background:var(--green)"></span></span> 95</td>
+                <td><span class="t-bar"><span class="t-bar-fill" style="width:25%;background:var(--blue)"></span></span> 25</td>
+                <td>2</td>
+                <td style="color:var(--ink-faint);font-size:11px;">now</td>
+                <td><span style="color:var(--blue);cursor:pointer;font-size:11px;font-weight:500;">Drafting&hellip;</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ═══ NOTEBOOK VIEW ═══ -->
+        <div class="v3-notebook-view" id="notebook-view">
+          <nav class="v3-nb-outline">
+            <h4>Outline</h4>
+            <a class="active">Executive read</a>
+            <a>Business overview</a>
+            <a>Product &amp; market</a>
+            <a>Traction signals</a>
+            <a>Funding &amp; ownership</a>
+            <a>Leadership</a>
+            <a>Strategic relevance</a>
+            <a>Risks &amp; unknowns</a>
+            <a>Recommended action</a>
+            <a>Evidence appendix</a>
+          </nav>
+          <article class="v3-nb-editor">
+            <h1>Anthropic &mdash; Company Report</h1>
+            <div class="nb-meta">Verified &middot; 12 sources &middot; 22 claims &middot; Score 91 &middot; Updated 2h ago &middot; Style: Banking Coverage Memo</div>
+
+            <h2>Executive read</h2>
+            <p>Anthropic continues to dominate enterprise AI infrastructure with Claude 4 Opus. The recent enterprise tier repricing (+40%) signals strong pricing power and demand elasticity. The Managed Agent tier launch at $0.168/1K tokens positions them directly against OpenAI's assistant API pricing.</p>
+            <div class="nb-claim">Enterprise tier repriced +40% with minimal customer churn. <span class="nb-source">[src:1]</span></div>
+
+            <h2>Business overview</h2>
+            <p>Founded 2021. Headquartered San Francisco. ~1,200 employees. Last disclosed valuation $61.5B (Series E, March 2025). Revenue estimated $2B+ ARR based on public statements and investor disclosures.</p>
+
+            <h2>Traction signals</h2>
+            <p>Three new enterprise customer references in the last 30 days. Sales engineering hiring expanded 3x YoY. Model/platform announcements accelerating to bi-weekly cadence.</p>
+            <div class="nb-claim">Managed Agent tier launched at $0.168/1K tokens, undercutting OpenAI's assistant API by ~20%. <span class="nb-source">[src:4]</span></div>
+
+            <h2>Risks &amp; unknowns</h2>
+            <p>Competitive response from OpenAI and Google not yet priced in. Regulatory exposure increasing with Senate testimony cadence. Burn rate unclear despite revenue growth.</p>
+          </article>
+        </div>
+
+        <!-- ═══ CANVAS VIEW placeholder ═══ -->
+        <div class="v3-canvas-view" id="canvas-view">
+          <div style="font-size:48px;margin-bottom:12px;">&#9671;</div>
+          <div style="font-size:14px;font-weight:590;">Entity Relationship Canvas</div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-top:6px;">Map companies, people, investors, sources, and claims visually.</div>
+          <div style="font-size:12px;color:var(--ink-faint);margin-top:16px;">Coming soon</div>
+        </div>
+
+        <div class="show-more" id="show-more"><button>Show 78 more reports</button></div>
+      </div>
+    </main>
+
+    <!-- ── Right rail: Agent Inspector ── -->
+    <aside class="right-rail" aria-label="Agent inspector">
+
+      <div class="ri-header">
+        <span class="ri-dot"></span>
+        <span class="ri-title">Coverage Agent</span>
+        <button class="ri-toggle" aria-label="Collapse inspector" onclick="toggleInspector()">&#10005;</button>
+      </div>
+
+      <!-- Selected report -->
+      <div class="ri-section">
+        <div class="ri-section-header">Selected report</div>
+        <div class="ri-selected">
+          <div class="ri-selected__head">
+            <span class="ri-selected__icon">A</span>
+            <span class="ri-selected__name">Anthropic</span>
+            <span class="ri-selected__score">91</span>
+          </div>
+          <div class="ri-selected__meta">Company report &middot; Verified &middot; 12 sources &middot; Updated 2h ago</div>
+        </div>
+      </div>
+
+      <!-- Pipeline state -->
+      <div class="ri-section">
+        <div class="ri-section-header">Agent pipeline</div>
+        <div class="ri-pipeline">
+          <div class="ri-step ri-step--done"><span class="ri-step-icon">&#10003;</span> Gathered 48 sources</div>
+          <div class="ri-step ri-step--done"><span class="ri-step-icon">&#10003;</span> Extracted 5 entities</div>
+          <div class="ri-step ri-step--done"><span class="ri-step-icon">&#10003;</span> Generated 22 claims</div>
+          <div class="ri-step ri-step--done"><span class="ri-step-icon">&#10003;</span> Verified evidence</div>
+          <div class="ri-step ri-step--done"><span class="ri-step-icon">&#10003;</span> Notebook published</div>
+        </div>
+      </div>
+
+      <!-- Score breakdown -->
+      <div class="ri-section">
+        <div class="ri-section-header">Quality scores</div>
+        <div class="ri-dim"><span class="ri-dim-lbl">Evidence</span><span class="ri-dim-bar"><span class="ri-dim-fill" style="width:91%;background:var(--green)"></span></span><span class="ri-dim-val">91</span></div>
+        <div class="ri-dim"><span class="ri-dim-lbl">Freshness</span><span class="ri-dim-bar"><span class="ri-dim-fill" style="width:88%;background:var(--green)"></span></span><span class="ri-dim-val">88</span></div>
+        <div class="ri-dim"><span class="ri-dim-lbl">Confidence</span><span class="ri-dim-bar"><span class="ri-dim-fill" style="width:91%;background:var(--green)"></span></span><span class="ri-dim-val">91</span></div>
+        <div class="ri-dim"><span class="ri-dim-lbl">Coverage</span><span class="ri-dim-bar"><span class="ri-dim-fill" style="width:83%;background:var(--green)"></span></span><span class="ri-dim-val">83</span></div>
+      </div>
+
+      <!-- Warnings -->
+      <div class="ri-section">
+        <div class="ri-section-header">Warnings</div>
+        <div class="ri-warning">&#9888; 2 open claims pending verification in "Traction signals" section</div>
+        <div class="ri-warning">&#9888; Competitive response section has no sources newer than 7 days</div>
+      </div>
+
+      <!-- Suggested actions -->
+      <div class="ri-section">
+        <div class="ri-section-header">Recommended actions</div>
+        <button class="ri-action-btn ri-action-btn--primary">Open notebook</button>
+        <button class="ri-action-btn">Review 2 open claims</button>
+        <button class="ri-action-btn">Refresh competitive sources</button>
+        <button class="ri-action-btn">Export as PDF</button>
+      </div>
+
+      <!-- Chat -->
+      <div class="ri-chat">
+        <input type="text" class="ri-chat-input" placeholder="Ask about this report&hellip;" />
+        <div class="ri-suggestions">
+          <button class="ri-suggestion">Patch notebook</button>
+          <button class="ri-suggestion">Find missing sources</button>
+          <button class="ri-suggestion">Explain weak claims</button>
+          <button class="ri-suggestion">Compare entities</button>
+        </div>
+      </div>
+
+    </aside>
+
+  </div><!-- /columns -->
+</div><!-- /shell -->
+
+<script>
+/* ─── Theme toggle ─── */
+function toggleTheme() {
+  const html = document.documentElement;
+  html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
+document.documentElement.setAttribute('data-theme', 'dark');
+
+/* ─── View switching ─── */
+const views = { gallery: 'gallery-view', board: 'board-view', table: 'table-view', notebook: 'notebook-view', canvas: 'canvas-view' };
+document.querySelectorAll('.view-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const view = tab.dataset.view;
+    document.querySelectorAll('.view-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+    tab.classList.add('active');
+    tab.setAttribute('aria-selected', 'true');
+
+    // Toggle views
+    Object.values(views).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('active');
+    });
+    const target = document.getElementById(views[view]);
+    if (target) target.classList.add('active');
+
+    // Gallery uses grid display, others don't
+    const grid = document.getElementById('gallery-view');
+    if (view === 'gallery') { grid.style.display = ''; grid.classList.add('active'); }
+    else { grid.style.display = 'none'; }
+
+    // Show/hide "show more" only in gallery
+    document.getElementById('show-more').style.display = view === 'gallery' ? '' : 'none';
+  });
+});
+
+/* ─── Card selection ─── */
+document.querySelectorAll('.v3-card:not(.v3-card--add)').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.v3-card').forEach(c => c.setAttribute('aria-selected', 'false'));
+    card.setAttribute('aria-selected', 'true');
+  });
+});
+
+/* ─── Inspector toggle ─── */
+function toggleInspector() {
+  const cols = document.getElementById('columns');
+  const collapsed = cols.getAttribute('data-inspector') === 'collapsed';
+  cols.setAttribute('data-inspector', collapsed ? '' : 'collapsed');
+}
+
+/* ─── Status filter pills ─── */
+document.querySelectorAll('.status-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.status-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+  });
+});
+
+/* ─── Left rail items ─── */
+document.querySelectorAll('.lr-section').forEach(section => {
+  section.querySelectorAll('.lr-item').forEach(item => {
+    item.addEventListener('click', () => {
+      section.querySelectorAll('.lr-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+    });
+  });
+});
+</script>
+</body>
+</html>
