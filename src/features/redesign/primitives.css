@@ -8665,3 +8665,179 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
     max-width: none !important;
   }
 }
+
+/* ── v2 parity: collapsible trace (details/summary) ── */
+[data-redesign] details.rd-v2-trace {
+  display: block;
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid var(--rd-line-faint);
+}
+[data-redesign] details.rd-v2-trace summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--rd-ink-faint);
+  font-size: 10px;
+  font-weight: 590;
+}
+[data-redesign] details.rd-v2-trace summary::-webkit-details-marker { display: none; }
+[data-redesign] details.rd-v2-trace summary::before {
+  content: "\25B6";
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 8px;
+  transition: transform 0.15s ease;
+}
+[data-redesign] details[open].rd-v2-trace summary::before {
+  transform: rotate(90deg);
+}
+[data-redesign] .rd-v2-trace-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+[data-redesign] .rd-v2-trace-steps span {
+  padding: 2px 7px;
+  background: var(--rd-panel);
+  color: var(--rd-accent);
+  font-size: 9px;
+  border-radius: 3px;
+}
+
+/* ── v2 parity: confidence label ── */
+[data-redesign] .rd-v2-confidence {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--rd-accent) 12%, transparent);
+  color: var(--rd-accent);
+  font-size: 10px;
+  font-weight: 590;
+}
+
+/* ── v2 parity: related threads ── */
+[data-redesign] .rd-v2-related-threads {
+  margin-top: 10px;
+}
+[data-redesign] .rd-v2-related-threads h3 {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--rd-ink-faint);
+  margin: 0 0 6px;
+}
+[data-redesign] .rd-v2-thread-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-v2-thread-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rd-accent);
+  flex-shrink: 0;
+}
+[data-redesign] .rd-v2-thread-time {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--rd-ink-faint);
+}
+
+/* ── v2 parity: signal timeline (Reports rail) ── */
+[data-redesign] .rd-v2-signal-tl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12px;
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-v2-signal-tl-time {
+  flex-shrink: 0;
+  width: 24px;
+  font-size: 10px;
+  color: var(--rd-ink-faint);
+  text-align: right;
+}
+[data-redesign] .rd-v2-signal-tl-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--rd-ink-faint);
+}
+[data-redesign] .rd-v2-signal-tl-dot[data-tone="accent"] { background: var(--rd-accent); }
+[data-redesign] .rd-v2-signal-tl-dot[data-tone="blue"] { background: #3b82f6; }
+[data-redesign] .rd-v2-signal-tl-dot[data-tone="green"] { background: #22c55e; }
+[data-redesign] .rd-v2-signal-tl-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── v2 parity: graph SVG (Chat rail) ── */
+[data-redesign] .rd-v2-graph-svg {
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  background: var(--rd-panel);
+  border: 1px solid var(--rd-line-faint);
+  padding: 8px;
+}
+
+/* ── v2 parity: tool tag spans (below trace) ── */
+[data-redesign] .rd-v2-msg-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+[data-redesign] .rd-v2-msg-tools span {
+  padding: 2px 7px;
+  background: var(--rd-panel);
+  color: var(--rd-accent);
+  font-size: 9px;
+  border-radius: 3px;
+  font-family: var(--rd-font-mono, "JetBrains Mono", monospace);
+}
+
+/* ── v2 parity: action card icons ── */
+[data-redesign] .rd-v2-action-icon {
+  margin-right: 2px;
+}
+
+/* ── v2 parity: notebook new-note button ── */
+[data-redesign] .rd-v2-note-add {
+  display: block;
+  margin: 8px auto 0;
+  padding: 4px 14px;
+  border: 1px solid var(--rd-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--rd-ink-soft);
+  font-size: 11px;
+  cursor: pointer;
+}
+[data-redesign] .rd-v2-note-add:hover {
+  background: var(--rd-panel);
+  color: var(--rd-ink);
+}
+
+/* ── v2 parity: rail expand toggle ── */
+[data-redesign] .rd-v2-briefing[data-width="expanded"] {
+  width: 480px;
+  min-width: 480px;
+}
+[data-redesign] .rd-v2-utility[data-width="expanded"] {
+  width: 480px;
+  min-width: 480px;
+}
