@@ -153,7 +153,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
 
   useEffect(() => {
     if (!onSelectReport || filtered.length === 0) return;
-    if (inspectedReportId && filtered.some((report) => report.id === inspectedReportId)) return;
+    if (inspectedReportId) return;
     onSelectReport(filtered[0]);
   }, [filtered, inspectedReportId, onSelectReport]);
 
