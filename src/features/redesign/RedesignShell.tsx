@@ -230,6 +230,13 @@ export default function RedesignShell() {
   // desktop surfaces keep a right-side agent rail so the center can stay calm.
   const prototypeSurface = surface as PrototypeSurface;
   const isHomeV2 = surface === "home" || isPrototypeKit;
+  const usesV2Canvas =
+    surface === "home" ||
+    surface === "reports" ||
+    surface === "chat" ||
+    surface === "inbox" ||
+    surface === "me" ||
+    isPrototypeKit;
   const suppressRightRail =
     !isPrototypeKit &&
     ((surface === "chat" && Boolean(chatHash)) ||
@@ -255,7 +262,7 @@ export default function RedesignShell() {
         prototypeMode={isPrototypeKit}
       />
       <div
-        className={`rd-shell ${isHomeV2 ? "rd-shell--home-v2" : ""} ${suppressRightRail ? "rd-shell--single" : ""}`}
+        className={`rd-shell ${usesV2Canvas ? "rd-shell--home-v2" : ""} ${suppressRightRail ? "rd-shell--single" : ""}`}
         style={{ flex: 1, minHeight: 0 }}
       >
         {isPrototypeKit ? (

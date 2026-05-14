@@ -2419,6 +2419,11 @@
   max-width: 820px;
 }
 
+[data-redesign] .rd-v2-chat-center {
+  width: 100%;
+  max-width: 820px;
+}
+
 [data-redesign] .rd-v2-filter-row {
   display: flex;
   align-items: center;
