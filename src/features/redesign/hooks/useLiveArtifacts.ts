@@ -159,8 +159,44 @@ const liveArtifactApi = api as unknown as {
         getLatestMemory: QueryRef;
       };
     };
+    redesign: {
+      reportGraphNeighborhood: {
+        getReportGraphNeighborhood: QueryRef;
+      };
+    };
   };
 };
+
+export interface ReportGraphNeighborhoodScope {
+  isServerBounded: boolean;
+  mode: string;
+  reportLimit: number;
+  scanLimit: number;
+  scannedArchivePosts: number;
+  totalCandidateReports: number;
+  returnedReportCount: number;
+  hiddenReportCount: number;
+  hasMoreArchive: boolean;
+}
+
+interface ReportGraphNeighborhoodPacket {
+  mode: string;
+  sourceLabel: string;
+  rootId?: string;
+  latestMemory?: DailyBriefMemory | null;
+  posts: ArchivePost[];
+  reportLimit: number;
+  scanLimit: number;
+  scannedArchivePosts: number;
+  totalCandidateReports: number;
+  returnedReportCount: number;
+  hiddenReportCount: number;
+  hasMoreArchive: boolean;
+}
+
+export interface ReportGraphNeighborhoodResult extends LiveArtifactsResult {
+  scope: ReportGraphNeighborhoodScope | null;
+}
 
 const POST_TYPE_LABELS: Record<string, string> = {
   daily_digest: "Daily brief",
@@ -1032,4 +1068,91 @@ export function useLiveArtifacts(limit = 24, options: { enabled?: boolean } = {}
       briefFeatureCount,
     };
   }, [archive, archiveStats, enabled, latestMemory, limit]);
+}
+
+export function useReportGraphNeighborhood(
+  args: {
+    rootId?: string | null;
+    query?: string;
+    stage?: string;
+    kind?: string;
+    mode?: "focus" | "clustered" | "expanded";
+    limit?: number;
+  },
+  options: { enabled?: boolean } = {},
+): ReportGraphNeighborhoodResult {
+  const enabled = options.enabled ?? true;
+  const packet = useQuery(
+    liveArtifactApi.domains.redesign.reportGraphNeighborhood.getReportGraphNeighborhood,
+    enabled
+      ? ({
+          rootId: args.rootId ?? undefined,
+          query: args.query || undefined,
+          stage: args.stage || undefined,
+          kind: args.kind || undefined,
+          mode: args.mode ?? "expanded",
+          limit: args.limit,
+        } as Parameters<typeof useQuery>[1])
+      : "skip",
+  ) as ReportGraphNeighborhoodPacket | undefined;
+
+  return useMemo(() => {
+    if (!enabled) {
+      return {
+        ...EMPTY_LIVE_ARTIFACTS,
+        scope: null,
+      };
+    }
+
+    if (packet === undefined) {
+      return {
+        ...EMPTY_LIVE_ARTIFACTS,
+        isLoading: true,
+        sourceLabel: "Loading graph neighborhood",
+        scope: null,
+      };
+    }
+
+    const memory = packet.latestMemory ?? null;
+    const posts = packet.posts ?? [];
+    const artifactReports = [
+      ...(memory ? [dailyBriefToReport(memory)] : []),
+      ...posts.map(archivePostToReport),
+    ];
+    const details = [
+      ...(memory ? [dailyBriefToDetail(memory)] : []),
+      ...posts.map(archivePostToDetail),
+    ];
+    const dailyBriefCards = memory ? dailyBriefPublicCards(memory) : [];
+    const publicResearch = [
+      ...dailyBriefCards,
+      ...posts.map(archivePostToPublicCard),
+    ];
+    const isLive = artifactReports.length > 0 || publicResearch.length > 0;
+    const briefFeatureCount = dailyBriefCards.length || (memory ? uniqueDailyBriefFeatures(memory.features ?? []).filter(isCustomerFacingFeature).length : 0);
+
+    return {
+      isLoading: false,
+      isLive,
+      sourceLabel: packet.sourceLabel,
+      metrics: [],
+      pulse: [],
+      publicResearch,
+      reports: artifactReports,
+      details,
+      archiveCount: posts.length,
+      briefFeatureCount,
+      scope: {
+        isServerBounded: true,
+        mode: packet.mode,
+        reportLimit: packet.reportLimit,
+        scanLimit: packet.scanLimit,
+        scannedArchivePosts: packet.scannedArchivePosts,
+        totalCandidateReports: packet.totalCandidateReports,
+        returnedReportCount: packet.returnedReportCount,
+        hiddenReportCount: packet.hiddenReportCount,
+        hasMoreArchive: packet.hasMoreArchive,
+      },
+    };
+  }, [enabled, packet]);
 }
