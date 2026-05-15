@@ -130,10 +130,13 @@ export default function RedesignShell() {
     const path = id === "home" ? "/redesign" : `/redesign/${id}`;
     navigate(isPrototypeKit ? `${path}?qa=home-v2-implementation` : path);
   };
-  const sendPromptToChat = (prompt: string) => {
-    const query = isPrototypeKit
-      ? `qa=home-v2-implementation&q=${encodeURIComponent(prompt)}`
-      : `q=${encodeURIComponent(prompt)}`;
+  const sendPromptToChat = (prompt: string, context?: { reportId?: string; artifactKey?: string }) => {
+    const params = new URLSearchParams();
+    if (isPrototypeKit) params.set("qa", "home-v2-implementation");
+    params.set("q", prompt);
+    if (context?.reportId) params.set("report", context.reportId);
+    if (context?.artifactKey) params.set("artifact", context.artifactKey);
+    const query = params.toString();
     navigate(`/redesign/chat?${query}`);
   };
   const openTouchedReports = () => {

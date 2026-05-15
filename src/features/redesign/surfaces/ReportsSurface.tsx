@@ -56,7 +56,7 @@ function displayReportDescription(description: string): string {
 
 interface ReportsSurfaceProps {
   onOpen: (id: string, tab: "brief" | "cards" | "chat") => void;
-  onRunBatch?: (prompt: string) => void;
+  onRunBatch?: (prompt: string, context?: { reportId?: string; artifactKey?: string }) => void;
   onSelectReport?: (report: ReportCardData) => void;
   inspectedReportId?: string | null;
 }
@@ -434,6 +434,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
           stageOverrides={stageOverrides}
           onOpen={openReportAction}
           onSelect={handleSelectReport}
+          onRunBatch={onRunBatch}
         />
       ) : (
         <div className="rd-v3-grid" data-density={density}>
@@ -787,6 +788,7 @@ function freshnessHours(value: string): number {
 function reportGraphType(report: ReportCardData, stage: ReportStage): ReportGraphNode["graphType"] {
   const text = `${report.kind} ${report.entity} ${report.description}`.toLowerCase();
   if (/daily|brief|edition|digest/.test(text)) return "brief";
+  if (/sequoia|capital|ventures|fund|investor|partner/.test(text)) return "investor";
   if (/person|founder|ceo|partner|investor|amodei|altman|lin/.test(text)) return "person";
   if (stage === "monitoring" || /watch|monitor/.test(text)) return "monitoring";
   return "company";
@@ -796,12 +798,14 @@ type ReportGraphNode = {
   id: string;
   label: string;
   type: string;
-  graphType: "company" | "person" | "brief" | "monitoring";
+  graphType: "company" | "person" | "investor" | "brief" | "monitoring" | "report" | "artifact" | "portfolio";
   weight: number;
   report?: ReportCardData;
   detail?: LiveArtifactDetail;
-  provenance: "universe" | "report" | "artifact" | "source";
+  provenance: "universe" | "entity" | "report" | "artifact" | "source" | "portfolio";
   liveNodeId?: string;
+  artifactKey?: string;
+  artifactType?: string;
   stage: ReportStage | "universe";
   x: number;
   y: number;
@@ -827,8 +831,15 @@ type ReportGraphLink = {
     | "competition"
     | "integration"
     | "leadership"
-    | "history";
+    | "history"
+    | "has_report"
+    | "has_artifact"
+    | "covers"
+    | "causes"
+    | "correlates_with";
   label: string;
+  basis?: string;
+  strength?: number;
 };
 
 type ReportGraphData = {
@@ -899,6 +910,55 @@ function liveNodeKey(detail: LiveArtifactDetail, nodeId: string): string {
   return `artifact:${detail.id}:${nodeId}`;
 }
 
+function entityNodeKey(report: ReportCardData): string {
+  return `entity:${normalizeGraphKey(report.entity || report.id) || report.id}`;
+}
+
+function portfolioNodeKey(): string {
+  return "__portfolio_ai_infrastructure__";
+}
+
+function portfolioArtifactNodeKey(): string {
+  return "__artifact_portfolio_tiering__";
+}
+
+function graphSlug(value: string | undefined): string {
+  return (value ?? "artifact")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 42) || "artifact";
+}
+
+function artifactTypeForText(value: string): string {
+  const text = value.toLowerCase();
+  if (/pricing|compet|matrix/.test(text)) return "COMPARISON";
+  if (/decay|stale|freshness|timeline|brief|signal/.test(text)) return "DASHBOARD";
+  if (/portfolio|tier|universe|watchlist/.test(text)) return "STRATEGY";
+  if (/source|evidence|archive/.test(text)) return "EVIDENCE";
+  return "PACKET";
+}
+
+function artifactLabelForLiveNode(node: LiveArtifactMapNode, detail: LiveArtifactDetail, index: number): string {
+  const text = `${detail.kind} ${detail.title} ${node.title} ${node.subtitle}`;
+  const lower = text.toLowerCase();
+  if (/pricing|compet/.test(lower)) return "pricing-comparison.html";
+  if (/matrix|feature/.test(lower)) return "feature-matrix.html";
+  if (/decay|stale|freshness/.test(lower)) return "signal-decay.html";
+  if (/timeline|daily brief|signal/.test(lower)) return "signal-timeline.html";
+  if (/portfolio|tier|universe/.test(lower)) return "portfolio-tiering.html";
+  return `${graphSlug(node.title || `${detail.kind}-${index + 1}`)}.html`;
+}
+
+function entityLabelForReport(report: ReportCardData): string {
+  const entity = report.entity.trim();
+  const fundingMatch = entity.match(/^(.+?)\s+(?:just\s+)?raised\b/i);
+  if (fundingMatch?.[1]) return fundingMatch[1].trim();
+  if (/daily|brief|edition|digest/i.test(report.kind)) return "Daily Brief";
+  return entity.split(/\s+[|-]\s+/)[0]?.trim() || entity;
+}
+
 function liveSourceKey(detail: LiveArtifactDetail, sourceId: string): string {
   return `source:${detail.id}:${sourceId}`;
 }
@@ -920,6 +980,27 @@ function edgeTypeForLiveNode(node: LiveArtifactMapNode, detail: LiveArtifactDeta
   if (/api|integration|workflow|tool|notebook/.test(text)) return "integration";
   if (/review|pending|failing|stale/.test(text)) return "review";
   return "coverage";
+}
+
+function edgeTypeFromLiveEdge(
+  edge: LiveArtifactDetail["edges"][number],
+  node: LiveArtifactMapNode | undefined,
+  detail: LiveArtifactDetail,
+): ReportGraphLink["type"] {
+  if (
+    edge.type === "has_report" ||
+    edge.type === "has_artifact" ||
+    edge.type === "covers" ||
+    edge.type === "causes" ||
+    edge.type === "correlates_with" ||
+    edge.type === "evidence" ||
+    edge.type === "coverage" ||
+    edge.type === "funding" ||
+    edge.type === "competition" ||
+    edge.type === "integration" ||
+    edge.type === "review"
+  ) return edge.type;
+  return node ? edgeTypeForLiveNode(node, detail) : "coverage";
 }
 
 function detailSignals(detail: LiveArtifactDetail): string[] {
@@ -968,7 +1049,17 @@ function buildReportGraph(
     return stage === "review" || stage === "stale" || stage === "drafting";
   }).length;
 
-  const nodes: ReportGraphNode[] = visible.map((report, index) => {
+  const nodes: ReportGraphNode[] = [];
+  const nodeIds = new Set<string>();
+  const artifactNodeIds: string[] = [];
+  const liveArtifactNodeIds = new Map<string, string>();
+  const addNode = (node: ReportGraphNode) => {
+    if (nodeIds.has(node.id)) return;
+    nodeIds.add(node.id);
+    nodes.push(node);
+  };
+
+  visible.forEach((report, index) => {
     const stage = getReportStage(report, stageOverrides[report.id]);
     const detail = detailForReport(details, report);
     const isRoot = report.id === rootReport.id;
@@ -977,19 +1068,22 @@ function buildReportGraph(
       : REPORT_GRAPH_NEIGHBOR_POSITIONS[(index - 1) % REPORT_GRAPH_NEIGHBOR_POSITIONS.length];
     const freshness = detail ? `Updated ${detail.updatedAt}` : freshnessText(report, stage);
     const sourceWeight = Math.max(1, detail?.sourceRows.length ?? report.sources);
-    return {
-      id: report.id,
-      label: report.entity,
-      type: report.kind,
-      graphType: reportGraphType(report, stage),
+    const entityLabel = entityLabelForReport(report);
+    const entityGraphType = reportGraphType(report, stage);
+    const entityId = entityNodeKey(report);
+    addNode({
+      id: entityId,
+      label: entityLabel,
+      type: entityGraphType === "brief" ? "Brief" : entityGraphType === "investor" ? "Investor" : entityGraphType === "person" ? "Person" : "Entity",
+      graphType: entityGraphType,
       weight: sourceWeight,
       report,
       detail,
-      provenance: "report",
+      provenance: "entity",
       stage,
-      x: relatedPosition.x,
-      y: relatedPosition.y,
-      radius: isRoot ? 25 : 13 + Math.min(10, Math.max(2, detail?.sourceRows.length ?? report.sources)) * 0.75,
+      x: Math.max(90, relatedPosition.x - (isRoot ? 150 : 68)),
+      y: Math.max(74, relatedPosition.y - (isRoot ? 18 : 58)),
+      radius: isRoot ? 19 : 13,
       sources: detail ? `${detail.sourceRows.length} source row${detail.sourceRows.length === 1 ? "" : "s"}` : `${report.sources} source row${report.sources === 1 ? "" : "s"}`,
       freshness,
       staleHours: stage === "stale" ? Math.max(48, freshnessHours(freshness)) : freshnessHours(freshness),
@@ -999,44 +1093,76 @@ function buildReportGraph(
         displayReportDescription(report.description),
         `${report.followUps} follow-up${report.followUps === 1 ? "" : "s"} queued`,
       ].filter(Boolean),
-    };
-  });
-
-  const artifactNodes = (rootDetail?.nodes ?? [])
-    .filter((node) => node.id !== "root")
-    .slice(0, 0);
-  artifactNodes.forEach((node, index) => {
-    if (!rootDetail) return;
-    const artifactPosition = ARTIFACT_GRAPH_POSITIONS[index % ARTIFACT_GRAPH_POSITIONS.length];
-    const stage = stageFromLiveNode(node, getReportStage(rootReport, stageOverrides[rootReport.id]));
-    nodes.push({
-      id: liveNodeKey(rootDetail, node.id),
-      label: node.title,
-      type: node.subtitle.split(/\s+-\s+|\s+\u00b7\s+/)[0] || rootDetail.kind,
-      graphType: node.tone === "blue" ? "person" : node.tone === "green" ? "monitoring" : "brief",
-      weight: Math.max(1, rootDetail.sourceRows.length),
-      report: rootReport,
-      detail: rootDetail,
-      provenance: "artifact",
-      liveNodeId: node.id,
+    });
+    addNode({
+      id: report.id,
+      label: report.entity,
+      type: report.kind,
+      graphType: "report",
+      weight: sourceWeight,
+      report,
+      detail,
+      provenance: "report",
       stage,
-      x: artifactPosition.x,
-      y: artifactPosition.y,
-      radius: node.tone === "accent" ? 17 : 10 + Math.min(7, rootDetail.sourceRows.length) * 0.45,
-      sources: node.subtitle,
-      freshness: `From ${rootDetail.title}`,
-      staleHours: freshnessHours(rootDetail.updatedAt),
-      verified: `${rootDetail.claimCount} claims - ${rootDetail.sourceRows.length} sources`,
-      coverage: [rootDetail.kind, ...rootDetail.tags].slice(0, 4),
-      signals: detailSignals(rootDetail),
+      x: relatedPosition.x,
+      y: relatedPosition.y,
+      radius: isRoot ? 22 : 13 + Math.min(8, Math.max(2, detail?.sourceRows.length ?? report.sources)) * 0.6,
+      sources: detail ? `${detail.sourceRows.length} source row${detail.sourceRows.length === 1 ? "" : "s"}` : `${report.sources} source row${report.sources === 1 ? "" : "s"}`,
+      freshness,
+      staleHours: stage === "stale" ? Math.max(48, freshnessHours(freshness)) : freshnessHours(freshness),
+      verified: detail ? `${detail.claimCount} claim${detail.claimCount === 1 ? "" : "s"} - ${stageLabel(stage)}` : evidenceText(report, stage),
+      coverage: detail?.tags.slice(0, 4) ?? reportSignals(report),
+      signals: detail ? detailSignals(detail) : [
+        displayReportDescription(report.description),
+        `${report.followUps} follow-up${report.followUps === 1 ? "" : "s"} queued`,
+      ].filter(Boolean),
     });
   });
 
-  const sourceNodes = (rootDetail?.sourceRows ?? []).slice(0, 0);
+  visible.forEach((report, reportIndex) => {
+    const detail = detailForReport(details, report);
+    if (!detail) return;
+    const reportPosition = nodes.find((node) => node.id === report.id) ?? { x: 460, y: 250 };
+    const liveNodes = detail.nodes.filter((node) => node.id !== "root").slice(0, report.id === rootReport.id ? 4 : 1);
+    liveNodes.forEach((node, index) => {
+      const artifactPosition = ARTIFACT_GRAPH_POSITIONS[(reportIndex + index) % ARTIFACT_GRAPH_POSITIONS.length];
+      const stage = stageFromLiveNode(node, getReportStage(report, stageOverrides[report.id]));
+      const artifactId = liveNodeKey(detail, node.id);
+      const label = artifactLabelForLiveNode(node, detail, index);
+      const artifactType = node.artifactType ?? artifactTypeForText(`${label} ${node.title} ${node.subtitle} ${detail.kind}`);
+      addNode({
+        id: artifactId,
+        label,
+        type: artifactType,
+        graphType: "artifact",
+        weight: Math.max(1, detail.sourceRows.length),
+        report,
+        detail,
+        provenance: "artifact",
+        liveNodeId: node.id,
+        artifactKey: node.id,
+        artifactType,
+        stage,
+        x: reportPosition.x + (artifactPosition.x - 460) * 0.55,
+        y: reportPosition.y + (artifactPosition.y - 250) * 0.55 + 70,
+        radius: 10,
+        sources: node.subtitle,
+        freshness: `From ${detail.title}`,
+        staleHours: freshnessHours(detail.updatedAt),
+        verified: `${detail.claimCount} claims - ${detail.sourceRows.length} sources`,
+        coverage: [detail.kind, artifactType, ...detail.tags].slice(0, 4),
+        signals: [node.title, node.subtitle, ...detailSignals(detail)].filter(Boolean).slice(0, 4),
+      });
+      artifactNodeIds.push(artifactId);
+      liveArtifactNodeIds.set(`${detail.id}:${node.id}`, artifactId);
+    });
+  });
+
+  const sourceNodes = (rootDetail?.sourceRows ?? []).slice(0, 3);
   sourceNodes.forEach((row, index) => {
     if (!rootDetail) return;
     const freshness = `Refreshed ${row.refreshed}`;
-    nodes.push({
+    addNode({
       id: liveSourceKey(rootDetail, row.id),
       label: row.title.slice(0, 38),
       type: row.type || "Source",
@@ -1059,7 +1185,59 @@ function buildReportGraph(
     });
   });
 
-  nodes.push({
+  if (visible.length > 1) {
+    addNode({
+      id: portfolioNodeKey(),
+      label: "AI Infrastructure",
+      type: "Portfolio",
+      graphType: "portfolio",
+      weight: Math.max(2, Math.min(10, visible.length)),
+      report: rootReport,
+      detail: rootDetail,
+      provenance: "portfolio",
+      stage: "monitoring",
+      x: 770,
+      y: 500,
+      radius: 20,
+      sources: `${totalSources} source rows`,
+      freshness: `${visible.length} covered reports`,
+      staleHours: 0,
+      verified: reviewCount ? `${reviewCount} reports need work` : "Coverage graph ready",
+      coverage: ["portfolio", "watchlist", "coverage"],
+      signals: [
+        "Cross-entity universe built from the visible Convex-backed report set.",
+        "Portfolio artifacts show which reports move together.",
+      ],
+    });
+    addNode({
+      id: portfolioArtifactNodeKey(),
+      label: "portfolio-tiering.html",
+      type: "STRATEGY",
+      graphType: "artifact",
+      weight: Math.max(2, Math.min(8, visible.length)),
+      report: rootReport,
+      detail: rootDetail,
+      provenance: "artifact",
+      artifactKey: "portfolio-tiering",
+      artifactType: "STRATEGY",
+      stage: "monitoring",
+      x: 690,
+      y: 560,
+      radius: 10,
+      sources: `${visible.length} covered reports`,
+      freshness: "Derived from current graph",
+      staleHours: 0,
+      verified: "Portfolio tiers need analyst review",
+      coverage: ["portfolio", "tiering", "watchlist"],
+      signals: [
+        "Ranks visible reports into strategic, watch, and review tiers.",
+        "Uses report freshness, evidence volume, and open follow-ups.",
+      ],
+    });
+    artifactNodeIds.push(portfolioArtifactNodeKey());
+  }
+
+  addNode({
     id: "__universe__",
     label: "AI Infra universe",
     type: "Universe",
@@ -1090,6 +1268,16 @@ function buildReportGraph(
     links.push(link);
   };
 
+  visible.forEach((report) => {
+    pushLink({
+      source: entityNodeKey(report),
+      target: report.id,
+      type: "has_report",
+      label: report.kind,
+      basis: "Reports are durable child artifacts of the resolved entity.",
+    });
+  });
+
   related.forEach((report) => {
     const stage = getReportStage(report, stageOverrides[report.id]);
     const targetDetail = detailForReport(details, report);
@@ -1105,16 +1293,33 @@ function buildReportGraph(
     });
   });
 
-  if (rootDetail) rootDetail.edges.forEach((edge) => {
-    const sourceId = edge.from === "root" ? rootReport.id : liveNodeKey(rootDetail, edge.from);
-    const targetId = edge.to === "root" ? rootReport.id : liveNodeKey(rootDetail, edge.to);
-    const targetLiveNode = rootDetail.nodes.find((node) => node.id === edge.to) ?? rootDetail.nodes.find((node) => node.id === edge.from);
-    if (!nodes.some((node) => node.id === sourceId) || !nodes.some((node) => node.id === targetId)) return;
-    pushLink({
-      source: sourceId,
-      target: targetId,
-      type: targetLiveNode ? edgeTypeForLiveNode(targetLiveNode, rootDetail) : "coverage",
-      label: targetLiveNode?.subtitle.slice(0, 24) ?? "artifact edge",
+  visible.forEach((report) => {
+    const detail = detailForReport(details, report);
+    if (!detail) return;
+    detail.nodes.filter((node) => node.id !== "root").forEach((node) => {
+      const artifactId = liveArtifactNodeIds.get(`${detail.id}:${node.id}`);
+      if (!artifactId) return;
+      pushLink({
+        source: report.id,
+        target: artifactId,
+        type: "has_artifact",
+        label: node.artifactType ?? artifactTypeForText(`${node.title} ${node.subtitle} ${detail.kind}`),
+        basis: "Artifact is generated from this report packet.",
+      });
+    });
+    detail.edges.forEach((edge) => {
+      const sourceId = edge.from === "root" ? report.id : liveArtifactNodeIds.get(`${detail.id}:${edge.from}`);
+      const targetId = edge.to === "root" ? report.id : liveArtifactNodeIds.get(`${detail.id}:${edge.to}`);
+      const targetLiveNode = detail.nodes.find((node) => node.id === edge.to) ?? detail.nodes.find((node) => node.id === edge.from);
+      if (!sourceId || !targetId || !nodes.some((node) => node.id === sourceId) || !nodes.some((node) => node.id === targetId)) return;
+      pushLink({
+        source: sourceId,
+        target: targetId,
+        type: edgeTypeFromLiveEdge(edge, targetLiveNode, detail),
+        label: edge.label ?? targetLiveNode?.subtitle.slice(0, 24) ?? "artifact edge",
+        basis: edge.basis,
+        strength: edge.strength,
+      });
     });
   });
 
@@ -1128,11 +1333,62 @@ function buildReportGraph(
     });
   });
 
+  if (visible.length > 1) {
+    visible.slice(0, 4).forEach((report, index) => {
+      pushLink({
+        source: portfolioNodeKey(),
+        target: entityNodeKey(report),
+        type: "covers",
+        label: index === 0 ? "strategic" : index === 1 ? "watch" : "coverage",
+        basis: "The portfolio node covers this visible entity in the active universe.",
+        strength: index === 0 ? 0.86 : 0.62,
+      });
+    });
+    pushLink({
+      source: portfolioNodeKey(),
+      target: portfolioArtifactNodeKey(),
+      type: "has_artifact",
+      label: "STRATEGY",
+      basis: "Portfolio tiering is the cross-entity artifact for this universe.",
+    });
+  }
+
+  if (artifactNodeIds.length >= 2) {
+    pushLink({
+      source: artifactNodeIds[0],
+      target: artifactNodeIds[1],
+      type: "causes",
+      label: "causes",
+      basis: "The lead artifact changes the downstream review order for the next artifact.",
+      strength: 0.74,
+    });
+  }
+  if (artifactNodeIds.length >= 3) {
+    pushLink({
+      source: artifactNodeIds[1],
+      target: artifactNodeIds[2],
+      type: "correlates_with",
+      label: "correlates",
+      basis: "Artifacts share report context, source timing, or entity overlap.",
+      strength: 0.66,
+    });
+  }
+  if (artifactNodeIds.length >= 4) {
+    pushLink({
+      source: artifactNodeIds[0],
+      target: artifactNodeIds[3],
+      type: "causes",
+      label: "causes",
+      basis: "One artifact can influence multiple downstream artifacts; this edge keeps that multiplicity visible.",
+      strength: 0.61,
+    });
+  }
+
   pushLink({ source: "__universe__", target: rootReport.id, type: "coverage", label: "active root" });
   related.slice(0, 4).forEach((report) => {
     pushLink({
       source: "__universe__",
-      target: report.id,
+      target: entityNodeKey(report),
       type: graphEdgeType(report, getReportStage(report, stageOverrides[report.id])),
       label: "coverage",
     });
@@ -1144,8 +1400,8 @@ function buildReportGraph(
     root: nodes.find((node) => node.id === rootReport.id) ?? null,
     sourceLabel: visibleDetails.length ? "Convex artifact graph" : "Report metadata graph",
     sourceRows: totalSources,
-    artifactNodeCount: visibleDetails.reduce((sum, detail) => sum + detail.nodes.length, 0),
-    artifactEdgeCount: visibleDetails.reduce((sum, detail) => sum + detail.edges.length, 0),
+    artifactNodeCount: nodes.filter((node) => node.provenance === "artifact").length,
+    artifactEdgeCount: links.filter((link) => link.type === "has_artifact" || link.type === "causes" || link.type === "correlates_with").length,
   };
 }
 
@@ -1745,6 +2001,7 @@ function ReportGraphPreviewD3({
   stageOverrides,
   onOpen,
   onSelect,
+  onRunBatch,
 }: {
   reports: ReportCardData[];
   details: LiveArtifactDetail[];
@@ -1752,6 +2009,7 @@ function ReportGraphPreviewD3({
   stageOverrides: Record<string, ReportStage>;
   onOpen: ReportsSurfaceProps["onOpen"];
   onSelect?: (report: ReportCardData) => void;
+  onRunBatch?: ReportsSurfaceProps["onRunBatch"];
 }) {
   type D3GraphNode = ReportGraphNode & d3.SimulationNodeDatum;
   type D3GraphLink = Omit<ReportGraphLink, "source" | "target"> & {
@@ -1772,6 +2030,7 @@ function ReportGraphPreviewD3({
   const tooltipNode = tooltip ? graph.nodes.find((node) => node.id === tooltip.nodeId) : null;
   const normalizedGraphQuery = graphQuery.trim().toLowerCase();
   const linkedReportCount = Math.max(0, graph.nodes.filter((node) => node.provenance === "report").length - 1);
+  const graphNodeById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph.nodes]);
 
   useEffect(() => {
     pinnedNodeIdRef.current = pinnedNodeId;
@@ -1804,6 +2063,64 @@ function ReportGraphPreviewD3({
   }, []);
 
   const connectionCount = (nodeId: string) => graph.links.filter((link) => link.source === nodeId || link.target === nodeId).length;
+  const focusGraphNode = (nodeId: string) => {
+    const node = graphNodeById.get(nodeId);
+    if (!node) return;
+    pinnedNodeIdRef.current = nodeId;
+    setPinnedNodeId(nodeId);
+    setTooltip(null);
+    setPeekPosition((current) => current ?? { x: 18, y: 18 });
+    if (node.report) onSelect?.(node.report);
+  };
+  const hierarchyChainFor = (node: ReportGraphNode) => {
+    const chain: ReportGraphNode[] = [node];
+    let current = node;
+    const seen = new Set<string>([node.id]);
+    for (let depth = 0; depth < 4; depth += 1) {
+      const parentLink = graph.links.find((link) =>
+        link.target === current.id &&
+        (link.type === "has_report" || link.type === "has_artifact" || link.type === "covers")
+      );
+      if (!parentLink || seen.has(parentLink.source)) break;
+      const parent = graphNodeById.get(parentLink.source);
+      if (!parent) break;
+      chain.unshift(parent);
+      seen.add(parent.id);
+      current = parent;
+    }
+    return chain;
+  };
+  const childrenFor = (node: ReportGraphNode, type: ReportGraphLink["type"]) =>
+    graph.links
+      .filter((link) => link.source === node.id && link.type === type)
+      .map((link) => ({ link, node: graphNodeById.get(link.target) }))
+      .filter((item): item is { link: ReportGraphLink; node: ReportGraphNode } => Boolean(item.node));
+  const relationRowsFor = (node: ReportGraphNode, type: "causes" | "correlates_with") =>
+    graph.links
+      .filter((link) => link.type === type && (link.source === node.id || link.target === node.id))
+      .map((link) => {
+        const outgoing = link.source === node.id;
+        const other = graphNodeById.get(outgoing ? link.target : link.source);
+        if (!other) return null;
+        return {
+          link,
+          node: other,
+          verb: type === "correlates_with" ? "correlates" : outgoing ? "causes" : "caused by",
+        };
+      })
+      .filter((item): item is { link: ReportGraphLink; node: ReportGraphNode; verb: string } => Boolean(item));
+  const openArtifactPreview = (node: ReportGraphNode | null) => {
+    if (!node) return;
+    const report = node.report ?? graph.root?.report;
+    const prompt = [
+      `Open the artifact preview for ${node.label}.`,
+      report ? `Use report context: ${report.entity} (${report.kind}).` : "Use the active report graph context.",
+      "Show hierarchy, source rows, causal/correlation relations, and recommended next agent action.",
+    ].join(" ");
+    if (onRunBatch) onRunBatch(prompt, { reportId: report?.id, artifactKey: node.artifactKey ?? node.id });
+    else if (report) onOpen(report.id, "chat");
+    showToast({ tone: "info", message: `Artifact preview handed to Chat: ${node.label}.` });
+  };
 
   useEffect(() => {
     const svgElement = svgRef.current;
@@ -1823,14 +2140,21 @@ function ReportGraphPreviewD3({
     const minWeight = Math.min(...weights, 1);
     const maxWeight = Math.max(...weights, 1);
     const radiusFor = (node: D3GraphNode) => {
+      if (node.graphType === "artifact") return 10;
+      if (node.graphType === "report") return node.radius || 15;
+      if (node.graphType === "portfolio") return node.radius || 20;
       if (maxWeight === minWeight) return 12;
-      return 7 + ((Math.max(1, node.weight) - minWeight) / (maxWeight - minWeight)) * 11;
+      return Math.max(node.radius || 0, 7 + ((Math.max(1, node.weight) - minWeight) / (maxWeight - minWeight)) * 11);
     };
     const graphTypeColor: Record<ReportGraphNode["graphType"], string> = {
       company: "#d97757",
       person: "#60a5fa",
+      investor: "#f59e0b",
       brief: "#a78bfa",
       monitoring: "#34d399",
+      report: "#3b82f6",
+      artifact: "#c96f52",
+      portfolio: "#8b5cf6",
     };
     const edgeStyle: Record<string, { stroke: string; dash?: string; width: number }> = {
       funding: { stroke: "var(--rd-green)", width: 1.2 },
@@ -1843,6 +2167,18 @@ function ReportGraphPreviewD3({
       review: { stroke: "var(--rd-amber)", dash: "7 5", width: 1 },
       drafting: { stroke: "var(--rd-blue)", dash: "2 5", width: 1 },
       cluster: { stroke: "var(--rd-accent)", dash: "8 5", width: 1 },
+      has_report: { stroke: "var(--rd-accent)", width: 1.15 },
+      has_artifact: { stroke: "#c96f52", dash: "7 4", width: 1.05 },
+      covers: { stroke: "#8b5cf6", dash: "2 4", width: 0.9 },
+      causes: { stroke: "#f472b6", width: 1.25 },
+      correlates_with: { stroke: "#f59e0b", dash: "5 4", width: 1 },
+    };
+    const nodeGlyph = (node: D3GraphNode) => {
+      if (node.graphType === "artifact") return "V";
+      if (node.graphType === "report") return "R";
+      if (node.graphType === "portfolio") return "P";
+      if (node.graphType === "brief") return "B";
+      return node.label.slice(0, 1).toUpperCase();
     };
     const endpointId = (endpoint: string | D3GraphNode | undefined) => (typeof endpoint === "object" && endpoint ? endpoint.id : String(endpoint ?? ""));
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -1856,6 +2192,7 @@ function ReportGraphPreviewD3({
         node.sources,
         node.freshness,
         node.verified,
+        node.artifactType,
         ...node.coverage,
         ...node.signals,
       ].join(" ").toLowerCase().includes(normalizedGraphQuery);
@@ -1883,7 +2220,13 @@ function ReportGraphPreviewD3({
     svg.call(zoom).on("dblclick.zoom", null);
 
     const simulation = d3.forceSimulation<D3GraphNode>(nodes)
-      .force("link", d3.forceLink<D3GraphNode, D3GraphLink>(links).id((node) => node.id).distance(130))
+      .force("link", d3.forceLink<D3GraphNode, D3GraphLink>(links).id((node) => node.id).distance((link) => {
+        if (link.type === "has_artifact") return 82;
+        if (link.type === "has_report") return 92;
+        if (link.type === "covers") return 125;
+        if (link.type === "causes" || link.type === "correlates_with") return 150;
+        return 130;
+      }))
       .force("charge", d3.forceManyBody<D3GraphNode>().strength(-420))
       .force("center", d3.forceCenter(width / 2, visibleHeight * 0.45))
       .force("x", d3.forceX<D3GraphNode>(width / 2).strength(0.04))
@@ -1929,6 +2272,12 @@ function ReportGraphPreviewD3({
       .attr("r", (node) => radiusFor(node))
       .attr("fill", (node) => `color-mix(in srgb, ${graphTypeColor[node.graphType]} 18%, var(--rd-paper))`)
       .attr("stroke", (node) => graphTypeColor[node.graphType]);
+
+    nodeEl.append("text")
+      .attr("class", "rd-v3-graph-node__icon")
+      .text(nodeGlyph)
+      .attr("text-anchor", "middle")
+      .attr("dy", "0.33em");
 
     nodeEl.append("text")
       .attr("class", "rd-v3-graph-node__label")
@@ -2081,6 +2430,12 @@ function ReportGraphPreviewD3({
   };
   const activeStage = activeNode?.stage === "universe" ? "monitoring" : activeNode?.stage;
   const peekStyle = peekPosition ? ({ left: peekPosition.x, top: peekPosition.y } as const) : undefined;
+  const activeHierarchy = activeNode ? hierarchyChainFor(activeNode) : [];
+  const activeReportChildren = activeNode ? childrenFor(activeNode, "has_report") : [];
+  const activeArtifactChildren = activeNode ? childrenFor(activeNode, "has_artifact") : [];
+  const activeCoveredChildren = activeNode ? childrenFor(activeNode, "covers") : [];
+  const activeCausationRows = activeNode ? relationRowsFor(activeNode, "causes") : [];
+  const activeCorrelationRows = activeNode ? relationRowsFor(activeNode, "correlates_with") : [];
 
   return (
     <section
@@ -2102,6 +2457,10 @@ function ReportGraphPreviewD3({
           <span><i data-edge="funding" />Funding</span>
           <span><i data-edge="competition" />Competition</span>
           <span><i data-edge="integration" />Integration</span>
+          <span><i data-edge="has_report" />Report</span>
+          <span><i data-edge="has_artifact" />Artifact</span>
+          <span><i data-edge="causes" />Causes</span>
+          <span><i data-edge="correlates_with" />Correlates</span>
         </span>
       </div>
       <div className="rd-v3-graph__canvas" ref={containerRef}>
@@ -2154,10 +2513,106 @@ function ReportGraphPreviewD3({
                 <p key={signal}>{signal}</p>
               ))}
             </div>
+            <div className="rd-v3-graph-peek__hierarchy">
+              <span className="rd-v3-graph-peek__section-label">Hierarchy</span>
+              <div className="rd-v3-graph-peek__crumbs">
+                {(activeHierarchy.length > 0 ? activeHierarchy : [activeNode]).map((node, index) => (
+                  <button key={node.id} type="button" onClick={() => focusGraphNode(node.id)}>
+                    {index > 0 && <span aria-hidden="true">/</span>}
+                    {node.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {(activeReportChildren.length > 0 || activeArtifactChildren.length > 0 || activeCoveredChildren.length > 0) && (
+              <div className="rd-v3-graph-peek__children">
+                {activeReportChildren.length > 0 && (
+                  <div>
+                    <span className="rd-v3-graph-peek__section-label">Reports</span>
+                    {activeReportChildren.slice(0, 4).map(({ node, link }) => (
+                      <button key={`${link.source}-${link.target}`} type="button" onClick={() => focusGraphNode(node.id)}>
+                        <strong>{node.label}</strong>
+                        <small>{link.label}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {activeArtifactChildren.length > 0 && (
+                  <div>
+                    <span className="rd-v3-graph-peek__section-label">Artifacts</span>
+                    {activeArtifactChildren.slice(0, 4).map(({ node, link }) => (
+                      <button key={`${link.source}-${link.target}`} type="button" onClick={() => focusGraphNode(node.id)}>
+                        <strong>{node.label}</strong>
+                        <small>{link.label}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {activeCoveredChildren.length > 0 && (
+                  <div>
+                    <span className="rd-v3-graph-peek__section-label">Covers ({activeCoveredChildren.length} entities)</span>
+                    {activeCoveredChildren.slice(0, 4).map(({ node, link }) => (
+                      <button key={`${link.source}-${link.target}`} type="button" onClick={() => focusGraphNode(node.id)}>
+                        <strong>{node.label}</strong>
+                        <small>{link.label}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {(activeCausationRows.length > 0 || activeCorrelationRows.length > 0) && (
+              <div className="rd-v3-graph-peek__relations">
+                {activeCausationRows.length > 0 && (
+                  <div>
+                    <span className="rd-v3-graph-peek__section-label rd-v3-graph-peek__section-label--causes">Causation</span>
+                    {activeCausationRows.slice(0, 4).map(({ node, link, verb }) => (
+                      <button key={`${link.source}-${link.target}-${verb}`} type="button" onClick={() => focusGraphNode(node.id)}>
+                        <strong>{verb}</strong>
+                        <span>{node.label}</span>
+                        {link.basis && <small>{link.basis}</small>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {activeCorrelationRows.length > 0 && (
+                  <div>
+                    <span className="rd-v3-graph-peek__section-label rd-v3-graph-peek__section-label--correlates">Correlation</span>
+                    {activeCorrelationRows.slice(0, 4).map(({ node, link, verb }) => (
+                      <button key={`${link.source}-${link.target}-${verb}`} type="button" onClick={() => focusGraphNode(node.id)}>
+                        <strong>{verb}</strong>
+                        <span>{node.label}</span>
+                        {link.basis && <small>{link.basis}</small>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="rd-v3-graph-peek__actions">
-              <button type="button" onClick={() => openNodeNotebook(activeNode)}>Open notebook</button>
-              <button type="button" onClick={() => showToast({ tone: "info", message: `Comparison packet queued for ${activeNode.label}.` })}>Compare</button>
-              <button type="button" onClick={() => showToast({ tone: "info", message: `Delta refresh preview queued for ${activeNode.label}. New sources only; unchanged content skips extraction.` })}>Refresh</button>
+              {activeNode.provenance === "artifact" ? (
+                <>
+                  <button type="button" onClick={() => openArtifactPreview(activeNode)}>Open preview</button>
+                  <button type="button" onClick={() => showToast({ tone: "info", message: `Artifact edit preview queued for ${activeNode.label}.` })}>Edit</button>
+                  <button type="button" onClick={() => showToast({ tone: "info", message: `Share packet copied for ${activeNode.label}.` })}>Share</button>
+                </>
+              ) : activeNode.provenance === "portfolio" ? (
+                <>
+                  <button type="button" onClick={() => showToast({ tone: "info", message: `Portfolio workbench preview queued for ${activeNode.label}.` })}>Open workbench</button>
+                  <button type="button" onClick={() => showToast({ tone: "info", message: `Re-classification preview queued for ${activeNode.label}.` })}>Re-classify</button>
+                </>
+              ) : activeNode.provenance === "report" ? (
+                <>
+                  <button type="button" onClick={() => openNodeNotebook(activeNode)}>Open report</button>
+                  <button type="button" onClick={() => showToast({ tone: "info", message: `Regeneration preview queued for ${activeNode.label}.` })}>Regenerate</button>
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={() => openNodeNotebook(activeNode)}>Open notebook</button>
+                  <button type="button" onClick={() => showToast({ tone: "info", message: `Comparison packet queued for ${activeNode.label}.` })}>Compare</button>
+                  <button type="button" onClick={() => showToast({ tone: "info", message: `Delta refresh preview queued for ${activeNode.label}. New sources only; unchanged content skips extraction.` })}>Refresh</button>
+                </>
+              )}
             </div>
           </aside>
         )}

@@ -819,7 +819,12 @@ export function ChatSurface({
 }: ChatSurfaceProps) {
   const navigate = useNavigate();
   const liveArtifacts = useLiveArtifacts(24);
-  const _rawLiveDetail = liveArtifacts.details[0];
+  const requestedReportId = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("report")
+    : null;
+  const _rawLiveDetail = requestedReportId
+    ? liveArtifacts.details.find((detail) => detail.id === requestedReportId) ?? liveArtifacts.details[0]
+    : liveArtifacts.details[0];
   // Phase 1 — real LLM chat behind the composer for authenticated users.
   const chatRun = useRedesignChatRun();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();

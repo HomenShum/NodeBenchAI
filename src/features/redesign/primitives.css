@@ -7846,6 +7846,11 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-v3-graph__legend i[data-edge="funding"] { border-color: var(--rd-green); }
 [data-redesign] .rd-v3-graph__legend i[data-edge="competition"] { border-color: var(--rd-ink-faint); border-style: dashed; }
 [data-redesign] .rd-v3-graph__legend i[data-edge="integration"] { border-color: var(--rd-blue); border-style: dotted; }
+[data-redesign] .rd-v3-graph__legend i[data-edge="has_report"] { border-color: var(--rd-accent); }
+[data-redesign] .rd-v3-graph__legend i[data-edge="has_artifact"] { border-color: #c96f52; border-style: dashed; }
+[data-redesign] .rd-v3-graph__legend i[data-edge="covers"] { border-color: #8b5cf6; border-style: dotted; }
+[data-redesign] .rd-v3-graph__legend i[data-edge="causes"] { border-color: #f472b6; }
+[data-redesign] .rd-v3-graph__legend i[data-edge="correlates_with"] { border-color: #f59e0b; border-style: dashed; }
 
 [data-redesign] .rd-v3-graph__canvas {
   position: relative;
@@ -8213,6 +8218,89 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   line-height: 1.45;
 }
 
+[data-redesign] .rd-v3-graph-peek__hierarchy,
+[data-redesign] .rd-v3-graph-peek__children,
+[data-redesign] .rd-v3-graph-peek__relations {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rd-line-faint);
+}
+
+[data-redesign] .rd-v3-graph-peek__section-label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--rd-accent);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+[data-redesign] .rd-v3-graph-peek__section-label--causes { color: #f472b6; }
+[data-redesign] .rd-v3-graph-peek__section-label--correlates { color: #f59e0b; }
+
+[data-redesign] .rd-v3-graph-peek__crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+[data-redesign] .rd-v3-graph-peek__crumbs button,
+[data-redesign] .rd-v3-graph-peek__children button,
+[data-redesign] .rd-v3-graph-peek__relations button {
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--rd-muted) 55%, transparent);
+  color: var(--rd-ink-mute);
+  cursor: pointer;
+  text-align: left;
+}
+
+[data-redesign] .rd-v3-graph-peek__crumbs button {
+  width: auto;
+  padding: 2px 5px;
+  font-size: 9px;
+}
+
+[data-redesign] .rd-v3-graph-peek__crumbs span {
+  margin-right: 4px;
+  color: var(--rd-ink-faint);
+}
+
+[data-redesign] .rd-v3-graph-peek__children > div,
+[data-redesign] .rd-v3-graph-peek__relations > div {
+  margin-bottom: 8px;
+}
+
+[data-redesign] .rd-v3-graph-peek__children button,
+[data-redesign] .rd-v3-graph-peek__relations button {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 5px 7px;
+}
+
+[data-redesign] .rd-v3-graph-peek__children button:hover,
+[data-redesign] .rd-v3-graph-peek__relations button:hover,
+[data-redesign] .rd-v3-graph-peek__crumbs button:hover {
+  background: color-mix(in srgb, var(--rd-accent-soft) 70%, var(--rd-panel));
+  color: var(--rd-ink);
+}
+
+[data-redesign] .rd-v3-graph-peek__children strong,
+[data-redesign] .rd-v3-graph-peek__relations strong {
+  color: var(--rd-ink);
+  font-size: 10px;
+}
+
+[data-redesign] .rd-v3-graph-peek__children small,
+[data-redesign] .rd-v3-graph-peek__relations small {
+  color: var(--rd-ink-faint);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
 [data-redesign] .rd-v3-graph-peek__actions {
   display: flex;
   flex-wrap: wrap;
@@ -8314,12 +8402,32 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   stroke-width: 0.8;
 }
 
+[data-redesign] .rd-v3-graph-node__icon {
+  fill: var(--rd-ink);
+  font-family: Manrope, Inter, sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
 [data-redesign] .rd-v3-graph-node__label {
   fill: var(--rd-ink-mute);
   font-size: 11px;
   font-weight: 500;
   stroke: none;
   paint-order: normal;
+}
+
+[data-redesign] .rd-v3-graph-node[data-graph-type="artifact"] .rd-v3-graph-node__label {
+  fill: #c96f52;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+[data-redesign] .rd-v3-graph-node[data-graph-type="report"] .rd-v3-graph-node__label,
+[data-redesign] .rd-v3-graph-node[data-graph-type="portfolio"] .rd-v3-graph-node__label {
+  fill: var(--rd-ink);
+  font-weight: 680;
 }
 
 [data-redesign] .rd-v3-graph-node__meta {

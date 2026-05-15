@@ -111,11 +111,17 @@ export interface LiveArtifactMapNode {
   title: string;
   subtitle: string;
   tone: "default" | "accent" | "blue" | "green" | "amber";
+  kind?: "entity" | "report" | "artifact" | "source" | "portfolio";
+  artifactType?: string;
 }
 
 export interface LiveArtifactMapEdge {
   from: string;
   to: string;
+  type?: "has_report" | "has_artifact" | "covers" | "causes" | "correlates_with" | "evidence" | "coverage" | "funding" | "competition" | "integration" | "review";
+  label?: string;
+  basis?: string;
+  strength?: number;
 }
 
 export interface LiveArtifactDetail {
@@ -684,7 +690,35 @@ function dailyBriefToDetail(memory: DailyBriefMemory): LiveArtifactDetail {
     { id: "root", title, subtitle: "Daily brief - root", tone: "accent" },
     ...mapItems,
   ];
-  const edges: LiveArtifactMapEdge[] = nodes.slice(1).map((node) => ({ from: "root", to: node.id }));
+  const edges: LiveArtifactMapEdge[] = [
+    ...nodes.slice(1).map((node) => ({
+      from: "root",
+      to: node.id,
+      type: "has_artifact" as const,
+      label: node.subtitle || "artifact",
+      basis: "Derived from the current daily brief signal map.",
+    })),
+  ];
+  if (mapItems.length >= 2) {
+    edges.push({
+      from: mapItems[0].id,
+      to: mapItems[1].id,
+      type: "causes",
+      label: "causes",
+      basis: "The first ranked signal is treated as the lead artifact that changes the next artifact's review order.",
+      strength: 0.74,
+    });
+  }
+  if (mapItems.length >= 3) {
+    edges.push({
+      from: mapItems[1].id,
+      to: mapItems[2].id,
+      type: "correlates_with",
+      label: "correlates",
+      basis: "Adjacent daily brief artifacts share source timing or topic overlap.",
+      strength: 0.66,
+    });
+  }
   const signalClaimHtml = rankedSignals.length
     ? rankedSignals.map((signal) => {
         const evidence = Array.isArray(signal.evidence) ? signal.evidence : [];
@@ -799,8 +833,9 @@ function archivePostToDetail(post: ArchivePost): LiveArtifactDetail {
     { id: "persona", title: post.persona, subtitle: "persona", tone: "default" },
   ];
   const edges: LiveArtifactMapEdge[] = [
-    { from: "root", to: "archive" },
-    { from: "root", to: "persona" },
+    { from: "root", to: "archive", type: "has_artifact", label: "archive artifact", basis: "Archive row rendered as reusable evidence." },
+    { from: "root", to: "persona", type: "coverage", label: "persona context", basis: "Persona controls tone and audience for this artifact." },
+    { from: "archive", to: "persona", type: "correlates_with", label: "correlates", basis: "Archive artifact and persona context are part of the same published packet.", strength: 0.58 },
   ];
   const notebookHtml = [
     `<h1>${escapeHtml(report.entity)}</h1>`,
