@@ -69,6 +69,12 @@ const REPORT_VIEW_MODES: Array<{ id: ReportViewMode; label: string }> = [
   { id: "graph", label: "Graph" },
 ];
 
+function reportViewFromUrl(): ReportViewMode {
+  if (typeof window === "undefined") return "gallery";
+  const view = new URLSearchParams(window.location.search).get("view");
+  return REPORT_VIEW_MODES.some((item) => item.id === view) ? view as ReportViewMode : "gallery";
+}
+
 const REPORT_STAGE_COLUMNS: Array<{ id: ReportStage; label: string; hint: string }> = [
   { id: "drafting", label: "Drafting", hint: "Gathering sources" },
   { id: "review", label: "Needs review", hint: "Claims need analyst review" },
@@ -97,7 +103,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
   const [filter, setFilter] = useState<(typeof STATUS_FILTERS)[number]["id"]>("all");
   const [kindFilter, setKindFilter] = useState<typeof KIND_FILTERS[number]["id"]>("all");
   const [density, setDensity] = useState<Density>("compact");
-  const [viewMode, setViewMode] = useState<ReportViewMode>("gallery");
+  const [viewMode, setViewMode] = useState<ReportViewMode>(() => reportViewFromUrl());
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("updated");
@@ -167,6 +173,14 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
 
   const hasActiveFilter = filter !== "all" || kindFilter !== "all" || query.length > 0;
   const resetFilters = () => { setFilter("all"); setKindFilter("all"); setQuery(""); };
+  const setReportViewMode = (nextViewMode: ReportViewMode) => {
+    setViewMode(nextViewMode);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (nextViewMode === "gallery") url.searchParams.delete("view");
+    else url.searchParams.set("view", nextViewMode);
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  };
 
   const reportDecisionQueue = useMemo(
     () => buildReportsDecisionQueue(filtered.length > 0 ? filtered : reports),
@@ -232,7 +246,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
           </p>
         </div>
         <div className="rd-v3-universe-actions">
-          <button type="button" onClick={() => setViewMode("board")}>Review queue</button>
+          <button type="button" onClick={() => setReportViewMode("board")}>Review queue</button>
           <button type="button" className="rd-v3-primary" onClick={runBatchPrompt}>+ New batch</button>
         </div>
       </header>
@@ -252,7 +266,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
               role="tab"
               aria-selected={viewMode === item.id}
               className={viewMode === item.id ? "is-active" : ""}
-              onClick={() => setViewMode(item.id)}
+              onClick={() => setReportViewMode(item.id)}
             >
               {item.label}
             </button>
