@@ -9,6 +9,7 @@ import { useMemo, useState, useEffect, useRef, type DragEvent, type KeyboardEven
 import { memoStyles, type ReportCardData, type Density, type Universe } from "../fixtures";
 import { Pill } from "../components/Pill";
 import { useReportsLive } from "../hooks/useReportsLive";
+import type { LiveArtifactDetail, LiveArtifactMapNode } from "../hooks/useLiveArtifacts";
 import { showToast } from "../components/Toast";
 import {
   buildReportsDecisionQueue,
@@ -118,7 +119,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
   // Live data wiring: authenticated and anonymous workspaces show Convex-backed
   // runs/artifacts. Empty states remain explicit so production never masks a
   // broken live path with fixture reports.
-  const { reports, isLive, isLoading, sourceLabel, liveCount } = useReportsLive();
+  const { reports, details, isLive, isLoading, sourceLabel, liveCount } = useReportsLive();
 
   const toggleSelect = (id: string) => setSelected((prev) => {
     const next = new Set(prev);
@@ -334,6 +335,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
       ) : viewMode === "graph" ? (
         <ReportGraphPreview
           reports={visibleReports}
+          details={details}
           selectedReport={selectedReport}
           stageOverrides={stageOverrides}
           onOpen={onOpen}
@@ -624,6 +626,9 @@ type ReportGraphNode = {
   label: string;
   type: string;
   report?: ReportCardData;
+  detail?: LiveArtifactDetail;
+  provenance: "universe" | "report" | "artifact" | "source";
+  liveNodeId?: string;
   stage: ReportStage | "universe";
   x: number;
   y: number;
@@ -652,6 +657,45 @@ type ReportGraphLink = {
   label: string;
 };
 
+type ReportGraphData = {
+  nodes: ReportGraphNode[];
+  links: ReportGraphLink[];
+  root: ReportGraphNode | null;
+  sourceLabel: string;
+  sourceRows: number;
+  artifactNodeCount: number;
+  artifactEdgeCount: number;
+};
+
+const REPORT_GRAPH_NEIGHBOR_POSITIONS = [
+  { x: 460, y: 78 },
+  { x: 680, y: 116 },
+  { x: 780, y: 260 },
+  { x: 680, y: 398 },
+  { x: 460, y: 426 },
+  { x: 240, y: 398 },
+  { x: 140, y: 260 },
+  { x: 240, y: 116 },
+] as const;
+
+const ARTIFACT_GRAPH_POSITIONS = [
+  { x: 460, y: 144 },
+  { x: 590, y: 190 },
+  { x: 590, y: 314 },
+  { x: 460, y: 358 },
+  { x: 330, y: 314 },
+  { x: 330, y: 190 },
+  { x: 545, y: 250 },
+  { x: 375, y: 250 },
+] as const;
+
+const SOURCE_GRAPH_POSITIONS = [
+  { x: 330, y: 500 },
+  { x: 450, y: 500 },
+  { x: 570, y: 500 },
+  { x: 690, y: 500 },
+] as const;
+
 function graphEdgeType(report: ReportCardData, stage: ReportStage): ReportGraphLink["type"] {
   const text = `${report.kind} ${report.entity} ${report.description}`.toLowerCase();
   if (text.includes("funding") || text.includes("raise") || text.includes("series ")) return "funding";
@@ -663,19 +707,88 @@ function graphEdgeType(report: ReportCardData, stage: ReportStage): ReportGraphL
   return "coverage";
 }
 
+function normalizeGraphKey(value: string | undefined): string {
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function detailForReport(details: LiveArtifactDetail[], report: ReportCardData): LiveArtifactDetail | undefined {
+  const reportId = normalizeGraphKey(report.id);
+  const entity = normalizeGraphKey(report.entity);
+  return details.find((detail) => {
+    const detailId = normalizeGraphKey(detail.id);
+    const title = normalizeGraphKey(detail.title);
+    return detail.id === report.id || detailId === reportId || title === entity || title === reportId;
+  });
+}
+
+function liveNodeKey(detail: LiveArtifactDetail, nodeId: string): string {
+  return `artifact:${detail.id}:${nodeId}`;
+}
+
+function liveSourceKey(detail: LiveArtifactDetail, sourceId: string): string {
+  return `source:${detail.id}:${sourceId}`;
+}
+
+function stageFromLiveNode(node: LiveArtifactMapNode, fallback: ReportStage): ReportStage {
+  const text = `${node.subtitle} ${node.title}`.toLowerCase();
+  if (node.tone === "green" || /verified|passing|evidence refs/.test(text)) return "verified";
+  if (node.tone === "amber" || /review|failing|pending/.test(text)) return "review";
+  if (node.tone === "blue") return "drafting";
+  return fallback;
+}
+
+function edgeTypeForLiveNode(node: LiveArtifactMapNode, detail: LiveArtifactDetail): ReportGraphLink["type"] {
+  const text = `${node.title} ${node.subtitle} ${detail.kind}`.toLowerCase();
+  if (/funding|series|round|raised|\$/.test(text)) return "funding";
+  if (/compet|pricing|market/.test(text)) return "competition";
+  if (/source|evidence|refs|archive/.test(text)) return "evidence";
+  if (/person|persona|founder|leader|team|ceo|cto|cfo/.test(text)) return "leadership";
+  if (/api|integration|workflow|tool|notebook/.test(text)) return "integration";
+  if (/review|pending|failing|stale/.test(text)) return "review";
+  return "coverage";
+}
+
+function detailSignals(detail: LiveArtifactDetail): string[] {
+  const fromSections = detail.sections
+    .flatMap((section) => section.items?.map((item) => `${item.label}: ${item.body}`) ?? [section.body])
+    .filter(Boolean)
+    .slice(0, 3);
+  return [detail.summary, detail.primaryAction, ...fromSections].filter(Boolean).slice(0, 4);
+}
+
+function sharedGraphTags(a?: LiveArtifactDetail, b?: LiveArtifactDetail): string[] {
+  if (!a || !b) return [];
+  const bTags = new Set(b.tags.map(normalizeGraphKey));
+  return a.tags.filter((tag) => bTags.has(normalizeGraphKey(tag))).slice(0, 3);
+}
+
+function sharedSourceRows(a?: LiveArtifactDetail, b?: LiveArtifactDetail): string[] {
+  if (!a || !b) return [];
+  const bRows = new Set(b.sourceRows.map((row) => normalizeGraphKey(row.title)));
+  return a.sourceRows
+    .map((row) => row.title)
+    .filter((title) => bRows.has(normalizeGraphKey(title)))
+    .slice(0, 2);
+}
+
 function buildReportGraph(
   reports: ReportCardData[],
+  details: LiveArtifactDetail[],
   selectedReport: ReportCardData | null,
   stageOverrides: Record<string, ReportStage>,
-): { nodes: ReportGraphNode[]; links: ReportGraphLink[]; root: ReportGraphNode | null } {
+): ReportGraphData {
   const rootReport = selectedReport && reports.some((report) => report.id === selectedReport.id)
     ? selectedReport
     : reports[0] ?? null;
-  if (!rootReport) return { nodes: [], links: [], root: null };
+  if (!rootReport) return { nodes: [], links: [], root: null, sourceLabel: "No live graph", sourceRows: 0, artifactNodeCount: 0, artifactEdgeCount: 0 };
 
-  const related = reports.filter((report) => report.id !== rootReport.id).slice(0, 11);
+  const rootDetail = detailForReport(details, rootReport);
+  const related = reports.filter((report) => report.id !== rootReport.id).slice(0, REPORT_GRAPH_NEIGHBOR_POSITIONS.length);
   const visible = [rootReport, ...related];
-  const totalSources = reports.reduce((sum, report) => sum + report.sources, 0);
+  const visibleDetails = visible.map((report) => detailForReport(details, report)).filter((detail): detail is LiveArtifactDetail => Boolean(detail));
+  const totalSources = visibleDetails.length
+    ? visibleDetails.reduce((sum, detail) => sum + detail.sourceRows.length, 0)
+    : reports.reduce((sum, report) => sum + report.sources, 0);
   const reviewCount = reports.filter((report) => {
     const stage = getReportStage(report, stageOverrides[report.id]);
     return stage === "review" || stage === "stale" || stage === "drafting";
@@ -683,35 +796,91 @@ function buildReportGraph(
 
   const nodes: ReportGraphNode[] = visible.map((report, index) => {
     const stage = getReportStage(report, stageOverrides[report.id]);
+    const detail = detailForReport(details, report);
     const isRoot = report.id === rootReport.id;
-    const angle = related.length <= 1 ? -Math.PI / 2 : ((index - 1) / related.length) * Math.PI * 2 - Math.PI / 2;
+    const relatedPosition = isRoot
+      ? { x: 460, y: 250 }
+      : REPORT_GRAPH_NEIGHBOR_POSITIONS[(index - 1) % REPORT_GRAPH_NEIGHBOR_POSITIONS.length];
     return {
       id: report.id,
       label: report.entity,
       type: report.kind,
       report,
+      detail,
+      provenance: "report",
       stage,
-      x: isRoot ? 460 : 460 + Math.cos(angle) * 270,
-      y: isRoot ? 250 : 250 + Math.sin(angle) * 170,
-      radius: isRoot ? 24 : 13 + Math.min(10, Math.max(2, report.sources)) * 0.75,
-      sources: `${report.sources} source row${report.sources === 1 ? "" : "s"}`,
-      freshness: freshnessText(report, stage),
-      verified: evidenceText(report, stage),
-      coverage: reportSignals(report),
-      signals: [
+      x: relatedPosition.x,
+      y: relatedPosition.y,
+      radius: isRoot ? 25 : 13 + Math.min(10, Math.max(2, detail?.sourceRows.length ?? report.sources)) * 0.75,
+      sources: detail ? `${detail.sourceRows.length} source row${detail.sourceRows.length === 1 ? "" : "s"}` : `${report.sources} source row${report.sources === 1 ? "" : "s"}`,
+      freshness: detail ? `Updated ${detail.updatedAt}` : freshnessText(report, stage),
+      verified: detail ? `${detail.claimCount} claim${detail.claimCount === 1 ? "" : "s"} - ${stageLabel(stage)}` : evidenceText(report, stage),
+      coverage: detail?.tags.slice(0, 4) ?? reportSignals(report),
+      signals: detail ? detailSignals(detail) : [
         displayReportDescription(report.description),
         `${report.followUps} follow-up${report.followUps === 1 ? "" : "s"} queued`,
       ].filter(Boolean),
     };
   });
 
+  const artifactNodes = (rootDetail?.nodes ?? [])
+    .filter((node) => node.id !== "root")
+    .slice(0, 8);
+  artifactNodes.forEach((node, index) => {
+    if (!rootDetail) return;
+    const artifactPosition = ARTIFACT_GRAPH_POSITIONS[index % ARTIFACT_GRAPH_POSITIONS.length];
+    const stage = stageFromLiveNode(node, getReportStage(rootReport, stageOverrides[rootReport.id]));
+    nodes.push({
+      id: liveNodeKey(rootDetail, node.id),
+      label: node.title,
+      type: node.subtitle.split(/\s+-\s+|\s+\u00b7\s+/)[0] || rootDetail.kind,
+      report: rootReport,
+      detail: rootDetail,
+      provenance: "artifact",
+      liveNodeId: node.id,
+      stage,
+      x: artifactPosition.x,
+      y: artifactPosition.y,
+      radius: node.tone === "accent" ? 17 : 10 + Math.min(7, rootDetail.sourceRows.length) * 0.45,
+      sources: node.subtitle,
+      freshness: `From ${rootDetail.title}`,
+      verified: `${rootDetail.claimCount} claims - ${rootDetail.sourceRows.length} sources`,
+      coverage: [rootDetail.kind, ...rootDetail.tags].slice(0, 4),
+      signals: detailSignals(rootDetail),
+    });
+  });
+
+  const sourceNodes = (rootDetail?.sourceRows ?? []).slice(0, 4);
+  sourceNodes.forEach((row, index) => {
+    if (!rootDetail) return;
+    nodes.push({
+      id: liveSourceKey(rootDetail, row.id),
+      label: row.title.slice(0, 38),
+      type: row.type || "Source",
+      report: rootReport,
+      detail: rootDetail,
+      provenance: "source",
+      liveNodeId: row.id,
+      stage: (row.confidence ?? 0.7) >= 0.8 ? "verified" : "review",
+      x: SOURCE_GRAPH_POSITIONS[index % SOURCE_GRAPH_POSITIONS.length].x,
+      y: SOURCE_GRAPH_POSITIONS[index % SOURCE_GRAPH_POSITIONS.length].y,
+      radius: 10,
+      sources: row.href ? "Linked source row" : "Stored source row",
+      freshness: `Refreshed ${row.refreshed}`,
+      verified: row.confidence ? `${Math.round(row.confidence * 100)}% source confidence` : "Source available",
+      coverage: [row.type, row.status, `${row.reused} reuse${row.reused === 1 ? "" : "s"}`].filter(Boolean),
+      signals: [row.excerpt, row.href ?? "Convex source row"].filter(Boolean).slice(0, 3),
+    });
+  });
+
   nodes.push({
     id: "__universe__",
     label: "AI Infra universe",
     type: "Universe",
+    provenance: "universe",
     stage: "universe",
-    x: 460,
-    y: 470,
+    x: 150,
+    y: 500,
     radius: 18,
     sources: `${totalSources} source rows`,
     freshness: `${reports.length} live reports`,
@@ -723,20 +892,56 @@ function buildReportGraph(
     ],
   });
 
-  const links: ReportGraphLink[] = related.map((report) => {
+  const links: ReportGraphLink[] = [];
+  const linkKeys = new Set<string>();
+  const pushLink = (link: ReportGraphLink) => {
+    const key = `${link.source}->${link.target}:${link.type}:${link.label}`;
+    if (link.source === link.target || linkKeys.has(key)) return;
+    linkKeys.add(key);
+    links.push(link);
+  };
+
+  related.forEach((report) => {
     const stage = getReportStage(report, stageOverrides[report.id]);
+    const targetDetail = detailForReport(details, report);
+    const sharedSources = sharedSourceRows(rootDetail, targetDetail);
+    const sharedTags = sharedGraphTags(rootDetail, targetDetail);
     const sameKind = report.kind === rootReport.kind;
-    return {
+    const type = sharedSources.length > 0 ? "evidence" : sharedTags.length > 0 ? "coverage" : sameKind ? "cluster" : graphEdgeType(report, stage);
+    pushLink({
       source: rootReport.id,
       target: report.id,
-      type: sameKind ? "cluster" : graphEdgeType(report, stage),
-      label: sameKind ? report.kind : stageLabel(stage),
-    };
+      type,
+      label: sharedSources[0]?.slice(0, 24) ?? sharedTags[0] ?? (sameKind ? report.kind : stageLabel(stage)),
+    });
   });
 
-  links.push({ source: "__universe__", target: rootReport.id, type: "coverage", label: "active root" });
+  if (rootDetail) rootDetail.edges.forEach((edge) => {
+    const sourceId = edge.from === "root" ? rootReport.id : liveNodeKey(rootDetail, edge.from);
+    const targetId = edge.to === "root" ? rootReport.id : liveNodeKey(rootDetail, edge.to);
+    const targetLiveNode = rootDetail.nodes.find((node) => node.id === edge.to) ?? rootDetail.nodes.find((node) => node.id === edge.from);
+    if (!nodes.some((node) => node.id === sourceId) || !nodes.some((node) => node.id === targetId)) return;
+    pushLink({
+      source: sourceId,
+      target: targetId,
+      type: targetLiveNode ? edgeTypeForLiveNode(targetLiveNode, rootDetail) : "coverage",
+      label: targetLiveNode?.subtitle.slice(0, 24) ?? "artifact edge",
+    });
+  });
+
+  sourceNodes.forEach((row) => {
+    if (!rootDetail) return;
+    pushLink({
+      source: rootReport.id,
+      target: liveSourceKey(rootDetail, row.id),
+      type: "evidence",
+      label: row.type.slice(0, 24) || "source row",
+    });
+  });
+
+  pushLink({ source: "__universe__", target: rootReport.id, type: "coverage", label: "active root" });
   related.slice(0, 4).forEach((report) => {
-    links.push({
+    pushLink({
       source: "__universe__",
       target: report.id,
       type: graphEdgeType(report, getReportStage(report, stageOverrides[report.id])),
@@ -744,7 +949,15 @@ function buildReportGraph(
     });
   });
 
-  return { nodes, links, root: nodes.find((node) => node.id === rootReport.id) ?? null };
+  return {
+    nodes,
+    links,
+    root: nodes.find((node) => node.id === rootReport.id) ?? null,
+    sourceLabel: visibleDetails.length ? "Convex artifact graph" : "Report metadata graph",
+    sourceRows: totalSources,
+    artifactNodeCount: visibleDetails.reduce((sum, detail) => sum + detail.nodes.length, 0),
+    artifactEdgeCount: visibleDetails.reduce((sum, detail) => sum + detail.edges.length, 0),
+  };
 }
 
 function ReportCardV3({
@@ -908,12 +1121,14 @@ function ReportTable({
 
 function ReportGraphPreview({
   reports,
+  details,
   selectedReport,
   stageOverrides,
   onOpen,
   onSelect,
 }: {
   reports: ReportCardData[];
+  details: LiveArtifactDetail[];
   selectedReport: ReportCardData | null;
   stageOverrides: Record<string, ReportStage>;
   onOpen: ReportsSurfaceProps["onOpen"];
@@ -922,7 +1137,7 @@ function ReportGraphPreview({
   const svgRef = useRef<SVGSVGElement>(null);
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const movedDuringPointerRef = useRef(false);
-  const graph = useMemo(() => buildReportGraph(reports, selectedReport, stageOverrides), [reports, selectedReport, stageOverrides]);
+  const graph = useMemo(() => buildReportGraph(reports, details, selectedReport, stageOverrides), [reports, details, selectedReport, stageOverrides]);
   const [pinnedNodeId, setPinnedNodeId] = useState<string | null>(null);
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
@@ -943,8 +1158,7 @@ function ReportGraphPreview({
     return connected;
   }, [activeNodeId, graph.links]);
   const positionFor = (node: ReportGraphNode) => nodePositions[node.id] ?? { x: node.x, y: node.y };
-  const linkedReportCount = Math.max(0, graph.nodes.filter((node) => node.report).length - 1);
-  const totalSources = reports.reduce((sum, report) => sum + report.sources, 0);
+  const linkedReportCount = Math.max(0, graph.nodes.filter((node) => node.provenance === "report").length - 1);
   const normalizedGraphQuery = graphQuery.trim().toLowerCase();
   const matchedNodeIds = useMemo(() => {
     if (!normalizedGraphQuery) return new Set<string>();
@@ -952,6 +1166,7 @@ function ReportGraphPreview({
       const haystack = [
         node.label,
         node.type,
+        node.provenance,
         node.stage,
         node.sources,
         node.freshness,
@@ -1064,12 +1279,20 @@ function ReportGraphPreview({
     : undefined;
 
   return (
-    <section className="rd-v3-graph" aria-label="Report relationship graph">
+    <section
+      className="rd-v3-graph"
+      aria-label="Report relationship graph"
+      data-graph-source={graph.sourceLabel}
+      data-node-count={graph.nodes.length}
+      data-edge-count={graph.links.length}
+      data-artifact-node-count={graph.artifactNodeCount}
+      data-artifact-edge-count={graph.artifactEdgeCount}
+    >
       <div className="rd-v3-graph__controls">
         <div>
           <span className="rd-eyebrow">Relationship map</span>
           <strong>{graph.root?.label ?? "Select a report"}</strong>
-          <small>{linkedReportCount} neighboring reports · {totalSources} source rows</small>
+          <small>{graph.sourceLabel} - {graph.nodes.length} nodes - {graph.links.length} edges - {graph.sourceRows} source rows - {linkedReportCount} neighboring reports</small>
         </div>
         <div className="rd-v3-graph__control-actions">
           <button type="button" onClick={resetGraph}>Fit</button>
@@ -1084,7 +1307,7 @@ function ReportGraphPreview({
           </label>
           <span className="rd-v3-graph__legend" aria-label="Relationship legend">
             <span><i data-edge="funding" />Funding</span>
-            <span><i data-edge="competition" />Competition</span>
+            <span><i data-edge="evidence" />Evidence</span>
             <span><i data-edge="integration" />Integration</span>
             <span><i data-edge="review" />Review</span>
           </span>
@@ -1143,6 +1366,7 @@ function ReportGraphPreview({
                   data-stage={node.stage}
                   data-active={active}
                   data-dimmed={dimmed}
+                  data-node-provenance={node.provenance}
                   aria-hidden="true"
                   transform={`translate(${pos.x} ${pos.y})`}
                 >
@@ -1159,6 +1383,16 @@ function ReportGraphPreview({
           {graph.nodes.map((node) => {
             const pos = positionFor(node);
             const size = Math.max(44, (node.radius + 18) * 2);
+            const minWidth =
+              node.id === "__universe__" ? 140 :
+              node.provenance === "report" ? 156 :
+              node.provenance === "source" ? 108 :
+              112;
+            const maxWidth =
+              node.id === graph.root?.id ? 190 :
+              node.provenance === "report" ? 176 :
+              node.provenance === "source" ? 118 :
+              124;
             return (
               <button
                 key={node.id}
@@ -1166,10 +1400,13 @@ function ReportGraphPreview({
                 style={{
                   left: `${(pos.x / 920) * 100}%`,
                   top: `${(pos.y / 540) * 100}%`,
-                  width: node.id === "__universe__" ? 170 : Math.max(150, size * 3.4),
+                  width: Math.min(maxWidth, Math.max(minWidth, size * (node.provenance === "report" ? 3.2 : 2.75))),
                 }}
                 aria-label={`${node.label}, ${node.type}, ${node.verified}`}
                 aria-pressed={activeNodeId === node.id}
+                data-node-id={node.id}
+                data-node-provenance={node.provenance}
+                data-live-node-id={node.liveNodeId}
                 onMouseEnter={(event) => {
                   if (!pinnedNodeId) setHoverNodeId(node.id);
                   setTooltip({ nodeId: node.id, x: event.clientX, y: event.clientY });
@@ -1205,7 +1442,7 @@ function ReportGraphPreview({
               >
                 <span>{node.label.slice(0, 1).toUpperCase()}</span>
                 <strong>{node.label}</strong>
-                <small>{node.stage === "universe" ? "coverage universe" : stageLabel(node.stage)}</small>
+                <small>{node.stage === "universe" ? "coverage universe" : `${node.provenance} - ${stageLabel(node.stage)}`}</small>
               </button>
             );
           })}
@@ -1219,7 +1456,7 @@ function ReportGraphPreview({
             role="tooltip"
           >
             <strong>{tooltipNode.label}</strong>
-            <span>{tooltipNode.type} · {stageLabel(tooltipNode.stage === "universe" ? "monitoring" : tooltipNode.stage)}</span>
+            <span>{tooltipNode.type} - {tooltipNode.provenance} - {stageLabel(tooltipNode.stage === "universe" ? "monitoring" : tooltipNode.stage)}</span>
             <span>{connectedIds.size > 0 ? connectedIds.size - 1 : 0} connections</span>
           </div>
         )}
@@ -1230,13 +1467,14 @@ function ReportGraphPreview({
             <span>{activeNode?.label.slice(0, 1).toUpperCase() ?? "G"}</span>
             <div>
               <strong>{activeNode?.label ?? "No node selected"}</strong>
-              <small>{activeNode?.type ?? "Graph"} · {activeStage ? stageLabel(activeStage) : "relationship map"}</small>
+              <small>{activeNode?.type ?? "Graph"} - {activeNode?.provenance ?? "map"} - {activeStage ? stageLabel(activeStage) : "relationship map"}</small>
             </div>
           </div>
           <dl>
             <div><dt>Sources</dt><dd>{activeNode?.sources ?? "Open a report node"}</dd></div>
             <div><dt>Freshness</dt><dd>{activeNode?.freshness ?? "No freshness state"}</dd></div>
             <div><dt>Verified</dt><dd>{activeNode?.verified ?? "No evidence state"}</dd></div>
+            <div><dt>Provenance</dt><dd>{activeNode?.provenance ?? "graph"} from {graph.sourceLabel}</dd></div>
             <div>
               <dt>Coverage</dt>
               <dd className="rd-v3-graph-peek__tags">
