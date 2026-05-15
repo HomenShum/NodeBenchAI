@@ -7851,6 +7851,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-v3-graph__legend i[data-edge="covers"] { border-color: #8b5cf6; border-style: dotted; }
 [data-redesign] .rd-v3-graph__legend i[data-edge="causes"] { border-color: #f472b6; }
 [data-redesign] .rd-v3-graph__legend i[data-edge="correlates_with"] { border-color: #f59e0b; border-style: dashed; }
+[data-redesign] .rd-v3-graph__legend i[data-edge="cluster"] { border-color: #64748b; border-style: dashed; }
 
 [data-redesign] .rd-v3-graph__canvas {
   position: relative;
@@ -8324,6 +8325,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-v3-graph__controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-start;
   padding: 8px 4px;
@@ -8351,6 +8353,33 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink);
 }
 
+[data-redesign] .rd-v3-graph__scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--rd-line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--rd-paper) 80%, transparent);
+  flex-shrink: 0;
+}
+
+[data-redesign] .rd-v3-graph__scale button {
+  border: 0;
+  border-radius: 5px;
+  padding: 3px 7px;
+  background: transparent;
+  color: var(--rd-ink-faint);
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+[data-redesign] .rd-v3-graph__scale button[aria-pressed="true"] {
+  background: var(--rd-ink);
+  color: var(--rd-paper);
+}
+
 [data-redesign] .rd-v3-graph__search {
   flex: 0 1 220px;
   min-width: 160px;
@@ -8360,6 +8389,13 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   padding: 4px 8px 4px 22px;
   font-size: 10px;
   background: transparent;
+}
+
+[data-redesign] .rd-v3-graph__budget {
+  flex-shrink: 0;
+  color: var(--rd-ink-faint);
+  font-size: 9px;
+  white-space: nowrap;
 }
 
 [data-redesign] .rd-v3-graph__legend {
@@ -8428,6 +8464,12 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-v3-graph-node[data-graph-type="portfolio"] .rd-v3-graph-node__label {
   fill: var(--rd-ink);
   font-weight: 680;
+}
+
+[data-redesign] .rd-v3-graph-node[data-graph-type="cluster"] .rd-v3-graph-node__label {
+  fill: var(--rd-ink-soft);
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 [data-redesign] .rd-v3-graph-node__meta {

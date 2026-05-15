@@ -7,7 +7,7 @@
 
 import { useMemo, useState, useEffect, useRef, type DragEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import * as d3 from "d3";
-import { memoStyles, type ReportCardData, type Density, type Universe } from "../fixtures";
+import { memoStyles, reports as fixtureReports, type ReportCardData, type Density, type Universe } from "../fixtures";
 import { Pill } from "../components/Pill";
 import { ReportNotebookView } from "../components/ReportNotebookView";
 import { useReportsLive } from "../hooks/useReportsLive";
@@ -54,6 +54,82 @@ function displayReportDescription(description: string): string {
     .replace(/\bexecutive confidence\s+\d+%\.?/gi, "executive review recorded.");
 }
 
+function graphScaleQaModeEnabled(): boolean {
+  if (!import.meta.env.DEV || typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("qa") === "graph-scale-controls";
+}
+
+function buildGraphScaleQaReports(): ReportCardData[] {
+  const seeds = fixtureReports.length > 0 ? fixtureReports : [{
+    id: "qa_report",
+    entity: "AI Infrastructure",
+    kind: "Coverage",
+    status: "review" as const,
+    description: "Graph scale smoke dataset.",
+    sources: 8,
+    claims: 4,
+    followUps: 1,
+    updatedAt: "just now",
+  }];
+  return Array.from({ length: 72 }, (_, index) => {
+    const base = seeds[index % seeds.length];
+    const statusCycle: ReportCardData["status"][] = ["verified", "review", "watching"];
+    return {
+      ...base,
+      id: `qa-scale-${index + 1}-${base.id}`,
+      entity: index < seeds.length ? base.entity : `${base.entity} ${index + 1}`,
+      status: statusCycle[index % statusCycle.length],
+      sources: base.sources + (index % 9),
+      claims: base.claims + (index % 5),
+      followUps: (base.followUps + index) % 6,
+      updatedAt: index % 4 === 0 ? "2h ago" : index % 4 === 1 ? "Yesterday" : index % 4 === 2 ? "4d ago" : "2w ago",
+    };
+  });
+}
+
+function buildGraphScaleQaDetails(reports: ReportCardData[]): LiveArtifactDetail[] {
+  const now = Date.now();
+  return reports.slice(0, 36).map((report, index) => ({
+    id: report.id,
+    title: report.entity,
+    kind: report.kind,
+    status: report.status,
+    summary: displayReportDescription(report.description),
+    updatedAt: report.updatedAt,
+    updatedAtMs: now - index * 3_600_000,
+    sourceCount: report.sources,
+    claimCount: report.claims,
+    followUps: report.followUps,
+    tags: [report.kind.toLowerCase(), report.status, index % 2 === 0 ? "ai-infra" : "coverage"],
+    sections: [
+      { title: "Executive read", body: displayReportDescription(report.description) },
+      { title: "Next action", body: report.followUps > 0 ? "Review follow-ups before exporting." : "Keep monitoring for new source rows." },
+    ],
+    sourceRows: Array.from({ length: Math.min(4, Math.max(1, report.sources)) }, (_, sourceIndex) => ({
+      id: `src-${index + 1}-${sourceIndex + 1}`,
+      type: sourceIndex === 0 ? "Primary" : "Evidence",
+      title: `${report.entity} source row ${sourceIndex + 1}`,
+      refreshed: sourceIndex === 0 ? "today" : "this week",
+      reused: sourceIndex + 1,
+      excerpt: `Reusable evidence row for ${report.entity}.`,
+      status: sourceIndex === 0 ? "verified" : "review",
+      confidence: sourceIndex === 0 ? 0.9 : 0.74,
+    })),
+    nodes: [
+      { id: "summary", title: `${report.entity} summary`, subtitle: "Notebook artifact", tone: "blue", kind: "artifact", artifactType: "PACKET" },
+      { id: "evidence", title: `${report.entity} evidence`, subtitle: `${report.sources} sources`, tone: "green", kind: "artifact", artifactType: "EVIDENCE" },
+      { id: "action", title: `${report.entity} action queue`, subtitle: `${report.followUps} follow-ups`, tone: report.followUps > 0 ? "amber" : "green", kind: "artifact", artifactType: "DASHBOARD" },
+    ],
+    edges: [
+      { from: "root", to: "summary", type: "has_artifact", label: "PACKET", basis: "Report produces a notebook packet." },
+      { from: "summary", to: "evidence", type: index % 2 === 0 ? "causes" : "correlates_with", label: index % 2 === 0 ? "causes" : "correlates", basis: "Scale QA keeps multiple relation types visible.", strength: 0.7 },
+      { from: "evidence", to: "action", type: "causes", label: "routes", basis: "Evidence quality drives follow-up routing.", strength: 0.64 },
+    ],
+    notebookHtml: `<h2>${report.entity}</h2><p>${displayReportDescription(report.description)}</p>`,
+    primaryAction: report.followUps > 0 ? "Review follow-ups" : "Monitor",
+  }));
+}
+
 interface ReportsSurfaceProps {
   onOpen: (id: string, tab: "brief" | "cards" | "chat") => void;
   onRunBatch?: (prompt: string, context?: { reportId?: string; artifactKey?: string }) => void;
@@ -64,12 +140,19 @@ interface ReportsSurfaceProps {
 type ReportViewMode = "gallery" | "board" | "table" | "graph";
 type ReportStage = "drafting" | "review" | "verified" | "stale" | "monitoring";
 type ReportBoardColumnId = ReportStage | "archived";
+type ReportGraphScaleMode = "focus" | "clustered" | "expanded";
 
 const REPORT_VIEW_MODES: Array<{ id: ReportViewMode; label: string }> = [
   { id: "gallery", label: "Gallery" },
   { id: "board", label: "Board" },
   { id: "table", label: "Table" },
   { id: "graph", label: "Graph" },
+];
+
+const REPORT_GRAPH_SCALE_MODES: Array<{ id: ReportGraphScaleMode; label: string; hint: string }> = [
+  { id: "focus", label: "Focus", hint: "Root report, closest neighbors, and core evidence only" },
+  { id: "clustered", label: "Cluster", hint: "Bounded neighborhood plus overflow groups" },
+  { id: "expanded", label: "Expand", hint: "Wider neighborhood, still capped for browser performance" },
 ];
 
 function reportViewFromUrl(): ReportViewMode {
@@ -151,7 +234,24 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
   // Live data wiring: authenticated and anonymous workspaces show Convex-backed
   // runs/artifacts. Empty states remain explicit so production never masks a
   // broken live path with fixture reports.
-  const { reports, details, isLive, isLoading, sourceLabel, liveCount } = useReportsLive();
+  const {
+    reports: liveReports,
+    details: liveDetails,
+    isLive: liveIsLive,
+    isLoading: liveIsLoading,
+    sourceLabel: liveSourceLabel,
+    liveCount: liveArtifactCount,
+  } = useReportsLive();
+  const graphScaleQaEnabled = graphScaleQaModeEnabled();
+  const qaReports = useMemo(() => graphScaleQaEnabled ? buildGraphScaleQaReports() : [], [graphScaleQaEnabled]);
+  const qaDetails = useMemo(() => graphScaleQaEnabled ? buildGraphScaleQaDetails(qaReports) : [], [graphScaleQaEnabled, qaReports]);
+  const useGraphScaleQaData = graphScaleQaEnabled && liveReports.length === 0;
+  const reports = useGraphScaleQaData ? qaReports : liveReports;
+  const details = useGraphScaleQaData ? qaDetails : liveDetails;
+  const isLive = useGraphScaleQaData ? true : liveIsLive;
+  const isLoading = useGraphScaleQaData ? false : liveIsLoading;
+  const sourceLabel = useGraphScaleQaData ? "Graph scale QA fixture (dev only)" : liveSourceLabel;
+  const liveCount = useGraphScaleQaData ? reports.length : liveArtifactCount;
 
   const toggleSelect = (id: string) => setSelected((prev) => {
     const next = new Set(prev);
@@ -428,7 +528,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
         <ReportTable reports={visibleReports} stageOverrides={stageOverrides} onOpen={openReportAction} onSelect={handleSelectReport} />
       ) : viewMode === "graph" ? (
         <ReportGraphPreviewD3
-          reports={visibleReports}
+          reports={filtered}
           details={details}
           selectedReport={selectedReport}
           stageOverrides={stageOverrides}
@@ -798,11 +898,11 @@ type ReportGraphNode = {
   id: string;
   label: string;
   type: string;
-  graphType: "company" | "person" | "investor" | "brief" | "monitoring" | "report" | "artifact" | "portfolio";
+  graphType: "company" | "person" | "investor" | "brief" | "monitoring" | "report" | "artifact" | "portfolio" | "cluster";
   weight: number;
   report?: ReportCardData;
   detail?: LiveArtifactDetail;
-  provenance: "universe" | "entity" | "report" | "artifact" | "source" | "portfolio";
+  provenance: "universe" | "entity" | "report" | "artifact" | "source" | "portfolio" | "cluster";
   liveNodeId?: string;
   artifactKey?: string;
   artifactType?: string;
@@ -850,6 +950,66 @@ type ReportGraphData = {
   sourceRows: number;
   artifactNodeCount: number;
   artifactEdgeCount: number;
+  totalReportCount: number;
+  visibleReportCount: number;
+  hiddenReportCount: number;
+  clusteredReportCount: number;
+  nodeBudget: number;
+  edgeBudget: number;
+  rawEdgeCount: number;
+  scaleMode: ReportGraphScaleMode;
+};
+
+type ReportGraphBuildOptions = {
+  scaleMode: ReportGraphScaleMode;
+};
+
+type ReportGraphScaleConfig = {
+  neighborReports: number;
+  rootArtifacts: number;
+  relatedArtifacts: number;
+  sourceRows: number;
+  coveredEntities: number;
+  relationEdges: number;
+  nodeBudget: number;
+  edgeBudget: number;
+  clusterOverflow: boolean;
+};
+
+const REPORT_GRAPH_SCALE_CONFIG: Record<ReportGraphScaleMode, ReportGraphScaleConfig> = {
+  focus: {
+    neighborReports: 8,
+    rootArtifacts: 4,
+    relatedArtifacts: 1,
+    sourceRows: 3,
+    coveredEntities: 4,
+    relationEdges: 3,
+    nodeBudget: 72,
+    edgeBudget: 108,
+    clusterOverflow: true,
+  },
+  clustered: {
+    neighborReports: 12,
+    rootArtifacts: 4,
+    relatedArtifacts: 1,
+    sourceRows: 3,
+    coveredEntities: 5,
+    relationEdges: 5,
+    nodeBudget: 88,
+    edgeBudget: 132,
+    clusterOverflow: true,
+  },
+  expanded: {
+    neighborReports: 18,
+    rootArtifacts: 5,
+    relatedArtifacts: 2,
+    sourceRows: 4,
+    coveredEntities: 6,
+    relationEdges: 8,
+    nodeBudget: 120,
+    edgeBudget: 180,
+    clusterOverflow: true,
+  },
 };
 
 const REPORT_GRAPH_NEIGHBOR_POSITIONS = [
@@ -880,6 +1040,17 @@ const SOURCE_GRAPH_POSITIONS = [
   { x: 570, y: 500 },
   { x: 690, y: 500 },
 ] as const;
+
+function reportGraphNeighborPosition(index: number, total: number): { x: number; y: number } {
+  if (total <= REPORT_GRAPH_NEIGHBOR_POSITIONS.length) {
+    return REPORT_GRAPH_NEIGHBOR_POSITIONS[index % REPORT_GRAPH_NEIGHBOR_POSITIONS.length];
+  }
+  const angle = (-Math.PI / 2) + ((Math.PI * 2 * index) / total);
+  return {
+    x: 460 + Math.cos(angle) * 330,
+    y: 258 + Math.sin(angle) * 218,
+  };
+}
 
 function graphEdgeType(report: ReportCardData, stage: ReportStage): ReportGraphLink["type"] {
   const text = `${report.kind} ${report.entity} ${report.description}`.toLowerCase();
@@ -1031,14 +1202,35 @@ function buildReportGraph(
   details: LiveArtifactDetail[],
   selectedReport: ReportCardData | null,
   stageOverrides: Record<string, ReportStage>,
+  options: ReportGraphBuildOptions,
 ): ReportGraphData {
+  const config = REPORT_GRAPH_SCALE_CONFIG[options.scaleMode];
   const rootReport = selectedReport && reports.some((report) => report.id === selectedReport.id)
     ? selectedReport
     : reports[0] ?? null;
-  if (!rootReport) return { nodes: [], links: [], root: null, sourceLabel: "No live graph", sourceRows: 0, artifactNodeCount: 0, artifactEdgeCount: 0 };
+  if (!rootReport) {
+    return {
+      nodes: [],
+      links: [],
+      root: null,
+      sourceLabel: "No live graph",
+      sourceRows: 0,
+      artifactNodeCount: 0,
+      artifactEdgeCount: 0,
+      totalReportCount: 0,
+      visibleReportCount: 0,
+      hiddenReportCount: 0,
+      clusteredReportCount: 0,
+      nodeBudget: config.nodeBudget,
+      edgeBudget: config.edgeBudget,
+      rawEdgeCount: 0,
+      scaleMode: options.scaleMode,
+    };
+  }
 
   const rootDetail = detailForReport(details, rootReport);
-  const related = reports.filter((report) => report.id !== rootReport.id).slice(0, REPORT_GRAPH_NEIGHBOR_POSITIONS.length);
+  const related = reports.filter((report) => report.id !== rootReport.id).slice(0, config.neighborReports);
+  const hiddenReports = reports.filter((report) => report.id !== rootReport.id).slice(config.neighborReports);
   const visible = [rootReport, ...related];
   const visibleDetails = visible.map((report) => detailForReport(details, report)).filter((detail): detail is LiveArtifactDetail => Boolean(detail));
   const totalSources = visibleDetails.length
@@ -1065,7 +1257,7 @@ function buildReportGraph(
     const isRoot = report.id === rootReport.id;
     const relatedPosition = isRoot
       ? { x: 460, y: 250 }
-      : REPORT_GRAPH_NEIGHBOR_POSITIONS[(index - 1) % REPORT_GRAPH_NEIGHBOR_POSITIONS.length];
+      : reportGraphNeighborPosition(index - 1, related.length);
     const freshness = detail ? `Updated ${detail.updatedAt}` : freshnessText(report, stage);
     const sourceWeight = Math.max(1, detail?.sourceRows.length ?? report.sources);
     const entityLabel = entityLabelForReport(report);
@@ -1123,7 +1315,9 @@ function buildReportGraph(
     const detail = detailForReport(details, report);
     if (!detail) return;
     const reportPosition = nodes.find((node) => node.id === report.id) ?? { x: 460, y: 250 };
-    const liveNodes = detail.nodes.filter((node) => node.id !== "root").slice(0, report.id === rootReport.id ? 4 : 1);
+    const liveNodes = detail.nodes
+      .filter((node) => node.id !== "root")
+      .slice(0, report.id === rootReport.id ? config.rootArtifacts : config.relatedArtifacts);
     liveNodes.forEach((node, index) => {
       const artifactPosition = ARTIFACT_GRAPH_POSITIONS[(reportIndex + index) % ARTIFACT_GRAPH_POSITIONS.length];
       const stage = stageFromLiveNode(node, getReportStage(report, stageOverrides[report.id]));
@@ -1158,7 +1352,7 @@ function buildReportGraph(
     });
   });
 
-  const sourceNodes = (rootDetail?.sourceRows ?? []).slice(0, 3);
+  const sourceNodes = (rootDetail?.sourceRows ?? []).slice(0, config.sourceRows);
   sourceNodes.forEach((row, index) => {
     if (!rootDetail) return;
     const freshness = `Refreshed ${row.refreshed}`;
@@ -1235,6 +1429,57 @@ function buildReportGraph(
       ],
     });
     artifactNodeIds.push(portfolioArtifactNodeKey());
+  }
+
+  let clusteredReportCount = 0;
+  if (config.clusterOverflow && hiddenReports.length > 0) {
+    const grouped: Record<ReportStage, ReportCardData[]> = {
+      drafting: [],
+      review: [],
+      verified: [],
+      stale: [],
+      monitoring: [],
+    };
+    hiddenReports.forEach((report) => {
+      grouped[getReportStage(report, stageOverrides[report.id])].push(report);
+    });
+    const clusterPositions = [
+      { x: 78, y: 116 },
+      { x: 78, y: 220 },
+      { x: 78, y: 324 },
+      { x: 78, y: 428 },
+      { x: 808, y: 116 },
+    ] as const;
+    (Object.entries(grouped) as Array<[ReportStage, ReportCardData[]]>)
+      .filter(([, group]) => group.length > 0)
+      .slice(0, clusterPositions.length)
+      .forEach(([stage, group], index) => {
+        const position = clusterPositions[index];
+        const sourceTotal = group.reduce((sum, report) => sum + report.sources, 0);
+        const claimTotal = group.reduce((sum, report) => sum + report.claims, 0);
+        clusteredReportCount += group.length;
+        addNode({
+          id: `cluster:${stage}`,
+          label: `${group.length} ${stageLabel(stage).toLowerCase()}`,
+          type: "Overflow cluster",
+          graphType: "cluster",
+          weight: Math.max(2, Math.min(14, group.length)),
+          provenance: "cluster",
+          stage,
+          x: position.x,
+          y: position.y,
+          radius: 13 + Math.min(9, Math.log2(group.length + 1) * 2),
+          sources: `${sourceTotal} source row${sourceTotal === 1 ? "" : "s"}`,
+          freshness: `${group.length} reports hidden by ${options.scaleMode} budget`,
+          staleHours: stage === "stale" ? 72 : 0,
+          verified: `${claimTotal} claim${claimTotal === 1 ? "" : "s"} in cluster`,
+          coverage: ["cluster", stage, `${group.length} reports`],
+          signals: [
+            "The graph is intentionally clustered here instead of rendering every report node.",
+            `Use search or filters to focus into ${stageLabel(stage).toLowerCase()} reports without creating a node cloud.`,
+          ],
+        });
+      });
   }
 
   addNode({
@@ -1334,7 +1579,7 @@ function buildReportGraph(
   });
 
   if (visible.length > 1) {
-    visible.slice(0, 4).forEach((report, index) => {
+    visible.slice(0, config.coveredEntities).forEach((report, index) => {
       pushLink({
         source: portfolioNodeKey(),
         target: entityNodeKey(report),
@@ -1353,30 +1598,31 @@ function buildReportGraph(
     });
   }
 
-  if (artifactNodeIds.length >= 2) {
+  const relationArtifactNodeIds = artifactNodeIds.slice(0, Math.max(0, config.relationEdges + 1));
+  if (relationArtifactNodeIds.length >= 2 && config.relationEdges >= 1) {
     pushLink({
-      source: artifactNodeIds[0],
-      target: artifactNodeIds[1],
+      source: relationArtifactNodeIds[0],
+      target: relationArtifactNodeIds[1],
       type: "causes",
       label: "causes",
       basis: "The lead artifact changes the downstream review order for the next artifact.",
       strength: 0.74,
     });
   }
-  if (artifactNodeIds.length >= 3) {
+  if (relationArtifactNodeIds.length >= 3 && config.relationEdges >= 2) {
     pushLink({
-      source: artifactNodeIds[1],
-      target: artifactNodeIds[2],
+      source: relationArtifactNodeIds[1],
+      target: relationArtifactNodeIds[2],
       type: "correlates_with",
       label: "correlates",
       basis: "Artifacts share report context, source timing, or entity overlap.",
       strength: 0.66,
     });
   }
-  if (artifactNodeIds.length >= 4) {
+  if (relationArtifactNodeIds.length >= 4 && config.relationEdges >= 3) {
     pushLink({
-      source: artifactNodeIds[0],
-      target: artifactNodeIds[3],
+      source: relationArtifactNodeIds[0],
+      target: relationArtifactNodeIds[3],
       type: "causes",
       label: "causes",
       basis: "One artifact can influence multiple downstream artifacts; this edge keeps that multiplicity visible.",
@@ -1393,15 +1639,49 @@ function buildReportGraph(
       label: "coverage",
     });
   });
+  nodes.filter((node) => node.provenance === "cluster").forEach((node) => {
+    pushLink({
+      source: "__universe__",
+      target: node.id,
+      type: "cluster",
+      label: node.coverage[1] ?? "cluster",
+      basis: "Overflow reports are grouped so the browser renders a bounded working graph.",
+      strength: 0.5,
+    });
+  });
+
+  const edgePriority = (link: ReportGraphLink): number => {
+    if (link.type === "has_report" || link.type === "has_artifact") return 0;
+    if (link.type === "coverage" && (link.source === "__universe__" || link.target === rootReport.id)) return 1;
+    if (link.type === "causes" || link.type === "correlates_with") return 2;
+    if (link.type === "covers") return 3;
+    if (link.type === "evidence") return 4;
+    if (link.type === "cluster") return 5;
+    return 6;
+  };
+  const rawEdgeCount = links.length;
+  const budgetedLinks = rawEdgeCount <= config.edgeBudget
+    ? links
+    : [...links]
+      .sort((a, b) => edgePriority(a) - edgePriority(b))
+      .slice(0, config.edgeBudget);
 
   return {
     nodes,
-    links,
+    links: budgetedLinks,
     root: nodes.find((node) => node.id === rootReport.id) ?? null,
     sourceLabel: visibleDetails.length ? "Convex artifact graph" : "Report metadata graph",
     sourceRows: totalSources,
     artifactNodeCount: nodes.filter((node) => node.provenance === "artifact").length,
-    artifactEdgeCount: links.filter((link) => link.type === "has_artifact" || link.type === "causes" || link.type === "correlates_with").length,
+    artifactEdgeCount: budgetedLinks.filter((link) => link.type === "has_artifact" || link.type === "causes" || link.type === "correlates_with").length,
+    totalReportCount: reports.length,
+    visibleReportCount: visible.length,
+    hiddenReportCount: hiddenReports.length,
+    clusteredReportCount,
+    nodeBudget: config.nodeBudget,
+    edgeBudget: config.edgeBudget,
+    rawEdgeCount,
+    scaleMode: options.scaleMode,
   };
 }
 
@@ -1621,7 +1901,10 @@ function ReportGraphPreview({
   const svgRef = useRef<SVGSVGElement>(null);
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const movedDuringPointerRef = useRef(false);
-  const graph = useMemo(() => buildReportGraph(reports, details, selectedReport, stageOverrides), [reports, details, selectedReport, stageOverrides]);
+  const graph = useMemo(
+    () => buildReportGraph(reports, details, selectedReport, stageOverrides, { scaleMode: "focus" }),
+    [reports, details, selectedReport, stageOverrides],
+  );
   const [pinnedNodeId, setPinnedNodeId] = useState<string | null>(null);
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
@@ -1771,6 +2054,14 @@ function ReportGraphPreview({
       data-edge-count={graph.links.length}
       data-artifact-node-count={graph.artifactNodeCount}
       data-artifact-edge-count={graph.artifactEdgeCount}
+      data-total-report-count={graph.totalReportCount}
+      data-visible-report-count={graph.visibleReportCount}
+      data-hidden-report-count={graph.hiddenReportCount}
+      data-clustered-report-count={graph.clusteredReportCount}
+      data-visible-node-budget={graph.nodeBudget}
+      data-visible-edge-budget={graph.edgeBudget}
+      data-raw-edge-count={graph.rawEdgeCount}
+      data-scale-mode={graph.scaleMode}
     >
       <div className="rd-v3-graph__controls">
         <div>
@@ -2021,7 +2312,11 @@ function ReportGraphPreviewD3({
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const pinnedNodeIdRef = useRef<string | null>(null);
-  const graph = useMemo(() => buildReportGraph(reports, details, selectedReport, stageOverrides), [reports, details, selectedReport, stageOverrides]);
+  const [scaleMode, setScaleMode] = useState<ReportGraphScaleMode>("clustered");
+  const graph = useMemo(
+    () => buildReportGraph(reports, details, selectedReport, stageOverrides, { scaleMode }),
+    [reports, details, selectedReport, stageOverrides, scaleMode],
+  );
   const [graphQuery, setGraphQuery] = useState("");
   const [pinnedNodeId, setPinnedNodeId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ nodeId: string; x: number; y: number } | null>(null);
@@ -2155,6 +2450,7 @@ function ReportGraphPreviewD3({
       report: "#3b82f6",
       artifact: "#c96f52",
       portfolio: "#8b5cf6",
+      cluster: "#64748b",
     };
     const edgeStyle: Record<string, { stroke: string; dash?: string; width: number }> = {
       funding: { stroke: "var(--rd-green)", width: 1.2 },
@@ -2166,7 +2462,7 @@ function ReportGraphPreviewD3({
       evidence: { stroke: "var(--rd-green)", width: 1 },
       review: { stroke: "var(--rd-amber)", dash: "7 5", width: 1 },
       drafting: { stroke: "var(--rd-blue)", dash: "2 5", width: 1 },
-      cluster: { stroke: "var(--rd-accent)", dash: "8 5", width: 1 },
+      cluster: { stroke: "#64748b", dash: "8 5", width: 1 },
       has_report: { stroke: "var(--rd-accent)", width: 1.15 },
       has_artifact: { stroke: "#c96f52", dash: "7 4", width: 1.05 },
       covers: { stroke: "#8b5cf6", dash: "2 4", width: 0.9 },
@@ -2178,6 +2474,7 @@ function ReportGraphPreviewD3({
       if (node.graphType === "report") return "R";
       if (node.graphType === "portfolio") return "P";
       if (node.graphType === "brief") return "B";
+      if (node.graphType === "cluster") return "C";
       return node.label.slice(0, 1).toUpperCase();
     };
     const endpointId = (endpoint: string | D3GraphNode | undefined) => (typeof endpoint === "object" && endpoint ? endpoint.id : String(endpoint ?? ""));
@@ -2283,13 +2580,15 @@ function ReportGraphPreviewD3({
       .attr("class", "rd-v3-graph-node__label")
       .text((node) => node.label)
       .attr("dx", (node) => radiusFor(node) + 6)
-      .attr("dy", "0.35em");
+      .attr("dy", "0.35em")
+      .attr("opacity", (node) => graph.scaleMode === "focus" && node.graphType === "artifact" ? 0 : 1);
 
     nodeEl.append("text")
       .attr("class", "rd-v3-graph-node__meta")
       .text((node) => node.stage === "universe" ? "monitoring" : node.stage)
       .attr("dx", (node) => radiusFor(node) + 6)
-      .attr("dy", "1.5em");
+      .attr("dy", "1.5em")
+      .attr("opacity", (node) => graph.scaleMode === "expanded" || node.graphType === "report" || node.graphType === "cluster" ? 0.55 : 0);
 
     const applySearch = () => {
       nodeEl.attr("opacity", (node) => (!normalizedGraphQuery || searchMatch(node)) ? 1 : 0.12);
@@ -2446,13 +2745,44 @@ function ReportGraphPreviewD3({
       data-edge-count={graph.links.length}
       data-artifact-node-count={graph.artifactNodeCount}
       data-artifact-edge-count={graph.artifactEdgeCount}
+      data-total-report-count={graph.totalReportCount}
+      data-visible-report-count={graph.visibleReportCount}
+      data-hidden-report-count={graph.hiddenReportCount}
+      data-clustered-report-count={graph.clusteredReportCount}
+      data-visible-node-budget={graph.nodeBudget}
+      data-visible-edge-budget={graph.edgeBudget}
+      data-raw-edge-count={graph.rawEdgeCount}
+      data-scale-mode={graph.scaleMode}
     >
       <div className="rd-v3-graph__controls">
         <button type="button" className="rd-v3-graph__fit" onClick={resetGraph}>Fit</button>
+        <span className="rd-v3-graph__scale" role="group" aria-label="Graph density">
+          {REPORT_GRAPH_SCALE_MODES.map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              aria-pressed={scaleMode === mode.id}
+              title={mode.hint}
+              onClick={() => {
+                setScaleMode(mode.id);
+                pinnedNodeIdRef.current = null;
+                setPinnedNodeId(null);
+                setTooltip(null);
+                setPeekPosition(null);
+              }}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </span>
         <label className="rd-v3-graph__search">
           <span aria-hidden="true">⌕</span>
           <input value={graphQuery} onChange={(event) => setGraphQuery(event.target.value)} placeholder="Search graph..." aria-label="Search graph nodes" />
         </label>
+        <span className="rd-v3-graph__budget" title="Visible graph budget">
+          {graph.visibleReportCount}/{graph.totalReportCount} reports
+          {graph.hiddenReportCount > 0 ? ` - ${graph.clusteredReportCount} clustered` : ""}
+        </span>
         <span className="rd-v3-graph__legend" aria-label="Relationship legend">
           <span><i data-edge="funding" />Funding</span>
           <span><i data-edge="competition" />Competition</span>
@@ -2461,6 +2791,7 @@ function ReportGraphPreviewD3({
           <span><i data-edge="has_artifact" />Artifact</span>
           <span><i data-edge="causes" />Causes</span>
           <span><i data-edge="correlates_with" />Correlates</span>
+          <span><i data-edge="cluster" />Cluster</span>
         </span>
       </div>
       <div className="rd-v3-graph__canvas" ref={containerRef}>
@@ -2601,6 +2932,11 @@ function ReportGraphPreviewD3({
                   <button type="button" onClick={() => showToast({ tone: "info", message: `Portfolio workbench preview queued for ${activeNode.label}.` })}>Open workbench</button>
                   <button type="button" onClick={() => showToast({ tone: "info", message: `Re-classification preview queued for ${activeNode.label}.` })}>Re-classify</button>
                 </>
+              ) : activeNode.provenance === "cluster" ? (
+                <>
+                  <button type="button" onClick={() => showToast({ tone: "info", message: `Use the Reports filters or graph search to drill into ${activeNode.label}.` })}>Narrow filters</button>
+                  <button type="button" onClick={() => showToast({ tone: "info", message: `Batch review preview queued for ${activeNode.label}.` })}>Review cluster</button>
+                </>
               ) : activeNode.provenance === "report" ? (
                 <>
                   <button type="button" onClick={() => openNodeNotebook(activeNode)}>Open report</button>
@@ -2618,7 +2954,7 @@ function ReportGraphPreviewD3({
         )}
       </div>
       <p className="rd-v3-graph__provenance">
-        {graph.sourceLabel} - {graph.nodes.length} nodes - {graph.links.length} edges - {graph.sourceRows} source rows - {linkedReportCount} neighboring reports
+        {graph.sourceLabel} - {graph.nodes.length}/{graph.nodeBudget} visible nodes - {graph.links.length}/{graph.rawEdgeCount} edges - {graph.sourceRows} source rows - {linkedReportCount} neighboring reports{graph.hiddenReportCount > 0 ? ` - ${graph.hiddenReportCount} reports hidden behind clusters` : ""}
       </p>
     </section>
   );
