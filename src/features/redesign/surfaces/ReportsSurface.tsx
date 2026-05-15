@@ -90,7 +90,7 @@ const STATUS_FILTERS: Array<{ id: "all" | ReportStage; label: string }> = [
   { id: "verified", label: "Verified" },
   { id: "review", label: "Review" },
   { id: "stale", label: "Stale" },
-  { id: "drafting", label: "Draft" },
+  { id: "drafting", label: "Drafting" },
 ];
 
 const KIND_FILTERS = [
