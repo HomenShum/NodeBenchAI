@@ -7909,6 +7909,18 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   background: color-mix(in srgb, var(--rd-accent-soft) 55%, var(--rd-panel));
 }
 
+[data-redesign] .rd-v3-graph__hit-targets button[data-node-provenance="artifact"],
+[data-redesign] .rd-v3-graph__hit-targets button[data-node-provenance="source"] {
+  min-height: 30px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-areas: "icon title";
+  padding: 4px 7px 4px 5px;
+}
+
+[data-redesign] .rd-v3-graph__hit-targets button[data-node-provenance="source"] {
+  background: color-mix(in srgb, var(--rd-green) 10%, var(--rd-panel));
+}
+
 [data-redesign] .rd-v3-graph__hit-targets button > span {
   grid-area: icon;
   width: 22px;
@@ -7920,6 +7932,14 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-accent-strong);
   font-size: 10px;
   font-weight: 800;
+}
+
+[data-redesign] .rd-v3-graph__hit-targets button[data-node-provenance="artifact"] > span,
+[data-redesign] .rd-v3-graph__hit-targets button[data-node-provenance="source"] > span {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  font-size: 9px;
 }
 
 [data-redesign] .rd-v3-graph__hit-targets button > strong {
@@ -7940,6 +7960,11 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-faint);
   font-size: 9px;
   font-weight: 700;
+}
+
+[data-redesign] .rd-v3-graph__hit-targets button[data-node-provenance="artifact"] > small,
+[data-redesign] .rd-v3-graph__hit-targets button[data-node-provenance="source"] > small {
+  display: none;
 }
 
 [data-redesign] .rd-v3-graph__links path {

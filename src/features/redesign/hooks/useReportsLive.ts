@@ -8,10 +8,11 @@
  */
 
 import type { ReportCardData } from "../fixtures";
-import { useLiveArtifacts } from "./useLiveArtifacts";
+import { useLiveArtifacts, type LiveArtifactDetail } from "./useLiveArtifacts";
 
 export interface UseReportsLiveResult {
   reports: ReportCardData[];
+  details: LiveArtifactDetail[];
   isLive: boolean;
   isLoading: boolean;
   sourceLabel: string;
@@ -22,6 +23,7 @@ export function useReportsLive(): UseReportsLiveResult {
   const liveArtifacts = useLiveArtifacts(30);
   return {
     reports: liveArtifacts.reports,
+    details: liveArtifacts.details,
     isLive: liveArtifacts.isLive,
     isLoading: liveArtifacts.isLoading,
     sourceLabel: liveArtifacts.sourceLabel,
