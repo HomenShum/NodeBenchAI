@@ -11,7 +11,12 @@ import { memoStyles, reports as fixtureReports, type ReportCardData, type Densit
 import { Pill } from "../components/Pill";
 import { ReportNotebookView } from "../components/ReportNotebookView";
 import { useReportsLive } from "../hooks/useReportsLive";
-import type { LiveArtifactDetail, LiveArtifactMapNode } from "../hooks/useLiveArtifacts";
+import {
+  useReportGraphNeighborhood,
+  type LiveArtifactDetail,
+  type LiveArtifactMapNode,
+  type ReportGraphNeighborhoodScope,
+} from "../hooks/useLiveArtifacts";
 import { showToast } from "../components/Toast";
 import {
   buildReportsDecisionQueue,
@@ -196,6 +201,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
   const [sortOpen, setSortOpen] = useState(false);
   const [stageOverrides, setStageOverrides] = useState<Record<string, ReportStage>>({});
   const [graphSelectedReportId, setGraphSelectedReportId] = useState<string | null>(null);
+  const [graphScaleMode, setGraphScaleMode] = useState<ReportGraphScaleMode>("clustered");
   const [notebookReportId, setNotebookReportId] = useState<string | null>(null);
   const sortRef = useRef<HTMLDivElement>(null);
   const inlineFilterRef = useRef<HTMLInputElement>(null);
@@ -339,6 +345,19 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
   const staleCount = filtered.filter((report) => getReportStage(report, stageOverrides[report.id]) === "stale").length;
   const draftingCount = filtered.filter((report) => getReportStage(report, stageOverrides[report.id]) === "drafting").length;
   const selectedReport = filtered.find((report) => report.id === (graphSelectedReportId ?? inspectedReportId)) ?? visibleReports[0] ?? null;
+  const graphNeighborhood = useReportGraphNeighborhood(
+    {
+      rootId: selectedReport?.id ?? inspectedReportId ?? undefined,
+      query,
+      stage: filter === "all" ? undefined : filter,
+      kind: kindFilter === "all" ? undefined : kindFilter,
+      mode: graphScaleMode,
+    },
+    { enabled: viewMode === "graph" && !useGraphScaleQaData },
+  );
+  const graphReports = !useGraphScaleQaData && graphNeighborhood.isLive ? graphNeighborhood.reports : filtered;
+  const graphDetails = !useGraphScaleQaData && graphNeighborhood.isLive ? graphNeighborhood.details : details;
+  const graphSelectedReport = graphReports.find((report) => report.id === (graphSelectedReportId ?? inspectedReportId ?? selectedReport?.id)) ?? graphReports[0] ?? selectedReport;
   const handleSelectReport = (report: ReportCardData) => {
     setGraphSelectedReportId(report.id);
     onSelectReport?.(report);
@@ -528,9 +547,12 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
         <ReportTable reports={visibleReports} stageOverrides={stageOverrides} onOpen={openReportAction} onSelect={handleSelectReport} />
       ) : viewMode === "graph" ? (
         <ReportGraphPreviewD3
-          reports={filtered}
-          details={details}
-          selectedReport={selectedReport}
+          reports={graphReports}
+          details={graphDetails}
+          selectedReport={graphSelectedReport}
+          serverScope={!useGraphScaleQaData ? graphNeighborhood.scope : null}
+          scaleMode={graphScaleMode}
+          onScaleModeChange={setGraphScaleMode}
           stageOverrides={stageOverrides}
           onOpen={openReportAction}
           onSelect={handleSelectReport}
@@ -2289,6 +2311,9 @@ function ReportGraphPreviewD3({
   reports,
   details,
   selectedReport,
+  serverScope,
+  scaleMode,
+  onScaleModeChange,
   stageOverrides,
   onOpen,
   onSelect,
@@ -2297,6 +2322,9 @@ function ReportGraphPreviewD3({
   reports: ReportCardData[];
   details: LiveArtifactDetail[];
   selectedReport: ReportCardData | null;
+  serverScope?: ReportGraphNeighborhoodScope | null;
+  scaleMode: ReportGraphScaleMode;
+  onScaleModeChange: (mode: ReportGraphScaleMode) => void;
   stageOverrides: Record<string, ReportStage>;
   onOpen: ReportsSurfaceProps["onOpen"];
   onSelect?: (report: ReportCardData) => void;
@@ -2312,7 +2340,6 @@ function ReportGraphPreviewD3({
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const pinnedNodeIdRef = useRef<string | null>(null);
-  const [scaleMode, setScaleMode] = useState<ReportGraphScaleMode>("clustered");
   const graph = useMemo(
     () => buildReportGraph(reports, details, selectedReport, stageOverrides, { scaleMode }),
     [reports, details, selectedReport, stageOverrides, scaleMode],
@@ -2753,6 +2780,13 @@ function ReportGraphPreviewD3({
       data-visible-edge-budget={graph.edgeBudget}
       data-raw-edge-count={graph.rawEdgeCount}
       data-scale-mode={graph.scaleMode}
+      data-server-bounded={serverScope?.isServerBounded ? "true" : "false"}
+      data-server-report-limit={serverScope?.reportLimit ?? ""}
+      data-server-scan-limit={serverScope?.scanLimit ?? ""}
+      data-server-scanned-archive-posts={serverScope?.scannedArchivePosts ?? ""}
+      data-server-total-candidate-reports={serverScope?.totalCandidateReports ?? ""}
+      data-server-returned-report-count={serverScope?.returnedReportCount ?? ""}
+      data-server-hidden-report-count={serverScope?.hiddenReportCount ?? ""}
     >
       <div className="rd-v3-graph__controls">
         <button type="button" className="rd-v3-graph__fit" onClick={resetGraph}>Fit</button>
@@ -2764,7 +2798,7 @@ function ReportGraphPreviewD3({
               aria-pressed={scaleMode === mode.id}
               title={mode.hint}
               onClick={() => {
-                setScaleMode(mode.id);
+                onScaleModeChange(mode.id);
                 pinnedNodeIdRef.current = null;
                 setPinnedNodeId(null);
                 setTooltip(null);
@@ -2955,6 +2989,9 @@ function ReportGraphPreviewD3({
       </div>
       <p className="rd-v3-graph__provenance">
         {graph.sourceLabel} - {graph.nodes.length}/{graph.nodeBudget} visible nodes - {graph.links.length}/{graph.rawEdgeCount} edges - {graph.sourceRows} source rows - {linkedReportCount} neighboring reports{graph.hiddenReportCount > 0 ? ` - ${graph.hiddenReportCount} reports hidden behind clusters` : ""}
+        {serverScope?.isServerBounded
+          ? ` - server query returned ${serverScope.returnedReportCount}/${serverScope.totalCandidateReports} candidate reports from ${serverScope.scannedArchivePosts}/${serverScope.scanLimit} scanned archive rows`
+          : ""}
       </p>
     </section>
   );
