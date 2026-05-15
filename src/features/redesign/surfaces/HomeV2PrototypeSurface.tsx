@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { showToast } from "../components/Toast";
 import type { LiveArtifactsResult, LiveArtifactSourceRow } from "../hooks/useLiveArtifacts";
 import type { ReportCardData } from "../fixtures";
@@ -161,9 +161,9 @@ const reportsRailGroups: Array<{ label: string; count: string; items: ReportsRai
     label: "Universes",
     count: "3",
     items: [
-      { icon: "AI", name: "AI Infrastructure", active: true },
-      { icon: "BT", name: "Banking Targets" },
-      { icon: "FW", name: "Fundraise Watch" },
+      { icon: "◆", name: "AI Infrastructure", active: true },
+      { icon: "◆", name: "Banking Targets" },
+      { icon: "◆", name: "Fundraise Watch" },
     ],
   },
   {
@@ -969,32 +969,37 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
       }))
       .filter((group) => group.items.length > 0);
     return (
-      <aside className="rd-v2-left rd-v2-left--nav" aria-label="Reports navigation">
-        <input
-          className="rd-v2-rail-search"
-          placeholder="Search reports..."
-          aria-label="Search reports"
-          value={reportsRailQuery}
-          onChange={(event) => setReportsRailQuery(event.currentTarget.value)}
-        />
-        <div className="rd-v2-rail-filters" role="tablist" aria-label="Filter reports by status">
+      <aside className="rd-v2-left left-rail" aria-label="Entity navigation">
+        <div className="lr-search">
+          <div className="lr-search-wrap">
+            <span className="lr-search-icon" aria-hidden="true">⌕</span>
+            <input
+              className="lr-search-input"
+              placeholder="Search reports..."
+              aria-label="Search reports"
+              value={reportsRailQuery}
+              onChange={(event) => setReportsRailQuery(event.currentTarget.value)}
+            />
+          </div>
+        </div>
+        <div className="lr-filters" role="tablist" aria-label="Filter reports by status">
           {reportRailFilters.map((filter) => (
             <button
               key={filter.id}
               type="button"
               role="tab"
               aria-selected={reportsRailFilter === filter.id}
-              className={reportsRailFilter === filter.id ? "is-active" : ""}
+              className={`lr-filter ${reportsRailFilter === filter.id ? "active" : ""}`}
+              data-filter={filter.id}
               onClick={() => setReportsRailFilter(filter.id)}
             >
               {filter.label}
             </button>
           ))}
         </div>
-        <div className="rd-v2-rail-rule" />
-        <div className="rd-v2-rail-scroll">
+        <div className="lr-body">
           {filteredGroups.map((group) => (
-            <ReportsRailGroup
+            <ReportsV3RailGroup
               key={group.label}
               label={group.label}
               count={group.count}
@@ -1005,7 +1010,7 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
           ))}
           {filteredGroups.length === 0 && <div className="rd-v2-rail-empty">No reports match this filter.</div>}
         </div>
-        <div className="rd-v2-rail-footer">
+        <div className="lr-footer">
           <button type="button" onClick={() => onAsk?.("Create a new report entity and hydrate its first notebook.")}>+ Entity</button>
           <button type="button" onClick={() => onAsk?.("Import a company list and run a sample coverage batch.")}>+ Import</button>
         </div>
@@ -1478,6 +1483,57 @@ function inspectorPipeline(entity: PrototypeReportEntity): Array<{ label: string
   ];
 }
 
+function ReportsV3RailGroup({
+  label,
+  count,
+  items,
+  selectedName,
+  onSelectItem,
+}: {
+  label: string;
+  count: string;
+  items: ReportsRailItem[];
+  selectedName?: string;
+  onSelectItem?: (name: string) => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <section className={`lr-group ${collapsed ? "collapsed" : ""}`} data-group={label.toLowerCase()}>
+      <button
+        type="button"
+        className="lr-group-head"
+        aria-expanded={!collapsed}
+        onClick={() => setCollapsed((value) => !value)}
+      >
+        <span className="lr-chevron" aria-hidden="true">▾</span>
+        <span>{label}</span>
+        <span className="lr-group-count">{count}</span>
+      </button>
+      {!collapsed && (
+        <div className="lr-group-items">
+          {items.map((item) => {
+            const selected = selectedName ? selectedName === item.name : item.active;
+            return (
+              <button
+                key={`${label}-${item.name}`}
+                className={`lr-entity ${selected ? "active" : ""}`}
+                type="button"
+                data-name={item.name}
+                data-status={item.status}
+                onClick={() => onSelectItem?.(item.name)}
+              >
+                <span className="lr-entity-icon">{item.icon}</span>
+                <span className="lr-entity-name">{item.name}</span>
+                {item.status && <span className="lr-entity-dot" data-status={item.status} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function entityNeedsReview(entity: PrototypeReportEntity): boolean {
   return /review|stale|draft|generating|gathering/i.test(entity.status) || entity.sources < 5;
 }
@@ -1536,89 +1592,162 @@ function inspectorWarnings(entity: PrototypeReportEntity): string[] {
 function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedReport, onSelectEntity }: PrototypeSelectionProps) {
   const entity = selectedReport ? liveReportToPrototypeEntity(selectedReport) : getPrototypeEntity(selectedEntity);
   const [drawerOpen, setDrawerOpen] = useState(true);
-  const pipeline = inspectorPipeline(entity);
-  const warnings = inspectorWarnings(entity);
   const needsReview = entityNeedsReview(entity);
-  const reviewText = needsReview ? `${entity.name} needs source review.` : `${entity.name} is ready for the current coverage task.`;
-  const summaryText = needsReview
-    ? `${entity.name} has open evidence work. Refresh stale rows, verify open claims, and decide whether the report needs a notebook patch.`
-    : `${entity.name} has current sources, verified claims, and a notebook trail the agent can reuse. Keep it on watch.`;
+  const status = entityStatusLabel(entity);
+  const claimCount = claimCountForEntity(entity);
+  const contextEntityCount = Math.max(3, entity.related.length + 1);
+  const selectedSources = `${entity.sources} sources`;
+  const ask = (prompt: string) => onAsk?.(prompt);
+  const sendInput = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    const value = event.currentTarget.value.trim();
+    if (!value) return;
+    ask(value);
+    event.currentTarget.value = "";
+  };
 
   return (
-    <AgentShell
-      title="Coverage agent"
-      context={`Reports - ${entity.name} - ${entityStatusLabel(entity)} - ${entity.sources} sources`}
-      pills={["Reports", entity.name, `${entity.sources} sources`, entityStatusLabel(entity)]}
-      question="Which reports need work?"
-      placeholder="Ask about these reports..."
-      onAsk={onAsk}
-    >
-      <div className="rd-v2-msg rd-v2-msg-agent">
-        <strong>{reviewText}</strong>
-        <p>{summaryText}</p>
-        <details className="rd-v2-trace" open>
-          <summary><small>Agent run trace</small></summary>
-          <div className="rd-v2-trace-steps"><span>source_scan</span><span>claim_verify</span><span>freshness_check</span><span>notebook_patch</span></div>
-        </details>
-        <div className="rd-v2-msg-actions">
-          <button type="button" className="is-primary" onClick={() => onAsk?.(`Open the ${entity.name} notebook and summarize the next review step.`)}>Open notebook</button>
-          <button type="button" onClick={() => onAsk?.(`Verify the weakest claims in ${entity.name}.`)}>Verify claims</button>
-          <button type="button" onClick={() => onAsk?.(`Export a memo preview for ${entity.name}.`)}>Export memo</button>
+    <aside className="rd-pane rd-pane--right right-rail" aria-label="Agent chat">
+      <div className="ar-head">
+        <span className="ar-dot" />
+        <div className="ar-head-info">
+          <div className="ar-name">Coverage agent</div>
+          <div className="ar-meta">Reports · {contextEntityCount} entities · {entity.sources * 4} sources · {needsReview ? "3 active" : "12 active"}</div>
+        </div>
+        <div className="ar-head-actions">
+          <button className="ar-head-btn" type="button" aria-label="Expand chat" title="Expand" onClick={() => ask(`Open Chat with ${entity.name} report context.`)}>↗</button>
+          <button className="ar-head-btn" type="button" aria-label="Close chat" title="Close" onClick={() => ask("Collapse the Reports coverage rail.")}>×</button>
         </div>
       </div>
-      <section className="rd-v2-pipeline" aria-label="Agent pipeline progress">
-        <div className="rd-v2-context-head"><span>Pipeline</span><span>{pipeline.filter((step) => step.done).length}/{pipeline.length}</span></div>
-        {pipeline.map((step) => (
-          <div key={step.label} className="rd-v2-pipeline-row" data-done={step.done}>
-            <span>{step.done ? "\u2713" : "\u25cb"}</span>
-            <strong>{step.label}</strong>
+
+      <div className="ar-pills" aria-label="Current context">
+        <button className="ar-pill active" type="button" onClick={() => ask("Show all reports in the active universe.")}>
+          <span className="ar-pill-dot" style={{ background: "var(--rd-accent)" }} /> Reports
+        </button>
+        <button className="ar-pill" type="button" onClick={() => onSelectEntity?.(entity.name)}>
+          <span className="ar-pill-dot" style={{ background: needsReview ? "var(--rd-amber)" : "var(--rd-green)" }} /> {entity.name}
+        </button>
+        <button className="ar-pill" type="button" onClick={() => ask(`Open source ledger for ${entity.name}.`)}>{selectedSources}</button>
+        <button className="ar-pill" type="button" onClick={() => ask(`Explain ${status} status for ${entity.name}.`)}>
+          <span className="ar-pill-dot" style={{ background: needsReview ? "var(--rd-amber)" : "var(--rd-green)" }} /> {status}
+        </button>
+      </div>
+
+      <div className="ar-thread">
+        <div className="ar-msg ar-msg--system">
+          <div className="ar-msg-system-line">
+            <div className="ar-msg-system-body">
+              <span className="ar-msg-system-icon">⚙</span>
+              Context loaded · {contextEntityCount} entities · {entity.sources * 4} sources
+              <time>3 min ago</time>
+            </div>
           </div>
-        ))}
-      </section>
-      <button
-        className="rd-v2-drawer-toggle"
-        type="button"
-        aria-expanded={drawerOpen}
-        onClick={() => setDrawerOpen((value) => !value)}
-      >{`Context - ${entity.name} - ${warnings.length} warnings - ${entity.sources} sources`}</button>
-      {drawerOpen && (
-        <>
-          <section className="rd-v2-agent-context">
-            <div className="rd-v2-context-head"><span>Active entity</span><span>{entityStatusLabel(entity)}</span></div>
-            <div className="rd-v2-transparency-row"><span>Evidence</span><strong>{entityEvidenceText(entity)}</strong></div>
-            <div className="rd-v2-transparency-row"><span>Sources</span><strong>{entity.sources} source rows</strong></div>
-            <div className="rd-v2-transparency-row"><span>Freshness</span><strong>{entityFreshnessText(entity)}</strong></div>
-            <div className="rd-v2-transparency-row"><span>Coverage</span><strong>{entityCoverageText(entity)}</strong></div>
-          </section>
-          <section className="rd-v2-agent-context">
-            <div className="rd-v2-context-head"><span>Warnings</span><span>{warnings.length}</span></div>
-            {warnings.map((warning) => <p className="rd-v2-signal-line rd-v2-warning-line" key={warning}>{warning}</p>)}
-          </section>
-          <section className="rd-v2-agent-context">
-            <div className="rd-v2-context-head"><span>Recent signals</span><span>{entity.signals.length}</span></div>
-            {entity.signals.map((signal, index) => (
-              <div className="rd-v2-signal-tl" key={signal}>
-                <span className="rd-v2-signal-tl-time">{index === 0 ? "2h" : index === 1 ? "1d" : "3d"}</span>
-                <span className="rd-v2-signal-tl-dot" data-tone={index === 0 ? "accent" : index === 1 ? "blue" : "green"} />
-                <span className="rd-v2-signal-tl-text">{signal}</span>
-              </div>
-            ))}
-          </section>
-          <section className="rd-v2-agent-context">
-            <div className="rd-v2-context-head"><span>Related entities</span><span>{entity.related.length}</span></div>
-            {entity.related.map((name) => {
-              const related = reportEntities.find((item) => item.name === name);
-              const initial = related?.initial ?? name.slice(0, 1).toUpperCase();
-              return (
-                <button className="rd-v2-related-entity" key={name} onClick={() => onSelectEntity?.(name)}>
-                  <span>{initial}</span><strong>{name}</strong><b>{relatedStatusLabel(name)}</b>
-                </button>
-              );
-            })}
-          </section>
-        </>
-      )}
-    </AgentShell>
+        </div>
+
+        <div className="ar-msg ar-msg--user">
+          <div className="ar-msg-bubble">Which reports need the most attention right now?</div>
+          <div className="ar-msg-time">2 min ago</div>
+        </div>
+
+        <div className="ar-msg ar-msg--system">
+          <div className="ar-msg-system-line">
+            <div className="ar-msg-system-body">
+              <span className="ar-msg-system-icon">↻</span>
+              Routed to deep-analysis model for multi-entity comparison
+            </div>
+          </div>
+        </div>
+
+        <div className="ar-msg ar-msg--agent">
+          <div className="ar-msg-bubble">
+            <div className="ar-msg-lead">{needsReview ? "3 reports need attention" : `${entity.name} is coverage-ready`}</div>
+            <div className="ar-msg-detail">
+              <strong>{entity.name}</strong> — {needsReview ? "Evidence or freshness is below threshold. Verify stale claims before notebook patch or export." : "Current source rows are verified enough for the active coverage task."}<br />
+              <strong>Notebook</strong> — {needsReview ? "Patch should stay proposed until review clears." : "Notebook can be opened, reused, or exported with the current source trail."}<br />
+              <strong>Graph</strong> — Related entities remain attached for comparison and follow-up routing.
+            </div>
+            <div className="ar-msg-tools">
+              <span className="ar-tool-badge">source_scan</span>
+              <span className="ar-tool-badge">claim_verify</span>
+              <span className="ar-tool-badge">freshness_check</span>
+            </div>
+          </div>
+          <div className="ar-msg-actions">
+            <button className="ar-action-chip ar-action-chip--primary" type="button" onClick={() => ask(`Refresh stale reports related to ${entity.name}.`)}>Refresh stale reports</button>
+            <button className="ar-action-chip" type="button" onClick={() => ask(`Open the ${entity.name} notebook.`)}>Open notebook</button>
+            <button className="ar-action-chip" type="button" onClick={() => ask(`Compare ${entity.name} with related reports.`)}>Compare reports</button>
+          </div>
+          <div className="ar-msg-time">1 min ago</div>
+        </div>
+
+        <div className="ar-msg ar-msg--user">
+          <div className="ar-msg-bubble">What changed with {entity.name} since yesterday?</div>
+          <div className="ar-msg-time">just now</div>
+        </div>
+
+        <div className="ar-msg ar-msg--system">
+          <div className="ar-msg-system-line">
+            <div className="ar-msg-system-body">
+              <span className="ar-msg-system-icon">⇄</span>
+              Context narrowed to {entity.name} · {entity.sources} sources · {claimCount} corroborated
+            </div>
+          </div>
+        </div>
+
+        <div className="ar-msg ar-msg--agent">
+          <div className="ar-msg-bubble">
+            <div className="ar-msg-lead">{entity.name} — {entity.signals.length} new signals</div>
+            <div className="ar-msg-detail">{entity.signals.slice(0, 3).join(" ")}</div>
+            <div className="ar-msg-tools">
+              <span className="ar-tool-badge">entity_diff</span>
+              <span className="ar-tool-badge">signal_extract</span>
+            </div>
+          </div>
+          <div className="ar-msg-actions">
+            <button className="ar-action-chip ar-action-chip--primary" type="button" onClick={() => ask(`Open notebook for ${entity.name}.`)}>Open notebook</button>
+            <button className="ar-action-chip" type="button" onClick={() => ask(`Verify claims for ${entity.name}.`)}>Verify claims</button>
+            <button className="ar-action-chip" type="button" onClick={() => ask(`Export memo preview for ${entity.name}.`)}>Export memo</button>
+          </div>
+          <div className="ar-msg-time">just now</div>
+        </div>
+      </div>
+
+      <div className={`ar-drawer ${drawerOpen ? "" : "collapsed"}`}>
+        <button className="ar-drawer-head" type="button" aria-expanded={drawerOpen} onClick={() => setDrawerOpen((value) => !value)}>
+          <span className="ar-drawer-label">Context</span>
+          <span className="ar-drawer-pills">
+            <span className="ar-drawer-pill">{entity.name}</span>
+            <span className="ar-drawer-pill">· {entity.sources} sources</span>
+            <span className="ar-drawer-pill">· {contextEntityCount} entities</span>
+          </span>
+          <span className="ar-drawer-chevron">▾</span>
+        </button>
+        <div className="ar-drawer-body">
+          <div className="ar-drawer-entity">
+            <span className="ar-drawer-icon">{entity.initial}</span>
+            <span className="ar-drawer-name">{entity.name}</span>
+            <span className="ar-drawer-status" data-status={status}>{status}</span>
+          </div>
+          <div className="ar-ctx-row"><span className="ar-ctx-lbl">Evidence</span><span className="ar-ctx-val">{entityEvidenceText(entity)}</span></div>
+          <div className="ar-ctx-row"><span className="ar-ctx-lbl">Freshness</span><span className="ar-ctx-val">{entityFreshnessText(entity)}</span></div>
+          <div className="ar-ctx-row"><span className="ar-ctx-lbl">Sources</span><span className="ar-ctx-val">{entity.sources} sources · {claimCount} corroborated</span></div>
+          <div className="ar-ctx-row"><span className="ar-ctx-lbl">Coverage</span><span className="ar-ctx-val">{entityCoverageText(entity)}</span></div>
+        </div>
+      </div>
+
+      <div className="ar-footer">
+        <div className="ar-input-wrap">
+          <input className="ar-input" placeholder="Ask about your reports..." aria-label="Chat with agent" onKeyDown={sendInput} />
+          <div className="ar-input-actions">
+            <button className="ar-input-btn" type="button" title="Add context" onClick={() => ask(`Attach ${entity.name} context.`)}>+ Context</button>
+            <button className="ar-input-btn" type="button" title="Reference entity" onClick={() => ask(`Reference ${entity.name}.`)}>@ Reference</button>
+            <button className="ar-input-btn" type="button" title="Slash command" onClick={() => ask(`/report ${entity.name}`)}>/ Command</button>
+            <button className="ar-input-btn" type="button" title="Attach file" onClick={() => ask(`Attach source file to ${entity.name}.`)}>📎</button>
+            <span className="ar-input-send"><kbd>↵</kbd> to send</span>
+          </div>
+        </div>
+      </div>
+    </aside>
   );
 }
 
