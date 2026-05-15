@@ -14,14 +14,55 @@
  */
 
 import { spawn } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 const NPX_BIN = process.platform === "win32" ? "npx.cmd" : "npx";
+const NODEBENCH_VERCEL_PROJECT_ID = process.env.NODEBENCH_VERCEL_PROJECT_ID ?? "prj_FnTvvOX3N55aofc0Zn6lKSHFNF0b";
+const NODEBENCH_VERCEL_ORG_ID = process.env.NODEBENCH_VERCEL_ORG_ID ?? "team_RRpVnMU6vxwAeiOQPTMkKGcZ";
+const NODEBENCH_VERCEL_PROJECT_NAME = process.env.NODEBENCH_VERCEL_PROJECT_NAME ?? "nodebench-ai";
+
+function ensureNodeBenchVercelProject() {
+  const vercelDir = join(process.cwd(), ".vercel");
+  const projectPath = join(vercelDir, "project.json");
+  let current = null;
+
+  try {
+    current = JSON.parse(readFileSync(projectPath, "utf8"));
+  } catch {
+    // Fresh worktrees often do not have a Vercel link yet.
+  }
+
+  if (
+    current?.projectId === NODEBENCH_VERCEL_PROJECT_ID &&
+    current?.orgId === NODEBENCH_VERCEL_ORG_ID &&
+    current?.projectName === NODEBENCH_VERCEL_PROJECT_NAME
+  ) {
+    return;
+  }
+
+  mkdirSync(vercelDir, { recursive: true });
+  writeFileSync(
+    projectPath,
+    `${JSON.stringify({
+      projectId: NODEBENCH_VERCEL_PROJECT_ID,
+      orgId: NODEBENCH_VERCEL_ORG_ID,
+      projectName: NODEBENCH_VERCEL_PROJECT_NAME,
+    }, null, 2)}\n`,
+    "utf8",
+  );
+  console.log(`==> Linked worktree to Vercel project ${NODEBENCH_VERCEL_PROJECT_NAME}`);
+}
 
 function runVercel(args) {
   return new Promise((resolve, reject) => {
     const child = spawn(NPX_BIN, ["vercel", ...args], {
       cwd: process.cwd(),
-      env: process.env,
+      env: {
+        ...process.env,
+        VERCEL_ORG_ID: NODEBENCH_VERCEL_ORG_ID,
+        VERCEL_PROJECT_ID: NODEBENCH_VERCEL_PROJECT_ID,
+      },
       stdio: "inherit",
       shell: process.platform === "win32",
     });
@@ -38,6 +79,8 @@ function runVercel(args) {
 }
 
 async function main() {
+  ensureNodeBenchVercelProject();
+
   console.log("==> Pulling Vercel project settings and production env");
   await runVercel(["pull", "--yes", "--environment=production"]);
 
