@@ -9858,6 +9858,93 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .v3-notebook-state[data-state="ready"] { background: var(--rd-green-bg); color: var(--rd-green); }
 [data-redesign] .v3-notebook-state[data-state="draft"] { background: var(--rd-blue-bg); color: var(--rd-blue); }
 [data-redesign] .v3-notebook-state[data-state="stale"] { background: var(--rd-amber-bg); color: var(--rd-amber); }
+[data-redesign] .card-dd-wrap { position: relative; margin-left: auto; }
+[data-redesign] .card-dd-wrap > button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--rd-r-sm);
+  background: transparent;
+  color: var(--rd-ink-faint);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+[data-redesign] .card-dd-wrap > button:hover { background: var(--rd-muted); color: var(--rd-ink); }
+[data-redesign] .card-dd {
+  position: absolute;
+  right: 0;
+  top: 28px;
+  z-index: 20;
+  min-width: 150px;
+  overflow: hidden;
+  border: 1px solid var(--rd-line);
+  border-radius: var(--rd-r-sm);
+  background: var(--rd-paper);
+  box-shadow: var(--rd-shadow-lg);
+}
+[data-redesign] .card-dd-item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--rd-ink-mute);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+}
+[data-redesign] .card-dd-item:hover { background: var(--rd-muted); color: var(--rd-ink); }
+[data-redesign] .card-dd-item--danger { color: var(--rd-red); }
+[data-redesign] .rd-v3-notebook-shell {
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--rd-line);
+  border-radius: var(--rd-r-md);
+  background: var(--rd-panel);
+}
+[data-redesign] .rd-v3-notebook-topbar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--rd-line-faint);
+  background: var(--rd-paper);
+}
+[data-redesign] .rd-v3-notebook-topbar button {
+  border: 1px solid var(--rd-line);
+  border-radius: var(--rd-r-pill);
+  background: var(--rd-panel);
+  color: var(--rd-ink-mute);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+}
+[data-redesign] .rd-v3-notebook-topbar strong {
+  display: block;
+  overflow: hidden;
+  color: var(--rd-ink);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-redesign] .rd-v3-notebook-topbar span {
+  display: block;
+  overflow: hidden;
+  color: var(--rd-ink-faint);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-redesign] .rd-v3-notebook-shell .rd-notebook {
+  height: calc(100vh - 260px);
+  min-height: 520px;
+  border: 0;
+}
 
 [data-redesign] .right-rail {
   display: flex;
