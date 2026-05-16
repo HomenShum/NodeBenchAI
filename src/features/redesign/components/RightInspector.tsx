@@ -5,7 +5,7 @@
  * no prop is passed, it falls back to the live Convex-backed artifact list.
  */
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Pill } from "./Pill";
 import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 import { VoiceCostBadge } from "@/features/voice";
@@ -42,17 +42,12 @@ export interface AgentRailSnapshot {
   metrics?: AgentRailMetric[];
 }
 
-const utilityTabs = [
-  { id: "agent", label: "Agent" },
-  { id: "entity", label: "Entity" },
-  { id: "graph", label: "Graph" },
-  { id: "sources", label: "Sources" },
-  { id: "threads", label: "Threads" },
-  { id: "notebook", label: "Notebook" },
-  { id: "report", label: "Report" },
+const chatContextTabs = [
+  { id: "session", label: "Session" },
+  { id: "trace", label: "Trace" },
 ] as const;
 
-type UtilityTab = typeof utilityTabs[number]["id"];
+type ChatContextTab = typeof chatContextTabs[number]["id"];
 
 interface RightInspectorProps {
   activeLiveArtifactDetail?: LiveArtifactDetail | null;
@@ -60,109 +55,322 @@ interface RightInspectorProps {
 }
 
 export function RightInspector({ activeLiveArtifactDetail, agentSnapshot }: RightInspectorProps = {}) {
-  const [activeTab, setActiveTab] = useState<UtilityTab>("agent");
+  const [activeTab, setActiveTab] = useState<ChatContextTab>("session");
   const liveArtifacts = useLiveArtifacts(12);
   const detail = activeLiveArtifactDetail === undefined
     ? liveArtifacts.details[0]
     : activeLiveArtifactDetail ?? undefined;
-  const title = detail?.title ?? "Current report";
-  const summary = detail?.summary ?? "Ask a question, capture a note, or open a live artifact to hydrate this inspector.";
-  const sources = detail?.sourceRows.slice(0, 6) ?? [];
-  const nodes = detail?.nodes.slice(0, 5) ?? [];
   const resolvedAgentSnapshot = agentSnapshot ?? buildFallbackAgentSnapshot(detail, liveArtifacts.isLoading);
+  const graphPacket = detail ? buildGraphContextBridgePacket({ detail, mode: "agent" }) : null;
   // HONEST_STATUS: only mount VoiceCostBadge for signed-in viewers.
   // `null` = signed out (skip), `undefined` = loading auth (skip until known).
   const userId = useCurrentUserId();
 
   return (
-    <aside className="rd-pane rd-pane--right" data-testid="right-inspector" style={{ padding: "20px 18px", gap: 16 }}>
-      {userId && <VoiceCostBadge userId={userId} />}
+    <aside
+      className="rd-pane rd-pane--right chat-context"
+      data-testid="right-inspector"
+      aria-label="Session context"
+      data-agent-context-ref={graphPacket?.contextRef ?? ""}
+      data-agent-context-rank={graphPacket?.agentRank ?? ""}
+    >
+      <div className="chat-ctx-tabs" role="tablist" aria-label="Chat context panels">
+        {chatContextTabs.map((tab) => (
+          <button
+            key={tab.id}
+            id={`chat-context-tab-${tab.id}`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`chat-context-panel-${tab.id}`}
+            className={`chat-ctx-tab ${activeTab === tab.id ? "active" : ""}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-      <section className="rd-card rd-card__pad-tight" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div
-          className="rd-tabs"
-          role="tablist"
-          aria-label="Chat utility panels"
-          style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", width: "100%" }}
-        >
-          {utilityTabs.map((tab) => (
-            <button
-              key={tab.id}
-              id={`right-inspector-tab-${tab.id}`}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              aria-controls={`right-inspector-panel-${tab.id}`}
-              className="rd-tab"
-              style={{ minHeight: 30, padding: "6px 4px", fontSize: 11 }}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      <div
+        id="chat-context-panel-session"
+        className={`chat-ctx-panel ${activeTab === "session" ? "active" : ""}`}
+        role="tabpanel"
+        aria-labelledby="chat-context-tab-session"
+        hidden={activeTab !== "session"}
+      >
+        {userId && (
+          <div className="chat-ctx-section">
+            <VoiceCostBadge userId={userId} />
+          </div>
+        )}
+        <SessionContextPanel snapshot={resolvedAgentSnapshot} />
+      </div>
 
-        <div>
-          <div
-            id="right-inspector-panel-agent"
-            role="tabpanel"
-            aria-labelledby="right-inspector-tab-agent"
-            hidden={activeTab !== "agent"}
-          >
-            <AgentProgressPanel snapshot={resolvedAgentSnapshot} />
-          </div>
-          <div
-            id="right-inspector-panel-entity"
-            role="tabpanel"
-            aria-labelledby="right-inspector-tab-entity"
-            hidden={activeTab !== "entity"}
-          >
-            <EntityPanel detail={detail} title={title} summary={summary} />
-          </div>
-          <div
-            id="right-inspector-panel-graph"
-            role="tabpanel"
-            aria-labelledby="right-inspector-tab-graph"
-            hidden={activeTab !== "graph"}
-          >
-            <GraphPanel detail={detail} nodes={nodes} />
-          </div>
-          <div
-            id="right-inspector-panel-sources"
-            role="tabpanel"
-            aria-labelledby="right-inspector-tab-sources"
-            hidden={activeTab !== "sources"}
-          >
-            <SourcesPanel detail={detail} sources={sources} />
-          </div>
-          <div
-            id="right-inspector-panel-threads"
-            role="tabpanel"
-            aria-labelledby="right-inspector-tab-threads"
-            hidden={activeTab !== "threads"}
-          >
-            <ThreadsPanel detail={detail} />
-          </div>
-          <div
-            id="right-inspector-panel-notebook"
-            role="tabpanel"
-            aria-labelledby="right-inspector-tab-notebook"
-            hidden={activeTab !== "notebook"}
-          >
-            <NotebookPanel detail={detail} />
-          </div>
-          <div
-            id="right-inspector-panel-report"
-            role="tabpanel"
-            aria-labelledby="right-inspector-tab-report"
-            hidden={activeTab !== "report"}
-          >
-            <ReportPanel detail={detail} title={title} />
-          </div>
-        </div>
-      </section>
+      <div
+        id="chat-context-panel-trace"
+        className={`chat-ctx-panel ${activeTab === "trace" ? "active" : ""}`}
+        role="tabpanel"
+        aria-labelledby="chat-context-tab-trace"
+        hidden={activeTab !== "trace"}
+      >
+        <TraceContextPanel snapshot={resolvedAgentSnapshot} graphPacket={graphPacket} />
+      </div>
     </aside>
   );
+}
+
+function SessionContextPanel({ snapshot }: { snapshot: AgentRailSnapshot }) {
+  return (
+    <>
+      <ChatContextSection title="Progress">
+        {snapshot.progress.map((item) => (
+          <div className="chat-ctx-task" key={item.id}>
+            <span className={`chat-ctx-task-dot ${taskDotClass(item.status)}`} />
+            <span className="chat-ctx-task-text">
+              {item.label}
+              {item.detail && <small>{item.detail}</small>}
+            </span>
+          </div>
+        ))}
+      </ChatContextSection>
+
+      <ChatContextSection title="Artifacts">
+        {snapshot.artifacts.slice(0, 4).map((item) => (
+          <ContextArtifactRow key={item.id} item={item} />
+        ))}
+        {snapshot.artifacts.length > 4 && (
+          <div className="chat-ctx-more">Show {snapshot.artifacts.length - 4} more</div>
+        )}
+      </ChatContextSection>
+
+      <ChatContextSection title="Agents">
+        {snapshot.backgroundAgents.map((item, index) => (
+          <div className="chat-ctx-agent" key={item.id}>
+            <span className="chat-ctx-agent-dot" style={{ background: agentDotColor(item.status, index) }} />
+            <span className="chat-ctx-agent-name">{item.label}</span>
+            <span className="chat-ctx-agent-role">{agentRoleLabel(item)}</span>
+          </div>
+        ))}
+      </ChatContextSection>
+
+      <ChatContextSection title="Sources">
+        {snapshot.sources.map((item) => (
+          <ContextSourceRow key={item.id} item={item} />
+        ))}
+      </ChatContextSection>
+    </>
+  );
+}
+
+function TraceContextPanel({
+  snapshot,
+  graphPacket,
+}: {
+  snapshot: AgentRailSnapshot;
+  graphPacket: ReturnType<typeof buildGraphContextBridgePacket> | null;
+}) {
+  const traceItems = traceRowsForSnapshot(snapshot);
+  const toolCalls = metricValue(snapshot, "tools", String(traceItems.length));
+  const latency = metricValue(snapshot, "latency", traceLatencyFallback(snapshot));
+  const tokens = metricValue(snapshot, "tokens", graphPacket ? graphPacket.estimatedTokens.toLocaleString() : "0");
+  const cost = metricValue(snapshot, "cost", metricValue(snapshot, "paid", "$0.00"));
+
+  return (
+    <>
+      <div className="chat-trace-summary">
+        <TraceStat value={toolCalls} label="Tool calls" />
+        <TraceStat value={latency} label="Total latency" />
+        <TraceStat value={tokens} label="Tokens in" />
+        <TraceStat value={cost} label="Est. cost" />
+      </div>
+
+      <div className="chat-trace-list">
+        {traceItems.map((item, index) => (
+          <div className="chat-trace-item" key={`${item.id}-${index}`}>
+            <div className={`chat-trace-item-icon ${traceIconClass(item)}`}>{traceIconGlyph(item)}</div>
+            <div className="chat-trace-item-body">
+              <div className="chat-trace-item-name">{traceName(item)}</div>
+              <div className="chat-trace-item-meta">
+                <span>{traceDuration(item, index)}</span>
+                <span>{item.meta ?? traceMeta(item)}</span>
+              </div>
+            </div>
+            <div className="chat-trace-item-bar">
+              <div className="chat-trace-item-bar-fill" style={{ width: `${traceBarWidth(item, index)}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="chat-trace-model">
+        <div className="chat-ctx-label">Model usage</div>
+        <div className="chat-trace-model-row">
+          <span className="chat-trace-model-name">Router tier</span>
+          <span className="chat-trace-model-val">{runDetailValue(snapshot, "routing")}</span>
+        </div>
+        <div className="chat-trace-model-row">
+          <span className="chat-trace-model-name">Graph packet</span>
+          <span className="chat-trace-model-val">{graphPacket ? `${graphPacket.packedNodes} nodes` : "not packed"}</span>
+        </div>
+        <div className="chat-trace-model-row">
+          <span className="chat-trace-model-name">Safe writes</span>
+          <span className="chat-trace-model-val">{runDetailStatus(snapshot, "writes")}</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ChatContextSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="chat-ctx-section">
+      <div className="chat-ctx-label">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function ContextArtifactRow({ item }: { item: AgentRailItem }) {
+  const content = (
+    <>
+      <span className="chat-ctx-artifact-icon" aria-hidden="true" />
+      <span className="chat-ctx-artifact-name">{item.label}</span>
+      <span className="chat-ctx-artifact-badge">{artifactBadge(item)}</span>
+    </>
+  );
+
+  return item.href ? (
+    <a className="chat-ctx-artifact" href={item.href}>{content}</a>
+  ) : (
+    <div className="chat-ctx-artifact">{content}</div>
+  );
+}
+
+function ContextSourceRow({ item }: { item: AgentRailItem }) {
+  const content = (
+    <>
+      <span className="chat-ctx-source-icon" aria-hidden="true" />
+      <span className="chat-ctx-source-name">{item.label}</span>
+    </>
+  );
+
+  return item.href ? (
+    <a className="chat-ctx-source" href={item.href}>{content}</a>
+  ) : (
+    <div className="chat-ctx-source">{content}</div>
+  );
+}
+
+function TraceStat({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="chat-trace-stat">
+      <div className="chat-trace-stat-val">{value}</div>
+      <div className="chat-trace-stat-key">{label}</div>
+    </div>
+  );
+}
+
+function taskDotClass(status?: AgentRailStatus): string {
+  if (status === "done") return "chat-ctx-task-dot--done";
+  if (status === "running") return "chat-ctx-task-dot--active";
+  if (status === "blocked") return "chat-ctx-task-dot--blocked";
+  return "";
+}
+
+function artifactBadge(item: AgentRailItem): string {
+  const text = `${item.label} ${item.detail ?? ""} ${item.href ?? ""}`.toLowerCase();
+  if (text.includes("notebook")) return "nb";
+  if (text.includes("json")) return "json";
+  if (text.includes("pdf")) return "pdf";
+  if (text.includes("image") || text.includes("snapshot") || text.includes("png")) return "img";
+  if (text.includes("answer")) return "ans";
+  if (text.includes("batch")) return "run";
+  return "ctx";
+}
+
+function agentDotColor(status: AgentRailStatus | undefined, index: number): string {
+  if (status === "running") return "var(--rd-accent)";
+  if (status === "blocked") return "var(--rd-amber)";
+  const colors = ["var(--rd-accent)", "var(--rd-green)", "#60a5fa", "#a78bfa", "var(--rd-ink-soft)"];
+  return colors[index % colors.length] ?? "var(--rd-ink-soft)";
+}
+
+function agentRoleLabel(item: AgentRailItem): string {
+  const id = item.id.toLowerCase();
+  if (id.includes("coordinator")) return "orchestrator";
+  if (id.includes("memory") || id.includes("graph")) return "retrieval";
+  if (id.includes("source") || id.includes("verify")) return "analyst";
+  if (id.includes("notebook")) return "worker";
+  if (id.includes("judge")) return "eval";
+  return item.status ?? "agent";
+}
+
+function metricValue(snapshot: AgentRailSnapshot, label: string, fallback: string): string {
+  return snapshot.metrics?.find((metric) => metric.label.toLowerCase() === label)?.value ?? fallback;
+}
+
+function traceRowsForSnapshot(snapshot: AgentRailSnapshot): AgentRailItem[] {
+  const preferred = [
+    ...snapshot.progress.filter((item) => ["memory", "graph-context", "tools", "verify", "packet", "telemetry"].includes(item.id)),
+    ...snapshot.runDetails.filter((item) => ["routing", "cost", "graph-packet"].includes(item.id)),
+  ];
+  return (preferred.length ? preferred : snapshot.progress).slice(0, 7);
+}
+
+function traceName(item: AgentRailItem): string {
+  return item.id
+    .replace(/^graph-context$/, "graph_context")
+    .replace(/^graph-packet$/, "graph_packet")
+    .replace(/-/g, "_");
+}
+
+function traceMeta(item: AgentRailItem): string {
+  if (item.detail?.includes(" - ")) return item.detail.split(" - ")[0].slice(0, 28);
+  return item.detail?.slice(0, 28) || item.label.slice(0, 28);
+}
+
+function traceDuration(item: AgentRailItem, index: number): string {
+  const detail = `${item.detail ?? ""} ${item.meta ?? ""}`;
+  const explicit = detail.match(/\b\d+(?:\.\d+)?(?:ms|s)\b/i)?.[0];
+  if (explicit) return explicit;
+  if (item.status === "running") return "live";
+  if (item.status === "queued" || item.status === "idle") return "queued";
+  return `${Math.max(120, 180 + index * 140)}ms`;
+}
+
+function traceBarWidth(item: AgentRailItem, index: number): number {
+  if (item.status === "queued" || item.status === "idle") return 12;
+  if (item.status === "running") return 58;
+  if (item.status === "blocked") return 38;
+  return Math.min(100, 28 + index * 11);
+}
+
+function traceIconClass(item: AgentRailItem): string {
+  const key = `${item.id} ${item.label}`.toLowerCase();
+  if (key.includes("search") || key.includes("source") || key.includes("memory")) return "chat-trace-item-icon--search";
+  if (key.includes("packet") || key.includes("model") || key.includes("routing")) return "chat-trace-item-icon--llm";
+  return "chat-trace-item-icon--tool";
+}
+
+function traceIconGlyph(item: AgentRailItem): string {
+  const key = `${item.id} ${item.label}`.toLowerCase();
+  if (key.includes("search") || key.includes("source") || key.includes("memory")) return "S";
+  if (key.includes("packet") || key.includes("model") || key.includes("routing")) return "M";
+  return "T";
+}
+
+function traceLatencyFallback(snapshot: AgentRailSnapshot): string {
+  const telemetry = snapshot.progress.find((item) => item.id === "telemetry")?.detail ?? "";
+  return telemetry.match(/\b\d+(?:\.\d+)?(?:ms|s)\b/i)?.[0] ?? "pending";
+}
+
+function runDetailValue(snapshot: AgentRailSnapshot, id: string): string {
+  const detail = snapshot.runDetails.find((item) => item.id === id);
+  return detail?.detail?.slice(0, 24) ?? "pending";
+}
+
+function runDetailStatus(snapshot: AgentRailSnapshot, id: string): string {
+  return snapshot.runDetails.find((item) => item.id === id)?.status ?? "idle";
 }
 
 function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLoading: boolean): AgentRailSnapshot {
@@ -242,6 +450,9 @@ function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLo
     metrics: [
       { label: "sources", value: String(detail?.sourceCount ?? 0), tone: "accent" },
       { label: "claims", value: String(detail?.claimCount ?? 0), tone: "green" },
+      { label: "tools", value: String(graphPacket ? Math.max(3, graphPacket.edges) : 0), tone: "green" },
+      { label: "latency", value: isLoading ? "live" : "0ms", tone: isLoading ? "accent" : "green" },
+      { label: "tokens", value: graphPacket ? graphPacket.estimatedTokens.toLocaleString() : "0", tone: "accent" },
       { label: "graph", value: graphPacket ? String(graphPacket.packedNodes) : "0", tone: "accent" },
       { label: "paid", value: "$0.00", tone: "green" },
     ],

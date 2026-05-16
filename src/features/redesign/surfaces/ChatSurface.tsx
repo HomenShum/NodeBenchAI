@@ -579,6 +579,8 @@ function buildChatAgentRailSnapshot(args: {
     metrics: [
       { label: "sources", value: String(sourceCount), tone: "accent" },
       { label: "tools", value: String(toolCallCount), tone: "green" },
+      { label: "latency", value: formatLatency(latency), tone: latency ? "green" : "accent" },
+      { label: "tokens", value: graphPacket ? graphPacket.estimatedTokens.toLocaleString() : "0", tone: "accent" },
       { label: "graph", value: graphPacket ? String(graphPacket.packedNodes) : "0", tone: "accent" },
       { label: "cost", value: formatRailUsd(estimatedCost), tone: estimatedCost > 0 ? "amber" : "green" },
     ],
