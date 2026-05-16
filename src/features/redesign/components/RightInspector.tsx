@@ -213,6 +213,10 @@ function TraceContextPanel({
           <span className="chat-trace-model-val">{graphPacket ? `${graphPacket.packedNodes} nodes` : "not packed"}</span>
         </div>
         <div className="chat-trace-model-row">
+          <span className="chat-trace-model-name">Topology</span>
+          <span className="chat-trace-model-val">{graphPacket?.topology ? `${graphPacket.topology.view} ${graphPacket.topology.densityScore}` : "not attached"}</span>
+        </div>
+        <div className="chat-trace-model-row">
           <span className="chat-trace-model-name">Safe writes</span>
           <span className="chat-trace-model-val">{runDetailStatus(snapshot, "writes")}</span>
         </div>

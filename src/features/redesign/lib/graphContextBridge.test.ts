@@ -93,4 +93,26 @@ describe("buildGraphContextBridgePacket", () => {
 
     expect(packet.whySelected.join(" ")).toContain("64/180 candidate reports");
   });
+
+  it("carries topology hints into the agent context packet", () => {
+    const packet = buildGraphContextBridgePacket({
+      report,
+      detail,
+      topology: {
+        view: "density",
+        mapperClusterIds: ["mapper:1:2:0"],
+        densityScore: 91,
+        pc1: 0.82,
+        pc2: 0.36,
+        centroidDistance: 0.21,
+        outlierScore: 19,
+        summary: "Density view puts Anthropic in the hot attention region.",
+      },
+    });
+
+    expect(packet.allowedActions).toContain("inspect_topology_shape");
+    expect(packet.topology?.view).toBe("density");
+    expect(packet.agentSummary).toContain("topology=density");
+    expect(packet.whySelected.join(" ")).toContain("mapper clusters 1");
+  });
 });

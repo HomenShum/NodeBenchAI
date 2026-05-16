@@ -25,6 +25,12 @@ import {
   sanitizeDecisionText,
 } from "./ProductDecisionQueue";
 import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
+import {
+  buildTopologySnapshot,
+  type TopologyNodeProjection,
+  type TopologySnapshot,
+  type TopologyViewMode,
+} from "../lib/reportTopology";
 
 type SortKey = "updated" | "entity" | "sources" | "claims" | "status";
 const SORT_OPTIONS: Array<{ id: SortKey; label: string }> = [
@@ -159,6 +165,12 @@ const REPORT_GRAPH_SCALE_MODES: Array<{ id: ReportGraphScaleMode; label: string;
   { id: "focus", label: "Focus", hint: "Root report, closest neighbors, and core evidence only" },
   { id: "clustered", label: "Cluster", hint: "Bounded neighborhood plus overflow groups" },
   { id: "expanded", label: "Expand", hint: "Wider neighborhood, still capped for browser performance" },
+];
+
+const REPORT_TOPOLOGY_VIEW_MODES: Array<{ id: TopologyViewMode; label: string; hint: string }> = [
+  { id: "density", label: "Density", hint: "Where human and agent attention keeps gravitating" },
+  { id: "pca", label: "PCA", hint: "Dominant axes of variation across report graph features" },
+  { id: "centroid", label: "Centroid", hint: "Typical center versus outlier edge cases" },
 ];
 
 function reportViewFromUrl(): ReportViewMode {
@@ -2411,7 +2423,7 @@ function ReportGraphPreviewD3({
   onSelect?: (report: ReportCardData) => void;
   onRunBatch?: ReportsSurfaceProps["onRunBatch"];
 }) {
-  type D3GraphNode = ReportGraphNode & d3.SimulationNodeDatum;
+  type D3GraphNode = ReportGraphNode & d3.SimulationNodeDatum & { topologyProjection?: TopologyNodeProjection };
   type D3GraphLink = Omit<ReportGraphLink, "source" | "target"> & {
     source: string | D3GraphNode;
     target: string | D3GraphNode;
@@ -2426,6 +2438,11 @@ function ReportGraphPreviewD3({
     [reports, details, selectedReport, stageOverrides, scaleMode],
   );
   const [graphQuery, setGraphQuery] = useState("");
+  const [topologyView, setTopologyView] = useState<TopologyViewMode>("density");
+  const topology = useMemo(
+    () => buildTopologySnapshot(graph.nodes, graph.links, topologyView),
+    [graph.nodes, graph.links, topologyView],
+  );
   const [pinnedNodeId, setPinnedNodeId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ nodeId: string; x: number; y: number } | null>(null);
   const [peekPosition, setPeekPosition] = useState<{ x: number; y: number } | null>(null);
@@ -2534,7 +2551,17 @@ function ReportGraphPreviewD3({
     const width = Math.max(560, Math.round(rect.width || 720));
     const visibleHeight = Math.max(420, Math.min(620, Math.round(window.innerHeight - rect.top - 24)));
     const height = Math.max(420, visibleHeight);
-    const nodes: D3GraphNode[] = graph.nodes.map((node) => ({ ...node, x: node.x, y: node.y }));
+    const projectX = (x: number) => 70 + x * Math.max(220, width - 140);
+    const projectY = (y: number) => 58 + y * Math.max(260, visibleHeight - 116);
+    const nodes: D3GraphNode[] = graph.nodes.map((node) => {
+      const topologyProjection = topology.nodesById[node.id];
+      return {
+        ...node,
+        topologyProjection,
+        x: topologyProjection ? projectX(topologyProjection.x) : node.x,
+        y: topologyProjection ? projectY(topologyProjection.y) : node.y,
+      };
+    });
     const nodeIds = new Set(nodes.map((node) => node.id));
     const links: D3GraphLink[] = graph.links
       .filter((link) => nodeIds.has(link.source) && nodeIds.has(link.target))
@@ -2634,10 +2661,23 @@ function ReportGraphPreviewD3({
       }))
       .force("charge", d3.forceManyBody<D3GraphNode>().strength(-420))
       .force("center", d3.forceCenter(width / 2, visibleHeight * 0.45))
-      .force("x", d3.forceX<D3GraphNode>(width / 2).strength(0.04))
-      .force("y", d3.forceY<D3GraphNode>(visibleHeight * 0.45).strength(0.06))
+      .force("x", d3.forceX<D3GraphNode>((node) => node.topologyProjection ? projectX(node.topologyProjection.x) : width / 2).strength(0.16))
+      .force("y", d3.forceY<D3GraphNode>((node) => node.topologyProjection ? projectY(node.topologyProjection.y) : visibleHeight * 0.45).strength(0.18))
       .force("collide", d3.forceCollide<D3GraphNode>().radius((node) => radiusFor(node) + 20))
       .alphaDecay(0.018);
+
+    const clusterEl = g.append("g")
+      .attr("class", "rd-v3-graph-mapper-layer")
+      .selectAll<SVGCircleElement, TopologySnapshot["mapperClusters"][number]>("circle")
+      .data(topology.mapperClusters.filter((cluster) => cluster.memberIds.length > 1).slice(0, 32))
+      .join("circle")
+      .attr("class", "rd-v3-graph-mapper-cluster")
+      .attr("cx", (cluster) => projectX(cluster.x))
+      .attr("cy", (cluster) => projectY(cluster.y))
+      .attr("r", (cluster) => 22 + Math.min(34, cluster.memberIds.length * 4))
+      .attr("data-density-score", (cluster) => cluster.densityScore)
+      .attr("data-attention-score", (cluster) => cluster.attentionScore)
+      .attr("opacity", topology.view === "density" ? 0.2 : 0.12);
 
     const linkEl = g.append("g").selectAll<SVGLineElement, D3GraphLink>("line").data(links).join("line")
       .attr("stroke", (link) => edgeStyle[link.type]?.stroke ?? "var(--rd-ink-faint)")
@@ -2660,6 +2700,9 @@ function ReportGraphPreviewD3({
       .attr("data-stage", (node) => node.stage)
       .attr("data-attention-tier", (node) => node.attentionTier)
       .attr("data-attention-score", (node) => node.attentionScore)
+      .attr("data-topology-density", (node) => node.topologyProjection?.densityScore ?? "")
+      .attr("data-topology-outlier", (node) => node.topologyProjection?.outlierScore ?? "")
+      .attr("data-topology-clusters", (node) => node.topologyProjection?.mapperClusterIds.join(" ") ?? "")
       .attr("tabindex", 0)
       .attr("role", "button")
       .attr("aria-label", (node) => `${node.label}, ${node.type}, ${node.verified}, attention ${node.attentionScore}, ${node.reasonSelected}`)
@@ -2811,6 +2854,15 @@ function ReportGraphPreviewD3({
       edgeLabelEl
         .attr("x", (link) => (((link.source as D3GraphNode).x ?? 0) + ((link.target as D3GraphNode).x ?? 0)) / 2)
         .attr("y", (link) => (((link.source as D3GraphNode).y ?? 0) + ((link.target as D3GraphNode).y ?? 0)) / 2);
+      clusterEl
+        .attr("cx", (cluster) => {
+          const memberNodes = cluster.memberIds.map((id) => nodeById.get(id)).filter((node): node is D3GraphNode => Boolean(node));
+          return memberNodes.length ? memberNodes.reduce((sum, node) => sum + (node.x ?? 0), 0) / memberNodes.length : projectX(cluster.x);
+        })
+        .attr("cy", (cluster) => {
+          const memberNodes = cluster.memberIds.map((id) => nodeById.get(id)).filter((node): node is D3GraphNode => Boolean(node));
+          return memberNodes.length ? memberNodes.reduce((sum, node) => sum + (node.y ?? 0), 0) / memberNodes.length : projectY(cluster.y);
+        });
       nodeEl.attr("transform", (node) => `translate(${node.x ?? 0},${node.y ?? 0})`);
     });
 
@@ -2821,7 +2873,7 @@ function ReportGraphPreviewD3({
       svg.on(".zoom", null);
       svg.on("click", null);
     };
-  }, [graph, normalizedGraphQuery, onSelect]);
+  }, [graph, normalizedGraphQuery, onSelect, topology]);
 
   const resetGraph = () => {
     pinnedNodeIdRef.current = null;
@@ -2845,12 +2897,30 @@ function ReportGraphPreviewD3({
   const activeCoveredChildren = activeNode ? childrenFor(activeNode, "covers") : [];
   const activeCausationRows = activeNode ? relationRowsFor(activeNode, "causes") : [];
   const activeCorrelationRows = activeNode ? relationRowsFor(activeNode, "correlates_with") : [];
+  const activeTopology = activeNode ? topology.nodesById[activeNode.id] : null;
+  const activeMapperClusters = activeTopology
+    ? activeTopology.mapperClusterIds
+      .map((clusterId) => topology.mapperClusters.find((cluster) => cluster.id === clusterId))
+      .filter((cluster): cluster is TopologySnapshot["mapperClusters"][number] => Boolean(cluster))
+    : [];
   const activeContextPacket = activeNode
     ? buildGraphContextBridgePacket({
         report: activeNode.report ?? graph.root?.report ?? null,
         detail: activeNode.detail ?? graph.root?.detail ?? null,
         scope: serverScope,
         mode: "agent",
+        topology: activeTopology
+          ? {
+              view: topology.view,
+              mapperClusterIds: activeTopology.mapperClusterIds,
+              densityScore: activeTopology.densityScore,
+              pc1: activeTopology.pc1,
+              pc2: activeTopology.pc2,
+              centroidDistance: activeTopology.centroidDistance,
+              outlierScore: activeTopology.outlierScore,
+              summary: topologySummaryForNode(activeNode, activeTopology, topology),
+            }
+          : null,
       })
     : null;
 
@@ -2861,6 +2931,11 @@ function ReportGraphPreviewD3({
       data-graph-source={graph.sourceLabel}
       data-node-count={graph.nodes.length}
       data-edge-count={graph.links.length}
+      data-topology-view={topology.view}
+      data-topology-cluster-count={topology.summary.clusterCount}
+      data-topology-hot-node={topology.summary.hotNodeId ?? ""}
+      data-topology-centroid-node={topology.summary.centroidNodeId ?? ""}
+      data-topology-outlier-node={topology.summary.outlierNodeId ?? ""}
       data-artifact-node-count={graph.artifactNodeCount}
       data-artifact-edge-count={graph.artifactEdgeCount}
       data-total-report-count={graph.totalReportCount}
@@ -2903,6 +2978,25 @@ function ReportGraphPreviewD3({
             </button>
           ))}
         </span>
+        <span className="rd-v3-graph__topology" role="group" aria-label="Topology view">
+          {REPORT_TOPOLOGY_VIEW_MODES.map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              aria-pressed={topologyView === mode.id}
+              title={mode.hint}
+              onClick={() => {
+                setTopologyView(mode.id);
+                pinnedNodeIdRef.current = null;
+                setPinnedNodeId(null);
+                setTooltip(null);
+                setPeekPosition(null);
+              }}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </span>
         <label className="rd-v3-graph__search">
           <span aria-hidden="true">⌕</span>
           <input value={graphQuery} onChange={(event) => setGraphQuery(event.target.value)} placeholder="Search graph..." aria-label="Search graph nodes" />
@@ -2921,6 +3015,13 @@ function ReportGraphPreviewD3({
           <span><i data-edge="correlates_with" />Correlates</span>
           <span><i data-edge="cluster" />Cluster</span>
         </span>
+      </div>
+      <div className="rd-v3-graph__topology-summary" data-view={topology.view}>
+        <strong>{topology.view === "density" ? "Attention density" : topology.view === "pca" ? "PCA axes" : "Center vs edge"}</strong>
+        <span>{topology.summary.viewRationale}</span>
+        <span>{topology.summary.clusterCount} mapper clusters</span>
+        <span>PC1: {topology.pcaAxes.pc1.map((axis) => axis.label).join(" / ")}</span>
+        <span>PC2: {topology.pcaAxes.pc2.map((axis) => axis.label).join(" / ")}</span>
       </div>
       <div className="rd-v3-graph__canvas" ref={containerRef}>
         <svg ref={svgRef} className="rd-v3-graph-svg" role="img" aria-label={`Force-directed report graph for ${graph.root?.label ?? "the active universe"}`} />
@@ -2980,6 +3081,28 @@ function ReportGraphPreviewD3({
               <b>{activeNode.attentionScore}</b>
               <small>{activeNode.attentionTier.replace("_", " ")}</small>
             </div>
+            {activeTopology && (
+              <div className="rd-v3-graph-peek__topology" data-topology-view={topology.view}>
+                <div className="rd-v3-graph-peek__context-head">
+                  <span className="rd-v3-graph-peek__section-label">
+                    {topology.view === "density" ? "Density" : topology.view === "pca" ? "PCA" : "Centroid"}
+                  </span>
+                  <b>{topology.view === "centroid" ? activeTopology.outlierScore : activeTopology.densityScore}</b>
+                </div>
+                <p>{topologySummaryForNode(activeNode, activeTopology, topology)}</p>
+                <div className="rd-v3-graph-peek__context-grid" aria-label="Topology metrics">
+                  <span><strong>{activeTopology.densityScore}</strong> density</span>
+                  <span><strong>{activeTopology.pc1.toFixed(2)}</strong> PC1</span>
+                  <span><strong>{activeTopology.pc2.toFixed(2)}</strong> PC2</span>
+                  <span><strong>{activeTopology.outlierScore}</strong> edge</span>
+                </div>
+                {activeMapperClusters.length > 0 && (
+                  <small>
+                    Mapper: {activeMapperClusters.slice(0, 2).map((cluster) => `${cluster.label} (${cluster.memberIds.length})`).join(", ")}
+                  </small>
+                )}
+              </div>
+            )}
             {activeContextPacket && (
               <div className="rd-v3-graph-peek__context" data-context-ref={activeContextPacket.contextRef}>
                 <div className="rd-v3-graph-peek__context-head">
@@ -3135,6 +3258,21 @@ function ReportGraphPreviewD3({
     </section>
   );
 }
+
+function topologySummaryForNode(
+  node: ReportGraphNode,
+  projection: TopologyNodeProjection,
+  topology: TopologySnapshot,
+): string {
+  if (topology.view === "density") {
+    return `${node.label} sits in density score ${projection.densityScore}, showing where attention keeps gravitating.`;
+  }
+  if (topology.view === "pca") {
+    return `${node.label} projects to PC1 ${projection.pc1.toFixed(2)} / PC2 ${projection.pc2.toFixed(2)} along the dominant feature axes.`;
+  }
+  return `${node.label} is ${projection.outlierScore >= 70 ? "an edge/outlier node" : "nearer the typical center"} with centroid distance ${projection.centroidDistance.toFixed(2)}.`;
+}
+
 function ReportsLiveEmptyState() {
   return (
     <section className="rd-universe">

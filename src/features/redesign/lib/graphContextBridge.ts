@@ -1,5 +1,6 @@
 import type { ReportCardData } from "../fixtures";
 import type { LiveArtifactDetail, ReportGraphNeighborhoodScope } from "../hooks/useLiveArtifacts";
+import type { TopologyViewMode } from "./reportTopology";
 
 export type GraphContextMode = "human" | "agent";
 export type GraphContextPromotionClass = "visible" | "shelf" | "searchable" | "on_demand";
@@ -25,6 +26,18 @@ export interface GraphContextBridgePacket {
   whySelected: string[];
   humanSummary: string;
   agentSummary: string;
+  topology?: GraphContextTopologyHint;
+}
+
+export interface GraphContextTopologyHint {
+  view: TopologyViewMode;
+  mapperClusterIds: string[];
+  densityScore: number;
+  pc1: number;
+  pc2: number;
+  centroidDistance: number;
+  outlierScore: number;
+  summary: string;
 }
 
 interface GraphContextBridgeInput {
@@ -32,6 +45,7 @@ interface GraphContextBridgeInput {
   detail?: LiveArtifactDetail | null;
   scope?: ReportGraphNeighborhoodScope | null;
   mode?: GraphContextMode;
+  topology?: GraphContextTopologyHint | null;
 }
 
 const DEFAULT_ACTIONS = [
@@ -70,6 +84,7 @@ export function buildGraphContextBridgePacket({
   detail,
   scope,
   mode = "agent",
+  topology,
 }: GraphContextBridgeInput): GraphContextBridgePacket {
   const title = detail?.title ?? report?.entity ?? "Current graph context";
   const rootId = detail?.id ?? report?.id ?? "current";
@@ -97,6 +112,9 @@ export function buildGraphContextBridgePacket({
     `${title} is the active report/entity context.`,
     `${sourceRefs} source refs, ${claimRefs} claims, and ${followUps} follow-ups are attached.`,
     boundedReason,
+    topology
+      ? `Topology ${topology.view}: density ${topology.densityScore}, outlier ${topology.outlierScore}, mapper clusters ${topology.mapperClusterIds.length}.`
+      : "Topology shape is not attached to this packet yet.",
     needsReview
       ? "Review pressure is present, so notebook/export writes stay approval-gated."
       : "Evidence is strong enough for memory-first reuse before live search.",
@@ -118,12 +136,15 @@ export function buildGraphContextBridgePacket({
     claimRefs,
     estimatedTokens,
     approvalRequired,
-    allowedActions: approvalRequired ? DEFAULT_ACTIONS : [...DEFAULT_ACTIONS, "patch_notebook", "create_followup"],
+    allowedActions: approvalRequired
+      ? topology ? [...DEFAULT_ACTIONS, "inspect_topology_shape"] : DEFAULT_ACTIONS
+      : topology ? [...DEFAULT_ACTIONS, "inspect_topology_shape", "patch_notebook", "create_followup"] : [...DEFAULT_ACTIONS, "patch_notebook", "create_followup"],
     blockedActions: approvalRequired
       ? ["blind_notebook_overwrite", "auto_export_without_review", "entity_merge_without_approval"]
       : ["entity_merge_without_approval"],
     whySelected,
-    humanSummary: `${title}: ${sourceRefs} sources, ${claimRefs} claims, ${visibleNodes} visible graph nodes. ${needsReview ? "Needs review before writes." : "Ready for memory-first reuse."}`,
-    agentSummary: `Pack ${packedNodes} nodes, ${sourceRefs} source refs, ${claimRefs} claim refs; estimated ${estimatedTokens} tokens; approvalRequired=${approvalRequired}.`,
+    humanSummary: `${title}: ${sourceRefs} sources, ${claimRefs} claims, ${visibleNodes} visible graph nodes. ${topology ? `${topology.summary} ` : ""}${needsReview ? "Needs review before writes." : "Ready for memory-first reuse."}`,
+    agentSummary: `Pack ${packedNodes} nodes, ${sourceRefs} source refs, ${claimRefs} claim refs${topology ? `; topology=${topology.view}/density:${topology.densityScore}/outlier:${topology.outlierScore}` : ""}; estimated ${estimatedTokens} tokens; approvalRequired=${approvalRequired}.`,
+    topology: topology ?? undefined,
   };
 }

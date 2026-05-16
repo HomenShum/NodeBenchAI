@@ -8231,6 +8231,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-v3-graph-peek__children,
 [data-redesign] .rd-v3-graph-peek__relations,
 [data-redesign] .rd-v3-graph-peek__attention,
+[data-redesign] .rd-v3-graph-peek__topology,
 [data-redesign] .rd-v3-graph-peek__context {
   margin-top: 8px;
   padding-top: 8px;
@@ -8287,6 +8288,28 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   border: 1px solid var(--rd-line);
   padding: 8px;
   background: color-mix(in srgb, var(--rd-accent-soft) 42%, transparent);
+}
+
+[data-redesign] .rd-v3-graph-peek__topology {
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--rd-accent) 22%, var(--rd-line));
+  padding: 8px;
+  background: color-mix(in srgb, var(--rd-paper) 68%, var(--rd-accent-soft));
+}
+
+[data-redesign] .rd-v3-graph-peek__topology p {
+  margin: 6px 0 0;
+  color: var(--rd-ink-mute);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+[data-redesign] .rd-v3-graph-peek__topology small {
+  display: block;
+  margin-top: 6px;
+  color: var(--rd-ink-faint);
+  font-family: var(--rd-font-mono);
+  font-size: 9px;
 }
 
 [data-redesign] .rd-v3-graph-peek__context-head {
@@ -8509,6 +8532,17 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   flex-shrink: 0;
 }
 
+[data-redesign] .rd-v3-graph__topology {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--rd-accent) 28%, var(--rd-line));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--rd-accent-soft) 30%, transparent);
+  flex-shrink: 0;
+}
+
 [data-redesign] .rd-v3-graph__scale button {
   border: 0;
   border-radius: 5px;
@@ -8520,9 +8554,46 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   cursor: pointer;
 }
 
-[data-redesign] .rd-v3-graph__scale button[aria-pressed="true"] {
+[data-redesign] .rd-v3-graph__topology button {
+  border: 0;
+  border-radius: 5px;
+  padding: 3px 7px;
+  background: transparent;
+  color: var(--rd-ink-faint);
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+[data-redesign] .rd-v3-graph__scale button[aria-pressed="true"],
+[data-redesign] .rd-v3-graph__topology button[aria-pressed="true"] {
   background: var(--rd-ink);
   color: var(--rd-paper);
+}
+
+[data-redesign] .rd-v3-graph__topology-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 7px 4px 10px;
+  color: var(--rd-ink-faint);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+[data-redesign] .rd-v3-graph__topology-summary strong {
+  color: var(--rd-ink);
+  font-size: 10px;
+}
+
+[data-redesign] .rd-v3-graph__topology-summary span {
+  padding-right: 8px;
+  border-right: 1px solid var(--rd-line-faint);
+}
+
+[data-redesign] .rd-v3-graph__topology-summary span:last-child {
+  border-right: 0;
 }
 
 [data-redesign] .rd-v3-graph__search {
@@ -8577,6 +8648,14 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   stroke: var(--rd-accent);
   stroke-width: 1.5;
   opacity: 0;
+}
+
+[data-redesign] .rd-v3-graph-mapper-cluster {
+  fill: color-mix(in srgb, var(--rd-accent) 18%, transparent);
+  stroke: color-mix(in srgb, var(--rd-accent) 52%, var(--rd-line));
+  stroke-width: 1;
+  stroke-dasharray: 7 5;
+  pointer-events: none;
 }
 
 [data-redesign] .rd-v3-graph-node__dot {
