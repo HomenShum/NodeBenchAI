@@ -13,9 +13,11 @@ import { ReportNotebookView } from "../components/ReportNotebookView";
 import { useReportsLive } from "../hooks/useReportsLive";
 import {
   useReportGraphNeighborhood,
+  useReportTopologySnapshot,
   type LiveArtifactDetail,
   type LiveArtifactMapNode,
   type ReportGraphNeighborhoodScope,
+  type ReportTopologySnapshotPacket,
 } from "../hooks/useLiveArtifacts";
 import { showToast } from "../components/Toast";
 import {
@@ -564,6 +566,11 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
           details={graphDetails}
           selectedReport={graphSelectedReport}
           serverScope={!useGraphScaleQaData ? graphNeighborhood.scope : null}
+          topologyScope={!useGraphScaleQaData ? {
+            query,
+            stage: filter === "all" ? undefined : filter,
+            kind: kindFilter === "all" ? undefined : kindFilter,
+          } : null}
           scaleMode={graphScaleMode}
           onScaleModeChange={setGraphScaleMode}
           stageOverrides={stageOverrides}
@@ -2405,6 +2412,7 @@ function ReportGraphPreviewD3({
   details,
   selectedReport,
   serverScope,
+  topologyScope,
   scaleMode,
   onScaleModeChange,
   stageOverrides,
@@ -2416,6 +2424,7 @@ function ReportGraphPreviewD3({
   details: LiveArtifactDetail[];
   selectedReport: ReportCardData | null;
   serverScope?: ReportGraphNeighborhoodScope | null;
+  topologyScope?: { query?: string; stage?: string; kind?: string } | null;
   scaleMode: ReportGraphScaleMode;
   onScaleModeChange: (mode: ReportGraphScaleMode) => void;
   stageOverrides: Record<string, ReportStage>;
@@ -2439,10 +2448,31 @@ function ReportGraphPreviewD3({
   );
   const [graphQuery, setGraphQuery] = useState("");
   const [topologyView, setTopologyView] = useState<TopologyViewMode>("density");
-  const topology = useMemo(
+  const localTopology = useMemo(
     () => buildTopologySnapshot(graph.nodes, graph.links, topologyView),
     [graph.nodes, graph.links, topologyView],
   );
+  const serverTopology = useReportTopologySnapshot(
+    {
+      rootId: selectedReport?.id ?? graph.root?.id ?? undefined,
+      query: topologyScope?.query,
+      stage: topologyScope?.stage,
+      kind: topologyScope?.kind,
+      mode: scaleMode,
+      view: topologyView,
+      limit: graph.nodeBudget,
+    },
+    { enabled: Boolean(serverScope?.isServerBounded && graph.nodes.length > 0) },
+  );
+  const topology = useMemo(
+    () => mergeServerTopologySnapshot(localTopology, serverTopology.snapshot, graph.nodes),
+    [graph.nodes, localTopology, serverTopology.snapshot],
+  );
+  const topologySource = serverTopology.snapshot
+    ? serverTopology.snapshot.persisted
+      ? "convex-persisted"
+      : "convex-computed"
+    : "client-fallback";
   const [pinnedNodeId, setPinnedNodeId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ nodeId: string; x: number; y: number } | null>(null);
   const [peekPosition, setPeekPosition] = useState<{ x: number; y: number } | null>(null);
@@ -2936,6 +2966,8 @@ function ReportGraphPreviewD3({
       data-topology-hot-node={topology.summary.hotNodeId ?? ""}
       data-topology-centroid-node={topology.summary.centroidNodeId ?? ""}
       data-topology-outlier-node={topology.summary.outlierNodeId ?? ""}
+      data-topology-source={topologySource}
+      data-topology-persisted={serverTopology.snapshot?.persisted ? "true" : "false"}
       data-artifact-node-count={graph.artifactNodeCount}
       data-artifact-edge-count={graph.artifactEdgeCount}
       data-total-report-count={graph.totalReportCount}
@@ -3020,6 +3052,7 @@ function ReportGraphPreviewD3({
         <strong>{topology.view === "density" ? "Attention density" : topology.view === "pca" ? "PCA axes" : "Center vs edge"}</strong>
         <span>{topology.summary.viewRationale}</span>
         <span>{topology.summary.clusterCount} mapper clusters</span>
+        <span>{serverTopology.sourceLabel}</span>
         <span>PC1: {topology.pcaAxes.pc1.map((axis) => axis.label).join(" / ")}</span>
         <span>PC2: {topology.pcaAxes.pc2.map((axis) => axis.label).join(" / ")}</span>
       </div>
@@ -3254,6 +3287,7 @@ function ReportGraphPreviewD3({
         {serverScope?.isServerBounded
           ? ` - server query returned ${serverScope.returnedReportCount}/${serverScope.totalCandidateReports} candidate reports from ${serverScope.scannedArchivePosts}/${serverScope.scanLimit} scanned archive rows`
           : ""}
+        {` - topology ${topologySource}`}
       </p>
     </section>
   );
@@ -3271,6 +3305,37 @@ function topologySummaryForNode(
     return `${node.label} projects to PC1 ${projection.pc1.toFixed(2)} / PC2 ${projection.pc2.toFixed(2)} along the dominant feature axes.`;
   }
   return `${node.label} is ${projection.outlierScore >= 70 ? "an edge/outlier node" : "nearer the typical center"} with centroid distance ${projection.centroidDistance.toFixed(2)}.`;
+}
+
+function mergeServerTopologySnapshot(
+  localTopology: TopologySnapshot,
+  serverSnapshot: ReportTopologySnapshotPacket | null,
+  graphNodes: ReportGraphNode[],
+): TopologySnapshot {
+  if (!serverSnapshot || graphNodes.length === 0) return localTopology;
+  const serverCoverage = graphNodes.filter((node) => serverSnapshot.nodesById[node.id]).length;
+  if (serverCoverage < Math.max(1, Math.ceil(graphNodes.length * 0.35))) return localTopology;
+  const nodesById: TopologySnapshot["nodesById"] = { ...localTopology.nodesById };
+  for (const node of serverSnapshot.nodes) {
+    if (!nodesById[node.id]) continue;
+    nodesById[node.id] = node;
+  }
+  const nodes = graphNodes
+    .map((node) => nodesById[node.id])
+    .filter((node): node is TopologyNodeProjection => Boolean(node));
+  return {
+    view: serverSnapshot.view,
+    nodes,
+    nodesById,
+    mapperClusters: serverSnapshot.mapperClusters,
+    mapperEdges: serverSnapshot.mapperEdges,
+    summary: {
+      ...serverSnapshot.summary,
+      nodeCount: localTopology.summary.nodeCount,
+      edgeCount: localTopology.summary.edgeCount,
+    },
+    pcaAxes: serverSnapshot.pcaAxes,
+  };
 }
 
 function ReportsLiveEmptyState() {

@@ -215,6 +215,10 @@ const ALLOWLIST: Record<string, AllowlistEntry> = {
     ref: api.domains.search.federatedSearch.federatedSearch,
     type: "action",
   },
+  inspectReportTopologyShape: {
+    ref: api.domains.redesign.reportTopology.inspectReportTopologyShape,
+    type: "query",
+  },
   getDimensionProfile: {
     ref: api.domains.deepTrace.dimensions.getDimensionProfile,
     type: "query",
