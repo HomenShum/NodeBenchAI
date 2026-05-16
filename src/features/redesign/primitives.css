@@ -8221,10 +8221,90 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 
 [data-redesign] .rd-v3-graph-peek__hierarchy,
 [data-redesign] .rd-v3-graph-peek__children,
-[data-redesign] .rd-v3-graph-peek__relations {
+[data-redesign] .rd-v3-graph-peek__relations,
+[data-redesign] .rd-v3-graph-peek__context {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--rd-line-faint);
+}
+
+[data-redesign] .rd-v3-graph-peek__context {
+  border-radius: 7px;
+  border: 1px solid var(--rd-line);
+  padding: 8px;
+  background: color-mix(in srgb, var(--rd-accent-soft) 42%, transparent);
+}
+
+[data-redesign] .rd-v3-graph-peek__context-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+[data-redesign] .rd-v3-graph-peek__context-head .rd-v3-graph-peek__section-label {
+  margin-bottom: 0;
+}
+
+[data-redesign] .rd-v3-graph-peek__context-head b {
+  min-width: 28px;
+  border-radius: 5px;
+  padding: 2px 5px;
+  background: var(--rd-paper);
+  color: var(--rd-accent-strong);
+  font-family: var(--rd-font-mono);
+  font-size: 10px;
+  text-align: center;
+}
+
+[data-redesign] .rd-v3-graph-peek__context p {
+  margin: 6px 0 0;
+  color: var(--rd-ink-mute);
+  font-size: 11px;
+  line-height: 1.42;
+}
+
+[data-redesign] .rd-v3-graph-peek__context-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 7px;
+}
+
+[data-redesign] .rd-v3-graph-peek__context-grid span {
+  min-width: 0;
+  border: 1px solid var(--rd-line);
+  border-radius: 5px;
+  padding: 4px;
+  background: var(--rd-paper);
+  color: var(--rd-ink-faint);
+  font-size: 9px;
+  text-align: center;
+}
+
+[data-redesign] .rd-v3-graph-peek__context-grid strong {
+  display: block;
+  color: var(--rd-ink);
+  font-family: var(--rd-font-mono);
+  font-size: 10px;
+}
+
+[data-redesign] .rd-v3-graph-peek__why {
+  margin-top: 7px;
+  color: var(--rd-ink-soft);
+  font-size: 10px;
+}
+
+[data-redesign] .rd-v3-graph-peek__why summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+[data-redesign] .rd-v3-graph-peek__why ol {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--rd-ink-mute);
+  line-height: 1.4;
 }
 
 [data-redesign] .rd-v3-graph-peek__section-label {
@@ -10237,6 +10317,59 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .ar-drawer-status[data-status="Verified"] { background: var(--rd-green-bg); color: var(--rd-green); }
 [data-redesign] .ar-drawer-status[data-status="Needs review"],
 [data-redesign] .ar-drawer-status[data-status="Review"] { background: var(--rd-amber-bg); color: var(--rd-amber); }
+[data-redesign] .ar-context-packet {
+  margin: 6px 0 7px;
+  border: 1px solid var(--rd-line);
+  border-radius: 7px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--rd-accent-soft) 38%, transparent);
+}
+[data-redesign] .ar-context-packet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--rd-accent-strong);
+  font-size: 9px;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+[data-redesign] .ar-context-packet__head b {
+  border-radius: 4px;
+  padding: 1px 5px;
+  background: var(--rd-paper);
+  color: var(--rd-ink);
+  font-family: var(--rd-font-mono);
+  font-size: 10px;
+}
+[data-redesign] .ar-context-packet p {
+  margin: 5px 0 0;
+  color: var(--rd-ink-mute);
+  font-size: 10px;
+  line-height: 1.45;
+}
+[data-redesign] .ar-context-packet__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 7px;
+}
+[data-redesign] .ar-context-packet__grid span {
+  min-width: 0;
+  border-radius: 5px;
+  background: var(--rd-paper);
+  padding: 4px;
+  color: var(--rd-ink-faint);
+  font-size: 9px;
+  text-align: center;
+}
+[data-redesign] .ar-context-packet__grid strong {
+  display: block;
+  color: var(--rd-ink);
+  font-family: var(--rd-font-mono);
+  font-size: 10px;
+}
 [data-redesign] .ar-ctx-row { display: flex; gap: 6px; align-items: baseline; padding: 2px 0; }
 [data-redesign] .ar-ctx-lbl { width: 62px; flex-shrink: 0; }
 [data-redesign] .ar-ctx-val { flex: 1; color: var(--rd-ink-mute); font-size: 10px; line-height: 1.45; }

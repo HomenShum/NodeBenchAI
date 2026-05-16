@@ -22,6 +22,7 @@ import { MessageActions } from "../components/MessageActions";
 import { ChatEmptyState } from "../components/ChatEmptyState";
 import { showToast } from "../components/Toast";
 import { normalizeRouterTierForChatRun, useRedesignChatRun, type ChatRunState, type RealChatRun } from "../hooks/useRedesignChatRun";
+import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { LiveResearchChecklist, type ResearchStage, type ResearchStageId } from "../../research/LiveResearchChecklist";
@@ -297,6 +298,7 @@ function buildChatAgentRailSnapshot(args: {
   const latency = metrics?.timeToFinalMs ?? metrics?.totalLatencyMs ?? run?.totalLatencyMs;
   const memoryHitRate = typeof metrics?.memoryHitRate === "number" ? `${Math.round(metrics.memoryHitRate * 100)}%` : "pending";
   const cacheHitRate = typeof metrics?.sourceCacheHitRate === "number" ? `${Math.round(metrics.sourceCacheHitRate * 100)}%` : "pending";
+  const graphPacket = liveDetail ? buildGraphContextBridgePacket({ detail: liveDetail, mode: "agent" }) : null;
 
   const canRunLive = chatState.available && !skipLiveSeed;
   const authDetail = skipLiveSeed
@@ -328,6 +330,12 @@ function buildChatAgentRailSnapshot(args: {
       label: "Search memory and current reports",
       status: memoryStatus,
       detail: contextCandidates[0]?.detail ?? (liveDetail ? `${liveDetail.title} selected from live Convex memory.` : "Runs before any live source refresh."),
+    },
+    {
+      id: "graph-context",
+      label: "Resolve graph context packet",
+      status: graphPacket ? "done" : isRunning ? "running" : "queued",
+      detail: graphPacket?.agentSummary ?? "Packs first-ring report graph, source refs, and safe action handles.",
     },
     {
       id: "tools",
@@ -388,7 +396,15 @@ function buildChatAgentRailSnapshot(args: {
       id: "cost",
       label: "Cost and cache",
       status: estimatedCost > 0 || metrics ? "done" : "queued",
-      detail: `${formatRailUsd(estimatedCost)} estimated - memory ${memoryHitRate} - source cache ${cacheHitRate}.`,
+      detail: `${formatRailUsd(estimatedCost)} estimated - memory ${memoryHitRate} - source cache ${cacheHitRate}${graphPacket ? ` - graph ${graphPacket.packedNodes} nodes` : ""}.`,
+    },
+    {
+      id: "graph-packet",
+      label: "Graph context bridge",
+      status: graphPacket ? "done" : "queued",
+      detail: graphPacket
+        ? `${graphPacket.contextRef} - human ${graphPacket.humanRank}, agent ${graphPacket.agentRank}, approval ${graphPacket.approvalRequired ? "required" : "not required"}.`
+        : "No selected live report graph yet.",
     },
     {
       id: "writes",
@@ -468,7 +484,13 @@ function buildChatAgentRailSnapshot(args: {
       id: "memory",
       label: "Memory agent",
       status: memoryStatus,
-      detail: contextCandidates[0]?.label ?? "Reports, notebook blocks, prior chats, and sources.",
+      detail: graphPacket?.title ?? contextCandidates[0]?.label ?? "Reports, notebook blocks, prior chats, and sources.",
+    },
+    {
+      id: "graph",
+      label: "Graph context agent",
+      status: graphPacket ? "done" : "queued",
+      detail: graphPacket?.whySelected[2] ?? "Builds bounded neighborhoods before paid live search.",
     },
     {
       id: "source",
@@ -557,6 +579,7 @@ function buildChatAgentRailSnapshot(args: {
     metrics: [
       { label: "sources", value: String(sourceCount), tone: "accent" },
       { label: "tools", value: String(toolCallCount), tone: "green" },
+      { label: "graph", value: graphPacket ? String(graphPacket.packedNodes) : "0", tone: "accent" },
       { label: "cost", value: formatRailUsd(estimatedCost), tone: estimatedCost > 0 ? "amber" : "green" },
     ],
   };

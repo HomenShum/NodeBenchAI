@@ -287,6 +287,15 @@ function buildBoardState(args: {
         : "No active report reference was supplied, so the run stays answer-first.",
     },
     {
+      id: "graph_context_packet",
+      label: hasReportContext ? `Graph context for ${args.contextRef}` : "Graph context packet",
+      status: hasReportContext ? "selected" : "deferred",
+      confidence: hasReportContext ? 0.82 : 0,
+      detail: hasReportContext
+        ? "Resolve a bounded report graph packet before live search: root, first-ring neighbors, source refs, claim refs, and safe action handles."
+        : "No report context was supplied, so graph context stays on demand.",
+    },
+    {
       id: "entity_mention",
       label: entityLabel,
       status: args.classification.entity ? "candidate" : "deferred",
@@ -307,6 +316,16 @@ function buildBoardState(args: {
       detail: hasReportContext
         ? "Use the selected live report as memory context before live grounding."
         : "No report context to search in this anonymous/public run.",
+    },
+    {
+      id: "resolve_report_graph_context",
+      label: "resolve_report_graph_context",
+      status: hasReportContext ? "selected" : "deferred",
+      riskTier: "low",
+      costUsd: 0,
+      detail: hasReportContext
+        ? "Pack the selected report graph into a token-bounded context packet with source and claim refs."
+        : "Requires a selected report/context reference.",
     },
     {
       id: "google_search_grounding",
@@ -347,6 +366,7 @@ function buildBoardState(args: {
       successCriteria: [
         "classify intent",
         "select available memory/context",
+        "resolve bounded report graph context",
         "ground answer in sources",
         "bind evidence rows",
         "schedule source validation",

@@ -24,6 +24,7 @@ import {
   type ProductDecisionItem,
   sanitizeDecisionText,
 } from "./ProductDecisionQueue";
+import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
 
 type SortKey = "updated" | "entity" | "sources" | "claims" | "status";
 const SORT_OPTIONS: Array<{ id: SortKey; label: string }> = [
@@ -2762,6 +2763,14 @@ function ReportGraphPreviewD3({
   const activeCoveredChildren = activeNode ? childrenFor(activeNode, "covers") : [];
   const activeCausationRows = activeNode ? relationRowsFor(activeNode, "causes") : [];
   const activeCorrelationRows = activeNode ? relationRowsFor(activeNode, "correlates_with") : [];
+  const activeContextPacket = activeNode
+    ? buildGraphContextBridgePacket({
+        report: activeNode.report ?? graph.root?.report ?? null,
+        detail: activeNode.detail ?? graph.root?.detail ?? null,
+        scope: serverScope,
+        mode: "agent",
+      })
+    : null;
 
   return (
     <section
@@ -2787,6 +2796,9 @@ function ReportGraphPreviewD3({
       data-server-total-candidate-reports={serverScope?.totalCandidateReports ?? ""}
       data-server-returned-report-count={serverScope?.returnedReportCount ?? ""}
       data-server-hidden-report-count={serverScope?.hiddenReportCount ?? ""}
+      data-active-context-ref={activeContextPacket?.contextRef ?? ""}
+      data-active-context-attention-score={activeContextPacket?.attentionScore ?? ""}
+      data-active-context-agent-rank={activeContextPacket?.agentRank ?? ""}
     >
       <div className="rd-v3-graph__controls">
         <button type="button" className="rd-v3-graph__fit" onClick={resetGraph}>Fit</button>
@@ -2878,6 +2890,27 @@ function ReportGraphPreviewD3({
                 <p key={signal}>{signal}</p>
               ))}
             </div>
+            {activeContextPacket && (
+              <div className="rd-v3-graph-peek__context" data-context-ref={activeContextPacket.contextRef}>
+                <div className="rd-v3-graph-peek__context-head">
+                  <span className="rd-v3-graph-peek__section-label">Agent context packet</span>
+                  <b>{activeContextPacket.attentionScore}</b>
+                </div>
+                <p>{activeContextPacket.humanSummary}</p>
+                <div className="rd-v3-graph-peek__context-grid" aria-label="Agent context budget">
+                  <span><strong>{activeContextPacket.packedNodes}</strong> packed</span>
+                  <span><strong>{activeContextPacket.sourceRefs}</strong> sources</span>
+                  <span><strong>{activeContextPacket.claimRefs}</strong> claims</span>
+                  <span><strong>{activeContextPacket.estimatedTokens}</strong> tok</span>
+                </div>
+                <details className="rd-v3-graph-peek__why">
+                  <summary>Why this entered context</summary>
+                  <ol>
+                    {activeContextPacket.whySelected.map((reason) => <li key={reason}>{reason}</li>)}
+                  </ol>
+                </details>
+              </div>
+            )}
             <div className="rd-v3-graph-peek__hierarchy">
               <span className="rd-v3-graph-peek__section-label">Hierarchy</span>
               <div className="rd-v3-graph-peek__crumbs">

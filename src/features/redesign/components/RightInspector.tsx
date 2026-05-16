@@ -10,6 +10,7 @@ import { Pill } from "./Pill";
 import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 import { VoiceCostBadge } from "@/features/voice";
 import { useCurrentUserId } from "@/hooks/useCurrentUser";
+import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
 
 export type AgentRailStatus = "done" | "running" | "queued" | "blocked" | "idle";
 
@@ -167,6 +168,7 @@ export function RightInspector({ activeLiveArtifactDetail, agentSnapshot }: Righ
 function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLoading: boolean): AgentRailSnapshot {
   const hasDetail = Boolean(detail);
   const status: AgentRailSnapshot["status"] = isLoading ? "thinking" : hasDetail ? "ok" : "idle";
+  const graphPacket = detail ? buildGraphContextBridgePacket({ detail, mode: "agent" }) : null;
   return {
     title: isLoading ? "Hydrating agent context" : hasDetail ? "Agent ready on live artifact" : "Agent idle",
     subtitle: hasDetail
@@ -187,6 +189,12 @@ function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLo
         detail: hasDetail ? `${detail.sourceCount} source refs already attached.` : "Runs before any paid refresh.",
       },
       {
+        id: "graph-context",
+        label: "Resolve graph context packet",
+        status: graphPacket ? "done" : isLoading ? "running" : "queued",
+        detail: graphPacket?.agentSummary ?? "Packs the selected report, source refs, and first-ring graph nodes.",
+      },
+      {
         id: "sources",
         label: "Verify sources and evidence",
         status: hasDetail && detail.sourceCount > 0 ? "done" : "queued",
@@ -201,6 +209,14 @@ function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLo
     ],
     runDetails: [
       { id: "state", label: "Run state", status, detail: isLoading ? "Subscribing to Convex live state." : "No active paid run in progress." },
+      {
+        id: "context-packet",
+        label: "Context packet",
+        status: graphPacket ? "done" : "queued",
+        detail: graphPacket
+          ? `${graphPacket.contextRef} - human ${graphPacket.humanRank}, agent ${graphPacket.agentRank}, ${graphPacket.estimatedTokens} estimated tokens.`
+          : "No graph context packet resolved yet.",
+      },
       { id: "writes", label: "Safe writes", status: "idle", detail: "Notebook, follow-up, and export writes require explicit user action." },
     ],
     artifacts: hasDetail
@@ -226,6 +242,7 @@ function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLo
     metrics: [
       { label: "sources", value: String(detail?.sourceCount ?? 0), tone: "accent" },
       { label: "claims", value: String(detail?.claimCount ?? 0), tone: "green" },
+      { label: "graph", value: graphPacket ? String(graphPacket.packedNodes) : "0", tone: "accent" },
       { label: "paid", value: "$0.00", tone: "green" },
     ],
   };
@@ -390,8 +407,9 @@ function EntityPanel({ detail, title, summary }: { detail?: LiveArtifactDetail; 
 }
 
 function GraphPanel({ detail, nodes }: { detail?: LiveArtifactDetail; nodes: Array<{ title: string }> }) {
+  const graphPacket = detail ? buildGraphContextBridgePacket({ detail, mode: "agent" }) : null;
   return (
-    <div className="rd-stack" style={{ gap: 10 }}>
+    <div className="rd-stack" style={{ gap: 10 }} data-graph-context-ref={graphPacket?.contextRef ?? ""}>
       <div className="rd-row--between">
         <div className="rd-eyebrow">Graph preview</div>
         {detail ? (
@@ -412,6 +430,32 @@ function GraphPanel({ detail, nodes }: { detail?: LiveArtifactDetail; nodes: Arr
       <p className="rd-body" style={{ fontSize: 12, color: "var(--rd-ink-mute)", margin: 0 }}>
         {detail ? `${detail.nodes.length} nodes and ${detail.edges.length} relationships are attached to this artifact.` : "Pin or open a live artifact to hydrate first-ring relationships."}
       </p>
+      {graphPacket && (
+        <section
+          style={{
+            border: "1px solid var(--rd-line)",
+            borderRadius: 6,
+            padding: 10,
+            background: "var(--rd-muted)",
+          }}
+          aria-label="Agent graph context packet"
+        >
+          <div className="rd-row--between" style={{ gap: 8 }}>
+            <span className="rd-eyebrow">Agent packet</span>
+            <Pill tone={graphPacket.approvalRequired ? "amber" : "green"}>
+              {graphPacket.approvalRequired ? "Review gated" : "Patch ready"}
+            </Pill>
+          </div>
+          <p className="rd-body" style={{ fontSize: 11.5, color: "var(--rd-ink-mute)", margin: "6px 0 0" }}>
+            {graphPacket.agentSummary}
+          </p>
+          <div className="rd-row" style={{ gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+            <MetricTile label="Human" value={graphPacket.humanRank} />
+            <MetricTile label="Agent" value={graphPacket.agentRank} />
+            <MetricTile label="Packed" value={graphPacket.packedNodes} />
+          </div>
+        </section>
+      )}
     </div>
   );
 }
