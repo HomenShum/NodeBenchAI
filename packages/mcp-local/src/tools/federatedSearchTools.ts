@@ -315,6 +315,77 @@ export const federatedSearchTools: McpTool[] = [
   },
 
   /* ------------------------------------------------------------------------ */
+  /* Tool: inspect_topology_shape                                               */
+  /* ------------------------------------------------------------------------ */
+  {
+    name: "inspect_topology_shape",
+    description:
+      "Inspect the persisted Convex topology shape for the Reports graph. Use this after search_memory/search_report_context when deciding whether to expand a dense Mapper cluster, inspect an outlier, or reuse first-ring graph context before live search. Returns density, PCA, centroid/outlier, clusters, neighbors, and recommended retrieval actions.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: {
+          type: "string",
+          description: "Optional graph node id to inspect. If omitted, the current hot/dense node is selected.",
+        },
+        rootId: {
+          type: "string",
+          description: "Optional report root id, e.g. daily_<id> or li_<id>.",
+        },
+        view: {
+          type: "string",
+          enum: ["density", "pca", "centroid"],
+          default: "density",
+          description: "Topology projection to inspect.",
+        },
+        mode: {
+          type: "string",
+          enum: ["focus", "clustered", "expanded"],
+          default: "clustered",
+          description: "Report graph scale mode.",
+        },
+        query: { type: "string", description: "Optional report search/filter query." },
+        stage: { type: "string", description: "Optional report stage filter." },
+        kind: { type: "string", description: "Optional report type filter." },
+        limit: {
+          type: "number",
+          minimum: 1,
+          maximum: 120,
+          default: 96,
+          description: "Bounded report graph limit.",
+        },
+      },
+    },
+    handler: async (args: {
+      nodeId?: string;
+      rootId?: string;
+      view?: "density" | "pca" | "centroid";
+      mode?: "focus" | "clustered" | "expanded";
+      query?: string;
+      stage?: string;
+      kind?: string;
+      limit?: number;
+    }) => {
+      const started = Date.now();
+      const result = await callGateway<any>("inspectReportTopologyShape", {
+        nodeId: args.nodeId,
+        rootId: args.rootId,
+        view: args.view ?? "density",
+        mode: args.mode ?? "clustered",
+        query: args.query,
+        stage: args.stage,
+        kind: args.kind,
+        limit: bound(args.limit, 1, 120, 96),
+      });
+      const elapsedMs = Date.now() - started;
+      if (!result.success) {
+        return { success: false, error: result.error, elapsedMs };
+      }
+      return { success: true, data: result.data, elapsedMs };
+    },
+  },
+
+  /* ------------------------------------------------------------------------ */
   /* Tool: suggest_related                                                      */
   /* ------------------------------------------------------------------------ */
   {

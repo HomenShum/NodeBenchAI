@@ -2,6 +2,7 @@ import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { showToast } from "../components/Toast";
 import type { LiveArtifactsResult, LiveArtifactSourceRow } from "../hooks/useLiveArtifacts";
 import type { ReportCardData } from "../fixtures";
+import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
 
 interface HomeV2SurfaceProps {
   onAsk?: (prompt: string) => void;
@@ -1597,6 +1598,20 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
   const claimCount = claimCountForEntity(entity);
   const contextEntityCount = Math.max(3, entity.related.length + 1);
   const selectedSources = `${entity.sources} sources`;
+  const contextPacket = buildGraphContextBridgePacket({
+    report: selectedReport ?? {
+      id: `proto-${entity.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      entity: entity.name,
+      kind: entity.kind,
+      status: needsReview ? "review" : "verified",
+      description: entity.body,
+      sources: entity.sources,
+      claims: claimCount,
+      followUps: needsReview ? 2 : 0,
+      updatedAt: entity.meta,
+    },
+    mode: "agent",
+  });
   const ask = (prompt: string) => onAsk?.(prompt);
   const sendInput = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") return;
@@ -1607,7 +1622,14 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
   };
 
   return (
-    <aside className="rd-pane rd-pane--right right-rail" aria-label="Agent chat">
+    <aside
+      className="rd-pane rd-pane--right right-rail"
+      aria-label="Agent chat"
+      data-agent-context-ref={contextPacket.contextRef}
+      data-agent-context-rank={contextPacket.agentRank}
+      data-agent-context-attention-score={contextPacket.attentionScore}
+      data-agent-context-promotion={contextPacket.promotionClass}
+    >
       <div className="ar-head">
         <span className="ar-dot" />
         <div className="ar-head-info">
@@ -1670,6 +1692,7 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
               <span className="ar-tool-badge">source_scan</span>
               <span className="ar-tool-badge">claim_verify</span>
               <span className="ar-tool-badge">freshness_check</span>
+              <span className="ar-tool-badge">resolve_report_graph_context</span>
             </div>
           </div>
           <div className="ar-msg-actions">
@@ -1727,6 +1750,33 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
             <span className="ar-drawer-icon">{entity.initial}</span>
             <span className="ar-drawer-name">{entity.name}</span>
             <span className="ar-drawer-status" data-status={status}>{status}</span>
+          </div>
+          <div className="ar-context-packet">
+            <div className="ar-context-packet__head">
+              <span>Graph context packet</span>
+              <b>{contextPacket.agentRank}</b>
+            </div>
+            <p>{contextPacket.agentSummary}</p>
+            <div className="ar-context-packet__attention" data-promotion={contextPacket.promotionClass}>
+              <span>
+                <strong>{contextPacket.attentionScore}</strong>
+                attention
+              </span>
+              <span>{contextPacket.promotionClass.replace("_", " ")}</span>
+            </div>
+            <div className="ar-context-packet__grid">
+              <span><strong>{contextPacket.sourceRefs}</strong> sources</span>
+              <span><strong>{contextPacket.claimRefs}</strong> claims</span>
+              <span><strong>{contextPacket.estimatedTokens}</strong> tok</span>
+            </div>
+            <details className="ar-context-packet__why">
+              <summary>Why the agent packed this</summary>
+              <ol>
+                {contextPacket.whySelected.slice(0, 4).map((reason, index) => (
+                  <li key={`${reason}-${index}`}>{reason}</li>
+                ))}
+              </ol>
+            </details>
           </div>
           <div className="ar-ctx-row"><span className="ar-ctx-lbl">Evidence</span><span className="ar-ctx-val">{entityEvidenceText(entity)}</span></div>
           <div className="ar-ctx-row"><span className="ar-ctx-lbl">Freshness</span><span className="ar-ctx-val">{entityFreshnessText(entity)}</span></div>

@@ -105,6 +105,13 @@ function fallbackContextCandidates(prompt: string): PlannerArtifact[] {
       confidence: 0,
       detail: "No report reference was available in the legacy run row.",
     },
+    {
+      id: "graph_context_packet",
+      label: "Graph context packet",
+      status: "deferred",
+      confidence: 0,
+      detail: "Legacy run row did not include a bounded report graph packet.",
+    },
   ];
 }
 
@@ -119,6 +126,14 @@ function fallbackToolDecisions(trace: TraceRow[]): PlannerArtifact[] {
       riskTier: "low",
       costUsd: 0,
       detail: "Legacy run stream did not emit a memory-search decision.",
+    },
+    {
+      id: "resolve_report_graph_context",
+      label: "resolve_report_graph_context",
+      status: "deferred",
+      riskTier: "low",
+      costUsd: 0,
+      detail: "Legacy run stream did not emit a graph-context decision.",
     },
     {
       id: hasFallback ? "fallback_source_search" : "google_search_grounding",

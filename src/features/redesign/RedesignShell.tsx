@@ -272,7 +272,7 @@ export default function RedesignShell() {
         prototypeMode={isPrototypeKit}
       />
       <div
-        className={`rd-shell ${usesV2Canvas ? "rd-shell--home-v2" : ""} ${surface === "reports" ? "rd-shell--reports-v3" : ""} ${suppressRightRail ? "rd-shell--single" : ""}`}
+        className={`rd-shell ${usesV2Canvas ? "rd-shell--home-v2" : ""} ${surface === "chat" && !isPrototypeKit ? "rd-shell--chat-v3" : ""} ${surface === "reports" ? "rd-shell--reports-v3" : ""} ${suppressRightRail ? "rd-shell--single" : ""}`}
         style={{ flex: 1, minHeight: 0 }}
       >
         {isPrototypeKit ? (

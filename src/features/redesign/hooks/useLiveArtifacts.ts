@@ -7,8 +7,8 @@
  * so production cannot mask broken wiring with starter fixtures.
  */
 
-import { useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useConvex, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { PulseMetric, PulseCard, PublicResearchCard, ReportCardData, SignalClass } from "../fixtures";
 
@@ -145,6 +145,7 @@ export interface LiveArtifactDetail {
 }
 
 type QueryRef = Parameters<typeof useQuery>[0];
+type ActionRef = Parameters<ReturnType<typeof useConvex>["action"]>[0];
 
 const liveArtifactApi = api as unknown as {
   domains: {
@@ -162,6 +163,10 @@ const liveArtifactApi = api as unknown as {
     redesign: {
       reportGraphNeighborhood: {
         getReportGraphNeighborhood: QueryRef;
+      };
+      reportTopology: {
+        getReportTopologySnapshot: QueryRef;
+        refreshReportTopologySnapshot: ActionRef;
       };
     };
   };
@@ -196,6 +201,82 @@ interface ReportGraphNeighborhoodPacket {
 
 export interface ReportGraphNeighborhoodResult extends LiveArtifactsResult {
   scope: ReportGraphNeighborhoodScope | null;
+}
+
+export type ReportTopologyViewMode = "density" | "pca" | "centroid";
+
+export interface ReportTopologySnapshotPacket {
+  snapshotKey: string;
+  graphHash: string;
+  view: ReportTopologyViewMode;
+  mode: "focus" | "clustered" | "expanded";
+  generatedAt: number;
+  expiresAt: number;
+  persisted: boolean;
+  persistedAt?: number;
+  source: "convex-computed" | "convex-persisted";
+  nodes: Array<{
+    id: string;
+    densityScore: number;
+    attentionScore: number;
+    degree: number;
+    pc1: number;
+    pc2: number;
+    centroidDistance: number;
+    outlierScore: number;
+    mapperClusterIds: string[];
+    x: number;
+    y: number;
+  }>;
+  nodesById: Record<string, {
+    id: string;
+    densityScore: number;
+    attentionScore: number;
+    degree: number;
+    pc1: number;
+    pc2: number;
+    centroidDistance: number;
+    outlierScore: number;
+    mapperClusterIds: string[];
+    x: number;
+    y: number;
+  }>;
+  mapperClusters: Array<{
+    id: string;
+    label: string;
+    memberIds: string[];
+    x: number;
+    y: number;
+    densityScore: number;
+    attentionScore: number;
+  }>;
+  mapperEdges: Array<{ source: string; target: string; sharedMembers: number }>;
+  summary: {
+    nodeCount: number;
+    edgeCount: number;
+    hotNodeId: string | null;
+    centroidNodeId: string | null;
+    outlierNodeId: string | null;
+    clusterCount: number;
+    viewRationale: string;
+  };
+  pcaAxes: {
+    pc1: Array<{ label: string; weight: number }>;
+    pc2: Array<{ label: string; weight: number }>;
+  };
+  graph?: {
+    sourceLabel: string;
+    sourceRows: number;
+    totalReportCount: number;
+    visibleReportCount: number;
+    hiddenReportCount: number;
+  };
+}
+
+export interface ReportTopologySnapshotResult {
+  snapshot: ReportTopologySnapshotPacket | null;
+  isLoading: boolean;
+  sourceLabel: string;
 }
 
 const POST_TYPE_LABELS: Record<string, string> = {
@@ -1068,6 +1149,100 @@ export function useLiveArtifacts(limit = 24, options: { enabled?: boolean } = {}
       briefFeatureCount,
     };
   }, [archive, archiveStats, enabled, latestMemory, limit]);
+}
+
+export function useReportTopologySnapshot(
+  args: {
+    rootId?: string | null;
+    query?: string;
+    stage?: string;
+    kind?: string;
+    mode?: "focus" | "clustered" | "expanded";
+    view?: ReportTopologyViewMode;
+    limit?: number;
+  },
+  options: { enabled?: boolean } = {},
+): ReportTopologySnapshotResult {
+  const enabled = options.enabled ?? true;
+  const convex = useConvex();
+  const [snapshot, setSnapshot] = useState<ReportTopologySnapshotPacket | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sourceLabel, setSourceLabel] = useState("Topology disabled");
+  const refreshKeyRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!enabled) {
+      setSnapshot(null);
+      setIsLoading(false);
+      setSourceLabel("Topology disabled");
+      return;
+    }
+
+    let isCancelled = false;
+    const payload = {
+      rootId: args.rootId ?? undefined,
+      query: args.query || undefined,
+      stage: args.stage || undefined,
+      kind: args.kind || undefined,
+      mode: args.mode ?? "clustered",
+      view: args.view ?? "density",
+      limit: args.limit,
+    };
+
+    setIsLoading(true);
+    setSourceLabel("Loading Convex topology");
+
+    void convex
+      .query(liveArtifactApi.domains.redesign.reportTopology.getReportTopologySnapshot, payload)
+      .then((nextSnapshot) => {
+        if (isCancelled) return;
+        const packet = nextSnapshot as ReportTopologySnapshotPacket;
+        setSnapshot(packet);
+        setSourceLabel(packet.persisted ? "Convex persisted topology" : "Convex topology computed, persistence queued");
+
+        if (packet.persisted) return undefined;
+
+        const key = `${packet.snapshotKey}:${packet.graphHash}`;
+        if (refreshKeyRef.current === key) return undefined;
+        refreshKeyRef.current = key;
+        return convex
+          .action(liveArtifactApi.domains.redesign.reportTopology.refreshReportTopologySnapshot, payload)
+          .then((persistedSnapshot) => {
+            if (isCancelled) return;
+            setSnapshot(persistedSnapshot as ReportTopologySnapshotPacket);
+            setSourceLabel("Convex persisted topology");
+          })
+          .catch(() => {
+            refreshKeyRef.current = "";
+          });
+      })
+      .catch(() => {
+        if (isCancelled) return;
+        setSnapshot(null);
+        setSourceLabel("Convex topology unavailable, using client fallback");
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    args.kind,
+    args.limit,
+    args.mode,
+    args.query,
+    args.rootId,
+    args.stage,
+    args.view,
+    convex,
+    enabled,
+  ]);
+
+  return { snapshot, isLoading, sourceLabel };
 }
 
 export function useReportGraphNeighborhood(

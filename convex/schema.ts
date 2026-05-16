@@ -7351,6 +7351,27 @@ export default defineSchema({
     .index("by_task", ["taskId"]),
 
   /* ------------------------------------------------------------------ */
+  /* REPORT TOPOLOGY SNAPSHOTS - Derived graph shape for UI + agents     */
+  /* Density/PCA/centroid projections over bounded report neighborhoods  */
+  /* ------------------------------------------------------------------ */
+  reportTopologySnapshots: defineTable({
+    snapshotKey: v.string(),
+    rootKey: v.string(),
+    view: v.union(v.literal("density"), v.literal("pca"), v.literal("centroid")),
+    mode: v.union(v.literal("focus"), v.literal("clustered"), v.literal("expanded")),
+    graphHash: v.string(),
+    generatedAt: v.number(),
+    expiresAt: v.number(),
+    nodeCount: v.number(),
+    edgeCount: v.number(),
+    clusterCount: v.number(),
+    snapshot: v.any(),
+  })
+    .index("by_snapshot_key", ["snapshotKey"])
+    .index("by_root_view", ["rootKey", "view"])
+    .index("by_generated_at", ["generatedAt"]),
+
+  /* ------------------------------------------------------------------ */
   /* DAILY BRIEF PERSONAL OVERLAYS - Per-user derived tasks/state        */
   /* Built from tracked hashtags, docs, teachings                        */
   /* ------------------------------------------------------------------ */
