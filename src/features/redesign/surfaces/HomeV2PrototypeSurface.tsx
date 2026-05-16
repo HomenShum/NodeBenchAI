@@ -1627,6 +1627,8 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
       aria-label="Agent chat"
       data-agent-context-ref={contextPacket.contextRef}
       data-agent-context-rank={contextPacket.agentRank}
+      data-agent-context-attention-score={contextPacket.attentionScore}
+      data-agent-context-promotion={contextPacket.promotionClass}
     >
       <div className="ar-head">
         <span className="ar-dot" />
@@ -1755,11 +1757,26 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
               <b>{contextPacket.agentRank}</b>
             </div>
             <p>{contextPacket.agentSummary}</p>
+            <div className="ar-context-packet__attention" data-promotion={contextPacket.promotionClass}>
+              <span>
+                <strong>{contextPacket.attentionScore}</strong>
+                attention
+              </span>
+              <span>{contextPacket.promotionClass.replace("_", " ")}</span>
+            </div>
             <div className="ar-context-packet__grid">
               <span><strong>{contextPacket.sourceRefs}</strong> sources</span>
               <span><strong>{contextPacket.claimRefs}</strong> claims</span>
               <span><strong>{contextPacket.estimatedTokens}</strong> tok</span>
             </div>
+            <details className="ar-context-packet__why">
+              <summary>Why the agent packed this</summary>
+              <ol>
+                {contextPacket.whySelected.slice(0, 4).map((reason, index) => (
+                  <li key={`${reason}-${index}`}>{reason}</li>
+                ))}
+              </ol>
+            </details>
           </div>
           <div className="ar-ctx-row"><span className="ar-ctx-lbl">Evidence</span><span className="ar-ctx-val">{entityEvidenceText(entity)}</span></div>
           <div className="ar-ctx-row"><span className="ar-ctx-lbl">Freshness</span><span className="ar-ctx-val">{entityFreshnessText(entity)}</span></div>

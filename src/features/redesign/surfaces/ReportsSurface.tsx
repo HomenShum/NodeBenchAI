@@ -939,6 +939,9 @@ type ReportGraphNode = {
   verified: string;
   coverage: string[];
   signals: string[];
+  attentionScore: number;
+  reasonSelected: string;
+  attentionTier: "promoted" | "shelf" | "searchable" | "agent_only";
 };
 
 type ReportGraphLink = {
@@ -963,6 +966,11 @@ type ReportGraphLink = {
   label: string;
   basis?: string;
   strength?: number;
+  confidence?: number;
+  sourceRefs?: number;
+  claimRefs?: number;
+  timeWindow?: string;
+  directionNote?: string;
 };
 
 type ReportGraphData = {
@@ -1220,6 +1228,38 @@ function sharedSourceRows(a?: LiveArtifactDetail, b?: LiveArtifactDetail): strin
     .slice(0, 2);
 }
 
+function defaultGraphAttention(node: Omit<ReportGraphNode, "attentionScore" | "reasonSelected" | "attentionTier">): Pick<ReportGraphNode, "attentionScore" | "reasonSelected" | "attentionTier"> {
+  const sourceCount = Number(node.sources.match(/\d+/)?.[0] ?? 0);
+  const evidenceScore = Math.min(38, sourceCount * 3);
+  const stageScore =
+    node.stage === "verified" ? 24 :
+    node.stage === "review" || node.stage === "stale" ? 18 :
+    node.stage === "drafting" ? 12 :
+    14;
+  const provenanceScore =
+    node.provenance === "artifact" ? 20 :
+    node.provenance === "report" ? 18 :
+    node.provenance === "portfolio" ? 16 :
+    node.provenance === "entity" ? 14 :
+    node.provenance === "cluster" ? 10 :
+    8;
+  const actionScore = node.signals.length > 0 ? 12 : 4;
+  const attentionScore = Math.max(0, Math.min(100, Math.round(18 + evidenceScore + stageScore + provenanceScore + actionScore - Math.min(16, node.staleHours / 12))));
+  const attentionTier =
+    attentionScore >= 78 ? "promoted" :
+    attentionScore >= 62 ? "shelf" :
+    attentionScore >= 42 ? "searchable" :
+    "agent_only";
+  const reasonSelected =
+    node.provenance === "artifact" ? "Generated artifact can become report work, evidence review, or chat context." :
+    node.provenance === "report" ? "Report notebook is the durable artifact for this graph node." :
+    node.provenance === "portfolio" ? "Portfolio node summarizes cross-entity movement and review order." :
+    node.provenance === "cluster" ? "Cluster keeps low-priority report volume searchable without creating a node cloud." :
+    node.stage === "review" || node.stage === "stale" ? "Needs review or freshness work before the agent can safely patch outputs." :
+    "Promoted from source, claim, freshness, and graph-context signals.";
+  return { attentionScore, reasonSelected, attentionTier };
+}
+
 function buildReportGraph(
   reports: ReportCardData[],
   details: LiveArtifactDetail[],
@@ -1268,10 +1308,16 @@ function buildReportGraph(
   const nodeIds = new Set<string>();
   const artifactNodeIds: string[] = [];
   const liveArtifactNodeIds = new Map<string, string>();
-  const addNode = (node: ReportGraphNode) => {
+  const addNode = (node: Omit<ReportGraphNode, "attentionScore" | "reasonSelected" | "attentionTier"> & Partial<Pick<ReportGraphNode, "attentionScore" | "reasonSelected" | "attentionTier">>) => {
     if (nodeIds.has(node.id)) return;
+    const attention = defaultGraphAttention(node);
     nodeIds.add(node.id);
-    nodes.push(node);
+    nodes.push({
+      ...node,
+      attentionScore: node.attentionScore ?? attention.attentionScore,
+      reasonSelected: node.reasonSelected ?? attention.reasonSelected,
+      attentionTier: node.attentionTier ?? attention.attentionTier,
+    });
   };
 
   visible.forEach((report, index) => {
@@ -1532,8 +1578,42 @@ function buildReportGraph(
   const pushLink = (link: ReportGraphLink) => {
     const key = `${link.source}->${link.target}:${link.type}:${link.label}`;
     if (link.source === link.target || linkKeys.has(key)) return;
+    const sourceNode = nodes.find((node) => node.id === link.source);
+    const targetNode = nodes.find((node) => node.id === link.target);
+    const sourceRefs =
+      link.sourceRefs ??
+      sourceNode?.detail?.sourceRows.length ??
+      targetNode?.detail?.sourceRows.length ??
+      Number(sourceNode?.sources.match(/\d+/)?.[0] ?? targetNode?.sources.match(/\d+/)?.[0] ?? 0);
+    const claimRefs =
+      link.claimRefs ??
+      sourceNode?.detail?.claimCount ??
+      targetNode?.detail?.claimCount ??
+      Number(sourceNode?.verified.match(/\d+/)?.[0] ?? targetNode?.verified.match(/\d+/)?.[0] ?? 0);
+    const relationStrength =
+      link.strength ??
+      (link.type === "causes" ? 0.72 :
+        link.type === "correlates_with" ? 0.64 :
+        link.type === "has_report" || link.type === "has_artifact" ? 0.82 :
+        link.type === "covers" ? 0.68 :
+        0.55);
+    const confidence =
+      link.confidence ??
+      Math.max(0.35, Math.min(0.96, relationStrength + Math.min(0.14, sourceRefs * 0.015) + Math.min(0.08, claimRefs * 0.01)));
     linkKeys.add(key);
-    links.push(link);
+    links.push({
+      sourceRefs,
+      claimRefs,
+      strength: relationStrength,
+      confidence,
+      timeWindow: link.timeWindow ?? sourceNode?.freshness ?? targetNode?.freshness,
+      directionNote: link.directionNote ?? (
+        link.type === "causes" ? "Directional relation: source artifact changes downstream action order." :
+        link.type === "correlates_with" ? "Associative relation: shared timing, entities, or source overlap." :
+        undefined
+      ),
+      ...link,
+    });
   };
 
   visible.forEach((report) => {
@@ -1790,7 +1870,7 @@ function ReportCardV3({
       <p className="rd-v3-card__kind">{report.kind}</p>
       <p className="rd-v3-card__thesis v3-thesis">{displayReportDescription(report.description)}</p>
       <div className="rd-v3-signals v3-signals">
-        {signals.map((signal, index) => <span className="v3-signal" data-color={signalColor(index)} key={signal}>{signal}</span>)}
+        {signals.map((signal, index) => <span className="v3-signal" data-color={signalColor(index)} key={`${signal}-${index}`}>{signal}</span>)}
       </div>
       <div className="rd-v3-sources v3-sources">
         <span className="v3-src">{evidenceText(report, stage)}</span>
@@ -1799,7 +1879,7 @@ function ReportCardV3({
       </div>
       {backlinks.length > 0 && (
         <div className="rd-v3-backlinks v3-backlinks">
-          {backlinks.map((item) => <span key={item}>→ {item}</span>)}
+          {backlinks.map((item, index) => <span key={`${item}-${index}`}>→ {item}</span>)}
         </div>
       )}
       </div>
@@ -2276,13 +2356,13 @@ function ReportGraphPreview({
             <div>
               <dt>Coverage</dt>
               <dd className="rd-v3-graph-peek__tags">
-                {(activeNode?.coverage ?? ["reports"]).map((tag) => <span key={tag}>{tag}</span>)}
+                {(activeNode?.coverage ?? ["reports"]).map((tag, index) => <span key={`${tag}-${index}`}>{tag}</span>)}
               </dd>
             </div>
           </dl>
           <ul>
-            {(activeNode?.signals ?? ["Select a report node to inspect the relationship context."]).slice(0, 3).map((signal) => (
-              <li key={signal}>{signal}</li>
+            {(activeNode?.signals ?? ["Select a report node to inspect the relationship context."]).slice(0, 3).map((signal, index) => (
+              <li key={`${signal}-${index}`}>{signal}</li>
             ))}
           </ul>
           <div className="rd-v3-graph-peek__actions">
@@ -2578,9 +2658,11 @@ function ReportGraphPreviewD3({
       .attr("class", "rd-v3-graph-node")
       .attr("data-graph-type", (node) => node.graphType)
       .attr("data-stage", (node) => node.stage)
+      .attr("data-attention-tier", (node) => node.attentionTier)
+      .attr("data-attention-score", (node) => node.attentionScore)
       .attr("tabindex", 0)
       .attr("role", "button")
-      .attr("aria-label", (node) => `${node.label}, ${node.type}, ${node.verified}`)
+      .attr("aria-label", (node) => `${node.label}, ${node.type}, ${node.verified}, attention ${node.attentionScore}, ${node.reasonSelected}`)
       .style("cursor", "pointer");
 
     nodeEl.append("circle")
@@ -2881,14 +2963,22 @@ function ReportGraphPreviewD3({
               <div>
                 <dt>Coverage</dt>
                 <dd className="rd-v3-graph-peek__tags">
-                  {(activeNode.coverage.length > 0 ? activeNode.coverage : ["reports"]).map((tag) => <span key={tag}>{tag}</span>)}
+                  {(activeNode.coverage.length > 0 ? activeNode.coverage : ["reports"]).map((tag, index) => <span key={`${tag}-${index}`}>{tag}</span>)}
                 </dd>
               </div>
             </dl>
             <div className="rd-v3-graph-peek__signals">
-              {(activeNode.signals.length > 0 ? activeNode.signals : ["Select a report node to inspect the relationship context."]).slice(0, 3).map((signal) => (
-                <p key={signal}>{signal}</p>
+              {(activeNode.signals.length > 0 ? activeNode.signals : ["Select a report node to inspect the relationship context."]).slice(0, 3).map((signal, index) => (
+                <p key={`${signal}-${index}`}>{signal}</p>
               ))}
+            </div>
+            <div className="rd-v3-graph-peek__attention" data-attention-tier={activeNode.attentionTier}>
+              <div>
+                <span className="rd-v3-graph-peek__section-label">Attention</span>
+                <p>{activeNode.reasonSelected}</p>
+              </div>
+              <b>{activeNode.attentionScore}</b>
+              <small>{activeNode.attentionTier.replace("_", " ")}</small>
             </div>
             {activeContextPacket && (
               <div className="rd-v3-graph-peek__context" data-context-ref={activeContextPacket.contextRef}>
@@ -2906,7 +2996,7 @@ function ReportGraphPreviewD3({
                 <details className="rd-v3-graph-peek__why">
                   <summary>Why this entered context</summary>
                   <ol>
-                    {activeContextPacket.whySelected.map((reason) => <li key={reason}>{reason}</li>)}
+                    {activeContextPacket.whySelected.map((reason, index) => <li key={`${reason}-${index}`}>{reason}</li>)}
                   </ol>
                 </details>
               </div>
@@ -2969,6 +3059,14 @@ function ReportGraphPreviewD3({
                         <strong>{verb}</strong>
                         <span>{node.label}</span>
                         {link.basis && <small>{link.basis}</small>}
+                        <em className="rd-v3-graph-peek__relation-meta">
+                          {Math.round((link.confidence ?? 0) * 100)}% confidence
+                          {" - "}
+                          {Math.round((link.strength ?? 0) * 100)} strength
+                          {" - "}
+                          {link.sourceRefs ?? 0} sources / {link.claimRefs ?? 0} claims
+                          {link.timeWindow ? ` - ${link.timeWindow}` : ""}
+                        </em>
                       </button>
                     ))}
                   </div>
@@ -2981,6 +3079,14 @@ function ReportGraphPreviewD3({
                         <strong>{verb}</strong>
                         <span>{node.label}</span>
                         {link.basis && <small>{link.basis}</small>}
+                        <em className="rd-v3-graph-peek__relation-meta">
+                          {Math.round((link.confidence ?? 0) * 100)}% confidence
+                          {" - "}
+                          {Math.round((link.strength ?? 0) * 100)} strength
+                          {" - "}
+                          {link.sourceRefs ?? 0} sources / {link.claimRefs ?? 0} claims
+                          {link.timeWindow ? ` - ${link.timeWindow}` : ""}
+                        </em>
                       </button>
                     ))}
                   </div>
