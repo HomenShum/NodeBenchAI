@@ -14,6 +14,7 @@ import Underline from "@tiptap/extension-underline";
 import Mention from "@tiptap/extension-mention";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
+import { ExpandableMention } from "@/features/notebook/extensions/expandableMention";
 import { useTiptapSync } from "@convex-dev/prosemirror-sync/tiptap";
 
 import { useConvexApi } from "@/lib/convexApi";
@@ -249,6 +250,7 @@ export const NotebookBlockEditor = forwardRef<NotebookBlockEditorHandle, Props>(
           },
         }),
         diligenceExtension,
+        ExpandableMention,
       ],
       [diligenceExtension],
     );
