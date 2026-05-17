@@ -71,15 +71,16 @@ export const getRunsByUser = query({
 export const getActiveRuns = query({
   args: {},
   handler: async (ctx) => {
-    const active = [];
-
-    for (const status of ["queued", "searching", "extracting", "persisting"] as const) {
-      const runs = await ctx.db
-        .query("expansionRuns")
-        .withIndex("by_status", (q) => q.eq("status", status))
-        .take(5);
-      active.push(...runs);
-    }
+    const statuses = ["queued", "searching", "extracting", "persisting"] as const;
+    const results = await Promise.all(
+      statuses.map((status) =>
+        ctx.db
+          .query("expansionRuns")
+          .withIndex("by_status", (q) => q.eq("status", status))
+          .take(5),
+      ),
+    );
+    const active = results.flat();
 
     // BOUND_READ
     return active.slice(0, MAX_RUNS_PER_QUERY);
