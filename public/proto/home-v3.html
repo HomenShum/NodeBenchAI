@@ -803,6 +803,46 @@ body {
 .tb-mode span { font-size: 9px; padding: 2px 7px; color: color-mix(in srgb, var(--ink-faint) 55%, transparent); cursor: pointer; transition: all 120ms; letter-spacing: 0.02em; }
 .tb-mode span.active { background: color-mix(in srgb, var(--muted) 50%, transparent); color: var(--ink-mute); font-weight: 550; }
 
+/* AI writing action chips */
+.tb-ai-group { display: flex; align-items: center; gap: 3px; margin-left: 4px; }
+.tb-ai-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; color: color-mix(in srgb, var(--accent) 50%, transparent); margin-right: 2px; font-weight: 600; }
+.tb-ai-chip {
+  font-size: 8.5px; padding: 2px 7px; border-radius: var(--r-pill); cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  color: color-mix(in srgb, var(--accent) 65%, var(--ink-faint));
+  font-family: var(--font); font-weight: 500; transition: all 150ms; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 3px; line-height: 1;
+}
+.tb-ai-chip:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
+}
+.tb-ai-chip:active { transform: scale(0.96); }
+.tb-ai-chip.running {
+  pointer-events: none; opacity: 0.7;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tb-ai-chip .chip-icon { font-size: 9px; }
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+.tb-ai-chip.running .chip-icon { animation: ai-spin 0.8s linear infinite; display: inline-block; }
+
+/* AI action result toast */
+.nb-ai-toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: color-mix(in srgb, var(--green) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--green) 30%, transparent);
+  color: var(--green); font-size: 11px; padding: 8px 16px; border-radius: var(--r-pill);
+  font-family: var(--font); font-weight: 500; z-index: 9999;
+  animation: toast-in 300ms ease, toast-out 300ms ease 2.5s forwards;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+@keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(12px); } }
+@keyframes toast-out { to { opacity: 0; transform: translateX(-50%) translateY(-8px); } }
+
 /* Card footer: scores + notebook state */
 .v3-foot {
   padding: 8px 12px 10px;
@@ -1035,63 +1075,70 @@ body {
 
 /* ── Layer 1b: Expandable reference block ── */
 .nb-ref-expand {
-  margin: 2px 0 16px; padding: 0; border-radius: 0 0 5px 5px;
-  border: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
-  border-top: none; overflow: hidden;
+  margin: 4px 0 16px; padding: 16px 18px 14px; border-radius: 10px;
+  background: rgba(24,23,22,0.97);
+  backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-top: 2px solid var(--accent);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.25);
+  overflow: hidden;
   animation: refExpand 200ms ease-out;
 }
+.nb-ref-expand[data-kind="company"] { border-top-color: var(--accent); }
+.nb-ref-expand[data-kind="person"]  { border-top-color: #8b5cf6; }
+.nb-ref-expand[data-kind="concept"] { border-top-color: #38bdf8; }
 @keyframes refExpand {
   from { opacity: 0; max-height: 0; transform: translateY(-4px); }
   to { opacity: 1; max-height: 600px; transform: translateY(0); }
 }
 .nb-ref-header {
-  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-  background: color-mix(in srgb, var(--muted) 40%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--line-faint) 40%, transparent);
+  display: flex; align-items: center; gap: 8px; padding: 0 0 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  margin-bottom: 10px;
 }
 .nb-ref-icon {
-  width: 18px; height: 18px; border-radius: 3px; display: grid; place-items: center;
-  font-size: 8px; font-weight: 700; color: #fff; flex-shrink: 0;
+  font-size: 10px; flex-shrink: 0; opacity: 0.7;
 }
-.nb-ref-icon.company { background: var(--accent); }
-.nb-ref-icon.person { background: #8b5cf6; }
-.nb-ref-entity { font-size: 12px; font-weight: 600; color: var(--ink); }
-.nb-ref-meta { font-size: 9px; color: color-mix(in srgb, var(--ink-faint) 60%, transparent); letter-spacing: 0.02em; }
+.nb-ref-expand[data-kind="company"] .nb-ref-icon { color: var(--accent); }
+.nb-ref-expand[data-kind="person"]  .nb-ref-icon { color: #8b5cf6; }
+.nb-ref-expand[data-kind="concept"] .nb-ref-icon { color: #38bdf8; }
+.nb-ref-entity { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.92); }
+.nb-ref-meta { font-size: 10px; color: rgba(255,255,255,0.35); letter-spacing: 0.02em; }
 .nb-ref-close {
-  margin-left: auto; border: none; background: none; color: var(--ink-faint);
-  cursor: pointer; font-size: 12px; padding: 2px 4px; opacity: 0.5; transition: opacity 120ms;
+  margin-left: auto; border: none; background: none; color: rgba(255,255,255,0.3);
+  cursor: pointer; font-size: 14px; padding: 2px 4px; transition: color 120ms;
 }
-.nb-ref-close:hover { opacity: 1; }
-.nb-ref-body { padding: 10px 12px; }
-.nb-ref-summary {
-  font-size: 12px; line-height: 1.65; color: color-mix(in srgb, var(--ink) 85%, transparent);
-  margin-bottom: 8px;
+.nb-ref-close:hover { color: rgba(255,255,255,0.7); }
+.nb-ref-body { padding: 0; }
+.nb-ref-body p {
+  font-size: 12px; line-height: 1.65; color: rgba(255,255,255,0.6);
+  margin: 0 0 8px;
 }
-.nb-ref-claims { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
-.nb-ref-claim {
-  font-size: 11px; line-height: 1.5; color: var(--ink-mute); padding: 4px 8px;
-  border-left: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  background: color-mix(in srgb, var(--accent-tint) 15%, transparent);
-  border-radius: 0 2px 2px 0;
+.nb-ref-body p:last-child { margin-bottom: 0; }
+/* Hide old sub-elements when present */
+.nb-ref-summary, .nb-ref-claims, .nb-ref-edges { display: none; }
+.nb-ref-tags {
+  display: flex; flex-wrap: wrap; gap: 6px; padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.04); margin-top: 10px;
 }
-.nb-ref-edges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
-.nb-ref-edge {
-  font-size: 9px; padding: 2px 6px; border-radius: 2px;
-  background: color-mix(in srgb, var(--muted) 60%, transparent);
-  color: var(--ink-faint); display: flex; align-items: center; gap: 3px;
+.nb-ref-tag {
+  font-size: 10px; padding: 3px 10px; border-radius: 100px; cursor: pointer;
+  background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.45);
+  border: none; transition: background 120ms, color 120ms;
 }
-.nb-ref-edge .edge-arrow { color: color-mix(in srgb, var(--ink-faint) 40%, transparent); font-size: 8px; }
+.nb-ref-tag:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
+.nb-ref-expand[data-kind="company"] .nb-ref-tag { background: rgba(217,119,87,0.06); }
+.nb-ref-expand[data-kind="person"]  .nb-ref-tag { background: rgba(139,92,246,0.06); }
+.nb-ref-expand[data-kind="concept"] .nb-ref-tag { background: rgba(56,189,248,0.06); }
 .nb-ref-actions {
-  display: flex; gap: 6px; padding: 6px 12px;
-  border-top: 1px solid color-mix(in srgb, var(--line-faint) 30%, transparent);
+  display: flex; gap: 6px; padding-top: 8px; margin-top: 4px;
 }
 .nb-ref-action {
-  font-size: 9px; padding: 3px 8px; border-radius: 3px; cursor: pointer;
-  border: 1px solid color-mix(in srgb, var(--line) 40%, transparent);
-  background: none; color: var(--ink-faint); transition: all 120ms;
-  display: flex; align-items: center; gap: 3px;
+  font-size: 9px; padding: 3px 10px; border-radius: 100px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.08); background: none;
+  color: rgba(255,255,255,0.35); transition: all 120ms;
 }
-.nb-ref-action:hover { color: var(--ink-mute); border-color: color-mix(in srgb, var(--line) 70%, transparent); }
+.nb-ref-action:hover { color: rgba(255,255,255,0.6); border-color: rgba(255,255,255,0.15); }
 .nb-ref-action.agent { border-color: color-mix(in srgb, var(--accent) 30%, transparent); color: color-mix(in srgb, var(--accent) 70%, var(--ink-faint)); }
 .nb-ref-action.agent:hover { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 
@@ -1188,6 +1235,239 @@ body {
 .nb-source-pop-meta {
   font-size: 8.5px; color: color-mix(in srgb, var(--ink-faint) 55%, transparent);
   display: flex; gap: 8px; letter-spacing: 0.02em;
+}
+
+/* ── Layer 4: Interactive backlink panels (card-level) ── */
+.v3-backlink {
+  position: relative;
+}
+.v3-backlink[data-entity] {
+  padding: 1px 6px; border-radius: 3px;
+  transition: all 120ms;
+}
+.v3-backlink[data-entity]:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.v3-backlink[data-entity].bl-expanded {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+/* ── Backlink panel (Pricing-Power style, shared with Home cards) ── */
+.v3-bl-panel {
+  position: absolute; z-index: 120; width: 340px;
+  background: rgba(24,23,22,0.97);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3);
+  padding: 16px 18px 14px; overflow: hidden;
+  animation: blPanelIn 180ms ease-out;
+  left: 0; bottom: calc(100% + 6px);
+  border-top: 2px solid var(--accent);
+}
+@keyframes blPanelIn {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* Color variants */
+.v3-bl-panel[data-kind="company"] { border-top-color: var(--accent); }
+.v3-bl-panel[data-kind="person"]  { border-top-color: #8b5cf6; }
+.v3-bl-panel[data-kind="concept"] { border-top-color: #38bdf8; }
+.v3-bl-panel-head {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+}
+.v3-bl-panel-icon {
+  font-size: 13px; flex-shrink: 0; opacity: 0.5;
+}
+.v3-bl-panel[data-kind="company"] .v3-bl-panel-icon { color: var(--accent); }
+.v3-bl-panel[data-kind="person"]  .v3-bl-panel-icon { color: #8b5cf6; }
+.v3-bl-panel[data-kind="concept"] .v3-bl-panel-icon { color: #38bdf8; }
+.v3-bl-panel-name { font-size: 13px; font-weight: 650; color: var(--ink); }
+.v3-bl-panel-meta {
+  font-size: 9px; color: var(--ink-faint); font-family: var(--mono); margin-left: 6px;
+}
+.v3-bl-panel-close {
+  border: none; background: none; color: var(--ink-faint); cursor: pointer;
+  font-size: 14px; padding: 0; margin-left: auto; transition: color 120ms;
+}
+.v3-bl-panel-close:hover { color: var(--ink); }
+.v3-bl-panel-body {
+  font-size: 11.5px; line-height: 1.65;
+  color: color-mix(in srgb, var(--ink) 78%, transparent);
+  margin-bottom: 12px;
+}
+.v3-bl-panel-body p { margin: 0 0 8px; }
+.v3-bl-panel-body p:last-child { margin-bottom: 0; }
+.v3-bl-panel-tags {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.v3-bl-panel-tag {
+  font-size: 9px; padding: 3px 10px;
+  border-radius: var(--r-pill);
+  color: var(--ink-faint); background: rgba(255,255,255,0.04);
+  cursor: pointer; transition: background 120ms, color 120ms;
+  white-space: nowrap;
+}
+.v3-bl-panel-tag:hover {
+  background: rgba(255,255,255,0.08); color: var(--ink-mute);
+}
+.v3-bl-panel[data-kind="company"] .v3-bl-panel-tag { background: rgba(217,119,87,0.06); }
+.v3-bl-panel[data-kind="person"]  .v3-bl-panel-tag { background: rgba(139,92,246,0.06); }
+.v3-bl-panel[data-kind="concept"] .v3-bl-panel-tag { background: rgba(56,189,248,0.06); }
+/* Legacy selectors kept for any old references */
+.v3-bl-panel-summary { display: none; }
+.v3-bl-panel-section { display: none; }
+.v3-bl-panel-claim { display: none; }
+.v3-bl-panel-edges { display: none; }
+.v3-bl-panel-edge { display: none; }
+.v3-bl-panel-type { display: none; }
+.v3-bl-panel-actions { display: none; }
+.v3-bl-panel-act { display: none; }
+
+/* ── Layer 5: Mention count badges ── */
+.nb-mention-badge {
+  display: inline-block; font-size: 7px; padding: 0 4px; border-radius: 6px;
+  background: color-mix(in srgb, var(--ink-faint) 12%, transparent);
+  color: color-mix(in srgb, var(--ink-faint) 65%, transparent);
+  margin-left: 2px; font-weight: 600; vertical-align: baseline;
+  line-height: 14px; min-width: 14px; text-align: center;
+}
+.nb-mention[data-kind="company"] .nb-mention-badge {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: color-mix(in srgb, var(--accent) 75%, transparent);
+}
+.nb-mention[data-kind="person"] .nb-mention-badge {
+  background: color-mix(in srgb, #8b5cf6 12%, transparent);
+  color: color-mix(in srgb, #8b5cf6 70%, transparent);
+}
+
+/* ── Layer 6: Entity hover preview ── */
+.nb-hover-preview {
+  position: fixed; z-index: 200; width: 300px; padding: 12px 14px;
+  background: var(--panel); border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius: var(--r); box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+  pointer-events: none; opacity: 0; transform: translateY(4px);
+  transition: opacity 150ms, transform 150ms;
+  font-size: 11px; line-height: 1.55; color: var(--ink-mute);
+}
+.nb-hover-preview.visible { opacity: 1; transform: translateY(0); }
+.nb-hover-preview-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.nb-hover-preview-icon {
+  width: 20px; height: 20px; border-radius: 4px; display: grid; place-items: center;
+  font-size: 8px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.nb-hover-preview-icon.company { background: var(--accent); }
+.nb-hover-preview-icon.person { background: #8b5cf6; }
+.nb-hover-preview-name { font-size: 12px; font-weight: 600; color: var(--ink); }
+.nb-hover-preview-meta { font-size: 9px; color: var(--ink-faint); margin-left: auto; }
+.nb-hover-preview-summary {
+  font-size: 10.5px; line-height: 1.6; color: color-mix(in srgb, var(--ink) 75%, transparent);
+  margin-bottom: 6px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.nb-hover-preview-facts {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.nb-hover-preview-fact {
+  font-size: 9.5px; color: var(--ink-faint); padding-left: 8px;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.nb-hover-preview-foot {
+  margin-top: 6px; padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--line-faint) 40%, transparent);
+  font-size: 8px; color: color-mix(in srgb, var(--ink-faint) 45%, transparent);
+  display: flex; justify-content: space-between;
+}
+@media (prefers-reduced-motion: reduce) {
+  .v3-bl-panel, .nb-hover-preview { animation: none; transition: none; }
+}
+
+/* ── Home floating entity mention card (Pricing-Power style) ── */
+.home-mention-card {
+  position: fixed; z-index: 500; width: 340px;
+  background: rgba(24,23,22,0.97);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3);
+  padding: 16px 18px 14px; overflow: hidden;
+  opacity: 0; transform: translateY(6px) scale(0.97);
+  transition: opacity 180ms ease, transform 180ms ease;
+  font-family: var(--sans);
+  border-top: 2px solid var(--accent);
+}
+.home-mention-card.visible {
+  opacity: 1; transform: translateY(0) scale(1);
+}
+/* Color variants via top border */
+.home-mention-card[data-kind="company"] { border-top-color: var(--accent); }
+.home-mention-card[data-kind="person"]  { border-top-color: #8b5cf6; }
+.home-mention-card[data-kind="concept"] { border-top-color: #38bdf8; }
+.home-mention-card-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+}
+.home-mention-card-icon {
+  font-size: 13px; flex-shrink: 0; opacity: 0.5;
+}
+.home-mention-card[data-kind="company"] .home-mention-card-icon { color: var(--accent); }
+.home-mention-card[data-kind="person"]  .home-mention-card-icon { color: #8b5cf6; }
+.home-mention-card[data-kind="concept"] .home-mention-card-icon { color: #38bdf8; }
+.home-mention-card-name {
+  font-size: 13px; font-weight: 650; color: var(--ink);
+}
+.home-mention-card-meta {
+  font-size: 9px; color: var(--ink-faint);
+  font-family: var(--mono); margin-left: 6px;
+}
+.home-mention-card-close {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: none; border: none;
+  color: var(--ink-faint); font-size: 14px; cursor: pointer;
+  display: grid; place-items: center; flex-shrink: 0;
+  margin-left: auto; transition: color 120ms;
+}
+.home-mention-card-close:hover { color: var(--ink); }
+.home-mention-card-body {
+  font-size: 11.5px; line-height: 1.65; color: color-mix(in srgb, var(--ink) 78%, transparent);
+  margin-bottom: 12px;
+}
+.home-mention-card-body p { margin: 0 0 8px; }
+.home-mention-card-body p:last-child { margin-bottom: 0; }
+.home-mention-card-tags {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.home-mention-card-tag {
+  font-size: 9px; padding: 3px 10px;
+  border-radius: var(--r-pill);
+  color: var(--ink-faint); background: rgba(255,255,255,0.04);
+  cursor: pointer; transition: background 120ms, color 120ms;
+  white-space: nowrap;
+}
+.home-mention-card-tag:hover {
+  background: rgba(255,255,255,0.08); color: var(--ink-mute);
+}
+/* Kind-tinted tags */
+.home-mention-card[data-kind="company"] .home-mention-card-tag {
+  background: rgba(217,119,87,0.06);
+}
+.home-mention-card[data-kind="person"] .home-mention-card-tag {
+  background: rgba(139,92,246,0.06);
+}
+.home-mention-card[data-kind="concept"] .home-mention-card-tag {
+  background: rgba(56,189,248,0.06);
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-mention-card { transition: none; }
 }
 
 /* ── Wiki link expansion ── */
@@ -3338,6 +3618,74 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
   content: "▸ "; color: var(--accent); font-size: 8px;
 }
 
+/* BLUF — inline citations [src:N] */
+.home-bluf-cite {
+  display: inline-block; font-size: 8px; font-family: var(--mono);
+  color: var(--accent); cursor: pointer; padding: 0 2px;
+  border-bottom: 1px dashed rgba(217,119,87,0.3);
+  transition: color 150ms; vertical-align: baseline;
+}
+.home-bluf-cite:hover { color: #fff; border-bottom-color: #fff; }
+
+/* BLUF — claim blockquotes in detail panel */
+.home-bluf-claim {
+  padding: 6px 10px; margin: 4px 0;
+  border-left: 2px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.015);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: 10px; line-height: 1.5; color: var(--ink-mute);
+}
+.home-bluf-claim .nb-mention { font-size: 9px; }
+.home-bluf-claim .home-bluf-cite { font-size: 7px; }
+
+/* BLUF — detail action buttons */
+.home-bluf-detail-actions {
+  display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;
+}
+.home-bluf-detail-btn {
+  font-size: 9px; font-weight: 600; padding: 3px 10px;
+  border: 1px solid var(--line); border-radius: var(--r-pill);
+  background: transparent; color: var(--ink-mute); cursor: pointer;
+  transition: all 150ms; font-family: var(--sans);
+}
+.home-bluf-detail-btn:hover {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.home-bluf-detail-btn:active { transform: scale(0.97); }
+.home-bluf-detail-btn[data-action="open-notebook"] { color: var(--accent); border-color: var(--accent); }
+.home-bluf-detail-btn[data-action="open-notebook"]:hover { background: var(--accent); color: #fff; }
+
+/* BLUF item expand state */
+.home-bluf-item[aria-expanded="true"] { background: rgba(255,255,255,0.02); }
+.home-bluf-item[aria-expanded="true"] .home-bluf-bullet { background: #fff; }
+
+/* Home interactive table rows */
+.home-ed-table tbody tr { cursor: pointer; transition: background 100ms; }
+.home-ed-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+.home-ed-table tbody tr:active { background: rgba(217,119,87,0.06); }
+
+/* Sweep items interactive */
+.home-sweep-item { cursor: pointer; transition: background 100ms; padding: 4px 6px; border-radius: var(--r-sm); }
+.home-sweep-item:hover { background: rgba(255,255,255,0.03); }
+
+/* Share buttons */
+.home-share-btn { transition: all 150ms; }
+.home-share-btn:active { transform: scale(0.95); }
+
+/* Right rail entities interactive */
+.home-ar-ctx-entity { cursor: pointer; transition: background 100ms; padding: 4px 6px; border-radius: var(--r-sm); }
+.home-ar-ctx-entity:hover { background: rgba(255,255,255,0.03); }
+
+/* Right rail thread items interactive */
+.home-ar-thread-item { cursor: pointer; transition: background 100ms; padding: 3px 6px; border-radius: var(--r-sm); }
+.home-ar-thread-item:hover { background: rgba(255,255,255,0.03); }
+
+/* Source footnotes interactive */
+.home-fn-item { cursor: pointer; transition: background 100ms; padding: 3px 6px; border-radius: var(--r-sm); }
+.home-fn-item:hover { background: rgba(217,119,87,0.06); }
+.home-fn-num { transition: color 100ms; }
+.home-fn-item:hover .home-fn-num { color: var(--accent); }
+
 /* Portfolio exposure strip */
 .home-exposure-strip {
   display: flex; align-items: center; gap: 12px;
@@ -3652,7 +4000,7 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
       <div class="lr-body" id="lr-body">
 
         <div class="lr-group" data-group="universes">
-          <div class="lr-group-head" onclick="this.parentElement.classList.toggle('collapsed')">
+          <div class="lr-group-head" role="button" tabindex="0" onclick="this.parentElement.classList.toggle('collapsed')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.parentElement.classList.toggle('collapsed')}">
             <span class="lr-chevron">&#9662;</span> Universes <span class="lr-group-count">3</span>
           </div>
           <div class="lr-group-items">
@@ -3672,7 +4020,7 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
         </div>
 
         <div class="lr-group" data-group="companies">
-          <div class="lr-group-head" onclick="this.parentElement.classList.toggle('collapsed')">
+          <div class="lr-group-head" role="button" tabindex="0" onclick="this.parentElement.classList.toggle('collapsed')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.parentElement.classList.toggle('collapsed')}">
             <span class="lr-chevron">&#9662;</span> Companies <span class="lr-group-count">5</span>
           </div>
           <div class="lr-group-items">
@@ -3705,7 +4053,7 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
         </div>
 
         <div class="lr-group" data-group="people">
-          <div class="lr-group-head" onclick="this.parentElement.classList.toggle('collapsed')">
+          <div class="lr-group-head" role="button" tabindex="0" onclick="this.parentElement.classList.toggle('collapsed')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.parentElement.classList.toggle('collapsed')}">
             <span class="lr-chevron">&#9662;</span> People <span class="lr-group-count">2</span>
           </div>
           <div class="lr-group-items">
@@ -3723,7 +4071,7 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
         </div>
 
         <div class="lr-group" data-group="briefs">
-          <div class="lr-group-head" onclick="this.parentElement.classList.toggle('collapsed')">
+          <div class="lr-group-head" role="button" tabindex="0" onclick="this.parentElement.classList.toggle('collapsed')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.parentElement.classList.toggle('collapsed')}">
             <span class="lr-chevron">&#9662;</span> Briefs <span class="lr-group-count">1</span>
           </div>
           <div class="lr-group-items">
@@ -3736,7 +4084,7 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
         </div>
 
         <div class="lr-group" data-group="monitoring">
-          <div class="lr-group-head" onclick="this.parentElement.classList.toggle('collapsed')">
+          <div class="lr-group-head" role="button" tabindex="0" onclick="this.parentElement.classList.toggle('collapsed')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.parentElement.classList.toggle('collapsed')}">
             <span class="lr-chevron">&#9662;</span> Monitoring <span class="lr-group-count">1</span>
           </div>
           <div class="lr-group-items">
@@ -4262,7 +4610,7 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
         <!-- ═══ NOTEBOOK DETAIL VIEW — opened by clicking a card ═══ -->
         <div class="v3-notebook-view" id="notebook-view">
           <div class="v3-detail-bar">
-            <button class="v3-detail-back" id="notebook-back" aria-label="Back to reports">&#8592; Reports</button>
+            <button class="v3-detail-back" id="notebook-back" aria-label="Back to reports (Escape)">&#8592; Reports <kbd style="font-size:9px;opacity:.5;margin-left:4px">Esc</kbd></button>
             <span class="v3-detail-entity" id="detail-entity-name">Anthropic</span>
             <span class="v3-detail-meta" id="detail-entity-meta">Company &middot; Verified &middot; 12 sources</span>
             <span class="v3-detail-spacer"></span>
@@ -4300,6 +4648,14 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
               <button title="Insert link">&#128279;</button>
               <button title="Insert image">&#128247;</button>
               <button title="Add claim block">&#9998;</button>
+              <span class="tb-sep"></span>
+              <span class="tb-ai-group">
+                <span class="tb-ai-label">AI</span>
+                <button class="tb-ai-chip" data-ai-action="polish" title="Clean prose, fix grammar, improve flow"><span class="chip-icon">&#10024;</span> Polish</button>
+                <button class="tb-ai-chip" data-ai-action="compress" title="Reduce to key points, remove fluff"><span class="chip-icon">&#9660;</span> Compress</button>
+                <button class="tb-ai-chip" data-ai-action="expand" title="Add evidence, elaborate claims"><span class="chip-icon">&#9650;</span> Expand</button>
+                <button class="tb-ai-chip" data-ai-action="check-logic" title="Flag logical gaps and unsupported leaps"><span class="chip-icon">&#9888;</span> Check logic</button>
+              </span>
               <span class="tb-slash"><kbd>/</kbd> Slash commands</span>
               <span class="tb-mode"><span class="active">Edit</span><span>Preview</span></span>
             </div>
@@ -4524,7 +4880,7 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
 
       <!-- Context drawer (collapsible) -->
       <div class="ar-drawer" id="ar-drawer">
-        <div class="ar-drawer-head" onclick="document.getElementById('ar-drawer').classList.toggle('collapsed')">
+        <div class="ar-drawer-head" role="button" tabindex="0" onclick="document.getElementById('ar-drawer').classList.toggle('collapsed')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('ar-drawer').classList.toggle('collapsed')}">
           <span class="ar-drawer-label">Context</span>
           <span class="ar-drawer-pills">
             <span class="ar-drawer-pill">Anthropic</span>
@@ -5029,25 +5385,56 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
       <div class="home-bluf">
         <div class="home-bluf-title">Need to know</div>
         <ul class="home-bluf-list">
-          <li class="home-bluf-item">
+          <li class="home-bluf-item" role="button" tabindex="0" data-entity="anthropic">
             <span class="home-bluf-bullet"></span>
-            <span class="home-bluf-text"><strong>Anthropic enterprise pricing +40%</strong> across all tiers effective June 1. New Managed Agent SKU at $0.18/1K tokens. Recalculate partnership economics before Thu board call.<span class="home-bluf-position">You: vendor dependency &middot; $1.8M/yr API spend &middot; partnership deal in negotiation</span></span>
+            <span class="home-bluf-text"><strong><span class="nb-mention" data-kind="company" data-entity="anthropic">@Anthropic</span> enterprise pricing +40%</strong> across all tiers effective June 1. New Managed Agent SKU at $0.18/1K tokens. Recalculate partnership economics before Thu board call. <span class="home-bluf-cite" data-src="1">[src:1]</span> <span class="home-bluf-cite" data-src="3">[src:3]</span><span class="home-bluf-position">You: vendor dependency &middot; $1.8M/yr API spend &middot; partnership deal in negotiation</span></span>
             <span class="home-bluf-badge" data-conf="verified">Verified &middot; 3</span>
+            <div class="home-bluf-detail">
+              <div class="home-bluf-claim">Enterprise tier repriced +40% with minimal customer churn. <span class="home-bluf-cite" data-src="1">[src:1]</span></div>
+              <div class="home-bluf-claim">Managed Agent tier launched at $0.168/1K tokens, undercutting <span class="nb-mention" data-kind="company" data-entity="openai">@OpenAI</span> by ~20%. <span class="home-bluf-cite" data-src="4">[src:4]</span></div>
+              <div class="home-bluf-detail-actions">
+                <button class="home-bluf-detail-btn" data-action="open-notebook" data-name="Anthropic">Open notebook</button>
+                <button class="home-bluf-detail-btn" data-action="verify">Verify claims</button>
+              </div>
+            </div>
           </li>
-          <li class="home-bluf-item">
+          <li class="home-bluf-item" role="button" tabindex="0" data-entity="sequoia">
             <span class="home-bluf-bullet"></span>
-            <span class="home-bluf-text"><strong>Sequoia counter-bid at $175B ceiling</strong> reshapes cap table math. Three portfolio companies already adjusting Series B narratives. Implies 2.3x revenue multiple premium.<span class="home-bluf-position">You: fundraise in progress &middot; Sequoia on term sheet &middot; cap table model needs refresh</span></span>
+            <span class="home-bluf-text"><strong><span class="nb-mention" data-kind="company" data-entity="sequoia">@Sequoia Capital</span> counter-bid at $175B ceiling</strong> reshapes cap table math. Three portfolio companies already adjusting Series B narratives. Implies 2.3x revenue multiple premium. <span class="home-bluf-cite" data-src="2">[src:2]</span> <span class="home-bluf-cite" data-src="5">[src:5]</span><span class="home-bluf-position">You: fundraise in progress &middot; Sequoia on term sheet &middot; cap table model needs refresh</span></span>
             <span class="home-bluf-badge" data-conf="verified">Verified &middot; 2</span>
+            <div class="home-bluf-detail">
+              <div class="home-bluf-claim">Series E valued at $61.5B led by <span class="nb-mention" data-kind="company" data-entity="sequoia">@Sequoia Capital</span>. Total funding exceeds $7.3B across 6 rounds. <span class="home-bluf-cite" data-src="2">[src:2]</span></div>
+              <div class="home-bluf-claim"><span class="nb-mention" data-kind="person" data-entity="dario-amodei">@Dario Amodei</span> (CEO) confirmed counter-bid shifts downstream fundraise math. <span class="home-bluf-cite" data-src="5">[src:5]</span></div>
+              <div class="home-bluf-detail-actions">
+                <button class="home-bluf-detail-btn" data-action="open-notebook" data-name="Sequoia Capital">Open notebook</button>
+                <button class="home-bluf-detail-btn" data-action="compare">Compare cap tables</button>
+              </div>
+            </div>
           </li>
-          <li class="home-bluf-item">
+          <li class="home-bluf-item" role="button" tabindex="0" data-entity="bug0">
             <span class="home-bluf-bullet"></span>
-            <span class="home-bluf-text"><strong>Bug0 v2 ships full MCP support</strong> &mdash; undercuts managed-agent pricing by ~60%. Three YC W26 companies migrated orchestration in 72 hours. Apache 2.0 license.<span class="home-bluf-position">You: direct competitor &middot; their MCP launch overlaps your demo day pitch</span></span>
+            <span class="home-bluf-text"><strong><span class="nb-mention" data-kind="company" data-entity="bug0">@Bug0</span> v2 ships full MCP support</strong> &mdash; undercuts managed-agent pricing by ~60%. Three YC W26 companies migrated orchestration in 72 hours. Apache 2.0 license. <span class="home-bluf-cite" data-src="6">[src:6]</span><span class="home-bluf-position">You: direct competitor &middot; their MCP launch overlaps your demo day pitch</span></span>
             <span class="home-bluf-badge" data-conf="verified">Verified &middot; 4</span>
+            <div class="home-bluf-detail">
+              <div class="home-bluf-claim">v2 runtime is Apache 2.0, protocol-native MCP. Three YC W26 companies migrated in 72 hours. <span class="home-bluf-cite" data-src="6">[src:6]</span></div>
+              <div class="home-bluf-claim">Undercuts <span class="nb-mention" data-kind="company" data-entity="anthropic">@Anthropic</span> managed-agent pricing by ~60% on equivalent workloads. <span class="home-bluf-cite" data-src="6">[src:6]</span></div>
+              <div class="home-bluf-detail-actions">
+                <button class="home-bluf-detail-btn" data-action="open-notebook" data-name="Bug0">Open notebook</button>
+                <button class="home-bluf-detail-btn" data-action="teardown">Run competitive teardown</button>
+              </div>
+            </div>
           </li>
-          <li class="home-bluf-item">
+          <li class="home-bluf-item" role="button" tabindex="0" data-entity="groq">
             <span class="home-bluf-bullet"></span>
-            <span class="home-bluf-text"><strong>Groq LPU costs down 40% QoQ</strong> &mdash; $0.27/M input tokens vs. $3.00 on Claude. Inference cost floor collapsing. GA pricing ~May 28 could accelerate.<span class="home-bluf-position">You: potential infra arbitrage &middot; no current Groq dependency &middot; monitor for cost optimization</span></span>
+            <span class="home-bluf-text"><strong><span class="nb-mention" data-kind="company" data-entity="groq">@Groq</span> LPU costs down 40% QoQ</strong> &mdash; $0.27/M input tokens vs. $3.00 on Claude. Inference cost floor collapsing. GA pricing ~May 28 could accelerate. <span class="home-bluf-cite" data-src="7">[src:7]</span><span class="home-bluf-position">You: potential infra arbitrage &middot; no current Groq dependency &middot; monitor for cost optimization</span></span>
             <span class="home-bluf-badge" data-conf="estimated">Estimated &middot; 2</span>
+            <div class="home-bluf-detail">
+              <div class="home-bluf-claim">LPU inference at $0.27/M input tokens — 11x cheaper than Claude at $3.00/M. <span class="home-bluf-cite" data-src="7">[src:7]</span></div>
+              <div class="home-bluf-detail-actions">
+                <button class="home-bluf-detail-btn" data-action="open-notebook" data-name="Groq">Open notebook</button>
+                <button class="home-bluf-detail-btn" data-action="model">Build cost model</button>
+              </div>
+            </div>
           </li>
         </ul>
       </div>
@@ -5056,11 +5443,11 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
       <div class="home-twin-cards">
         <div class="home-twin-card">
           <div class="home-twin-card-kicker">Next best action</div>
-          <div class="home-twin-card-title">Review Anthropic partnership terms before Thu board call</div>
+          <div class="home-twin-card-title">Review <span class="nb-mention" data-kind="company" data-entity="anthropic">@Anthropic</span> partnership terms before Thu board call</div>
           <div class="home-twin-card-body">
             Enterprise repricing changes the value prop for the agent integration deal.
-            Board wants updated numbers. Sequoia counter-bid adds urgency&mdash;three
-            portfolio companies already adjusting narratives.
+            Board wants updated numbers. <span class="nb-mention" data-kind="company" data-entity="sequoia">@Sequoia</span> counter-bid adds urgency&mdash;three
+            portfolio companies already adjusting narratives. <span class="home-bluf-cite" data-src="1">[src:1]</span>
           </div>
           <div class="home-twin-card-actions">
             <button class="home-twin-card-btn home-twin-card-btn--primary">Open memo</button>
@@ -5070,11 +5457,11 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
         <div class="home-twin-card">
           <div class="home-twin-card-kicker">Daily sweep &middot; May 16</div>
           <div class="home-twin-card-title">5 items triaged from overnight signals</div>
-          <div class="home-sweep-item"><span class="home-sweep-bullet">&bull;</span> Anthropic partnership terms&mdash;escalated to Now lane</div>
-          <div class="home-sweep-item"><span class="home-sweep-bullet">&bull;</span> Sequoia cap table recalc&mdash;queued for Prep</div>
-          <div class="home-sweep-item"><span class="home-sweep-bullet">&bull;</span> Bug0 YC demo prep&mdash;deadline Fri, moved to Now</div>
-          <div class="home-sweep-item"><span class="home-sweep-bullet">&bull;</span> OpenAI report marked stale&mdash;auto-refresh queued</div>
-          <div class="home-sweep-item"><span class="home-sweep-bullet">&bull;</span> Weekly deck update&mdash;deferred to Batch</div>
+          <div class="home-sweep-item"><span class="home-sweep-bullet">&bull;</span> <span class="nb-mention" data-kind="company" data-entity="anthropic">@Anthropic</span> partnership terms&mdash;escalated to <strong style="color:var(--accent)">Now</strong> lane</div>
+          <div class="home-sweep-item"><span class="home-sweep-bullet">&bull;</span> <span class="nb-mention" data-kind="company" data-entity="sequoia">@Sequoia</span> cap table recalc&mdash;queued for <strong style="color:#6b9fff">Prep</strong></div>
+          <div class="home-sweep-item"><span class="home-sweep-bullet">&bull;</span> <span class="nb-mention" data-kind="company" data-entity="bug0">@Bug0</span> YC demo prep&mdash;deadline Fri, moved to <strong style="color:var(--accent)">Now</strong></div>
+          <div class="home-sweep-item"><span class="home-sweep-bullet">&bull;</span> <span class="nb-mention" data-kind="company" data-entity="openai">@OpenAI</span> report marked stale&mdash;auto-refresh queued</div>
+          <div class="home-sweep-item"><span class="home-sweep-bullet">&bull;</span> Weekly deck update&mdash;deferred to <strong style="color:var(--ink-faint)">Batch</strong></div>
         </div>
       </div>
 
@@ -5083,7 +5470,7 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
         <div class="home-ed-eyebrow">What changed</div>
       </div>
       <div class="home-change-cards">
-        <div class="home-change-card" onclick="switchSurface('reports')">
+        <div class="home-change-card" role="button" tabindex="0" onclick="switchSurface('reports')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchSurface('reports')}">
           <div class="home-change-card-head">
             <span class="home-change-card-icon">A</span>
             <span class="home-change-card-title">Anthropic enterprise repricing</span>
@@ -5091,9 +5478,9 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
           <div class="home-change-card-num">+40%</div>
           <div class="home-change-card-num-label">across all plan levels, effective June 1</div>
           <div class="home-change-card-prior"><span>was:</span> flat since Q3 2025 &middot; $0.12/1K &rarr; $0.18/1K</div>
-          <div class="home-change-card-implication"><strong>&rarr;</strong> Update partnership model slide 14. Your $1.8M annual spend becomes ~$2.5M. Board needs revised unit economics by Thu.</div>
+          <div class="home-change-card-implication"><strong>&rarr;</strong> Update partnership model slide 14. Your $1.8M annual spend becomes ~$2.5M. Board needs revised unit economics by Thu. <span class="home-bluf-cite" data-src="1">[src:1]</span></div>
         </div>
-        <div class="home-change-card" onclick="switchSurface('reports')">
+        <div class="home-change-card" role="button" tabindex="0" onclick="switchSurface('reports')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchSurface('reports')}">
           <div class="home-change-card-head">
             <span class="home-change-card-icon">S</span>
             <span class="home-change-card-title">Sequoia counter-bid</span>
@@ -5101,9 +5488,9 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
           <div class="home-change-card-num">$175B</div>
           <div class="home-change-card-num-label">valuation ceiling &middot; 2.3x revenue premium</div>
           <div class="home-change-card-prior"><span>was:</span> $120B (prior round, Mar 2026) &middot; +46% ceiling lift</div>
-          <div class="home-change-card-implication"><strong>&rarr;</strong> Your cap table model assumes $120B comp. Refresh with $175B ceiling before Sequoia deadline May 26.</div>
+          <div class="home-change-card-implication"><strong>&rarr;</strong> Your cap table model assumes $120B comp. Refresh with $175B ceiling before <span class="nb-mention" data-kind="company" data-entity="sequoia">@Sequoia</span> deadline May 26. <span class="home-bluf-cite" data-src="2">[src:2]</span></div>
         </div>
-        <div class="home-change-card" onclick="switchSurface('reports')">
+        <div class="home-change-card" role="button" tabindex="0" onclick="switchSurface('reports')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchSurface('reports')}">
           <div class="home-change-card-head">
             <span class="home-change-card-icon">B</span>
             <span class="home-change-card-title">Bug0 v2 ships MCP</span>
@@ -5111,9 +5498,9 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
           <div class="home-change-card-num">60%</div>
           <div class="home-change-card-num-label">cheaper than Anthropic managed agents &middot; Apache 2.0</div>
           <div class="home-change-card-prior"><span>was:</span> v1 closed-source, no MCP &middot; now open + protocol-native</div>
-          <div class="home-change-card-implication"><strong>&rarr;</strong> Your YC demo pitch needs a "why not Bug0" slide. 3 cohort companies already switched. Prep competitive teardown by May 23.</div>
+          <div class="home-change-card-implication"><strong>&rarr;</strong> Your YC demo pitch needs a "why not <span class="nb-mention" data-kind="company" data-entity="bug0">@Bug0</span>" slide. 3 cohort companies already switched. Prep competitive teardown by May 23. <span class="home-bluf-cite" data-src="6">[src:6]</span></div>
         </div>
-        <div class="home-change-card" onclick="switchSurface('reports')">
+        <div class="home-change-card" role="button" tabindex="0" onclick="switchSurface('reports')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchSurface('reports')}">
           <div class="home-change-card-head">
             <span class="home-change-card-icon">G</span>
             <span class="home-change-card-title">Groq inference costs</span>
@@ -5121,7 +5508,7 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
           <div class="home-change-card-num">$0.27</div>
           <div class="home-change-card-num-label">per 1M input tokens &middot; 11x cheaper than Claude</div>
           <div class="home-change-card-prior"><span>was:</span> $0.45/M (Q1 2026) &middot; 40% QoQ decline &middot; GA ~May 28</div>
-          <div class="home-change-card-implication"><strong>&rarr;</strong> Model your cost floor assuming $0.20/M by Q3. If GA pricing holds, build Groq routing into your inference stack for non-reasoning calls.</div>
+          <div class="home-change-card-implication"><strong>&rarr;</strong> Model your cost floor assuming $0.20/M by Q3. If GA pricing holds, build <span class="nb-mention" data-kind="company" data-entity="groq">@Groq</span> routing into your inference stack for non-reasoning calls. <span class="home-bluf-cite" data-src="7">[src:7]</span></div>
         </div>
       </div>
 
@@ -6473,7 +6860,7 @@ tr.action-done td:first-child { text-decoration: none; opacity: 1; }
       <!-- ═══ Trace DAG panel ═══ -->
       <div class="trace-panel" id="trace-panel" aria-label="Agent trace">
       <div class="trace-head">
-        <button class="chat-review-back" id="trace-close" aria-label="Close trace" title="Close trace">&#10005;</button>
+        <button class="chat-review-back" id="trace-close" aria-label="Close trace (Escape)" title="Close trace (Esc)">&#10005; <kbd style="font-size:9px;opacity:.5;margin-left:2px">Esc</kbd></button>
         <span class="trace-head-title">Agent Run Trace</span>
         <span class="trace-head-meta">16 steps &middot; 4.4s &middot; $0.05</span>
       </div>
@@ -7015,6 +7402,10 @@ if (searchToggle && searchBar) {
   if (traceChatMain) {
     traceChatMain.addEventListener('scroll', pinTracePanel, { passive: true });
     window.addEventListener('resize', pinTracePanel);
+    // G5: Also adjust for dynamic content resize (messages appended, panels toggled)
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(function() { if (tracePanel.classList.contains('open')) pinTracePanel(); }).observe(traceChatMain);
+    }
   }
 
   traceToggle.addEventListener('click', function() {
@@ -7868,8 +8259,149 @@ document.querySelectorAll('.tb-mode span').forEach(tab => {
   });
 });
 
+/* ─── AI writing action chips ─── */
+(function() {
+  var AI_ACTIONS = {
+    'polish': {
+      label: 'Polish',
+      steps: ['Analyzing prose style...', 'Fixing grammar & flow...', 'Improving sentence structure...'],
+      toast: 'Polished — 3 sentences improved, passive voice removed',
+      duration: 2200
+    },
+    'compress': {
+      label: 'Compress',
+      steps: ['Scanning section length...', 'Identifying redundancies...', 'Reducing to key points...'],
+      toast: 'Compressed — reduced by 35%, key claims preserved',
+      duration: 1800
+    },
+    'expand': {
+      label: 'Expand',
+      steps: ['Checking claim coverage...', 'Finding supporting evidence...', 'Adding source citations...'],
+      toast: 'Expanded — 2 claims elaborated, 3 sources added',
+      duration: 2600
+    },
+    'check-logic': {
+      label: 'Check logic',
+      steps: ['Mapping argument structure...', 'Checking claim dependencies...', 'Scanning for gaps...'],
+      toast: 'Logic check — 1 unsupported leap flagged, 2 claims verified',
+      duration: 2400
+    }
+  };
+
+  window.showAiToast = function showAiToast(message) {
+    var existing = document.querySelector('.nb-ai-toast');
+    if (existing) existing.remove();
+    var toast = document.createElement('div');
+    toast.className = 'nb-ai-toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(function() { if (toast.parentElement) toast.remove(); }, 3000);
+  };
+
+  function getSelectedSection() {
+    var editor = document.querySelector('.v3-nb-editor');
+    if (!editor) return null;
+    var sel = window.getSelection();
+    // If user has text selected, use that range
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed && editor.contains(sel.anchorNode)) {
+      return { type: 'selection', node: sel.anchorNode.parentElement };
+    }
+    // Otherwise find the section the cursor is in (nearest h2 sibling block)
+    if (sel && sel.anchorNode && editor.contains(sel.anchorNode)) {
+      var node = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+      // Walk up to find nearest block child of editor
+      while (node && node.parentElement !== editor && node !== editor) node = node.parentElement;
+      return node && node !== editor ? { type: 'section', node: node } : null;
+    }
+    // Fallback: first h2's sibling paragraph
+    var firstP = editor.querySelector('h2 + p');
+    return firstP ? { type: 'section', node: firstP } : null;
+  }
+
+  document.querySelectorAll('.tb-ai-chip').forEach(function(chip) {
+    chip.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var action = chip.getAttribute('data-ai-action');
+      var config = AI_ACTIONS[action];
+      if (!config || chip.classList.contains('running')) return;
+
+      // Get target section
+      var target = getSelectedSection();
+
+      // Set running state
+      chip.classList.add('running');
+      var origIcon = chip.querySelector('.chip-icon').innerHTML;
+      chip.querySelector('.chip-icon').innerHTML = '&#10227;'; // spinner icon
+
+      // Highlight target section if found
+      if (target && target.node) {
+        target.node.style.transition = 'background 300ms, border-left 300ms';
+        target.node.style.background = 'color-mix(in srgb, var(--accent) 5%, transparent)';
+        target.node.style.borderLeft = '2px solid color-mix(in srgb, var(--accent) 30%, transparent)';
+        target.node.style.paddingLeft = '8px';
+      }
+
+      // Simulate step progression via status text
+      var statusEl = document.createElement('span');
+      statusEl.className = 'tb-ai-status';
+      statusEl.style.cssText = 'font-size:8px;color:var(--accent);opacity:0.7;margin-left:4px;';
+      statusEl.textContent = config.steps[0];
+      chip.parentElement.appendChild(statusEl);
+
+      var stepIdx = 0;
+      var stepInterval = setInterval(function() {
+        stepIdx++;
+        if (stepIdx < config.steps.length) {
+          statusEl.textContent = config.steps[stepIdx];
+        }
+      }, config.duration / config.steps.length);
+
+      // Complete after duration
+      setTimeout(function() {
+        clearInterval(stepInterval);
+        chip.classList.remove('running');
+        chip.querySelector('.chip-icon').innerHTML = origIcon;
+        if (statusEl.parentElement) statusEl.remove();
+
+        // Remove highlight, apply subtle "changed" indicator
+        if (target && target.node) {
+          target.node.style.background = 'color-mix(in srgb, var(--green) 4%, transparent)';
+          target.node.style.borderLeft = '2px solid color-mix(in srgb, var(--green) 30%, transparent)';
+          setTimeout(function() {
+            target.node.style.background = '';
+            target.node.style.borderLeft = '';
+            target.node.style.paddingLeft = '';
+          }, 2000);
+        }
+
+        showAiToast(config.toast);
+      }, config.duration);
+    });
+  });
+})();
+
 /* ─── Mention expand / backlink / agent expansion ─── */
 var MENTION_DATA = {
+  'anthropic': {
+    name: 'Anthropic', kind: 'company', icon: 'A',
+    meta: 'Company · 12 sources · 5 claims verified',
+    summary: 'Leading AI safety company. Claude model family powers enterprise AI. Revenue estimated $2B+ ARR. Series E at $61.5B led by Sequoia Capital.',
+    claims: [
+      { text: 'Revenue estimated $2B+ ARR based on public statements and investor disclosures', src: 'src:1' },
+      { text: 'Series E valuation $61.5B — largest AI-native round in 2025', src: 'src:3' },
+      { text: 'Claude 4 Opus outperforms GPT-4o on enterprise benchmarks', src: 'src:4' },
+      { text: 'Pricing repriced +40% with minimal churn', src: 'src:6' },
+      { text: 'Claude 4 structure held across all tiers', src: 'src:7' }
+    ],
+    edges: [
+      { label: 'OpenAI', relation: 'competes with' },
+      { label: 'Google DeepMind', relation: 'competes with' },
+      { label: 'Dario Amodei', relation: 'CEO' },
+      { label: 'Daniela Amodei', relation: 'President' },
+      { label: 'Sequoia Capital', relation: 'backed by' },
+      { label: 'Jaan Tallinn', relation: 'backed by' }
+    ]
+  },
   'openai': {
     name: 'OpenAI', kind: 'company', icon: 'O',
     meta: 'Company · 8 sources · 15 claims',
@@ -7951,40 +8483,131 @@ var MENTION_DATA = {
       { label: 'Anthropic', relation: 'investor in' },
       { label: 'Skype', relation: 'co-founded' }
     ]
+  },
+  'bug0': {
+    name: 'Bug0', kind: 'company', icon: 'B',
+    meta: 'Company · 4 sources · 6 claims',
+    summary: 'Open-source agent runtime. v2 shipped full MCP support with Apache 2.0 license. Undercuts Anthropic managed-agent pricing by ~60%. 3 YC W26 companies migrated in 72 hours.',
+    claims: [
+      { text: 'v2 runtime is Apache 2.0, protocol-native MCP', src: 'src:6' },
+      { text: 'Undercuts Anthropic managed-agent pricing by ~60% on equivalent workloads', src: 'src:6' },
+      { text: 'Three YC W26 companies migrated orchestration in 72 hours', src: 'src:6' }
+    ],
+    edges: [
+      { label: 'Anthropic', relation: 'competes with' },
+      { label: 'OpenAI', relation: 'competes with' }
+    ]
+  },
+  'groq': {
+    name: 'Groq', kind: 'company', icon: 'G',
+    meta: 'Company · 3 sources · 4 claims',
+    summary: 'LPU inference hardware. Costs down 40% QoQ to $0.27/M input tokens vs. $3.00 on Claude. GA pricing expected ~May 28. Potential infrastructure arbitrage for non-reasoning workloads.',
+    claims: [
+      { text: 'LPU inference at $0.27/M input tokens — 11x cheaper than Claude at $3.00/M', src: 'src:7' },
+      { text: 'Costs declined 40% quarter-over-quarter through Q2 2026', src: 'src:7' }
+    ],
+    edges: [
+      { label: 'Anthropic', relation: 'infrastructure alternative' },
+      { label: 'NVIDIA', relation: 'competes with' }
+    ]
   }
 };
 
 function buildRefBlock(entityId) {
   var d = MENTION_DATA[entityId];
   if (!d) return null;
+  var kind = d.kind || 'company';
+  var kindIcon = kind === 'person' ? '◉' : kind === 'concept' ? '◇' : '●';
+  var kindLabel = kind === 'person' ? 'Person' : kind === 'concept' ? 'Concept' : 'Company';
+
   var el = document.createElement('div');
   el.className = 'nb-ref-expand';
   el.setAttribute('data-entity', entityId);
-  var iconClass = d.kind === 'person' ? 'person' : 'company';
-  var claimsHtml = d.claims.map(function(c) {
-    return '<div class="nb-ref-claim">' + c.text + ' <span class="nb-source">[' + c.src + ']</span></div>';
+  el.setAttribute('data-kind', kind);
+
+  // Body: summary + top claim as clean paragraphs
+  var bodyHtml = '<p>' + d.summary + '</p>';
+  if (d.claims && d.claims.length > 0) {
+    bodyHtml += '<p>' + d.claims[0].text + '</p>';
+  }
+
+  // Tags: edge labels + kind label
+  var tags = [];
+  if (d.edges && d.edges.length) {
+    d.edges.slice(0, 4).forEach(function(edge) { tags.push(edge.label); });
+  }
+  tags.push(kindLabel);
+  var tagsHtml = tags.map(function(t) {
+    return '<span class="nb-ref-tag">' + t + '</span>';
   }).join('');
-  var edgesHtml = d.edges.map(function(e) {
-    return '<span class="nb-ref-edge"><span class="edge-arrow">&rarr;</span> ' + e.relation + ' <b>' + e.label + '</b></span>';
-  }).join('');
+
   el.innerHTML =
     '<div class="nb-ref-header">' +
-      '<span class="nb-ref-icon ' + iconClass + '">' + d.icon + '</span>' +
+      '<span class="nb-ref-icon">' + kindIcon + '</span>' +
       '<span class="nb-ref-entity">' + d.name + '</span>' +
       '<span class="nb-ref-meta">' + d.meta + '</span>' +
       '<button class="nb-ref-close" title="Collapse">&times;</button>' +
     '</div>' +
-    '<div class="nb-ref-body">' +
-      '<div class="nb-ref-summary">' + d.summary + '</div>' +
-      '<div class="nb-ref-claims">' + claimsHtml + '</div>' +
-      '<div class="nb-ref-edges">' + edgesHtml + '</div>' +
-    '</div>' +
+    '<div class="nb-ref-body">' + bodyHtml + '</div>' +
+    '<div class="nb-ref-tags">' + tagsHtml + '</div>' +
     '<div class="nb-ref-actions">' +
       '<button class="nb-ref-action agent" data-entity="' + entityId + '" title="Run agent deep dive on this entity">&#9737; Expand with agent</button>' +
       '<button class="nb-ref-action" title="Open full report">&#8599; Open report</button>' +
       '<button class="nb-ref-action" title="Show all backlinks">' + (d.edges.length + 2) + ' backlinks</button>' +
     '</div>';
   return el;
+}
+
+// Wire all interactive handlers on a ref block (close, agent, report, backlinks, tag chain nav)
+function wireRefBlock(block, entityId, anchorMention) {
+  var d = MENTION_DATA[entityId];
+  if (!d) return;
+  var kindLabel = (d.kind === 'person') ? 'Person' : (d.kind === 'concept') ? 'Concept' : 'Company';
+  // Close button
+  var closeBtn = block.querySelector('.nb-ref-close');
+  if (closeBtn) closeBtn.addEventListener('click', function(e) {
+    e.stopPropagation(); block.remove(); anchorMention.classList.remove('expanded');
+  });
+  // Agent expand
+  var agentBtn = block.querySelector('.nb-ref-action.agent');
+  if (agentBtn) agentBtn.addEventListener('click', function(e) {
+    e.stopPropagation(); triggerAgentExpand(entityId, block);
+  });
+  // Open report / backlinks buttons
+  block.querySelectorAll('.nb-ref-action:not(.agent)').forEach(function(btn) {
+    var text = btn.textContent.trim();
+    if (text.includes('Open report')) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation(); openNotebook(d.name);
+      });
+    } else if (text.includes('backlinks')) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var targetBl = document.querySelector('.v3-backlink[data-entity="' + entityId + '"]');
+        if (targetBl) {
+          targetBl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(function() { showBacklinkPanel(targetBl); }, 300);
+        }
+      });
+    }
+  });
+  // Tag clicks → chain navigation IN-PLACE: remove current block, insert new one at same anchor
+  block.querySelectorAll('.nb-ref-tag').forEach(function(tag) {
+    tag.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var label = tag.textContent.trim();
+      if (label === kindLabel) return;
+      var targetId = NAME_TO_ENTITY_ID[label];
+      if (!targetId) return;
+      // Remove current block
+      block.remove();
+      // Build new block and insert at the same anchor position
+      var newBlock = buildRefBlock(targetId);
+      if (!newBlock) return;
+      anchorMention.insertAdjacentElement('afterend', newBlock);
+      wireRefBlock(newBlock, targetId, anchorMention);
+    });
+  });
 }
 
 function toggleMentionExpand(mention) {
@@ -8002,20 +8625,10 @@ function toggleMentionExpand(mention) {
   mention.parentElement.querySelectorAll('.nb-mention.expanded').forEach(function(m) { m.classList.remove('expanded'); });
   mention.classList.add('expanded');
   var block = buildRefBlock(entityId);
-  if (block) mention.insertAdjacentElement('afterend', block);
-  // Wire close button
-  var closeBtn = block.querySelector('.nb-ref-close');
-  if (closeBtn) closeBtn.addEventListener('click', function(e) {
-    e.stopPropagation();
-    block.remove();
-    mention.classList.remove('expanded');
-  });
-  // Wire agent expand button
-  var agentBtn = block.querySelector('.nb-ref-action.agent');
-  if (agentBtn) agentBtn.addEventListener('click', function(e) {
-    e.stopPropagation();
-    triggerAgentExpand(entityId, block);
-  });
+  if (block) {
+    mention.insertAdjacentElement('afterend', block);
+    wireRefBlock(block, entityId, mention);
+  }
 }
 
 function triggerAgentExpand(entityId, refBlock) {
@@ -8084,16 +8697,22 @@ function triggerAgentExpand(entityId, refBlock) {
     ];
     result.innerHTML = newClaims.map(function(c) {
       return '<div class="nb-ref-claim">' + c.text +
-        ' <span class="nb-source">[' + c.src + ']</span>' +
+        ' <span class="nb-source" role="button" tabindex="0" aria-label="View source">[' + c.src + ']</span>' +
         (c.fresh ? '<span class="nb-agent-new-badge">new</span>' : '') +
       '</div>';
     }).join('');
     agentEl.appendChild(result);
+    // G10: Wire new claim source badges as interactive (clickable popovers)
+    result.querySelectorAll('.nb-source').forEach(function(src) {
+      src.addEventListener('click', function(e) { e.stopPropagation(); showSourcePop(src); });
+      src.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSourcePop(src); } });
+    });
   }, 4400);
 }
 
-// Attach click handlers to all mention chips
+// Attach click handlers to all mention chips (skip Home surface — handled separately)
 document.querySelectorAll('.nb-mention:not(.tag):not(.wiki)').forEach(function(m) {
+  if (m.closest('[data-surface="home"]')) return; // Home mentions → openNotebook via delegation
   m.addEventListener('click', function(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -8143,6 +8762,9 @@ function showSourcePop(srcEl) {
   if (!d) return;
   var pop = document.createElement('div');
   pop.className = 'nb-source-pop';
+  pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-label', 'Source: ' + d.title);
+  pop.setAttribute('aria-live', 'polite');
   pop.innerHTML =
     '<span class="nb-source-pop-title">' + d.title + '</span>' +
     (d.url ? '<span class="nb-source-pop-url">' + d.url + '</span>' : '') +
@@ -8155,15 +8777,16 @@ function showSourcePop(srcEl) {
   pop.style.top = (rect.bottom - editorRect.top + 6) + 'px';
   srcEl.closest('.v3-nb-editor, .nb-ref-expand, .nb-agent-expand').appendChild(pop);
   activeSrcPop = pop;
-  // Close on outside click
-  setTimeout(function() {
-    document.addEventListener('click', function closePop(e) {
-      if (pop && !pop.contains(e.target) && e.target !== srcEl) {
-        pop.remove(); activeSrcPop = null;
-        document.removeEventListener('click', closePop);
-      }
-    });
-  }, 10);
+  // Close on outside click — G6: named function for proper cleanup
+  function closeSrcPopOnOutsideClick(e) {
+    if (pop && !pop.contains(e.target) && e.target !== srcEl) {
+      pop.remove(); activeSrcPop = null;
+      document.removeEventListener('click', closeSrcPopOnOutsideClick);
+    }
+  }
+  if (showSourcePop._dismissFn) document.removeEventListener('click', showSourcePop._dismissFn);
+  showSourcePop._dismissFn = closeSrcPopOnOutsideClick;
+  setTimeout(function() { document.addEventListener('click', closeSrcPopOnOutsideClick); }, 10);
 }
 
 // Attach source popover to all [src:N] badges
@@ -8282,6 +8905,491 @@ buildRefBlock = function(entityId) {
     }
   }
   return block;
+};
+
+/* ═══ Expandable Graph Notebook — Interactive Backlinks ═══ */
+
+// Structured backlink registry: entity → list of backlinks with type, source context, confidence
+var BACKLINK_REGISTRY = {
+  'Anthropic': [
+    { from: 'Dario Amodei', type: 'mention', context: 'CEO and co-founder of Anthropic', confidence: 0.98 },
+    { from: 'Daniela Amodei', type: 'mention', context: 'President of Anthropic', confidence: 0.97 },
+    { from: 'Sequoia Capital', type: 'supports', context: 'Led Series E at $61.5B valuation', confidence: 0.95 },
+    { from: 'OpenAI', type: 'relatedTo', context: 'Direct competitor in enterprise AI API', confidence: 0.92 },
+    { from: 'Google DeepMind', type: 'relatedTo', context: 'Competes on enterprise benchmarks', confidence: 0.88 },
+    { from: 'Jaan Tallinn', type: 'supports', context: 'Early investor — seed through Series B', confidence: 0.90 }
+  ],
+  'OpenAI': [
+    { from: 'Anthropic', type: 'relatedTo', context: 'Primary competitor — pricing, enterprise, safety', confidence: 0.95 },
+    { from: 'Dario Amodei', type: 'mention', context: 'Former VP of Research at OpenAI', confidence: 0.93 },
+    { from: 'Google DeepMind', type: 'relatedTo', context: 'Benchmark competitor — Gemini vs GPT', confidence: 0.90 },
+    { from: 'Daniela Amodei', type: 'mention', context: 'Former VP of Operations at OpenAI', confidence: 0.88 }
+  ],
+  'Dario Amodei': [
+    { from: 'Anthropic', type: 'mention', context: 'Founded and leads Anthropic as CEO', confidence: 0.99 },
+    { from: 'Daniela Amodei', type: 'relatedTo', context: 'Sibling and co-founder', confidence: 0.97 },
+    { from: 'OpenAI', type: 'mention', context: 'Departed as VP Research to found Anthropic', confidence: 0.90 }
+  ],
+  'Sequoia Capital': [
+    { from: 'Anthropic', type: 'citation', context: 'Sequoia led Series E round at $61.5B', confidence: 0.96 },
+    { from: 'Jaan Tallinn', type: 'relatedTo', context: 'Co-investors across multiple Anthropic rounds', confidence: 0.80 }
+  ],
+  'Google DeepMind': [
+    { from: 'Anthropic', type: 'relatedTo', context: 'Enterprise AI benchmark competitor', confidence: 0.92 },
+    { from: 'OpenAI', type: 'relatedTo', context: 'Three-way competition on MMLU/HumanEval', confidence: 0.90 }
+  ],
+  'Daniela Amodei': [
+    { from: 'Anthropic', type: 'mention', context: 'President overseeing business and GTM', confidence: 0.98 },
+    { from: 'Dario Amodei', type: 'relatedTo', context: 'Sibling and co-founder', confidence: 0.97 }
+  ],
+  'Jaan Tallinn': [
+    { from: 'Anthropic', type: 'citation', context: 'Early investor from seed round', confidence: 0.92 },
+    { from: 'Sequoia Capital', type: 'relatedTo', context: 'Co-invested in Anthropic', confidence: 0.78 }
+  ]
+};
+
+// Map display names to MENTION_DATA keys
+var NAME_TO_ENTITY_ID = {};
+Object.keys(MENTION_DATA).forEach(function(k) { NAME_TO_ENTITY_ID[MENTION_DATA[k].name] = k; });
+
+// ── Interactive backlink panel on .v3-backlink click ──
+var activeBlPanel = null;
+function showBacklinkPanel(blEl) {
+  if (activeBlPanel) { activeBlPanel.remove(); activeBlPanel = null;
+    document.querySelectorAll('.v3-backlink.bl-expanded').forEach(function(b) { b.classList.remove('bl-expanded'); });
+  }
+  var name = blEl.textContent.replace(/^→\s*/, '').trim();
+  var entityId = NAME_TO_ENTITY_ID[name];
+  var d = entityId ? MENTION_DATA[entityId] : null;
+  if (!d) { // Fallback for entities not in MENTION_DATA
+    blEl.style.background = 'color-mix(in srgb, var(--accent) 12%, transparent)';
+    setTimeout(function() { blEl.style.background = ''; }, 400);
+    return;
+  }
+  blEl.classList.add('bl-expanded');
+  blEl.setAttribute('data-entity', entityId);
+
+  var kind = d.kind || 'company';
+  var kindIcon = kind === 'person' ? '◉' : kind === 'concept' ? '◇' : '●';
+
+  // Body: summary + top claim as clean paragraphs
+  var bodyParagraphs = '<p>' + d.summary + '</p>';
+  if (d.claims && d.claims.length > 0) {
+    bodyParagraphs += '<p>' + d.claims[0].text + '</p>';
+  }
+
+  // Tags: edge names + kind label (for chain navigation)
+  var tags = [];
+  if (d.edges && d.edges.length) {
+    d.edges.slice(0, 4).forEach(function(edge) { tags.push(edge.label); });
+  }
+  var kindLabel = kind === 'person' ? 'Person' : kind === 'concept' ? 'Concept' : 'Company';
+  tags.push(kindLabel);
+
+  var tagsHtml = tags.map(function(t) {
+    return '<span class="v3-bl-panel-tag">' + t + '</span>';
+  }).join('');
+
+  var panel = document.createElement('div');
+  panel.className = 'v3-bl-panel';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-label', d.name + ' details');
+  panel.setAttribute('data-kind', kind);
+  panel.innerHTML =
+    '<div class="v3-bl-panel-head">' +
+      '<span class="v3-bl-panel-icon">' + kindIcon + '</span>' +
+      '<span class="v3-bl-panel-name">' + d.name + '</span>' +
+      '<span class="v3-bl-panel-meta">' + d.meta + '</span>' +
+      '<button class="v3-bl-panel-close" type="button">&times;</button>' +
+    '</div>' +
+    '<div class="v3-bl-panel-body">' + bodyParagraphs + '</div>' +
+    '<div class="v3-bl-panel-tags">' + tagsHtml + '</div>';
+
+  // Position: above the backlink chip, within the card
+  blEl.style.position = 'relative';
+  blEl.appendChild(panel);
+  activeBlPanel = panel;
+
+  // Close button
+  panel.querySelector('.v3-bl-panel-close').addEventListener('click', function(e) {
+    e.stopPropagation(); panel.remove(); activeBlPanel = null; blEl.classList.remove('bl-expanded');
+  });
+
+  // Tag clicks → chain navigation: dismiss this panel, open clicked entity's panel
+  panel.querySelectorAll('.v3-bl-panel-tag').forEach(function(tag) {
+    tag.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var label = tag.textContent.trim();
+      if (label === kindLabel) return; // Don't navigate on the kind label itself
+      var targetId = NAME_TO_ENTITY_ID[label];
+      if (!targetId) return;
+      // Dismiss current panel
+      panel.remove(); activeBlPanel = null; blEl.classList.remove('bl-expanded');
+      // Find or create a synthetic anchor for the new entity
+      var targetBl = document.querySelector('.v3-backlink[data-entity="' + targetId + '"]');
+      if (targetBl) {
+        showBacklinkPanel(targetBl);
+      } else {
+        // No existing backlink chip — create an inline anchor at the same location
+        var synthAnchor = blEl;
+        synthAnchor.textContent = '→ ' + label;
+        showBacklinkPanel(synthAnchor);
+      }
+    });
+  });
+
+  // Close on outside click — G6: named function for proper cleanup
+  function closeBlPanelOnOutsideClick(e) {
+    if (activeBlPanel && !activeBlPanel.contains(e.target) && e.target !== blEl) {
+      activeBlPanel.remove(); activeBlPanel = null; blEl.classList.remove('bl-expanded');
+      document.removeEventListener('click', closeBlPanelOnOutsideClick);
+    }
+  }
+  // Remove any prior listener to avoid leaks
+  if (showBacklinkPanel._dismissFn) document.removeEventListener('click', showBacklinkPanel._dismissFn);
+  showBacklinkPanel._dismissFn = closeBlPanelOnOutsideClick;
+  setTimeout(function() { document.addEventListener('click', closeBlPanelOnOutsideClick); }, 10);
+}
+
+function findBacklinkByName(name) {
+  var all = document.querySelectorAll('.v3-backlink');
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].textContent.replace(/^→\s*/, '').trim() === name) return all[i];
+  }
+  return null;
+}
+
+function scrollToAndExpandEntity(entityId) {
+  var mention = document.querySelector('.nb-mention[data-entity="' + entityId + '"]');
+  if (mention) {
+    mention.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(function() { toggleMentionExpand(mention); }, 350);
+  }
+}
+
+// Attach to all existing .v3-backlink items
+document.querySelectorAll('.v3-backlink').forEach(function(bl) {
+  bl.addEventListener('click', function(e) {
+    e.stopPropagation();
+    showBacklinkPanel(bl);
+  });
+});
+
+// ── Hover preview on mention chips ──
+var hoverPreviewEl = null;
+var hoverTimeout = null;
+
+function createHoverPreview() {
+  if (hoverPreviewEl) return hoverPreviewEl;
+  var el = document.createElement('div');
+  el.className = 'nb-hover-preview';
+  document.body.appendChild(el);
+  hoverPreviewEl = el;
+  return el;
+}
+
+function showHoverPreview(mention, e) {
+  var entityId = mention.getAttribute('data-entity');
+  if (!entityId || !MENTION_DATA[entityId]) return;
+  if (mention.classList.contains('expanded')) return; // don't hover-preview when expanded
+  var d = MENTION_DATA[entityId];
+  var preview = createHoverPreview();
+  var iconClass = d.kind === 'person' ? 'person' : 'company';
+  var backlinks = BACKLINK_REGISTRY[d.name] || [];
+  var factsHtml = d.claims.slice(0, 2).map(function(c) {
+    return '<div class="nb-hover-preview-fact">' + c.text + '</div>';
+  }).join('');
+  preview.innerHTML =
+    '<div class="nb-hover-preview-head">' +
+      '<span class="nb-hover-preview-icon ' + iconClass + '">' + d.icon + '</span>' +
+      '<span class="nb-hover-preview-name">' + d.name + '</span>' +
+      '<span class="nb-hover-preview-meta">' + backlinks.length + ' refs</span>' +
+    '</div>' +
+    '<div class="nb-hover-preview-summary">' + d.summary + '</div>' +
+    (factsHtml ? '<div class="nb-hover-preview-facts">' + factsHtml + '</div>' : '') +
+    '<div class="nb-hover-preview-foot">' +
+      '<span>' + d.claims.length + ' claims · ' + d.edges.length + ' edges</span>' +
+      '<span>Click to expand</span>' +
+    '</div>';
+  var rect = mention.getBoundingClientRect();
+  preview.style.left = Math.min(rect.left, window.innerWidth - 320) + 'px';
+  preview.style.top = (rect.bottom + 8) + 'px';
+  preview.offsetHeight; // force reflow
+  preview.classList.add('visible');
+}
+
+function hideHoverPreview() {
+  if (hoverPreviewEl) hoverPreviewEl.classList.remove('visible');
+}
+
+// Attach hover to all mention chips (not wiki/tag, skip Home surface)
+document.querySelectorAll('.nb-mention:not(.tag):not(.wiki)').forEach(function(m) {
+  if (m.closest('[data-surface="home"]')) return; // Home mentions use simpler tooltip
+  m.addEventListener('mouseenter', function(e) {
+    clearTimeout(hoverTimeout);
+    hoverTimeout = setTimeout(function() { showHoverPreview(m, e); }, 400);
+  });
+  m.addEventListener('mouseleave', function() {
+    clearTimeout(hoverTimeout);
+    hideHoverPreview();
+  });
+});
+
+// ── Backlink count badges on mention chips (skip Home — too compact) ──
+document.querySelectorAll('.nb-mention:not(.tag):not(.wiki)').forEach(function(m) {
+  if (m.closest('[data-surface="home"]')) return; // No badges on Home mentions
+  var entityId = m.getAttribute('data-entity');
+  if (!entityId || !MENTION_DATA[entityId]) return;
+  var name = MENTION_DATA[entityId].name;
+  var count = (BACKLINK_REGISTRY[name] || []).length;
+  if (count > 0) {
+    var badge = document.createElement('span');
+    badge.className = 'nb-mention-badge';
+    badge.textContent = count;
+    badge.title = count + ' backlink' + (count !== 1 ? 's' : '');
+    m.appendChild(badge);
+  }
+});
+
+// ── Graph node click → entity expansion ──
+// Wire peek card "Open notebook" button to open notebook detail + expand mention
+document.addEventListener('click', function(e) {
+  var act = e.target.closest('.graph-peek-act');
+  if (!act) return;
+  var text = act.textContent.trim();
+  if (text === 'Open notebook') {
+    var peekEl = act.closest('.graph-peek');
+    var peekName = peekEl ? peekEl.querySelector('.graph-peek-name') : null;
+    if (!peekName) return;
+    var name = peekName.textContent.trim();
+    e.stopPropagation();
+    openNotebook(name);
+    var entityId = NAME_TO_ENTITY_ID[name];
+    if (entityId) {
+      setTimeout(function() { scrollToAndExpandEntity(entityId); }, 400);
+    }
+  } else if (text === 'Refresh') {
+    var peekEl2 = act.closest('.graph-peek');
+    var peekName2 = peekEl2 ? peekEl2.querySelector('.graph-peek-name') : null;
+    if (!peekName2) return;
+    e.stopPropagation();
+    openNotebook(peekName2.textContent.trim());
+  } else if (text === 'Open report' || text === 'Open workbench') {
+    var peekEl3 = act.closest('.graph-peek');
+    var peekName3 = peekEl3 ? peekEl3.querySelector('.graph-peek-name') : null;
+    if (!peekName3) return;
+    e.stopPropagation();
+    openNotebook(peekName3.textContent.trim());
+  } else if (text === 'Compare' || text === 'Regenerate' || text === 'Re-classify' || text === 'Edit' || text === 'Share') {
+    e.stopPropagation();
+    var actionToasts = {
+      'Compare': 'Comparison queued — analyzing entity against 3 peers',
+      'Regenerate': 'Regenerating — fetching latest sources and re-extracting',
+      'Re-classify': 'Re-classifying entity based on updated signals',
+      'Edit': 'Opening editor — artifact loaded for inline editing',
+      'Share': 'Share link copied to clipboard'
+    };
+    showAiToast(actionToasts[text] || text + ' — action queued');
+  }
+});
+
+/* ─── Action chip wiring (all surfaces) ─── */
+// Reusable simulated-action toast — uses showAiToast from AI chip IIFE (exposed globally)
+(function() {
+  var ACTION_TOASTS = {
+    'Refresh stale reports':   { steps: ['Scanning 3 stale entities...', 'Fetching delta sources...', 'Updating claims...'], toast: 'Refreshed — 2 entities updated, 1 source pending', duration: 2200 },
+    'Refresh expiring sources':{ steps: ['Checking source freshness...', 'Fetching 4 expiring URLs...', 'Validating content hashes...'], toast: 'Sources refreshed — 3 updated, 1 expired permanently', duration: 2400 },
+    'Verify claims':           { steps: ['Loading claim registry...', 'Cross-referencing 12 sources...', 'Grading evidence...'], toast: 'Verified — 5 of 5 claims confirmed across 12 sources', duration: 2000 },
+    'Verify all claims':       { steps: ['Loading all entity claims...', 'Cross-referencing sources...', 'Scoring evidence chains...'], toast: 'Verified — 14 of 16 claims confirmed, 2 need refresh', duration: 2600 },
+    'Export memo':             { steps: ['Compiling decision memo...', 'Attaching source citations...', 'Formatting for export...'], toast: 'Memo exported — decision brief with 12 sources generated', duration: 1800 },
+    'Compare reports':         { steps: ['Loading entity profiles...', 'Aligning signal categories...', 'Computing divergences...'], toast: 'Comparison complete — 3 entities, 2 divergences found', duration: 2200 },
+    'Open memo':               { steps: ['Loading decision memo...'], toast: 'Decision memo opened', duration: 800 },
+    'View prep queue':         { steps: ['Loading prep queue...'], toast: 'Prep queue — 3 items queued for review', duration: 800 },
+    'Draft edition brief':     { steps: ['Scanning today\'s signals...', 'Drafting action items...', 'Prioritizing by impact...'], toast: 'Edition brief drafted — 4 items across 3 entities', duration: 2000 },
+    'Check entity health':     { steps: ['Scanning 5 tracked entities...', 'Checking source freshness...', 'Flagging stale claims...'], toast: 'Health check — 3 healthy, 1 stale, 1 needs refresh', duration: 2000 },
+    'Review open claims':      { steps: ['Loading unverified claims...', 'Sorting by risk impact...'], toast: 'Open claims — 4 claims pending across 2 entities', duration: 1600 },
+    'Refresh reports':         { steps: ['Queuing delta refresh...', 'Fetching new sources...', 'Updating entity reports...'], toast: 'Reports refreshed — 2 updated, 3 unchanged', duration: 2400 }
+  };
+
+  function runActionChip(btn, config) {
+    if (btn.classList.contains('running')) return;
+    btn.classList.add('running');
+    var origText = btn.textContent;
+    btn.textContent = config.steps[0];
+    var stepIdx = 0;
+    var stepInterval = setInterval(function() {
+      stepIdx++;
+      if (stepIdx < config.steps.length) btn.textContent = config.steps[stepIdx];
+    }, config.duration / config.steps.length);
+    setTimeout(function() {
+      clearInterval(stepInterval);
+      btn.classList.remove('running');
+      btn.textContent = origText;
+      showAiToast(config.toast);
+    }, config.duration);
+  }
+
+  // Wire all .ar-action-chip buttons (Reports right rail + Chat action chips)
+  document.querySelectorAll('.ar-action-chip').forEach(function(chip) {
+    var text = chip.textContent.trim();
+    // Skip "Open notebook" / "Open OpenAI notebook" — already wired
+    if (text.includes('Open notebook') || text.includes('Open OpenAI')) return;
+    var config = ACTION_TOASTS[text];
+    if (config) {
+      chip.addEventListener('click', function(e) {
+        e.stopPropagation();
+        runActionChip(chip, config);
+      });
+    }
+  });
+
+  // Wire home right-rail action buttons
+  document.querySelectorAll('.home-ar-action-btn').forEach(function(btn) {
+    var text = btn.textContent.trim();
+    var config = ACTION_TOASTS[text];
+    if (config) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        runActionChip(btn, config);
+      });
+    }
+  });
+
+  // Wire home "Open memo" and "View prep queue" buttons
+  document.querySelectorAll('.home-twin-card-btn').forEach(function(btn) {
+    var text = btn.textContent.trim();
+    var config = ACTION_TOASTS[text];
+    if (config) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        runActionChip(btn, config);
+      });
+    }
+  });
+
+  // Wire home composer send button
+  var composerSend = document.querySelector('.home-composer-send');
+  if (composerSend) composerSend.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var input = document.querySelector('.home-composer-input');
+    var text = input ? input.value.trim() : '';
+    if (!text) { showAiToast('Type a question or signal to get started'); return; }
+    input.value = '';
+    input.style.height = '';
+    showAiToast('Submitted — routing to briefing agent');
+  });
+
+  // Wire home briefing agent send button
+  var agentSend = document.querySelector('.home-ar-send');
+  if (agentSend) agentSend.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var input = document.querySelector('.home-ar-input');
+    var text = input ? input.value.trim() : '';
+    if (!text) { showAiToast('Type a question for the briefing agent'); return; }
+    input.value = '';
+    showAiToast('Sent to briefing agent — processing');
+  });
+
+  // Wire home composer toolbar chips (Context, Reference, Command, Attach)
+  document.querySelectorAll('.home-composer-tool:not(.home-composer-send)').forEach(function(chip) {
+    chip.addEventListener('click', function(e) {
+      e.stopPropagation();
+      chip.classList.toggle('active');
+      var label = chip.textContent.trim().replace(/^\+\s*/, '').replace(/^[@\/§]\s*/, '');
+      showAiToast(label + (chip.classList.contains('active') ? ' attached' : ' removed'));
+    });
+  });
+})();
+
+// ── Enhanced agent expansion: add backlink creation as step 5 ──
+var _origTriggerAgentExpand = triggerAgentExpand;
+triggerAgentExpand = function(entityId, refBlock) {
+  var d = MENTION_DATA[entityId];
+  if (!d) return;
+  var actionsRow = refBlock.querySelector('.nb-ref-actions');
+  if (!actionsRow) return;
+  var agentEl = document.createElement('div');
+  agentEl.className = 'nb-agent-expand';
+  agentEl.innerHTML =
+    '<div class="nb-agent-header">' +
+      '<span class="nb-agent-dot"></span>' +
+      '<span class="nb-agent-status">Expanding ' + d.name + '...</span>' +
+    '</div>' +
+    '<div class="nb-agent-steps">' +
+      '<div class="nb-agent-step active"><span class="step-icon">&#9679;</span> Searching Linkup for recent signals...</div>' +
+      '<div class="nb-agent-step pending"><span class="step-icon">&#9675;</span> Fetching 3 source URLs</div>' +
+      '<div class="nb-agent-step pending"><span class="step-icon">&#9675;</span> Extracting structured claims</div>' +
+      '<div class="nb-agent-step pending"><span class="step-icon">&#9675;</span> Cross-referencing existing graph</div>' +
+      '<div class="nb-agent-step pending"><span class="step-icon">&#9675;</span> Creating backlinks to related entities</div>' +
+    '</div>';
+  actionsRow.replaceWith(agentEl);
+  var steps = agentEl.querySelectorAll('.nb-agent-step');
+  setTimeout(function() {
+    steps[0].classList.remove('active'); steps[0].classList.add('done');
+    steps[0].querySelector('.step-icon').innerHTML = '&#10003;';
+    steps[0].childNodes[1].textContent = ' Found 7 results from Linkup (0.8s)';
+    steps[1].classList.remove('pending'); steps[1].classList.add('active');
+  }, 1200);
+  setTimeout(function() {
+    steps[1].classList.remove('active'); steps[1].classList.add('done');
+    steps[1].querySelector('.step-icon').innerHTML = '&#10003;';
+    steps[1].childNodes[1].textContent = ' Fetched 3 pages (Reuters, TechCrunch, Bloomberg)';
+    steps[2].classList.remove('pending'); steps[2].classList.add('active');
+  }, 2400);
+  setTimeout(function() {
+    steps[2].classList.remove('active'); steps[2].classList.add('done');
+    steps[2].querySelector('.step-icon').innerHTML = '&#10003;';
+    steps[2].childNodes[1].textContent = ' Extracted 4 new claims, 2 verified';
+    steps[3].classList.remove('pending'); steps[3].classList.add('active');
+  }, 3400);
+  setTimeout(function() {
+    steps[3].classList.remove('active'); steps[3].classList.add('done');
+    steps[3].querySelector('.step-icon').innerHTML = '&#10003;';
+    steps[3].childNodes[1].textContent = ' Linked to 3 existing entities';
+    steps[4].classList.remove('pending'); steps[4].classList.add('active');
+  }, 4200);
+  setTimeout(function() {
+    var blCount = (BACKLINK_REGISTRY[d.name] || []).length;
+    steps[4].classList.remove('active'); steps[4].classList.add('done');
+    steps[4].querySelector('.step-icon').innerHTML = '&#10003;';
+    steps[4].childNodes[1].textContent = ' Created ' + (blCount + 2) + ' backlinks across graph';
+    agentEl.style.animation = 'none';
+    agentEl.style.borderColor = 'color-mix(in srgb, var(--green) 35%, transparent)';
+    agentEl.style.background = 'color-mix(in srgb, var(--green) 4%, transparent)';
+    var hdr = agentEl.querySelector('.nb-agent-status');
+    hdr.textContent = 'Expansion complete — 4 claims, ' + (blCount + 2) + ' backlinks';
+    hdr.style.color = 'var(--green)';
+    var dot = agentEl.querySelector('.nb-agent-dot');
+    dot.style.background = 'var(--green)'; dot.style.animation = 'none';
+    // Append new claims with backlink indicators
+    var result = document.createElement('div');
+    result.className = 'nb-agent-result';
+    var newClaims = [
+      { text: d.name + ' board approved $500M compute expansion for H2 2026', src: 'src:new', fresh: true },
+      { text: 'Enterprise customer NPS score at 72 — highest in AI infrastructure sector', src: 'src:new', fresh: true },
+      { text: 'Hiring velocity: 45 engineering roles posted in last 14 days', src: 'src:new', fresh: true },
+      { text: 'Regulatory filing indicates potential government contract pipeline', src: 'src:new', fresh: true }
+    ];
+    var claimsHtml = newClaims.map(function(c) {
+      return '<div class="nb-ref-claim">' + c.text +
+        ' <span class="nb-source">[' + c.src + ']</span>' +
+        '<span class="nb-agent-new-badge">new</span></div>';
+    }).join('');
+    // Add backlink summary
+    var blSummary = '<div style="margin-top:8px;padding-top:6px;border-top:1px solid color-mix(in srgb, var(--line-faint) 30%, transparent)">' +
+      '<div style="font-size:8px;text-transform:uppercase;letter-spacing:0.08em;color:color-mix(in srgb, var(--ink-faint) 50%, transparent);margin-bottom:4px">Backlinks created</div>';
+    var edges = d.edges.slice(0, 3);
+    edges.forEach(function(edge) {
+      var type = edge.relation.indexOf('competes') >= 0 ? 'relatedTo' : edge.relation.indexOf('investor') >= 0 ? 'supports' : 'mention';
+      blSummary += '<div style="font-size:9.5px;color:var(--ink-faint);display:flex;align-items:center;gap:5px;padding:2px 0">' +
+        '<span style="color:var(--green);font-size:8px">&#10003;</span> ' +
+        '<span>' + d.name + ' → ' + edge.label + '</span>' +
+        '<span class="v3-bl-panel-type" data-type="' + type + '" style="font-size:6px;padding:0 4px">' + type + '</span></div>';
+    });
+    blSummary += '</div>';
+    result.innerHTML = claimsHtml + blSummary;
+    agentEl.appendChild(result);
+  }, 5200);
 };
 
 /* ─── Card ⋮ dropdown menu ─── */
@@ -10239,43 +11347,234 @@ function initGraph() {
     'Reproducible URL (followable link)'
   ];
 
-  /* ── Inject BLUF detail panels + badge click handlers ── */
+  /* ── Wire BLUF items — expand/collapse embedded detail panels ── */
   var blufItems = document.querySelectorAll('.home-bluf-item');
   blufItems.forEach(function(item, i) {
     var data = blufData[i];
-    if (!data) return;
+    var detail = item.querySelector('.home-bluf-detail');
+    item.setAttribute('aria-expanded', 'false');
 
-    /* Detail div (hidden by default) */
-    var detail = document.createElement('div');
-    detail.className = 'home-bluf-detail';
-    var srcLinks = data.sources.map(function(s) {
-      return '<a href="' + s.url + '">' + s.label + '</a>';
-    }).join(' &middot; ');
-    detail.innerHTML =
-      '<div>' + data.detail + '</div>' +
-      '<div class="home-bluf-detail-sources">' + srcLinks + '</div>';
-    var textWrap = item.querySelector('.home-bluf-text');
-    if (textWrap) { textWrap.appendChild(detail); } else { item.appendChild(detail); }
+    /* Click item row → toggle embedded detail panel */
+    item.addEventListener('click', function(e) {
+      /* Don't toggle if clicking interactive children */
+      if (e.target.closest('.home-bluf-detail-btn') || e.target.closest('.home-bluf-cite') ||
+          e.target.closest('.home-bluf-badge') || e.target.closest('.nb-mention')) return;
+      if (detail) {
+        var isExpanded = detail.classList.contains('expanded');
+        /* Close other items */
+        blufItems.forEach(function(other) {
+          var od = other.querySelector('.home-bluf-detail');
+          if (od) od.classList.remove('expanded');
+          other.setAttribute('aria-expanded', 'false');
+        });
+        if (!isExpanded) {
+          detail.classList.add('expanded');
+          item.setAttribute('aria-expanded', 'true');
+        }
+      }
+    });
 
-    /* Click headline strong tag to expand/collapse */
-    var headline = item.querySelector('.home-bluf-text strong');
-    if (headline) {
-      headline.style.cursor = 'pointer';
-      headline.style.borderBottom = '1px dashed rgba(255,255,255,0.15)';
-      headline.addEventListener('click', function(e) {
-        e.stopPropagation();
-        detail.classList.toggle('expanded');
-      });
-    }
+    /* Keyboard: Enter/Space toggles */
+    item.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.click(); }
+    });
 
-    /* Click badge to show evidence checklist */
+    /* Badge click → evidence popup */
     var badge = item.querySelector('.home-bluf-badge');
-    if (badge) {
+    if (badge && data) {
       badge.style.cursor = 'pointer';
       badge.addEventListener('click', function(e) {
         e.stopPropagation();
         showEvidencePopup(badge, data.evidence);
       });
+    }
+  });
+
+  /* ── BLUF citations → scroll to footnotes ── */
+  document.addEventListener('click', function(e) {
+    var cite = e.target.closest('.home-bluf-cite');
+    if (!cite) return;
+    e.stopPropagation();
+    var srcNum = cite.dataset.src;
+    if (!srcNum) return;
+    var fn = document.querySelector('.home-fn-item .home-fn-num');
+    /* Find the matching footnote */
+    var allFn = document.querySelectorAll('.home-fn-item');
+    allFn.forEach(function(f) { f.classList.remove('highlighted'); });
+    for (var fi = 0; fi < allFn.length; fi++) {
+      var numEl = allFn[fi].querySelector('.home-fn-num');
+      if (numEl && numEl.textContent.trim() === srcNum) {
+        allFn[fi].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        allFn[fi].classList.add('highlighted');
+        setTimeout(function() { allFn[fi].classList.remove('highlighted'); }, 3000);
+        break;
+      }
+    }
+  });
+
+  /* ── BLUF detail action buttons ── */
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.home-bluf-detail-btn');
+    if (!btn) return;
+    e.stopPropagation();
+    var action = btn.dataset.action;
+    var name = btn.dataset.name;
+    if (action === 'open-notebook' && name && typeof openNotebook === 'function') {
+      openNotebook(name);
+    } else if (action === 'verify') {
+      window.showAiToast('Verifying claims against 12 sources...');
+    } else if (action === 'compare') {
+      window.showAiToast('Running cap table comparison...');
+    } else if (action === 'teardown') {
+      window.showAiToast('Launching competitive teardown agent...');
+    } else if (action === 'model') {
+      window.showAiToast('Building cost-floor model with sensitivity analysis...');
+    }
+  });
+
+  /* ── Home floating entity mention card (click to pop, not navigate) ── */
+  var homeMentionCard = null;
+  var homeMentionCardActive = false;
+
+  function buildHomeMentionCard(entityId, anchorRect) {
+    var d = MENTION_DATA[entityId];
+    if (!d) return null;
+
+    // Remove existing card
+    dismissHomeMentionCard();
+
+    var kind = d.kind || 'company';
+    var kindIcon = kind === 'person' ? '◉' : kind === 'concept' ? '◇' : '●';
+
+    var card = document.createElement('div');
+    card.className = 'home-mention-card';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', d.name + ' details');
+    card.setAttribute('data-kind', kind);
+
+    // Body: summary as first paragraph, then weave in top claim as second paragraph
+    var bodyParagraphs = '<p>' + d.summary + '</p>';
+    if (d.claims && d.claims.length > 0) {
+      bodyParagraphs += '<p>' + d.claims[0].text + '</p>';
+    }
+
+    // Tags: edges as simple name chips + entity kind label
+    var tags = [];
+    if (d.edges && d.edges.length) {
+      d.edges.slice(0, 4).forEach(function(edge) {
+        tags.push(edge.label);
+      });
+    }
+    // Add a kind tag
+    var kindLabel = kind === 'person' ? 'Person' : kind === 'concept' ? 'Concept' : 'Company';
+    tags.push(kindLabel);
+
+    var tagsHtml = tags.map(function(t) {
+      return '<span class="home-mention-card-tag">' + t + '</span>';
+    }).join('');
+
+    card.innerHTML =
+      '<div class="home-mention-card-header">' +
+        '<span class="home-mention-card-icon">' + kindIcon + '</span>' +
+        '<span class="home-mention-card-name">' + d.name + '</span>' +
+        '<span class="home-mention-card-meta">' + d.meta + '</span>' +
+        '<button class="home-mention-card-close" aria-label="Close" type="button">&times;</button>' +
+      '</div>' +
+      '<div class="home-mention-card-body">' + bodyParagraphs + '</div>' +
+      '<div class="home-mention-card-tags">' + tagsHtml + '</div>';
+
+    document.body.appendChild(card);
+
+    // Position: prefer below-right of the mention, flip up if near bottom
+    var cardW = 340, cardH = card.offsetHeight || 260;
+    var left = Math.min(anchorRect.left, window.innerWidth - cardW - 16);
+    var top = anchorRect.bottom + 8;
+    if (top + cardH > window.innerHeight - 16) {
+      top = Math.max(16, anchorRect.top - cardH - 8);
+    }
+    left = Math.max(8, left);
+    card.style.left = left + 'px';
+    card.style.top = top + 'px';
+
+    // Animate in
+    card.offsetHeight; // force reflow
+    card.classList.add('visible');
+    homeMentionCard = card;
+    homeMentionCardActive = true;
+
+    // Close button
+    card.querySelector('.home-mention-card-close').addEventListener('click', function(ev) {
+      ev.stopPropagation();
+      dismissHomeMentionCard();
+    });
+
+    // Tag clicks → chain navigation: dismiss current card, open clicked entity's card
+    card.querySelectorAll('.home-mention-card-tag').forEach(function(tag) {
+      tag.addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        var label = tag.textContent.trim();
+        if (label === kindLabel) return; // Don't navigate on the kind label itself
+        var targetId = NAME_TO_ENTITY_ID[label];
+        if (!targetId) return;
+        // Use the tag's rect as the new anchor position
+        var tagRect = tag.getBoundingClientRect();
+        dismissHomeMentionCard();
+        buildHomeMentionCard(targetId, tagRect);
+      });
+    });
+
+    return card;
+  }
+
+  function dismissHomeMentionCard() {
+    if (homeMentionCard) {
+      homeMentionCard.classList.remove('visible');
+      var el = homeMentionCard;
+      setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 200);
+      homeMentionCard = null;
+      homeMentionCardActive = false;
+    }
+  }
+
+  // Click handler — show floating card
+  document.addEventListener('click', function(e) {
+    var mention = e.target.closest('[data-surface="home"] .nb-mention');
+    if (!mention) {
+      // Clicked outside a mention — dismiss if card is open and click is outside card
+      if (homeMentionCardActive && homeMentionCard && !e.target.closest('.home-mention-card')) {
+        dismissHomeMentionCard();
+      }
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    var entityId = mention.getAttribute('data-entity') ||
+                   mention.textContent.replace('@', '').trim().toLowerCase().replace(/\s+/g, '-');
+    // Normalize: try direct, then lowercase, then slug variants
+    var data = MENTION_DATA[entityId] ||
+               MENTION_DATA[entityId.replace(/-/g, '')] ||
+               MENTION_DATA[entityId.split('-')[0]];
+    if (!data) {
+      // Fallback: search by name
+      var name = mention.textContent.replace('@', '').trim();
+      Object.keys(MENTION_DATA).forEach(function(k) {
+        if (MENTION_DATA[k].name.toLowerCase() === name.toLowerCase()) {
+          entityId = k;
+          data = MENTION_DATA[k];
+        }
+      });
+    }
+    if (!data) {
+      window.showAiToast('Entity data not available for ' + mention.textContent.replace('@','').trim());
+      return;
+    }
+    buildHomeMentionCard(entityId, mention.getBoundingClientRect());
+  });
+
+  // Escape key dismisses the card
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && homeMentionCardActive) {
+      dismissHomeMentionCard();
     }
   });
 
@@ -10415,6 +11714,7 @@ function initGraph() {
     { history: 'Q3 2025: $0.45/M &middot; Q4 2025: $0.38/M &middot; Q1 2026: $0.27/M &middot; Q2 2026 est: $0.20/M &middot; GA target: ~May 28' }
   ];
 
+  var changeCardEntities = ['Anthropic', 'Sequoia Capital', 'Bug0', 'Groq'];
   var changeCards = document.querySelectorAll('.home-change-card');
   changeCards.forEach(function(card, i) {
     var data = changeData[i];
@@ -10422,13 +11722,23 @@ function initGraph() {
 
     var expandDiv = document.createElement('div');
     expandDiv.className = 'home-change-card-expand';
-    expandDiv.innerHTML = '<strong style="color:var(--ink-mute)">History:</strong> ' + data.history;
+    expandDiv.innerHTML = '<strong style="color:var(--ink-mute)">History:</strong> ' + data.history +
+      '<div style="margin-top:8px;display:flex;gap:6px;">' +
+      '<button class="home-bluf-detail-btn" data-action="open-notebook" data-name="' + changeCardEntities[i] + '">Open notebook</button>' +
+      '<button class="home-bluf-detail-btn" data-action="expand-history">Full history</button>' +
+      '</div>';
     card.appendChild(expandDiv);
 
     /* Remove the onclick="switchSurface" and replace with expand toggle */
     card.removeAttribute('onclick');
-    card.addEventListener('click', function() {
+    card.addEventListener('click', function(e) {
+      if (e.target.closest('.home-bluf-detail-btn')) return; /* handled by delegation */
       expandDiv.classList.toggle('expanded');
+    });
+
+    /* Double-click → open entity notebook */
+    card.addEventListener('dblclick', function() {
+      if (typeof openNotebook === 'function') openNotebook(changeCardEntities[i]);
     });
   });
 
@@ -10451,12 +11761,226 @@ function initGraph() {
     var actionTRs = actionsTable.querySelectorAll('tbody tr');
     watchRows.forEach(function(wRow, i) {
       wRow.addEventListener('mouseenter', function() {
-        /* Highlight corresponding action row if exists */
         if (actionTRs[i]) actionTRs[i].style.background = 'rgba(217,119,87,0.06)';
       });
       wRow.addEventListener('mouseleave', function() {
         if (actionTRs[i]) actionTRs[i].style.background = '';
       });
+      /* Click watch row → toast with event details */
+      wRow.addEventListener('click', function() {
+        var evtName = wRow.cells[0] ? wRow.cells[0].textContent.trim() : 'event';
+        var evtDate = wRow.cells[1] ? wRow.cells[1].textContent.trim() : '';
+        window.showAiToast('Tracking: ' + evtName + ' (' + evtDate + ') — reminder set');
+      });
+    });
+  }
+
+  /* ═══ Actions table row clicks → run action ═══ */
+  if (actionsTable) {
+    actionsTable.querySelectorAll('tbody tr').forEach(function(row) {
+      row.addEventListener('click', function(e) {
+        if (e.target.closest('.home-action-check')) return;
+        var actionText = row.cells[1] ? row.cells[1].textContent.trim() : '';
+        var lead = row.cells[2] ? row.cells[2].textContent.trim() : '';
+        if (lead.indexOf('Agent') >= 0) {
+          window.showAiToast('Agent executing: ' + actionText.substring(0, 50) + '...');
+        } else {
+          window.showAiToast('Opening workspace for: ' + actionText.substring(0, 50) + '...');
+        }
+      });
+    });
+  }
+
+  /* ═══ Edition rail — date switching ═══ */
+  var editionItems = document.querySelectorAll('.home-edition-item');
+  editionItems.forEach(function(item) {
+    item.addEventListener('click', function() {
+      editionItems.forEach(function(ei) { ei.classList.remove('active'); });
+      item.classList.add('active');
+      var label = item.querySelector('.home-edition-label');
+      var dateText = label ? label.textContent.trim() : 'this edition';
+      window.showAiToast('Switched to edition: ' + dateText);
+    });
+  });
+
+  /* ═══ Exposure strip — click to expand ═══ */
+  var exposureStrip = document.querySelector('.home-exposure-strip');
+  if (exposureStrip) {
+    exposureStrip.style.cursor = 'pointer';
+    exposureStrip.addEventListener('click', function() {
+      window.showAiToast('Opening portfolio exposure dashboard — 4 entities, $2.4M at risk');
+    });
+  }
+
+  /* ═══ Sweep items — click to open lane ═══ */
+  var sweepLanes = {
+    'Now': 'rgba(217,119,87,0.15)',
+    'Prep': 'rgba(107,159,255,0.15)',
+    'Batch': 'rgba(255,255,255,0.05)'
+  };
+  document.querySelectorAll('.home-sweep-item').forEach(function(item) {
+    item.addEventListener('click', function(e) {
+      // Don't fire sweep toast if user clicked an entity mention inside the sweep
+      if (e.target.closest('.nb-mention')) return;
+      var text = item.textContent.trim();
+      var lane = 'Inbox';
+      if (text.indexOf('Now') >= 0) lane = 'Now';
+      else if (text.indexOf('Prep') >= 0) lane = 'Prep';
+      else if (text.indexOf('Batch') >= 0 || text.indexOf('deferred') >= 0) lane = 'Batch';
+      else if (text.indexOf('auto-refresh') >= 0) lane = 'Queue';
+      window.showAiToast('Opening ' + lane + ' lane...');
+    });
+  });
+
+  /* ═══ Twin card action buttons ═══ */
+  document.querySelectorAll('.home-twin-card-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var label = btn.textContent.trim();
+      if (label === 'Open memo') {
+        window.showAiToast('Opening decision memo — Anthropic partnership review');
+      } else if (label === 'View prep queue') {
+        window.showAiToast('Opening prep queue — 3 items pending');
+      } else {
+        window.showAiToast(label + ' — loading...');
+      }
+    });
+  });
+
+  /* ═══ Share buttons ═══ */
+  document.querySelectorAll('.home-share-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var type = btn.textContent.trim();
+      if (type === 'Copy link') {
+        window.showAiToast('Link copied to clipboard');
+      } else if (type === 'PDF') {
+        window.showAiToast('Generating PDF export...');
+      } else if (type === 'Email digest') {
+        window.showAiToast('Composing email digest with 4 signals...');
+      } else if (type === 'Slack') {
+        window.showAiToast('Preparing Slack summary for #daily-brief...');
+      }
+    });
+  });
+
+  /* ═══ Right rail — entity clicks → open notebook ═══ */
+  document.querySelectorAll('.home-ar-ctx-entity').forEach(function(entity) {
+    entity.addEventListener('click', function() {
+      var name = entity.textContent.replace(/Verified|Review/g, '').trim();
+      /* Strip the icon letter prefix */
+      name = name.replace(/^[A-Z]\s+/, '');
+      if (typeof openNotebook === 'function') openNotebook(name);
+    });
+  });
+
+  /* ═══ Right rail — thread items → switch to chat ═══ */
+  document.querySelectorAll('.home-ar-thread-item').forEach(function(thread) {
+    thread.addEventListener('click', function() {
+      var text = thread.querySelector('.home-ar-thread-item-text');
+      var threadName = text ? text.textContent.trim() : 'thread';
+      switchSurface('chat');
+      setTimeout(function() {
+        window.showAiToast('Opened thread: ' + threadName);
+      }, 300);
+    });
+  });
+
+  /* ═══ Right rail — pill toggles ═══ */
+  var arPills = document.querySelectorAll('.home-ar-pill');
+  arPills.forEach(function(pill) {
+    pill.addEventListener('click', function() {
+      arPills.forEach(function(p) { p.classList.remove('active'); });
+      pill.classList.add('active');
+      var view = pill.textContent.trim();
+      window.showAiToast('Switched to: ' + view);
+    });
+  });
+
+  /* ═══ Right rail — action buttons ═══ */
+  document.querySelectorAll('.home-ar-action-btn').forEach(function(btn) {
+    if (btn._wired) return;
+    btn._wired = true;
+    btn.addEventListener('click', function() {
+      var label = btn.textContent.trim();
+      /* Use ACTION_TOASTS if available */
+      if (window._actionToastMap && window._actionToastMap[label]) {
+        var cfg = window._actionToastMap[label];
+        btn.dataset.origText = label;
+        var stepIdx = 0;
+        function runStep() {
+          if (stepIdx < cfg.steps.length) {
+            btn.textContent = cfg.steps[stepIdx];
+            btn.disabled = true;
+            stepIdx++;
+            setTimeout(runStep, 800);
+          } else {
+            btn.disabled = false;
+            btn.textContent = btn.dataset.origText;
+            window.showAiToast(cfg.toast);
+          }
+        }
+        runStep();
+      } else {
+        window.showAiToast(label + ' — processing...');
+      }
+    });
+  });
+
+  /* ═══ Right rail — composer send ═══ */
+  var arSend = document.querySelector('.home-ar-send');
+  var arInput = document.querySelector('.home-ar-input');
+  if (arSend && arInput) {
+    arSend.addEventListener('click', function() {
+      var msg = arInput.value.trim();
+      if (!msg) return;
+      arInput.value = '';
+      window.showAiToast('Message sent to briefing agent: "' + msg.substring(0, 40) + (msg.length > 40 ? '...' : '') + '"');
+    });
+    arInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        arSend.click();
+      }
+    });
+  }
+
+  /* ═══ Source footnotes — click opens source ═══ */
+  document.querySelectorAll('.home-fn-item').forEach(function(fn) {
+    fn.addEventListener('click', function() {
+      var text = fn.querySelector('.home-fn-text');
+      var srcText = text ? text.textContent.trim() : 'source';
+      window.showAiToast('Opening source: ' + srcText.substring(0, 50) + '...');
+    });
+  });
+
+  /* ═══ Composer pills — click toggles ═══ */
+  document.querySelectorAll('.home-composer-pill').forEach(function(pill) {
+    pill.addEventListener('click', function() {
+      pill.classList.toggle('home-composer-pill--active');
+      var label = pill.textContent.trim();
+      var active = pill.classList.contains('home-composer-pill--active');
+      window.showAiToast(label + (active ? ' enabled' : ' disabled'));
+    });
+  });
+
+  /* ═══ Hero composer send ═══ */
+  var heroSend = document.querySelector('.home-composer-send');
+  var heroInput = document.querySelector('.home-composer-input');
+  if (heroSend && heroInput) {
+    heroSend.addEventListener('click', function() {
+      var msg = heroInput.value.trim();
+      if (!msg) { window.showAiToast('Type a question to get started'); return; }
+      heroInput.value = '';
+      switchSurface('chat');
+      setTimeout(function() {
+        window.showAiToast('Researching: "' + msg.substring(0, 40) + (msg.length > 40 ? '...' : '') + '"');
+      }, 300);
+    });
+    heroInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        heroSend.click();
+      }
     });
   }
 
