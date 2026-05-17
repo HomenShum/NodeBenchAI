@@ -1,16 +1,14 @@
 # Expandable Graph Notebook — Architecture
 
-The critical missing feature: Ideaflow-style expandable mention nodes with
+The critical missing feature: Roam-style expandable mention nodes with
 backlink cross-linking, web-grounded agent expansion, and lazy infinite
 traversal.  Every mention is a live graph node.  Click to drill.  Agent
 enriches with Linkup search.  Backlinks cross-reference bidirectionally.
 
 ## Prior art
 
-- **Ideaflow** — `MentionNode` + `parseOutlineAndPersist` + `AiSearchSidebar.runEnrichment`
-  (codebase analysis in `D:\VSCode Projects\Ideaflow\latest-main-mew\mew`)
+- **Roam Research** — bidirectional backlinks as first-class graph primitives, block references
 - **Anthropic** — "Building Effective Agents" (2024), orchestrator-workers
-- **Roam Research** — bidirectional backlinks as first-class graph primitives
 - **Notion** — `@mention` inline references with hover previews
 - **Obsidian** — local graph view, backlinks panel, transclusion
 

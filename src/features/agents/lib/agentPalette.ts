@@ -1,7 +1,7 @@
 /**
  * agentPalette — persistent color + icon per diligence agent role.
  *
- * Motivation: Ideaflow / v3 / v4 prototypes all assign persistent colors
+ * Motivation: v3 / v4 prototypes all assign persistent colors
  * to each agent role so users build pattern recognition ("purple is Spencer,
  * green is Maya"). NodeBench's blockType IS the agent role — founder,
  * product, funding, etc. — so we derive the palette client-side from the

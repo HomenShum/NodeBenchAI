@@ -2,7 +2,7 @@
 
 **Status:** Living · Last reviewed 2026-04-19
 **Owner:** Core team
-**Supersedes:** `NODEBENCH_AI_APP_PRD_V1.md`, `nodebench-ai-app-v2.md`, `COCKPIT_WIREFRAMES.md`, `DAY1_USER_JOURNEYS.md`, `ARCHETYPE_GAP_ANALYSIS.md`, `UNIFIED_TEMPORAL_OS.md`, `IDEAFLOW_BLOCK_NOTEBOOK_ULTRAPLAN.md`, `NODEBENCH_COMPLETE_SPEC.md` — archived.
+**Supersedes:** `NODEBENCH_AI_APP_PRD_V1.md`, `nodebench-ai-app-v2.md`, `COCKPIT_WIREFRAMES.md`, `DAY1_USER_JOURNEYS.md`, `ARCHETYPE_GAP_ANALYSIS.md`, `UNIFIED_TEMPORAL_OS.md`, `BLOCK_NOTEBOOK_ULTRAPLAN.md`, `NODEBENCH_COMPLETE_SPEC.md` — archived.
 
 ## TL;DR
 

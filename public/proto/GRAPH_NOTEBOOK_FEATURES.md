@@ -1,4 +1,4 @@
-# Ideaflow-Inspired Features — home-v3.html Prototype
+# Graph Notebook Features — home-v3.html Prototype
 
 Implemented in `public/proto/home-v3.html` as pure HTML/CSS/JS.
 These features are the prototype for the expandable graph notebook
@@ -6,8 +6,7 @@ described in `docs/architecture/EXPANDABLE_GRAPH_NOTEBOOK.md`.
 
 ## Prior art
 
-- **Ideaflow** — `MentionNode`, `parseOutlineAndPersist`, `AiSearchSidebar.runEnrichment`
-- **Roam Research** — bidirectional backlinks, block references
+- **Roam Research** — bidirectional backlinks, block references, outliner-first editing
 - **Notion** — `@mention` inline references with hover previews
 - **Obsidian** — local graph view, backlinks panel
 

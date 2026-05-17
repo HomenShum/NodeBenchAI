@@ -1582,7 +1582,7 @@ html[data-density='spacious'] {
 
 /* Placeholder ghost-text — shows ONLY on the currently-focused block's
    empty paragraph, never on every empty block in the document. Matches
-   Ideaflow/Lexical pattern (Editor.module.css:69-89): hidden by default,
+   Roam/Lexical pattern: hidden by default,
    fades in on focus. A doc with 10 empty lines must not display 10
    repeated "Type / for commands…" ghosts — that drowns real content. */
 .notebook-sheet [data-testid="notebook-block"][data-block-focused="true"] .ProseMirror p.is-empty::before {
@@ -1646,7 +1646,7 @@ html[data-density='spacious'] {
   }
 }
 
-/* Lexical/Ideaflow rhythm: zero block margin + min-height per paragraph.
+/* Lexical/outliner rhythm: zero block margin + min-height per paragraph.
    Tight spacing between content blocks; empty blocks collapse to a single
    line instead of a full paragraph of whitespace. */
 .notebook-sheet .ProseMirror p {
