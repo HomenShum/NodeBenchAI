@@ -1,0 +1,31 @@
+- generic [ref=e4]:
+  - generic [ref=e5]: Setup required
+  - heading "Convex backend not configured" [level=1] [ref=e6]
+  - paragraph [ref=e7]:
+    - text: This UI needs
+    - code [ref=e8]: VITE_CONVEX_URL
+    - text: to connect to Convex. Without it, the app cannot load data or sign in.
+  - generic [ref=e9]:
+    - generic [ref=e10]: Create or update
+    - generic [ref=e11]: VITE_CONVEX_URL="https://your-deployment.convex.cloud"
+    - generic [ref=e12]:
+      - text: Put this in
+      - code [ref=e13]: .env.local
+      - text: (not committed), then restart the dev server.
+  - generic [ref=e14]:
+    - text: "Quick start:"
+    - list [ref=e15]:
+      - listitem [ref=e16]:
+        - text: Run
+        - code [ref=e17]: npx convex dev
+        - text: and copy the deployment URL.
+      - listitem [ref=e18]:
+        - text: Set
+        - code [ref=e19]: VITE_CONVEX_URL
+        - text: in
+        - code [ref=e20]: .env.local
+        - text: .
+      - listitem [ref=e21]:
+        - text: Run
+        - code [ref=e22]: npm run dev
+        - text: .

@@ -196,3 +196,6 @@ scripts/tool-gen/tmp/
 scripts/ops/.tmp-*
 
 .vercel
+
+# Debug/dogfood screenshots at repo root
+/*.png
