@@ -2494,11 +2494,13 @@ function ReportGraphPreviewD3({
   }, [graph.nodes, pinnedNodeId]);
 
   useEffect(() => {
+    const currentPinned = pinnedNodeIdRef.current;
+    if (currentPinned && graph.nodes.some((node) => node.id === currentPinned)) return;
     pinnedNodeIdRef.current = null;
     setPinnedNodeId(null);
     setTooltip(null);
     setPeekPosition(null);
-  }, [graph.root?.id]);
+  }, [graph.nodes, graph.root?.id]);
 
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -2642,6 +2644,76 @@ function ReportGraphPreviewD3({
       if (node.graphType === "cluster") return "C";
       return node.label.slice(0, 1).toUpperCase();
     };
+    const middleEllipsis = (value: string, maxLength: number) => {
+      const clean = value.replace(/\s+/g, " ").trim();
+      if (clean.length <= maxLength) return clean;
+      const head = Math.max(4, Math.ceil((maxLength - 1) * 0.58));
+      const tail = Math.max(3, maxLength - head - 1);
+      return `${clean.slice(0, head).trim()}…${clean.slice(-tail).trim()}`;
+    };
+    const compactReportLabel = (value: string) => {
+      const clean = value
+        .replace(/\s+/g, " ")
+        .replace(/\s+[-|]\s+Funding tracker$/i, "")
+        .replace(/,\s*and today'?s\s+top.*$/i, "")
+        .replace(/\s+and today'?s\s+top.*$/i, "")
+        .replace(/\s+in\s+(?:a|an)\s+(?:Series|Seed|Pre Seed|undisclosed).*$/i, "")
+        .replace(/\s+just\s+raised.*$/i, "")
+        .replace(/\s+raised\s+\$[\d.,]+[BMK]?\b.*$/i, "")
+        .replace(/\s+--\s+\$[\d.,]+[BMK]?\b.*$/i, "")
+        .trim();
+      if (/^daily brief\b/i.test(clean)) return clean.replace(/\s+-\s+20\d{2}-\d{2}-\d{2}$/i, "");
+      const words = clean.split(" ").filter(Boolean);
+      const compact = words.length > 4 ? words.slice(0, 4).join(" ") : clean;
+      return middleEllipsis(compact || value, 26);
+    };
+    const canvasLabelFor = (node: D3GraphNode) => {
+      if (node.graphType === "artifact") {
+        const artifactName = node.artifactKey ?? node.label;
+        const basename = artifactName.split(/[\\/]/).pop() ?? artifactName;
+        return middleEllipsis(basename, 20);
+      }
+      if (node.graphType === "report") return compactReportLabel(node.label);
+      if (node.graphType === "portfolio") return middleEllipsis(node.label, 22);
+      if (node.graphType === "cluster") return middleEllipsis(node.label.replace(/^Cluster:\s*/i, ""), 18);
+      if (node.graphType === "brief") return middleEllipsis(node.label.replace(/\s+-\s+20\d{2}-\d{2}-\d{2}$/i, ""), 18);
+      return middleEllipsis(node.label, 20);
+    };
+    const metaLabelFor = (node: D3GraphNode) => {
+      if (node.graphType === "artifact") return node.artifactType ?? "artifact";
+      if (node.graphType === "report") return "report";
+      if (node.graphType === "portfolio") return "portfolio";
+      if (node.graphType === "cluster") return `${connectionCount(node.id)} nodes`;
+      return node.stage === "universe" ? "monitoring" : node.stage;
+    };
+    const shouldPromoteLabel = (node: D3GraphNode) => (
+      node.id === graph.root?.id ||
+      node.id === "__universe__" ||
+      node.graphType === "portfolio" ||
+      node.graphType === "cluster" ||
+      node.attentionTier === "promoted" ||
+      (node.topologyProjection?.densityScore ?? 0) >= 82 ||
+      (node.topologyProjection?.outlierScore ?? 0) >= 86
+    );
+    const defaultLabelOpacity = (node: D3GraphNode) => {
+      if (graph.scaleMode === "focus") {
+        if (node.graphType === "artifact" || node.provenance === "source") return 0;
+        return shouldPromoteLabel(node) ? 1 : 0;
+      }
+      if (graph.scaleMode === "clustered") {
+        if (node.graphType === "artifact" || node.provenance === "source") return 0;
+        if (node.graphType === "report") return shouldPromoteLabel(node) ? 1 : 0;
+        return shouldPromoteLabel(node) ? 1 : 0.72;
+      }
+      if (node.provenance === "source") return 0;
+      if (node.graphType === "artifact") return shouldPromoteLabel(node) ? 0.76 : 0;
+      return 1;
+    };
+    const defaultMetaOpacity = (node: D3GraphNode) => {
+      if (defaultLabelOpacity(node) <= 0) return 0;
+      if (graph.scaleMode !== "expanded" && node.graphType !== "portfolio" && node.graphType !== "cluster") return 0;
+      return 0.5;
+    };
     const endpointId = (endpoint: string | D3GraphNode | undefined) => (typeof endpoint === "object" && endpoint ? endpoint.id : String(endpoint ?? ""));
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
     const searchMatch = (node: D3GraphNode) => {
@@ -2683,17 +2755,24 @@ function ReportGraphPreviewD3({
 
     const simulation = d3.forceSimulation<D3GraphNode>(nodes)
       .force("link", d3.forceLink<D3GraphNode, D3GraphLink>(links).id((node) => node.id).distance((link) => {
-        if (link.type === "has_artifact") return 82;
-        if (link.type === "has_report") return 92;
-        if (link.type === "covers") return 125;
-        if (link.type === "causes" || link.type === "correlates_with") return 150;
+        if (link.type === "has_artifact") return 55;
+        if (link.type === "has_report") return 70;
+        if (link.type === "covers") return 110;
+        if (link.type === "causes") return 95;
+        if (link.type === "correlates_with") return 105;
         return 130;
       }))
-      .force("charge", d3.forceManyBody<D3GraphNode>().strength(-420))
+      .force("charge", d3.forceManyBody<D3GraphNode>().strength((node) => {
+        if (node.graphType === "artifact") return -55;
+        if (node.provenance === "source") return -45;
+        if (node.graphType === "report") return -150;
+        if (node.graphType === "portfolio" || node.graphType === "cluster") return -240;
+        return -320;
+      }))
       .force("center", d3.forceCenter(width / 2, visibleHeight * 0.45))
       .force("x", d3.forceX<D3GraphNode>((node) => node.topologyProjection ? projectX(node.topologyProjection.x) : width / 2).strength(0.16))
       .force("y", d3.forceY<D3GraphNode>((node) => node.topologyProjection ? projectY(node.topologyProjection.y) : visibleHeight * 0.45).strength(0.18))
-      .force("collide", d3.forceCollide<D3GraphNode>().radius((node) => radiusFor(node) + 20))
+      .force("collide", d3.forceCollide<D3GraphNode>().radius((node) => radiusFor(node) + (defaultLabelOpacity(node) > 0 ? 30 : 16)))
       .alphaDecay(0.018);
 
     const clusterEl = g.append("g")
@@ -2759,22 +2838,35 @@ function ReportGraphPreviewD3({
       .attr("text-anchor", "middle")
       .attr("dy", "0.33em");
 
-    nodeEl.append("text")
+    nodeEl.append("title")
+      .text((node) => `${node.label} - ${node.type} - ${node.verified}`);
+
+    const labelEl = nodeEl.append("text")
       .attr("class", "rd-v3-graph-node__label")
-      .text((node) => node.label)
+      .text((node) => canvasLabelFor(node))
       .attr("dx", (node) => radiusFor(node) + 6)
       .attr("dy", "0.35em")
-      .attr("opacity", (node) => graph.scaleMode === "focus" && node.graphType === "artifact" ? 0 : 1);
+      .attr("data-full-label", (node) => node.label)
+      .attr("data-canvas-label", (node) => canvasLabelFor(node))
+      .attr("opacity", defaultLabelOpacity);
 
-    nodeEl.append("text")
+    const metaEl = nodeEl.append("text")
       .attr("class", "rd-v3-graph-node__meta")
-      .text((node) => node.stage === "universe" ? "monitoring" : node.stage)
+      .text((node) => metaLabelFor(node))
       .attr("dx", (node) => radiusFor(node) + 6)
       .attr("dy", "1.5em")
-      .attr("opacity", (node) => graph.scaleMode === "expanded" || node.graphType === "report" || node.graphType === "cluster" ? 0.55 : 0);
+      .attr("opacity", defaultMetaOpacity);
 
     const applySearch = () => {
       nodeEl.attr("opacity", (node) => (!normalizedGraphQuery || searchMatch(node)) ? 1 : 0.12);
+      labelEl.attr("opacity", (node) => {
+        if (!normalizedGraphQuery) return defaultLabelOpacity(node);
+        return searchMatch(node) ? 1 : 0.04;
+      });
+      metaEl.attr("opacity", (node) => {
+        if (!normalizedGraphQuery) return defaultMetaOpacity(node);
+        return searchMatch(node) ? 0.55 : 0;
+      });
       linkEl.attr("opacity", (link) => {
         if (!normalizedGraphQuery) return 0.5;
         const source = typeof link.source === "object" ? link.source : nodeById.get(String(link.source));
@@ -2785,6 +2877,8 @@ function ReportGraphPreviewD3({
     const highlight = (nodeId: string) => {
       const connected = connectedSet(nodeId);
       nodeEl.attr("opacity", (node) => connected.has(node.id) ? 1 : 0.08);
+      labelEl.attr("opacity", (node) => connected.has(node.id) ? 1 : Math.min(0.12, defaultLabelOpacity(node)));
+      metaEl.attr("opacity", (node) => connected.has(node.id) ? 0.58 : 0);
       nodeEl.selectAll<SVGCircleElement, D3GraphNode>(".rd-v3-graph-node__ring")
         .attr("opacity", (node) => node.id === nodeId ? 0.7 : 0);
       linkEl
@@ -2797,6 +2891,8 @@ function ReportGraphPreviewD3({
     };
     const resetHighlight = () => {
       nodeEl.selectAll<SVGCircleElement, D3GraphNode>(".rd-v3-graph-node__ring").attr("opacity", 0);
+      labelEl.attr("opacity", defaultLabelOpacity);
+      metaEl.attr("opacity", defaultMetaOpacity);
       linkEl.attr("opacity", 0.5).attr("stroke-width", (link) => edgeStyle[link.type]?.width ?? 0.7);
       edgeLabelEl.attr("opacity", 0);
       applySearch();
