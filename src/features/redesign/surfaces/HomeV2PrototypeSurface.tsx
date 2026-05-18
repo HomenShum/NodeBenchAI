@@ -1,12 +1,18 @@
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { showToast } from "../components/Toast";
+import { UniversalComposer, type RouterTier } from "../components/UniversalComposer";
 import type { LiveArtifactsResult, LiveArtifactSourceRow } from "../hooks/useLiveArtifacts";
 import type { ReportCardData } from "../fixtures";
 import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
 
+interface HomeAskContext {
+  reportId?: string;
+  artifactKey?: string;
+}
+
 interface HomeV2SurfaceProps {
-  onAsk?: (prompt: string) => void;
-  onOpenReports?: () => void;
+  onAsk?: (prompt: string, context?: HomeAskContext) => void;
+  onOpenReports?: (reportId?: string) => void;
   liveArtifacts?: LiveArtifactsResult;
 }
 
@@ -878,7 +884,7 @@ const inboxRows = [
 
 function requestHomeV2Share(
   channel: "email" | "linkedin" | "slack",
-  onAsk?: (prompt: string) => void,
+  onAsk?: (prompt: string, context?: HomeAskContext) => void,
 ) {
   const promptByChannel = {
     email: "Draft an email digest from today's agent brief. Keep it source-backed, concise, and action-oriented.",
@@ -912,7 +918,7 @@ function openHomeV2PrintView() {
   }
 }
 
-function HomeV2ShareBar({ onAsk, pulse = false }: { onAsk?: (prompt: string) => void; pulse?: boolean }) {
+function HomeV2ShareBar({ onAsk, pulse = false }: { onAsk?: (prompt: string, context?: HomeAskContext) => void; pulse?: boolean }) {
   return (
     <div className={`rd-v2-share-bar${pulse ? " rd-v2-share-bar--pulse" : ""}`} aria-label="Share edition">
       <span>Share</span>
@@ -2093,14 +2099,208 @@ function countFromText(value: string | undefined, fallback: string): string {
   return match?.[0] ?? fallback;
 }
 
+interface HomeHaloReport {
+  id: string;
+  title: string;
+  kind: string;
+  status: ReportCardData["status"];
+  summary: string;
+  sources: number;
+  claims: number;
+  followUps: number;
+  updatedAt: string;
+  graphHint: string;
+  sourceHint: string;
+  hue: "orange" | "blue" | "green" | "purple" | "teal" | "red";
+}
+
+const homeHaloHues: HomeHaloReport["hue"][] = ["orange", "blue", "green", "purple", "teal", "red"];
+
+function statusCopy(status: ReportCardData["status"]): string {
+  if (status === "verified") return "Verified";
+  if (status === "review") return "Needs review";
+  return "Watching";
+}
+
+function buildHomeHaloReports(liveArtifacts?: LiveArtifactsResult): HomeHaloReport[] {
+  const reports = liveArtifacts?.reports ?? [];
+  return reports.slice(0, 8).map((report, index) => {
+    const detail = liveArtifacts?.details.find((item) => item.id === report.id);
+    const source = detail?.sourceRows[0];
+    return {
+      id: report.id,
+      title: report.entity,
+      kind: report.kind,
+      status: report.status,
+      summary: trimSentence(detail?.summary ?? report.description, report.description, 180),
+      sources: report.sources,
+      claims: report.claims,
+      followUps: report.followUps,
+      updatedAt: report.updatedAt,
+      graphHint: detail
+        ? `${detail.nodes.length} nodes · ${detail.edges.length} edges`
+        : `${report.claims} claims · ${report.followUps} follow-ups`,
+      sourceHint: source
+        ? `${sourceLabel(source.type)} · ${source.reused}x reused`
+        : `${report.sources} source rows`,
+      hue: homeHaloHues[index % homeHaloHues.length],
+    };
+  });
+}
+
+function HomeReportHalo({
+  reports,
+  activeReportId,
+  onActiveReportChange,
+  onAsk,
+  onOpenReports,
+}: {
+  reports: HomeHaloReport[];
+  activeReportId?: string | null;
+  onActiveReportChange?: (reportId: string) => void;
+  onAsk?: (prompt: string, context?: HomeAskContext) => void;
+  onOpenReports?: (reportId?: string) => void;
+}) {
+  const active = reports.find((report) => report.id === activeReportId) ?? reports[0];
+  const selectReport = (reportId: string) => onActiveReportChange?.(reportId);
+  const askReport = (report: HomeHaloReport) => {
+    onAsk?.(
+      `Use the ${report.title} report packet. Summarize what changed, source support, open claims, and the next report or notebook action.`,
+      { reportId: report.id },
+    );
+  };
+
+  if (reports.length === 0) {
+    return (
+      <section className="rd-v3-home-halo rd-v3-home-halo--empty" data-testid="home-v3-report-halo">
+        <div className="rd-v3-home-halo-head">
+          <span>Report memory</span>
+          <strong>No live report halo yet</strong>
+          <p>Run or refresh a report so Home can preview reusable context before Chat asks the model to search again.</p>
+        </div>
+        <button type="button" onClick={() => onAsk?.("Create the first report packet from live memory and attach sources before drafting.")}>
+          Create first packet
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rd-v3-home-halo" data-testid="home-v3-report-halo" aria-label="Report memory halo">
+      <div className="rd-v3-home-halo-head">
+        <span>Report halo</span>
+        <strong>Reusable memory is already in the room.</strong>
+        <p>Hover or select a report, then ask with its Convex-backed context attached.</p>
+      </div>
+
+      <div className="rd-v3-halo-track" role="list">
+        {reports.map((report) => (
+          <button
+            key={report.id}
+            type="button"
+            role="listitem"
+            className="rd-v3-halo-card"
+            data-hue={report.hue}
+            data-active={active?.id === report.id ? "true" : undefined}
+            onMouseEnter={() => selectReport(report.id)}
+            onFocus={() => selectReport(report.id)}
+            onClick={() => selectReport(report.id)}
+          >
+            <span className="rd-v3-halo-card-cover">
+              <b>{monogram(report.title)}</b>
+              <em>{report.kind}</em>
+            </span>
+            <strong>{report.title}</strong>
+            <small>{statusCopy(report.status)} · {report.updatedAt}</small>
+            <p>{report.summary}</p>
+          </button>
+        ))}
+      </div>
+
+      {active && (
+        <aside className="rd-v3-halo-dock" data-testid="home-v3-halo-dock" aria-label={`${active.title} preview`}>
+          <div>
+            <span>{active.kind}</span>
+            <h3>{active.title}</h3>
+            <p>{active.summary}</p>
+          </div>
+          <dl>
+            <div><dt>Status</dt><dd>{statusCopy(active.status)}</dd></div>
+            <div><dt>Evidence</dt><dd>{active.sources} sources · {active.claims} claims</dd></div>
+            <div><dt>Graph</dt><dd>{active.graphHint}</dd></div>
+            <div><dt>Source</dt><dd>{active.sourceHint}</dd></div>
+          </dl>
+          <div className="rd-v3-halo-actions">
+            <button type="button" className="rd-v2-btn-primary" onClick={() => askReport(active)}>Ask with context</button>
+            <button type="button" onClick={() => onOpenReports?.(active.id)}>Open report</button>
+            <button
+              type="button"
+              onClick={() => onAsk?.(`Explore the graph neighborhood for ${active.title} and identify used, changed, needs-review, and blocked clusters.`, { reportId: active.id })}
+            >
+              Explore graph
+            </button>
+          </div>
+        </aside>
+      )}
+    </section>
+  );
+}
+
+function HomeV3FrontPage({
+  model,
+  haloReports,
+  onAsk,
+  onOpenReports,
+}: {
+  model: HomeV2Model;
+  haloReports: HomeHaloReport[];
+  onAsk?: (prompt: string, context?: HomeAskContext) => void;
+  onOpenReports?: (reportId?: string) => void;
+}) {
+  const [activeReportId, setActiveReportId] = useState<string | null>(haloReports[0]?.id ?? null);
+  const activeReport = haloReports.find((report) => report.id === activeReportId) ?? haloReports[0];
+  const contextLabel = activeReport
+    ? `Using ${activeReport.title} · ${activeReport.sources} sources · ${activeReport.claims} claims`
+    : model.editionLine;
+  const submit = (text: string, _tier: RouterTier) => {
+    onAsk?.(text, activeReport ? { reportId: activeReport.id } : undefined);
+  };
+
+  return (
+    <section className="rd-v3-home-front" data-testid="home-v3-chat-first-frontpage" aria-label="Chat-first intelligence front page">
+      <HomeReportHalo
+        reports={haloReports}
+        activeReportId={activeReport?.id ?? null}
+        onActiveReportChange={setActiveReportId}
+        onAsk={onAsk}
+        onOpenReports={onOpenReports}
+      />
+      <div className="rd-v3-home-composer-shell">
+        <div className="rd-v3-home-composer-head">
+          <span>Ask first</span>
+          <h1>Ask once. Turn it into reusable intelligence.</h1>
+          <p>{model.heroSub}</p>
+        </div>
+        <UniversalComposer
+          contextLabel={contextLabel}
+          placeholder="Ask about a company, person, event, market, report, or source packet..."
+          showRuntimeRibbon
+          onSubmit={submit}
+          onChatNow={submit}
+        />
+      </div>
+    </section>
+  );
+}
+
 function LivePulseLanding({
   model,
   onAsk,
   onOpenReports,
 }: {
   model: HomeV2Model;
-  onAsk?: (text: string) => void;
-  onOpenReports?: () => void;
+  onAsk?: (text: string, context?: HomeAskContext) => void;
+  onOpenReports?: (reportId?: string) => void;
 }) {
   const whatChanged = findBriefSection(model, "changed", 0);
   const reportsTouched = findBriefSection(model, "reports", 3);
@@ -2218,8 +2418,15 @@ function LivePulseLanding({
 export function HomeV2Surface({ onAsk, onOpenReports, liveArtifacts }: HomeV2SurfaceProps) {
   const model = buildHomeV2Model(liveArtifacts);
   const isLiveHome = Boolean(liveArtifacts);
+  const haloReports = buildHomeHaloReports(liveArtifacts);
   return (
     <div className="rd-v2-home">
+      <HomeV3FrontPage
+        model={model}
+        haloReports={haloReports}
+        onAsk={onAsk}
+        onOpenReports={onOpenReports}
+      />
       {isLiveHome ? (
         <LivePulseLanding model={model} onAsk={onAsk} onOpenReports={onOpenReports} />
       ) : (

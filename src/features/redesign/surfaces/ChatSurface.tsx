@@ -249,6 +249,12 @@ function formatRailUsd(value?: number | null): string {
   return `$${value.toFixed(2)}`;
 }
 
+function buildLiveContextRef(detail: LiveArtifactDetail | null, artifactKey?: string | null): string | undefined {
+  if (!detail) return undefined;
+  const base = buildGraphContextBridgePacket({ detail, mode: "agent" }).contextRef;
+  return artifactKey ? `${base}::artifact:${encodeURIComponent(artifactKey)}` : base;
+}
+
 function formatLatency(value?: number | null): string {
   if (!value || !Number.isFinite(value)) return "pending";
   if (value < 1000) return `${Math.round(value)}ms`;
@@ -847,8 +853,11 @@ export function ChatSurface({
   const requestedReportId = typeof window !== "undefined"
     ? new URLSearchParams(window.location.search).get("report")
     : null;
+  const requestedArtifactKey = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("artifact")
+    : null;
   const _rawLiveDetail = requestedReportId
-    ? liveArtifacts.details.find((detail) => detail.id === requestedReportId) ?? liveArtifacts.details[0]
+    ? liveArtifacts.details.find((detail) => detail.id === requestedReportId) ?? null
     : liveArtifacts.details[0];
   // Phase 1 — real LLM chat behind the composer for authenticated users.
   const chatRun = useRedesignChatRun();
@@ -1161,7 +1170,10 @@ export function ChatSurface({
       const pinnedClaims = pinned.length > 0
         ? pinned.map((p) => ({ text: p.label || "pinned claim", source: undefined as string | undefined }))
         : undefined;
-      void chatRun.submit(text, submittedTier, liveDetail?.id, pinnedClaims).then((runId) => {
+      const contextRef = liveDetail
+        ? buildLiveContextRef(liveDetail, requestedArtifactKey)
+        : undefined;
+      void chatRun.submit(text, submittedTier, contextRef, pinnedClaims).then((runId) => {
         if (runId) {
           setTurns((prev) => prev.map((t) =>
             t.id === assistantId
@@ -1229,7 +1241,10 @@ export function ChatSurface({
       const pinnedClaims = pinned.length > 0
         ? pinned.map((p) => ({ text: p.label || "pinned claim", source: undefined as string | undefined }))
         : undefined;
-      void chatRun.submit(prompt, requestedTier, liveDetail?.id, pinnedClaims).then((runId) => {
+      const contextRef = liveDetail
+        ? buildLiveContextRef(liveDetail, requestedArtifactKey)
+        : undefined;
+      void chatRun.submit(prompt, requestedTier, contextRef, pinnedClaims).then((runId) => {
         setTurns((prev) => prev.map((t) =>
           t.id === turnId
             ? runId
@@ -1688,7 +1703,7 @@ function ChatV2ReportBanner({
 }) {
   const savedLabel = liveDetail ? `Saved to ${liveDetail.title}` : "Ready for a live report packet";
   const meta = liveDetail
-    ? `${liveDetail.sectionCount} sections · ${liveDetail.claimCount} claims · ${liveDetail.sourceCount} sources · notebook context loaded`
+    ? `${liveDetail.sections.length} sections · ${liveDetail.claimCount} claims · ${liveDetail.sourceCount} sources · notebook context loaded`
     : `${turns.length} messages · ${isLive ? "memory hot" : "memory warming"} · ${paidEligible ? "paid eligible" : "free-first"} · ${runStatus ?? "idle"}`;
 
   return (

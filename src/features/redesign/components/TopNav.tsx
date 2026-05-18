@@ -35,6 +35,8 @@ interface TopNavProps {
   onOpenPalette: () => void;
   theme: "light" | "dark";
   onToggleTheme: () => void;
+  wideMode?: boolean;
+  onToggleWideMode?: () => void;
   prototypeMode?: boolean;
 }
 
@@ -59,6 +61,8 @@ export function TopNav({
   onOpenPalette,
   theme,
   onToggleTheme,
+  wideMode = false,
+  onToggleWideMode,
   prototypeMode = false,
 }: TopNavProps) {
   const { isAuthenticated, isLoading } = useConvexAuth();
@@ -246,6 +250,34 @@ export function TopNav({
           flexShrink: 0,
         }}
       >
+        <button
+          type="button"
+          onClick={onToggleWideMode}
+          aria-pressed={wideMode}
+          aria-label={wideMode ? "Use standard width" : "Use wide mode"}
+          title={wideMode ? "Use standard width (W)" : "Use wide mode (W)"}
+          className="rd-btn rd-btn--quiet"
+          style={{
+            width: 34,
+            height: 34,
+            padding: 0,
+            borderRadius: "50%",
+            border: "1px solid var(--rd-line)",
+            background: wideMode ? "var(--rd-accent-soft)" : "var(--rd-panel)",
+            display: "grid",
+            placeItems: "center",
+            color: wideMode ? "var(--rd-accent-strong)" : "var(--rd-ink-mute)",
+          }}
+        >
+          <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4 8V5h3" />
+            <path d="M20 8V5h-3" />
+            <path d="M4 16v3h3" />
+            <path d="M20 16v3h-3" />
+            <path d="M9 12h6" />
+          </svg>
+        </button>
+
         <button
           type="button"
           onClick={onToggleTheme}

@@ -73,6 +73,55 @@ type PlannerArtifact = {
   costUsd?: number;
 };
 
+type ContextRefDescription = {
+  hasContext: boolean;
+  raw: string | null;
+  reportId: string | null;
+  artifactKey: string | null;
+  kind: "graph_packet" | "report" | "none";
+  label: string;
+};
+
+type RuntimeSourceRef = {
+  title: string;
+  url?: string;
+  source?: string;
+  publishedAt?: string;
+  excerpt?: string;
+};
+
+type RuntimeContextPacket = {
+  hasContext: boolean;
+  contextRef: string | null;
+  contextKind: "graph_packet" | "report" | "none";
+  reportId: string | null;
+  artifactKey: string | null;
+  title: string;
+  summary: string;
+  selectedContext: string[];
+  rejectedContext: string[];
+  sourceRefs: RuntimeSourceRef[];
+  graph: {
+    mode: "bounded_packet";
+    nodeCount: number;
+    edgeCount: number;
+    clusters: Array<{ name: "used" | "changed" | "needs_review" | "blocked"; count: number; sample: string[] }>;
+  };
+  notebook: {
+    sectionTitles: string[];
+    htmlPreview?: string;
+  };
+  verification: {
+    tier: "deterministic" | "retrieval" | "judge_required";
+    decisions: string[];
+  };
+  telemetry: {
+    memoryHit: boolean;
+    sourceCacheHit: boolean;
+    candidateCount: number;
+  };
+};
+
 // ───────── Constants ─────────
 
 const MAX_PROMPT_CHARS = 4_000;
@@ -255,6 +304,307 @@ function classifyPrompt(prompt: string): { kind: string; entity?: string } {
   return { kind: "general" };
 }
 
+function describeContextRef(contextRef?: string): ContextRefDescription {
+  if (!contextRef) {
+    return {
+      hasContext: false,
+      raw: null,
+      reportId: null,
+      artifactKey: null,
+      kind: "none",
+      label: "No active context",
+    };
+  }
+  if (contextRef.startsWith("graphctx:")) {
+    const body = contextRef.slice("graphctx:".length);
+    const artifactMarker = "::artifact:";
+    const artifactIndex = body.indexOf(artifactMarker);
+    const rawReportId = artifactIndex >= 0 ? body.slice(0, artifactIndex) : body;
+    const rawArtifactKey = artifactIndex >= 0 ? body.slice(artifactIndex + artifactMarker.length) : null;
+    let artifactKey: string | null = rawArtifactKey;
+    if (rawArtifactKey) {
+      try {
+        artifactKey = decodeURIComponent(rawArtifactKey);
+      } catch {
+        artifactKey = rawArtifactKey;
+      }
+    }
+    return {
+      hasContext: true,
+      raw: contextRef,
+      reportId: rawReportId || null,
+      artifactKey,
+      kind: "graph_packet",
+      label: `Graph context packet ${rawReportId}${artifactKey ? ` / ${artifactKey}` : ""}`,
+    };
+  }
+  return {
+    hasContext: true,
+    raw: contextRef,
+    reportId: contextRef,
+    artifactKey: null,
+    kind: "report",
+    label: `Active report ${contextRef}`,
+  };
+}
+
+function asRecord(value: unknown): Record<string, any> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : null;
+}
+
+function normalizeForContext(value: unknown): string {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function firstMeaningfulLine(value: unknown): string {
+  const text = String(value ?? "");
+  return text
+    .split(/\r?\n/)
+    .map((line) => normalizeForContext(line.replace(/^#+\s*/, "").replace(/^[-*]\s*/, "")))
+    .find(Boolean) ?? "";
+}
+
+function recordArray(value: unknown): Array<Record<string, any>> {
+  return Array.isArray(value) ? value.flatMap((item) => {
+    const record = asRecord(item);
+    return record ? [record] : [];
+  }) : [];
+}
+
+function collectRuntimeSourceRefs(value: unknown, max = 12): RuntimeSourceRef[] {
+  const refs: RuntimeSourceRef[] = [];
+  const seen = new Set<string>();
+  const visit = (item: unknown) => {
+    if (refs.length >= max || item == null) return;
+    if (Array.isArray(item)) {
+      for (const child of item) visit(child);
+      return;
+    }
+    const record = asRecord(item);
+    if (!record) return;
+    const url = typeof record.url === "string"
+      ? record.url
+      : typeof record.href === "string"
+        ? record.href
+        : undefined;
+    const title = normalizeForContext(record.title ?? record.headline ?? record.source ?? record.sourceDomain ?? "");
+    const source = normalizeForContext(record.source ?? record.sourceDomain ?? record.domain ?? "");
+    if (url || title || source) {
+      const key = normalizeForContext(url ?? `${title}|${source}`).toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        refs.push({
+          title: clipText(title || source || url || "Source reference", 120),
+          url,
+          source: source || undefined,
+          publishedAt: typeof record.publishedAt === "string"
+            ? record.publishedAt
+            : typeof record.publishedAtIso === "string"
+              ? record.publishedAtIso
+              : undefined,
+          excerpt: normalizeForContext(record.relevance ?? record.excerpt ?? record.snippet ?? record.summary ?? "").slice(0, 220) || undefined,
+        });
+      }
+      return;
+    }
+    for (const child of Object.values(record)) visit(child);
+  };
+  visit(value);
+  return refs;
+}
+
+function emptyRuntimeContextPacket(context: ContextRefDescription): RuntimeContextPacket {
+  return {
+    hasContext: context.hasContext,
+    contextRef: context.raw,
+    contextKind: context.kind,
+    reportId: context.reportId,
+    artifactKey: context.artifactKey,
+    title: context.label,
+    summary: context.hasContext
+      ? "Context reference was supplied but no matching Convex record was resolved."
+      : "No selected report, entity, or graph packet was attached.",
+    selectedContext: [],
+    rejectedContext: context.hasContext ? ["No canonical Convex record matched the supplied context reference."] : [],
+    sourceRefs: [],
+    graph: {
+      mode: "bounded_packet",
+      nodeCount: 0,
+      edgeCount: 0,
+      clusters: [
+        { name: "used", count: 0, sample: [] },
+        { name: "changed", count: 0, sample: [] },
+        { name: "needs_review", count: 0, sample: [] },
+        { name: "blocked", count: context.hasContext ? 1 : 0, sample: context.hasContext ? ["Context record unresolved."] : [] },
+      ],
+    },
+    notebook: { sectionTitles: [] },
+    verification: {
+      tier: context.hasContext ? "retrieval" : "deterministic",
+      decisions: context.hasContext
+        ? ["Require live retrieval before treating this context as memory-backed."]
+        : ["Prompt-only run; no report memory loaded."],
+    },
+    telemetry: {
+      memoryHit: false,
+      sourceCacheHit: false,
+      candidateCount: 0,
+    },
+  };
+}
+
+export const resolveContextRuntimePacket = internalQuery({
+  args: { contextRef: v.optional(v.string()) },
+  returns: v.any(),
+  handler: async (ctx, args): Promise<RuntimeContextPacket> => {
+    const context = describeContextRef(args.contextRef);
+    if (!context.hasContext || !context.reportId) return emptyRuntimeContextPacket(context);
+
+    if (context.reportId.startsWith("daily_")) {
+      const memoryId = (ctx.db as any).normalizeId("dailyBriefMemories", context.reportId.slice("daily_".length));
+      const memory = memoryId ? await ctx.db.get(memoryId) as any : null;
+      if (!memory) return emptyRuntimeContextPacket(context);
+      const memoryContext = asRecord(memory.context) ?? {};
+      const executiveRecord = asRecord(memoryContext.executiveBriefRecord);
+      const brief = asRecord(executiveRecord?.brief) ?? asRecord(memoryContext.executiveBrief) ?? {};
+      const actI = asRecord(brief.actI) ?? {};
+      const actII = asRecord(brief.actII) ?? {};
+      const actIII = asRecord(brief.actIII) ?? {};
+      const meta = asRecord(brief.meta) ?? {};
+      const signals = recordArray(actII.signals);
+      const actions = recordArray(actIII.actions);
+      const features = Array.isArray(memory.features) ? memory.features as any[] : [];
+      const sourceRefs = collectRuntimeSourceRefs({ brief, features }, 12);
+      const changedSamples = signals
+        .map((signal) => normalizeForContext(signal.headline ?? signal.title ?? signal.synthesis))
+        .filter(Boolean)
+        .slice(0, 5);
+      const actionSamples = actions
+        .map((action) => normalizeForContext(action.title ?? action.action ?? action.summary ?? action.description))
+        .filter(Boolean)
+        .slice(0, 5);
+      const blockedSamples = features
+        .filter((feature) => feature?.status && feature.status !== "passing")
+        .map((feature) => normalizeForContext(feature.name ?? feature.testCriteria))
+        .filter(Boolean)
+        .slice(0, 5);
+      const summary = normalizeForContext(meta.summary ?? actI.synthesis ?? memory.goal ?? "Daily brief report context.");
+      const sectionTitles = [
+        actI.synthesis ? "What changed" : null,
+        signals.length ? "Signals" : null,
+        actions.length ? "Actions" : null,
+        sourceRefs.length ? "Sources" : null,
+      ].filter(Boolean) as string[];
+
+      return {
+        hasContext: true,
+        contextRef: context.raw,
+        contextKind: context.kind,
+        reportId: context.reportId,
+        artifactKey: context.artifactKey,
+        title: `Daily Brief - ${memory.dateString}`,
+        summary: clipText(summary, 360),
+        selectedContext: [
+          `Daily Brief ${memory.dateString}: ${clipText(summary, 240)}`,
+          ...changedSamples.map((item) => `Changed: ${clipText(item, 180)}`),
+          ...actionSamples.map((item) => `Action: ${clipText(item, 180)}`),
+          context.artifactKey ? `Selected artifact: ${context.artifactKey}` : "",
+        ].filter(Boolean).slice(0, 12),
+        rejectedContext: blockedSamples.map((item) => `Needs review before write: ${clipText(item, 160)}`),
+        sourceRefs,
+        graph: {
+          mode: "bounded_packet",
+          nodeCount: 1 + signals.length + actions.length + sourceRefs.length,
+          edgeCount: signals.length + actions.length + sourceRefs.length,
+          clusters: [
+            { name: "used", count: sourceRefs.length, sample: sourceRefs.slice(0, 3).map((ref) => ref.title) },
+            { name: "changed", count: signals.length, sample: changedSamples.slice(0, 3) },
+            { name: "needs_review", count: Math.max(blockedSamples.length, actions.length), sample: [...blockedSamples, ...actionSamples].slice(0, 3) },
+            { name: "blocked", count: blockedSamples.length, sample: blockedSamples.slice(0, 3) },
+          ],
+        },
+        notebook: {
+          sectionTitles,
+          htmlPreview: summary ? `<p>${clipText(summary, 220)}</p>` : undefined,
+        },
+        verification: {
+          tier: blockedSamples.length > 0 ? "judge_required" : sourceRefs.length > 0 ? "retrieval" : "deterministic",
+          decisions: [
+            sourceRefs.length > 0
+              ? `Loaded ${sourceRefs.length} source refs from Convex memory.`
+              : "No source refs found in the memory packet.",
+            blockedSamples.length > 0
+              ? `${blockedSamples.length} memory features need review before notebook writes.`
+              : "No failing memory features detected in this bounded packet.",
+          ],
+        },
+        telemetry: {
+          memoryHit: true,
+          sourceCacheHit: sourceRefs.length > 0,
+          candidateCount: 1 + signals.length + actions.length + sourceRefs.length,
+        },
+      };
+    }
+
+    if (context.reportId.startsWith("li_")) {
+      const postId = (ctx.db as any).normalizeId("linkedinPostArchive", context.reportId.slice("li_".length));
+      const post = postId ? await ctx.db.get(postId) as any : null;
+      if (!post) return emptyRuntimeContextPacket(context);
+      const metadata = asRecord(post.metadata) ?? {};
+      const sourceRefs = collectRuntimeSourceRefs(metadata.sourcesUsed ?? metadata.sourceRefs ?? metadata.sources, 12);
+      const title = firstMeaningfulLine(post.content) || `${post.postType ?? "Archive"} - ${post.dateString}`;
+      const summary = clipText(normalizeForContext(post.content), 360);
+
+      return {
+        hasContext: true,
+        contextRef: context.raw,
+        contextKind: context.kind,
+        reportId: context.reportId,
+        artifactKey: context.artifactKey,
+        title: clipText(title, 140),
+        summary,
+        selectedContext: [
+          `Archive report ${post.dateString}: ${clipText(title, 180)}`,
+          clipText(summary, 280),
+          context.artifactKey ? `Selected artifact: ${context.artifactKey}` : "",
+        ].filter(Boolean),
+        rejectedContext: [],
+        sourceRefs,
+        graph: {
+          mode: "bounded_packet",
+          nodeCount: 1 + sourceRefs.length,
+          edgeCount: sourceRefs.length,
+          clusters: [
+            { name: "used", count: sourceRefs.length, sample: sourceRefs.slice(0, 3).map((ref) => ref.title) },
+            { name: "changed", count: 1, sample: [clipText(title, 120)] },
+            { name: "needs_review", count: sourceRefs.length === 0 ? 1 : 0, sample: sourceRefs.length === 0 ? ["No source refs in archive metadata."] : [] },
+            { name: "blocked", count: 0, sample: [] },
+          ],
+        },
+        notebook: {
+          sectionTitles: ["Archive summary", "Evidence", "Next action"],
+          htmlPreview: `<p>${clipText(summary, 220)}</p>`,
+        },
+        verification: {
+          tier: sourceRefs.length > 0 ? "retrieval" : "deterministic",
+          decisions: [
+            sourceRefs.length > 0
+              ? `Loaded ${sourceRefs.length} archive source refs.`
+              : "Archive context loaded without explicit source refs.",
+          ],
+        },
+        telemetry: {
+          memoryHit: true,
+          sourceCacheHit: sourceRefs.length > 0,
+          candidateCount: 1 + sourceRefs.length,
+        },
+      };
+    }
+
+    return emptyRuntimeContextPacket(context);
+  },
+});
+
 function buildBoardState(args: {
   runId: string;
   prompt: string;
@@ -268,7 +618,8 @@ function buildBoardState(args: {
   toolDecisions: PlannerArtifact[];
 } {
   const entityLabel = args.classification.entity ?? "unresolved entity";
-  const hasReportContext = Boolean(args.contextRef);
+  const context = describeContextRef(args.contextRef);
+  const hasReportContext = context.hasContext;
   const contextCandidates: PlannerArtifact[] = [
     {
       id: "user_prompt",
@@ -279,21 +630,30 @@ function buildBoardState(args: {
     },
     {
       id: "active_report",
-      label: hasReportContext ? `Active report ${args.contextRef}` : "Active report",
+      label: hasReportContext ? context.label : "Active report",
       status: hasReportContext ? "selected" : "deferred",
       confidence: hasReportContext ? 0.86 : 0,
       detail: hasReportContext
-        ? "Composer supplied a live report/context reference."
+        ? `Composer supplied a ${context.kind === "graph_packet" ? "bounded graph context packet" : "live report reference"}.`
         : "No active report reference was supplied, so the run stays answer-first.",
     },
     {
       id: "graph_context_packet",
-      label: hasReportContext ? `Graph context for ${args.contextRef}` : "Graph context packet",
+      label: hasReportContext ? `Graph context for ${context.reportId ?? context.raw}` : "Graph context packet",
       status: hasReportContext ? "selected" : "deferred",
       confidence: hasReportContext ? 0.82 : 0,
       detail: hasReportContext
         ? "Resolve a bounded report graph packet before live search: root, first-ring neighbors, source refs, claim refs, and safe action handles."
         : "No report context was supplied, so graph context stays on demand.",
+    },
+    {
+      id: "context_runtime_packet",
+      label: "ContextRuntimePacket",
+      status: hasReportContext ? "selected" : "deferred",
+      confidence: hasReportContext ? 0.8 : 0,
+      detail: hasReportContext
+        ? "Carry selected report, graph neighbors, source refs, verification lane, and write-proposal handles through the run trace."
+        : "No selected report/entity, so the packet starts from prompt-only recall lanes.",
     },
     {
       id: "entity_mention",
@@ -324,7 +684,7 @@ function buildBoardState(args: {
       riskTier: "low",
       costUsd: 0,
       detail: hasReportContext
-        ? "Pack the selected report graph into a token-bounded context packet with source and claim refs."
+        ? "Pack the selected report graph into a token-bounded context packet with human-readable clusters and agent-scored candidates."
         : "Requires a selected report/context reference.",
     },
     {
@@ -362,7 +722,9 @@ function buildBoardState(args: {
       entity: args.classification.entity ?? null,
       tier: args.tier,
       model: args.model,
-      targetReport: args.contextRef ?? null,
+      targetReport: context.reportId,
+      contextRef: context.raw,
+      contextKind: context.kind,
       successCriteria: [
         "classify intent",
         "select available memory/context",
@@ -709,12 +1071,33 @@ export const runStreamingChat = internalAction({
 
       // Stage 2 — context
       const t2 = Date.now();
+      const runtimeContext = await ctx.runQuery(
+        internal.domains.redesign.chatRuns.resolveContextRuntimePacket,
+        { contextRef: args.contextRef },
+      ) as RuntimeContextPacket;
+      await append("context_runtime_packet", runtimeContext);
       const contextBundle = {
         role: "operator",
         style: "evidence-first banker memo",
-        report: args.contextRef ?? "no live artifact selected",
+        report: runtimeContext.hasContext ? runtimeContext.title : "no live artifact selected",
+        contextRef: runtimeContext.contextRef,
+        reportId: runtimeContext.reportId,
+        artifactKey: runtimeContext.artifactKey,
+        summary: runtimeContext.summary,
+        selectedContext: runtimeContext.selectedContext,
+        sourceRefs: runtimeContext.sourceRefs.slice(0, 8),
+        graph: runtimeContext.graph,
+        notebook: runtimeContext.notebook,
+        verification: runtimeContext.verification,
       };
-      const tr2 = { step: "Build context bundle", detail: `${contextBundle.role} · ${contextBundle.style}`, status: "ok" as const, durationMs: Date.now() - t2 };
+      const tr2 = {
+        step: "Build context bundle",
+        detail: runtimeContext.telemetry.memoryHit
+          ? `${contextBundle.role} · ${runtimeContext.title} · ${runtimeContext.sourceRefs.length} source refs`
+          : `${contextBundle.role} · prompt-only context`,
+        status: "ok" as const,
+        durationMs: Date.now() - t2,
+      };
       trace.push(tr2);
       await append("tool_call", tr2);
 
@@ -723,6 +1106,7 @@ export const runStreamingChat = internalAction({
         text: `Plan
 - Prompt: ${args.prompt.slice(0, 80)}${args.prompt.length > 80 ? "…" : ""}
 - Classified as ${classification.kind}${classification.entity ? ` (entity: ${classification.entity})` : ""}
+- Context: ${runtimeContext.telemetry.memoryHit ? `resolved ${runtimeContext.title}` : "prompt-only, no memory hit"}
 - Calling ${args.model} with web-search grounding`,
       });
 
@@ -968,8 +1352,8 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
           sourceCount: evidence.length,
           toolCallCount: trace.length,
           liveSearchCalls: 1,
-          memoryHitRate: args.contextRef ? 1 : 0,
-          sourceCacheHitRate: 0,
+          memoryHitRate: runtimeContext.telemetry.memoryHit ? 1 : 0,
+          sourceCacheHitRate: runtimeContext.telemetry.sourceCacheHit ? 1 : 0,
           timeToFirstSourceMs: firstSourceAt ? firstSourceAt - t0 : null,
           timeToFinalMs: totalLatencyMs,
         },
@@ -990,7 +1374,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
         nextAction: parsed.nextAction,
         sourceCount: evidence.length,
         paidCalls: 1,
-        fromMemory: false,
+        fromMemory: runtimeContext.telemetry.memoryHit,
         trace,
         runtime,
       };
@@ -1012,8 +1396,8 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
         sourceCount: evidence.length,
         toolCallCount: trace.length,
         liveSearchCalls: 1,
-        memoryHitRate: args.contextRef ? 1 : 0,
-        sourceCacheHitRate: 0,
+        memoryHitRate: runtimeContext.telemetry.memoryHit ? 1 : 0,
+        sourceCacheHitRate: runtimeContext.telemetry.sourceCacheHit ? 1 : 0,
         timeToFirstSourceMs: firstSourceAt ? firstSourceAt - t0 : null,
         timeToFinalMs: totalLatencyMs,
       });
