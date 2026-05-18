@@ -100,6 +100,10 @@ export default function RedesignShell() {
   const navigate = useNavigate();
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [forceMobile, setForceMobile] = useState(false);
+  const [wideMode, setWideMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("nodebench:redesign:wide-mode") === "1";
+  });
   // Phase 7d preserves the redesign-specific 760px phone breakpoint.
   // The shared hook is parameterized so other call-sites (CockpitLayout,
   // ExactKit) can opt into their own breakpoint without forking.
@@ -139,7 +143,11 @@ export default function RedesignShell() {
     const query = params.toString();
     navigate(`/redesign/chat?${query}`);
   };
-  const openTouchedReports = () => {
+  const openTouchedReports = (reportId?: string) => {
+    if (reportId && !isPrototypeKit) {
+      navigate(`/redesign/reports/${encodeURIComponent(reportId)}`);
+      return;
+    }
     navigate(isPrototypeKit ? "/redesign/reports?qa=home-v2-implementation" : "/redesign/reports");
   };
   const selectPrototypeRailEntity = (entity: string) => {
@@ -154,12 +162,15 @@ export default function RedesignShell() {
     setSelectedReport(report);
     if (report) setPrototypeEntity(report.entity);
   };
+  const routeReport = surface === "reports" && reportId
+    ? shellLiveArtifacts.reports.find((report) => report.id === reportId) ?? null
+    : null;
   const selectedRailReport =
-    surface === "reports" &&
-    !reportsRailEntityMode &&
-    selectedReport &&
-    normalizeEntityKey(selectedReport.entity) === normalizeEntityKey(prototypeEntity)
-      ? selectedReport
+    surface === "reports" && !reportsRailEntityMode
+      ? routeReport ??
+        (selectedReport && normalizeEntityKey(selectedReport.entity) === normalizeEntityKey(prototypeEntity)
+          ? selectedReport
+          : null)
       : null;
 
   // Optionally lock body scroll while shell is mounted
@@ -169,6 +180,23 @@ export default function RedesignShell() {
     return () => {
       document.body.style.overflow = prev;
     };
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("nodebench:redesign:wide-mode", wideMode ? "1" : "0");
+  }, [wideMode]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key.toLowerCase() !== "w") return;
+      const target = event.target as HTMLElement | null;
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
+      event.preventDefault();
+      setWideMode((current) => !current);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, []);
 
   // Phase 7d (2026-05-08): editorial is the default at /redesign on
@@ -196,8 +224,8 @@ export default function RedesignShell() {
       return (
         <div data-redesign data-redesign-theme={theme} style={{ minHeight: "100dvh", overflow: "auto" }}>
           <HomeV2Surface
-            onAsk={(text) => navigate(`/redesign/chat?q=${encodeURIComponent(text)}`)}
-            onOpenReports={() => navigate("/redesign/reports")}
+            onAsk={sendPromptToChat}
+            onOpenReports={openTouchedReports}
             liveArtifacts={shellLiveArtifacts}
           />
           {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}
@@ -256,6 +284,7 @@ export default function RedesignShell() {
     <div
       data-redesign
       data-redesign-theme={theme}
+      data-wide={wideMode ? "true" : undefined}
       style={{
         height: "100vh",
         overflow: "hidden",
@@ -269,6 +298,8 @@ export default function RedesignShell() {
         onOpenPalette={() => cmdk.setOpen(true)}
         theme={theme}
         onToggleTheme={() => setTheme(theme === "light" ? "dark" : "light")}
+        wideMode={wideMode}
+        onToggleWideMode={() => setWideMode((current) => !current)}
         prototypeMode={isPrototypeKit}
       />
       <div
@@ -384,7 +415,7 @@ export default function RedesignShell() {
 function ReportDetailRoute({ reportId }: { reportId: string }) {
   const liveArtifacts = useLiveArtifacts(60);
   const liveDetail = liveArtifacts.details.find((detail) => detail.id === reportId);
-  return <ReportNotebookView reportId={reportId} liveDetail={liveDetail} showSidebar />;
+  return <ReportNotebookView reportId={reportId} liveDetail={liveDetail} showSidebar={false} />;
 }
 
 function useQaChromeFlag(search: string): boolean {
