@@ -26,11 +26,16 @@ import {
   query,
 } from "../../_generated/server";
 import { internal } from "../../_generated/api";
+import {
+  searchWithFallback,
+  readBoundedResponse,
+  isUrlSafe,
+  GEMINI_API_URL,
+  SEARCH_TIMEOUT_MS,
+  MAX_RESPONSE_BYTES,
+} from "../search/linkupClient.js";
 
 // ── Constants ────────────────────────────────────────────────────────────
-
-const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent";
 
 /** BOUND: max search queries per expansion run */
 const MAX_SEARCH_QUERIES = 5;
@@ -42,10 +47,6 @@ const MAX_EDGES_PER_PATCH = 100;
 const MAX_BACKLINKS_PER_PATCH = 50;
 /** TIMEOUT: total action wall-clock budget (ms) */
 const ACTION_TIMEOUT_MS = 55_000; // 55s to leave headroom under Convex 60s limit
-/** TIMEOUT: per-search timeout (ms) */
-const SEARCH_TIMEOUT_MS = 15_000;
-/** BOUND_READ: max response bytes from Linkup */
-const MAX_RESPONSE_BYTES = 512 * 1024; // 512 KB
 /** Snapshot staleness default */
 const DEFAULT_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 /** BOUND: max key facts in snapshot */
@@ -53,29 +54,6 @@ const MAX_KEY_FACTS = 10;
 /** BOUND: max recent claims in snapshot */
 const MAX_RECENT_CLAIMS = 20;
 
-// ── SSRF blocklist ───────────────────────────────────────────────────────
-
-const SSRF_BLOCKED_PATTERNS = [
-  /^localhost$/i,
-  /^127\./,
-  /^10\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^192\.168\./,
-  /^169\.254\./,
-  /^0\.0\.0\.0$/,
-  /^\[::1\]$/,
-  /^metadata\.google\.internal$/i,
-];
-
-function isUrlSafe(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (!["http:", "https:"].includes(parsed.protocol)) return false;
-    return !SSRF_BLOCKED_PATTERNS.some((p) => p.test(parsed.hostname));
-  } catch {
-    return false;
-  }
-}
 
 // ── Public mutation: start an expansion ──────────────────────────────────
 
@@ -462,114 +440,6 @@ function buildSearchQueries(entityName: string, entityType: string): string[] {
   return queries;
 }
 
-async function searchWithFallback(
-  query: string,
-  linkupKey: string | undefined,
-  geminiKey: string | undefined,
-): Promise<{ snippets: string[]; sources: Array<{ url: string; title: string }> }> {
-  const snippets: string[] = [];
-  const sources: Array<{ url: string; title: string }> = [];
-
-  // Try Linkup first
-  if (linkupKey) {
-    try {
-      const resp = await fetch("https://api.linkup.so/v1/search", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${linkupKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          q: query,
-          depth: "standard",
-          outputType: "sourcedAnswer",
-          includeInlineCitations: true,
-          includeSources: true,
-          maxResults: 6,
-        }),
-        signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
-      });
-
-      if (resp.ok) {
-        // BOUND_READ: limit response size
-        const text = await readBoundedResponse(resp, MAX_RESPONSE_BYTES);
-        const data = JSON.parse(text);
-
-        if (data.answer) snippets.push(data.answer);
-        if (Array.isArray(data.sources)) {
-          for (const s of data.sources.slice(0, 10)) {
-            if (s.url && isUrlSafe(s.url)) {
-              sources.push({ url: s.url, title: s.name ?? s.url });
-              if (s.snippet) snippets.push(s.snippet);
-            }
-          }
-        }
-      }
-    } catch {
-      /* Linkup failed — fall through to Gemini grounding */
-    }
-  }
-
-  // Fallback: Gemini grounding search
-  if (snippets.length === 0 && geminiKey) {
-    try {
-      const resp = await fetch(`${GEMINI_API_URL}?key=${geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `Provide a factual, well-sourced summary about: ${query}\n\nInclude specific facts, numbers, dates, and names. Cite sources where possible.`,
-                },
-              ],
-            },
-          ],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 2000 },
-        }),
-        signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
-      });
-
-      if (resp.ok) {
-        const data = (await resp.json()) as any;
-        const text =
-          data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-        if (text) snippets.push(text);
-      }
-    } catch {
-      /* Gemini also failed — return empty */
-    }
-  }
-
-  return { snippets, sources };
-}
-
-/** BOUND_READ: read response body with size cap */
-async function readBoundedResponse(
-  resp: Response,
-  maxBytes: number,
-): Promise<string> {
-  const reader = resp.body?.getReader();
-  if (!reader) return "";
-
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    totalBytes += value.byteLength;
-    if (totalBytes > maxBytes) {
-      await reader.cancel();
-      break;
-    }
-    chunks.push(value);
-  }
-
-  const decoder = new TextDecoder();
-  return chunks.map((c) => decoder.decode(c, { stream: true })).join("");
-}
 
 interface ExtractedClaim {
   subject: string;

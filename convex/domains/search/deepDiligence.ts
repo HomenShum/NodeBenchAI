@@ -34,6 +34,7 @@ import {
   type ClassifiedSignal,
 } from "./signalTaxonomy.js";
 import { buildSearchForecastGate } from "./searchForecastGate.js";
+import { searchWithFallback, GEMINI_API_URL } from "./linkupClient.js";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -133,7 +134,6 @@ const BRANCHES = [
 ] as const;
 
 const MAX_CHAIN_DEPTH = 3;
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent";
 
 // ── Self-Search Detection ────────────────────────────────────────────────
 
@@ -544,65 +544,6 @@ async function executeBranch(
   };
 }
 
-// ── Search with Fallback ─────────────────────────────────────────────────
-
-async function searchWithFallback(
-  query: string,
-  linkupKey: string | undefined,
-  geminiKey: string | undefined,
-): Promise<{ snippets: string[]; sources: Array<{ url: string; title: string }> }> {
-  const snippets: string[] = [];
-  const sources: Array<{ url: string; title: string }> = [];
-
-  // Try Linkup
-  if (linkupKey) {
-    try {
-      const resp = await fetch("https://api.linkup.so/v1/search", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${linkupKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          q: query,
-          depth: "deep",
-          outputType: "sourcedAnswer",
-          includeInlineCitations: true,
-          includeSources: true,
-          maxResults: 8,
-        }),
-        signal: AbortSignal.timeout(20_000),
-      });
-      if (resp.ok) {
-        const data = (await resp.json()) as any;
-        if (data.answer) snippets.push(data.answer);
-        for (const s of (data.results ?? data.sources ?? []).slice(0, 8)) {
-          if (s.content) snippets.push(s.content.slice(0, 1000));
-          sources.push({ url: s.url ?? "", title: s.name ?? s.title ?? "" });
-        }
-      }
-    } catch { /* fallthrough */ }
-  }
-
-  // Fallback to Gemini grounding
-  if (snippets.length === 0 && geminiKey) {
-    try {
-      const resp = await fetch(`${GEMINI_API_URL}?key=${geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Research this thoroughly. Provide detailed factual information with specific numbers, names, and dates:\n\n${query}` }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 3000 },
-        }),
-        signal: AbortSignal.timeout(20_000),
-      });
-      if (resp.ok) {
-        const data = (await resp.json()) as any;
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-        if (text) snippets.push(text);
-      }
-    } catch { /* fallthrough */ }
-  }
-
-  return { snippets, sources };
-}
 
 // ── Entity Resolution ────────────────────────────────────────────────────
 
