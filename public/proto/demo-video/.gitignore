@@ -1,0 +1,8 @@
+# Rendered video files (too large for git)
+out/*.mp4
+
+# Node modules
+node_modules/
+
+# Remotion temp files
+.remotion/
