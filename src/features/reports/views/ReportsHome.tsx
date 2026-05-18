@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
 import { Check, Link2, Search, Building2, User, Briefcase, TrendingUp, FileText, X } from "lucide-react";
@@ -21,6 +21,7 @@ import { RecentPulseStrip } from "@/features/reports/components/RecentPulseStrip
 import { ReportReadOnlyPanel } from "@/features/reports/components/ReportReadOnlyPanel";
 import { buildReportNotebookPath } from "@/features/reports/lib/reportNotebookRouting";
 import { buildWorkspaceUrl, type WorkspaceTab } from "@/features/workspace/lib/workspaceRouting";
+import { EntityMentionText, seedEntitiesFromReports } from "@/features/notebook/components/EntityMentionText";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -301,9 +302,9 @@ function ReportCard({
             </h3>
           </div>
 
-          {/* Summary */}
+          {/* Summary — entity names become expandable mention chips */}
           <p className="line-clamp-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-            {card.summary}
+            <EntityMentionText text={card.summary || ""} />
           </p>
 
           {relatedPreview.length > 0 ? (
@@ -544,6 +545,18 @@ export function ReportsHome() {
     }
     return deduped;
   }, [liveCards, systemCards]);
+
+  // Seed entity registry for EntityMentionText inline expansion
+  // Side effect — useEffect, not useMemo (seeding mutates global registry)
+  useEffect(() => {
+    seedEntitiesFromReports(
+      cards.map((c) => ({
+        entitySlug: c.slug,
+        title: c.name,
+        entityType: c.entityType,
+      })),
+    );
+  }, [cards]);
 
   const filteredCards = useMemo(() => {
     return filterReportCards(cards, activeFilter);

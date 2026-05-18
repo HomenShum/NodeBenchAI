@@ -34,6 +34,7 @@ import { useProductBootstrap } from "@/features/product/lib/useProductBootstrap"
 import { buildOperatorContextHint, buildOperatorContextLabel } from "@/features/product/lib/operatorContext";
 import { uploadProductDraftFiles } from "@/features/product/lib/uploadDraftFiles";
 import { buildEntityAliasKey } from "../../../../shared/reportArtifacts";
+import { EntityMentionText, seedEntitiesFromReports } from "@/features/notebook/components/EntityMentionText";
 
 const SUGGESTED_PROMPTS = [
   "DISCO - worth reaching out? Fastest debrief.",
@@ -329,6 +330,18 @@ export function HomeLanding() {
     () => buildVisibleHomeReports([...reports, ...projectedSystemReports]),
     [projectedSystemReports, reports],
   );
+
+  // Seed entity registry for EntityMentionText inline expansion
+  useEffect(() => {
+    seedEntitiesFromReports(
+      visibleReports.map((r) => ({
+        entitySlug: r.entitySlug,
+        title: r.title,
+        entityType: r.entityType,
+        primaryEntity: r.primaryEntity,
+      })),
+    );
+  }, [visibleReports]);
   const showPulseCard = isPulsePreviewVisible(pulsePreview);
   const extraPrompts = showAllPrompts ? SUGGESTED_PROMPTS.slice(WEB_KIT_PROMPT_CARDS.length) : [];
 
@@ -705,7 +718,7 @@ export function HomeLanding() {
                     <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 text-gray-400 transition group-hover:text-[var(--accent-primary)]" />
                   </div>
                   <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-[13px] leading-5 text-gray-600 dark:text-gray-300">
-                    {item.summary || "Research run recorded. Verified public claims will appear as sources are extracted."}
+                    <EntityMentionText text={item.summary || "Research run recorded. Verified public claims will appear as sources are extracted."} />
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] text-gray-500 dark:text-gray-400">
                     <span>{item.claimCount} claim{item.claimCount === 1 ? "" : "s"}</span>
@@ -757,7 +770,7 @@ export function HomeLanding() {
                         {item.title}
                       </div>
                       <p className="mt-1 text-[14px] leading-6 text-gray-600 dark:text-gray-300">
-                        {item.summary}
+                        <EntityMentionText text={item.summary || ""} />
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full border border-gray-200 px-2 py-1 text-[11px] text-gray-500 dark:border-white/[0.08] dark:text-gray-400">
@@ -845,7 +858,7 @@ export function HomeLanding() {
                 {r.title}
               </h3>
               <p className="mt-1.5 line-clamp-3 min-h-[4.25em] text-sm leading-5 text-gray-500 dark:text-gray-400">
-                {r.summary}
+                <EntityMentionText text={r.summary || ""} />
               </p>
               <div className="mt-auto pt-3">
                 <span className="block text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
