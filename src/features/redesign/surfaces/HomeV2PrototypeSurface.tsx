@@ -2278,7 +2278,7 @@ function HomeV3FrontPage({
       <div className="rd-v3-home-composer-shell">
         <div className="rd-v3-home-composer-head">
           <span>Ask first</span>
-          <h1>What are we researching today?</h1>
+          <h1>Ask once. Turn it into reusable intelligence.</h1>
           <p>{model.heroSub}</p>
         </div>
         <UniversalComposer
