@@ -40,10 +40,26 @@ import {
 } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import {
+  decideLiveGrounding,
+  type LiveGroundingDecision,
+} from "../../../shared/redesign/contextRuntimePolicy";
+import {
+  classifyEvidenceVerification,
+  type EvidenceVerificationState,
+} from "../../../shared/redesign/sourceVerificationPolicy";
 
 // ───────── Types ─────────
 
-type EvidenceRow = { idx: number; quote: string; source: string };
+type EvidenceRow = {
+  idx: number;
+  quote: string;
+  source: string;
+  sourceProvider?: string;
+  verificationState?: EvidenceVerificationState;
+  verificationDetail?: string;
+  blocking?: boolean;
+};
 type TraceRow = {
   step: string;
   detail: string;
@@ -612,6 +628,8 @@ function buildBoardState(args: {
   model: string;
   contextRef?: string;
   classification: { kind: string; entity?: string };
+  runtimeContext: RuntimeContextPacket;
+  liveGrounding: LiveGroundingDecision;
 }): {
   boardState: Record<string, unknown>;
   contextCandidates: PlannerArtifact[];
@@ -620,6 +638,8 @@ function buildBoardState(args: {
   const entityLabel = args.classification.entity ?? "unresolved entity";
   const context = describeContextRef(args.contextRef);
   const hasReportContext = context.hasContext;
+  const contextResolved = args.runtimeContext.telemetry.memoryHit;
+  const liveGroundingStatus = args.liveGrounding.useLiveGrounding ? "selected" : "deferred";
   const contextCandidates: PlannerArtifact[] = [
     {
       id: "user_prompt",
@@ -631,28 +651,34 @@ function buildBoardState(args: {
     {
       id: "active_report",
       label: hasReportContext ? context.label : "Active report",
-      status: hasReportContext ? "selected" : "deferred",
-      confidence: hasReportContext ? 0.86 : 0,
+      status: contextResolved ? "selected" : hasReportContext ? "blocked" : "deferred",
+      confidence: contextResolved ? 0.9 : hasReportContext ? 0.35 : 0,
       detail: hasReportContext
-        ? `Composer supplied a ${context.kind === "graph_packet" ? "bounded graph context packet" : "live report reference"}.`
+        ? contextResolved
+          ? `Resolved ${args.runtimeContext.title} from Convex memory.`
+          : `Composer supplied ${context.raw}, but no canonical Convex record resolved.`
         : "No active report reference was supplied, so the run stays answer-first.",
     },
     {
       id: "graph_context_packet",
       label: hasReportContext ? `Graph context for ${context.reportId ?? context.raw}` : "Graph context packet",
-      status: hasReportContext ? "selected" : "deferred",
-      confidence: hasReportContext ? 0.82 : 0,
+      status: contextResolved ? "selected" : hasReportContext ? "blocked" : "deferred",
+      confidence: contextResolved ? 0.84 : hasReportContext ? 0.25 : 0,
       detail: hasReportContext
-        ? "Resolve a bounded report graph packet before live search: root, first-ring neighbors, source refs, claim refs, and safe action handles."
+        ? contextResolved
+          ? `${args.runtimeContext.graph.nodeCount} nodes, ${args.runtimeContext.graph.edgeCount} edges, ${args.runtimeContext.sourceRefs.length} source refs packed.`
+          : "Graph packet could not be packed because the selected context did not resolve."
         : "No report context was supplied, so graph context stays on demand.",
     },
     {
       id: "context_runtime_packet",
       label: "ContextRuntimePacket",
-      status: hasReportContext ? "selected" : "deferred",
-      confidence: hasReportContext ? 0.8 : 0,
+      status: contextResolved ? "selected" : hasReportContext ? "blocked" : "deferred",
+      confidence: contextResolved ? 0.86 : hasReportContext ? 0.3 : 0,
       detail: hasReportContext
-        ? "Carry selected report, graph neighbors, source refs, verification lane, and write-proposal handles through the run trace."
+        ? contextResolved
+          ? `${args.runtimeContext.selectedContext.length} selected snippets, ${args.runtimeContext.rejectedContext.length} rejected/blocked snippets, ${args.runtimeContext.verification.tier} verification.`
+          : "ContextRuntimePacket exists only as an unresolved reference for this run."
         : "No selected report/entity, so the packet starts from prompt-only recall lanes.",
     },
     {
@@ -670,29 +696,34 @@ function buildBoardState(args: {
     {
       id: "search_memory",
       label: "search_memory",
-      status: hasReportContext ? "selected" : "deferred",
+      status: contextResolved ? "selected" : hasReportContext ? "blocked" : "deferred",
       riskTier: "low",
       costUsd: 0,
-      detail: hasReportContext
-        ? "Use the selected live report as memory context before live grounding."
+      detail: contextResolved
+        ? `Used selected memory packet: ${args.runtimeContext.title}.`
+        : hasReportContext
+        ? "Selected context reference did not resolve to memory."
         : "No report context to search in this anonymous/public run.",
     },
     {
       id: "resolve_report_graph_context",
       label: "resolve_report_graph_context",
-      status: hasReportContext ? "selected" : "deferred",
+      status: contextResolved ? "selected" : hasReportContext ? "blocked" : "deferred",
       riskTier: "low",
       costUsd: 0,
-      detail: hasReportContext
-        ? "Pack the selected report graph into a token-bounded context packet with human-readable clusters and agent-scored candidates."
+      detail: contextResolved
+        ? `Packed bounded graph clusters: ${args.runtimeContext.graph.clusters.map((cluster) => `${cluster.name}:${cluster.count}`).join(", ")}.`
+        : hasReportContext
+        ? "Graph context was requested but not resolvable."
         : "Requires a selected report/context reference.",
     },
     {
       id: "google_search_grounding",
       label: "google_search grounding",
-      status: "selected",
+      status: liveGroundingStatus,
       riskTier: "medium",
-      detail: "Fresh external evidence is needed, so Gemini grounded search is enabled.",
+      costUsd: args.liveGrounding.useLiveGrounding ? undefined : 0,
+      detail: args.liveGrounding.reason,
     },
     {
       id: "verify_sources",
@@ -752,16 +783,21 @@ function parseMemo(text: string): ParsedMemo {
   const sections: Record<string, string[]> = { short: [], why: [], evidence: [], risks: [], next: [] };
   let current: keyof typeof sections | null = null;
   for (const line of lines) {
-    const lower = line.toLowerCase();
-    if (/^(#+\s*)?short answer/.test(lower) || /^1\.?\s*short/.test(lower)) { current = "short"; continue; }
-    if (/^(#+\s*)?why/.test(lower) || /^2\.?\s*why/.test(lower)) { current = "why"; continue; }
-    if (/^(#+\s*)?evidence/.test(lower) || /^3\.?\s*evidence/.test(lower)) { current = "evidence"; continue; }
-    if (/^(#+\s*)?risk/.test(lower) || /^4\.?\s*risk/.test(lower)) { current = "risks"; continue; }
-    if (/^(#+\s*)?next action/.test(lower) || /^5\.?\s*next/.test(lower)) { current = "next"; continue; }
+    const lower = line
+      .replace(/^#+\s*/, "")
+      .replace(/^\*\*(.+?)\*\*:?$/, "$1")
+      .replace(/^\d+[\).\s-]+/, "")
+      .toLowerCase();
+    if (/^short answer\b/.test(lower) || /^short\b/.test(lower)) { current = "short"; continue; }
+    if (/^why\b/.test(lower)) { current = "why"; continue; }
+    if (/^evidence\b/.test(lower)) { current = "evidence"; continue; }
+    if (/^risks?\b/.test(lower) || /^unknowns?\b/.test(lower)) { current = "risks"; continue; }
+    if (/^next action\b/.test(lower) || /^next\b/.test(lower)) { current = "next"; continue; }
     if (current) sections[current].push(line.replace(/^[-*•]\s*/, ""));
   }
-  const shortAnswer = sections.short.join(" ").trim() || (lines[0] ?? "").slice(0, 240);
-  const whyItMatters = sections.why.join(" ").trim() || (lines[1] ?? "").slice(0, 480);
+  const fallbackLines = lines.filter((line) => !/^\*\*(to|from|date|subject):\*\*/i.test(line));
+  const shortAnswer = sections.short.join(" ").trim() || (fallbackLines[0] ?? "").slice(0, 240);
+  const whyItMatters = sections.why.join(" ").trim() || (fallbackLines[1] ?? "").slice(0, 480);
   const risks = sections.risks.length > 0
     ? sections.risks.slice(0, 4)
     : ["Grounded sources may not reflect the very latest events — re-run before any irreversible action."];
@@ -1053,6 +1089,20 @@ export const runStreamingChat = internalAction({
       trace.push(tr1);
       await append("tool_call", tr1);
       await append("stage", { stage: "classified", classification });
+      // Stage 2 — context
+      const t2 = Date.now();
+      const runtimeContext = await ctx.runQuery(
+        internal.domains.redesign.chatRuns.resolveContextRuntimePacket,
+        { contextRef: args.contextRef },
+      ) as RuntimeContextPacket;
+      const liveGrounding = decideLiveGrounding({
+        prompt: args.prompt,
+        hasContext: runtimeContext.hasContext,
+        memoryHit: runtimeContext.telemetry.memoryHit,
+        sourceCacheHit: runtimeContext.telemetry.sourceCacheHit,
+        selectedContextCount: runtimeContext.selectedContext.length,
+        sourceRefCount: runtimeContext.sourceRefs.length,
+      });
       const planner = buildBoardState({
         runId: args.runId,
         prompt: args.prompt,
@@ -1060,6 +1110,8 @@ export const runStreamingChat = internalAction({
         model: args.model,
         contextRef: args.contextRef,
         classification,
+        runtimeContext,
+        liveGrounding,
       });
       await append("board_state", planner.boardState);
       for (const candidate of planner.contextCandidates) {
@@ -1068,14 +1120,8 @@ export const runStreamingChat = internalAction({
       for (const decision of planner.toolDecisions) {
         await append("tool_decision", decision);
       }
-
-      // Stage 2 — context
-      const t2 = Date.now();
-      const runtimeContext = await ctx.runQuery(
-        internal.domains.redesign.chatRuns.resolveContextRuntimePacket,
-        { contextRef: args.contextRef },
-      ) as RuntimeContextPacket;
       await append("context_runtime_packet", runtimeContext);
+      await append("live_grounding_decision", liveGrounding);
       const contextBundle = {
         role: "operator",
         style: "evidence-first banker memo",
@@ -1107,7 +1153,8 @@ export const runStreamingChat = internalAction({
 - Prompt: ${args.prompt.slice(0, 80)}${args.prompt.length > 80 ? "…" : ""}
 - Classified as ${classification.kind}${classification.entity ? ` (entity: ${classification.entity})` : ""}
 - Context: ${runtimeContext.telemetry.memoryHit ? `resolved ${runtimeContext.title}` : "prompt-only, no memory hit"}
-- Calling ${args.model} with web-search grounding`,
+- Live grounding: ${liveGrounding.useLiveGrounding ? "enabled" : "skipped"} (${liveGrounding.reason})
+- Calling ${args.model}${liveGrounding.useLiveGrounding ? " with web-search grounding" : " against selected memory context"}`,
       });
 
       // Stage 3 — Gemini streaming with grounding
@@ -1120,14 +1167,14 @@ export const runStreamingChat = internalAction({
       const probeSection = args.probeMaskedSourceUrl
         ? `\n\nIMPORTANT — counterfactual probe: The source previously at <${args.probeMaskedSourceUrl}> (originally cited as [${args.probeMaskedSourceIdx ?? "?"}] in run ${args.probeOriginRunId ?? "?"}) is being treated as UNRELIABLE for this answer. DO NOT cite it. DO NOT use it as the basis for any claim. Re-answer the same prompt and explicitly note in "Risks / unknowns" how the conclusion changes (or holds) if that source is excluded. Prefer alternative grounded sources.`
         : "";
-      const systemPrompt = `You are NodeBench's evidence-first analyst. Produce a banker-style memo with:
+      const systemPrompt = `You are NodeBench's evidence-first analyst. Produce a banker-style memo. Do not include To, From, Date, or Subject headers. Use exactly these markdown section headings:
 1. Short answer (one sentence with citation markers like [1] [2])
 2. Why it matters (one paragraph with citation markers)
 3. Evidence (3-5 bullets, each citing a source)
 4. Risks / unknowns (2-3 bullets)
 5. Next action (one imperative sentence)
 
-Use [1], [2], [3] inline cite markers in the prose. Keep claims grounded in the web sources you retrieve. Prefer recency. If you can't find grounded evidence, say so explicitly.
+Use [1], [2], [3] inline cite markers in the prose. ${liveGrounding.useLiveGrounding ? "Keep claims grounded in the web sources you retrieve. Prefer recency." : "Use only the selected memory/context packet and cached source refs; do not imply a fresh web search was performed."} If you can't find grounded evidence, say so explicitly.
 
 Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
       // Emit a stage event so the UI can show "Probing without [N]" / "Carrying forward N pins"
@@ -1159,7 +1206,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: systemPrompt }] },
             contents: [{ role: "user", parts: [{ text: args.prompt }] }],
-            tools: [{ google_search: {} }],
+            ...(liveGrounding.useLiveGrounding ? { tools: [{ google_search: {} }] } : {}),
             generationConfig: { temperature: 0.3, maxOutputTokens: 1500 },
           }),
           signal: controller.signal,
@@ -1225,7 +1272,9 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
         clearTimeout(timeoutId);
         const tr3 = {
           step: "Gemini synthesis",
-          detail: `${args.model} · grounded · ${groundingChunks.length} chunks`,
+          detail: liveGrounding.useLiveGrounding
+            ? `${args.model} · grounded · ${groundingChunks.length} chunks`
+            : `${args.model} · memory-first · live search skipped`,
           status: "ok" as const,
           durationMs: Date.now() - t3,
         };
@@ -1242,7 +1291,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
 
       // Stage 4 — bind evidence
       let fallbackSources: FallbackSourceSnippet[] = [];
-      if (groundingChunks.length === 0) {
+      if (liveGrounding.useLiveGrounding && groundingChunks.length === 0) {
         const tFallback = Date.now();
         const fallback = await runFallbackSourceSearch(args.prompt);
         fallbackSources = fallback.snippets;
@@ -1275,14 +1324,28 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
         const title = chunk.web?.title ?? host;
         const support = groundingSupports.find((s) => s.groundingChunkIndices?.includes(i));
         const quote = support?.segment?.text?.trim() || `Cited from ${title}`;
-        return { idx: i + 1, quote: quote.slice(0, 240), source: url || title };
+        return { idx: i + 1, quote: quote.slice(0, 240), source: url || title, sourceProvider: "gemini_grounding" };
       });
       const fallbackEvidence: EvidenceRow[] = fallbackSources.map((source, i) => ({
         idx: i + 1,
         quote: source.snippet.slice(0, 240),
         source: source.url,
+        sourceProvider: source.provider,
       }));
-      const evidence = geminiEvidence.length > 0 ? geminiEvidence : fallbackEvidence;
+      const memoryEvidence: EvidenceRow[] = runtimeContext.sourceRefs
+        .filter((source) => source.url || source.source || source.title)
+        .slice(0, 6)
+        .map((source, i) => ({
+          idx: i + 1,
+          quote: clipText(source.excerpt || `Cached source: ${source.title}`, 240),
+          source: source.url || source.source || source.title,
+          sourceProvider: source.url ? "source_cache" : "memory_cache",
+        }));
+      const evidence = geminiEvidence.length > 0
+        ? geminiEvidence
+        : fallbackEvidence.length > 0
+          ? fallbackEvidence
+          : memoryEvidence;
       if (evidence.length > 0 && !/\[\d+\]/.test(parsed.shortAnswer)) {
         parsed.shortAnswer = `${parsed.shortAnswer} [1]`;
       }
@@ -1291,7 +1354,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
       }
       const tr4 = {
         step: "Bind evidence",
-        detail: `${evidence.length} citations from ${groundingChunks.length} Gemini chunks + ${fallbackSources.length} fallback sources`,
+        detail: `${evidence.length} citations from ${groundingChunks.length} Gemini chunks + ${fallbackSources.length} fallback sources + ${memoryEvidence.length} cached sources`,
         status: (evidence.length > 0 ? "ok" : "warn") as "ok" | "warn",
         durationMs: Date.now() - t4,
       };
@@ -1343,6 +1406,8 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
           source: row.source,
           detail: "Evidence row bound; background validator will confirm quote support.",
         })),
+        contextPacket: runtimeContext,
+        liveGroundingDecision: liveGrounding,
         metrics: {
           runId: args.runId,
           totalLatencyMs,
@@ -1351,7 +1416,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
           paidCalls: 1,
           sourceCount: evidence.length,
           toolCallCount: trace.length,
-          liveSearchCalls: 1,
+          liveSearchCalls: liveGrounding.useLiveGrounding ? 1 : 0,
           memoryHitRate: runtimeContext.telemetry.memoryHit ? 1 : 0,
           sourceCacheHitRate: runtimeContext.telemetry.sourceCacheHit ? 1 : 0,
           timeToFirstSourceMs: firstSourceAt ? firstSourceAt - t0 : null,
@@ -1395,7 +1460,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
         paidCalls: 1,
         sourceCount: evidence.length,
         toolCallCount: trace.length,
-        liveSearchCalls: 1,
+        liveSearchCalls: liveGrounding.useLiveGrounding ? 1 : 0,
         memoryHitRate: runtimeContext.telemetry.memoryHit ? 1 : 0,
         sourceCacheHitRate: runtimeContext.telemetry.sourceCacheHit ? 1 : 0,
         timeToFirstSourceMs: firstSourceAt ? firstSourceAt - t0 : null,
@@ -1513,16 +1578,49 @@ export const validateRunSources = internalAction({
     const totalDeadline = Date.now() + VALIDATION_TOTAL_TIMEOUT_MS;
     const row: any = await ctx.runQuery(internal.domains.redesign.chatRuns.getRunForValidation, { runId: args.runId });
     if (!row?.packet?.evidence?.length) return;
-    const evidence: Array<{ idx: number; source: string; quote: string }> = row.packet.evidence;
-    const updates: Array<{ idx: number; verified: boolean; validationError?: string }> = [];
+    const evidence: EvidenceRow[] = row.packet.evidence;
+    const updates: Array<{
+      idx: number;
+      verified: boolean;
+      validationError?: string;
+      verificationState: EvidenceVerificationState;
+      verificationDetail: string;
+      status: string;
+      blocking: boolean;
+    }> = [];
     const tasks = evidence.map((e) => async () => {
-      if (Date.now() > totalDeadline) return { idx: e.idx, verified: false, validationError: "global_timeout" };
+      if (Date.now() > totalDeadline) {
+        const decision = classifyEvidenceVerification({
+          source: e.source,
+          sourceProvider: e.sourceProvider,
+          fetchedOk: false,
+          fetchReason: "global_timeout",
+        });
+        return { idx: e.idx, verified: decision.verified, validationError: "global_timeout", verificationState: decision.state, verificationDetail: decision.detail, status: decision.status, blocking: decision.blocking };
+      }
       const url = e.source;
-      if (!/^https?:\/\//i.test(url)) return { idx: e.idx, verified: false, validationError: "not_a_url" };
+      if (!/^https?:\/\//i.test(url)) {
+        const decision = classifyEvidenceVerification({ source: url, sourceProvider: e.sourceProvider });
+        return { idx: e.idx, verified: decision.verified, validationError: "not_a_url", verificationState: decision.state, verificationDetail: decision.detail, status: decision.status, blocking: decision.blocking };
+      }
       const fetched = await fetchPageText(url);
-      if (!fetched.ok) return { idx: e.idx, verified: false, validationError: fetched.reason };
+      if (!fetched.ok) {
+        const decision = classifyEvidenceVerification({
+          source: url,
+          sourceProvider: e.sourceProvider,
+          fetchedOk: false,
+          fetchReason: fetched.reason,
+        });
+        return { idx: e.idx, verified: decision.verified, validationError: fetched.reason, verificationState: decision.state, verificationDetail: decision.detail, status: decision.status, blocking: decision.blocking };
+      }
       const ok = quoteIsSubstring(e.quote, fetched.text);
-      return { idx: e.idx, verified: ok, validationError: ok ? undefined : "quote_not_in_body" };
+      const decision = classifyEvidenceVerification({
+        source: url,
+        sourceProvider: e.sourceProvider,
+        fetchedOk: true,
+        quoteMatched: ok,
+      });
+      return { idx: e.idx, verified: decision.verified, validationError: ok ? undefined : "quote_not_in_body", verificationState: decision.state, verificationDetail: decision.detail, status: decision.status, blocking: decision.blocking };
     });
     const POOL = 4;
     let cursor = 0;
@@ -1530,25 +1628,39 @@ export const validateRunSources = internalAction({
       while (cursor < tasks.length) {
         const i = cursor++;
         try { updates.push(await tasks[i]()); }
-        catch (err: any) { updates.push({ idx: evidence[i].idx, verified: false, validationError: (err?.message || "error").slice(0, 60) }); }
+        catch (err: any) {
+          const validationError = (err?.message || "error").slice(0, 60);
+          const decision = classifyEvidenceVerification({
+            source: evidence[i].source,
+            sourceProvider: evidence[i].sourceProvider,
+            fetchedOk: false,
+            fetchReason: validationError,
+          });
+          updates.push({ idx: evidence[i].idx, verified: decision.verified, validationError, verificationState: decision.state, verificationDetail: decision.detail, status: decision.status, blocking: decision.blocking });
+        }
       }
     });
     await Promise.all(workers);
+    updates.sort((a, b) => a.idx - b.idx);
     await ctx.runMutation(internal.domains.redesign.chatRuns.patchEvidenceVerification, {
       runId: args.runId,
       verifications: updates,
     });
     const verifiedCount = updates.filter((u) => u.verified).length;
+    const softWarningCount = updates.filter((u) => !u.verified && !u.blocking).length;
     for (const update of updates) {
       await ctx.runMutation(internal.domains.redesign.chatRuns.appendEvent, {
         runId: args.runId,
         eventType: "claim_check",
         payload: {
           idx: update.idx,
-          status: update.verified ? "source_validation_passed" : "source_validation_failed",
+          status: update.status,
           method: "url_substring_validation",
           verified: update.verified,
           validationError: update.validationError,
+          verificationState: update.verificationState,
+          verificationDetail: update.verificationDetail,
+          blocking: update.blocking,
         } as any,
       });
     }
@@ -1557,8 +1669,24 @@ export const validateRunSources = internalAction({
       eventType: "sources_validated",
       payload: {
         verified: verifiedCount,
+        softWarnings: softWarningCount,
         total: updates.length,
-        unverified: updates.filter((u) => !u.verified).map((u) => ({ idx: u.idx, reason: u.validationError })),
+        unverified: updates.filter((u) => u.blocking).map((u) => ({
+          idx: u.idx,
+          reason: u.validationError,
+          status: u.status,
+          verificationState: u.verificationState,
+          verificationDetail: u.verificationDetail,
+          blocking: u.blocking,
+        })),
+        warnings: updates.filter((u) => !u.verified && !u.blocking).map((u) => ({
+          idx: u.idx,
+          reason: u.validationError,
+          status: u.status,
+          verificationState: u.verificationState,
+          verificationDetail: u.verificationDetail,
+          blocking: u.blocking,
+        })),
       } as any,
     });
   },
@@ -1581,6 +1709,10 @@ export const patchEvidenceVerification = internalMutation({
       idx: v.number(),
       verified: v.boolean(),
       validationError: v.optional(v.string()),
+      verificationState: v.optional(v.string()),
+      verificationDetail: v.optional(v.string()),
+      status: v.optional(v.string()),
+      blocking: v.optional(v.boolean()),
     })),
   },
   handler: async (ctx, args) => {
@@ -1589,30 +1721,67 @@ export const patchEvidenceVerification = internalMutation({
       .withIndex("by_runId", (q) => q.eq("runId", args.runId))
       .first();
     if (!row?.packet) return;
-    const byIdx = new Map<number, { verified: boolean; validationError?: string }>();
-    for (const u of args.verifications) byIdx.set(u.idx, { verified: u.verified, validationError: u.validationError });
+    const byIdx = new Map<number, {
+      verified: boolean;
+      validationError?: string;
+      verificationState?: string;
+      verificationDetail?: string;
+      status?: string;
+      blocking?: boolean;
+    }>();
+    for (const u of args.verifications) {
+      byIdx.set(u.idx, {
+        verified: u.verified,
+        validationError: u.validationError,
+        verificationState: u.verificationState,
+        verificationDetail: u.verificationDetail,
+        status: u.status,
+        blocking: u.blocking,
+      });
+    }
     const evidence = (row.packet.evidence ?? []).map((e: any) => {
       const u = byIdx.get(e.idx);
       if (!u) return e;
-      return { ...e, verified: u.verified, verifiedAt: Date.now(), validationError: u.validationError };
+      return {
+        ...e,
+        verified: u.verified,
+        verifiedAt: Date.now(),
+        validationError: u.validationError,
+        verificationState: u.verificationState,
+        verificationDetail: u.verificationDetail,
+        blocking: u.blocking,
+      };
     });
     const verifiedCount = evidence.filter((e: any) => e.verified).length;
+    const softWarningCount = evidence.filter((e: any) => e.verified === false && e.blocking === false).length;
+    const unsupportedCount = evidence.filter((e: any) => e.blocking === true).length;
+    const cachedCount = evidence.filter((e: any) => e.verificationState === "cached_reference").length;
+    const fetchBlockedCount = evidence.filter((e: any) => e.verificationState === "fetch_blocked").length;
+    const providerGroundedCount = evidence.filter((e: any) => e.verificationState === "provider_grounded").length;
     const runtime = row.packet.runtime
       ? {
           ...row.packet.runtime,
           claimChecks: evidence.map((e: any) => ({
             idx: e.idx,
-            status: e.verified ? "source_validation_passed" : "source_validation_failed",
+            status: e.verified ? "source_validation_passed" : e.verificationState ?? "source_validation_failed",
             method: "url_substring_validation",
             source: e.source,
             verified: e.verified,
             validationError: e.validationError,
-            detail: e.verified ? "Quote substring confirmed in source body." : "Quote substring was not confirmed in source body.",
+            verificationState: e.verificationState,
+            verificationDetail: e.verificationDetail,
+            blocking: e.blocking,
+            detail: e.verificationDetail ?? (e.verified ? "Quote substring confirmed in source body." : "Quote substring was not confirmed in source body."),
           })),
           metrics: {
             ...(row.packet.runtime.metrics ?? {}),
             sourceCount: evidence.length,
             verifiedSourceCount: verifiedCount,
+            softWarningSourceCount: softWarningCount,
+            unsupportedSourceCount: unsupportedCount,
+            cachedSourceCount: cachedCount,
+            fetchBlockedSourceCount: fetchBlockedCount,
+            providerGroundedSourceCount: providerGroundedCount,
           },
         }
       : undefined;
@@ -1622,6 +1791,8 @@ export const patchEvidenceVerification = internalMutation({
         evidence,
         sourceCount: evidence.length,
         verifiedSourceCount: verifiedCount,
+        softWarningSourceCount: softWarningCount,
+        unsupportedSourceCount: unsupportedCount,
         ...(runtime ? { runtime } : {}),
       },
     });

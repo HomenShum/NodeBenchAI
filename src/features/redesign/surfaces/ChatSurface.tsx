@@ -249,6 +249,54 @@ function formatRailUsd(value?: number | null): string {
   return `$${value.toFixed(2)}`;
 }
 
+function isBlockingClaimCheck(check: { status?: string; verified?: boolean; blocking?: boolean; verificationState?: string }): boolean {
+  return check.blocking === true || check.verificationState === "unsupported" || check.status === "source_validation_failed";
+}
+
+function sourceTrustBadge(row: {
+  verified?: boolean;
+  validationError?: string;
+  verificationState?: string;
+  verificationDetail?: string;
+}): { label: string; title: string; color: string } | null {
+  if (row.verified === true || row.verificationState === "verified") {
+    return {
+      label: "verified in source body",
+      title: row.verificationDetail ?? "Quote substring confirmed in source body.",
+      color: "var(--rd-green, #15803d)",
+    };
+  }
+  if (row.verificationState === "cached_reference") {
+    return {
+      label: "cached reference",
+      title: row.verificationDetail ?? "Cached memory/source-cache reference; no URL fetch was available.",
+      color: "var(--rd-amber, #b45309)",
+    };
+  }
+  if (row.verificationState === "fetch_blocked") {
+    return {
+      label: "fetch blocked",
+      title: row.verificationDetail ?? `Publisher fetch blocked post-hoc validation: ${row.validationError ?? "unknown reason"}`,
+      color: "var(--rd-amber, #b45309)",
+    };
+  }
+  if (row.verificationState === "provider_grounded") {
+    return {
+      label: "provider-grounded",
+      title: row.verificationDetail ?? "Search provider supplied the source, but the exact snippet was not found during post-hoc fetch.",
+      color: "var(--rd-amber, #b45309)",
+    };
+  }
+  if (row.verified === false || row.verificationState === "unsupported") {
+    return {
+      label: `unsupported (${row.validationError ?? "no_match"})`,
+      title: row.verificationDetail ?? `Source validation failed: ${row.validationError ?? "unknown reason"}`,
+      color: "var(--rd-red, #b91c1c)",
+    };
+  }
+  return null;
+}
+
 function buildLiveContextRef(detail: LiveArtifactDetail | null, artifactKey?: string | null): string | undefined {
   if (!detail) return undefined;
   const base = buildGraphContextBridgePacket({ detail, mode: "agent" }).contextRef;
@@ -292,13 +340,19 @@ function buildChatAgentRailSnapshot(args: {
   const isRunning = chatState.status === "thinking" || run?.status === "pending" || run?.status === "running";
   const hasAnswer = Boolean(activePacket?.shortAnswer);
   const runtime = run?.runtime ?? activePacket?.runtime;
+  const runtimeContextPacket = runtime?.contextPacket;
+  const liveGroundingDecision = runtime?.liveGroundingDecision;
   const contextCandidates = runtime?.contextCandidates ?? [];
   const toolDecisions = runtime?.toolDecisions ?? [];
   const claimChecks = runtime?.claimChecks ?? [];
   const metrics = runtime?.metrics;
   const sourceCount = metrics?.sourceCount ?? run?.groundingChunks.length ?? activePacket?.sourceCount ?? liveDetail?.sourceCount ?? 0;
-  const verifiedSourceCount = metrics?.verifiedSourceCount ?? claimChecks.filter((check) => check.verified !== false).length;
-  const blockedClaimCount = claimChecks.filter((check) => check.verified === false || check.status === "source_validation_failed").length;
+  const verifiedSourceCount = metrics?.verifiedSourceCount ?? claimChecks.filter((check) => check.verified === true).length;
+  const softWarningSourceCount = metrics?.softWarningSourceCount
+    ?? claimChecks.filter((check) => check.verified === false && !isBlockingClaimCheck(check)).length;
+  const unsupportedSourceCount = metrics?.unsupportedSourceCount
+    ?? claimChecks.filter((check) => isBlockingClaimCheck(check)).length;
+  const blockedClaimCount = unsupportedSourceCount;
   const toolCallCount = metrics?.toolCallCount ?? run?.toolCalls.length ?? activePacket?.trace.length ?? 0;
   const estimatedCost = metrics?.estimatedCostUsd ?? run?.estimatedCostUsd ?? 0;
   const latency = metrics?.timeToFinalMs ?? metrics?.totalLatencyMs ?? run?.totalLatencyMs;
@@ -335,27 +389,33 @@ function buildChatAgentRailSnapshot(args: {
       id: "memory",
       label: "Search memory and current reports",
       status: memoryStatus,
-      detail: contextCandidates[0]?.detail ?? (liveDetail ? `${liveDetail.title} selected from live Convex memory.` : "Runs before any live source refresh."),
+      detail: runtimeContextPacket?.hasContext
+        ? `${runtimeContextPacket.title}: ${runtimeContextPacket.selectedContext.length} selected context items, ${runtimeContextPacket.sourceRefs.length} source refs.`
+        : contextCandidates[0]?.detail ?? (liveDetail ? `${liveDetail.title} selected from live Convex memory.` : "Runs before any live source refresh."),
     },
     {
       id: "graph-context",
       label: "Resolve graph context packet",
-      status: graphPacket ? "done" : isRunning ? "running" : "queued",
-      detail: graphPacket?.agentSummary ?? "Packs first-ring report graph, source refs, and safe action handles.",
+      status: runtimeContextPacket?.hasContext ? "done" : graphPacket ? "done" : isRunning ? "running" : "queued",
+      detail: runtimeContextPacket?.hasContext
+        ? `${runtimeContextPacket.graph.nodeCount} nodes, ${runtimeContextPacket.graph.edgeCount} edges, ${runtimeContextPacket.verification.tier} verification.`
+        : graphPacket?.agentSummary ?? "Packs first-ring report graph, source refs, and safe action handles.",
     },
     {
       id: "tools",
       label: "Invoke tools and source retrieval",
       status: toolDecisions.length > 0 ? agentStatusFromPlanner(toolDecisions[0].status) : sourceStatus,
-      detail: toolDecisions[0]?.detail ?? `${toolCallCount} tool-call cards, ${sourceCount} source rows.`,
+      detail: liveGroundingDecision
+        ? `${liveGroundingDecision.useLiveGrounding ? "Live grounding enabled" : "Live grounding skipped"}: ${liveGroundingDecision.reason}`
+        : toolDecisions[0]?.detail ?? `${toolCallCount} tool-call cards, ${sourceCount} source rows.`,
     },
     {
       id: "verify",
       label: "Verify citations and claim support",
       status: verifyStatus,
       detail: blockedClaimCount > 0
-        ? `${blockedClaimCount} claim check${blockedClaimCount === 1 ? "" : "s"} need review.`
-        : `${verifiedSourceCount || 0}/${sourceCount || 0} sources verified or cached.`,
+        ? `${blockedClaimCount} source${blockedClaimCount === 1 ? "" : "s"} unsupported; ${softWarningSourceCount} fetch-limited or provider-grounded.`
+        : `${verifiedSourceCount || 0} verified · ${softWarningSourceCount || 0} fetch-limited/provider-grounded · ${sourceCount || 0} total.`,
     },
     {
       id: "packet",
@@ -402,7 +462,15 @@ function buildChatAgentRailSnapshot(args: {
       id: "cost",
       label: "Cost and cache",
       status: estimatedCost > 0 || metrics ? "done" : "queued",
-      detail: `${formatRailUsd(estimatedCost)} estimated - memory ${memoryHitRate} - source cache ${cacheHitRate}${graphPacket ? ` - graph ${graphPacket.packedNodes} nodes` : ""}.`,
+      detail: `${formatRailUsd(estimatedCost)} estimated - memory ${memoryHitRate} - source cache ${cacheHitRate} - live search ${metrics?.liveSearchCalls ?? 0}${runtimeContextPacket ? ` - runtime graph ${runtimeContextPacket.graph.nodeCount} nodes` : graphPacket ? ` - graph ${graphPacket.packedNodes} nodes` : ""}.`,
+    },
+    {
+      id: "context-runtime",
+      label: "Context runtime packet",
+      status: runtimeContextPacket ? runtimeContextPacket.hasContext ? "done" : "blocked" : "queued",
+      detail: runtimeContextPacket
+        ? `${runtimeContextPacket.contextRef ?? "prompt-only"} - ${runtimeContextPacket.telemetry.candidateCount} candidates - ${runtimeContextPacket.rejectedContext.length} rejected.`
+        : "Waiting for server-side ContextRuntimePacket event.",
     },
     {
       id: "graph-packet",
@@ -495,8 +563,10 @@ function buildChatAgentRailSnapshot(args: {
     {
       id: "graph",
       label: "Graph context agent",
-      status: graphPacket ? "done" : "queued",
-      detail: graphPacket?.whySelected[2] ?? "Builds bounded neighborhoods before paid live search.",
+      status: runtimeContextPacket?.hasContext ? "done" : graphPacket ? "done" : "queued",
+      detail: runtimeContextPacket?.hasContext
+        ? runtimeContextPacket.graph.clusters.map((cluster) => `${cluster.name}:${cluster.count}`).join(" · ")
+        : graphPacket?.whySelected[2] ?? "Builds bounded neighborhoods before paid live search.",
     },
     {
       id: "source",
@@ -2506,7 +2576,9 @@ function AnswerPacket({
       <section>
         <div className="rd-eyebrow" style={{ marginBottom: 8 }}>Evidence ({packet.evidence.length})</div>
         <ol className="rd-stack" style={{ gap: 8, listStyle: "none", padding: 0, margin: 0 }}>
-          {packet.evidence.map((e) => (
+          {packet.evidence.map((e) => {
+            const trustBadge = sourceTrustBadge(e);
+            return (
             <li
               key={e.idx}
               className="rd-evidence-row rd-card rd-card__pad-tight"
@@ -2526,23 +2598,13 @@ function AnswerPacket({
               <span className="rd-cite rd-cite--block" data-cite={e.idx}>[{e.idx}]</span>
               <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
                 <p className="rd-body" style={{ margin: 0, fontSize: 13 }}>{e.quote}</p>
-                {/* Phase 6 — substring-validation pill */}
-                {(e as any).verified === true && (
+                {trustBadge && (
                   <span
                     className="rd-mono"
-                    title={`Quote substring confirmed in source body${(e as any).verifiedAt ? ` at ${new Date((e as any).verifiedAt).toLocaleTimeString()}` : ""}`}
-                    style={{ fontSize: 10, color: "var(--rd-green, #15803d)", display: "inline-flex", alignItems: "center", gap: 4 }}
+                    title={trustBadge.title}
+                    style={{ fontSize: 10, color: trustBadge.color, display: "inline-flex", alignItems: "center", gap: 4 }}
                   >
-                    ✓ verified in source body
-                  </span>
-                )}
-                {(e as any).verified === false && (
-                  <span
-                    className="rd-mono"
-                    title={`Source URL did not return the cited quote: ${(e as any).validationError ?? "unknown reason"}`}
-                    style={{ fontSize: 10, color: "var(--rd-amber, #b45309)", display: "inline-flex", alignItems: "center", gap: 4 }}
-                  >
-                    ⚠ unverified ({(e as any).validationError ?? "no_match"})
+                    {e.verified === true ? "ok" : e.blocking ? "blocked" : "warn"} - {trustBadge.label}
                   </span>
                 )}
               </div>
@@ -2560,7 +2622,8 @@ function AnswerPacket({
                 <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>{e.source}</span>
               )}
             </li>
-          ))}
+            );
+          })}
         </ol>
       </section>
 
@@ -2712,8 +2775,10 @@ function RuntimeBoard({ runtime }: { runtime?: ChatAnswer["runtime"] }) {
   const toolDecisions = runtime?.toolDecisions ?? [];
   const claimChecks = runtime?.claimChecks ?? [];
   const metrics = runtime?.metrics;
+  const contextPacket = runtime?.contextPacket;
+  const liveGroundingDecision = runtime?.liveGroundingDecision;
   const boardState = runtime?.boardState ?? {};
-  if (contextCandidates.length === 0 && toolDecisions.length === 0 && claimChecks.length === 0 && !metrics) {
+  if (contextCandidates.length === 0 && toolDecisions.length === 0 && claimChecks.length === 0 && !metrics && !contextPacket) {
     return null;
   }
   const goal = typeof boardState.goal === "string" ? boardState.goal.replace(/_/g, " ") : "answer with cited research";
@@ -2737,7 +2802,33 @@ function RuntimeBoard({ runtime }: { runtime?: ChatAnswer["runtime"] }) {
           <RuntimeMetric label="Cost" value={formatUsd(metrics?.estimatedCostUsd)} />
           <RuntimeMetric label="Latency" value={formatMs(metrics?.totalLatencyMs ?? metrics?.timeToFinalMs)} />
           <RuntimeMetric label="Memory hit" value={formatPct(metrics?.memoryHitRate)} />
+          <RuntimeMetric label="Live search" value={liveGroundingDecision ? liveGroundingDecision.useLiveGrounding ? "on" : "skipped" : `${metrics?.liveSearchCalls ?? 0}`} />
         </div>
+        {contextPacket && (
+          <section className="rd-runtime-table">
+            <div className="rd-runtime-table__title">Context runtime packet</div>
+            <div className="rd-runtime-table__rows">
+              <div className="rd-runtime-row">
+                <span className="rd-runtime-row__status" data-status={contextPacket.hasContext ? "selected" : "blocked"}>
+                  {contextPacket.hasContext ? "resolved" : "unresolved"}
+                </span>
+                <span className="rd-runtime-row__main">{contextPacket.title}</span>
+                <span className="rd-runtime-row__detail">
+                  {contextPacket.graph.nodeCount} nodes · {contextPacket.sourceRefs.length} sources · {contextPacket.verification.tier}
+                </span>
+              </div>
+              {contextPacket.graph.clusters.slice(0, 4).map((cluster) => (
+                <div key={cluster.name} className="rd-runtime-row">
+                  <span className="rd-runtime-row__status" data-status={cluster.name === "blocked" && cluster.count > 0 ? "blocked" : "complete"}>
+                    {cluster.name}
+                  </span>
+                  <span className="rd-runtime-row__main">{cluster.count} item{cluster.count === 1 ? "" : "s"}</span>
+                  <span className="rd-runtime-row__detail">{cluster.sample.join(" · ") || "No sample in packet."}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
         <RuntimeArtifactTable title="Context candidates" rows={contextCandidates} />
         <RuntimeArtifactTable title="Tool decisions" rows={toolDecisions} />
         {claimChecks.length > 0 && (
@@ -2746,9 +2837,9 @@ function RuntimeBoard({ runtime }: { runtime?: ChatAnswer["runtime"] }) {
             <div className="rd-runtime-table__rows">
               {claimChecks.slice(0, 6).map((row, index) => (
                 <div key={`${row.idx}-${row.status}-${index}`} className="rd-runtime-row">
-                  <span className="rd-runtime-row__status" data-status={row.verified === false ? "blocked" : row.status}>{row.status}</span>
+                  <span className="rd-runtime-row__status" data-status={isBlockingClaimCheck(row) ? "blocked" : row.verified === false ? "warning" : row.status}>{row.status}</span>
                   <span className="rd-runtime-row__main">Source [{row.idx}]</span>
-                  <span className="rd-runtime-row__detail">{row.validationError ?? row.detail ?? row.method ?? "verification queued"}</span>
+                  <span className="rd-runtime-row__detail">{row.verificationDetail ?? row.validationError ?? row.detail ?? row.method ?? "verification queued"}</span>
                 </div>
               ))}
             </div>
