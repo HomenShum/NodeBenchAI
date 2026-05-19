@@ -1029,16 +1029,16 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
       <aside className="rd-v2-left rd-v2-left--nav" aria-label="Chat threads">
         <button className="rd-v2-new-thread">+ New thread</button>
         <div className="rd-v2-rail-rule" />
-        <ChatThreadGroup label="Today" items={[
+        <ChatThreadGroup label="Active" items={[
           ["Sequoia ratch...", "Under a 40% do...", "2m", true],
           ["Anthropic pric...", "Enterprise tier mo...", "1h"],
           ["SMB churn in...", "Monthly churn hit...", "3h"],
         ]} />
-        <ChatThreadGroup label="Yesterday" items={[
+        <ChatThreadGroup label="Recent" items={[
           ["Board deck prep", "Q2 financials proj...", "1d"],
           ["Patent filing fo...", "USPTO acknowle...", "1d"],
         ]} />
-        <ChatThreadGroup label="This week" items={[
+        <ChatThreadGroup label="Archived" items={[
           ["Hiring pipelin...", "4 senior engine...", "3d"],
           ["NPS survey a...", "340 responses, o...", "4d"],
         ]} />

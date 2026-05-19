@@ -5681,12 +5681,12 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   grid-column: 1;
   grid-row: 1;
   max-width: 560px;
-  padding: 10px 14px;
-  background: var(--rd-accent-tint);
-  border: 1px solid var(--rd-accent-ring);
-  border-radius: 14px 14px 4px 14px;
-  color: var(--rd-ink);
-  font-size: 13.5px;
+  padding: 8px 12px;
+  background: var(--rd-accent);
+  color: #fff;
+  border-radius: var(--rd-r-md);
+  border-bottom-right-radius: 4px;
+  font-size: 12.5px;
   line-height: 1.5;
 }
 
@@ -6766,7 +6766,158 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   margin-left: auto;
   text-align: right;
   font-size: 10px;
+  opacity: 0.7;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ───────── Action chips (home-v3 parity) ───────── */
+[data-redesign] .rd-action-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+[data-redesign] .rd-action-chip {
+  padding: 3px 9px;
+  border: 1px solid var(--rd-line-faint);
+  border-radius: var(--rd-r-pill, 999px);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--rd-ink-faint);
+  background: none;
+  cursor: pointer;
+  transition: all 100ms;
+}
+[data-redesign] .rd-action-chip:hover {
+  border-color: var(--rd-line-strong, var(--rd-line));
+  color: var(--rd-ink-mute);
+}
+[data-redesign] .rd-action-chip--primary {
+  border-color: var(--rd-line);
+  color: var(--rd-ink-mute);
+  font-weight: 590;
+}
+[data-redesign] .rd-action-chip--primary:hover {
+  border-color: var(--rd-line-strong, var(--rd-line));
+  color: var(--rd-ink);
+}
+
+/* ───────── System event dividers (home-v3 parity) ───────── */
+[data-redesign] .rd-system-event {
+  align-self: stretch;
+  max-width: 100%;
+  width: 100%;
+}
+[data-redesign] .rd-system-event__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  margin: 2px 0;
+}
+[data-redesign] .rd-system-event__line::before,
+[data-redesign] .rd-system-event__line::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rd-line-faint);
+}
+[data-redesign] .rd-system-event__body {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--rd-ink-faint);
+  white-space: normal;
+  font-family: var(--rd-font-sans);
+  letter-spacing: 0.01em;
+  text-align: center;
+  flex-shrink: 1;
+  min-width: 0;
+}
+[data-redesign] .rd-system-event__icon {
+  font-size: 11px;
   opacity: 0.6;
+  line-height: 1;
+}
+[data-redesign] .rd-system-event__body time {
+  color: var(--rd-ink-faint);
+  opacity: 0.7;
+  font-size: 9px;
+}
+
+/* ───────── Minimal feedback buttons (home-v3 parity) ───────── */
+[data-redesign] .rd-feedback {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+[data-redesign] .rd-chat-msg:hover .rd-feedback,
+[data-redesign] .rd-feedback:focus-within {
+  opacity: 1;
+}
+[data-redesign] .rd-fb-btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: var(--rd-r-sm);
+  background: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--rd-ink-faint);
+  transition: all 100ms;
+  padding: 0;
+  line-height: 1;
+}
+[data-redesign] .rd-fb-btn:hover {
+  border-color: var(--rd-line);
+  color: var(--rd-ink-mute);
+  background: var(--rd-paper-warm);
+}
+[data-redesign] .rd-fb-btn[data-active] {
+  color: var(--rd-accent);
+  border-color: var(--rd-accent);
+}
+
+/* ───────── Agent bubble mode (home-v3 parity) ───────── */
+[data-redesign] .rd-chat-msg--assistant .rd-chat-msg__body.rd-agent-bubble {
+  background: var(--rd-paper-warm);
+  border-radius: var(--rd-r-md);
+  border-bottom-left-radius: 4px;
+  padding: 8px 12px;
+  border: none;
+  box-shadow: none;
+}
+[data-redesign] .rd-agent-lead {
+  font-weight: 590;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--rd-ink-strong);
+}
+[data-redesign] .rd-agent-detail {
+  font-size: 12px;
+  color: var(--rd-ink-mute);
+  line-height: 1.5;
+}
+[data-redesign] .rd-tool-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 6px;
+}
+[data-redesign] .rd-tool-badge {
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 500;
+  background: var(--rd-line-faint, rgba(255,255,255,0.04));
+  color: var(--rd-ink-faint);
+  font-family: var(--rd-font-mono);
 }
 
 /* ───────── ⌘K Command Palette ───────── */
