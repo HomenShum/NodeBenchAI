@@ -2459,6 +2459,11 @@
     font-size: 38px;
   }
 
+  [data-redesign] .rd-v3-home-composer-head h1 {
+    font-size: 38px;
+    letter-spacing: -0.8px;
+  }
+
   [data-redesign] .rd-v2-pulse-grid,
   [data-redesign] .rd-v2-pulse-mosaic {
     grid-template-columns: 1fr;
@@ -2470,6 +2475,39 @@
 
   [data-redesign] .rd-v2-proof-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Defense-in-depth: matches JS useViewportMobile(760px) — catches FOUC where desktop shell renders before React hydrates */
+@media (max-width: 768px) {
+  [data-redesign] .rd-shell > .rd-pane:first-child,
+  [data-redesign] .rd-shell--home-v2 > .rd-v2-left,
+  [data-redesign] .rd-v2-briefing,
+  [data-redesign] .rd-pane--right {
+    display: none;
+  }
+
+  [data-redesign] .rd-shell,
+  [data-redesign] .rd-shell--home-v2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-redesign] .rd-shell__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-redesign] .rd-v3-home-composer-head h1 {
+    font-size: 30px;
+    letter-spacing: -0.6px;
+  }
+
+  [data-redesign] .rd-v3-home-composer-head p {
+    max-width: 100%;
+  }
+
+  [data-redesign] .rd-v2-home {
+    max-width: 100%;
+    overflow-x: hidden;
   }
 }
 
@@ -2498,6 +2536,11 @@
 
   [data-redesign] .rd-v2-pulse-head h1 {
     font-size: 34px;
+  }
+
+  [data-redesign] .rd-v3-home-composer-head h1 {
+    font-size: 26px;
+    letter-spacing: -0.4px;
   }
 
   [data-redesign] .rd-v2-pulse-lead,
