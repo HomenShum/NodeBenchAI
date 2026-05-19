@@ -347,6 +347,9 @@ export interface ChatClaimCheck {
   detail?: string;
   verified?: boolean;
   validationError?: string;
+  verificationState?: "verified" | "cached_reference" | "provider_grounded" | "fetch_blocked" | "unsupported";
+  verificationDetail?: string;
+  blocking?: boolean;
 }
 
 export interface ChatRunMetrics {
@@ -357,6 +360,11 @@ export interface ChatRunMetrics {
   paidCalls?: number;
   sourceCount?: number;
   verifiedSourceCount?: number;
+  softWarningSourceCount?: number;
+  unsupportedSourceCount?: number;
+  cachedSourceCount?: number;
+  fetchBlockedSourceCount?: number;
+  providerGroundedSourceCount?: number;
   toolCallCount?: number;
   liveSearchCalls?: number;
   memoryHitRate?: number;
@@ -371,12 +379,52 @@ export interface ChatRuntimeTrace {
   toolDecisions?: ChatRuntimeArtifact[];
   claimChecks?: ChatClaimCheck[];
   metrics?: ChatRunMetrics;
+  contextPacket?: {
+    hasContext: boolean;
+    contextRef: string | null;
+    contextKind: "graph_packet" | "report" | "none";
+    reportId: string | null;
+    artifactKey: string | null;
+    title: string;
+    summary: string;
+    selectedContext: string[];
+    rejectedContext: string[];
+    sourceRefs: Array<{ title: string; url?: string; source?: string; publishedAt?: string; excerpt?: string }>;
+    graph: {
+      mode: "bounded_packet";
+      nodeCount: number;
+      edgeCount: number;
+      clusters: Array<{ name: "used" | "changed" | "needs_review" | "blocked"; count: number; sample: string[] }>;
+    };
+    notebook: { sectionTitles: string[]; htmlPreview?: string };
+    verification: { tier: "deterministic" | "retrieval" | "judge_required"; decisions: string[] };
+    telemetry: { memoryHit: boolean; sourceCacheHit: boolean; candidateCount: number };
+  };
+  liveGroundingDecision?: {
+    useLiveGrounding: boolean;
+    reason: string;
+    confidence: number;
+    freshnessIntent: boolean;
+    memorySufficient: boolean;
+    signals: string[];
+  };
 }
 
 export interface ChatAnswer {
   shortAnswer: string;
   whyItMatters: string;
-  evidence: { idx: number; quote: string; source: string }[];
+  evidence: {
+    idx: number;
+    quote: string;
+    source: string;
+    sourceProvider?: string;
+    verified?: boolean;
+    verifiedAt?: number;
+    validationError?: string;
+    verificationState?: "verified" | "cached_reference" | "provider_grounded" | "fetch_blocked" | "unsupported";
+    verificationDetail?: string;
+    blocking?: boolean;
+  }[];
   risks: string[];
   nextAction: string;
   sourceCount: number;

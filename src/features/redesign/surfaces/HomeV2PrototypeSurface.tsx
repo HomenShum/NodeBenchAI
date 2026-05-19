@@ -1,11 +1,18 @@
-import { useState, type ReactNode } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { showToast } from "../components/Toast";
+import { UniversalComposer, type RouterTier } from "../components/UniversalComposer";
 import type { LiveArtifactsResult, LiveArtifactSourceRow } from "../hooks/useLiveArtifacts";
 import type { ReportCardData } from "../fixtures";
+import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
+
+interface HomeAskContext {
+  reportId?: string;
+  artifactKey?: string;
+}
 
 interface HomeV2SurfaceProps {
-  onAsk?: (prompt: string) => void;
-  onOpenReports?: () => void;
+  onAsk?: (prompt: string, context?: HomeAskContext) => void;
+  onOpenReports?: (reportId?: string) => void;
   liveArtifacts?: LiveArtifactsResult;
 }
 
@@ -70,12 +77,12 @@ const reportEntities = [
     status: "Verified",
     score: 91,
     sources: 12,
-    delta: "▲ 3 from last run",
+    delta: "Updated 2h ago",
     kind: "Partnership intelligence - Company",
     body: "Enterprise tier repriced +40%; Claude 4 Opus structure held. Managed Agent tier launched at $0.168/1K tokens.",
     tags: ["Partnership", "AI", "Enterprise"],
     ref: "Board prep - Q2 strategy - Vendor review",
-    meta: "Confidence 91 · 12 sources · 2 open claims · refreshed 2h ago",
+    meta: "5 of 5 claims verified · 12 sources · refreshed 2h ago",
     dims: { Sources: 95, Freshness: 92, Verification: 80, Coverage: 88 },
     signals: ["Enterprise pricing +40% effective June 1", "Managed Agent tier $0.168/1K tokens", "Partnership compressed $1.2M"],
     related: ["Sequoia Capital", "OpenAI", "Google DeepMind"],
@@ -87,12 +94,12 @@ const reportEntities = [
     status: "Needs review",
     score: 74,
     sources: 8,
-    delta: "▼ declining",
+    delta: "Last checked 1d ago",
     kind: "Term sheet analysis - Investor",
     body: "Full-ratchet anti-dilution at 1x in term sheet v3; 33% below market norm. Board observer seat added at $83M.",
     tags: ["Fundraising", "Term sheet", "Action needed"],
     ref: "Cap table model - Dilution analysis - Deal memo",
-    meta: "Confidence 74 · 8 sources · 3 open claims · review needed",
+    meta: "4 of 7 claims current · 8 sources · review needed",
     dims: { Sources: 72, Freshness: 65, Verification: 58, Coverage: 80 },
     signals: ["Full-ratchet anti-dilution clause added", "Board observer seat at $8.3M", "Counter-bid moved to $80M pre"],
     related: ["Anthropic", "Bug0", "OpenAI"],
@@ -103,12 +110,12 @@ const reportEntities = [
     status: "Verified",
     score: 88,
     sources: 5,
-    delta: "▲ 2 from last run",
+    delta: "Updated 1d ago",
     kind: "Competitive intelligence - Competitor",
     body: "Pricing dropped to $199/mo from $349; SOC 2 Type II obtained. Feature gap narrowing on automated QA.",
     tags: ["Competitive", "QA", "Enterprise"],
     ref: "Competitive matrix - Pricing comparison",
-    meta: "Confidence 88 · 5 sources · 1 open claim · refreshed 1d ago",
+    meta: "4 of 4 claims verified · 5 sources · refreshed 1d ago",
     dims: { Sources: 78, Freshness: 85, Verification: 90, Coverage: 82 },
     signals: ["Pricing dropped to $199/mo from $349", "SOC 2 Type II obtained", "Feature gap narrowing on automated QA"],
     related: ["Anthropic", "OpenAI", "Google DeepMind"],
@@ -119,12 +126,12 @@ const reportEntities = [
     status: "Stale",
     score: 62,
     sources: 4,
-    delta: "▼ stale",
+    delta: "Last checked 3d ago",
     kind: "Market intelligence - Company",
     body: "GPT-5 announcement rumored but unverified; 2 of 5 claims stale after 3 days. Refresh needed.",
     tags: ["AI", "Unverified"],
     ref: "Competitive matrix - API cost model",
-    meta: "Confidence 62 · 4 sources · 3 stale claims · refresh needed",
+    meta: "3 of 5 claims current · 4 sources · refresh needed",
     dims: { Sources: 55, Freshness: 42, Verification: 50, Coverage: 68 },
     signals: ["GPT-5 announcement rumored, unverified", "2 of 5 claims now stale", "API pricing restructure signal"],
     related: ["Anthropic", "Google DeepMind", "Bug0"],
@@ -135,12 +142,12 @@ const reportEntities = [
     status: "Stale",
     score: 55,
     sources: 3,
-    delta: "▼ stale",
+    delta: "Last checked 5d ago",
     kind: "Coverage gap - Company",
     body: "No new signals in 5 days; only 1 of 3 sources still verifiable. Refresh the research and update model capability notes.",
     tags: ["AI", "Research", "Refresh"],
     ref: "Model capability watch - Source ledger",
-    meta: "Confidence 55 · 3 sources · 2 stale claims · refresh needed",
+    meta: "1 of 3 sources still verifiable · 3 sources · refresh needed",
     dims: { Sources: 48, Freshness: 35, Verification: 45, Coverage: 55 },
     signals: ["No new signals in 5 days", "Only 1 of 3 sources still verifiable", "Research tracker needs owner review"],
     related: ["Anthropic", "OpenAI", "Sequoia Capital"],
@@ -148,6 +155,66 @@ const reportEntities = [
 ];
 
 type PrototypeReportEntity = (typeof reportEntities)[number];
+type ReportsRailStatus = "verified" | "review" | "stale" | "drafting" | "monitoring";
+type ReportsRailItem = {
+  icon: string;
+  name: string;
+  status?: ReportsRailStatus;
+  active?: boolean;
+};
+
+const reportsRailGroups: Array<{ label: string; count: string; items: ReportsRailItem[] }> = [
+  {
+    label: "Universes",
+    count: "3",
+    items: [
+      { icon: "◆", name: "AI Infrastructure", active: true },
+      { icon: "◆", name: "Banking Targets" },
+      { icon: "◆", name: "Fundraise Watch" },
+    ],
+  },
+  {
+    label: "Companies",
+    count: "5",
+    items: [
+      { icon: "A", name: "Anthropic", status: "verified" },
+      { icon: "O", name: "OpenAI", status: "stale" },
+      { icon: "M", name: "Mistral", status: "drafting" },
+      { icon: "B", name: "Bug0", status: "verified" },
+      { icon: "G", name: "Google DeepMind", status: "stale" },
+    ],
+  },
+  {
+    label: "People",
+    count: "2",
+    items: [
+      { icon: "D", name: "Dario Amodei", status: "verified" },
+      { icon: "S", name: "Sequoia Capital", status: "review" },
+    ],
+  },
+  {
+    label: "Briefs",
+    count: "1",
+    items: [
+      { icon: "D", name: "Daily Brief - May 13", status: "review" },
+    ],
+  },
+  {
+    label: "Monitoring",
+    count: "1",
+    items: [
+      { icon: "C", name: "Cohere", status: "monitoring" },
+    ],
+  },
+];
+
+const reportRailFilters: Array<{ id: "all" | ReportsRailStatus; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "verified", label: "Verified" },
+  { id: "review", label: "Review" },
+  { id: "stale", label: "Stale" },
+  { id: "drafting", label: "Draft" },
+];
 
 function getPrototypeEntity(name = "Anthropic"): PrototypeReportEntity {
   return reportEntities.find((entity) => entity.name === name) ?? reportEntities[0];
@@ -175,12 +242,12 @@ function liveReportToPrototypeEntity(report: ReportCardData): PrototypeReportEnt
     status,
     score,
     sources: report.sources,
-    delta: report.updatedAt,
+    delta: `Updated ${report.updatedAt}`,
     kind: `${report.kind} - Live report`,
     body: report.description,
     tags: [report.kind, status, report.followUps > 0 ? "Action needed" : "Current"],
     ref: "Live Convex artifacts - notebook - sources",
-    meta: `Confidence ${score} · ${report.sources} sources · ${report.claims} claims · ${report.followUps} follow-ups`,
+    meta: `${report.claims} claims · ${report.sources} sources · ${report.followUps} follow-ups · ${report.updatedAt}`,
     dims: { Sources: evidence, Freshness: freshness, Verification: actionability, Coverage: graphFit },
     signals: [
       report.description,
@@ -310,7 +377,7 @@ function introspectionSourceTitle(source: LiveArtifactSourceRow | undefined, fal
 function introspectionSourceBody(source: LiveArtifactSourceRow | undefined, fallback: string): string {
   if (!source) return fallback;
   if (isNoisyFirstViewportSource(source)) {
-    return "The raw headline stays below the fold as evidence. The useful part is that provenance, reuse count, and confidence are ready for the agent to judge.";
+    return "The raw headline stays below the fold as evidence. The useful part is that provenance, reuse count, and review state are ready for the agent to judge.";
   }
   return trimSentence(source.excerpt, fallback, 180);
 }
@@ -559,7 +626,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       selectedBody: "Active founder-recruiter lead after Earlier Startup Lead / Insurance AI Co context.",
       selectedNext: "Book Wed Wednesday 11:30 AM.",
       selectedWhy: "This is specific, current, and high enough signal to clear before recruiter batch work.",
-      selectedScore: "91 strong",
+      selectedScore: "Verified",
       proofCards: [
         { title: "Pinned match", body: "active thread, calendar-ready, vertical AI", tag: "active thread" },
         { title: "NodeBench proof", body: "Ready for action. 3 public-source signals attached.", tag: "ready" },
@@ -581,11 +648,11 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       agentBody: "Anthropic repriced enterprise tier +40% effective June 1, Sequoia added a full-ratchet clause to the Series C term sheet, and SMB churn crossed the 3% threshold for the first time since Q3.",
       agentTrace: ["entity_scan", "signal_rank", "source_verify"],
       agentEntities: [
-        ["A", "Anthropic", "Verified", "91"],
-        ["S", "Sequoia Capital", "Review", "74"],
-        ["B", "Bug0", "", "68"],
-        ["O", "OpenAI", "", "62"],
-        ["D", "DeepMind", "", "55"],
+        ["A", "Anthropic", "Verified", "12 sources"],
+        ["S", "Sequoia Capital", "Review", "8 sources"],
+        ["B", "Bug0", "", "5 sources"],
+        ["O", "OpenAI", "Stale", "4 sources"],
+        ["D", "DeepMind", "Stale", "3 sources"],
       ],
     };
   }
@@ -679,7 +746,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     monogram(report.entity),
     report.entity,
     report.status === "verified" ? "Verified" : report.status === "review" ? "Review" : "",
-    String(Math.round(Math.min(99, Math.max(40, report.sources * 7 + report.claims * 3)))),
+    `${report.sources} sources`,
   ] as [string, string, string, string]);
   const sweepBullets = queueSource.slice(0, 4).map((item) => `${compact(item.next, "Review")} ${compact(item.title, "live signal")}.`);
   const fallbackStats = liveArtifacts.isLoading
@@ -698,9 +765,9 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     .find((source) => compact(source.title || source.excerpt, "").length > 0);
   const followUpTotal = reports.reduce((total, report) => total + report.followUps, 0);
   const changedSignalCount = Math.max(liveArtifacts.briefFeatureCount, pulse.length, reports.length);
-  const sourceConfidence = typeof topSource?.confidence === "number"
-    ? `${Math.round(topSource.confidence * 100)}% confidence`
-    : "confidence pending";
+  const sourceReviewState = typeof topSource?.confidence === "number"
+    ? topSource.confidence >= 0.82 ? "verified source row" : "needs review"
+    : "review pending";
   const liveIntrospection: HomeV2Introspection = {
     kicker: "Daily introspection",
     title: "One useful thing surfaced while you were not looking.",
@@ -723,7 +790,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       topReport?.description ?? "Source-backed evidence will appear here once a live report, daily brief, or public archive row returns.",
     ),
     sourceMeta: topSource
-      ? `${sourceLabel(topSource.type)} - ${topSource.reused} reuses - ${sourceConfidence}`
+      ? `${sourceLabel(topSource.type)} - ${topSource.reused} reuses - ${sourceReviewState}`
       : hasLive
         ? "No source row attached to the top packet"
         : "Waiting for live evidence",
@@ -817,7 +884,7 @@ const inboxRows = [
 
 function requestHomeV2Share(
   channel: "email" | "linkedin" | "slack",
-  onAsk?: (prompt: string) => void,
+  onAsk?: (prompt: string, context?: HomeAskContext) => void,
 ) {
   const promptByChannel = {
     email: "Draft an email digest from today's agent brief. Keep it source-backed, concise, and action-oriented.",
@@ -851,7 +918,7 @@ function openHomeV2PrintView() {
   }
 }
 
-function HomeV2ShareBar({ onAsk, pulse = false }: { onAsk?: (prompt: string) => void; pulse?: boolean }) {
+function HomeV2ShareBar({ onAsk, pulse = false }: { onAsk?: (prompt: string, context?: HomeAskContext) => void; pulse?: boolean }) {
   return (
     <div className={`rd-v2-share-bar${pulse ? " rd-v2-share-bar--pulse" : ""}`} aria-label="Share edition">
       <span>Share</span>
@@ -893,27 +960,67 @@ const meLines = [
 ];
 
 export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity, guestSafe = false }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
+  const [reportsRailQuery, setReportsRailQuery] = useState("");
+  const [reportsRailFilter, setReportsRailFilter] = useState<(typeof reportRailFilters)[number]["id"]>("all");
   if (surface === "home") return <HomeV2EditionRail onAsk={onAsk} />;
   if (surface === "reports") {
+    const query = reportsRailQuery.trim().toLowerCase();
+    const filteredGroups = reportsRailGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => {
+          const matchesQuery = !query || `${group.label} ${item.name}`.toLowerCase().includes(query);
+          const matchesStatus = reportsRailFilter === "all" || item.status === reportsRailFilter;
+          return matchesQuery && matchesStatus;
+        }),
+      }))
+      .filter((group) => group.items.length > 0);
     return (
-      <aside className="rd-v2-left rd-v2-left--nav" aria-label="Reports navigation">
-        <input className="rd-v2-rail-search" placeholder="Filter entities..." aria-label="Filter entities" />
-        <div className="rd-v2-rail-rule" />
-        <RailGroup label="Companies" count="12" selectedName={selectedEntity} onSelectItem={onSelectEntity} items={[
-          ["A", "Anthropic", "3", true],
-          ["S", "Sequoia Capital", "2"],
-          ["B", "Bug0", "1"],
-          ["O", "OpenAI", ""],
-          ["G", "Google DeepMind", ""],
-          ["M", "Mistral", ""],
-        ]} />
-        <RailGroup label="People" count="8" items={[
-          ["•", "Dario Amodei", ""],
-          ["•", "Alfred Lin", ""],
-          ["•", "Sam Altman", ""],
-        ]} />
-        <RailGroup label="Topics" count="5" items={[["#", "Fundraise", ""], ["#", "Pricing", ""], ["#", "Hiring", ""]]} />
-        <button className="rd-v2-new-entity">+ New entity</button>
+      <aside className="rd-v2-left left-rail" aria-label="Entity navigation">
+        <div className="lr-search">
+          <div className="lr-search-wrap">
+            <span className="lr-search-icon" aria-hidden="true">⌕</span>
+            <input
+              className="lr-search-input"
+              placeholder="Search reports..."
+              aria-label="Search reports"
+              value={reportsRailQuery}
+              onChange={(event) => setReportsRailQuery(event.currentTarget.value)}
+            />
+          </div>
+        </div>
+        <div className="lr-filters" role="tablist" aria-label="Filter reports by status">
+          {reportRailFilters.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              role="tab"
+              aria-selected={reportsRailFilter === filter.id}
+              className={`lr-filter ${reportsRailFilter === filter.id ? "active" : ""}`}
+              data-filter={filter.id}
+              onClick={() => setReportsRailFilter(filter.id)}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+        <div className="lr-body">
+          {filteredGroups.map((group) => (
+            <ReportsV3RailGroup
+              key={group.label}
+              label={group.label}
+              count={group.count}
+              items={group.items}
+              selectedName={selectedEntity}
+              onSelectItem={onSelectEntity}
+            />
+          ))}
+          {filteredGroups.length === 0 && <div className="rd-v2-rail-empty">No reports match this filter.</div>}
+        </div>
+        <div className="lr-footer">
+          <button type="button" onClick={() => onAsk?.("Create a new report entity and hydrate its first notebook.")}>+ Entity</button>
+          <button type="button" onClick={() => onAsk?.("Import a company list and run a sample coverage batch.")}>+ Import</button>
+        </div>
       </aside>
     );
   }
@@ -922,16 +1029,16 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
       <aside className="rd-v2-left rd-v2-left--nav" aria-label="Chat threads">
         <button className="rd-v2-new-thread">+ New thread</button>
         <div className="rd-v2-rail-rule" />
-        <ChatThreadGroup label="Today" items={[
+        <ChatThreadGroup label="Active" items={[
           ["Sequoia ratch...", "Under a 40% do...", "2m", true],
           ["Anthropic pric...", "Enterprise tier mo...", "1h"],
           ["SMB churn in...", "Monthly churn hit...", "3h"],
         ]} />
-        <ChatThreadGroup label="Yesterday" items={[
+        <ChatThreadGroup label="Recent" items={[
           ["Board deck prep", "Q2 financials proj...", "1d"],
           ["Patent filing fo...", "USPTO acknowle...", "1d"],
         ]} />
-        <ChatThreadGroup label="This week" items={[
+        <ChatThreadGroup label="Archived" items={[
           ["Hiring pipelin...", "4 senior engine...", "3d"],
           ["NPS survey a...", "340 responses, o...", "4d"],
         ]} />
@@ -1031,6 +1138,52 @@ function RailGroup({
   );
 }
 
+function ReportsRailGroup({
+  label,
+  count,
+  items,
+  selectedName,
+  onSelectItem,
+}: {
+  label: string;
+  count: string;
+  items: ReportsRailItem[];
+  selectedName?: string;
+  onSelectItem?: (name: string) => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <section className={`rd-v2-rail-section rd-v2-rail-section--reports ${collapsed ? "is-collapsed" : ""}`}>
+      <button
+        type="button"
+        className="rd-v2-rail-section-head rd-v2-rail-section-toggle"
+        aria-expanded={!collapsed}
+        onClick={() => setCollapsed((value) => !value)}
+      >
+        <span className="rd-v2-rail-chevron">{collapsed ? "\u25b8" : "\u25be"}</span>
+        <span>{label}</span>
+        <b>{count}</b>
+      </button>
+      {!collapsed && items.map((item) => {
+        const selected = selectedName ? selectedName === item.name : item.active;
+        return (
+          <button
+            key={`${label}-${item.name}`}
+            className={`rd-v2-nav-row rd-v2-report-nav-row ${selected ? "is-active" : ""}`}
+            type="button"
+            data-status={item.status}
+            onClick={() => onSelectItem?.(item.name)}
+          >
+            <span className="rd-v2-report-nav-icon">{item.icon}</span>
+            <strong>{item.name}</strong>
+            {item.status && <i aria-label={item.status} className="rd-v2-report-nav-dot" data-status={item.status} />}
+          </button>
+        );
+      })}
+    </section>
+  );
+}
+
 function NavItem({ label, count, marker, active, tone }: { label: string; count?: string; marker: string; active?: boolean; tone?: string }) {
   return (
     <button type="button" className={`rd-v2-nav-row ${active ? "is-active" : ""}`} data-tone={tone}>
@@ -1058,10 +1211,33 @@ function ChatThreadGroup({ label, items }: { label: string; items: Array<[string
 
 function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }: PrototypeSelectionProps) {
   return (
-    <div className="rd-v2-proto-center">
+    <div className="rd-v2-proto-center rd-v3-reports">
+      <div className="rd-v3-universe-header">
+        <div>
+          <div className="rd-v3-kicker">Reports</div>
+          <h1>AI Infrastructure Coverage</h1>
+          <p>87 reports, 312 sources, 18 need review.</p>
+        </div>
+        <div className="rd-v3-universe-actions">
+          <button type="button">Review queue</button>
+          <button type="button" className="rd-v3-primary">+ New batch</button>
+        </div>
+      </div>
+      <section className="rd-v3-metrics" aria-label="Coverage metrics">
+        <span><strong>87</strong> reports</span>
+        <span><strong>83%</strong> verified</span>
+        <span><strong>7</strong> need review</span>
+        <span><strong>3</strong> active runs</span>
+        <span><strong>12</strong> notebook patches</span>
+      </section>
+      <div className="rd-v3-tabs" role="tablist" aria-label="Report views">
+        {["Gallery", "Board", "Table", "Graph"].map((item, index) => (
+          <button key={item} type="button" role="tab" aria-selected={index === 0} className={index === 0 ? "is-active" : ""}>{item}</button>
+        ))}
+      </div>
       <div className="rd-v2-edition-row">
         <span className="rd-v2-edition-pill">Entity intelligence</span>
-        <span className="rd-v2-edition-subline">12 entities · 83% verified · avg score 87 · 48 sources</span>
+        <span className="rd-v2-edition-subline">12 entities · 83% verified · 48 sources · 7 notebook patches</span>
       </div>
       <div className="rd-v2-filter-row">
         {["All", "Watching", "Needs review", "Stale", "Updated"].map((item, index) => (
@@ -1263,7 +1439,7 @@ function AgentShell({
   const pillClassName = (_pill: string, index: number) => {
     const classes = ["rd-v2-agent-pill"];
     if (index === 0) classes.push("is-active");
-    if (title === "Coverage agent") {
+    if (title === "Coverage agent" || title === "Agent Inspector") {
       if (index === 1) classes.push("is-entity");
       if (index === 2) classes.push("is-source");
     }
@@ -1301,77 +1477,333 @@ function AgentShell({
   );
 }
 
+function inspectorPipeline(entity: PrototypeReportEntity): Array<{ label: string; done: boolean }> {
+  const isDraft = /draft|generating|gathering/i.test(entity.status);
+  const needsReview = entityNeedsReview(entity);
+  const claimCount = claimCountForEntity(entity);
+  return [
+    { label: isDraft ? "Gathering sources" : `Gathered ${Math.max(8, entity.sources * 4)} sources`, done: !isDraft || entity.sources > 2 },
+    { label: `Extracted ${Math.max(2, entity.signals.length)} entities`, done: !isDraft },
+    { label: `Generated ${claimCount} source-backed claims`, done: entity.sources > 0 },
+    { label: needsReview ? "Verifying evidence" : "Verified evidence", done: !needsReview },
+    { label: needsReview ? "Notebook patch pending" : "Notebook published", done: !needsReview },
+  ];
+}
+
+function ReportsV3RailGroup({
+  label,
+  count,
+  items,
+  selectedName,
+  onSelectItem,
+}: {
+  label: string;
+  count: string;
+  items: ReportsRailItem[];
+  selectedName?: string;
+  onSelectItem?: (name: string) => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <section className={`lr-group ${collapsed ? "collapsed" : ""}`} data-group={label.toLowerCase()}>
+      <button
+        type="button"
+        className="lr-group-head"
+        aria-expanded={!collapsed}
+        onClick={() => setCollapsed((value) => !value)}
+      >
+        <span className="lr-chevron" aria-hidden="true">▾</span>
+        <span>{label}</span>
+        <span className="lr-group-count">{count}</span>
+      </button>
+      {!collapsed && (
+        <div className="lr-group-items">
+          {items.map((item) => {
+            const selected = selectedName ? selectedName === item.name : item.active;
+            return (
+              <button
+                key={`${label}-${item.name}`}
+                className={`lr-entity ${selected ? "active" : ""}`}
+                type="button"
+                data-name={item.name}
+                data-status={item.status}
+                onClick={() => onSelectItem?.(item.name)}
+              >
+                <span className="lr-entity-icon">{item.icon}</span>
+                <span className="lr-entity-name">{item.name}</span>
+                {item.status && <span className="lr-entity-dot" data-status={item.status} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function entityNeedsReview(entity: PrototypeReportEntity): boolean {
+  return /review|stale|draft|generating|gathering/i.test(entity.status) || entity.sources < 5;
+}
+
+function claimCountForEntity(entity: PrototypeReportEntity): number {
+  return Math.max(3, Math.min(9, entity.signals.length + Math.ceil(entity.sources / 2)));
+}
+
+function entityStatusLabel(entity: PrototypeReportEntity): string {
+  if (/stale/i.test(entity.status)) return "Stale";
+  if (/review/i.test(entity.status)) return "Review";
+  if (/draft|generating|gathering/i.test(entity.status)) return "Drafting";
+  if (/watch/i.test(entity.status)) return "Watching";
+  return "Verified";
+}
+
+function entityEvidenceText(entity: PrototypeReportEntity): string {
+  const claims = claimCountForEntity(entity);
+  if (/stale/i.test(entity.status)) return `${Math.max(1, claims - 2)} of ${claims} claims current`;
+  if (entityNeedsReview(entity)) return `${Math.max(1, claims - 1)} of ${claims} claims need review`;
+  return `${claims} of ${claims} claims verified`;
+}
+
+function entityFreshnessText(entity: PrototypeReportEntity): string {
+  return entity.delta;
+}
+
+function entityCoverageText(entity: PrototypeReportEntity): string {
+  return entity.tags.slice(0, 3).join(" - ");
+}
+
+function relatedStatusLabel(entityName: string): string {
+  const related = reportEntities.find((item) => item.name === entityName);
+  return related ? entityStatusLabel(related) : "Related";
+}
+
+function inspectorWarnings(entity: PrototypeReportEntity): string[] {
+  if (/stale/i.test(entity.status)) {
+    return [
+      "Evidence freshness is below the release threshold.",
+      "Refresh public sources before exporting this notebook.",
+    ];
+  }
+  if (entityNeedsReview(entity)) {
+    return [
+      "Open claims need human review before verification.",
+      "Notebook patch should preserve the prior source trail.",
+    ];
+  }
+  return [
+    "Source coverage is current enough for the present task.",
+    "Keep monitoring for fresh signals before the next daily brief.",
+  ];
+}
+
 function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedReport, onSelectEntity }: PrototypeSelectionProps) {
   const entity = selectedReport ? liveReportToPrototypeEntity(selectedReport) : getPrototypeEntity(selectedEntity);
-  const reviewText = entity.score < 75 ? `${entity.name} needs review.` : `${entity.name} is in good shape.`;
-  const summaryText = entity.score < 75
-    ? `${entity.name} is below coverage threshold. Refresh sources, verify open claims, and decide whether the report needs a notebook patch.`
-    : `${entity.name} has current sources and enough verified claims for the present coverage task. Keep it on watch.`;
+  const [drawerOpen, setDrawerOpen] = useState(true);
+  const needsReview = entityNeedsReview(entity);
+  const status = entityStatusLabel(entity);
+  const claimCount = claimCountForEntity(entity);
+  const contextEntityCount = Math.max(3, entity.related.length + 1);
+  const selectedSources = `${entity.sources} sources`;
+  const contextPacket = buildGraphContextBridgePacket({
+    report: selectedReport ?? {
+      id: `proto-${entity.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      entity: entity.name,
+      kind: entity.kind,
+      status: needsReview ? "review" : "verified",
+      description: entity.body,
+      sources: entity.sources,
+      claims: claimCount,
+      followUps: needsReview ? 2 : 0,
+      updatedAt: entity.meta,
+    },
+    mode: "agent",
+  });
+  const ask = (prompt: string) => onAsk?.(prompt);
+  const sendInput = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    const value = event.currentTarget.value.trim();
+    if (!value) return;
+    ask(value);
+    event.currentTarget.value = "";
+  };
 
   return (
-    <AgentShell
-      title="Coverage agent"
-      context={`Reports · 5 entities · 48 sources · ${entity.sources} active`}
-      pills={["Reports", entity.name, `${entity.sources} sources`, `Score ${entity.score}`]}
-      question="Which reports need work?"
-      placeholder="Ask about these reports..."
-      onAsk={onAsk}
+    <aside
+      className="rd-pane rd-pane--right right-rail"
+      aria-label="Agent chat"
+      data-agent-context-ref={contextPacket.contextRef}
+      data-agent-context-rank={contextPacket.agentRank}
+      data-agent-context-attention-score={contextPacket.attentionScore}
+      data-agent-context-promotion={contextPacket.promotionClass}
     >
-      <div className="rd-v2-msg rd-v2-msg-agent">
-        <strong>{reviewText}</strong>
-        <p>{summaryText}</p>
-        <details className="rd-v2-trace">
-          <summary><small>3 steps completed</small></summary>
-          <div className="rd-v2-trace-steps"><span>entity_health</span><span>freshness_scan</span><span>claim_verify</span></div>
-        </details>
-        <div className="rd-v2-msg-tools"><span>entity_health</span><span>freshness_scan</span><span>claim_verify</span></div>
+      <div className="ar-head">
+        <span className="ar-dot" />
+        <div className="ar-head-info">
+          <div className="ar-name">Coverage agent</div>
+          <div className="ar-meta">Reports · {contextEntityCount} entities · {entity.sources * 4} sources · {needsReview ? "3 active" : "12 active"}</div>
+        </div>
+        <div className="ar-head-actions">
+          <button className="ar-head-btn" type="button" aria-label="Expand chat" title="Expand" onClick={() => ask(`Open Chat with ${entity.name} report context.`)}>↗</button>
+          <button className="ar-head-btn" type="button" aria-label="Close chat" title="Close" onClick={() => ask("Collapse the Reports coverage rail.")}>×</button>
+        </div>
       </div>
-      <section className="rd-v2-action-card-list">
-        {[
-          { icon: "🔍", label: `Review ${entity.name}` },
-          { icon: "↻", label: "Refresh stale sources" },
-          { icon: "⚖", label: `Compare ${entity.related[0] ?? "entities"}` },
-          { icon: "📤", label: "Export selected" },
-        ].map(({ icon, label }, index) => (
-          <button key={label} className={index === 0 ? "is-primary" : ""} onClick={() => onAsk?.(`${label} for ${entity.name}`)}><span className="rd-v2-action-icon">{icon}</span> {label}</button>
-        ))}
-      </section>
-      <button className="rd-v2-drawer-toggle">{`Context · ${entity.name} ${entity.score} · ${entity.signals.length} signals · ${entity.related.length} entities`}</button>
-      <section className="rd-v2-agent-context">
-        <div className="rd-v2-context-head"><span>Active entity</span><span>{entity.score}</span></div>
-        <div className="rd-v2-score-big">{entity.score} <small>{entity.delta}</small></div>
-        {Object.entries(entity.dims).map(([label, value]) => (
-          <div className="rd-v2-score-row" key={label}>
-            <span>{label}</span>
-            <b><i data-tone={value >= 80 ? "green" : value >= 58 ? "accent" : "amber"} style={{ width: `${value}%` }} /></b>
-            <strong>{value}</strong>
+
+      <div className="ar-pills" aria-label="Current context">
+        <button className="ar-pill active" type="button" onClick={() => ask("Show all reports in the active universe.")}>
+          <span className="ar-pill-dot" style={{ background: "var(--rd-accent)" }} /> Reports
+        </button>
+        <button className="ar-pill" type="button" onClick={() => onSelectEntity?.(entity.name)}>
+          <span className="ar-pill-dot" style={{ background: needsReview ? "var(--rd-amber)" : "var(--rd-green)" }} /> {entity.name}
+        </button>
+        <button className="ar-pill" type="button" onClick={() => ask(`Open source ledger for ${entity.name}.`)}>{selectedSources}</button>
+        <button className="ar-pill" type="button" onClick={() => ask(`Explain ${status} status for ${entity.name}.`)}>
+          <span className="ar-pill-dot" style={{ background: needsReview ? "var(--rd-amber)" : "var(--rd-green)" }} /> {status}
+        </button>
+      </div>
+
+      <div className="ar-thread">
+        <div className="ar-msg ar-msg--system">
+          <div className="ar-msg-system-line">
+            <div className="ar-msg-system-body">
+              <span className="ar-msg-system-icon">⚙</span>
+              Context loaded · {contextEntityCount} entities · {entity.sources * 4} sources
+              <time>3 min ago</time>
+            </div>
           </div>
-        ))}
-      </section>
-      <section className="rd-v2-agent-context">
-        <div className="rd-v2-context-head"><span>Recent signals</span><span>{entity.signals.length}</span></div>
-        {entity.signals.map((signal, index) => (
-          <div className="rd-v2-signal-tl" key={signal}>
-            <span className="rd-v2-signal-tl-time">{index === 0 ? "2h" : index === 1 ? "1d" : "3d"}</span>
-            <span className="rd-v2-signal-tl-dot" data-tone={index === 0 ? "accent" : index === 1 ? "blue" : "green"} />
-            <span className="rd-v2-signal-tl-text">{signal}</span>
+        </div>
+
+        <div className="ar-msg ar-msg--user">
+          <div className="ar-msg-bubble">Which reports need the most attention right now?</div>
+          <div className="ar-msg-time">2 min ago</div>
+        </div>
+
+        <div className="ar-msg ar-msg--system">
+          <div className="ar-msg-system-line">
+            <div className="ar-msg-system-body">
+              <span className="ar-msg-system-icon">↻</span>
+              Routed to deep-analysis model for multi-entity comparison
+            </div>
           </div>
-        ))}
-      </section>
-      <section className="rd-v2-agent-context">
-        <div className="rd-v2-context-head"><span>Related entities</span><span>{entity.related.length}</span></div>
-        {entity.related.map((name, index) => {
-          const related = reportEntities.find((item) => item.name === name);
-          const initial = related?.initial ?? name.slice(0, 1).toUpperCase();
-          const score = related?.score ?? Math.max(55, entity.score - (index + 1) * 4);
-          return (
-            <button className="rd-v2-related-entity" key={name} onClick={() => onSelectEntity?.(name)}>
-              <span>{initial}</span><strong>{name}</strong><b>{score}</b>
-            </button>
-          );
-        })}
-      </section>
-    </AgentShell>
+        </div>
+
+        <div className="ar-msg ar-msg--agent">
+          <div className="ar-msg-bubble">
+            <div className="ar-msg-lead">{needsReview ? "3 reports need attention" : `${entity.name} is coverage-ready`}</div>
+            <div className="ar-msg-detail">
+              <strong>{entity.name}</strong> — {needsReview ? "Evidence or freshness is below threshold. Verify stale claims before notebook patch or export." : "Current source rows are verified enough for the active coverage task."}<br />
+              <strong>Notebook</strong> — {needsReview ? "Patch should stay proposed until review clears." : "Notebook can be opened, reused, or exported with the current source trail."}<br />
+              <strong>Graph</strong> — Related entities remain attached for comparison and follow-up routing.
+            </div>
+            <div className="ar-msg-tools">
+              <span className="ar-tool-badge">source_scan</span>
+              <span className="ar-tool-badge">claim_verify</span>
+              <span className="ar-tool-badge">freshness_check</span>
+              <span className="ar-tool-badge">resolve_report_graph_context</span>
+            </div>
+          </div>
+          <div className="ar-msg-actions">
+            <button className="ar-action-chip ar-action-chip--primary" type="button" onClick={() => ask(`Refresh stale reports related to ${entity.name}.`)}>Refresh stale reports</button>
+            <button className="ar-action-chip" type="button" onClick={() => ask(`Open the ${entity.name} notebook.`)}>Open notebook</button>
+            <button className="ar-action-chip" type="button" onClick={() => ask(`Compare ${entity.name} with related reports.`)}>Compare reports</button>
+          </div>
+          <div className="ar-msg-time">1 min ago</div>
+        </div>
+
+        <div className="ar-msg ar-msg--user">
+          <div className="ar-msg-bubble">What changed with {entity.name} since yesterday?</div>
+          <div className="ar-msg-time">just now</div>
+        </div>
+
+        <div className="ar-msg ar-msg--system">
+          <div className="ar-msg-system-line">
+            <div className="ar-msg-system-body">
+              <span className="ar-msg-system-icon">⇄</span>
+              Context narrowed to {entity.name} · {entity.sources} sources · {claimCount} corroborated
+            </div>
+          </div>
+        </div>
+
+        <div className="ar-msg ar-msg--agent">
+          <div className="ar-msg-bubble">
+            <div className="ar-msg-lead">{entity.name} — {entity.signals.length} new signals</div>
+            <div className="ar-msg-detail">{entity.signals.slice(0, 3).join(" ")}</div>
+            <div className="ar-msg-tools">
+              <span className="ar-tool-badge">entity_diff</span>
+              <span className="ar-tool-badge">signal_extract</span>
+            </div>
+          </div>
+          <div className="ar-msg-actions">
+            <button className="ar-action-chip ar-action-chip--primary" type="button" onClick={() => ask(`Open notebook for ${entity.name}.`)}>Open notebook</button>
+            <button className="ar-action-chip" type="button" onClick={() => ask(`Verify claims for ${entity.name}.`)}>Verify claims</button>
+            <button className="ar-action-chip" type="button" onClick={() => ask(`Export memo preview for ${entity.name}.`)}>Export memo</button>
+          </div>
+          <div className="ar-msg-time">just now</div>
+        </div>
+      </div>
+
+      <div className={`ar-drawer ${drawerOpen ? "" : "collapsed"}`}>
+        <button className="ar-drawer-head" type="button" aria-expanded={drawerOpen} onClick={() => setDrawerOpen((value) => !value)}>
+          <span className="ar-drawer-label">Context</span>
+          <span className="ar-drawer-pills">
+            <span className="ar-drawer-pill">{entity.name}</span>
+            <span className="ar-drawer-pill">· {entity.sources} sources</span>
+            <span className="ar-drawer-pill">· {contextEntityCount} entities</span>
+          </span>
+          <span className="ar-drawer-chevron">▾</span>
+        </button>
+        <div className="ar-drawer-body">
+          <div className="ar-drawer-entity">
+            <span className="ar-drawer-icon">{entity.initial}</span>
+            <span className="ar-drawer-name">{entity.name}</span>
+            <span className="ar-drawer-status" data-status={status}>{status}</span>
+          </div>
+          <div className="ar-context-packet">
+            <div className="ar-context-packet__head">
+              <span>Graph context packet</span>
+              <b>{contextPacket.agentRank}</b>
+            </div>
+            <p>{contextPacket.agentSummary}</p>
+            <div className="ar-context-packet__attention" data-promotion={contextPacket.promotionClass}>
+              <span>
+                <strong>{contextPacket.attentionScore}</strong>
+                attention
+              </span>
+              <span>{contextPacket.promotionClass.replace("_", " ")}</span>
+            </div>
+            <div className="ar-context-packet__grid">
+              <span><strong>{contextPacket.sourceRefs}</strong> sources</span>
+              <span><strong>{contextPacket.claimRefs}</strong> claims</span>
+              <span><strong>{contextPacket.estimatedTokens}</strong> tok</span>
+            </div>
+            <details className="ar-context-packet__why">
+              <summary>Why the agent packed this</summary>
+              <ol>
+                {contextPacket.whySelected.slice(0, 4).map((reason, index) => (
+                  <li key={`${reason}-${index}`}>{reason}</li>
+                ))}
+              </ol>
+            </details>
+          </div>
+          <div className="ar-ctx-row"><span className="ar-ctx-lbl">Evidence</span><span className="ar-ctx-val">{entityEvidenceText(entity)}</span></div>
+          <div className="ar-ctx-row"><span className="ar-ctx-lbl">Freshness</span><span className="ar-ctx-val">{entityFreshnessText(entity)}</span></div>
+          <div className="ar-ctx-row"><span className="ar-ctx-lbl">Sources</span><span className="ar-ctx-val">{entity.sources} sources · {claimCount} corroborated</span></div>
+          <div className="ar-ctx-row"><span className="ar-ctx-lbl">Coverage</span><span className="ar-ctx-val">{entityCoverageText(entity)}</span></div>
+        </div>
+      </div>
+
+      <div className="ar-footer">
+        <div className="ar-input-wrap">
+          <input className="ar-input" placeholder="Ask about your reports..." aria-label="Chat with agent" onKeyDown={sendInput} />
+          <div className="ar-input-actions">
+            <button className="ar-input-btn" type="button" title="Add context" onClick={() => ask(`Attach ${entity.name} context.`)}>+ Context</button>
+            <button className="ar-input-btn" type="button" title="Reference entity" onClick={() => ask(`Reference ${entity.name}.`)}>@ Reference</button>
+            <button className="ar-input-btn" type="button" title="Slash command" onClick={() => ask(`/report ${entity.name}`)}>/ Command</button>
+            <button className="ar-input-btn" type="button" title="Attach file" onClick={() => ask(`Attach source file to ${entity.name}.`)}>📎</button>
+            <span className="ar-input-send"><kbd>↵</kbd> to send</span>
+          </div>
+        </div>
+      </div>
+    </aside>
   );
 }
 
@@ -1481,7 +1913,7 @@ function InboxPrototypeRail({ onAsk }: HomeV2SurfaceProps) {
         <div className="rd-v2-report-title"><span>S</span><h2>Sequoia Capital</h2><b>74</b></div>
         <p>• Active term sheet negotiation<br />• $1.2M partnership · 3 prior rounds<br />• Last report: 6h ago</p>
       </article>
-      <div className="rd-v2-agent-insight"><strong>Agent insight</strong><span className="rd-v2-confidence">92% confidence</span><p>Full-ratchet clause creates 14.3pp dilution gap at $48M. Counter with narrow-based weighted-average as floor.</p></div>
+      <div className="rd-v2-agent-insight"><strong>Agent insight</strong><span className="rd-v2-confidence">Verified evidence</span><p>Full-ratchet clause creates 14.3pp dilution gap at $48M. Counter with narrow-based weighted-average as floor.</p></div>
       <section className="rd-v2-related-threads">
         <h3>Related threads</h3>
         <div className="rd-v2-thread-item"><span className="rd-v2-thread-dot" /><span>Term sheet v2 discussion</span><span className="rd-v2-thread-time">4d</span></div>
@@ -1667,14 +2099,208 @@ function countFromText(value: string | undefined, fallback: string): string {
   return match?.[0] ?? fallback;
 }
 
+interface HomeHaloReport {
+  id: string;
+  title: string;
+  kind: string;
+  status: ReportCardData["status"];
+  summary: string;
+  sources: number;
+  claims: number;
+  followUps: number;
+  updatedAt: string;
+  graphHint: string;
+  sourceHint: string;
+  hue: "orange" | "blue" | "green" | "purple" | "teal" | "red";
+}
+
+const homeHaloHues: HomeHaloReport["hue"][] = ["orange", "blue", "green", "purple", "teal", "red"];
+
+function statusCopy(status: ReportCardData["status"]): string {
+  if (status === "verified") return "Verified";
+  if (status === "review") return "Needs review";
+  return "Watching";
+}
+
+function buildHomeHaloReports(liveArtifacts?: LiveArtifactsResult): HomeHaloReport[] {
+  const reports = liveArtifacts?.reports ?? [];
+  return reports.slice(0, 8).map((report, index) => {
+    const detail = liveArtifacts?.details.find((item) => item.id === report.id);
+    const source = detail?.sourceRows[0];
+    return {
+      id: report.id,
+      title: report.entity,
+      kind: report.kind,
+      status: report.status,
+      summary: trimSentence(detail?.summary ?? report.description, report.description, 180),
+      sources: report.sources,
+      claims: report.claims,
+      followUps: report.followUps,
+      updatedAt: report.updatedAt,
+      graphHint: detail
+        ? `${detail.nodes.length} nodes · ${detail.edges.length} edges`
+        : `${report.claims} claims · ${report.followUps} follow-ups`,
+      sourceHint: source
+        ? `${sourceLabel(source.type)} · ${source.reused}x reused`
+        : `${report.sources} source rows`,
+      hue: homeHaloHues[index % homeHaloHues.length],
+    };
+  });
+}
+
+function HomeReportHalo({
+  reports,
+  activeReportId,
+  onActiveReportChange,
+  onAsk,
+  onOpenReports,
+}: {
+  reports: HomeHaloReport[];
+  activeReportId?: string | null;
+  onActiveReportChange?: (reportId: string) => void;
+  onAsk?: (prompt: string, context?: HomeAskContext) => void;
+  onOpenReports?: (reportId?: string) => void;
+}) {
+  const active = reports.find((report) => report.id === activeReportId) ?? reports[0];
+  const selectReport = (reportId: string) => onActiveReportChange?.(reportId);
+  const askReport = (report: HomeHaloReport) => {
+    onAsk?.(
+      `Use the ${report.title} report packet. Summarize what changed, source support, open claims, and the next report or notebook action.`,
+      { reportId: report.id },
+    );
+  };
+
+  if (reports.length === 0) {
+    return (
+      <section className="rd-v3-home-halo rd-v3-home-halo--empty" data-testid="home-v3-report-halo">
+        <div className="rd-v3-home-halo-head">
+          <span>Report memory</span>
+          <strong>No live report halo yet</strong>
+          <p>Run or refresh a report so Home can preview reusable context before Chat asks the model to search again.</p>
+        </div>
+        <button type="button" onClick={() => onAsk?.("Create the first report packet from live memory and attach sources before drafting.")}>
+          Create first packet
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rd-v3-home-halo" data-testid="home-v3-report-halo" aria-label="Report memory halo">
+      <div className="rd-v3-home-halo-head">
+        <span>Report halo</span>
+        <strong>Reusable memory is already in the room.</strong>
+        <p>Hover or select a report, then ask with its Convex-backed context attached.</p>
+      </div>
+
+      <div className="rd-v3-halo-track" role="list">
+        {reports.map((report) => (
+          <button
+            key={report.id}
+            type="button"
+            role="listitem"
+            className="rd-v3-halo-card"
+            data-hue={report.hue}
+            data-active={active?.id === report.id ? "true" : undefined}
+            onMouseEnter={() => selectReport(report.id)}
+            onFocus={() => selectReport(report.id)}
+            onClick={() => selectReport(report.id)}
+          >
+            <span className="rd-v3-halo-card-cover">
+              <b>{monogram(report.title)}</b>
+              <em>{report.kind}</em>
+            </span>
+            <strong>{report.title}</strong>
+            <small>{statusCopy(report.status)} · {report.updatedAt}</small>
+            <p>{report.summary}</p>
+          </button>
+        ))}
+      </div>
+
+      {active && (
+        <aside className="rd-v3-halo-dock" data-testid="home-v3-halo-dock" aria-label={`${active.title} preview`}>
+          <div>
+            <span>{active.kind}</span>
+            <h3>{active.title}</h3>
+            <p>{active.summary}</p>
+          </div>
+          <dl>
+            <div><dt>Status</dt><dd>{statusCopy(active.status)}</dd></div>
+            <div><dt>Evidence</dt><dd>{active.sources} sources · {active.claims} claims</dd></div>
+            <div><dt>Graph</dt><dd>{active.graphHint}</dd></div>
+            <div><dt>Source</dt><dd>{active.sourceHint}</dd></div>
+          </dl>
+          <div className="rd-v3-halo-actions">
+            <button type="button" className="rd-v2-btn-primary" onClick={() => askReport(active)}>Ask with context</button>
+            <button type="button" onClick={() => onOpenReports?.(active.id)}>Open report</button>
+            <button
+              type="button"
+              onClick={() => onAsk?.(`Explore the graph neighborhood for ${active.title} and identify used, changed, needs-review, and blocked clusters.`, { reportId: active.id })}
+            >
+              Explore graph
+            </button>
+          </div>
+        </aside>
+      )}
+    </section>
+  );
+}
+
+function HomeV3FrontPage({
+  model,
+  haloReports,
+  onAsk,
+  onOpenReports,
+}: {
+  model: HomeV2Model;
+  haloReports: HomeHaloReport[];
+  onAsk?: (prompt: string, context?: HomeAskContext) => void;
+  onOpenReports?: (reportId?: string) => void;
+}) {
+  const [activeReportId, setActiveReportId] = useState<string | null>(haloReports[0]?.id ?? null);
+  const activeReport = haloReports.find((report) => report.id === activeReportId) ?? haloReports[0];
+  const contextLabel = activeReport
+    ? `Using ${activeReport.title} · ${activeReport.sources} sources · ${activeReport.claims} claims`
+    : model.editionLine;
+  const submit = (text: string, _tier: RouterTier) => {
+    onAsk?.(text, activeReport ? { reportId: activeReport.id } : undefined);
+  };
+
+  return (
+    <section className="rd-v3-home-front" data-testid="home-v3-chat-first-frontpage" aria-label="Chat-first intelligence front page">
+      <HomeReportHalo
+        reports={haloReports}
+        activeReportId={activeReport?.id ?? null}
+        onActiveReportChange={setActiveReportId}
+        onAsk={onAsk}
+        onOpenReports={onOpenReports}
+      />
+      <div className="rd-v3-home-composer-shell">
+        <div className="rd-v3-home-composer-head">
+          <span>Ask first</span>
+          <h1>Ask once. Turn it into reusable intelligence.</h1>
+          <p>{model.heroSub}</p>
+        </div>
+        <UniversalComposer
+          contextLabel={contextLabel}
+          placeholder="Ask about a company, person, event, market, report, or source packet..."
+          showRuntimeRibbon
+          onSubmit={submit}
+          onChatNow={submit}
+        />
+      </div>
+    </section>
+  );
+}
+
 function LivePulseLanding({
   model,
   onAsk,
   onOpenReports,
 }: {
   model: HomeV2Model;
-  onAsk?: (text: string) => void;
-  onOpenReports?: () => void;
+  onAsk?: (text: string, context?: HomeAskContext) => void;
+  onOpenReports?: (reportId?: string) => void;
 }) {
   const whatChanged = findBriefSection(model, "changed", 0);
   const reportsTouched = findBriefSection(model, "reports", 3);
@@ -1792,8 +2418,15 @@ function LivePulseLanding({
 export function HomeV2Surface({ onAsk, onOpenReports, liveArtifacts }: HomeV2SurfaceProps) {
   const model = buildHomeV2Model(liveArtifacts);
   const isLiveHome = Boolean(liveArtifacts);
+  const haloReports = buildHomeHaloReports(liveArtifacts);
   return (
     <div className="rd-v2-home">
+      <HomeV3FrontPage
+        model={model}
+        haloReports={haloReports}
+        onAsk={onAsk}
+        onOpenReports={onOpenReports}
+      />
       {isLiveHome ? (
         <LivePulseLanding model={model} onAsk={onAsk} onOpenReports={onOpenReports} />
       ) : (
@@ -1992,12 +2625,12 @@ export function HomeV2BriefingRail({ onAsk, onOpenReports, liveArtifacts }: Home
         </button>
         <section className="rd-v2-agent-context">
           <div className="rd-v2-context-head"><span>Entities</span><span>{model.agentEntities.length}</span></div>
-          {model.agentEntities.map(([icon, name, badge, score]) => (
+          {model.agentEntities.map(([icon, name, badge, detail]) => (
             <div className="rd-v2-entity" key={name}>
               <span>{icon}</span>
               <strong>{name}</strong>
               {badge && <em>{badge}</em>}
-              <b>{score}</b>
+              <b>{detail}</b>
             </div>
           ))}
         </section>

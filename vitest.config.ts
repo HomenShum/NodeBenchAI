@@ -25,6 +25,7 @@ export default defineConfig({
       ".nodebench-ref/**",
       ".overstory/**",
       ".claude/worktrees/**",
+      ".worktrees/**",
     ],
   },
 });

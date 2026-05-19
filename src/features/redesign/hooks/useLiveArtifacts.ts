@@ -7,8 +7,8 @@
  * so production cannot mask broken wiring with starter fixtures.
  */
 
-import { useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useConvex, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { PulseMetric, PulseCard, PublicResearchCard, ReportCardData, SignalClass } from "../fixtures";
 
@@ -111,11 +111,17 @@ export interface LiveArtifactMapNode {
   title: string;
   subtitle: string;
   tone: "default" | "accent" | "blue" | "green" | "amber";
+  kind?: "entity" | "report" | "artifact" | "source" | "portfolio";
+  artifactType?: string;
 }
 
 export interface LiveArtifactMapEdge {
   from: string;
   to: string;
+  type?: "has_report" | "has_artifact" | "covers" | "causes" | "correlates_with" | "evidence" | "coverage" | "funding" | "competition" | "integration" | "review";
+  label?: string;
+  basis?: string;
+  strength?: number;
 }
 
 export interface LiveArtifactDetail {
@@ -139,6 +145,7 @@ export interface LiveArtifactDetail {
 }
 
 type QueryRef = Parameters<typeof useQuery>[0];
+type ActionRef = Parameters<ReturnType<typeof useConvex>["action"]>[0];
 
 const liveArtifactApi = api as unknown as {
   domains: {
@@ -153,8 +160,124 @@ const liveArtifactApi = api as unknown as {
         getLatestMemory: QueryRef;
       };
     };
+    redesign: {
+      reportGraphNeighborhood: {
+        getReportGraphNeighborhood: QueryRef;
+      };
+      reportTopology: {
+        getReportTopologySnapshot: QueryRef;
+        refreshReportTopologySnapshot: ActionRef;
+      };
+    };
   };
 };
+
+export interface ReportGraphNeighborhoodScope {
+  isServerBounded: boolean;
+  mode: string;
+  reportLimit: number;
+  scanLimit: number;
+  scannedArchivePosts: number;
+  totalCandidateReports: number;
+  returnedReportCount: number;
+  hiddenReportCount: number;
+  hasMoreArchive: boolean;
+}
+
+interface ReportGraphNeighborhoodPacket {
+  mode: string;
+  sourceLabel: string;
+  rootId?: string;
+  latestMemory?: DailyBriefMemory | null;
+  posts: ArchivePost[];
+  reportLimit: number;
+  scanLimit: number;
+  scannedArchivePosts: number;
+  totalCandidateReports: number;
+  returnedReportCount: number;
+  hiddenReportCount: number;
+  hasMoreArchive: boolean;
+}
+
+export interface ReportGraphNeighborhoodResult extends LiveArtifactsResult {
+  scope: ReportGraphNeighborhoodScope | null;
+}
+
+export type ReportTopologyViewMode = "density" | "pca" | "centroid";
+
+export interface ReportTopologySnapshotPacket {
+  snapshotKey: string;
+  graphHash: string;
+  view: ReportTopologyViewMode;
+  mode: "focus" | "clustered" | "expanded";
+  generatedAt: number;
+  expiresAt: number;
+  persisted: boolean;
+  persistedAt?: number;
+  source: "convex-computed" | "convex-persisted";
+  nodes: Array<{
+    id: string;
+    densityScore: number;
+    attentionScore: number;
+    degree: number;
+    pc1: number;
+    pc2: number;
+    centroidDistance: number;
+    outlierScore: number;
+    mapperClusterIds: string[];
+    x: number;
+    y: number;
+  }>;
+  nodesById: Record<string, {
+    id: string;
+    densityScore: number;
+    attentionScore: number;
+    degree: number;
+    pc1: number;
+    pc2: number;
+    centroidDistance: number;
+    outlierScore: number;
+    mapperClusterIds: string[];
+    x: number;
+    y: number;
+  }>;
+  mapperClusters: Array<{
+    id: string;
+    label: string;
+    memberIds: string[];
+    x: number;
+    y: number;
+    densityScore: number;
+    attentionScore: number;
+  }>;
+  mapperEdges: Array<{ source: string; target: string; sharedMembers: number }>;
+  summary: {
+    nodeCount: number;
+    edgeCount: number;
+    hotNodeId: string | null;
+    centroidNodeId: string | null;
+    outlierNodeId: string | null;
+    clusterCount: number;
+    viewRationale: string;
+  };
+  pcaAxes: {
+    pc1: Array<{ label: string; weight: number }>;
+    pc2: Array<{ label: string; weight: number }>;
+  };
+  graph?: {
+    sourceLabel: string;
+    sourceRows: number;
+    totalReportCount: number;
+    visibleReportCount: number;
+    hiddenReportCount: number;
+  };
+}
+
+export interface ReportTopologySnapshotResult {
+  snapshot: ReportTopologySnapshotPacket | null;
+  isLoading: boolean;
+  sourceLabel: string;
+}
 
 const POST_TYPE_LABELS: Record<string, string> = {
   daily_digest: "Daily brief",
@@ -684,7 +807,35 @@ function dailyBriefToDetail(memory: DailyBriefMemory): LiveArtifactDetail {
     { id: "root", title, subtitle: "Daily brief - root", tone: "accent" },
     ...mapItems,
   ];
-  const edges: LiveArtifactMapEdge[] = nodes.slice(1).map((node) => ({ from: "root", to: node.id }));
+  const edges: LiveArtifactMapEdge[] = [
+    ...nodes.slice(1).map((node) => ({
+      from: "root",
+      to: node.id,
+      type: "has_artifact" as const,
+      label: node.subtitle || "artifact",
+      basis: "Derived from the current daily brief signal map.",
+    })),
+  ];
+  if (mapItems.length >= 2) {
+    edges.push({
+      from: mapItems[0].id,
+      to: mapItems[1].id,
+      type: "causes",
+      label: "causes",
+      basis: "The first ranked signal is treated as the lead artifact that changes the next artifact's review order.",
+      strength: 0.74,
+    });
+  }
+  if (mapItems.length >= 3) {
+    edges.push({
+      from: mapItems[1].id,
+      to: mapItems[2].id,
+      type: "correlates_with",
+      label: "correlates",
+      basis: "Adjacent daily brief artifacts share source timing or topic overlap.",
+      strength: 0.66,
+    });
+  }
   const signalClaimHtml = rankedSignals.length
     ? rankedSignals.map((signal) => {
         const evidence = Array.isArray(signal.evidence) ? signal.evidence : [];
@@ -799,8 +950,9 @@ function archivePostToDetail(post: ArchivePost): LiveArtifactDetail {
     { id: "persona", title: post.persona, subtitle: "persona", tone: "default" },
   ];
   const edges: LiveArtifactMapEdge[] = [
-    { from: "root", to: "archive" },
-    { from: "root", to: "persona" },
+    { from: "root", to: "archive", type: "has_artifact", label: "archive artifact", basis: "Archive row rendered as reusable evidence." },
+    { from: "root", to: "persona", type: "coverage", label: "persona context", basis: "Persona controls tone and audience for this artifact." },
+    { from: "archive", to: "persona", type: "correlates_with", label: "correlates", basis: "Archive artifact and persona context are part of the same published packet.", strength: 0.58 },
   ];
   const notebookHtml = [
     `<h1>${escapeHtml(report.entity)}</h1>`,
@@ -997,4 +1149,185 @@ export function useLiveArtifacts(limit = 24, options: { enabled?: boolean } = {}
       briefFeatureCount,
     };
   }, [archive, archiveStats, enabled, latestMemory, limit]);
+}
+
+export function useReportTopologySnapshot(
+  args: {
+    rootId?: string | null;
+    query?: string;
+    stage?: string;
+    kind?: string;
+    mode?: "focus" | "clustered" | "expanded";
+    view?: ReportTopologyViewMode;
+    limit?: number;
+  },
+  options: { enabled?: boolean } = {},
+): ReportTopologySnapshotResult {
+  const enabled = options.enabled ?? true;
+  const convex = useConvex();
+  const [snapshot, setSnapshot] = useState<ReportTopologySnapshotPacket | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sourceLabel, setSourceLabel] = useState("Topology disabled");
+  const refreshKeyRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!enabled) {
+      setSnapshot(null);
+      setIsLoading(false);
+      setSourceLabel("Topology disabled");
+      return;
+    }
+
+    let isCancelled = false;
+    const payload = {
+      rootId: args.rootId ?? undefined,
+      query: args.query || undefined,
+      stage: args.stage || undefined,
+      kind: args.kind || undefined,
+      mode: args.mode ?? "clustered",
+      view: args.view ?? "density",
+      limit: args.limit,
+    };
+
+    setIsLoading(true);
+    setSourceLabel("Loading Convex topology");
+
+    void convex
+      .query(liveArtifactApi.domains.redesign.reportTopology.getReportTopologySnapshot, payload)
+      .then((nextSnapshot) => {
+        if (isCancelled) return;
+        const packet = nextSnapshot as ReportTopologySnapshotPacket;
+        setSnapshot(packet);
+        setSourceLabel(packet.persisted ? "Convex persisted topology" : "Convex topology computed, persistence queued");
+
+        if (packet.persisted) return undefined;
+
+        const key = `${packet.snapshotKey}:${packet.graphHash}`;
+        if (refreshKeyRef.current === key) return undefined;
+        refreshKeyRef.current = key;
+        return convex
+          .action(liveArtifactApi.domains.redesign.reportTopology.refreshReportTopologySnapshot, payload)
+          .then((persistedSnapshot) => {
+            if (isCancelled) return;
+            setSnapshot(persistedSnapshot as ReportTopologySnapshotPacket);
+            setSourceLabel("Convex persisted topology");
+          })
+          .catch(() => {
+            refreshKeyRef.current = "";
+          });
+      })
+      .catch(() => {
+        if (isCancelled) return;
+        setSnapshot(null);
+        setSourceLabel("Convex topology unavailable, using client fallback");
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    args.kind,
+    args.limit,
+    args.mode,
+    args.query,
+    args.rootId,
+    args.stage,
+    args.view,
+    convex,
+    enabled,
+  ]);
+
+  return { snapshot, isLoading, sourceLabel };
+}
+
+export function useReportGraphNeighborhood(
+  args: {
+    rootId?: string | null;
+    query?: string;
+    stage?: string;
+    kind?: string;
+    mode?: "focus" | "clustered" | "expanded";
+    limit?: number;
+  },
+  options: { enabled?: boolean } = {},
+): ReportGraphNeighborhoodResult {
+  const enabled = options.enabled ?? true;
+  const packet = useQuery(
+    liveArtifactApi.domains.redesign.reportGraphNeighborhood.getReportGraphNeighborhood,
+    enabled
+      ? ({
+          rootId: args.rootId ?? undefined,
+          query: args.query || undefined,
+          stage: args.stage || undefined,
+          kind: args.kind || undefined,
+          mode: args.mode ?? "expanded",
+          limit: args.limit,
+        } as Parameters<typeof useQuery>[1])
+      : "skip",
+  ) as ReportGraphNeighborhoodPacket | undefined;
+
+  return useMemo(() => {
+    if (!enabled) {
+      return {
+        ...EMPTY_LIVE_ARTIFACTS,
+        scope: null,
+      };
+    }
+
+    if (packet === undefined) {
+      return {
+        ...EMPTY_LIVE_ARTIFACTS,
+        isLoading: true,
+        sourceLabel: "Loading graph neighborhood",
+        scope: null,
+      };
+    }
+
+    const memory = packet.latestMemory ?? null;
+    const posts = packet.posts ?? [];
+    const artifactReports = [
+      ...(memory ? [dailyBriefToReport(memory)] : []),
+      ...posts.map(archivePostToReport),
+    ];
+    const details = [
+      ...(memory ? [dailyBriefToDetail(memory)] : []),
+      ...posts.map(archivePostToDetail),
+    ];
+    const dailyBriefCards = memory ? dailyBriefPublicCards(memory) : [];
+    const publicResearch = [
+      ...dailyBriefCards,
+      ...posts.map(archivePostToPublicCard),
+    ];
+    const isLive = artifactReports.length > 0 || publicResearch.length > 0;
+    const briefFeatureCount = dailyBriefCards.length || (memory ? uniqueDailyBriefFeatures(memory.features ?? []).filter(isCustomerFacingFeature).length : 0);
+
+    return {
+      isLoading: false,
+      isLive,
+      sourceLabel: packet.sourceLabel,
+      metrics: [],
+      pulse: [],
+      publicResearch,
+      reports: artifactReports,
+      details,
+      archiveCount: posts.length,
+      briefFeatureCount,
+      scope: {
+        isServerBounded: true,
+        mode: packet.mode,
+        reportLimit: packet.reportLimit,
+        scanLimit: packet.scanLimit,
+        scannedArchivePosts: packet.scannedArchivePosts,
+        totalCandidateReports: packet.totalCandidateReports,
+        returnedReportCount: packet.returnedReportCount,
+        hiddenReportCount: packet.hiddenReportCount,
+        hasMoreArchive: packet.hasMoreArchive,
+      },
+    };
+  }, [enabled, packet]);
 }

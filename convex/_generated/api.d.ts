@@ -611,6 +611,9 @@ import type * as domains_founder_sharedContextOps from "../domains/founder/share
 import type * as domains_governance_provenanceExplainer from "../domains/governance/provenanceExplainer.js";
 import type * as domains_governance_quarantine from "../domains/governance/quarantine.js";
 import type * as domains_governance_trustPolicy from "../domains/governance/trustPolicy.js";
+import type * as domains_graph_autoExtractMentions from "../domains/graph/autoExtractMentions.js";
+import type * as domains_graph_backlinkQueries from "../domains/graph/backlinkQueries.js";
+import type * as domains_graph_expansionQueries from "../domains/graph/expansionQueries.js";
 import type * as domains_groundTruth_auditLog from "../domains/groundTruth/auditLog.js";
 import type * as domains_groundTruth_versions from "../domains/groundTruth/versions.js";
 import type * as domains_hitl_adjudicationWorkflow from "../domains/hitl/adjudicationWorkflow.js";
@@ -1005,6 +1008,9 @@ import type * as domains_redesign_agentRunFeedback from "../domains/redesign/age
 import type * as domains_redesign_chatRuns from "../domains/redesign/chatRuns.js";
 import type * as domains_redesign_documentPatches from "../domains/redesign/documentPatches.js";
 import type * as domains_redesign_inboxSnoozes from "../domains/redesign/inboxSnoozes.js";
+import type * as domains_redesign_reportGraphNeighborhood from "../domains/redesign/reportGraphNeighborhood.js";
+import type * as domains_redesign_reportTopology from "../domains/redesign/reportTopology.js";
+import type * as domains_redesign_reportTopologyRuntime from "../domains/redesign/reportTopologyRuntime.js";
 import type * as domains_redesign_styleProfile from "../domains/redesign/styleProfile.js";
 import type * as domains_redesign_universes from "../domains/redesign/universes.js";
 import type * as domains_research_angleRegistry from "../domains/research/angleRegistry.js";
@@ -2114,6 +2120,9 @@ declare const fullApi: ApiFromModules<{
   "domains/governance/provenanceExplainer": typeof domains_governance_provenanceExplainer;
   "domains/governance/quarantine": typeof domains_governance_quarantine;
   "domains/governance/trustPolicy": typeof domains_governance_trustPolicy;
+  "domains/graph/autoExtractMentions": typeof domains_graph_autoExtractMentions;
+  "domains/graph/backlinkQueries": typeof domains_graph_backlinkQueries;
+  "domains/graph/expansionQueries": typeof domains_graph_expansionQueries;
   "domains/groundTruth/auditLog": typeof domains_groundTruth_auditLog;
   "domains/groundTruth/versions": typeof domains_groundTruth_versions;
   "domains/hitl/adjudicationWorkflow": typeof domains_hitl_adjudicationWorkflow;
@@ -2508,6 +2517,9 @@ declare const fullApi: ApiFromModules<{
   "domains/redesign/chatRuns": typeof domains_redesign_chatRuns;
   "domains/redesign/documentPatches": typeof domains_redesign_documentPatches;
   "domains/redesign/inboxSnoozes": typeof domains_redesign_inboxSnoozes;
+  "domains/redesign/reportGraphNeighborhood": typeof domains_redesign_reportGraphNeighborhood;
+  "domains/redesign/reportTopology": typeof domains_redesign_reportTopology;
+  "domains/redesign/reportTopologyRuntime": typeof domains_redesign_reportTopologyRuntime;
   "domains/redesign/styleProfile": typeof domains_redesign_styleProfile;
   "domains/redesign/universes": typeof domains_redesign_universes;
   "domains/research/angleRegistry": typeof domains_research_angleRegistry;

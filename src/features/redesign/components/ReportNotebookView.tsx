@@ -554,8 +554,8 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
               <div className="rd-page-chrome__prop rd-page-chrome__prop--wide" role="listitem">
                 <span className="rd-page-chrome__prop-key">Linked</span>
                 <span className="rd-page-chrome__prop-val">
-                  {linkedTags.map((tag) => (
-                    <a key={tag} className="rd-entity-link" href="#" data-entity={tag.toLowerCase().replace(/[^a-z0-9]+/g, "-")}>{tag}</a>
+                  {linkedTags.map((tag, index) => (
+                    <a key={`${tag}-${index}`} className="rd-entity-link" href="#" data-entity={tag.toLowerCase().replace(/[^a-z0-9]+/g, "-")}>{tag}</a>
                   ))}
                 </span>
               </div>

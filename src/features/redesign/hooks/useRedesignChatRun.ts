@@ -19,6 +19,7 @@ import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { ChatAnswer } from "../fixtures";
 import type { RouterTier } from "../components/UniversalComposer";
+import type { LiveGroundingDecision } from "shared/redesign/contextRuntimePolicy";
 
 export type ChatRunTier = "free" | "fast" | "auto" | "deep";
 
@@ -51,12 +52,55 @@ export interface RuntimeMetrics {
   paidCalls?: number;
   sourceCount?: number;
   verifiedSourceCount?: number;
+  softWarningSourceCount?: number;
+  unsupportedSourceCount?: number;
+  cachedSourceCount?: number;
+  fetchBlockedSourceCount?: number;
+  providerGroundedSourceCount?: number;
   toolCallCount?: number;
   liveSearchCalls?: number;
   memoryHitRate?: number;
   sourceCacheHitRate?: number;
   timeToFirstSourceMs?: number | null;
   timeToFinalMs?: number;
+}
+
+export interface RuntimeContextPacket {
+  hasContext: boolean;
+  contextRef: string | null;
+  contextKind: "graph_packet" | "report" | "none";
+  reportId: string | null;
+  artifactKey: string | null;
+  title: string;
+  summary: string;
+  selectedContext: string[];
+  rejectedContext: string[];
+  sourceRefs: Array<{
+    title: string;
+    url?: string;
+    source?: string;
+    publishedAt?: string;
+    excerpt?: string;
+  }>;
+  graph: {
+    mode: "bounded_packet";
+    nodeCount: number;
+    edgeCount: number;
+    clusters: Array<{ name: "used" | "changed" | "needs_review" | "blocked"; count: number; sample: string[] }>;
+  };
+  notebook: {
+    sectionTitles: string[];
+    htmlPreview?: string;
+  };
+  verification: {
+    tier: "deterministic" | "retrieval" | "judge_required";
+    decisions: string[];
+  };
+  telemetry: {
+    memoryHit: boolean;
+    sourceCacheHit: boolean;
+    candidateCount: number;
+  };
 }
 
 export interface ClaimCheck {
@@ -67,6 +111,9 @@ export interface ClaimCheck {
   detail?: string;
   verified?: boolean;
   validationError?: string;
+  verificationState?: "verified" | "cached_reference" | "provider_grounded" | "fetch_blocked" | "unsupported";
+  verificationDetail?: string;
+  blocking?: boolean;
 }
 
 export interface RuntimeTrace {
@@ -75,6 +122,24 @@ export interface RuntimeTrace {
   toolDecisions: PlannerArtifact[];
   claimChecks: ClaimCheck[];
   metrics?: RuntimeMetrics;
+  contextPacket?: RuntimeContextPacket;
+  liveGroundingDecision?: LiveGroundingDecision;
+}
+
+function dedupePlannerArtifacts(rows: PlannerArtifact[]): PlannerArtifact[] {
+  const byId = new Map<string, PlannerArtifact>();
+  for (const row of rows) {
+    byId.set(row.id, row);
+  }
+  return [...byId.values()];
+}
+
+function dedupeClaimChecks(rows: ClaimCheck[]): ClaimCheck[] {
+  const byIdx = new Map<number, ClaimCheck>();
+  for (const row of rows) {
+    byIdx.set(row.idx, row);
+  }
+  return [...byIdx.values()].sort((a, b) => a.idx - b.idx);
 }
 
 function inferEntity(prompt: string): string | undefined {
@@ -105,6 +170,13 @@ function fallbackContextCandidates(prompt: string): PlannerArtifact[] {
       confidence: 0,
       detail: "No report reference was available in the legacy run row.",
     },
+    {
+      id: "graph_context_packet",
+      label: "Graph context packet",
+      status: "deferred",
+      confidence: 0,
+      detail: "Legacy run row did not include a bounded report graph packet.",
+    },
   ];
 }
 
@@ -119,6 +191,14 @@ function fallbackToolDecisions(trace: TraceRow[]): PlannerArtifact[] {
       riskTier: "low",
       costUsd: 0,
       detail: "Legacy run stream did not emit a memory-search decision.",
+    },
+    {
+      id: "resolve_report_graph_context",
+      label: "resolve_report_graph_context",
+      status: "deferred",
+      riskTier: "low",
+      costUsd: 0,
+      detail: "Legacy run stream did not emit a graph-context decision.",
     },
     {
       id: hasFallback ? "fallback_source_search" : "google_search_grounding",
@@ -216,6 +296,8 @@ export function useRedesignChatRun() {
     const claimChecks: ClaimCheck[] = [];
     let boardState: RuntimeTrace["boardState"];
     let metrics: RuntimeMetrics | undefined;
+    let contextPacket: RuntimeContextPacket | undefined;
+    let liveGroundingDecision: LiveGroundingDecision | undefined;
     const sections: Record<string, any> = {};
     let terminalError: string | undefined;
     for (const ev of list) {
@@ -249,17 +331,26 @@ export function useRedesignChatRun() {
         case "tool_decision":
           if (ev.payload?.id && ev.payload?.label) toolDecisions.push(ev.payload as PlannerArtifact);
           break;
+        case "context_runtime_packet":
+          if (ev.payload?.contextRef !== undefined) contextPacket = ev.payload as RuntimeContextPacket;
+          break;
+        case "live_grounding_decision":
+          if (typeof ev.payload?.useLiveGrounding === "boolean") liveGroundingDecision = ev.payload as LiveGroundingDecision;
+          break;
         case "claim_check":
           if (typeof ev.payload?.idx === "number") claimChecks.push(ev.payload as ClaimCheck);
           break;
         case "sources_validated":
-          for (const item of ev.payload?.unverified ?? []) {
+          for (const item of [...(ev.payload?.warnings ?? []), ...(ev.payload?.unverified ?? [])]) {
             if (typeof item?.idx === "number") {
               claimChecks.push({
                 idx: item.idx,
-                status: "source_validation_failed",
+                status: item.status ?? (item.blocking ? "source_validation_failed" : "source_validation_warning"),
                 verified: false,
                 validationError: item.reason,
+                verificationState: item.verificationState,
+                verificationDetail: item.verificationDetail,
+                blocking: item.blocking,
               });
             }
           }
@@ -268,6 +359,8 @@ export function useRedesignChatRun() {
               ...metrics,
               sourceCount: ev.payload.total,
               verifiedSourceCount: ev.payload.verified,
+              softWarningSourceCount: ev.payload.softWarnings,
+              unsupportedSourceCount: ev.payload.unverified?.length,
             };
           }
           break;
@@ -297,17 +390,19 @@ export function useRedesignChatRun() {
       ? (runRow.packet as ChatAnswer)
       : partial;
     const resolvedContextCandidates = contextCandidates.length > 0
-      ? contextCandidates
+      ? dedupePlannerArtifacts(contextCandidates)
       : fallbackContextCandidates(runRow?.prompt ?? "");
     const resolvedToolDecisions = toolDecisions.length > 0
-      ? toolDecisions
+      ? dedupePlannerArtifacts(toolDecisions)
       : fallbackToolDecisions(toolCalls);
     const runtime: RuntimeTrace = {
       boardState,
       contextCandidates: resolvedContextCandidates,
       toolDecisions: resolvedToolDecisions,
-      claimChecks,
+      claimChecks: dedupeClaimChecks(claimChecks),
       metrics,
+      contextPacket: contextPacket ?? (finalPacket.runtime as RuntimeTrace | undefined)?.contextPacket,
+      liveGroundingDecision: liveGroundingDecision ?? (finalPacket.runtime as RuntimeTrace | undefined)?.liveGroundingDecision,
     };
     const packet = {
       ...finalPacket,

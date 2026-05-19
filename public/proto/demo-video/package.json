@@ -1,0 +1,31 @@
+{
+  "name": "demo-video",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "capture": "node capture-screenshots.mjs",
+    "tts": "python generate-tts.py",
+    "preview": "npx remotion studio src/index.ts",
+    "render": "npx remotion render src/index.ts NodeBenchDemo out/nodebench-demo-final.mp4 --codec h264 --crf 18",
+    "render:preview": "npx remotion render src/index.ts NodeBenchPreview out/nodebench-preview.mp4",
+    "build": "npm run capture && npm run tts && npm run render",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@remotion/cli": "^4.0.462",
+    "@remotion/media-utils": "^4.0.462",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "remotion": "^4.0.462"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "puppeteer": "^25.0.3",
+    "typescript": "^6.0.3"
+  }
+}

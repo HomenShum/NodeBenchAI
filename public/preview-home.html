@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- SECURITY: Content Security Policy â?? defense-in-depth against XSS.
+         - default-src 'self': only load from same origin by default
+         - script-src 'self' 'unsafe-inline': Vite needs inline scripts for HMR; 'unsafe-eval' NOT allowed
+         - style-src 'self' 'unsafe-inline' fonts.googleapis.com: inline styles for CSS-in-JS + Google Fonts
+         - font-src 'self' data: fonts.gstatic.com: Google Fonts hosted font files + bundled data URL fonts
+         - connect-src 'self' *.convex.cloud wss://*.convex.cloud api.elevenlabs.io localhost/127.0.0.1: API backends
+         - img-src 'self' data: blob: https: localhost/127.0.0.1: inline images, generated content, and persisted remote/source thumbnails
+         - frame-src 'none': no iframes allowed
+         - object-src 'none': no Flash/Java applets
+         - base-uri 'self': prevent base tag hijacking
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.convex.cloud wss://*.convex.cloud https://api.elevenlabs.io ws://localhost:* http://localhost:* ws://127.0.0.1:* http://127.0.0.1:*; img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*; frame-src 'none'; object-src 'none'; base-uri 'self';" />
+
+    <!-- Resource hints for better performance -->
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Preconnect to Convex backend for faster API calls -->
+    <link rel="preconnect" href="https://aware-clam-410.convex.cloud" />
+    <link rel="dns-prefetch" href="https://aware-clam-410.convex.cloud" />
+
+    <!-- Prevent white flash before CSS loads -->
+    <meta name="theme-color" content="#09090B" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)" />
+    <script>
+      // Apply persisted theme + reduced-motion before CSS to avoid flashes on load.
+      (function () {
+        try {
+          var raw = localStorage.getItem("nodebench-theme");
+          if (!raw) return;
+          var theme = JSON.parse(raw) || {};
+          var mode = theme.mode || "system";
+          var prefersDark =
+            window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var resolved = mode === "system" ? (prefersDark ? "dark" : "light") : mode;
+
+          document.documentElement.dataset.theme = resolved;
+          if (resolved === "dark") document.documentElement.classList.add("dark");
+          else document.documentElement.classList.remove("dark");
+
+          if (theme.reducedMotion) document.documentElement.classList.add("reduce-motion");
+        } catch {
+          // ignore
+        }
+      })();
+    </script>
+    <script>
+      // Guard beforeunload handlers until the browser has a real user activation.
+      // Some third-party libs register beforeunload prompts that Chromium blocks (and logs as an error)
+      // when navigation happens without a user gesture (common in automated QA / Playwright).
+      (function () {
+        try {
+          var origAdd = window.addEventListener;
+          var origRemove = window.removeEventListener;
+          var beforeUnloadMap = new WeakMap();
+
+          window.addEventListener = function (type, listener, options) {
+            if (type === "beforeunload" && typeof listener === "function") {
+              var wrapped = beforeUnloadMap.get(listener);
+              if (!wrapped) {
+                wrapped = function (e) {
+                  try {
+                    var ua = navigator.userActivation;
+                    if (ua && ua.hasBeenActive === false) return;
+                  } catch {
+                    // ignore
+                  }
+                  return listener.call(this, e);
+                };
+                beforeUnloadMap.set(listener, wrapped);
+              }
+              return origAdd.call(this, type, wrapped, options);
+            }
+            return origAdd.call(this, type, listener, options);
+          };
+
+          window.removeEventListener = function (type, listener, options) {
+            if (type === "beforeunload" && typeof listener === "function") {
+              var wrapped = beforeUnloadMap.get(listener);
+              return origRemove.call(this, type, wrapped || listener, options);
+            }
+            return origRemove.call(this, type, listener, options);
+          };
+        } catch {
+          // ignore
+        }
+      })();
+    </script>
+    <style>
+      html,
+      body {
+        background: #fafafa;
+        color: #111827;
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: light) {
+        html,
+        body {
+          background: #fafafa;
+          color: #111827;
+          color-scheme: light;
+        }
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background: #09090b;
+          color: #fafafa;
+          color-scheme: dark;
+        }
+      }
+      html[data-theme="dark"],
+      html[data-theme="dark"] body {
+        background: #09090b;
+        color: #fafafa;
+        color-scheme: dark;
+      }
+      html[data-theme="light"],
+      html[data-theme="light"] body {
+        background: #fafafa;
+        color: #111827;
+        color-scheme: light;
+      }
+    </style>
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <title>NodeBench AI â?? Entity Intelligence for Any Company, Market, or Question</title>
+    <meta name="description" content="NodeBench AI is the entity intelligence platform for founders, investors, and bankers. Search any company for banker-grade diligence: people, timeline, financials, competitive landscape, and risk flags. 350+ MCP tools, 6 role lenses. Founded by Homen Shum." />
+    <link rel="canonical" href="https://www.nodebenchai.com/" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="NodeBench AI â?? Entity Intelligence for Any Company, Market, or Question" />
+    <meta property="og:description" content="Search any company. Get a banker-grade intelligence packet with people, timeline, financials, competitive landscape, products, and risk flags. 350+ MCP tools, 6 role lenses." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.nodebenchai.com/" />
+    <meta property="og:image" content="/og-nodebench.svg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="NodeBench AI" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@nodebenchai" />
+    <meta name="twitter:creator" content="@homenshum" />
+    <meta name="twitter:title" content="NodeBench AI â?? Entity Intelligence for Any Company, Market, or Question" />
+    <meta name="twitter:description" content="Search any company for deep diligence: people, timeline, financials, competitive landscape, risk flags. Banker-grade intelligence packets. 350+ MCP tools." />
+
+    <!-- JSON-LD Structured Data: Organization + SoftwareApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "name": "NodeBench AI",
+          "alternateName": ["NodeBench", "nodebenchai"],
+          "url": "https://www.nodebenchai.com",
+          "logo": "https://www.nodebenchai.com/og-nodebench.svg",
+          "description": "Entity intelligence platform for founders, investors, and bankers. Banker-grade deep diligence on any company.",
+          "disambiguatingDescription": "NodeBench AI is an entity intelligence platform for company research and founder clarity â?? not a benchmarking tool. Founded by Homen Shum in 2024 in San Jose, CA.",
+          "knowsAbout": ["entity intelligence", "company diligence", "due diligence", "MCP protocol", "founder tools", "competitive analysis", "investment banking", "startup readiness"],
+          "founder": {
+            "@type": "Person",
+            "name": "Homen Shum",
+            "jobTitle": "Founder & CEO",
+            "url": "https://github.com/HomenShum"
+          },
+          "foundingDate": "2024",
+          "foundingLocation": {
+            "@type": "Place",
+            "address": {
+              "@type": "PostalAddress",
+              "addressLocality": "San Jose",
+              "addressRegion": "CA",
+              "addressCountry": "US"
+            }
+          },
+          "sameAs": [
+            "https://github.com/HomenShum/nodebench-ai",
+            "https://www.npmjs.com/package/nodebench-mcp"
+          ]
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "NodeBench AI",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web, Claude Code, Cursor, Windsurf",
+          "url": "https://www.nodebenchai.com",
+          "description": "Search any company for banker-grade deep diligence. 6 parallel research branches: people, timeline, financials, competitive landscape, products, risk flags.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "author": {
+            "@type": "Person",
+            "name": "Homen Shum"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "name": "NodeBench AI",
+          "url": "https://www.nodebenchai.com",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://www.nodebenchai.com/?surface=ask&q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        }
+      ]
+    }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DRb6KD54.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/react-vendor-C8Wly5Li.js">
+    <link rel="modulepreload" crossorigin href="/assets/convex-vendor-a3VZzZ1T.js">
+    <link rel="modulepreload" crossorigin href="/assets/zod-vendor-DHEUVqKl.js">
+    <link rel="modulepreload" crossorigin href="/assets/agent-panel-enhancer-CtdpV4KV.js">
+    <link rel="modulepreload" crossorigin href="/assets/motion-vendor-B6AifdZG.js">
+    <link rel="modulepreload" crossorigin href="/assets/router-vendor-ChD8REU5.js">
+    <link rel="modulepreload" crossorigin href="/assets/convex-api-Dd9peyfh.js">
+    <link rel="modulepreload" crossorigin href="/assets/research-briefing-aU8HdYyN.js">
+    <link rel="modulepreload" crossorigin href="/assets/research-feed-cYyYdSyd.js">
+    <link rel="modulepreload" crossorigin href="/assets/agent-panel-brief-BCRLPacE.js">
+    <link rel="stylesheet" crossorigin href="/assets/editor-vendor-B2pV81-v.css">
+    <link rel="stylesheet" crossorigin href="/assets/agent-fast-panel-B0Bwh3Pk.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-BR0NrS7v.css">
+  <link rel="manifest" href="/manifest.webmanifest"></head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+
+

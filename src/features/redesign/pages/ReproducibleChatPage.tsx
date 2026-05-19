@@ -22,6 +22,45 @@ interface ReproducibleChatPageProps {
   hash: string;
 }
 
+function evidenceTrustBadge(row: ChatAnswer["evidence"][number]): { label: string; title: string; color: string } | null {
+  if (row.verified === true || row.verificationState === "verified") {
+    return {
+      label: "verified in source body",
+      title: row.verificationDetail ?? "Quote substring confirmed in source body.",
+      color: "var(--rd-green, #15803d)",
+    };
+  }
+  if (row.verificationState === "cached_reference") {
+    return {
+      label: "cached reference",
+      title: row.verificationDetail ?? "Cached memory/source-cache reference; no URL fetch was available.",
+      color: "var(--rd-amber, #b45309)",
+    };
+  }
+  if (row.verificationState === "fetch_blocked") {
+    return {
+      label: "fetch blocked",
+      title: row.verificationDetail ?? `Publisher fetch blocked post-hoc validation: ${row.validationError ?? "unknown reason"}`,
+      color: "var(--rd-amber, #b45309)",
+    };
+  }
+  if (row.verificationState === "provider_grounded") {
+    return {
+      label: "provider-grounded",
+      title: row.verificationDetail ?? "Search provider supplied the source, but the exact snippet was not found during post-hoc fetch.",
+      color: "var(--rd-amber, #b45309)",
+    };
+  }
+  if (row.verified === false || row.verificationState === "unsupported") {
+    return {
+      label: `unsupported (${row.validationError ?? "no_match"})`,
+      title: row.verificationDetail ?? `Source validation failed: ${row.validationError ?? "unknown reason"}`,
+      color: "var(--rd-red, #b91c1c)",
+    };
+  }
+  return null;
+}
+
 export function ReproducibleChatPage({ hash }: ReproducibleChatPageProps) {
   const navigate = useNavigate();
   const row = useRedesignChatByHash(hash);
@@ -185,6 +224,7 @@ export function ReproducibleChatPage({ hash }: ReproducibleChatPageProps) {
           <ol className="rd-stack" style={{ gap: 8, listStyle: "none", padding: 0, margin: 0 }}>
             {evidenceWithCites.map((e) => {
               const isUrl = /^https?:\/\//i.test(e.source);
+              const trustBadge = evidenceTrustBadge(e);
               return (
                 <li
                   key={e.idx}
@@ -197,7 +237,18 @@ export function ReproducibleChatPage({ hash }: ReproducibleChatPageProps) {
                   }}
                 >
                   <span className="rd-cite rd-cite--block">[{e.idx}]</span>
-                  <p className="rd-body" style={{ margin: 0, fontSize: 13 }}>{e.quote}</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                    <p className="rd-body" style={{ margin: 0, fontSize: 13 }}>{e.quote}</p>
+                    {trustBadge && (
+                      <span
+                        className="rd-mono"
+                        title={trustBadge.title}
+                        style={{ fontSize: 10, color: trustBadge.color, display: "inline-flex", alignItems: "center", gap: 4 }}
+                      >
+                        {e.verified === true ? "ok" : e.blocking ? "blocked" : "warn"} - {trustBadge.label}
+                      </span>
+                    )}
+                  </div>
                   {isUrl ? (
                     <a
                       href={e.source}

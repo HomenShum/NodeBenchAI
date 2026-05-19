@@ -18,10 +18,11 @@ import { useBatchLive } from "../hooks/useBatchLive";
 import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 import { ChatThinking } from "../components/ChatThinking";
 import { ChatToolCall, type ToolCall } from "../components/ChatToolCall";
-import { MessageActions } from "../components/MessageActions";
+
 import { ChatEmptyState } from "../components/ChatEmptyState";
 import { showToast } from "../components/Toast";
 import { normalizeRouterTierForChatRun, useRedesignChatRun, type ChatRunState, type RealChatRun } from "../hooks/useRedesignChatRun";
+import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { LiveResearchChecklist, type ResearchStage, type ResearchStageId } from "../../research/LiveResearchChecklist";
@@ -248,6 +249,60 @@ function formatRailUsd(value?: number | null): string {
   return `$${value.toFixed(2)}`;
 }
 
+function isBlockingClaimCheck(check: { status?: string; verified?: boolean; blocking?: boolean; verificationState?: string }): boolean {
+  return check.blocking === true || check.verificationState === "unsupported" || check.status === "source_validation_failed";
+}
+
+function sourceTrustBadge(row: {
+  verified?: boolean;
+  validationError?: string;
+  verificationState?: string;
+  verificationDetail?: string;
+}): { label: string; title: string; color: string } | null {
+  if (row.verified === true || row.verificationState === "verified") {
+    return {
+      label: "verified in source body",
+      title: row.verificationDetail ?? "Quote substring confirmed in source body.",
+      color: "var(--rd-green, #15803d)",
+    };
+  }
+  if (row.verificationState === "cached_reference") {
+    return {
+      label: "cached reference",
+      title: row.verificationDetail ?? "Cached memory/source-cache reference; no URL fetch was available.",
+      color: "var(--rd-amber, #b45309)",
+    };
+  }
+  if (row.verificationState === "fetch_blocked") {
+    return {
+      label: "fetch blocked",
+      title: row.verificationDetail ?? `Publisher fetch blocked post-hoc validation: ${row.validationError ?? "unknown reason"}`,
+      color: "var(--rd-amber, #b45309)",
+    };
+  }
+  if (row.verificationState === "provider_grounded") {
+    return {
+      label: "provider-grounded",
+      title: row.verificationDetail ?? "Search provider supplied the source, but the exact snippet was not found during post-hoc fetch.",
+      color: "var(--rd-amber, #b45309)",
+    };
+  }
+  if (row.verified === false || row.verificationState === "unsupported") {
+    return {
+      label: `unsupported (${row.validationError ?? "no_match"})`,
+      title: row.verificationDetail ?? `Source validation failed: ${row.validationError ?? "unknown reason"}`,
+      color: "var(--rd-red, #b91c1c)",
+    };
+  }
+  return null;
+}
+
+function buildLiveContextRef(detail: LiveArtifactDetail | null, artifactKey?: string | null): string | undefined {
+  if (!detail) return undefined;
+  const base = buildGraphContextBridgePacket({ detail, mode: "agent" }).contextRef;
+  return artifactKey ? `${base}::artifact:${encodeURIComponent(artifactKey)}` : base;
+}
+
 function formatLatency(value?: number | null): string {
   if (!value || !Number.isFinite(value)) return "pending";
   if (value < 1000) return `${Math.round(value)}ms`;
@@ -285,18 +340,25 @@ function buildChatAgentRailSnapshot(args: {
   const isRunning = chatState.status === "thinking" || run?.status === "pending" || run?.status === "running";
   const hasAnswer = Boolean(activePacket?.shortAnswer);
   const runtime = run?.runtime ?? activePacket?.runtime;
+  const runtimeContextPacket = runtime?.contextPacket;
+  const liveGroundingDecision = runtime?.liveGroundingDecision;
   const contextCandidates = runtime?.contextCandidates ?? [];
   const toolDecisions = runtime?.toolDecisions ?? [];
   const claimChecks = runtime?.claimChecks ?? [];
   const metrics = runtime?.metrics;
   const sourceCount = metrics?.sourceCount ?? run?.groundingChunks.length ?? activePacket?.sourceCount ?? liveDetail?.sourceCount ?? 0;
-  const verifiedSourceCount = metrics?.verifiedSourceCount ?? claimChecks.filter((check) => check.verified !== false).length;
-  const blockedClaimCount = claimChecks.filter((check) => check.verified === false || check.status === "source_validation_failed").length;
+  const verifiedSourceCount = metrics?.verifiedSourceCount ?? claimChecks.filter((check) => check.verified === true).length;
+  const softWarningSourceCount = metrics?.softWarningSourceCount
+    ?? claimChecks.filter((check) => check.verified === false && !isBlockingClaimCheck(check)).length;
+  const unsupportedSourceCount = metrics?.unsupportedSourceCount
+    ?? claimChecks.filter((check) => isBlockingClaimCheck(check)).length;
+  const blockedClaimCount = unsupportedSourceCount;
   const toolCallCount = metrics?.toolCallCount ?? run?.toolCalls.length ?? activePacket?.trace.length ?? 0;
   const estimatedCost = metrics?.estimatedCostUsd ?? run?.estimatedCostUsd ?? 0;
   const latency = metrics?.timeToFinalMs ?? metrics?.totalLatencyMs ?? run?.totalLatencyMs;
   const memoryHitRate = typeof metrics?.memoryHitRate === "number" ? `${Math.round(metrics.memoryHitRate * 100)}%` : "pending";
   const cacheHitRate = typeof metrics?.sourceCacheHitRate === "number" ? `${Math.round(metrics.sourceCacheHitRate * 100)}%` : "pending";
+  const graphPacket = liveDetail ? buildGraphContextBridgePacket({ detail: liveDetail, mode: "agent" }) : null;
 
   const canRunLive = chatState.available && !skipLiveSeed;
   const authDetail = skipLiveSeed
@@ -327,21 +389,33 @@ function buildChatAgentRailSnapshot(args: {
       id: "memory",
       label: "Search memory and current reports",
       status: memoryStatus,
-      detail: contextCandidates[0]?.detail ?? (liveDetail ? `${liveDetail.title} selected from live Convex memory.` : "Runs before any live source refresh."),
+      detail: runtimeContextPacket?.hasContext
+        ? `${runtimeContextPacket.title}: ${runtimeContextPacket.selectedContext.length} selected context items, ${runtimeContextPacket.sourceRefs.length} source refs.`
+        : contextCandidates[0]?.detail ?? (liveDetail ? `${liveDetail.title} selected from live Convex memory.` : "Runs before any live source refresh."),
+    },
+    {
+      id: "graph-context",
+      label: "Resolve graph context packet",
+      status: runtimeContextPacket?.hasContext ? "done" : graphPacket ? "done" : isRunning ? "running" : "queued",
+      detail: runtimeContextPacket?.hasContext
+        ? `${runtimeContextPacket.graph.nodeCount} nodes, ${runtimeContextPacket.graph.edgeCount} edges, ${runtimeContextPacket.verification.tier} verification.`
+        : graphPacket?.agentSummary ?? "Packs first-ring report graph, source refs, and safe action handles.",
     },
     {
       id: "tools",
       label: "Invoke tools and source retrieval",
       status: toolDecisions.length > 0 ? agentStatusFromPlanner(toolDecisions[0].status) : sourceStatus,
-      detail: toolDecisions[0]?.detail ?? `${toolCallCount} tool-call cards, ${sourceCount} source rows.`,
+      detail: liveGroundingDecision
+        ? `${liveGroundingDecision.useLiveGrounding ? "Live grounding enabled" : "Live grounding skipped"}: ${liveGroundingDecision.reason}`
+        : toolDecisions[0]?.detail ?? `${toolCallCount} tool-call cards, ${sourceCount} source rows.`,
     },
     {
       id: "verify",
       label: "Verify citations and claim support",
       status: verifyStatus,
       detail: blockedClaimCount > 0
-        ? `${blockedClaimCount} claim check${blockedClaimCount === 1 ? "" : "s"} need review.`
-        : `${verifiedSourceCount || 0}/${sourceCount || 0} sources verified or cached.`,
+        ? `${blockedClaimCount} source${blockedClaimCount === 1 ? "" : "s"} unsupported; ${softWarningSourceCount} fetch-limited or provider-grounded.`
+        : `${verifiedSourceCount || 0} verified · ${softWarningSourceCount || 0} fetch-limited/provider-grounded · ${sourceCount || 0} total.`,
     },
     {
       id: "packet",
@@ -388,7 +462,23 @@ function buildChatAgentRailSnapshot(args: {
       id: "cost",
       label: "Cost and cache",
       status: estimatedCost > 0 || metrics ? "done" : "queued",
-      detail: `${formatRailUsd(estimatedCost)} estimated - memory ${memoryHitRate} - source cache ${cacheHitRate}.`,
+      detail: `${formatRailUsd(estimatedCost)} estimated - memory ${memoryHitRate} - source cache ${cacheHitRate} - live search ${metrics?.liveSearchCalls ?? 0}${runtimeContextPacket ? ` - runtime graph ${runtimeContextPacket.graph.nodeCount} nodes` : graphPacket ? ` - graph ${graphPacket.packedNodes} nodes` : ""}.`,
+    },
+    {
+      id: "context-runtime",
+      label: "Context runtime packet",
+      status: runtimeContextPacket ? runtimeContextPacket.hasContext ? "done" : "blocked" : "queued",
+      detail: runtimeContextPacket
+        ? `${runtimeContextPacket.contextRef ?? "prompt-only"} - ${runtimeContextPacket.telemetry.candidateCount} candidates - ${runtimeContextPacket.rejectedContext.length} rejected.`
+        : "Waiting for server-side ContextRuntimePacket event.",
+    },
+    {
+      id: "graph-packet",
+      label: "Graph context bridge",
+      status: graphPacket ? "done" : "queued",
+      detail: graphPacket
+        ? `${graphPacket.contextRef} - human ${graphPacket.humanRank}, agent ${graphPacket.agentRank}, approval ${graphPacket.approvalRequired ? "required" : "not required"}.`
+        : "No selected live report graph yet.",
     },
     {
       id: "writes",
@@ -468,7 +558,15 @@ function buildChatAgentRailSnapshot(args: {
       id: "memory",
       label: "Memory agent",
       status: memoryStatus,
-      detail: contextCandidates[0]?.label ?? "Reports, notebook blocks, prior chats, and sources.",
+      detail: graphPacket?.title ?? contextCandidates[0]?.label ?? "Reports, notebook blocks, prior chats, and sources.",
+    },
+    {
+      id: "graph",
+      label: "Graph context agent",
+      status: runtimeContextPacket?.hasContext ? "done" : graphPacket ? "done" : "queued",
+      detail: runtimeContextPacket?.hasContext
+        ? runtimeContextPacket.graph.clusters.map((cluster) => `${cluster.name}:${cluster.count}`).join(" · ")
+        : graphPacket?.whySelected[2] ?? "Builds bounded neighborhoods before paid live search.",
     },
     {
       id: "source",
@@ -557,6 +655,9 @@ function buildChatAgentRailSnapshot(args: {
     metrics: [
       { label: "sources", value: String(sourceCount), tone: "accent" },
       { label: "tools", value: String(toolCallCount), tone: "green" },
+      { label: "latency", value: formatLatency(latency), tone: latency ? "green" : "accent" },
+      { label: "tokens", value: graphPacket ? graphPacket.estimatedTokens.toLocaleString() : "0", tone: "accent" },
+      { label: "graph", value: graphPacket ? String(graphPacket.packedNodes) : "0", tone: "accent" },
       { label: "cost", value: formatRailUsd(estimatedCost), tone: estimatedCost > 0 ? "amber" : "green" },
     ],
   };
@@ -819,7 +920,15 @@ export function ChatSurface({
 }: ChatSurfaceProps) {
   const navigate = useNavigate();
   const liveArtifacts = useLiveArtifacts(24);
-  const _rawLiveDetail = liveArtifacts.details[0];
+  const requestedReportId = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("report")
+    : null;
+  const requestedArtifactKey = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("artifact")
+    : null;
+  const _rawLiveDetail = requestedReportId
+    ? liveArtifacts.details.find((detail) => detail.id === requestedReportId) ?? null
+    : liveArtifacts.details[0];
   // Phase 1 — real LLM chat behind the composer for authenticated users.
   const chatRun = useRedesignChatRun();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
@@ -1131,7 +1240,10 @@ export function ChatSurface({
       const pinnedClaims = pinned.length > 0
         ? pinned.map((p) => ({ text: p.label || "pinned claim", source: undefined as string | undefined }))
         : undefined;
-      void chatRun.submit(text, submittedTier, liveDetail?.id, pinnedClaims).then((runId) => {
+      const contextRef = liveDetail
+        ? buildLiveContextRef(liveDetail, requestedArtifactKey)
+        : undefined;
+      void chatRun.submit(text, submittedTier, contextRef, pinnedClaims).then((runId) => {
         if (runId) {
           setTurns((prev) => prev.map((t) =>
             t.id === assistantId
@@ -1199,7 +1311,10 @@ export function ChatSurface({
       const pinnedClaims = pinned.length > 0
         ? pinned.map((p) => ({ text: p.label || "pinned claim", source: undefined as string | undefined }))
         : undefined;
-      void chatRun.submit(prompt, requestedTier, liveDetail?.id, pinnedClaims).then((runId) => {
+      const contextRef = liveDetail
+        ? buildLiveContextRef(liveDetail, requestedArtifactKey)
+        : undefined;
+      void chatRun.submit(prompt, requestedTier, contextRef, pinnedClaims).then((runId) => {
         setTurns((prev) => prev.map((t) =>
           t.id === turnId
             ? runId
@@ -1658,7 +1773,7 @@ function ChatV2ReportBanner({
 }) {
   const savedLabel = liveDetail ? `Saved to ${liveDetail.title}` : "Ready for a live report packet";
   const meta = liveDetail
-    ? `${liveDetail.sectionCount} sections · ${liveDetail.claimCount} claims · ${liveDetail.sourceCount} sources · notebook context loaded`
+    ? `${liveDetail.sections.length} sections · ${liveDetail.claimCount} claims · ${liveDetail.sourceCount} sources · notebook context loaded`
     : `${turns.length} messages · ${isLive ? "memory hot" : "memory warming"} · ${paidEligible ? "paid eligible" : "free-first"} · ${runStatus ?? "idle"}`;
 
   return (
@@ -1691,26 +1806,24 @@ function ChatV2CheckpointStrip({
   const hasPacket = turns.some((turn) => turn.packet?.shortAnswer);
   const hasFollowUp = turns.some((turn) => turn.markdown || turn.packet?.nextAction);
   const running = runStatus === "running" || runStatus === "queued" || turns.some((turn) => turn.thinking || turn.streaming);
-  const checkpoints: Array<[string, string, boolean]> = [
-    ["✓", liveDetail ? "Report context loaded" : authReady ? "Memory checked" : "Resolving session", Boolean(liveDetail) || authReady],
-    [hasUserTurn ? "✓" : "○", "Prompt captured", hasUserTurn],
-    [toolCallCount > 0 ? "✓" : running ? "↻" : "○", `${toolCallCount} tool calls`, toolCallCount > 0 || running],
-    [hasPacket ? "✓" : running ? "↻" : "○", "Answer packet", hasPacket || running],
-    [hasFollowUp ? "✓" : "○", "Notebook / follow-up", hasFollowUp],
-    [isAuthenticated ? "✓" : "○", isAuthenticated ? "Telemetry persisted" : "Guest telemetry local", isAuthenticated],
+  const checkpoints: Array<{ icon: string; text: string; done: boolean }> = [
+    { icon: "⚙", text: liveDetail ? "Report context loaded" : authReady ? "Memory checked" : "Resolving session", done: Boolean(liveDetail) || authReady },
+    { icon: "◉", text: "Prompt captured", done: hasUserTurn },
+    { icon: running && toolCallCount === 0 ? "↻" : "✓", text: `${toolCallCount} tool calls`, done: toolCallCount > 0 || running },
+    { icon: running && !hasPacket ? "↻" : "✓", text: "Answer packet", done: hasPacket || running },
+    { icon: hasFollowUp ? "✓" : "○", text: "Notebook / follow-up", done: hasFollowUp },
+    { icon: isAuthenticated ? "✓" : "○", text: isAuthenticated ? "Telemetry persisted" : "Guest telemetry local", done: isAuthenticated },
   ];
 
   return (
     <div className="rd-v2-chat-center">
       <h1>{liveDetail ? `${liveDetail.title} workspace chat` : "Ask NodeBench to work the live packet"}</h1>
       <p className="rd-v2-muted-line">
-        {runStatus ? `Run ${runStatus}` : "Idle"} · {turns.length} messages · context, tools, cost, and evidence stream through the rail.
+        {runStatus ? `Run ${runStatus}` : "Idle"} · {turns.length} messages
       </p>
-      <div className="rd-v2-checkpoints">
-        {checkpoints.map(([mark, label, active]) => (
-          <div key={label} data-active={active}>
-            <span>{mark}</span><strong>{label}</strong>
-          </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+        {checkpoints.filter((c) => c.done).map((c) => (
+          <SystemEvent key={c.text} icon={c.icon} text={c.text} />
         ))}
       </div>
     </div>
@@ -1740,9 +1853,9 @@ function ChatV2NextActions({
   ] as const;
 
   return (
-    <div className="rd-v2-next-actions" aria-label="Chat next actions">
-      {actions.map(([label, action]) => (
-        <button key={label} type="button" disabled={disabled} onClick={action}>{label}</button>
+    <div className="rd-action-chips" aria-label="Chat next actions" style={{ gap: 6 }}>
+      {actions.map(([label, action], i) => (
+        <button key={label} type="button" className={`rd-action-chip${i === 0 ? " rd-action-chip--primary" : ""}`} disabled={disabled} onClick={action}>{label}</button>
       ))}
     </div>
   );
@@ -2207,9 +2320,9 @@ function BatchMonitorCell({ batch, onCancel }: { batch: ActiveBatchRun; onCancel
           </div>
         )}
       </div>
-      <div className="rd-stack" style={{ gap: 4, alignItems: "flex-end" }}>
-        <button className="rd-btn rd-btn--quiet rd-btn--sm">Pause</button>
-        <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onCancel}>Cancel</button>
+      <div className="rd-action-chips" style={{ flexDirection: "column", alignItems: "flex-end" }}>
+        <button className="rd-action-chip">Pause</button>
+        <button className="rd-action-chip" onClick={onCancel}>Cancel</button>
       </div>
     </article>
   );
@@ -2267,19 +2380,20 @@ function StreamingAnswer({
   return (
     <div className="rd-chat-msg rd-chat-msg--assistant">
       <div className="rd-chat-msg__avatar" aria-hidden="true">✦</div>
-      <article className="rd-chat-msg__body rd-card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
-        <header className="rd-chat-msg__header">
-          <span className="rd-chat-msg__name">NodeBench</span>
-          <span className="rd-chat-msg__sep">·</span>
-          <span className="rd-chat-msg__meta">{tierMeta.label} tier · streaming</span>
-          {createdAt && <span className="rd-chat-msg__when"><LiveTime at={createdAt} /></span>}
-        </header>
-        <StreamingMarkdown text={text} streaming={streaming} cps={260} />
-        <MessageActions
-          copyText={text}
-          onRegenerate={onRegenerate}
-          onBranch={onBranch}
-        />
+      <article className="rd-chat-msg__body" style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 8, background: "var(--rd-paper-warm)", borderRadius: "var(--rd-r-md)", borderBottomLeftRadius: 4 }}>
+        <div className="rd-agent-lead">NodeBench</div>
+        <div className="rd-agent-detail">
+          <StreamingMarkdown text={text} streaming={streaming} cps={260} />
+        </div>
+        <div className="rd-tool-badges">
+          <span className="rd-tool-badge">{tierMeta.label}</span>
+          {streaming && <span className="rd-tool-badge">streaming</span>}
+        </div>
+        <div className="rd-feedback" role="toolbar" aria-label="Feedback">
+          <FeedbackButton copyText={text} />
+          <FeedbackThumb kind="up" onRegenerate={onRegenerate} />
+          <FeedbackThumb kind="down" />
+        </div>
       </article>
     </div>
   );
@@ -2392,19 +2506,22 @@ function AnswerPacket({
       {/* Avatar gutter — parity-studio bot icon pattern */}
       <div className="rd-chat-msg__avatar" aria-hidden="true">✦</div>
 
-      <article className="rd-chat-msg__body rd-card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-        <header className="rd-chat-msg__header">
-          <span className="rd-chat-msg__name">NodeBench</span>
-          <span className="rd-chat-msg__sep">·</span>
-          <span className="rd-chat-msg__meta">{tierMeta.label} tier · {packet.sourceCount} sources · {formatTraceCost(packet)}</span>
+      <article className="rd-chat-msg__body" style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 10, background: "var(--rd-paper-warm)", borderRadius: "var(--rd-r-md)", borderBottomLeftRadius: 4 }}>
+        <div className="rd-agent-lead">{packet.shortAnswer.length > 60 ? "Research complete" : "NodeBench"}</div>
+        <header className="rd-chat-msg__header" style={{ fontSize: 10, color: "var(--rd-ink-faint)" }}>
+          <span>{tierMeta.label}</span>
+          <span>·</span>
+          <span>{packet.sourceCount} sources</span>
+          <span>·</span>
+          <span>{formatTraceCost(packet)}</span>
           {createdAt && <span className="rd-chat-msg__when"><LiveTime at={createdAt} /></span>}
         </header>
 
-        {/* Status strip — quieter; structural meta moves to header above */}
-        <div className="rd-row" style={{ gap: 6, flexWrap: "wrap" }}>
-          <Pill tone="green"><span className="rd-dot rd-dot--live" />Using memory</Pill>
-          <Pill tone="accent">Saved to {reportTitle ?? "report"}</Pill>
-          <Pill>{packet.paidCalls} paid calls</Pill>
+        {/* Status strip — tool badges (home-v3 parity) */}
+        <div className="rd-tool-badges">
+          <span className="rd-tool-badge">memory</span>
+          <span className="rd-tool-badge">{reportTitle ?? "report"}</span>
+          <span className="rd-tool-badge">{packet.paidCalls} paid</span>
         </div>
 
         <LiveResearchChecklist
@@ -2461,7 +2578,9 @@ function AnswerPacket({
       <section>
         <div className="rd-eyebrow" style={{ marginBottom: 8 }}>Evidence ({packet.evidence.length})</div>
         <ol className="rd-stack" style={{ gap: 8, listStyle: "none", padding: 0, margin: 0 }}>
-          {packet.evidence.map((e) => (
+          {packet.evidence.map((e) => {
+            const trustBadge = sourceTrustBadge(e);
+            return (
             <li
               key={e.idx}
               className="rd-evidence-row rd-card rd-card__pad-tight"
@@ -2481,23 +2600,13 @@ function AnswerPacket({
               <span className="rd-cite rd-cite--block" data-cite={e.idx}>[{e.idx}]</span>
               <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
                 <p className="rd-body" style={{ margin: 0, fontSize: 13 }}>{e.quote}</p>
-                {/* Phase 6 — substring-validation pill */}
-                {(e as any).verified === true && (
+                {trustBadge && (
                   <span
                     className="rd-mono"
-                    title={`Quote substring confirmed in source body${(e as any).verifiedAt ? ` at ${new Date((e as any).verifiedAt).toLocaleTimeString()}` : ""}`}
-                    style={{ fontSize: 10, color: "var(--rd-green, #15803d)", display: "inline-flex", alignItems: "center", gap: 4 }}
+                    title={trustBadge.title}
+                    style={{ fontSize: 10, color: trustBadge.color, display: "inline-flex", alignItems: "center", gap: 4 }}
                   >
-                    ✓ verified in source body
-                  </span>
-                )}
-                {(e as any).verified === false && (
-                  <span
-                    className="rd-mono"
-                    title={`Source URL did not return the cited quote: ${(e as any).validationError ?? "unknown reason"}`}
-                    style={{ fontSize: 10, color: "var(--rd-amber, #b45309)", display: "inline-flex", alignItems: "center", gap: 4 }}
-                  >
-                    ⚠ unverified ({(e as any).validationError ?? "no_match"})
+                    {e.verified === true ? "ok" : e.blocking ? "blocked" : "warn"} - {trustBadge.label}
                   </span>
                 )}
               </div>
@@ -2515,7 +2624,8 @@ function AnswerPacket({
                 <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>{e.source}</span>
               )}
             </li>
-          ))}
+            );
+          })}
         </ol>
       </section>
 
@@ -2541,9 +2651,10 @@ function AnswerPacket({
       }}>
         <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)", marginBottom: 4 }}>Next action</div>
         <p className="rd-body" style={{ margin: 0, color: "var(--rd-ink)" }}>{packet.nextAction}</p>
-        <div className="rd-row" style={{ gap: 6, marginTop: 10 }}>
-          <button type="button" className="rd-btn rd-btn--primary rd-btn--sm" onClick={onAddFollowUp}>Add to follow-ups</button>
-          <button type="button" className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onOpenReport}>Open {reportTitle ?? "report"}</button>
+        <div className="rd-action-chips" style={{ marginTop: 10 }}>
+          <button type="button" className="rd-action-chip rd-action-chip--primary" onClick={onAddFollowUp}>Add to follow-ups</button>
+          <button type="button" className="rd-action-chip" onClick={onOpenReport}>Open {reportTitle ?? "report"}</button>
+          <button type="button" className="rd-action-chip" onClick={onShare}>Export memo</button>
         </div>
       </section>
 
@@ -2570,17 +2681,12 @@ function AnswerPacket({
         </ol>
       </details>
 
-      {/* Per-message action toolbar — Copy / Regen / Pin / Branch / Why? / Compare / Share / 👍👎 */}
-      <MessageActions
-        copyText={packet.shortAnswer + "\n\n" + packet.whyItMatters}
-        onRegenerate={onRegenerate}
-        onPin={onPin}
-        onBranch={onBranch}
-        onWhy={showTrace}
-        onReact={onReact}
-        onCompare={onCompare}
-        onShare={onShare}
-      />
+      {/* Minimal feedback row (home-v3 parity) */}
+      <div className="rd-feedback" role="toolbar" aria-label="Feedback">
+        <FeedbackButton copyText={packet.shortAnswer + "\n\n" + packet.whyItMatters} />
+        <FeedbackThumb kind="up" />
+        <FeedbackThumb kind="down" onRegenerate={onRegenerate} />
+      </div>
       </article>
 
       {/* Sprint 2 P0.3 — counterfactual probe context menu (right-click on cite chip) */}
@@ -2667,8 +2773,10 @@ function RuntimeBoard({ runtime }: { runtime?: ChatAnswer["runtime"] }) {
   const toolDecisions = runtime?.toolDecisions ?? [];
   const claimChecks = runtime?.claimChecks ?? [];
   const metrics = runtime?.metrics;
+  const contextPacket = runtime?.contextPacket;
+  const liveGroundingDecision = runtime?.liveGroundingDecision;
   const boardState = runtime?.boardState ?? {};
-  if (contextCandidates.length === 0 && toolDecisions.length === 0 && claimChecks.length === 0 && !metrics) {
+  if (contextCandidates.length === 0 && toolDecisions.length === 0 && claimChecks.length === 0 && !metrics && !contextPacket) {
     return null;
   }
   const goal = typeof boardState.goal === "string" ? boardState.goal.replace(/_/g, " ") : "answer with cited research";
@@ -2692,7 +2800,33 @@ function RuntimeBoard({ runtime }: { runtime?: ChatAnswer["runtime"] }) {
           <RuntimeMetric label="Cost" value={formatUsd(metrics?.estimatedCostUsd)} />
           <RuntimeMetric label="Latency" value={formatMs(metrics?.totalLatencyMs ?? metrics?.timeToFinalMs)} />
           <RuntimeMetric label="Memory hit" value={formatPct(metrics?.memoryHitRate)} />
+          <RuntimeMetric label="Live search" value={liveGroundingDecision ? liveGroundingDecision.useLiveGrounding ? "on" : "skipped" : `${metrics?.liveSearchCalls ?? 0}`} />
         </div>
+        {contextPacket && (
+          <section className="rd-runtime-table">
+            <div className="rd-runtime-table__title">Context runtime packet</div>
+            <div className="rd-runtime-table__rows">
+              <div className="rd-runtime-row">
+                <span className="rd-runtime-row__status" data-status={contextPacket.hasContext ? "selected" : "blocked"}>
+                  {contextPacket.hasContext ? "resolved" : "unresolved"}
+                </span>
+                <span className="rd-runtime-row__main">{contextPacket.title}</span>
+                <span className="rd-runtime-row__detail">
+                  {contextPacket.graph.nodeCount} nodes · {contextPacket.sourceRefs.length} sources · {contextPacket.verification.tier}
+                </span>
+              </div>
+              {contextPacket.graph.clusters.slice(0, 4).map((cluster) => (
+                <div key={cluster.name} className="rd-runtime-row">
+                  <span className="rd-runtime-row__status" data-status={cluster.name === "blocked" && cluster.count > 0 ? "blocked" : "complete"}>
+                    {cluster.name}
+                  </span>
+                  <span className="rd-runtime-row__main">{cluster.count} item{cluster.count === 1 ? "" : "s"}</span>
+                  <span className="rd-runtime-row__detail">{cluster.sample.join(" · ") || "No sample in packet."}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
         <RuntimeArtifactTable title="Context candidates" rows={contextCandidates} />
         <RuntimeArtifactTable title="Tool decisions" rows={toolDecisions} />
         {claimChecks.length > 0 && (
@@ -2701,9 +2835,9 @@ function RuntimeBoard({ runtime }: { runtime?: ChatAnswer["runtime"] }) {
             <div className="rd-runtime-table__rows">
               {claimChecks.slice(0, 6).map((row, index) => (
                 <div key={`${row.idx}-${row.status}-${index}`} className="rd-runtime-row">
-                  <span className="rd-runtime-row__status" data-status={row.verified === false ? "blocked" : row.status}>{row.status}</span>
+                  <span className="rd-runtime-row__status" data-status={isBlockingClaimCheck(row) ? "blocked" : row.verified === false ? "warning" : row.status}>{row.status}</span>
                   <span className="rd-runtime-row__main">Source [{row.idx}]</span>
-                  <span className="rd-runtime-row__detail">{row.validationError ?? row.detail ?? row.method ?? "verification queued"}</span>
+                  <span className="rd-runtime-row__detail">{row.verificationDetail ?? row.validationError ?? row.detail ?? row.method ?? "verification queued"}</span>
                 </div>
               ))}
             </div>
@@ -2860,4 +2994,56 @@ function renderInlineWithCites(
   }
   if (last < text.length) out.push(<span key={`tail`}>{text.slice(last)}</span>);
   return out.length > 0 ? out : [text];
+}
+
+function FeedbackButton({ copyText }: { copyText: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(copyText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch { /* sandbox may block */ }
+  };
+  return (
+    <button
+      type="button"
+      className="rd-fb-btn"
+      onClick={copy}
+      title="Copy"
+      aria-label="Copy message"
+    >{copied ? "✓" : "⎘"}</button>
+  );
+}
+
+function FeedbackThumb({ kind, onRegenerate }: { kind: "up" | "down"; onRegenerate?: (tier?: "free" | "fast" | "deep") => void }) {
+  const [active, setActive] = useState(false);
+  return (
+    <button
+      type="button"
+      className="rd-fb-btn"
+      data-active={active || undefined}
+      onClick={() => {
+        setActive((v) => !v);
+        if (kind === "down" && onRegenerate) onRegenerate();
+      }}
+      title={kind === "up" ? "Helpful" : "Not helpful"}
+      aria-label={kind === "up" ? "Thumbs up" : "Thumbs down"}
+      aria-pressed={active}
+    >{kind === "up" ? "△" : "▽"}</button>
+  );
+}
+
+function SystemEvent({ icon, text, time }: { icon: string; text: string; time?: string }) {
+  return (
+    <div className="rd-system-event">
+      <div className="rd-system-event__line">
+        <div className="rd-system-event__body">
+          <span className="rd-system-event__icon">{icon}</span>
+          <span>{text}</span>
+          {time && <time>{time}</time>}
+        </div>
+      </div>
+    </div>
+  );
 }
