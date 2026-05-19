@@ -543,7 +543,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
           <p>
             {hasActiveFilter
               ? "Clear the filters to return to the live report set."
-              : "Convex returned zero report artifacts for this session. Run research from Chat to create the first report."}
+              : "No reports yet. Run research from Chat to create the first report."}
           </p>
           <button type="button" onClick={hasActiveFilter ? resetFilters : () => onOpen("new", "chat")}>
             {hasActiveFilter ? "Clear filters" : "+ Start in Chat"}
@@ -3443,7 +3443,7 @@ function ReportsLiveEmptyState() {
           <span>No live coverage returned</span>
         </button>
         <span className="rd-universe__meta">
-          Convex returned zero report artifacts for this session.
+          No reports found for this session.
         </span>
         <div className="rd-universe__actions">
           <Pill tone="amber">Live wiring required</Pill>

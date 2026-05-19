@@ -266,7 +266,7 @@ export function InboxSurface() {
               <span className="rd-v2-source-icon" data-source="system">·</span>
               <div>
                 <span className="rd-v2-inbox-title-row"><strong>{group.empty}</strong></span>
-                <p>Convex returned no rows in this bucket for the current session.</p>
+                <p>No items here right now.</p>
               </div>
               <time>live</time>
             </article>
@@ -299,7 +299,7 @@ export function InboxSurface() {
         type="button"
         onClick={() => showToast({ tone: "info", message: isLive ? "All live Inbox rows for this session are visible." : "Inbox is empty because no live nudges or pipeline review rows were returned." })}
       >
-        {items.length > 0 ? `Show ${Math.max(0, allItems.length - items.length)} more items` : "No hidden fixture items"}
+        {(() => { const remaining = Math.max(0, allItems.length - items.length); return remaining > 0 ? `Show ${remaining} more item${remaining === 1 ? '' : 's'}` : null; })()}
       </button>
     </div>
   );
