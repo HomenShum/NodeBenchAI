@@ -2509,6 +2509,153 @@
     max-width: 100%;
     overflow-x: hidden;
   }
+
+  /* P1 fix: hide report detail dock on mobile — saves 650px vertical space,
+     brings the Ask First composer above the fold */
+  [data-redesign] .rd-v3-halo-dock {
+    display: none;
+  }
+
+  /* Tighten Report Halo section for mobile */
+  [data-redesign] .rd-v3-home-halo-head {
+    padding-block: 12px 8px;
+  }
+
+  [data-redesign] .rd-v3-home-halo-head p {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  /* Reduce halo track height for denser mobile cards */
+  [data-redesign] .rd-v3-halo-track {
+    max-height: 180px;
+    overflow-y: hidden;
+  }
+
+  /* P1 fix: composer headline is too large — shrink to save vertical space */
+  [data-redesign] .rd-v3-home-composer-head {
+    padding-block: 16px 8px;
+  }
+
+  [data-redesign] .rd-v3-home-composer-head p {
+    max-width: 100%;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  /* P1 fix: ensure all composer icon buttons meet 44px touch target */
+  [data-redesign] .rd-v3-home-composer-head button,
+  [data-redesign] .rd-v3-home-composer-head [role="button"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* P1 fix: hide desktop keyboard shortcuts on mobile — illegible and non-native */
+  [data-redesign] .rd-v3-home-composer-shell .rd-mono {
+    display: none;
+  }
+
+  /* P1 fix: runtime promise badges need minimum 44px touch targets and legible text */
+  [data-redesign] .rd-v3-home-composer-shell .rd-row > span:not(.rd-mono):not(.rd-pill) {
+    min-height: 44px;
+    font-size: 13px;
+    line-height: 1.3;
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+  }
+
+  /* P2 fix: halo description says "Hover" which is irrelevant on mobile */
+  [data-redesign] .rd-v3-home-halo-head > p {
+    font-size: 11px;
+  }
+
+  /* Bottom safe area for iOS home indicator */
+  [data-redesign] .rd-v2-home > :last-child {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+
+  /* Round 4 — P1 fix: Ask First above Report Halo on mobile */
+  [data-redesign] .rd-v3-home-front {
+    display: flex;
+    flex-direction: column;
+  }
+  [data-redesign] .rd-v3-home-composer-shell {
+    order: -1;
+  }
+
+  /* Round 3 — P1 fix: Chat now button needs 44px touch target on mobile */
+  [data-redesign] .rd-v3-home-composer-shell .rd-btn--sm {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  /* Round 3 — P1 fix: composer card glass morphism (consistent with halo cards) */
+  [data-redesign] .rd-v3-home-composer-shell .rd-card {
+    background: rgba(25, 26, 27, 0.72);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Round 3 — P2 fix: reduce section heading sizes for mobile density */
+  [data-redesign] .rd-v3-home-halo-head h2,
+  [data-redesign] .rd-v3-home-composer-head h1 {
+    font-size: 22px;
+    line-height: 1.25;
+  }
+
+  /* Round 4 — P2 fix: compact halo section when below composer */
+  [data-redesign] .rd-v3-home-halo {
+    max-height: 280px;
+    overflow-y: auto;
+  }
+
+  /* Round 5 — P1 fix: filter buttons need 44px touch targets */
+  [data-redesign] .rd-v2-queue-head button {
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 13px;
+    padding: 8px 14px;
+  }
+
+  /* Round 5 — P2 fix: metadata and auxiliary text legibility */
+  [data-redesign] .rd-v3-home-front .rd-faint,
+  [data-redesign] .rd-v3-home-front .rd-meta {
+    font-size: 13px;
+  }
+
+  /* Round 3 — P2 fix: tighten intro paragraphs on mobile */
+  [data-redesign] .rd-v3-home-front > section > header > p {
+    font-size: 12px;
+    line-height: 1.35;
+    max-height: 2.7em;
+    overflow: hidden;
+  }
+
+  /* Round 6 — P1 fix: composer toolbar buttons need 44px touch targets */
+  [data-redesign] .rd-v3-home-composer-shell .rd-btn:not(.rd-btn--sm):not(.rd-btn--primary) {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  /* Round 6 — P1 fix: report card "Verified" metadata too small (10px→12px) + contrast */
+  [data-redesign] .rd-v3-home-halo small {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  /* Round 6 — P2 fix: hide info pills on mobile to reduce density (design reduction) */
+  [data-redesign] .rd-v3-home-composer-shell .rd-row > span.rd-pill {
+    display: none;
+  }
+
+  /* Round 6 — P2 fix: subtitle contrast improvement */
+  [data-redesign] .rd-v3-home-composer-head p {
+    color: rgba(255, 255, 255, 0.5);
+  }
 }
 
 @media (max-width: 640px) {
