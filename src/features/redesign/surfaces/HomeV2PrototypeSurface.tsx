@@ -1085,7 +1085,7 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
         <div><span>Corrections</span><strong>{guestSafe ? "Locked" : "23"}</strong></div>
         <div><span>Last updated</span><strong>{guestSafe ? "After sign-in" : "2m ago"}</strong></div>
       </div>
-      <button className="rd-v2-sign-out">{guestSafe ? "Sign in" : "Sign out"}</button>
+      {!guestSafe && <button className="rd-v2-sign-out">Sign out</button>}
     </aside>
   );
 }
