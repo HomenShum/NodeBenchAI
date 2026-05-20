@@ -11712,3 +11712,51 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
     background: var(--rd-line);
   }
 }
+
+/* ═══ Round 19 P1 fixes — pipeline self-improvement loop ═══ */
+
+/* p1-reports-desktop-3: empty state in Reports gallery lacks visual engagement */
+[data-redesign] .rd-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-empty-state__icon {
+  font-size: 40px;
+  opacity: 0.5;
+}
+[data-redesign] .rd-empty-state__heading {
+  font-size: 16px;
+  font-weight: 640;
+  color: var(--rd-ink);
+}
+[data-redesign] .rd-empty-state__body {
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 320px;
+  color: var(--rd-ink-mute);
+}
+
+/* p1-inbox-global-1: progress bars too thin (2px) and low contrast in light mode */
+[data-redesign] .rd-progress-bar,
+[data-redesign] [class*="progress-bar"],
+[data-redesign] [role="progressbar"] > div {
+  min-height: 4px;
+  border-radius: 2px;
+}
+@media (prefers-color-scheme: light) {
+  [data-redesign] .rd-progress-bar,
+  [data-redesign] [class*="progress-bar"],
+  [data-redesign] [role="progressbar"] > div {
+    background: rgba(0, 0, 0, 0.15);
+  }
+  [data-redesign] .rd-progress-bar__fill,
+  [data-redesign] [class*="progress-bar"] > [class*="fill"],
+  [data-redesign] [role="progressbar"] > div > div {
+    background: var(--rd-accent-strong);
+  }
+}
