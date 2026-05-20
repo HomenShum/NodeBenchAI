@@ -546,6 +546,24 @@
   }
 }
 
+/* ── R34 fix: stagger fade-in for list items (inbox, reports) ── */
+@keyframes rd-stagger-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] [style*="rd-stagger-fade-in"] {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* ── R34 fix: smoother surface content transitions ── */
+[data-redesign] .rd-inbox-list,
+[data-redesign] .rd-v3-card,
+[data-redesign] .rd-inbox-row {
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+}
 [data-redesign] .rd-pane--right {
   border-right: none;
   border-left: 1px solid var(--rd-line-soft);

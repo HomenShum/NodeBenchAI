@@ -444,7 +444,7 @@ export function InboxSurface() {
               <h2 className="rd-h2">No items in this lane.</h2>
             </div>
           ) : (
-            items.map((it) => (
+            items.map((it, idx) => (
               <InboxRow
                 key={it.id}
                 item={it}
@@ -452,6 +452,7 @@ export function InboxSurface() {
                 isChecked={checked.has(it.id)}
                 onActivate={() => setActiveId(it.id)}
                 onToggleCheck={() => toggleChecked(it.id)}
+                style={{ animation: "rd-stagger-fade-in 0.22s ease-out both", animationDelay: `${Math.min(idx * 40, 400)}ms` }}
               />
             ))
           )}
@@ -481,7 +482,7 @@ export function InboxSurface() {
   );
 }
 
-function InboxRow({ item, isActive, isChecked, onActivate, onToggleCheck }: { item: InboxItem; isActive: boolean; isChecked?: boolean; onActivate: () => void; onToggleCheck?: () => void }) {
+function InboxRow({ item, isActive, isChecked, onActivate, onToggleCheck, style }: { item: InboxItem; isActive: boolean; isChecked?: boolean; onActivate: () => void; onToggleCheck?: () => void; style?: React.CSSProperties }) {
   const tone = item.whyTone ?? "amber";
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -495,6 +496,7 @@ function InboxRow({ item, isActive, isChecked, onActivate, onToggleCheck }: { it
       aria-selected={isActive}
       data-checked={isChecked || undefined}
       onClick={onActivate}
+      style={style}
     >
       {onToggleCheck && (
         <input
