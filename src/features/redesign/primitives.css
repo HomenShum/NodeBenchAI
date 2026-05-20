@@ -12289,4 +12289,18 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] [role="link"]:hover {
     color: #6e3420;
   }
+
+  /* Terracotta primary buttons: darken bg so white text passes WCAG AA (4.5:1+)
+     #d97757 + white = ~3.2:1 (FAIL). #b04a2a + white = ~5.2:1 (PASS). */
+  [data-redesign] .rd-btn--primary,
+  [data-redesign] button[class*="primary"],
+  [data-redesign] [class*="run-research"],
+  [data-redesign] [class*="save-report"] {
+    background-color: #b04a2a !important;
+    color: #fff !important;
+  }
+  [data-redesign] .rd-btn--primary:hover,
+  [data-redesign] button[class*="primary"]:hover {
+    background-color: #963e22 !important;
+  }
 }
