@@ -504,6 +504,20 @@
   background: var(--rd-paper);
 }
 
+/* Surface enter animation — subtle fade+lift on content swap */
+@keyframes rd-surface-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+[data-redesign] .rd-pane > :first-child {
+  animation: rd-surface-enter 0.18s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-pane > :first-child {
+    animation: none;
+  }
+}
+
 [data-redesign] .rd-pane--right {
   border-right: none;
   border-left: 1px solid var(--rd-line-soft);

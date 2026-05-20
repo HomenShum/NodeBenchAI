@@ -700,7 +700,9 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
   const sourceCount = reports.reduce((total, report) => total + report.sources, 0);
   const liveSummary = liveArtifacts.sourceLabel.replace(/\bartifacts?\b/gi, "signals");
   const statusPrefix = liveArtifacts.isLoading && !hasLive ? "Loading live edition" : hasLive ? "Live edition" : "No live artifacts yet";
-  const editionLine = `${statusPrefix} · ${reports.length} reports · ${liveArtifacts.briefFeatureCount} brief signals · ${sourceCount} sources`;
+  const editionLine = liveArtifacts.isLoading && !hasLive
+    ? "Loading live edition…"
+    : `${statusPrefix} · ${reports.length} reports · ${liveArtifacts.briefFeatureCount} brief signals · ${sourceCount} sources`;
   const actionTitle = compact(
     topPulse?.title ?? topReport?.entity ?? topPublic?.entity,
     liveArtifacts.isLoading ? "Loading today's brief..." : "No live reports returned yet",
@@ -784,9 +786,9 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
   const sweepBullets = queueSource.slice(0, 4).map((item) => `${compact(item.next, "Review")} ${compact(item.title, "live signal")}.`);
   const fallbackStats = liveArtifacts.isLoading
     ? [
-        { label: "Live status", value: "Loading", tone: "accent" },
-        { label: "Reports", value: String(reports.length), tone: "blue" },
-        { label: "Sources", value: String(sourceCount) },
+        { label: "Live status", value: "Loading…", tone: "accent" },
+        { label: "Reports", value: "—", tone: "blue" },
+        { label: "Sources", value: "—" },
       ]
     : [
         { label: "Live status", value: "Empty", tone: "accent" },
