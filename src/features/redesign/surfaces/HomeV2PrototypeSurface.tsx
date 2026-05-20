@@ -216,7 +216,40 @@ const reportRailFilters: Array<{ id: "all" | ReportsRailStatus; label: string }>
   { id: "drafting", label: "Draft" },
 ];
 
-function getPrototypeEntity(name = "Anthropic"): PrototypeReportEntity {
+function buildLiveRailGroups(reports: ReportCardData[]): typeof reportsRailGroups {
+  if (reports.length === 0) return reportsRailGroups;
+  const statusMap: Record<string, ReportsRailStatus> = {
+    verified: "verified",
+    review: "review",
+    watching: "monitoring",
+  };
+  const groups: Record<string, ReportsRailItem[]> = {};
+  for (const report of reports) {
+    const kind = report.kind.toLowerCase();
+    let groupLabel = "Reports";
+    if (/compan|competitive|market/.test(kind)) groupLabel = "Companies";
+    else if (/person|people|investor/.test(kind)) groupLabel = "People";
+    else if (/brief|daily/.test(kind)) groupLabel = "Briefs";
+    else if (/monitor|watch/.test(kind)) groupLabel = "Monitoring";
+    if (!groups[groupLabel]) groups[groupLabel] = [];
+    groups[groupLabel].push({
+      icon: report.entity.slice(0, 1).toUpperCase(),
+      name: report.entity,
+      status: statusMap[report.status] ?? "review",
+    });
+  }
+  return Object.entries(groups).map(([label, items]) => ({
+    label,
+    count: String(items.length),
+    items,
+  }));
+}
+
+function getPrototypeEntity(name = "Anthropic", liveArtifacts?: LiveArtifactsResult): PrototypeReportEntity {
+  if (liveArtifacts?.isLive) {
+    const liveReport = liveArtifacts.reports.find((r) => r.entity === name);
+    if (liveReport) return liveReportToPrototypeEntity(liveReport);
+  }
   return reportEntities.find((entity) => entity.name === name) ?? reportEntities[0];
 }
 
@@ -959,13 +992,14 @@ const meLines = [
   ["2026-05-08:", "\"Interweave before execute on non-trivial tasks\""],
 ];
 
-export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity, guestSafe = false }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
+export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity, guestSafe = false, liveArtifacts }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
   const [reportsRailQuery, setReportsRailQuery] = useState("");
   const [reportsRailFilter, setReportsRailFilter] = useState<(typeof reportRailFilters)[number]["id"]>("all");
-  if (surface === "home") return <HomeV2EditionRail onAsk={onAsk} />;
+  if (surface === "home") return <HomeV2EditionRail onAsk={onAsk} liveArtifacts={liveArtifacts} />;
   if (surface === "reports") {
+    const railGroups = liveArtifacts?.isLive ? buildLiveRailGroups(liveArtifacts.reports) : reportsRailGroups;
     const query = reportsRailQuery.trim().toLowerCase();
-    const filteredGroups = reportsRailGroups
+    const filteredGroups = railGroups
       .map((group) => ({
         ...group,
         items: group.items.filter((item) => {
@@ -1090,17 +1124,17 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
   );
 }
 
-export function PrototypeV2Center({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
-  if (surface === "home") return <HomeV2Surface onAsk={onAsk} onOpenReports={() => onAsk?.("Open the reports touched by today's agent brief.")} />;
-  if (surface === "reports") return <ReportsPrototypeCenter selectedEntity={selectedEntity} onSelectEntity={onSelectEntity} />;
+export function PrototypeV2Center({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity, liveArtifacts }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
+  if (surface === "home") return <HomeV2Surface onAsk={onAsk} onOpenReports={() => onAsk?.("Open the reports touched by today's agent brief.")} liveArtifacts={liveArtifacts} />;
+  if (surface === "reports") return <ReportsPrototypeCenter selectedEntity={selectedEntity} onSelectEntity={onSelectEntity} liveArtifacts={liveArtifacts} />;
   if (surface === "chat") return <ChatPrototypeCenter />;
   if (surface === "inbox") return <InboxPrototypeCenter />;
   return <MePrototypeCenter />;
 }
 
-export function PrototypeV2RightRail({ surface, onAsk, selectedEntity = "Anthropic", selectedReport, onSelectEntity, guestSafe = false }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
-  if (surface === "home") return <HomeV2BriefingRail onAsk={onAsk} onOpenReports={() => onAsk?.("Open the reports touched by today's agent brief.")} />;
-  if (surface === "reports") return <ReportsPrototypeRail onAsk={onAsk} selectedEntity={selectedEntity} selectedReport={selectedReport} onSelectEntity={onSelectEntity} />;
+export function PrototypeV2RightRail({ surface, onAsk, selectedEntity = "Anthropic", selectedReport, onSelectEntity, guestSafe = false, liveArtifacts }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
+  if (surface === "home") return <HomeV2BriefingRail onAsk={onAsk} onOpenReports={() => onAsk?.("Open the reports touched by today's agent brief.")} liveArtifacts={liveArtifacts} />;
+  if (surface === "reports") return <ReportsPrototypeRail onAsk={onAsk} selectedEntity={selectedEntity} selectedReport={selectedReport} onSelectEntity={onSelectEntity} liveArtifacts={liveArtifacts} />;
   if (surface === "chat") return <ChatPrototypeRail />;
   if (surface === "inbox") return <InboxPrototypeRail onAsk={onAsk} />;
   return <MePrototypeRail onAsk={onAsk} guestSafe={guestSafe} />;
@@ -1209,14 +1243,22 @@ function ChatThreadGroup({ label, items }: { label: string; items: Array<[string
   );
 }
 
-function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }: PrototypeSelectionProps) {
+function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity, liveArtifacts }: PrototypeSelectionProps) {
+  const hasLive = Boolean(liveArtifacts?.isLive && liveArtifacts.reports.length > 0);
+  const entities: PrototypeReportEntity[] = hasLive
+    ? liveArtifacts!.reports.map(liveReportToPrototypeEntity)
+    : reportEntities;
+  const totalSources = entities.reduce((sum, e) => sum + e.sources, 0);
+  const verifiedCount = entities.filter((e) => /verified/i.test(e.status)).length;
+  const reviewCount = entities.filter((e) => /review/i.test(e.status)).length;
+  const verifiedPct = entities.length > 0 ? Math.round((verifiedCount / entities.length) * 100) : 0;
   return (
     <div className="rd-v2-proto-center rd-v3-reports">
       <div className="rd-v3-universe-header">
         <div>
-          <div className="rd-v3-kicker">Reports</div>
-          <h1>AI Infrastructure Coverage</h1>
-          <p>87 reports, 312 sources, 18 need review.</p>
+          <div className="rd-v3-kicker">{hasLive ? "Live Reports" : "Reports"}</div>
+          <h1>{hasLive ? `${liveArtifacts!.sourceLabel}` : "AI Infrastructure Coverage"}</h1>
+          <p>{entities.length} reports, {totalSources} sources, {reviewCount} need review.</p>
         </div>
         <div className="rd-v3-universe-actions">
           <button type="button">Review queue</button>
@@ -1224,11 +1266,11 @@ function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }
         </div>
       </div>
       <section className="rd-v3-metrics" aria-label="Coverage metrics">
-        <span><strong>87</strong> reports</span>
-        <span><strong>83%</strong> verified</span>
-        <span><strong>7</strong> need review</span>
-        <span><strong>3</strong> active runs</span>
-        <span><strong>12</strong> notebook patches</span>
+        <span><strong>{entities.length}</strong> reports</span>
+        <span><strong>{verifiedPct}%</strong> verified</span>
+        <span><strong>{reviewCount}</strong> need review</span>
+        <span><strong>{hasLive ? liveArtifacts!.briefFeatureCount : 3}</strong> {hasLive ? "signals" : "active runs"}</span>
+        <span><strong>{totalSources}</strong> sources</span>
       </section>
       <div className="rd-v3-tabs" role="tablist" aria-label="Report views">
         {["Gallery", "Board", "Table", "Graph"].map((item, index) => (
@@ -1236,8 +1278,8 @@ function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }
         ))}
       </div>
       <div className="rd-v2-edition-row">
-        <span className="rd-v2-edition-pill">Entity intelligence</span>
-        <span className="rd-v2-edition-subline">12 entities · 83% verified · 48 sources · 7 notebook patches</span>
+        <span className="rd-v2-edition-pill">{hasLive ? "Live intelligence" : "Entity intelligence"}</span>
+        <span className="rd-v2-edition-subline">{entities.length} entities · {verifiedPct}% verified · {totalSources} sources</span>
       </div>
       <div className="rd-v2-filter-row">
         {["All", "Watching", "Needs review", "Stale", "Updated"].map((item, index) => (
@@ -1251,7 +1293,7 @@ function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }
         <button className="rd-v2-btn-primary">+ New report</button>
       </div>
       <div className="rd-v2-report-grid">
-        {reportEntities.map((entity) => (
+        {entities.map((entity) => (
           <article
             key={entity.name}
             className={`rd-v2-report-card ${selectedEntity === entity.name ? "is-active" : ""}`}
@@ -1278,7 +1320,8 @@ function ReportsPrototypeCenter({ selectedEntity = "Anthropic", onSelectEntity }
           <button>+ New entity</button>
         </article>
       </div>
-      <button className="rd-v2-show-more">Show 7 more entities</button>
+      {entities.length > 5 && <button className="rd-v2-show-more">Show {entities.length - 5} more entities</button>}
+      {entities.length <= 5 && !hasLive && <button className="rd-v2-show-more">Show 7 more entities</button>}
     </div>
   );
 }
@@ -1572,7 +1615,11 @@ function entityCoverageText(entity: PrototypeReportEntity): string {
   return entity.tags.slice(0, 3).join(" - ");
 }
 
-function relatedStatusLabel(entityName: string): string {
+function relatedStatusLabel(entityName: string, liveArtifacts?: LiveArtifactsResult): string {
+  if (liveArtifacts?.isLive) {
+    const liveReport = liveArtifacts.reports.find((r) => r.entity === entityName);
+    if (liveReport) return entityStatusLabel(liveReportToPrototypeEntity(liveReport));
+  }
   const related = reportEntities.find((item) => item.name === entityName);
   return related ? entityStatusLabel(related) : "Related";
 }
@@ -1596,8 +1643,8 @@ function inspectorWarnings(entity: PrototypeReportEntity): string[] {
   ];
 }
 
-function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedReport, onSelectEntity }: PrototypeSelectionProps) {
-  const entity = selectedReport ? liveReportToPrototypeEntity(selectedReport) : getPrototypeEntity(selectedEntity);
+function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedReport, onSelectEntity, liveArtifacts }: PrototypeSelectionProps) {
+  const entity = selectedReport ? liveReportToPrototypeEntity(selectedReport) : getPrototypeEntity(selectedEntity, liveArtifacts);
   const [drawerOpen, setDrawerOpen] = useState(true);
   const needsReview = entityNeedsReview(entity);
   const status = entityStatusLabel(entity);
