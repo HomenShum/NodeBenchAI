@@ -11688,3 +11688,27 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   background: var(--rd-line);
   color: var(--rd-ink-strong);
 }
+
+/* ═══ Round 18 P1 fixes — from interactive pipeline cross-round tracking ═══ */
+
+/* p1-reports-desktop-2: status badges too small/low-contrast in gallery view */
+[data-redesign] .ar-drawer-status {
+  font-size: 12px;
+  font-weight: 560;
+  padding: 3px 10px;
+  border-radius: var(--rd-r-pill);
+}
+
+/* p1-workspace-mobile-2: refresh preview visually louder than save — demote to ghost */
+@media (max-width: 760px) {
+  [data-redesign] .rd-btn--secondary-action,
+  [data-redesign] .rd-workspace-actions .rd-btn:not(:first-child) {
+    background: var(--rd-muted);
+    color: var(--rd-ink);
+    border-color: var(--rd-line);
+  }
+  [data-redesign] .rd-btn--secondary-action:hover,
+  [data-redesign] .rd-workspace-actions .rd-btn:not(:first-child):hover {
+    background: var(--rd-line);
+  }
+}
