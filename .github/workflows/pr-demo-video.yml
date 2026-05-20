@@ -50,10 +50,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          # NOTE: `cache: npm` removed — package-lock.json is gitignored
+          # in this repo, so the action fails with "lock file not found".
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --legacy-peer-deps
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
