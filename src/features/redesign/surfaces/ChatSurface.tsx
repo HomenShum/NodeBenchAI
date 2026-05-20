@@ -1445,7 +1445,7 @@ export function ChatSurface({
       <BatchLiveBoundary onError={() => setLiveBatch(null)}>
         <BatchLiveBridge onBatch={setLiveBatch} />
       </BatchLiveBoundary>
-      <div ref={scrollRef} className="rd-stack" style={{ flex: 1, overflow: "auto", padding: "24px 40px 80px", gap: 18, maxWidth: 920, width: "100%", margin: "0 auto" }}>
+      <div ref={scrollRef} className="rd-stack" style={{ flex: 1, overflow: "auto", padding: "24px 40px 120px", gap: 18, maxWidth: 920, width: "100%", margin: "0 auto" }}>
         {batch && <BatchMonitorCell batch={batch} onCancel={() => setBatch(null)} />}
 
         <ChatV2ReportBanner
@@ -1821,9 +1821,11 @@ function ChatV2CheckpointStrip({
       <p className="rd-v2-muted-line">
         {runStatus ? `Run ${runStatus}` : "Idle"} · {turns.length} messages
       </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", marginTop: 4 }}>
         {checkpoints.filter((c) => c.done).map((c) => (
-          <SystemEvent key={c.text} icon={c.icon} text={c.text} />
+          <span key={c.text} className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>
+            {c.icon} {c.text}
+          </span>
         ))}
       </div>
     </div>

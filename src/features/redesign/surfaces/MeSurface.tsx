@@ -400,10 +400,11 @@ export function MeSurface() {
                       padding: "4px 10px",
                       borderRadius: "var(--rd-r-pill)",
                       fontSize: 11,
-                      fontWeight: 590,
-                      background: p.pressed ? "var(--rd-accent-tint)" : "var(--rd-panel)",
-                      color: p.pressed ? "var(--rd-accent-strong)" : "var(--rd-ink-mute)",
-                      border: `1px solid ${p.pressed ? "var(--rd-accent-ring)" : "var(--rd-line)"}`,
+                      fontWeight: p.pressed ? 590 : 500,
+                      background: p.pressed ? "var(--rd-accent-tint)" : "var(--rd-muted)",
+                      color: p.pressed ? "var(--rd-accent-strong)" : "var(--rd-ink-soft)",
+                      border: `1px solid ${p.pressed ? "var(--rd-accent-ring)" : "transparent"}`,
+                      opacity: p.pressed ? 1 : 0.7,
                     }}
                   >{PERM_LABEL[p.id]}</button>
                 ))}
@@ -677,11 +678,13 @@ function MeV2DocumentCenter({
       </div>
       <div className="rd-v2-share-bar">
         <span>Actions</span>
-        <button type="button" className="rd-v2-share-primary" onClick={onPrimary}>
-          {guest ? mode === "loading" ? "Loading" : "Sign in" : "Save"}
-        </button>
+        {!guest && (
+          <button type="button" className="rd-v2-share-primary" onClick={onPrimary}>Save</button>
+        )}
         <button type="button" onClick={() => showToast({ tone: "info", message: guest ? "Exports unlock after sign-in." : "Export preview is local until connector approval." })}>Export</button>
-        <button type="button" onClick={() => showToast({ tone: "info", message: guest ? "No profile is loaded to reset." : "Reset requires diff review before mutating USER.md." })}>Reset</button>
+        {!guest && (
+          <button type="button" onClick={() => showToast({ tone: "info", message: "Reset requires diff review before mutating USER.md." })}>Reset</button>
+        )}
       </div>
       <article className="rd-v2-user-md">
         {lines.map(([key, value], index) => (
