@@ -320,6 +320,7 @@ export default function RedesignShell() {
             selectedEntity={prototypeEntity}
             onSelectEntity={selectPrototypeRailEntity}
             guestSafe={surface === "me"}
+            liveArtifacts={shellLiveArtifacts}
           />
         )}
 
@@ -394,6 +395,7 @@ export default function RedesignShell() {
                 selectedReport={selectedRailReport}
                 onSelectEntity={selectPrototypeRailEntity}
                 guestSafe={surface === "me"}
+                liveArtifacts={shellLiveArtifacts}
               />
             )}
           </div>

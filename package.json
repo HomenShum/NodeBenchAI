@@ -55,6 +55,8 @@
     "qa:redesign": "tsx scripts/qa/redesignAgentQa.ts",
     "qa:redesign:fast": "tsx scripts/qa/redesignAgentQa.ts --personas banker_diligence,karpathy_learner",
     "qa:infer-style": "tsx scripts/qa/inferStyle.ts --self",
+    "qa:interactive": "node scripts/ui/interactiveGeminiQaPipeline.mjs",
+    "qa:interactive:no-video": "node scripts/ui/interactiveGeminiQaPipeline.mjs --skip-video",
     "dogfood:publish": "node scripts/ui/publishDogfoodGallery.mjs",
     "dogfood:record": "node scripts/ui/recordDogfoodWalkthrough.mjs --publish blob",
     "pr-demo": "node scripts/ui/recordPrDemo.mjs",

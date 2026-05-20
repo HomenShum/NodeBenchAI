@@ -143,15 +143,18 @@ export function MobileShell({ active, onChange }: MobileShellProps) {
               {id === "inbox" && liveInboxSummary.items.length > 0 && (
                 <span style={{
                   position: "absolute",
-                  top: 4,
-                  right: "calc(50% - 18px)",
+                  top: 2,
+                  right: "calc(50% - 20px)",
                   background: "var(--rd-accent)",
                   color: "#fff",
-                  fontSize: 9,
+                  fontSize: 10,
                   fontWeight: 700,
-                  padding: "1px 5px",
+                  padding: "2px 6px",
                   borderRadius: 999,
                   lineHeight: 1.2,
+                  minWidth: 18,
+                  textAlign: "center",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
                 }}>{liveInboxSummary.items.length}</span>
               )}
             </button>
@@ -367,7 +370,7 @@ function MobileReports() {
           <article className="rd-card rd-card__pad-tight" style={{ padding: "12px 14px" }}>
             <div className="rd-eyebrow">No live reports</div>
             <p className="rd-faint" style={{ fontSize: 12, marginTop: 4 }}>
-              Reports will populate from daily briefs, archive rows, and batch runs. No fixture cards are shown on mobile.
+              Reports will appear here once you run a daily brief, archive, or batch research. Start with a question in Chat.
             </p>
           </article>
         )}
@@ -389,10 +392,10 @@ function MobileReports() {
               <span>{r.followUps} follow-ups</span>
               <span style={{ marginLeft: "auto" }}>{r.updatedAt}</span>
             </div>
-            <div className="rd-row" style={{ gap: 4, marginTop: 8 }}>
-              <button className="rd-btn rd-btn--ghost" style={{ flex: 1, padding: "6px 8px", fontSize: 11, justifyContent: "center" }} onClick={() => openReport(r.id, "brief")}>Brief</button>
-              <button className="rd-btn rd-btn--quiet" style={{ flex: 1, padding: "6px 8px", fontSize: 11, justifyContent: "center" }} onClick={() => openReport(r.id, "cards")}>Explore</button>
-              <button className="rd-btn rd-btn--quiet" style={{ flex: 1, padding: "6px 8px", fontSize: 11, justifyContent: "center" }} onClick={() => openReport(r.id, "chat")}>Chat</button>
+            <div className="rd-row" style={{ gap: 6, marginTop: 8 }}>
+              <button className="rd-btn rd-btn--primary rd-btn--sm" style={{ flex: 1, padding: "6px 8px", fontSize: 11, justifyContent: "center" }} onClick={() => openReport(r.id, "brief")}>Brief</button>
+              <button className="rd-btn rd-btn--ghost rd-btn--sm" style={{ flex: 1, padding: "6px 8px", fontSize: 11, justifyContent: "center" }} onClick={() => openReport(r.id, "cards")}>Explore</button>
+              <button className="rd-btn rd-btn--ghost rd-btn--sm" style={{ flex: 1, padding: "6px 8px", fontSize: 11, justifyContent: "center" }} onClick={() => openReport(r.id, "chat")}>Chat</button>
             </div>
           </article>
         ))}

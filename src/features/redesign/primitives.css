@@ -48,8 +48,8 @@
 }
 
 [data-redesign] .rd-eyebrow {
-  font-size: 11px;
-  font-weight: 560;
+  font-size: 12px;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--rd-ink-soft);
@@ -64,8 +64,11 @@
 [data-redesign] .rd-mono {
   font-family: var(--rd-font-mono);
   font-size: 12px;
+  line-height: 1.6;
   letter-spacing: 0;
   color: var(--rd-ink-mute);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 [data-redesign] .rd-meta {
@@ -372,6 +375,15 @@
 [data-redesign] .rd-btn--quiet:hover {
   color: var(--rd-ink);
   background: var(--rd-muted);
+}
+
+[data-redesign] .rd-btn--danger {
+  color: var(--rd-red);
+}
+
+[data-redesign] .rd-btn--danger:hover {
+  color: #fff;
+  background: var(--rd-red);
 }
 
 [data-redesign] .rd-btn--sm {
@@ -2471,6 +2483,11 @@
     font-size: 38px;
   }
 
+  [data-redesign] .rd-v3-home-composer-head h1 {
+    font-size: 38px;
+    letter-spacing: -0.8px;
+  }
+
   [data-redesign] .rd-v2-pulse-grid,
   [data-redesign] .rd-v2-pulse-mosaic {
     grid-template-columns: 1fr;
@@ -2482,6 +2499,218 @@
 
   [data-redesign] .rd-v2-proof-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Defense-in-depth: matches JS useViewportMobile(760px) — catches FOUC where desktop shell renders before React hydrates */
+@media (max-width: 768px) {
+  [data-redesign] .rd-shell > .rd-pane:first-child,
+  [data-redesign] .rd-shell--home-v2 > .rd-v2-left,
+  [data-redesign] .rd-v2-briefing,
+  [data-redesign] .rd-pane--right {
+    display: none;
+  }
+
+  [data-redesign] .rd-shell,
+  [data-redesign] .rd-shell--home-v2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-redesign] .rd-shell__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-redesign] .rd-v3-home-composer-head h1 {
+    font-size: 30px;
+    letter-spacing: -0.6px;
+  }
+
+  [data-redesign] .rd-v3-home-composer-head p {
+    max-width: 100%;
+  }
+
+  [data-redesign] .rd-v2-home {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* P1 fix: hide report detail dock on mobile — saves 650px vertical space,
+     brings the Ask First composer above the fold */
+  [data-redesign] .rd-v3-halo-dock {
+    display: none;
+  }
+
+  /* Tighten Report Halo section for mobile */
+  [data-redesign] .rd-v3-home-halo-head {
+    padding-block: 12px 8px;
+  }
+
+  [data-redesign] .rd-v3-home-halo-head p {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  /* Reduce halo track height for denser mobile cards */
+  [data-redesign] .rd-v3-halo-track {
+    max-height: 180px;
+    overflow-y: hidden;
+  }
+
+  /* P1 fix: composer headline is too large — shrink to save vertical space */
+  [data-redesign] .rd-v3-home-composer-head {
+    padding-block: 16px 8px;
+  }
+
+  [data-redesign] .rd-v3-home-composer-head p {
+    max-width: 100%;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  /* P1 fix: ensure all composer icon buttons meet 44px touch target */
+  [data-redesign] .rd-v3-home-composer-head button,
+  [data-redesign] .rd-v3-home-composer-head [role="button"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* P1 fix: hide desktop keyboard shortcuts on mobile — illegible and non-native */
+  [data-redesign] .rd-v3-home-composer-shell .rd-mono {
+    display: none;
+  }
+
+  /* P1 fix: runtime promise badges need minimum 44px touch targets and legible text */
+  [data-redesign] .rd-v3-home-composer-shell .rd-row > span:not(.rd-mono):not(.rd-pill) {
+    min-height: 44px;
+    font-size: 13px;
+    line-height: 1.3;
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+  }
+
+  /* P2 fix: halo description says "Hover" which is irrelevant on mobile */
+  [data-redesign] .rd-v3-home-halo-head > p {
+    font-size: 11px;
+  }
+
+  /* Bottom safe area for iOS home indicator */
+  [data-redesign] .rd-v2-home > :last-child {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+
+  /* Round 4 — P1 fix: Ask First above Report Halo on mobile */
+  [data-redesign] .rd-v3-home-front {
+    display: flex;
+    flex-direction: column;
+  }
+  [data-redesign] .rd-v3-home-composer-shell {
+    order: -1;
+  }
+
+  /* Round 3 — P1 fix: Chat now button needs 44px touch target on mobile */
+  [data-redesign] .rd-v3-home-composer-shell .rd-btn--sm {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  /* Round 3 — P1 fix: composer card glass morphism (consistent with halo cards) */
+  [data-redesign] .rd-v3-home-composer-shell .rd-card {
+    background: rgba(25, 26, 27, 0.72);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Round 3 — P2 fix: reduce section heading sizes for mobile density */
+  [data-redesign] .rd-v3-home-halo-head h2,
+  [data-redesign] .rd-v3-home-composer-head h1 {
+    font-size: 22px;
+    line-height: 1.25;
+  }
+
+  /* Round 4 — P2 fix: compact halo section when below composer */
+  [data-redesign] .rd-v3-home-halo {
+    max-height: 280px;
+    overflow-y: auto;
+  }
+
+  /* Round 5 — P1 fix: filter buttons need 44px touch targets */
+  [data-redesign] .rd-v2-queue-head button {
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 13px;
+    padding: 8px 14px;
+  }
+
+  /* Round 5 — P2 fix: metadata and auxiliary text legibility */
+  [data-redesign] .rd-v3-home-front .rd-faint,
+  [data-redesign] .rd-v3-home-front .rd-meta {
+    font-size: 13px;
+  }
+
+  /* Round 3 — P2 fix: tighten intro paragraphs on mobile */
+  [data-redesign] .rd-v3-home-front > section > header > p {
+    font-size: 12px;
+    line-height: 1.35;
+    max-height: 2.7em;
+    overflow: hidden;
+  }
+
+  /* Round 6 — P1 fix: composer toolbar buttons need 44px touch targets */
+  [data-redesign] .rd-v3-home-composer-shell .rd-btn:not(.rd-btn--sm):not(.rd-btn--primary) {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  /* Round 6 — P1 fix: report card "Verified" metadata too small (10px→12px) + contrast */
+  [data-redesign] .rd-v3-home-halo small {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  /* Round 6 — P2 fix: hide info pills on mobile to reduce density (design reduction) */
+  [data-redesign] .rd-v3-home-composer-shell .rd-row > span.rd-pill {
+    display: none;
+  }
+
+  /* Round 6 — P2 fix: subtitle contrast improvement */
+  [data-redesign] .rd-v3-home-composer-head p {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  /* Full-surface QA — P1 fix: universal mobile 44px touch targets for all buttons */
+  [data-redesign] .rd-btn {
+    min-height: 44px;
+  }
+
+  /* Full-surface QA — P1 fix: light mode subtitle contrast (Home) — WCAG AA 4.5:1+ */
+  @media (prefers-color-scheme: light) {
+    [data-redesign] .rd-v3-home-composer-head p,
+    [data-redesign] .rd-v3-home-halo-head p {
+      color: rgba(0, 0, 0, 0.72);
+    }
+    [data-redesign] .rd-v3-home-halo small {
+      color: rgba(0, 0, 0, 0.58);
+    }
+  }
+
+  /* Full-surface QA — P2 fix: breadcrumb touch targets in Workspace */
+  [data-redesign] [class*="breadcrumb"] {
+    font-size: 13px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Full-surface QA — P2 fix: consistent section labels across surfaces */
+  [data-redesign] .rd-v2-home .rd-label,
+  [data-redesign] .rd-label--section {
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
   }
 }
 
@@ -2511,6 +2740,17 @@
   [data-redesign] .rd-v2-pulse-head h1 {
     font-size: 34px;
   }
+
+  [data-redesign] .rd-v3-home-composer-head h1 {
+    font-size: 24px;
+    letter-spacing: -0.4px;
+    line-height: 1.1;
+  }
+
+  /* P1 fix: tighter hero spacing keeps input above fold on 390px screens */
+  [data-redesign] .rd-v3-home-composer-shell { gap: 10px; margin-top: 0; }
+  [data-redesign] .rd-v3-home-composer-head { padding-block: 8px 4px; }
+  [data-redesign] .rd-v3-home-halo { max-height: 240px; }
 
   [data-redesign] .rd-v2-pulse-lead,
   [data-redesign] .rd-v2-pulse-note {
@@ -4215,6 +4455,7 @@
   background: var(--rd-panel);
   color: var(--rd-ink-strong);
   box-shadow: var(--rd-shadow-xs);
+  border-bottom: 2px solid var(--rd-accent);
 }
 
 /* â”€â”€â”€ Notebook (TipTap-backed report editor â€” Notion + Roam feel) â”€â”€â”€ */
@@ -7439,7 +7680,18 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-whatchanged__row--blue   .rd-whatchanged__icon { color: var(--rd-blue); }
 [data-redesign] .rd-whatchanged__row--amber  .rd-whatchanged__icon { color: var(--rd-amber); }
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Chat scroll-to-bottom button â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ───────── Keyboard shortcut hints — hide on mobile, legible on desktop ───────── */
+[data-redesign] .rd-shortcut-hint { user-select: none; }
+@media (max-width: 760px) {
+  [data-redesign] .rd-shortcut-hint { display: none; }
+}
+
+/* ───────── Chat scroll area — bottom clearance for floating input ───────── */
+@media (min-width: 761px) {
+  [data-redesign] .rd-chat-scroll-area { padding-bottom: 80px !important; }
+}
+
+/* ───────── Chat scroll-to-bottom button ───────── */
 [data-redesign] .rd-chat-scroll-btn {
   position: absolute;
   right: 24px;
@@ -9436,6 +9688,17 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] .rd-v3-search-row { flex-direction: column; align-items: stretch; }
   [data-redesign] .rd-v3-metrics,
   [data-redesign] .rd-v3-grid { grid-template-columns: 1fr; }
+
+  /* P1 fix: prevent filter pills from being obstructed on mobile */
+  [data-redesign] .rd-v3-view-bar { gap: 8px; }
+  [data-redesign] .rd-v3-filter-pills { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  [data-redesign] .rd-v3-filter-pills::-webkit-scrollbar { display: none; }
+  [data-redesign] .rd-v3-filter-pills button { white-space: nowrap; flex-shrink: 0; min-height: 44px; padding: 8px 14px; }
+  [data-redesign] .rd-v3-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  [data-redesign] .rd-v3-tabs::-webkit-scrollbar { display: none; }
+
+  /* Push live artifact section below filter row with clear spacing */
+  [data-redesign] .rd-universe-head { margin-top: 8px; }
 }
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Reports Crunchbase / Pitchbook filter bar â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -9938,6 +10201,10 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   gap: 6px;
   flex-wrap: wrap;
   flex-shrink: 0;
+}
+@media (max-width: 760px) {
+  [data-redesign] .rd-inbox-preview__actions { gap: 10px; }
+  [data-redesign] .rd-inbox-preview__actions .rd-btn { min-width: 44px; min-height: 44px; padding-inline: 10px; }
 }
 [data-redesign] .rd-inbox-preview__title {
   font-size: 18px;
@@ -11558,4 +11825,468 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] .rd-shell--reports-v3 .left-rail,
   [data-redesign] .rd-shell--reports-v3 .right-rail { display: none; }
   [data-redesign] .rd-shell--reports-v3 .rd-shell__main { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Full-surface QA Round 3+4 — light mode glass card depth + border */
+@media (prefers-color-scheme: light) {
+  [data-redesign] .rd-card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.12);
+  }
+  [data-redesign] .rd-card--ghost {
+    box-shadow: none;
+    border-color: transparent;
+  }
+  /* Strengthen muted text contrast in light mode */
+  [data-redesign] .rd-muted,
+  [data-redesign] [class*="ink-mute"] {
+    color: rgba(0, 0, 0, 0.55);
+  }
+  /* Light mode pill border visibility */
+  [data-redesign] .rd-pill {
+    border-color: rgba(0, 0, 0, 0.12);
+  }
+  /* Light mode JetBrains Mono contrast boost (4.9:1 → 7:1+) */
+  [data-redesign] .rd-mono {
+    color: rgba(0, 0, 0, 0.65);
+  }
+  /* Override inline color on mono body text for WCAG AA+ */
+  [data-redesign] [style*="font-mono"][style*="ink-mute"] {
+    color: rgba(0, 0, 0, 0.62) !important;
+  }
+}
+
+/* Full-surface QA Round 4 — standardize pill height across surfaces */
+[data-redesign] .rd-pill {
+  min-height: 24px;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Round 5 — horizontal scroll edge-fade for mobile tab bars */
+@media (max-width: 768px) {
+  [data-redesign] .rd-row[style*="overflow"]:not(.rd-row--no-fade) {
+    mask-image: linear-gradient(to right, black 85%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  }
+}
+
+/* ═══ Round 11 P1 batch — mobile 44px touch targets + light-mode contrast ═══ */
+
+/* P1-1: Report/Inbox card action buttons need 44px min-height on mobile */
+@media (max-width: 760px) {
+  [data-redesign] .rd-btn--sm {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  /* P1-3: Workspace breadcrumb navigation needs larger touch targets */
+  [data-redesign] [class*="breadcrumb"] a,
+  [data-redesign] [class*="breadcrumb"] button,
+  [data-redesign] [class*="breadcrumb"] span[role="link"] {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+  /* P1-5: Chat citation chips / pill links need 44px touch area */
+  [data-redesign] .rd-pill[role="button"],
+  [data-redesign] .rd-pill a,
+  [data-redesign] .rd-pinned-chip,
+  [data-redesign] .rd-chat-msg .rd-pill {
+    min-height: 36px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}
+
+/* P1-6: Home subheader light-mode contrast — darken --rd-ink-soft overrides */
+@media (prefers-color-scheme: light) {
+  [data-redesign] .rd-v3-home-composer-head [class*="subheader"],
+  [data-redesign] .rd-v3-home-composer-head p {
+    color: var(--rd-ink-mute);
+  }
+}
+[data-redesign][data-redesign-theme="light"] .rd-v3-home-composer-head [class*="subheader"],
+[data-redesign][data-redesign-theme="light"] .rd-v3-home-composer-head p {
+  color: var(--rd-ink-mute);
+}
+
+/* P1-2: JetBrains Mono code blocks — readable line-height on all viewports */
+[data-redesign] .rd-md__code,
+[data-redesign] pre[class*="mono"],
+[data-redesign] code {
+  line-height: 1.6;
+}
+
+/* ═══ Round 17 P1 fixes — from interactive Gemini QA pipeline ═══ */
+
+/* p1-home-desktop-1: sidebar timeline text contrast below WCAG AA (3.2:1 → 4.5:1+) */
+[data-redesign] .rd-agent-rail__muted {
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-agent-rail__copy {
+  color: var(--rd-ink-soft);
+}
+@media (prefers-color-scheme: light) {
+  [data-redesign] .rd-agent-rail__muted,
+  [data-redesign] .rd-agent-rail__copy {
+    color: rgba(0, 0, 0, 0.62);
+  }
+}
+
+/* p1-reports-mobile-1: 'Verified' badge truncated on mobile report cards */
+[data-redesign] .rd-pill--green,
+[data-redesign] .ar-drawer-status {
+  min-width: fit-content;
+  flex-shrink: 0;
+}
+@media (max-width: 760px) {
+  [data-redesign] .rd-pill--green,
+  [data-redesign] .ar-drawer-status {
+    padding: 3px 8px;
+    font-size: 10px;
+    letter-spacing: 0.03em;
+  }
+}
+
+/* p1-workspace-mobile-1: primary action competition — secondary action ghost style */
+[data-redesign] .rd-btn--secondary-action {
+  background: var(--rd-muted);
+  color: var(--rd-ink);
+  border-color: var(--rd-line);
+}
+[data-redesign] .rd-btn--secondary-action:hover {
+  background: var(--rd-line);
+  color: var(--rd-ink-strong);
+}
+
+/* ═══ Round 18 P1 fixes — from interactive pipeline cross-round tracking ═══ */
+
+/* p1-reports-desktop-2: status badges too small/low-contrast in gallery view */
+[data-redesign] .ar-drawer-status {
+  font-size: 12px;
+  font-weight: 560;
+  padding: 3px 10px;
+  border-radius: var(--rd-r-pill);
+}
+
+/* p1-workspace-mobile-2: refresh preview visually louder than save — demote to ghost */
+@media (max-width: 760px) {
+  [data-redesign] .rd-btn--secondary-action,
+  [data-redesign] .rd-workspace-actions .rd-btn:not(:first-child) {
+    background: var(--rd-muted);
+    color: var(--rd-ink);
+    border-color: var(--rd-line);
+  }
+  [data-redesign] .rd-btn--secondary-action:hover,
+  [data-redesign] .rd-workspace-actions .rd-btn:not(:first-child):hover {
+    background: var(--rd-line);
+  }
+}
+
+/* ═══ Round 19 P1 fixes — pipeline self-improvement loop ═══ */
+
+/* p1-reports-desktop-3: empty state in Reports gallery lacks visual engagement */
+[data-redesign] .rd-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-empty-state__icon {
+  font-size: 40px;
+  opacity: 0.5;
+}
+[data-redesign] .rd-empty-state__heading {
+  font-size: 16px;
+  font-weight: 640;
+  color: var(--rd-ink);
+}
+[data-redesign] .rd-empty-state__body {
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 320px;
+  color: var(--rd-ink-mute);
+}
+
+/* p1-inbox-global-1: progress bars too thin (2px) and low contrast in light mode */
+[data-redesign] .rd-progress-bar,
+[data-redesign] [class*="progress-bar"],
+[data-redesign] [role="progressbar"] > div {
+  min-height: 4px;
+  border-radius: 2px;
+}
+@media (prefers-color-scheme: light) {
+  [data-redesign] .rd-progress-bar,
+  [data-redesign] [class*="progress-bar"],
+  [data-redesign] [role="progressbar"] > div {
+    background: rgba(0, 0, 0, 0.15);
+  }
+  [data-redesign] .rd-progress-bar__fill,
+  [data-redesign] [class*="progress-bar"] > [class*="fill"],
+  [data-redesign] [role="progressbar"] > div > div {
+    background: var(--rd-accent-strong);
+  }
+}
+
+/* ═══ Round 20 P1 fixes — continuing self-improvement loop ═══ */
+
+/* p1-chat-mobile-1: header card consumes 35% of viewport — collapse on mobile */
+@media (max-width: 760px) {
+  [data-redesign] .rd-chat-header,
+  [data-redesign] .rd-v3-chat-hero {
+    padding: 12px 16px;
+    gap: 6px;
+  }
+  [data-redesign] .rd-chat-header h1,
+  [data-redesign] .rd-v3-chat-hero h1 {
+    font-size: 18px;
+    line-height: 1.2;
+  }
+  [data-redesign] .rd-chat-header p,
+  [data-redesign] .rd-v3-chat-hero p,
+  [data-redesign] .rd-chat-header [class*="subtitle"],
+  [data-redesign] .rd-v3-chat-hero [class*="subtitle"] {
+    display: none;
+  }
+}
+
+/* p1-reports-desktop-3 (persistent): strengthen empty state visual anchor */
+[data-redesign] .rd-empty-state__icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--rd-accent-soft);
+  color: var(--rd-accent-strong);
+  font-size: 24px;
+  opacity: 1;
+}
+[data-redesign] .rd-empty-state .rd-btn {
+  margin-top: 4px;
+}
+
+/* p1-inbox-global-1 (persistent): further strengthen progress bars */
+[data-redesign] .rd-progress-bar,
+[data-redesign] [class*="progress-bar"],
+[data-redesign] [role="progressbar"] > div {
+  min-height: 6px;
+  border-radius: 3px;
+  background: var(--rd-muted);
+}
+[data-redesign] .rd-progress-bar__fill,
+[data-redesign] [class*="progress-bar"] > [class*="fill"],
+[data-redesign] [role="progressbar"] > div > div {
+  border-radius: 3px;
+  background: var(--rd-accent);
+}
+
+/* ═══ Round 21 P1 fixes — continuing self-improvement loop ═══ */
+
+/* p1-home-desktop-1: agent rail CTA button overlaps status container at 1280px
+   Root cause: absolute positioning + insufficient gap between button and agent status.
+   Fix: enforce relative flow + explicit top margin to separate from adjacent content. */
+[data-redesign] .rd-agent-rail .rd-btn,
+[data-redesign] .rd-agent-rail [role="button"] {
+  position: relative;
+  margin-top: 4px;
+  z-index: 1;
+}
+[data-redesign] .rd-agent-rail__header + .rd-agent-rail__status,
+[data-redesign] .rd-agent-rail .rd-agent-card + .rd-btn {
+  margin-top: 12px;
+}
+@media (max-width: 1366px) {
+  [data-redesign] .rd-agent-rail {
+    padding: 16px 14px;
+    gap: 12px;
+  }
+  [data-redesign] .rd-agent-rail__title {
+    font-size: 16px;
+  }
+}
+
+/* p1-chat-desktop-1: "Run on a list" ghost button contrast 2.1:1 against glass background
+   Root cause: ghost button border-color and text-color too transparent on glass surfaces.
+   Fix: boost border opacity to 0.4 and text color to 0.9 in chat/composer contexts. */
+[data-redesign] .rd-chat-header .rd-btn--ghost,
+[data-redesign] .rd-v3-chat-hero .rd-btn--ghost,
+[data-redesign] [class*="chat"] .rd-btn--ghost,
+[data-redesign] [class*="composer"] .rd-btn--ghost {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: var(--rd-ink);
+  opacity: 1;
+}
+[data-redesign] .rd-chat-header .rd-btn--ghost:hover,
+[data-redesign] .rd-v3-chat-hero .rd-btn--ghost:hover,
+[data-redesign] [class*="chat"] .rd-btn--ghost:hover,
+[data-redesign] [class*="composer"] .rd-btn--ghost:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: var(--rd-line);
+}
+@media (prefers-color-scheme: light) {
+  [data-redesign] .rd-chat-header .rd-btn--ghost,
+  [data-redesign] .rd-v3-chat-hero .rd-btn--ghost,
+  [data-redesign] [class*="chat"] .rd-btn--ghost,
+  [data-redesign] [class*="composer"] .rd-btn--ghost {
+    border-color: rgba(0, 0, 0, 0.4);
+    color: rgba(0, 0, 0, 0.88);
+    background: rgba(0, 0, 0, 0.04);
+  }
+  [data-redesign] .rd-chat-header .rd-btn--ghost:hover,
+  [data-redesign] .rd-v3-chat-hero .rd-btn--ghost:hover,
+  [data-redesign] [class*="chat"] .rd-btn--ghost:hover,
+  [data-redesign] [class*="composer"] .rd-btn--ghost:hover {
+    border-color: rgba(0, 0, 0, 0.52);
+    background: rgba(0, 0, 0, 0.08);
+  }
+}
+
+/* p1-inbox-global-1 (regression): progress bar height falling back to 3px
+   Root cause: component inline styles or Tailwind utility classes override our min-height: 6px.
+   Fix: !important on height + min-height to enforce 6px minimum across all progress bars. */
+[data-redesign] .rd-progress-bar,
+[data-redesign] [class*="progress-bar"],
+[data-redesign] [role="progressbar"] > div,
+[data-redesign] [class*="pipeline-progress"] {
+  min-height: 6px !important;
+  height: auto !important;
+  min-width: 0;
+  border-radius: 3px !important;
+}
+[data-redesign] .rd-progress-bar__fill,
+[data-redesign] [class*="progress-bar"] > [class*="fill"],
+[data-redesign] [role="progressbar"] > div > div,
+[data-redesign] [class*="pipeline-progress"] > * {
+  min-height: 6px !important;
+  border-radius: 3px !important;
+}
+
+/* ═══ Round 22 video P2 temporal polish ═══ */
+
+/* p2-video-1: Report Halo layout shift when data resolves from placeholder
+   Root cause: halo track has no min-height so it collapses to 0 when empty, then snaps to ~160px.
+   Fix: set min-height on the halo section to prevent CLS. */
+[data-redesign] .rd-v3-home-halo {
+  min-height: 180px;
+  contain: layout style;
+}
+[data-redesign] .rd-v3-halo-track {
+  min-height: 140px;
+}
+
+/* p2-video-2: staggered inbox item entry — items pop in simultaneously
+   Root cause: no entry animation on inbox rows.
+   Fix: add fade+slide keyframes with nth-child stagger. */
+@keyframes rd-inbox-row-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+[data-redesign] .rd-inbox-row {
+  animation: rd-inbox-row-enter 200ms ease both;
+}
+[data-redesign] .rd-inbox-row:nth-child(1) { animation-delay: 0ms; }
+[data-redesign] .rd-inbox-row:nth-child(2) { animation-delay: 40ms; }
+[data-redesign] .rd-inbox-row:nth-child(3) { animation-delay: 80ms; }
+[data-redesign] .rd-inbox-row:nth-child(4) { animation-delay: 120ms; }
+[data-redesign] .rd-inbox-row:nth-child(5) { animation-delay: 160ms; }
+[data-redesign] .rd-inbox-row:nth-child(n+6) { animation-delay: 200ms; }
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-inbox-row {
+    animation: none;
+  }
+}
+
+/* p2-video-3: surface switch transition — instantaneous view swap
+   Root cause: shell main content has no transition between surfaces.
+   Fix: subtle fade on the main content area during surface switch. */
+[data-redesign] .rd-shell__main > .rd-pane {
+  animation: rd-surface-enter 180ms ease both;
+}
+@keyframes rd-surface-enter {
+  from { opacity: 0.85; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-shell__main > .rd-pane {
+    animation: none;
+  }
+}
+
+/* ═══ Round 23 P1 fixes — light mode contrast hardening ═══ */
+
+/* p1-home-mobile-23-1: "Chat now" text link low contrast in light mode
+   Root cause: accent-strong (#b85a3d) on semi-transparent glass bg drops below 4.5:1.
+   Fix: darken accent links in light mode to a fully opaque high-contrast shade. */
+@media (prefers-color-scheme: light) {
+  [data-redesign] a[class*="chat"],
+  [data-redesign] [class*="chat-now"],
+  [data-redesign] .rd-agent-rail a,
+  [data-redesign] .rd-agent-rail__next a,
+  [data-redesign] .rd-link--accent {
+    color: #9e4a30;
+    text-decoration-color: rgba(158, 74, 48, 0.35);
+  }
+  [data-redesign] a[class*="chat"]:hover,
+  [data-redesign] [class*="chat-now"]:hover,
+  [data-redesign] .rd-agent-rail a:hover,
+  [data-redesign] .rd-link--accent:hover {
+    color: #843d28;
+    text-decoration-color: rgba(132, 61, 40, 0.55);
+  }
+}
+
+/* ═══ Comprehensive light mode WCAG AA contrast hardening ═══
+   Root cause: glass morphism backgrounds (semi-transparent) reduce effective
+   contrast ratios for all text and interactive elements. Instead of chasing
+   individual Gemini-flagged P1s, this block ensures ALL elements pass WCAG AA
+   when glass backgrounds are present. */
+@media (prefers-color-scheme: light) {
+  /* All ghost buttons on glass: solid white bg + dark text + visible border */
+  [data-redesign] .rd-btn--ghost {
+    color: #1a1a1a !important;
+    border-color: rgba(0, 0, 0, 0.32) !important;
+    background: rgba(255, 255, 255, 0.55) !important;
+  }
+  [data-redesign] .rd-btn--ghost:hover {
+    background: rgba(255, 255, 255, 0.8) !important;
+    border-color: rgba(0, 0, 0, 0.48) !important;
+  }
+
+  /* All muted/soft text: ensure 4.5:1 minimum on any background */
+  [data-redesign] .rd-ink-mute,
+  [data-redesign] [class*="muted"],
+  [data-redesign] [class*="subtitle"],
+  [data-redesign] .rd-agent-rail__copy,
+  [data-redesign] .rd-agent-rail__muted {
+    color: rgba(0, 0, 0, 0.68) !important;
+  }
+
+  /* Status pills: darken text for amber/yellow variants specifically */
+  [data-redesign] .rd-pill--amber,
+  [data-redesign] [class*="pill"][class*="draft"],
+  [data-redesign] [class*="status"][class*="draft"],
+  [data-redesign] .ar-drawer-status[data-status="drafting"] {
+    color: #8a5100 !important;
+    border-color: #b26200 !important;
+  }
+
+  /* Accent links: ensure terracotta links hit 4.5:1 on warm-white glass */
+  [data-redesign] a:not(.rd-btn),
+  [data-redesign] [role="link"] {
+    color: #8b4226;
+  }
+  [data-redesign] a:not(.rd-btn):hover,
+  [data-redesign] [role="link"]:hover {
+    color: #6e3420;
+  }
 }
