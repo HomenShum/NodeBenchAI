@@ -2656,6 +2656,38 @@
   [data-redesign] .rd-v3-home-composer-head p {
     color: rgba(255, 255, 255, 0.5);
   }
+
+  /* Full-surface QA — P1 fix: universal mobile 44px touch targets for all buttons */
+  [data-redesign] .rd-btn {
+    min-height: 44px;
+  }
+
+  /* Full-surface QA — P1 fix: light mode subtitle contrast (Home) */
+  @media (prefers-color-scheme: light) {
+    [data-redesign] .rd-v3-home-composer-head p,
+    [data-redesign] .rd-v3-home-halo-head p {
+      color: rgba(0, 0, 0, 0.6);
+    }
+    [data-redesign] .rd-v3-home-halo small {
+      color: rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  /* Full-surface QA — P2 fix: breadcrumb touch targets in Workspace */
+  [data-redesign] [class*="breadcrumb"] {
+    font-size: 13px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Full-surface QA — P2 fix: consistent section labels across surfaces */
+  [data-redesign] .rd-v2-home .rd-label,
+  [data-redesign] .rd-label--section {
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
 }
 
 @media (max-width: 640px) {
@@ -11471,4 +11503,47 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] .rd-shell--reports-v3 .left-rail,
   [data-redesign] .rd-shell--reports-v3 .right-rail { display: none; }
   [data-redesign] .rd-shell--reports-v3 .rd-shell__main { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Full-surface QA Round 3+4 — light mode glass card depth + border */
+@media (prefers-color-scheme: light) {
+  [data-redesign] .rd-card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.08);
+  }
+  [data-redesign] .rd-card--ghost {
+    box-shadow: none;
+    border-color: transparent;
+  }
+  /* Strengthen muted text contrast in light mode */
+  [data-redesign] .rd-muted,
+  [data-redesign] [class*="ink-mute"] {
+    color: rgba(0, 0, 0, 0.55);
+  }
+  /* Light mode pill border visibility */
+  [data-redesign] .rd-pill {
+    border-color: rgba(0, 0, 0, 0.12);
+  }
+  /* Light mode JetBrains Mono contrast boost (4.9:1 → 7:1+) */
+  [data-redesign] .rd-mono {
+    color: rgba(0, 0, 0, 0.65);
+  }
+  /* Override inline color on mono body text for WCAG AA+ */
+  [data-redesign] [style*="font-mono"][style*="ink-mute"] {
+    color: rgba(0, 0, 0, 0.62) !important;
+  }
+}
+
+/* Full-surface QA Round 4 — standardize pill height across surfaces */
+[data-redesign] .rd-pill {
+  min-height: 24px;
+  box-sizing: border-box;
+}
+
+/* Round 5 — horizontal scroll edge-fade for mobile tab bars */
+@media (max-width: 768px) {
+  [data-redesign] .rd-row[style*="overflow"]:not(.rd-row--no-fade) {
+    mask-image: linear-gradient(to right, black 85%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  }
 }
