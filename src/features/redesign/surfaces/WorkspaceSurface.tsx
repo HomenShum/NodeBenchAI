@@ -297,9 +297,9 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
                 {promoting ? "Saving..." : canPromoteLiveArtifact ? "Save report" : "Connecting..."}
               </button>
             )}
-            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "success", message: "Workspace link copied." })}>Share</button>
-            <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => showToast({ tone: "success", message: "Workspace export preview prepared locally." })}>Export preview</button>
-            <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={() => showToast({ tone: "info", message: "Workspace refresh preview queued locally. Live refresh runs through Chat or scheduled agents." })}>Refresh preview</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm rd-workspace-secondary" onClick={() => showToast({ tone: "success", message: "Workspace link copied." })}>Share</button>
+            <button className="rd-btn rd-btn--quiet rd-btn--sm rd-workspace-secondary" onClick={() => showToast({ tone: "success", message: "Workspace export preview prepared locally." })}>Export preview</button>
+            <button className="rd-btn rd-btn--primary rd-btn--sm rd-workspace-secondary" onClick={() => showToast({ tone: "info", message: "Workspace refresh preview queued locally. Live refresh runs through Chat or scheduled agents." })}>Refresh preview</button>
           </div>
         </div>
 

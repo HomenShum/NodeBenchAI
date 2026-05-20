@@ -506,11 +506,11 @@
 
 /* Surface enter animation — subtle fade+lift on content swap */
 @keyframes rd-surface-enter {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 [data-redesign] .rd-pane > :first-child {
-  animation: rd-surface-enter 0.18s ease-out both;
+  animation: rd-surface-enter 0.24s ease-out both;
 }
 /* Skeleton loading pulse — used by Inbox/Home/Reports during Convex data fetch */
 @keyframes rd-skeleton-pulse {
@@ -10613,6 +10613,11 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 
   [data-redesign] .rd-workspace-actions .rd-btn {
     flex: 1 1 auto;
+  }
+
+  /* R31-S6: Hide secondary workspace actions on mobile to reclaim vertical space */
+  [data-redesign] .rd-workspace-secondary {
+    display: none !important;
   }
 
   [data-redesign] .rd-workspace-surface .rd-tabs {
