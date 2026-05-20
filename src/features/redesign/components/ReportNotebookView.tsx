@@ -45,7 +45,7 @@ interface ReportNotebookViewProps {
   liveDetail?: LiveArtifactDetail;
 }
 
-const LIVE_LOADING_TITLE = "Loading live artifact";
+const LIVE_LOADING_TITLE = "Preparing live artifact";
 const WORKSPACE_DRAFT_TITLE = "Workspace draft";
 const EMPTY_NOTEBOOK_HTML =
   "<h1>Workspace draft</h1><p>Select a live report, promote an artifact, or start writing the analyst notebook here.</p>";
@@ -116,7 +116,7 @@ function buildLiveAudit(detail?: LiveArtifactDetail, loadingLiveArtifact = false
     ];
   }
   return [
-    { source: "agent", label: `Hydrated ${detail.kind} from live Convex artifact`, at: detail.updatedAtMs },
+    { source: "agent", label: `Hydrated ${detail.kind} from saved artifact`, at: detail.updatedAtMs },
     { source: "agent", label: `Attached ${detail.sourceCount} source references`, at: detail.updatedAtMs + 1 },
     { source: "user", label: `Opened ${detail.title} for notebook review`, at: Date.now() },
   ];
@@ -194,7 +194,7 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
   const initialHtml =
     ownReport?.notebookHtml ??
     liveDetail?.notebookHtml ??
-    (isLiveArtifactId ? "<p>Loading live artifact...</p>" : EMPTY_NOTEBOOK_HTML);
+    (isLiveArtifactId ? "<p>Preparing live artifact...</p>" : EMPTY_NOTEBOOK_HTML);
   const [pageIcon, setPageIcon] = useState<string>(liveIcon(liveDetail?.kind));
   const [pageTitle, setPageTitle] = useState<string>(
     ownReport?.title ?? liveDetail?.title ?? (isLiveArtifactId ? LIVE_LOADING_TITLE : WORKSPACE_DRAFT_TITLE),
@@ -256,7 +256,7 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
           setSaveState("saved");
           showToast({
             tone: "warning",
-            message: "Notebook edited locally. Convex sync could not confirm for this report.",
+            message: "Notebook edited locally. Saved sync could not confirm for this report.",
           });
         });
     }, 900);
@@ -456,9 +456,11 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
                 </svg>
               </button>
               <button
+                type="button"
                 className="rd-btn rd-btn--quiet rd-btn--sm"
                 onClick={() => navigate(`/redesign/workspace?report=${encodeURIComponent(reportId)}&tab=map`)}
                 title="Open relationship graph"
+                data-workspace-tab-target="map"
               >
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: 4 }}>
                   <circle cx="12" cy="12" r="3" />
@@ -468,7 +470,7 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
                   <circle cx="20" cy="19" r="2" />
                   <path d="M9.6 10.4 5.4 6.4M14.4 10.4l4.2-4M9.6 13.6l-4.2 4M14.4 13.6l4.2 4" />
                 </svg>
-                Graph
+                Map
               </button>
               <button
                 className="rd-btn rd-btn--quiet rd-btn--sm"
@@ -511,7 +513,7 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
                 aria-label="Report title"
               >{pageTitle}</h1>
               <span className="rd-style-chip" title="Style that produced this report — click to swap (coming soon)">
-                Founder / banker lens · v3
+                Banker lens v3
               </span>
             </div>
 
@@ -548,7 +550,7 @@ export function ReportNotebookView({ reportId, showSidebar = true, embedded = fa
               <div className="rd-page-chrome__prop" role="listitem">
                 <span className="rd-page-chrome__prop-key">Sync</span>
                 <span className="rd-page-chrome__prop-val rd-page-chrome__meta-mono">
-                  {canPersistNotebook ? "Convex notebook" : liveDetail ? "live artifact draft" : "workspace draft"}
+                  {canPersistNotebook ? "Synced notebook" : liveDetail ? "live artifact draft" : "workspace draft"}
                 </span>
               </div>
               <div className="rd-page-chrome__prop rd-page-chrome__prop--wide" role="listitem">

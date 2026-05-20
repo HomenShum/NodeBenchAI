@@ -2,7 +2,7 @@
  * RightInspector - chat-page right rail.
  *
  * The rail can be driven by an explicit active live artifact from Chat. When
- * no prop is passed, it falls back to the live Convex-backed artifact list.
+ * no prop is passed, it falls back to the saved live artifact list.
  */
 
 import { useState, type ReactNode } from "react";
@@ -172,7 +172,7 @@ function TraceContextPanel({
   const traceItems = traceRowsForSnapshot(snapshot);
   const toolCalls = metricValue(snapshot, "tools", String(traceItems.length));
   const latency = metricValue(snapshot, "latency", traceLatencyFallback(snapshot));
-  const tokens = metricValue(snapshot, "tokens", graphPacket ? graphPacket.estimatedTokens.toLocaleString() : "0");
+  const contextSize = metricValue(snapshot, "tokens", graphPacket ? graphPacket.packedNodes.toLocaleString() : "0");
   const cost = metricValue(snapshot, "cost", metricValue(snapshot, "paid", "$0.00"));
 
   return (
@@ -180,7 +180,7 @@ function TraceContextPanel({
       <div className="chat-trace-summary">
         <TraceStat value={toolCalls} label="Tool calls" />
         <TraceStat value={latency} label="Total latency" />
-        <TraceStat value={tokens} label="Tokens in" />
+        <TraceStat value={contextSize} label="Context items" />
         <TraceStat value={cost} label="Est. cost" />
       </div>
 
@@ -322,10 +322,11 @@ function traceRowsForSnapshot(snapshot: AgentRailSnapshot): AgentRailItem[] {
 }
 
 function traceName(item: AgentRailItem): string {
+  if (item.label) return item.label;
   return item.id
-    .replace(/^graph-context$/, "graph_context")
-    .replace(/^graph-packet$/, "graph_packet")
-    .replace(/-/g, "_");
+    .replace(/^graph-context$/, "Graph context")
+    .replace(/^graph-packet$/, "Graph packet")
+    .replace(/-/g, " ");
 }
 
 function traceMeta(item: AgentRailItem): string {
@@ -385,7 +386,7 @@ function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLo
     title: isLoading ? "Hydrating agent context" : hasDetail ? "Agent ready on live artifact" : "Agent idle",
     subtitle: hasDetail
       ? `${detail.title} - ${detail.sourceCount} sources - ${detail.claimCount} claims`
-      : "Ask in Chat to start a Convex-backed run with traceable tool calls.",
+      : "Ask in Chat to start a live run with traceable tool calls.",
     status,
     progress: [
       {
@@ -398,7 +399,7 @@ function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLo
         id: "memory",
         label: "Search reusable memory",
         status: hasDetail ? "done" : "queued",
-        detail: hasDetail ? `${detail.sourceCount} source refs already attached.` : "Runs before any paid refresh.",
+        detail: hasDetail ? `${detail.sourceCount} source refs already attached.` : "Checks saved memory before any external refresh.",
       },
       {
         id: "graph-context",
@@ -420,13 +421,13 @@ function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLo
       },
     ],
     runDetails: [
-      { id: "state", label: "Run state", status, detail: isLoading ? "Subscribing to Convex live state." : "No active paid run in progress." },
+      { id: "state", label: "Run state", status, detail: isLoading ? "Subscribing to live state." : "No active external refresh in progress." },
       {
         id: "context-packet",
         label: "Context packet",
         status: graphPacket ? "done" : "queued",
         detail: graphPacket
-          ? `${graphPacket.contextRef} - human ${graphPacket.humanRank}, agent ${graphPacket.agentRank}, ${graphPacket.estimatedTokens} estimated tokens.`
+          ? `${graphPacket.contextRef} - human rank ${graphPacket.humanRank}, agent rank ${graphPacket.agentRank}, ${graphPacket.packedNodes} context nodes.`
           : "No graph context packet resolved yet.",
       },
       { id: "writes", label: "Safe writes", status: "idle", detail: "Notebook, follow-up, and export writes require explicit user action." },
@@ -450,15 +451,15 @@ function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLo
           detail: source.host || source.type,
           href: source.href,
         }))
-      : [{ id: "convex", label: "Convex live memory", status: isLoading ? "running" : "queued", detail: "Primary source of truth." }],
+      : [{ id: "memory", label: "Live memory", status: isLoading ? "running" : "queued", detail: "Primary source of truth." }],
     metrics: [
       { label: "sources", value: String(detail?.sourceCount ?? 0), tone: "accent" },
       { label: "claims", value: String(detail?.claimCount ?? 0), tone: "green" },
       { label: "tools", value: String(graphPacket ? Math.max(3, graphPacket.edges) : 0), tone: "green" },
       { label: "latency", value: isLoading ? "live" : "0ms", tone: isLoading ? "accent" : "green" },
-      { label: "tokens", value: graphPacket ? graphPacket.estimatedTokens.toLocaleString() : "0", tone: "accent" },
+      { label: "context", value: graphPacket ? graphPacket.packedNodes.toLocaleString() : "0", tone: "accent" },
       { label: "graph", value: graphPacket ? String(graphPacket.packedNodes) : "0", tone: "accent" },
-      { label: "paid", value: "$0.00", tone: "green" },
+      { label: "budget", value: "$0.00", tone: "green" },
     ],
   };
 }

@@ -216,8 +216,8 @@ function MobileHome({ onOpenReports, onOpenChat }: { onOpenReports: () => void; 
         borderColor: "var(--rd-accent-ring)",
       }}>
         <div className="rd-row" style={{ gap: 6 }}>
-          <Pill tone="green"><span className="rd-dot rd-dot--live" />Memory hot</Pill>
-          <Pill>0 paid calls</Pill>
+          <Pill tone="green"><span className="rd-dot rd-dot--live" />Memory ready</Pill>
+          <Pill>Memory first</Pill>
         </div>
         <h1 style={{
           fontFamily: "var(--rd-font-display)", fontSize: 22, fontWeight: 590,
@@ -312,7 +312,7 @@ function MobileHome({ onOpenReports, onOpenChat }: { onOpenReports: () => void; 
             <article className="rd-card rd-card__pad-tight" style={{ padding: "12px 14px" }}>
               <div className="rd-eyebrow">No live changes yet</div>
               <p className="rd-faint" style={{ fontSize: 12, marginTop: 4 }}>
-                Daily Brief and archive artifacts will appear here once Convex returns them.
+                Daily Brief and archive artifacts will appear here once saved memory returns.
               </p>
             </article>
           )}
@@ -440,7 +440,7 @@ function MobileChat({ onOpenSheet, detail }: { onOpenSheet: (k: "sources" | "gra
       <article className="rd-card rd-card__pad" style={{ padding: 14 }}>
         <div className="rd-row" style={{ gap: 4, flexWrap: "wrap" }}>
           <Pill tone="green">Memory · {sourceCount} sources</Pill>
-          <Pill>0 paid calls</Pill>
+          <Pill>Memory first</Pill>
         </div>
         <p style={{
           fontFamily: "var(--rd-font-display)", fontSize: 15, fontWeight: 510,

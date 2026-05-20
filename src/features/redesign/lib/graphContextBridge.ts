@@ -144,7 +144,7 @@ export function buildGraphContextBridgePacket({
       : ["entity_merge_without_approval"],
     whySelected,
     humanSummary: `${title}: ${sourceRefs} sources, ${claimRefs} claims, ${visibleNodes} visible graph nodes. ${topology ? `${topology.summary} ` : ""}${needsReview ? "Needs review before writes." : "Ready for memory-first reuse."}`,
-    agentSummary: `Pack ${packedNodes} nodes, ${sourceRefs} source refs, ${claimRefs} claim refs${topology ? `; topology=${topology.view}/density:${topology.densityScore}/outlier:${topology.outlierScore}` : ""}; estimated ${estimatedTokens} tokens; approvalRequired=${approvalRequired}.`,
+    agentSummary: `Packet includes ${packedNodes} context nodes, ${sourceRefs} source refs, and ${claimRefs} claim refs${topology ? ` with ${topology.view} topology signals` : ""}. ${approvalRequired ? "Review required before write." : "Ready for a safe patch proposal."}`,
     topology: topology ?? undefined,
   };
 }

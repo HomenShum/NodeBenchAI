@@ -14,7 +14,7 @@ describe("normalizeRouterTierForChatRun", () => {
 });
 
 describe("isPaidChatEligibleUser", () => {
-  it("requires an email-backed account for paid live research", () => {
+  it("requires an email-backed account for live research", () => {
     expect(isPaidChatEligibleUser(null)).toBe(false);
     expect(isPaidChatEligibleUser({})).toBe(false);
     expect(isPaidChatEligibleUser({ email: "" })).toBe(false);

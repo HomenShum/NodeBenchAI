@@ -3,7 +3,7 @@
  *
  * Bridges existing first-party production artifacts into the redesign surfaces:
  * LinkedIn archive rows, daily brief memories, and daily brief feature checks.
- * The hook only returns Convex-backed public artifacts. Empty states are explicit
+ * The hook only returns source-backed public artifacts. Empty states are explicit
  * so production cannot mask broken wiring with starter fixtures.
  */
 
@@ -1092,7 +1092,7 @@ function buildMetrics(stats: ArchiveStats | null, memory: DailyBriefMemory | nul
     { label: "Brief signals", value: String(signals.length || passing || features.length), delta: validBrief ? "validated" : `${passing} passing` },
     { label: "Evidence rows", value: String(Math.max(0, sourceRows.length || countSourceRefs(features.map((f) => f.sourceRefs)))), hint: "daily brief" },
     { label: "Latest brief", value: memory?.dateString ?? "none" },
-    { label: "Frontend feed", value: "Live", delta: "Convex-backed" },
+    { label: "Frontend feed", value: "Live", delta: "Source-backed" },
   ];
 }
 
@@ -1190,7 +1190,7 @@ export function useReportTopologySnapshot(
     };
 
     setIsLoading(true);
-    setSourceLabel("Loading Convex topology");
+    setSourceLabel("Loading saved topology");
 
     void convex
       .query(liveArtifactApi.domains.redesign.reportTopology.getReportTopologySnapshot, payload)
@@ -1198,7 +1198,7 @@ export function useReportTopologySnapshot(
         if (isCancelled) return;
         const packet = nextSnapshot as ReportTopologySnapshotPacket;
         setSnapshot(packet);
-        setSourceLabel(packet.persisted ? "Convex persisted topology" : "Convex topology computed, persistence queued");
+        setSourceLabel(packet.persisted ? "Saved topology" : "Topology computed, persistence queued");
 
         if (packet.persisted) return undefined;
 
@@ -1210,7 +1210,7 @@ export function useReportTopologySnapshot(
           .then((persistedSnapshot) => {
             if (isCancelled) return;
             setSnapshot(persistedSnapshot as ReportTopologySnapshotPacket);
-            setSourceLabel("Convex persisted topology");
+            setSourceLabel("Saved topology");
           })
           .catch(() => {
             refreshKeyRef.current = "";
@@ -1219,7 +1219,7 @@ export function useReportTopologySnapshot(
       .catch(() => {
         if (isCancelled) return;
         setSnapshot(null);
-        setSourceLabel("Convex topology unavailable, using client fallback");
+        setSourceLabel("Saved topology unavailable, using client fallback");
       })
       .finally(() => {
         if (!isCancelled) {

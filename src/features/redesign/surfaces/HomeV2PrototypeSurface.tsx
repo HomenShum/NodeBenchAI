@@ -79,12 +79,12 @@ const reportEntities = [
     sources: 12,
     delta: "Updated 2h ago",
     kind: "Partnership intelligence - Company",
-    body: "Enterprise tier repriced +40%; Claude 4 Opus structure held. Managed Agent tier launched at $0.168/1K tokens.",
+    body: "Enterprise tier repriced +40%; Claude 4 structure held. Managed Agent pricing moved to usage-based billing.",
     tags: ["Partnership", "AI", "Enterprise"],
     ref: "Board prep - Q2 strategy - Vendor review",
     meta: "5 of 5 claims verified · 12 sources · refreshed 2h ago",
     dims: { Sources: 95, Freshness: 92, Verification: 80, Coverage: 88 },
-    signals: ["Enterprise pricing +40% effective June 1", "Managed Agent tier $0.168/1K tokens", "Partnership compressed $1.2M"],
+    signals: ["Enterprise pricing +40% effective June 1", "Managed Agent moved to usage-based billing", "Partnership compressed $1.2M"],
     related: ["Sequoia Capital", "OpenAI", "Google DeepMind"],
     active: true,
   },
@@ -279,7 +279,7 @@ function liveReportToPrototypeEntity(report: ReportCardData): PrototypeReportEnt
     kind: `${report.kind} - Live report`,
     body: report.description,
     tags: [report.kind, status, report.followUps > 0 ? "Action needed" : "Current"],
-    ref: "Live Convex artifacts - notebook - sources",
+    ref: "Live artifacts - notebook - sources",
     meta: `${report.claims} claims · ${report.sources} sources · ${report.followUps} follow-ups · ${report.updatedAt}`,
     dims: { Sources: evidence, Freshness: freshness, Verification: actionability, Coverage: graphFit },
     signals: [
@@ -455,7 +455,7 @@ function fallbackBriefSections(): HomeV2BriefSection[] {
       eyebrow: "01 - What changed",
       title: "Waiting for the live Daily Brief artifact",
       deck: "Live memory is still hydrating.",
-      body: "NodeBench is loading the Convex-backed daily brief before it ranks changed facts, evidence, affected reports, and next actions.",
+      body: "NodeBench is loading the saved daily brief before it ranks changed facts, evidence, affected reports, and next actions.",
       items: [],
       metric: "Loading",
       layout: "lead",
@@ -482,7 +482,7 @@ function fallbackBriefSections(): HomeV2BriefSection[] {
       eyebrow: "04 - Reports touched",
       title: "Reports touched by today's edition",
       deck: "Coverage-book changes will appear here.",
-      body: "The live edition lists exact reports affected once Convex returns artifacts.",
+      body: "The live edition lists exact reports affected once saved artifacts return.",
       items: [],
       metric: "Reports",
       layout: "cards",
@@ -748,7 +748,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
   const liveStatusEditionItems = [
     {
       day: "11",
-      title: liveArtifacts.isLoading ? "Loading live brief" : "Live memory status",
+      title: liveArtifacts.isLoading ? "Updating brief" : "Memory status",
       meta: liveArtifacts.isLoading ? "Checking saved memory" : "No public packets returned",
       body: actionBody,
       today: true,
@@ -1338,7 +1338,7 @@ function ChatPrototypeCenter() {
         <button>Open notebook</button><button>Export</button><button>Track updates</button>
       </div>
       <h1>Sequoia ratchet analysis</h1>
-      <p className="rd-v2-muted-line">Started 2 minutes ago · 3 messages · opus-4</p>
+      <p className="rd-v2-muted-line">Started 2 minutes ago · 3 messages · balanced reasoning</p>
       <div className="rd-v2-checkpoints">
         {chatCheckpoints.map(([mark, label]) => (
           <div key={label} data-active={label === "Updating notebook"}>
@@ -1370,7 +1370,7 @@ function ChatPrototypeCenter() {
         <span>Sequoia Capital ×</span><span>Report: Term Sheet Analysis ×</span><span>Sources: 2 ×</span><span>Balanced</span>
       </div>
       <div className="rd-v2-tool-strip">
-        <span>opus-4</span><span>Cap table model</span><span>Dilution calc</span><span>2 sources</span><span>1.2s</span><span>$0.05</span>
+        <span>Reasoning model</span><span>Cap table model</span><span>Dilution calc</span><span>2 sources</span><span>1.2s</span><span>cost tracked</span>
       </div>
       <div className="rd-v2-next-actions">
         {["Open notebook", "Draft counterproposal", "Verify open claims", "Attach term sheet", "Share summary"].map((action) => (
@@ -1449,7 +1449,7 @@ function MePrototypeCenter() {
       <section className="rd-v2-integrations-grid">
         {[
           ["GitHub", "Connected", "12 repos indexed"],
-          ["Convex", "Connected", "agile-caribou prod"],
+          ["Runtime", "Connected", "live workspace"],
           ["LinkedIn", "Approval required", "Posting gated"],
           ["Slack", "Connected", "Daily digest enabled"],
         ].map(([name, status, detail]) => (

@@ -193,7 +193,7 @@ export function InboxSurface() {
       } else {
         showToast({
           tone: action === "accept" ? "success" : "warning",
-          message: `${action === "accept" ? "Accepted" : "Rejected"} this starter item locally. Live artifacts persist through Convex nudges.`,
+          message: `${action === "accept" ? "Accepted" : "Rejected"} this starter item locally. Live artifacts persist through saved nudges.`,
         });
       }
       return;
@@ -344,7 +344,7 @@ export function InboxSurface() {
           <div className="rd-row" style={{ gap: 8, alignItems: "center" }}>
             <div className="rd-eyebrow">Inbox · review queue</div>
             {isLive ? (
-              <Pill tone="green" title="Live pipeline review data from Convex">
+              <Pill tone="green" title="Live pipeline review data from saved nudges">
                 <span className="rd-dot rd-dot--live" />Live · {liveCount} from runs
               </Pill>
             ) : (

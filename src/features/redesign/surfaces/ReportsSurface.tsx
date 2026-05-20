@@ -252,7 +252,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Live data wiring: authenticated and anonymous workspaces show Convex-backed
+  // Live data wiring: authenticated and anonymous workspaces show source-backed
   // runs/artifacts. Empty states remain explicit so production never masks a
   // broken live path with fixture reports.
   const {
@@ -417,7 +417,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
           <p className="universe-meta">
             <span className="universe-meta__dot" aria-hidden="true" />
             {isLoading && reports.length === 0
-              ? "Checking Convex-backed report artifacts."
+              ? "Checking saved report artifacts."
               : `${reports.length} reports, ${totalSources} sources, ${reviewCount} need review.`}
           </p>
         </div>
@@ -532,8 +532,8 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
           onChange={(e) => setQuery(e.target.value)}
           placeholder={isLive ? `Search ${reports.length} reports, sources, claims...` : "Search reports, sources, claims..."}
         />
-        <button type="button" onClick={() => showToast({ tone: isLive ? "success" : "info", message: isLive ? `${sourceLabel}. Reports are live.` : "No live reports yet. This view does not silently substitute fixtures." })}>
-          {isLive ? "Live memory" : "No fixture fallback"}
+        <button type="button" onClick={() => showToast({ tone: isLive ? "success" : "info", message: isLive ? `${sourceLabel}. Reports are live.` : "No reports returned yet. Start in Chat to create the first report." })}>
+          {isLive ? "Live memory" : "Create first report"}
         </button>
         {query && <button type="button" onClick={resetFilters}>Clear</button>}
       </div>
@@ -632,13 +632,13 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
         <div className="rd-row" style={{ gap: 8, alignItems: "center" }}>
           <div className="rd-eyebrow">Reports</div>
           {isLive ? (
-            <Pill tone="green" title="Showing live Convex artifacts from batch runs, daily briefs, or the LinkedIn archive">
+            <Pill tone="green" title="Showing saved live artifacts from batch runs, daily briefs, or the LinkedIn archive">
               <span className="rd-dot rd-dot--live" />{sourceLabel}
             </Pill>
           ) : isLoading && reports.length === 0 ? (
             <Pill tone="amber">Loading live coverage…</Pill>
           ) : isLoading ? (
-            <Pill title="Checking for Convex-backed public and private artifacts.">
+            <Pill title="Checking for saved public and private artifacts.">
               Checking live data
             </Pill>
           ) : (
@@ -1481,7 +1481,7 @@ function buildReportGraph(
       staleHours: freshnessHours(freshness),
       verified: row.confidence ? `${Math.round(row.confidence * 100)}% source confidence` : "Source available",
       coverage: [row.type, row.status, `${row.reused} reuse${row.reused === 1 ? "" : "s"}`].filter(Boolean),
-      signals: [row.excerpt, row.href ?? "Convex source row"].filter(Boolean).slice(0, 3),
+      signals: [row.excerpt, row.href ?? "Saved source row"].filter(Boolean).slice(0, 3),
     });
   });
 
@@ -1505,7 +1505,7 @@ function buildReportGraph(
       verified: reviewCount ? `${reviewCount} reports need work` : "Coverage graph ready",
       coverage: ["portfolio", "watchlist", "coverage"],
       signals: [
-        "Cross-entity universe built from the visible Convex-backed report set.",
+        "Cross-entity universe built from the visible saved report set.",
         "Portfolio artifacts show which reports move together.",
       ],
     });
@@ -1810,7 +1810,7 @@ function buildReportGraph(
     nodes,
     links: budgetedLinks,
     root: nodes.find((node) => node.id === rootReport.id) ?? null,
-    sourceLabel: visibleDetails.length ? "Convex artifact graph" : "Report metadata graph",
+    sourceLabel: visibleDetails.length ? "Saved artifact graph" : "Report metadata graph",
     sourceRows: totalSources,
     artifactNodeCount: nodes.filter((node) => node.provenance === "artifact").length,
     artifactEdgeCount: budgetedLinks.filter((link) => link.type === "has_artifact" || link.type === "causes" || link.type === "correlates_with").length,
@@ -3541,7 +3541,7 @@ function LiveArtifactSection({
         </div>
       </div>
       <div className="rd-row" style={{ gap: 6 }}>
-        <Pill tone="green"><span className="rd-dot rd-dot--live" />Convex-backed</Pill>
+        <Pill tone="green"><span className="rd-dot rd-dot--live" />Live memory</Pill>
         <button
           className="rd-btn rd-btn--quiet rd-btn--sm"
           onClick={() => showToast({

@@ -42,7 +42,7 @@ export type EntityClass = "company" | "person" | "topic" | "role" | "event";
 export type SignalClass = "hiring" | "funding" | "shipping" | "coverage" | "regulatory" | "leadership" | "research";
 
 export interface PublicResearchCard {
-  /** Optional saved/live report route id. Present for Convex-backed artifact cards. */
+  /** Optional saved/live report route id. Present for source-backed artifact cards. */
   reportId?: string;
   entity: string;
   entityClass: EntityClass;
@@ -236,7 +236,7 @@ export const pulseCards: PulseCard[] = [
   {
     kind: "memory_win",
     title: "Orbital Labs answered from event corpus",
-    body: "4 sources reused. 0 paid calls. The reusable memory loop is paying down.",
+    body: "4 sources reused. No external refresh needed. The reusable memory loop is paying down.",
     meta: "2m ago · Ship Demo Day",
     cta: "Explore",
   },
@@ -571,7 +571,7 @@ export const inboxItems: InboxItem[] = [
     whyTone: "accent",
     category: "approval",
     title: "Deep refresh on Voice-agent evaluation",
-    body: "Running a Deep dive on the theme would consume ~$0.18 of paid calls. Approve?",
+    body: "Running a deep dive on the theme would use about $0.18 of external research budget. Approve?",
     meta: "5m ago",
   },
   {

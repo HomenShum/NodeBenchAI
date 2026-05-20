@@ -394,7 +394,7 @@ function LegacyHomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
             <div className="rd-ops__row">
               <div className="rd-ops__row-title">No new live changes yet</div>
               <span style={{ fontSize: 12, color: "var(--rd-ink-mute)", lineHeight: 1.45 }}>
-                The archive and daily brief hooks are connected; this lane fills when Convex returns new artifacts.
+                The archive and daily brief hooks are connected; this lane fills when saved artifacts return.
               </span>
             </div>
           )}
@@ -441,7 +441,7 @@ function LegacyHomeSurface({ onAsk, onOpenReport }: HomeSurfaceProps) {
             </h2>
           </div>
           <Pill tone={liveArtifacts.isLive ? "green" : "accent"}>
-            {liveArtifacts.isLive ? liveArtifacts.sourceLabel : liveArtifacts.isLoading ? "Checking Convex" : "Empty live feed"}
+            {liveArtifacts.isLive ? liveArtifacts.sourceLabel : liveArtifacts.isLoading ? "Checking saved memory" : "Empty live feed"}
           </Pill>
         </div>
 

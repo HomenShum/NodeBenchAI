@@ -253,7 +253,7 @@ export interface ChatRunState {
   error: string | null;
   /** Whether the real chat pipeline can be started from the current auth state. */
   available: boolean;
-  /** True only when the signed-in account is eligible for paid live research. */
+  /** True only when the signed-in account is eligible for live research. */
   paidEligible: boolean;
 }
 
@@ -443,11 +443,11 @@ export function useRedesignChatRun() {
         return null;
       }
       if (!isAuthenticated) {
-        setError("Sign in with an email-backed account before running paid live research.");
+        setError("Sign in with an email-backed account before running live research.");
         return null;
       }
       if (!paidEligible) {
-        setError("Link an email or Google account before running paid live research. Anonymous sessions can browse public memory only.");
+        setError("Link an email or Google account before running live research. Anonymous sessions can browse public memory only.");
         return null;
       }
       setError(null);
@@ -458,7 +458,7 @@ export function useRedesignChatRun() {
       } catch (err: any) {
         const raw = (err?.message ?? String(err)).slice(0, 280);
         const msg = /server error|not authenticated|anonymous|sign in|account/i.test(raw)
-          ? "Sign in with an email-backed account before running paid live research."
+          ? "Sign in with an email-backed account before running live research."
           : raw;
         setError(msg);
         return null;

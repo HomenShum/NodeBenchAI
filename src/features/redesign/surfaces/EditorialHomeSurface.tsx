@@ -2063,9 +2063,9 @@ function LongHorizonBranch({
           : 0;
   const retrospectiveSource =
     period === "week"
-      ? "weekly Convex rollup"
+      ? "weekly saved rollup"
       : period === "month"
-        ? "monthly Convex rollup"
+        ? "monthly saved rollup"
         : "live coverage substrate";
   const actionPrompt =
     period === "week"
@@ -2672,7 +2672,7 @@ function TodayRender({
           windowStart={dateString}
           windowEnd={dateString}
           retrospectiveCount={todayRetrospectiveCount}
-          retrospectiveSource="daily Convex/live substrate"
+          retrospectiveSource="daily saved/live substrate"
         />
 
         <EditionErrorBoundary label="what-moved">

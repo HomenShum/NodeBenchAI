@@ -112,7 +112,7 @@ describe("buildGraphContextBridgePacket", () => {
 
     expect(packet.allowedActions).toContain("inspect_topology_shape");
     expect(packet.topology?.view).toBe("density");
-    expect(packet.agentSummary).toContain("topology=density");
+    expect(packet.agentSummary).toContain("density topology signals");
     expect(packet.whySelected.join(" ")).toContain("mapper clusters 1");
   });
 });

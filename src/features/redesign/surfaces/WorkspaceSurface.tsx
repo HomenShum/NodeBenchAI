@@ -185,9 +185,9 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
     workspaceDetail?.title ??
     effectiveLiveReport?.entity ??
     (workspaceNeedsSelection
-      ? "Loading live workspace"
+      ? "Preparing workspace"
       : liveArtifactResolving
-        ? "Loading live artifact"
+        ? "Preparing selected report"
         : liveArtifactUnavailable
           ? "Live artifact unavailable"
           : "Workspace draft");
@@ -487,14 +487,14 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
 function LiveArtifactPlaceholder({ loading, reportId }: { loading: boolean; reportId: string }) {
   return (
     <div className="rd-stack" style={{ gap: 14, padding: "28px 32px", maxWidth: 760 }}>
-      <div className="rd-eyebrow">{loading ? "Resolving live artifact" : "Live artifact unavailable"}</div>
+      <div className="rd-eyebrow">{loading ? "Resolving selected report" : "Report unavailable"}</div>
       <section className="rd-card rd-card__pad" style={{ background: "var(--rd-panel)" }}>
         <h2 className="rd-h2" style={{ marginBottom: 8 }}>
-          {loading ? "Loading the live workspace body." : "This artifact is not in the current live window."}
+          {loading ? "Preparing the workspace body." : "This report is not in the current workspace window."}
         </h2>
         <p className="rd-body rd-faint">
           {loading
-            ? "NodeBench is waiting for the Convex artifact detail before rendering Brief, Cards, Sources, or Map. Fixture workspace content is intentionally suppressed for live artifact ids."
+            ? "NodeBench is waiting for the selected report detail before rendering Brief, Cards, Sources, or Map. Starter content stays hidden so the workspace does not pretend to have evidence."
             : `No live detail was returned for ${reportId || "the latest artifact"}. Open Reports to pick a currently indexed artifact, or refresh the live feed.`}
         </p>
       </section>
@@ -707,7 +707,7 @@ function BriefTab({
       </section>
 
       <section className="rd-card rd-card__pad" style={{ background: "var(--rd-accent-tint)", borderColor: "var(--rd-accent-ring)" }}>
-        <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)" }}>No fixture fallback</div>
+        <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)" }}>No starter substitute</div>
         <p className="rd-body" style={{ marginTop: 6 }}>
           This blank state is intentional: live artifact routes must prove their data path instead of looking populated by old sample content.
         </p>
@@ -742,7 +742,7 @@ function NotebookTab() {
         <h2 className="rd-h2">What they do</h2>
         <p className="rd-body">
           This notebook preserves an entity intelligence answer as editable report text, source-backed claims, and follow-up actions.
-          The live path hydrates this body from Convex artifacts before showing editable intelligence{" "}
+          The live path hydrates this body from saved artifacts before showing editable intelligence{" "}
           <span className="rd-mono" style={{ fontSize: 10, background: "var(--rd-accent-soft)", color: "var(--rd-accent-strong)", padding: "1px 5px", borderRadius: 4 }}>[2]</span>.
         </p>
 

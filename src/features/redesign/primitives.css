@@ -744,6 +744,43 @@
   font-variant-numeric: tabular-nums;
 }
 
+[data-redesign] .rd-v2-edition-accordion {
+  display: block;
+}
+
+[data-redesign] .rd-v2-edition-group[aria-expanded="true"] {
+  background: var(--rd-muted);
+}
+
+[data-redesign] .rd-v2-edition-children {
+  display: grid;
+  gap: 2px;
+  margin: 2px 6px 8px 28px;
+  padding-left: 8px;
+  border-left: 1px solid var(--rd-line);
+}
+
+[data-redesign] .rd-v2-edition-children button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--rd-r-xs);
+  background: transparent;
+  color: var(--rd-ink-mute);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10.5px;
+  text-align: left;
+}
+
+[data-redesign] .rd-v2-edition-children button:hover {
+  background: var(--rd-panel);
+  color: var(--rd-ink);
+}
+
 [data-redesign] .rd-v2-home {
   width: 100%;
   max-width: 960px;
@@ -3737,6 +3774,32 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
+[data-redesign] .rd-v2-inbox-group-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+[data-redesign] .rd-v2-inbox-group-toggle > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-redesign] .rd-v2-inbox-group-toggle i {
+  width: 10px;
+  color: var(--rd-ink-soft);
+  font-style: normal;
+}
+
+[data-redesign] .rd-v2-inbox-group-toggle:hover {
+  background: var(--rd-muted);
+  color: var(--rd-ink);
+}
 [data-redesign] .rd-v2-inbox-group:first-child .rd-v2-inbox-group-head {
   margin-top: 0;
 }
@@ -3757,12 +3820,54 @@
   padding: 9px 16px;
   border-bottom: 1px solid var(--rd-line-faint);
   background: var(--rd-panel);
+  cursor: pointer;
 }
 
 [data-redesign] .rd-v2-inbox-group article.is-active {
   background: var(--rd-accent-tint);
   border-left: 3px solid var(--rd-accent);
   padding-left: 13px;
+}
+
+[data-redesign] .rd-v2-inbox-group article.is-expanded {
+  grid-template-columns: 22px minmax(0, 1fr) auto auto;
+  align-items: start;
+}
+
+[data-redesign] .rd-v2-inbox-card-detail {
+  grid-column: 2 / -1;
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--rd-line);
+  border-radius: var(--rd-r-sm);
+  background: var(--rd-paper);
+}
+
+[data-redesign] .rd-v2-inbox-card-detail > strong {
+  font-size: 11.5px;
+  color: var(--rd-ink-strong);
+}
+
+[data-redesign] .rd-v2-inbox-card-detail > p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+[data-redesign] .rd-v2-inbox-card-detail > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+[data-redesign] .rd-v2-inbox-card-detail > div span {
+  padding: 2px 7px;
+  border-radius: var(--rd-r-pill);
+  background: var(--rd-muted);
+  color: var(--rd-ink-soft);
+  font-size: 9.5px;
 }
 
 [data-redesign] .rd-v2-inbox-group article.rd-inbox-empty {
@@ -4575,7 +4680,7 @@
 
 /* Block handle â€” appears on the left when a block is hovered (Notion-iconic) */
 [data-redesign] .rd-notebook__content > *::before {
-  content: "+ â‹®â‹®";
+  content: "+";
   position: absolute;
   left: -52px;
   top: 4px;
@@ -10761,6 +10866,32 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-accent-strong);
   font-size: 9px;
   border-radius: 3px;
+}
+
+[data-redesign] .rd-v2-trace--controlled {
+  display: block;
+}
+
+[data-redesign] .rd-v2-trace--controlled > button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--rd-ink-soft);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+[data-redesign] .rd-v2-trace--controlled small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+[data-redesign] .rd-v2-trace--controlled i {
+  width: 9px;
+  font-style: normal;
 }
 
 /* â”€â”€ v2 parity: confidence label â”€â”€ */

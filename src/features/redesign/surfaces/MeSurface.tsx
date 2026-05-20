@@ -183,7 +183,7 @@ export function MeSurface() {
               ["Writing style", "How concise, technical, or source-heavy reports should be."],
               ["Watchlists", "Companies, people, markets, and events you want tracked."],
               ["Approval rules", "What the agent may update automatically versus ask first."],
-              ["Audit trail", "Profile changes, connector writes, paid calls, and exported artifacts."],
+              ["Audit trail", "Profile changes, connector writes, research budget, and exported artifacts."],
             ].map(([title, body]) => (
               <div key={title} className="rd-card" style={{ padding: 12, background: "var(--rd-panel)" }}>
                 <strong style={{ display: "block", fontSize: 12.5, color: "var(--rd-ink-strong)" }}>{title}</strong>
@@ -472,7 +472,7 @@ export function MeSurface() {
                 : [
                     { strong: "Review remembered preferences", body: "See the working style and evidence rules the agent is allowed to reuse." },
                     { strong: "Manage connected data", body: "Choose which files, inboxes, calendars, and source caches can inform reports." },
-                    { strong: "Set approval rules", body: "Require review before paid calls, connector writes, CRM exports, and shared artifacts." },
+                    { strong: "Set approval rules", body: "Require review before external research, connector writes, CRM exports, and shared artifacts." },
                     { strong: "Download profile record", body: "Export the current memory, privacy, budget, and source-use settings." },
                   ]).map((hook) => (
                 <li key={hook.strong}>
@@ -606,7 +606,7 @@ export function MeSurface() {
             <div>
               <div className="rd-eyebrow">Plan + credits</div>
               <h4 style={{ margin: "6px 0 0", fontSize: 14, fontWeight: 590 }}>Founder · $49/mo</h4>
-              <p className="rd-faint" style={{ margin: "2px 0 0", fontSize: 12 }}>8 paid calls used / 200</p>
+              <p className="rd-faint" style={{ margin: "2px 0 0", fontSize: 12 }}>8 external research runs used / 200</p>
             </div>
             <Pill tone="green">Active</Pill>
           </div>
@@ -718,7 +718,7 @@ function MeV2DocumentCenter({
       <section className="rd-v2-integrations-grid">
         {[
           ["GitHub", guest ? "Connect after sign-in" : "Available", guest ? "No repository memory shown" : "Repository context can be indexed"],
-          ["Convex", guest ? "Public read only" : "Connected runtime", guest ? "No private tables exposed" : "Live profile writes stay gated"],
+          ["Runtime", guest ? "Public read only" : "Connected runtime", guest ? "No private tables exposed" : "Live profile writes stay gated"],
           ["LinkedIn", "Approval required", "Posting and CRM writes require review"],
           ["Slack", guest ? "Off" : "Optional", "Team memory stays permission-scoped"],
         ].map(([name, status, detail]) => {

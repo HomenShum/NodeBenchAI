@@ -2,7 +2,7 @@
  * useReportsLive - durable reports from live artifacts.
  *
  * Reports should be a vault view, not a fragile dashboard. The stable
- * Convex-backed artifact path is the source of truth here; batch-autopilot
+ * Source-backed artifact path is the source of truth here; batch-autopilot
  * telemetry can be reintroduced later as a non-blocking supplement once the
  * deployed auth-safe query is available.
  */

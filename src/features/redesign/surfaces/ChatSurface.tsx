@@ -179,7 +179,7 @@ function liveWorkingNotesMarkdown(detail: LiveArtifactDetail): string {
     .map((item) => `- ${item.label}: ${item.body}`)
     .join("\n");
   return `**Plan**
-1. Load ${detail.title} from live Convex memory
+1. Load ${detail.title} from saved memory
 2. Reuse cached sources before any paid refresh
 3. Check claim support and review gaps
 4. Convert strongest signal into notebook-ready next action
@@ -362,14 +362,14 @@ function buildChatAgentRailSnapshot(args: {
 
   const canRunLive = chatState.available && !skipLiveSeed;
   const authDetail = skipLiveSeed
-    ? "fresh=1 disables live chat so QA can verify the empty paid-run path."
+    ? "fresh=1 disables live chat so QA can verify the empty run path."
     : authLoading
-      ? "Resolving account session before paid live research can start."
+      ? "Resolving account session before live research can start."
       : canRunLive
-        ? "Email-backed account can start Convex scheduled research runs."
+        ? "Email-backed account can start scheduled research runs."
         : !isAuthenticated
-          ? "Sign in before paid live research. Public memory remains browsable."
-          : "Account needs email or Google link before paid live research.";
+          ? "Sign in before live research. Public memory remains browsable."
+          : "Account needs email or Google link before live research.";
 
   const memoryStatus: AgentRailStatus =
     contextCandidates.length > 0 || liveDetail ? "done" : isRunning ? "running" : "queued";
@@ -391,7 +391,7 @@ function buildChatAgentRailSnapshot(args: {
       status: memoryStatus,
       detail: runtimeContextPacket?.hasContext
         ? `${runtimeContextPacket.title}: ${runtimeContextPacket.selectedContext.length} selected context items, ${runtimeContextPacket.sourceRefs.length} source refs.`
-        : contextCandidates[0]?.detail ?? (liveDetail ? `${liveDetail.title} selected from live Convex memory.` : "Runs before any live source refresh."),
+        : contextCandidates[0]?.detail ?? (liveDetail ? `${liveDetail.title} selected from saved memory.` : "Runs before any live source refresh."),
     },
     {
       id: "graph-context",
@@ -454,7 +454,7 @@ function buildChatAgentRailSnapshot(args: {
       id: "run",
       label: "Current run",
       status: isRunning ? "running" : run?.status === "complete" ? "done" : run?.status === "error" ? "blocked" : "idle",
-      detail: run?.runId ? `${run.status} - ${compactRunId(run.runId)}` : "No active Convex run subscribed.",
+      detail: run?.runId ? `${run.status} - ${compactRunId(run.runId)}` : "No active research run subscribed.",
       meta: run?.hash ? `replay /r/${run.hash}` : undefined,
       href: run?.hash ? `/redesign/chat/r/${encodeURIComponent(run.hash)}` : undefined,
     },
@@ -620,7 +620,7 @@ function buildChatAgentRailSnapshot(args: {
   }
   if (sourceItems.length === 0) {
     sourceItems.push(
-      { id: "convex", label: "Convex memory", status: liveDetail ? "done" : "queued", detail: "Source of truth for reports and artifacts." },
+      { id: "memory", label: "Saved memory", status: liveDetail ? "done" : "queued", detail: "Source of truth for reports and artifacts." },
       { id: "typesense", label: "Memory search", status: "queued", detail: "Fast retrieval layer before paid live search." },
     );
   }
@@ -656,7 +656,7 @@ function buildChatAgentRailSnapshot(args: {
       { label: "sources", value: String(sourceCount), tone: "accent" },
       { label: "tools", value: String(toolCallCount), tone: "green" },
       { label: "latency", value: formatLatency(latency), tone: latency ? "green" : "accent" },
-      { label: "tokens", value: graphPacket ? graphPacket.estimatedTokens.toLocaleString() : "0", tone: "accent" },
+      { label: "context", value: graphPacket ? graphPacket.packedNodes.toLocaleString() : "0", tone: "accent" },
       { label: "graph", value: graphPacket ? String(graphPacket.packedNodes) : "0", tone: "accent" },
       { label: "cost", value: formatRailUsd(estimatedCost), tone: estimatedCost > 0 ? "amber" : "green" },
     ],
@@ -778,7 +778,7 @@ function liveAnswer(detail: LiveArtifactDetail): ChatAnswer {
 
 function liveToolCalls(detail: LiveArtifactDetail): ToolCall[] {
   return [
-    { step: "Load Convex artifact", detail: detail.id, status: "ok", durationMs: 34, tool: "load_live_artifact" },
+    { step: "Load saved artifact", detail: detail.id, status: "ok", durationMs: 34, tool: "load_live_artifact" },
     { step: "Hydrate source rows", detail: `${detail.sourceCount} source refs`, status: "ok", durationMs: 68, tool: "hydrate_sources" },
     { step: "Assemble answer packet", detail: "claim · evidence · risk · next action", status: "ok", durationMs: 94, tool: "assemble_response" },
   ];
@@ -804,8 +804,8 @@ function liveChatUnavailableMarkdown(reason: string, detail?: LiveArtifactDetail
     ? `Current live context is **${detail.title}** with ${detail.sourceCount} sources and ${detail.claimCount} claims.`
     : "No live artifact context has loaded yet.";
   const nextStep = /sign in|account/i.test(reason)
-    ? "Once authenticated, run paid live research from the composer below."
-    : "Use the composer to start a Convex-backed chat run and stream tool events, scratchpad notes, evidence rows, and the final answer packet.";
+    ? "Once authenticated, run live research from the composer below."
+    : "Use the composer to start a live chat run and stream tool events, evidence rows, and the final answer packet.";
   return `## Live chat is not running
 
 ${reason}
@@ -821,7 +821,7 @@ function buildSeedTurns(detail?: LiveArtifactDetail): Turn[] {
       {
         id: "a1",
         role: "assistant",
-        markdown: liveChatUnavailableMarkdown("Waiting for Convex-backed live artifacts before seeding the thread."),
+        markdown: liveChatUnavailableMarkdown("Waiting for saved live artifacts before seeding the thread."),
         streaming: false,
         tier: "auto",
         createdAt: Date.now(),
@@ -1178,8 +1178,8 @@ export function ChatSurface({
           packet: undefined,
           markdown: liveChatUnavailableMarkdown(
             real.errorMessage
-              ? `The Convex-backed chat run failed: ${real.errorMessage.slice(0, 180)}`
-              : "The Convex-backed chat run failed before producing a final packet.",
+          ? `The live chat run failed: ${real.errorMessage.slice(0, 180)}`
+              : "The live chat run failed before producing a final packet.",
             liveDetail,
           ),
         };
@@ -1208,12 +1208,12 @@ export function ChatSurface({
     const unavailableReason = _skipLiveSeed
       ? "The `fresh=1` diagnostic flag disables live chat for this route."
       : authLoading
-        ? "NodeBench is still resolving your account session before it can run paid live research."
+        ? "NodeBench is still resolving your account session before it can run live research."
         : !isAuthenticated
-          ? "Sign in with an email-backed account before running paid live research."
+          ? "Sign in with an email-backed account before running live research."
           : !chatRun.state.paidEligible
-            ? "Link an email or Google account before running paid live research. Anonymous sessions can browse public memory only."
-            : "NodeBench is still preparing the Convex-backed chat runtime.";
+            ? "Link an email or Google account before running live research. Anonymous sessions can browse public memory only."
+            : "NodeBench is still preparing the live chat runtime.";
     setHasUserInteracted(true);
     setTurns((prev) => [
       ...prev,
@@ -1262,7 +1262,7 @@ export function ChatSurface({
                   toolCalls: undefined,
                   packet: undefined,
                   markdown: liveChatUnavailableMarkdown(
-                    chatRun.state.error ?? "The Convex-backed chat run could not be started.",
+                    chatRun.state.error ?? "The live chat run could not be started.",
                     liveDetail,
                   ),
                 }
@@ -1277,8 +1277,8 @@ export function ChatSurface({
       message: _skipLiveSeed
         ? "Live chat was not started because fresh=1 disables the run path."
         : !isAuthenticated
-          ? "Sign in to run paid live research. No showcase answer was inserted."
-          : "Live chat was not started. The Convex-backed runtime is still preparing.",
+          ? "Sign in to run live research. Public memory stays available until then."
+          : "Live chat was not started. The research runtime is still preparing.",
     });
   };
 
@@ -1324,7 +1324,7 @@ export function ChatSurface({
                   ...t,
                   thinking: false,
                   markdown: liveChatUnavailableMarkdown(
-                    chatRun.state.error ?? "Regenerate could not start a Convex-backed chat run.",
+                    chatRun.state.error ?? "Regenerate could not start a live chat run.",
                     liveDetail,
                   ),
                 }
@@ -1343,7 +1343,7 @@ export function ChatSurface({
               packet: undefined,
               markdown: liveChatUnavailableMarkdown(
                 prompt
-                  ? "Regenerate needs the Convex-backed chat runtime to be ready."
+                  ? "Regenerate needs the live chat runtime to be ready."
                   : "Regenerate needs an original user prompt for this turn.",
                 liveDetail,
               ),
@@ -1476,9 +1476,9 @@ export function ChatSurface({
         {/* Compact thread header — no marketing copy. Just status + thread context. */}
         <header className="rd-chat-thread-head">
           <div className="rd-row" style={{ gap: 8, flexWrap: "wrap", flex: 1 }}>
-            <Pill tone="green"><span className="rd-dot rd-dot--live" />{liveArtifacts.isLive ? "Live memory hot" : "Memory hot"}</Pill>
+            <Pill tone="green"><span className="rd-dot rd-dot--live" />{liveArtifacts.isLive ? "Memory ready" : "Memory warming"}</Pill>
             <span className="rd-mono" style={{ fontSize: 11, color: "var(--rd-ink-soft)" }}>
-              {liveDetail ? `Thread · ${liveDetail.title} · ${liveDetail.sourceCount} source${liveDetail.sourceCount === 1 ? "" : "s"} · 0 paid calls` : "Thread · no live artifact selected · 0 paid calls"}
+              {liveDetail ? `Thread - ${liveDetail.title} - ${liveDetail.sourceCount} source${liveDetail.sourceCount === 1 ? "" : "s"} - no external refresh` : "Thread - no report selected - no external refresh"}
             </span>
           </div>
           {openQuestions.length > 0 && !oqOpen && (
@@ -2524,7 +2524,7 @@ function AnswerPacket({
         <div className="rd-tool-badges">
           <span className="rd-tool-badge">memory</span>
           <span className="rd-tool-badge">{reportTitle ?? "report"}</span>
-          <span className="rd-tool-badge">{packet.paidCalls} paid call{packet.paidCalls === 1 ? "" : "s"}</span>
+          <span className="rd-tool-badge">{packet.paidCalls > 0 ? `${packet.paidCalls} external refresh${packet.paidCalls === 1 ? "" : "es"}` : "memory first"}</span>
         </div>
 
         <LiveResearchChecklist
