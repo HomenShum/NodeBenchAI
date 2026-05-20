@@ -165,8 +165,8 @@ async function captureScreenshots(config) {
 
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        await page.goto(url, { waitUntil: 'load', timeout: 45000 });
-        await page.waitForTimeout(3000);
+        await page.goto(url, { waitUntil: 'networkidle0', timeout: 45000 });
+        await page.waitForTimeout(5000);
 
         const filePath = path.join(OUT_DIR, `${surface.name.toLowerCase()}.png`);
         await page.screenshot({ path: filePath, fullPage: false });

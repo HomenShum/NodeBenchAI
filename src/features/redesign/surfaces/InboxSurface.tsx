@@ -262,13 +262,11 @@ export function InboxSurface() {
         <section key={group.label} className="rd-v2-inbox-group">
           <div className="rd-v2-inbox-group-head"><span>{group.label}</span><b>{group.items.length}</b></div>
           {group.items.length === 0 ? (
-            <article>
-              <span className="rd-v2-source-icon" data-source="system">·</span>
+            <article className="rd-inbox-empty">
+              <span className="rd-v2-source-icon" data-source="system">—</span>
               <div>
                 <span className="rd-v2-inbox-title-row"><strong>{group.empty}</strong></span>
-                <p>No items here right now.</p>
               </div>
-              <time>live</time>
             </article>
           ) : (
             group.items.map((item) => (
