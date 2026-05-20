@@ -224,6 +224,14 @@ export default defineConfig(({ mode }) => {
         // It's the entry HTML that points to those chunks that must NOT
         // be cached, otherwise users get the OLD HTML pointing at OLD chunks.
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // Dogfood generation archives are QA evidence, not runtime assets.
+        // Keep them fetchable under /dogfood, but do not precache every
+        // archived screenshot into the service worker for normal users.
+        globIgnores: [
+          '**/dogfood/generations/**',
+          '**/node_modules/**',
+          '**/proto/**/node_modules/**',
+        ],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/voice\//, /^\/install\.sh/],
         runtimeCaching: [

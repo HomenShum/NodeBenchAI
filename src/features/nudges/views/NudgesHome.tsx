@@ -187,7 +187,7 @@ function getNudgePriorityIcon(priority: NudgePriority): LucideIcon {
 function getNudgePriorityClasses(priority: NudgePriority) {
   switch (priority) {
     case "act":
-      return "border-[rgba(217,119,87,0.32)] bg-[rgba(217,119,87,0.10)] text-[var(--accent-primary)]";
+      return "border-[rgba(217,119,87,0.48)] bg-[rgba(217,119,87,0.18)] text-[var(--accent-primary)] shadow-[0_0_6px_rgba(217,119,87,0.15)]";
     case "auto":
       return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/12 dark:text-emerald-200";
     case "watch":

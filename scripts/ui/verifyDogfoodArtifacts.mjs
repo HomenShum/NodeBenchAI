@@ -32,6 +32,7 @@ function stripLeadingSlash(p) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const requireGemini = (args.get("requireGemini") ?? "false") === "true";
+  const requireGeneration = (args.get("requireGeneration") ?? "false") === "true";
 
   const repoRoot = process.cwd();
   const dogfoodDir = path.join(repoRoot, "public", "dogfood");
@@ -121,6 +122,56 @@ async function main() {
     const summary = videoQa[0]?.summary ?? "";
     if (typeof summary !== "string" || summary.trim().length < 10) {
       throw new Error("Gemini video QA summary missing/too short.");
+    }
+  }
+
+  if (requireGeneration) {
+    const generationsDir = path.join(dogfoodDir, "generations");
+    const indexPath = path.join(generationsDir, "index.json");
+    const ledgerPath = path.join(dogfoodDir, "qa-generation-ledger.json");
+    await assertFileExists(indexPath, { minBytes: 50 });
+    await assertFileExists(ledgerPath, { minBytes: 50 });
+
+    const index = await readJson(indexPath);
+    const ledger = await readJson(ledgerPath);
+    if (!Array.isArray(index.runs) || index.runs.length < 1) {
+      throw new Error("Generation archive index has no runs.");
+    }
+    const latest = index.runs[0];
+    if (!latest?.archivePath) {
+      throw new Error("Latest generation archive is missing archivePath.");
+    }
+    const archiveDir = path.join(repoRoot, latest.archivePath);
+    await assertFileExists(path.join(archiveDir, "summary.json"), { minBytes: 50 });
+    await assertFileExists(path.join(archiveDir, "summary.md"), { minBytes: 50 });
+
+    const summary = await readJson(path.join(archiveDir, "summary.json"));
+    const evidence = summary?.evidence ?? {};
+    const stateEvidence = evidence.stateEvidence ?? {};
+    const copiedScreenshots = Array.isArray(evidence.screenshots) ? evidence.screenshots.filter((copy) => copy.copied).length : 0;
+    const copiedFrames = Array.isArray(evidence.frames) ? evidence.frames.filter((copy) => copy.copied).length : 0;
+    const copiedVideos = Array.isArray(evidence.videos) ? evidence.videos.filter((copy) => copy.copied).length : 0;
+    const copiedGemini = Array.isArray(evidence.gemini) ? evidence.gemini.filter((copy) => copy.copied).length : 0;
+    if (copiedScreenshots < minimums.screenshots) {
+      throw new Error(`Generation archive has insufficient screenshots: ${copiedScreenshots}`);
+    }
+    if (copiedFrames < minimums.frames) {
+      throw new Error(`Generation archive has insufficient frames: ${copiedFrames}`);
+    }
+    if (copiedVideos < 1) {
+      throw new Error("Generation archive has no retained walkthrough video.");
+    }
+    if (requireGemini && copiedGemini < 2) {
+      throw new Error(`Generation archive has insufficient Gemini artifacts: ${copiedGemini}`);
+    }
+    for (const state of ["before", "during", "after"]) {
+      const count = Number(stateEvidence?.[state]?.count ?? 0);
+      if (!Number.isFinite(count) || count < 1) {
+        throw new Error(`Generation archive is missing ${state} state evidence.`);
+      }
+    }
+    if (ledger?.generationArchive?.runId && ledger.generationArchive.runId !== latest.runId) {
+      throw new Error("Generation ledger and archive index disagree on the latest run id.");
     }
   }
 

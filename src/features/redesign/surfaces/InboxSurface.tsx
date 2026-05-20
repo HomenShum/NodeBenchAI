@@ -42,6 +42,8 @@ export function InboxSurface() {
   const [dateRange, setDateRange] = useState<DateRange>("all");
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const completeNudge = useMutation(
     (api as unknown as {
       domains: { product: { nudges: { completeNudge: unknown } } };
@@ -258,22 +260,41 @@ export function InboxSurface() {
           Auto-triage
         </button>
       </div>
-      {inboxGroups.map((group) => (
+      {inboxGroups.map((group) => {
+        const groupCollapsed = collapsedGroups.has(group.label);
+        return (
         <section key={group.label} className="rd-v2-inbox-group">
-          <div className="rd-v2-inbox-group-head"><span>{group.label}</span><b>{group.items.length}</b></div>
-          {group.items.length === 0 ? (
+          <button
+            type="button"
+            className="rd-v2-inbox-group-head rd-v2-inbox-group-toggle"
+            aria-expanded={!groupCollapsed}
+            onClick={() => setCollapsedGroups((prev) => {
+              const next = new Set(prev);
+              if (next.has(group.label)) next.delete(group.label);
+              else next.add(group.label);
+              return next;
+            })}
+          >
+            <span><i aria-hidden="true">{groupCollapsed ? ">" : "v"}</i>{group.label}</span>
+            <b>{group.items.length}</b>
+          </button>
+          {!groupCollapsed && group.items.length === 0 ? (
             <article className="rd-inbox-empty">
               <span className="rd-v2-source-icon" data-source="system">—</span>
               <div>
                 <span className="rd-v2-inbox-title-row"><strong>{group.empty}</strong></span>
               </div>
             </article>
-          ) : (
+          ) : !groupCollapsed ? (
             group.items.map((item) => (
               <article
                 key={item.id}
-                className={activeId === item.id ? "is-active" : ""}
-                onClick={() => setActiveId(item.id)}
+                className={`${activeId === item.id ? "is-active" : ""} ${expandedItemId === item.id ? "is-expanded" : ""}`}
+                aria-expanded={expandedItemId === item.id}
+                onClick={() => {
+                  setActiveId(item.id);
+                  setExpandedItemId((current) => current === item.id ? null : item.id);
+                }}
               >
                 <span className="rd-v2-source-icon" data-source={inboxV2Source(item)}>
                   {inboxV2Icon(item)}
@@ -287,11 +308,23 @@ export function InboxSurface() {
                 </div>
                 <time>{item.meta}</time>
                 <b>{item.whyHere ?? item.category.replace(/_/g, " ")}</b>
+                {expandedItemId === item.id && (
+                  <div className="rd-v2-inbox-card-detail">
+                    <strong>{item.whyHere ?? "Why this is here"}</strong>
+                    <p>{inboxDetailCopy(item)}</p>
+                    <div>
+                      <span>{item.confidence != null ? `${Math.round(item.confidence * 100)}% confidence` : "Needs triage"}</span>
+                      <span>{legacyToLane(item.category).replace(/_/g, " ")}</span>
+                      <span>{item.meta}</span>
+                    </div>
+                  </div>
+                )}
               </article>
             ))
-          )}
+          ) : null}
         </section>
-      ))}
+        );
+      })}
       {allItems.length > items.length && (
         <button
           className="rd-v2-show-more"
@@ -335,7 +368,7 @@ export function InboxSurface() {
             className="rd-filter-chip"
             aria-pressed={lane === "all"}
             onClick={() => setLane("all")}
-          >All <span className="rd-mono" style={{ marginLeft: 4, opacity: 0.7 }}>{counts.all}</span></button>
+          >All <span className="rd-mono" style={{ marginLeft: 4, opacity: 0.85 }}>{counts.all}</span></button>
           {LANES.map((l) => (
             <button
               key={l.id}
@@ -343,7 +376,7 @@ export function InboxSurface() {
               aria-pressed={lane === l.id}
               onClick={() => setLane(l.id)}
             >
-              {l.label} <span className="rd-mono" style={{ marginLeft: 4, opacity: 0.7 }}>{counts[l.id] ?? 0}</span>
+              {l.label} <span className="rd-mono" style={{ marginLeft: 4, opacity: 0.85 }}>{counts[l.id] ?? 0}</span>
             </button>
           ))}
         </div>
@@ -479,7 +512,7 @@ function InboxRow({ item, isActive, isChecked, onActivate, onToggleCheck }: { it
       <span className={`rd-inbox-row__why rd-inbox-row__why--${tone}`}>{item.whyHere ?? item.category.replace(/_/g, " ")}</span>
       <div style={{ minWidth: 0 }}>
         <div className="rd-inbox-row__title">{item.title}</div>
-        <div className="rd-inbox-row__meta" style={{ marginTop: 2 }}>{item.meta}</div>
+        <div className="rd-inbox-row__meta" style={{ marginTop: 4 }}>{item.meta}</div>
       </div>
       {typeof item.confidence === "number" && (
         <span
@@ -639,6 +672,15 @@ function inboxV2Icon(item: InboxItem): string {
   if (source === "source") return "◦";
   if (source === "agent") return "✦";
   return "✉";
+}
+
+function inboxDetailCopy(item: InboxItem): string {
+  const lane = item.lane ?? legacyToLane(item.category);
+  if (lane === "approvals") return "Approval is required before this item can write externally or update a durable report.";
+  if (lane === "agent_suggestions") return "The agent proposed a concrete next step. Review the evidence, then accept, edit, or move it.";
+  if (lane === "watchlist") return "This item changes a watched entity or stale source. Open the related report before reusing old context.";
+  if (lane === "captures") return "This capture needs a target report, source row, or entity before it becomes reusable memory.";
+  return "This item is grouped here because it needs a human decision before the background workflow continues.";
 }
 
 function LaneGlyph({ lane }: { lane: InboxLane }) {

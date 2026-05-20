@@ -1,0 +1,71 @@
+{
+  "screenshots": 22,
+  "screenshotIssues": 6,
+  "videoIssues": 3,
+  "videoPath": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.tmp\\dogfood-gemini-qa\\agentic-video\\page@a2337c396cefb777c5571b31843a049c.webm",
+  "issues": [
+    {
+      "header": "P2 Left sidebar accordions trigger unexpected chat navigation instead of expanding",
+      "details": "The items in the left sidebar (e.g., '> Week of May 4', '> April 2026') have chevron icons indicating they are collapsible accordions. However, clicking them does not expand the section to show more items. Instead, it unexpectedly navigates the user to the 'Chat' view and populates the composer with a prompt related to a different time period (e.g., clicking 'Week of May 4' creates a prompt for 'April 2026'). This violates the visual affordance of the component and disrupts user navigation.",
+      "route": "home",
+      "suggestedFix": "",
+      "source": "agentic"
+    },
+    {
+      "header": "P2 Expandable card fails to open",
+      "details": "After interacting with the 'openai oct2025 research' card to expand it, the card remains in its collapsed state.",
+      "route": "inbox",
+      "suggestedFix": "",
+      "source": "agentic"
+    },
+    {
+      "header": "P2 Accordion section fails to expand",
+      "details": "After interacting with the '3 steps completed' section in the right sidebar to expand it, the section remains collapsed.",
+      "route": "inbox",
+      "suggestedFix": "",
+      "source": "agentic"
+    },
+    {
+      "header": "P3 Inconsistent button styling in header",
+      "details": "The 'Share' and 'Export preview' actions in the top right header appear as plain text without any button styling (background, border), making them look inconsistent next to the solid 'Save report' and 'Refresh preview' buttons. They also lack clear hover/active visual states.",
+      "route": "open-live-workspace-",
+      "suggestedFix": "",
+      "source": "agentic"
+    },
+    {
+      "header": "P2 Broken encoding characters in Notebook view",
+      "details": "In the Notebook view, there are broken encoding characters appearing where icons or UI elements should be. This is visible next to the main title ('âœ¦ Founder / banker lens Â· v3') and as prefixes to the blocks in the editor area ('+ â‹®â‹®â‹®').",
+      "route": "report-notebooknb",
+      "suggestedFix": "",
+      "source": "agentic"
+    },
+    {
+      "header": "P2 Map tab click navigates to Sources",
+      "details": "The intended action was to click the 'Map' tab, but the UI shows the 'Sources' tab as active and displays the sources list instead of a map.",
+      "route": "report-notebooknb",
+      "suggestedFix": "",
+      "source": "agentic"
+    },
+    {
+      "header": "P2 Loading failure in Briefing agent sidebar",
+      "details": "[00:10] The 'Briefing agent' sidebar on the Home route remains stuck in a 'Loading live memory now...' state with a continuous spinner for an extended period, failing to load the expected content.",
+      "route": "home",
+      "suggestedFix": "",
+      "source": "agentic_video"
+    },
+    {
+      "header": "P2 Error banner displayed",
+      "details": "[00:53] A red error banner appears at the top of the screen with the message 'Sign in is run via paid live research. No showcase answer was inserted.', indicating a failure or missing data in the current state.",
+      "route": "home",
+      "suggestedFix": "",
+      "source": "agentic_video"
+    },
+    {
+      "header": "P2 Tabs fail to load content",
+      "details": "[06:38] Within the report workspace, clicking on the 'Cards' and 'Map' tabs results in a persistent 'Loading live artifact' message instead of displaying the respective content, indicating a loading failure for these specific views.",
+      "route": "workspace",
+      "suggestedFix": "",
+      "source": "agentic_video"
+    }
+  ]
+}

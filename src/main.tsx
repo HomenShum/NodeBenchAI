@@ -229,7 +229,7 @@ createRoot(document.getElementById("root")!).render(
         <ToastProvider>
           <App />
           <SonnerToaster
-            position="bottom-center"
+            position="top-center"
             theme="dark"
             toastOptions={{
               style: {

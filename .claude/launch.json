@@ -21,6 +21,13 @@
       "runtimeArgs": ["http-server", "ui_kits", "-p", "5300", "-c-1", "--silent"],
       "port": 5300,
       "autoPort": true
+    },
+    {
+      "name": "proto",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": ["http-server", "public/proto", "-p", "5400", "-c-1", "--silent"],
+      "port": 5400,
+      "autoPort": true
     }
   ]
 }

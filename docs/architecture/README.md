@@ -39,6 +39,15 @@ This folder holds the **13 canonical architecture documents** — the "what and 
 | [EVAL_AND_FLYWHEEL.md](EVAL_AND_FLYWHEEL.md) | Current eval harness · Karpathy-style flywheel **deferred** to v2 (trigger: 100 promoted + 20 rejection reasons) |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Glass card DNA · warm terracotta accent · Manrope + JetBrains Mono · state pills · freshness colors |
 
+## Active addenda
+
+These files are active architecture memos attached to current product loops. They
+do not change the 13-doc canonical count until their content is consolidated.
+
+| Doc | Covers |
+|---|---|
+| [GRAPH_SEARCH_AGENT_CONTEXT.md](GRAPH_SEARCH_AGENT_CONTEXT.md) | Graph/search/agent-context strategy - exact product questions preserved - node attention model - scale projection - human-vs-agent retrieval packets |
+
 ## How to navigate
 
 - Each doc follows the same template: TL;DR · Prior art · Invariants · Architecture · Data model · Failure modes · How to extend · Related · Changelog.
@@ -71,4 +80,5 @@ Alongside the 13 canonical docs, a small number of point-in-time working files m
 
 | Date | Change |
 |---|---|
+| 2026-05-15 | Added active addendum for graph/search/agent-context strategy and linked it from the architecture index |
 | 2026-04-19 | Consolidated 124 architecture MDs → 13 canonical docs · established template · wrote this index |

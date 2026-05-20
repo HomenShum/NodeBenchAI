@@ -519,7 +519,7 @@ function buildChatAgentRailSnapshot(args: {
       id: "answer",
       label: "Answer packet",
       status: run?.status === "complete" || !isRunning ? "done" : "running",
-      detail: `${activePacket?.sourceCount ?? sourceCount} sources - ${activePacket?.paidCalls ?? 0} paid calls`,
+      detail: `${activePacket?.sourceCount ?? sourceCount} source${(activePacket?.sourceCount ?? sourceCount) === 1 ? "" : "s"} · ${activePacket?.paidCalls ?? 0} paid call${(activePacket?.paidCalls ?? 0) === 1 ? "" : "s"}`,
     });
   }
   for (const item of pinned.slice(0, 2)) {
@@ -804,7 +804,7 @@ function liveChatUnavailableMarkdown(reason: string, detail?: LiveArtifactDetail
     ? `Current live context is **${detail.title}** with ${detail.sourceCount} sources and ${detail.claimCount} claims.`
     : "No live artifact context has loaded yet.";
   const nextStep = /sign in|account/i.test(reason)
-    ? "Sign in with an email-backed account to run paid live research. The UI will not fabricate a showcase answer while the run is blocked."
+    ? "Once authenticated, run paid live research from the composer below."
     : "Use the composer to start a Convex-backed chat run and stream tool events, scratchpad notes, evidence rows, and the final answer packet.";
   return `## Live chat is not running
 
@@ -964,6 +964,7 @@ export function ChatSurface({
     () => (liveDetail ? liveOpenQuestions(liveDetail) : []),
     [liveDetail],
   );
+  const [oqOpen, setOqOpen] = useState(false);
   const workingNotesMarkdown = useMemo(
     () => (liveDetail ? liveWorkingNotesMarkdown(liveDetail) : WORKING_NOTES_MARKDOWN),
     [liveDetail],
@@ -1474,16 +1475,21 @@ export function ChatSurface({
 
         {/* Compact thread header — no marketing copy. Just status + thread context. */}
         <header className="rd-chat-thread-head">
-          <div className="rd-row" style={{ gap: 8, flexWrap: "wrap" }}>
+          <div className="rd-row" style={{ gap: 8, flexWrap: "wrap", flex: 1 }}>
             <Pill tone="green"><span className="rd-dot rd-dot--live" />{liveArtifacts.isLive ? "Live memory hot" : "Memory hot"}</Pill>
             <span className="rd-mono" style={{ fontSize: 11, color: "var(--rd-ink-soft)" }}>
-              {liveDetail ? `Thread · ${liveDetail.title} · ${liveDetail.sourceCount} sources · 0 paid calls` : "Thread · no live artifact selected · 0 paid calls"}
+              {liveDetail ? `Thread · ${liveDetail.title} · ${liveDetail.sourceCount} source${liveDetail.sourceCount === 1 ? "" : "s"} · 0 paid calls` : "Thread · no live artifact selected · 0 paid calls"}
             </span>
           </div>
+          {openQuestions.length > 0 && !oqOpen && (
+            <button type="button" className="rd-open-q__inline-toggle" onClick={() => setOqOpen(true)} aria-label="Show open questions">
+              <span className="rd-open-q__count">{openQuestions.length}</span> open questions
+            </button>
+          )}
         </header>
 
-        {/* Sprint 3 P2.11 — open-questions tray */}
-        <OpenQuestionsTray questions={openQuestions} />
+        {/* Sprint 3 P2.11 — open-questions tray (only rendered when explicitly opened) */}
+        <OpenQuestionsTray questions={openQuestions} open={oqOpen} onToggle={() => setOqOpen(false)} />
 
         {turns.length === 0 ? (
           <ChatEmptyState
@@ -1868,13 +1874,12 @@ function ChatV2NextActions({
   );
 }
 
-function OpenQuestionsTray({ questions }: { questions: OpenQuestion[] }) {
-  const [open, setOpen] = useState(true);
+function OpenQuestionsTray({ questions, open, onToggle }: { questions: OpenQuestion[]; open: boolean; onToggle: () => void }) {
   const [items, setItems] = useState(questions);
   useEffect(() => {
     setItems(questions);
   }, [questions]);
-  if (items.length === 0) return null;
+  if (items.length === 0 || !open) return null;
   const dismissOne = (id: string) => {
     setItems((cur) => cur.filter((q) => q.id !== id));
     showToast({ tone: "success", message: "Question marked verified." });
@@ -1890,50 +1895,41 @@ function OpenQuestionsTray({ questions }: { questions: OpenQuestion[] }) {
   return (
     <aside className="rd-open-q" aria-label="Open questions worth verifying">
       <div className="rd-open-q__head">
-        <button
-          type="button"
-          className="rd-open-q__toggle"
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
-          <span aria-hidden="true">{open ? "▾" : "▸"}</span>
-          <span className="rd-eyebrow">Open questions</span>
-          <span className="rd-open-q__count">{items.length}</span>
-        </button>
-        <span className="rd-open-q__hint">Claims worth verifying — tap to jump, ✓ to clear</span>
+        <span className="rd-eyebrow">Open questions</span>
+        <span className="rd-open-q__count">{items.length}</span>
+        <span className="rd-open-q__hint">Tap to jump, ✓ to clear</span>
+        <button type="button" className="rd-open-q__close" aria-label="Close open questions" onClick={onToggle}>✕</button>
       </div>
-      {open && (
-        <ul className="rd-open-q__list">
-          {items.map((q) => (
-            <li key={q.id} className="rd-open-q__item">
-              <span
-                className="rd-open-q__pill"
-                data-flag={q.flagged}
-                title={q.flagged === "agent" ? "Flagged by the agent" : "Flagged by you"}
-              >
-                {q.flagged === "agent" ? "🤖" : "👎"}
-              </span>
-              <button
-                type="button"
-                className="rd-open-q__label"
-                onClick={() => jumpTo(q.turnId)}
-              >
-                {q.label}
-              </button>
-              <span className="rd-open-q__when">{q.when}</span>
-              <button
-                type="button"
-                className="rd-open-q__clear"
-                aria-label={`Mark "${q.label}" verified`}
-                title="Mark verified"
-                onClick={() => dismissOne(q.id)}
-              >
-                ✓
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul className="rd-open-q__list">
+        {items.map((q) => (
+          <li key={q.id} className="rd-open-q__item">
+            <span
+              className="rd-open-q__pill"
+              data-flag={q.flagged}
+              title={q.flagged === "agent" ? "Flagged by the agent" : "Flagged by you"}
+            >
+              {q.flagged === "agent" ? "🤖" : "👎"}
+            </span>
+            <button
+              type="button"
+              className="rd-open-q__label"
+              onClick={() => jumpTo(q.turnId)}
+            >
+              {q.label}
+            </button>
+            <span className="rd-open-q__when">{q.when}</span>
+            <button
+              type="button"
+              className="rd-open-q__clear"
+              aria-label={`Mark "${q.label}" verified`}
+              title="Mark verified"
+              onClick={() => dismissOne(q.id)}
+            >
+              ✓
+            </button>
+          </li>
+        ))}
+      </ul>
     </aside>
   );
 }
@@ -2336,13 +2332,13 @@ function BatchMonitorCell({ batch, onCancel }: { batch: ActiveBatchRun; onCancel
 }
 
 function UserBubble({ text, createdAt }: { text: string; createdAt?: number }) {
-  // Parity-studio pattern: right-aligned bubble, no avatar (user is self).
   return (
     <div className="rd-chat-msg rd-chat-msg--user">
       <div className="rd-chat-msg__bubble">
         {text}
         {createdAt && <span className="rd-chat-msg__when rd-chat-msg__when--user"><LiveTime at={createdAt} /></span>}
       </div>
+      <div className="rd-chat-msg__avatar rd-chat-msg__avatar--user" aria-hidden="true">You</div>
     </div>
   );
 }
@@ -2528,7 +2524,7 @@ function AnswerPacket({
         <div className="rd-tool-badges">
           <span className="rd-tool-badge">memory</span>
           <span className="rd-tool-badge">{reportTitle ?? "report"}</span>
-          <span className="rd-tool-badge">{packet.paidCalls} paid</span>
+          <span className="rd-tool-badge">{packet.paidCalls} paid call{packet.paidCalls === 1 ? "" : "s"}</span>
         </div>
 
         <LiveResearchChecklist

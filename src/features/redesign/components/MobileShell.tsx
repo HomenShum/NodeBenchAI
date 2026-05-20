@@ -128,7 +128,7 @@ export function MobileShell({ active, onChange }: MobileShellProps) {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 3,
+                gap: 4,
                 padding: "8px 4px 6px",
                 background: "transparent",
                 color: isActive ? "var(--rd-accent-strong)" : "var(--rd-ink-soft)",
@@ -224,7 +224,7 @@ function MobileHome({ onOpenReports, onOpenChat }: { onOpenReports: () => void; 
           letterSpacing: "-0.4px", lineHeight: 1.2, margin: "10px 0 4px",
           color: "var(--rd-ink-strong)",
         }}>Capture now. Turn it into a report.</h1>
-        <p className="rd-faint" style={{ fontSize: 12.5 }}>
+        <p className="rd-soft" style={{ fontSize: 12.5 }}>
           Ask, paste, or record. NodeBench turns messy input into a source-backed entity workspace.
         </p>
       </div>
@@ -270,7 +270,7 @@ function MobileHome({ onOpenReports, onOpenChat }: { onOpenReports: () => void; 
           <strong style={{ display: "block", fontSize: 13, color: "var(--rd-ink-strong)" }}>
             Ask one question, then multiply it across a list.
           </strong>
-          <span className="rd-mono" style={{ display: "block", marginTop: 8, fontSize: 10.5, color: "var(--rd-accent-strong)" }}>
+          <span className="rd-mono" style={{ display: "block", marginTop: 8, fontSize: 11, color: "var(--rd-accent-strong)" }}>
             Start in chat {">"}
           </span>
         </button>

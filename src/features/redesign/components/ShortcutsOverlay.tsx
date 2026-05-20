@@ -5,18 +5,21 @@
  * `rd:shortcuts:open` event dispatched from the command palette.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface ShortcutGroup {
   label: string;
   rows: Array<{ keys: string[]; description: string }>;
 }
 
+const isMac = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+const MOD = isMac ? "⌘" : "Ctrl";
+
 const GROUPS: ShortcutGroup[] = [
   {
     label: "Global",
     rows: [
-      { keys: ["⌘", "K"], description: "Open command palette" },
+      { keys: [MOD, "K"], description: "Open command palette" },
       { keys: ["?"], description: "Show this overlay" },
       { keys: ["⌘", "\\"], description: "Toggle writing focus mode" },
       { keys: ["Esc"], description: "Close any palette / popover · stop generating in chat" },
@@ -50,17 +53,17 @@ const GROUPS: ShortcutGroup[] = [
       { keys: ["@"], description: "Mention an entity" },
       { keys: ["Enter"], description: "Send · runs research saves to Reports" },
       { keys: ["Shift", "Enter"], description: "Newline" },
-      { keys: ["⌘", "Enter"], description: "Send (also)" },
+      { keys: [MOD, "Enter"], description: "Send (also)" },
     ],
   },
   {
     label: "Notebook editor",
     rows: [
       { keys: ["/"], description: "Block insert menu (at empty paragraph)" },
-      { keys: ["⌘", "B"], description: "Bold" },
-      { keys: ["⌘", "I"], description: "Italic" },
-      { keys: ["⌘", "Z"], description: "Undo" },
-      { keys: ["⌘", "⇧", "Z"], description: "Redo" },
+      { keys: [MOD, "B"], description: "Bold" },
+      { keys: [MOD, "I"], description: "Italic" },
+      { keys: [MOD, "Z"], description: "Undo" },
+      { keys: [MOD, "⇧", "Z"], description: "Redo" },
     ],
   },
 ];

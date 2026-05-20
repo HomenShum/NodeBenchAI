@@ -1,0 +1,78 @@
+{
+  "style": "linear",
+  "count": 9,
+  "screens": [
+    {
+      "file": "home-light.png",
+      "fullPath": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\public\\dogfood\\screenshots\\home-light.png",
+      "label": "Home",
+      "kind": "route",
+      "theme": "light",
+      "viewport": "desktop"
+    },
+    {
+      "file": "chat-light.png",
+      "fullPath": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\public\\dogfood\\screenshots\\chat-light.png",
+      "label": "Chat",
+      "kind": "route",
+      "theme": "light",
+      "viewport": "desktop"
+    },
+    {
+      "file": "inbox-light.png",
+      "fullPath": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\public\\dogfood\\screenshots\\inbox-light.png",
+      "label": "Inbox",
+      "kind": "route",
+      "theme": "light",
+      "viewport": "desktop"
+    },
+    {
+      "file": "me-light.png",
+      "fullPath": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\public\\dogfood\\screenshots\\me-light.png",
+      "label": "Me",
+      "kind": "route",
+      "theme": "light",
+      "viewport": "desktop"
+    },
+    {
+      "file": "reports-light.png",
+      "fullPath": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\public\\dogfood\\screenshots\\reports-light.png",
+      "label": "Reports",
+      "kind": "route",
+      "theme": "light",
+      "viewport": "desktop"
+    },
+    {
+      "file": "agentic-chat-0-open-notebook-button.png",
+      "fullPath": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.tmp\\dogfood-gemini-qa\\agentic-chat-0-open-notebook-button.png",
+      "label": "chat-0-open-notebook-button",
+      "kind": "agentic",
+      "theme": "",
+      "viewport": "desktop"
+    },
+    {
+      "file": "agentic-chat-1-draft-memo-button.png",
+      "fullPath": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.tmp\\dogfood-gemini-qa\\agentic-chat-1-draft-memo-button.png",
+      "label": "chat-1-draft-memo-button",
+      "kind": "agentic",
+      "theme": "",
+      "viewport": "desktop"
+    },
+    {
+      "file": "agentic-home-0-expand-week-of-may-4.png",
+      "fullPath": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.tmp\\dogfood-gemini-qa\\agentic-home-0-expand-week-of-may-4.png",
+      "label": "home-0-expand-week-of-may-4",
+      "kind": "agentic",
+      "theme": "",
+      "viewport": "desktop"
+    },
+    {
+      "file": "agentic-home-1-expand-week-of-apr-27.png",
+      "fullPath": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.tmp\\dogfood-gemini-qa\\agentic-home-1-expand-week-of-apr-27.png",
+      "label": "home-1-expand-week-of-apr-27",
+      "kind": "agentic",
+      "theme": "",
+      "viewport": "desktop"
+    }
+  ]
+}

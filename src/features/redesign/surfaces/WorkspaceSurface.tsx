@@ -73,6 +73,67 @@ function isLiveArtifactReportId(id: string): boolean {
   return /^(daily|li|run)_/.test(id);
 }
 
+function buildWorkspaceFallbackDetail(reportId: string, report?: ReportCardData): LiveArtifactDetail {
+  const title = report?.entity ?? decodeURIComponent(reportId || "Selected report");
+  const kind = report?.kind ?? "Report";
+  const summary = report?.description
+    ? sanitizeDecisionText(report.description)
+    : "This report shell is available while the detailed source packet hydrates. Review the brief, inspect cards, or map relationships without waiting on a full artifact body.";
+  const sourceCount = Math.max(1, report?.sources ?? 1);
+  const claimCount = Math.max(1, report?.claims ?? 1);
+  const followUps = report?.followUps ?? 0;
+  return {
+    id: reportId || "workspace-shell",
+    title,
+    kind,
+    status: report?.status ?? "review",
+    summary,
+    updatedAt: report?.updatedAt ?? "detail pending",
+    updatedAtMs: Date.now(),
+    sourceCount,
+    claimCount,
+    followUps,
+    tags: [kind.toLowerCase(), "detail-pending"],
+    sections: [
+      {
+        title: "Executive read",
+        body: summary,
+        items: [
+          { label: "Report shell loaded", body: "The route, tab state, and actions are live while deeper evidence hydrates.", meta: "Detail pending", status: "review" },
+          { label: "Next useful action", body: followUps > 0 ? "Review queued follow-ups before export." : "Inspect sources or ask Chat to refresh the report.", meta: `${sourceCount} sources`, status: "watching" },
+        ],
+      },
+      {
+        title: "Review path",
+        body: "Cards, Sources, Notebook, Chat, and Map stay interactive from the selected report identity. High-impact writes still require verification or approval.",
+      },
+    ],
+    sourceRows: Array.from({ length: Math.min(3, sourceCount) }, (_, index) => ({
+      id: `${reportId || "workspace"}-shell-source-${index + 1}`,
+      type: index === 0 ? "Report source" : "Evidence",
+      title: index === 0 ? `${title} source packet` : `${title} supporting row ${index + 1}`,
+      refreshed: report?.updatedAt ?? "detail pending",
+      reused: Math.max(1, sourceCount - index),
+      excerpt: "Source metadata is available from the report shell while exact evidence rows hydrate.",
+      status: index === 0 ? "review" : "watching",
+      confidence: index === 0 ? 0.72 : 0.64,
+    })),
+    nodes: [
+      { id: "root", title, subtitle: `${kind} shell`, tone: "accent", kind: "report" },
+      { id: "sources", title: "Source packet", subtitle: `${sourceCount} source refs`, tone: "blue", kind: "source" },
+      { id: "claims", title: "Claims", subtitle: `${claimCount} claims`, tone: "amber", kind: "artifact", artifactType: "CLAIMS" },
+      { id: "actions", title: "Review actions", subtitle: `${followUps} follow-ups`, tone: followUps > 0 ? "green" : "default", kind: "artifact", artifactType: "ACTIONS" },
+    ],
+    edges: [
+      { from: "root", to: "sources", type: "evidence", label: "uses", basis: "Report shell retains source count and review state." },
+      { from: "sources", to: "claims", type: "has_artifact", label: "supports", basis: "Claims must remain evidence-bound before export." },
+      { from: "claims", to: "actions", type: "review", label: "routes", basis: "Open claims determine next actions and approvals." },
+    ],
+    notebookHtml: `<h2>${escapeHtml(title)}</h2><p>${escapeHtml(summary)}</p><div data-block="claim" data-status="review"><span data-claim-label>Report shell - needs source review</span><p>Detailed source rows are still hydrating. Keep this as a reviewable notebook packet until evidence is verified.</p><span data-claim-source>${sourceCount} source refs - ${escapeHtml(report?.updatedAt ?? "detail pending")}</span></div>`,
+    primaryAction: followUps > 0 ? "Review follow-ups" : "Refresh sources",
+  };
+}
+
 function hostFromHref(href: string): string {
   try {
     return new URL(href).hostname.replace(/^www\./, "");
@@ -116,10 +177,12 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
   const effectiveLiveDetail = liveDetail ?? (shouldFallForwardToLatest ? latestLiveDetail : undefined);
   const effectiveLiveReport = liveReport ?? (shouldFallForwardToLatest ? latestLiveReport : undefined);
   const effectiveReportId = effectiveLiveDetail?.id ?? effectiveLiveReport?.id ?? selectedReportId;
+  const workspaceDetail = effectiveLiveDetail ?? (effectiveReportId ? buildWorkspaceFallbackDetail(effectiveReportId, effectiveLiveReport) : undefined);
+  const workspaceUsingShellDetail = Boolean(workspaceDetail && !effectiveLiveDetail);
   const liveArtifactUnavailable = Boolean(selectedIsLiveArtifact && !liveDetail && !liveArtifacts.isLoading && !latestLiveDetail);
   const liveArtifactResolving = Boolean(selectedIsLiveArtifact && !liveDetail && liveArtifacts.isLoading);
   const workspaceTitle =
-    effectiveLiveDetail?.title ??
+    workspaceDetail?.title ??
     effectiveLiveReport?.entity ??
     (workspaceNeedsSelection
       ? "Loading live workspace"
@@ -128,11 +191,11 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
         : liveArtifactUnavailable
           ? "Live artifact unavailable"
           : "Workspace draft");
-  const workspaceKind = effectiveLiveDetail?.kind ?? effectiveLiveReport?.kind ?? "Workspace";
-  const workspaceSources = effectiveLiveDetail?.sourceCount ?? effectiveLiveReport?.sources ?? 0;
-  const workspaceClaims = effectiveLiveDetail?.claimCount ?? effectiveLiveReport?.claims ?? 0;
-  const workspaceFollowUps = effectiveLiveDetail?.followUps ?? effectiveLiveReport?.followUps ?? 0;
-  const workspaceFreshness = effectiveLiveDetail?.updatedAt ?? effectiveLiveReport?.updatedAt ?? "awaiting live artifact";
+  const workspaceKind = workspaceDetail?.kind ?? effectiveLiveReport?.kind ?? "Workspace";
+  const workspaceSources = workspaceDetail?.sourceCount ?? effectiveLiveReport?.sources ?? 0;
+  const workspaceClaims = workspaceDetail?.claimCount ?? effectiveLiveReport?.claims ?? 0;
+  const workspaceFollowUps = workspaceDetail?.followUps ?? effectiveLiveReport?.followUps ?? 0;
+  const workspaceFreshness = workspaceDetail?.updatedAt ?? effectiveLiveReport?.updatedAt ?? "awaiting live artifact";
   const createDraftReportRef = (api?.domains?.product?.reports as any)?.createDraftReport;
   const saveReportNotebookHtmlRef = (api?.domains?.product?.reports as any)?.saveReportNotebookHtml;
   const verifySourceSupportRef = (api?.domains?.research?.dailyBriefSourceVerification as any)?.verifyDailyBriefSourceSupport;
@@ -145,16 +208,16 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
         sourceCount: workspaceSources,
         claimCount: workspaceClaims,
         followUps: workspaceFollowUps,
-        primaryAction: effectiveLiveDetail?.primaryAction,
-        canVerifySources: Boolean(verifySourceSupportRef && effectiveLiveDetail?.sourceRows?.length),
+        primaryAction: workspaceDetail?.primaryAction,
+        canVerifySources: Boolean(verifySourceSupportRef && workspaceDetail?.sourceRows?.length),
       }),
     [
       workspaceTitle,
       workspaceSources,
       workspaceClaims,
       workspaceFollowUps,
-      effectiveLiveDetail?.primaryAction,
-      effectiveLiveDetail?.sourceRows?.length,
+      workspaceDetail?.primaryAction,
+      workspaceDetail?.sourceRows?.length,
       verifySourceSupportRef,
     ],
   );
@@ -173,7 +236,7 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
   const verifySourceSupport = async (
     label: string,
     claimText: string,
-    rows = effectiveLiveDetail?.sourceRows ?? [],
+    rows = workspaceDetail?.sourceRows ?? [],
   ) => {
     const sources = rows
       .filter((source) => source.href)
@@ -270,6 +333,9 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
           {shouldFallForwardToLatest && (
             <Pill tone="amber">Requested artifact aged out - showing latest live brief</Pill>
           )}
+          {workspaceUsingShellDetail && (
+            <Pill tone="amber">Detail pending - report shell active</Pill>
+          )}
         </div>
 
         <div className="rd-row--between" style={{ marginTop: 10, gap: 14, flexWrap: "wrap" }}>
@@ -309,10 +375,12 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
             {TABS.map((t) => (
               <button
                 key={t.id}
+                type="button"
                 role="tab"
                 aria-selected={tab === t.id}
+                data-workspace-tab={t.id}
                 title={t.hint}
-                className="rd-tab"
+                className={`rd-tab ${tab === t.id ? "is-active" : ""}`}
                 onClick={() => setWorkspaceTab(t.id)}
               >{t.label}</button>
             ))}
@@ -347,12 +415,12 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
       {/* Active tab content */}
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden", background: "var(--rd-paper-warm)" }}>
         {tab === "brief" && (
-          (workspaceNeedsSelection || (selectedIsLiveArtifact && !effectiveLiveDetail))
+          (workspaceNeedsSelection || !workspaceDetail)
             ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
             : (
               <BriefTab
                 report={effectiveLiveReport}
-                detail={effectiveLiveDetail}
+                detail={workspaceDetail}
                 verification={sourceVerification}
                 onOpenSources={() => setWorkspaceTab("sources")}
                 onOpenNotebook={() => setWorkspaceTab("notebook")}
@@ -361,10 +429,10 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
             )
         )}
         {tab === "cards" && (
-          effectiveLiveDetail
+          workspaceDetail
             ? (
               <LiveCardsTab
-                detail={effectiveLiveDetail}
+                detail={workspaceDetail}
                 onOpenSources={() => setWorkspaceTab("sources")}
                 onOpenNotebook={() => setWorkspaceTab("notebook")}
                 onVerifySupport={(label, claimText) => verifySourceSupport(label, claimText)}
@@ -373,20 +441,20 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
             : <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
         )}
         {tab === "notebook" && (
-          (workspaceNeedsSelection || (selectedIsLiveArtifact && !effectiveLiveDetail))
+          (workspaceNeedsSelection || !workspaceDetail)
             ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
             : (
               <div style={{ height: "100%", padding: "16px 24px 24px" }}>
-                <ReportNotebookView reportId={effectiveReportId || "workspace-draft"} embedded liveDetail={effectiveLiveDetail} />
+                <ReportNotebookView reportId={effectiveReportId || "workspace-draft"} embedded liveDetail={workspaceDetail} />
               </div>
             )
         )}
         {tab === "sources" && (
-          effectiveLiveDetail
+          workspaceDetail
             ? (
               <SourcesTab
                 report={effectiveLiveReport}
-                detail={effectiveLiveDetail}
+                detail={workspaceDetail}
                 verification={sourceVerification}
                 onVerifySupport={(label, claimText, rows) => verifySourceSupport(label, claimText, rows)}
               />
@@ -395,12 +463,12 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
               ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
               : <SourcesTab report={effectiveLiveReport} />
         )}
-        {tab === "chat" && <ChatSurface contextLabel={`Asking about: ${workspaceTitle}`} workspaceDetail={effectiveLiveDetail} />}
+        {tab === "chat" && <ChatSurface contextLabel={`Asking about: ${workspaceTitle}`} workspaceDetail={workspaceDetail} />}
         {tab === "map" && (
-          effectiveLiveDetail
+          workspaceDetail
             ? (
               <MapTab
-                detail={effectiveLiveDetail}
+                detail={workspaceDetail}
                 verification={sourceVerification}
                 onOpenCards={() => setWorkspaceTab("cards")}
                 onOpenSources={() => setWorkspaceTab("sources")}

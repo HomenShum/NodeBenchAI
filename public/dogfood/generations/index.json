@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-05-20T07:54:51.143Z",
+  "latestRunId": "20260520T073019Z-d89d654f",
+  "latestArchiveName": "gen-0100-20260520T073019Z-d89d654f",
+  "retainedRuns": 1,
+  "runs": [
+    {
+      "runId": "20260520T073019Z-d89d654f",
+      "sequence": 100,
+      "archiveName": "gen-0100-20260520T073019Z-d89d654f",
+      "archivePath": "public/dogfood/generations/gen-0100-20260520T073019Z-d89d654f",
+      "timestamp": "2026-05-20T07:30:19.634Z",
+      "archivedAt": "2026-05-20T07:54:51.141Z",
+      "gitHead": "d89d654f",
+      "score": 93,
+      "grade": "A",
+      "realIssueCount": 6,
+      "critical": 0,
+      "warning": 6,
+      "info": 0,
+      "model": "gemini-3-pro-preview",
+      "releaseStatus": "release-risk",
+      "copiedCount": 81
+    }
+  ]
+}

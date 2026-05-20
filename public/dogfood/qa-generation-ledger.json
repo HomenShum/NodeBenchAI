@@ -1,0 +1,905 @@
+{
+  "generatedAt": "2026-05-20T07:54:50.941Z",
+  "git": {
+    "branch": "main",
+    "head": "d89d654f",
+    "upstream": "d89d654f",
+    "dirty": true,
+    "dirtyFileCount": 106,
+    "dirtyFiles": [
+      "M .claude/launch.json",
+      " M .serena/project.yml",
+      " M README.md",
+      " M docs/README.md",
+      " M docs/architecture/README.md",
+      " M package.json",
+      " M public/dogfood/frames.json",
+      " M public/dogfood/manifest.json",
+      " M public/dogfood/qa-results.json",
+      " M public/dogfood/scribe.json",
+      " M public/dogfood/scribe.md",
+      " M public/dogfood/walkthrough.json",
+      " M public/dogfood/walkthrough.mp4",
+      " M public/proto/demo-video/generate-tts.py",
+      " D public/proto/demo-video/public/audio/chat-action-buttons.mp3",
+      " D public/proto/demo-video/public/audio/chat-agent-memory.mp3",
+      " D public/proto/demo-video/public/audio/chat-artifact-overlay.mp3",
+      " D public/proto/demo-video/public/audio/chat-changes-block.mp3",
+      " D public/proto/demo-video/public/audio/chat-overview.mp3",
+      " D public/proto/demo-video/public/audio/chat-right-rail.mp3",
+      " D public/proto/demo-video/public/audio/chat-thread-list.mp3",
+      " D public/proto/demo-video/public/audio/command-palette.mp3",
+      " D public/proto/demo-video/public/audio/css-tokens.mp3",
+      " D public/proto/demo-video/public/audio/disambiguation.mp3",
+      " D public/proto/demo-video/public/audio/evidence-checklist.mp3",
+      " D public/proto/demo-video/public/audio/focus-traps-dialogs.mp3",
+      " D public/proto/demo-video/public/audio/home-action-cards.mp3",
+      " D public/proto/demo-video/public/audio/home-actions-sources.mp3",
+      " D public/proto/demo-video/public/audio/home-daily-edition.mp3",
+      " D public/proto/demo-video/public/audio/home-entity-popover.mp3",
+      " D public/proto/demo-video/public/audio/home-input.mp3",
+      " D public/proto/demo-video/public/audio/home-mention-tags.mp3",
+      " D public/proto/demo-video/public/audio/home-need-to-know.mp3",
+      " D public/proto/demo-video/public/audio/home-overview.mp3",
+      " D public/proto/demo-video/public/audio/home-right-rail.mp3",
+      " D public/proto/demo-video/public/audio/home-search.mp3",
+      " D public/proto/demo-video/public/audio/home-toast-scroll.mp3",
+      " D public/proto/demo-video/public/audio/home-what-changed.mp3",
+      " D public/proto/demo-video/public/audio/home-why-now.mp3",
+      " D public/proto/demo-video/public/audio/inbox-item-detail.mp3",
+      " D public/proto/demo-video/public/audio/inbox-left-rail.mp3",
+      " D public/proto/demo-video/public/audio/inbox-overview.mp3",
+      " D public/proto/demo-video/public/audio/inbox-right-rail.mp3",
+      " M public/proto/demo-video/public/audio/intro.mp3",
+      " D public/proto/demo-video/public/audio/keyboard-a11y.mp3",
+      " D public/proto/demo-video/public/audio/light-theme.mp3",
+      " D public/proto/demo-video/public/audio/me-agent-memory.mp3",
+      " D public/proto/demo-video/public/audio/me-integrations.mp3",
+      " D public/proto/demo-video/public/audio/me-overview.mp3",
+      " D public/proto/demo-video/public/audio/me-runtime.mp3",
+      " D public/proto/demo-video/public/audio/nav-surfaces.mp3",
+      " M public/proto/demo-video/public/audio/outro.mp3",
+      " D public/proto/demo-video/public/audio/print-view.mp3",
+      " D public/proto/demo-video/public/audio/reports-board-table.mp3",
+      " D public/proto/demo-video/public/audio/reports-card-detail.mp3",
+      " D public/proto/demo-video/public/audio/reports-entity-agent.mp3",
+      " D public/proto/demo-video/public/audio/reports-filter-tabs.mp3",
+      " D public/proto/demo-video/public/audio/reports-graph-view.mp3",
+      " D public/proto/demo-video/public/audio/reports-left-rail.mp3",
+      " D public/proto/demo-video/public/audio/reports-notebook.mp3",
+      " D public/proto/demo-video/public/audio/reports-overview.mp3",
+      " D public/proto/demo-video/public/audio/responsive-mobile.mp3",
+      " D public/proto/demo-video/public/audio/wide-mode.mp3",
+      " M public/proto/demo-video/src/components/SceneView.tsx",
+      " M public/proto/demo-video/src/storyboard.ts",
+      " M scripts/judge-demo-video.ts",
+      " M scripts/ui/verifyDogfoodArtifacts.mjs",
+      " M src/features/designKit/exact/ExactKit.tsx",
+      " M src/features/designKit/exact/exactKit.css",
+      " M src/features/dogfood/views/DogfoodReviewView.tsx",
+      " M src/features/home/views/MobileHomeSurface.tsx",
+      " M src/features/nudges/views/NudgesHome.tsx",
+      " M src/features/redesign/components/ChatEmptyState.tsx",
+      " M src/features/redesign/components/ShortcutsOverlay.tsx",
+      " M src/features/redesign/components/UniversalComposer.tsx",
+      " M src/features/redesign/primitives.css",
+      " M src/features/redesign/surfaces/ChatSurface.tsx",
+      " M src/features/redesign/surfaces/HomeV2PrototypeSurface.tsx",
+      " M src/features/redesign/tokens.css",
+      " M src/index.css",
+      " M src/main.tsx",
+      " M vite.config.ts",
+      "?? .claude/skills/demo-video-quality-loop/",
+      "?? .claude/skills/live-qa-dogfood-loop/",
+      "?? \"C\\357\\200\\272UsershshumAppDataLocalTempchat-diff.txt\"",
+      "?? docs/runbooks/DOGFOOD_GENERATION_QA.md",
+      "?? public/dogfood/generations/",
+      "?? public/dogfood/qa-generation-ledger.json",
+      "?? public/dogfood/qa-generation-ledger.md",
+      "?? public/proto/demo-video/public/audio-v1-backup/",
+      "?? public/proto/demo-video/public/audio/chat-streaming.mp3",
+      "?? public/proto/demo-video/public/audio/command-center.mp3",
+      "?? public/proto/demo-video/public/audio/daily-brief.mp3",
+      "?? public/proto/demo-video/public/audio/entity-interactions.mp3",
+      "?? public/proto/demo-video/public/audio/evidence-zoom.mp3",
+      "?? public/proto/demo-video/public/audio/graph-topology.mp3",
+      "?? public/proto/demo-video/public/audio/inbox-triage.mp3",
+      "?? public/proto/demo-video/public/audio/intelligence-feed.mp3",
+      "?? public/proto/demo-video/public/audio/me-identity.mp3",
+      "?? public/proto/demo-video/public/audio/montage-design.mp3",
+      "?? public/proto/demo-video/public/audio/montage-surfaces.mp3",
+      "?? public/proto/demo-video/public/audio/montage-views.mp3",
+      "?? public/proto/demo-video/public/audio/reports-gallery.mp3",
+      "?? scripts/ui/buildDogfoodGenerationLedger.mjs",
+      "?? scripts/ui/liveQaJudge.mjs",
+      "?? scripts/ui/liveQaVideoJudge.mjs"
+    ]
+  },
+  "history": {
+    "retainedGenerations": 100,
+    "latest": {
+      "generation": 100,
+      "indexFromLatest": 0,
+      "timestamp": "2026-05-20T07:30:19.634Z",
+      "runType": "gemini-qa-rubric",
+      "model": "gemini-3-pro-preview",
+      "requestedModel": "gemini-3-pro-preview",
+      "selectedModel": "gemini-3-pro-preview",
+      "score": 93,
+      "grade": "A",
+      "realIssueCount": 6,
+      "critical": 0,
+      "warning": 6,
+      "info": 0,
+      "staticScore": 0
+    },
+    "oldest": {
+      "generation": 1,
+      "indexFromLatest": 99,
+      "timestamp": "2026-02-24T22:32:02.591Z",
+      "runType": "gemini-qa-rubric",
+      "model": null,
+      "requestedModel": null,
+      "selectedModel": null,
+      "score": 90,
+      "grade": "A",
+      "realIssueCount": 11,
+      "critical": 4,
+      "warning": 2,
+      "info": 5,
+      "staticScore": 0
+    },
+    "best": {
+      "generation": 98,
+      "indexFromLatest": 2,
+      "timestamp": "2026-04-22T22:51:25.650Z",
+      "runType": "gemini-qa-rubric",
+      "model": "gemini-3-pro-preview",
+      "requestedModel": "gemini-3-pro-preview",
+      "selectedModel": "gemini-3-pro-preview",
+      "score": 100,
+      "grade": "A",
+      "realIssueCount": 0,
+      "critical": 0,
+      "warning": 0,
+      "info": 0,
+      "staticScore": 0
+    },
+    "lastTen": [
+      {
+        "generation": 100,
+        "indexFromLatest": 0,
+        "timestamp": "2026-05-20T07:30:19.634Z",
+        "runType": "gemini-qa-rubric",
+        "model": "gemini-3-pro-preview",
+        "requestedModel": "gemini-3-pro-preview",
+        "selectedModel": "gemini-3-pro-preview",
+        "score": 93,
+        "grade": "A",
+        "realIssueCount": 6,
+        "critical": 0,
+        "warning": 6,
+        "info": 0,
+        "staticScore": 0
+      },
+      {
+        "generation": 99,
+        "indexFromLatest": 1,
+        "timestamp": "2026-05-20T01:14:31.630Z",
+        "runType": "gemini-qa-rubric",
+        "model": "gemini-3-pro-preview",
+        "requestedModel": "gemini-3-pro-preview",
+        "selectedModel": "gemini-3-pro-preview",
+        "score": 92,
+        "grade": "A",
+        "realIssueCount": 2,
+        "critical": 1,
+        "warning": 1,
+        "info": 0,
+        "staticScore": 0
+      },
+      {
+        "generation": 98,
+        "indexFromLatest": 2,
+        "timestamp": "2026-04-22T22:51:25.650Z",
+        "runType": "gemini-qa-rubric",
+        "model": "gemini-3-pro-preview",
+        "requestedModel": "gemini-3-pro-preview",
+        "selectedModel": "gemini-3-pro-preview",
+        "score": 100,
+        "grade": "A",
+        "realIssueCount": 0,
+        "critical": 0,
+        "warning": 0,
+        "info": 0,
+        "staticScore": 0
+      },
+      {
+        "generation": 97,
+        "indexFromLatest": 3,
+        "timestamp": "2026-04-22T22:15:10.476Z",
+        "runType": "gemini-qa-rubric",
+        "model": "gemini-3-pro-preview",
+        "requestedModel": "gemini-3-pro-preview",
+        "selectedModel": "gemini-3-pro-preview",
+        "score": 97,
+        "grade": "A",
+        "realIssueCount": 1,
+        "critical": 0,
+        "warning": 1,
+        "info": 0,
+        "staticScore": 0
+      },
+      {
+        "generation": 96,
+        "indexFromLatest": 4,
+        "timestamp": "2026-04-22T20:42:24.539Z",
+        "runType": "gemini-qa-rubric",
+        "model": "gemini-3.1-pro-preview",
+        "requestedModel": "gemini-3.1-pro-preview",
+        "selectedModel": "gemini-3.1-pro-preview",
+        "score": 97,
+        "grade": "A",
+        "realIssueCount": 1,
+        "critical": 0,
+        "warning": 1,
+        "info": 0,
+        "staticScore": 0
+      },
+      {
+        "generation": 95,
+        "indexFromLatest": 5,
+        "timestamp": "2026-04-22T19:17:39.638Z",
+        "runType": "gemini-qa-rubric",
+        "model": "gemini-3-pro-preview",
+        "requestedModel": "gemini-3-pro-preview",
+        "selectedModel": "gemini-3-pro-preview",
+        "score": 97,
+        "grade": "A",
+        "realIssueCount": 3,
+        "critical": 0,
+        "warning": 3,
+        "info": 0,
+        "staticScore": 0
+      },
+      {
+        "generation": 94,
+        "indexFromLatest": 6,
+        "timestamp": "2026-04-22T17:06:34.269Z",
+        "runType": "gemini-qa-rubric",
+        "model": "gemini-3.1-pro-preview",
+        "requestedModel": "gemini-3.1-pro-preview",
+        "selectedModel": "gemini-3.1-pro-preview",
+        "score": 93,
+        "grade": "A",
+        "realIssueCount": 1,
+        "critical": 1,
+        "warning": 0,
+        "info": 0,
+        "staticScore": 0
+      },
+      {
+        "generation": 93,
+        "indexFromLatest": 7,
+        "timestamp": "2026-04-22T16:27:52.308Z",
+        "runType": "gemini-qa-rubric",
+        "model": "gemini-3.1-pro-preview",
+        "requestedModel": "gemini-3.1-pro-preview",
+        "selectedModel": "gemini-3.1-pro-preview",
+        "score": 96,
+        "grade": "A",
+        "realIssueCount": 1,
+        "critical": 1,
+        "warning": 0,
+        "info": 0,
+        "staticScore": 0
+      },
+      {
+        "generation": 92,
+        "indexFromLatest": 8,
+        "timestamp": "2026-04-22T15:45:36.906Z",
+        "runType": "gemini-qa-rubric",
+        "model": "gemini-3.1-pro-preview",
+        "requestedModel": "gemini-3.1-pro-preview",
+        "selectedModel": "gemini-3.1-pro-preview",
+        "score": 100,
+        "grade": "A",
+        "realIssueCount": 0,
+        "critical": 0,
+        "warning": 0,
+        "info": 0,
+        "staticScore": 0
+      },
+      {
+        "generation": 91,
+        "indexFromLatest": 9,
+        "timestamp": "2026-04-22T15:13:06.052Z",
+        "runType": "gemini-qa-rubric",
+        "model": "gemini-3.1-pro-preview",
+        "requestedModel": "gemini-3.1-pro-preview",
+        "selectedModel": "gemini-3.1-pro-preview",
+        "score": 93,
+        "grade": "A",
+        "realIssueCount": 6,
+        "critical": 0,
+        "warning": 5,
+        "info": 1,
+        "staticScore": 0
+      }
+    ],
+    "deltaChainLastTen": [
+      {
+        "label": "gen_100_vs_previous",
+        "baselineGeneration": 99,
+        "baselineTimestamp": "2026-05-20T01:14:31.630Z",
+        "latestGeneration": 100,
+        "latestTimestamp": "2026-05-20T07:30:19.634Z",
+        "scoreDelta": 1,
+        "realIssueDelta": 4,
+        "criticalDelta": -1,
+        "warningDelta": 5,
+        "infoDelta": 0,
+        "baseline": {
+          "score": 92,
+          "grade": "A",
+          "realIssueCount": 2,
+          "critical": 1,
+          "warning": 1,
+          "info": 0
+        },
+        "latest": {
+          "score": 93,
+          "grade": "A",
+          "realIssueCount": 6,
+          "critical": 0,
+          "warning": 6,
+          "info": 0
+        }
+      },
+      {
+        "label": "gen_99_vs_previous",
+        "baselineGeneration": 98,
+        "baselineTimestamp": "2026-04-22T22:51:25.650Z",
+        "latestGeneration": 99,
+        "latestTimestamp": "2026-05-20T01:14:31.630Z",
+        "scoreDelta": -8,
+        "realIssueDelta": 2,
+        "criticalDelta": 1,
+        "warningDelta": 1,
+        "infoDelta": 0,
+        "baseline": {
+          "score": 100,
+          "grade": "A",
+          "realIssueCount": 0,
+          "critical": 0,
+          "warning": 0,
+          "info": 0
+        },
+        "latest": {
+          "score": 92,
+          "grade": "A",
+          "realIssueCount": 2,
+          "critical": 1,
+          "warning": 1,
+          "info": 0
+        }
+      },
+      {
+        "label": "gen_98_vs_previous",
+        "baselineGeneration": 97,
+        "baselineTimestamp": "2026-04-22T22:15:10.476Z",
+        "latestGeneration": 98,
+        "latestTimestamp": "2026-04-22T22:51:25.650Z",
+        "scoreDelta": 3,
+        "realIssueDelta": -1,
+        "criticalDelta": 0,
+        "warningDelta": -1,
+        "infoDelta": 0,
+        "baseline": {
+          "score": 97,
+          "grade": "A",
+          "realIssueCount": 1,
+          "critical": 0,
+          "warning": 1,
+          "info": 0
+        },
+        "latest": {
+          "score": 100,
+          "grade": "A",
+          "realIssueCount": 0,
+          "critical": 0,
+          "warning": 0,
+          "info": 0
+        }
+      },
+      {
+        "label": "gen_97_vs_previous",
+        "baselineGeneration": 96,
+        "baselineTimestamp": "2026-04-22T20:42:24.539Z",
+        "latestGeneration": 97,
+        "latestTimestamp": "2026-04-22T22:15:10.476Z",
+        "scoreDelta": 0,
+        "realIssueDelta": 0,
+        "criticalDelta": 0,
+        "warningDelta": 0,
+        "infoDelta": 0,
+        "baseline": {
+          "score": 97,
+          "grade": "A",
+          "realIssueCount": 1,
+          "critical": 0,
+          "warning": 1,
+          "info": 0
+        },
+        "latest": {
+          "score": 97,
+          "grade": "A",
+          "realIssueCount": 1,
+          "critical": 0,
+          "warning": 1,
+          "info": 0
+        }
+      },
+      {
+        "label": "gen_96_vs_previous",
+        "baselineGeneration": 95,
+        "baselineTimestamp": "2026-04-22T19:17:39.638Z",
+        "latestGeneration": 96,
+        "latestTimestamp": "2026-04-22T20:42:24.539Z",
+        "scoreDelta": 0,
+        "realIssueDelta": -2,
+        "criticalDelta": 0,
+        "warningDelta": -2,
+        "infoDelta": 0,
+        "baseline": {
+          "score": 97,
+          "grade": "A",
+          "realIssueCount": 3,
+          "critical": 0,
+          "warning": 3,
+          "info": 0
+        },
+        "latest": {
+          "score": 97,
+          "grade": "A",
+          "realIssueCount": 1,
+          "critical": 0,
+          "warning": 1,
+          "info": 0
+        }
+      },
+      {
+        "label": "gen_95_vs_previous",
+        "baselineGeneration": 94,
+        "baselineTimestamp": "2026-04-22T17:06:34.269Z",
+        "latestGeneration": 95,
+        "latestTimestamp": "2026-04-22T19:17:39.638Z",
+        "scoreDelta": 4,
+        "realIssueDelta": 2,
+        "criticalDelta": -1,
+        "warningDelta": 3,
+        "infoDelta": 0,
+        "baseline": {
+          "score": 93,
+          "grade": "A",
+          "realIssueCount": 1,
+          "critical": 1,
+          "warning": 0,
+          "info": 0
+        },
+        "latest": {
+          "score": 97,
+          "grade": "A",
+          "realIssueCount": 3,
+          "critical": 0,
+          "warning": 3,
+          "info": 0
+        }
+      },
+      {
+        "label": "gen_94_vs_previous",
+        "baselineGeneration": 93,
+        "baselineTimestamp": "2026-04-22T16:27:52.308Z",
+        "latestGeneration": 94,
+        "latestTimestamp": "2026-04-22T17:06:34.269Z",
+        "scoreDelta": -3,
+        "realIssueDelta": 0,
+        "criticalDelta": 0,
+        "warningDelta": 0,
+        "infoDelta": 0,
+        "baseline": {
+          "score": 96,
+          "grade": "A",
+          "realIssueCount": 1,
+          "critical": 1,
+          "warning": 0,
+          "info": 0
+        },
+        "latest": {
+          "score": 93,
+          "grade": "A",
+          "realIssueCount": 1,
+          "critical": 1,
+          "warning": 0,
+          "info": 0
+        }
+      },
+      {
+        "label": "gen_93_vs_previous",
+        "baselineGeneration": 92,
+        "baselineTimestamp": "2026-04-22T15:45:36.906Z",
+        "latestGeneration": 93,
+        "latestTimestamp": "2026-04-22T16:27:52.308Z",
+        "scoreDelta": -4,
+        "realIssueDelta": 1,
+        "criticalDelta": 1,
+        "warningDelta": 0,
+        "infoDelta": 0,
+        "baseline": {
+          "score": 100,
+          "grade": "A",
+          "realIssueCount": 0,
+          "critical": 0,
+          "warning": 0,
+          "info": 0
+        },
+        "latest": {
+          "score": 96,
+          "grade": "A",
+          "realIssueCount": 1,
+          "critical": 1,
+          "warning": 0,
+          "info": 0
+        }
+      },
+      {
+        "label": "gen_92_vs_previous",
+        "baselineGeneration": 91,
+        "baselineTimestamp": "2026-04-22T15:13:06.052Z",
+        "latestGeneration": 92,
+        "latestTimestamp": "2026-04-22T15:45:36.906Z",
+        "scoreDelta": 7,
+        "realIssueDelta": -6,
+        "criticalDelta": 0,
+        "warningDelta": -5,
+        "infoDelta": -1,
+        "baseline": {
+          "score": 93,
+          "grade": "A",
+          "realIssueCount": 6,
+          "critical": 0,
+          "warning": 5,
+          "info": 1
+        },
+        "latest": {
+          "score": 100,
+          "grade": "A",
+          "realIssueCount": 0,
+          "critical": 0,
+          "warning": 0,
+          "info": 0
+        }
+      },
+      {
+        "label": "gen_91_vs_previous",
+        "baselineGeneration": 90,
+        "baselineTimestamp": "2026-04-22T14:29:04.617Z",
+        "latestGeneration": 91,
+        "latestTimestamp": "2026-04-22T15:13:06.052Z",
+        "scoreDelta": -4,
+        "realIssueDelta": 5,
+        "criticalDelta": 0,
+        "warningDelta": 4,
+        "infoDelta": 1,
+        "baseline": {
+          "score": 97,
+          "grade": "A",
+          "realIssueCount": 1,
+          "critical": 0,
+          "warning": 1,
+          "info": 0
+        },
+        "latest": {
+          "score": 93,
+          "grade": "A",
+          "realIssueCount": 6,
+          "critical": 0,
+          "warning": 5,
+          "info": 1
+        }
+      }
+    ]
+  },
+  "comparisons": [
+    {
+      "label": "previous_run",
+      "baselineGeneration": 99,
+      "baselineTimestamp": "2026-05-20T01:14:31.630Z",
+      "latestGeneration": 100,
+      "latestTimestamp": "2026-05-20T07:30:19.634Z",
+      "scoreDelta": 1,
+      "realIssueDelta": 4,
+      "criticalDelta": -1,
+      "warningDelta": 5,
+      "infoDelta": 0,
+      "baseline": {
+        "score": 92,
+        "grade": "A",
+        "realIssueCount": 2,
+        "critical": 1,
+        "warning": 1,
+        "info": 0
+      },
+      "latest": {
+        "score": 93,
+        "grade": "A",
+        "realIssueCount": 6,
+        "critical": 0,
+        "warning": 6,
+        "info": 0
+      }
+    },
+    {
+      "label": "ten_run_window",
+      "baselineGeneration": 91,
+      "baselineTimestamp": "2026-04-22T15:13:06.052Z",
+      "latestGeneration": 100,
+      "latestTimestamp": "2026-05-20T07:30:19.634Z",
+      "scoreDelta": 0,
+      "realIssueDelta": 0,
+      "criticalDelta": 0,
+      "warningDelta": 1,
+      "infoDelta": -1,
+      "baseline": {
+        "score": 93,
+        "grade": "A",
+        "realIssueCount": 6,
+        "critical": 0,
+        "warning": 5,
+        "info": 1
+      },
+      "latest": {
+        "score": 93,
+        "grade": "A",
+        "realIssueCount": 6,
+        "critical": 0,
+        "warning": 6,
+        "info": 0
+      }
+    },
+    {
+      "label": "twenty_five_run_window",
+      "baselineGeneration": 76,
+      "baselineTimestamp": "2026-04-22T05:10:36.521Z",
+      "latestGeneration": 100,
+      "latestTimestamp": "2026-05-20T07:30:19.634Z",
+      "scoreDelta": -4,
+      "realIssueDelta": 5,
+      "criticalDelta": 0,
+      "warningDelta": 5,
+      "infoDelta": 0,
+      "baseline": {
+        "score": 97,
+        "grade": "A",
+        "realIssueCount": 1,
+        "critical": 0,
+        "warning": 1,
+        "info": 0
+      },
+      "latest": {
+        "score": 93,
+        "grade": "A",
+        "realIssueCount": 6,
+        "critical": 0,
+        "warning": 6,
+        "info": 0
+      }
+    },
+    {
+      "label": "oldest_retained_generation",
+      "baselineGeneration": 1,
+      "baselineTimestamp": "2026-02-24T22:32:02.591Z",
+      "latestGeneration": 100,
+      "latestTimestamp": "2026-05-20T07:30:19.634Z",
+      "scoreDelta": 3,
+      "realIssueDelta": -5,
+      "criticalDelta": -4,
+      "warningDelta": 4,
+      "infoDelta": -5,
+      "baseline": {
+        "score": 90,
+        "grade": "A",
+        "realIssueCount": 11,
+        "critical": 4,
+        "warning": 2,
+        "info": 5
+      },
+      "latest": {
+        "score": 93,
+        "grade": "A",
+        "realIssueCount": 6,
+        "critical": 0,
+        "warning": 6,
+        "info": 0
+      }
+    },
+    {
+      "label": "best_retained_generation",
+      "baselineGeneration": 98,
+      "baselineTimestamp": "2026-04-22T22:51:25.650Z",
+      "latestGeneration": 100,
+      "latestTimestamp": "2026-05-20T07:30:19.634Z",
+      "scoreDelta": -7,
+      "realIssueDelta": 6,
+      "criticalDelta": 0,
+      "warningDelta": 6,
+      "infoDelta": 0,
+      "baseline": {
+        "score": 100,
+        "grade": "A",
+        "realIssueCount": 0,
+        "critical": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "latest": {
+        "score": 93,
+        "grade": "A",
+        "realIssueCount": 6,
+        "critical": 0,
+        "warning": 6,
+        "info": 0
+      }
+    }
+  ],
+  "currentRun": {
+    "realIssues": [
+      {
+        "header": "P2 Left sidebar accordions trigger unexpected chat navigation instead of expanding",
+        "details": "The items in the left sidebar (e.g., '> Week of May 4', '> April 2026') have chevron icons indicating they are collapsible accordions. However, clicking them does not expand the section to show more items. Instead, it unexpectedly navigates the user to the 'Chat' view and populates the composer with a prompt related to a different time period (e.g., clicking 'Week of May 4' creates a prompt for 'April 2026'). This violates the visual affordance of the component and disrupts user navigation.",
+        "route": "home",
+        "suggestedFix": "",
+        "source": "agentic"
+      },
+      {
+        "header": "P2 Expandable card fails to open",
+        "details": "After interacting with the 'openai oct2025 research' card to expand it, the card remains in its collapsed state.",
+        "route": "inbox",
+        "suggestedFix": "",
+        "source": "agentic"
+      },
+      {
+        "header": "P2 Accordion section fails to expand",
+        "details": "After interacting with the '3 steps completed' section in the right sidebar to expand it, the section remains collapsed.",
+        "route": "inbox",
+        "suggestedFix": "",
+        "source": "agentic"
+      },
+      {
+        "header": "P2 Map tab click navigates to Sources",
+        "details": "The intended action was to click the 'Map' tab, but the UI shows the 'Sources' tab as active and displays the sources list instead of a map.",
+        "route": "report-notebooknb",
+        "suggestedFix": "",
+        "source": "agentic"
+      },
+      {
+        "header": "P2 Loading failure in Briefing agent sidebar",
+        "details": "[00:10] The 'Briefing agent' sidebar on the Home route remains stuck in a 'Loading live memory now...' state with a continuous spinner for an extended period, failing to load the expected content.",
+        "route": "home",
+        "suggestedFix": "",
+        "source": "agentic_video"
+      },
+      {
+        "header": "P2 Tabs fail to load content",
+        "details": "[06:38] Within the report workspace, clicking on the 'Cards' and 'Map' tabs results in a persistent 'Loading live artifact' message instead of displaying the respective content, indicating a loading failure for these specific views.",
+        "route": "workspace",
+        "suggestedFix": "",
+        "source": "agentic_video"
+      }
+    ],
+    "candidateIssueCount": 14,
+    "videoSummaries": [
+      "The application demonstrates a powerful, data-dense interface but suffers from significant 'leaky abstraction' issues, frequently exposing internal engineering jargon, database names, and raw trace steps to the user. Additionally, there are minor polish issues including pluralization errors, confusing abbreviations, and unrefined loading states that detract from the overall feeling of craft and calm."
+    ],
+    "screenSummaries": [
+      "{\n  \"summary\": \"The NodeBench interface demonstrates a strong, data-dense aesthetic that aligns with its 'research-first' mission. However, the application suffers from significant 'leaky abstractions' where internal system states and engineering terminology are exposed to the end-user, undermining the 'calm and intentional' design goal. There are also inconsistencies in micro-copy and layout density that create unnecessary cognitive load.\",\n  \"issues\": [\n    {\n      \"severity\": \"p1\",\n      \"title\": \"Exposure of internal engineering jargon\",\n      \"details\": \"The UI displays technical system logs like 'Live memory hot', 'estimated 1922 tokens', and 'approvalRequired=true' directly to the user. This is confusing and violates the 'Kill jargon' principle.\",\n      \"suggestedFix\": \"Abstract these technical details into a 'System Status' or 'Details' drawer, or remove them entirely from the primary view for non-technical users. Use human-readable status indicators instead of raw logs/booleans like 'approvalRequired=true'. Use 'Ready' or 'Requires Review' instead of boolean flags. Hide token counts unless specifically requested by the user in a settings menu for power users only. Ensure t",
+      "The application demonstrates a powerful, data-dense interface but suffers from significant 'leaky abstraction' issues, frequently exposing internal engineering jargon, database names, and raw trace steps to the user. Additionally, there are minor polish issues including pluralization errors, confusing abbreviations, and unrefined loading states that detract from the overall feeling of craft and calm."
+    ]
+  },
+  "evidence": {
+    "artifacts": [
+      {
+        "path": "public/dogfood/manifest.json",
+        "exists": true,
+        "bytes": 3589,
+        "updatedAt": "2026-05-20T07:12:20.872Z"
+      },
+      {
+        "path": "public/dogfood/walkthrough.json",
+        "exists": true,
+        "bytes": 1426,
+        "updatedAt": "2026-05-20T07:12:54.906Z"
+      },
+      {
+        "path": "public/dogfood/walkthrough.mp4",
+        "exists": true,
+        "bytes": 756581,
+        "updatedAt": "2026-05-20T07:12:54.861Z"
+      },
+      {
+        "path": "public/dogfood/frames.json",
+        "exists": true,
+        "bytes": 1965,
+        "updatedAt": "2026-05-20T07:12:56.414Z"
+      },
+      {
+        "path": "public/dogfood/scribe.json",
+        "exists": true,
+        "bytes": 2567,
+        "updatedAt": "2026-05-20T07:12:33.544Z"
+      },
+      {
+        "path": ".tmp/dogfood-gemini-qa/video-qa.json",
+        "exists": true,
+        "bytes": 3486,
+        "updatedAt": "2026-05-20T07:29:06.508Z"
+      },
+      {
+        "path": ".tmp/dogfood-gemini-qa/screens-qa.json",
+        "exists": true,
+        "bytes": 47872,
+        "updatedAt": "2026-05-20T07:29:47.107Z"
+      },
+      {
+        "path": ".tmp/dogfood-gemini-qa/agentic-results.json",
+        "exists": true,
+        "bytes": 3902,
+        "updatedAt": "2026-05-20T07:28:17.458Z"
+      },
+      {
+        "path": ".tmp/dogfood-gemini-qa/qa-loop-context.json",
+        "exists": true,
+        "bytes": 56433,
+        "updatedAt": "2026-05-20T07:30:19.678Z"
+      },
+      {
+        "path": ".tmp/dogfood-gemini-qa/agentic-session.webm",
+        "exists": true,
+        "bytes": 36245303,
+        "updatedAt": "2026-05-20T07:22:47.995Z"
+      }
+    ],
+    "hasScreenshots": true,
+    "hasVideo": true,
+    "hasGeminiVideoJudge": true,
+    "hasAgenticVideo": true
+  },
+  "releaseInterpretation": {
+    "latestStatus": "release-risk",
+    "reason": "Latest retained run has 6 real issue(s), 0 critical, and 6 warning(s)."
+  },
+  "generationArchive": {
+    "runId": "20260520T073019Z-d89d654f",
+    "sequence": 100,
+    "archiveName": "gen-0100-20260520T073019Z-d89d654f",
+    "archivePath": "public/dogfood/generations/gen-0100-20260520T073019Z-d89d654f",
+    "copiedCount": 81,
+    "stateEvidence": {
+      "before": {
+        "label": "Before",
+        "purpose": "Static route screenshots before interactive playback and judging.",
+        "count": 23
+      },
+      "during": {
+        "label": "During",
+        "purpose": "Walkthrough video, extracted frames, scribe steps, and agentic interaction screenshots.",
+        "count": 41
+      },
+      "after": {
+        "label": "After",
+        "purpose": "Gemini screen/video judge outputs and final QA ledger.",
+        "count": 17
+      }
+    }
+  }
+}

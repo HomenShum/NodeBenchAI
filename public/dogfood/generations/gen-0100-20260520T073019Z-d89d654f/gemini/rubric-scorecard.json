@@ -1,0 +1,429 @@
+{
+  "layer0": {
+    "score": 0,
+    "total": 8041,
+    "high": 0,
+    "medium": 7882,
+    "low": 159,
+    "topViolations": [
+      "src/components/hud/JarvisHUDLayout.tsx:356 Saturated bg color (use bg-surface variants)",
+      "src/components/hud/JarvisHUDLayout.tsx:360 Saturated bg color (use bg-surface variants)",
+      "src/components/hud/JarvisHUDLayout.tsx:440 Saturated bg color (use bg-surface variants)",
+      "src/components/hud/JarvisHUDLayout.tsx:567 Saturated bg color (use bg-surface variants)",
+      "src/components/hud/JarvisHUDLayout.tsx:589 Saturated bg color (use bg-surface variants)",
+      "src/components/hud/JarvisHUDLayout.tsx:731 Saturated bg color (use bg-surface variants)",
+      "src/components/hud/JarvisHUDLayout.tsx:356 Saturated text color (use text-content variants)",
+      "src/components/hud/JarvisHUDLayout.tsx:360 Saturated text color (use text-content variants)",
+      "src/components/hud/JarvisHUDLayout.tsx:440 Saturated text color (use text-content variants)",
+      "src/components/hud/JarvisHUDLayout.tsx:483 Saturated text color (use text-content variants)",
+      "src/components/hud/JarvisHUDLayout.tsx:589 Saturated text color (use text-content variants)",
+      "src/components/hud/JarvisHUDLayout.tsx:351 Custom tracking value (use type scale)",
+      "src/components/hud/JarvisHUDLayout.tsx:371 Custom tracking value (use type scale)",
+      "src/components/hud/TaskWidgetStack.tsx:69 Saturated bg color (use bg-surface variants)",
+      "src/components/hud/TaskWidgetStack.tsx:71 Saturated bg color (use bg-surface variants)"
+    ]
+  },
+  "layer1": {
+    "score": 100,
+    "weight": 0.6,
+    "criteria": [
+      {
+        "id": "no_console_errors",
+        "pass": true,
+        "weight": 3,
+        "axis": "reliability"
+      },
+      {
+        "id": "no_uncaught_exceptions",
+        "pass": true,
+        "weight": 3,
+        "axis": "reliability"
+      },
+      {
+        "id": "no_failed_api_requests",
+        "pass": true,
+        "weight": 2,
+        "axis": "reliability"
+      },
+      {
+        "id": "page_loads_ok",
+        "pass": true,
+        "weight": 2,
+        "axis": "performance"
+      },
+      {
+        "id": "no_parse_failures",
+        "pass": true,
+        "weight": 2,
+        "axis": "infrastructure"
+      },
+      {
+        "id": "video_qa_completed",
+        "pass": true,
+        "weight": 1,
+        "axis": "infrastructure"
+      },
+      {
+        "id": "screenshot_qa_completed",
+        "pass": true,
+        "weight": 1,
+        "axis": "infrastructure"
+      },
+      {
+        "id": "no_layout_shift",
+        "pass": true,
+        "weight": 2,
+        "axis": "performance"
+      },
+      {
+        "id": "no_slow_resources",
+        "pass": true,
+        "weight": 1,
+        "axis": "performance"
+      },
+      {
+        "id": "no_404_resources",
+        "pass": true,
+        "weight": 2,
+        "axis": "reliability"
+      },
+      {
+        "id": "no_mixed_content",
+        "pass": true,
+        "weight": 1,
+        "axis": "security"
+      },
+      {
+        "id": "viewport_meta_ok",
+        "pass": true,
+        "weight": 1,
+        "axis": "accessibility"
+      },
+      {
+        "id": "no_banned_css_patterns",
+        "pass": true,
+        "weight": 2,
+        "axis": "design_compliance"
+      }
+    ]
+  },
+  "layer2": {
+    "score": 80,
+    "weight": 0.3,
+    "criteria": [
+      {
+        "id": "no_p1_critical",
+        "pass": true,
+        "weight": 3,
+        "axis": "usability"
+      },
+      {
+        "id": "low_p2_warnings",
+        "pass": false,
+        "weight": 2,
+        "axis": "usability"
+      },
+      {
+        "id": "no_contrast_failures",
+        "pass": true,
+        "weight": 2,
+        "axis": "accessibility"
+      },
+      {
+        "id": "no_text_overlap",
+        "pass": true,
+        "weight": 2,
+        "axis": "layout"
+      },
+      {
+        "id": "no_layout_breaks",
+        "pass": true,
+        "weight": 2,
+        "axis": "layout"
+      },
+      {
+        "id": "no_misleading_affordances",
+        "pass": true,
+        "weight": 1,
+        "axis": "usability"
+      },
+      {
+        "id": "empty_states_ok",
+        "pass": false,
+        "weight": 1,
+        "axis": "completeness"
+      },
+      {
+        "id": "theme_parity",
+        "pass": true,
+        "weight": 1,
+        "axis": "visual"
+      },
+      {
+        "id": "no_jargon_leak",
+        "pass": true,
+        "weight": 1,
+        "axis": "copy"
+      },
+      {
+        "id": "grammar_ok",
+        "pass": true,
+        "weight": 1,
+        "axis": "copy"
+      },
+      {
+        "id": "icons_labeled",
+        "pass": true,
+        "weight": 1,
+        "axis": "usability"
+      },
+      {
+        "id": "mobile_responsive",
+        "pass": true,
+        "weight": 1,
+        "axis": "layout"
+      },
+      {
+        "id": "no_agentic_interaction_bugs",
+        "pass": false,
+        "weight": 2,
+        "axis": "interaction"
+      },
+      {
+        "id": "no_gratuitous_uppercase",
+        "pass": true,
+        "weight": 1,
+        "axis": "governance"
+      },
+      {
+        "id": "color_budget_respected",
+        "pass": true,
+        "weight": 1,
+        "axis": "governance"
+      },
+      {
+        "id": "empty_states_present",
+        "pass": true,
+        "weight": 1,
+        "axis": "governance"
+      },
+      {
+        "id": "consistent_card_radius",
+        "pass": true,
+        "weight": 1,
+        "axis": "governance"
+      },
+      {
+        "id": "standard_button_style",
+        "pass": true,
+        "weight": 1,
+        "axis": "governance"
+      }
+    ]
+  },
+  "layer3": {
+    "score": 88,
+    "weight": 0.1,
+    "rawTaste": 88
+  },
+  "governance": {
+    "score": 100,
+    "criteria": [
+      {
+        "id": "no_gratuitous_uppercase",
+        "pass": true,
+        "weight": 1
+      },
+      {
+        "id": "color_budget_respected",
+        "pass": true,
+        "weight": 1
+      },
+      {
+        "id": "empty_states_present",
+        "pass": true,
+        "weight": 1
+      },
+      {
+        "id": "consistent_card_radius",
+        "pass": true,
+        "weight": 1
+      },
+      {
+        "id": "standard_button_style",
+        "pass": true,
+        "weight": 1
+      }
+    ]
+  },
+  "agentic": {
+    "issueCount": 9,
+    "screenshotIssues": 6,
+    "videoIssues": 3,
+    "issues": [
+      {
+        "header": "P2 Left sidebar accordions trigger unexpected chat navigation instead of expanding",
+        "details": "The items in the left sidebar (e.g., '> Week of May 4', '> April 2026') have chevron icons indicating they are collapsible accordions. However, clicking them does not expand the section to show more items. Instead, it unexpectedly navigates the user to the 'Chat' view and populates the composer with a prompt related to a different time period (e.g., clicking 'Week of May 4' creates a prompt for 'April 2026'). This violates the visual affordance of the component and disrupts user navigation.",
+        "route": "home",
+        "suggestedFix": "",
+        "source": "agentic"
+      },
+      {
+        "header": "P2 Expandable card fails to open",
+        "details": "After interacting with the 'openai oct2025 research' card to expand it, the card remains in its collapsed state.",
+        "route": "inbox",
+        "suggestedFix": "",
+        "source": "agentic"
+      },
+      {
+        "header": "P2 Accordion section fails to expand",
+        "details": "After interacting with the '3 steps completed' section in the right sidebar to expand it, the section remains collapsed.",
+        "route": "inbox",
+        "suggestedFix": "",
+        "source": "agentic"
+      },
+      {
+        "header": "P3 Inconsistent button styling in header",
+        "details": "The 'Share' and 'Export preview' actions in the top right header appear as plain text without any button styling (background, border), making them look inconsistent next to the solid 'Save report' and 'Refresh preview' buttons. They also lack clear hover/active visual states.",
+        "route": "open-live-workspace-",
+        "suggestedFix": "",
+        "source": "agentic"
+      },
+      {
+        "header": "P2 Broken encoding characters in Notebook view",
+        "details": "In the Notebook view, there are broken encoding characters appearing where icons or UI elements should be. This is visible next to the main title ('âœ¦ Founder / banker lens Â· v3') and as prefixes to the blocks in the editor area ('+ â‹®â‹®â‹®').",
+        "route": "report-notebooknb",
+        "suggestedFix": "",
+        "source": "agentic"
+      },
+      {
+        "header": "P2 Map tab click navigates to Sources",
+        "details": "The intended action was to click the 'Map' tab, but the UI shows the 'Sources' tab as active and displays the sources list instead of a map.",
+        "route": "report-notebooknb",
+        "suggestedFix": "",
+        "source": "agentic"
+      },
+      {
+        "header": "P2 Loading failure in Briefing agent sidebar",
+        "details": "[00:10] The 'Briefing agent' sidebar on the Home route remains stuck in a 'Loading live memory now...' state with a continuous spinner for an extended period, failing to load the expected content.",
+        "route": "home",
+        "suggestedFix": "",
+        "source": "agentic_video"
+      },
+      {
+        "header": "P2 Error banner displayed",
+        "details": "[00:53] A red error banner appears at the top of the screen with the message 'Sign in is run via paid live research. No showcase answer was inserted.', indicating a failure or missing data in the current state.",
+        "route": "home",
+        "suggestedFix": "",
+        "source": "agentic_video"
+      },
+      {
+        "header": "P2 Tabs fail to load content",
+        "details": "[06:38] Within the report workspace, clicking on the 'Cards' and 'Map' tabs results in a persistent 'Loading live artifact' message instead of displaying the respective content, indicating a loading failure for these specific views.",
+        "route": "workspace",
+        "suggestedFix": "",
+        "source": "agentic_video"
+      }
+    ]
+  },
+  "falsePositivesFiltered": 9,
+  "hardFiltered": 1,
+  "llmFiltered": 8,
+  "judgeDetails": [
+    {
+      "issue": "P1Internal engineering jargon exposed in UI",
+      "verdict": "design_opinion",
+      "confidence": 1,
+      "reasoning": "Domain terminology for AI practitioners is intentional, not a jargon leak."
+    },
+    {
+      "issue": "P1Unpolished and technical loading state",
+      "verdict": "design_opinion",
+      "confidence": 0.9,
+      "reasoning": "Technical loading states and zero-value metrics are intentional design choices."
+    },
+    {
+      "issue": "P2Incorrect pluralization for single items",
+      "verdict": "screenshot_artifact",
+      "confidence": 1,
+      "reasoning": "Pluralization issues are stale observations per the provided rules."
+    },
+    {
+      "issue": "P2Confusing text abbreviation in timeline",
+      "verdict": "screenshot_artifact",
+      "confidence": 0.9,
+      "reasoning": "Vision model likely misread the number 8 as the letter B."
+    },
+    {
+      "issue": "P3Exposed billing/internal metrics in chat",
+      "verdict": "design_opinion",
+      "confidence": 1,
+      "reasoning": "Displaying usage metrics is an intentional design choice for power users."
+    },
+    {
+      "issue": "P2 Left sidebar accordions trigger unexpected chat navigation instead of expandi",
+      "verdict": "genuine_bug",
+      "confidence": 0.9,
+      "reasoning": "Accordions acting as links and populating incorrect data is a functional defect."
+    },
+    {
+      "issue": "P2 Expandable card fails to open",
+      "verdict": "genuine_bug",
+      "confidence": 0.9,
+      "reasoning": "An expandable card failing to open is a functional defect."
+    },
+    {
+      "issue": "P2 Accordion section fails to expand",
+      "verdict": "genuine_bug",
+      "confidence": 0.9,
+      "reasoning": "An accordion failing to expand upon interaction is a functional defect."
+    },
+    {
+      "issue": "P3 Inconsistent button styling in header",
+      "verdict": "design_opinion",
+      "confidence": 1,
+      "reasoning": "Mixing ghost buttons with solid buttons is an intentional visual hierarchy choice."
+    },
+    {
+      "issue": "P2 Broken encoding characters in Notebook view",
+      "verdict": "screenshot_artifact",
+      "confidence": 0.9,
+      "reasoning": "Standard Unicode icons like drag handles were misread as broken encoding by OCR."
+    },
+    {
+      "issue": "P2 Map tab click navigates to Sources",
+      "verdict": "genuine_bug",
+      "confidence": 0.9,
+      "reasoning": "Clicking a tab and activating the wrong one is a functional routing bug."
+    },
+    {
+      "issue": "P2 Loading failure in Briefing agent sidebar",
+      "verdict": "genuine_bug",
+      "confidence": 0.9,
+      "reasoning": "Infinite loading spinner prevents users from accessing expected content."
+    },
+    {
+      "issue": "P2 Error banner displayed",
+      "verdict": "mock_data",
+      "confidence": 0.9,
+      "reasoning": "Error about missing showcase answer indicates unseeded demo or mock data."
+    },
+    {
+      "issue": "P2 Tabs fail to load content",
+      "verdict": "genuine_bug",
+      "confidence": 0.9,
+      "reasoning": "Persistent loading state on tabs is a functional bug blocking content."
+    }
+  ],
+  "falsePositivePatterns": [
+    "P0Gemini QA (unstructured)",
+    "P1Internal engineering jargon exposed in UI",
+    "P1Unpolished and technical loading state",
+    "P2Incorrect pluralization for single items",
+    "P2Confusing text abbreviation in timeline",
+    "P3Exposed billing/internal metrics in chat",
+    "P3 Inconsistent button styling in header",
+    "P2 Broken encoding characters in Notebook view",
+    "P2 Error banner displayed"
+  ]
+}

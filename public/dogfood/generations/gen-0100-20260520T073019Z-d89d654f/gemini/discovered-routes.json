@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-05-20T07:16:06.005Z",
+  "count": 7,
+  "routes": [
+    {
+      "path": "/",
+      "name": "home",
+      "source": "sidebar"
+    },
+    {
+      "path": "/redesign/me",
+      "name": "me",
+      "source": "sidebar-click"
+    },
+    {
+      "path": "/redesign/chat",
+      "name": "chat",
+      "source": "sidebar-click"
+    },
+    {
+      "path": "/redesign/inbox",
+      "name": "inbox",
+      "source": "sidebar-click"
+    },
+    {
+      "path": "/redesign/reports",
+      "name": "reports",
+      "source": "sidebar-click"
+    },
+    {
+      "path": "/redesign/workspace?report=daily_h97jxs2w08rmpnnnpabdqtjye5872ve9&tab=brief",
+      "name": "open-live-workspace-",
+      "source": "sub:chat"
+    },
+    {
+      "path": "/redesign/workspace?report=daily_h97jxs2w08rmpnnnpabdqtjye5872ve9&tab=notebook",
+      "name": "report-notebooknb",
+      "source": "sub:chat"
+    }
+  ]
+}

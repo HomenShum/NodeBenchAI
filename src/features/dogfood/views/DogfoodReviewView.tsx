@@ -110,6 +110,65 @@ type LocalQaEntry = {
   };
 };
 
+type QaGenerationComparison = {
+  label: string;
+  baselineGeneration: number;
+  latestGeneration: number;
+  scoreDelta: number;
+  realIssueDelta: number;
+  criticalDelta: number;
+  warningDelta: number;
+  baseline: {
+    score: number | null;
+    grade: string | null;
+    realIssueCount: number | null;
+  };
+  latest: {
+    score: number | null;
+    grade: string | null;
+    realIssueCount: number | null;
+  };
+};
+
+type QaStateEvidence = {
+  before?: { count: number; purpose?: string };
+  during?: { count: number; purpose?: string };
+  after?: { count: number; purpose?: string };
+};
+
+type QaGenerationLedger = {
+  generatedAt: string;
+  generationArchive?: {
+    runId: string;
+    sequence: number;
+    archiveName: string;
+    archivePath: string;
+    copiedCount: number;
+    stateEvidence?: QaStateEvidence;
+  };
+  releaseInterpretation?: {
+    latestStatus: "release-clean" | "release-risk" | string;
+    reason: string;
+  };
+  history?: {
+    latest?: {
+      generation: number;
+      timestamp: string;
+      score: number | null;
+      grade: string | null;
+      realIssueCount: number | null;
+      critical: number | null;
+      warning: number | null;
+      model: string | null;
+    };
+    deltaChainLastTen?: QaGenerationComparison[];
+  };
+  comparisons?: QaGenerationComparison[];
+  currentRun?: {
+    realIssues?: Array<{ header?: string; route?: string; source?: string }>;
+  };
+};
+
 type QaIssue = {
   severity: "p0" | "p1" | "p2" | "p3" | string;
   title: string;
@@ -519,6 +578,8 @@ export function DogfoodReviewView() {
   const [isRefreshingView, setIsRefreshingView] = useState(false);
   const [localQaResults, setLocalQaResults] = useState<LocalQaEntry[] | null>(null);
   const [localQaError, setLocalQaError] = useState<string | null>(null);
+  const [generationLedger, setGenerationLedger] = useState<QaGenerationLedger | null>(null);
+  const [generationLedgerError, setGenerationLedgerError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { isAuthenticated } = useConvexAuth();
   const { signIn } = useAuthActions();
@@ -690,6 +751,23 @@ export function DogfoodReviewView() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/dogfood/qa-generation-ledger.json", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as QaGenerationLedger;
+        if (!cancelled) setGenerationLedger(json);
+      } catch (e) {
+        if (!cancelled) setGenerationLedgerError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const commands = useMemo(() => {
     const runE2e = "npx playwright test tests/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1";
     const publish = "npm run dogfood:publish";
@@ -701,7 +779,10 @@ export function DogfoodReviewView() {
     const full = "npm run dogfood:walkthrough";
     const fullLocal = "npm run dogfood:full:local";
     const fullLocalPlay = "npm run dogfood:full:local:play";
-    return { runE2e, publish, record, recordStatic, frames, scribeCmd, scribeLocal, full, fullLocal, fullLocalPlay };
+    const qaFirstClass = "npm run dogfood:qa:first-class";
+    const qaLedger = "npm run dogfood:qa:ledger";
+    const verifyFirstClass = "npm run dogfood:verify:first-class";
+    return { runE2e, publish, record, recordStatic, frames, scribeCmd, scribeLocal, full, fullLocal, fullLocalPlay, qaFirstClass, qaLedger, verifyFirstClass };
   }, []);
 
   const resolvedVideoUrl = useMemo(() => {
@@ -1627,6 +1708,137 @@ export function DogfoodReviewView() {
                         );
                       })}
                     </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* Generation QA Ledger */}
+        {(generationLedger || generationLedgerError) && (
+          <div className="nb-surface-card overflow-hidden">
+            <div className="px-5 py-3 border-b border-border/50 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium text-foreground">Generation QA Ledger</div>
+                <div className="text-xs text-muted-foreground">
+                  Stable gen-to-gen evidence archive for before, during, and after review states.
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-outline-sm"
+                onClick={() => copyWithFeedback(`${commands.qaFirstClass}\n${commands.qaLedger}\n${commands.verifyFirstClass}`, "generation-qa")}
+                aria-label="Copy first-class QA commands"
+                title="Copy first-class QA commands"
+              >
+                {copiedId === "generation-qa" ? "Copied!" : "Copy QA commands"}
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              {generationLedgerError && !generationLedger && (
+                <div className="text-xs text-muted-foreground">
+                  Ledger not available: <span className="font-mono">{generationLedgerError}</span>
+                  <div className="mt-1">
+                    Run <span className="font-mono">npm run dogfood:qa:ledger</span> after a strict QA pass.
+                  </div>
+                </div>
+              )}
+
+              {generationLedger && (() => {
+                const latest = generationLedger.history?.latest;
+                const archive = generationLedger.generationArchive;
+                const stateEvidence = archive?.stateEvidence ?? {};
+                const releaseStatus = generationLedger.releaseInterpretation?.latestStatus ?? "unknown";
+                const statusClass = releaseStatus === "release-clean"
+                  ? "text-green-500 bg-green-500/10 border-green-500/20"
+                  : "text-amber-500 bg-amber-500/10 border-amber-500/20";
+                const comparisons = generationLedger.comparisons?.slice(0, 4) ?? [];
+                const realIssues = generationLedger.currentRun?.realIssues?.slice(0, 6) ?? [];
+
+                return (
+                  <>
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <div className="rounded-md border border-border/60 bg-background px-3 py-2">
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Generation</div>
+                        <div className="mt-1 text-lg font-semibold text-foreground font-mono">
+                          {archive?.sequence ?? latest?.generation ?? "-"}
+                        </div>
+                      </div>
+                      <div className="rounded-md border border-border/60 bg-background px-3 py-2">
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Score</div>
+                        <div className="mt-1 text-lg font-semibold text-foreground font-mono">
+                          {latest?.score ?? "-"} {latest?.grade ? `/ ${latest.grade}` : ""}
+                        </div>
+                      </div>
+                      <div className="rounded-md border border-border/60 bg-background px-3 py-2">
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Real issues</div>
+                        <div className="mt-1 text-lg font-semibold text-foreground font-mono">
+                          {latest?.realIssueCount ?? "-"}
+                        </div>
+                      </div>
+                      <div className="rounded-md border border-border/60 bg-background px-3 py-2">
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Status</div>
+                        <div className={`mt-1 inline-flex rounded border px-2 py-0.5 text-xs font-semibold ${statusClass}`}>
+                          {releaseStatus}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {(["before", "during", "after"] as const).map((state) => (
+                        <div key={state} className="rounded-md border border-border/60 bg-card px-3 py-2">
+                          <div className="text-xs uppercase tracking-wide text-muted-foreground">{state}</div>
+                          <div className="mt-1 text-base font-semibold text-foreground font-mono">
+                            {stateEvidence[state]?.count ?? 0} files
+                          </div>
+                          {stateEvidence[state]?.purpose && (
+                            <div className="mt-1 text-xs text-muted-foreground">{stateEvidence[state]?.purpose}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {archive?.archivePath && (
+                      <div className="rounded-md border border-border/60 bg-background px-3 py-2 text-xs text-muted-foreground">
+                        Archive: <span className="font-mono text-foreground">{archive.archivePath}</span>
+                        <span className="ml-2 font-mono">({archive.copiedCount} evidence files)</span>
+                      </div>
+                    )}
+
+                    {comparisons.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Latest comparisons</div>
+                        <div className="space-y-1.5">
+                          {comparisons.map((row) => (
+                            <div key={row.label} className="flex items-center gap-3 rounded-md border border-border/40 bg-background px-3 py-2 text-xs">
+                              <span className="font-mono text-muted-foreground w-44 truncate">{row.label}</span>
+                              <span className="text-foreground font-mono">score {row.latest.score}</span>
+                              <span className={row.scoreDelta >= 0 ? "text-green-500 font-mono" : "text-red-400 font-mono"}>
+                                {row.scoreDelta >= 0 ? "+" : ""}{row.scoreDelta}
+                              </span>
+                              <span className={row.realIssueDelta <= 0 ? "text-green-500 font-mono" : "text-amber-500 font-mono"}>
+                                issues {row.realIssueDelta >= 0 ? "+" : ""}{row.realIssueDelta}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {realIssues.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Current open findings</div>
+                        <div className="grid gap-2 md:grid-cols-2">
+                          {realIssues.map((issue, index) => (
+                            <div key={`${issue.header ?? "issue"}-${index}`} className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+                              <div className="text-xs font-medium text-foreground">{issue.header ?? "Untitled issue"}</div>
+                              {issue.route && <div className="mt-1 text-xs text-muted-foreground">Route: {issue.route}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </>
                 );
               })()}

@@ -58,7 +58,7 @@ export function ChatEmptyState({ onPick, onResume, recentThread, starters = STAR
       )}
 
       <div className="rd-chat-empty__hint">
-        <span className="rd-kbd">/</span> for commands · <span className="rd-kbd">@</span> to mention an entity · <span className="rd-kbd">⌘ Enter</span> to send
+        <span className="rd-kbd">/</span> for commands · <span className="rd-kbd">@</span> to mention an entity · <span className="rd-kbd">{typeof navigator !== "undefined" && navigator.platform?.startsWith("Mac") ? "⌘" : "Ctrl"} Enter</span> to send
       </div>
     </div>
   );

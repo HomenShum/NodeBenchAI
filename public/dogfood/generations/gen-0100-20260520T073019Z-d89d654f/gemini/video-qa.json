@@ -1,0 +1,42 @@
+[
+  {
+    "summary": "The application demonstrates a powerful, data-dense interface but suffers from significant 'leaky abstraction' issues, frequently exposing internal engineering jargon, database names, and raw trace steps to the user. Additionally, there are minor polish issues including pluralization errors, confusing abbreviations, and unrefined loading states that detract from the overall feeling of craft and calm.",
+    "issues": [
+      {
+        "header": "P1Internal engineering jargon exposed in UI",
+        "route": "2.1s-13.3s",
+        "ts": "2.1s-13.3s",
+        "details": "Multiple screens expose internal technical terms, database names, and model versions. Examples include 'Convex query in flight', 'Convex-backed', 'opus-4', 'mem + corpus', and raw trace steps like 'memory_search' and 'no_fixture_fallback'. This violates the 'Kill jargon' principle, adding unnecessary cognitive load and making the app feel like an internal tool rather than a polished product.",
+        "suggestedFix": "Suggested fix:Replace technical terms with user-centric language (e.g., 'Searching memory', 'Loading data'). Remove internal trace steps from the user-facing UI entirely, or hide them behind a specific developer toggle."
+      },
+      {
+        "header": "P1Unpolished and technical loading state",
+        "route": "13.3s-13.3s",
+        "ts": "13.3s-13.3s",
+        "details": "The loading state on the Home screen relies on text describing the technical fetching process ('Loading live brief Convex query in flight') rather than providing a calm, visual loading skeleton. It also displays '0' for metrics before data loads, which can be mistaken for an empty state rather than a loading state.",
+        "suggestedFix": "Suggested fix:Implement visual loading skeletons for content areas. Use user-friendly loading text (e.g., 'Updating your brief...'). Hide zero-states until data fetching is definitively complete."
+      },
+      {
+        "header": "P2Incorrect pluralization for single items",
+        "route": "10.5s-11.5s",
+        "ts": "10.5s-11.5s",
+        "details": "In the Memory/Watched Entities list, the Anthropic entry displays '1 reports' instead of the grammatically correct '1 report'.",
+        "suggestedFix": "Suggested fix:Implement a pluralization helper function to handle singular/plural strings dynamically based on the item count."
+      },
+      {
+        "header": "P2Confusing text abbreviation in timeline",
+        "route": "2.1s-2.1s",
+        "ts": "2.1s-2.1s",
+        "details": "In the left sidebar timeline on the Home screen, the entry for 'Today 11' reads 'B evidence rows'. It is unclear if 'B' is a typo, an abbreviation for Billion, or an internal status code.",
+        "suggestedFix": "Suggested fix:Clarify the text. If it's a placeholder or error, fix the data source. If it means Billion, use standard formatting (e.g., '1B') or spell it out if space permits."
+      },
+      {
+        "header": "P3Exposed billing/internal metrics in chat",
+        "route": "4.2s-4.2s",
+        "ts": "4.2s-4.2s",
+        "details": "The chat interface displays a badge stating '0 paid calls so far'. This feels like an internal metric or billing detail that is likely irrelevant to the end user's immediate workflow and adds visual clutter.",
+        "suggestedFix": "Suggested fix:Remove this metric from the chat view unless tracking API costs per session is a core, expected part of the user's workflow."
+      }
+    ]
+  }
+]

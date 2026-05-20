@@ -3282,7 +3282,7 @@ export function ExactMeSurface() {
                     <div>
                       <div style={{ fontWeight: 750 }}>{entity.name}</div>
                       <div style={{ color: "var(--text-muted)", fontSize: 11.5 }}>
-                        {entity.tag} - {entity.reports} reports - last activity {entity.lastReport}
+                        {entity.tag} - {entity.reports} {entity.reports === 1 ? "report" : "reports"} - last activity {entity.lastReport}
                         {entity.changes > 0 ? <span style={{ color: "var(--accent-primary)", marginLeft: 6, fontWeight: 800 }}>- {entity.changes} new</span> : null}
                       </div>
                     </div>
@@ -3661,7 +3661,7 @@ function MobileHomeBody() {
       <div className="m-search" data-testid="mobile-home-async-run">
         <MobileIcon name="search" />
         <input
-          placeholder="School, person, company, product..."
+          placeholder="Search entities..."
           value={mobileQuery}
           onChange={(event) => setMobileQuery(event.target.value)}
         />
@@ -3715,14 +3715,14 @@ function MobileHomeBody() {
             alignItems: "center",
             background: "var(--accent-primary)",
             border: 0,
-            borderRadius: 14,
+            borderRadius: 10,
             color: "#fff",
             display: "inline-flex",
-            fontSize: 13,
-            fontWeight: 800,
+            fontSize: 12.5,
+            fontWeight: 700,
             justifyContent: "center",
-            minHeight: 42,
-            padding: "0 14px",
+            minHeight: 36,
+            padding: "0 16px",
           }}
         >
           Link when ready

@@ -197,26 +197,21 @@ export function MobileHomeSurface() {
         </kbd>
       </button>
 
-      <section className="rounded-[16px] border border-gray-200 bg-white px-3.5 py-3 shadow-sm dark:border-white/[0.08] dark:bg-white/[0.02]">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d97757]/10 text-[#d97757]">
-            <Link2 size={15} aria-hidden />
+      <section className="rounded-[12px] border border-gray-200 bg-white px-3 py-2 shadow-sm dark:border-white/[0.08] dark:bg-white/[0.02]">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d97757]/10 text-[#d97757]">
+            <Link2 size={13} aria-hidden />
           </span>
-          <div className="min-w-0">
-            <div className="text-[13px] font-semibold text-gray-900 dark:text-white">
-              Research first, link after value.
-            </div>
-            <p className="mt-1 text-[12px] leading-5 text-gray-500 dark:text-gray-400">
-              Public dossiers work without sign-in. Link NodeBench when you want saved history, higher limits, and team controls.
-            </p>
-            <button
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-medium text-gray-600 dark:text-gray-300">
+              Research first — <button
               type="button"
               onClick={() => navigate("/settings?tab=connections")}
-              className="mt-2 text-[12px] font-semibold text-[#d97757]"
-            >
-              Link when ready
+              className="font-semibold text-[#d97757]"
+            >link when ready
             </button>
           </div>
+        </div>
         </div>
       </section>
 

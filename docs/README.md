@@ -32,6 +32,10 @@ docs/
 
 ## Conventions — non-negotiable
 
+Graph/search/agent-context work should start with
+[`architecture/GRAPH_SEARCH_AGENT_CONTEXT.md`](architecture/GRAPH_SEARCH_AGENT_CONTEXT.md)
+before changing report graphs, search packets, or agent context wiring.
+
 Every new architecture document follows a **strict template** so the golden-standard goal holds:
 
 ```markdown

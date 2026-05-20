@@ -619,6 +619,11 @@ The 13 canonical architecture docs are organized in 4 tiers. See [`docs/architec
 - **Tier 3 (features):** [`FOUNDER_FEATURE`](docs/architecture/FOUNDER_FEATURE.md) · [`REPORTS_AND_ENTITIES`](docs/architecture/REPORTS_AND_ENTITIES.md) · [`AUTH_AND_SHARING`](docs/architecture/AUTH_AND_SHARING.md)
 - **Tier 4 (cross-cutting):** [`MCP_INTEGRATION`](docs/architecture/MCP_INTEGRATION.md) · [`EVAL_AND_FLYWHEEL`](docs/architecture/EVAL_AND_FLYWHEEL.md) · [`DESIGN_SYSTEM`](docs/architecture/DESIGN_SYSTEM.md)
 
+Active architecture addenda:
+[`GRAPH_SEARCH_AGENT_CONTEXT`](docs/architecture/GRAPH_SEARCH_AGENT_CONTEXT.md)
+captures the graph/search/agent-context strategy, exact product questions,
+scale projection, node attention model, and human-vs-agent retrieval split.
+
 Historical specs are preserved in [`docs/archive/2026-q1/`](docs/archive/2026-q1/INDEX.md).
 
 ## Production Readiness & Evaluation

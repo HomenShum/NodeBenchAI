@@ -1,492 +1,529 @@
 #!/usr/bin/env npx tsx
 /**
- * Gemini-Powered Demo Video Judge
+ * NodeBench Demo Video — Gemini Video Understanding Judge
  *
- * Evaluates NodeBench demo videos on two axes:
- *   1. Video Production Quality (8 boolean metrics)
- *   2. Demo Effectiveness for Viral Adoption (12 boolean metrics)
+ * Self-evaluating quality loop: render → upload to Gemini → score → diagnose → suggest fixes.
+ * Uses Google Gemini's native video understanding (not frame extraction).
  *
  * Usage:
- *   npx tsx scripts/judge-demo-video.ts [path-to-video]
+ *   npx tsx scripts/judge-demo-video.ts                          # Judge the latest render
+ *   npx tsx scripts/judge-demo-video.ts --video path/to/video.mp4  # Judge a specific file
+ *   npx tsx scripts/judge-demo-video.ts --loop 3                 # Run 3 improvement iterations
+ *   npx tsx scripts/judge-demo-video.ts --history                # Show score history
  *
- * Defaults to docs/demo-video/nodebench-demo.mp4
- * Requires GEMINI_API_KEY in environment or Convex env.
+ * Prior art:
+ *   - Gemini 2.5 Flash video understanding (native multimodal)
+ *   - Wistia video engagement research (2-minute sweet spot)
+ *   - Reference demos: Linear, Cursor, Arc Browser, Figma Config, Claude Code
+ *
+ * See: .claude/skills/demo-video-quality-loop/SKILL.md
  */
 
-import { GoogleGenAI, createPartFromUri, Type } from "@google/genai";
-import fs from "node:fs";
-import path from "node:path";
-import crypto from "node:crypto";
-import { fileURLToPath } from "node:url";
+import { GoogleGenAI } from "@google/genai";
+import * as fs from "fs";
+import * as path from "path";
+import { fileURLToPath } from "url";
 
-// ─── Config ──────────────────────────────────────────────────────────────────
+// ─── Config ──────────────────────────────────────────────────
 
 const __filename_esm = fileURLToPath(import.meta.url);
 const __dirname_esm = path.dirname(__filename_esm);
+const DEMO_VIDEO_DIR = path.resolve(__dirname_esm, "../public/proto/demo-video");
+const DEFAULT_VIDEO = path.join(DEMO_VIDEO_DIR, "out/nodebench-demo-v2.mp4");
+const HISTORY_FILE = path.join(DEMO_VIDEO_DIR, "out/judge-history.json");
+const STORYBOARD_FILE = path.join(DEMO_VIDEO_DIR, "src/storyboard.ts");
 
-const DEFAULT_VIDEO_PATH = path.resolve(__dirname_esm, "../docs/demo-video/nodebench-demo.mp4");
-const OUTPUT_PATH = path.resolve(__dirname_esm, "../docs/demo-video/judge-results.json");
+const MODEL = "gemini-2.5-flash";
+const FALLBACK_MODEL = "gemini-2.5-pro";
 
-// Model fallback chain: prefer Flash for speed + cost, fall back to older Flash
-const MODEL_CANDIDATES = [
-  "gemini-2.5-flash-preview-05-20",
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-];
+// ─── Types ───────────────────────────────────────────────────
 
-const UPLOAD_TIMEOUT_MS = 180_000;
-const GENERATE_TIMEOUT_MS = 300_000;
-const POLL_INTERVAL_MS = 2_000;
-const MAX_POLL_ATTEMPTS = 90;
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface ProductionQuality {
-  smoothTransitions: boolean;
-  audioVideoSync: boolean;
-  paceFeelsNatural: boolean;
-  visualClarity: boolean;
-  audioClarity: boolean;
-  noDeadAir: boolean;
-  consistentBranding: boolean;
-  professionalGrade: boolean;
+interface DimensionScore {
+  score: number;       // 0-10
+  diagnosis: string;   // What's working or failing
+  suggestion: string;  // Specific actionable fix
 }
 
-interface DemoEffectiveness {
-  hookIn5Seconds: boolean;
-  problemClear: boolean;
-  valueImmediate: boolean;
-  showDontTell: boolean;
-  realNotCanned: boolean;
-  actionableCTA: boolean;
-  memorableHook: boolean;
-  shareWorthy: boolean;
-  solvesPainPoint: boolean;
-  betterThanAlternatives: boolean;
-  trustBuilding: boolean;
-  mobileReady: boolean;
-}
-
-interface JudgeResult {
+interface VideoJudgment {
   timestamp: string;
-  videoPath: string;
-  videoSizeMB: number;
+  videoFile: string;
   model: string;
-  production: ProductionQuality;
-  effectiveness: DemoEffectiveness;
-  productionScore: number;
-  effectivenessScore: number;
-  viralPotentialScore: number;
-  overallVerdict: "PASS" | "NEEDS_WORK" | "FAIL";
-  topIssues: string[];
-  recommendations: string[];
-  reasoning: {
-    productionNotes: string;
-    effectivenessNotes: string;
-    viralNotes: string;
+  overallScore: number; // 0-100
+  grade: string;        // S/A/B/C/D/F
+  dimensions: {
+    pacing: DimensionScore;
+    visualClarity: DimensionScore;
+    informationDensity: DimensionScore;
+    transitionQuality: DimensionScore;
+    narrationVisualSync: DimensionScore;
+    interactionQuality: DimensionScore;
+    montageEffectiveness: DimensionScore;
+    openingHook: DimensionScore;
+    emotionalArc: DimensionScore;
+    callToAction: DimensionScore;
   };
+  topIssues: string[];     // Ranked list of most impactful fixes
+  referenceComparison: string; // How it compares to top reference demos
+  rawNotes: string;        // Free-form observations
 }
 
-// ─── Gemini Response Schema ──────────────────────────────────────────────────
+interface JudgeHistory {
+  runs: VideoJudgment[];
+}
 
-const responseSchema = {
-  type: Type.OBJECT,
-  properties: {
-    production: {
-      type: Type.OBJECT,
-      properties: {
-        smoothTransitions: { type: Type.BOOLEAN },
-        audioVideoSync: { type: Type.BOOLEAN },
-        paceFeelsNatural: { type: Type.BOOLEAN },
-        visualClarity: { type: Type.BOOLEAN },
-        audioClarity: { type: Type.BOOLEAN },
-        noDeadAir: { type: Type.BOOLEAN },
-        consistentBranding: { type: Type.BOOLEAN },
-        professionalGrade: { type: Type.BOOLEAN },
-      },
-      required: [
-        "smoothTransitions", "audioVideoSync", "paceFeelsNatural",
-        "visualClarity", "audioClarity", "noDeadAir",
-        "consistentBranding", "professionalGrade",
-      ],
-    },
-    effectiveness: {
-      type: Type.OBJECT,
-      properties: {
-        hookIn5Seconds: { type: Type.BOOLEAN },
-        problemClear: { type: Type.BOOLEAN },
-        valueImmediate: { type: Type.BOOLEAN },
-        showDontTell: { type: Type.BOOLEAN },
-        realNotCanned: { type: Type.BOOLEAN },
-        actionableCTA: { type: Type.BOOLEAN },
-        memorableHook: { type: Type.BOOLEAN },
-        shareWorthy: { type: Type.BOOLEAN },
-        solvesPainPoint: { type: Type.BOOLEAN },
-        betterThanAlternatives: { type: Type.BOOLEAN },
-        trustBuilding: { type: Type.BOOLEAN },
-        mobileReady: { type: Type.BOOLEAN },
-      },
-      required: [
-        "hookIn5Seconds", "problemClear", "valueImmediate", "showDontTell",
-        "realNotCanned", "actionableCTA", "memorableHook", "shareWorthy",
-        "solvesPainPoint", "betterThanAlternatives", "trustBuilding", "mobileReady",
-      ],
-    },
-    productionScore: { type: Type.NUMBER },
-    effectivenessScore: { type: Type.NUMBER },
-    viralPotentialScore: { type: Type.NUMBER },
-    overallVerdict: { type: Type.STRING },
-    topIssues: { type: Type.ARRAY, items: { type: Type.STRING } },
-    recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
-    reasoning: {
-      type: Type.OBJECT,
-      properties: {
-        productionNotes: { type: Type.STRING },
-        effectivenessNotes: { type: Type.STRING },
-        viralNotes: { type: Type.STRING },
-      },
-      required: ["productionNotes", "effectivenessNotes", "viralNotes"],
-    },
+// ─── Gemini Video Judge ──────────────────────────────────────
+
+const JUDGE_PROMPT = `You are a world-class product demo video critic. You have deep expertise in what makes SaaS product demos go viral — you've studied Linear's speed-focused demos, Cursor's real coding sessions, Arc Browser's personality-driven rapid montages, Figma Config's "product speaks for itself" approach, and Claude Code's split-screen parallel task demos.
+
+You are evaluating a demo video for NodeBench, an operating intelligence platform for founders. The video showcases a prototype with 5 surfaces (Home, Reports, Chat, Inbox, Me), entity intelligence, verification systems, and design system features.
+
+## Your evaluation framework
+
+Score each dimension 0-10. Be brutally honest — a 7 is "good but not memorable", a 9 is "would share on Twitter", a 10 is "best-in-class reference material".
+
+### 1. PACING (0-10)
+- Does each scene feel the right length? No dead air, no rushing?
+- Does the video maintain momentum throughout?
+- Reference: Linear demos never pause. Arc uses 1.5-2s rapid cuts for montages.
+- Diagnose: which specific scenes feel too long or too short?
+
+### 2. VISUAL CLARITY (0-10)
+- Can you read text, see UI elements, understand what's on screen?
+- Are highlight boxes well-positioned on the actual UI elements they label?
+- Is contrast good between overlays and screenshots?
+- Diagnose: which scenes have readability issues?
+
+### 3. INFORMATION DENSITY (0-10)
+- Is each scene showing the right amount of information?
+- Too much = overwhelming. Too little = boring. Right = "wow, that's a lot of capability."
+- Reference: Figma shows ONE feature per scene, deeply. Linear shows SPEED across many.
+
+### 4. TRANSITION QUALITY (0-10)
+- Are transitions smooth and purposeful?
+- Do slide/fade/zoom transitions match the content shift?
+- Are montage cuts crisp and rhythmic?
+
+### 5. NARRATION-VISUAL SYNC (0-10)
+- Does the voiceover match what's visible on screen at that moment?
+- Are key terms spoken when the relevant UI element is highlighted?
+- Is there enough visual time for the narration to land?
+
+### 6. INTERACTION QUALITY (0-10)
+- Do cursor movements feel natural and human-like?
+- Are zoom-to-element effects well-timed and well-targeted?
+- Does the streaming text effect look realistic?
+- Does the before/after wipe feel smooth?
+
+### 7. MONTAGE EFFECTIVENESS (0-10)
+- Do rapid-cut montages create energy and demonstrate breadth?
+- Are labels readable during quick cuts?
+- Is the rhythm of cuts consistent and pleasing?
+- Reference: Arc Browser montages are 1.5s per cut with centered labels.
+
+### 8. OPENING HOOK (0-10)
+- Does the first 5 seconds grab attention?
+- Would someone stop scrolling on Twitter/LinkedIn to watch this?
+- Reference: TikTok rule — content must deliver value before 3 seconds.
+
+### 9. EMOTIONAL ARC (0-10)
+- Does the video build excitement progressively?
+- Is there a clear "hero moment" (the thing that makes you go "wow")?
+- Does the pacing create a sense of momentum and competence?
+- Reference: Apple keynotes have a clear crescendo → reveal → awe moment.
+
+### 10. CALL TO ACTION (0-10)
+- Does the outro make you want to try the product?
+- Are the key stats memorable?
+- Is there a clear next step (URL, signup, etc.)?
+
+## Output format
+
+Return ONLY valid JSON matching this exact schema:
+
+{
+  "overallScore": <number 0-100>,
+  "grade": "<S|A|B|C|D|F>",
+  "dimensions": {
+    "pacing": { "score": <0-10>, "diagnosis": "<what's working or failing>", "suggestion": "<specific fix>" },
+    "visualClarity": { "score": <0-10>, "diagnosis": "...", "suggestion": "..." },
+    "informationDensity": { "score": <0-10>, "diagnosis": "...", "suggestion": "..." },
+    "transitionQuality": { "score": <0-10>, "diagnosis": "...", "suggestion": "..." },
+    "narrationVisualSync": { "score": <0-10>, "diagnosis": "...", "suggestion": "..." },
+    "interactionQuality": { "score": <0-10>, "diagnosis": "...", "suggestion": "..." },
+    "montageEffectiveness": { "score": <0-10>, "diagnosis": "...", "suggestion": "..." },
+    "openingHook": { "score": <0-10>, "diagnosis": "...", "suggestion": "..." },
+    "emotionalArc": { "score": <0-10>, "diagnosis": "...", "suggestion": "..." },
+    "callToAction": { "score": <0-10>, "diagnosis": "...", "suggestion": "..." }
   },
-  required: [
-    "production", "effectiveness", "productionScore", "effectivenessScore",
-    "viralPotentialScore", "overallVerdict", "topIssues", "recommendations", "reasoning",
-  ],
-} as const;
+  "topIssues": ["<most impactful fix first>", "<second>", "<third>", "<fourth>", "<fifth>"],
+  "referenceComparison": "<2-3 sentences comparing to Linear/Cursor/Arc/Figma/Claude Code demos>",
+  "rawNotes": "<free-form observations about what stood out, both good and bad>"
+}
 
-// ─── Prompt ──────────────────────────────────────────────────────────────────
+Grade scale:
+- S (90-100): Viral quality. Would share unprompted.
+- A (75-89): Professional. Competitive with top SaaS demos.
+- B (60-74): Good but forgettable. Needs polish.
+- C (45-59): Functional but amateur. Missing energy.
+- D (30-44): Below standard. Multiple fundamental issues.
+- F (0-29): Not ready to show anyone.`;
 
-const JUDGE_PROMPT = `You are an expert video judge evaluating a product demo video for a developer tool called NodeBench — a decision intelligence platform with 304 MCP tools. Your job is to score this video on two axes: production quality and demo effectiveness for viral adoption.
+async function judgeVideo(videoPath: string): Promise<VideoJudgment> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    // Try reading from .env.local
+    const envPath = path.resolve(__dirname_esm, "../.env.local");
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, "utf-8");
+      const match = envContent.match(/GEMINI_API_KEY=(.+)/);
+      if (match) {
+        process.env.GEMINI_API_KEY = match[1].trim();
+      }
+    }
+  }
 
-Watch the entire video carefully. Then evaluate each boolean metric honestly. A metric is TRUE only if it clearly passes — when in doubt, mark FALSE.
-
-## Branch 1: Video Production Quality
-
-Evaluate each boolean:
-- smoothTransitions: Are transitions between scenes smooth, not jarring? (cuts, fades, zooms)
-- audioVideoSync: Does narration/audio match what is shown on screen at each moment?
-- paceFeelsNatural: Is the pacing neither too fast to follow nor too slow and boring?
-- visualClarity: Are all UI elements, text, and code clearly readable at 1080p?
-- audioClarity: Is the voiceover/audio clear, professional-sounding, not robotic or muffled?
-- noDeadAir: No awkward silences or gaps longer than 2 seconds?
-- consistentBranding: Same color palette, fonts, design language maintained throughout?
-- professionalGrade: Would this video fit on a Y Combinator Demo Day stage?
-
-## Branch 2: Demo Effectiveness for Viral Adoption
-
-Evaluate each boolean:
-- hookIn5Seconds: Does the first 5 seconds grab attention and make you want to keep watching?
-- problemClear: Is the problem being solved obvious within the first 15 seconds?
-- valueImmediate: Do you see real value (not just feature listing) within 30 seconds?
-- showDontTell: Does the demo SHOW the product working live, not just describe features?
-- realNotCanned: Does the demo feel like a real use case, not an obviously scripted toy example?
-- actionableCTA: Is there a clear "try it now" or next-step moment?
-- memorableHook: Would you remember this demo 24 hours later? Is there a standout moment?
-- shareWorthy: Would you share this video with a colleague unprompted?
-- solvesPainPoint: Does it address a real pain that founders/developers actually have?
-- betterThanAlternatives: Does it look clearly better than existing tools (ChatGPT, Perplexity, manual research)?
-- trustBuilding: Does it build trust through evidence, sources, transparency, or real data?
-- mobileReady: Does it show or strongly imply the product works on mobile/phone?
-
-## Scoring Rules
-
-- productionScore (0-100): Weighted average of production booleans. Each TRUE = ~12.5 points, but professionalGrade and visualClarity are worth 1.5x.
-- effectivenessScore (0-100): Weighted average of effectiveness booleans. hookIn5Seconds, showDontTell, and shareWorthy are worth 1.5x. mobileReady is worth 0.5x.
-- viralPotentialScore (0-100): Your holistic assessment of whether this video would spread organically. Consider: Would someone screenshot this? Would it get engagement on Twitter/LinkedIn? Does it have a "holy shit" moment?
-- overallVerdict:
-  - "PASS" = productionScore >= 70 AND effectivenessScore >= 70 AND viralPotentialScore >= 60
-  - "NEEDS_WORK" = any score between 40-69
-  - "FAIL" = any score below 40
-- topIssues: Up to 5 issues ranked by impact on viral adoption potential
-- recommendations: Up to 5 specific, actionable fixes (not generic advice)
-
-## Reasoning
-
-Provide brief notes explaining your scores:
-- productionNotes: What works and what does not in the production quality
-- effectivenessNotes: What works and what does not in demo effectiveness
-- viralNotes: Why you gave that viral potential score — what is the "holy shit" moment (or lack thereof)?
-
-Respond with STRICT JSON matching the schema.`;
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getApiKey(): string {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
+  const key = process.env.GEMINI_API_KEY;
   if (!key) {
-    console.error("ERROR: GEMINI_API_KEY or GOOGLE_AI_API_KEY not found in environment.");
-    console.error("Set it via: export GEMINI_API_KEY=your-key");
-    process.exit(1);
-  }
-  return key;
-}
-
-async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms),
-    ),
-  ]);
-}
-
-async function waitForFileActive(
-  ai: GoogleGenAI,
-  name: string,
-): Promise<{ uri: string; mimeType: string }> {
-  let fileInfo = await ai.files.get({ name });
-  let attempts = 0;
-  while (String((fileInfo as any).state) === "PROCESSING" && attempts < MAX_POLL_ATTEMPTS) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    fileInfo = await ai.files.get({ name });
-    attempts++;
-  }
-  const uri = (fileInfo as any).uri as string | undefined;
-  const mimeType = (fileInfo as any).mimeType as string | undefined;
-  if (String((fileInfo as any).state) !== "ACTIVE" || !uri || !mimeType) {
-    throw new Error(`Gemini file processing failed after ${attempts} polls (state: ${(fileInfo as any).state})`);
-  }
-  return { uri, mimeType };
-}
-
-function looksLikeModelNotFound(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /not found|model.*not|404|does not exist/i.test(msg);
-}
-
-// ─── Table Formatting ────────────────────────────────────────────────────────
-
-function printBooleanTable(title: string, metrics: Record<string, boolean>): void {
-  console.log(`\n  ${title}`);
-  console.log("  " + "-".repeat(52));
-  for (const [key, value] of Object.entries(metrics)) {
-    const icon = value ? "PASS" : "FAIL";
-    const tag = value ? "\x1b[32mPASS\x1b[0m" : "\x1b[31mFAIL\x1b[0m";
-    const label = key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
-    console.log(`  ${tag}  ${label.padEnd(40)}`);
-  }
-}
-
-function printScoreBar(label: string, score: number): void {
-  const barLen = 30;
-  const filled = Math.round((score / 100) * barLen);
-  const bar = "\u2588".repeat(filled) + "\u2591".repeat(barLen - filled);
-  const color = score >= 70 ? "\x1b[32m" : score >= 40 ? "\x1b[33m" : "\x1b[31m";
-  console.log(`  ${label.padEnd(24)} ${color}${bar}\x1b[0m ${score}/100`);
-}
-
-// ─── Main ────────────────────────────────────────────────────────────────────
-
-async function main(): Promise<void> {
-  const videoPath = process.argv[2] || DEFAULT_VIDEO_PATH;
-
-  console.log("=".repeat(60));
-  console.log("  NODEBENCH DEMO VIDEO JUDGE");
-  console.log("  Powered by Gemini multimodal analysis");
-  console.log("=".repeat(60));
-
-  // 1. Validate video file
-  if (!fs.existsSync(videoPath)) {
-    console.error(`\nERROR: Video not found: ${videoPath}`);
-    console.error("Place your demo video at docs/demo-video/nodebench-demo.mp4");
-    process.exit(1);
+    throw new Error("GEMINI_API_KEY not found in env or .env.local");
   }
 
+  const ai = new GoogleGenAI({ apiKey: key });
+
+  console.log(`\n📹 Uploading video to Gemini File API...`);
+  console.log(`   File: ${path.basename(videoPath)}`);
   const stat = fs.statSync(videoPath);
-  const sizeMB = +(stat.size / (1024 * 1024)).toFixed(2);
-  console.log(`\n  Video: ${path.basename(videoPath)} (${sizeMB} MB)`);
+  console.log(`   Size: ${(stat.size / 1024 / 1024).toFixed(1)} MB`);
 
-  // 2. Initialize Gemini
-  const apiKey = getApiKey();
-  const ai = new GoogleGenAI({ apiKey });
+  // Upload video via File API
+  const uploadResult = await ai.files.upload({
+    file: videoPath,
+    config: { mimeType: "video/mp4" },
+  });
 
-  // 3. Upload video to Gemini File API
-  console.log("  Uploading video to Gemini File API...");
-  const videoBuffer = fs.readFileSync(videoPath);
-  const blob = new Blob([videoBuffer], { type: "video/mp4" });
+  const fileUri = uploadResult.uri;
+  const fileName = uploadResult.name;
+  console.log(`   URI:  ${fileUri}`);
 
-  const upload: any = await withTimeout(
-    ai.files.upload({
-      file: blob,
-      config: { mimeType: "video/mp4", displayName: "nodebench-demo-judge" },
-    }),
-    UPLOAD_TIMEOUT_MS,
-    "Gemini file upload",
-  );
+  // Wait for file processing
+  console.log(`\n⏳ Waiting for Gemini to process video...`);
+  let file = await ai.files.get({ name: fileName! });
+  let waitTime = 0;
+  while (file.state === "PROCESSING") {
+    await new Promise((r) => setTimeout(r, 5000));
+    waitTime += 5;
+    process.stdout.write(`   Processing... ${waitTime}s\r`);
+    file = await ai.files.get({ name: fileName! });
+  }
 
-  const uploadedName = upload.name as string;
-  console.log(`  Upload complete. File: ${uploadedName}`);
+  if (file.state === "FAILED") {
+    throw new Error(`Video processing failed: ${JSON.stringify(file)}`);
+  }
+  console.log(`   ✅ Video processed (${waitTime}s)`);
+
+  // Read storyboard for context
+  let storyboardContext = "";
+  if (fs.existsSync(STORYBOARD_FILE)) {
+    const sb = fs.readFileSync(STORYBOARD_FILE, "utf-8");
+    // Extract scene IDs and durations for context
+    const sceneMatches = sb.matchAll(/id:\s*"([^"]+)".*?durationSec:\s*(\d+).*?tier:\s*"([^"]+)"/gs);
+    const scenes: string[] = [];
+    for (const m of sceneMatches) {
+      scenes.push(`${m[1]} (${m[2]}s, ${m[3]})`);
+    }
+    if (scenes.length > 0) {
+      storyboardContext = `\n\nSTORYBOARD CONTEXT (${scenes.length} scenes):\n${scenes.join("\n")}`;
+    }
+  }
+
+  // Call Gemini with video
+  console.log(`\n🤖 Calling ${MODEL} for video analysis...`);
+  let modelId = MODEL;
+  let result;
 
   try {
-    // 4. Wait for processing
-    console.log("  Waiting for Gemini to process video...");
-    const processed = await waitForFileActive(ai, uploadedName);
-    console.log("  Video processed. Starting evaluation...");
-
-    const part = createPartFromUri(processed.uri, processed.mimeType);
-
-    // 5. Send evaluation prompt with model fallback
-    let rawText = "";
-    let usedModel = "";
-
-    for (const candidate of MODEL_CANDIDATES) {
-      console.log(`  Trying model: ${candidate}...`);
-      try {
-        const response = await withTimeout(
-          ai.models.generateContent({
-            model: candidate,
-            contents: [{ role: "user", parts: [part, { text: JUDGE_PROMPT }] }],
-            config: {
-              responseMimeType: "application/json",
-              responseSchema,
-              maxOutputTokens: 8192,
-              temperature: 0.15,
-            },
-          }),
-          GENERATE_TIMEOUT_MS,
-          `Gemini generateContent (${candidate})`,
-        );
-
-        rawText = (response?.text ?? "").toString();
-        if (rawText.length > 10) {
-          usedModel = candidate;
-          console.log(`  Model ${candidate} responded (${rawText.length} chars)`);
-          break;
-        }
-      } catch (e) {
-        if (looksLikeModelNotFound(e)) {
-          console.log(`  Model ${candidate} not available, trying next...`);
-          continue;
-        }
-        throw e;
-      }
-    }
-
-    if (!rawText || !usedModel) {
-      throw new Error(`No Gemini model succeeded. Tried: ${MODEL_CANDIDATES.join(", ")}`);
-    }
-
-    // 6. Parse response
-    let parsed: any;
-    try {
-      parsed = JSON.parse(rawText);
-    } catch {
-      // Try to repair truncated JSON
-      let text = rawText.trim();
-      const quotes = (text.match(/"/g) ?? []).length;
-      if (quotes % 2 !== 0) text += '"';
-      let braces = 0, brackets = 0;
-      for (const ch of text) {
-        if (ch === "{") braces++;
-        else if (ch === "}") braces--;
-        else if (ch === "[") brackets++;
-        else if (ch === "]") brackets--;
-      }
-      while (brackets > 0) { text += "]"; brackets--; }
-      while (braces > 0) { text += "}"; braces--; }
-      parsed = JSON.parse(text);
-    }
-
-    // Handle array-wrapped response
-    if (Array.isArray(parsed)) parsed = parsed[0];
-
-    // 7. Build result
-    const result: JudgeResult = {
-      timestamp: new Date().toISOString(),
-      videoPath: path.relative(path.resolve(__dirname_esm, ".."), videoPath),
-      videoSizeMB: sizeMB,
-      model: usedModel,
-      production: parsed.production,
-      effectiveness: parsed.effectiveness,
-      productionScore: Math.max(0, Math.min(100, Math.round(parsed.productionScore))),
-      effectivenessScore: Math.max(0, Math.min(100, Math.round(parsed.effectivenessScore))),
-      viralPotentialScore: Math.max(0, Math.min(100, Math.round(parsed.viralPotentialScore))),
-      overallVerdict: ["PASS", "NEEDS_WORK", "FAIL"].includes(parsed.overallVerdict)
-        ? parsed.overallVerdict
-        : "FAIL",
-      topIssues: (parsed.topIssues ?? []).slice(0, 5),
-      recommendations: (parsed.recommendations ?? []).slice(0, 5),
-      reasoning: parsed.reasoning ?? {
-        productionNotes: "",
-        effectivenessNotes: "",
-        viralNotes: "",
+    result = await ai.models.generateContent({
+      model: modelId,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { fileData: { fileUri: fileUri!, mimeType: "video/mp4" } },
+            { text: JUDGE_PROMPT + storyboardContext },
+          ],
+        },
+      ],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.3,
       },
-    };
+    });
+  } catch (err: any) {
+    console.log(`   ⚠️ ${MODEL} failed, trying ${FALLBACK_MODEL}...`);
+    modelId = FALLBACK_MODEL;
+    result = await ai.models.generateContent({
+      model: modelId,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { fileData: { fileUri: fileUri!, mimeType: "video/mp4" } },
+            { text: JUDGE_PROMPT + storyboardContext },
+          ],
+        },
+      ],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.3,
+      },
+    });
+  }
 
-    // 8. Print results
-    console.log("\n" + "=".repeat(60));
-    console.log("  JUDGE RESULTS");
-    console.log("=".repeat(60));
+  // Parse response
+  const text = result.text ?? "";
+  let judgment: any;
+  try {
+    // Try direct parse
+    judgment = JSON.parse(text);
+  } catch {
+    // Try extracting JSON from markdown code block
+    const jsonMatch = text.match(/```json\s*([\s\S]*?)```/) || text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      judgment = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+    } else {
+      throw new Error(`Failed to parse Gemini response as JSON:\n${text.slice(0, 500)}`);
+    }
+  }
 
-    printBooleanTable("VIDEO PRODUCTION QUALITY", result.production);
-    printBooleanTable("DEMO EFFECTIVENESS", result.effectiveness);
+  // Clean up uploaded file
+  try {
+    await ai.files.delete({ name: fileName! });
+    console.log(`   🗑️ Cleaned up uploaded file`);
+  } catch {
+    // Non-critical
+  }
 
-    console.log("\n  SCORES");
-    console.log("  " + "-".repeat(52));
-    printScoreBar("Production", result.productionScore);
-    printScoreBar("Effectiveness", result.effectivenessScore);
-    printScoreBar("Viral Potential", result.viralPotentialScore);
+  const videoJudgment: VideoJudgment = {
+    timestamp: new Date().toISOString(),
+    videoFile: path.basename(videoPath),
+    model: modelId,
+    overallScore: judgment.overallScore,
+    grade: judgment.grade,
+    dimensions: judgment.dimensions,
+    topIssues: judgment.topIssues || [],
+    referenceComparison: judgment.referenceComparison || "",
+    rawNotes: judgment.rawNotes || "",
+  };
 
-    const verdictColor =
-      result.overallVerdict === "PASS" ? "\x1b[32m" :
-      result.overallVerdict === "NEEDS_WORK" ? "\x1b[33m" : "\x1b[31m";
-    console.log(`\n  VERDICT: ${verdictColor}${result.overallVerdict}\x1b[0m`);
+  return videoJudgment;
+}
 
-    if (result.topIssues.length > 0) {
-      console.log("\n  TOP ISSUES");
-      console.log("  " + "-".repeat(52));
-      result.topIssues.forEach((issue, i) => {
-        console.log(`  ${i + 1}. ${issue}`);
-      });
+// ─── Display ─────────────────────────────────────────────────
+
+function displayJudgment(j: VideoJudgment): void {
+  const gradeColors: Record<string, string> = {
+    S: "\x1b[35m", // magenta
+    A: "\x1b[32m", // green
+    B: "\x1b[33m", // yellow
+    C: "\x1b[33m", // yellow
+    D: "\x1b[31m", // red
+    F: "\x1b[31m", // red
+  };
+  const reset = "\x1b[0m";
+  const dim = "\x1b[2m";
+  const bold = "\x1b[1m";
+  const cyan = "\x1b[36m";
+  const terracotta = "\x1b[38;5;173m";
+
+  console.log(`\n${bold}═══════════════════════════════════════════════════${reset}`);
+  console.log(`${bold}  DEMO VIDEO QUALITY JUDGMENT${reset}`);
+  console.log(`${bold}═══════════════════════════════════════════════════${reset}`);
+  console.log(`  ${dim}Model: ${j.model} | ${j.timestamp}${reset}`);
+  console.log(`  ${dim}Video: ${j.videoFile}${reset}`);
+  console.log();
+
+  const gc = gradeColors[j.grade] || "";
+  console.log(`  ${bold}Overall: ${gc}${j.overallScore}/100 (Grade ${j.grade})${reset}`);
+  console.log();
+
+  // Dimension table
+  console.log(`  ${bold}${terracotta}Dimension Scores:${reset}`);
+  const dims = j.dimensions;
+  const dimEntries: [string, DimensionScore][] = [
+    ["Pacing", dims.pacing],
+    ["Visual Clarity", dims.visualClarity],
+    ["Info Density", dims.informationDensity],
+    ["Transitions", dims.transitionQuality],
+    ["Narration Sync", dims.narrationVisualSync],
+    ["Interactions", dims.interactionQuality],
+    ["Montage", dims.montageEffectiveness],
+    ["Opening Hook", dims.openingHook],
+    ["Emotional Arc", dims.emotionalArc],
+    ["Call to Action", dims.callToAction],
+  ];
+
+  for (const [name, dim_score] of dimEntries) {
+    const bar = "█".repeat(dim_score.score) + "░".repeat(10 - dim_score.score);
+    const scoreColor = dim_score.score >= 8 ? "\x1b[32m" : dim_score.score >= 6 ? "\x1b[33m" : "\x1b[31m";
+    console.log(
+      `  ${scoreColor}${bar}${reset} ${dim_score.score.toString().padStart(2)}/10  ${bold}${name.padEnd(16)}${reset} ${dim}${dim_score.diagnosis.slice(0, 70)}${reset}`
+    );
+  }
+
+  // Top issues
+  console.log(`\n  ${bold}${terracotta}Top Issues (priority order):${reset}`);
+  j.topIssues.forEach((issue, i) => {
+    const prefix = i === 0 ? "🔴" : i < 3 ? "🟡" : "⚪";
+    console.log(`  ${prefix} ${i + 1}. ${issue}`);
+  });
+
+  // Reference comparison
+  console.log(`\n  ${bold}${cyan}vs. Reference Demos:${reset}`);
+  console.log(`  ${dim}${j.referenceComparison}${reset}`);
+
+  // Suggestions
+  console.log(`\n  ${bold}${terracotta}Actionable Suggestions:${reset}`);
+  for (const [name, dim_score] of dimEntries) {
+    if (dim_score.score < 8 && dim_score.suggestion) {
+      console.log(`  ${dim}${name}:${reset} ${dim_score.suggestion}`);
+    }
+  }
+
+  console.log(`\n${bold}═══════════════════════════════════════════════════${reset}\n`);
+}
+
+// ─── History ─────────────────────────────────────────────────
+
+function loadHistory(): JudgeHistory {
+  if (fs.existsSync(HISTORY_FILE)) {
+    return JSON.parse(fs.readFileSync(HISTORY_FILE, "utf-8"));
+  }
+  return { runs: [] };
+}
+
+function saveHistory(history: JudgeHistory): void {
+  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
+}
+
+function displayHistory(history: JudgeHistory): void {
+  if (history.runs.length === 0) {
+    console.log("No judge history yet. Run a judgment first.");
+    return;
+  }
+
+  console.log(`\n  📊 Score History (${history.runs.length} runs):\n`);
+  console.log("  Run  Score  Grade  Model              Date");
+  console.log("  ───  ─────  ─────  ─────              ────");
+
+  for (let i = 0; i < history.runs.length; i++) {
+    const r = history.runs[i];
+    const delta =
+      i > 0
+        ? ` (${r.overallScore > history.runs[i - 1].overallScore ? "+" : ""}${r.overallScore - history.runs[i - 1].overallScore})`
+        : "";
+    console.log(
+      `  ${(i + 1).toString().padStart(3)}  ${r.overallScore.toString().padStart(5)}  ${r.grade.padStart(5)}  ${r.model.padEnd(19)} ${r.timestamp.slice(0, 16)}${delta}`
+    );
+  }
+
+  // Dimension trend (latest 3)
+  const recent = history.runs.slice(-3);
+  if (recent.length >= 2) {
+    console.log(`\n  📈 Dimension Trends (last ${recent.length} runs):`);
+    const dimKeys = Object.keys(recent[0].dimensions) as (keyof VideoJudgment["dimensions"])[];
+    for (const key of dimKeys) {
+      const scores = recent.map((r) => r.dimensions[key].score);
+      const trend = scores.map((s) => s.toString()).join(" → ");
+      const delta = scores[scores.length - 1] - scores[0];
+      const arrow = delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
+      console.log(`  ${arrow} ${key.padEnd(24)} ${trend}`);
+    }
+  }
+  console.log();
+}
+
+// ─── Main ────────────────────────────────────────────────────
+
+async function main() {
+  const args = process.argv.slice(2);
+
+  // --history flag
+  if (args.includes("--history")) {
+    const history = loadHistory();
+    displayHistory(history);
+    return;
+  }
+
+  // --video <path>
+  let videoPath = DEFAULT_VIDEO;
+  const videoIdx = args.indexOf("--video");
+  if (videoIdx >= 0 && args[videoIdx + 1]) {
+    videoPath = path.resolve(args[videoIdx + 1]);
+  }
+
+  if (!fs.existsSync(videoPath)) {
+    console.error(`❌ Video not found: ${videoPath}`);
+    console.error(`   Render first: cd public/proto/demo-video && npx remotion render NodeBenchDemo out/nodebench-demo-v2.mp4`);
+    process.exit(1);
+  }
+
+  // --loop <count>
+  const loopIdx = args.indexOf("--loop");
+  const loopCount = loopIdx >= 0 ? parseInt(args[loopIdx + 1] || "1") : 1;
+
+  const history = loadHistory();
+
+  for (let i = 0; i < loopCount; i++) {
+    if (loopCount > 1) {
+      console.log(`\n${"=".repeat(50)}`);
+      console.log(`  ITERATION ${i + 1} / ${loopCount}`);
+      console.log(`${"=".repeat(50)}`);
     }
 
-    if (result.recommendations.length > 0) {
-      console.log("\n  RECOMMENDATIONS");
-      console.log("  " + "-".repeat(52));
-      result.recommendations.forEach((rec, i) => {
-        console.log(`  ${i + 1}. ${rec}`);
-      });
-    }
-
-    if (result.reasoning) {
-      console.log("\n  REASONING");
-      console.log("  " + "-".repeat(52));
-      if (result.reasoning.productionNotes) {
-        console.log(`  Production: ${result.reasoning.productionNotes}`);
-      }
-      if (result.reasoning.effectivenessNotes) {
-        console.log(`  Effectiveness: ${result.reasoning.effectivenessNotes}`);
-      }
-      if (result.reasoning.viralNotes) {
-        console.log(`  Viral: ${result.reasoning.viralNotes}`);
-      }
-    }
-
-    // 9. Save results to JSON
-    const outputDir = path.dirname(OUTPUT_PATH);
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
-    fs.writeFileSync(OUTPUT_PATH, JSON.stringify(result, null, 2) + "\n");
-    console.log(`\n  Results saved to: ${path.relative(path.resolve(__dirname_esm, ".."), OUTPUT_PATH)}`);
-    console.log("=".repeat(60));
-
-    // 10. Exit code based on verdict
-    process.exit(result.overallVerdict === "PASS" ? 0 : 1);
-  } finally {
-    // Clean up uploaded file
     try {
-      await ai.files.delete({ name: uploadedName });
-    } catch {
-      // Best-effort cleanup
+      const judgment = await judgeVideo(videoPath);
+      displayJudgment(judgment);
+
+      // Save to history
+      history.runs.push(judgment);
+      saveHistory(history);
+      console.log(`  💾 Saved to ${path.relative(process.cwd(), HISTORY_FILE)}`);
+
+      // Check for improvement plateau
+      if (history.runs.length >= 3) {
+        const last3 = history.runs.slice(-3).map((r) => r.overallScore);
+        const variance = Math.max(...last3) - Math.min(...last3);
+        if (variance <= 3) {
+          console.log(`\n  ⚠️ Score plateau detected (${last3.join(", ")}). Consider structural changes.`);
+        }
+      }
+
+      // If looping and not last iteration, print improvement plan
+      if (i < loopCount - 1) {
+        console.log(`\n  🔄 Improvement plan for next iteration:`);
+        judgment.topIssues.slice(0, 3).forEach((issue, idx) => {
+          console.log(`     ${idx + 1}. ${issue}`);
+        });
+        console.log(`\n  Apply fixes to storyboard.ts / SceneView.tsx, re-render, then re-judge.`);
+        console.log(`  Waiting 5s before next iteration...`);
+        await new Promise((r) => setTimeout(r, 5000));
+      }
+    } catch (err: any) {
+      console.error(`\n❌ Judge failed: ${err.message}`);
+      if (err.message.includes("API_KEY")) {
+        console.error(`   Set GEMINI_API_KEY in .env.local or environment`);
+      }
+      process.exit(1);
     }
+  }
+
+  // Final summary
+  if (history.runs.length > 1) {
+    console.log(`\n  📊 Quick History:`);
+    displayHistory(history);
   }
 }
 
 main().catch((err) => {
-  console.error("\nFATAL:", err instanceof Error ? err.message : String(err));
-  if (err instanceof Error && err.stack) {
-    console.error(err.stack);
-  }
+  console.error("Fatal:", err);
   process.exit(1);
 });

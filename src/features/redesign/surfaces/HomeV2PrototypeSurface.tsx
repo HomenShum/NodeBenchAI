@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { showToast } from "../components/Toast";
 import { UniversalComposer, type RouterTier } from "../components/UniversalComposer";
 import type { LiveArtifactsResult, LiveArtifactSourceRow } from "../hooks/useLiveArtifacts";
@@ -520,13 +520,13 @@ function buildDailyBriefSections(liveArtifacts?: LiveArtifactsResult): {
   if (!detail) {
     return {
       eyebrow: "Daily brief",
-      title: "Daily Brief loading",
-      subtitle: "Waiting for the Convex-backed daily-brief artifact. No fixture brief is being shown.",
+      title: "Daily Brief is updating",
+      subtitle: "Waiting for the saved daily-brief packet. No fixture brief is being shown.",
       dek: "The brief will resolve into a prioritized read, a reason to care, and concrete next moves.",
       stats: [
-        { label: "Reports", value: "0", hint: "loading" },
-        { label: "Sources", value: "0", hint: "loading" },
-        { label: "Actions", value: "0", hint: "loading" },
+        { label: "Reports", value: "Checking", hint: "saved memory" },
+        { label: "Sources", value: "Checking", hint: "evidence" },
+        { label: "Actions", value: "Checking", hint: "queue" },
       ],
       sections: fallbackBriefSections(),
     };
@@ -679,7 +679,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       agentMeta: "Daily Edition · 4 signals · 7 reports · 12 sources",
       agentLead: "Three items matter most this morning.",
       agentBody: "Anthropic repriced enterprise tier +40% effective June 1, Sequoia added a full-ratchet clause to the Series C term sheet, and SMB churn crossed the 3% threshold for the first time since Q3.",
-      agentTrace: ["entity_scan", "signal_rank", "source_verify"],
+      agentTrace: ["Entity scan", "Signal rank", "Source verify"],
       agentEntities: [
         ["A", "Anthropic", "Verified", "12 sources"],
         ["S", "Sequoia Capital", "Review", "8 sources"],
@@ -698,11 +698,12 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
   const topPulse = pulse[0];
   const topPublic = publicResearch[0];
   const sourceCount = reports.reduce((total, report) => total + report.sources, 0);
-  const liveSummary = liveArtifacts.sourceLabel.replace(/\bartifacts?\b/gi, "signals");
-  const statusPrefix = liveArtifacts.isLoading && !hasLive ? "Loading live edition" : hasLive ? "Live edition" : "No live artifacts yet";
-  const editionLine = liveArtifacts.isLoading && !hasLive
-    ? "Loading live edition…"
-    : `${statusPrefix} · ${reports.length} reports · ${liveArtifacts.briefFeatureCount} brief signals · ${sourceCount} sources`;
+  const liveSummary = liveArtifacts.sourceLabel
+    .replace(/\bConvex[-\s]?backed\b/gi, "saved")
+    .replace(/\bConvex\b/gi, "saved memory")
+    .replace(/\bartifacts?\b/gi, "signals");
+  const statusPrefix = liveArtifacts.isLoading && !hasLive ? "Updating brief" : hasLive ? "Live edition" : "No live packets yet";
+  const editionLine = `${statusPrefix} · ${reports.length} reports · ${liveArtifacts.briefFeatureCount} brief signals · ${sourceCount} sources`;
   const actionTitle = compact(
     topPulse?.title ?? topReport?.entity ?? topPublic?.entity,
     liveArtifacts.isLoading ? "Loading today's brief..." : "No live reports returned yet",
@@ -710,7 +711,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
   const actionBody = compact(
     topPulse?.body ?? topReport?.description ?? topPublic?.signal,
     liveArtifacts.isLoading
-      ? "NodeBench is waiting for Convex-backed archive and daily-brief data before ranking the first action."
+      ? "NodeBench is checking saved archive and daily brief data before ranking the first action."
       : "Run or refresh a report to populate the first ranked action from live memory.",
   );
   const queueSource = [
@@ -748,7 +749,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     {
       day: "11",
       title: liveArtifacts.isLoading ? "Loading live brief" : "Live memory status",
-      meta: liveArtifacts.isLoading ? "Convex query in flight" : "No public artifacts returned",
+      meta: liveArtifacts.isLoading ? "Checking saved memory" : "No public packets returned",
       body: actionBody,
       today: true,
     },
@@ -843,18 +844,18 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     editionLine,
     heroSub: hasLive
       ? "A source-backed brief ranks what changed, why it matters, and which reports need attention now."
-      : "NodeBench is connected to the live memory path. This view stays explicit while Convex returns data instead of masking the state with fixture content.",
+      : "NodeBench is connected to the live memory path. This view stays explicit while saved data returns instead of masking the state with fixture content.",
     dailyIntrospection: liveIntrospection,
     primaryTitle: actionTitle,
     primaryBody: actionBody,
-    sweepTitle: hasLive ? "Live intelligence sweep" : liveArtifacts.isLoading ? "Loading live intelligence sweep" : "No live intelligence sweep yet",
+    sweepTitle: hasLive ? "Live intelligence sweep" : liveArtifacts.isLoading ? "Updating intelligence sweep" : "No live intelligence sweep yet",
     sweepBody: hasLive
       ? liveSummary
       : liveArtifacts.isLoading
-        ? "Waiting for Convex-backed archive stats and latest daily brief memory."
-        : "No Convex-backed public artifacts were returned for this session.",
+        ? "Checking archive stats and latest daily brief memory."
+        : "No public packets were returned for this session.",
     sweepBullets: sweepBullets.length > 0 ? sweepBullets : [
-      liveArtifacts.isLoading ? "Load archive posts from Convex." : "Run a research or daily brief workflow to create the first signal.",
+       liveArtifacts.isLoading ? "Check archive posts and daily brief memory." : "Run a research or daily brief workflow to create the first signal.",
       "Keep private captures out of the public pulse.",
       "Return an explicit empty state rather than a fixture dashboard.",
     ],
@@ -867,7 +868,7 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
       : "This card is driven by the live memory hook state, not static starter data.",
     selectedScore: hasLive ? "live" : liveArtifacts.isLoading ? "loading" : "empty",
     proofCards: [
-      { title: "Live source", body: liveSummary, tag: hasLive ? "Convex-backed" : liveArtifacts.isLoading ? "loading" : "empty", highlight: hasLive },
+      { title: "Live source", body: liveSummary, tag: hasLive ? "source-backed" : liveArtifacts.isLoading ? "checking" : "empty", highlight: hasLive },
       { title: "Reports touched", body: `${reports.length} live reports available.`, tag: `${reports.length} reports` },
       { title: "Sources reused", body: `${sourceCount} source references available from current signals.`, tag: `${sourceCount} sources`, highlight: sourceCount > 0 },
       { title: "Privacy boundary", body: "Home reads public archive and daily brief memory; private captures remain outside the public pulse." },
@@ -883,13 +884,13 @@ function buildHomeV2Model(liveArtifacts?: LiveArtifactsResult): HomeV2Model {
     dailyBriefStats: dailyBrief.stats,
     dailyBriefSections: dailyBrief.sections,
     agentMeta: editionLine,
-    agentLead: hasLive ? "Agent work packet ready." : liveArtifacts.isLoading ? "Loading live memory now." : "No live reports returned yet.",
+    agentLead: hasLive ? "Agent work packet ready." : liveArtifacts.isLoading ? "Updating your brief." : "No live reports returned yet.",
     agentBody: hasLive
       ? `${reports.length} reports matched, ${sourceCount} source rows reused, ${liveArtifacts.briefFeatureCount} signals ranked, and ${reports.reduce((total, report) => total + report.followUps, 0)} follow-ups queued. Ask it to brief, patch a notebook, or open a touched report.`
       : liveArtifacts.isLoading
-        ? "The briefing rail is waiting for Convex-backed archive and daily brief queries."
+        ? "The briefing rail is checking archive and daily brief memory. You can still ask or open reports while it updates."
         : "Run a report, daily brief, or archive-backed workflow to populate this rail.",
-    agentTrace: hasLive ? ["memory_search", "report_match", "source_reuse", "handoff_ready"] : ["convex_query", "empty_state", "no_fixture_fallback"],
+    agentTrace: hasLive ? ["Checked memory", "Matched reports", "Reused sources", "Handoff ready"] : liveArtifacts.isLoading ? ["Checking memory", "Preparing empty state", "Keeping fixtures hidden"] : ["Checked memory", "No packets yet", "Fixtures hidden"],
     agentEntities: entityRows.length > 0 ? entityRows : [["N", "No live report", liveArtifacts.isLoading ? "Loading" : "Empty", "0"]],
   };
 }
@@ -1355,9 +1356,9 @@ function ChatPrototypeCenter() {
         <table className="rd-v2-evidence-table">
           <thead><tr><th>Scenario</th><th>Founder dilution</th><th>Source</th></tr></thead>
           <tbody>
-            <tr><td>Full-ratchet</td><td>19.1%</td><td>cap_table_model</td></tr>
-            <tr><td>Weighted-average</td><td>4.8%</td><td>dilution_calc</td></tr>
-            <tr><td>Negotiation gap</td><td>14.3pp</td><td>term_sheet_v3</td></tr>
+            <tr><td>Full-ratchet</td><td>19.1%</td><td>Cap table model</td></tr>
+            <tr><td>Weighted-average</td><td>4.8%</td><td>Dilution calc</td></tr>
+            <tr><td>Negotiation gap</td><td>14.3pp</td><td>Term sheet v3</td></tr>
           </tbody>
         </table>
         <h3>Risks and open questions</h3>
@@ -1369,7 +1370,7 @@ function ChatPrototypeCenter() {
         <span>Sequoia Capital ×</span><span>Report: Term Sheet Analysis ×</span><span>Sources: 2 ×</span><span>Balanced</span>
       </div>
       <div className="rd-v2-tool-strip">
-        <span>opus-4</span><span>cap_table_model</span><span>dilution_calc</span><span>2 sources</span><span>1.2s</span><span>$0.05</span>
+        <span>opus-4</span><span>Cap table model</span><span>Dilution calc</span><span>2 sources</span><span>1.2s</span><span>$0.05</span>
       </div>
       <div className="rd-v2-next-actions">
         {["Open notebook", "Draft counterproposal", "Verify open claims", "Attach term sheet", "Share summary"].map((action) => (
@@ -1744,10 +1745,10 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
               <strong>Graph</strong> — Related entities remain attached for comparison and follow-up routing.
             </div>
             <div className="ar-msg-tools">
-              <span className="ar-tool-badge">source_scan</span>
-              <span className="ar-tool-badge">claim_verify</span>
-              <span className="ar-tool-badge">freshness_check</span>
-              <span className="ar-tool-badge">resolve_report_graph_context</span>
+              <span className="ar-tool-badge">Source scan</span>
+              <span className="ar-tool-badge">Claim verify</span>
+              <span className="ar-tool-badge">Freshness check</span>
+              <span className="ar-tool-badge">Resolve report graph</span>
             </div>
           </div>
           <div className="ar-msg-actions">
@@ -1777,8 +1778,8 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
             <div className="ar-msg-lead">{entity.name} — {entity.signals.length} new signals</div>
             <div className="ar-msg-detail">{entity.signals.slice(0, 3).join(" ")}</div>
             <div className="ar-msg-tools">
-              <span className="ar-tool-badge">entity_diff</span>
-              <span className="ar-tool-badge">signal_extract</span>
+              <span className="ar-tool-badge">Entity diff</span>
+              <span className="ar-tool-badge">Signal extract</span>
             </div>
           </div>
           <div className="ar-msg-actions">
@@ -1939,6 +1940,7 @@ function ChatPrototypeRail() {
 }
 
 function InboxPrototypeRail({ onAsk }: HomeV2SurfaceProps) {
+  const [stepsOpen, setStepsOpen] = useState(false);
   return (
     <AgentShell
       title="Triage agent"
@@ -1951,11 +1953,15 @@ function InboxPrototypeRail({ onAsk }: HomeV2SurfaceProps) {
       <div className="rd-v2-msg rd-v2-msg-agent">
         <strong>The ratchet clause needs legal review before Thursday's board call.</strong>
         <p>Full-ratchet creates a 14.3pp dilution gap at $48M. This is the single largest negotiation risk in the term sheet.</p>
-        <details className="rd-v2-trace">
-          <summary><small>3 steps completed</small></summary>
-          <div className="rd-v2-trace-steps"><span>term_sheet_parse</span><span>dilution_calc</span><span>calendar_check</span></div>
-        </details>
-        <div className="rd-v2-msg-tools"><span>term_sheet_parse</span><span>dilution_calc</span><span>calendar_check</span></div>
+        <section className="rd-v2-trace rd-v2-trace--controlled" aria-label="Completed agent steps">
+          <button type="button" aria-expanded={stepsOpen} onClick={() => setStepsOpen((value) => !value)}>
+            <small><i aria-hidden="true">{stepsOpen ? "v" : ">"}</i>3 steps completed</small>
+          </button>
+          {stepsOpen && (
+            <div className="rd-v2-trace-steps"><span>Parsed terms</span><span>Modeled dilution</span><span>Checked deadline</span></div>
+          )}
+        </section>
+        <div className="rd-v2-msg-tools"><span>Term sheet parse</span><span>Dilution calc</span><span>Calendar check</span></div>
       </div>
       <button className="rd-v2-drawer-toggle">Context · Sequoia 74 · 2 threads</button>
       <article className="rd-v2-util-card">
@@ -1996,8 +2002,8 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
     ? "After sign-in, NodeBench can save writing style, watched entities, connector permissions, budget rules, and an audit trail. Until then, the public route stays read-only."
     : "In the last 7 sessions, you shortened 4 of my outputs and asked for just the decision. I updated your voice profile to default to Decision -> Why -> Plan format.";
   const trace = guestSafe
-    ? ["auth_check", "privacy_boundary", "permission_preview"]
-    : ["memory_scan", "preference_log", "profile_update"];
+    ? ["Auth check", "Privacy boundary", "Permission preview"]
+    : ["Memory scan", "Preference log", "Profile update"];
 
   if (guestSafe) {
     return (
@@ -2046,9 +2052,9 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
         <p>In the last 7 sessions, you shortened 4 of my outputs and asked for just the decision. I updated your voice profile to default to {"Decision -> Why -> Plan"} format.</p>
         <details className="rd-v2-trace">
           <summary><small>3 steps completed</small></summary>
-          <div className="rd-v2-trace-steps"><span>memory_scan</span><span>preference_log</span><span>profile_update</span></div>
+          <div className="rd-v2-trace-steps"><span>Memory scan</span><span>Preference log</span><span>Profile update</span></div>
         </details>
-        <div className="rd-v2-msg-tools"><span>memory_scan</span><span>preference_log</span><span>profile_update</span></div>
+        <div className="rd-v2-msg-tools"><span>Memory scan</span><span>Preference log</span><span>Profile update</span></div>
       </div>
       <button className="rd-v2-drawer-toggle">Context · Voice · Permissions · Usage</button>
       <section className="rd-v2-settings-list">
@@ -2246,7 +2252,7 @@ function HomeReportHalo({
       <div className="rd-v3-home-halo-head">
         <span>Report halo</span>
         <strong>Reusable memory is already in the room.</strong>
-        <p>Hover or select a report, then ask with its Convex-backed context attached.</p>
+        <p>Hover or select a report, then ask with its saved context attached.</p>
       </div>
 
       <div className="rd-v3-halo-track" role="list">
@@ -2699,7 +2705,7 @@ export function HomeV2BriefingRail({ onAsk, onOpenReports, liveArtifacts }: Home
           <div className="rd-v2-thread-pills">
             <span>Home</span>
             <span>5 entities</span>
-            <span>opus-4</span>
+            <span>Balanced reasoning</span>
           </div>
         </section>
       </div>
@@ -2726,12 +2732,34 @@ export function HomeV2BriefingRail({ onAsk, onOpenReports, liveArtifacts }: Home
 }
 
 function EditionGroup({ label, count, onSelect }: { label: string; count: string; onSelect?: (label: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const sampleItems = useMemo(() => {
+    const total = Math.max(1, Math.min(Number(count) || 3, 3));
+    return Array.from({ length: total }, (_, index) => `${label} brief ${index + 1}`);
+  }, [count, label]);
   return (
-    <button type="button" className="rd-v2-edition-group" onClick={() => onSelect?.(label)}>
-      <span>&gt;</span>
-      <span>{label}</span>
-      <b>{count}</b>
-    </button>
+    <section className="rd-v2-edition-accordion">
+      <button
+        type="button"
+        className="rd-v2-edition-group"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span>{open ? "v" : ">"}</span>
+        <span>{label}</span>
+        <b>{count}</b>
+      </button>
+      {open && (
+        <div className="rd-v2-edition-children" role="group" aria-label={`${label} briefs`}>
+          {sampleItems.map((item) => (
+            <button key={item} type="button" onClick={() => onSelect?.(item)}>
+              <span>{item}</span>
+              <b>Open</b>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

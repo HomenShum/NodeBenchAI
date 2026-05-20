@@ -139,7 +139,7 @@ export function MeSurface() {
           <div className="rd-stack" style={{ gap: 6, maxWidth: 760 }}>
             <div className="rd-eyebrow">Me · Private Context</div>
             <h1 className="rd-h1" style={{ fontSize: 30 }}>Your profile starts empty.</h1>
-            <p className="rd-faint" style={{ fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+            <p className="rd-soft" style={{ fontSize: 14, lineHeight: 1.6, margin: 0 }}>
               NodeBench does not show another operator's memory to visitors. Link an email or Google account to save preferences, watched entities, connector permissions, budget rules, and reusable writing style.
             </p>
           </div>
@@ -157,21 +157,21 @@ export function MeSurface() {
           <section className="rd-card rd-card__pad">
             <div className="rd-eyebrow">Memory</div>
             <h3 style={{ margin: "8px 0 4px", fontSize: 17 }}>No saved profile yet</h3>
-            <p className="rd-faint" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+            <p className="rd-soft" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
               Add communication style, evidence preferences, watched markets, and report defaults after sign-in.
             </p>
           </section>
           <section className="rd-card rd-card__pad">
             <div className="rd-eyebrow">Permissions</div>
             <h3 style={{ margin: "8px 0 4px", fontSize: 17 }}>Connectors are off</h3>
-            <p className="rd-faint" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+            <p className="rd-soft" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
               Gmail, Slack, Notion, CRM, and export writes require explicit account connection and approval rules.
             </p>
           </section>
           <section className="rd-card rd-card__pad">
             <div className="rd-eyebrow">Budget</div>
             <h3 style={{ margin: "8px 0 4px", fontSize: 17 }}>Paid calls are blocked</h3>
-            <p className="rd-faint" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+            <p className="rd-soft" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
               Public browsing stays read-only. Paid research runs only after an email-backed account is linked.
             </p>
           </section>

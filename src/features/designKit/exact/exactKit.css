@@ -1637,12 +1637,12 @@
 .nb-mobile-kit .m-notebook-title {
   margin: 0;
   color: var(--text-primary);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: 800;
   letter-spacing: -0.022em;
 }
 
-.nb-mobile-kit .m-home-greet h2 { font-size: 22px; }
+.nb-mobile-kit .m-home-greet h2 { font-size: 22px; line-height: 1.25; }
 .nb-mobile-kit .m-home-greet p {
   margin: 2px 0 0;
   color: var(--text-muted);
@@ -1674,13 +1674,13 @@
 
 .nb-mobile-kit .m-search button {
   flex: 0 0 auto;
-  min-width: 48px;
+  min-width: 52px;
   border: 1px solid var(--accent-primary-border);
   border-radius: 8px;
   background: var(--accent-primary);
   color: #fffaf0;
-  padding: 7px 9px;
-  font-size: 11.5px;
+  padding: 8px 14px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -1719,18 +1719,23 @@
 .nb-mobile-kit .m-offline-proof {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 6px 14px;
   margin: -4px 16px 16px;
 }
 
 .nb-mobile-kit .m-offline-proof span {
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
-  background: var(--bg-surface);
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
   color: var(--text-muted);
-  padding: 5px 8px;
+  padding: 3px 0;
   font-size: 10.5px;
-  font-weight: 750;
+  font-weight: 600;
+}
+.nb-mobile-kit .m-offline-proof span::before {
+  content: "✓ ";
+  color: var(--accent, #d97757);
+  font-weight: 700;
 }
 
 .nb-mobile-kit .m-run-feedback {
@@ -2582,7 +2587,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   border: 0;
   border-radius: 8px;
   background: transparent;

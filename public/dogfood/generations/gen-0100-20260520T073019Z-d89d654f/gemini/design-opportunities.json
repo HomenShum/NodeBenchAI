@@ -1,0 +1,88 @@
+{
+  "style": "linear",
+  "summary": "The application demonstrates a strong, modern foundation with a clean aesthetic heavily influenced by Vercel and Linear. To reach top-tier industry grade, it needs refinement in typography scaling (reducing oversized headers), reduction of always-visible actions in list views to reduce clutter, and modernization of card visuals to maintain a consistent 'dense-but-calm' feel.",
+  "aspirationScore": 82,
+  "axes": {
+    "typography": {
+      "score": 7,
+      "note": "Generally clean sans-serif, but some headers (like on Home) are drastically oversized, breaking the calm hierarchy."
+    },
+    "spacing": {
+      "score": 8,
+      "note": "Good use of a consistent grid, though some internal card paddings feel slightly tight compared to Vercel standards."
+    },
+    "states": {
+      "score": 7,
+      "note": "Loading states are present, but empty states (like 'No live report') lack the polished illustration/layout of top-tier apps."
+    },
+    "hierarchy": {
+      "score": 8,
+      "note": "Strong visual separation of primary and secondary content, especially in the dense right-hand trace sidebars."
+    },
+    "interaction": {
+      "score": 8,
+      "note": "Excellent visibility of keyboard shortcuts. Hover states are implied but list views currently show too many default actions."
+    },
+    "craft": {
+      "score": 8,
+      "note": "Subtle borders and consistent radiuses are well executed. Gradient cards in Reports are the only major outlier."
+    }
+  },
+  "opportunities": [
+    {
+      "priority": "P1",
+      "screenFile": "home-light.png",
+      "area": "typography",
+      "reference": "notion",
+      "opportunity": "Scale down the massive H1 headline on the Home view.",
+      "why": "The 'One useful thing...' headline is disproportionately large compared to the rest of the dense, power-user UI, breaking the 'dense-but-calm' aesthetic. Notion and Vercel cap page titles around 28-32px to maintain focus on the data.",
+      "fixHint": "Reduce font-size to 28px or 32px, set line-height to 1.2, and use a semibold weight (600) instead of black/extrabold.",
+      "verify": "The headline should feel like a page title, not a marketing landing page hero.",
+      "confidence": 0.95
+    },
+    {
+      "priority": "P1",
+      "screenFile": "inbox-light.png",
+      "area": "cards",
+      "reference": "linear",
+      "opportunity": "Hide secondary actions in Inbox rows behind a hover state.",
+      "why": "Currently, every row shows 3-4 buttons (Re-run, Open, Snooze, Dismiss). This creates massive visual clutter. Linear keeps lists clean by revealing actions only when the user hovers over the specific row.",
+      "fixHint": "Keep the primary action (e.g., 'Open DISCO') visible or implied by clicking the row. Move 'Snooze' and 'Dismiss' to an opacity: 0 state that transitions to opacity: 1 on row :hover.",
+      "verify": "The inbox should look significantly cleaner and less overwhelming at first glance.",
+      "confidence": 0.9
+    },
+    {
+      "priority": "P2",
+      "screenFile": "reports-light.png",
+      "area": "cards",
+      "reference": "vercel",
+      "opportunity": "Replace heavy gradient backgrounds on Report cards with subtle borders/accents.",
+      "why": "The heavy, multi-colored gradients (blue, orange, purple) clash with the otherwise restrained, neutral Vercel-like palette. They draw too much attention away from the content.",
+      "fixHint": "Use a solid white background with a standard 1px gray-200 border. Indicate the 'type' or 'status' with a subtle 2px top border accent color or a small colored dot next to the title.",
+      "verify": "The Reports grid should feel cohesive with the rest of the application's minimalist styling.",
+      "confidence": 0.85
+    },
+    {
+      "priority": "P2",
+      "screenFile": "reports-light.png",
+      "area": "typography",
+      "reference": "linear",
+      "opportunity": "Replace text-heavy status badges with color-coded dots.",
+      "why": "Badges like 'verified' and 'needs review' inside the gradient headers add unnecessary reading overhead. Linear uses simple colored dots (green, amber, red) to convey status instantly without clutter.",
+      "fixHint": "Replace the pill badges with a 6px or 8px border-radius dot (e.g., bg-green-500 for verified) placed next to the report title, with a native title attribute for hover context.",
+      "verify": "Status should be scannable via color without needing to read the text in the badge.",
+      "confidence": 0.8
+    },
+    {
+      "priority": "P3",
+      "screenFile": "home-light.png",
+      "area": "empty_state",
+      "reference": "vercel",
+      "opportunity": "Refine the 'No live report halo yet' empty state.",
+      "why": "The current empty state is a simple dashed box with text. Vercel empty states use a subtle, monochromatic icon, concise copy, and a clear primary CTA to make empty areas feel intentional rather than broken.",
+      "fixHint": "Center the content. Add a muted 24px icon (like a document or spark) above the text. Make the 'Create first packet' button a standard primary button rather than a full-width outline button.",
+      "verify": "The empty state should look like a deliberate onboarding step rather than a placeholder.",
+      "confidence": 0.75
+    }
+  ]
+}

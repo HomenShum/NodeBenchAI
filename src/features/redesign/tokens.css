@@ -120,16 +120,16 @@
     --rd-panel-elevated: #28282c;
     --rd-muted: rgba(255, 255, 255, 0.04);
 
-    --rd-line-faint: rgba(255, 255, 255, 0.04);
-    --rd-line: rgba(255, 255, 255, 0.08);
-    --rd-line-strong: rgba(255, 255, 255, 0.14);
+    --rd-line-faint: rgba(255, 255, 255, 0.05);
+    --rd-line: rgba(255, 255, 255, 0.10);
+    --rd-line-strong: rgba(255, 255, 255, 0.16);
     --rd-line-soft: #23252a;
 
     --rd-ink: #f7f8f8;
     --rd-ink-strong: #ffffff;
     --rd-ink-mute: #d0d6e0;
-    --rd-ink-soft: #8a8f98;
-    --rd-ink-faint: #787d85;
+    --rd-ink-soft: #959aa3;
+    --rd-ink-faint: #828891;
 
     --rd-accent: #e88f6e;
     --rd-accent-strong: #f2a583;
@@ -180,8 +180,8 @@
   --rd-ink: #f7f8f8;
   --rd-ink-strong: #ffffff;
   --rd-ink-mute: #d0d6e0;
-  --rd-ink-soft: #8a8f98;
-  --rd-ink-faint: #787d85;
+  --rd-ink-soft: #959aa3;
+  --rd-ink-faint: #828891;
   --rd-accent: #e88f6e;
   --rd-accent-strong: #f2a583;
   --rd-accent-soft: rgba(232, 143, 110, 0.16);

@@ -332,6 +332,9 @@ export default function RedesignShell() {
         ) : (
           <div className="rd-shell__main">
             <main id="main-content" data-main-content className="rd-pane">
+              {/* Keyed wrapper forces React to remount on surface change,
+                  triggering the rd-surface-enter CSS animation reliably. */}
+              <div key={isPrototypeKit ? `proto-${prototypeSurface}` : `${surface}${reportId ? `-${reportId}` : ""}`} className="rd-surface-content">
               {isPrototypeKit && (
                 <PrototypeV2Center
                   surface={prototypeSurface}
@@ -368,6 +371,7 @@ export default function RedesignShell() {
             {!isPrototypeKit && surface === "reports" && reportId && <ReportDetailRoute reportId={reportId} />}
             {!isPrototypeKit && surface === "inbox" && <InboxSurface />}
             {!isPrototypeKit && surface === "me" && <MeSurface />}
+              </div>
             </main>
             {isPrototypeKit ? (
               <PrototypeV2RightRail
