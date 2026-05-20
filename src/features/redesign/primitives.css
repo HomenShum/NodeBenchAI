@@ -11813,3 +11813,135 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   border-radius: 3px;
   background: var(--rd-accent);
 }
+
+/* ═══ Round 21 P1 fixes — continuing self-improvement loop ═══ */
+
+/* p1-home-desktop-1: agent rail CTA button overlaps status container at 1280px
+   Root cause: absolute positioning + insufficient gap between button and agent status.
+   Fix: enforce relative flow + explicit top margin to separate from adjacent content. */
+[data-redesign] .rd-agent-rail .rd-btn,
+[data-redesign] .rd-agent-rail [role="button"] {
+  position: relative;
+  margin-top: 4px;
+  z-index: 1;
+}
+[data-redesign] .rd-agent-rail__header + .rd-agent-rail__status,
+[data-redesign] .rd-agent-rail .rd-agent-card + .rd-btn {
+  margin-top: 12px;
+}
+@media (max-width: 1366px) {
+  [data-redesign] .rd-agent-rail {
+    padding: 16px 14px;
+    gap: 12px;
+  }
+  [data-redesign] .rd-agent-rail__title {
+    font-size: 16px;
+  }
+}
+
+/* p1-chat-desktop-1: "Run on a list" ghost button contrast 2.1:1 against glass background
+   Root cause: ghost button border-color and text-color too transparent on glass surfaces.
+   Fix: boost border opacity to 0.4 and text color to 0.9 in chat/composer contexts. */
+[data-redesign] .rd-chat-header .rd-btn--ghost,
+[data-redesign] .rd-v3-chat-hero .rd-btn--ghost,
+[data-redesign] [class*="chat"] .rd-btn--ghost,
+[data-redesign] [class*="composer"] .rd-btn--ghost {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: var(--rd-ink);
+  opacity: 1;
+}
+[data-redesign] .rd-chat-header .rd-btn--ghost:hover,
+[data-redesign] .rd-v3-chat-hero .rd-btn--ghost:hover,
+[data-redesign] [class*="chat"] .rd-btn--ghost:hover,
+[data-redesign] [class*="composer"] .rd-btn--ghost:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: var(--rd-line);
+}
+@media (prefers-color-scheme: light) {
+  [data-redesign] .rd-chat-header .rd-btn--ghost,
+  [data-redesign] .rd-v3-chat-hero .rd-btn--ghost,
+  [data-redesign] [class*="chat"] .rd-btn--ghost,
+  [data-redesign] [class*="composer"] .rd-btn--ghost {
+    border-color: rgba(0, 0, 0, 0.4);
+    color: rgba(0, 0, 0, 0.88);
+    background: rgba(0, 0, 0, 0.04);
+  }
+  [data-redesign] .rd-chat-header .rd-btn--ghost:hover,
+  [data-redesign] .rd-v3-chat-hero .rd-btn--ghost:hover,
+  [data-redesign] [class*="chat"] .rd-btn--ghost:hover,
+  [data-redesign] [class*="composer"] .rd-btn--ghost:hover {
+    border-color: rgba(0, 0, 0, 0.52);
+    background: rgba(0, 0, 0, 0.08);
+  }
+}
+
+/* p1-inbox-global-1 (regression): progress bar height falling back to 3px
+   Root cause: component inline styles or Tailwind utility classes override our min-height: 6px.
+   Fix: !important on height + min-height to enforce 6px minimum across all progress bars. */
+[data-redesign] .rd-progress-bar,
+[data-redesign] [class*="progress-bar"],
+[data-redesign] [role="progressbar"] > div,
+[data-redesign] [class*="pipeline-progress"] {
+  min-height: 6px !important;
+  height: auto !important;
+  min-width: 0;
+  border-radius: 3px !important;
+}
+[data-redesign] .rd-progress-bar__fill,
+[data-redesign] [class*="progress-bar"] > [class*="fill"],
+[data-redesign] [role="progressbar"] > div > div,
+[data-redesign] [class*="pipeline-progress"] > * {
+  min-height: 6px !important;
+  border-radius: 3px !important;
+}
+
+/* ═══ Round 22 video P2 temporal polish ═══ */
+
+/* p2-video-1: Report Halo layout shift when data resolves from placeholder
+   Root cause: halo track has no min-height so it collapses to 0 when empty, then snaps to ~160px.
+   Fix: set min-height on the halo section to prevent CLS. */
+[data-redesign] .rd-v3-home-halo {
+  min-height: 180px;
+  contain: layout style;
+}
+[data-redesign] .rd-v3-halo-track {
+  min-height: 140px;
+}
+
+/* p2-video-2: staggered inbox item entry — items pop in simultaneously
+   Root cause: no entry animation on inbox rows.
+   Fix: add fade+slide keyframes with nth-child stagger. */
+@keyframes rd-inbox-row-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+[data-redesign] .rd-inbox-row {
+  animation: rd-inbox-row-enter 200ms ease both;
+}
+[data-redesign] .rd-inbox-row:nth-child(1) { animation-delay: 0ms; }
+[data-redesign] .rd-inbox-row:nth-child(2) { animation-delay: 40ms; }
+[data-redesign] .rd-inbox-row:nth-child(3) { animation-delay: 80ms; }
+[data-redesign] .rd-inbox-row:nth-child(4) { animation-delay: 120ms; }
+[data-redesign] .rd-inbox-row:nth-child(5) { animation-delay: 160ms; }
+[data-redesign] .rd-inbox-row:nth-child(n+6) { animation-delay: 200ms; }
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-inbox-row {
+    animation: none;
+  }
+}
+
+/* p2-video-3: surface switch transition — instantaneous view swap
+   Root cause: shell main content has no transition between surfaces.
+   Fix: subtle fade on the main content area during surface switch. */
+[data-redesign] .rd-shell__main > .rd-pane {
+  animation: rd-surface-enter 180ms ease both;
+}
+@keyframes rd-surface-enter {
+  from { opacity: 0.85; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-shell__main > .rd-pane {
+    animation: none;
+  }
+}
