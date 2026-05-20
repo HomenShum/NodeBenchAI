@@ -67,6 +67,8 @@
   line-height: 1.6;
   letter-spacing: 0;
   color: var(--rd-ink-mute);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 [data-redesign] .rd-meta {
@@ -4393,6 +4395,7 @@
   background: var(--rd-panel);
   color: var(--rd-ink-strong);
   box-shadow: var(--rd-shadow-xs);
+  border-bottom: 2px solid var(--rd-accent);
 }
 
 /* ─── Notebook (TipTap-backed report editor — Notion + Roam feel) ─── */
@@ -11551,8 +11554,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 /* Full-surface QA Round 3+4 — light mode glass card depth + border */
 @media (prefers-color-scheme: light) {
   [data-redesign] .rd-card {
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04);
-    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.12);
   }
   [data-redesign] .rd-card--ghost {
     box-shadow: none;
