@@ -3475,14 +3475,22 @@
 }
 
 [data-redesign] .rd-v2-inbox-group article.rd-inbox-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-height: 36px;
   border-bottom: none;
   background: transparent;
-  justify-content: center;
+  padding: 8px 16px;
 }
 
 [data-redesign] .rd-inbox-empty .rd-v2-source-icon {
   display: none;
+}
+
+[data-redesign] .rd-inbox-empty > div {
+  width: 100%;
+  text-align: center;
 }
 
 [data-redesign] .rd-inbox-empty .rd-v2-inbox-title-row strong {
