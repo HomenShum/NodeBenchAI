@@ -367,8 +367,8 @@ export function MeSurface() {
                   role="textbox"
                   aria-label={`Edit ${section.heading}`}
                   style={{
-                    fontFamily: "var(--rd-font-mono)",
-                    fontSize: 12,
+                    fontFamily: "var(--rd-font-sans)",
+                    fontSize: 12.5,
                     lineHeight: 1.55,
                     color: "var(--rd-ink-mute)",
                     margin: 0,
@@ -687,7 +687,7 @@ function MeV2DocumentCenter({
         {lines.map(([key, value], index) => (
           key.startsWith("#") ? <h2 key={`${key}-${index}`}>{key}</h2> : (
             <p key={`${key}-${index}`}>
-              <span>{key}</span>{value}
+              <span>{key}</span> {value}
             </p>
           )
         ))}

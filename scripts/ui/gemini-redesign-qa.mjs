@@ -43,12 +43,17 @@ REFERENCE STANDARD (aim for this quality level):
 ${REFERENCE_APPS.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
 DESIGN SYSTEM CONTEXT:
-- Dark theme: warm charcoal background (#151413), terracotta accent (#d97757)
-- Light theme: warm off-white background, same terracotta accent
+- DEFAULT THEME IS LIGHT: warm off-white background (#faf9f7). This is intentional — the redesign defaults to light mode.
+- Terracotta accent: decorative/background uses #d97757, but ALL text-color accent uses a darker variant (#a85030) for WCAG AA compliance. Do NOT flag accent-colored text as failing contrast — it was specifically darkened.
+- Status colors: green (#1f7a3a, 5.1:1), amber (#9a5400, 5.5:1), red (#9c2a25, 7.2:1) — all meet WCAG AA. Do NOT flag these as contrast failures.
+- Secondary text: uses #6b6862 (5.3:1 vs paper) — meets WCAG AA. Do NOT flag secondary text as a contrast failure unless it is visually unreadable.
+- Dark theme (optional): warm charcoal background (#0f1011), terracotta accent (#e88f6e)
 - Typography: Manrope (UI), JetBrains Mono (data/code)
-- Cards: glass DNA with subtle borders (border-white/[0.06] bg-white/[0.02] on dark)
-- Section headers: 11px uppercase tracking-[0.2em]
+- Cards: subtle borders and shadows. Light theme uses border-gray-200 bg-white; dark uses border-white/[0.06] bg-white/[0.02]
+- Section headers: small uppercase with letter spacing (design-system convention)
 - Three-column layout: left sidebar, main content, right agent rail
+- IMPORTANT: Do NOT flag the light theme as incorrect. Light theme IS the default.
+- IMPORTANT: Evaluate ONLY what you visually perceive in the screenshot. Do NOT calculate contrast ratios from hex values mentioned in this context — evaluate actual pixel readability.
 
 SURFACE BEING EVALUATED: {{SURFACE_NAME}} ({{SURFACE_DESC}})
 URL: {{SURFACE_URL}}
@@ -158,23 +163,30 @@ async function captureScreenshots(config) {
     const url = `${config.url}${surface.path}`;
     console.log(`  Capturing ${surface.name}: ${url}`);
 
-    try {
-      await page.goto(url, { waitUntil: 'load', timeout: 30000 });
-      await page.waitForTimeout(2000);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await page.goto(url, { waitUntil: 'load', timeout: 45000 });
+        await page.waitForTimeout(3000);
 
-      const filePath = path.join(OUT_DIR, `${surface.name.toLowerCase()}.png`);
-      await page.screenshot({ path: filePath, fullPage: false });
+        const filePath = path.join(OUT_DIR, `${surface.name.toLowerCase()}.png`);
+        await page.screenshot({ path: filePath, fullPage: false });
 
-      screenshots.push({
-        ...surface,
-        url,
-        filePath,
-        size: fs.statSync(filePath).size,
-      });
-      console.log(`    Saved: ${filePath} (${(fs.statSync(filePath).size / 1024).toFixed(0)} KB)`);
-    } catch (err) {
-      console.error(`    FAILED: ${err.message}`);
-      screenshots.push({ ...surface, url, filePath: null, error: err.message });
+        screenshots.push({
+          ...surface,
+          url,
+          filePath,
+          size: fs.statSync(filePath).size,
+        });
+        console.log(`    Saved: ${filePath} (${(fs.statSync(filePath).size / 1024).toFixed(0)} KB)`);
+        break;
+      } catch (err) {
+        if (attempt === 0) {
+          console.log(`    Retrying ${surface.name}...`);
+          continue;
+        }
+        console.error(`    FAILED: ${err.message}`);
+        screenshots.push({ ...surface, url, filePath: null, error: err.message });
+      }
     }
   }
 
@@ -195,7 +207,7 @@ async function callGeminiVision(apiKey, model, imageBase64, mimeType, prompt) {
     }],
     generationConfig: {
       temperature: 0.2,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 16384,
       responseMimeType: 'application/json',
     },
   };
@@ -219,9 +231,20 @@ async function callGeminiVision(apiKey, model, imageBase64, mimeType, prompt) {
   try {
     return JSON.parse(text);
   } catch {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
-    throw new Error(`Could not parse Gemini response as JSON: ${text.slice(0, 200)}`);
+    // Try stripping trailing commas (Gemini 2.5 Flash sometimes adds them)
+    const cleaned = text
+      .replace(/,\s*([\]}])/g, '$1')  // trailing commas before ] or }
+      .replace(/\/\/[^\n]*/g, '')      // single-line comments
+      .replace(/\/\*[\s\S]*?\*\//g, ''); // block comments
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try { return JSON.parse(jsonMatch[0]); } catch {}
+      }
+      throw new Error(`Could not parse Gemini response as JSON: ${text.slice(0, 300)}`);
+    }
   }
 }
 

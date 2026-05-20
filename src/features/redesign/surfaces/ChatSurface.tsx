@@ -1445,7 +1445,7 @@ export function ChatSurface({
       <BatchLiveBoundary onError={() => setLiveBatch(null)}>
         <BatchLiveBridge onBatch={setLiveBatch} />
       </BatchLiveBoundary>
-      <div ref={scrollRef} className="rd-stack" style={{ flex: 1, overflow: "auto", padding: "24px 40px 24px", gap: 18, maxWidth: 920, width: "100%", margin: "0 auto" }}>
+      <div ref={scrollRef} className="rd-stack" style={{ flex: 1, overflow: "auto", padding: "24px 40px 80px", gap: 18, maxWidth: 920, width: "100%", margin: "0 auto" }}>
         {batch && <BatchMonitorCell batch={batch} onCancel={() => setBatch(null)} />}
 
         <ChatV2ReportBanner
