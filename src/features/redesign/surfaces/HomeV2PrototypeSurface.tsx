@@ -2191,12 +2191,14 @@ function HomeReportHalo({
   onActiveReportChange,
   onAsk,
   onOpenReports,
+  isLoading = false,
 }: {
   reports: HomeHaloReport[];
   activeReportId?: string | null;
   onActiveReportChange?: (reportId: string) => void;
   onAsk?: (prompt: string, context?: HomeAskContext) => void;
   onOpenReports?: (reportId?: string) => void;
+  isLoading?: boolean;
 }) {
   const active = reports.find((report) => report.id === activeReportId) ?? reports[0];
   const selectReport = (reportId: string) => onActiveReportChange?.(reportId);
@@ -2206,6 +2208,23 @@ function HomeReportHalo({
       { reportId: report.id },
     );
   };
+
+  if (reports.length === 0 && isLoading) {
+    /* Skeleton loading — prevent layout shift when halo cards arrive */
+    return (
+      <section className="rd-v3-home-halo" data-testid="home-v3-report-halo">
+        <div className="rd-v3-home-halo-head">
+          <span>Report memory</span>
+          <strong>Loading report context…</strong>
+        </div>
+        <div style={{ display: "flex", gap: 10, padding: "8px 0" }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ flex: "1 1 0", height: 72, background: "var(--rd-surface-raised, rgba(255,255,255,0.03))", borderRadius: 10, opacity: 0.55, animation: "rd-skeleton-pulse 1.4s ease-in-out infinite", animationDelay: `${i * 120}ms` }} />
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   if (reports.length === 0) {
     return (
@@ -2288,11 +2307,13 @@ function HomeV3FrontPage({
   haloReports,
   onAsk,
   onOpenReports,
+  isLoading = false,
 }: {
   model: HomeV2Model;
   haloReports: HomeHaloReport[];
   onAsk?: (prompt: string, context?: HomeAskContext) => void;
   onOpenReports?: (reportId?: string) => void;
+  isLoading?: boolean;
 }) {
   const [activeReportId, setActiveReportId] = useState<string | null>(haloReports[0]?.id ?? null);
   const activeReport = haloReports.find((report) => report.id === activeReportId) ?? haloReports[0];
@@ -2310,6 +2331,7 @@ function HomeV3FrontPage({
         activeReportId={activeReport?.id ?? null}
         onActiveReportChange={setActiveReportId}
         onAsk={onAsk}
+        isLoading={isLoading}
         onOpenReports={onOpenReports}
       />
       <div className="rd-v3-home-composer-shell">
@@ -2463,6 +2485,7 @@ export function HomeV2Surface({ onAsk, onOpenReports, liveArtifacts }: HomeV2Sur
         haloReports={haloReports}
         onAsk={onAsk}
         onOpenReports={onOpenReports}
+        isLoading={liveArtifacts?.isLoading ?? false}
       />
       {isLiveHome ? (
         <LivePulseLanding model={model} onAsk={onAsk} onOpenReports={onOpenReports} />
