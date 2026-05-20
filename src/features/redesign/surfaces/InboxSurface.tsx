@@ -387,7 +387,25 @@ export function InboxSurface() {
       {/* Two-pane shell */}
       <div className="rd-inbox-shell">
         <div className="rd-inbox-list">
-          {items.length === 0 ? (
+          {isLoading && items.length === 0 ? (
+            /* Skeleton loading — prevent flash of "No items" before Convex resolves */
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 0" }}>
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="rd-card"
+                  style={{
+                    height: 56,
+                    background: "var(--rd-surface-raised, rgba(255,255,255,0.03))",
+                    borderRadius: 10,
+                    opacity: 0.55,
+                    animation: "rd-skeleton-pulse 1.4s ease-in-out infinite",
+                    animationDelay: `${i * 120}ms`,
+                  }}
+                />
+              ))}
+            </div>
+          ) : items.length === 0 ? (
             <div className="rd-card rd-card__hero" style={{ textAlign: "center", padding: "32px" }}>
               <div className="rd-eyebrow">Empty</div>
               <h2 className="rd-h2">No items in this lane.</h2>

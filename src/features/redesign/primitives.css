@@ -512,6 +512,18 @@
 [data-redesign] .rd-pane > :first-child {
   animation: rd-surface-enter 0.18s ease-out both;
 }
+/* Skeleton loading pulse — used by Inbox/Home/Reports during Convex data fetch */
+@keyframes rd-skeleton-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] [style*="rd-skeleton-pulse"] {
+    animation: none !important;
+    opacity: 0.45 !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-redesign] .rd-pane > :first-child {
     animation: none;
