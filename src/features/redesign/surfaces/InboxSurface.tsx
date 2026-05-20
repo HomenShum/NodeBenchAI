@@ -252,7 +252,7 @@ export function InboxSurface() {
         </button>
         <button
           type="button"
-          className="rd-v2-btn-primary"
+          className="rd-btn rd-btn--quiet rd-btn--sm"
           onClick={() => showToast({ tone: "info", message: "Auto-triage runs through the live nudge and pipeline queues. No starter rows were inserted." })}
         >
           Auto-triage

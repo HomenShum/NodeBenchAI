@@ -2800,14 +2800,14 @@
   width: calc(100% - 36px);
   margin: 8px 18px 24px;
   padding: 8px 14px;
-  border: 0;
+  border: 1px solid var(--rd-line);
   border-radius: var(--rd-r-pill);
-  background: var(--rd-ink-strong);
-  color: var(--rd-paper);
+  background: var(--rd-panel);
+  color: var(--rd-ink);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 650;
 }
 
 [data-redesign] .rd-v2-new-entity {
@@ -10980,7 +10980,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   margin: 6px 0 7px;
   border: 1px solid var(--rd-line);
   border-radius: 7px;
-  padding: 8px;
+  padding: 10px;
   background: color-mix(in srgb, var(--rd-accent-soft) 38%, transparent);
 }
 [data-redesign] .ar-context-packet__head {
@@ -11041,14 +11041,14 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .ar-context-packet__grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  margin-top: 7px;
+  gap: 5px;
+  margin-top: 8px;
 }
 [data-redesign] .ar-context-packet__grid span {
   min-width: 0;
   border-radius: 5px;
   background: var(--rd-paper);
-  padding: 4px;
+  padding: 5px 4px;
   color: var(--rd-ink-faint);
   font-size: 9px;
   text-align: center;
@@ -11233,7 +11233,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-soft);
   font-family: var(--rd-font-mono);
   font-size: 10.5px;
-  line-height: 1.35;
+  font-weight: 500;
+  line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
 }
