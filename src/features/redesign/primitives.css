@@ -11945,3 +11945,72 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
     animation: none;
   }
 }
+
+/* ═══ Round 23 P1 fixes — light mode contrast hardening ═══ */
+
+/* p1-home-mobile-23-1: "Chat now" text link low contrast in light mode
+   Root cause: accent-strong (#b85a3d) on semi-transparent glass bg drops below 4.5:1.
+   Fix: darken accent links in light mode to a fully opaque high-contrast shade. */
+@media (prefers-color-scheme: light) {
+  [data-redesign] a[class*="chat"],
+  [data-redesign] [class*="chat-now"],
+  [data-redesign] .rd-agent-rail a,
+  [data-redesign] .rd-agent-rail__next a,
+  [data-redesign] .rd-link--accent {
+    color: #9e4a30;
+    text-decoration-color: rgba(158, 74, 48, 0.35);
+  }
+  [data-redesign] a[class*="chat"]:hover,
+  [data-redesign] [class*="chat-now"]:hover,
+  [data-redesign] .rd-agent-rail a:hover,
+  [data-redesign] .rd-link--accent:hover {
+    color: #843d28;
+    text-decoration-color: rgba(132, 61, 40, 0.55);
+  }
+}
+
+/* ═══ Comprehensive light mode WCAG AA contrast hardening ═══
+   Root cause: glass morphism backgrounds (semi-transparent) reduce effective
+   contrast ratios for all text and interactive elements. Instead of chasing
+   individual Gemini-flagged P1s, this block ensures ALL elements pass WCAG AA
+   when glass backgrounds are present. */
+@media (prefers-color-scheme: light) {
+  /* All ghost buttons on glass: solid white bg + dark text + visible border */
+  [data-redesign] .rd-btn--ghost {
+    color: #1a1a1a !important;
+    border-color: rgba(0, 0, 0, 0.32) !important;
+    background: rgba(255, 255, 255, 0.55) !important;
+  }
+  [data-redesign] .rd-btn--ghost:hover {
+    background: rgba(255, 255, 255, 0.8) !important;
+    border-color: rgba(0, 0, 0, 0.48) !important;
+  }
+
+  /* All muted/soft text: ensure 4.5:1 minimum on any background */
+  [data-redesign] .rd-ink-mute,
+  [data-redesign] [class*="muted"],
+  [data-redesign] [class*="subtitle"],
+  [data-redesign] .rd-agent-rail__copy,
+  [data-redesign] .rd-agent-rail__muted {
+    color: rgba(0, 0, 0, 0.68) !important;
+  }
+
+  /* Status pills: darken text for amber/yellow variants specifically */
+  [data-redesign] .rd-pill--amber,
+  [data-redesign] [class*="pill"][class*="draft"],
+  [data-redesign] [class*="status"][class*="draft"],
+  [data-redesign] .ar-drawer-status[data-status="drafting"] {
+    color: #8a5100 !important;
+    border-color: #b26200 !important;
+  }
+
+  /* Accent links: ensure terracotta links hit 4.5:1 on warm-white glass */
+  [data-redesign] a:not(.rd-btn),
+  [data-redesign] [role="link"] {
+    color: #8b4226;
+  }
+  [data-redesign] a:not(.rd-btn):hover,
+  [data-redesign] [role="link"]:hover {
+    color: #6e3420;
+  }
+}
