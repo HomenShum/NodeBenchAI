@@ -1955,7 +1955,7 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
       <AgentShell
         title="Settings agent"
         context={context}
-        pills={["Me", "Private profile", "Permissions", "Usage"]}
+        pills={["Me", "Settings"]}
         question={question}
         placeholder="Ask about your settings..."
         onAsk={onAsk}
@@ -1969,27 +1969,15 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
           </details>
           <div className="rd-v2-msg-tools">{trace.map((step) => <span key={step}>{step}</span>)}</div>
         </div>
-        <button className="rd-v2-drawer-toggle">Context - Private profile - Permissions - Usage</button>
         <section className="rd-v2-settings-list">
-          <h3>Private profile</h3>
-          <p><span>Tone</span><strong>Not loaded</strong></p>
-          <p><span>Format</span><strong>Sign in to sync</strong></p>
-          <p><span>Jargon level</span><strong>Private</strong></p>
-          <h3>Permissions</h3>
-          <p>Web search: <b>Read-only</b></p>
-          <p>File access: <b>Off</b></p>
-          <p>Post to LinkedIn: <em>Approval required</em></p>
-          <p>Send email: <em>Approval required</em></p>
-          <p>Execute trades: <em>Disabled</em></p>
-          <h3>Session stats</h3>
-          <p><span>Memory hits</span><strong>Locked</strong></p>
-          <p><span>Corrections</span><strong>Locked</strong></p>
-          <p><span>Current mode</span><strong>Public</strong></p>
+          <h3>What unlocks after sign-in</h3>
+          <p><span>Voice profile</span><strong>Tone, format, jargon preferences</strong></p>
+          <p><span>Permissions</span><strong>5 connector controls</strong></p>
+          <p><span>Session memory</span><strong>Observations, corrections, history</strong></p>
         </section>
         <section className="rd-v2-action-card-list">
           <button className="is-primary">Connect account</button>
           <button>Preview USER.md</button>
-          <button>Open permissions</button>
         </section>
       </AgentShell>
     );

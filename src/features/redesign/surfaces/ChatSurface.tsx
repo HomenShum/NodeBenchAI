@@ -1424,6 +1424,11 @@ export function ChatSurface({
     onScroll();
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
+  // Scroll to bottom on mount so the latest content is visible above the composer dock
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
   // Auto-scroll on new turn unless user is reading higher in the thread
   useEffect(() => {
     const el = scrollRef.current;
@@ -1445,7 +1450,7 @@ export function ChatSurface({
       <BatchLiveBoundary onError={() => setLiveBatch(null)}>
         <BatchLiveBridge onBatch={setLiveBatch} />
       </BatchLiveBoundary>
-      <div ref={scrollRef} className="rd-stack" style={{ flex: 1, overflow: "auto", padding: "24px 40px 120px", gap: 18, maxWidth: 920, width: "100%", margin: "0 auto" }}>
+      <div ref={scrollRef} className="rd-stack" style={{ flex: 1, overflow: "auto", padding: "24px 40px 140px", gap: 18, maxWidth: 920, width: "100%", margin: "0 auto" }}>
         {batch && <BatchMonitorCell batch={batch} onCancel={() => setBatch(null)} />}
 
         <ChatV2ReportBanner

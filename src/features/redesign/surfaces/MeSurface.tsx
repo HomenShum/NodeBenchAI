@@ -694,6 +694,16 @@ function MeV2DocumentCenter({
             </p>
           )
         ))}
+        {guest && (
+          <button
+            type="button"
+            className="rd-btn rd-btn--primary"
+            style={{ marginTop: 16, alignSelf: "flex-start" }}
+            onClick={onPrimary}
+          >
+            Sign in to unlock
+          </button>
+        )}
       </article>
       {patch && !guest && (
         <section className="rd-card rd-card__pad" style={{ background: "var(--rd-paper-warm)" }}>

@@ -165,8 +165,13 @@ async function captureScreenshots(config) {
 
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        await page.goto(url, { waitUntil: 'networkidle0', timeout: 45000 });
-        await page.waitForTimeout(5000);
+        // SPA with Convex WebSocket: networkidle and load both hang because
+        // the WS stays open. Use domcontentloaded (fires fast) then wait for
+        // the React root [data-redesign] selector to appear — that proves the
+        // SPA has hydrated and rendered the redesign surface.
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForSelector('[data-redesign]', { timeout: 30000 }).catch(() => {});
+        await page.waitForTimeout(3000);
 
         const filePath = path.join(OUT_DIR, `${surface.name.toLowerCase()}.png`);
         await page.screenshot({ path: filePath, fullPage: false });
