@@ -11760,3 +11760,56 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
     background: var(--rd-accent-strong);
   }
 }
+
+/* ═══ Round 20 P1 fixes — continuing self-improvement loop ═══ */
+
+/* p1-chat-mobile-1: header card consumes 35% of viewport — collapse on mobile */
+@media (max-width: 760px) {
+  [data-redesign] .rd-chat-header,
+  [data-redesign] .rd-v3-chat-hero {
+    padding: 12px 16px;
+    gap: 6px;
+  }
+  [data-redesign] .rd-chat-header h1,
+  [data-redesign] .rd-v3-chat-hero h1 {
+    font-size: 18px;
+    line-height: 1.2;
+  }
+  [data-redesign] .rd-chat-header p,
+  [data-redesign] .rd-v3-chat-hero p,
+  [data-redesign] .rd-chat-header [class*="subtitle"],
+  [data-redesign] .rd-v3-chat-hero [class*="subtitle"] {
+    display: none;
+  }
+}
+
+/* p1-reports-desktop-3 (persistent): strengthen empty state visual anchor */
+[data-redesign] .rd-empty-state__icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--rd-accent-soft);
+  color: var(--rd-accent-strong);
+  font-size: 24px;
+  opacity: 1;
+}
+[data-redesign] .rd-empty-state .rd-btn {
+  margin-top: 4px;
+}
+
+/* p1-inbox-global-1 (persistent): further strengthen progress bars */
+[data-redesign] .rd-progress-bar,
+[data-redesign] [class*="progress-bar"],
+[data-redesign] [role="progressbar"] > div {
+  min-height: 6px;
+  border-radius: 3px;
+  background: var(--rd-muted);
+}
+[data-redesign] .rd-progress-bar__fill,
+[data-redesign] [class*="progress-bar"] > [class*="fill"],
+[data-redesign] [role="progressbar"] > div > div {
+  border-radius: 3px;
+  background: var(--rd-accent);
+}
