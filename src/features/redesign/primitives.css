@@ -504,6 +504,32 @@
   background: var(--rd-paper);
 }
 
+/* Surface enter animation — subtle fade+lift on content swap */
+@keyframes rd-surface-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+[data-redesign] .rd-pane > :first-child {
+  animation: rd-surface-enter 0.24s ease-out both;
+}
+/* Skeleton loading pulse — used by Inbox/Home/Reports during Convex data fetch */
+@keyframes rd-skeleton-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] [style*="rd-skeleton-pulse"] {
+    animation: none !important;
+    opacity: 0.45 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-pane > :first-child {
+    animation: none;
+  }
+}
+
 [data-redesign] .rd-pane--right {
   border-right: none;
   border-left: 1px solid var(--rd-line-soft);
@@ -10589,6 +10615,11 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
     flex: 1 1 auto;
   }
 
+  /* R31-S6: Hide secondary workspace actions on mobile to reclaim vertical space */
+  [data-redesign] .rd-workspace-secondary {
+    display: none !important;
+  }
+
   [data-redesign] .rd-workspace-surface .rd-tabs {
     overflow-x: auto;
     flex-wrap: nowrap;
@@ -12288,5 +12319,55 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] a:not(.rd-btn):hover,
   [data-redesign] [role="link"]:hover {
     color: #6e3420;
+  }
+
+  /* Terracotta primary buttons: darken bg so white text passes WCAG AA (4.5:1+)
+     #d97757 + white = ~3.2:1 (FAIL). #b04a2a + white = ~5.2:1 (PASS). */
+  [data-redesign] .rd-btn--primary,
+  [data-redesign] button[class*="primary"],
+  [data-redesign] [class*="run-research"],
+  [data-redesign] [class*="save-report"] {
+    background-color: #b04a2a !important;
+    color: #fff !important;
+  }
+  [data-redesign] .rd-btn--primary:hover,
+  [data-redesign] button[class*="primary"]:hover {
+    background-color: #963e22 !important;
+  }
+
+  /* R27-P1: Override --rd-accent itself in light mode so ALL accent uses pass WCAG AA.
+     #d97757 on white = ~3.2:1 (FAIL). #c25e3f = ~3.9:1 (still marginal).
+     #b04a2a = ~5.2:1 (PASS on pure white), safe on semi-transparent glass. */
+  [data-redesign] {
+    --rd-accent: #b04a2a;
+    --rd-accent-strong: #963e22;
+  }
+
+  /* R27-P1: "Chat now" link — use darker grey for secondary links on Home */
+  [data-redesign] [class*="chat-now"],
+  [data-redesign] button[aria-label="Chat now"] {
+    color: #71717a !important;
+  }
+  [data-redesign] [class*="chat-now"]:hover,
+  [data-redesign] button[aria-label="Chat now"]:hover {
+    color: #52525b !important;
+  }
+}
+
+/* R27-P1: mobile progress bars — boost to 8px height for better thumb-friendliness */
+@media (max-width: 768px) {
+  [data-redesign] .rd-progress-bar,
+  [data-redesign] [class*="progress-bar"],
+  [data-redesign] [role="progressbar"] > div,
+  [data-redesign] [class*="pipeline-progress"] {
+    min-height: 8px !important;
+    border-radius: 4px !important;
+  }
+  [data-redesign] .rd-progress-bar__fill,
+  [data-redesign] [class*="progress-bar"] > [class*="fill"],
+  [data-redesign] [role="progressbar"] > div > div,
+  [data-redesign] [class*="pipeline-progress"] > * {
+    min-height: 8px !important;
+    border-radius: 4px !important;
   }
 }

@@ -661,7 +661,7 @@ function GraphPanel({ detail, nodes }: { detail?: LiveArtifactDetail; nodes: Arr
               {graphPacket.approvalRequired ? "Review gated" : "Patch ready"}
             </Pill>
           </div>
-          <p className="rd-body" style={{ fontSize: 11.5, color: "var(--rd-ink-mute)", margin: "6px 0 0" }}>
+          <p className="rd-body" style={{ fontSize: 12, color: "var(--rd-ink-mute)", margin: "6px 0 0" }}>
             {graphPacket.agentSummary}
           </p>
           <div className="rd-row" style={{ gap: 6, flexWrap: "wrap", marginTop: 8 }}>
@@ -693,7 +693,7 @@ function SourcesPanel({ detail, sources }: { detail?: LiveArtifactDetail; source
               }}>[{i + 1}]</span>
               <span style={{ flex: 1, minWidth: 0, color: "var(--rd-ink-mute)" }}>
                 <span style={{ display: "block", color: "var(--rd-ink)", fontWeight: 590 }}>{source.title}</span>
-                <span className="rd-mono" style={{ display: "block", marginTop: 2, fontSize: 10, color: "var(--rd-ink-soft)" }}>
+                <span className="rd-mono" style={{ display: "block", marginTop: 2, fontSize: 11, color: "var(--rd-ink-soft)" }}>
                   {source.type} - {source.refreshed}
                 </span>
               </span>

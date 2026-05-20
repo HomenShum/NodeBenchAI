@@ -537,7 +537,25 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
         </button>
         {query && <button type="button" onClick={resetFilters}>Clear</button>}
       </div>
-      {visibleReports.length === 0 ? (
+      {isLoading && visibleReports.length === 0 ? (
+        /* Skeleton loading — prevent flash of "No live coverage" before Convex resolves */
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "12px 0" }}>
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="rd-v3-card"
+              style={{
+                height: 88,
+                background: "var(--rd-surface-raised, rgba(255,255,255,0.03))",
+                borderRadius: 12,
+                opacity: 0.55,
+                animation: "rd-skeleton-pulse 1.4s ease-in-out infinite",
+                animationDelay: `${i * 120}ms`,
+              }}
+            />
+          ))}
+        </div>
+      ) : visibleReports.length === 0 ? (
         <article className="rd-v3-card rd-v3-card--empty">
           <h2>{hasActiveFilter ? "No matching live reports" : "No live coverage returned"}</h2>
           <p>
