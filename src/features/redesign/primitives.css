@@ -8118,14 +8118,22 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   gap: 4px;
 }
 
-[data-redesign] .rd-v3-signals span,
-[data-redesign] .rd-v3-sources span {
+[data-redesign] .rd-v3-signals span {
   border-radius: 999px;
   background: var(--rd-accent-soft);
   color: var(--rd-accent-strong);
   padding: 3px 7px;
   font-size: 10.5px;
   font-weight: 650;
+}
+
+[data-redesign] .rd-v3-sources span {
+  border-radius: 999px;
+  background: var(--rd-muted);
+  color: var(--rd-ink-soft);
+  padding: 3px 7px;
+  font-size: 10px;
+  font-weight: 550;
 }
 
 [data-redesign] .rd-v3-backlinks span { color: var(--rd-ink-mute); }

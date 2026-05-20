@@ -688,7 +688,7 @@ export function UniversalComposer({
               title="Run research (Enter) — saves to Reports"
               className="rd-btn rd-btn--primary rd-btn--sm"
               style={{
-                opacity: text.trim() ? 1 : 0.45,
+                opacity: text.trim() ? 1 : 0.55,
                 cursor: text.trim() ? "pointer" : "not-allowed",
                 gap: 6,
               }}
