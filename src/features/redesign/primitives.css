@@ -346,14 +346,15 @@
 }
 
 [data-redesign] .rd-btn--primary {
-  background: var(--rd-accent);
+  background: var(--rd-accent-strong);
   color: #fff;
-  border-color: var(--rd-accent);
+  border-color: var(--rd-accent-strong);
 }
 
 [data-redesign] .rd-btn--primary:hover {
-  background: var(--rd-accent-strong);
-  border-color: var(--rd-accent-strong);
+  background: var(--rd-accent);
+  border-color: var(--rd-accent);
+  filter: brightness(0.88);
 }
 
 [data-redesign] .rd-btn--ghost {
@@ -2718,9 +2719,15 @@
   }
 
   [data-redesign] .rd-v3-home-composer-head h1 {
-    font-size: 26px;
+    font-size: 24px;
     letter-spacing: -0.4px;
+    line-height: 1.1;
   }
+
+  /* P1 fix: tighter hero spacing keeps input above fold on 390px screens */
+  [data-redesign] .rd-v3-home-composer-shell { gap: 10px; margin-top: 0; }
+  [data-redesign] .rd-v3-home-composer-head { padding-block: 8px 4px; }
+  [data-redesign] .rd-v3-home-halo { max-height: 240px; }
 
   [data-redesign] .rd-v2-pulse-lead,
   [data-redesign] .rd-v2-pulse-note {
@@ -7443,6 +7450,17 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-whatchanged__row--blue   .rd-whatchanged__icon { color: var(--rd-blue); }
 [data-redesign] .rd-whatchanged__row--amber  .rd-whatchanged__icon { color: var(--rd-amber); }
 
+/* ───────── Keyboard shortcut hints — hide on mobile, legible on desktop ───────── */
+[data-redesign] .rd-shortcut-hint { user-select: none; }
+@media (max-width: 760px) {
+  [data-redesign] .rd-shortcut-hint { display: none; }
+}
+
+/* ───────── Chat scroll area — bottom clearance for floating input ───────── */
+@media (min-width: 761px) {
+  [data-redesign] .rd-chat-scroll-area { padding-bottom: 80px !important; }
+}
+
 /* ───────── Chat scroll-to-bottom button ───────── */
 [data-redesign] .rd-chat-scroll-btn {
   position: absolute;
@@ -9395,6 +9413,17 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] .rd-v3-search-row { flex-direction: column; align-items: stretch; }
   [data-redesign] .rd-v3-metrics,
   [data-redesign] .rd-v3-grid { grid-template-columns: 1fr; }
+
+  /* P1 fix: prevent filter pills from being obstructed on mobile */
+  [data-redesign] .rd-v3-view-bar { gap: 8px; }
+  [data-redesign] .rd-v3-filter-pills { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  [data-redesign] .rd-v3-filter-pills::-webkit-scrollbar { display: none; }
+  [data-redesign] .rd-v3-filter-pills button { white-space: nowrap; flex-shrink: 0; min-height: 36px; }
+  [data-redesign] .rd-v3-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  [data-redesign] .rd-v3-tabs::-webkit-scrollbar { display: none; }
+
+  /* Push live artifact section below filter row with clear spacing */
+  [data-redesign] .rd-universe-head { margin-top: 8px; }
 }
 
 /* ───────── Reports Crunchbase / Pitchbook filter bar ───────── */
@@ -9894,6 +9923,10 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   gap: 6px;
   flex-wrap: wrap;
   flex-shrink: 0;
+}
+@media (max-width: 760px) {
+  [data-redesign] .rd-inbox-preview__actions { gap: 10px; }
+  [data-redesign] .rd-inbox-preview__actions .rd-btn { min-width: 44px; min-height: 44px; padding-inline: 10px; }
 }
 [data-redesign] .rd-inbox-preview__title {
   font-size: 18px;

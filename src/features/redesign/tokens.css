@@ -32,12 +32,12 @@
   --rd-ink: #1a1916;              /* Primary text */
   --rd-ink-strong: #0d0c0a;       /* Display headings */
   --rd-ink-mute: #74716b;         /* Body de-emphasized */
-  --rd-ink-soft: #989590;         /* Secondary metadata */
+  --rd-ink-soft: #807b75;         /* Secondary metadata — darkened for WCAG AA on warm-white */
   --rd-ink-faint: #b3b0a8;        /* Disabled / placeholder */
 
   /* ───── Accent — NodeBench terracotta preserved ───── */
   --rd-accent: #d97757;
-  --rd-accent-strong: #c76648;
+  --rd-accent-strong: #b85a3d;            /* Darkened for WCAG AA on white (4.7:1 contrast) */
   --rd-accent-soft: rgba(217, 119, 87, 0.10);
   --rd-accent-tint: rgba(217, 119, 87, 0.06);
   --rd-accent-ring: rgba(217, 119, 87, 0.30);

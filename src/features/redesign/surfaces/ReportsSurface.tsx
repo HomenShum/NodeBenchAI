@@ -3630,7 +3630,7 @@ function ReportGrid({
               {r.sources} sources · {r.claims} claims · {r.followUps} follow-ups · {r.updatedAt}
             </div>
             <div className="rd-row" style={{ gap: 4 }}>
-              <button className="rd-btn rd-btn--ghost rd-btn--sm" onClick={() => onOpen(r.id, "brief")}>Brief</button>
+              <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={() => onOpen(r.id, "brief")}>Brief</button>
               <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => onOpen(r.id, "cards")}>Explore</button>
               <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={() => onOpen(r.id, "chat")}>Chat</button>
             </div>
@@ -3697,7 +3697,7 @@ function ReportGrid({
             <StyleChip reportId={r.id} />
             {/* Action buttons reveal on hover (Crunchbase / Pitchbook quick-action pattern) */}
             <div className="rd-report-card__actions">
-              <button className="rd-btn rd-btn--ghost rd-btn--sm" onClick={(e) => { e.stopPropagation(); onOpen(r.id, "brief"); }}>Brief</button>
+              <button className="rd-btn rd-btn--primary rd-btn--sm" onClick={(e) => { e.stopPropagation(); onOpen(r.id, "brief"); }}>Brief</button>
               <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={(e) => { e.stopPropagation(); onOpen(r.id, "cards"); }}>Explore</button>
               <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={(e) => { e.stopPropagation(); onOpen(r.id, "chat"); }}>Chat</button>
             </div>

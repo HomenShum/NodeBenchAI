@@ -370,7 +370,7 @@ function MobileReports() {
           <article className="rd-card rd-card__pad-tight" style={{ padding: "12px 14px" }}>
             <div className="rd-eyebrow">No live reports</div>
             <p className="rd-faint" style={{ fontSize: 12, marginTop: 4 }}>
-              Reports will populate from daily briefs, archive rows, and batch runs. No fixture cards are shown on mobile.
+              Reports will appear here once you run a daily brief, archive, or batch research. Start with a question in Chat.
             </p>
           </article>
         )}

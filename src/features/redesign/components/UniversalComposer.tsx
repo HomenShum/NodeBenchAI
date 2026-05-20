@@ -634,8 +634,8 @@ export function UniversalComposer({
               </button>
             </>
           )}
-          <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)", marginLeft: 6 }}>
-            {voice.isTranscribing ? "Transcribing..." : recording ? "Listening..." : "Cmd+Enter run research · Shift+Enter newline"}
+          <span className="rd-mono rd-shortcut-hint" style={{ fontSize: 11, opacity: 0.6, color: "var(--rd-ink-soft)", marginLeft: 6 }}>
+            {voice.isTranscribing ? "Transcribing..." : recording ? "Listening..." : "⌘↵ research · ⇧↵ newline"}
           </span>
         </div>
 
