@@ -18,7 +18,7 @@ import { useBatchLive } from "../hooks/useBatchLive";
 import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 import { ChatThinking } from "../components/ChatThinking";
 import { ChatToolCall, type ToolCall } from "../components/ChatToolCall";
-import { MessageActions } from "../components/MessageActions";
+
 import { ChatEmptyState } from "../components/ChatEmptyState";
 import { showToast } from "../components/Toast";
 import { normalizeRouterTierForChatRun, useRedesignChatRun, type ChatRunState, type RealChatRun } from "../hooks/useRedesignChatRun";
@@ -1424,6 +1424,11 @@ export function ChatSurface({
     onScroll();
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
+  // Scroll to bottom on mount so the latest content is visible above the composer dock
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
   // Auto-scroll on new turn unless user is reading higher in the thread
   useEffect(() => {
     const el = scrollRef.current;
@@ -1806,26 +1811,26 @@ function ChatV2CheckpointStrip({
   const hasPacket = turns.some((turn) => turn.packet?.shortAnswer);
   const hasFollowUp = turns.some((turn) => turn.markdown || turn.packet?.nextAction);
   const running = runStatus === "running" || runStatus === "queued" || turns.some((turn) => turn.thinking || turn.streaming);
-  const checkpoints: Array<[string, string, boolean]> = [
-    ["✓", liveDetail ? "Report context loaded" : authReady ? "Memory checked" : "Resolving session", Boolean(liveDetail) || authReady],
-    [hasUserTurn ? "✓" : "○", "Prompt captured", hasUserTurn],
-    [toolCallCount > 0 ? "✓" : running ? "↻" : "○", `${toolCallCount} tool calls`, toolCallCount > 0 || running],
-    [hasPacket ? "✓" : running ? "↻" : "○", "Answer packet", hasPacket || running],
-    [hasFollowUp ? "✓" : "○", "Notebook / follow-up", hasFollowUp],
-    [isAuthenticated ? "✓" : "○", isAuthenticated ? "Telemetry persisted" : "Guest telemetry local", isAuthenticated],
+  const checkpoints: Array<{ icon: string; text: string; done: boolean }> = [
+    { icon: "⚙", text: liveDetail ? "Report context loaded" : authReady ? "Memory checked" : "Resolving session", done: Boolean(liveDetail) || authReady },
+    { icon: "◉", text: "Prompt captured", done: hasUserTurn },
+    { icon: running && toolCallCount === 0 ? "↻" : "✓", text: `${toolCallCount} tool calls`, done: toolCallCount > 0 || running },
+    { icon: running && !hasPacket ? "↻" : "✓", text: "Answer packet", done: hasPacket || running },
+    { icon: hasFollowUp ? "✓" : "○", text: "Notebook / follow-up", done: hasFollowUp },
+    { icon: isAuthenticated ? "✓" : "○", text: isAuthenticated ? "Telemetry persisted" : "Guest telemetry local", done: isAuthenticated },
   ];
 
   return (
     <div className="rd-v2-chat-center">
       <h1>{liveDetail ? `${liveDetail.title} workspace chat` : "Ask NodeBench to work the live packet"}</h1>
       <p className="rd-v2-muted-line">
-        {runStatus ? `Run ${runStatus}` : "Idle"} · {turns.length} messages · context, tools, cost, and evidence stream through the rail.
+        {runStatus ? `Run ${runStatus}` : "Idle"} · {turns.length} messages
       </p>
-      <div className="rd-v2-checkpoints">
-        {checkpoints.map(([mark, label, active]) => (
-          <div key={label} data-active={active}>
-            <span>{mark}</span><strong>{label}</strong>
-          </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", marginTop: 4 }}>
+        {checkpoints.filter((c) => c.done).map((c) => (
+          <span key={c.text} className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>
+            {c.icon} {c.text}
+          </span>
         ))}
       </div>
     </div>
@@ -1855,9 +1860,9 @@ function ChatV2NextActions({
   ] as const;
 
   return (
-    <div className="rd-v2-next-actions" aria-label="Chat next actions">
-      {actions.map(([label, action]) => (
-        <button key={label} type="button" disabled={disabled} onClick={action}>{label}</button>
+    <div className="rd-action-chips" aria-label="Chat next actions" style={{ gap: 6 }}>
+      {actions.map(([label, action], i) => (
+        <button key={label} type="button" className={`rd-action-chip${i === 0 ? " rd-action-chip--primary" : ""}`} disabled={disabled} onClick={action}>{label}</button>
       ))}
     </div>
   );
@@ -2322,9 +2327,9 @@ function BatchMonitorCell({ batch, onCancel }: { batch: ActiveBatchRun; onCancel
           </div>
         )}
       </div>
-      <div className="rd-stack" style={{ gap: 4, alignItems: "flex-end" }}>
-        <button className="rd-btn rd-btn--quiet rd-btn--sm">Pause</button>
-        <button className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onCancel}>Cancel</button>
+      <div className="rd-action-chips" style={{ flexDirection: "column", alignItems: "flex-end" }}>
+        <button className="rd-action-chip">Pause</button>
+        <button className="rd-action-chip" onClick={onCancel}>Cancel</button>
       </div>
     </article>
   );
@@ -2382,19 +2387,20 @@ function StreamingAnswer({
   return (
     <div className="rd-chat-msg rd-chat-msg--assistant">
       <div className="rd-chat-msg__avatar" aria-hidden="true">✦</div>
-      <article className="rd-chat-msg__body rd-card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
-        <header className="rd-chat-msg__header">
-          <span className="rd-chat-msg__name">NodeBench</span>
-          <span className="rd-chat-msg__sep">·</span>
-          <span className="rd-chat-msg__meta">{tierMeta.label} tier · streaming</span>
-          {createdAt && <span className="rd-chat-msg__when"><LiveTime at={createdAt} /></span>}
-        </header>
-        <StreamingMarkdown text={text} streaming={streaming} cps={260} />
-        <MessageActions
-          copyText={text}
-          onRegenerate={onRegenerate}
-          onBranch={onBranch}
-        />
+      <article className="rd-chat-msg__body" style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 8, background: "var(--rd-paper-warm)", borderRadius: "var(--rd-r-md)", borderBottomLeftRadius: 4 }}>
+        <div className="rd-agent-lead">NodeBench</div>
+        <div className="rd-agent-detail">
+          <StreamingMarkdown text={text} streaming={streaming} cps={260} />
+        </div>
+        <div className="rd-tool-badges">
+          <span className="rd-tool-badge">{tierMeta.label}</span>
+          {streaming && <span className="rd-tool-badge">streaming</span>}
+        </div>
+        <div className="rd-feedback" role="toolbar" aria-label="Feedback">
+          <FeedbackButton copyText={text} />
+          <FeedbackThumb kind="up" onRegenerate={onRegenerate} />
+          <FeedbackThumb kind="down" />
+        </div>
       </article>
     </div>
   );
@@ -2507,19 +2513,22 @@ function AnswerPacket({
       {/* Avatar gutter — parity-studio bot icon pattern */}
       <div className="rd-chat-msg__avatar" aria-hidden="true">✦</div>
 
-      <article className="rd-chat-msg__body rd-card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-        <header className="rd-chat-msg__header">
-          <span className="rd-chat-msg__name">NodeBench</span>
-          <span className="rd-chat-msg__sep">·</span>
-          <span className="rd-chat-msg__meta">{tierMeta.label} tier · {packet.sourceCount} sources · {formatTraceCost(packet)}</span>
+      <article className="rd-chat-msg__body" style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 10, background: "var(--rd-paper-warm)", borderRadius: "var(--rd-r-md)", borderBottomLeftRadius: 4 }}>
+        <div className="rd-agent-lead">{packet.shortAnswer.length > 60 ? "Research complete" : "NodeBench"}</div>
+        <header className="rd-chat-msg__header" style={{ fontSize: 10, color: "var(--rd-ink-faint)" }}>
+          <span>{tierMeta.label}</span>
+          <span>·</span>
+          <span>{packet.sourceCount} sources</span>
+          <span>·</span>
+          <span>{formatTraceCost(packet)}</span>
           {createdAt && <span className="rd-chat-msg__when"><LiveTime at={createdAt} /></span>}
         </header>
 
-        {/* Status strip — quieter; structural meta moves to header above */}
-        <div className="rd-row" style={{ gap: 6, flexWrap: "wrap" }}>
-          <Pill tone="green"><span className="rd-dot rd-dot--live" />Using memory</Pill>
-          <Pill tone="accent">Saved to {reportTitle ?? "report"}</Pill>
-          <Pill>{packet.paidCalls} paid calls</Pill>
+        {/* Status strip — tool badges (home-v3 parity) */}
+        <div className="rd-tool-badges">
+          <span className="rd-tool-badge">memory</span>
+          <span className="rd-tool-badge">{reportTitle ?? "report"}</span>
+          <span className="rd-tool-badge">{packet.paidCalls} paid</span>
         </div>
 
         <LiveResearchChecklist
@@ -2649,9 +2658,10 @@ function AnswerPacket({
       }}>
         <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)", marginBottom: 4 }}>Next action</div>
         <p className="rd-body" style={{ margin: 0, color: "var(--rd-ink)" }}>{packet.nextAction}</p>
-        <div className="rd-row" style={{ gap: 6, marginTop: 10 }}>
-          <button type="button" className="rd-btn rd-btn--primary rd-btn--sm" onClick={onAddFollowUp}>Add to follow-ups</button>
-          <button type="button" className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onOpenReport}>Open {reportTitle ?? "report"}</button>
+        <div className="rd-action-chips" style={{ marginTop: 10 }}>
+          <button type="button" className="rd-action-chip rd-action-chip--primary" onClick={onAddFollowUp}>Add to follow-ups</button>
+          <button type="button" className="rd-action-chip" onClick={onOpenReport}>Open {reportTitle ?? "report"}</button>
+          <button type="button" className="rd-action-chip" onClick={onShare}>Export memo</button>
         </div>
       </section>
 
@@ -2678,17 +2688,12 @@ function AnswerPacket({
         </ol>
       </details>
 
-      {/* Per-message action toolbar — Copy / Regen / Pin / Branch / Why? / Compare / Share / 👍👎 */}
-      <MessageActions
-        copyText={packet.shortAnswer + "\n\n" + packet.whyItMatters}
-        onRegenerate={onRegenerate}
-        onPin={onPin}
-        onBranch={onBranch}
-        onWhy={showTrace}
-        onReact={onReact}
-        onCompare={onCompare}
-        onShare={onShare}
-      />
+      {/* Minimal feedback row (home-v3 parity) */}
+      <div className="rd-feedback" role="toolbar" aria-label="Feedback">
+        <FeedbackButton copyText={packet.shortAnswer + "\n\n" + packet.whyItMatters} />
+        <FeedbackThumb kind="up" />
+        <FeedbackThumb kind="down" onRegenerate={onRegenerate} />
+      </div>
       </article>
 
       {/* Sprint 2 P0.3 — counterfactual probe context menu (right-click on cite chip) */}
@@ -2996,4 +3001,56 @@ function renderInlineWithCites(
   }
   if (last < text.length) out.push(<span key={`tail`}>{text.slice(last)}</span>);
   return out.length > 0 ? out : [text];
+}
+
+function FeedbackButton({ copyText }: { copyText: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(copyText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch { /* sandbox may block */ }
+  };
+  return (
+    <button
+      type="button"
+      className="rd-fb-btn"
+      onClick={copy}
+      title="Copy"
+      aria-label="Copy message"
+    >{copied ? "✓" : "⎘"}</button>
+  );
+}
+
+function FeedbackThumb({ kind, onRegenerate }: { kind: "up" | "down"; onRegenerate?: (tier?: "free" | "fast" | "deep") => void }) {
+  const [active, setActive] = useState(false);
+  return (
+    <button
+      type="button"
+      className="rd-fb-btn"
+      data-active={active || undefined}
+      onClick={() => {
+        setActive((v) => !v);
+        if (kind === "down" && onRegenerate) onRegenerate();
+      }}
+      title={kind === "up" ? "Helpful" : "Not helpful"}
+      aria-label={kind === "up" ? "Thumbs up" : "Thumbs down"}
+      aria-pressed={active}
+    >{kind === "up" ? "△" : "▽"}</button>
+  );
+}
+
+function SystemEvent({ icon, text, time }: { icon: string; text: string; time?: string }) {
+  return (
+    <div className="rd-system-event">
+      <div className="rd-system-event__line">
+        <div className="rd-system-event__body">
+          <span className="rd-system-event__icon">{icon}</span>
+          <span>{text}</span>
+          {time && <time>{time}</time>}
+        </div>
+      </div>
+    </div>
+  );
 }

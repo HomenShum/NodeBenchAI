@@ -1,5 +1,5 @@
 /**
- * Redesign Primitives — base utility classes scoped to [data-redesign].
+ * Redesign Primitives â€” base utility classes scoped to [data-redesign].
  * Pairs with tokens.css. Tailwind-free so it survives any rebrand sweep.
  */
 
@@ -14,7 +14,7 @@
   box-sizing: border-box;
 }
 
-/* ───── Headings ───── */
+/* â”€â”€â”€â”€â”€ Headings â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-display {
   font-family: var(--rd-font-display);
   font-size: 40px;
@@ -80,7 +80,7 @@
   color: var(--rd-ink-soft);
 }
 
-/* ───── Card ───── */
+/* â”€â”€â”€â”€â”€ Card â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-card {
   background: var(--rd-panel);
   border: 1px solid var(--rd-line);
@@ -322,7 +322,7 @@
   }
 }
 
-/* ───── Button ───── */
+/* â”€â”€â”€â”€â”€ Button â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-btn {
   display: inline-flex;
   align-items: center;
@@ -355,9 +355,8 @@
 }
 
 [data-redesign] .rd-btn--primary:hover {
-  background: var(--rd-accent);
-  border-color: var(--rd-accent);
-  filter: brightness(0.88);
+  background: #b55a3d;
+  border-color: #b55a3d;
 }
 
 [data-redesign] .rd-btn--ghost {
@@ -393,7 +392,7 @@
   font-size: 12px;
 }
 
-/* ───── Pill / Badge ───── */
+/* â”€â”€â”€â”€â”€ Pill / Badge â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-pill {
   display: inline-flex;
   align-items: center;
@@ -432,7 +431,7 @@
 [data-redesign] .rd-dot--watch { background: var(--rd-blue); }
 [data-redesign] .rd-dot--review { background: var(--rd-amber); }
 
-/* ───── Input ───── */
+/* â”€â”€â”€â”€â”€ Input â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-input {
   width: 100%;
   border: 1px solid var(--rd-line);
@@ -456,7 +455,7 @@
   box-shadow: 0 0 0 3px var(--rd-accent-soft);
 }
 
-/* ───── Layout primitives ───── */
+/* â”€â”€â”€â”€â”€ Layout primitives â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-stack { display: flex; flex-direction: column; }
 [data-redesign] .rd-row { display: flex; flex-direction: row; align-items: center; }
 [data-redesign] .rd-row--between { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
@@ -580,9 +579,9 @@
   padding: 8px 10px 4px;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
 }
 
 [data-redesign] .rd-v2-edition-block {
@@ -593,7 +592,11 @@
   margin: 3px 10px 2px 46px;
   font-size: 10.5px;
   line-height: 1.45;
-  color: var(--rd-ink-soft);
+  color: var(--rd-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 [data-redesign] .rd-v2-edition-date {
@@ -644,11 +647,14 @@
   font-weight: 590;
   line-height: 1.2;
   color: var(--rd-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 [data-redesign] .rd-v2-edition-sub {
   font-size: 10px;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
 }
 
 [data-redesign] .rd-v2-rail-rule {
@@ -678,7 +684,7 @@
   width: 10px;
   flex-shrink: 0;
   font-size: 8px;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
 }
 
 [data-redesign] .rd-v2-edition-group span:nth-child(2) {
@@ -692,7 +698,7 @@
 [data-redesign] .rd-v2-edition-group b {
   font-size: 10px;
   font-weight: 500;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-variant-numeric: tabular-nums;
 }
 
@@ -763,6 +769,7 @@
   border: 1px solid var(--rd-line);
   border-radius: 8px;
   background: var(--rd-panel);
+  box-shadow: var(--rd-shadow-xs);
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -838,7 +845,7 @@
 
 [data-redesign] .rd-v3-halo-card > small {
   margin-top: 5px;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 10px;
 }
 
@@ -852,6 +859,8 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
 }
 
 [data-redesign] .rd-v3-halo-dock {
@@ -900,7 +909,7 @@
 }
 
 [data-redesign] .rd-v3-halo-dock dt {
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.07em;
@@ -958,10 +967,10 @@
   max-width: 700px;
   margin: 0;
   color: var(--rd-ink-strong);
-  font-size: 54px;
-  font-weight: 810;
-  letter-spacing: 0;
-  line-height: 1.02;
+  font-size: 34px;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
 }
 
 [data-redesign] .rd-v3-home-composer-shell .rd-card {
@@ -973,7 +982,8 @@
   display: flex;
   align-items: baseline;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  padding: 3px 0;
 }
 
 [data-redesign] .rd-v2-edition-pill {
@@ -1004,7 +1014,7 @@
 
 [data-redesign] .rd-v2-share-bar span {
   margin-right: 6px;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -1321,6 +1331,7 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 20px;
+  margin-bottom: 12px;
 }
 
 [data-redesign] .rd-v2-pulse-statline {
@@ -1437,7 +1448,7 @@
 
 [data-redesign] .rd-v2-card-kicker {
   margin-bottom: 10px;
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -1499,7 +1510,7 @@
 [data-redesign] .rd-v2-sweep-list li::before {
   content: "\2022";
   flex-shrink: 0;
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-weight: 700;
 }
 
@@ -1597,7 +1608,7 @@
 }
 
 [data-redesign] .rd-v2-selected-top span {
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -1721,7 +1732,7 @@
 
 [data-redesign] .rd-v2-q-rank {
   text-align: center;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -1770,7 +1781,7 @@
 }
 
 [data-redesign] .rd-v2-q-next {
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-size: 11px;
   font-weight: 590;
   white-space: nowrap;
@@ -1918,7 +1929,7 @@
 [data-redesign] .rd-v2-ed-section-top span {
   display: block;
   margin-bottom: 0;
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -2006,7 +2017,7 @@
   padding: 2px 6px;
   border-radius: var(--rd-r-pill);
   background: var(--rd-accent-soft);
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
@@ -2088,15 +2099,15 @@
   border: 0;
   border-radius: var(--rd-r-pill);
   background: var(--rd-muted);
-  color: var(--rd-ink-soft);
+  color: var(--rd-ink);
   cursor: pointer;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
 }
 
 [data-redesign] .rd-v2-agent-head p {
   margin: 0 0 0 16px;
-  color: var(--rd-ink-soft);
+  color: var(--rd-ink);
   font-size: 11px;
 }
 
@@ -2104,7 +2115,7 @@
 [data-redesign] .rd-v2-agent-tools {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 6px;
 }
 
 [data-redesign] .rd-v2-agent-pills {
@@ -2151,9 +2162,9 @@
   flex: 1;
   min-height: 0;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   overflow-y: auto;
-  padding: 10px 14px 8px;
+  padding: 10px 14px 16px;
 }
 
 [data-redesign] .rd-v2-msg {
@@ -2206,7 +2217,7 @@
 
 [data-redesign] .rd-v2-trace small {
   flex-basis: 100%;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink);
   font-size: 10px;
   font-weight: 590;
 }
@@ -2214,7 +2225,7 @@
 [data-redesign] .rd-v2-trace span {
   padding: 2px 7px;
   background: var(--rd-panel);
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-size: 9px;
 }
 
@@ -2306,7 +2317,7 @@
 }
 
 [data-redesign] .rd-v2-agent-context {
-  padding-top: 6px;
+  padding-top: 10px;
 }
 
 [data-redesign] .rd-v2-warning-line {
@@ -2317,8 +2328,8 @@
 [data-redesign] .rd-v2-context-head {
   display: flex;
   justify-content: space-between;
-  padding: 0 2px 5px;
-  color: var(--rd-ink-faint);
+  padding: 0 2px 8px;
+  color: var(--rd-ink-soft);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -2330,7 +2341,7 @@
   grid-template-columns: 26px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
-  padding: 4px 0;
+  padding: 6px 0;
   border-bottom: 1px solid var(--rd-line-faint);
 }
 
@@ -2396,8 +2407,8 @@
 
 [data-redesign] .rd-v2-agent-composer {
   flex-shrink: 0;
-  padding: 10px 14px;
-  border-top: 1px solid var(--rd-line-faint);
+  padding: 12px 14px;
+  border-top: 1px solid var(--rd-line);
   background: var(--rd-paper);
 }
 
@@ -2837,7 +2848,7 @@
   border: 0;
   border-radius: var(--rd-r-sm);
   background: transparent;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   cursor: pointer;
   font: inherit;
   font-size: 9px;
@@ -2859,7 +2870,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 8px 0;
 }
 
 [data-redesign] .rd-v2-rail-empty {
@@ -2867,7 +2878,7 @@
   padding: 8px;
   border: 1px dashed var(--rd-line);
   border-radius: var(--rd-r-sm);
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 11px;
 }
 
@@ -2885,7 +2896,7 @@
   border: 0;
   border-radius: var(--rd-r-sm);
   background: transparent;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   cursor: pointer;
   font: inherit;
   font-size: 10px;
@@ -2899,19 +2910,19 @@
 [data-redesign] .rd-v2-rail-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 14px;
+  gap: 5px;
+  margin-bottom: 16px;
 }
 
 [data-redesign] .rd-v2-rail-section-head {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px;
-  color: var(--rd-ink-soft);
-  font-size: 9px;
+  padding: 6px 10px;
+  color: var(--rd-ink-mute);
+  font-size: 10px;
   font-weight: 650;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -2931,7 +2942,7 @@
 
 [data-redesign] .rd-v2-rail-section-head b {
   margin-left: auto;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-weight: 700;
 }
 
@@ -2967,11 +2978,12 @@
 [data-redesign] .rd-v2-nav-row.is-active,
 [data-redesign] .rd-v2-thread-row.is-active {
   background: var(--rd-accent-soft);
-  color: var(--rd-accent-strong);
+  color: var(--rd-ink-strong);
+  border-left: 3px solid var(--rd-accent);
 }
 
 [data-redesign] .rd-v2-nav-row span {
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   text-align: center;
 }
 
@@ -3028,14 +3040,14 @@
   width: calc(100% - 36px);
   margin: 8px 18px 24px;
   padding: 8px 14px;
-  border: 0;
+  border: 1px solid var(--rd-line);
   border-radius: var(--rd-r-pill);
-  background: var(--rd-ink-strong);
-  color: var(--rd-paper);
+  background: var(--rd-panel);
+  color: var(--rd-ink);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 650;
 }
 
 [data-redesign] .rd-v2-new-entity {
@@ -3083,7 +3095,7 @@
   margin: 1px 0 0;
   min-width: 0;
   overflow: hidden;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3091,7 +3103,7 @@
 
 [data-redesign] .rd-v2-thread-row b {
   align-self: start;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 10px;
   font-weight: 500;
 }
@@ -3101,7 +3113,7 @@
   bottom: 34px;
   left: 18px;
   right: 18px;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 10px;
   line-height: 1.5;
 }
@@ -3344,8 +3356,8 @@
 [data-redesign] .rd-v2-report-card p {
   margin: 8px 0 0;
   color: var(--rd-ink);
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.6;
 }
 
 [data-redesign] .rd-v2-report-card .rd-v2-report-kind,
@@ -3375,12 +3387,12 @@
   grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   column-gap: 10px;
-  row-gap: 10px;
-  margin-bottom: 14px;
-  padding: 10px 14px;
-  border: 1px solid var(--rd-green-border);
+  row-gap: 6px;
+  margin-bottom: 10px;
+  padding: 7px 12px;
+  border: 1px solid var(--rd-line);
   border-radius: var(--rd-r);
-  background: var(--rd-green-bg);
+  background: var(--rd-panel);
 }
 
 [data-redesign] .rd-v2-saved-banner strong {
@@ -3446,7 +3458,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  color: var(--rd-ink-soft);
+  color: var(--rd-ink-mute);
   font-size: 12px;
 }
 
@@ -3463,7 +3475,7 @@
 
 [data-redesign] .rd-v2-checkpoints div[data-active="true"] span {
   background: var(--rd-accent-soft);
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
 }
 
 [data-redesign] .rd-v2-answer {
@@ -3669,13 +3681,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 16px;
-  background: var(--rd-paper-warm);
-  color: var(--rd-accent);
+  padding: 6px 16px 4px;
+  margin-top: 8px;
+  background: transparent;
+  color: var(--rd-ink-mute);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+[data-redesign] .rd-v2-inbox-group:first-child .rd-v2-inbox-group-head {
+  margin-top: 0;
 }
 
 [data-redesign] .rd-v2-inbox-group-head b {
@@ -3698,6 +3714,34 @@
 
 [data-redesign] .rd-v2-inbox-group article.is-active {
   background: var(--rd-accent-tint);
+  border-left: 3px solid var(--rd-accent);
+  padding-left: 13px;
+}
+
+[data-redesign] .rd-v2-inbox-group article.rd-inbox-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  border-bottom: none;
+  background: transparent;
+  padding: 8px 16px;
+}
+
+[data-redesign] .rd-inbox-empty .rd-v2-source-icon {
+  display: none;
+}
+
+[data-redesign] .rd-inbox-empty > div {
+  width: 100%;
+  text-align: center;
+}
+
+[data-redesign] .rd-inbox-empty .rd-v2-inbox-title-row strong {
+  font-weight: 450;
+  font-size: 11.5px;
+  color: var(--rd-ink-faint);
+  font-style: italic;
 }
 
 [data-redesign] .rd-v2-source-icon {
@@ -3748,12 +3792,12 @@
 
 [data-redesign] .rd-v2-inbox-group p {
   margin: 2px 0 0;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 11px;
 }
 
 [data-redesign] .rd-v2-inbox-group time {
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 10px;
 }
 
@@ -3771,7 +3815,7 @@
   border-radius: var(--rd-r-md);
   background: var(--rd-panel);
   box-shadow: var(--rd-shadow-xs);
-  font-family: var(--rd-font-mono);
+  font-family: var(--rd-font-sans);
 }
 
 [data-redesign] .rd-v2-user-md h2 {
@@ -3786,13 +3830,15 @@
 }
 
 [data-redesign] .rd-v2-user-md p {
-  margin: 4px 0;
+  margin: 6px 0;
   color: var(--rd-ink);
   font-size: 13px;
+  line-height: 1.55;
 }
 
 [data-redesign] .rd-v2-user-md p span {
-  color: var(--rd-accent-strong);
+  color: var(--rd-ink-strong);
+  font-weight: 600;
 }
 
 [data-redesign] .rd-v2-integrations-grid {
@@ -3803,10 +3849,11 @@
 }
 
 [data-redesign] .rd-v2-integrations-grid article {
-  padding: 12px;
-  border: 1px solid var(--rd-line-faint);
-  border-radius: var(--rd-r-sm);
+  padding: 14px;
+  border: 1px solid var(--rd-line);
+  border-radius: var(--rd-r);
   background: var(--rd-panel);
+  box-shadow: var(--rd-shadow-xs);
 }
 
 [data-redesign] .rd-v2-integrations-grid strong {
@@ -3821,6 +3868,15 @@
   color: var(--rd-green);
   font-size: 11px;
   font-weight: 700;
+}
+
+[data-redesign] .rd-v2-integrations-grid span[data-tone="amber"] {
+  color: var(--rd-amber);
+}
+
+[data-redesign] .rd-v2-integrations-grid span[data-tone="mute"] {
+  color: var(--rd-ink-mute);
+  font-weight: 600;
 }
 
 [data-redesign] .rd-v2-integrations-grid p {
@@ -4091,9 +4147,9 @@
 }
 
 [data-redesign] .rd-v2-action-card-list button.is-primary {
-  border-color: var(--rd-ink-strong);
-  background: var(--rd-ink-strong);
-  color: var(--rd-paper);
+  border-color: var(--rd-accent-ring);
+  background: var(--rd-accent-tint);
+  color: var(--rd-accent-strong);
 }
 
 [data-redesign] .rd-v2-settings-list {
@@ -4122,8 +4178,10 @@
 }
 
 [data-redesign] .rd-agent-rail {
-  padding: 20px 18px;
-  gap: 14px;
+  padding: 22px 18px;
+  padding-bottom: 10px;
+  gap: 22px;
+  overflow-y: auto;
 }
 
 [data-redesign] .rd-agent-rail__header {
@@ -4151,8 +4209,8 @@
 [data-redesign] .rd-agent-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
+  gap: 12px;
+  padding: 16px;
   border: 1px solid var(--rd-line);
   border-radius: 8px;
   background: var(--rd-panel);
@@ -4271,9 +4329,9 @@
 [data-redesign] .rd-agent-trace ol {
   margin: 8px 0 0;
   padding-left: 18px;
-  color: var(--rd-ink-mute);
+  color: var(--rd-ink-soft);
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 [data-redesign] .rd-agent-list {
@@ -4308,6 +4366,7 @@
   border-radius: 8px;
   background: var(--rd-panel);
   box-shadow: var(--rd-shadow-xs);
+  flex-shrink: 0;
 }
 
 [data-redesign] .rd-agent-composer__chips span {
@@ -4355,7 +4414,8 @@
 [data-redesign] .rd-composer-dock {
   position: sticky;
   bottom: 0;
-  background: linear-gradient(to top, var(--rd-paper) 0%, var(--rd-paper) 70%, transparent 100%);
+  background: var(--rd-paper);
+  box-shadow: 0 -1px 6px rgba(0,0,0,0.04);
   padding: var(--rd-s-3) var(--rd-s-5) var(--rd-s-4);
   z-index: 5;
 }
@@ -4398,7 +4458,7 @@
   border-bottom: 2px solid var(--rd-accent);
 }
 
-/* ─── Notebook (TipTap-backed report editor — Notion + Roam feel) ─── */
+/* â”€â”€â”€ Notebook (TipTap-backed report editor â€” Notion + Roam feel) â”€â”€â”€ */
 [data-redesign] .rd-notebook {
   display: flex;
   flex-direction: column;
@@ -4435,7 +4495,7 @@
   background: var(--rd-panel);
 }
 
-/* First block in the document gets no top margin — chrome already provides separation */
+/* First block in the document gets no top margin â€” chrome already provides separation */
 [data-redesign] .rd-notebook__content > *:first-child {
   margin-top: 0 !important;
   padding-top: 4px;
@@ -4466,9 +4526,9 @@
   background: var(--rd-paper-warm);
 }
 
-/* Block handle — appears on the left when a block is hovered (Notion-iconic) */
+/* Block handle â€” appears on the left when a block is hovered (Notion-iconic) */
 [data-redesign] .rd-notebook__content > *::before {
-  content: "+ ⋮⋮";
+  content: "+ â‹®â‹®";
   position: absolute;
   left: -52px;
   top: 4px;
@@ -4549,7 +4609,7 @@
   border-radius: 4px;
 }
 
-/* Custom blocks — styled-from-data-attribute (production: Node.create() extensions) */
+/* Custom blocks â€” styled-from-data-attribute (production: Node.create() extensions) */
 [data-redesign] .rd-notebook__content [data-block="claim"] {
   display: block;
   margin: 0 0 14px;
@@ -4645,7 +4705,7 @@
   float: left;
 }
 
-/* Roam/Obsidian-style [[Entity]] inline chip — subtle pill background ALWAYS, brackets on hover */
+/* Roam/Obsidian-style [[Entity]] inline chip â€” subtle pill background ALWAYS, brackets on hover */
 [data-redesign] .rd-entity-link {
   display: inline;
   padding: 1px 5px;
@@ -4662,10 +4722,10 @@
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
-/* Brackets only render on hover — Obsidian power-users see them, casual users see pills */
+/* Brackets only render on hover â€” Obsidian power-users see them, casual users see pills */
 [data-redesign] .rd-entity-link::before {
   content: "[[";
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-weight: 510;
   margin-right: 1px;
   opacity: 0;
@@ -4674,7 +4734,7 @@
 
 [data-redesign] .rd-entity-link::after {
   content: "]]";
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-weight: 510;
   margin-left: 1px;
   opacity: 0;
@@ -4698,8 +4758,8 @@
   padding: 0 1px;
 }
 
-/* Focus mode (Karpathy persona) — strip chrome that competes with writing.
-   Activate via `?focus=zen` URL param or ⌘\\ keyboard toggle.
+/* Focus mode (Karpathy persona) â€” strip chrome that competes with writing.
+   Activate via `?focus=zen` URL param or âŒ˜\\ keyboard toggle.
    Body-level attribute collapses the left rail AND rewrites the parent grid
    so the editor takes the full width. Hiding the rail without rewriting the
    grid leaves a phantom 248px column and the editor wraps into nothing. */
@@ -4709,7 +4769,7 @@ body[data-redesign-focus-mode="on"] [aria-label="Primary navigation"] {
 body[data-redesign-focus-mode="on"] [data-redesign] .rd-shell {
   grid-template-columns: minmax(0, 1fr) !important;
 }
-/* Top toolbar (Graph / Focus / Share / Export / Refresh) — auto-hide in focus mode,
+/* Top toolbar (Graph / Focus / Share / Export / Refresh) â€” auto-hide in focus mode,
    reveal only on hover at the top of the editor pane */
 body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main > .rd-row--between {
   opacity: 0.18;
@@ -4745,7 +4805,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] [data-focus-mode="on"] .rd-notebook__content [data-block="claim"][data-status="review"]   { border-left-color: var(--rd-amber); }
 [data-redesign] [data-focus-mode="on"] .rd-notebook__content [data-block="claim"][data-status="rejected"] { border-left-color: var(--rd-red); }
 
-/* Inline citation chip [N] — superscript, links to source. Visibly clickable. */
+/* Inline citation chip [N] â€” superscript, links to source. Visibly clickable. */
 [data-redesign] .rd-cite {
   display: inline-flex;
   align-items: center;
@@ -4774,8 +4834,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-blue);
 }
 
-/* Notion-style page chrome — ULTRA-COMPACT.
-   No max-width/margin-auto here — the inline `padding: 0 96px` matches the
+/* Notion-style page chrome â€” ULTRA-COMPACT.
+   No max-width/margin-auto here â€” the inline `padding: 0 96px` matches the
    notebook surface gutter so chrome content aligns with body content. */
 [data-redesign] .rd-page-chrome {
   padding: 8px 0 4px;
@@ -4817,7 +4877,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   border-radius: 4px;
   padding: 1px 4px;
   margin: 0;
-  /* No flex:1 — let the title hug its content so pills sit right next to it */
+  /* No flex:1 â€” let the title hug its content so pills sit right next to it */
 }
 
 [data-redesign] .rd-page-chrome__title:focus {
@@ -4825,7 +4885,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   background: var(--rd-accent-tint);
 }
 
-/* Notion / Obsidian frontmatter — clean key/value rows in a 2-col grid.
+/* Notion / Obsidian frontmatter â€” clean key/value rows in a 2-col grid.
    Operator + banker + founder rely on this for CRM-mappable scanning.
    Karpathy is in focus mode where props are hidden, so this can be expressive. */
 [data-redesign] .rd-page-chrome__props {
@@ -4921,7 +4981,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   content: "";
   display: none;
   margin-left: 6px;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-family: var(--rd-font-mono);
   font-size: 11px;
   letter-spacing: 0.18em;
@@ -4962,7 +5022,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   background: var(--rd-accent-tint);
 }
 
-/* Block handle — Notion-style left-margin `+ ⋮⋮` */
+/* Block handle â€” Notion-style left-margin `+ â‹®â‹®` */
 [data-redesign] .rd-block-handle {
   display: inline-flex;
   align-items: center;
@@ -5012,11 +5072,11 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   gap: 1px;
 }
 
-/* Block handle gutter — Notion-iconic "+ ⋮⋮" always visible at low opacity.
-   The "+" inserts below; the "⋮⋮" drags. Brightens to full on row hover.
+/* Block handle gutter â€” Notion-iconic "+ â‹®â‹®" always visible at low opacity.
+   The "+" inserts below; the "â‹®â‹®" drags. Brightens to full on row hover.
    Static screenshots / screen-readers can see this without any interaction. */
 [data-redesign] .rd-notebook__content > *::before {
-  content: "+ ⋮⋮";
+  content: "+ â‹®â‹®";
   position: absolute;
   left: -52px;
   top: 6px;
@@ -5037,7 +5097,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-mute);
 }
 
-/* Bubble menu — floating formatting toolbar (Notion / Linear pattern) */
+/* Bubble menu â€” floating formatting toolbar (Notion / Linear pattern) */
 [data-redesign] .rd-bubble-menu {
   display: inline-flex;
   align-items: center;
@@ -5144,7 +5204,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-soft);
 }
 
-/* Backlinks panel — Roam-style references at the bottom of the page */
+/* Backlinks panel â€” Roam-style references at the bottom of the page */
 [data-redesign] .rd-backlinks {
   max-width: 740px;
   margin: 56px auto 0;
@@ -5207,7 +5267,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   margin-top: 4px;
 }
 
-/* ─── Bloomberg-style ticker ─── */
+/* â”€â”€â”€ Bloomberg-style ticker â”€â”€â”€ */
 [data-redesign] .rd-ticker {
   display: flex;
   align-items: center;
@@ -5254,7 +5314,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-ticker__delta--up { color: var(--rd-green); }
 [data-redesign] .rd-ticker__delta--down { color: var(--rd-red); }
 
-/* ─── Cover-story event hero ─── */
+/* â”€â”€â”€ Cover-story event hero â”€â”€â”€ */
 [data-redesign] .rd-cover-hero {
   position: relative;
   display: grid;
@@ -5304,7 +5364,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] .rd-cover-hero__pulse::before { animation: none; }
 }
 
-/* ─── Ops dashboard 3-column ─── */
+/* â”€â”€â”€ Ops dashboard 3-column â”€â”€â”€ */
 [data-redesign] .rd-ops {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, 1fr);
@@ -5376,7 +5436,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-soft);
 }
 
-/* ─── Entity-card feed (Pitchbook-style) ─── */
+/* â”€â”€â”€ Entity-card feed (Pitchbook-style) â”€â”€â”€ */
 [data-redesign] .rd-entity-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -5515,7 +5575,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   background: var(--rd-line-strong);
 }
 
-/* ─── Filter / sort toolbar ─── */
+/* â”€â”€â”€ Filter / sort toolbar â”€â”€â”€ */
 [data-redesign] .rd-filter-bar {
   display: flex;
   align-items: center;
@@ -5569,7 +5629,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   cursor: pointer;
 }
 
-/* ─── Situation gallery cards ─── */
+/* â”€â”€â”€ Situation gallery cards â”€â”€â”€ */
 [data-redesign] .rd-sit-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -5645,6 +5705,10 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   font-size: 12.5px;
   color: var(--rd-ink-mute);
   line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 [data-redesign] .rd-sit-card__foot {
@@ -5674,7 +5738,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-soft);
 }
 
-/* ─── Style gallery card (memo style preview) ─── */
+/* â”€â”€â”€ Style gallery card (memo style preview) â”€â”€â”€ */
 [data-redesign] .rd-style-card {
   display: flex;
   flex-direction: column;
@@ -5764,7 +5828,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   white-space: nowrap;
 }
 
-/* ─── Universe header (Pitchbook-style group row) ─── */
+/* â”€â”€â”€ Universe header (Pitchbook-style group row) â”€â”€â”€ */
 [data-redesign] .rd-universe-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -5819,7 +5883,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   font-weight: 700;
 }
 
-/* ─── Bulk action bar (Linear-style) ─── */
+/* â”€â”€â”€ Bulk action bar (Linear-style) â”€â”€â”€ */
 [data-redesign] .rd-bulk-bar {
   display: flex;
   align-items: center;
@@ -5847,7 +5911,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-accent-strong);
 }
 
-/* ─── Live batch monitor (Modal/Replicate-style) ─── */
+/* â”€â”€â”€ Live batch monitor (Modal/Replicate-style) â”€â”€â”€ */
 [data-redesign] .rd-batch-cell {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -5859,7 +5923,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   background: linear-gradient(135deg, var(--rd-accent-tint) 0%, var(--rd-paper) 70%);
 }
 
-/* ───────── Chat message rows (parity-studio inspired) ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Chat message rows (parity-studio inspired) â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-chat-thread-head {
   padding-bottom: 8px;
   border-bottom: 1px dashed var(--rd-line-faint);
@@ -5906,7 +5970,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   font-size: 13px;
 }
 [data-redesign] .rd-chat-msg__sep {
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
 }
 [data-redesign] .rd-chat-msg__meta {
   font-family: var(--rd-font-mono);
@@ -5917,22 +5981,22 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   margin-left: auto;
   font-family: var(--rd-font-mono);
   font-size: 10.5px;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
 }
 [data-redesign] .rd-chat-msg__bubble {
   grid-column: 1;
   grid-row: 1;
   max-width: 560px;
-  padding: 10px 14px;
-  background: var(--rd-accent-tint);
-  border: 1px solid var(--rd-accent-ring);
-  border-radius: 14px 14px 4px 14px;
-  color: var(--rd-ink);
-  font-size: 13.5px;
+  padding: 8px 12px;
+  background: var(--rd-accent);
+  color: #fff;
+  border-radius: var(--rd-r-md);
+  border-bottom-right-radius: 4px;
+  font-size: 12.5px;
   line-height: 1.5;
 }
 
-/* ───────── Streaming markdown ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Streaming markdown â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-md {
   font-family: var(--rd-font-sans, var(--rd-font-display));
   font-size: 14px;
@@ -5988,9 +6052,9 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   font-size: 9.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
 }
-/* Lightweight syntax highlight tokens — warm-tinted to match the design DNA */
+/* Lightweight syntax highlight tokens â€” warm-tinted to match the design DNA */
 [data-redesign] .rd-tok-kw      { color: var(--rd-accent-strong); font-weight: 600; }
 [data-redesign] .rd-tok-string  { color: var(--rd-green); }
 [data-redesign] .rd-tok-num     { color: var(--rd-blue); }
@@ -6043,7 +6107,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   text-underline-offset: 2px;
 }
 [data-redesign] .rd-md__link:hover {
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
 }
 [data-redesign] .rd-md__img-wrap {
   display: block;
@@ -6066,7 +6130,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-md__caret {
   display: inline-block;
   margin-left: 2px;
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-weight: 700;
   animation: rd-md-caret 1s steps(2, start) infinite;
   transform: translateY(-1px);
@@ -6079,7 +6143,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] .rd-md__caret { animation: none; opacity: 0.6; }
 }
 
-/* ───────── Pre-stream thinking indicator ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Pre-stream thinking indicator â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-chat-msg__avatar--thinking {
   animation: rd-thinking-pulse 1.6s ease-in-out infinite;
 }
@@ -6125,7 +6189,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] .rd-chat-thinking__dots > span { animation: none; }
 }
 
-/* ───────── Inline tool-call cards (parity-studio pattern) ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Inline tool-call cards (parity-studio pattern) â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-toolcall-list {
   display: flex;
   flex-direction: column;
@@ -6226,7 +6290,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] .rd-toolcall__spinner { animation: none; }
 }
 
-/* ───────── Citation [N] hover linkage ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Citation [N] hover linkage â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-cite {
   display: inline-flex;
   align-items: center;
@@ -6255,7 +6319,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   vertical-align: 0;
 }
 
-/* ───────── Sprint 1 P0.1 — citation hover popover ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Sprint 1 P0.1 â€” citation hover popover â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-cite-wrap {
   position: relative;
   display: inline;
@@ -6302,7 +6366,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-soft);
   letter-spacing: 0.02em;
 }
-/* Sprint 3 P2.9 — source freshness pill inside popover */
+/* Sprint 3 P2.9 â€” source freshness pill inside popover */
 [data-redesign] .rd-cite-popover__freshness {
   display: inline-block;
   margin-top: 6px;
@@ -6320,7 +6384,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   }
 }
 
-/* ───────── Sprint 3 P2.11 — Open-questions tray ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Sprint 3 P2.11 â€” Open-questions tray â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-open-q {
   display: flex;
   flex-direction: column;
@@ -6388,9 +6452,9 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-open-q__item {
   display: grid;
   grid-template-columns: auto 1fr auto auto;
-  align-items: center;
+  align-items: start;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--rd-line-faint);
 }
 [data-redesign] .rd-open-q__item:last-child {
@@ -6476,7 +6540,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   }
 }
 
-/* ───────── Sprint 3 P1.4 — inline correction ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Sprint 3 P1.4 â€” inline correction â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 /* Floating "Correct this" bubble shown above text selection */
 [data-redesign] .rd-correct-bubble {
@@ -6605,7 +6669,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   gap: 8px;
 }
 
-/* ───────── Sprint 2 P0.3 — counterfactual probe ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Sprint 2 P0.3 â€” counterfactual probe â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 /* Right-click context menu on citation chip */
 [data-redesign] .rd-cite-menu {
@@ -6679,14 +6743,14 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   line-height: 1.45;
 }
 
-/* Masked cite chip in body prose — dimmed, struck through */
+/* Masked cite chip in body prose â€” dimmed, struck through */
 [data-redesign] .rd-cite[data-masked] {
   opacity: 0.4;
   text-decoration: line-through;
   text-decoration-color: var(--rd-ink-soft);
 }
 
-/* ───────── Sprint 2 P0.2 — collapsible "Working notes" ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Sprint 2 P0.2 â€” collapsible "Working notes" â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-working-notes {
   border: 1px dashed var(--rd-line-faint);
   border-radius: var(--rd-r-sm);
@@ -6918,7 +6982,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   background: var(--rd-accent-tint);
 }
 
-/* ───────── Per-message action toolbar ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Per-message action toolbar â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-msg-actions {
   display: flex;
   align-items: center;
@@ -7001,17 +7065,168 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 [data-redesign] .rd-msg-actions__menu button:hover { background: var(--rd-paper-warm); }
 
-/* User bubble — small inline timestamp at the bottom-right of the bubble */
+/* User bubble â€” small inline timestamp at the bottom-right of the bubble */
 [data-redesign] .rd-chat-msg__when--user {
   display: block;
   margin-top: 4px;
   margin-left: auto;
   text-align: right;
   font-size: 10px;
-  opacity: 0.6;
+  opacity: 0.7;
+  color: rgba(255, 255, 255, 0.7);
 }
 
-/* ───────── ⌘K Command Palette ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Action chips (home-v3 parity) â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+[data-redesign] .rd-action-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+[data-redesign] .rd-action-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--rd-line);
+  border-radius: var(--rd-r-pill, 999px);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--rd-ink-soft);
+  background: none;
+  cursor: pointer;
+  transition: all 100ms;
+}
+[data-redesign] .rd-action-chip:hover {
+  border-color: var(--rd-line-strong, var(--rd-line));
+  color: var(--rd-ink-mute);
+}
+[data-redesign] .rd-action-chip--primary {
+  border-color: var(--rd-line);
+  color: var(--rd-ink-mute);
+  font-weight: 590;
+}
+[data-redesign] .rd-action-chip--primary:hover {
+  border-color: var(--rd-line-strong, var(--rd-line));
+  color: var(--rd-ink);
+}
+
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ System event dividers (home-v3 parity) â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+[data-redesign] .rd-system-event {
+  align-self: stretch;
+  max-width: 100%;
+  width: 100%;
+}
+[data-redesign] .rd-system-event__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  margin: 2px 0;
+}
+[data-redesign] .rd-system-event__line::before,
+[data-redesign] .rd-system-event__line::after {
+  content: '';
+  flex: 0 0 32px;
+  height: 1px;
+  background: var(--rd-line-faint, var(--rd-line));
+}
+[data-redesign] .rd-system-event__body {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--rd-ink-soft);
+  white-space: normal;
+  font-family: var(--rd-font-sans);
+  letter-spacing: 0.01em;
+  text-align: center;
+  flex-shrink: 1;
+  min-width: 0;
+}
+[data-redesign] .rd-system-event__icon {
+  font-size: 11px;
+  opacity: 0.8;
+  line-height: 1;
+}
+[data-redesign] .rd-system-event__body time {
+  color: var(--rd-ink-soft);
+  opacity: 0.85;
+  font-size: 9.5px;
+}
+
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Minimal feedback buttons (home-v3 parity) â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+[data-redesign] .rd-feedback {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+[data-redesign] .rd-chat-msg:hover .rd-feedback,
+[data-redesign] .rd-feedback:focus-within {
+  opacity: 1;
+}
+[data-redesign] .rd-fb-btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: var(--rd-r-sm);
+  background: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--rd-ink-soft);
+  transition: all 100ms;
+  padding: 0;
+  line-height: 1;
+}
+[data-redesign] .rd-fb-btn:hover {
+  border-color: var(--rd-line);
+  color: var(--rd-ink-mute);
+  background: var(--rd-paper-warm);
+}
+[data-redesign] .rd-fb-btn[data-active] {
+  color: var(--rd-accent-strong);
+  border-color: var(--rd-accent);
+}
+
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Agent bubble mode (home-v3 parity) â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+[data-redesign] .rd-chat-msg--assistant .rd-chat-msg__body.rd-agent-bubble {
+  background: var(--rd-paper-warm);
+  border-radius: var(--rd-r-md);
+  border-bottom-left-radius: 4px;
+  padding: 8px 12px;
+  border: none;
+  box-shadow: none;
+}
+[data-redesign] .rd-agent-lead {
+  font-weight: 590;
+  margin-bottom: 5px;
+  font-size: 13px;
+  color: var(--rd-ink-strong);
+}
+[data-redesign] .rd-agent-detail {
+  font-size: 13px;
+  color: var(--rd-ink-mute);
+  line-height: 1.5;
+}
+[data-redesign] .rd-tool-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 6px;
+}
+[data-redesign] .rd-tool-badge {
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 500;
+  background: var(--rd-line-faint, rgba(255,255,255,0.04));
+  color: var(--rd-ink-soft);
+  font-family: var(--rd-font-mono);
+}
+
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ âŒ˜K Command Palette â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-cmdk__backdrop {
   position: fixed;
   inset: 0;
@@ -7142,7 +7357,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-soft);
 }
 
-/* ───────── Federated search additions ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Federated search additions â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-cmdk__status {
   padding: 6px 14px;
   font-family: var(--rd-font-mono);
@@ -7218,7 +7433,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] .rd-cmdk__backdrop { animation: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 
-/* ───────── ? Shortcuts overlay ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ ? Shortcuts overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-shortcuts__backdrop {
   position: fixed;
   inset: 0;
@@ -7298,13 +7513,15 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-mute);
 }
 
-/* ───────── Toast viewport ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Toast viewport â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-toast-viewport {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
   z-index: 300;
   pointer-events: none;
@@ -7361,14 +7578,14 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   width: 22px; height: 22px;
   border: none;
   background: transparent;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
 }
 [data-redesign] .rd-toast__close:hover { background: var(--rd-paper-warm); color: var(--rd-ink); }
 
-/* ───────── Home: What changed strip ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Home: What changed strip â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-whatchanged {
   display: flex;
   flex-direction: column;
@@ -7515,7 +7732,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   border: 2px solid var(--rd-panel);
 }
 
-/* ───────── Inbox: bulk action bar + snooze + filter row ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Inbox: bulk action bar + snooze + filter row â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-inbox-bulk {
   display: flex;
   align-items: center;
@@ -7556,7 +7773,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   opacity: 1;
 }
 
-/* ───────── Reports: sort dropdown + bulk export ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Reports: sort dropdown + bulk export â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-sort {
   position: relative;
 }
@@ -7606,7 +7823,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-sort__option:hover { background: var(--rd-paper-warm); }
 [data-redesign] .rd-sort__option[aria-selected="true"] { color: var(--rd-accent-strong); font-weight: 600; }
 
-/* ───────── Me: profile completeness meter ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Me: profile completeness meter â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-me-meter {
   display: flex;
   align-items: center;
@@ -7639,7 +7856,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   text-align: right;
 }
 
-/* ───────── Skeleton placeholders ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Skeleton placeholders â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-policy-switch__input {
   appearance: none;
   -webkit-appearance: none;
@@ -7695,7 +7912,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] .rd-skel { animation: none; opacity: 0.7; }
 }
 
-/* ───────── Composer slash / @ palette + attachments ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Composer slash / @ palette + attachments â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-composer-palette {
   position: absolute;
   bottom: 100%;
@@ -7802,7 +8019,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   place-items: center;
 }
 
-/* ───────── Empty state ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-chat-empty {
   display: flex;
   flex-direction: column;
@@ -7932,7 +8149,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   margin-top: 4px;
 }
 
-/* ───────── Reports v3 command canvas ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Reports v3 command canvas â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-v3-reports {
   width: min(100%, 920px);
   display: flex;
@@ -8161,12 +8378,12 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   font-size: 12.5px;
   line-height: 1.45;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-[data-redesign] .rd-v3-signals,
+[data-redesign] [data-redesign] .rd-v3-signals,
 [data-redesign] .rd-v3-sources,
 [data-redesign] .rd-v3-backlinks {
   display: flex;
@@ -8174,14 +8391,22 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   gap: 4px;
 }
 
-[data-redesign] .rd-v3-signals span,
-[data-redesign] .rd-v3-sources span {
+[data-redesign] .rd-v3-signals span {
   border-radius: 999px;
   background: var(--rd-accent-soft);
   color: var(--rd-accent-strong);
   padding: 3px 7px;
   font-size: 10.5px;
   font-weight: 650;
+}
+
+[data-redesign] .rd-v3-sources span {
+  border-radius: 999px;
+  background: var(--rd-muted);
+  color: var(--rd-ink-soft);
+  padding: 3px 7px;
+  font-size: 10px;
+  font-weight: 550;
 }
 
 [data-redesign] .rd-v3-backlinks span { color: var(--rd-ink-mute); }
@@ -8208,10 +8433,47 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   max-height: 80px;
 }
 
-[data-redesign] .rd-v3-card--add,
-[data-redesign] .rd-v3-card--empty {
+[data-redesign] .rd-v3-card--add {
   border-style: dashed;
   justify-content: center;
+}
+[data-redesign] .rd-v3-card--empty {
+  border: 1px solid var(--rd-line-faint);
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: var(--rd-paper-warm);
+  padding: 32px 24px;
+}
+[data-redesign] .rd-v3-card--empty h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--rd-ink);
+  margin: 0 0 6px;
+}
+[data-redesign] .rd-v3-card--empty p {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--rd-ink-soft);
+  margin: 0 0 14px;
+  max-width: 320px;
+}
+[data-redesign] .rd-v3-card--empty button {
+  border: 1px solid var(--rd-accent-ring);
+  border-radius: var(--rd-r-pill, 999px);
+  background: var(--rd-accent-tint);
+  color: var(--rd-accent-strong);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 18px;
+  cursor: pointer;
+  transition: all 100ms ease;
+}
+[data-redesign] .rd-v3-card--empty button:hover {
+  background: var(--rd-accent);
+  color: #fff;
+  border-color: var(--rd-accent);
 }
 
 [data-redesign] .rd-v3-board {
@@ -8941,7 +9203,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-v3-graph-peek__section-label {
   display: block;
   margin-bottom: 5px;
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-size: 8px;
   font-weight: 800;
   letter-spacing: 0.14em;
@@ -9350,7 +9612,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 
 [data-redesign] .rd-v3-graph-peek__stale:hover {
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
 }
 
 [data-redesign] .rd-v3-graph-peek__stale span {
@@ -9374,7 +9636,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 
 [data-redesign] .rd-v3-graph-peek__signals p::before {
-  content: "→ ";
+  content: "â†’ ";
   color: var(--rd-ink-faint);
 }
 
@@ -9439,7 +9701,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] .rd-universe-head { margin-top: 8px; }
 }
 
-/* ───────── Reports Crunchbase / Pitchbook filter bar ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Reports Crunchbase / Pitchbook filter bar â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-reports-filterbar {
   display: flex;
   flex-direction: column;
@@ -9572,7 +9834,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-accent-strong);
 }
 
-/* ───────── Reports compact grid + card ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Reports compact grid + card â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-reports-grid {
   display: grid;
   gap: 10px;
@@ -9583,8 +9845,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-report-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: 6px;
+  padding: 10px 14px;
   background: var(--rd-panel);
   border: 1px solid var(--rd-line);
   border-radius: 10px;
@@ -9611,6 +9873,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-report-card:hover {
   border-color: var(--rd-accent-ring);
   box-shadow: var(--rd-shadow-sm);
+  transform: translateY(-1px);
 }
 [data-redesign] .rd-report-card[data-selected] {
   border-color: var(--rd-accent);
@@ -9681,29 +9944,31 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   flex-shrink: 0;
 }
 [data-redesign] .rd-report-card__desc {
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: var(--rd-ink-mute);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--rd-ink-soft);
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
   margin: 0;
 }
+/* Hide redundant StatusDot inside report cards — Pill + left bar are sufficient */
+[data-redesign] .rd-report-card .rd-dot { display: none; }
 [data-redesign] .rd-reports-grid[data-density="compact"] .rd-report-card__desc {
   -webkit-line-clamp: 1;
 }
 [data-redesign] .rd-report-card__metrics {
   display: flex;
-  gap: 12px;
-  font-size: 11px;
-  color: var(--rd-ink-soft);
+  gap: 10px;
+  font-size: 10.5px;
+  color: var(--rd-ink-faint);
   flex-wrap: wrap;
   align-items: baseline;
 }
 [data-redesign] .rd-report-card__metrics strong {
-  color: var(--rd-ink);
-  font-weight: 590;
+  color: var(--rd-ink-soft);
+  font-weight: 550;
 }
 [data-redesign] .rd-report-card__updated {
   margin-left: auto;
@@ -9712,17 +9977,17 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 [data-redesign] .rd-report-card__foot {
   margin-top: auto;
-  padding-top: 8px;
+  padding-top: 6px;
   border-top: 1px solid var(--rd-line-faint);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  min-height: 30px;
+  gap: 6px;
+  min-height: 26px;
 }
 [data-redesign] .rd-report-card__actions {
   display: inline-flex;
-  gap: 4px;
+  gap: 6px;
   opacity: 0.6;
   transition: opacity 120ms ease;
 }
@@ -9800,7 +10065,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-batch-cell__step[data-status="review"] { color: var(--rd-amber); }
 [data-redesign] .rd-batch-cell__step[data-status="queued"] { color: var(--rd-ink-soft); opacity: 0.7; }
 
-/* ─── Inbox lanes (Linear-Inbox / Front-style) ─── */
+/* â”€â”€â”€ Inbox lanes (Linear-Inbox / Front-style) â”€â”€â”€ */
 [data-redesign] .rd-inbox-shell {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
@@ -9815,7 +10080,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-inbox-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -9823,7 +10088,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   display: grid;
   grid-template-columns: 18px auto minmax(0, 1fr) auto;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--rd-line);
   border-radius: 10px;
   background: var(--rd-panel);
@@ -9868,8 +10133,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 
 [data-redesign] .rd-inbox-row__meta {
   font-family: var(--rd-font-mono);
-  font-size: 10px;
-  color: var(--rd-ink-soft);
+  font-size: 11px;
+  color: var(--rd-ink-mute);
 }
 
 [data-redesign] .rd-inbox-row__lane-glyph {
@@ -9885,7 +10150,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-inbox-preview {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   padding: 14px 16px;
   border: 1px solid var(--rd-line);
   border-radius: 14px;
@@ -9895,7 +10160,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 
 /* Header: why-pill + actions on same row (open-design pattern). Actions sit WITH content,
-   not anchored to viewport bottom — no margin-top:auto. Decision velocity: read why → act. */
+   not anchored to viewport bottom â€” no margin-top:auto. Decision velocity: read why â†’ act. */
 [data-redesign] .rd-inbox-preview__header {
   display: flex;
   align-items: center;
@@ -9945,12 +10210,20 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   font-size: 18px;
   margin: 4px 0 0;
   letter-spacing: -0.2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 [data-redesign] .rd-inbox-preview__body {
   font-size: 13.5px;
   color: var(--rd-ink-mute);
   line-height: 1.5;
   margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 [data-redesign] .rd-inbox-preview__entities {
   display: inline-flex;
@@ -10003,32 +10276,34 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   box-shadow: 0 1px 0 var(--rd-line-strong);
 }
 
-/* Style chip — small pill that shows which style produced a report */
+/* Style chip â€” small pill that shows which style produced a report */
 [data-redesign] .rd-style-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   white-space: nowrap;
-  padding: 1px 7px;
+  padding: 1px 6px;
   border-radius: 999px;
-  background: var(--rd-paper-warm);
-  border: 1px solid var(--rd-line);
+  background: transparent;
+  border: 1px solid var(--rd-line-faint);
   color: var(--rd-ink-mute);
   font-family: var(--rd-font-mono);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.02em;
   cursor: pointer;
+  opacity: 0.7;
   transition: all 100ms ease;
 }
 [data-redesign] .rd-style-chip:hover {
   border-color: var(--rd-accent-ring);
   color: var(--rd-accent-strong);
   background: var(--rd-accent-tint);
+  opacity: 1;
 }
 [data-redesign] .rd-style-chip::before {
-  content: "✦";
-  color: var(--rd-accent);
+  content: "âœ¦";
+  color: var(--rd-accent-strong);
   font-size: 9px;
 }
 
@@ -10090,7 +10365,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   }
 }
 
-/* ───────── Sprint 4 P1.6 — pinned-context bar above the composer ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Sprint 4 P1.6 â€” pinned-context bar above the composer â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-pinned-bar {
   display: flex;
   align-items: flex-start;
@@ -10166,7 +10441,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   outline: none;
 }
 
-/* ───────── Sprint 4 P2.7 — A/B compare modal ───────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Sprint 4 P2.7 â€” A/B compare modal â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-ab-overlay {
   position: fixed;
   inset: 0;
@@ -10341,7 +10616,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   }
 }
 
-/* ── v2 parity: collapsible trace (details/summary) ── */
+/* â”€â”€ v2 parity: collapsible trace (details/summary) â”€â”€ */
 [data-redesign] details.rd-v2-trace {
   display: block;
   margin-top: 6px;
@@ -10351,7 +10626,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] details.rd-v2-trace summary {
   cursor: pointer;
   list-style: none;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 10px;
   font-weight: 590;
 }
@@ -10375,24 +10650,24 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-v2-trace-steps span {
   padding: 2px 7px;
   background: var(--rd-panel);
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-size: 9px;
   border-radius: 3px;
 }
 
-/* ── v2 parity: confidence label ── */
+/* â”€â”€ v2 parity: confidence label â”€â”€ */
 [data-redesign] .rd-v2-confidence {
   display: inline-block;
   margin-left: 8px;
   padding: 1px 6px;
   border-radius: 3px;
   background: color-mix(in srgb, var(--rd-accent) 12%, transparent);
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-size: 10px;
   font-weight: 590;
 }
 
-/* ── v2 parity: related threads ── */
+/* â”€â”€ v2 parity: related threads â”€â”€ */
 [data-redesign] .rd-v2-related-threads {
   margin-top: 10px;
 }
@@ -10401,7 +10676,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   margin: 0 0 6px;
 }
 [data-redesign] .rd-v2-thread-item {
@@ -10422,10 +10697,10 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-v2-thread-time {
   margin-left: auto;
   font-size: 10px;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
 }
 
-/* ── v2 parity: signal timeline (Reports rail) ── */
+/* â”€â”€ v2 parity: signal timeline (Reports rail) â”€â”€ */
 [data-redesign] .rd-v2-signal-tl {
   display: flex;
   align-items: center;
@@ -10438,7 +10713,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   flex-shrink: 0;
   width: 24px;
   font-size: 10px;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   text-align: right;
 }
 [data-redesign] .rd-v2-signal-tl-dot {
@@ -10459,7 +10734,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   white-space: nowrap;
 }
 
-/* ── v2 parity: graph SVG (Chat rail) ── */
+/* â”€â”€ v2 parity: graph SVG (Chat rail) â”€â”€ */
 [data-redesign] .rd-v2-graph-svg {
   width: 100%;
   height: auto;
@@ -10469,7 +10744,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   padding: 8px;
 }
 
-/* ── v2 parity: tool tag spans (below trace) ── */
+/* â”€â”€ v2 parity: tool tag spans (below trace) â”€â”€ */
 [data-redesign] .rd-v2-msg-tools {
   display: flex;
   flex-wrap: wrap;
@@ -10479,18 +10754,18 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-v2-msg-tools span {
   padding: 2px 7px;
   background: var(--rd-panel);
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
   font-size: 9px;
   border-radius: 3px;
   font-family: var(--rd-font-mono, "JetBrains Mono", monospace);
 }
 
-/* ── v2 parity: action card icons ── */
+/* â”€â”€ v2 parity: action card icons â”€â”€ */
 [data-redesign] .rd-v2-action-icon {
   margin-right: 2px;
 }
 
-/* ── v2 parity: notebook new-note button ── */
+/* â”€â”€ v2 parity: notebook new-note button â”€â”€ */
 [data-redesign] .rd-v2-note-add {
   display: block;
   margin: 8px auto 0;
@@ -10507,7 +10782,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink);
 }
 
-/* ── v2 parity: rail expand toggle ── */
+/* â”€â”€ v2 parity: rail expand toggle â”€â”€ */
 [data-redesign] .rd-v2-briefing[data-width="expanded"] {
   width: 480px;
   min-width: 480px;
@@ -10615,7 +10890,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .lr-group.collapsed .lr-chevron { transform: rotate(-90deg); }
 [data-redesign] .lr-group-count {
   margin-left: auto;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
@@ -10698,7 +10973,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   align-items: center;
   gap: 6px;
   margin-top: 2px;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 12px;
 }
 [data-redesign] .universe-meta__dot { width: 6px; height: 6px; border-radius: 999px; background: var(--rd-green); }
@@ -10770,7 +11045,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .view-filter-count {
   position: absolute;
   right: 9px;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
@@ -10921,7 +11196,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .ar-meta {
   overflow: hidden;
   margin-top: 1px;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -10939,7 +11214,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   font: inherit;
 }
 [data-redesign] .ar-head-btn { width: 22px; height: 22px; padding: 0; font-size: 11px; }
-[data-redesign] .ar-pills { display: flex; flex-shrink: 0; flex-wrap: wrap; gap: 5px; padding: 9px 12px 0; }
+[data-redesign] .ar-pills { display: flex; flex-shrink: 0; flex-wrap: wrap; gap: 6px; padding: 10px 12px 0; }
 [data-redesign] .ar-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; font-size: 10px; font-weight: 590; }
 [data-redesign] .ar-pill.active { color: var(--rd-ink-strong); }
 [data-redesign] .ar-pill-dot { width: 3px; height: 3px; border-radius: 999px; }
@@ -10979,10 +11254,10 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   font-size: 9px;
   font-weight: 650;
 }
-[data-redesign] .ar-action-chip { padding: 4px 8px; font-size: 10px; font-weight: 590; }
+[data-redesign] .ar-action-chip { padding: 4px 10px; font-size: 10.5px; font-weight: 590; }
 [data-redesign] .ar-action-chip--primary { color: var(--rd-ink); font-weight: 650; }
-[data-redesign] .ar-msg-time { margin-top: 3px; padding: 0 4px; color: var(--rd-ink-faint); font-size: 9px; }
-[data-redesign] .ar-msg-system-line { display: flex; align-items: center; gap: 8px; color: var(--rd-ink-faint); font-size: 10px; }
+[data-redesign] .ar-msg-time { margin-top: 3px; padding: 0 4px; color: var(--rd-ink-soft); font-size: 9px; }
+[data-redesign] .ar-msg-system-line { display: flex; align-items: center; gap: 8px; color: var(--rd-ink-soft); font-size: 10px; }
 [data-redesign] .ar-msg-system-line::before,
 [data-redesign] .ar-msg-system-line::after { content: ""; height: 1px; flex: 1; background: var(--rd-line-faint); }
 [data-redesign] .ar-msg-system-body { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
@@ -11043,7 +11318,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   margin: 6px 0 7px;
   border: 1px solid var(--rd-line);
   border-radius: 7px;
-  padding: 8px;
+  padding: 10px;
   background: color-mix(in srgb, var(--rd-accent-soft) 38%, transparent);
 }
 [data-redesign] .ar-context-packet__head {
@@ -11104,14 +11379,14 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .ar-context-packet__grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  margin-top: 7px;
+  gap: 5px;
+  margin-top: 8px;
 }
 [data-redesign] .ar-context-packet__grid span {
   min-width: 0;
   border-radius: 5px;
   background: var(--rd-paper);
-  padding: 4px;
+  padding: 5px 4px;
   color: var(--rd-ink-faint);
   font-size: 9px;
   text-align: center;
@@ -11196,7 +11471,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   border: 0;
   border-bottom: 1.5px solid transparent;
   background: none;
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   cursor: pointer;
   font: inherit;
   font-size: 10px;
@@ -11234,15 +11509,15 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 
 [data-redesign] .chat-ctx-section {
   border-bottom: 1px solid var(--rd-line-faint);
-  padding: 10px 14px;
+  padding: 14px 16px;
 }
 
 [data-redesign] .chat-ctx-label {
-  color: var(--rd-ink-faint);
-  font-size: 9px;
+  color: var(--rd-ink-soft);
+  font-size: 10px;
   font-weight: 680;
   letter-spacing: 0.06em;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   text-transform: uppercase;
 }
 
@@ -11250,7 +11525,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  padding: 3px 0;
+  padding: 5px 0;
 }
 
 [data-redesign] .chat-ctx-task-dot {
@@ -11292,11 +11567,12 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 
 [data-redesign] .chat-ctx-task-text small {
   display: block;
-  margin-top: 1px;
-  color: var(--rd-ink-faint);
+  margin-top: 2px;
+  color: var(--rd-ink-soft);
   font-family: var(--rd-font-mono);
-  font-size: 9px;
-  line-height: 1.35;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -11337,7 +11613,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   min-width: 0;
   flex: 1;
   color: var(--rd-ink-mute);
-  font-size: 10px;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -11347,7 +11623,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   flex-shrink: 0;
   border-radius: 3px;
   background: var(--rd-line-faint);
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-family: var(--rd-font-mono);
   font-size: 8px;
   font-weight: 680;
@@ -11358,8 +11634,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .chat-ctx-agent {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 0;
+  gap: 8px;
+  padding: 5px 0;
 }
 
 [data-redesign] .chat-ctx-agent-dot {
@@ -11376,29 +11652,29 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 
 [data-redesign] .chat-ctx-agent-role {
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-family: var(--rd-font-mono);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 [data-redesign] .chat-ctx-source {
-  gap: 5px;
-  padding: 2px 0;
+  gap: 6px;
+  padding: 4px 0;
 }
 
 [data-redesign] .chat-ctx-source-name {
   min-width: 0;
-  color: var(--rd-ink-faint);
-  font-size: 10px;
+  color: var(--rd-ink-soft);
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 [data-redesign] .chat-ctx-more {
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   cursor: default;
-  font-size: 9px;
+  font-size: 10px;
   padding: 4px 0;
 }
 
@@ -11423,8 +11699,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 
 [data-redesign] .chat-trace-stat-key {
-  color: var(--rd-ink-faint);
-  font-size: 8px;
+  color: var(--rd-ink-soft);
+  font-size: 9px;
   font-weight: 680;
   letter-spacing: 0.06em;
   margin-top: 2px;
@@ -11432,14 +11708,14 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 
 [data-redesign] .chat-trace-list {
-  padding: 6px 0;
+  padding: 8px 0;
 }
 
 [data-redesign] .chat-trace-item {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 5px 14px;
+  padding: 7px 16px;
   transition: background 80ms ease;
 }
 
@@ -11463,7 +11739,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .chat-trace-item-icon--tool {
   border-color: var(--rd-accent);
   background: color-mix(in srgb, var(--rd-accent) 8%, transparent);
-  color: var(--rd-accent);
+  color: var(--rd-accent-strong);
 }
 
 [data-redesign] .chat-trace-item-icon--llm {
@@ -11495,10 +11771,10 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .chat-trace-item-meta {
   display: flex;
   gap: 8px;
-  margin-top: 1px;
-  color: var(--rd-ink-faint);
+  margin-top: 2px;
+  color: var(--rd-ink);
   font-family: var(--rd-font-mono);
-  font-size: 9px;
+  font-size: 10.5px;
 }
 
 [data-redesign] .chat-trace-item-bar {
@@ -11519,7 +11795,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 
 [data-redesign] .chat-trace-model {
   border-top: 1px solid var(--rd-line-faint);
-  padding: 10px 14px;
+  padding: 12px 16px;
 }
 
 [data-redesign] .chat-trace-model-row {
@@ -11532,13 +11808,13 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 
 [data-redesign] .chat-trace-model-name {
   color: var(--rd-ink-mute);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 [data-redesign] .chat-trace-model-val {
-  color: var(--rd-ink-faint);
+  color: var(--rd-ink-soft);
   font-family: var(--rd-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -23,21 +23,21 @@
   --rd-muted: #ece9e2;            /* Hover wash, code blocks */
 
   /* ───── Borders — Notion whisper-weight ───── */
-  --rd-line-faint: rgba(21, 20, 15, 0.05);
-  --rd-line: rgba(21, 20, 15, 0.10);
-  --rd-line-strong: rgba(21, 20, 15, 0.16);
+  --rd-line-faint: rgba(21, 20, 15, 0.06);
+  --rd-line: rgba(21, 20, 15, 0.12);
+  --rd-line-strong: rgba(21, 20, 15, 0.18);
   --rd-line-soft: #ebe8e1;
 
   /* ───── Text ───── */
   --rd-ink: #1a1916;              /* Primary text */
   --rd-ink-strong: #0d0c0a;       /* Display headings */
-  --rd-ink-mute: #74716b;         /* Body de-emphasized */
-  --rd-ink-soft: #807b75;         /* Secondary metadata — darkened for WCAG AA on warm-white */
-  --rd-ink-faint: #b3b0a8;        /* Disabled / placeholder */
+  --rd-ink-mute: #5c5955;         /* Body de-emphasized — 6.5:1 vs paper */
+  --rd-ink-soft: #6b6862;         /* Secondary metadata — 5.3:1 vs paper */
+  --rd-ink-faint: #918e87;        /* Disabled / placeholder — 3.4:1 vs paper */
 
   /* ───── Accent — NodeBench terracotta preserved ───── */
   --rd-accent: #d97757;
-  --rd-accent-strong: #b85a3d;            /* Darkened for WCAG AA on white (4.7:1 contrast) */
+  --rd-accent-strong: #a85030;     /* darkened for ≥4.5:1 on accent-soft bg */
   --rd-accent-soft: rgba(217, 119, 87, 0.10);
   --rd-accent-tint: rgba(217, 119, 87, 0.06);
   --rd-accent-ring: rgba(217, 119, 87, 0.30);
@@ -49,7 +49,7 @@
   --rd-blue: #2348b8;
   --rd-blue-bg: #e8efff;
   --rd-blue-border: #c8d6ff;
-  --rd-amber: #b26200;
+  --rd-amber: #9a5400;              /* darkened for ≥4.5:1 on amber-bg */
   --rd-amber-bg: #fff3e0;
   --rd-red: #9c2a25;
   --rd-red-bg: #fdecea;
@@ -78,10 +78,10 @@
   --rd-s-12: 48px;
 
   /* ───── Shadows — Notion's multi-layer whisper system ───── */
-  --rd-shadow-xs: 0 1px 0 rgba(28, 27, 26, 0.04);
+  --rd-shadow-xs: 0 1px 2px rgba(28, 27, 26, 0.06);
   --rd-shadow-sm:
-    0 1px 2px rgba(28, 27, 26, 0.05),
-    0 1px 3px rgba(28, 27, 26, 0.04);
+    0 1px 2px rgba(28, 27, 26, 0.06),
+    0 2px 4px rgba(28, 27, 26, 0.04);
   --rd-shadow-md:
     0 1px 3px rgba(0, 0, 0, 0.01),
     0 3px 7px rgba(0, 0, 0, 0.02),
@@ -129,12 +129,12 @@
     --rd-ink-strong: #ffffff;
     --rd-ink-mute: #d0d6e0;
     --rd-ink-soft: #8a8f98;
-    --rd-ink-faint: #62666d;
+    --rd-ink-faint: #787d85;
 
     --rd-accent: #e88f6e;
     --rd-accent-strong: #f2a583;
     --rd-accent-soft: rgba(232, 143, 110, 0.16);
-    --rd-accent-tint: rgba(232, 143, 110, 0.08);
+    --rd-accent-tint: rgba(232, 143, 110, 0.12);
     --rd-accent-ring: rgba(232, 143, 110, 0.40);
 
     --rd-green: #4ade80;
@@ -181,11 +181,11 @@
   --rd-ink-strong: #ffffff;
   --rd-ink-mute: #d0d6e0;
   --rd-ink-soft: #8a8f98;
-  --rd-ink-faint: #62666d;
+  --rd-ink-faint: #787d85;
   --rd-accent: #e88f6e;
   --rd-accent-strong: #f2a583;
   --rd-accent-soft: rgba(232, 143, 110, 0.16);
-  --rd-accent-tint: rgba(232, 143, 110, 0.08);
+  --rd-accent-tint: rgba(232, 143, 110, 0.12);
   --rd-accent-ring: rgba(232, 143, 110, 0.40);
 }
 

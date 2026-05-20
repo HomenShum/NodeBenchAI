@@ -252,7 +252,7 @@ export function InboxSurface() {
         </button>
         <button
           type="button"
-          className="rd-v2-btn-primary"
+          className="rd-btn rd-btn--quiet rd-btn--sm"
           onClick={() => showToast({ tone: "info", message: "Auto-triage runs through the live nudge and pipeline queues. No starter rows were inserted." })}
         >
           Auto-triage
@@ -262,13 +262,11 @@ export function InboxSurface() {
         <section key={group.label} className="rd-v2-inbox-group">
           <div className="rd-v2-inbox-group-head"><span>{group.label}</span><b>{group.items.length}</b></div>
           {group.items.length === 0 ? (
-            <article>
-              <span className="rd-v2-source-icon" data-source="system">·</span>
+            <article className="rd-inbox-empty">
+              <span className="rd-v2-source-icon" data-source="system">—</span>
               <div>
                 <span className="rd-v2-inbox-title-row"><strong>{group.empty}</strong></span>
-                <p>Convex returned no rows in this bucket for the current session.</p>
               </div>
-              <time>live</time>
             </article>
           ) : (
             group.items.map((item) => (
@@ -294,13 +292,15 @@ export function InboxSurface() {
           )}
         </section>
       ))}
-      <button
-        className="rd-v2-show-more"
-        type="button"
-        onClick={() => showToast({ tone: "info", message: isLive ? "All live Inbox rows for this session are visible." : "Inbox is empty because no live nudges or pipeline review rows were returned." })}
-      >
-        {items.length > 0 ? `Show ${Math.max(0, allItems.length - items.length)} more items` : "No hidden fixture items"}
-      </button>
+      {allItems.length > items.length && (
+        <button
+          className="rd-v2-show-more"
+          type="button"
+          onClick={() => showToast({ tone: "info", message: isLive ? "All live Inbox rows for this session are visible." : "Inbox is empty because no live nudges or pipeline review rows were returned." })}
+        >
+          Show {allItems.length - items.length} more item{allItems.length - items.length === 1 ? '' : 's'}
+        </button>
+      )}
     </div>
   );
 

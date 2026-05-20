@@ -367,8 +367,8 @@ export function MeSurface() {
                   role="textbox"
                   aria-label={`Edit ${section.heading}`}
                   style={{
-                    fontFamily: "var(--rd-font-mono)",
-                    fontSize: 12,
+                    fontFamily: "var(--rd-font-sans)",
+                    fontSize: 12.5,
                     lineHeight: 1.55,
                     color: "var(--rd-ink-mute)",
                     margin: 0,
@@ -400,10 +400,11 @@ export function MeSurface() {
                       padding: "4px 10px",
                       borderRadius: "var(--rd-r-pill)",
                       fontSize: 11,
-                      fontWeight: 590,
-                      background: p.pressed ? "var(--rd-accent-tint)" : "var(--rd-panel)",
-                      color: p.pressed ? "var(--rd-accent-strong)" : "var(--rd-ink-mute)",
-                      border: `1px solid ${p.pressed ? "var(--rd-accent-ring)" : "var(--rd-line)"}`,
+                      fontWeight: p.pressed ? 590 : 500,
+                      background: p.pressed ? "var(--rd-accent-tint)" : "var(--rd-muted)",
+                      color: p.pressed ? "var(--rd-accent-strong)" : "var(--rd-ink-soft)",
+                      border: `1px solid ${p.pressed ? "var(--rd-accent-ring)" : "transparent"}`,
+                      opacity: p.pressed ? 1 : 0.7,
                     }}
                   >{PERM_LABEL[p.id]}</button>
                 ))}
@@ -677,20 +678,32 @@ function MeV2DocumentCenter({
       </div>
       <div className="rd-v2-share-bar">
         <span>Actions</span>
-        <button type="button" className="rd-v2-share-primary" onClick={onPrimary}>
-          {guest ? mode === "loading" ? "Loading" : "Sign in" : "Save"}
-        </button>
+        {!guest && (
+          <button type="button" className="rd-v2-share-primary" onClick={onPrimary}>Save</button>
+        )}
         <button type="button" onClick={() => showToast({ tone: "info", message: guest ? "Exports unlock after sign-in." : "Export preview is local until connector approval." })}>Export</button>
-        <button type="button" onClick={() => showToast({ tone: "info", message: guest ? "No profile is loaded to reset." : "Reset requires diff review before mutating USER.md." })}>Reset</button>
+        {!guest && (
+          <button type="button" onClick={() => showToast({ tone: "info", message: "Reset requires diff review before mutating USER.md." })}>Reset</button>
+        )}
       </div>
       <article className="rd-v2-user-md">
         {lines.map(([key, value], index) => (
           key.startsWith("#") ? <h2 key={`${key}-${index}`}>{key}</h2> : (
             <p key={`${key}-${index}`}>
-              <span>{key}</span>{value}
+              <span>{key}</span> {value}
             </p>
           )
         ))}
+        {guest && (
+          <button
+            type="button"
+            className="rd-btn rd-btn--primary"
+            style={{ marginTop: 16, alignSelf: "flex-start" }}
+            onClick={onPrimary}
+          >
+            Sign in to unlock
+          </button>
+        )}
       </article>
       {patch && !guest && (
         <section className="rd-card rd-card__pad" style={{ background: "var(--rd-paper-warm)" }}>
@@ -708,13 +721,20 @@ function MeV2DocumentCenter({
           ["Convex", guest ? "Public read only" : "Connected runtime", guest ? "No private tables exposed" : "Live profile writes stay gated"],
           ["LinkedIn", "Approval required", "Posting and CRM writes require review"],
           ["Slack", guest ? "Off" : "Optional", "Team memory stays permission-scoped"],
-        ].map(([name, status, detail]) => (
-          <article key={name}>
-            <strong>{name}</strong>
-            <span>{status}</span>
-            <p>{detail}</p>
-          </article>
-        ))}
+        ].map(([name, status, detail]) => {
+          const tone = /connected|available/i.test(status as string) ? "green"
+            : /off|disabled/i.test(status as string) ? "mute"
+            : /approval|review|connect/i.test(status as string) ? "amber"
+            : "green";
+          return (
+            <article key={name}>
+              <strong>{name}</strong>
+              <span data-tone={tone}>{status}</span>
+              <p>{detail}</p>
+            </article>
+          );
+        }
+        )}
       </section>
     </div>
   );

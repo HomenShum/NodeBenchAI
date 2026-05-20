@@ -328,7 +328,7 @@ export function UniversalComposer({
             <path d="M12 7v5l3 2" />
           </svg>
           <span style={{
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 240,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360,
           }}>{contextLabel}</span>
           <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="m6 9 6 6 6-6" />
@@ -425,7 +425,7 @@ export function UniversalComposer({
                     </div>
                     <span style={{
                       fontSize: 11.5,
-                      color: active ? "var(--rd-ink-mute)" : "var(--rd-ink-soft)",
+                      color: "var(--rd-ink-mute)",
                       lineHeight: 1.4,
                     }}>{t.hint}</span>
                   </button>
@@ -634,8 +634,8 @@ export function UniversalComposer({
               </button>
             </>
           )}
-          <span className="rd-mono rd-shortcut-hint" style={{ fontSize: 11, opacity: 0.6, color: "var(--rd-ink-soft)", marginLeft: 6 }}>
-            {voice.isTranscribing ? "Transcribing..." : recording ? "Listening..." : "⌘↵ research · ⇧↵ newline"}
+          <span className="rd-mono rd-shortcut-hint" style={{ fontSize: 11, color: "var(--rd-ink-mute)", marginLeft: 6 }}>
+            {voice.isTranscribing ? "Transcribing..." : recording ? "Listening..." : "Cmd+Enter run research · Shift+Enter newline"}
           </span>
         </div>
 
@@ -688,7 +688,7 @@ export function UniversalComposer({
               title="Run research (Enter) — saves to Reports"
               className="rd-btn rd-btn--primary rd-btn--sm"
               style={{
-                opacity: text.trim() ? 1 : 0.6,
+                opacity: text.trim() ? 1 : 0.55,
                 cursor: text.trim() ? "pointer" : "not-allowed",
                 gap: 6,
               }}

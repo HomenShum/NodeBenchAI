@@ -543,7 +543,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
           <p>
             {hasActiveFilter
               ? "Clear the filters to return to the live report set."
-              : "Convex returned zero report artifacts for this session. Run research from Chat to create the first report."}
+              : "No reports yet. Run research from Chat to create the first report."}
           </p>
           <button type="button" onClick={hasActiveFilter ? resetFilters : () => onOpen("new", "chat")}>
             {hasActiveFilter ? "Clear filters" : "+ Start in Chat"}
@@ -1889,18 +1889,13 @@ function ReportCardV3({
       <p className="rd-v3-card__kind">{report.kind}</p>
       <p className="rd-v3-card__thesis v3-thesis">{displayReportDescription(report.description)}</p>
       <div className="rd-v3-signals v3-signals">
-        {signals.map((signal, index) => <span className="v3-signal" data-color={signalColor(index)} key={`${signal}-${index}`}>{signal}</span>)}
+        {signals.slice(0, 3).map((signal, index) => <span className="v3-signal" data-color={signalColor(index)} key={`${signal}-${index}`}>{signal}</span>)}
+        {signals.length > 3 && <span className="v3-signal" data-color="mute">+{signals.length - 3}</span>}
       </div>
       <div className="rd-v3-sources v3-sources">
         <span className="v3-src">{evidenceText(report, stage)}</span>
-        <span className="v3-src">{report.sources} source rows</span>
-        <span className="v3-src-more">{report.followUps} follow-ups</span>
+        <span className="v3-src">{report.sources} source{report.sources === 1 ? "" : "s"}</span>
       </div>
-      {backlinks.length > 0 && (
-        <div className="rd-v3-backlinks v3-backlinks">
-          {backlinks.map((item, index) => <span key={`${item}-${index}`}>→ {item}</span>)}
-        </div>
-      )}
       </div>
       <div className="rd-v3-card__foot v3-foot">
         <span>{sourceLabel} · {freshnessText(report, stage)}</span>
@@ -3443,7 +3438,7 @@ function ReportsLiveEmptyState() {
           <span>No live coverage returned</span>
         </button>
         <span className="rd-universe__meta">
-          Convex returned zero report artifacts for this session.
+          No reports found for this session.
         </span>
         <div className="rd-universe__actions">
           <Pill tone="amber">Live wiring required</Pill>

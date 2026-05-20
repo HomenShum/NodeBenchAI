@@ -1063,16 +1063,16 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
       <aside className="rd-v2-left rd-v2-left--nav" aria-label="Chat threads">
         <button className="rd-v2-new-thread">+ New thread</button>
         <div className="rd-v2-rail-rule" />
-        <ChatThreadGroup label="Today" items={[
+        <ChatThreadGroup label="Active" items={[
           ["Sequoia ratch...", "Under a 40% do...", "2m", true],
           ["Anthropic pric...", "Enterprise tier mo...", "1h"],
           ["SMB churn in...", "Monthly churn hit...", "3h"],
         ]} />
-        <ChatThreadGroup label="Yesterday" items={[
+        <ChatThreadGroup label="Recent" items={[
           ["Board deck prep", "Q2 financials proj...", "1d"],
           ["Patent filing fo...", "USPTO acknowle...", "1d"],
         ]} />
-        <ChatThreadGroup label="This week" items={[
+        <ChatThreadGroup label="Archived" items={[
           ["Hiring pipelin...", "4 senior engine...", "3d"],
           ["NPS survey a...", "340 responses, o...", "4d"],
         ]} />
@@ -1119,7 +1119,7 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
         <div><span>Corrections</span><strong>{guestSafe ? "Locked" : "23"}</strong></div>
         <div><span>Last updated</span><strong>{guestSafe ? "After sign-in" : "2m ago"}</strong></div>
       </div>
-      <button className="rd-v2-sign-out">{guestSafe ? "Sign in" : "Sign out"}</button>
+      {!guestSafe && <button className="rd-v2-sign-out">Sign out</button>}
     </aside>
   );
 }
@@ -2002,7 +2002,7 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
       <AgentShell
         title="Settings agent"
         context={context}
-        pills={["Me", "Private profile", "Permissions", "Usage"]}
+        pills={["Me", "Settings"]}
         question={question}
         placeholder="Ask about your settings..."
         onAsk={onAsk}
@@ -2016,27 +2016,15 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
           </details>
           <div className="rd-v2-msg-tools">{trace.map((step) => <span key={step}>{step}</span>)}</div>
         </div>
-        <button className="rd-v2-drawer-toggle">Context - Private profile - Permissions - Usage</button>
         <section className="rd-v2-settings-list">
-          <h3>Private profile</h3>
-          <p><span>Tone</span><strong>Not loaded</strong></p>
-          <p><span>Format</span><strong>Sign in to sync</strong></p>
-          <p><span>Jargon level</span><strong>Private</strong></p>
-          <h3>Permissions</h3>
-          <p>Web search: <b>Read-only</b></p>
-          <p>File access: <b>Off</b></p>
-          <p>Post to LinkedIn: <em>Approval required</em></p>
-          <p>Send email: <em>Approval required</em></p>
-          <p>Execute trades: <em>Disabled</em></p>
-          <h3>Session stats</h3>
-          <p><span>Memory hits</span><strong>Locked</strong></p>
-          <p><span>Corrections</span><strong>Locked</strong></p>
-          <p><span>Current mode</span><strong>Public</strong></p>
+          <h3>What unlocks after sign-in</h3>
+          <p><span>Voice profile</span><strong>Tone, format, jargon preferences</strong></p>
+          <p><span>Permissions</span><strong>5 connector controls</strong></p>
+          <p><span>Session memory</span><strong>Observations, corrections, history</strong></p>
         </section>
         <section className="rd-v2-action-card-list">
           <button className="is-primary">Connect account</button>
           <button>Preview USER.md</button>
-          <button>Open permissions</button>
         </section>
       </AgentShell>
     );
