@@ -12303,4 +12303,40 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] button[class*="primary"]:hover {
     background-color: #963e22 !important;
   }
+
+  /* R27-P1: Override --rd-accent itself in light mode so ALL accent uses pass WCAG AA.
+     #d97757 on white = ~3.2:1 (FAIL). #c25e3f = ~3.9:1 (still marginal).
+     #b04a2a = ~5.2:1 (PASS on pure white), safe on semi-transparent glass. */
+  [data-redesign] {
+    --rd-accent: #b04a2a;
+    --rd-accent-strong: #963e22;
+  }
+
+  /* R27-P1: "Chat now" link — use darker grey for secondary links on Home */
+  [data-redesign] [class*="chat-now"],
+  [data-redesign] button[aria-label="Chat now"] {
+    color: #71717a !important;
+  }
+  [data-redesign] [class*="chat-now"]:hover,
+  [data-redesign] button[aria-label="Chat now"]:hover {
+    color: #52525b !important;
+  }
+}
+
+/* R27-P1: mobile progress bars — boost to 8px height for better thumb-friendliness */
+@media (max-width: 768px) {
+  [data-redesign] .rd-progress-bar,
+  [data-redesign] [class*="progress-bar"],
+  [data-redesign] [role="progressbar"] > div,
+  [data-redesign] [class*="pipeline-progress"] {
+    min-height: 8px !important;
+    border-radius: 4px !important;
+  }
+  [data-redesign] .rd-progress-bar__fill,
+  [data-redesign] [class*="progress-bar"] > [class*="fill"],
+  [data-redesign] [role="progressbar"] > div > div,
+  [data-redesign] [class*="pipeline-progress"] > * {
+    min-height: 8px !important;
+    border-radius: 4px !important;
+  }
 }

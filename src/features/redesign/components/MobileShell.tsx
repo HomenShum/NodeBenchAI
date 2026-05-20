@@ -132,7 +132,7 @@ export function MobileShell({ active, onChange }: MobileShellProps) {
                 padding: "8px 4px 6px",
                 background: "transparent",
                 color: isActive ? "var(--rd-accent-strong)" : "var(--rd-ink-soft)",
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: 590,
                 border: "none",
                 position: "relative",
