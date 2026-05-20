@@ -3475,14 +3475,21 @@
 }
 
 [data-redesign] .rd-v2-inbox-group article.rd-inbox-empty {
-  min-height: 40px;
-  opacity: 0.55;
+  min-height: 36px;
   border-bottom: none;
+  background: transparent;
+  justify-content: center;
 }
 
 [data-redesign] .rd-inbox-empty .rd-v2-source-icon {
-  background: var(--rd-muted);
+  display: none;
+}
+
+[data-redesign] .rd-inbox-empty .rd-v2-inbox-title-row strong {
+  font-weight: 450;
+  font-size: 11.5px;
   color: var(--rd-ink-faint);
+  font-style: italic;
 }
 
 [data-redesign] .rd-v2-source-icon {
