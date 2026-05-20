@@ -48,9 +48,9 @@
 }
 
 [data-redesign] .rd-eyebrow {
-  font-size: 11px;
-  font-weight: 510;
-  letter-spacing: 0.12em;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--rd-ink-soft);
 }
@@ -64,6 +64,7 @@
 [data-redesign] .rd-mono {
   font-family: var(--rd-font-mono);
   font-size: 12px;
+  line-height: 1.6;
   letter-spacing: 0;
   color: var(--rd-ink-mute);
 }
@@ -2663,14 +2664,14 @@
     min-height: 44px;
   }
 
-  /* Full-surface QA — P1 fix: light mode subtitle contrast (Home) */
+  /* Full-surface QA — P1 fix: light mode subtitle contrast (Home) — WCAG AA 4.5:1+ */
   @media (prefers-color-scheme: light) {
     [data-redesign] .rd-v3-home-composer-head p,
     [data-redesign] .rd-v3-home-halo-head p {
-      color: rgba(0, 0, 0, 0.6);
+      color: rgba(0, 0, 0, 0.72);
     }
     [data-redesign] .rd-v3-home-halo small {
-      color: rgba(0, 0, 0, 0.5);
+      color: rgba(0, 0, 0, 0.58);
     }
   }
 
@@ -11571,6 +11572,10 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .rd-pill {
   min-height: 24px;
   box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Round 5 — horizontal scroll edge-fade for mobile tab bars */
@@ -11579,4 +11584,53 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
     mask-image: linear-gradient(to right, black 85%, transparent 100%);
     -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
   }
+}
+
+/* ═══ Round 11 P1 batch — mobile 44px touch targets + light-mode contrast ═══ */
+
+/* P1-1: Report/Inbox card action buttons need 44px min-height on mobile */
+@media (max-width: 760px) {
+  [data-redesign] .rd-btn--sm {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  /* P1-3: Workspace breadcrumb navigation needs larger touch targets */
+  [data-redesign] [class*="breadcrumb"] a,
+  [data-redesign] [class*="breadcrumb"] button,
+  [data-redesign] [class*="breadcrumb"] span[role="link"] {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+  /* P1-5: Chat citation chips / pill links need 44px touch area */
+  [data-redesign] .rd-pill[role="button"],
+  [data-redesign] .rd-pill a,
+  [data-redesign] .rd-pinned-chip,
+  [data-redesign] .rd-chat-msg .rd-pill {
+    min-height: 36px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}
+
+/* P1-6: Home subheader light-mode contrast — darken --rd-ink-soft overrides */
+@media (prefers-color-scheme: light) {
+  [data-redesign] .rd-v3-home-composer-head [class*="subheader"],
+  [data-redesign] .rd-v3-home-composer-head p {
+    color: var(--rd-ink-mute);
+  }
+}
+[data-redesign][data-redesign-theme="light"] .rd-v3-home-composer-head [class*="subheader"],
+[data-redesign][data-redesign-theme="light"] .rd-v3-home-composer-head p {
+  color: var(--rd-ink-mute);
+}
+
+/* P1-2: JetBrains Mono code blocks — readable line-height on all viewports */
+[data-redesign] .rd-md__code,
+[data-redesign] pre[class*="mono"],
+[data-redesign] code {
+  line-height: 1.6;
 }
