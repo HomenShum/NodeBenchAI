@@ -376,6 +376,15 @@
   background: var(--rd-muted);
 }
 
+[data-redesign] .rd-btn--danger {
+  color: var(--rd-red);
+}
+
+[data-redesign] .rd-btn--danger:hover {
+  color: #fff;
+  background: var(--rd-red);
+}
+
 [data-redesign] .rd-btn--sm {
   min-height: 32px;
   padding: 7px 12px;
@@ -9419,7 +9428,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   [data-redesign] .rd-v3-view-bar { gap: 8px; }
   [data-redesign] .rd-v3-filter-pills { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   [data-redesign] .rd-v3-filter-pills::-webkit-scrollbar { display: none; }
-  [data-redesign] .rd-v3-filter-pills button { white-space: nowrap; flex-shrink: 0; min-height: 36px; }
+  [data-redesign] .rd-v3-filter-pills button { white-space: nowrap; flex-shrink: 0; min-height: 44px; padding: 8px 14px; }
   [data-redesign] .rd-v3-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
   [data-redesign] .rd-v3-tabs::-webkit-scrollbar { display: none; }
 

@@ -541,7 +541,7 @@ export function UniversalComposer({
 
       {/* Bottom row — tools + send */}
       <div className="rd-row--between" style={{ gap: 8 }}>
-        <div className="rd-row" style={{ gap: 4 }}>
+        <div className="rd-row" style={{ gap: 10 }}>
           {!hideAttachments && (
             <>
               <div style={{ position: "relative" }}>
@@ -639,7 +639,7 @@ export function UniversalComposer({
           </span>
         </div>
 
-        <div className="rd-row" style={{ gap: 6 }}>
+        <div className="rd-row" style={{ gap: 8 }}>
           {onChatNow && (
             <button
               type="button"

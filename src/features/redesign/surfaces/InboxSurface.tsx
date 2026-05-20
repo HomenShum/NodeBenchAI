@@ -521,7 +521,7 @@ function InboxPreview({
           <button className="rd-btn rd-btn--primary rd-btn--sm" aria-keyshortcuts="a" onClick={onAccept}>
             ✓ Accept <span className="rd-kbd">a</span>
           </button>
-          <button className="rd-btn rd-btn--quiet rd-btn--sm" aria-keyshortcuts="r" onClick={onReject}>
+          <button className="rd-btn rd-btn--danger rd-btn--sm" aria-keyshortcuts="r" onClick={onReject}>
             Reject <span className="rd-kbd">r</span>
           </button>
           <button className="rd-btn rd-btn--quiet rd-btn--sm" aria-keyshortcuts="e" onClick={onEdit}>
