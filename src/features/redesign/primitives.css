@@ -11646,3 +11646,45 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] code {
   line-height: 1.6;
 }
+
+/* ═══ Round 17 P1 fixes — from interactive Gemini QA pipeline ═══ */
+
+/* p1-home-desktop-1: sidebar timeline text contrast below WCAG AA (3.2:1 → 4.5:1+) */
+[data-redesign] .rd-agent-rail__muted {
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-agent-rail__copy {
+  color: var(--rd-ink-soft);
+}
+@media (prefers-color-scheme: light) {
+  [data-redesign] .rd-agent-rail__muted,
+  [data-redesign] .rd-agent-rail__copy {
+    color: rgba(0, 0, 0, 0.62);
+  }
+}
+
+/* p1-reports-mobile-1: 'Verified' badge truncated on mobile report cards */
+[data-redesign] .rd-pill--green,
+[data-redesign] .ar-drawer-status {
+  min-width: fit-content;
+  flex-shrink: 0;
+}
+@media (max-width: 760px) {
+  [data-redesign] .rd-pill--green,
+  [data-redesign] .ar-drawer-status {
+    padding: 3px 8px;
+    font-size: 10px;
+    letter-spacing: 0.03em;
+  }
+}
+
+/* p1-workspace-mobile-1: primary action competition — secondary action ghost style */
+[data-redesign] .rd-btn--secondary-action {
+  background: var(--rd-muted);
+  color: var(--rd-ink);
+  border-color: var(--rd-line);
+}
+[data-redesign] .rd-btn--secondary-action:hover {
+  background: var(--rd-line);
+  color: var(--rd-ink-strong);
+}
