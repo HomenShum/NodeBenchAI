@@ -292,13 +292,15 @@ export function InboxSurface() {
           )}
         </section>
       ))}
-      <button
-        className="rd-v2-show-more"
-        type="button"
-        onClick={() => showToast({ tone: "info", message: isLive ? "All live Inbox rows for this session are visible." : "Inbox is empty because no live nudges or pipeline review rows were returned." })}
-      >
-        {(() => { const remaining = Math.max(0, allItems.length - items.length); return remaining > 0 ? `Show ${remaining} more item${remaining === 1 ? '' : 's'}` : null; })()}
-      </button>
+      {allItems.length > items.length && (
+        <button
+          className="rd-v2-show-more"
+          type="button"
+          onClick={() => showToast({ tone: "info", message: isLive ? "All live Inbox rows for this session are visible." : "Inbox is empty because no live nudges or pipeline review rows were returned." })}
+        >
+          Show {allItems.length - items.length} more item{allItems.length - items.length === 1 ? '' : 's'}
+        </button>
+      )}
     </div>
   );
 
