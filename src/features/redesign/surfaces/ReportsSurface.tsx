@@ -1889,18 +1889,13 @@ function ReportCardV3({
       <p className="rd-v3-card__kind">{report.kind}</p>
       <p className="rd-v3-card__thesis v3-thesis">{displayReportDescription(report.description)}</p>
       <div className="rd-v3-signals v3-signals">
-        {signals.map((signal, index) => <span className="v3-signal" data-color={signalColor(index)} key={`${signal}-${index}`}>{signal}</span>)}
+        {signals.slice(0, 3).map((signal, index) => <span className="v3-signal" data-color={signalColor(index)} key={`${signal}-${index}`}>{signal}</span>)}
+        {signals.length > 3 && <span className="v3-signal" data-color="mute">+{signals.length - 3}</span>}
       </div>
       <div className="rd-v3-sources v3-sources">
         <span className="v3-src">{evidenceText(report, stage)}</span>
-        <span className="v3-src">{report.sources} source rows</span>
-        <span className="v3-src-more">{report.followUps} follow-ups</span>
+        <span className="v3-src">{report.sources} source{report.sources === 1 ? "" : "s"}</span>
       </div>
-      {backlinks.length > 0 && (
-        <div className="rd-v3-backlinks v3-backlinks">
-          {backlinks.map((item, index) => <span key={`${item}-${index}`}>→ {item}</span>)}
-        </div>
-      )}
       </div>
       <div className="rd-v3-card__foot v3-foot">
         <span>{sourceLabel} · {freshnessText(report, stage)}</span>

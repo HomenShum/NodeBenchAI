@@ -3470,6 +3470,8 @@
 
 [data-redesign] .rd-v2-inbox-group article.is-active {
   background: var(--rd-accent-tint);
+  border-left: 3px solid var(--rd-accent);
+  padding-left: 13px;
 }
 
 [data-redesign] .rd-v2-inbox-group article.rd-inbox-empty {
@@ -3606,6 +3608,15 @@
   color: var(--rd-green);
   font-size: 11px;
   font-weight: 700;
+}
+
+[data-redesign] .rd-v2-integrations-grid span[data-tone="amber"] {
+  color: var(--rd-amber);
+}
+
+[data-redesign] .rd-v2-integrations-grid span[data-tone="mute"] {
+  color: var(--rd-ink-mute);
+  font-weight: 600;
 }
 
 [data-redesign] .rd-v2-integrations-grid p {

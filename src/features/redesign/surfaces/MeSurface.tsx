@@ -708,13 +708,20 @@ function MeV2DocumentCenter({
           ["Convex", guest ? "Public read only" : "Connected runtime", guest ? "No private tables exposed" : "Live profile writes stay gated"],
           ["LinkedIn", "Approval required", "Posting and CRM writes require review"],
           ["Slack", guest ? "Off" : "Optional", "Team memory stays permission-scoped"],
-        ].map(([name, status, detail]) => (
-          <article key={name}>
-            <strong>{name}</strong>
-            <span>{status}</span>
-            <p>{detail}</p>
-          </article>
-        ))}
+        ].map(([name, status, detail]) => {
+          const tone = /connected|available/i.test(status as string) ? "green"
+            : /off|disabled/i.test(status as string) ? "mute"
+            : /approval|review|connect/i.test(status as string) ? "amber"
+            : "green";
+          return (
+            <article key={name}>
+              <strong>{name}</strong>
+              <span data-tone={tone}>{status}</span>
+              <p>{detail}</p>
+            </article>
+          );
+        }
+        )}
       </section>
     </div>
   );
