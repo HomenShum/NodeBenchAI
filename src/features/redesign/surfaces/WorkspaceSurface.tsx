@@ -262,8 +262,8 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
         flexShrink: 0,
       }}>
           <div className="rd-row" style={{ gap: 8 }}>
-          <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>
-            REPORTS / {(effectiveReportId || "LIVE").toUpperCase()}
+          <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "50vw" }}>
+            REPORTS / {(effectiveLiveReport?.entity ?? effectiveLiveDetail?.title ?? "LIVE").toUpperCase().slice(0, 28)}
           </span>
           <span style={{ color: "var(--rd-ink-faint)" }}>›</span>
           <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink)" }}>WORKSPACE</span>
