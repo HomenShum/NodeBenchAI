@@ -155,6 +155,8 @@ type ReportViewMode = "gallery" | "board" | "table" | "graph";
 type ReportStage = "drafting" | "review" | "verified" | "stale" | "monitoring";
 type ReportBoardColumnId = ReportStage | "archived";
 type ReportGraphScaleMode = "focus" | "clustered" | "expanded";
+type ReportGraphLensMode = "force" | TopologyViewMode;
+type ReportGraphTopologyLayer = "bridges" | "cycles";
 
 const REPORT_VIEW_MODES: Array<{ id: ReportViewMode; label: string }> = [
   { id: "gallery", label: "Gallery" },
@@ -169,11 +171,21 @@ const REPORT_GRAPH_SCALE_MODES: Array<{ id: ReportGraphScaleMode; label: string;
   { id: "expanded", label: "Expand", hint: "Wider neighborhood, still capped for browser performance" },
 ];
 
-const REPORT_TOPOLOGY_VIEW_MODES: Array<{ id: TopologyViewMode; label: string; hint: string }> = [
-  { id: "density", label: "Density", hint: "Where human and agent attention keeps gravitating" },
-  { id: "pca", label: "PCA", hint: "Dominant axes of variation across report graph features" },
-  { id: "centroid", label: "Centroid", hint: "Typical center versus outlier edge cases" },
+const REPORT_GRAPH_LENS_MODES: Array<{ id: ReportGraphLensMode; label: string; hint: string }> = [
+  { id: "force", label: "Force", hint: "Natural report, artifact, and entity relationship layout" },
+  { id: "density", label: "Attention", hint: "Where human and agent attention keeps gravitating" },
+  { id: "pca", label: "Variation", hint: "Dominant axes of variation across report graph features" },
+  { id: "centroid", label: "Typicality", hint: "Typical center versus outlier edge cases" },
 ];
+
+const REPORT_GRAPH_TOPOLOGY_LAYERS: Array<{ id: ReportGraphTopologyLayer; label: string; hint: string }> = [
+  { id: "bridges", label: "Bridges", hint: "Bottleneck edges and nodes whose removal disconnects neighborhoods" },
+  { id: "cycles", label: "Cycles", hint: "Circular relationship loops in the report and artifact graph" },
+];
+
+function topologyViewForLens(lens: ReportGraphLensMode): TopologyViewMode {
+  return lens === "force" ? "density" : lens;
+}
 
 function reportViewFromUrl(): ReportViewMode {
   if (typeof window === "undefined") return "gallery";
@@ -602,6 +614,7 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
             <ReportCardV3
               key={report.id}
               report={report}
+              detail={detailForReport(details, report)}
               active={inspectedReportId === report.id}
               stage={getReportStage(report, stageOverrides[report.id])}
               sourceLabel={sourceLabel}
@@ -1043,6 +1056,83 @@ type ReportGraphScaleConfig = {
   edgeBudget: number;
   clusterOverflow: boolean;
 };
+
+type ReportGraphTopologyLayerSummary = {
+  bridgeNodeIds: Set<string>;
+  bridgeEdgeKeys: Set<string>;
+  cycleNodeIds: Set<string>;
+  cycleEdgeKeys: Set<string>;
+  bridgeCount: number;
+  cycleCount: number;
+};
+
+function graphTopologyEdgeKey(source: string, target: string): string {
+  return [source, target].sort().join("::");
+}
+
+function analyzeGraphTopologyLayers(nodes: ReportGraphNode[], links: ReportGraphLink[]): ReportGraphTopologyLayerSummary {
+  const validNodeIds = new Set(nodes.map((node) => node.id));
+  const adjacency = new Map<string, Array<{ to: string; key: string }>>();
+  links.forEach((link) => {
+    if (!validNodeIds.has(link.source) || !validNodeIds.has(link.target) || link.source === link.target) return;
+    const key = graphTopologyEdgeKey(link.source, link.target);
+    if (!adjacency.has(link.source)) adjacency.set(link.source, []);
+    if (!adjacency.has(link.target)) adjacency.set(link.target, []);
+    adjacency.get(link.source)?.push({ to: link.target, key });
+    adjacency.get(link.target)?.push({ to: link.source, key });
+  });
+
+  const discovery = new Map<string, number>();
+  const low = new Map<string, number>();
+  const bridgeEdgeKeys = new Set<string>();
+  let clock = 0;
+
+  const visit = (nodeId: string, parentEdgeKey: string | null) => {
+    clock += 1;
+    discovery.set(nodeId, clock);
+    low.set(nodeId, clock);
+    adjacency.get(nodeId)?.forEach((edge) => {
+      if (edge.key === parentEdgeKey) return;
+      if (!discovery.has(edge.to)) {
+        visit(edge.to, edge.key);
+        low.set(nodeId, Math.min(low.get(nodeId) ?? clock, low.get(edge.to) ?? clock));
+        if ((low.get(edge.to) ?? 0) > (discovery.get(nodeId) ?? 0)) bridgeEdgeKeys.add(edge.key);
+      } else {
+        low.set(nodeId, Math.min(low.get(nodeId) ?? clock, discovery.get(edge.to) ?? clock));
+      }
+    });
+  };
+
+  nodes.forEach((node) => {
+    if (!discovery.has(node.id)) visit(node.id, null);
+  });
+
+  const bridgeNodeIds = new Set<string>();
+  const cycleNodeIds = new Set<string>();
+  const cycleEdgeKeys = new Set<string>();
+
+  links.forEach((link) => {
+    if (!validNodeIds.has(link.source) || !validNodeIds.has(link.target) || link.source === link.target) return;
+    const key = graphTopologyEdgeKey(link.source, link.target);
+    if (bridgeEdgeKeys.has(key)) {
+      bridgeNodeIds.add(link.source);
+      bridgeNodeIds.add(link.target);
+      return;
+    }
+    cycleEdgeKeys.add(key);
+    cycleNodeIds.add(link.source);
+    cycleNodeIds.add(link.target);
+  });
+
+  return {
+    bridgeNodeIds,
+    bridgeEdgeKeys,
+    cycleNodeIds,
+    cycleEdgeKeys,
+    bridgeCount: bridgeEdgeKeys.size,
+    cycleCount: cycleEdgeKeys.size === 0 ? 0 : Math.max(1, Math.round(cycleEdgeKeys.size / 3)),
+  };
+}
 
 const REPORT_GRAPH_SCALE_CONFIG: Record<ReportGraphScaleMode, ReportGraphScaleConfig> = {
   focus: {
@@ -1825,8 +1915,105 @@ function buildReportGraph(
   };
 }
 
+type ReportArtifactPreview = {
+  name: string;
+  type: string;
+  variant: "bars" | "heatmap" | "sparkline" | "timeline";
+  values: number[];
+  tone: "green" | "amber" | "red" | "blue";
+};
+
+function fallbackArtifactName(report: ReportCardData, stage: ReportStage): string {
+  const text = `${report.kind} ${report.entity} ${report.description} ${stage}`.toLowerCase();
+  if (/pricing|compet|matrix/.test(text)) return "pricing-comparison.html";
+  if (/feature|compare/.test(text)) return "feature-matrix.html";
+  if (/stale|freshness|decay/.test(text)) return "signal-decay.html";
+  if (/daily|brief|timeline|signal/.test(text)) return "signal-timeline.html";
+  if (/portfolio|universe|watchlist/.test(text)) return "portfolio-tiering.html";
+  return `${graphSlug(report.entity || report.kind || "report")}-packet.html`;
+}
+
+function artifactVariantForName(name: string): ReportArtifactPreview["variant"] {
+  const text = name.toLowerCase();
+  if (/matrix|feature/.test(text)) return "heatmap";
+  if (/timeline/.test(text)) return "timeline";
+  if (/decay|stale|freshness/.test(text)) return "sparkline";
+  return "bars";
+}
+
+function reportArtifactPreview(detail: LiveArtifactDetail | undefined, report: ReportCardData, stage: ReportStage): ReportArtifactPreview {
+  const artifactNode = detail?.nodes.find((node) => node.kind === "artifact") ?? detail?.nodes[0];
+  const name = artifactNode && detail ? artifactLabelForLiveNode(artifactNode, detail, 0) : fallbackArtifactName(report, stage);
+  const type = artifactTypeForText(`${name} ${artifactNode?.artifactType ?? ""} ${report.kind}`);
+  const maxMetric = Math.max(1, report.sources, report.claims, report.followUps + 1);
+  const seedValues = [
+    report.sources / maxMetric,
+    report.claims / maxMetric,
+    (report.followUps + 1) / maxMetric,
+    stage === "verified" ? 0.9 : stage === "review" ? 0.62 : stage === "stale" ? 0.28 : 0.54,
+    Math.min(1, (detail?.sourceRows.length ?? report.sources) / Math.max(1, report.sources + 2)),
+    Math.min(1, (detail?.sections.length ?? 2) / 5),
+  ];
+  return {
+    name,
+    type,
+    variant: artifactVariantForName(name),
+    values: seedValues.map((value) => Math.max(0.16, Math.min(1, value))),
+    tone: stage === "verified" ? "green" : stage === "stale" ? "red" : stage === "review" ? "amber" : "blue",
+  };
+}
+
+function ReportArtifactStrip({
+  preview,
+  onOpen,
+}: {
+  preview: ReportArtifactPreview;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="v3-artifact-strip"
+      data-artifact-card
+      data-variant={preview.variant}
+      data-tone={preview.tone}
+      title={`Open ${preview.name}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen();
+      }}
+    >
+      <span className={`v3-artifact-strip-vis v3-artifact-strip-vis--${preview.variant}`}>
+        {preview.variant === "timeline" ? (
+          preview.values.slice(0, 5).map((value, index) => (
+            <i key={index} className="v3-artifact-point" style={{ left: `${8 + index * 21}%`, opacity: 0.45 + value * 0.5 }} />
+          ))
+        ) : preview.variant === "heatmap" ? (
+          preview.values.concat(preview.values).slice(0, 12).map((value, index) => (
+            <i key={index} className="v3-artifact-cell" style={{ opacity: 0.18 + value * 0.72 }} />
+          ))
+        ) : preview.variant === "sparkline" ? (
+          preview.values.map((value, index) => (
+            <i key={index} className="v3-artifact-spark" style={{ height: `${8 + value * 24}px` }} />
+          ))
+        ) : (
+          preview.values.slice(0, 4).map((value, index) => (
+            <i key={index} className="v3-artifact-bar" style={{ width: `${22 + value * 68}%` }} />
+          ))
+        )}
+      </span>
+      <span className="v3-artifact-strip-foot">
+        <span className="v3-artifact-strip-dot" />
+        <span className="v3-artifact-strip-name">{preview.name}</span>
+        <span className="v3-artifact-strip-type">{preview.type.toLowerCase()}</span>
+      </span>
+    </button>
+  );
+}
+
 function ReportCardV3({
   report,
+  detail,
   active,
   stage,
   sourceLabel,
@@ -1834,6 +2021,7 @@ function ReportCardV3({
   onSelect,
 }: {
   report: ReportCardData;
+  detail?: LiveArtifactDetail;
   active: boolean;
   stage: ReportStage;
   sourceLabel: string;
@@ -1842,6 +2030,7 @@ function ReportCardV3({
 }) {
   const signals = reportSignals(report);
   const backlinks = reportBacklinks(report);
+  const artifactPreview = reportArtifactPreview(detail, report, stage);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuAction = (label: string) => {
     setMenuOpen(false);
@@ -1914,6 +2103,10 @@ function ReportCardV3({
         <span className="v3-src">{evidenceText(report, stage)}</span>
         <span className="v3-src">{report.sources} source{report.sources === 1 ? "" : "s"}</span>
       </div>
+      <ReportArtifactStrip
+        preview={artifactPreview}
+        onOpen={() => onOpen(report.id, "cards")}
+      />
       </div>
       <div className="rd-v3-card__foot v3-foot">
         <span>{sourceLabel} · {freshnessText(report, stage)}</span>
@@ -2460,10 +2653,16 @@ function ReportGraphPreviewD3({
     [reports, details, selectedReport, stageOverrides, scaleMode],
   );
   const [graphQuery, setGraphQuery] = useState("");
-  const [topologyView, setTopologyView] = useState<TopologyViewMode>("density");
+  const [graphLens, setGraphLens] = useState<ReportGraphLensMode>("force");
+  const topologyView = topologyViewForLens(graphLens);
+  const [topologyLayers, setTopologyLayers] = useState<Record<ReportGraphTopologyLayer, boolean>>({ bridges: false, cycles: false });
   const localTopology = useMemo(
     () => buildTopologySnapshot(graph.nodes, graph.links, topologyView),
     [graph.nodes, graph.links, topologyView],
+  );
+  const topologyLayerSummary = useMemo(
+    () => analyzeGraphTopologyLayers(graph.nodes, graph.links),
+    [graph.nodes, graph.links],
   );
   const serverTopology = useReportTopologySnapshot(
     {
@@ -2598,8 +2797,9 @@ function ReportGraphPreviewD3({
     const height = Math.max(420, visibleHeight);
     const projectX = (x: number) => 70 + x * Math.max(220, width - 140);
     const projectY = (y: number) => 58 + y * Math.max(260, visibleHeight - 116);
+    const useTopologyProjection = graphLens !== "force";
     const nodes: D3GraphNode[] = graph.nodes.map((node) => {
-      const topologyProjection = topology.nodesById[node.id];
+      const topologyProjection = useTopologyProjection ? topology.nodesById[node.id] : undefined;
       return {
         ...node,
         topologyProjection,
@@ -2802,10 +3002,22 @@ function ReportGraphPreviewD3({
       .attr("opacity", topology.view === "density" ? 0.2 : 0.12);
 
     const linkEl = g.append("g").selectAll<SVGLineElement, D3GraphLink>("line").data(links).join("line")
+      .attr("class", (link) => [
+        "rd-v3-graph-link",
+        topologyLayerSummary.bridgeEdgeKeys.has(graphTopologyEdgeKey(endpointId(link.source), endpointId(link.target))) ? "rd-v3-graph-link--bridge" : "",
+        topologyLayerSummary.cycleEdgeKeys.has(graphTopologyEdgeKey(endpointId(link.source), endpointId(link.target))) ? "rd-v3-graph-link--cycle" : "",
+      ].filter(Boolean).join(" "))
+      .attr("data-topology-bridge", (link) => topologyLayerSummary.bridgeEdgeKeys.has(graphTopologyEdgeKey(endpointId(link.source), endpointId(link.target))) ? "true" : "false")
+      .attr("data-topology-cycle", (link) => topologyLayerSummary.cycleEdgeKeys.has(graphTopologyEdgeKey(endpointId(link.source), endpointId(link.target))) ? "true" : "false")
       .attr("stroke", (link) => edgeStyle[link.type]?.stroke ?? "var(--rd-ink-faint)")
       .attr("stroke-width", (link) => edgeStyle[link.type]?.width ?? 0.7)
       .attr("stroke-dasharray", (link) => edgeStyle[link.type]?.dash ?? "")
-      .attr("opacity", 0.5);
+      .attr("opacity", (link) => {
+        const key = graphTopologyEdgeKey(endpointId(link.source), endpointId(link.target));
+        if (topologyLayers.bridges && topologyLayerSummary.bridgeEdgeKeys.has(key)) return 0.92;
+        if (topologyLayers.cycles && topologyLayerSummary.cycleEdgeKeys.has(key)) return 0.82;
+        return 0.5;
+      });
 
     const edgeLabelEl = g.append("g").selectAll<SVGTextElement, D3GraphLink>("text")
       .data(links.filter((link) => Boolean(link.label)))
@@ -2825,6 +3037,10 @@ function ReportGraphPreviewD3({
       .attr("data-topology-density", (node) => node.topologyProjection?.densityScore ?? "")
       .attr("data-topology-outlier", (node) => node.topologyProjection?.outlierScore ?? "")
       .attr("data-topology-clusters", (node) => node.topologyProjection?.mapperClusterIds.join(" ") ?? "")
+      .attr("data-topology-bridge", (node) => topologyLayerSummary.bridgeNodeIds.has(node.id) ? "true" : "false")
+      .attr("data-topology-cycle", (node) => topologyLayerSummary.cycleNodeIds.has(node.id) ? "true" : "false")
+      .classed("rd-v3-graph-node--bridge", (node) => topologyLayers.bridges && topologyLayerSummary.bridgeNodeIds.has(node.id))
+      .classed("rd-v3-graph-node--cycle", (node) => topologyLayers.cycles && topologyLayerSummary.cycleNodeIds.has(node.id))
       .attr("tabindex", 0)
       .attr("role", "button")
       .attr("aria-label", (node) => `${node.label}, ${node.type}, ${node.verified}, attention ${node.attentionScore}, ${node.reasonSelected}`)
@@ -2881,7 +3097,12 @@ function ReportGraphPreviewD3({
         return searchMatch(node) ? 0.55 : 0;
       });
       linkEl.attr("opacity", (link) => {
-        if (!normalizedGraphQuery) return 0.5;
+        const key = graphTopologyEdgeKey(endpointId(link.source), endpointId(link.target));
+        const overlayOpacity =
+          topologyLayers.bridges && topologyLayerSummary.bridgeEdgeKeys.has(key) ? 0.92 :
+          topologyLayers.cycles && topologyLayerSummary.cycleEdgeKeys.has(key) ? 0.82 :
+          0.5;
+        if (!normalizedGraphQuery) return overlayOpacity;
         const source = typeof link.source === "object" ? link.source : nodeById.get(String(link.source));
         const target = typeof link.target === "object" ? link.target : nodeById.get(String(link.target));
         return (source && searchMatch(source)) || (target && searchMatch(target)) ? 0.6 : 0.04;
@@ -2906,7 +3127,14 @@ function ReportGraphPreviewD3({
       nodeEl.selectAll<SVGCircleElement, D3GraphNode>(".rd-v3-graph-node__ring").attr("opacity", 0);
       labelEl.attr("opacity", defaultLabelOpacity);
       metaEl.attr("opacity", defaultMetaOpacity);
-      linkEl.attr("opacity", 0.5).attr("stroke-width", (link) => edgeStyle[link.type]?.width ?? 0.7);
+      linkEl
+        .attr("opacity", (link) => {
+          const key = graphTopologyEdgeKey(endpointId(link.source), endpointId(link.target));
+          if (topologyLayers.bridges && topologyLayerSummary.bridgeEdgeKeys.has(key)) return 0.92;
+          if (topologyLayers.cycles && topologyLayerSummary.cycleEdgeKeys.has(key)) return 0.82;
+          return 0.5;
+        })
+        .attr("stroke-width", (link) => edgeStyle[link.type]?.width ?? 0.7);
       edgeLabelEl.attr("opacity", 0);
       applySearch();
     };
@@ -3012,7 +3240,7 @@ function ReportGraphPreviewD3({
       svg.on(".zoom", null);
       svg.on("click", null);
     };
-  }, [graph, normalizedGraphQuery, onSelect, topology]);
+  }, [graph, graphLens, normalizedGraphQuery, onSelect, topology, topologyLayerSummary, topologyLayers]);
 
   const resetGraph = () => {
     pinnedNodeIdRef.current = null;
@@ -3070,8 +3298,13 @@ function ReportGraphPreviewD3({
       data-graph-source={graph.sourceLabel}
       data-node-count={graph.nodes.length}
       data-edge-count={graph.links.length}
+      data-graph-lens={graphLens}
       data-topology-view={topology.view}
       data-topology-cluster-count={topology.summary.clusterCount}
+      data-topology-bridges={topologyLayerSummary.bridgeCount}
+      data-topology-cycles={topologyLayerSummary.cycleCount}
+      data-topology-bridges-active={topologyLayers.bridges ? "true" : "false"}
+      data-topology-cycles-active={topologyLayers.cycles ? "true" : "false"}
       data-topology-hot-node={topology.summary.hotNodeId ?? ""}
       data-topology-centroid-node={topology.summary.centroidNodeId ?? ""}
       data-topology-outlier-node={topology.summary.outlierNodeId ?? ""}
@@ -3119,15 +3352,15 @@ function ReportGraphPreviewD3({
             </button>
           ))}
         </span>
-        <span className="rd-v3-graph__topology" role="group" aria-label="Topology view">
-          {REPORT_TOPOLOGY_VIEW_MODES.map((mode) => (
+        <span className="rd-v3-graph__topology" role="group" aria-label="Graph lens">
+          {REPORT_GRAPH_LENS_MODES.map((mode) => (
             <button
               key={mode.id}
               type="button"
-              aria-pressed={topologyView === mode.id}
+              aria-pressed={graphLens === mode.id}
               title={mode.hint}
               onClick={() => {
-                setTopologyView(mode.id);
+                setGraphLens(mode.id);
                 pinnedNodeIdRef.current = null;
                 setPinnedNodeId(null);
                 setTooltip(null);
@@ -3135,6 +3368,19 @@ function ReportGraphPreviewD3({
               }}
             >
               {mode.label}
+            </button>
+          ))}
+        </span>
+        <span className="rd-v3-graph__topology-layers" role="group" aria-label="Topology overlays">
+          {REPORT_GRAPH_TOPOLOGY_LAYERS.map((layer) => (
+            <button
+              key={layer.id}
+              type="button"
+              aria-pressed={topologyLayers[layer.id]}
+              title={layer.hint}
+              onClick={() => setTopologyLayers((current) => ({ ...current, [layer.id]: !current[layer.id] }))}
+            >
+              {layer.label}
             </button>
           ))}
         </span>
@@ -3158,9 +3404,11 @@ function ReportGraphPreviewD3({
         </span>
       </div>
       <div className="rd-v3-graph__topology-summary" data-view={topology.view}>
-        <strong>{topology.view === "density" ? "Attention density" : topology.view === "pca" ? "PCA axes" : "Center vs edge"}</strong>
-        <span>{topology.summary.viewRationale}</span>
+        <strong>{graphLens === "force" ? "Force layout" : topology.view === "density" ? "Attention density" : topology.view === "pca" ? "Variation axes" : "Typicality"}</strong>
+        <span>{graphLens === "force" ? "Natural force layout keeps report, artifact, source, and entity relationships readable before analytical lenses are applied." : topology.summary.viewRationale}</span>
         <span>{topology.summary.clusterCount} mapper clusters</span>
+        <span>{topologyLayerSummary.bridgeCount} bridges</span>
+        <span>{topologyLayerSummary.cycleCount} cycles</span>
         <span>{serverTopology.sourceLabel}</span>
         <span>PC1: {topology.pcaAxes.pc1.map((axis) => axis.label).join(" / ")}</span>
         <span>PC2: {topology.pcaAxes.pc2.map((axis) => axis.label).join(" / ")}</span>
