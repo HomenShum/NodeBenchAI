@@ -1,0 +1,2316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NodeBench v4 — Notebook + Artifacts + Chat</title>
+<style>
+/* ═══════════════════════════════════════════════════
+   TOKENS
+   ═══════════════════════════════════════════════════ */
+:root {
+  --bg: #151413; --paper: #1c1b1a; --panel: #232221; --surface: #2a2928;
+  --ink: #e8e4df; --ink-muted: #8a857e; --ink-faint: #5a5650;
+  --accent: #d97757; --accent-dim: rgba(217,119,87,.15);
+  --blue: #5b9bf5; --purple: #a78bfa; --yellow: #e4c567; --green: #4ade80; --red: #f87171;
+  --line: rgba(255,255,255,.06); --line-faint: rgba(255,255,255,.04);
+  --glass-bg: rgba(255,255,255,.02); --glass-border: rgba(255,255,255,.06);
+  --ui: 'Manrope', system-ui, sans-serif; --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --left-w: 220px; --right-w: 380px; --topbar-h: 48px;
+  --radius: 8px; --radius-sm: 5px;
+}
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { font-family: var(--ui); background: var(--bg); color: var(--ink); line-height: 1.55; overflow: hidden; height: 100vh; }
+::selection { background: var(--accent-dim); color: var(--ink); }
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--ink-faint); border-radius: 3px; }
+button { font-family: var(--ui); cursor: pointer; border: none; background: none; color: var(--ink); }
+input { font-family: var(--ui); }
+
+/* ═══════════════════════════════════════════════════
+   SHELL + TOPBAR
+   ═══════════════════════════════════════════════════ */
+.shell { display: flex; flex-direction: column; height: 100vh; }
+.topbar {
+  display: flex; align-items: center; gap: 8px; padding: 0 16px; height: var(--topbar-h);
+  background: var(--paper); border-bottom: 1px solid var(--line); flex-shrink: 0; z-index: 20;
+}
+.topbar-logo { font-weight: 700; font-size: 15px; letter-spacing: -.02em; margin-right: 12px; white-space: nowrap; }
+.topbar-logo span { color: var(--accent); }
+.topbar-nav { display: flex; gap: 0; }
+.topbar-nav button {
+  padding: 6px 14px; font-size: 13px; font-weight: 500; border-radius: var(--radius);
+  color: var(--ink-muted); transition: color .15s, background .15s;
+}
+.topbar-nav button:hover { color: var(--ink); background: var(--glass-bg); }
+.topbar-nav button.active { color: var(--accent); background: var(--accent-dim); }
+.topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.topbar-search {
+  display: flex; align-items: center; gap: 6px; background: var(--glass-bg); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 5px 10px; font-size: 12px; color: var(--ink-muted); cursor: pointer;
+}
+.topbar-search kbd { font-family: var(--mono); font-size: 10px; background: var(--surface); padding: 1px 5px; border-radius: 3px; }
+.btn-sm {
+  padding: 5px 12px; font-size: 12px; font-weight: 600; border-radius: var(--radius);
+  background: var(--accent); color: #fff; transition: opacity .15s;
+}
+.btn-sm:hover { opacity: .85; }
+.btn-ghost {
+  padding: 5px 10px; font-size: 12px; border-radius: var(--radius);
+  border: 1px solid var(--line); color: var(--ink-muted); transition: border-color .15s;
+}
+.btn-ghost:hover { border-color: var(--ink-faint); color: var(--ink); }
+
+/* ─── Wide mode (Streamlit-style) ─── */
+.topbar-wide-toggle {
+  width: 28px; height: 28px; border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--line); background: none; cursor: pointer;
+  display: grid; place-items: center; font-size: 13px;
+  color: var(--ink-muted); transition: all 100ms;
+}
+.topbar-wide-toggle:hover { border-color: var(--ink-faint); color: var(--ink); }
+.shell[data-wide] .topbar-wide-toggle { color: var(--accent); border-color: var(--accent); }
+/* Wide: collapse right rail, give center full room */
+.shell[data-wide] .workspace { grid-template-columns: var(--left-w) 1fr; }
+.shell[data-wide] .right-context { display: none; }
+/* Wide: chat messages + composer widen */
+.shell[data-wide] .chat-msg,
+.shell[data-wide] .chat-msg-user,
+.shell[data-wide] .chat-checkpoint,
+.shell[data-wide] .chat-nb-patch,
+.shell[data-wide] .chat-art-card { max-width: 900px; }
+.shell[data-wide] .ar-input-wrap { max-width: 900px; }
+/* Wide: artifact grid shows more columns */
+.shell[data-wide] .art-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+
+/* ═══════════════════════════════════════════════════
+   THREE-COLUMN LAYOUT
+   ═══════════════════════════════════════════════════ */
+.workspace {
+  display: grid; grid-template-columns: var(--left-w) 1fr var(--right-w);
+  flex: 1; overflow: hidden;
+}
+
+/* LEFT INDEX */
+.left-index {
+  border-right: 1px solid var(--line); padding: 12px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 16px; background: var(--paper);
+}
+.left-search {
+  display: flex; align-items: center; gap: 6px; background: var(--glass-bg); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 6px 10px; font-size: 12px; width: 100%;
+  color: var(--ink); outline: none;
+}
+.left-search::placeholder { color: var(--ink-faint); }
+.left-section-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .15em;
+  color: var(--ink-faint); margin-bottom: 4px;
+}
+.left-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--ink-muted); cursor: pointer; transition: background .12s, color .12s;
+}
+.left-item:hover { background: var(--glass-bg); color: var(--ink); }
+.left-item.active { background: var(--accent-dim); color: var(--accent); }
+.left-item-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+.left-item-badge {
+  margin-left: auto; font-size: 10px; font-family: var(--mono); font-weight: 600;
+  color: var(--ink-faint); background: var(--glass-bg); padding: 1px 5px; border-radius: 8px;
+}
+.left-group { display: flex; flex-direction: column; gap: 2px; }
+/* hide mode-specific index panels */
+.left-index[data-mode] .left-panel { display: none; }
+.left-index[data-mode="notebook"] .left-panel[data-for="notebook"] { display: flex; flex-direction: column; gap: 2px; }
+.left-index[data-mode="artifacts"] .left-panel[data-for="artifacts"] { display: flex; flex-direction: column; gap: 2px; }
+.left-index[data-mode="chat"] .left-panel[data-for="chat"] { display: flex; flex-direction: column; gap: 2px; }
+
+/* CENTER */
+.center { overflow-y: auto; padding: 24px 32px 80px; }
+.center-surface { display: none; }
+.center-surface.active { display: block; }
+
+/* RIGHT CONTEXT */
+.right-context {
+  border-left: 1px solid var(--line); padding: 16px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 16px; background: var(--paper);
+}
+.ctx-section { display: flex; flex-direction: column; gap: 6px; }
+.ctx-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .15em;
+  color: var(--ink-faint);
+}
+.ctx-card {
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 6px;
+}
+.ctx-entity-name { font-weight: 600; font-size: 14px; }
+.ctx-entity-type { font-size: 11px; color: var(--ink-muted); font-family: var(--mono); }
+.ctx-backlink-row {
+  display: flex; align-items: center; gap: 8px; padding: 5px 0;
+  font-size: 12px; color: var(--ink-muted); cursor: pointer; transition: color .12s;
+}
+.ctx-backlink-row:hover { color: var(--ink); }
+.ctx-backlink-icon { font-size: 11px; width: 16px; color: var(--ink-faint); }
+.ctx-backlink-source { font-size: 10px; font-family: var(--mono); color: var(--ink-faint); margin-left: auto; }
+
+/* ═══════════════════════════════════════════════════
+   MENTIONS & BACKLINKS
+   ═══════════════════════════════════════════════════ */
+.mention {
+  display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px;
+  border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: opacity .12s; text-decoration: none;
+}
+.mention:hover { opacity: .8; }
+.mention[data-type="company"] { background: rgba(91,155,245,.12); color: var(--blue); border: 1px solid rgba(91,155,245,.2); }
+.mention[data-type="person"] { background: rgba(167,139,250,.12); color: var(--purple); border: 1px solid rgba(167,139,250,.2); }
+.mention[data-type="event"] { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(217,119,87,.2); }
+.mention[data-type="topic"] { background: rgba(228,197,103,.1); color: var(--yellow); border: 1px solid rgba(228,197,103,.2); }
+.mention[data-type="tag"] { background: var(--glass-bg); color: var(--ink-muted); border: 1px solid var(--line); }
+.backlink-count {
+  font-size: 10px; font-family: var(--mono); font-weight: 600; padding: 1px 5px;
+  border-radius: 8px; background: var(--glass-bg); color: var(--ink-faint); cursor: pointer;
+  transition: color .12s, background .12s; margin-left: 2px;
+}
+.backlink-count:hover { background: var(--accent-dim); color: var(--accent); }
+.source-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
+  border-radius: 4px; font-size: 11px; font-family: var(--mono);
+  background: var(--glass-bg); border: 1px solid var(--line); color: var(--ink-muted); cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════════════
+   NOTEBOOK MODE
+   ═══════════════════════════════════════════════════ */
+.nb-header { margin-bottom: 20px; }
+.nb-title { font-size: 24px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+.nb-type-badge {
+  display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .1em; padding: 2px 8px; border-radius: 4px; margin-top: 6px;
+  background: var(--accent-dim); color: var(--accent); font-family: var(--mono);
+}
+.nb-meta { font-size: 12px; color: var(--ink-muted); margin-top: 6px; }
+.nb-blocks { display: flex; flex-direction: column; gap: 12px; }
+.nb-block {
+  background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius);
+  padding: 14px 16px; font-size: 14px; line-height: 1.65;
+}
+.nb-block p { margin-bottom: 8px; }
+.nb-block p:last-child { margin-bottom: 0; }
+.nb-claims { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.nb-claims-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-faint); margin-bottom: 6px; }
+.nb-claim {
+  display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; font-size: 13px; color: var(--ink-muted);
+}
+.nb-claim-bullet { color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+.nb-artifacts-embed { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+.nb-artifact-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+  border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line);
+  font-size: 12px; cursor: pointer; transition: border-color .12s;
+}
+.nb-artifact-chip:hover { border-color: var(--accent); }
+.nb-backlink-shelf {
+  margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line);
+}
+.nb-backlink-shelf-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-faint); margin-bottom: 8px; }
+.nb-backlink-item {
+  display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: var(--radius-sm);
+  font-size: 12px; color: var(--ink-muted); cursor: pointer; transition: background .12s;
+}
+.nb-backlink-item:hover { background: var(--glass-bg); }
+
+/* ─── DAILY BRIEF ─── */
+.brief-scope-tabs { display: flex; gap: 2px; margin-bottom: 16px; }
+.brief-scope-tab {
+  padding: 5px 12px; font-size: 12px; font-weight: 500; border-radius: var(--radius);
+  color: var(--ink-muted); transition: color .12s, background .12s; cursor: pointer;
+}
+.brief-scope-tab:hover { color: var(--ink); background: var(--glass-bg); }
+.brief-scope-tab.active { color: var(--accent); background: var(--accent-dim); }
+.brief-freshness {
+  display: flex; gap: 12px; font-size: 11px; color: var(--ink-faint); margin-top: 4px;
+  font-family: var(--mono);
+}
+.brief-freshness-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 4px; vertical-align: middle; }
+.brief-section { margin-bottom: 20px; }
+.brief-section-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .15em;
+  color: var(--ink-faint); margin-bottom: 10px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--line-faint);
+}
+.brief-item {
+  display: flex; gap: 10px; padding: 10px 14px; margin-bottom: 6px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); font-size: 13px; line-height: 1.6;
+}
+.brief-item-num {
+  flex-shrink: 0; font-weight: 700; color: var(--accent); font-size: 14px;
+  font-family: var(--mono); min-width: 18px; text-align: right; padding-top: 1px;
+}
+.brief-item-content { flex: 1; }
+.brief-item-why { font-size: 12px; color: var(--ink-muted); margin-top: 4px; }
+.brief-delta-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px; margin-bottom: 4px;
+  font-size: 13px; color: var(--ink-muted); border-radius: var(--radius-sm);
+}
+.brief-delta-row:hover { background: var(--glass-bg); }
+.brief-delta-icon { font-size: 11px; flex-shrink: 0; }
+.brief-delta-icon.up { color: var(--green); }
+.brief-delta-icon.new { color: var(--blue); }
+.brief-delta-icon.stale { color: var(--yellow); }
+.brief-followup {
+  display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; margin-bottom: 4px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); font-size: 13px;
+}
+.brief-followup-check { flex-shrink: 0; width: 16px; height: 16px; border: 1.5px solid var(--ink-faint); border-radius: 3px; margin-top: 2px; cursor: pointer; }
+.brief-followup-check:hover { border-color: var(--accent); }
+.brief-watchlist-row {
+  display: flex; align-items: center; gap: 10px; padding: 6px 10px; margin-bottom: 3px;
+  font-size: 12px; border-radius: var(--radius-sm); cursor: pointer; transition: background .12s;
+}
+.brief-watchlist-row:hover { background: var(--glass-bg); }
+.brief-watchlist-status {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+  padding: 1px 6px; border-radius: 3px; font-family: var(--mono);
+}
+.brief-watchlist-status[data-s="active"] { background: rgba(74,222,128,.12); color: var(--green); }
+.brief-watchlist-status[data-s="new"] { background: rgba(91,155,245,.12); color: var(--blue); }
+.brief-watchlist-status[data-s="stale"] { background: rgba(228,197,103,.12); color: var(--yellow); }
+.brief-watchlist-status[data-s="moved"] { background: rgba(167,139,250,.12); color: var(--purple); }
+.nb-page { display: none; }
+.nb-page.active { display: block; }
+
+/* ─── EVENT NOTEBOOK ─── */
+.evt-metrics {
+  display: flex; gap: 16px; font-size: 12px; color: var(--ink-muted); font-family: var(--mono);
+  margin-top: 4px; flex-wrap: wrap;
+}
+.evt-metric-val { font-weight: 600; color: var(--ink); }
+.evt-sub-tabs {
+  display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--line);
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.evt-sub-tab {
+  padding: 8px 14px; font-size: 12px; font-weight: 500; color: var(--ink-muted);
+  border-bottom: 2px solid transparent; cursor: pointer; transition: color .12s, border-color .12s;
+  white-space: nowrap; flex-shrink: 0;
+}
+.evt-sub-tab:hover { color: var(--ink); }
+.evt-sub-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.evt-faq {
+  background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius);
+  padding: 14px 16px; margin-bottom: 10px;
+}
+.evt-faq-q { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+.evt-faq-a { font-size: 13px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 8px; }
+.evt-faq-meta {
+  display: flex; gap: 8px; font-size: 11px; font-family: var(--mono); color: var(--ink-faint); flex-wrap: wrap;
+}
+.evt-faq-actions { display: flex; gap: 6px; margin-top: 8px; }
+.evt-private-note {
+  padding: 10px 14px; border-left: 2px solid var(--purple);
+  background: rgba(167,139,250,.04); border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 13px; line-height: 1.55; margin-bottom: 8px;
+}
+.evt-trending { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.evt-room-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px;
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+  font-family: var(--mono);
+}
+.evt-room-badge[data-v="public"] { background: rgba(74,222,128,.1); color: var(--green); }
+.evt-room-badge[data-v="private"] { background: rgba(167,139,250,.1); color: var(--purple); }
+.evt-tab-panel { display: none; }
+.evt-tab-panel.active { display: block; }
+
+/* ═══════════════════════════════════════════════════
+   ARTIFACTS MODE
+   ═══════════════════════════════════════════════════ */
+.art-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.art-type-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.art-type-chip {
+  padding: 4px 10px; font-size: 12px; font-weight: 500; border-radius: 20px;
+  border: 1px solid var(--line); color: var(--ink-muted); cursor: pointer; transition: all .12s;
+}
+.art-type-chip:hover { border-color: var(--ink-faint); color: var(--ink); }
+.art-type-chip.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.art-sort { margin-left: auto; font-size: 12px; color: var(--ink-faint); }
+.art-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.art-card {
+  background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius);
+  padding: 16px; cursor: pointer; transition: border-color .15s, transform .15s;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.art-card:hover { border-color: rgba(255,255,255,.12); transform: translateY(-1px); }
+.art-card-head { display: flex; align-items: flex-start; justify-content: space-between; }
+.art-card-title { font-weight: 600; font-size: 14px; }
+.art-card-type {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+  padding: 2px 6px; border-radius: 3px; font-family: var(--mono); flex-shrink: 0;
+}
+.art-card-type[data-t="company"] { background: rgba(91,155,245,.12); color: var(--blue); }
+.art-card-type[data-t="person"] { background: rgba(167,139,250,.12); color: var(--purple); }
+.art-card-type[data-t="event"] { background: var(--accent-dim); color: var(--accent); }
+.art-card-type[data-t="paper_index"] { background: rgba(228,197,103,.1); color: var(--yellow); }
+.art-card-type[data-t="upload"] { background: rgba(74,222,128,.1); color: var(--green); }
+.art-card-type[data-t="source_bundle"] { background: var(--glass-bg); color: var(--ink-muted); }
+.art-card-type[data-t="trace"] { background: rgba(248,113,113,.1); color: var(--red); }
+.art-card-type[data-t="presentation"] { background: rgba(167,139,250,.08); color: var(--purple); }
+.art-card-type[data-t="brief"] { background: var(--accent-dim); color: var(--accent); }
+.art-card-desc { font-size: 13px; color: var(--ink-muted); line-height: 1.5; }
+.art-card-mentions { display: flex; gap: 4px; flex-wrap: wrap; }
+.art-card-footer {
+  display: flex; align-items: center; gap: 10px; font-size: 11px; font-family: var(--mono);
+  color: var(--ink-faint); margin-top: 4px;
+}
+
+/* ═══════════════════════════════════════════════════
+   CHAT MODE
+   ═══════════════════════════════════════════════════ */
+.chat-layout { display: grid; grid-template-columns: 1fr; height: calc(100vh - var(--topbar-h)); margin: -24px -32px -80px; }
+.chat-threads {
+  border-right: 1px solid var(--line); padding: 12px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 4px; background: var(--paper);
+}
+.chat-thread-item {
+  padding: 8px 10px; border-radius: var(--radius-sm); font-size: 12px;
+  color: var(--ink-muted); cursor: pointer; transition: background .12s;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.chat-thread-item:hover { background: var(--glass-bg); }
+.chat-thread-item.active { background: var(--accent-dim); color: var(--accent); }
+.chat-thread-title { font-weight: 500; font-size: 13px; }
+.chat-thread-meta { font-size: 10px; font-family: var(--mono); color: var(--ink-faint); }
+.chat-main { display: flex; flex-direction: column; height: 100%; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+.chat-msg { display: flex; flex-direction: column; gap: 6px; max-width: 680px; width: 100%; margin: 4px auto 0; box-sizing: border-box; }
+.chat-msg-user { align-self: auto; display: flex; flex-direction: column; align-items: flex-end; max-width: 680px; width: 100%; margin: 4px auto 0; }
+.chat-msg-user .chat-bubble {
+  background: var(--accent-dim); border: 1px solid rgba(217,119,87,.15); border-radius: 12px 12px 4px 12px;
+  padding: 10px 14px; font-size: 13px;
+}
+.chat-msg-agent .chat-bubble {
+  background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 12px 12px 12px 4px;
+  padding: 12px 16px; font-size: 13px; line-height: 1.6;
+}
+.chat-msg-label { font-size: 10px; font-family: var(--mono); color: var(--ink-faint); text-transform: uppercase; letter-spacing: .08em; }
+.chat-checkpoint {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+  border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line);
+  font-size: 11px; font-family: var(--mono); color: var(--ink-muted);
+  max-width: 680px; width: 100%; margin: 4px auto 0; box-sizing: border-box;
+}
+.chat-checkpoint-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.chat-nb-patch {
+  background: var(--glass-bg); border: 1px solid rgba(74,222,128,.2); border-radius: var(--radius);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
+  max-width: 680px; width: 100%; margin: 4px auto 0; box-sizing: border-box;
+}
+.chat-nb-patch-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: var(--green); }
+.chat-nb-patch-content { font-size: 13px; line-height: 1.55; }
+.chat-art-card {
+  background: var(--glass-bg); border: 1px solid rgba(91,155,245,.2); border-radius: var(--radius);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;
+  max-width: 680px; width: 100%; margin: 4px auto 0; box-sizing: border-box;
+}
+.chat-art-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: var(--blue); }
+.chat-source-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+/* ── Chat composer (v3-parity ar-input system) ── */
+.chat-composer {
+  padding: 12px 24px 16px; border-top: 1px solid var(--line-faint);
+  display: flex; justify-content: center;
+}
+.ar-input-wrap {
+  max-width: 680px; width: 100%;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--paper); transition: border-color 140ms; overflow: hidden;
+}
+.ar-input-wrap:focus-within { border-color: var(--accent); }
+.ar-input {
+  width: 100%; padding: 8px 12px; border: none; font: inherit;
+  font-size: 12px; background: transparent; color: var(--ink); outline: none; resize: none;
+  box-sizing: border-box;
+}
+.ar-input::placeholder { color: var(--ink-faint); }
+.ar-input-actions {
+  display: flex; align-items: center; gap: 2px; padding: 4px 8px;
+  border-top: 1px solid var(--line-faint);
+}
+.ar-input-btn {
+  padding: 2px 7px; border: none; background: none; font: inherit;
+  font-size: 10px; color: var(--ink-faint); cursor: pointer;
+  border-radius: var(--radius-sm, 4px); transition: all 100ms;
+  display: flex; align-items: center; gap: 3px;
+}
+.ar-input-btn:hover { background: var(--muted); color: var(--ink-muted); }
+.ar-input-mic {
+  width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 50%;
+  background: none; cursor: pointer; display: grid; place-items: center;
+  font-size: 12px; color: var(--ink-faint); transition: all 140ms;
+  padding: 0; flex-shrink: 0;
+}
+.ar-input-mic:hover { border-color: var(--accent); color: var(--accent); }
+.ar-input-mic.recording { border-color: var(--red, #ef4444); color: var(--red, #ef4444); animation: micPulse 1.4s infinite; }
+@keyframes micPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.3); }
+  50% { box-shadow: 0 0 0 5px rgba(239,68,68,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ar-input-mic.recording { animation: none; box-shadow: 0 0 0 2px rgba(239,68,68,0.25); }
+}
+.ar-input-send {
+  margin-left: auto; font-size: 9px; color: var(--ink-faint);
+  display: flex; align-items: center; gap: 3px;
+}
+.ar-input-send kbd {
+  font-size: 9px; font-family: var(--mono); padding: 0px 3px;
+  border: 1px solid var(--line); border-radius: 3px; background: var(--muted);
+}
+.chat-context-pills { display: flex; gap: 4px; padding: 0 24px 4px; flex-wrap: wrap; }
+.chat-ctx-pill {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px;
+  font-size: 11px; background: var(--glass-bg); border: 1px solid var(--line); color: var(--ink-muted);
+}
+.chat-ctx-pill[data-scope="event"]   { background: rgba(217,119,87,.08); border-color: rgba(217,119,87,.25); color: var(--accent); }
+.chat-ctx-pill[data-scope="public"]  { background: rgba(74,222,128,.08); border-color: rgba(74,222,128,.25); color: var(--green); }
+.chat-ctx-pill[data-scope="private"] { background: rgba(167,139,250,.08); border-color: rgba(167,139,250,.25); color: var(--purple); }
+
+/* ═══════════════════════════════════════════════════
+   CHAT CONTEXT PANEL (right rail in chat mode)
+   v3-parity: Session | Trace tabs
+   ═══════════════════════════════════════════════════ */
+.ctx-default-content { display: flex; flex-direction: column; gap: 16px; }
+.ctx-chat-content { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+.ctx-chat-content.active { display: flex; }
+/* hide default content when chat mode is active */
+.right-context.chat-active .ctx-default-content { display: none; }
+.right-context.chat-active .ctx-chat-content { display: flex; }
+.right-context.chat-active { padding: 0; gap: 0; }
+
+/* Tabs */
+.chat-ctx-tabs { display: flex; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.chat-ctx-tab {
+  flex: 1; padding: 10px 0; font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--ink-faint); background: none; border: none;
+  border-bottom: 1.5px solid transparent; cursor: pointer; font-family: var(--ui);
+  transition: color .1s, border-color .1s;
+}
+.chat-ctx-tab:hover { color: var(--ink-muted); }
+.chat-ctx-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+.chat-ctx-panel { display: none; flex: 1; overflow-y: auto; }
+.chat-ctx-panel.active { display: flex; flex-direction: column; }
+
+/* Sections */
+.chat-ctx-section { padding: 10px 14px; border-bottom: 1px solid var(--line-faint); }
+.chat-ctx-label {
+  font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--ink-faint); margin-bottom: 8px;
+}
+
+/* Progress checklist */
+.chat-ctx-task { display: flex; align-items: flex-start; gap: 6px; padding: 3px 0; }
+.chat-ctx-task-dot {
+  width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--ink-faint);
+  margin-top: 1px; flex-shrink: 0;
+}
+.chat-ctx-task-dot--done { background: var(--green); border-color: var(--green); }
+.chat-ctx-task-dot--active { background: var(--accent); border-color: var(--accent); }
+.chat-ctx-task-text { font-size: 11px; color: var(--ink-muted); line-height: 1.35; }
+.chat-ctx-task-dot--done + .chat-ctx-task-text { color: var(--ink-faint); text-decoration: line-through; text-decoration-color: var(--line); }
+
+/* Artifacts */
+.chat-ctx-artifact { display: flex; align-items: center; gap: 6px; padding: 3px 0; cursor: pointer; }
+.chat-ctx-artifact:hover .chat-ctx-artifact-name { color: var(--ink); }
+.chat-ctx-artifact-icon { font-size: 10px; opacity: .5; }
+.chat-ctx-artifact-name { font-size: 10px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color 80ms; }
+.chat-ctx-artifact-badge {
+  font-size: 8px; font-weight: 600; padding: 1px 4px; border-radius: 3px;
+  background: var(--glass-bg); border: 1px solid var(--line); color: var(--ink-faint);
+  font-family: var(--mono); text-transform: uppercase; flex-shrink: 0;
+}
+
+/* Agents */
+.chat-ctx-agent { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+.chat-ctx-agent-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.chat-ctx-agent-name { font-size: 11px; font-weight: 550; color: var(--ink-muted); }
+.chat-ctx-agent-role { font-size: 9px; font-family: var(--mono); color: var(--ink-faint); }
+
+/* Sources */
+.chat-ctx-source { display: flex; align-items: center; gap: 5px; padding: 2px 0; }
+.chat-ctx-source-icon { font-size: 9px; opacity: .4; }
+.chat-ctx-source-name { font-size: 10px; color: var(--ink-faint); }
+
+/* Show more */
+.chat-ctx-more { font-size: 9px; color: var(--ink-faint); cursor: pointer; padding: 4px 0; }
+.chat-ctx-more:hover { color: var(--ink-muted); }
+
+/* Trace panel — summary grid */
+.chat-trace-summary {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  background: var(--line-faint); border-bottom: 1px solid var(--line-faint);
+}
+.chat-trace-stat { padding: 8px 12px; background: var(--paper); }
+.chat-trace-stat-val { font-size: 13px; font-weight: 600; color: var(--ink); font-family: var(--mono); }
+.chat-trace-stat-key { font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); margin-top: 2px; }
+
+/* Trace timeline */
+.chat-trace-list { padding: 6px 0; }
+.chat-trace-item { display: flex; align-items: flex-start; gap: 8px; padding: 5px 14px; cursor: default; transition: background 80ms; }
+.chat-trace-item:hover { background: var(--glass-bg); }
+.chat-trace-item-icon {
+  width: 16px; height: 16px; border-radius: var(--radius-sm); display: grid; place-items: center;
+  font-size: 8px; flex-shrink: 0; margin-top: 1px; border: 1px solid var(--line); color: var(--ink-faint);
+}
+.chat-trace-item-icon--tool { border-color: var(--accent); color: var(--accent); background: rgba(217,119,87,.08); }
+.chat-trace-item-icon--llm  { border-color: var(--purple); color: var(--purple); background: rgba(167,139,250,.08); }
+.chat-trace-item-icon--search { border-color: var(--blue); color: var(--blue); background: rgba(91,155,245,.08); }
+.chat-trace-item-body { flex: 1; min-width: 0; }
+.chat-trace-item-name { font-size: 11px; font-weight: 550; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-trace-item-meta { font-size: 9px; color: var(--ink-faint); font-family: var(--mono); display: flex; gap: 8px; margin-top: 1px; }
+.chat-trace-item-bar { width: 44px; height: 3px; border-radius: 2px; background: var(--line-faint); flex-shrink: 0; margin-top: 7px; overflow: hidden; }
+.chat-trace-item-bar-fill { height: 100%; border-radius: 2px; }
+.chat-trace-item-bar-fill--tool { background: var(--accent); }
+.chat-trace-item-bar-fill--llm { background: var(--purple); }
+.chat-trace-item-bar-fill--search { background: var(--blue); }
+
+/* Trace model usage */
+.chat-trace-model { padding: 10px 14px; border-top: 1px solid var(--line-faint); }
+.chat-trace-model-row { display: flex; align-items: center; justify-content: space-between; padding: 3px 0; }
+.chat-trace-model-name { font-size: 10px; color: var(--ink-muted); }
+.chat-trace-model-val { font-size: 10px; font-family: var(--mono); color: var(--ink-faint); }
+
+/* ═══════════════════════════════════════════════════
+   BACKLINK DRAWER (overlay)
+   ═══════════════════════════════════════════════════ */
+.bl-drawer {
+  position: fixed; top: 0; right: 0; width: 400px; height: 100vh;
+  background: var(--panel); border-left: 1px solid var(--line); z-index: 50;
+  transform: translateX(100%); transition: transform .2s ease; padding: 16px;
+  overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+}
+.bl-drawer.open { transform: translateX(0); }
+.bl-drawer-head { display: flex; align-items: center; justify-content: space-between; }
+.bl-drawer-title { font-weight: 600; font-size: 15px; }
+.bl-drawer-close { font-size: 18px; color: var(--ink-muted); padding: 4px; cursor: pointer; }
+.bl-drawer-group { display: flex; flex-direction: column; gap: 4px; }
+.bl-drawer-group-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-faint); }
+.bl-drawer-row {
+  padding: 6px 8px; border-radius: var(--radius-sm); font-size: 13px;
+  color: var(--ink-muted); cursor: pointer; transition: background .12s;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.bl-drawer-row:hover { background: var(--glass-bg); }
+.bl-drawer-row-context { font-size: 11px; color: var(--ink-faint); font-style: italic; }
+
+/* ═══════════════════════════════════════════════════
+   MENTION PREVIEW (popover)
+   ═══════════════════════════════════════════════════ */
+.mention-preview {
+  position: fixed; z-index: 40; width: 320px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4); display: none; flex-direction: column; gap: 8px;
+}
+.mention-preview.visible { display: flex; }
+.mp-name { font-weight: 600; font-size: 15px; }
+.mp-type { font-size: 11px; color: var(--ink-muted); font-family: var(--mono); }
+.mp-summary { font-size: 13px; color: var(--ink-muted); line-height: 1.5; }
+.mp-actions { display: flex; gap: 6px; margin-top: 4px; }
+
+/* ═══════════════════════════════════════════════════
+   COLLAPSIBLE RAIL DRAWERS
+   ═══════════════════════════════════════════════════ */
+.ctx-drawer { border-top: 1px solid var(--line-faint); }
+.ctx-drawer:first-child { border-top: none; }
+.ctx-drawer-head {
+  display: flex; align-items: center; gap: 6px; padding: 10px 0 6px; cursor: pointer;
+  user-select: none;
+}
+.ctx-drawer-head:hover .ctx-label { color: var(--ink-muted); }
+.ctx-drawer-head .ctx-label { margin-bottom: 0; flex: 1; transition: color .12s; }
+.ctx-drawer-chevron {
+  font-size: 10px; color: var(--ink-faint); transition: transform .2s ease;
+  width: 16px; text-align: center; flex-shrink: 0;
+}
+.ctx-drawer-count {
+  font-size: 10px; font-family: var(--mono); color: var(--ink-faint);
+  background: var(--glass-bg); padding: 1px 5px; border-radius: 8px;
+}
+.ctx-drawer-body {
+  max-height: 600px; overflow: hidden; transition: max-height .25s ease, opacity .2s ease;
+  opacity: 1;
+}
+.ctx-drawer.collapsed .ctx-drawer-body { max-height: 0; opacity: 0; }
+.ctx-drawer.collapsed .ctx-drawer-chevron { transform: rotate(-90deg); }
+
+/* ═══════════════════════════════════════════════════
+   INLINE EXPANSION CARDS (mention → rich card)
+   ═══════════════════════════════════════════════════ */
+@keyframes refExpand { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.nb-ref-expand {
+  margin: 6px 0 16px; padding: 14px 16px 12px; border-radius: 10px;
+  background: rgba(24,23,22,0.97); backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid rgba(255,255,255,0.07); border-top: 2px solid var(--accent);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4); animation: refExpand 200ms ease-out;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.nb-ref-expand[data-kind="company"] { border-top-color: var(--accent); }
+.nb-ref-expand[data-kind="person"]  { border-top-color: var(--purple); }
+.nb-ref-expand[data-kind="topic"]   { border-top-color: var(--blue); }
+.nb-ref-expand[data-kind="event"]   { border-top-color: var(--yellow); }
+.nb-ref-expand-head { display: flex; align-items: center; gap: 8px; }
+.nb-ref-expand-name { font-weight: 600; font-size: 14px; }
+.nb-ref-expand-type {
+  font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+  padding: 1px 6px; border-radius: 3px; font-family: var(--mono);
+}
+.nb-ref-expand-type[data-t="company"] { background: rgba(217,119,87,.12); color: var(--accent); }
+.nb-ref-expand-type[data-t="person"]  { background: rgba(167,139,250,.12); color: var(--purple); }
+.nb-ref-expand-type[data-t="topic"]   { background: rgba(91,155,245,.12); color: var(--blue); }
+.nb-ref-expand-type[data-t="event"]   { background: rgba(228,197,103,.1); color: var(--yellow); }
+.nb-ref-expand-summary { font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
+.nb-ref-expand-signals { display: flex; flex-direction: column; gap: 3px; }
+.nb-ref-expand-signal {
+  display: flex; align-items: flex-start; gap: 6px; font-size: 11px; color: var(--ink-muted);
+}
+.nb-ref-expand-signal-dot { flex-shrink: 0; margin-top: 3px; font-size: 8px; }
+.nb-ref-expand-footer {
+  display: flex; align-items: center; gap: 6px; padding-top: 6px;
+  border-top: 1px solid var(--line-faint);
+}
+.nb-ref-expand-close {
+  margin-left: auto; font-size: 10px; color: var(--ink-faint); cursor: pointer;
+  padding: 2px 6px; border-radius: 3px; transition: all .1s;
+}
+.nb-ref-expand-close:hover { background: var(--glass-bg); color: var(--ink-muted); }
+/* Nested expansion */
+.nb-ref-expand .nb-ref-expand { margin: 8px 0 4px; padding: 10px 12px; box-shadow: none; }
+
+/* ═══════════════════════════════════════════════════
+   RICH BACKLINK ITEMS
+   ═══════════════════════════════════════════════════ */
+.nb-bl-item {
+  display: flex; align-items: flex-start; gap: 8px; padding: 7px 10px;
+  border-radius: var(--radius-sm); cursor: pointer; transition: background .12s;
+}
+.nb-bl-item:hover { background: var(--glass-bg); }
+.nb-bl-arrow { color: var(--ink-faint); font-size: 10px; margin-top: 3px; flex-shrink: 0; }
+.nb-bl-body { flex: 1; min-width: 0; }
+.nb-bl-title { font-size: 12px; font-weight: 550; color: var(--ink-muted); }
+.nb-bl-context {
+  font-size: 10px; color: var(--ink-faint); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; margin-top: 1px; font-style: italic;
+}
+.nb-bl-relation {
+  font-size: 8px; font-weight: 600; padding: 1px 5px; border-radius: 2px;
+  text-transform: uppercase; letter-spacing: .04em; font-family: var(--mono);
+  flex-shrink: 0; margin-top: 2px;
+}
+.nb-bl-relation[data-r="mentions"]    { background: rgba(91,155,245,.1); color: var(--blue); }
+.nb-bl-relation[data-r="cited"]       { background: rgba(74,222,128,.1); color: var(--green); }
+.nb-bl-relation[data-r="competitive"] { background: rgba(248,113,113,.1); color: var(--red); }
+.nb-bl-relation[data-r="source"]      { background: rgba(228,197,103,.1); color: var(--yellow); }
+.nb-bl-relation[data-r="contact"]     { background: rgba(167,139,250,.1); color: var(--purple); }
+.nb-bl-relation[data-r="embedded"]    { background: var(--glass-bg); color: var(--ink-muted); }
+
+/* ═══════════════════════════════════════════════════
+   SOURCE CITATIONS (inline [src:N] markers)
+   ═══════════════════════════════════════════════════ */
+.nb-source-ref {
+  display: inline; font-size: 10px; font-family: var(--mono); font-weight: 600;
+  color: color-mix(in srgb, var(--accent) 70%, var(--ink-faint));
+  cursor: pointer; vertical-align: super; line-height: 1; padding: 0 1px;
+  transition: color .1s;
+}
+.nb-source-ref:hover { color: var(--accent); text-decoration: underline; }
+
+/* ═══════════════════════════════════════════════════
+   CROSS-REFERENCE HEADER CHIPS
+   ═══════════════════════════════════════════════════ */
+.nb-xrefs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.nb-xref {
+  font-size: 10px; color: var(--ink-faint); cursor: pointer; font-weight: 500;
+  padding: 1px 6px; border-radius: 3px; transition: color .12s, background .12s;
+  display: inline-flex; align-items: center; gap: 3px;
+}
+.nb-xref:hover { color: var(--ink-muted); background: var(--glass-bg); }
+.nb-xref-arrow { font-size: 9px; }
+
+/* ═══════════════════════════════════════════════════
+   MOBILE
+   ═══════════════════════════════════════════════════ */
+.mobile-bottom-nav {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0; height: 56px;
+  background: var(--paper); border-top: 1px solid var(--line); z-index: 30;
+  justify-content: space-around; align-items: center;
+}
+.mobile-nav-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 12px;
+  font-size: 10px; font-weight: 500; color: var(--ink-muted); transition: color .12s;
+}
+.mobile-nav-btn .mobile-nav-icon { font-size: 18px; }
+.mobile-nav-btn.active { color: var(--accent); }
+
+/* Mobile bottom sheet */
+.mobile-sheet {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0;
+  max-height: 70vh; background: var(--panel); border-top-left-radius: 16px; border-top-right-radius: 16px;
+  border-top: 1px solid var(--line); z-index: 60; padding: 16px; overflow-y: auto;
+  flex-direction: column; gap: 10px;
+}
+.mobile-sheet.open { display: flex; }
+.mobile-sheet-handle { width: 40px; height: 4px; border-radius: 2px; background: var(--ink-faint); align-self: center; margin-bottom: 8px; }
+.mobile-sheet-backdrop {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 55;
+}
+.mobile-sheet-backdrop.open { display: block; }
+
+@media (max-width: 1100px) {
+  :root { --right-w: 320px; }
+}
+@media (max-width: 900px) {
+  .workspace { grid-template-columns: 1fr; }
+  .left-index, .right-context { display: none; }
+  .center { padding: 16px 16px 80px; }
+  .chat-layout { grid-template-columns: 1fr; }
+  .chat-threads { display: none; }
+  .topbar-nav { display: none; }
+  .mobile-bottom-nav { display: flex; }
+  .art-grid { grid-template-columns: 1fr; }
+  .bl-drawer { width: 100%; }
+}
+@media (max-width: 600px) {
+  .center { padding: 12px 12px 72px; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  .bl-drawer { transition: none; }
+  .art-card:hover { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     SHELL
+     ═══════════════════════════════════════════════════ -->
+<div class="shell" data-mode="notebook">
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-logo">Node<span>Bench</span></div>
+  <nav class="topbar-nav" role="tablist" aria-label="Main navigation">
+    <button role="tab" class="active" aria-selected="true" onclick="switchMode('notebook')">Notebook</button>
+    <button role="tab" aria-selected="false" onclick="switchMode('artifacts')">Artifacts</button>
+    <button role="tab" aria-selected="false" onclick="switchMode('chat')">Chat</button>
+  </nav>
+  <div class="topbar-actions">
+    <div class="topbar-search" onclick="document.querySelector('.left-search').focus()" aria-label="Search"><span>Search</span> <kbd>&#8984;K</kbd></div>
+    <button class="btn-sm" onclick="alert('New notebook / artifact / chat')">+ New</button>
+    <button class="topbar-wide-toggle" onclick="toggleWideMode()" aria-label="Toggle wide mode" title="Toggle wide mode (W)" id="wide-btn">&#8596;</button>
+    <button class="btn-ghost" aria-label="Toggle theme" onclick="document.body.classList.toggle('light')">&#9789;</button>
+  </div>
+</header>
+
+<!-- WORKSPACE -->
+<div class="workspace">
+
+<!-- LEFT INDEX -->
+<aside class="left-index" data-mode="notebook" aria-label="Index">
+  <input class="left-search" type="search" placeholder="Search notebooks, artifacts, entities..." aria-label="Search all">
+
+  <!-- Notebook index -->
+  <div class="left-panel" data-for="notebook">
+    <div class="left-section-label">Daily Briefs</div>
+    <div class="left-group">
+      <div class="left-item active" data-nb="daily_brief" onclick="showNotebook('daily_brief')"><span class="left-item-icon">&#128203;</span> Today <span class="left-item-badge" style="background:rgba(74,222,128,.15);color:var(--green)">live</span></div>
+      <div class="left-item" data-nb="daily_brief_week" onclick="switchBriefScope('week')"><span class="left-item-icon">&#128203;</span> This week</div>
+      <div class="left-item" data-nb="daily_brief_month" onclick="switchBriefScope('month')"><span class="left-item-icon">&#128203;</span> This month</div>
+      <div class="left-item" data-nb="daily_brief_quarter" onclick="switchBriefScope('quarter')"><span class="left-item-icon">&#128203;</span> Quarter</div>
+    </div>
+    <div class="left-section-label" style="margin-top:8px">Events</div>
+    <div class="left-group">
+      <div class="left-item" data-nb="event_notebook" onclick="showNotebook('event_notebook')"><span class="left-item-icon">&#9889;</span> AI Infra Summit <span class="left-item-badge" style="background:rgba(74,222,128,.15);color:var(--green)">live</span></div>
+      <div class="left-item" data-nb="event_ship_demo" onclick="showNotebook('event_ship_demo')"><span class="left-item-icon">&#9889;</span> Ship Demo Day</div>
+      <div class="left-item" data-nb="event_jpm" onclick="showNotebook('event_jpm')"><span class="left-item-icon">&#9889;</span> JPM Healthcare</div>
+    </div>
+    <div class="left-section-label" style="margin-top:8px">Companies</div>
+    <div class="left-group">
+      <div class="left-item" data-nb="company_notebook" onclick="showNotebook('company_notebook')"><span class="left-item-icon">&#127970;</span> Orbital Labs</div>
+      <div class="left-item"><span class="left-item-icon">&#127970;</span> Anthropic <span class="left-item-badge">14</span></div>
+    </div>
+    <div class="left-section-label" style="margin-top:8px">People</div>
+    <div class="left-group">
+      <div class="left-item" data-nb="person_notebook" onclick="showNotebook('person_notebook')"><span class="left-item-icon">&#128100;</span> Alex Chen</div>
+      <div class="left-item"><span class="left-item-icon">&#128100;</span> Dario Amodei</div>
+    </div>
+  </div>
+
+  <!-- Artifacts index -->
+  <div class="left-panel" data-for="artifacts">
+    <div class="left-section-label">Artifact types</div>
+    <div class="left-group">
+      <div class="left-item active" data-filter="all"><span class="left-item-icon">&#9670;</span> All <span class="left-item-badge">34</span></div>
+      <div class="left-item" data-filter="event"><span class="left-item-icon">&#9889;</span> Events <span class="left-item-badge">3</span></div>
+      <div class="left-item" data-filter="company"><span class="left-item-icon">&#127970;</span> Companies <span class="left-item-badge">8</span></div>
+      <div class="left-item" data-filter="person"><span class="left-item-icon">&#128100;</span> People <span class="left-item-badge">5</span></div>
+      <div class="left-item" data-filter="paper_index"><span class="left-item-icon">&#128218;</span> Papers <span class="left-item-badge">2</span></div>
+      <div class="left-item" data-filter="upload"><span class="left-item-icon">&#128206;</span> Uploads <span class="left-item-badge">4</span></div>
+      <div class="left-item" data-filter="presentation"><span class="left-item-icon">&#127912;</span> Presentations <span class="left-item-badge">3</span></div>
+      <div class="left-item" data-filter="source_bundle"><span class="left-item-icon">&#128279;</span> Sources <span class="left-item-badge">6</span></div>
+      <div class="left-item" data-filter="trace"><span class="left-item-icon">&#128269;</span> Traces <span class="left-item-badge">3</span></div>
+    </div>
+  </div>
+
+  <!-- Chat index -->
+  <div class="left-panel" data-for="chat">
+    <div class="left-section-label">Threads</div>
+    <div class="left-group">
+      <div class="left-item" style="color:var(--accent);font-weight:600"><span class="left-item-icon">+</span> New chat</div>
+      <div class="left-item active"><span class="left-item-icon">&#128172;</span> Event follow-ups</div>
+      <div class="left-item"><span class="left-item-icon">&#128172;</span> Orbital Labs deep dive</div>
+      <div class="left-item"><span class="left-item-icon">&#128172;</span> Paper index update</div>
+      <div class="left-item"><span class="left-item-icon">&#128172;</span> Portfolio refresh</div>
+    </div>
+  </div>
+</aside>
+
+<!-- CENTER -->
+<main class="center" id="center">
+
+<!-- ─── NOTEBOOK MODE ─── -->
+<div class="center-surface active" data-mode="notebook" id="nb-surface">
+
+<!-- ── DAILY BRIEF PAGE (default) ── -->
+<div class="nb-page active" id="nb-daily-brief">
+  <div class="nb-header">
+    <div class="nb-title">Daily Brief &mdash; May 22</div>
+    <span class="nb-type-badge">Startup Banking</span>
+    <div class="brief-freshness">
+      <span><span class="brief-freshness-dot"></span>Updated 6:12am</span>
+      <span>3 sections refreshed</span>
+      <span>5 of 5 claims verified</span>
+    </div>
+    <div class="nb-xrefs">
+      <span class="nb-xref" onclick="showNotebook('event_notebook')"><span class="nb-xref-arrow">&rarr;</span> AI Infra Summit</span>
+      <span class="nb-xref" onclick="showNotebook('company_notebook')"><span class="nb-xref-arrow">&rarr;</span> Orbital Labs</span>
+      <span class="nb-xref" onclick="showNotebook('person_notebook')"><span class="nb-xref-arrow">&rarr;</span> Alex Chen</span>
+      <span class="nb-xref" onclick="openMentionById('ent_dario')"><span class="nb-xref-arrow">&rarr;</span> Dario Amodei</span>
+    </div>
+  </div>
+
+  <div class="brief-scope-tabs" role="tablist" aria-label="Brief scope">
+    <button class="brief-scope-tab active" role="tab" data-scope="today" onclick="switchBriefScope('today')">Today</button>
+    <button class="brief-scope-tab" role="tab" data-scope="week" onclick="switchBriefScope('week')">This week</button>
+    <button class="brief-scope-tab" role="tab" data-scope="month" onclick="switchBriefScope('month')">This month</button>
+    <button class="brief-scope-tab" role="tab" data-scope="quarter" onclick="switchBriefScope('quarter')">Quarter</button>
+  </div>
+
+  <!-- NEED TO KNOW -->
+  <div class="brief-section">
+    <div class="brief-section-label">Need to know</div>
+    <div class="brief-item">
+      <div class="brief-item-num">1</div>
+      <div class="brief-item-content">
+        <span class="mention" data-type="company" data-id="ent_orbital" onclick="openMention(this,event)">@Orbital Labs</span> surfaced in 4 event questions around <span class="mention" data-type="topic" data-id="topic_voice_eval" onclick="openMention(this,event)">[[voice-agent eval infra]]</span>. Fresh Series A, building in healthcare.<span class="nb-source-ref" title="Event corpus — 4 questions matched" onclick="alert('Source: Event corpus Q&A index, 4 matched questions')">[src:1]</span>
+        <div class="brief-item-why">Why it matters: may be relevant to the healthcare workflow thesis. <span class="source-chip">event corpus</span></div>
+      </div>
+    </div>
+    <div class="brief-item">
+      <div class="brief-item-num">2</div>
+      <div class="brief-item-content">
+        <span class="mention" data-type="company" data-id="ent_anthropic" onclick="openMention(this,event)">@Anthropic</span><span class="backlink-count" onclick="openBacklinks('ent_anthropic')">14</span> enterprise tier repriced +40%.<span class="nb-source-ref" title="TechCrunch — Anthropic Enterprise Pricing, May 15" onclick="alert('Source: TechCrunch — Anthropic Enterprise Pricing, May 15')">[src:2]</span> Cost-tiered cascading pattern maps directly to our autoRouter.
+        <div class="brief-item-why">Why it matters: validates our pricing architecture. Send comparison doc by Friday. <span class="source-chip">TechCrunch, May 15</span></div>
+      </div>
+    </div>
+    <div class="brief-item">
+      <div class="brief-item-num">3</div>
+      <div class="brief-item-content">
+        <span class="mention" data-type="topic" data-id="topic_mcp" onclick="openMention(this,event)">[[MCP Protocol]]</span><span class="backlink-count" onclick="openBacklinks('topic_mcp')">11</span> auth standardization timeline confirmed at AI Infra Summit.<span class="nb-source-ref" title="Panel transcript — MCP auth session" onclick="alert('Source: Panel transcript — MCP auth breakout session, 2h ago')">[src:3]</span> Enterprise rollout expected Q3.
+        <div class="brief-item-why">Why it matters: direct impact on startup banking integration timeline. <span class="source-chip">panel transcript</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WHAT CHANGED -->
+  <div class="brief-section">
+    <div class="brief-section-label">What changed</div>
+    <div class="brief-delta-row"><span class="brief-delta-icon up">&#9650;</span> <span class="mention" data-type="company" data-id="ent_orbital" onclick="openMention(this,event)">@Orbital Labs</span> moved from &ldquo;capture only&rdquo; to source-backed watchlist</div>
+    <div class="brief-delta-row"><span class="brief-delta-icon new">&#9679;</span> <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span> now appears in 3 backlinks across event notes and company research</div>
+    <div class="brief-delta-row"><span class="brief-delta-icon new">&#9679;</span> AI infra paper index added 2 new papers on agent evaluation frameworks</div>
+    <div class="brief-delta-row"><span class="brief-delta-icon stale">&#9888;</span> <span class="mention" data-type="company" data-id="ent_google" onclick="openMention(this,event)">@Google DeepMind</span> company artifact last refreshed 6 days ago &mdash; may be stale</div>
+  </div>
+
+  <!-- PRIORITY FOLLOW-UPS -->
+  <div class="brief-section">
+    <div class="brief-section-label">Priority follow-ups</div>
+    <div class="brief-followup">
+      <div class="brief-followup-check" onclick="this.style.background='var(--accent)';this.style.borderColor='var(--accent)'" title="Mark done"></div>
+      <div>Follow up with <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span> about healthcare pilot criteria. <span style="color:var(--ink-faint);font-size:11px">Deadline: Thu</span></div>
+    </div>
+    <div class="brief-followup">
+      <div class="brief-followup-check" onclick="this.style.background='var(--accent)';this.style.borderColor='var(--accent)'" title="Mark done"></div>
+      <div>Ship <span class="mention" data-type="company" data-id="ent_anthropic" onclick="openMention(this,event)">@Anthropic</span> pricing comparison doc. <span style="color:var(--ink-faint);font-size:11px">Deadline: Fri</span></div>
+    </div>
+    <div class="brief-followup">
+      <div class="brief-followup-check" onclick="this.style.background='var(--accent)';this.style.borderColor='var(--accent)'" title="Mark done"></div>
+      <div>Refresh <span class="mention" data-type="company" data-id="ent_google" onclick="openMention(this,event)">@Google DeepMind</span> company artifact &mdash; stale 6d. <span style="color:var(--ink-faint);font-size:11px">Priority: high</span></div>
+    </div>
+    <div class="brief-followup">
+      <div class="brief-followup-check" onclick="this.style.background='var(--accent)';this.style.borderColor='var(--accent)'" title="Mark done"></div>
+      <div>Ask Chat to compare <span class="mention" data-type="company" data-id="ent_orbital" onclick="openMention(this,event)">@Orbital Labs</span> and VectorDock for portfolio fit.</div>
+    </div>
+  </div>
+
+  <!-- WATCHLIST DELTAS -->
+  <div class="brief-section">
+    <div class="brief-section-label">Watchlist deltas</div>
+    <div class="brief-watchlist-row" onclick="openMentionById('ent_orbital')">
+      <span class="left-item-icon">&#127970;</span>
+      <span style="flex:1">Orbital Labs</span>
+      <span class="brief-watchlist-status" data-s="moved">promoted</span>
+    </div>
+    <div class="brief-watchlist-row" onclick="openMentionById('ent_anthropic')">
+      <span class="left-item-icon">&#127970;</span>
+      <span style="flex:1">Anthropic</span>
+      <span class="brief-watchlist-status" data-s="active">active</span>
+    </div>
+    <div class="brief-watchlist-row" onclick="openMentionById('ent_alex')">
+      <span class="left-item-icon">&#128100;</span>
+      <span style="flex:1">Alex Chen</span>
+      <span class="brief-watchlist-status" data-s="new">new signal</span>
+    </div>
+    <div class="brief-watchlist-row" onclick="openMentionById('ent_google')">
+      <span class="left-item-icon">&#127970;</span>
+      <span style="flex:1">Google DeepMind</span>
+      <span class="brief-watchlist-status" data-s="stale">needs refresh</span>
+    </div>
+    <div class="brief-watchlist-row" onclick="openMentionById('ent_dario')">
+      <span class="left-item-icon">&#128100;</span>
+      <span style="flex:1">Dario Amodei</span>
+      <span class="brief-watchlist-status" data-s="active">active</span>
+    </div>
+  </div>
+
+  <!-- EMBEDDED ARTIFACTS -->
+  <div class="brief-section">
+    <div class="brief-section-label">Artifacts</div>
+    <div class="nb-artifacts-embed">
+      <div class="nb-artifact-chip" onclick="switchMode('artifacts')">&#128200; Signal timeline</div>
+      <div class="nb-artifact-chip" onclick="switchMode('artifacts')">&#128201; Company watchlist</div>
+      <div class="nb-artifact-chip" onclick="switchMode('artifacts')">&#128218; Paper index</div>
+      <div class="nb-artifact-chip" onclick="switchMode('artifacts')">&#128269; Morning scan trace</div>
+    </div>
+  </div>
+
+  <!-- OPEN QUESTIONS -->
+  <div class="brief-section">
+    <div class="brief-section-label">Open questions</div>
+    <div class="nb-block" style="border-left:2px solid var(--yellow)">
+      <p style="font-size:13px;color:var(--ink-muted)"><span class="mention" data-type="company" data-id="ent_orbital" onclick="openMention(this,event)">@Orbital Labs</span> claimed healthcare pilot &mdash; no source beyond field note. Needs verification via <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span> follow-up.</p>
+      <p style="font-size:13px;color:var(--ink-muted)">MCP auth standard Q3 claim comes from a single panel &mdash; no corroborating source yet.</p>
+    </div>
+  </div>
+
+  <div class="nb-backlink-shelf">
+    <div class="nb-backlink-shelf-title">Backlinks to this brief <span style="font-weight:400;font-size:10px;color:var(--ink-faint)">3 items</span></div>
+    <div class="nb-bl-item" onclick="showNotebook('event_notebook')">
+      <span class="nb-bl-arrow">&rarr;</span>
+      <div class="nb-bl-body">
+        <div class="nb-bl-title">AI Infra Summit notebook</div>
+        <div class="nb-bl-context">"Anthropic repricing, Orbital Labs Series A, MCP adoption panel recap"</div>
+      </div>
+      <span class="nb-bl-relation" data-r="mentions">mentions</span>
+    </div>
+    <div class="nb-bl-item" onclick="switchMode('chat')">
+      <span class="nb-bl-arrow">&rarr;</span>
+      <div class="nb-bl-body">
+        <div class="nb-bl-title">Event follow-ups chat</div>
+        <div class="nb-bl-context">"Who should I follow up with first from the summit?"</div>
+      </div>
+      <span class="nb-bl-relation" data-r="cited">cited</span>
+    </div>
+    <div class="nb-bl-item" onclick="switchMode('artifacts')">
+      <span class="nb-bl-arrow">&rarr;</span>
+      <div class="nb-bl-body">
+        <div class="nb-bl-title">Follow-up ranking presentation</div>
+        <div class="nb-bl-context">"Prioritized follow-ups from AI Infra Summit"</div>
+      </div>
+      <span class="nb-bl-relation" data-r="embedded">embedded</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── AI INFRA SUMMIT — EVENT WIKI PAGE ── -->
+<div class="nb-page" id="nb-event-notebook">
+  <div class="nb-header">
+    <div class="nb-title">AI Infra Summit
+      <span class="evt-room-badge" data-v="public">&#9679; Public room</span>
+    </div>
+    <span class="nb-type-badge">Event notebook</span>
+    <div class="nb-meta">San Francisco &middot; May 22 &ndash; 23, 2026 &middot; Last edited 2h ago</div>
+    <div class="evt-metrics">
+      <span><span class="evt-metric-val">318</span> joined</span>
+      <span><span class="evt-metric-val">1,204</span> public questions</span>
+      <span><span class="evt-metric-val">82%</span> answered from corpus</span>
+      <span><span class="evt-metric-val">38</span> sources</span>
+    </div>
+    <div class="nb-xrefs">
+      <span class="nb-xref" onclick="showNotebook('daily_brief')"><span class="nb-xref-arrow">&rarr;</span> Daily Brief</span>
+      <span class="nb-xref" onclick="showNotebook('company_notebook')"><span class="nb-xref-arrow">&rarr;</span> Orbital Labs</span>
+      <span class="nb-xref" onclick="openMentionById('ent_anthropic')"><span class="nb-xref-arrow">&rarr;</span> Anthropic</span>
+      <span class="nb-xref" onclick="showNotebook('person_notebook')"><span class="nb-xref-arrow">&rarr;</span> Alex Chen</span>
+      <span class="nb-xref" onclick="openMentionById('ent_dario')"><span class="nb-xref-arrow">&rarr;</span> Dario Amodei</span>
+    </div>
+  </div>
+
+  <!-- Sub-tabs -->
+  <div class="evt-sub-tabs" role="tablist" aria-label="Event sections">
+    <div class="evt-sub-tab active" role="tab" data-evt-tab="public_room" onclick="switchEventTab('public_room')">Public Room</div>
+    <div class="evt-sub-tab" role="tab" data-evt-tab="my_notes" onclick="switchEventTab('my_notes')">My Notes</div>
+    <div class="evt-sub-tab" role="tab" data-evt-tab="brief" onclick="switchEventTab('brief')">Brief</div>
+    <div class="evt-sub-tab" role="tab" data-evt-tab="people" onclick="switchEventTab('people')">People</div>
+    <div class="evt-sub-tab" role="tab" data-evt-tab="sources" onclick="switchEventTab('sources')">Sources</div>
+  </div>
+
+  <!-- ── PUBLIC ROOM tab ── -->
+  <div class="evt-tab-panel active" data-evt-panel="public_room">
+
+    <!-- Need to know -->
+    <div class="nb-blocks">
+      <div class="brief-section-label">Need to know</div>
+      <div class="nb-block">
+        <p><span class="mention" data-type="company" data-id="ent_anthropic" onclick="toggleRefExpand(this)">@Anthropic</span><span class="backlink-count" onclick="openBacklinks('ent_anthropic')">14</span> repriced enterprise tier +40%, positioning against <span class="mention" data-type="company" data-id="ent_google" onclick="openMention(this,event)">@Google DeepMind</span> tooling.<span class="nb-source-ref" title="TechCrunch, May 15">[src:1]</span></p>
+        <p><span class="mention" data-type="topic" data-id="topic_mcp" onclick="toggleRefExpand(this)">[[MCP Protocol]]</span><span class="backlink-count" onclick="openBacklinks('topic_mcp')">11</span> auth standard expected Q3 &mdash; <span class="mention" data-type="person" data-id="ent_dario" onclick="openMention(this,event)">@Dario Amodei</span> confirmed timeline at breakout panel.<span class="nb-source-ref" title="Panel transcript, MCP auth session">[src:2]</span></p>
+        <p><span class="mention" data-type="company" data-id="ent_orbital" onclick="toggleRefExpand(this)">@Orbital Labs</span><span class="backlink-count" onclick="openBacklinks('ent_orbital')">7</span> Series A closed 3 weeks ago. Building <span class="mention" data-type="topic" data-id="topic_voice_eval" onclick="openMention(this,event)">[[voice-agent eval infra]]</span>, exploring healthcare design partners.<span class="nb-source-ref" title="Field note, demo session">[src:3]</span></p>
+      </div>
+    </div>
+
+    <!-- Public Q&A / FAQ -->
+    <div style="margin-top:16px">
+      <div class="brief-section-label">Public Q&amp;A
+        <span style="font-weight:400;color:var(--ink-faint);font-size:10px;margin-left:6px">12 similar questions &middot; 4 sources reused &middot; 0 new searches</span>
+      </div>
+
+      <div class="evt-faq">
+        <div class="evt-faq-q">What is the MCP auth standardization timeline?</div>
+        <div class="evt-faq-a"><span class="mention" data-type="person" data-id="ent_dario" onclick="openMention(this,event)">@Dario Amodei</span> confirmed Q3 2026 at the breakout panel. Google DeepMind is building compatible tooling. 34% of Fortune 500 have already evaluated the protocol.</div>
+        <div class="evt-faq-meta">
+          <span>5 of 5 claims verified</span>
+          <span>&#128279; 3 sources</span>
+          <span>Updated 2h ago</span>
+          <span>Asked 47 times</span>
+        </div>
+        <div class="evt-faq-actions">
+          <button class="btn-ghost" style="font-size:11px;padding:3px 8px" onclick="alert('Copied answer link')">Share answer</button>
+          <button class="btn-ghost" style="font-size:11px;padding:3px 8px">View sources</button>
+        </div>
+      </div>
+
+      <div class="evt-faq">
+        <div class="evt-faq-q">How does Orbital Labs voice-agent eval compare to existing benchmarks?</div>
+        <div class="evt-faq-a"><span class="mention" data-type="company" data-id="ent_orbital" onclick="openMention(this,event)">@Orbital Labs</span> focuses on real-time latency and turn-taking fidelity, unlike static transcript eval. Their healthcare pilot adds domain-specific scoring. <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span> presented preliminary results at the demo session.</div>
+        <div class="evt-faq-meta">
+          <span>3 of 4 claims verified</span>
+          <span>&#128279; 2 sources</span>
+          <span>Updated 3h ago</span>
+          <span>Asked 23 times</span>
+        </div>
+        <div class="evt-faq-actions">
+          <button class="btn-ghost" style="font-size:11px;padding:3px 8px" onclick="alert('Copied answer link')">Share answer</button>
+          <button class="btn-ghost" style="font-size:11px;padding:3px 8px">View sources</button>
+        </div>
+      </div>
+
+      <div class="evt-faq">
+        <div class="evt-faq-q">What is the enterprise AI infra deal flow trend?</div>
+        <div class="evt-faq-a">Sequoia partner cited 3x increase in AI infra deal flow vs 6 months ago. Validates Series B timing for infrastructure-layer companies. Most activity in eval, orchestration, and compliance tooling.</div>
+        <div class="evt-faq-meta">
+          <span>2 of 3 claims verified</span>
+          <span>&#128279; 1 source</span>
+          <span>Updated 4h ago</span>
+          <span>Asked 15 times</span>
+        </div>
+        <div class="evt-faq-actions">
+          <button class="btn-ghost" style="font-size:11px;padding:3px 8px" onclick="alert('Copied answer link')">Share answer</button>
+          <button class="btn-ghost" style="font-size:11px;padding:3px 8px">View sources</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trending entities -->
+    <div style="margin-top:16px">
+      <div class="brief-section-label">Trending at this event</div>
+      <div class="evt-trending">
+        <span class="mention" data-type="topic" data-id="topic_mcp" onclick="openMention(this,event)" style="font-size:11px;padding:2px 8px">[[MCP Protocol]]</span>
+        <span class="mention" data-type="topic" data-id="topic_voice_eval" onclick="openMention(this,event)" style="font-size:11px;padding:2px 8px">[[voice-agent eval]]</span>
+        <span class="mention" data-type="company" data-id="ent_anthropic" onclick="openMention(this,event)" style="font-size:11px;padding:2px 8px">@Anthropic</span>
+        <span class="mention" data-type="company" data-id="ent_orbital" onclick="openMention(this,event)" style="font-size:11px;padding:2px 8px">@Orbital Labs</span>
+        <span class="mention" data-type="company" data-id="ent_google" onclick="openMention(this,event)" style="font-size:11px;padding:2px 8px">@Google DeepMind</span>
+      </div>
+    </div>
+
+    <!-- Embedded artifacts -->
+    <div style="margin-top:16px">
+      <div class="brief-section-label">Artifacts</div>
+      <div class="nb-artifacts-embed">
+        <div class="nb-artifact-chip" onclick="switchMode('artifacts')">&#9889; Event Q&amp;A summary</div>
+        <div class="nb-artifact-chip" onclick="switchMode('artifacts')">&#128279; Source bundle (38 sources)</div>
+        <div class="nb-artifact-chip" onclick="switchMode('artifacts')">&#128200; Attendee graph</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MY NOTES tab ── -->
+  <div class="evt-tab-panel" data-evt-panel="my_notes">
+    <div class="nb-blocks">
+      <div class="brief-section-label">Private field notes
+        <span class="evt-room-badge" data-v="private" style="margin-left:6px">private</span>
+      </div>
+      <div class="evt-private-note">
+        Met <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span> at the demo booth. Very sharp on latency measurement. Their healthcare pilot is ambitious but early &mdash; no published results yet. Worth a follow-up call Thursday.
+      </div>
+      <div class="evt-private-note">
+        <span class="mention" data-type="person" data-id="ent_dario" onclick="openMention(this,event)">@Dario Amodei</span> was more specific than usual on MCP auth timeline. Q3 feels real this time. Need to check if our current integration would break.
+      </div>
+      <div class="evt-private-note">
+        Sequoia partner (didn't get name) mentioned 3x deal flow increase. If true, Series B window for infra companies is NOW. Flag for next team sync.
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <div class="brief-section-label">Follow-ups</div>
+      <div class="nb-block" style="border-left:2px solid var(--yellow)">
+        <p style="font-size:13px;color:var(--ink-muted)">&#9744; Call <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span> by Thursday &mdash; discuss healthcare pilot details</p>
+        <p style="font-size:13px;color:var(--ink-muted)">&#9744; Send MCP comparison doc to <span class="mention" data-type="person" data-id="ent_dario" onclick="openMention(this,event)">@Dario Amodei</span>'s team by Friday</p>
+        <p style="font-size:13px;color:var(--ink-muted)">&#9744; Get Sequoia partner name from event organizer &mdash; intro request next week</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BRIEF tab ── -->
+  <div class="evt-tab-panel" data-evt-panel="brief">
+    <div class="nb-blocks">
+      <div class="brief-section-label">Event brief</div>
+      <div class="nb-block">
+        <p style="font-weight:600;font-size:14px;margin-bottom:8px">AI Infra Summit &mdash; Day 1 Recap</p>
+        <p>400+ attendees. Three keynotes: Anthropic pricing, MCP adoption, and agent eval standards. Breakout sessions ran 2x capacity. Voice-agent eval was the most discussed topic across 4 sessions.</p>
+        <p style="margin-top:8px">Key takeaway: the infrastructure layer is consolidating around MCP as the interop standard. Companies building eval tooling (like <span class="mention" data-type="company" data-id="ent_orbital" onclick="openMention(this,event)">@Orbital Labs</span>) are well-positioned if they ship before Q3 auth standard locks.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PEOPLE tab ── -->
+  <div class="evt-tab-panel" data-evt-panel="people">
+    <div class="brief-section-label">People at this event</div>
+    <div class="brief-watchlist" style="margin-top:4px">
+      <div class="brief-watchlist-row" onclick="openMentionById('ent_alex')">
+        <span class="left-item-icon">&#128100;</span>
+        <span style="flex:1">Alex Chen <span style="color:var(--ink-faint);font-size:11px">&middot; Orbital Labs</span></span>
+        <span class="brief-watchlist-status" data-s="active">met</span>
+      </div>
+      <div class="brief-watchlist-row" onclick="openMentionById('ent_dario')">
+        <span class="left-item-icon">&#128100;</span>
+        <span style="flex:1">Dario Amodei <span style="color:var(--ink-faint);font-size:11px">&middot; Anthropic</span></span>
+        <span class="brief-watchlist-status" data-s="active">speaker</span>
+      </div>
+      <div class="brief-watchlist-row">
+        <span class="left-item-icon">&#128100;</span>
+        <span style="flex:1">Sequoia Partner <span style="color:var(--ink-faint);font-size:11px">&middot; Sequoia Capital</span></span>
+        <span class="brief-watchlist-status" data-s="new">need name</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SOURCES tab ── -->
+  <div class="evt-tab-panel" data-evt-panel="sources">
+    <div class="brief-section-label">Sources (38)</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+      <div class="source-chip" style="display:block;padding:8px 10px">&#128279; Panel transcript &mdash; MCP auth session <span style="color:var(--ink-faint);font-size:10px;float:right">2h ago</span></div>
+      <div class="source-chip" style="display:block;padding:8px 10px">&#128279; Field note &mdash; Alex Chen conversation <span style="color:var(--ink-faint);font-size:10px;float:right">3h ago</span></div>
+      <div class="source-chip" style="display:block;padding:8px 10px">&#128279; TechCrunch &mdash; Anthropic Enterprise Pricing <span style="color:var(--ink-faint);font-size:10px;float:right">6h ago</span></div>
+      <div class="source-chip" style="display:block;padding:8px 10px">&#128279; Event corpus &mdash; 1,204 public questions <span style="color:var(--ink-faint);font-size:10px;float:right">live</span></div>
+      <div class="source-chip" style="display:block;padding:8px 10px">&#128279; Demo session recording &mdash; Orbital Labs <span style="color:var(--ink-faint);font-size:10px;float:right">4h ago</span></div>
+    </div>
+  </div>
+
+  <!-- Backlinks (visible across all tabs) -->
+  <div class="nb-backlink-shelf" style="margin-top:20px">
+    <div class="nb-backlink-shelf-title">Backlinks to this event <span style="font-weight:400;font-size:10px;color:var(--ink-faint)">3 items</span></div>
+    <div class="nb-bl-item" onclick="showNotebook('daily_brief')">
+      <span class="nb-bl-arrow">&rarr;</span>
+      <div class="nb-bl-body">
+        <div class="nb-bl-title">Daily Brief &mdash; May 22</div>
+        <div class="nb-bl-context">"Orbital Labs surfaced in 4 event questions around voice-agent eval"</div>
+      </div>
+      <span class="nb-bl-relation" data-r="mentions">mentions</span>
+    </div>
+    <div class="nb-bl-item" onclick="switchMode('chat')">
+      <span class="nb-bl-arrow">&rarr;</span>
+      <div class="nb-bl-body">
+        <div class="nb-bl-title">Event follow-ups chat</div>
+        <div class="nb-bl-context">"Who should I follow up with first from the summit?"</div>
+      </div>
+      <span class="nb-bl-relation" data-r="cited">cited</span>
+    </div>
+    <div class="nb-bl-item" onclick="switchMode('artifacts')">
+      <span class="nb-bl-arrow">&rarr;</span>
+      <div class="nb-bl-body">
+        <div class="nb-bl-title">Follow-up ranking</div>
+        <div class="nb-bl-context">"Prioritized follow-ups from AI Infra Summit"</div>
+      </div>
+      <span class="nb-bl-relation" data-r="source">source</span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── COMPANY NOTEBOOK: Orbital Labs ─── -->
+<div class="nb-page" id="nb-company-notebook">
+  <div class="nb-header">
+    <div class="nb-title">Orbital Labs</div>
+    <span class="nb-type-badge">COMPANY</span>
+    <div class="nb-meta">Voice-agent eval infra &middot; Series A (3 weeks ago) &middot; 4 sources &middot; 2 claims</div>
+    <div class="nb-xrefs">
+      <span class="nb-xref" onclick="showNotebook('person_notebook')"><span class="nb-xref-arrow">&rarr;</span> Alex Chen</span>
+      <span class="nb-xref" onclick="showNotebook('event_notebook')"><span class="nb-xref-arrow">&rarr;</span> AI Infra Summit</span>
+      <span class="nb-xref" onclick="openMentionById('ent_google')"><span class="nb-xref-arrow">&rarr;</span> Google DeepMind</span>
+    </div>
+  </div>
+  <div class="nb-blocks">
+    <div class="brief-section-label">Overview</div>
+    <div class="nb-block">
+      <p><span class="mention" data-type="company" data-id="ent_orbital" onclick="openMention(this,event)">@Orbital Labs</span> builds voice-agent evaluation infrastructure. Founded by <span class="mention" data-type="person" data-id="ent_alex" onclick="toggleRefExpand(this)" style="cursor:pointer">@Alex Chen</span>. Focus on real-time latency and turn-taking fidelity measurement, unlike static transcript eval.<span class="nb-source-ref" title="Field note — Alex Chen conversation">[src:1]</span></p>
+      <!-- Inline expansion card for Alex Chen -->
+      <div class="nb-ref-expand" data-kind="person" id="ref-expand-alex" style="display:none">
+        <div class="nb-ref-expand-head">
+          <div class="nb-ref-expand-name">Alex Chen</div>
+          <span class="nb-ref-expand-type" data-t="person">person</span>
+        </div>
+        <div class="nb-ref-expand-summary">CTO of Orbital Labs. Met at AI Infra Summit demo booth. Sharp on latency measurement. Healthcare pilot is ambitious but early.</div>
+        <div class="nb-ref-expand-signals">
+          <div class="nb-ref-expand-signal"><span class="nb-ref-expand-signal-dot" style="color:var(--green)">&#9679;</span> Met in person at AI Infra Summit demo booth</div>
+          <div class="nb-ref-expand-signal"><span class="nb-ref-expand-signal-dot" style="color:var(--yellow)">&#9679;</span> Healthcare pilot &mdash; no published results yet</div>
+          <div class="nb-ref-expand-signal"><span class="nb-ref-expand-signal-dot" style="color:var(--blue)">&#9679;</span> Follow-up call scheduled Thursday</div>
+        </div>
+        <div class="nb-ref-expand-footer">
+          <button class="btn-ghost" style="font-size:10px;padding:2px 8px" onclick="showNotebook('person_notebook')">Open notebook</button>
+          <button class="btn-ghost" style="font-size:10px;padding:2px 8px" onclick="openBacklinks('ent_alex')">3 backlinks</button>
+          <span class="nb-ref-expand-close" onclick="this.closest('.nb-ref-expand').style.display='none'">&times; close</span>
+        </div>
+      </div>
+      <p>Their healthcare pilot adds domain-specific scoring.<span class="nb-source-ref" title="Demo session recording — Orbital Labs">[src:2]</span> Preliminary results presented at the <span class="mention" data-type="event" data-id="evt_infra_summit" onclick="openMention(this,event)">@AI Infra Summit</span> demo session &mdash; ambitious but early, no published benchmarks yet.</p>
+    </div>
+
+    <div class="brief-section-label" style="margin-top:16px">Key signals</div>
+    <div class="nb-block">
+      <div class="nb-claims">
+        <div class="nb-claim"><span class="nb-claim-bullet" style="color:var(--green)">&#10003;</span> Series A closed 3 weeks ago</div>
+        <div class="nb-claim"><span class="nb-claim-bullet" style="color:var(--green)">&#10003;</span> Moved from "capture only" to source-backed watchlist</div>
+        <div class="nb-claim"><span class="nb-claim-bullet" style="color:var(--yellow)">?</span> Healthcare pilot &mdash; no published results (needs verification via <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span>)</div>
+      </div>
+    </div>
+
+    <div class="brief-section-label" style="margin-top:16px">Connections</div>
+    <div class="nb-block">
+      <p><span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span> &mdash; CTO, met at AI Infra Summit demo booth</p>
+      <p>Competes with static eval tools. Positioning against <span class="mention" data-type="company" data-id="ent_google" onclick="openMention(this,event)">@Google DeepMind</span> audio eval benchmarks.</p>
+    </div>
+  </div>
+
+  <div class="nb-artifacts-embed" style="margin-top:16px">
+    <div class="nb-artifact-chip" onclick="switchMode('artifacts')">&#127970; Company artifact card</div>
+    <div class="nb-artifact-chip" onclick="switchMode('artifacts')">&#128200; Funding timeline</div>
+  </div>
+
+  <div class="nb-backlink-shelf">
+    <div class="nb-backlink-shelf-title">Backlinks <span style="font-weight:400;font-size:10px;color:var(--ink-faint)">3 items</span></div>
+    <div class="nb-bl-item" onclick="showNotebook('daily_brief')">
+      <span class="nb-bl-arrow">&rarr;</span>
+      <div class="nb-bl-body">
+        <div class="nb-bl-title">Daily Brief &mdash; May 22</div>
+        <div class="nb-bl-context">"Orbital Labs Series A closing signals competitive pressure"</div>
+      </div>
+      <span class="nb-bl-relation" data-r="mentions">mentions</span>
+    </div>
+    <div class="nb-bl-item" onclick="showNotebook('event_notebook')">
+      <span class="nb-bl-arrow">&rarr;</span>
+      <div class="nb-bl-body">
+        <div class="nb-bl-title">AI Infra Summit</div>
+        <div class="nb-bl-context">"demo session, voice-agent eval infra presentation"</div>
+      </div>
+      <span class="nb-bl-relation" data-r="source">source</span>
+    </div>
+    <div class="nb-bl-item" onclick="switchMode('chat')">
+      <span class="nb-bl-arrow">&rarr;</span>
+      <div class="nb-bl-body">
+        <div class="nb-bl-title">Event follow-ups chat</div>
+        <div class="nb-bl-context">"Create an artifact for Orbital Labs with everything we know"</div>
+      </div>
+      <span class="nb-bl-relation" data-r="cited">cited</span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── PERSON NOTEBOOK: Alex Chen ─── -->
+<div class="nb-page" id="nb-person-notebook">
+  <div class="nb-header">
+    <div class="nb-title">Alex Chen</div>
+    <span class="nb-type-badge" style="background:rgba(167,139,250,.15);color:var(--purple)">PERSON</span>
+    <div class="nb-meta">CTO, Orbital Labs &middot; Met at AI Infra Summit &middot; 3 refs across notebooks</div>
+    <div class="nb-xrefs">
+      <span class="nb-xref" onclick="showNotebook('company_notebook')"><span class="nb-xref-arrow">&rarr;</span> Orbital Labs</span>
+      <span class="nb-xref" onclick="showNotebook('event_notebook')"><span class="nb-xref-arrow">&rarr;</span> AI Infra Summit</span>
+      <span class="nb-xref" onclick="showNotebook('daily_brief')"><span class="nb-xref-arrow">&rarr;</span> Daily Brief</span>
+    </div>
+  </div>
+  <div class="nb-blocks">
+    <div class="brief-section-label">Context</div>
+    <div class="nb-block">
+      <p>Met <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span> at the <span class="mention" data-type="event" data-id="evt_infra_summit" onclick="openMention(this,event)">@AI Infra Summit</span> demo booth. Very sharp on latency measurement. CTO of <span class="mention" data-type="company" data-id="ent_orbital" onclick="openMention(this,event)">@Orbital Labs</span>.</p>
+      <p>Healthcare pilot is ambitious but early &mdash; no published results yet. Worth a follow-up call Thursday to get details on domain-specific scoring approach.</p>
+    </div>
+
+    <div class="brief-section-label" style="margin-top:16px">Follow-ups</div>
+    <div class="nb-block" style="border-left:2px solid var(--yellow)">
+      <p style="font-size:13px;color:var(--ink-muted)">&#9744; Call by Thursday &mdash; discuss healthcare pilot details</p>
+      <p style="font-size:13px;color:var(--ink-muted)">&#9744; Ask about voice-agent eval benchmark methodology</p>
+    </div>
+
+    <div class="brief-section-label" style="margin-top:16px">Appearances</div>
+    <div class="nb-block">
+      <div class="nb-claims">
+        <div class="nb-claim"><span class="nb-claim-bullet">&#9889;</span> AI Infra Summit &mdash; demo booth presenter, met in person</div>
+        <div class="nb-claim"><span class="nb-claim-bullet">&#128203;</span> Daily Brief May 22 &mdash; 3 mentions (funding, partnership, follow-up)</div>
+        <div class="nb-claim"><span class="nb-claim-bullet">&#128172;</span> Event follow-ups chat &mdash; discussed as priority contact</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nb-backlink-shelf">
+    <div class="nb-backlink-shelf-title">Backlinks <span style="font-weight:400;font-size:10px;color:var(--ink-faint)">3 items</span></div>
+    <div class="nb-bl-item" onclick="showNotebook('company_notebook')">
+      <span class="nb-bl-arrow">&rarr;</span>
+      <div class="nb-bl-body">
+        <div class="nb-bl-title">Orbital Labs notebook</div>
+        <div class="nb-bl-context">"Founded by Alex Chen. Focus on real-time latency and turn-taking"</div>
+      </div>
+      <span class="nb-bl-relation" data-r="contact">contact</span>
+    </div>
+    <div class="nb-bl-item" onclick="showNotebook('event_notebook')">
+      <span class="nb-bl-arrow">&rarr;</span>
+      <div class="nb-bl-body">
+        <div class="nb-bl-title">AI Infra Summit</div>
+        <div class="nb-bl-context">"Met Alex Chen at the demo booth. Very sharp on latency measurement"</div>
+      </div>
+      <span class="nb-bl-relation" data-r="mentions">mentions</span>
+    </div>
+    <div class="nb-bl-item" onclick="showNotebook('daily_brief')">
+      <span class="nb-bl-arrow">&rarr;</span>
+      <div class="nb-bl-body">
+        <div class="nb-bl-title">Daily Brief &mdash; May 22</div>
+        <div class="nb-bl-context">"Follow up with Alex Chen about healthcare pilot criteria"</div>
+      </div>
+      <span class="nb-bl-relation" data-r="cited">cited</span>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- ─── ARTIFACTS MODE ─── -->
+<div class="center-surface" data-mode="artifacts" id="art-surface">
+  <div class="art-header">
+    <div class="art-type-chips">
+      <button class="art-type-chip active" data-filter="all">All</button>
+      <button class="art-type-chip" data-filter="event">Events</button>
+      <button class="art-type-chip" data-filter="company">Companies</button>
+      <button class="art-type-chip" data-filter="person">People</button>
+      <button class="art-type-chip" data-filter="paper_index">Papers</button>
+      <button class="art-type-chip" data-filter="upload">Uploads</button>
+    </div>
+    <div class="art-sort">Sort: <strong>Recent</strong></div>
+  </div>
+
+  <div class="art-grid" id="art-grid">
+    <!-- Rendered by JS -->
+  </div>
+</div>
+
+<!-- ─── CHAT MODE ─── -->
+<div class="center-surface" data-mode="chat" id="chat-surface">
+  <div class="chat-layout">
+    <div class="chat-main">
+      <div class="chat-context-pills">
+        <span class="chat-ctx-pill" data-scope="event">&#9889; AI Infra Summit</span>
+        <span class="chat-ctx-pill" data-scope="public">&#9679; Public room</span>
+        <span class="chat-ctx-pill">&#128279; 38 sources</span>
+        <span class="chat-ctx-pill" data-scope="private">&#128274; My notes available</span>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-msg chat-msg-user"><div class="chat-bubble">Who should I follow up with first from the summit?</div></div>
+        <div class="chat-msg chat-msg-agent">
+          <div class="chat-msg-label">NodeBench</div>
+          <div class="chat-checkpoint"><span class="chat-checkpoint-dot"></span> Scanning event notebook &middot; 3 entities &middot; 7 backlinks &middot; 240ms</div>
+        </div>
+        <div class="chat-msg chat-msg-agent">
+          <div class="chat-bubble">
+            <p>Based on your event notebook, I'd prioritize these three:</p>
+            <p><strong>1. <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span></strong> at <span class="mention" data-type="company" data-id="ent_orbital" onclick="openMention(this,event)">@Orbital Labs</span> &mdash; highest signal: fresh Series A, building in your space (<span class="mention" data-type="topic" data-id="topic_voice_eval" onclick="openMention(this,event)">[[voice-agent eval]]</span>), explicit healthcare interest that maps to your pipeline.</p>
+            <p><strong>2. <span class="mention" data-type="person" data-id="ent_dario" onclick="openMention(this,event)">@Dario Amodei</span></strong> &mdash; the <span class="mention" data-type="topic" data-id="topic_mcp" onclick="openMention(this,event)">[[MCP Protocol]]</span> auth timeline he shared is directly relevant. Send the comparison doc when ready.</p>
+            <p><strong>3. Sequoia partner</strong> &mdash; they mentioned 3x increase in AI infra deal flow vs 6 months ago. Validates your Series B timing.</p>
+          </div>
+          <div class="chat-source-row">
+            <span class="source-chip">event notebook</span>
+            <span class="source-chip">7 backlinks</span>
+            <span class="source-chip">3 entities resolved</span>
+          </div>
+        </div>
+        <div class="chat-msg chat-msg-agent">
+          <div class="chat-nb-patch">
+            <div class="chat-nb-patch-label">&#9998; Notebook patch proposed</div>
+            <div class="chat-nb-patch-content">Added follow-up priority list to <strong>AI Infra Summit</strong> notebook with deadlines: Alex Chen (by Thu), comparison doc (by Fri), Sequoia intro (next week).</div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn-sm" style="font-size:11px;padding:4px 10px" onclick="alert('Patch applied to notebook')">Accept patch</button>
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px">Edit first</button>
+            </div>
+          </div>
+        </div>
+        <div class="chat-msg chat-msg-user"><div class="chat-bubble">Create an artifact for Orbital Labs with everything we know</div></div>
+        <div class="chat-msg chat-msg-agent">
+          <div class="chat-msg-label">NodeBench</div>
+          <div class="chat-checkpoint"><span class="chat-checkpoint-dot"></span> Creating company artifact &middot; 4 sources &middot; 2 claims &middot; 890ms</div>
+        </div>
+        <div class="chat-msg chat-msg-agent">
+          <div class="chat-art-card">
+            <div class="chat-art-label">&#127970; Artifact created</div>
+            <div style="font-weight:600;font-size:14px">Orbital Labs</div>
+            <div style="font-size:12px;color:var(--ink-muted)">Company &middot; Voice-agent eval infra &middot; Series A (3 weeks ago) &middot; Healthcare pilots</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+              <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)" style="font-size:11px">@Alex Chen</span>
+              <span class="mention" data-type="topic" data-id="topic_voice_eval" onclick="openMention(this,event)" style="font-size:11px">[[voice-agent eval]]</span>
+            </div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="switchMode('artifacts')">Open artifact</button>
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px">Add to notebook</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-composer">
+        <div class="ar-input-wrap">
+          <input type="text" class="ar-input" id="chat-input" placeholder="Ask about notebooks, artifacts, or entities&hellip;" aria-label="Chat with agent" onkeydown="if(event.key==='Enter'){sendChat();event.preventDefault()}" />
+          <div class="ar-input-actions">
+            <button class="ar-input-btn" type="button" title="Add context" aria-label="Add context">+ Context</button>
+            <button class="ar-input-btn" type="button" title="Reference entity" aria-label="Reference entity">@ Reference</button>
+            <button class="ar-input-btn" type="button" title="Slash command" aria-label="Slash command">/ Command</button>
+            <button class="ar-input-btn" type="button" title="Attach file" aria-label="Attach file">&#128206;</button>
+            <button class="ar-input-mic" type="button" id="chat-mic-btn" title="Voice input" aria-label="Voice input">&#127908;</button>
+            <span class="ar-input-send"><kbd>&#8629;</kbd> to send</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- RIGHT CONTEXT -->
+<aside class="right-context" id="right-context" aria-label="Context">
+
+  <!-- ── Default content (notebook / artifacts modes) ── -->
+  <div class="ctx-default-content" id="ctx-default-content">
+    <!-- Focus card (always open, not collapsible) -->
+    <div class="ctx-section">
+      <div class="ctx-label">Briefing agent</div>
+      <div class="ctx-card" id="ctx-focus-card">
+        <div class="ctx-entity-name" id="ctx-entity-name">Daily Brief &mdash; Today</div>
+        <div class="ctx-entity-type" id="ctx-entity-type">Startup Banking &middot; 42 sources &middot; 17 entities</div>
+      </div>
+      <div style="font-size:11px;color:var(--ink-faint);margin-top:6px;font-family:var(--mono)">
+        <span style="color:var(--green)">&#9679;</span> 3 sections refreshed &middot; 2 reused from cache
+      </div>
+    </div>
+
+    <!-- Mentions drawer -->
+    <div class="ctx-drawer" aria-expanded="true">
+      <div class="ctx-drawer-head" onclick="toggleDrawer(this.parentElement)" role="button" tabindex="0" aria-label="Toggle mentions section">
+        <div class="ctx-label" id="ctx-mentions-label">Mentions in this brief</div>
+        <span class="ctx-drawer-count" id="ctx-mentions-count">7</span>
+        <span class="ctx-drawer-chevron">&darr;</span>
+      </div>
+      <div class="ctx-drawer-body">
+        <div id="ctx-mentions">
+          <div class="ctx-backlink-row" onclick="openMentionById('ent_orbital')"><span class="ctx-backlink-icon">&#127970;</span> Orbital Labs <span class="ctx-backlink-source">company &middot; 7 refs</span></div>
+          <div class="ctx-backlink-row" onclick="openMentionById('ent_alex')"><span class="ctx-backlink-icon">&#128100;</span> Alex Chen <span class="ctx-backlink-source">person &middot; 3 refs</span></div>
+          <div class="ctx-backlink-row" onclick="openMentionById('ent_anthropic')"><span class="ctx-backlink-icon">&#127970;</span> Anthropic <span class="ctx-backlink-source">company &middot; 14 refs</span></div>
+          <div class="ctx-backlink-row" onclick="openMentionById('ent_google')"><span class="ctx-backlink-icon">&#127970;</span> Google DeepMind <span class="ctx-backlink-source">company &middot; 7 refs</span></div>
+          <div class="ctx-backlink-row" onclick="openMentionById('ent_dario')"><span class="ctx-backlink-icon">&#128100;</span> Dario Amodei <span class="ctx-backlink-source">person &middot; 4 refs</span></div>
+          <div class="ctx-backlink-row" onclick="openMentionById('topic_mcp')"><span class="ctx-backlink-icon">&#128279;</span> MCP Protocol <span class="ctx-backlink-source">topic &middot; 11 refs</span></div>
+          <div class="ctx-backlink-row" onclick="openMentionById('topic_voice_eval')"><span class="ctx-backlink-icon">&#128279;</span> voice-agent eval infra <span class="ctx-backlink-source">topic &middot; 5 refs</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sources drawer -->
+    <div class="ctx-drawer" aria-expanded="true">
+      <div class="ctx-drawer-head" onclick="toggleDrawer(this.parentElement)" role="button" tabindex="0" aria-label="Toggle sources section">
+        <div class="ctx-label">Sources</div>
+        <span class="ctx-drawer-count">4</span>
+        <span class="ctx-drawer-chevron">&darr;</span>
+      </div>
+      <div class="ctx-drawer-body">
+        <div class="source-chip" style="margin-bottom:4px">TechCrunch &mdash; Enterprise Pricing, May 15</div>
+        <div class="source-chip" style="margin-bottom:4px">Panel transcript &mdash; MCP auth session</div>
+        <div class="source-chip" style="margin-bottom:4px">Field note &mdash; Alex Chen conversation</div>
+        <div class="source-chip" style="margin-bottom:4px">Event corpus &mdash; 38 public questions</div>
+      </div>
+    </div>
+
+    <!-- Open claims drawer -->
+    <div class="ctx-drawer" aria-expanded="true">
+      <div class="ctx-drawer-head" onclick="toggleDrawer(this.parentElement)" role="button" tabindex="0" aria-label="Toggle open claims section">
+        <div class="ctx-label">Open claims</div>
+        <span class="ctx-drawer-count" style="background:rgba(228,197,103,.15);color:var(--yellow)">1</span>
+        <span class="ctx-drawer-chevron">&darr;</span>
+      </div>
+      <div class="ctx-drawer-body">
+        <div style="font-size:12px;color:var(--yellow);padding:6px 8px;background:rgba(228,197,103,.08);border-radius:var(--radius-sm)">
+          1 claim needs verification &mdash; Orbital Labs healthcare pilot
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent CTA drawer -->
+    <div class="ctx-drawer" aria-expanded="true">
+      <div class="ctx-drawer-head" onclick="toggleDrawer(this.parentElement)" role="button" tabindex="0" aria-label="Toggle agent section">
+        <div class="ctx-label">Agent</div>
+        <span class="ctx-drawer-chevron">&darr;</span>
+      </div>
+      <div class="ctx-drawer-body">
+        <button class="btn-sm" style="width:100%;text-align:center" onclick="switchMode('chat')">Ask about this brief</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Chat context panel (chat mode only) ── -->
+  <div class="ctx-chat-content" id="ctx-chat-content">
+
+    <!-- Tab toggle: Session | Trace -->
+    <div class="chat-ctx-tabs" role="tablist">
+      <button class="chat-ctx-tab active" role="tab" aria-selected="true" data-ctx-tab="session" onclick="switchChatCtxTab('session')">Session</button>
+      <button class="chat-ctx-tab" role="tab" aria-selected="false" data-ctx-tab="trace" onclick="switchChatCtxTab('trace')">Trace</button>
+    </div>
+
+    <!-- ── Session panel ── -->
+    <div class="chat-ctx-panel active" data-ctx-panel="session">
+
+      <!-- Progress -->
+      <div class="chat-ctx-section">
+        <div class="chat-ctx-label">Progress</div>
+        <div class="chat-ctx-task"><span class="chat-ctx-task-dot chat-ctx-task-dot--done"></span><span class="chat-ctx-task-text">Loaded event context (38 sources)</span></div>
+        <div class="chat-ctx-task"><span class="chat-ctx-task-dot chat-ctx-task-dot--done"></span><span class="chat-ctx-task-text">Extracted 4 entity signals</span></div>
+        <div class="chat-ctx-task"><span class="chat-ctx-task-dot chat-ctx-task-dot--done"></span><span class="chat-ctx-task-text">Cross-referenced public Q&amp;A</span></div>
+        <div class="chat-ctx-task"><span class="chat-ctx-task-dot chat-ctx-task-dot--active"></span><span class="chat-ctx-task-text">Refreshing web sources</span></div>
+        <div class="chat-ctx-task"><span class="chat-ctx-task-dot"></span><span class="chat-ctx-task-text">Verify healthcare pilot claim</span></div>
+        <div class="chat-ctx-task"><span class="chat-ctx-task-dot"></span><span class="chat-ctx-task-text">Generate follow-up memo</span></div>
+      </div>
+
+      <!-- Artifacts -->
+      <div class="chat-ctx-section">
+        <div class="chat-ctx-label">Artifacts</div>
+        <div class="chat-ctx-artifact"><span class="chat-ctx-artifact-icon">&#9671;</span><span class="chat-ctx-artifact-name">event-qa-summary.md</span><span class="chat-ctx-artifact-badge">md</span></div>
+        <div class="chat-ctx-artifact"><span class="chat-ctx-artifact-icon">&#9671;</span><span class="chat-ctx-artifact-name">source-bundle-38.json</span><span class="chat-ctx-artifact-badge">json</span></div>
+        <div class="chat-ctx-artifact"><span class="chat-ctx-artifact-icon">&#9671;</span><span class="chat-ctx-artifact-name">attendee-graph.png</span><span class="chat-ctx-artifact-badge">img</span></div>
+        <div class="chat-ctx-more">Show 1 more</div>
+      </div>
+
+      <!-- Agents -->
+      <div class="chat-ctx-section">
+        <div class="chat-ctx-label">Agents</div>
+        <div class="chat-ctx-agent"><span class="chat-ctx-agent-dot" style="background:var(--accent)"></span><span class="chat-ctx-agent-name">Coverage</span><span class="chat-ctx-agent-role">orchestrator</span></div>
+        <div class="chat-ctx-agent"><span class="chat-ctx-agent-dot" style="background:var(--green)"></span><span class="chat-ctx-agent-name">Research</span><span class="chat-ctx-agent-role">explorer</span></div>
+        <div class="chat-ctx-agent"><span class="chat-ctx-agent-dot" style="background:var(--blue)"></span><span class="chat-ctx-agent-name">Verify</span><span class="chat-ctx-agent-role">analyst</span></div>
+        <div class="chat-ctx-agent"><span class="chat-ctx-agent-dot" style="background:var(--purple)"></span><span class="chat-ctx-agent-name">Extract</span><span class="chat-ctx-agent-role">worker</span></div>
+      </div>
+
+      <!-- Sources -->
+      <div class="chat-ctx-section">
+        <div class="chat-ctx-label">Sources</div>
+        <div class="chat-ctx-source"><span class="chat-ctx-source-icon">&#9672;</span><span class="chat-ctx-source-name">Convex</span></div>
+        <div class="chat-ctx-source"><span class="chat-ctx-source-icon">&#9672;</span><span class="chat-ctx-source-name">Web search</span></div>
+        <div class="chat-ctx-source"><span class="chat-ctx-source-icon">&#9672;</span><span class="chat-ctx-source-name">MCP tools</span></div>
+        <div class="chat-ctx-source"><span class="chat-ctx-source-icon">&#9672;</span><span class="chat-ctx-source-name">Event corpus</span></div>
+        <div class="chat-ctx-source"><span class="chat-ctx-source-icon">&#9672;</span><span class="chat-ctx-source-name">Field notes</span></div>
+      </div>
+
+    </div><!-- /session panel -->
+
+    <!-- ── Trace panel ── -->
+    <div class="chat-ctx-panel" data-ctx-panel="trace">
+
+      <!-- Stat grid -->
+      <div class="chat-trace-summary">
+        <div class="chat-trace-stat"><div class="chat-trace-stat-val">12</div><div class="chat-trace-stat-key">Tool calls</div></div>
+        <div class="chat-trace-stat"><div class="chat-trace-stat-val">4.2s</div><div class="chat-trace-stat-key">Total latency</div></div>
+        <div class="chat-trace-stat"><div class="chat-trace-stat-val">8,412</div><div class="chat-trace-stat-key">Tokens in</div></div>
+        <div class="chat-trace-stat"><div class="chat-trace-stat-val">$0.03</div><div class="chat-trace-stat-key">Est. cost</div></div>
+      </div>
+
+      <!-- Tool call timeline -->
+      <div class="chat-trace-list">
+        <div class="chat-trace-item">
+          <div class="chat-trace-item-icon chat-trace-item-icon--tool">&#9881;</div>
+          <div class="chat-trace-item-body"><div class="chat-trace-item-name">entity_diff</div><div class="chat-trace-item-meta"><span>320ms</span><span>Anthropic</span></div></div>
+          <div class="chat-trace-item-bar"><div class="chat-trace-item-bar-fill chat-trace-item-bar-fill--tool" style="width:28%"></div></div>
+        </div>
+        <div class="chat-trace-item">
+          <div class="chat-trace-item-icon chat-trace-item-icon--llm">&#9733;</div>
+          <div class="chat-trace-item-body"><div class="chat-trace-item-name">generate_response</div><div class="chat-trace-item-meta"><span>1.8s</span><span>Opus 4</span></div></div>
+          <div class="chat-trace-item-bar"><div class="chat-trace-item-bar-fill chat-trace-item-bar-fill--llm" style="width:82%"></div></div>
+        </div>
+        <div class="chat-trace-item">
+          <div class="chat-trace-item-icon chat-trace-item-icon--search">&#128269;</div>
+          <div class="chat-trace-item-body"><div class="chat-trace-item-name">web_search</div><div class="chat-trace-item-meta"><span>640ms</span><span>Linkup</span></div></div>
+          <div class="chat-trace-item-bar"><div class="chat-trace-item-bar-fill chat-trace-item-bar-fill--search" style="width:45%"></div></div>
+        </div>
+        <div class="chat-trace-item">
+          <div class="chat-trace-item-icon chat-trace-item-icon--tool">&#9881;</div>
+          <div class="chat-trace-item-body"><div class="chat-trace-item-name">extract_signals</div><div class="chat-trace-item-meta"><span>280ms</span><span>Haiku 4</span></div></div>
+          <div class="chat-trace-item-bar"><div class="chat-trace-item-bar-fill chat-trace-item-bar-fill--tool" style="width:24%"></div></div>
+        </div>
+        <div class="chat-trace-item">
+          <div class="chat-trace-item-icon chat-trace-item-icon--tool">&#9881;</div>
+          <div class="chat-trace-item-body"><div class="chat-trace-item-name">verify_claim</div><div class="chat-trace-item-meta"><span>410ms</span><span>Gemini Flash</span></div></div>
+          <div class="chat-trace-item-bar"><div class="chat-trace-item-bar-fill chat-trace-item-bar-fill--tool" style="width:35%"></div></div>
+        </div>
+        <div class="chat-trace-item">
+          <div class="chat-trace-item-icon chat-trace-item-icon--llm">&#9733;</div>
+          <div class="chat-trace-item-body"><div class="chat-trace-item-name">structure_output</div><div class="chat-trace-item-meta"><span>520ms</span><span>Haiku 4</span></div></div>
+          <div class="chat-trace-item-bar"><div class="chat-trace-item-bar-fill chat-trace-item-bar-fill--llm" style="width:38%"></div></div>
+        </div>
+        <div class="chat-trace-item">
+          <div class="chat-trace-item-icon chat-trace-item-icon--search">&#128269;</div>
+          <div class="chat-trace-item-body"><div class="chat-trace-item-name">entity_lookup</div><div class="chat-trace-item-meta"><span>180ms</span><span>Convex</span></div></div>
+          <div class="chat-trace-item-bar"><div class="chat-trace-item-bar-fill chat-trace-item-bar-fill--search" style="width:15%"></div></div>
+        </div>
+        <div class="chat-trace-item">
+          <div class="chat-trace-item-icon chat-trace-item-icon--tool">&#9881;</div>
+          <div class="chat-trace-item-body"><div class="chat-trace-item-name">score_confidence</div><div class="chat-trace-item-meta"><span>90ms</span><span>local</span></div></div>
+          <div class="chat-trace-item-bar"><div class="chat-trace-item-bar-fill chat-trace-item-bar-fill--tool" style="width:8%"></div></div>
+        </div>
+      </div>
+
+      <!-- Model usage -->
+      <div class="chat-trace-model">
+        <div class="chat-ctx-label">Model usage</div>
+        <div class="chat-trace-model-row"><span class="chat-trace-model-name">Opus 4</span><span class="chat-trace-model-val">6,240 tok</span></div>
+        <div class="chat-trace-model-row"><span class="chat-trace-model-name">Haiku 4</span><span class="chat-trace-model-val">1,820 tok</span></div>
+        <div class="chat-trace-model-row"><span class="chat-trace-model-name">Gemini Flash</span><span class="chat-trace-model-val">352 tok</span></div>
+      </div>
+
+    </div><!-- /trace panel -->
+
+  </div><!-- /ctx-chat-content -->
+
+</aside>
+
+</div><!-- /workspace -->
+
+<!-- BACKLINK DRAWER -->
+<div class="bl-drawer" id="bl-drawer" role="dialog" aria-label="Backlinks">
+  <div class="bl-drawer-head">
+    <div class="bl-drawer-title" id="bl-drawer-title">Backlinks</div>
+    <button class="bl-drawer-close" onclick="closeBacklinks()" aria-label="Close">&times;</button>
+  </div>
+  <div id="bl-drawer-content"></div>
+</div>
+
+<!-- MENTION PREVIEW -->
+<div class="mention-preview" id="mention-preview" role="tooltip">
+  <div class="mp-name" id="mp-name"></div>
+  <div class="mp-type" id="mp-type"></div>
+  <div class="mp-summary" id="mp-summary"></div>
+  <div class="mp-actions">
+    <button class="btn-ghost" onclick="switchMode('artifacts')">Open artifact</button>
+    <button class="btn-ghost" onclick="switchMode('notebook')">Open notebook</button>
+    <button class="btn-ghost" onclick="openBacklinksFromPreview()">Backlinks</button>
+  </div>
+</div>
+
+<!-- MOBILE BOTTOM NAV -->
+<nav class="mobile-bottom-nav" aria-label="Mobile navigation">
+  <button class="mobile-nav-btn active" onclick="switchMode('notebook')"><span class="mobile-nav-icon">&#128203;</span><span>Notebook</span></button>
+  <button class="mobile-nav-btn" onclick="switchMode('artifacts')"><span class="mobile-nav-icon">&#9670;</span><span>Artifacts</span></button>
+  <button class="mobile-nav-btn" onclick="switchMode('chat')"><span class="mobile-nav-icon">&#128172;</span><span>Chat</span></button>
+</nav>
+
+<!-- MOBILE SHEET + BACKDROP -->
+<div class="mobile-sheet-backdrop" id="mobile-backdrop" onclick="closeMobileSheet()"></div>
+<div class="mobile-sheet" id="mobile-sheet" role="dialog" aria-label="Entity preview">
+  <div class="mobile-sheet-handle"></div>
+  <div id="mobile-sheet-content"></div>
+</div>
+
+</div><!-- /shell -->
+
+<!-- ═══════════════════════════════════════════════════
+     FIXTURE DATA + JS
+     ═══════════════════════════════════════════════════ -->
+<script>
+/* ─── FIXTURES ─── */
+var ENTITIES = {
+  ent_orbital:   { id: 'ent_orbital',   type: 'company', name: 'Orbital Labs',      summary: 'Voice-agent eval infra startup. Series A closed 3 weeks ago. Exploring healthcare design partners.' },
+  ent_alex:      { id: 'ent_alex',      type: 'person',  name: 'Alex Chen',         summary: 'Founder & CEO at Orbital Labs. Met at AI Infra Summit. Building voice-agent eval infra.' },
+  ent_anthropic: { id: 'ent_anthropic', type: 'company', name: 'Anthropic',         summary: 'AI safety company. Enterprise tier repriced +40%. MCP Protocol pioneer. Claude model family.' },
+  ent_google:    { id: 'ent_google',    type: 'company', name: 'Google DeepMind',   summary: 'AI research lab. Building MCP-compatible tooling. Confirmed at breakout session.' },
+  ent_dario:     { id: 'ent_dario',     type: 'person',  name: 'Dario Amodei',      summary: 'CEO, Anthropic. Discussed MCP auth standardization timeline at summit panel.' },
+  topic_voice_eval: { id: 'topic_voice_eval', type: 'topic', name: 'voice-agent eval infra', summary: 'Recurring theme across 4 event questions. Orbital Labs primary builder. Healthcare pilot interest.' },
+  topic_mcp:     { id: 'topic_mcp',     type: 'topic',  name: 'MCP Protocol',       summary: 'Model Context Protocol. 34% Fortune 500 have evaluated. Auth standard expected Q3 2026.' },
+  tag_event_meta:{ id: 'tag_event_meta', type: 'tag',   name: '#event-meta',        summary: 'Metadata and logistics tags for event-related observations.' },
+  evt_infra_summit: { id: 'evt_infra_summit', type: 'event', name: 'AI Infra Summit',  summary: 'SF, May 22-23 2026. 400+ attendees, 1,204 public questions, 82% cache hit rate. MCP auth, voice eval, deal flow.' },
+  evt_ship_demo:    { id: 'evt_ship_demo',    type: 'event', name: 'Ship Demo Day',    summary: 'Virtual, Jun 5 2026. 180 registered. Product demos from 12 startups including Orbital Labs.' },
+  evt_jpm:          { id: 'evt_jpm',          type: 'event', name: 'JPM Healthcare',   summary: 'San Francisco, Jan 13-16 2026. Healthcare AI track. 6 panels on clinical AI deployment.' }
+};
+
+var BACKLINKS = {
+  ent_orbital: [
+    { fromType: 'notebook', fromId: 'AI Infra Summit', context: 'Met Alex Chen from @Orbital Labs. Building voice-agent eval infra...' },
+    { fromType: 'notebook', fromId: 'Daily Brief — May 22', context: 'Orbital Labs Series A closing signals competitive pressure...' },
+    { fromType: 'artifact', fromId: 'Company artifact', context: 'Orbital Labs company profile with 4 sources and 2 claims.' },
+    { fromType: 'artifact', fromId: 'Source bundle', context: 'Included orbital-labs.com and TechCrunch coverage.' },
+    { fromType: 'artifact', fromId: 'Follow-up presentation', context: 'Slide 3: Orbital Labs partnership opportunity.' },
+    { fromType: 'chat', fromId: 'Event follow-ups', context: 'Who should I follow up with first?' },
+    { fromType: 'chat', fromId: 'Orbital Labs deep dive', context: 'Create an artifact for Orbital Labs with everything we know.' }
+  ],
+  ent_anthropic: [
+    { fromType: 'notebook', fromId: 'AI Infra Summit', context: 'Anthropic pricing competitive after rebalance...' },
+    { fromType: 'notebook', fromId: 'Daily Brief — May 22', context: 'Enterprise tier repriced +40%...' },
+    { fromType: 'notebook', fromId: 'Daily Brief — May 21', context: 'Anthropic MCP Registry launch this month...' },
+    { fromType: 'artifact', fromId: 'Company artifact — Anthropic', context: 'Full company profile with 12 sources.' },
+    { fromType: 'chat', fromId: 'Event follow-ups', context: 'Dario Amodei discussion on MCP auth...' }
+  ],
+  topic_mcp: [
+    { fromType: 'notebook', fromId: 'AI Infra Summit', context: 'MCP Protocol adoption panel discussion...' },
+    { fromType: 'notebook', fromId: 'Daily Brief — May 22', context: '34% of Fortune 500 have evaluated MCP...' },
+    { fromType: 'artifact', fromId: 'Paper Index — Agent Eval', context: 'MCP mentioned in 6 of 12 papers.' },
+    { fromType: 'chat', fromId: 'Event follow-ups', context: 'MCP auth timeline directly relevant...' }
+  ]
+};
+
+var ARTIFACTS = [
+  { id: 'art_1', type: 'event',         title: 'AI Infra Summit 2026',        desc: 'SF, May 22-23. 400+ attendees, 38 public questions, 71% cache hit rate.', mentions: ['ent_anthropic', 'ent_orbital'], sources: 12, claims: 8, updated: '2h ago' },
+  { id: 'art_2', type: 'company',       title: 'Orbital Labs',                desc: 'Voice-agent eval infra. Series A closed. Healthcare pilots.', mentions: ['ent_alex', 'topic_voice_eval'], sources: 4, claims: 2, updated: '2h ago' },
+  { id: 'art_3', type: 'company',       title: 'Anthropic',                   desc: 'Enterprise tier repriced +40%. MCP pioneer. Claude model family.', mentions: ['ent_dario', 'topic_mcp'], sources: 12, claims: 6, updated: '3h ago' },
+  { id: 'art_4', type: 'person',        title: 'Alex Chen',                   desc: 'Founder & CEO, Orbital Labs. Met at AI Infra Summit.', mentions: ['ent_orbital'], sources: 3, claims: 1, updated: '2h ago' },
+  { id: 'art_5', type: 'paper_index',   title: 'Agent Evaluation Papers',     desc: '12 papers indexed. Key themes: MCP benchmarks, tool-use eval, agent routing.', mentions: ['topic_mcp'], sources: 12, claims: 0, updated: '1d ago' },
+  { id: 'art_6', type: 'upload',        title: 'term_sheet_v3.pdf',           desc: 'Series B term sheet draft. Uploaded May 20.', mentions: [], sources: 1, claims: 0, updated: '2d ago' },
+  { id: 'art_7', type: 'source_bundle', title: 'AI Infra Summit sources',     desc: '7 sources: TechCrunch, panel transcripts, field notes, event corpus.', mentions: ['ent_anthropic', 'ent_orbital'], sources: 7, claims: 0, updated: '2h ago' },
+  { id: 'art_8', type: 'presentation',  title: 'Follow-up ranking',           desc: 'HTML presentation: prioritized follow-ups from AI Infra Summit.', mentions: ['ent_orbital', 'ent_alex'], sources: 4, claims: 0, updated: '1h ago' },
+  { id: 'art_9', type: 'trace',         title: 'Event follow-up analysis',    desc: 'Agent trace: 3 entities resolved, 7 backlinks scanned, 240ms.', mentions: [], sources: 0, claims: 0, updated: '3 min ago' },
+  { id: 'art_10', type: 'brief',        title: 'Daily Brief — May 22',        desc: 'Anthropic repricing, Orbital Labs Series A, MCP adoption panel recap.', mentions: ['ent_anthropic', 'ent_orbital', 'topic_mcp'], sources: 7, claims: 4, updated: '6h ago' },
+  { id: 'art_11', type: 'event',         title: 'Ship Demo Day',               desc: 'Virtual, Jun 5. 180 registered, 12 startup demos, 89 public questions.', mentions: ['ent_orbital'], sources: 3, claims: 1, updated: '1d ago' },
+  { id: 'art_12', type: 'event',         title: 'JPM Healthcare Conference',   desc: 'SF, Jan 2026. Healthcare AI track. Clinical deployment panels.', mentions: ['ent_google'], sources: 8, claims: 3, updated: '4mo ago' }
+];
+
+/* ─── RENDER ARTIFACTS ─── */
+function renderArtifacts(filter) {
+  var grid = document.getElementById('art-grid');
+  var filtered = filter && filter !== 'all' ? ARTIFACTS.filter(function(a) { return a.type === filter; }) : ARTIFACTS;
+  var html = '';
+  filtered.forEach(function(a) {
+    var mentionHtml = a.mentions.map(function(mId) {
+      var e = ENTITIES[mId];
+      return e ? '<span class="mention" data-type="' + e.type + '" data-id="' + mId + '" onclick="openMention(this,event)" style="font-size:11px;padding:1px 6px">@' + e.name + '</span>' : '';
+    }).join(' ');
+    html += '<div class="art-card" onclick="selectArtifact(\'' + a.id + '\')">' +
+      '<div class="art-card-head"><div class="art-card-title">' + a.title + '</div><span class="art-card-type" data-t="' + a.type + '">' + a.type.replace('_', ' ') + '</span></div>' +
+      '<div class="art-card-desc">' + a.desc + '</div>' +
+      (mentionHtml ? '<div class="art-card-mentions">' + mentionHtml + '</div>' : '') +
+      '<div class="art-card-footer"><span>' + a.sources + ' sources</span><span>' + a.claims + ' claims</span><span>updated ' + a.updated + '</span></div>' +
+      '</div>';
+  });
+  grid.innerHTML = html;
+}
+
+/* ─── NOTEBOOK PAGE SWITCHING ─── */
+var currentNotebook = 'daily_brief';
+
+function showNotebook(nbId) {
+  currentNotebook = nbId;
+  // Hide all notebook pages, show the selected one
+  document.querySelectorAll('.nb-page').forEach(function(p) { p.classList.remove('active'); });
+  var target = document.getElementById('nb-' + nbId.replace(/_/g, '-'));
+  if (target) target.classList.add('active');
+
+  // Update left index active state
+  document.querySelectorAll('.left-panel[data-for="notebook"] .left-item[data-nb]').forEach(function(item) {
+    item.classList.toggle('active', item.getAttribute('data-nb') === nbId);
+  });
+
+  // Update right rail context
+  // Update context label
+  var ctxMentionsLabel = document.getElementById('ctx-mentions-label');
+
+  if (nbId === 'daily_brief') {
+    document.getElementById('ctx-entity-name').textContent = 'Daily Brief — Today';
+    document.getElementById('ctx-entity-type').textContent = 'Startup Banking · 42 sources · 17 entities';
+    if (ctxMentionsLabel) ctxMentionsLabel.textContent = 'Mentions in this brief';
+    // Restore default mentions
+    var ctxM = document.getElementById('ctx-mentions');
+    if (ctxM) {
+      ctxM.innerHTML =
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_orbital\')"><span class="ctx-backlink-icon">&#127970;</span> Orbital Labs <span class="ctx-backlink-source">company &middot; 7 refs</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_alex\')"><span class="ctx-backlink-icon">&#128100;</span> Alex Chen <span class="ctx-backlink-source">person &middot; 3 refs</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_anthropic\')"><span class="ctx-backlink-icon">&#127970;</span> Anthropic <span class="ctx-backlink-source">company &middot; 14 refs</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_google\')"><span class="ctx-backlink-icon">&#127970;</span> Google DeepMind <span class="ctx-backlink-source">company &middot; 7 refs</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_dario\')"><span class="ctx-backlink-icon">&#128100;</span> Dario Amodei <span class="ctx-backlink-source">person &middot; 4 refs</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'topic_mcp\')"><span class="ctx-backlink-icon">&#128279;</span> MCP Protocol <span class="ctx-backlink-source">topic &middot; 11 refs</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'topic_voice_eval\')"><span class="ctx-backlink-icon">&#128279;</span> voice-agent eval infra <span class="ctx-backlink-source">topic &middot; 5 refs</span></div>';
+    }
+  } else if (nbId === 'event_notebook') {
+    document.getElementById('ctx-entity-name').textContent = 'AI Infra Summit';
+    document.getElementById('ctx-entity-type').textContent = 'Event · 318 joined · 1,204 questions · 38 sources';
+    if (ctxMentionsLabel) ctxMentionsLabel.textContent = 'Trending at this event';
+    // Update right rail mentions for event context
+    var ctxMentions = document.getElementById('ctx-mentions');
+    if (ctxMentions) {
+      ctxMentions.innerHTML =
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'topic_mcp\')"><span class="ctx-backlink-icon">&#128279;</span> MCP Protocol <span class="ctx-backlink-source">trending &middot; 47 asks</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'topic_voice_eval\')"><span class="ctx-backlink-icon">&#128279;</span> voice-agent eval <span class="ctx-backlink-source">trending &middot; 23 asks</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_anthropic\')"><span class="ctx-backlink-icon">&#127970;</span> Anthropic <span class="ctx-backlink-source">14 refs</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_orbital\')"><span class="ctx-backlink-icon">&#127970;</span> Orbital Labs <span class="ctx-backlink-source">7 refs</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_alex\')"><span class="ctx-backlink-icon">&#128100;</span> Alex Chen <span class="ctx-backlink-source">met &middot; 3 refs</span></div>';
+    }
+  } else if (nbId === 'company_notebook') {
+    document.getElementById('ctx-entity-name').textContent = 'Orbital Labs';
+    document.getElementById('ctx-entity-type').textContent = 'Company · 4 sources · 2 claims';
+    if (ctxMentionsLabel) ctxMentionsLabel.textContent = 'Related entities';
+    var ctxMc = document.getElementById('ctx-mentions');
+    if (ctxMc) {
+      ctxMc.innerHTML =
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_alex\')"><span class="ctx-backlink-icon">&#128100;</span> Alex Chen <span class="ctx-backlink-source">CTO &middot; 3 refs</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'evt_infra_summit\')"><span class="ctx-backlink-icon">&#9889;</span> AI Infra Summit <span class="ctx-backlink-source">demo &middot; 3 Q&amp;A</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_google\')"><span class="ctx-backlink-icon">&#127970;</span> Google DeepMind <span class="ctx-backlink-source">competitor</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'topic_voice_eval\')"><span class="ctx-backlink-icon">&#128279;</span> voice-agent eval <span class="ctx-backlink-source">core domain</span></div>';
+    }
+  } else if (nbId === 'person_notebook') {
+    document.getElementById('ctx-entity-name').textContent = 'Alex Chen';
+    document.getElementById('ctx-entity-type').textContent = 'Person · CTO, Orbital Labs · 3 refs';
+    if (ctxMentionsLabel) ctxMentionsLabel.textContent = 'Connections';
+    var ctxMp = document.getElementById('ctx-mentions');
+    if (ctxMp) {
+      ctxMp.innerHTML =
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_orbital\')"><span class="ctx-backlink-icon">&#127970;</span> Orbital Labs <span class="ctx-backlink-source">company &middot; CTO</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'evt_infra_summit\')"><span class="ctx-backlink-icon">&#9889;</span> AI Infra Summit <span class="ctx-backlink-source">met in person</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'topic_voice_eval\')"><span class="ctx-backlink-icon">&#128279;</span> voice-agent eval <span class="ctx-backlink-source">expert</span></div>';
+    }
+  }
+
+  // Ensure we're in notebook mode
+  if (document.querySelector('.shell').getAttribute('data-mode') !== 'notebook') {
+    switchMode('notebook');
+  }
+}
+
+function switchBriefScope(scope) {
+  // Update scope tabs
+  document.querySelectorAll('.brief-scope-tab').forEach(function(tab) {
+    tab.classList.toggle('active', tab.getAttribute('data-scope') === scope);
+  });
+
+  // Update title
+  var titles = { today: 'Daily Brief — May 22', week: 'Weekly Brief — May 19–22', month: 'Monthly Brief — May 2026', quarter: 'Quarterly Brief — Q2 2026' };
+  var titleEl = document.querySelector('#nb-daily-brief .nb-title');
+  if (titleEl) titleEl.textContent = titles[scope] || titles.today;
+
+  // Update left index active state for scope
+  document.querySelectorAll('.left-panel[data-for="notebook"] .left-item[data-nb]').forEach(function(item) {
+    var nb = item.getAttribute('data-nb');
+    item.classList.toggle('active', nb === 'daily_brief' && scope === 'today' || nb === 'daily_brief_' + scope);
+  });
+
+  // Show daily brief page if not visible
+  showNotebook('daily_brief');
+}
+
+/* ─── EVENT SUB-TAB SWITCHING ─── */
+function switchEventTab(tabId) {
+  // Update sub-tab active state
+  document.querySelectorAll('.evt-sub-tab').forEach(function(tab) {
+    var isActive = tab.getAttribute('data-evt-tab') === tabId;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+  // Show/hide panels
+  document.querySelectorAll('.evt-tab-panel').forEach(function(panel) {
+    panel.classList.toggle('active', panel.getAttribute('data-evt-panel') === tabId);
+  });
+  // Update right rail context label
+  var ctxLabel = document.querySelector('#right-context .ctx-label');
+  if (ctxLabel) {
+    var labels = {
+      public_room: 'Trending at this event',
+      my_notes: 'Private note context',
+      brief: 'Event brief context',
+      people: 'People at this event',
+      sources: 'Source context'
+    };
+    ctxLabel.textContent = labels[tabId] || 'Mentions in this event';
+  }
+}
+
+/* ─── MODE SWITCHING ─── */
+function switchMode(mode) {
+  var shell = document.querySelector('.shell');
+  shell.setAttribute('data-mode', mode);
+
+  // Topbar nav
+  document.querySelectorAll('.topbar-nav button').forEach(function(btn) {
+    var label = btn.textContent.trim().toLowerCase();
+    var isActive = label === mode;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+
+  // Left index
+  document.querySelector('.left-index').setAttribute('data-mode', mode);
+
+  // Center surfaces
+  document.querySelectorAll('.center-surface').forEach(function(s) {
+    s.classList.toggle('active', s.getAttribute('data-mode') === mode);
+  });
+
+  // Mobile nav
+  document.querySelectorAll('.mobile-nav-btn').forEach(function(btn, i) {
+    var modes = ['notebook', 'artifacts', 'chat'];
+    btn.classList.toggle('active', modes[i] === mode);
+  });
+
+  // Left index active items
+  document.querySelectorAll('.left-panel .left-item').forEach(function(item) {
+    // reset all in new panel, keep first active
+  });
+
+  // Render artifacts if switching to artifacts
+  if (mode === 'artifacts') { renderArtifacts('all'); }
+
+  // Toggle right rail: chat context vs default
+  var rightCtx = document.getElementById('right-context');
+  if (mode === 'chat') {
+    rightCtx.classList.add('chat-active');
+  } else {
+    rightCtx.classList.remove('chat-active');
+  }
+
+  // Close any open overlays
+  closeMentionPreview();
+  closeBacklinks();
+}
+
+/* ─── CHAT CONTEXT TABS (Session | Trace) ─── */
+function switchChatCtxTab(tabId) {
+  document.querySelectorAll('.chat-ctx-tab').forEach(function(tab) {
+    var isActive = tab.getAttribute('data-ctx-tab') === tabId;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+  document.querySelectorAll('.chat-ctx-panel').forEach(function(panel) {
+    panel.classList.toggle('active', panel.getAttribute('data-ctx-panel') === tabId);
+  });
+}
+
+/* ─── MENTION INTERACTIONS ─── */
+var currentMentionId = null;
+
+function openMention(el, e) {
+  if (e) e.stopPropagation();
+  var id = el.getAttribute('data-id');
+  var entity = ENTITIES[id];
+  if (!entity) return;
+  currentMentionId = id;
+
+  // Check mobile
+  if (window.innerWidth <= 900) {
+    openMobileSheet(entity);
+    return;
+  }
+
+  // Desktop: update right context
+  document.getElementById('ctx-entity-name').textContent = entity.name;
+  document.getElementById('ctx-entity-type').textContent = entity.type + ' · ' + (BACKLINKS[id] ? BACKLINKS[id].length + ' backlinks' : 'no backlinks');
+
+  // Show mention preview near cursor
+  var preview = document.getElementById('mention-preview');
+  var rect = el.getBoundingClientRect();
+  document.getElementById('mp-name').textContent = entity.name;
+  document.getElementById('mp-type').textContent = entity.type;
+  document.getElementById('mp-summary').textContent = entity.summary;
+  preview.style.top = Math.min(rect.bottom + 8, window.innerHeight - 220) + 'px';
+  preview.style.left = Math.min(rect.left, window.innerWidth - 340) + 'px';
+  preview.classList.add('visible');
+}
+
+function openMentionById(id) {
+  var entity = ENTITIES[id];
+  if (!entity) return;
+  currentMentionId = id;
+  document.getElementById('ctx-entity-name').textContent = entity.name;
+  document.getElementById('ctx-entity-type').textContent = entity.type + ' · ' + (BACKLINKS[id] ? BACKLINKS[id].length + ' backlinks' : 'no backlinks');
+
+  if (window.innerWidth <= 900) {
+    openMobileSheet(entity);
+  }
+}
+
+function closeMentionPreview() {
+  document.getElementById('mention-preview').classList.remove('visible');
+}
+
+/* ─── BACKLINK DRAWER ─── */
+function openBacklinks(entityId) {
+  event && event.stopPropagation();
+  var entity = ENTITIES[entityId];
+  var links = BACKLINKS[entityId] || [];
+  var drawer = document.getElementById('bl-drawer');
+  document.getElementById('bl-drawer-title').textContent = 'Backlinks for ' + (entity ? entity.name : entityId);
+
+  // Group by fromType
+  var groups = {};
+  links.forEach(function(l) {
+    if (!groups[l.fromType]) groups[l.fromType] = [];
+    groups[l.fromType].push(l);
+  });
+
+  var html = '';
+  var labels = { notebook: 'Notebooks', artifact: 'Artifacts', chat: 'Chat threads' };
+  Object.keys(groups).forEach(function(type) {
+    html += '<div class="bl-drawer-group"><div class="bl-drawer-group-label">' + (labels[type] || type) + '</div>';
+    groups[type].forEach(function(l) {
+      html += '<div class="bl-drawer-row"><div>' + l.fromId + '</div><div class="bl-drawer-row-context">' + l.context + '</div></div>';
+    });
+    html += '</div>';
+  });
+
+  document.getElementById('bl-drawer-content').innerHTML = html;
+  drawer.classList.add('open');
+  currentMentionId = entityId;
+}
+
+function openBacklinksFromPreview() {
+  closeMentionPreview();
+  if (currentMentionId) openBacklinks(currentMentionId);
+}
+
+function closeBacklinks() {
+  document.getElementById('bl-drawer').classList.remove('open');
+}
+
+/* ─── MOBILE SHEET ─── */
+function openMobileSheet(entity) {
+  var links = BACKLINKS[entity.id] || [];
+  var html = '<div style="font-weight:600;font-size:16px">' + entity.name + '</div>' +
+    '<div style="font-size:12px;color:var(--ink-muted);font-family:var(--mono)">' + entity.type + ' · ' + links.length + ' backlinks</div>' +
+    '<div style="font-size:13px;color:var(--ink-muted);margin-top:8px">' + entity.summary + '</div>';
+
+  if (links.length) {
+    html += '<div style="margin-top:12px"><div class="ctx-label">Backlinks</div>';
+    links.slice(0, 5).forEach(function(l) {
+      html += '<div class="ctx-backlink-row"><span class="ctx-backlink-icon">→</span> ' + l.fromId + ' <span class="ctx-backlink-source">' + l.fromType + '</span></div>';
+    });
+    html += '</div>';
+  }
+
+  html += '<div style="display:flex;gap:6px;margin-top:12px">' +
+    '<button class="btn-ghost" onclick="closeMobileSheet();switchMode(\'artifacts\')">Open artifact</button>' +
+    '<button class="btn-ghost" onclick="closeMobileSheet();switchMode(\'notebook\')">Open notebook</button>' +
+    '<button class="btn-ghost" onclick="closeMobileSheet();switchMode(\'chat\')">Ask about this</button>' +
+    '</div>';
+
+  document.getElementById('mobile-sheet-content').innerHTML = html;
+  document.getElementById('mobile-sheet').classList.add('open');
+  document.getElementById('mobile-backdrop').classList.add('open');
+}
+
+function closeMobileSheet() {
+  document.getElementById('mobile-sheet').classList.remove('open');
+  document.getElementById('mobile-backdrop').classList.remove('open');
+}
+
+/* ─── CHAT SEND ─── */
+function sendChat() {
+  var input = document.getElementById('chat-input');
+  var text = input.value.trim();
+  if (!text) return;
+
+  var messages = document.getElementById('chat-messages');
+  messages.insertAdjacentHTML('beforeend',
+    '<div class="chat-msg chat-msg-user"><div class="chat-bubble">' + text.replace(/</g, '&lt;') + '</div></div>'
+  );
+  input.value = '';
+
+  // Mock agent response after brief delay
+  setTimeout(function() {
+    messages.insertAdjacentHTML('beforeend',
+      '<div class="chat-msg chat-msg-agent">' +
+        '<div class="chat-msg-label">NodeBench</div>' +
+        '<div class="chat-checkpoint"><span class="chat-checkpoint-dot"></span> Processing query · scanning notebooks + artifacts</div>' +
+      '</div>'
+    );
+    messages.scrollTop = messages.scrollHeight;
+  }, 300);
+
+  setTimeout(function() {
+    messages.insertAdjacentHTML('beforeend',
+      '<div class="chat-msg chat-msg-agent"><div class="chat-bubble">' +
+        '<p>I found relevant context across your notebooks and artifacts. Let me synthesize that for you.</p>' +
+        '<p>Based on your <span class="mention" data-type="event" data-id="evt_ai_infra" onclick="openMention(this,event)">@AI Infra Summit</span> notebook and 3 related artifacts, here is what I found relevant to your question.</p>' +
+      '</div></div>'
+    );
+    messages.scrollTop = messages.scrollHeight;
+  }, 1200);
+}
+
+/* ─── ARTIFACT SELECTION ─── */
+function selectArtifact(artId) {
+  var art = ARTIFACTS.find(function(a) { return a.id === artId; });
+  if (!art) return;
+  document.getElementById('ctx-entity-name').textContent = art.title;
+  document.getElementById('ctx-entity-type').textContent = art.type.replace('_', ' ') + ' artifact · ' + art.sources + ' sources · ' + art.claims + ' claims';
+}
+
+/* ─── ARTIFACT FILTER ─── */
+document.addEventListener('click', function(e) {
+  // Artifact type chip filter
+  if (e.target.classList.contains('art-type-chip')) {
+    document.querySelectorAll('.art-type-chip').forEach(function(c) { c.classList.remove('active'); });
+    e.target.classList.add('active');
+    renderArtifacts(e.target.getAttribute('data-filter'));
+  }
+
+  // Close mention preview on outside click
+  var preview = document.getElementById('mention-preview');
+  if (preview.classList.contains('visible') && !preview.contains(e.target) && !e.target.classList.contains('mention')) {
+    closeMentionPreview();
+  }
+});
+
+/* ─── KEYBOARD ─── */
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeBacklinks();
+    closeMentionPreview();
+    closeMobileSheet();
+  }
+  // Cmd+K / Ctrl+K → focus search
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    document.querySelector('.left-search').focus();
+  }
+});
+
+/* ─── COLLAPSIBLE RAIL DRAWERS ─── */
+function toggleDrawer(drawer) {
+  if (!drawer) return;
+  var isCollapsed = drawer.classList.contains('collapsed');
+  drawer.classList.toggle('collapsed');
+  drawer.setAttribute('aria-expanded', isCollapsed ? 'true' : 'false');
+}
+
+// Keyboard support for drawer heads
+document.addEventListener('keydown', function(e) {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('ctx-drawer-head')) {
+    e.preventDefault();
+    toggleDrawer(e.target.parentElement);
+  }
+});
+
+/* ─── INLINE EXPANSION CARDS ─── */
+function toggleRefExpand(mentionEl) {
+  if (!mentionEl) return;
+  var id = mentionEl.getAttribute('data-id');
+  var entity = ENTITIES[id];
+  if (!entity) return;
+
+  // Check if there's already an expansion card next to this mention
+  var existing = mentionEl.parentElement.querySelector('.nb-ref-expand');
+  if (existing) {
+    // Toggle visibility — hide if visible, show if hidden
+    if (existing.style.display === 'none') {
+      existing.style.display = '';
+    } else {
+      existing.style.display = 'none';
+    }
+    return;
+  }
+
+  // Otherwise, create one dynamically
+  var kind = entity.type;
+  var typeLabel = kind;
+  var signals = [];
+  var blCount = BACKLINKS[id] ? BACKLINKS[id].length : 0;
+
+  // Build signal list from entity + backlinks
+  if (BACKLINKS[id]) {
+    BACKLINKS[id].slice(0, 3).forEach(function(bl) {
+      signals.push('<div class="nb-ref-expand-signal"><span class="nb-ref-expand-signal-dot" style="color:var(--ink-faint)">&#9679;</span> ' + bl.fromType + ': ' + bl.context.substring(0, 80) + '</div>');
+    });
+  }
+
+  var html = '<div class="nb-ref-expand" data-kind="' + kind + '">' +
+    '<div class="nb-ref-expand-head">' +
+    '<div class="nb-ref-expand-name">' + entity.name + '</div>' +
+    '<span class="nb-ref-expand-type" data-t="' + kind + '">' + typeLabel + '</span>' +
+    '</div>' +
+    '<div class="nb-ref-expand-summary">' + entity.summary + '</div>' +
+    (signals.length ? '<div class="nb-ref-expand-signals">' + signals.join('') + '</div>' : '') +
+    '<div class="nb-ref-expand-footer">' +
+    '<button class="btn-ghost" style="font-size:10px;padding:2px 8px" onclick="openBacklinks(\'' + id + '\')">' + blCount + ' backlinks</button>' +
+    '<span class="nb-ref-expand-close" onclick="this.closest(\'.nb-ref-expand\').remove()">&times; close</span>' +
+    '</div></div>';
+
+  mentionEl.insertAdjacentHTML('afterend', html);
+}
+
+/* ─── Wide mode toggle (Streamlit-style) ─── */
+function toggleWideMode() {
+  var shell = document.querySelector('.shell');
+  if (!shell) return;
+  var isWide = shell.hasAttribute('data-wide');
+  if (isWide) {
+    shell.removeAttribute('data-wide');
+    localStorage.removeItem('nb-wide');
+  } else {
+    shell.setAttribute('data-wide', '');
+    localStorage.setItem('nb-wide', '1');
+  }
+}
+// Restore wide mode from localStorage
+if (localStorage.getItem('nb-wide') === '1') {
+  document.addEventListener('DOMContentLoaded', function() {
+    var shell = document.querySelector('.shell');
+    if (shell) shell.setAttribute('data-wide', '');
+  });
+}
+// Keyboard shortcut: W to toggle wide mode (when not typing)
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+  if (e.key === 'w' || e.key === 'W') {
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      toggleWideMode();
+    }
+  }
+});
+
+/* ─── INIT ─── */
+renderArtifacts('all');
+</script>
+</body>
+</html>
