@@ -1082,6 +1082,89 @@ input { font-family: var(--ui); }
 }
 .evt-attendee-avatar:first-child { margin-left: 0; }
 
+/* ── Chat row hover actions (Note / Promote / Link) ── */
+.evt-chat-row { position: relative; }
+.evt-chat-row-actions {
+  display: none; position: absolute; right: 4px; top: 2px;
+  gap: 1px; z-index: 2; background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 1px 3px; box-shadow: 0 2px 8px rgba(0,0,0,.3);
+}
+.evt-chat-row:hover .evt-chat-row-actions { display: inline-flex; }
+.evt-chat-row-action {
+  font-size: 9px; padding: 2px 5px; border-radius: 3px; color: var(--ink-faint);
+  background: none; border: none; cursor: pointer; white-space: nowrap;
+  font-family: var(--mono); transition: color .1s, background .1s;
+}
+.evt-chat-row-action:hover { color: var(--ink); background: var(--glass-bg); }
+
+/* ── Event context pill (topbar, shown after joining) ── */
+.evt-context-pill {
+  display: none; align-items: center; gap: 5px; padding: 3px 10px 3px 8px;
+  background: rgba(74,222,128,.08); border: 1px solid rgba(74,222,128,.2);
+  border-radius: 14px; font-size: 11px; font-weight: 600; color: var(--green);
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.evt-context-pill.active { display: inline-flex; }
+.evt-context-pill:hover { background: rgba(74,222,128,.14); }
+.evt-context-pill-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+  animation: evtPulse 2s infinite; flex-shrink: 0;
+}
+
+/* ── Post-event ended/archived banner ── */
+.evt-ended-banner {
+  padding: 10px 14px; border-radius: var(--radius);
+  background: rgba(228,197,103,.06); border: 1px solid rgba(228,197,103,.15);
+  display: none; flex-direction: column; gap: 6px;
+}
+.evt-ended-banner.active { display: flex; }
+.evt-ended-banner[data-state="archived"] {
+  background: rgba(138,133,126,.06); border-color: rgba(138,133,126,.15);
+}
+.evt-ended-banner-head {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+}
+.evt-ended-banner-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ── Compact public trace on agent answers ── */
+.evt-agent-trace {
+  display: flex; gap: 8px; font-size: 10px; font-family: var(--mono);
+  color: var(--ink-faint); padding: 4px 0; flex-wrap: wrap;
+}
+.evt-agent-trace-item { display: inline-flex; align-items: center; gap: 3px; }
+.evt-agent-trace-item::before {
+  content: ''; width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0;
+  background: var(--green);
+}
+.evt-agent-trace-item[data-warn]::before { background: var(--yellow); }
+
+/* ── Right rail corpus stats ── */
+.evt-corpus-stats {
+  display: none; grid-template-columns: 1fr 1fr; gap: 6px;
+  padding: 10px; background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); margin-top: 8px;
+}
+.evt-corpus-stats.active { display: grid; }
+.evt-corpus-stat { font-size: 10px; color: var(--ink-faint); font-family: var(--mono); }
+.evt-corpus-stat-val { font-size: 15px; font-weight: 700; color: var(--ink); font-family: var(--ui); display: block; }
+
+/* ── Guest display name + QR row ── */
+.evt-guest-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.evt-guest-label { font-size: 10px; color: var(--ink-faint); white-space: nowrap; font-family: var(--mono); min-width: 36px; }
+
+/* ── FAQ reuse badge ── */
+.evt-faq-reuse {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 9px; font-family: var(--mono); padding: 1px 6px;
+  border-radius: 3px; background: rgba(91,155,245,.1); color: var(--blue);
+}
+
+/* ── Moderator event controls bar ── */
+.evt-mod-bar {
+  display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  border-top: 1px solid var(--line-faint); margin-top: 8px; flex-wrap: wrap;
+}
+
 @media (max-width: 1100px) {
   :root { --right-w: 320px; }
 }
@@ -1125,6 +1208,10 @@ input { font-family: var(--ui); }
   </nav>
   <div class="topbar-actions">
     <div class="topbar-search" onclick="document.querySelector('.left-search').focus()" aria-label="Search"><span>Search</span> <kbd>&#8984;K</kbd></div>
+    <div class="evt-context-pill" id="evt-context-pill" onclick="showNotebook('event_notebook');switchEventTab('live_chat')" title="Return to event chat">
+      <span class="evt-context-pill-dot"></span>
+      <span>AI Infra Summit</span>
+    </div>
     <button class="btn-sm" onclick="alert('New notebook / artifact / chat')">+ New</button>
     <button class="topbar-wide-toggle" onclick="toggleWideMode()" aria-label="Toggle wide mode" title="Toggle wide mode (W)" id="wide-btn">&#8596;</button>
     <button class="btn-ghost" aria-label="Toggle theme" onclick="document.body.classList.toggle('light')">&#9789;</button>
@@ -1746,8 +1833,13 @@ input { font-family: var(--ui); }
         </div>
         <div class="evt-agent-answer-meta">
           <span>3 of 3 claims verified</span>
-          <span>Asked 12 times</span>
+          <span class="evt-faq-reuse">Reused 12x</span>
           <span>2:43p</span>
+        </div>
+        <div class="evt-agent-trace">
+          <span class="evt-agent-trace-item" data-ok>Matched existing FAQ</span>
+          <span class="evt-agent-trace-item" data-ok>Reused 3 sources</span>
+          <span class="evt-agent-trace-item" data-ok>No private notes used</span>
         </div>
         <div class="evt-agent-answer-actions">
           <button class="btn-ghost" style="font-size:10px;padding:2px 8px" type="button" onclick="alert('Promoted to FAQ')">Promote to FAQ</button>
@@ -1782,6 +1874,26 @@ input { font-family: var(--ui); }
         <span class="evt-chat-row-time">2:47p</span>
         <span class="evt-chat-row-name" data-role="guest">Guest</span>
         <span class="evt-chat-row-text">Is there a recorded version of this session?</span>
+      </div>
+    </div>
+
+    <!-- Moderator event controls -->
+    <div class="evt-mod-bar" id="evt-mod-bar">
+      <button class="btn-ghost" style="font-size:10px;padding:3px 8px" type="button" onclick="evtModSummary()" title="Generate AI summary of recent chat">Summarize chat</button>
+      <button class="btn-ghost" style="font-size:10px;padding:3px 8px" type="button" onclick="evtEndEvent()" title="End the live event">End event</button>
+      <span style="font-size:9px;color:var(--ink-faint);font-family:var(--mono);margin-left:auto">Host controls</span>
+    </div>
+
+    <!-- Post-event ended banner (hidden until event ends) -->
+    <div class="evt-ended-banner" id="evt-ended-banner">
+      <div class="evt-ended-banner-head">
+        <span style="color:var(--yellow)">&#9632;</span> Event ended
+      </div>
+      <div style="font-size:11px;color:var(--ink-muted)">This event has concluded. Chat is read-only. The event wiki and FAQ are still searchable.</div>
+      <div class="evt-ended-banner-actions">
+        <button class="btn-ghost" style="font-size:10px;padding:3px 8px" type="button" onclick="alert('Search event chat archive')">Search chat</button>
+        <button class="btn-ghost" style="font-size:10px;padding:3px 8px" type="button" onclick="alert('Ask against the archived event corpus')">Ask this archive</button>
+        <button class="btn-ghost" style="font-size:10px;padding:3px 8px" type="button" onclick="alert('Export event wiki + FAQ + transcript')">Export</button>
       </div>
     </div>
 
@@ -2267,9 +2379,17 @@ input { font-family: var(--ui); }
       <div class="evt-join-card" id="evt-join-card">
         <div class="evt-join-title">AI Infra Summit</div>
         <div style="font-size:11px;color:var(--ink-faint);margin-bottom:8px">318 joined &middot; 24 online &middot; Public room</div>
+        <div class="evt-guest-row">
+          <span class="evt-guest-label">Name</span>
+          <input type="text" class="evt-join-input" id="evt-guest-name" placeholder="Display name (optional)" aria-label="Display name" />
+        </div>
         <div class="evt-join-input-row">
-          <input type="text" class="evt-join-input" id="evt-join-code" placeholder="Invite code (optional)" aria-label="Invite code" />
+          <input type="text" class="evt-join-input" id="evt-join-code" placeholder="Invite code or scan QR" aria-label="Invite code" />
           <button class="btn-sm" type="button" onclick="joinEvent()" style="white-space:nowrap">Join room</button>
+        </div>
+        <div style="display:flex;gap:8px;font-size:10px;margin-top:2px">
+          <button style="font-size:10px;color:var(--accent);background:none;border:none;cursor:pointer;font-family:var(--mono);padding:0" type="button" onclick="alert('QR scanner would open')">Scan QR</button>
+          <button style="font-size:10px;color:var(--ink-faint);background:none;border:none;cursor:pointer;font-family:var(--mono);padding:0" type="button" onclick="alert('Recent events list')">Recent events</button>
         </div>
       </div>
       <!-- State: joined (initially hidden) -->
@@ -2283,6 +2403,14 @@ input { font-family: var(--ui); }
           <button class="btn-ghost" style="font-size:11px;padding:3px 8px" type="button" onclick="switchEventTab('live_chat')">Open chat</button>
           <button class="btn-ghost" style="font-size:11px;padding:3px 8px" type="button" onclick="alert('Left event room')">Leave</button>
         </div>
+      </div>
+
+      <!-- Corpus stats (shown after joining) -->
+      <div class="evt-corpus-stats" id="evt-corpus-stats">
+        <div class="evt-corpus-stat"><span class="evt-corpus-stat-val">1,204</span> questions</div>
+        <div class="evt-corpus-stat"><span class="evt-corpus-stat-val">38</span> sources</div>
+        <div class="evt-corpus-stat"><span class="evt-corpus-stat-val">47</span> FAQ entries</div>
+        <div class="evt-corpus-stat"><span class="evt-corpus-stat-val">318</span> joined</div>
       </div>
     </div>
 
@@ -3116,6 +3244,18 @@ function joinEvent() {
   var joinedStatus = document.getElementById('evt-joined-status');
   if (joinCard) joinCard.style.display = 'none';
   if (joinedStatus) joinedStatus.style.display = '';
+  // Show event context pill in topbar
+  var pill = document.getElementById('evt-context-pill');
+  if (pill) pill.classList.add('active');
+  // Show corpus stats in right rail
+  var stats = document.getElementById('evt-corpus-stats');
+  if (stats) stats.classList.add('active');
+  // Use guest display name if provided
+  var guestName = document.getElementById('evt-guest-name');
+  if (guestName && guestName.value.trim()) {
+    // Update "You" labels in chat to use the display name
+    window._evtDisplayName = guestName.value.trim();
+  }
   // Auto-switch to Live Chat tab
   switchEventTab('live_chat');
 }
@@ -3130,6 +3270,10 @@ function sendEventChat() {
   var feed = document.getElementById('evt-chat-feed');
   if (!feed) return;
 
+  // Detect @NodeBench mention — treat as /ask invocation (EVT-AGENT-INV-003)
+  if (text.match(/@NodeBench\b/i)) {
+    text = '/ask ' + text.replace(/@NodeBench\s*/i, '');
+  }
   var isAsk = text.startsWith('/ask ');
   var privToggle = document.getElementById('evt-privacy-toggle');
   var isPrivate = privToggle && privToggle.getAttribute('data-v') === 'private';
@@ -3245,8 +3389,171 @@ showNotebook = function(nbId) {
   }
 };
 
+/* ─── EVENT ROOM: Chat row hover actions (Note / Promote / Link) ─── */
+function initEvtChatRowActions() {
+  document.querySelectorAll('#evt-chat-feed .evt-chat-row').forEach(function(row) {
+    if (row.querySelector('.evt-chat-row-actions')) return;
+    var actions = document.createElement('div');
+    actions.className = 'evt-chat-row-actions';
+    actions.innerHTML =
+      '<button class="evt-chat-row-action" type="button" onclick="evtSaveAsNote(this)" title="Save as private note">Note</button>' +
+      '<button class="evt-chat-row-action" type="button" onclick="evtPromoteToQ(this)" title="Promote to public question">Promote</button>' +
+      '<button class="evt-chat-row-action" type="button" onclick="evtCopyLink(this)" title="Copy link to message">Link</button>';
+    row.appendChild(actions);
+  });
+}
+
+function evtSaveAsNote(btn) {
+  var row = btn.closest('.evt-chat-row');
+  if (!row) return;
+  var text = row.querySelector('.evt-chat-row-text');
+  var name = row.querySelector('.evt-chat-row-name');
+  // Brief visual feedback
+  btn.textContent = 'Saved';
+  btn.style.color = 'var(--green)';
+  setTimeout(function() { btn.textContent = 'Note'; btn.style.color = ''; }, 1500);
+}
+
+function evtPromoteToQ(btn) {
+  var row = btn.closest('.evt-chat-row');
+  if (!row) return;
+  btn.textContent = 'Promoted';
+  btn.style.color = 'var(--accent)';
+  setTimeout(function() { btn.textContent = 'Promote'; btn.style.color = ''; }, 1500);
+}
+
+function evtCopyLink(btn) {
+  btn.textContent = 'Copied!';
+  btn.style.color = 'var(--green)';
+  setTimeout(function() { btn.textContent = 'Link'; btn.style.color = ''; }, 1500);
+}
+
+/* ─── EVENT ROOM: Moderator summary (EVT-AGENT-INV-008) ─── */
+function evtModSummary() {
+  var feed = document.getElementById('evt-chat-feed');
+  if (!feed) return;
+  var now = new Date();
+  var h = now.getHours(); var m = String(now.getMinutes()).padStart(2, '0');
+  var timeStr = (h > 12 ? h - 12 : h || 12) + ':' + m + (h >= 12 ? 'p' : 'a');
+
+  var html = '<div class="evt-agent-answer" style="animation:fadeIn 0.3s ease;border-left-color:var(--purple)">' +
+    '<div class="evt-agent-answer-head">' +
+    '<span style="font-weight:600;color:var(--purple)">Moderator Summary</span>' +
+    '<span style="font-size:10px;color:var(--ink-faint)">auto-generated by NodeBench</span>' +
+    '</div>' +
+    '<div class="evt-agent-answer-body">' +
+    '<p><strong>Key topics discussed:</strong></p>' +
+    '<p>1. MCP Auth reference implementation confirmed shipping with spec (Dario A.)</p>' +
+    '<p>2. Scoped tool permissions + OAuth 2.1 integration, compatible with existing RBAC</p>' +
+    '<p>3. Multi-tenant MCP deployments: Lisa W. reports 200+ isolated servers per customer</p>' +
+    '<p>4. Backwards compatibility of the auth standard confirmed for existing MCP implementations</p>' +
+    '</div>' +
+    '<div class="evt-agent-trace">' +
+    '<span class="evt-agent-trace-item" data-ok>12 messages analyzed</span>' +
+    '<span class="evt-agent-trace-item" data-ok>3 speakers cited</span>' +
+    '<span class="evt-agent-trace-item" data-ok>No private notes used</span>' +
+    '</div>' +
+    '<div class="evt-agent-answer-meta"><span>' + timeStr + '</span><span>Covers 2:31p — ' + timeStr + '</span></div>' +
+    '<div class="evt-agent-answer-actions">' +
+    '<button class="btn-ghost" style="font-size:10px;padding:2px 8px" type="button" onclick="alert(\'Pinned to event wiki\')">Pin to wiki</button>' +
+    '<button class="btn-ghost" style="font-size:10px;padding:2px 8px" type="button" onclick="alert(\'Shared summary link\')">Share</button>' +
+    '</div></div>';
+
+  feed.insertAdjacentHTML('beforeend', html);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+/* ─── EVENT ROOM: End event (post-event state) ─── */
+function evtEndEvent() {
+  // Hide live-only elements
+  var composer = document.getElementById('evt-composer');
+  if (composer) composer.style.display = 'none';
+  var modBar = document.getElementById('evt-mod-bar');
+  if (modBar) modBar.style.display = 'none';
+  // Show ended banner
+  var ended = document.getElementById('evt-ended-banner');
+  if (ended) ended.classList.add('active');
+  // Update topbar pill to ended state
+  var pill = document.getElementById('evt-context-pill');
+  if (pill) {
+    var dot = pill.querySelector('.evt-context-pill-dot');
+    if (dot) { dot.style.background = 'var(--yellow)'; dot.style.animation = 'none'; }
+    pill.style.color = 'var(--yellow)';
+    pill.style.borderColor = 'rgba(228,197,103,.2)';
+    pill.style.background = 'rgba(228,197,103,.08)';
+    pill.querySelector('span:last-child').textContent = 'AI Infra Summit (ended)';
+  }
+  // Update joined status in right rail
+  var joinedStatus = document.getElementById('evt-joined-status');
+  if (joinedStatus) {
+    joinedStatus.style.borderColor = 'rgba(228,197,103,.15)';
+    joinedStatus.style.background = 'rgba(228,197,103,.06)';
+    var dot = joinedStatus.querySelector('.evt-joined-dot');
+    if (dot) { dot.style.background = 'var(--yellow)'; dot.style.animation = 'none'; }
+  }
+  // Insert ended message in chat
+  var feed = document.getElementById('evt-chat-feed');
+  if (feed) {
+    feed.insertAdjacentHTML('beforeend',
+      '<div style="text-align:center;padding:12px;font-size:11px;color:var(--yellow);font-family:var(--mono)">' +
+      '&#9632; Event ended — chat is now read-only</div>'
+    );
+    feed.scrollTop = feed.scrollHeight;
+  }
+}
+
+/* ─── EVENT ROOM: Use display name in sent messages ─── */
+var _origSendChat = sendEventChat;
+sendEventChat = function() {
+  // If user set a guest display name, update the name in sent messages
+  var displayName = window._evtDisplayName;
+  if (displayName) {
+    var origFn = _origSendChat;
+    origFn();
+    // Find the last "You" name and rename it
+    var feed = document.getElementById('evt-chat-feed');
+    if (feed) {
+      var names = feed.querySelectorAll('.evt-chat-row-name[data-role="you"]');
+      if (names.length) {
+        var last = names[names.length - 1];
+        last.textContent = displayName;
+      }
+    }
+    // Add hover actions to new row
+    var rows = feed.querySelectorAll('.evt-chat-row');
+    var lastRow = rows[rows.length - 1];
+    if (lastRow && !lastRow.querySelector('.evt-chat-row-actions')) {
+      var actions = document.createElement('div');
+      actions.className = 'evt-chat-row-actions';
+      actions.innerHTML =
+        '<button class="evt-chat-row-action" type="button" onclick="evtSaveAsNote(this)">Note</button>' +
+        '<button class="evt-chat-row-action" type="button" onclick="evtPromoteToQ(this)">Promote</button>' +
+        '<button class="evt-chat-row-action" type="button" onclick="evtCopyLink(this)">Link</button>';
+      lastRow.appendChild(actions);
+    }
+    return;
+  }
+  _origSendChat();
+  // Add hover actions to newly created row
+  var feed = document.getElementById('evt-chat-feed');
+  if (feed) {
+    var rows = feed.querySelectorAll('.evt-chat-row');
+    var lastRow = rows[rows.length - 1];
+    if (lastRow && !lastRow.querySelector('.evt-chat-row-actions')) {
+      var actions = document.createElement('div');
+      actions.className = 'evt-chat-row-actions';
+      actions.innerHTML =
+        '<button class="evt-chat-row-action" type="button" onclick="evtSaveAsNote(this)">Note</button>' +
+        '<button class="evt-chat-row-action" type="button" onclick="evtPromoteToQ(this)">Promote</button>' +
+        '<button class="evt-chat-row-action" type="button" onclick="evtCopyLink(this)">Link</button>';
+      lastRow.appendChild(actions);
+    }
+  }
+};
+
 /* ─── INIT ─── */
 renderArtifacts('all');
+initEvtChatRowActions();
 </script>
 </body>
 </html>
