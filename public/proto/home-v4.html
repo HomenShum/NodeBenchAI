@@ -770,6 +770,190 @@ input { font-family: var(--ui); }
 }
 .mobile-sheet-backdrop.open { display: block; }
 
+/* ═══════════════════════════════════════════════════
+   ME DRAWER (settings overlay at sidebar bottom)
+   ═══════════════════════════════════════════════════ */
+.me-trigger {
+  margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line-faint);
+}
+.me-trigger-btn {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px;
+  border-radius: var(--radius); cursor: pointer; transition: background .12s;
+}
+.me-trigger-btn:hover { background: var(--glass-bg); }
+.me-avatar {
+  width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--purple));
+  display: grid; place-items: center; font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.me-trigger-info { display: flex; flex-direction: column; }
+.me-trigger-name { font-size: 12px; font-weight: 600; color: var(--ink); }
+.me-trigger-role { font-size: 10px; color: var(--ink-faint); }
+.me-trigger-gear { margin-left: auto; font-size: 14px; color: var(--ink-faint); transition: transform .3s ease; }
+.me-trigger-btn:hover .me-trigger-gear { transform: rotate(45deg); }
+
+.me-drawer-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 80;
+  opacity: 0; pointer-events: none; transition: opacity .2s ease;
+}
+.me-drawer-overlay.open { opacity: 1; pointer-events: auto; }
+
+.me-drawer {
+  position: fixed; left: 0; bottom: 0; width: 380px; max-height: 85vh;
+  background: var(--panel); border-top-right-radius: 16px; border-top-left-radius: 0;
+  border-right: 1px solid var(--line); border-top: 1px solid var(--line);
+  z-index: 85; padding: 20px 24px 24px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 20px;
+  transform: translateY(100%); transition: transform .25s ease;
+}
+.me-drawer-overlay.open .me-drawer { transform: translateY(0); }
+.me-drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.me-drawer-title { font-size: 16px; font-weight: 700; }
+.me-drawer-close {
+  width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--line);
+  display: grid; place-items: center; font-size: 14px; color: var(--ink-muted); cursor: pointer;
+}
+.me-drawer-close:hover { border-color: var(--ink-faint); color: var(--ink); }
+
+.me-section { display: flex; flex-direction: column; gap: 8px; }
+.me-section-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .15em;
+  color: var(--ink-faint);
+}
+.me-profile-card {
+  display: flex; align-items: center; gap: 14px; padding: 14px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius);
+}
+.me-profile-avatar {
+  width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--purple));
+  display: grid; place-items: center; font-size: 20px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.me-profile-info { display: flex; flex-direction: column; gap: 2px; }
+.me-profile-name { font-size: 15px; font-weight: 700; }
+.me-profile-email { font-size: 11px; color: var(--ink-muted); font-family: var(--mono); }
+.me-profile-plan {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--accent); background: var(--accent-dim); padding: 2px 8px; border-radius: 4px;
+  align-self: flex-start; margin-top: 2px;
+}
+
+.me-toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); font-size: 13px;
+}
+.me-toggle-label { display: flex; align-items: center; gap: 8px; }
+.me-toggle-label-icon { font-size: 15px; }
+.me-toggle-switch {
+  width: 36px; height: 20px; border-radius: 10px; background: var(--ink-faint);
+  position: relative; cursor: pointer; transition: background .2s;
+}
+.me-toggle-switch.on { background: var(--accent); }
+.me-toggle-switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  transition: transform .2s;
+}
+.me-toggle-switch.on::after { transform: translateX(16px); }
+
+.me-connector-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); font-size: 13px; cursor: pointer; transition: border-color .12s;
+}
+.me-connector-row:hover { border-color: var(--ink-faint); }
+.me-connector-icon { font-size: 16px; width: 22px; text-align: center; }
+.me-connector-name { font-weight: 500; }
+.me-connector-status { margin-left: auto; font-size: 10px; font-family: var(--mono); font-weight: 600; }
+.me-connector-status[data-s="connected"] { color: var(--green); }
+.me-connector-status[data-s="available"] { color: var(--ink-faint); }
+
+.me-nav-link {
+  display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--ink-muted);
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.me-nav-link:hover { background: var(--glass-bg); color: var(--ink); }
+.me-nav-link-icon { font-size: 14px; width: 18px; text-align: center; }
+
+/* ═══════════════════════════════════════════════════
+   MY WIKI NOTEBOOK
+   ═══════════════════════════════════════════════════ */
+.wiki-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px; margin-top: 12px;
+}
+.wiki-card {
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); padding: 14px 16px; cursor: pointer;
+  transition: border-color .15s, transform .15s; display: flex; flex-direction: column; gap: 8px;
+}
+.wiki-card:hover { border-color: rgba(255,255,255,.12); transform: translateY(-1px); }
+.wiki-card-head { display: flex; align-items: center; gap: 8px; }
+.wiki-card-icon { font-size: 16px; }
+.wiki-card-title { font-size: 14px; font-weight: 600; }
+.wiki-card-type {
+  margin-left: auto; font-size: 9px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; padding: 2px 6px; border-radius: 3px; font-family: var(--mono);
+}
+.wiki-card-type[data-t="company"] { background: rgba(91,155,245,.1); color: var(--blue); }
+.wiki-card-type[data-t="person"] { background: rgba(167,139,250,.1); color: var(--purple); }
+.wiki-card-type[data-t="topic"] { background: rgba(228,197,103,.1); color: var(--yellow); }
+.wiki-card-type[data-t="event"] { background: var(--accent-dim); color: var(--accent); }
+.wiki-card-summary { font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
+.wiki-card-footer {
+  display: flex; gap: 12px; font-size: 10px; color: var(--ink-faint); font-family: var(--mono);
+  border-top: 1px solid var(--line-faint); padding-top: 8px; margin-top: 2px;
+}
+.wiki-card-freshness {
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.wiki-card-freshness-dot { width: 6px; height: 6px; border-radius: 50%; }
+.wiki-card-freshness-dot.fresh { background: var(--green); }
+.wiki-card-freshness-dot.recent { background: var(--yellow); }
+.wiki-card-freshness-dot.stale { background: var(--red); }
+
+/* Wiki detail page zones */
+.wiki-zone { margin-top: 16px; padding: 16px; border-radius: var(--radius); }
+.wiki-zone-ai {
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--accent);
+}
+.wiki-zone-evidence {
+  background: transparent; border: 1px solid var(--line-faint);
+}
+.wiki-zone-notes {
+  background: rgba(167,139,250,.04); border: 1px solid rgba(167,139,250,.12);
+}
+.wiki-zone-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .12em;
+  margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+}
+.wiki-zone-label-pill {
+  font-size: 9px; padding: 1px 6px; border-radius: 3px; font-family: var(--mono);
+}
+.wiki-zone-ai .wiki-zone-label { color: var(--accent); }
+.wiki-zone-ai .wiki-zone-label-pill { background: var(--accent-dim); color: var(--accent); }
+.wiki-zone-evidence .wiki-zone-label { color: var(--ink-faint); }
+.wiki-zone-notes .wiki-zone-label { color: var(--purple); }
+.wiki-zone-notes .wiki-zone-label-pill { background: rgba(167,139,250,.1); color: var(--purple); }
+.wiki-zone-content { font-size: 13px; line-height: 1.65; color: var(--ink-muted); }
+.wiki-zone-content p { margin-bottom: 8px; }
+.wiki-evidence-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 0;
+  font-size: 12px; color: var(--ink-muted); border-bottom: 1px solid var(--line-faint);
+}
+.wiki-evidence-row:last-child { border-bottom: none; }
+.wiki-evidence-source { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); }
+.wiki-evidence-fresh { margin-left: auto; font-size: 10px; font-family: var(--mono); }
+.wiki-notes-area {
+  width: 100%; min-height: 100px; background: transparent; border: none; outline: none;
+  font-family: var(--ui); font-size: 13px; color: var(--ink); resize: vertical;
+  line-height: 1.65;
+}
+.wiki-notes-area::placeholder { color: var(--ink-faint); }
+
 @media (max-width: 1100px) {
   :root { --right-w: 320px; }
 }
@@ -851,6 +1035,10 @@ input { font-family: var(--ui); }
       <div class="left-item" data-nb="person_notebook" onclick="showNotebook('person_notebook')"><span class="left-item-icon">&#128100;</span> Alex Chen</div>
       <div class="left-item"><span class="left-item-icon">&#128100;</span> Dario Amodei</div>
     </div>
+    <div class="left-section-label" style="margin-top:8px">My Wiki</div>
+    <div class="left-group">
+      <div class="left-item" data-nb="my_wiki" onclick="showNotebook('my_wiki')"><span class="left-item-icon">&#128214;</span> All entries <span class="left-item-badge">6</span></div>
+    </div>
   </div>
 
   <!-- Artifacts index -->
@@ -880,7 +1068,90 @@ input { font-family: var(--ui); }
       <div class="left-item"><span class="left-item-icon">&#128172;</span> Portfolio refresh</div>
     </div>
   </div>
+
+  <!-- Me trigger (always visible at bottom) -->
+  <div class="me-trigger">
+    <button class="me-trigger-btn" onclick="toggleMeDrawer()" aria-label="Open settings" type="button">
+      <div class="me-avatar">HS</div>
+      <div class="me-trigger-info">
+        <div class="me-trigger-name">Homen Shum</div>
+        <div class="me-trigger-role">Founder &middot; Pro</div>
+      </div>
+      <span class="me-trigger-gear">&#9881;</span>
+    </button>
+  </div>
 </aside>
+
+<!-- ME DRAWER OVERLAY -->
+<div class="me-drawer-overlay" id="me-drawer-overlay" onclick="toggleMeDrawer()">
+  <div class="me-drawer" id="me-drawer" role="dialog" aria-modal="true" aria-label="Settings" onclick="event.stopPropagation()">
+    <div class="me-drawer-head">
+      <div class="me-drawer-title">Settings</div>
+      <button class="me-drawer-close" onclick="toggleMeDrawer()" aria-label="Close settings" type="button">&times;</button>
+    </div>
+
+    <div class="me-profile-card">
+      <div class="me-profile-avatar">HS</div>
+      <div class="me-profile-info">
+        <div class="me-profile-name">Homen Shum</div>
+        <div class="me-profile-email">hshum2018@gmail.com</div>
+        <span class="me-profile-plan">Pro</span>
+      </div>
+    </div>
+
+    <div class="me-section">
+      <div class="me-section-label">Appearance</div>
+      <div class="me-toggle-row">
+        <div class="me-toggle-label"><span class="me-toggle-label-icon">&#9789;</span> Dark mode</div>
+        <div class="me-toggle-switch on" onclick="this.classList.toggle('on');document.body.classList.toggle('light')" tabindex="0" role="switch" aria-checked="true"></div>
+      </div>
+      <div class="me-toggle-row">
+        <div class="me-toggle-label"><span class="me-toggle-label-icon">&#8596;</span> Wide mode</div>
+        <div class="me-toggle-switch" id="me-wide-toggle" onclick="this.classList.toggle('on');toggleWideMode()" tabindex="0" role="switch" aria-checked="false"></div>
+      </div>
+      <div class="me-toggle-row">
+        <div class="me-toggle-label"><span class="me-toggle-label-icon">&#127912;</span> Reduced motion</div>
+        <div class="me-toggle-switch" onclick="this.classList.toggle('on')" tabindex="0" role="switch" aria-checked="false"></div>
+      </div>
+    </div>
+
+    <div class="me-section">
+      <div class="me-section-label">Connectors</div>
+      <div class="me-connector-row">
+        <span class="me-connector-icon">&#128172;</span>
+        <span class="me-connector-name">Slack</span>
+        <span class="me-connector-status" data-s="connected">CONNECTED</span>
+      </div>
+      <div class="me-connector-row">
+        <span class="me-connector-icon">&#128231;</span>
+        <span class="me-connector-name">Gmail</span>
+        <span class="me-connector-status" data-s="connected">CONNECTED</span>
+      </div>
+      <div class="me-connector-row">
+        <span class="me-connector-icon">&#128197;</span>
+        <span class="me-connector-name">Google Calendar</span>
+        <span class="me-connector-status" data-s="available">AVAILABLE</span>
+      </div>
+      <div class="me-connector-row">
+        <span class="me-connector-icon">&#128279;</span>
+        <span class="me-connector-name">Linear</span>
+        <span class="me-connector-status" data-s="available">AVAILABLE</span>
+      </div>
+      <div class="me-connector-row">
+        <span class="me-connector-icon">&#128187;</span>
+        <span class="me-connector-name">GitHub</span>
+        <span class="me-connector-status" data-s="connected">CONNECTED</span>
+      </div>
+    </div>
+
+    <div class="me-section" style="border-top:1px solid var(--glass-border);padding-top:12px">
+      <div class="me-nav-link" onclick="alert('API Keys')"><span class="me-nav-link-icon">&#128273;</span> API keys</div>
+      <div class="me-nav-link" onclick="alert('Usage')"><span class="me-nav-link-icon">&#128200;</span> Usage &amp; billing</div>
+      <div class="me-nav-link" onclick="alert('Help')"><span class="me-nav-link-icon">&#10067;</span> Help &amp; docs</div>
+      <div class="me-nav-link" onclick="alert('Sign out')" style="color:var(--red)"><span class="me-nav-link-icon">&#128682;</span> Sign out</div>
+    </div>
+  </div>
+</div>
 
 <!-- CENTER -->
 <main class="center" id="center">
@@ -1421,6 +1692,169 @@ input { font-family: var(--ui); }
   </div>
 </div>
 
+<!-- ── MY WIKI PAGE ── -->
+<div class="nb-page" id="nb-my-wiki">
+  <div class="nb-header">
+    <div class="nb-title">My Wiki</div>
+    <span class="nb-type-badge" style="background:rgba(168,85,247,.15);color:#a855f7">Personal Synthesis</span>
+    <div class="brief-freshness">
+      <span><span class="brief-freshness-dot"></span>6 entries</span>
+      <span>3 freshened today</span>
+      <span>12 linked sources</span>
+    </div>
+  </div>
+
+  <!-- WIKI OVERVIEW GRID -->
+  <div class="wiki-grid" id="wiki-grid">
+    <div class="wiki-card" onclick="showWikiDetail('orbital')">
+      <div class="wiki-card-head">
+        <span class="wiki-card-icon">&#127970;</span>
+        <span class="wiki-card-title">Orbital Labs</span>
+        <span class="wiki-card-type" data-t="company">company</span>
+      </div>
+      <div class="wiki-card-summary">Voice agent eval infra, Series A. Healthcare pilot in progress. Alex Chen (CTO) met at AI Infra Summit.</div>
+      <div class="wiki-card-footer">
+        <span><span class="wiki-card-freshness-dot fresh"></span>Updated today</span>
+        <span>4 sources</span>
+        <span>3 backlinks</span>
+      </div>
+    </div>
+    <div class="wiki-card" onclick="showWikiDetail('anthropic')">
+      <div class="wiki-card-head">
+        <span class="wiki-card-icon">&#127970;</span>
+        <span class="wiki-card-title">Anthropic</span>
+        <span class="wiki-card-type" data-t="company">company</span>
+      </div>
+      <div class="wiki-card-summary">Enterprise repricing +40%. Claude Code dominant in agent tooling. MCP standard. Constitutional AI approach.</div>
+      <div class="wiki-card-footer">
+        <span><span class="wiki-card-freshness-dot fresh"></span>Updated today</span>
+        <span>14 sources</span>
+        <span>8 backlinks</span>
+      </div>
+    </div>
+    <div class="wiki-card" onclick="showWikiDetail('alex')">
+      <div class="wiki-card-head">
+        <span class="wiki-card-icon">&#128100;</span>
+        <span class="wiki-card-title">Alex Chen</span>
+        <span class="wiki-card-type" data-t="person">person</span>
+      </div>
+      <div class="wiki-card-summary">CTO, Orbital Labs. Background in real-time latency measurement. Met at AI Infra Summit demo booth.</div>
+      <div class="wiki-card-footer">
+        <span><span class="wiki-card-freshness-dot recent"></span>Updated 1d ago</span>
+        <span>3 sources</span>
+        <span>3 backlinks</span>
+      </div>
+    </div>
+    <div class="wiki-card">
+      <div class="wiki-card-head">
+        <span class="wiki-card-icon">&#128279;</span>
+        <span class="wiki-card-title">MCP Protocol</span>
+        <span class="wiki-card-type" data-t="topic">topic</span>
+      </div>
+      <div class="wiki-card-summary">Model Context Protocol for tool orchestration. Auth standardization Q3. 304-tool registry. Enterprise adoption accelerating.</div>
+      <div class="wiki-card-footer">
+        <span><span class="wiki-card-freshness-dot fresh"></span>Updated today</span>
+        <span>11 sources</span>
+        <span>5 backlinks</span>
+      </div>
+    </div>
+    <div class="wiki-card">
+      <div class="wiki-card-head">
+        <span class="wiki-card-icon">&#9889;</span>
+        <span class="wiki-card-title">AI Infra Summit</span>
+        <span class="wiki-card-type" data-t="event">event</span>
+      </div>
+      <div class="wiki-card-summary">SF, May 20&ndash;22. 2,400 attendees. Key themes: agent eval, voice infra, MCP auth. Best sessions attended.</div>
+      <div class="wiki-card-footer">
+        <span><span class="wiki-card-freshness-dot fresh"></span>Updated today</span>
+        <span>7 sources</span>
+        <span>4 backlinks</span>
+      </div>
+    </div>
+    <div class="wiki-card">
+      <div class="wiki-card-head">
+        <span class="wiki-card-icon">&#128218;</span>
+        <span class="wiki-card-title">Agent Eval Methods</span>
+        <span class="wiki-card-type" data-t="topic">topic</span>
+      </div>
+      <div class="wiki-card-summary">Brier scoring, trajectory analysis, trust-adjusted compounding. SWE-bench, GAIA, MCP-AgentBench benchmarks.</div>
+      <div class="wiki-card-footer">
+        <span><span class="wiki-card-freshness-dot stale"></span>Updated 5d ago</span>
+        <span>8 sources</span>
+        <span>2 backlinks</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIKI DETAIL VIEW (shown on card click) -->
+  <div id="wiki-detail" style="display:none">
+    <div style="margin-bottom:12px">
+      <button class="btn-ghost" onclick="closeWikiDetail()" type="button" style="font-size:12px">&larr; Back to wiki</button>
+    </div>
+    <div class="nb-header" id="wiki-detail-header">
+      <div class="nb-title" id="wiki-detail-title">Orbital Labs</div>
+      <span class="nb-type-badge wiki-card-type" data-t="company" id="wiki-detail-type">company</span>
+    </div>
+
+    <!-- Zone 1: AI-maintained synthesis -->
+    <div class="wiki-zone-ai">
+      <div class="wiki-zone-label"><span class="wiki-zone-label-pill" style="background:rgba(217,119,87,.15);color:var(--accent)">AI-maintained</span></div>
+      <div id="wiki-zone-ai-content">
+        <p><strong>What they do:</strong> Voice-agent evaluation infrastructure. Real-time latency measurement, turn-taking quality scoring, domain-specific evals for healthcare.</p>
+        <p><strong>Stage:</strong> Series A (closed Q1 2026). Building out healthcare vertical pilot.</p>
+        <p><strong>Key people:</strong> <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span> (CTO) &mdash; sharp on latency, met at summit demo booth.</p>
+        <p><strong>Why I track this:</strong> Maps directly to the healthcare workflow thesis. Their eval infra could complement our agent scoring pipeline. Potential integration partner or investment target.</p>
+        <p><strong>Open questions:</strong> No published pilot results yet. Need to get domain-specific scoring details by Thursday call.</p>
+      </div>
+    </div>
+
+    <!-- Zone 2: Linked evidence -->
+    <div class="wiki-zone-evidence">
+      <div class="wiki-zone-label"><span class="wiki-zone-label-pill">Linked evidence</span></div>
+      <div id="wiki-zone-evidence-content">
+        <div class="wiki-evidence-row">
+          <span>&#128203;</span>
+          <div>
+            <div style="font-weight:500;font-size:13px">Daily Brief &mdash; May 22</div>
+            <div style="font-size:11px;color:var(--ink-faint)">&ldquo;Orbital Labs surfaced in 4 event questions around voice-agent eval infra&rdquo;</div>
+          </div>
+          <span class="wiki-evidence-freshness fresh">today</span>
+        </div>
+        <div class="wiki-evidence-row">
+          <span>&#9889;</span>
+          <div>
+            <div style="font-weight:500;font-size:13px">AI Infra Summit notebook</div>
+            <div style="font-size:11px;color:var(--ink-faint)">&ldquo;Met Alex Chen at the demo booth. Very sharp on latency measurement&rdquo;</div>
+          </div>
+          <span class="wiki-evidence-freshness fresh">today</span>
+        </div>
+        <div class="wiki-evidence-row">
+          <span>&#128218;</span>
+          <div>
+            <div style="font-weight:500;font-size:13px">Series A announcement (TechCrunch)</div>
+            <div style="font-size:11px;color:var(--ink-faint)">&ldquo;Orbital Labs raises $12M for healthcare voice evaluation&rdquo;</div>
+          </div>
+          <span class="wiki-evidence-freshness recent">3d ago</span>
+        </div>
+        <div class="wiki-evidence-row">
+          <span>&#128172;</span>
+          <div>
+            <div style="font-weight:500;font-size:13px">Event follow-ups chat</div>
+            <div style="font-size:11px;color:var(--ink-faint)">&ldquo;discussed as priority contact for healthcare pilot intel&rdquo;</div>
+          </div>
+          <span class="wiki-evidence-freshness recent">1d ago</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zone 3: My notes (human-only) -->
+    <div class="wiki-zone-notes">
+      <div class="wiki-zone-label"><span class="wiki-zone-label-pill" style="background:rgba(168,85,247,.15);color:#a855f7">My notes</span> <span style="font-size:9px;color:var(--ink-faint);font-style:italic">AI never writes here</span></div>
+      <textarea class="wiki-notes-area" id="wiki-notes-area" placeholder="Your private notes about this entity..." aria-label="Personal notes">Alex seems like a strong technical founder. Keep on radar for Q3 partnership discussions. Check if their eval scoring maps to our trajectory framework.</textarea>
+    </div>
+  </div>
+</div>
+
 </div>
 
 <!-- ─── ARTIFACTS MODE ─── -->
@@ -1911,6 +2345,21 @@ function showNotebook(nbId) {
         '<div class="ctx-backlink-row" onclick="openMentionById(\'evt_infra_summit\')"><span class="ctx-backlink-icon">&#9889;</span> AI Infra Summit <span class="ctx-backlink-source">met in person</span></div>' +
         '<div class="ctx-backlink-row" onclick="openMentionById(\'topic_voice_eval\')"><span class="ctx-backlink-icon">&#128279;</span> voice-agent eval <span class="ctx-backlink-source">expert</span></div>';
     }
+  } else if (nbId === 'my_wiki') {
+    document.getElementById('ctx-entity-name').textContent = 'My Wiki';
+    document.getElementById('ctx-entity-type').textContent = 'Personal synthesis · 6 entries · 12 linked sources';
+    if (ctxMentionsLabel) ctxMentionsLabel.textContent = 'Recently updated';
+    var ctxMw = document.getElementById('ctx-mentions');
+    if (ctxMw) {
+      ctxMw.innerHTML =
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_orbital\')"><span class="ctx-backlink-icon">&#127970;</span> Orbital Labs <span class="ctx-backlink-source">freshened today</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_anthropic\')"><span class="ctx-backlink-icon">&#127970;</span> Anthropic <span class="ctx-backlink-source">freshened today</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'topic_mcp\')"><span class="ctx-backlink-icon">&#128279;</span> MCP Protocol <span class="ctx-backlink-source">freshened today</span></div>' +
+        '<div class="ctx-backlink-row" onclick="openMentionById(\'ent_alex\')"><span class="ctx-backlink-icon">&#128100;</span> Alex Chen <span class="ctx-backlink-source">updated 1d ago</span></div>' +
+        '<div class="ctx-backlink-row"><span class="ctx-backlink-icon">&#128218;</span> Agent Eval Methods <span class="ctx-backlink-source">stale &middot; 5d ago</span></div>';
+    }
+    // Reset wiki to overview when navigating to My Wiki
+    closeWikiDetail();
   }
 
   // Ensure we're in notebook mode
@@ -2207,6 +2656,7 @@ document.addEventListener('keydown', function(e) {
     closeBacklinks();
     closeMentionPreview();
     closeMobileSheet();
+    closeMeDrawer();
   }
   // Cmd+K / Ctrl+K → focus search
   if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -2308,6 +2758,42 @@ document.addEventListener('keydown', function(e) {
     }
   }
 });
+
+/* ─── ME DRAWER ─── */
+function toggleMeDrawer() {
+  var overlay = document.getElementById('me-drawer-overlay');
+  if (!overlay) return;
+  var isOpen = overlay.classList.contains('open');
+  if (isOpen) {
+    overlay.classList.remove('open');
+  } else {
+    overlay.classList.add('open');
+    // Sync wide-mode toggle state
+    var wideToggle = document.getElementById('me-wide-toggle');
+    if (wideToggle) {
+      var isWide = document.querySelector('.shell').hasAttribute('data-wide');
+      wideToggle.classList.toggle('on', isWide);
+    }
+  }
+}
+function closeMeDrawer() {
+  var overlay = document.getElementById('me-drawer-overlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+/* ─── WIKI DETAIL ─── */
+function showWikiDetail(key) {
+  var grid = document.getElementById('wiki-grid');
+  var detail = document.getElementById('wiki-detail');
+  if (grid) grid.style.display = 'none';
+  if (detail) detail.style.display = '';
+}
+function closeWikiDetail() {
+  var grid = document.getElementById('wiki-grid');
+  var detail = document.getElementById('wiki-detail');
+  if (grid) grid.style.display = '';
+  if (detail) detail.style.display = 'none';
+}
 
 /* ─── INIT ─── */
 renderArtifacts('all');
