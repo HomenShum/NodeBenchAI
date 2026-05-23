@@ -1503,6 +1503,220 @@ input { font-family: var(--ui); }
 }
 
 /* ═══════════════════════════════════════════════════
+   ENTITY PREVIEW — graph-backed popover enhancements
+   ═══════════════════════════════════════════════════ */
+.mp-edges { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; border-top: 1px solid var(--line-faint); }
+.mp-edge {
+  display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-muted); padding: 2px 0;
+}
+.mp-edge-type {
+  font-size: 8px; font-family: var(--mono); padding: 1px 5px; border-radius: 3px;
+  background: var(--glass-bg); color: var(--ink-faint); text-transform: uppercase;
+  letter-spacing: .05em; flex-shrink: 0;
+}
+.mp-edge-target { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-stats {
+  display: flex; gap: 10px; font-size: 10px; font-family: var(--mono); color: var(--ink-faint);
+  padding-top: 6px; border-top: 1px solid var(--line-faint);
+}
+.mp-stat-val { font-weight: 700; color: var(--ink-muted); }
+
+/* ═══════════════════════════════════════════════════
+   TRACE DRAWER (expandable on agent answers)
+   ═══════════════════════════════════════════════════ */
+.trace-drawer {
+  display: none; flex-direction: column; gap: 4px; padding: 10px 12px;
+  margin-top: 6px; background: rgba(21,20,19,.6); border: 1px solid var(--line-faint);
+  border-radius: var(--radius-sm); font-size: 11px;
+}
+.trace-drawer.open { display: flex; }
+.trace-drawer-head {
+  display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--ink-faint); margin-bottom: 2px;
+}
+.trace-step {
+  display: flex; align-items: flex-start; gap: 8px; padding: 3px 0;
+  border-left: 2px solid var(--line-faint); padding-left: 10px; margin-left: 4px;
+}
+.trace-step[data-status="ok"]     { border-left-color: var(--green); }
+.trace-step[data-status="cached"] { border-left-color: var(--blue); }
+.trace-step[data-status="skip"]   { border-left-color: var(--yellow); }
+.trace-step-label { font-weight: 600; color: var(--ink-muted); min-width: 72px; flex-shrink: 0; }
+.trace-step-detail { color: var(--ink-faint); flex: 1; }
+.trace-step-dur { font-family: var(--mono); color: var(--ink-faint); flex-shrink: 0; }
+.trace-toggle {
+  font-size: 10px; font-family: var(--mono); color: var(--ink-faint);
+  cursor: pointer; padding: 2px 6px; border-radius: 3px;
+  transition: color .1s, background .1s; border: none; background: none;
+}
+.trace-toggle:hover { color: var(--accent); background: var(--glass-bg); }
+
+/* ═══════════════════════════════════════════════════
+   THREAD / REPLY INDICATORS (chat threading)
+   ═══════════════════════════════════════════════════ */
+.chat-reply-indicator {
+  display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-faint);
+  padding: 2px 8px; margin-bottom: 2px; cursor: pointer;
+}
+.chat-reply-indicator:hover { color: var(--ink-muted); }
+.chat-reply-line {
+  width: 12px; height: 12px; border-left: 2px solid var(--ink-faint);
+  border-bottom: 2px solid var(--ink-faint); border-radius: 0 0 0 6px; flex-shrink: 0;
+}
+.chat-thread-count {
+  font-size: 10px; font-family: var(--mono); color: var(--blue); cursor: pointer;
+  padding: 1px 6px; border-radius: 3px; transition: background .1s;
+}
+.chat-thread-count:hover { background: rgba(91,155,245,.1); }
+.pub-chat-reply-chip {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 10px;
+  color: var(--ink-faint); margin-bottom: 2px; cursor: pointer;
+}
+.pub-chat-reply-chip:hover { color: var(--ink-muted); }
+.pub-chat-reply-chip::before {
+  content: ''; width: 10px; height: 10px;
+  border-left: 1.5px solid var(--ink-faint); border-bottom: 1.5px solid var(--ink-faint);
+  border-radius: 0 0 0 4px;
+}
+
+/* ═══════════════════════════════════════════════════
+   FAQ PROMOTION FLOW
+   ═══════════════════════════════════════════════════ */
+.faq-promote-btn {
+  font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 3px;
+  background: rgba(91,155,245,.1); color: var(--blue); border: 1px solid rgba(91,155,245,.2);
+  cursor: pointer; transition: all .15s; font-family: var(--mono);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.faq-promote-btn:hover { background: rgba(91,155,245,.2); }
+.faq-promoted-badge {
+  display: inline-flex; align-items: center; gap: 3px; font-size: 9px;
+  font-weight: 600; padding: 2px 7px; border-radius: 3px;
+  background: rgba(74,222,128,.1); color: var(--green); font-family: var(--mono);
+  text-transform: uppercase; letter-spacing: .05em;
+  animation: faqPromote .3s ease-out;
+}
+@keyframes faqPromote {
+  from { opacity: 0; transform: scale(.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ═══════════════════════════════════════════════════
+   SEARCH AUTOCOMPLETE (@ and [[ triggers)
+   ═══════════════════════════════════════════════════ */
+.search-scope-tabs {
+  display: flex; gap: 0; padding: 0 12px; border-bottom: 1px solid var(--line-faint);
+}
+.search-scope-tab {
+  padding: 7px 10px; font-size: 10px; font-weight: 600; color: var(--ink-faint);
+  border-bottom: 2px solid transparent; cursor: pointer; transition: all .12s;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.search-scope-tab:hover { color: var(--ink-muted); }
+.search-scope-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.search-ac-list { display: none; flex-direction: column; padding: 4px 0; }
+.search-ac-list.active { display: flex; }
+.search-ac-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 16px;
+  font-size: 13px; cursor: pointer; transition: background .1s;
+}
+.search-ac-item:hover, .search-ac-item.focused { background: var(--glass-bg); }
+.search-ac-type {
+  font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 3px;
+  font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; flex-shrink: 0;
+}
+.search-ac-type[data-t="company"] { background: rgba(91,155,245,.1); color: var(--blue); }
+.search-ac-type[data-t="person"]  { background: rgba(167,139,250,.1); color: var(--purple); }
+.search-ac-type[data-t="event"]   { background: var(--accent-dim); color: var(--accent); }
+.search-ac-type[data-t="topic"]   { background: rgba(228,197,103,.08); color: var(--yellow); }
+.search-ac-type[data-t="faq"]     { background: rgba(74,222,128,.08); color: var(--green); }
+.search-ac-name { flex: 1; }
+.search-ac-meta { font-size: 10px; color: var(--ink-faint); font-family: var(--mono); }
+.search-ac-hint {
+  padding: 6px 16px; font-size: 11px; color: var(--ink-faint); font-family: var(--mono);
+  border-top: 1px solid var(--line-faint);
+}
+
+/* ═══════════════════════════════════════════════════
+   RELATIONSHIP SHELF (entity detail drawer with edges)
+   ═══════════════════════════════════════════════════ */
+.rel-shelf {
+  position: fixed; top: 0; right: 0; width: 420px; height: 100vh;
+  background: var(--panel); border-left: 1px solid var(--line); z-index: 55;
+  transform: translateX(100%); transition: transform .2s ease;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.rel-shelf.open { transform: translateX(0); }
+.rel-shelf-head {
+  padding: 16px; border-bottom: 1px solid var(--line); flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.rel-shelf-title-row { display: flex; align-items: center; justify-content: space-between; }
+.rel-shelf-name { font-weight: 700; font-size: 18px; }
+.rel-shelf-close { font-size: 18px; color: var(--ink-muted); padding: 4px; cursor: pointer; border: none; background: none; }
+.rel-shelf-type-badge {
+  display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; padding: 2px 8px; border-radius: 4px; font-family: var(--mono);
+}
+.rel-shelf-type-badge[data-t="company"] { background: rgba(91,155,245,.1); color: var(--blue); }
+.rel-shelf-type-badge[data-t="person"]  { background: rgba(167,139,250,.1); color: var(--purple); }
+.rel-shelf-type-badge[data-t="event"]   { background: var(--accent-dim); color: var(--accent); }
+.rel-shelf-type-badge[data-t="topic"]   { background: rgba(228,197,103,.08); color: var(--yellow); }
+.rel-shelf-summary { font-size: 13px; color: var(--ink-muted); line-height: 1.5; }
+.rel-shelf-body { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 16px; }
+.rel-section-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--ink-faint); margin-bottom: 6px;
+}
+.rel-edge-row {
+  display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+  border-radius: var(--radius-sm); cursor: pointer; transition: background .12s; font-size: 12px;
+}
+.rel-edge-row:hover { background: var(--glass-bg); }
+.rel-edge-type {
+  font-size: 8px; font-weight: 600; padding: 1px 6px; border-radius: 3px;
+  font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em;
+  flex-shrink: 0; min-width: 56px; text-align: center;
+}
+.rel-edge-type[data-e="mentions"]  { background: rgba(91,155,245,.1); color: var(--blue); }
+.rel-edge-type[data-e="works_at"]  { background: rgba(167,139,250,.1); color: var(--purple); }
+.rel-edge-type[data-e="builds"]    { background: rgba(74,222,128,.1); color: var(--green); }
+.rel-edge-type[data-e="attended"]  { background: var(--accent-dim); color: var(--accent); }
+.rel-edge-type[data-e="met"]       { background: rgba(228,197,103,.08); color: var(--yellow); }
+.rel-edge-type[data-e="cites"]     { background: rgba(91,155,245,.08); color: var(--blue); }
+.rel-edge-type[data-e="asked_in"]  { background: rgba(74,222,128,.06); color: var(--green); }
+.rel-edge-type[data-e="related"]   { background: var(--glass-bg); color: var(--ink-muted); }
+.rel-edge-target { flex: 1; color: var(--ink-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rel-edge-count { font-size: 10px; font-family: var(--mono); color: var(--ink-faint); }
+.rel-shelf-actions {
+  padding: 12px 16px; border-top: 1px solid var(--line); flex-shrink: 0; display: flex; gap: 6px;
+}
+
+/* ═══════════════════════════════════════════════════
+   POST-EVENT ARCHIVE MODE
+   ═══════════════════════════════════════════════════ */
+.archive-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+  border-radius: 12px; font-size: 10px; font-weight: 600; font-family: var(--mono);
+  text-transform: uppercase; letter-spacing: .06em;
+  background: rgba(138,133,126,.08); border: 1px solid rgba(138,133,126,.15);
+  color: var(--ink-faint);
+}
+.archive-ask-bar {
+  padding: 10px 14px; background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); display: flex; align-items: center; gap: 8px; margin-top: 12px;
+}
+.archive-ask-input {
+  flex: 1; background: none; border: none; color: var(--ink); font: inherit;
+  font-size: 13px; outline: none;
+}
+.archive-ask-input::placeholder { color: var(--ink-faint); }
+.archive-ask-btn {
+  padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: var(--radius-sm);
+  background: var(--accent); color: #fff; border: none; cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════════════
    MOBILE ENHANCEMENTS
    ═══════════════════════════════════════════════════ */
 .mob-bottom-nav {
@@ -3578,36 +3792,76 @@ https://techcrunch.com/orbital-labs-series-a</textarea>
 </div>
 
 <!-- ═══════════════════════════════════════════════════
-     SEARCH OVERLAY
+     SEARCH OVERLAY (federated + autocomplete)
      ═══════════════════════════════════════════════════ -->
 <div class="search-overlay" id="search-overlay" onclick="closeSearchOverlay()">
   <div class="search-dialog" onclick="event.stopPropagation()">
     <div class="search-input-wrap">
-      <input type="text" id="search-input" placeholder="Search events, people, companies, wiki..." oninput="renderSearchResults(this.value)" autocomplete="off">
+      <input type="text" id="search-input" placeholder="Search... (@ for entities, [[ for topics)" oninput="renderSearchResults(this.value)" autocomplete="off" aria-label="Search events, people, companies, wiki">
     </div>
+    <div class="search-scope-tabs" id="search-scope-tabs">
+      <button class="search-scope-tab active" type="button" onclick="setSearchScope('all',this)" aria-label="Show all results">All</button>
+      <button class="search-scope-tab" type="button" onclick="setSearchScope('event',this)" aria-label="Filter events">Events</button>
+      <button class="search-scope-tab" type="button" onclick="setSearchScope('person',this)" aria-label="Filter people">People</button>
+      <button class="search-scope-tab" type="button" onclick="setSearchScope('company',this)" aria-label="Filter companies">Companies</button>
+      <button class="search-scope-tab" type="button" onclick="setSearchScope('faq',this)" aria-label="Filter wiki">Wiki</button>
+    </div>
+    <!-- Autocomplete dropdown (appears on @ or [[ trigger) -->
+    <div class="search-ac-list" id="search-ac-list" role="listbox" aria-label="Entity autocomplete"></div>
     <div class="search-results" id="search-results">
-      <div class="search-group">
+      <div class="search-group" data-scope="event">
         <div class="search-group-label">Events</div>
-        <div class="search-result-item" onclick="alert('Open AI Infra Summit')"><span class="type-badge">event</span> AI Infra Summit 2026</div>
-        <div class="search-result-item" onclick="alert('Open Ship Demo Day')"><span class="type-badge">event</span> Ship Demo Day</div>
-        <div class="search-result-item" onclick="alert('Open JPM Healthcare')"><span class="type-badge">event</span> JPM Healthcare</div>
+        <div class="search-result-item" onclick="openRelShelf('evt_infra_summit')"><span class="type-badge">event</span> AI Infra Summit 2026 <span style="margin-left:auto;font-size:10px;color:var(--ink-faint);font-family:var(--mono)">1,204 Q&middot;318 joined</span></div>
+        <div class="search-result-item" onclick="openRelShelf('evt_ship_demo')"><span class="type-badge">event</span> Ship Demo Day <span style="margin-left:auto;font-size:10px;color:var(--ink-faint);font-family:var(--mono)">89 Q&middot;180 reg</span></div>
+        <div class="search-result-item" onclick="openRelShelf('evt_jpm')"><span class="type-badge">event</span> JPM Healthcare <span style="margin-left:auto;font-size:10px;color:var(--ink-faint);font-family:var(--mono)">6 panels</span></div>
       </div>
-      <div class="search-group">
+      <div class="search-group" data-scope="person">
         <div class="search-group-label">People</div>
-        <div class="search-result-item" onclick="alert('Open Alex Chen')"><span class="type-badge">person</span> Alex Chen — Founder, Orbital Labs</div>
-        <div class="search-result-item" onclick="alert('Open Dario Amodei')"><span class="type-badge">person</span> Dario Amodei — CEO, Anthropic</div>
+        <div class="search-result-item" onclick="openRelShelf('ent_alex')"><span class="type-badge">person</span> Alex Chen <span style="margin-left:auto;font-size:10px;color:var(--ink-faint);font-family:var(--mono)">Founder, Orbital Labs</span></div>
+        <div class="search-result-item" onclick="openRelShelf('ent_dario')"><span class="type-badge">person</span> Dario Amodei <span style="margin-left:auto;font-size:10px;color:var(--ink-faint);font-family:var(--mono)">CEO, Anthropic</span></div>
       </div>
-      <div class="search-group">
+      <div class="search-group" data-scope="company">
         <div class="search-group-label">Companies</div>
-        <div class="search-result-item" onclick="alert('Open Orbital Labs')"><span class="type-badge">company</span> Orbital Labs — Voice-agent eval infra</div>
-        <div class="search-result-item" onclick="alert('Open Anthropic')"><span class="type-badge">company</span> Anthropic — AI safety, Claude, MCP</div>
+        <div class="search-result-item" onclick="openRelShelf('ent_orbital')"><span class="type-badge">company</span> Orbital Labs <span style="margin-left:auto;font-size:10px;color:var(--ink-faint);font-family:var(--mono)">voice-agent eval &middot; 7 refs</span></div>
+        <div class="search-result-item" onclick="openRelShelf('ent_anthropic')"><span class="type-badge">company</span> Anthropic <span style="margin-left:auto;font-size:10px;color:var(--ink-faint);font-family:var(--mono)">AI safety &middot; 14 refs</span></div>
       </div>
-      <div class="search-group">
-        <div class="search-group-label">Wiki</div>
-        <div class="search-result-item" onclick="alert('Open MCP FAQ')"><span class="type-badge">faq</span> What is the MCP auth timeline?</div>
-        <div class="search-result-item" onclick="alert('Open voice eval FAQ')"><span class="type-badge">faq</span> Who is building voice-agent eval?</div>
+      <div class="search-group" data-scope="faq">
+        <div class="search-group-label">Wiki &amp; FAQ</div>
+        <div class="search-result-item" onclick="openRelShelf('topic_mcp')"><span class="type-badge">faq</span> What is the MCP auth timeline? <span style="margin-left:auto;font-size:10px;color:var(--ink-faint);font-family:var(--mono)">asked 47&times;</span></div>
+        <div class="search-result-item" onclick="openRelShelf('topic_voice_eval')"><span class="type-badge">faq</span> Who is building voice-agent eval? <span style="margin-left:auto;font-size:10px;color:var(--ink-faint);font-family:var(--mono)">asked 12&times;</span></div>
       </div>
     </div>
+    <div class="search-ac-hint">&#9432; Type <kbd style="font-size:10px;padding:0 4px;border:1px solid var(--line);border-radius:2px">@</kbd> to mention an entity &middot; <kbd style="font-size:10px;padding:0 4px;border:1px solid var(--line);border-radius:2px">[[</kbd> to link a topic &middot; <kbd style="font-size:10px;padding:0 4px;border:1px solid var(--line);border-radius:2px">Esc</kbd> to close</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     RELATIONSHIP SHELF (entity detail drawer with typed edges)
+     ═══════════════════════════════════════════════════ -->
+<div class="rel-shelf" id="rel-shelf" role="dialog" aria-modal="false" aria-label="Entity relationships">
+  <div class="rel-shelf-head">
+    <div class="rel-shelf-title-row">
+      <span class="rel-shelf-name" id="rel-shelf-name">Orbital Labs</span>
+      <button class="rel-shelf-close" onclick="closeRelShelf()" type="button" aria-label="Close relationship shelf">&times;</button>
+    </div>
+    <span class="rel-shelf-type-badge" id="rel-shelf-type" data-t="company">company</span>
+    <div class="rel-shelf-summary" id="rel-shelf-summary">Voice-agent eval infra startup. Series A closed 3 weeks ago.</div>
+  </div>
+  <div class="rel-shelf-body" id="rel-shelf-body">
+    <!-- Edges section (populated by JS) -->
+    <div>
+      <div class="rel-section-label">Relationships</div>
+      <div id="rel-shelf-edges"></div>
+    </div>
+    <!-- Backlinks section -->
+    <div>
+      <div class="rel-section-label">Mentioned in</div>
+      <div id="rel-shelf-backlinks"></div>
+    </div>
+  </div>
+  <div class="rel-shelf-actions">
+    <button class="btn-ghost" type="button" onclick="closeRelShelf()" aria-label="View full artifact">&#128196; Open artifact</button>
+    <button class="btn-ghost" type="button" onclick="closeRelShelf()" aria-label="Copy entity link">&#128279; Copy link</button>
   </div>
 </div>
 
@@ -4571,39 +4825,6 @@ function pubJoinAsGuest() {
   if (input) input.setAttribute('data-placeholder', 'Chat as ' + name + ' or /ask the agent...');
 }
 
-function pubSendChat() {
-  var input = document.getElementById('pub-chat-input');
-  if (!input) return;
-  var text = input.innerText.trim();
-  if (!text) return;
-  var name = window._pubGuestName || 'You';
-  var feed = document.getElementById('pub-chat-feed');
-  if (!feed) return;
-
-  var isAsk = text.toLowerCase().startsWith('/ask ') || text.indexOf('@ScratchNode') !== -1;
-  var cleanText = text.replace(/^\/ask\s+/i, '').replace(/@ScratchNode/g, '').trim();
-
-  var html = '<div class="pub-chat-msg">' +
-    '<span class="pub-chat-name">' + name + '</span>' +
-    '<span class="pub-chat-text">' + text.replace(/</g,'&lt;') + '</span>' +
-    '<span class="pub-chat-time">just now</span></div>';
-  feed.insertAdjacentHTML('beforeend', html);
-
-  if (isAsk) {
-    setTimeout(function() {
-      var agentHtml = '<div class="pub-chat-msg pub-chat-msg--agent">' +
-        '<span class="pub-chat-name">&#129302; ScratchNode</span>' +
-        '<span class="pub-chat-text">Looking into: "' + cleanText.replace(/</g,'&lt;') + '"... Based on event corpus and 24 sources, here\'s what I found. This answer is now available in the Q&A section.</span>' +
-        '<span class="pub-chat-time">just now</span></div>';
-      feed.insertAdjacentHTML('beforeend', agentHtml);
-      feed.scrollTop = feed.scrollHeight;
-    }, 1200);
-  }
-
-  input.innerText = '';
-  feed.scrollTop = feed.scrollHeight;
-}
-
 function pubAskAgent() {
   var input = document.getElementById('pub-chat-input');
   if (input) {
@@ -4784,8 +5005,10 @@ function closeHostConsole() {
 }
 
 /* ═══════════════════════════════════════════════════
-   SEARCH OVERLAY
+   SEARCH OVERLAY (federated + autocomplete)
    ═══════════════════════════════════════════════════ */
+
+var _searchScope = 'all';
 
 function openSearchOverlay() {
   var overlay = document.getElementById('search-overlay');
@@ -4793,7 +5016,8 @@ function openSearchOverlay() {
     overlay.classList.add('active');
     setTimeout(function() {
       var input = document.getElementById('search-input');
-      if (input) input.focus();
+      if (input) { input.value = ''; input.focus(); }
+      resetSearchScope();
     }, 100);
   }
 }
@@ -4801,10 +5025,384 @@ function openSearchOverlay() {
 function closeSearchOverlay() {
   var overlay = document.getElementById('search-overlay');
   if (overlay) overlay.classList.remove('active');
+  var ac = document.getElementById('search-ac-list');
+  if (ac) ac.classList.remove('active');
 }
 
+function setSearchScope(scope, btn) {
+  _searchScope = scope;
+  document.querySelectorAll('.search-scope-tab').forEach(function(t) { t.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  var groups = document.querySelectorAll('#search-results .search-group');
+  groups.forEach(function(g) {
+    if (scope === 'all') { g.style.display = ''; }
+    else { g.style.display = g.getAttribute('data-scope') === scope ? '' : 'none'; }
+  });
+}
+
+function resetSearchScope() { setSearchScope('all', document.querySelector('.search-scope-tab')); }
+
 function renderSearchResults(query) {
-  if (!query || query.length < 2) return;
+  if (!query) {
+    var ac = document.getElementById('search-ac-list');
+    if (ac) ac.classList.remove('active');
+    document.querySelectorAll('#search-results .search-group').forEach(function(g) { g.style.display = ''; });
+    return;
+  }
+
+  // @ trigger → entity autocomplete
+  if (query.charAt(query.length - 1) === '@' || query.indexOf('@') !== -1) {
+    var atPart = query.split('@').pop().toLowerCase();
+    showAutocomplete(atPart, ['company', 'person', 'event']);
+    return;
+  }
+
+  // [[ trigger → topic autocomplete
+  if (query.indexOf('[[') !== -1) {
+    var topicPart = query.split('[[').pop().replace(']]', '').toLowerCase();
+    showAutocomplete(topicPart, ['topic']);
+    return;
+  }
+
+  // Hide autocomplete if no trigger
+  var ac = document.getElementById('search-ac-list');
+  if (ac) ac.classList.remove('active');
+
+  // Filter federated results
+  var q = query.toLowerCase();
+  document.querySelectorAll('#search-results .search-result-item').forEach(function(item) {
+    var text = item.textContent.toLowerCase();
+    item.style.display = text.indexOf(q) !== -1 ? '' : 'none';
+  });
+
+  // Hide empty groups
+  document.querySelectorAll('#search-results .search-group').forEach(function(g) {
+    if (_searchScope !== 'all' && g.getAttribute('data-scope') !== _searchScope) { g.style.display = 'none'; return; }
+    var visible = g.querySelectorAll('.search-result-item[style=""], .search-result-item:not([style])');
+    var hasVisible = false;
+    g.querySelectorAll('.search-result-item').forEach(function(it) { if (it.style.display !== 'none') hasVisible = true; });
+    g.style.display = hasVisible ? '' : 'none';
+  });
+}
+
+function showAutocomplete(filter, types) {
+  var ac = document.getElementById('search-ac-list');
+  if (!ac) return;
+  var html = [];
+  Object.keys(ENTITIES).forEach(function(key) {
+    var ent = ENTITIES[key];
+    if (types.indexOf(ent.type) === -1) return;
+    if (filter && ent.name.toLowerCase().indexOf(filter) === -1) return;
+    html.push(
+      '<div class="search-ac-item" onclick="insertMention(\'' + key + '\')" role="option">' +
+      '<span class="search-ac-type" data-t="' + ent.type + '">' + ent.type + '</span>' +
+      '<span class="search-ac-name">' + ent.name + '</span>' +
+      '<span class="search-ac-meta">' + (BACKLINKS[key] ? BACKLINKS[key].length + ' refs' : '') + '</span>' +
+      '</div>'
+    );
+  });
+  ac.innerHTML = html.join('');
+  ac.classList.toggle('active', html.length > 0);
+}
+
+function insertMention(entityId) {
+  var ent = ENTITIES[entityId];
+  if (!ent) return;
+  var input = document.getElementById('search-input');
+  if (input) {
+    var val = input.value;
+    var atIdx = val.lastIndexOf('@');
+    var bracketIdx = val.lastIndexOf('[[');
+    if (atIdx !== -1) {
+      input.value = val.substring(0, atIdx) + '@' + ent.name;
+    } else if (bracketIdx !== -1) {
+      input.value = val.substring(0, bracketIdx) + '[[' + ent.name + ']]';
+    }
+    input.focus();
+  }
+  var ac = document.getElementById('search-ac-list');
+  if (ac) ac.classList.remove('active');
+  openRelShelf(entityId);
+}
+
+/* ═══════════════════════════════════════════════════
+   RELATIONSHIP SHELF (entity graph drawer)
+   ═══════════════════════════════════════════════════ */
+
+var EDGES = {
+  ent_orbital: [
+    { type: 'builds', target: 'voice-agent eval infra', targetId: 'topic_voice_eval' },
+    { type: 'attended', target: 'AI Infra Summit', targetId: 'evt_infra_summit' },
+    { type: 'related', target: 'Anthropic', targetId: 'ent_anthropic', note: 'competitive overlap' }
+  ],
+  ent_alex: [
+    { type: 'works_at', target: 'Orbital Labs', targetId: 'ent_orbital' },
+    { type: 'met', target: 'Dario Amodei', targetId: 'ent_dario' },
+    { type: 'attended', target: 'AI Infra Summit', targetId: 'evt_infra_summit' },
+    { type: 'builds', target: 'voice-agent eval infra', targetId: 'topic_voice_eval' }
+  ],
+  ent_anthropic: [
+    { type: 'builds', target: 'MCP Protocol', targetId: 'topic_mcp' },
+    { type: 'attended', target: 'AI Infra Summit', targetId: 'evt_infra_summit' },
+    { type: 'related', target: 'Google DeepMind', targetId: 'ent_google', note: 'MCP ecosystem' }
+  ],
+  ent_dario: [
+    { type: 'works_at', target: 'Anthropic', targetId: 'ent_anthropic' },
+    { type: 'met', target: 'Alex Chen', targetId: 'ent_alex' },
+    { type: 'attended', target: 'AI Infra Summit', targetId: 'evt_infra_summit' }
+  ],
+  ent_google: [
+    { type: 'builds', target: 'MCP-compatible tooling', targetId: 'topic_mcp' },
+    { type: 'attended', target: 'AI Infra Summit', targetId: 'evt_infra_summit' }
+  ],
+  topic_mcp: [
+    { type: 'cites', target: 'Anthropic', targetId: 'ent_anthropic' },
+    { type: 'cites', target: 'Google DeepMind', targetId: 'ent_google' },
+    { type: 'asked_in', target: 'AI Infra Summit', targetId: 'evt_infra_summit', note: '47 questions' }
+  ],
+  topic_voice_eval: [
+    { type: 'cites', target: 'Orbital Labs', targetId: 'ent_orbital' },
+    { type: 'asked_in', target: 'AI Infra Summit', targetId: 'evt_infra_summit', note: '12 questions' }
+  ],
+  evt_infra_summit: [
+    { type: 'mentions', target: 'Orbital Labs', targetId: 'ent_orbital' },
+    { type: 'mentions', target: 'Anthropic', targetId: 'ent_anthropic' },
+    { type: 'mentions', target: 'Google DeepMind', targetId: 'ent_google' },
+    { type: 'mentions', target: 'MCP Protocol', targetId: 'topic_mcp' },
+    { type: 'mentions', target: 'voice-agent eval infra', targetId: 'topic_voice_eval' }
+  ],
+  evt_ship_demo: [
+    { type: 'mentions', target: 'Orbital Labs', targetId: 'ent_orbital' }
+  ],
+  evt_jpm: [
+    { type: 'mentions', target: 'Google DeepMind', targetId: 'ent_google' }
+  ]
+};
+
+function openRelShelf(entityId) {
+  var ent = ENTITIES[entityId];
+  if (!ent) return;
+  var shelf = document.getElementById('rel-shelf');
+  if (!shelf) return;
+
+  document.getElementById('rel-shelf-name').textContent = ent.name;
+  var typeBadge = document.getElementById('rel-shelf-type');
+  typeBadge.textContent = ent.type;
+  typeBadge.setAttribute('data-t', ent.type);
+  document.getElementById('rel-shelf-summary').textContent = ent.summary;
+
+  // Render edges
+  var edgesEl = document.getElementById('rel-shelf-edges');
+  var edges = EDGES[entityId] || [];
+  if (edges.length > 0) {
+    edgesEl.innerHTML = edges.map(function(e) {
+      return '<div class="rel-edge-row" onclick="openRelShelf(\'' + e.targetId + '\')">' +
+        '<span class="rel-edge-type" data-e="' + e.type + '">' + e.type.replace('_', ' ') + '</span>' +
+        '<span class="rel-edge-target">' + e.target + '</span>' +
+        (e.note ? '<span class="rel-edge-count">' + e.note + '</span>' : '') +
+        '</div>';
+    }).join('');
+  } else {
+    edgesEl.innerHTML = '<div style="font-size:12px;color:var(--ink-faint);padding:6px 0">No edges yet</div>';
+  }
+
+  // Render backlinks
+  var blEl = document.getElementById('rel-shelf-backlinks');
+  var bls = BACKLINKS[entityId] || [];
+  if (bls.length > 0) {
+    blEl.innerHTML = bls.map(function(bl) {
+      return '<div class="rel-edge-row">' +
+        '<span class="rel-edge-type" data-e="mentions">' + bl.fromType + '</span>' +
+        '<span class="rel-edge-target" title="' + bl.context.replace(/"/g, '&quot;') + '">' + bl.fromId + '</span>' +
+        '</div>';
+    }).join('');
+  } else {
+    blEl.innerHTML = '<div style="font-size:12px;color:var(--ink-faint);padding:6px 0">No backlinks</div>';
+  }
+
+  shelf.classList.add('open');
+  closeSearchOverlay();
+}
+
+function closeRelShelf() {
+  var shelf = document.getElementById('rel-shelf');
+  if (shelf) shelf.classList.remove('open');
+}
+
+/* ═══════════════════════════════════════════════════
+   TRACE DRAWER (on agent answer cards)
+   ═══════════════════════════════════════════════════ */
+
+function toggleTraceDrawer(btn) {
+  var card = btn.closest('.evt-agent-answer') || btn.closest('.pub-chat-msg--agent');
+  if (!card) return;
+  var drawer = card.querySelector('.trace-drawer');
+  if (drawer) {
+    drawer.classList.toggle('open');
+    btn.textContent = drawer.classList.contains('open') ? '&#9660; Hide trace' : '&#9654; Show trace';
+    return;
+  }
+  // Create trace drawer on first open
+  var traceHtml =
+    '<div class="trace-drawer open">' +
+    '<div class="trace-drawer-head">&#128270; Context Resolution</div>' +
+    '<div class="trace-step" data-status="ok"><span class="trace-step-label">FAQ lookup</span><span class="trace-step-detail">Checked 38 cached answers</span><span class="trace-step-dur">12ms</span></div>' +
+    '<div class="trace-step" data-status="cached"><span class="trace-step-label">Cache hit</span><span class="trace-step-detail">Matched: "What is the MCP auth timeline?"</span><span class="trace-step-dur">0ms</span></div>' +
+    '<div class="trace-step" data-status="ok"><span class="trace-step-label">Corpus search</span><span class="trace-step-detail">24 sources, 7 entities resolved</span><span class="trace-step-dur">180ms</span></div>' +
+    '<div class="trace-step" data-status="ok"><span class="trace-step-label">LLM generate</span><span class="trace-step-detail">gemini-2.5-flash &middot; 340 tokens</span><span class="trace-step-dur">420ms</span></div>' +
+    '<div class="trace-step" data-status="skip"><span class="trace-step-label">Private notes</span><span class="trace-step-detail">Excluded (public scope)</span><span class="trace-step-dur">&mdash;</span></div>' +
+    '<div style="font-size:10px;color:var(--ink-faint);font-family:var(--mono);padding-top:4px;border-top:1px solid var(--line-faint)">Total: 612ms &middot; Scope: public &middot; Savings: FAQ cache saved ~$0.003</div>' +
+    '</div>';
+  btn.insertAdjacentHTML('beforebegin', traceHtml);
+  btn.innerHTML = '&#9660; Hide trace';
+}
+
+/* ═══════════════════════════════════════════════════
+   FAQ PROMOTION (answer → canonical FAQ)
+   ═══════════════════════════════════════════════════ */
+
+function promoteToFaq(btn) {
+  var card = btn.closest('.evt-agent-answer') || btn.closest('.pub-chat-msg--agent');
+  btn.outerHTML = '<span class="faq-promoted-badge">&#10003; Promoted to FAQ</span>';
+  if (card) {
+    var body = card.querySelector('.evt-agent-answer-body') || card;
+    var reuse = body.querySelector('.evt-faq-reuse');
+    if (!reuse) {
+      body.insertAdjacentHTML('afterend',
+        '<div class="evt-faq-reuse" style="margin-top:4px">&#128279; Canonical FAQ &middot; reuse count: 1</div>'
+      );
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   ENHANCED MENTION PREVIEW (with graph edges)
+   ═══════════════════════════════════════════════════ */
+
+var _origOpenMention = typeof openMention === 'function' ? openMention : null;
+
+function openMention(el, evt) {
+  if (evt) evt.stopPropagation();
+  var entId = el.getAttribute('data-id');
+  var ent = ENTITIES[entId];
+  if (!ent) return;
+
+  var preview = document.querySelector('.mention-preview');
+  if (!preview) return;
+
+  // Position near the mention
+  var rect = el.getBoundingClientRect();
+  preview.style.left = Math.min(rect.left, window.innerWidth - 340) + 'px';
+  preview.style.top = (rect.bottom + 6) + 'px';
+
+  // Build enhanced content with edges
+  var edges = EDGES[entId] || [];
+  var bls = BACKLINKS[entId] || [];
+
+  var edgesHtml = '';
+  if (edges.length > 0) {
+    edgesHtml = '<div class="mp-edges">' +
+      edges.slice(0, 3).map(function(e) {
+        return '<div class="mp-edge"><span class="mp-edge-type">' + e.type.replace('_', ' ') + '</span><span class="mp-edge-target">' + e.target + '</span></div>';
+      }).join('') +
+      (edges.length > 3 ? '<div style="font-size:10px;color:var(--ink-faint)">+' + (edges.length - 3) + ' more edges</div>' : '') +
+      '</div>';
+  }
+
+  var statsHtml = '<div class="mp-stats">' +
+    '<span><span class="mp-stat-val">' + edges.length + '</span> edges</span>' +
+    '<span><span class="mp-stat-val">' + bls.length + '</span> backlinks</span>' +
+    '</div>';
+
+  preview.innerHTML =
+    '<div class="mp-name">' + ent.name + '</div>' +
+    '<div class="mp-type">' + ent.type + '</div>' +
+    '<div class="mp-summary">' + ent.summary + '</div>' +
+    edgesHtml +
+    statsHtml +
+    '<div class="mp-actions">' +
+    '<button class="btn-ghost" type="button" onclick="openRelShelf(\'' + entId + '\');closeMentionPreview()">&#128279; Relationships</button>' +
+    '<button class="btn-ghost" type="button" onclick="closeMentionPreview()">Close</button>' +
+    '</div>';
+
+  preview.classList.add('visible');
+}
+
+function closeMentionPreview() {
+  var preview = document.querySelector('.mention-preview');
+  if (preview) preview.classList.remove('visible');
+}
+
+function openMentionById(entId) {
+  openRelShelf(entId);
+}
+
+// Close mention preview on click outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.mention-preview') && !e.target.closest('.mention')) {
+    closeMentionPreview();
+  }
+});
+
+/* ═══════════════════════════════════════════════════
+   ENHANCED PUB CHAT (threading + trace + FAQ promote)
+   ═══════════════════════════════════════════════════ */
+
+var _origPubSendChat = pubSendChat;
+
+function pubSendChat() {
+  var input = document.getElementById('pub-chat-input');
+  if (!input) return;
+  var text = input.innerText.trim();
+  if (!text) return;
+  var name = window._pubGuestName || 'You';
+  var feed = document.getElementById('pub-chat-feed');
+  if (!feed) return;
+
+  var isAsk = text.toLowerCase().startsWith('/ask ') || text.indexOf('@ScratchNode') !== -1;
+  var cleanText = text.replace(/^\/ask\s+/i, '').replace(/@ScratchNode/g, '').trim();
+
+  // Check for reply context
+  var replyHtml = '';
+  if (window._replyTo) {
+    replyHtml = '<div class="pub-chat-reply-chip">replying to ' + window._replyTo + '</div>';
+    window._replyTo = null;
+  }
+
+  var html = '<div class="pub-chat-msg">' +
+    replyHtml +
+    '<span class="pub-chat-name">' + name + '</span>' +
+    '<span class="pub-chat-text">' + text.replace(/</g, '&lt;') + '</span>' +
+    '<span class="pub-chat-time">just now</span></div>';
+  feed.insertAdjacentHTML('beforeend', html);
+
+  if (isAsk) {
+    setTimeout(function() {
+      var agentHtml = '<div class="pub-chat-msg pub-chat-msg--agent">' +
+        '<span class="pub-chat-name">&#129302; ScratchNode</span>' +
+        '<span class="pub-chat-text">Looking into: "' + cleanText.replace(/</g, '&lt;') + '"...<br><br>' +
+        'Based on event corpus and 24 sources, here is what I found. This answer is now available in the Q&amp;A section.</span>' +
+        '<span class="pub-chat-time">just now</span>' +
+        '<div style="display:flex;gap:6px;margin-top:4px">' +
+        '<button class="trace-toggle" type="button" onclick="toggleTraceDrawer(this)">&#9654; Show trace</button>' +
+        '<button class="faq-promote-btn" type="button" onclick="promoteToFaq(this)">&#9733; Promote to FAQ</button>' +
+        '</div></div>';
+      feed.insertAdjacentHTML('beforeend', agentHtml);
+      feed.scrollTop = feed.scrollHeight;
+    }, 1200);
+  }
+
+  input.innerText = '';
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function pubReplyTo(name) {
+  window._replyTo = name;
+  var input = document.getElementById('pub-chat-input');
+  if (input) {
+    input.focus();
+    input.setAttribute('data-placeholder', 'Replying to ' + name + '...');
+  }
 }
 
 /* ── Keyboard shortcuts ── */
@@ -4818,6 +5416,8 @@ document.addEventListener('keydown', function(e) {
     closeWizard();
     closeHostConsole();
     hideGuestJoinModal();
+    closeRelShelf();
+    closeMentionPreview();
   }
 });
 
