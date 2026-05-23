@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NodeBench v4 — Notebook + Artifacts + Chat</title>
+<title>ScratchNode v4 — Notebook + Artifacts + Chat</title>
 <style>
 /* ═══════════════════════════════════════════════════
    TOKENS
@@ -1165,6 +1165,372 @@ input { font-family: var(--ui); }
   border-top: 1px solid var(--line-faint); margin-top: 8px; flex-wrap: wrap;
 }
 
+/* ═══════════════════════════════════════════════════
+   PUBLIC EVENT PAGE — viral entry (/e/:slug)
+   ═══════════════════════════════════════════════════ */
+.pub-page {
+  display: none; min-height: 100vh; background: var(--bg);
+  color: var(--ink); font-family: var(--ui);
+}
+.shell[data-view="public"] .pub-page { display: block; }
+.shell[data-view="public"] .topbar,
+.shell[data-view="public"] .workspace,
+.shell[data-view="public"] .mobile-bottom-nav,
+.shell[data-view="public"] .bl-drawer,
+.shell[data-view="public"] .mention-preview { display: none; }
+.pub-topbar {
+  display: flex; align-items: center; gap: 12px; padding: 10px 24px;
+  border-bottom: 1px solid var(--line-faint); background: var(--panel);
+}
+.pub-topbar-logo { font-weight: 800; font-size: 16px; color: var(--ink); letter-spacing: -.02em; }
+.pub-topbar-logo span { color: var(--accent); }
+.pub-topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.pub-hero {
+  padding: 32px 24px 24px; max-width: 1200px; margin: 0 auto;
+  border-bottom: 1px solid var(--line-faint);
+}
+.pub-hero-title { font-size: 28px; font-weight: 800; margin: 0 0 4px; letter-spacing: -.03em; }
+.pub-hero-badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px;
+  border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; margin-left: 8px; vertical-align: middle;
+}
+.pub-hero-badge.live { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.25); }
+.pub-hero-badge.scheduled { background: rgba(91,155,245,.1); color: var(--blue); border: 1px solid rgba(91,155,245,.2); }
+.pub-hero-badge.ended { background: rgba(228,197,103,.1); color: var(--yellow); border: 1px solid rgba(228,197,103,.2); }
+.pub-hero-badge.published { background: rgba(138,133,126,.1); color: var(--ink-muted); border: 1px solid rgba(138,133,126,.2); }
+.pub-hero-badge.archived { background: rgba(138,133,126,.06); color: var(--ink-faint); border: 1px solid rgba(138,133,126,.15); }
+.pub-hero-stats {
+  display: flex; gap: 16px; margin-top: 8px; font-size: 13px;
+  color: var(--ink-muted); font-family: var(--mono);
+}
+.pub-hero-stats strong { color: var(--ink); font-weight: 700; }
+.pub-hero-cta { display: flex; gap: 8px; margin-top: 14px; }
+.pub-hero-cta .btn-primary {
+  padding: 8px 20px; background: var(--accent); color: #fff; border: none;
+  border-radius: var(--radius); font-weight: 700; font-size: 13px; cursor: pointer;
+  font-family: var(--ui);
+}
+.pub-hero-cta .btn-primary:hover { filter: brightness(1.1); }
+.pub-hero-cta .btn-outline {
+  padding: 8px 16px; background: none; color: var(--ink-muted);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  font-weight: 600; font-size: 13px; cursor: pointer; font-family: var(--ui);
+}
+.pub-hero-cta .btn-outline:hover { border-color: var(--ink-faint); color: var(--ink); }
+.pub-layout {
+  display: grid; grid-template-columns: 200px 1fr 300px; gap: 0;
+  max-width: 1200px; margin: 0 auto; min-height: calc(100vh - 200px);
+}
+.pub-index {
+  padding: 16px 12px; border-right: 1px solid var(--line-faint);
+  font-size: 12px; position: sticky; top: 0; align-self: start;
+}
+.pub-index-section { margin-bottom: 14px; }
+.pub-index-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--ink-faint); margin-bottom: 6px; font-weight: 600;
+}
+.pub-index-item {
+  padding: 5px 8px; border-radius: var(--radius-sm); cursor: pointer;
+  color: var(--ink-muted); transition: background .1s;
+}
+.pub-index-item:hover { background: var(--glass-bg); color: var(--ink); }
+.pub-index-item.active { color: var(--accent); background: rgba(217,119,87,.06); }
+.pub-content { padding: 20px 24px; overflow-y: auto; }
+.pub-content-section { margin-bottom: 24px; }
+.pub-section-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .15em;
+  color: var(--ink-faint); margin-bottom: 10px; font-weight: 600;
+}
+.pub-faq-card {
+  padding: 14px; border: 1px solid var(--glass-border); border-radius: var(--radius);
+  background: var(--glass-bg); margin-bottom: 10px;
+}
+.pub-faq-q { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+.pub-faq-a { font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
+.pub-faq-meta {
+  display: flex; gap: 10px; margin-top: 8px; font-size: 10px;
+  font-family: var(--mono); color: var(--ink-faint);
+}
+.pub-faq-actions { display: flex; gap: 6px; margin-top: 8px; }
+.pub-chat-rail {
+  border-left: 1px solid var(--line-faint); display: flex;
+  flex-direction: column; font-size: 12px;
+}
+.pub-chat-header {
+  padding: 12px; border-bottom: 1px solid var(--line-faint);
+  font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px;
+}
+.pub-chat-feed { flex: 1; overflow-y: auto; padding: 8px 10px; }
+.pub-chat-composer {
+  padding: 8px 10px; border-top: 1px solid var(--line-faint);
+  display: flex; gap: 6px; align-items: center;
+}
+.pub-chat-composer input {
+  flex: 1; background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm); padding: 6px 10px; color: var(--ink);
+  font-size: 12px; font-family: var(--ui); outline: none;
+}
+.pub-chat-composer input:focus { border-color: var(--accent); }
+.pub-chat-msg {
+  font-size: 12px; line-height: 1.5; padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+.pub-chat-msg:hover { background: var(--glass-bg); }
+.pub-chat-name { font-weight: 600; color: var(--ink); margin-right: 6px; font-size: 11px; }
+.pub-chat-text { color: var(--ink-secondary); }
+.pub-chat-time {
+  display: block; font-size: 9px; color: var(--ink-faint);
+  font-family: var(--mono); margin-top: 2px;
+}
+.pub-chat-msg--agent {
+  background: rgba(217,119,87,.06); border: 1px solid rgba(217,119,87,.12);
+}
+.pub-chat-msg--agent .pub-chat-name { color: var(--accent); }
+.pub-chat-input {
+  flex: 1; min-height: 20px; max-height: 80px; overflow-y: auto;
+  font-size: 13px; color: var(--ink); font-family: var(--ui);
+  outline: none; padding: 2px 0; background: none; border: none;
+}
+.pub-chat-input:empty::before {
+  content: attr(data-placeholder); color: var(--ink-faint);
+}
+
+/* ── Guest join modal ── */
+.pub-join-modal {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.6); backdrop-filter: blur(6px);
+  align-items: center; justify-content: center;
+}
+.pub-join-modal.active { display: flex; }
+.pub-join-dialog {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; padding: 28px 32px; width: 380px; max-width: 90vw;
+}
+.pub-join-dialog h2 { font-size: 18px; margin: 0 0 16px; font-weight: 700; }
+.pub-join-field { margin-bottom: 14px; }
+.pub-join-field label { display: block; font-size: 11px; color: var(--ink-faint); margin-bottom: 4px; font-weight: 600; }
+.pub-join-field input {
+  width: 100%; box-sizing: border-box; padding: 8px 12px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm); color: var(--ink); font-size: 13px;
+  font-family: var(--ui); outline: none;
+}
+.pub-join-field input:focus { border-color: var(--accent); }
+.pub-join-perms { margin: 14px 0; font-size: 12px; color: var(--ink-muted); line-height: 1.6; }
+.pub-join-perms .yes { color: var(--green); }
+.pub-join-perms .later { color: var(--ink-faint); }
+
+/* ═══════════════════════════════════════════════════
+   HOST CREATE SESSION WIZARD
+   ═══════════════════════════════════════════════════ */
+.wiz-overlay {
+  display: none; position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,.7); backdrop-filter: blur(8px);
+  align-items: center; justify-content: center;
+}
+.wiz-overlay.active { display: flex; }
+.wiz-dialog {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; width: 520px; max-width: 92vw; max-height: 88vh;
+  display: flex; flex-direction: column;
+}
+.wiz-header {
+  padding: 20px 24px 0; display: flex; align-items: center; gap: 12px;
+}
+.wiz-header h2 { font-size: 18px; font-weight: 700; margin: 0; flex: 1; }
+.wiz-steps {
+  display: flex; gap: 4px; padding: 12px 24px;
+}
+.wiz-step-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--line);
+  transition: background .2s;
+}
+.wiz-step-dot.active { background: var(--accent); }
+.wiz-step-dot.done { background: var(--green); }
+.wiz-body { padding: 0 24px 16px; flex: 1; overflow-y: auto; }
+.wiz-step-panel { display: none; }
+.wiz-step-panel.active { display: block; }
+.wiz-field { margin-bottom: 14px; }
+.wiz-field label {
+  display: block; font-size: 11px; color: var(--ink-faint);
+  margin-bottom: 4px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.wiz-field input, .wiz-field textarea, .wiz-field select {
+  width: 100%; box-sizing: border-box; padding: 8px 12px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm); color: var(--ink); font-size: 13px;
+  font-family: var(--ui); outline: none;
+}
+.wiz-field input:focus, .wiz-field textarea:focus { border-color: var(--accent); }
+.wiz-field textarea { resize: vertical; min-height: 60px; }
+.wiz-radio-group { display: flex; flex-direction: column; gap: 6px; }
+.wiz-radio {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  border-radius: var(--radius-sm); cursor: pointer; font-size: 12px;
+}
+.wiz-radio:hover { background: var(--glass-bg); }
+.wiz-radio input[type="radio"] { accent-color: var(--accent); }
+.wiz-check { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 6px; }
+.wiz-check input[type="checkbox"] { accent-color: var(--accent); }
+.wiz-footer {
+  padding: 12px 24px; border-top: 1px solid var(--line-faint);
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+.wiz-launch-card {
+  text-align: center; padding: 20px; border: 1px solid var(--glass-border);
+  border-radius: var(--radius); background: var(--glass-bg); margin-top: 12px;
+}
+.wiz-launch-card .url {
+  font-family: var(--mono); font-size: 14px; color: var(--accent);
+  font-weight: 600; margin: 8px 0;
+}
+.wiz-launch-card .code {
+  font-family: var(--mono); font-size: 20px; letter-spacing: .15em;
+  font-weight: 700; color: var(--ink); margin: 8px 0;
+}
+.wiz-qr {
+  width: 120px; height: 120px; background: #fff; border-radius: 8px;
+  margin: 12px auto; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: #333; font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════
+   HOST CONSOLE
+   ═══════════════════════════════════════════════════ */
+.hcon-header {
+  display: flex; align-items: center; gap: 16px; padding: 12px 0;
+  border-bottom: 1px solid var(--line-faint); margin-bottom: 16px; flex-wrap: wrap;
+}
+.hcon-header h2 { font-size: 16px; font-weight: 700; margin: 0; }
+.hcon-metrics { display: flex; gap: 12px; margin-left: auto; }
+.hcon-metric {
+  font-size: 11px; font-family: var(--mono); color: var(--ink-muted);
+  padding: 4px 10px; background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+}
+.hcon-metric strong { color: var(--ink); }
+.hcon-layout {
+  display: grid; grid-template-columns: 260px 1fr 260px; gap: 16px;
+}
+.hcon-panel {
+  border: 1px solid var(--glass-border); border-radius: var(--radius);
+  background: var(--glass-bg); overflow: hidden;
+}
+.hcon-panel-title {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--ink-faint); padding: 10px 12px; border-bottom: 1px solid var(--line-faint);
+  font-weight: 600;
+}
+.hcon-queue-item {
+  padding: 8px 12px; border-bottom: 1px solid var(--line-faint);
+  font-size: 12px; cursor: pointer; transition: background .1s;
+}
+.hcon-queue-item:hover { background: rgba(217,119,87,.04); }
+.hcon-queue-item:last-child { border-bottom: none; }
+.hcon-queue-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 9px; font-weight: 700; font-family: var(--mono);
+}
+.hcon-actions { display: flex; gap: 6px; margin-top: 6px; }
+
+/* ═══════════════════════════════════════════════════
+   EVENT LIFECYCLE STATES
+   ═══════════════════════════════════════════════════ */
+.evt-state-banner {
+  padding: 12px 16px; border-radius: var(--radius); margin-bottom: 16px;
+  display: none; flex-direction: column; gap: 6px; font-size: 12px;
+}
+.evt-state-banner.active { display: flex; }
+.evt-state-banner[data-state="scheduled"] { background: rgba(91,155,245,.06); border: 1px solid rgba(91,155,245,.15); }
+.evt-state-banner[data-state="live"] { background: rgba(74,222,128,.06); border: 1px solid rgba(74,222,128,.15); }
+.evt-state-banner[data-state="closing"] { background: rgba(228,197,103,.06); border: 1px solid rgba(228,197,103,.15); }
+.evt-state-banner[data-state="compacting"] { background: rgba(91,155,245,.06); border: 1px solid rgba(91,155,245,.15); }
+.evt-state-banner[data-state="published"] { background: rgba(138,133,126,.06); border: 1px solid rgba(138,133,126,.15); }
+.evt-state-banner[data-state="archived"] { background: rgba(138,133,126,.04); border: 1px solid rgba(138,133,126,.1); }
+.evt-state-head { font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.evt-state-body { color: var(--ink-muted); line-height: 1.5; }
+.evt-state-actions { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.evt-compact-progress {
+  padding: 16px; margin-bottom: 16px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+}
+.evt-compact-bar {
+  height: 6px; background: var(--line); border-radius: 3px; overflow: hidden;
+}
+.evt-compact-bar-fill {
+  height: 100%; background: var(--accent); border-radius: 3px;
+  transition: width .6s ease;
+}
+
+/* ═══════════════════════════════════════════════════
+   SEARCH DROPDOWN
+   ═══════════════════════════════════════════════════ */
+.search-overlay {
+  display: none; position: fixed; inset: 0; z-index: 250;
+  background: rgba(0,0,0,.5); backdrop-filter: blur(4px);
+}
+.search-overlay.active { display: block; }
+.search-dialog {
+  position: absolute; top: 56px; left: 50%; transform: translateX(-50%);
+  width: 560px; max-width: 90vw; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.4); overflow: hidden;
+}
+.search-input-wrap { padding: 12px 16px; border-bottom: 1px solid var(--line-faint); }
+.search-input-wrap input {
+  width: 100%; background: none; border: none; color: var(--ink);
+  font-size: 15px; font-family: var(--ui); outline: none;
+}
+.search-results { max-height: 420px; overflow-y: auto; padding: 8px 0; }
+.search-group { padding: 0 8px; margin-bottom: 6px; }
+.search-group-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--ink-faint); padding: 6px 8px; font-weight: 600;
+}
+.search-result-item {
+  padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer;
+  display: flex; align-items: center; gap: 8px; font-size: 13px;
+  transition: background .1s;
+}
+.search-result-item:hover { background: var(--glass-bg); }
+.search-result-item .type-badge {
+  font-size: 9px; padding: 1px 6px; border-radius: 3px;
+  background: var(--glass-bg); color: var(--ink-faint); font-family: var(--mono);
+}
+
+/* ═══════════════════════════════════════════════════
+   MOBILE ENHANCEMENTS
+   ═══════════════════════════════════════════════════ */
+.mob-bottom-nav {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--panel); border-top: 1px solid var(--line);
+  padding: 6px 0 env(safe-area-inset-bottom, 4px); z-index: 100;
+  justify-content: space-around;
+}
+.mob-bottom-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 4px 12px; border: none; background: none; color: var(--ink-faint);
+  font-size: 9px; font-family: var(--ui); cursor: pointer; font-weight: 600;
+}
+.mob-bottom-btn.active { color: var(--accent); }
+.mob-bottom-btn .icon { font-size: 18px; }
+
+/* ── Public page mobile ── */
+@media (max-width: 900px) {
+  .pub-layout { grid-template-columns: 1fr; }
+  .pub-index { display: none; }
+  .pub-chat-rail { border-left: none; border-top: 1px solid var(--line-faint); }
+  .pub-hero { padding: 20px 16px; }
+  .pub-hero-title { font-size: 22px; }
+  .hcon-layout { grid-template-columns: 1fr; }
+  .wiz-dialog { width: 100%; max-width: 100vw; border-radius: 12px 12px 0 0; }
+  .mob-bottom-nav { display: flex; }
+}
+
 @media (max-width: 1100px) {
   :root { --right-w: 320px; }
 }
@@ -1198,16 +1564,300 @@ input { font-family: var(--ui); }
      ═══════════════════════════════════════════════════ -->
 <div class="shell" data-mode="notebook">
 
+<!-- ═══════════════════════════════════════════════════
+     PUBLIC EVENT PAGE (/e/:slug) — viral entry point
+     Visible when shell has data-view="public"
+     ═══════════════════════════════════════════════════ -->
+<div class="pub-page" id="pub-page">
+
+  <!-- Public topbar -->
+  <div class="pub-topbar">
+    <div class="topbar-logo">Scratch<span>Node</span></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn-ghost" onclick="openSearchOverlay()" aria-label="Search" type="button" style="font-size:13px">&#128269; Search</button>
+      <button class="btn-sm" onclick="hidePublicEventPage()" type="button">Sign in</button>
+    </div>
+  </div>
+
+  <!-- Event state banner (dynamic per lifecycle) -->
+  <div class="evt-state-banner" id="pub-state-banner" data-state="live">
+    <div class="evt-state-head">
+      <span class="evt-state-icon" id="pub-state-icon">&#9889;</span>
+      <span id="pub-state-label">LIVE NOW</span>
+    </div>
+    <div class="evt-state-body" id="pub-state-body">400+ attendees are in this session right now. Ask questions, chat, and explore the wiki.</div>
+  </div>
+
+  <!-- Hero -->
+  <div class="pub-hero">
+    <h1 class="pub-hero-title">AI Infra Summit 2026</h1>
+    <div class="pub-hero-stats">
+      <span>&#128101; 412 attendees</span>
+      <span>&#10067; 1,204 questions</span>
+      <span>&#9889; 82% cache hit</span>
+      <span>&#128196; 24 sources</span>
+    </div>
+    <div class="pub-hero-cta">
+      <button class="btn-primary" onclick="showGuestJoinModal()" type="button">Join as Guest</button>
+      <button class="btn-sm" onclick="pubAskAgent()" type="button" title="Ask the event agent a question">&#129302; Ask Agent</button>
+      <button class="btn-sm" onclick="pubShareEvent()" type="button">&#128279; Share</button>
+    </div>
+  </div>
+
+  <!-- Three-column layout -->
+  <div class="pub-layout">
+
+    <!-- Left: Index / TOC -->
+    <aside class="pub-index" aria-label="Event index">
+      <div class="left-section-label">Event Index</div>
+      <div class="left-item active" onclick="pubScrollTo('ntk')">&#128220; Need to Know</div>
+      <div class="left-item" onclick="pubScrollTo('changes')">&#128260; What Changed</div>
+      <div class="left-item" onclick="pubScrollTo('qa')">&#10067; Q&amp;A <span class="left-item-badge">38</span></div>
+      <div class="left-item" onclick="pubScrollTo('people')">&#128100; People <span class="left-item-badge">12</span></div>
+      <div class="left-item" onclick="pubScrollTo('companies')">&#127970; Companies <span class="left-item-badge">8</span></div>
+      <div class="left-item" onclick="pubScrollTo('topics')">&#128278; Topics <span class="left-item-badge">5</span></div>
+      <div class="left-item" onclick="pubScrollTo('sources')">&#128279; Sources <span class="left-item-badge">24</span></div>
+      <div style="border-top:1px solid var(--line-faint);margin:12px 0;padding-top:12px">
+        <div class="left-section-label">Host</div>
+        <div class="left-item" style="font-size:12px">&#128100; Homen Shum</div>
+        <div class="left-item" style="font-size:11px;color:var(--ink-faint)">Created May 20, 2026</div>
+      </div>
+    </aside>
+
+    <!-- Center: Wiki content + FAQ -->
+    <div class="pub-content" id="pub-content">
+
+      <!-- Need to Know -->
+      <section id="pub-ntk">
+        <h2 style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--ink)">Need to Know</h2>
+        <div style="font-size:13px;line-height:1.7;color:var(--ink-secondary)">
+          <p style="margin-bottom:10px"><strong>MCP Protocol adoption</strong> reached a tipping point: 34% of Fortune 500 have evaluated it, and Anthropic confirmed an auth standard for Q3 2026. This changes how agent tooling gets distributed.</p>
+          <p style="margin-bottom:10px"><strong>Voice-agent eval</strong> is the breakout theme. Orbital Labs (Series A just closed) is building eval infra for voice agents, with healthcare design partners already in pipeline.</p>
+          <p><strong>Enterprise repricing</strong>: Anthropic's enterprise tier repriced +40%, signaling confidence in their positioning and willingness to compete on value, not volume.</p>
+        </div>
+      </section>
+
+      <!-- What Changed -->
+      <section id="pub-changes" style="margin-top:24px">
+        <h2 style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--ink)">What Changed</h2>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:13px;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:var(--ink-secondary)">
+            <span style="color:var(--accent);font-weight:600">&#9650; New</span> &mdash; Orbital Labs confirmed healthcare pilot with 2 hospital systems
+          </div>
+          <div style="font-size:13px;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:var(--ink-secondary)">
+            <span style="color:var(--green);font-weight:600">&#10003; Updated</span> &mdash; MCP auth timeline moved from "H2 2026" to "Q3 2026" (firmer commitment)
+          </div>
+          <div style="font-size:13px;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:var(--ink-secondary)">
+            <span style="color:var(--yellow);font-weight:600">&#9888; Watch</span> &mdash; Google DeepMind building MCP-compatible tooling; potential competitive pressure
+          </div>
+        </div>
+      </section>
+
+      <!-- Q&A / FAQ -->
+      <section id="pub-qa" style="margin-top:24px">
+        <h2 style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--ink)">Q&amp;A <span style="font-size:12px;font-weight:400;color:var(--ink-faint)">(38 questions, 12 promoted to FAQ)</span></h2>
+
+        <div class="pub-faq-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="font-size:13px;font-weight:600;color:var(--ink)">What is the MCP auth timeline?</div>
+            <span style="font-size:9px;padding:2px 6px;background:rgba(74,222,128,.12);color:var(--green);border-radius:3px;font-family:var(--mono)">FAQ</span>
+          </div>
+          <div style="font-size:12px;line-height:1.6;color:var(--ink-secondary);margin-top:6px">Anthropic confirmed Q3 2026 for the MCP auth standard. This will enable secure, scoped tool access for enterprise deployments. Previously the timeline was vaguely "H2 2026".</div>
+          <div style="font-size:10px;color:var(--ink-faint);margin-top:6px;display:flex;gap:12px">
+            <span>&#128172; Asked 14 times</span>
+            <span>&#128077; 89% helpful</span>
+            <span>&#128279; 3 sources</span>
+          </div>
+        </div>
+
+        <div class="pub-faq-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="font-size:13px;font-weight:600;color:var(--ink)">Who is building voice-agent eval?</div>
+            <span style="font-size:9px;padding:2px 6px;background:rgba(74,222,128,.12);color:var(--green);border-radius:3px;font-family:var(--mono)">FAQ</span>
+          </div>
+          <div style="font-size:12px;line-height:1.6;color:var(--ink-secondary);margin-top:6px">Orbital Labs is the primary builder. They just closed their Series A and are exploring healthcare design partners. Alex Chen (Founder/CEO) presented at the breakout session.</div>
+          <div style="font-size:10px;color:var(--ink-faint);margin-top:6px;display:flex;gap:12px">
+            <span>&#128172; Asked 8 times</span>
+            <span>&#128077; 94% helpful</span>
+            <span>&#128279; 4 sources</span>
+          </div>
+        </div>
+
+        <div class="pub-faq-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="font-size:13px;font-weight:600;color:var(--ink)">How does enterprise pricing compare now?</div>
+            <span style="font-size:9px;padding:2px 6px;background:rgba(217,119,87,.15);color:var(--accent);border-radius:3px;font-family:var(--mono)">LIVE</span>
+          </div>
+          <div style="font-size:12px;line-height:1.6;color:var(--ink-secondary);margin-top:6px">Anthropic repriced +40% on enterprise tier. Google DeepMind's MCP-compatible tooling could undercut. Detailed comparison being compiled by the agent.</div>
+          <div style="font-size:10px;color:var(--ink-faint);margin-top:6px;display:flex;gap:12px">
+            <span>&#128172; Asked 6 times</span>
+            <span>&#9203; Agent working</span>
+            <span>&#128279; 2 sources so far</span>
+          </div>
+        </div>
+
+        <button class="btn-ghost" style="margin-top:8px;font-size:12px" type="button" onclick="alert('Load 26 more questions')">Show 26 more questions &#8595;</button>
+      </section>
+
+      <!-- People -->
+      <section id="pub-people" style="margin-top:24px">
+        <h2 style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--ink)">People <span style="font-size:12px;font-weight:400;color:var(--ink-faint)">(12)</span></h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="font-size:12px;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);cursor:pointer" onclick="alert('Open Alex Chen profile')">
+            <div style="font-weight:600;color:var(--ink)">&#128100; Alex Chen</div>
+            <div style="color:var(--ink-faint);margin-top:2px">Founder, Orbital Labs</div>
+          </div>
+          <div style="font-size:12px;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);cursor:pointer" onclick="alert('Open Dario Amodei profile')">
+            <div style="font-weight:600;color:var(--ink)">&#128100; Dario Amodei</div>
+            <div style="color:var(--ink-faint);margin-top:2px">CEO, Anthropic</div>
+          </div>
+          <div style="font-size:12px;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);cursor:pointer" onclick="alert('Open Sarah Kim profile')">
+            <div style="font-weight:600;color:var(--ink)">&#128100; Sarah Kim</div>
+            <div style="color:var(--ink-faint);margin-top:2px">VP Eng, Google DeepMind</div>
+          </div>
+          <div style="font-size:12px;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);cursor:pointer" onclick="alert('Open more people')">
+            <div style="font-weight:500;color:var(--ink-faint)">+9 more people</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Companies -->
+      <section id="pub-companies" style="margin-top:24px">
+        <h2 style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--ink)">Companies <span style="font-size:12px;font-weight:400;color:var(--ink-faint)">(8)</span></h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="font-size:12px;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);cursor:pointer" onclick="alert('Open Orbital Labs')">
+            <div style="font-weight:600;color:var(--ink)">&#127970; Orbital Labs</div>
+            <div style="color:var(--ink-faint);margin-top:2px">Voice-agent eval infra</div>
+          </div>
+          <div style="font-size:12px;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);cursor:pointer" onclick="alert('Open Anthropic')">
+            <div style="font-weight:600;color:var(--ink)">&#127970; Anthropic</div>
+            <div style="color:var(--ink-faint);margin-top:2px">AI safety, Claude, MCP</div>
+          </div>
+          <div style="font-size:12px;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);cursor:pointer" onclick="alert('Open Google DeepMind')">
+            <div style="font-weight:600;color:var(--ink)">&#127970; Google DeepMind</div>
+            <div style="color:var(--ink-faint);margin-top:2px">AI research, MCP tooling</div>
+          </div>
+          <div style="font-size:12px;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);cursor:pointer" onclick="alert('Open more companies')">
+            <div style="font-weight:500;color:var(--ink-faint)">+5 more companies</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Topics -->
+      <section id="pub-topics" style="margin-top:24px">
+        <h2 style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--ink)">Topics <span style="font-size:12px;font-weight:400;color:var(--ink-faint)">(5)</span></h2>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <span style="font-size:11px;padding:4px 10px;background:rgba(217,119,87,.1);color:var(--accent);border:1px solid rgba(217,119,87,.2);border-radius:12px;cursor:pointer" onclick="alert('Filter by MCP Protocol')">MCP Protocol (34)</span>
+          <span style="font-size:11px;padding:4px 10px;background:rgba(217,119,87,.1);color:var(--accent);border:1px solid rgba(217,119,87,.2);border-radius:12px;cursor:pointer" onclick="alert('Filter by Voice Eval')">Voice Eval (18)</span>
+          <span style="font-size:11px;padding:4px 10px;background:rgba(217,119,87,.1);color:var(--accent);border:1px solid rgba(217,119,87,.2);border-radius:12px;cursor:pointer" onclick="alert('Filter by Enterprise Pricing')">Enterprise Pricing (12)</span>
+          <span style="font-size:11px;padding:4px 10px;background:rgba(217,119,87,.1);color:var(--accent);border:1px solid rgba(217,119,87,.2);border-radius:12px;cursor:pointer" onclick="alert('Filter by Healthcare AI')">Healthcare AI (8)</span>
+          <span style="font-size:11px;padding:4px 10px;background:rgba(217,119,87,.1);color:var(--accent);border:1px solid rgba(217,119,87,.2);border-radius:12px;cursor:pointer" onclick="alert('Filter by Agent Trust')">Agent Trust (6)</span>
+        </div>
+      </section>
+
+      <!-- Sources -->
+      <section id="pub-sources" style="margin-top:24px;padding-bottom:40px">
+        <h2 style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--ink)">Sources <span style="font-size:12px;font-weight:400;color:var(--ink-faint)">(24)</span></h2>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:12px;padding:8px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);display:flex;justify-content:space-between;align-items:center">
+            <span style="color:var(--ink)">&#128279; anthropic.com/blog/mcp-update</span>
+            <span style="font-size:10px;color:var(--ink-faint)">cited 14x</span>
+          </div>
+          <div style="font-size:12px;padding:8px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);display:flex;justify-content:space-between;align-items:center">
+            <span style="color:var(--ink)">&#128279; techcrunch.com/orbital-labs-series-a</span>
+            <span style="font-size:10px;color:var(--ink-faint)">cited 8x</span>
+          </div>
+          <div style="font-size:12px;padding:8px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);display:flex;justify-content:space-between;align-items:center">
+            <span style="color:var(--ink)">&#128279; deepmind.google/mcp-tools</span>
+            <span style="font-size:10px;color:var(--ink-faint)">cited 5x</span>
+          </div>
+          <button class="btn-ghost" style="font-size:11px;align-self:flex-start" type="button" onclick="alert('Show all 24 sources')">Show all 24 sources &#8595;</button>
+        </div>
+      </section>
+
+    </div><!-- /pub-content -->
+
+    <!-- Right: Live Chat Rail -->
+    <aside class="pub-chat-rail" aria-label="Live event chat">
+      <div style="padding:10px 12px;border-bottom:1px solid var(--line-faint);display:flex;justify-content:space-between;align-items:center">
+        <div class="left-section-label" style="margin:0">Live Chat</div>
+        <span style="font-size:10px;color:var(--green);font-family:var(--mono)">&#9679; 412 online</span>
+      </div>
+      <div id="pub-chat-feed" style="flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px">
+        <div class="pub-chat-msg">
+          <span class="pub-chat-name">Alex C.</span>
+          <span class="pub-chat-text">Great panel on MCP auth. Q3 timeline is more specific than I expected.</span>
+          <span class="pub-chat-time">2m ago</span>
+        </div>
+        <div class="pub-chat-msg">
+          <span class="pub-chat-name">Sarah K.</span>
+          <span class="pub-chat-text">We're building MCP-compatible tooling at DeepMind. Would love to connect with other implementers.</span>
+          <span class="pub-chat-time">3m ago</span>
+        </div>
+        <div class="pub-chat-msg pub-chat-msg--agent">
+          <span class="pub-chat-name">&#129302; ScratchNode</span>
+          <span class="pub-chat-text">Based on 14 similar questions: MCP auth standard is confirmed for Q3 2026, enabling scoped tool access for enterprise. <a href="#" onclick="event.preventDefault();pubScrollTo('qa')" style="color:var(--accent)">See full FAQ &#8599;</a></span>
+          <span class="pub-chat-time">4m ago</span>
+        </div>
+        <div class="pub-chat-msg">
+          <span class="pub-chat-name">Jamie L.</span>
+          <span class="pub-chat-text">/ask What companies are building voice-agent eval infrastructure?</span>
+          <span class="pub-chat-time">5m ago</span>
+        </div>
+        <div class="pub-chat-msg">
+          <span class="pub-chat-name">Priya M.</span>
+          <span class="pub-chat-text">The enterprise pricing comparison would be super useful. Anyone have hard numbers?</span>
+          <span class="pub-chat-time">7m ago</span>
+        </div>
+        <div class="pub-chat-msg pub-chat-msg--agent">
+          <span class="pub-chat-name">&#129302; ScratchNode</span>
+          <span class="pub-chat-text">Orbital Labs (founded by Alex Chen) is the primary builder in voice-agent eval. Series A just closed, exploring healthcare design partners. <a href="#" onclick="event.preventDefault();alert('View full answer')" style="color:var(--accent)">Full answer &#8599;</a></span>
+          <span class="pub-chat-time">5m ago</span>
+        </div>
+      </div>
+      <div class="pub-chat-composer" id="pub-chat-composer">
+        <div contenteditable="true" id="pub-chat-input" class="pub-chat-input" data-placeholder="Chat or /ask the agent..." role="textbox" aria-label="Event chat message"></div>
+        <button onclick="pubSendChat()" type="button" aria-label="Send message" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:16px;padding:4px 8px">&#10148;</button>
+      </div>
+    </aside>
+
+  </div><!-- /pub-layout -->
+</div><!-- /pub-page -->
+
+<!-- GUEST JOIN MODAL -->
+<div class="pub-join-modal" id="pub-join-modal" role="dialog" aria-modal="true" aria-label="Join event">
+  <div class="pub-join-dialog">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;color:var(--ink)">Join AI Infra Summit</h3>
+    <p style="font-size:12px;color:var(--ink-secondary);margin-bottom:16px">No account needed. Pick a display name and start chatting.</p>
+    <div class="pub-join-field">
+      <label for="pub-join-name" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-faint);font-weight:600">Display name</label>
+      <input type="text" id="pub-join-name" placeholder="How should others see you?" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--ink);font-size:13px;font-family:var(--ui);margin-top:4px">
+    </div>
+    <div class="pub-join-perms">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-secondary);cursor:pointer">
+        <input type="checkbox" checked> Show my messages to other guests
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-secondary);cursor:pointer">
+        <input type="checkbox" checked> Allow agent to cite my questions in FAQ
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn-primary" onclick="pubJoinAsGuest()" type="button" style="flex:1">Join Event</button>
+      <button class="btn-ghost" onclick="hideGuestJoinModal()" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOPBAR -->
 <header class="topbar">
-  <div class="topbar-logo">Node<span>Bench</span></div>
+  <div class="topbar-logo">Scratch<span>Node</span></div>
   <nav class="topbar-nav" role="tablist" aria-label="Main navigation">
     <button role="tab" class="active" aria-selected="true" onclick="switchMode('notebook')">Notebook</button>
     <button role="tab" aria-selected="false" onclick="switchMode('artifacts')">Artifacts</button>
     <button role="tab" aria-selected="false" onclick="switchMode('chat')">Chat</button>
   </nav>
   <div class="topbar-actions">
-    <div class="topbar-search" onclick="document.querySelector('.left-search').focus()" aria-label="Search"><span>Search</span> <kbd>&#8984;K</kbd></div>
+    <div class="topbar-search" onclick="openSearchOverlay()" aria-label="Search"><span>Search</span> <kbd>&#8984;K</kbd></div>
     <div class="evt-context-pill" id="evt-context-pill" onclick="showNotebook('event_notebook');switchEventTab('live_chat')" title="Return to event chat">
       <span class="evt-context-pill-dot"></span>
       <span>AI Infra Summit</span>
@@ -1236,9 +1886,14 @@ input { font-family: var(--ui); }
     </div>
     <div class="left-section-label" style="margin-top:8px">Events</div>
     <div class="left-group">
-      <div class="left-item" data-nb="event_notebook" onclick="showNotebook('event_notebook')"><span class="left-item-icon">&#9889;</span> AI Infra Summit <span class="left-item-badge" style="background:rgba(74,222,128,.15);color:var(--green)">live</span></div>
+      <div class="left-item" data-nb="event_notebook" onclick="showNotebook('event_notebook')" style="position:relative"><span class="left-item-icon">&#9889;</span> AI Infra Summit <span class="left-item-badge" style="background:rgba(74,222,128,.15);color:var(--green)">live</span></div>
+      <div style="display:flex;gap:4px;padding:0 8px 4px">
+        <button class="btn-ghost" style="font-size:9px;padding:1px 6px;flex:1" type="button" onclick="showPublicEventPage()">Public page</button>
+        <button class="btn-ghost" style="font-size:9px;padding:1px 6px;flex:1" type="button" onclick="openHostConsole()">Console</button>
+      </div>
       <div class="left-item" data-nb="event_ship_demo" onclick="showNotebook('event_ship_demo')"><span class="left-item-icon">&#9889;</span> Ship Demo Day</div>
       <div class="left-item" data-nb="event_jpm" onclick="showNotebook('event_jpm')"><span class="left-item-icon">&#9889;</span> JPM Healthcare</div>
+      <button class="btn-ghost" style="font-size:10px;padding:3px 8px;margin:4px 8px;width:calc(100% - 16px)" type="button" onclick="openWizard()">+ Create event</button>
     </div>
     <div class="left-section-label" style="margin-top:8px">Companies</div>
     <div class="left-group">
@@ -1820,7 +2475,7 @@ input { font-family: var(--ui); }
       <!-- Agent answer card (example: triggered by /ask) -->
       <div class="evt-agent-answer" id="evt-agent-answer-1">
         <div class="evt-agent-answer-head">
-          <span style="font-weight:600;color:var(--accent)">NodeBench</span>
+          <span style="font-weight:600;color:var(--accent)">ScratchNode</span>
           <span style="font-size:10px;color:var(--ink-faint)">answering Sarah K.</span>
         </div>
         <div class="evt-agent-answer-body">
@@ -2289,7 +2944,7 @@ input { font-family: var(--ui); }
       <div class="chat-messages" id="chat-messages">
         <div class="chat-msg chat-msg-user"><div class="chat-bubble">Who should I follow up with first from the summit?</div></div>
         <div class="chat-msg chat-msg-agent">
-          <div class="chat-msg-label">NodeBench</div>
+          <div class="chat-msg-label">ScratchNode</div>
           <div class="chat-checkpoint"><span class="chat-checkpoint-dot"></span> Scanning event notebook &middot; 3 entities &middot; 7 backlinks &middot; 240ms</div>
         </div>
         <div class="chat-msg chat-msg-agent">
@@ -2317,7 +2972,7 @@ input { font-family: var(--ui); }
         </div>
         <div class="chat-msg chat-msg-user"><div class="chat-bubble">Create an artifact for Orbital Labs with everything we know</div></div>
         <div class="chat-msg chat-msg-agent">
-          <div class="chat-msg-label">NodeBench</div>
+          <div class="chat-msg-label">ScratchNode</div>
           <div class="chat-checkpoint"><span class="chat-checkpoint-dot"></span> Creating company artifact &middot; 4 sources &middot; 2 claims &middot; 890ms</div>
         </div>
         <div class="chat-msg chat-msg-agent">
@@ -2633,6 +3288,338 @@ input { font-family: var(--ui); }
   <div class="mobile-sheet-handle"></div>
   <div id="mobile-sheet-content"></div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════
+     HOST CREATE SESSION WIZARD (5-step overlay)
+     ═══════════════════════════════════════════════════ -->
+<div class="wiz-overlay" id="wiz-overlay" role="dialog" aria-modal="true" aria-label="Create event session">
+  <div class="wiz-dialog">
+    <div class="wiz-header">
+      <h3 style="font-size:16px;font-weight:700;color:var(--ink);margin:0">Create Event Session</h3>
+      <button class="btn-ghost" onclick="closeWizard()" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="wiz-steps" role="tablist" aria-label="Wizard steps">
+      <div class="wiz-step-dot active" data-step="1" role="tab" aria-selected="true">1</div>
+      <div class="wiz-step-dot" data-step="2" role="tab" aria-selected="false">2</div>
+      <div class="wiz-step-dot" data-step="3" role="tab" aria-selected="false">3</div>
+      <div class="wiz-step-dot" data-step="4" role="tab" aria-selected="false">4</div>
+      <div class="wiz-step-dot" data-step="5" role="tab" aria-selected="false">5</div>
+    </div>
+
+    <div class="wiz-body" id="wiz-body">
+      <!-- Step 1: Basics -->
+      <div class="wiz-step-panel active" data-wiz-step="1">
+        <div class="wiz-field">
+          <label for="wiz-title">Event title</label>
+          <input type="text" id="wiz-title" value="AI Infra Summit 2026" placeholder="e.g. Q3 Strategy Offsite">
+        </div>
+        <div class="wiz-field">
+          <label for="wiz-slug">Public URL slug</label>
+          <div style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-faint)">
+            <span>scratchnode.com/e/</span>
+            <input type="text" id="wiz-slug" value="ai-infra-summit-2026" style="flex:1" placeholder="my-event">
+          </div>
+        </div>
+        <div class="wiz-field">
+          <label for="wiz-desc">Description (optional)</label>
+          <textarea id="wiz-desc" rows="2" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--ink);font-size:13px;font-family:var(--ui);resize:vertical" placeholder="What is this event about?">SF, May 22-23. Voice-agent eval, MCP adoption, enterprise pricing.</textarea>
+        </div>
+        <div class="wiz-field">
+          <label>Event dates</label>
+          <div style="display:flex;gap:8px">
+            <input type="date" value="2026-05-22" style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--ink);font-size:12px;font-family:var(--mono)">
+            <input type="date" value="2026-05-23" style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--ink);font-size:12px;font-family:var(--mono)">
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Access -->
+      <div class="wiz-step-panel" data-wiz-step="2">
+        <div class="wiz-field">
+          <label>Who can join?</label>
+          <div class="wiz-radio-group">
+            <label class="wiz-radio"><input type="radio" name="wiz-access" value="public" checked> <strong>Public</strong> — anyone with the link can join</label>
+            <label class="wiz-radio"><input type="radio" name="wiz-access" value="code"> <strong>Code-gated</strong> — require a 6-digit access code</label>
+            <label class="wiz-radio"><input type="radio" name="wiz-access" value="invite"> <strong>Invite-only</strong> — only invited emails can join</label>
+          </div>
+        </div>
+        <div class="wiz-field">
+          <label>Guest permissions</label>
+          <label class="wiz-check"><input type="checkbox" checked> Guests can chat</label>
+          <label class="wiz-check"><input type="checkbox" checked> Guests can /ask the agent</label>
+          <label class="wiz-check"><input type="checkbox"> Guests can see other guests' names</label>
+        </div>
+        <div class="wiz-field">
+          <label>After-event access</label>
+          <div class="wiz-radio-group">
+            <label class="wiz-radio"><input type="radio" name="wiz-after" value="public-wiki" checked> <strong>Public wiki</strong> — compacted event becomes a public page</label>
+            <label class="wiz-radio"><input type="radio" name="wiz-after" value="private"> <strong>Private</strong> — only you see the compacted result</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Seed Corpus -->
+      <div class="wiz-step-panel" data-wiz-step="3">
+        <div class="wiz-field">
+          <label>Seed the agent's knowledge (optional)</label>
+          <p style="font-size:11px;color:var(--ink-faint);margin-bottom:8px">Upload documents, paste URLs, or connect a notebook. The agent uses these to answer /ask questions with grounded context.</p>
+          <div style="border:2px dashed var(--line);border-radius:var(--radius-sm);padding:24px;text-align:center;color:var(--ink-faint);cursor:pointer" onclick="alert('File upload dialog')">
+            <div style="font-size:24px;margin-bottom:8px">&#128206;</div>
+            <div style="font-size:12px">Drop files here or click to upload</div>
+            <div style="font-size:10px;margin-top:4px">PDF, DOCX, TXT, MD, CSV</div>
+          </div>
+        </div>
+        <div class="wiz-field">
+          <label>Or paste URLs (one per line)</label>
+          <textarea rows="3" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--ink);font-size:12px;font-family:var(--mono);resize:vertical" placeholder="https://example.com/agenda&#10;https://example.com/speakers">https://anthropic.com/blog/mcp-update
+https://techcrunch.com/orbital-labs-series-a</textarea>
+        </div>
+        <div class="wiz-field">
+          <label>Connect existing notebook</label>
+          <div style="display:flex;gap:6px">
+            <button class="btn-ghost" style="font-size:11px" type="button" onclick="alert('Connect AI Infra Summit notebook')">&#128203; AI Infra Summit</button>
+            <button class="btn-ghost" style="font-size:11px" type="button" onclick="alert('Browse notebooks')">Browse...</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4: Agent Budget -->
+      <div class="wiz-step-panel" data-wiz-step="4">
+        <div class="wiz-field">
+          <label>Agent model</label>
+          <div class="wiz-radio-group">
+            <label class="wiz-radio"><input type="radio" name="wiz-model" value="fast" checked> <strong>Fast</strong> (Haiku 4.5) — $0.001/question, 200ms avg</label>
+            <label class="wiz-radio"><input type="radio" name="wiz-model" value="balanced"> <strong>Balanced</strong> (Sonnet 4.6) — $0.008/question, 1.2s avg</label>
+            <label class="wiz-radio"><input type="radio" name="wiz-model" value="deep"> <strong>Deep</strong> (Opus 4.7) — $0.04/question, 3s avg</label>
+          </div>
+        </div>
+        <div class="wiz-field">
+          <label>Budget cap</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:13px;color:var(--ink)">$</span>
+            <input type="number" value="25" min="1" max="1000" style="width:80px;padding:6px 10px;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--ink);font-size:13px;font-family:var(--mono)">
+            <span style="font-size:11px;color:var(--ink-faint)">Estimated: ~2,500 questions at Fast tier</span>
+          </div>
+        </div>
+        <div class="wiz-field">
+          <label>When budget is exhausted</label>
+          <div class="wiz-radio-group">
+            <label class="wiz-radio"><input type="radio" name="wiz-exhaust" value="cache" checked> <strong>Cache-only</strong> — serve cached answers, no new agent calls</label>
+            <label class="wiz-radio"><input type="radio" name="wiz-exhaust" value="stop"> <strong>Stop</strong> — disable /ask entirely</label>
+            <label class="wiz-radio"><input type="radio" name="wiz-exhaust" value="extend"> <strong>Auto-extend</strong> — add $10 increments</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 5: Launch -->
+      <div class="wiz-step-panel" data-wiz-step="5">
+        <div class="wiz-launch-card">
+          <div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:12px">Ready to launch</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:16px">
+            <div><span style="color:var(--ink-faint)">Title:</span> <strong style="color:var(--ink)">AI Infra Summit 2026</strong></div>
+            <div><span style="color:var(--ink-faint)">Access:</span> <strong style="color:var(--ink)">Public</strong></div>
+            <div><span style="color:var(--ink-faint)">Model:</span> <strong style="color:var(--ink)">Fast (Haiku 4.5)</strong></div>
+            <div><span style="color:var(--ink-faint)">Budget:</span> <strong style="color:var(--ink)">$25</strong></div>
+            <div><span style="color:var(--ink-faint)">Dates:</span> <strong style="color:var(--ink)">May 22-23, 2026</strong></div>
+            <div><span style="color:var(--ink-faint)">Corpus:</span> <strong style="color:var(--ink)">2 URLs + 1 notebook</strong></div>
+          </div>
+          <div style="font-size:12px;color:var(--ink-secondary);margin-bottom:12px">Public URL: <code style="color:var(--accent);background:var(--glass-bg);padding:2px 6px;border-radius:3px">scratchnode.com/e/ai-infra-summit-2026</code></div>
+          <div class="wiz-qr" aria-label="QR code placeholder">
+            <div style="width:100px;height:100px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--ink-faint)">QR Code</div>
+            <div style="font-size:10px;color:var(--ink-faint);margin-top:4px">Scan to join on mobile</div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /wiz-body -->
+
+    <div class="wiz-footer">
+      <button class="btn-ghost" id="wiz-back" onclick="wizPrev()" type="button" style="visibility:hidden">Back</button>
+      <div style="font-size:11px;color:var(--ink-faint)" id="wiz-step-label">Step 1 of 5</div>
+      <button class="btn-primary" id="wiz-next" onclick="wizNext()" type="button">Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     HOST CONSOLE (overlay panel for event moderation)
+     ═══════════════════════════════════════════════════ -->
+<div class="wiz-overlay" id="hcon-overlay" role="dialog" aria-modal="true" aria-label="Host console">
+  <div class="wiz-dialog" style="width:900px;max-width:92vw;max-height:90vh;overflow-y:auto">
+    <div class="hcon-header">
+      <div>
+        <h3 style="font-size:16px;font-weight:700;color:var(--ink);margin:0">Host Console</h3>
+        <div style="font-size:11px;color:var(--ink-faint);margin-top:2px">AI Infra Summit 2026</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:10px;padding:3px 8px;background:rgba(74,222,128,.12);color:var(--green);border-radius:3px;font-family:var(--mono)">LIVE</span>
+        <button class="btn-ghost" onclick="closeHostConsole()" type="button" aria-label="Close">&times;</button>
+      </div>
+    </div>
+
+    <!-- Metrics strip -->
+    <div class="hcon-metrics">
+      <div class="hcon-metric">
+        <div class="hcon-metric-val">412</div>
+        <div class="hcon-metric-label">Attendees</div>
+      </div>
+      <div class="hcon-metric">
+        <div class="hcon-metric-val">1,204</div>
+        <div class="hcon-metric-label">Questions</div>
+      </div>
+      <div class="hcon-metric">
+        <div class="hcon-metric-val">38</div>
+        <div class="hcon-metric-label">Agent calls</div>
+      </div>
+      <div class="hcon-metric">
+        <div class="hcon-metric-val">$4.20</div>
+        <div class="hcon-metric-label">Cost ($25 budget)</div>
+      </div>
+      <div class="hcon-metric">
+        <div class="hcon-metric-val">82%</div>
+        <div class="hcon-metric-label">Cache hit</div>
+      </div>
+    </div>
+
+    <!-- Three-column console layout -->
+    <div class="hcon-layout">
+
+      <!-- Moderation Queue -->
+      <div class="hcon-panel">
+        <div class="hcon-panel-title">Moderation Queue <span class="left-item-badge" style="background:rgba(239,68,68,.12);color:var(--red)">3</span></div>
+        <div class="hcon-queue-item">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="font-size:12px;color:var(--ink)">User789: "This event sucks, waste of time"</div>
+            <span class="hcon-queue-badge" style="background:rgba(239,68,68,.12);color:var(--red)">flagged</span>
+          </div>
+          <div class="hcon-actions">
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px;color:var(--green)" type="button" onclick="alert('Approved')">Approve</button>
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px;color:var(--red)" type="button" onclick="alert('Removed')">Remove</button>
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px" type="button" onclick="alert('Muted user')">Mute user</button>
+          </div>
+        </div>
+        <div class="hcon-queue-item">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="font-size:12px;color:var(--ink)">Guest42: Link to external crypto site</div>
+            <span class="hcon-queue-badge" style="background:rgba(239,68,68,.12);color:var(--red)">spam</span>
+          </div>
+          <div class="hcon-actions">
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px;color:var(--green)" type="button" onclick="alert('Approved')">Approve</button>
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px;color:var(--red)" type="button" onclick="alert('Removed')">Remove</button>
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px" type="button" onclick="alert('Banned user')">Ban</button>
+          </div>
+        </div>
+        <div class="hcon-queue-item">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="font-size:12px;color:var(--ink)">Anon: Contains possible PII (email address)</div>
+            <span class="hcon-queue-badge" style="background:rgba(228,197,103,.15);color:var(--yellow)">review</span>
+          </div>
+          <div class="hcon-actions">
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px;color:var(--green)" type="button" onclick="alert('Approved')">Approve</button>
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px" type="button" onclick="alert('Redacted PII')">Redact PII</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ask Queue -->
+      <div class="hcon-panel">
+        <div class="hcon-panel-title">Ask Queue <span class="left-item-badge">5</span></div>
+        <div class="hcon-queue-item">
+          <div style="font-size:12px;color:var(--ink);">"What is the MCP auth timeline?"</div>
+          <div style="font-size:10px;color:var(--ink-faint);margin-top:2px">Asked 14 times &middot; Agent answered</div>
+          <div class="hcon-actions">
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px;color:var(--accent)" type="button" onclick="alert('Promoted to FAQ')">&#9733; Promote to FAQ</button>
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px" type="button" onclick="alert('View answer')">View</button>
+          </div>
+        </div>
+        <div class="hcon-queue-item">
+          <div style="font-size:12px;color:var(--ink)">"Who is building voice-agent eval?"</div>
+          <div style="font-size:10px;color:var(--ink-faint);margin-top:2px">Asked 8 times &middot; Agent answered</div>
+          <div class="hcon-actions">
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px;color:var(--accent)" type="button" onclick="alert('Promoted to FAQ')">&#9733; Promote to FAQ</button>
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px" type="button" onclick="alert('View answer')">View</button>
+          </div>
+        </div>
+        <div class="hcon-queue-item">
+          <div style="font-size:12px;color:var(--ink)">"Enterprise pricing comparison?"</div>
+          <div style="font-size:10px;color:var(--accent);margin-top:2px">&#9203; Agent working...</div>
+          <div class="hcon-actions">
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px" type="button" onclick="alert('View progress')">View</button>
+            <button class="btn-ghost" style="font-size:10px;padding:2px 8px" type="button" onclick="alert('Cancelled')">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Publish Controls -->
+      <div class="hcon-panel">
+        <div class="hcon-panel-title">Event Controls</div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:4px 0">
+          <button class="btn-sm" style="width:100%;justify-content:center" type="button" onclick="setEventState('closing')">&#9632; End Event &rarr; Closing</button>
+          <button class="btn-ghost" style="width:100%;justify-content:center;font-size:11px" type="button" onclick="alert('Generate moderator summary')">&#128203; Generate Summary</button>
+          <button class="btn-ghost" style="width:100%;justify-content:center;font-size:11px" type="button" onclick="alert('Export chat log')">&#128229; Export Chat Log</button>
+          <button class="btn-ghost" style="width:100%;justify-content:center;font-size:11px" type="button" onclick="openWizard()">&#9881; Edit Event Settings</button>
+        </div>
+        <div style="border-top:1px solid var(--line-faint);margin-top:8px;padding-top:8px">
+          <div class="hcon-panel-title">Cost Breakdown</div>
+          <div style="font-size:11px;display:flex;flex-direction:column;gap:4px;color:var(--ink-secondary)">
+            <div style="display:flex;justify-content:space-between"><span>Agent calls (38)</span><span style="font-family:var(--mono)">$3.80</span></div>
+            <div style="display:flex;justify-content:space-between"><span>Cache hits (1,166)</span><span style="font-family:var(--mono)">$0.00</span></div>
+            <div style="display:flex;justify-content:space-between"><span>Corpus indexing</span><span style="font-family:var(--mono)">$0.40</span></div>
+            <div style="display:flex;justify-content:space-between;font-weight:600;color:var(--ink);border-top:1px solid var(--line-faint);padding-top:4px;margin-top:4px"><span>Total</span><span style="font-family:var(--mono)">$4.20 / $25.00</span></div>
+          </div>
+          <div style="margin-top:8px;height:6px;background:var(--glass-bg);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:17%;background:var(--accent);border-radius:3px"></div>
+          </div>
+          <div style="font-size:9px;color:var(--ink-faint);margin-top:4px">17% of budget used &middot; ~2,080 questions remaining</div>
+        </div>
+      </div>
+
+    </div><!-- /hcon-layout -->
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     SEARCH OVERLAY
+     ═══════════════════════════════════════════════════ -->
+<div class="search-overlay" id="search-overlay" onclick="closeSearchOverlay()">
+  <div class="search-dialog" onclick="event.stopPropagation()">
+    <div class="search-input-wrap">
+      <input type="text" id="search-input" placeholder="Search events, people, companies, wiki..." oninput="renderSearchResults(this.value)" autocomplete="off">
+    </div>
+    <div class="search-results" id="search-results">
+      <div class="search-group">
+        <div class="search-group-label">Events</div>
+        <div class="search-result-item" onclick="alert('Open AI Infra Summit')"><span class="type-badge">event</span> AI Infra Summit 2026</div>
+        <div class="search-result-item" onclick="alert('Open Ship Demo Day')"><span class="type-badge">event</span> Ship Demo Day</div>
+        <div class="search-result-item" onclick="alert('Open JPM Healthcare')"><span class="type-badge">event</span> JPM Healthcare</div>
+      </div>
+      <div class="search-group">
+        <div class="search-group-label">People</div>
+        <div class="search-result-item" onclick="alert('Open Alex Chen')"><span class="type-badge">person</span> Alex Chen — Founder, Orbital Labs</div>
+        <div class="search-result-item" onclick="alert('Open Dario Amodei')"><span class="type-badge">person</span> Dario Amodei — CEO, Anthropic</div>
+      </div>
+      <div class="search-group">
+        <div class="search-group-label">Companies</div>
+        <div class="search-result-item" onclick="alert('Open Orbital Labs')"><span class="type-badge">company</span> Orbital Labs — Voice-agent eval infra</div>
+        <div class="search-result-item" onclick="alert('Open Anthropic')"><span class="type-badge">company</span> Anthropic — AI safety, Claude, MCP</div>
+      </div>
+      <div class="search-group">
+        <div class="search-group-label">Wiki</div>
+        <div class="search-result-item" onclick="alert('Open MCP FAQ')"><span class="type-badge">faq</span> What is the MCP auth timeline?</div>
+        <div class="search-result-item" onclick="alert('Open voice eval FAQ')"><span class="type-badge">faq</span> Who is building voice-agent eval?</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     MOBILE PUBLIC NAV (visible in public view on mobile)
+     ═══════════════════════════════════════════════════ -->
+<nav class="mob-bottom-nav" id="mob-bottom-nav" aria-label="Public page mobile navigation">
+  <button class="mob-bottom-btn active" onclick="pubMobileTab('wiki')" type="button"><span class="icon">&#128214;</span>Wiki</button>
+  <button class="mob-bottom-btn" onclick="pubMobileTab('qa')" type="button"><span class="icon">&#10067;</span>Q&amp;A</button>
+  <button class="mob-bottom-btn" onclick="pubMobileTab('chat')" type="button"><span class="icon">&#128172;</span>Chat</button>
+  <button class="mob-bottom-btn" onclick="openSearchOverlay()" type="button"><span class="icon">&#128269;</span>Search</button>
+</nav>
 
 </div><!-- /shell -->
 
@@ -3051,7 +4038,7 @@ function sendChat() {
   setTimeout(function() {
     messages.insertAdjacentHTML('beforeend',
       '<div class="chat-msg chat-msg-agent">' +
-        '<div class="chat-msg-label">NodeBench</div>' +
+        '<div class="chat-msg-label">ScratchNode</div>' +
         '<div class="chat-checkpoint"><span class="chat-checkpoint-dot"></span> Processing query · scanning notebooks + artifacts</div>' +
       '</div>'
     );
@@ -3270,9 +4257,9 @@ function sendEventChat() {
   var feed = document.getElementById('evt-chat-feed');
   if (!feed) return;
 
-  // Detect @NodeBench mention — treat as /ask invocation (EVT-AGENT-INV-003)
-  if (text.match(/@NodeBench\b/i)) {
-    text = '/ask ' + text.replace(/@NodeBench\s*/i, '');
+  // Detect @ScratchNode mention — treat as /ask invocation (EVT-AGENT-INV-003)
+  if (text.match(/@ScratchNode\b/i)) {
+    text = '/ask ' + text.replace(/@ScratchNode\s*/i, '');
   }
   var isAsk = text.startsWith('/ask ');
   var privToggle = document.getElementById('evt-privacy-toggle');
@@ -3298,7 +4285,7 @@ function sendEventChat() {
   if (isAsk) {
     var agentHtml = '<div class="evt-agent-answer" style="animation:fadeIn 0.3s ease">' +
       '<div class="evt-agent-answer-head">' +
-      '<span style="font-weight:600;color:var(--accent)">NodeBench</span>' +
+      '<span style="font-weight:600;color:var(--accent)">ScratchNode</span>' +
       '<span style="font-size:10px;color:var(--ink-faint)">answering you</span>' +
       '</div>' +
       '<div class="evt-agent-answer-body">' +
@@ -3340,7 +4327,7 @@ function askEventAgent(btn, question) {
 
   var agentHtml = '<div class="evt-agent-answer" style="animation:fadeIn 0.3s ease">' +
     '<div class="evt-agent-answer-head">' +
-    '<span style="font-weight:600;color:var(--accent)">NodeBench</span>' +
+    '<span style="font-weight:600;color:var(--accent)">ScratchNode</span>' +
     '<span style="font-size:10px;color:var(--ink-faint)">answering ' + asker + '</span>' +
     '</div>' +
     '<div class="evt-agent-answer-body">' +
@@ -3439,7 +4426,7 @@ function evtModSummary() {
   var html = '<div class="evt-agent-answer" style="animation:fadeIn 0.3s ease;border-left-color:var(--purple)">' +
     '<div class="evt-agent-answer-head">' +
     '<span style="font-weight:600;color:var(--purple)">Moderator Summary</span>' +
-    '<span style="font-size:10px;color:var(--ink-faint)">auto-generated by NodeBench</span>' +
+    '<span style="font-size:10px;color:var(--ink-faint)">auto-generated by ScratchNode</span>' +
     '</div>' +
     '<div class="evt-agent-answer-body">' +
     '<p><strong>Key topics discussed:</strong></p>' +
@@ -3550,6 +4537,300 @@ sendEventChat = function() {
     }
   }
 };
+
+/* ═══════════════════════════════════════════════════
+   PUBLIC EVENT PAGE
+   ═══════════════════════════════════════════════════ */
+
+function showPublicEventPage() {
+  document.querySelector('.shell').setAttribute('data-view', 'public');
+}
+
+function hidePublicEventPage() {
+  document.querySelector('.shell').removeAttribute('data-view');
+}
+
+function showGuestJoinModal() {
+  var m = document.getElementById('pub-join-modal');
+  if (m) m.style.display = 'flex';
+}
+
+function hideGuestJoinModal() {
+  var m = document.getElementById('pub-join-modal');
+  if (m) m.style.display = 'none';
+}
+
+function pubJoinAsGuest() {
+  var name = document.getElementById('pub-join-name').value.trim();
+  if (!name) { document.getElementById('pub-join-name').focus(); return; }
+  window._pubGuestName = name;
+  hideGuestJoinModal();
+  var composer = document.getElementById('pub-chat-composer');
+  if (composer) composer.style.opacity = '1';
+  var input = document.getElementById('pub-chat-input');
+  if (input) input.setAttribute('data-placeholder', 'Chat as ' + name + ' or /ask the agent...');
+}
+
+function pubSendChat() {
+  var input = document.getElementById('pub-chat-input');
+  if (!input) return;
+  var text = input.innerText.trim();
+  if (!text) return;
+  var name = window._pubGuestName || 'You';
+  var feed = document.getElementById('pub-chat-feed');
+  if (!feed) return;
+
+  var isAsk = text.toLowerCase().startsWith('/ask ') || text.indexOf('@ScratchNode') !== -1;
+  var cleanText = text.replace(/^\/ask\s+/i, '').replace(/@ScratchNode/g, '').trim();
+
+  var html = '<div class="pub-chat-msg">' +
+    '<span class="pub-chat-name">' + name + '</span>' +
+    '<span class="pub-chat-text">' + text.replace(/</g,'&lt;') + '</span>' +
+    '<span class="pub-chat-time">just now</span></div>';
+  feed.insertAdjacentHTML('beforeend', html);
+
+  if (isAsk) {
+    setTimeout(function() {
+      var agentHtml = '<div class="pub-chat-msg pub-chat-msg--agent">' +
+        '<span class="pub-chat-name">&#129302; ScratchNode</span>' +
+        '<span class="pub-chat-text">Looking into: "' + cleanText.replace(/</g,'&lt;') + '"... Based on event corpus and 24 sources, here\'s what I found. This answer is now available in the Q&A section.</span>' +
+        '<span class="pub-chat-time">just now</span></div>';
+      feed.insertAdjacentHTML('beforeend', agentHtml);
+      feed.scrollTop = feed.scrollHeight;
+    }, 1200);
+  }
+
+  input.innerText = '';
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function pubAskAgent() {
+  var input = document.getElementById('pub-chat-input');
+  if (input) {
+    input.innerText = '/ask ';
+    input.focus();
+    var range = document.createRange();
+    range.selectNodeContents(input);
+    range.collapse(false);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+}
+
+function pubShareEvent() {
+  var url = 'scratchnode.com/e/ai-infra-summit-2026';
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url);
+  }
+  alert('Copied: ' + url);
+}
+
+function pubScrollTo(sectionId) {
+  var el = document.getElementById('pub-' + sectionId);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  var items = document.querySelectorAll('.pub-index .left-item');
+  items.forEach(function(it) { it.classList.remove('active'); });
+  event.target.classList.add('active');
+}
+
+function pubMobileTab(tab) {
+  var btns = document.querySelectorAll('.mob-bottom-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  event.target.closest('.mob-bottom-btn').classList.add('active');
+  if (tab === 'chat') {
+    var rail = document.querySelector('.pub-chat-rail');
+    if (rail) rail.scrollIntoView({ behavior: 'smooth' });
+  } else if (tab === 'qa') {
+    pubScrollTo('qa');
+  } else if (tab === 'wiki') {
+    pubScrollTo('ntk');
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   EVENT LIFECYCLE STATES
+   ═══════════════════════════════════════════════════ */
+
+var EVT_STATES = {
+  scheduled: { icon: '&#128197;', label: 'SCHEDULED', body: 'This event starts on May 22, 2026 at 9:00 AM PT. Bookmark this page to get notified when it goes live.', color: 'var(--ink-faint)' },
+  live:      { icon: '&#9889;',   label: 'LIVE NOW',   body: '400+ attendees are in this session right now. Ask questions, chat, and explore the wiki.', color: 'var(--green)' },
+  closing:   { icon: '&#9200;',   label: 'CLOSING',    body: 'The host is wrapping up. Chat is still open for 15 more minutes. Last chance to ask questions.', color: 'var(--yellow)' },
+  compacting: { icon: '&#9881;',  label: 'COMPACTING',  body: 'The agent is processing 1,204 questions and 24 sources into a structured wiki. This usually takes 2-5 minutes.', color: 'var(--accent)' },
+  published: { icon: '&#128214;', label: 'PUBLISHED',  body: 'This event has been compacted into a permanent wiki. Browse the knowledge base, FAQ, and source links below.', color: 'var(--accent)' },
+  archived:  { icon: '&#128451;', label: 'ARCHIVED',   body: 'This event archive is read-only. The host may reactivate it for future sessions.', color: 'var(--ink-faint)' }
+};
+
+function setEventState(state) {
+  var cfg = EVT_STATES[state];
+  if (!cfg) return;
+  var banner = document.getElementById('pub-state-banner');
+  if (banner) {
+    banner.setAttribute('data-state', state);
+    document.getElementById('pub-state-icon').innerHTML = cfg.icon;
+    document.getElementById('pub-state-label').textContent = cfg.label;
+    document.getElementById('pub-state-body').textContent = cfg.body;
+  }
+  var composer = document.getElementById('pub-chat-composer');
+  if (state === 'published' || state === 'archived') {
+    if (composer) composer.style.display = 'none';
+  } else {
+    if (composer) composer.style.display = '';
+  }
+  if (state === 'compacting') {
+    var content = document.getElementById('pub-content');
+    if (content) {
+      var progress = document.createElement('div');
+      progress.className = 'evt-compact-progress';
+      progress.innerHTML = '<div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Compacting event...</div>' +
+        '<div class="evt-compact-bar"><div class="evt-compact-bar-fill" id="compact-fill" style="width:0%"></div></div>' +
+        '<div style="font-size:11px;color:var(--ink-faint);margin-top:6px" id="compact-status">Processing questions...</div>';
+      content.prepend(progress);
+      animateCompaction();
+    }
+  }
+}
+
+function animateCompaction() {
+  var fill = document.getElementById('compact-fill');
+  var status = document.getElementById('compact-status');
+  if (!fill) return;
+  var steps = [
+    { pct: 20, msg: 'Clustering 1,204 questions...' },
+    { pct: 45, msg: 'Extracting entities and topics...' },
+    { pct: 65, msg: 'Generating FAQ from top questions...' },
+    { pct: 85, msg: 'Building wiki sections...' },
+    { pct: 100, msg: 'Done! Publishing wiki...' }
+  ];
+  var i = 0;
+  var timer = setInterval(function() {
+    if (i >= steps.length) {
+      clearInterval(timer);
+      setTimeout(function() { setEventState('published'); }, 800);
+      return;
+    }
+    fill.style.width = steps[i].pct + '%';
+    if (status) status.textContent = steps[i].msg;
+    i++;
+  }, 1200);
+}
+
+/* ═══════════════════════════════════════════════════
+   HOST CREATE SESSION WIZARD
+   ═══════════════════════════════════════════════════ */
+
+var _wizStep = 1;
+
+function openWizard() {
+  var overlay = document.getElementById('wiz-overlay');
+  if (overlay) overlay.style.display = 'flex';
+  _wizStep = 1;
+  updateWizStep();
+}
+
+function closeWizard() {
+  var overlay = document.getElementById('wiz-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function wizNext() {
+  if (_wizStep >= 5) {
+    closeWizard();
+    showPublicEventPage();
+    return;
+  }
+  _wizStep++;
+  updateWizStep();
+}
+
+function wizPrev() {
+  if (_wizStep <= 1) return;
+  _wizStep--;
+  updateWizStep();
+}
+
+function updateWizStep() {
+  var dots = document.querySelectorAll('.wiz-step-dot');
+  dots.forEach(function(d) {
+    var s = parseInt(d.getAttribute('data-step'));
+    d.classList.toggle('active', s === _wizStep);
+    d.classList.toggle('done', s < _wizStep);
+    d.setAttribute('aria-selected', s === _wizStep ? 'true' : 'false');
+  });
+  var panels = document.querySelectorAll('.wiz-step-panel');
+  panels.forEach(function(p) {
+    p.classList.toggle('active', parseInt(p.getAttribute('data-wiz-step')) === _wizStep);
+  });
+  var back = document.getElementById('wiz-back');
+  if (back) back.style.visibility = _wizStep === 1 ? 'hidden' : 'visible';
+  var next = document.getElementById('wiz-next');
+  if (next) next.textContent = _wizStep === 5 ? 'Launch Event' : 'Next';
+  var label = document.getElementById('wiz-step-label');
+  if (label) label.textContent = 'Step ' + _wizStep + ' of 5';
+}
+
+/* ═══════════════════════════════════════════════════
+   HOST CONSOLE
+   ═══════════════════════════════════════════════════ */
+
+function openHostConsole() {
+  var overlay = document.getElementById('hcon-overlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+
+function closeHostConsole() {
+  var overlay = document.getElementById('hcon-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+/* ═══════════════════════════════════════════════════
+   SEARCH OVERLAY
+   ═══════════════════════════════════════════════════ */
+
+function openSearchOverlay() {
+  var overlay = document.getElementById('search-overlay');
+  if (overlay) {
+    overlay.classList.add('active');
+    setTimeout(function() {
+      var input = document.getElementById('search-input');
+      if (input) input.focus();
+    }, 100);
+  }
+}
+
+function closeSearchOverlay() {
+  var overlay = document.getElementById('search-overlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
+function renderSearchResults(query) {
+  if (!query || query.length < 2) return;
+}
+
+/* ── Keyboard shortcuts ── */
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    openSearchOverlay();
+  }
+  if (e.key === 'Escape') {
+    closeSearchOverlay();
+    closeWizard();
+    closeHostConsole();
+    hideGuestJoinModal();
+  }
+});
+
+/* ── Enter to send in pub chat ── */
+var pubChatInput = document.getElementById('pub-chat-input');
+if (pubChatInput) {
+  pubChatInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      pubSendChat();
+    }
+  });
+}
 
 /* ─── INIT ─── */
 renderArtifacts('all');
