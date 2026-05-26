@@ -206,6 +206,57 @@ a:hover { border-bottom-style: solid; }
 .status-table .badge.proto { color: #fbbf24; background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.25); }
 .status-table .badge.prod  { color: #5ea867; background: rgba(94,168,103,.08); border: 1px solid rgba(94,168,103,.25); }
 
+/* Live prod plan — phase cards + checklists */
+.tldr {
+  margin: 14px 0 28px; padding: 16px 20px;
+  background: linear-gradient(180deg, rgba(217,119,87,.06), rgba(217,119,87,.01));
+  border: 1px solid rgba(217,119,87,.25); border-radius: 12px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 6px 0; color: var(--ink); font-size: 14px; }
+.tldr p strong { color: var(--accent); }
+.phase-card {
+  margin: 18px 0; border: 1px solid var(--line); border-radius: 12px;
+  overflow: hidden; background: rgba(255,255,255,.01);
+}
+.phase-header {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 14px 18px;
+  background: linear-gradient(180deg, rgba(217,119,87,.04), transparent);
+  border-bottom: 1px solid var(--line);
+}
+.phase-header .phase-num {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  color: var(--accent); letter-spacing: .14em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 100px;
+  border: 1px solid rgba(217,119,87,.3); background: rgba(217,119,87,.06);
+  flex-shrink: 0;
+}
+.phase-header .phase-title { font-size: 16px; font-weight: 700; color: var(--ink); flex: 1; }
+.phase-header .phase-time { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); flex-shrink: 0; }
+.phase-body { padding: 16px 18px; }
+.phase-body p:first-child { margin-top: 0; }
+.phase-body p:last-child { margin-bottom: 0; }
+.phase-body .goal,
+.phase-body .accept,
+.phase-body .risk { margin: 10px 0; padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 12px; color: var(--ink-muted); }
+.phase-body .goal { background: rgba(94,168,103,.04); border-left: 3px solid var(--green); }
+.phase-body .accept { background: rgba(96,165,250,.04); border-left: 3px solid #60a5fa; }
+.phase-body .risk { background: rgba(248,113,113,.04); border-left: 3px solid #f87171; }
+.phase-body .goal::before { content: 'Goal — '; font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--green); letter-spacing: .1em; text-transform: uppercase; }
+.phase-body .accept::before { content: 'Acceptance — '; font-family: var(--mono); font-size: 10px; font-weight: 700; color: #60a5fa; letter-spacing: .1em; text-transform: uppercase; }
+.phase-body .risk::before { content: 'Risk — '; font-family: var(--mono); font-size: 10px; font-weight: 700; color: #f87171; letter-spacing: .1em; text-transform: uppercase; }
+.checklist { list-style: none; padding-left: 0; margin: 10px 0; }
+.checklist li { display: flex; align-items: flex-start; gap: 10px; padding: 4px 0; color: var(--ink-muted); font-size: 13px; }
+.checklist input[type="checkbox"] { margin: 4px 0 0 0; flex-shrink: 0; accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
+.checklist li.done { color: var(--green); opacity: .75; }
+.checklist li.done > span { text-decoration: line-through; }
+.checklist code { font-size: 12px; }
+
 /* ─── On-page rail ─── */
 .onpage { position: sticky; top: 80px; align-self: start; max-height: calc(100vh - 100px); overflow-y: auto; padding-left: 14px; border-left: 1px solid var(--line); font-size: 11px; }
 .onpage-label { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px; }
@@ -266,6 +317,11 @@ kbd {
     <a class="toc-link sub" href="#vercel-setup" data-toc="vercel-setup">Vercel setup</a>
     <a class="toc-link sub" href="#setup-checklist" data-toc="setup-checklist">Setup checklist</a>
     <a class="toc-link sub" href="#live-check" data-toc="live-check">Live verify</a>
+    <a class="toc-link" href="#live-prod-plan" data-toc="live-prod-plan">Live prod plan</a>
+    <a class="toc-link sub" href="#plan-where-we-are" data-toc="plan-where-we-are">Where we are today</a>
+    <a class="toc-link sub" href="#plan-phases" data-toc="plan-phases">Phases 0–7+</a>
+    <a class="toc-link sub" href="#plan-timeline" data-toc="plan-timeline">Cumulative timeline</a>
+    <a class="toc-link sub" href="#plan-go-no-go" data-toc="plan-go-no-go">Go/no-go criteria</a>
     <a class="toc-link" href="#concepts" data-toc="concepts">Concepts &amp; metaphor</a>
     <a class="toc-link" href="#quick-start" data-toc="quick-start">Quick start</a>
 
@@ -590,9 +646,373 @@ curl -sL https://nodebenchai.com/ | grep -E <span class="str">'(VITE|root|index)
     <h3 id="anti-patterns">Deploy anti-patterns to avoid</h3>
     <ul>
       <li><strong>Two Vercel projects</strong> until ScratchNode forks meaningfully (probably 6+ months). Doubles build minutes and preview-deploy chains for no benefit.</li>
-      <li><strong>Shared session cookies via subdomain trick</strong>. <code>.com</code> and <code>.io</code> can't share. Use redirect handshake instead — and skip it entirely in v0 (anonymous guests).</li>
+      <li><strong>Shared session cookies via subdomain trick</strong>. <code>.com</code> and <code>.live</code> can't share. Use redirect handshake instead — and skip it entirely in v0 (anonymous guests).</li>
       <li><strong>Hard-coding domain in source.</strong> Use <code>PUBLIC_BASE_URL</code> derived from <code>location.hostname</code> so preview deploys work. Only the canonical OG tags reference <code>scratchnode.live</code> literally.</li>
       <li><strong>Claiming "deployed" on <code>git push</code> exit 0.</strong> Always fetch the live URL and grep for a concrete content signal. See <a href="#live-check">Live verify</a>.</li>
+    </ul>
+
+    <h2 id="live-prod-plan">Live prod plan: prototype → real <a class="anchor" href="#live-prod-plan">#</a></h2>
+
+    <div class="tldr">
+      <div class="tldr-label">⚡ TL;DR — where we are vs where we're going</div>
+      <p><strong>Today:</strong> <code>scratchnode.live</code> serves a static HTML prototype. Real domain, real DNS, real SSL, real Vercel routing — but zero Convex calls. Chat, <code>/ask</code>, sources, counts, notes are all DOM-only / localStorage / hardcoded.</p>
+      <p><strong>Goal:</strong> <em>"Two strangers on different devices open the same room URL and chat with each other in real time, with sourced agent answers and a private notebook each."</em> That's the minimum for the product to deserve the domain.</p>
+      <p><strong>Floor (Phases 1+2+3): ~6–10 days of work.</strong> Phases 4–7 layer hosts, durable wiki, and the Redis semantic-cache layer on top.</p>
+    </div>
+
+    <h3 id="plan-where-we-are">Where we are today (honest baseline)</h3>
+    <table class="status-table">
+      <thead><tr><th>Capability</th><th>Today</th><th>Production target</th></tr></thead>
+      <tbody>
+        <tr><td>Shared chat between visitors</td><td><span class="badge proto">DOM-only</span></td><td>Convex realtime query</td></tr>
+        <tr><td><code>/ask</code> agent answers</td><td><span class="badge proto">setTimeout(1100ms) → hardcoded card</span></td><td>Convex action → Anthropic + Linkup</td></tr>
+        <tr><td>Sources / citation counts</td><td><span class="badge proto">Hardcoded strings</span></td><td>Real source-bundle records w/ provenance</td></tr>
+        <tr><td>Private notes</td><td><span class="badge proto">window._notes_v5 + localStorage</span></td><td>Convex per-session table</td></tr>
+        <tr><td>Identity / display name</td><td><span class="badge proto">localStorage</span></td><td>Anon session UUID + optional auth upgrade</td></tr>
+        <tr><td>FAQ promote / wiki publish</td><td><span class="badge proto">Toast only</span></td><td>Server-gated mutation w/ role check</td></tr>
+        <tr><td>Sign-in</td><td><span class="badge proto">Toast only</span></td><td>Redirect to <code>nodebenchai.com/sign-in?return=…</code></td></tr>
+        <tr><td>Event wiki</td><td><span class="badge proto">Hardcoded HTML in sheet</span></td><td>Convex-backed, version-snapshotted, compacted on event end</td></tr>
+        <tr><td>Semantic answer cache</td><td><span class="badge proto">None</span></td><td>Redis LangCache pattern (Phase 6)</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="plan-phases">Phased execution plan</h3>
+    <p>Each phase is <strong>independently shippable</strong> — you can deploy after any phase and the product is better than the day before. Schema sketches use the existing Convex monorepo conventions (<code>convex/schema.ts</code>, <code>convex/&lt;domain&gt;/queries.ts</code>, etc).</p>
+
+    <!-- PHASE 0 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <span class="phase-num">Phase 0</span>
+        <span class="phase-title">Foundation (already done)</span>
+        <span class="phase-time">complete</span>
+      </div>
+      <div class="phase-body">
+        <p class="goal">A real URL anyone can visit, branded, fast, on production-grade infra.</p>
+        <ul class="checklist">
+          <li class="done"><input type="checkbox" checked disabled> <span>Domain <code>scratchnode.live</code> registered on Cloudflare</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>DNS: A @ → 76.76.21.21 (DNS-only) + CNAME www → cname.vercel-dns.com</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Vercel: apex Production + www → 307 → apex</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span><code>vercel.json</code> host-keyed rewrites for <code>/</code>, <code>/e/:slug*</code>, <code>/docs</code></span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>ScratchNode-branded OG/Twitter cards, canonical, theme-color</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Cross-domain auth-redirect stubs (host/sign-in → workspace)</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>SSL via Let's Encrypt, www→apex 301, www.nodebenchai.com→apex 301</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- PHASE 1 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <span class="phase-num">Phase 1</span>
+        <span class="phase-title">Anonymous shared chat — the first real feature</span>
+        <span class="phase-time">~2–3 days</span>
+      </div>
+      <div class="phase-body">
+        <p class="goal">Two strangers opening <code>scratchnode.live/e/&lt;slug&gt;</code> see each other's messages in real time. Anonymous, no signup.</p>
+
+        <h4>Convex schema additions (<code>convex/schema.ts</code>)</h4>
+<pre><span class="lang">ts</span><span class="kw">export default</span> <span class="fn">defineSchema</span>({
+  events: <span class="fn">defineTable</span>({
+    slug: v.string(),               <span class="com">// "ai-infra-summit-2026"</span>
+    name: v.string(),               <span class="com">// "AI Infra Summit"</span>
+    roomCode: v.string(),           <span class="com">// "ORBITAL"</span>
+    hostUserId: v.id(<span class="str">"users"</span>),
+    status: v.<span class="fn">union</span>(v.<span class="fn">literal</span>(<span class="str">"draft"</span>), v.<span class="fn">literal</span>(<span class="str">"live"</span>), v.<span class="fn">literal</span>(<span class="str">"ended"</span>)),
+    startedAt: v.number(),
+    endedAt: v.<span class="fn">optional</span>(v.number())
+  }).<span class="fn">index</span>(<span class="str">"by_slug"</span>, [<span class="str">"slug"</span>]).<span class="fn">index</span>(<span class="str">"by_roomCode"</span>, [<span class="str">"roomCode"</span>]),
+
+  eventMembers: <span class="fn">defineTable</span>({
+    eventId: v.id(<span class="str">"events"</span>),
+    sessionId: v.string(),          <span class="com">// anonymous browser UUID</span>
+    displayName: v.string(),
+    joinedAt: v.number(),
+    lastSeenAt: v.number()          <span class="com">// TTL for presence; janitor cron evicts &gt;5min</span>
+  }).<span class="fn">index</span>(<span class="str">"by_event_session"</span>, [<span class="str">"eventId"</span>, <span class="str">"sessionId"</span>])
+    .<span class="fn">index</span>(<span class="str">"by_event_lastSeen"</span>, [<span class="str">"eventId"</span>, <span class="str">"lastSeenAt"</span>]),
+
+  eventMessages: <span class="fn">defineTable</span>({
+    eventId: v.id(<span class="str">"events"</span>),
+    sessionId: v.string(),          <span class="com">// who sent it (anon)</span>
+    displayName: v.string(),        <span class="com">// snapshot at send time</span>
+    text: v.string(),
+    kind: v.<span class="fn">union</span>(v.<span class="fn">literal</span>(<span class="str">"chat"</span>), v.<span class="fn">literal</span>(<span class="str">"ask"</span>), v.<span class="fn">literal</span>(<span class="str">"system"</span>)),
+    replyToMessageId: v.<span class="fn">optional</span>(v.id(<span class="str">"eventMessages"</span>)),
+    createdAt: v.number()
+  }).<span class="fn">index</span>(<span class="str">"by_event_time"</span>, [<span class="str">"eventId"</span>, <span class="str">"createdAt"</span>])
+});</pre>
+
+        <h4>Convex functions to write</h4>
+        <ul class="checklist">
+          <li><input type="checkbox"> <span><code>convex/events/queries.ts</code> — <code>getEventBySlug(slug)</code>, <code>getMessages(eventId, limit, beforeCursor)</code>, <code>getMembers(eventId)</code></span></li>
+          <li><input type="checkbox"> <span><code>convex/events/mutations.ts</code> — <code>joinEvent({slug, sessionId, displayName})</code>, <code>sendMessage({eventId, sessionId, text, kind, replyToMessageId?})</code>, <code>heartbeat({eventId, sessionId})</code></span></li>
+          <li><input type="checkbox"> <span><code>convex/events/crons.ts</code> — janitor that evicts <code>eventMembers</code> with <code>lastSeenAt &lt; now - 5min</code></span></li>
+          <li><input type="checkbox"> <span>Seed mutation for the demo event <code>ai-infra-summit-2026</code> with code <code>ORBITAL</code></span></li>
+        </ul>
+
+        <h4>UI rewiring (<code>public/proto/home-v5.html</code>)</h4>
+        <p>The good news: <code>sendComposerMessage()</code> is already the single entry point. Wire the three branches to Convex.</p>
+        <ul class="checklist">
+          <li><input type="checkbox"> <span>Add <code>&lt;script type="module"&gt;</code> that imports <code>ConvexClient</code> from a CDN ESM build (or build a tiny bundled file at <code>/public/proto/_convex.js</code>)</span></li>
+          <li><input type="checkbox"> <span>Generate or recover anonymous session UUID via <code>localStorage.getItem('sn_session_id')</code> or <code>crypto.randomUUID()</code></span></li>
+          <li><input type="checkbox"> <span>On page load: call <code>joinEvent({slug, sessionId, displayName})</code> where slug = URL path's <code>/e/&lt;slug&gt;</code></span></li>
+          <li><input type="checkbox"> <span>Subscribe to <code>getMessages</code> via Convex realtime — append/dedupe rows in <code>#feed</code> as they stream in</span></li>
+          <li><input type="checkbox"> <span>Replace <code>postPublicChat()</code> + <code>postPublicAsk()</code> DOM-append with <code>sendMessage</code> mutation (kind=chat or ask)</span></li>
+          <li><input type="checkbox"> <span>Add 30-second <code>setInterval</code> for <code>heartbeat</code> to keep presence alive</span></li>
+          <li><input type="checkbox"> <span>Wire <code>onbeforeunload</code> to send a final heartbeat with stale-flag (optional)</span></li>
+        </ul>
+
+        <p class="accept">Open <code>https://scratchnode.live/e/ai-infra-summit-2026</code> in Chrome and Safari (or two different browsers). Type "hi from chrome" in one; within 1s the other should show that message. The 318/47/38 counters stay hardcoded for now — that's Phase 5.</p>
+        <p class="risk">Convex action budget on free tier (1M function calls/month). Heartbeat at 30s × 100 users × 1 event = 3M/month — so heartbeats must be cheap (return early if state unchanged), or move presence to a Redis-style hot layer later (Phase 6).</p>
+      </div>
+    </div>
+
+    <!-- PHASE 2 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <span class="phase-num">Phase 2</span>
+        <span class="phase-title">Real <code>/ask</code> agent backed by sources</span>
+        <span class="phase-time">~3–5 days</span>
+      </div>
+      <div class="phase-body">
+        <p class="goal">When a guest types <code>/ask &lt;question&gt;</code>, the agent returns a real, source-cited answer drafted from the event's corpus (uploaded sources + chat history + prior /ask answers) — not a hardcoded card.</p>
+
+        <h4>Schema additions</h4>
+<pre><span class="lang">ts</span>eventSources: <span class="fn">defineTable</span>({
+  eventId: v.id(<span class="str">"events"</span>),
+  uri: v.string(),                  <span class="com">// canonical source URI</span>
+  kind: v.<span class="fn">union</span>(v.<span class="fn">literal</span>(<span class="str">"transcript"</span>), v.<span class="fn">literal</span>(<span class="str">"doc"</span>), v.<span class="fn">literal</span>(<span class="str">"url"</span>), v.<span class="fn">literal</span>(<span class="str">"slide"</span>)),
+  title: v.string(),
+  bodyEmbedding: v.array(v.number()), <span class="com">// vector for semantic search</span>
+  excerpt: v.string(),
+  uploadedAt: v.number()
+}).<span class="fn">vectorIndex</span>(<span class="str">"by_embedding"</span>, { vectorField: <span class="str">"bodyEmbedding"</span>, dimensions: <span class="num">1536</span>, filterFields: [<span class="str">"eventId"</span>] }),
+
+eventAnswers: <span class="fn">defineTable</span>({
+  eventId: v.id(<span class="str">"events"</span>),
+  questionMessageId: v.id(<span class="str">"eventMessages"</span>),
+  body: v.string(),
+  sourceIds: v.array(v.id(<span class="str">"eventSources"</span>)),
+  trace: v.array(v.object({
+    step: v.string(),               <span class="com">// "cache_lookup", "retrieve", "llm_run", ...</span>
+    status: v.<span class="fn">union</span>(v.<span class="fn">literal</span>(<span class="str">"ok"</span>), v.<span class="fn">literal</span>(<span class="str">"miss"</span>), v.<span class="fn">literal</span>(<span class="str">"error"</span>)),
+    detail: v.<span class="fn">optional</span>(v.string()),
+    durationMs: v.number()
+  })),
+  cacheHit: v.boolean(),
+  faqStatus: v.<span class="fn">union</span>(v.<span class="fn">literal</span>(<span class="str">"none"</span>), v.<span class="fn">literal</span>(<span class="str">"suggested"</span>), v.<span class="fn">literal</span>(<span class="str">"promoted"</span>)),
+  createdAt: v.number()
+}).<span class="fn">index</span>(<span class="str">"by_event_time"</span>, [<span class="str">"eventId"</span>, <span class="str">"createdAt"</span>])</pre>
+
+        <h4>Convex action + UI wiring</h4>
+        <ul class="checklist">
+          <li><input type="checkbox"> <span><code>convex/events/actions.ts</code> — <code>askAgent({eventId, question, sessionId})</code>: vector-search <code>eventSources</code> (top-k=8), prior <code>eventAnswers</code> (cache lookup), call Anthropic with retrieved context, return <code>{answerId, body, sourceIds, trace}</code></span></li>
+          <li><input type="checkbox"> <span>Replace <code>streamAgentAnswer</code>'s <code>setTimeout</code> with: <code>const result = await client.action(api.events.askAgent, {eventId, question, sessionId})</code></span></li>
+          <li><input type="checkbox"> <span>Render <code>result.sources</code> as the source chips (with real URLs from <code>eventSources</code>)</span></li>
+          <li><input type="checkbox"> <span>Render <code>result.trace</code> as the 5-step canonical trace (real durations from action steps)</span></li>
+          <li><input type="checkbox"> <span>Replace the hardcoded reuse chip (<em>"Answered from event wiki · 12 similar"</em>) with counts from <code>result</code></span></li>
+          <li><input type="checkbox"> <span>Wire "Suggest for FAQ" / "Promote to FAQ" buttons to a server mutation that updates <code>eventAnswers.faqStatus</code> (gated by role in Phase 4)</span></li>
+        </ul>
+
+        <h4>Source seeding</h4>
+        <ul class="checklist">
+          <li><input type="checkbox"> <span>Bulk upload script: <code>convex/events/seedSources.ts</code> — accepts a JSON file of {title, body, uri} per source, embeds via OpenAI text-embedding-3-small, inserts into <code>eventSources</code></span></li>
+          <li><input type="checkbox"> <span>Seed the demo event with ~5 real sources (Anthropic blog, MCP spec, panel transcripts) so the agent has something to cite</span></li>
+        </ul>
+
+        <p class="accept">/ask "What is the MCP auth timeline?" — answer comes back in &lt;5s, body is non-canned text grounded in the seeded sources, source chips link to real URLs, trace shows real durations. Same question 30s later: cache hit, &lt;500ms, trace says "Matched 1 similar in semantic cache".</p>
+        <p class="risk">Anthropic API key in Convex env (<code>ANTHROPIC_API_KEY</code>) — already set for the workspace. Cost: ~$0.01–0.05 per /ask depending on model and context size. Mitigation: per-event spending caps + the cache hit path.</p>
+      </div>
+    </div>
+
+    <!-- PHASE 3 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <span class="phase-num">Phase 3</span>
+        <span class="phase-title">Private notes persistence</span>
+        <span class="phase-time">~1–2 days</span>
+      </div>
+      <div class="phase-body">
+        <p class="goal">Private notes survive page reload and follow the anonymous session across devices if the user signs in. They never enter the public feed or the wiki (release-blocker invariant — already enforced client-side, now enforced server-side too).</p>
+
+        <h4>Schema</h4>
+<pre><span class="lang">ts</span>userNotes: <span class="fn">defineTable</span>({
+  ownerKey: v.string(),             <span class="com">// sessionId OR userId:&lt;id&gt; once signed in</span>
+  eventId: v.<span class="fn">optional</span>(v.id(<span class="str">"events"</span>)),  <span class="com">// scoped to event, or null for general</span>
+  title: v.string(),
+  bodyHtml: v.string(),             <span class="com">// rich text (TipTap output in Phase 7)</span>
+  tags: v.array(v.string()),
+  pinned: v.boolean(),
+  isAsk: v.boolean(),               <span class="com">// was created via private /ask</span>
+  createdAt: v.number(),
+  updatedAt: v.number()
+}).<span class="fn">index</span>(<span class="str">"by_owner_event"</span>, [<span class="str">"ownerKey"</span>, <span class="str">"eventId"</span>])
+  .<span class="fn">index</span>(<span class="str">"by_owner_updated"</span>, [<span class="str">"ownerKey"</span>, <span class="str">"updatedAt"</span>])</pre>
+
+        <h4>Tasks</h4>
+        <ul class="checklist">
+          <li><input type="checkbox"> <span><code>convex/notes/mutations.ts</code> — <code>createNote</code>, <code>updateNote</code>, <code>pinNote</code>, <code>deleteNote</code> (all gated by <code>ownerKey === ctx.session.ownerKey</code>)</span></li>
+          <li><input type="checkbox"> <span><code>convex/notes/queries.ts</code> — <code>listMyNotes(eventId?)</code> returns only notes where <code>ownerKey === currentOwnerKey</code></span></li>
+          <li><input type="checkbox"> <span>Replace <code>window._notes_v5</code> read paths with Convex query subscription</span></li>
+          <li><input type="checkbox"> <span>Replace <code>createNewNote</code> / <code>updateActiveNote</code> / <code>togglePinNote</code> / <code>deleteActiveNote</code> with the corresponding mutations</span></li>
+          <li><input type="checkbox"> <span>Keep localStorage as offline-first cache; on Convex confirm, mark synced</span></li>
+          <li><input type="checkbox"> <span>Server-side test: try to read someone else's notes by spoofing <code>ownerKey</code> → must return 403</span></li>
+        </ul>
+
+        <p class="accept">Open notes sheet, add 3 notes, refresh page → all 3 still there. Open in incognito with a new session ID → empty (notes are session-scoped). Sign in (Phase 4) → previous-session notes migrate to your userId.</p>
+        <p class="risk">Anonymous session IDs are device-scoped — clearing browser data loses notes. Mitigation: prompt to "save your notebook" via magic-link sign-in once user has 3+ notes. <strong>Critical:</strong> validate <code>ownerKey</code> server-side; client-controlled <code>ownerKey</code> means anyone could read anyone else's notes.</p>
+      </div>
+    </div>
+
+    <!-- PHASE 4 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <span class="phase-num">Phase 4</span>
+        <span class="phase-title">Host actions + cross-domain auth</span>
+        <span class="phase-time">~2–3 days</span>
+      </div>
+      <div class="phase-body">
+        <p class="goal">Hosts can create events, moderate, promote FAQ candidates, end events, and publish wikis. Server enforces host role on every privileged mutation — the CSS gating in the prototype is reinforced with real authorization.</p>
+
+        <h4>Schema + auth flow</h4>
+<pre><span class="lang">ts</span>eventHosts: <span class="fn">defineTable</span>({
+  eventId: v.id(<span class="str">"events"</span>),
+  userId: v.id(<span class="str">"users"</span>),
+  role: v.<span class="fn">union</span>(v.<span class="fn">literal</span>(<span class="str">"owner"</span>), v.<span class="fn">literal</span>(<span class="str">"moderator"</span>)),
+  addedAt: v.number()
+}).<span class="fn">index</span>(<span class="str">"by_event_user"</span>, [<span class="str">"eventId"</span>, <span class="str">"userId"</span>])</pre>
+        <ul class="checklist">
+          <li><input type="checkbox"> <span><code>nodebenchai.com/sign-in?return=&lt;url&gt;</code> route — magic link auth, on success redirect back to return URL with a signed short-lived JWT in URL hash</span></li>
+          <li><input type="checkbox"> <span><code>scratchnode.live</code> reads the JWT from hash, exchanges it for a Convex session via <code>auth/exchangeJWT</code> action, sets a same-site cookie scoped to <code>.scratchnode.live</code></span></li>
+          <li><input type="checkbox"> <span><code>convex/events/mutations.ts</code> — add server-side guard <code>requireHostRole(ctx, eventId)</code> that throws if <code>!eventHosts.exists({eventId, userId: ctx.userId})</code></span></li>
+          <li><input type="checkbox"> <span>Apply guard to: <code>promoteToFAQ</code>, <code>publishWiki</code>, <code>hideMessage</code>, <code>kickMember</code>, <code>endEvent</code></span></li>
+          <li><input type="checkbox"> <span>UI: real host console replaces the prototype host sheet — list of FAQ candidates, hidden messages, member list with kick action</span></li>
+          <li><input type="checkbox"> <span>Test: while signed in as attendee, devtools-flip <code>body[data-role="host"]</code> + click Promote → server returns 403 + UI shows error toast</span></li>
+        </ul>
+
+        <p class="accept">Sign in on nodebenchai.com → click "Create event" → redirected to <code>scratchnode.live/e/&lt;new-slug&gt;</code> as the host. Attendee opens same URL → sees Suggest button. Host opens → sees Promote button + host console. Server-side authorization on Promote returns 403 for attendee.</p>
+        <p class="risk">JWT-in-hash means it's exposed to browser history. Mitigation: short TTL (60s), rotate on exchange, one-time-use. Also: don't accept the JWT if <code>Referer</code> is unexpected.</p>
+      </div>
+    </div>
+
+    <!-- PHASE 5 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <span class="phase-num">Phase 5</span>
+        <span class="phase-title">Event wiki + compaction</span>
+        <span class="phase-time">~3–4 days</span>
+      </div>
+      <div class="phase-body">
+        <p class="goal">When the host ends the event, the room compacts into a publicly-shareable wiki — sourced answers, what changed, top Q&amp;A, people, sources. Live link survives indefinitely. Search engines can index it.</p>
+
+        <h4>Schema</h4>
+<pre><span class="lang">ts</span>eventWikiVersions: <span class="fn">defineTable</span>({
+  eventId: v.id(<span class="str">"events"</span>),
+  version: v.number(),              <span class="com">// monotonic; latest is current</span>
+  publishedBy: v.id(<span class="str">"users"</span>),
+  publishedAt: v.number(),
+  status: v.<span class="fn">union</span>(v.<span class="fn">literal</span>(<span class="str">"draft"</span>), v.<span class="fn">literal</span>(<span class="str">"published"</span>)),
+  sections: v.array(v.object({
+    id: v.string(),                 <span class="com">// "overview", "need-to-know", "qa", "sources"</span>
+    title: v.string(),
+    bodyMarkdown: v.string(),       <span class="com">// rendered to HTML server-side for SEO</span>
+    sourceIds: v.array(v.id(<span class="str">"eventSources"</span>))
+  })),
+  counts: v.object({
+    members: v.number(), faqEntries: v.number(),
+    sources: v.number(), questions: v.number()
+  })
+}).<span class="fn">index</span>(<span class="str">"by_event_version"</span>, [<span class="str">"eventId"</span>, <span class="str">"version"</span>])</pre>
+
+        <h4>Tasks</h4>
+        <ul class="checklist">
+          <li><input type="checkbox"> <span><code>convex/wiki/actions.ts</code> — <code>compactEventWiki({eventId})</code>: pull all promoted FAQ entries, source list, member count; generate sections via a templated Anthropic call; insert as new <code>eventWikiVersion</code> with <code>status=draft</code></span></li>
+          <li><input type="checkbox"> <span><code>publishWikiVersion({wikiVersionId})</code> mutation — flips draft→published; sets <code>events.status=ended</code></span></li>
+          <li><input type="checkbox"> <span>UI: the existing wiki sheet renders from the latest <code>published</code> version (replacing hardcoded HTML)</span></li>
+          <li><input type="checkbox"> <span>SEO: server-render the wiki at <code>scratchnode.live/e/&lt;slug&gt;/wiki</code> on Vercel edge so crawlers get the real content (not the SPA shell)</span></li>
+          <li><input type="checkbox"> <span>Add Open Graph image generation via existing <code>/api/og/[id].tsx</code> route — dynamic OG card per event (title, room code, counts)</span></li>
+          <li><input type="checkbox"> <span>sitemap.xml at <code>scratchnode.live/sitemap.xml</code> — lists all published events</span></li>
+        </ul>
+
+        <p class="accept">Host clicks "End event + publish wiki" → wiki sheet flips from prototype hardcoded content to compacted content from the actual room. Public URL <code>scratchnode.live/e/&lt;slug&gt;/wiki</code> is crawlable (raw HTML contains the wiki body — not just an SPA shell). Twitter/Slack link previews show event title + room code + counts.</p>
+        <p class="risk">Anthropic compaction call could fabricate or omit content. Mitigation: deterministic structural fields (counts, member list, source list) computed from Convex; only the prose summary uses the LLM, and each prose claim must cite a sourceId.</p>
+      </div>
+    </div>
+
+    <!-- PHASE 6 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <span class="phase-num">Phase 6</span>
+        <span class="phase-title">Redis hot layer + semantic cache</span>
+        <span class="phase-time">~1–2 weeks</span>
+      </div>
+      <div class="phase-body">
+        <p class="goal">Make /ask cheap and fast at scale. Same question asked by different attendees returns in &lt;500ms with "0 new searches" because the answer is cached at the semantic-similarity level. Live room state (presence, chat tail, active runs) moves off Convex into Redis for lower latency + lower Convex usage.</p>
+
+        <p>Refer to the <a href="#production-arch">Production architecture</a> section for the full Redis Iris–style design. This phase implements it concretely.</p>
+
+        <h4>Tasks</h4>
+        <ul class="checklist">
+          <li><input type="checkbox"> <span>Stand up Redis (Upstash for serverless-friendly TLS, or Redis Cloud) — single instance is fine for v1</span></li>
+          <li><input type="checkbox"> <span><code>scripts/redis-client.ts</code> — wrapper with auth + JSON-friendly get/set/ttl</span></li>
+          <li><input type="checkbox"> <span>Semantic cache layer: <code>convex/cache/semanticCache.ts</code> — <code>lookup(question, eventId, visibility, wikiVersion)</code> returns cached answer if similarity ≥ 0.92 AND <code>sourceBundleVersion</code> matches</span></li>
+          <li><input type="checkbox"> <span>Modify <code>askAgent</code> action: call <code>semanticCache.lookup</code> first; on hit, return cached entry + trace marks <code>cacheHit=true</code></span></li>
+          <li><input type="checkbox"> <span>Move presence (<code>eventMembers.lastSeenAt</code>) to Redis sorted-set with 5-min TTL — Convex query reads from Redis for live counts</span></li>
+          <li><input type="checkbox"> <span>Move chat tail (last N=50 messages per event) to Redis list — Convex stays source of truth, Redis serves the hot read path</span></li>
+          <li><input type="checkbox"> <span>Add cache-hit rate to host console: <em>"82% of /asks answered from cache · $X.XX saved this event"</em></span></li>
+        </ul>
+
+        <p class="accept">Run a load test: 100 simulated guests open the room, each types /ask within 60s, half ask the same question. P95 latency for the duplicates should be &lt;500ms with <code>cacheHit=true</code>. Convex function call count for /ask should be ~50% lower than without the cache.</p>
+        <p class="risk">Cache key MUST include <code>visibility</code> — a private /ask answer using private notes must never satisfy a public cache lookup. Test: send private /ask with note-derived data, then send same public /ask from another session → MUST return a fresh non-cached answer.</p>
+      </div>
+    </div>
+
+    <!-- PHASE 7+ -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <span class="phase-num">Phase 7+</span>
+        <span class="phase-title">Polish + growth (ongoing)</span>
+        <span class="phase-time">parallel to all of the above</span>
+      </div>
+      <div class="phase-body">
+        <p class="goal">Production-grade UX, observability, and growth loops on top of the working product.</p>
+        <ul class="checklist">
+          <li><input type="checkbox"> <span>TipTap/ProseMirror replaces <code>execCommand</code> for the notes editor (rich text + mentions + backlinks model)</span></li>
+          <li><input type="checkbox"> <span>Client-side QR code generation (replace external <code>api.qrserver.com</code> with a tiny SVG generator inlined into v5)</span></li>
+          <li><input type="checkbox"> <span>Real magic-link auth via Resend/Postmark on nodebenchai.com</span></li>
+          <li><input type="checkbox"> <span>Analytics (PostHog/GA4) with cross-domain linker for nodebenchai.com ↔ scratchnode.live</span></li>
+          <li><input type="checkbox"> <span>Slack/Discord notification on event start (for hosts who opt in)</span></li>
+          <li><input type="checkbox"> <span>Mobile composer to bottom on &lt;540px (chat-app convention; currently sticky top)</span></li>
+          <li><input type="checkbox"> <span>Voice <code>/ask</code> via existing voice WebSocket (already wired into NodeBench workspace — extend to event surface)</span></li>
+          <li><input type="checkbox"> <span>Per-event branding (custom colors, logo) for paid hosts</span></li>
+          <li><input type="checkbox"> <span>Stripe billing: free events up to 100 attendees, <code>event_host_pro</code> tier for unlimited + custom branding</span></li>
+          <li><input type="checkbox"> <span>Replay link: events that ended can be replayed at original timestamps via a scrubber</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="plan-timeline">Cumulative timeline</h3>
+    <table>
+      <thead><tr><th>After phase</th><th>Cumulative time</th><th>What's live</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td>0 d</td><td>Static prototype at scratchnode.live (today)</td></tr>
+        <tr><td>1</td><td>~3 d</td><td>Real multi-user chat. Strangers see each other's messages.</td></tr>
+        <tr><td>2</td><td>~7 d</td><td>Real /ask with sourced answers grounded in event corpus.</td></tr>
+        <tr><td>3</td><td>~9 d</td><td>Notes persist across reload. <em>Minimum viable "real" product.</em></td></tr>
+        <tr><td>4</td><td>~12 d</td><td>Hosts can create events, moderate, publish; server-enforced auth.</td></tr>
+        <tr><td>5</td><td>~16 d</td><td>Event wiki is real. SEO-indexable. Shareable forever.</td></tr>
+        <tr><td>6</td><td>~28 d</td><td>Production-grade latency + cost. Cache hit rate &gt;70%.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="plan-go-no-go">Go/no-go launch criteria</h3>
+    <p>Don't announce <code>scratchnode.live</code> publicly (Twitter, Product Hunt, etc.) until <strong>at least Phase 3 is shipped and Phase 4 is in progress</strong>. Before that, the product is a beautiful demo without a real product loop — public reception will be confused and the brand burns its first impression.</p>
+    <p>Soft-launch milestones (sharing privately):</p>
+    <ul>
+      <li><strong>Phase 1 ships</strong> → share with 5 people for "does this feel real?" testing</li>
+      <li><strong>Phase 2 ships</strong> → share with 10–20 founders/builders for /ask quality calibration</li>
+      <li><strong>Phase 3 ships</strong> → share with a friend's actual upcoming event (small group, in-room) as a beta host</li>
+      <li><strong>Phase 4 ships</strong> → open self-serve event creation; launch on Product Hunt; full marketing push</li>
     </ul>
 
     <h2 id="concepts">Concepts &amp; metaphor <a class="anchor" href="#concepts">#</a></h2>
