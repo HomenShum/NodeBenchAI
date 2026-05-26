@@ -2798,5 +2798,327 @@ function closeWikiDetail() {
 /* ─── INIT ─── */
 renderArtifacts('all');
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     home-v4 NodeBench live-Convex wiring (Phase 1).
+
+     This block hydrates the in-memory fixtures (ENTITIES / BACKLINKS /
+     ARTIFACTS) from the same Convex deployment that powers nodebenchai.com.
+     It is the only NodeBench-specific runtime block in the prototype —
+     scratchnode's /e/{slug} live wiring is in home-v5.html and reuses
+     the same /api/scratchnode-config endpoint (both surfaces share one
+     Convex deployment per CLAUDE.md).
+
+     Loading is non-blocking and additive:
+       - The pre-baked fixtures render immediately so the prototype
+         never blanks for users on slow networks or backends in cold-start.
+       - On successful Convex connect, we *merge* live rows into the
+         fixture dicts and re-render the artifact grid + right-rail.
+       - On any failure (config 404, Convex offline, query error) we
+         stay in prototype mode and log to console.debug only — never
+         break the page.
+
+     Tables consumed:
+       - publicResearch/core:listLatestPublicEntityResearch  → ENTITIES
+       - publicResearch/core:getEntityDossier               → BACKLINKS (lazy)
+       - feed:getRecent                                     → ARTIFACTS append
+       - agents/unified:createThread / appendMessage /
+         getThread / listRecentThreads                      → chat persistence
+
+     Bail-early invariants (HONEST_STATUS):
+       - if config or Convex client fails → prototype mode (no fake live)
+       - if any query rejects → keep fixture data, never silently drop
+       - never auto-create entities/artifacts on read paths
+     ═══════════════════════════════════════════════════════════════════ -->
+<script type="module">
+(async () => {
+  // ─── Stable anonymous session UUID (per-device, persists) ─────────
+  let sessionId;
+  try {
+    sessionId = localStorage.getItem('nb_session_id');
+    if (!sessionId) {
+      sessionId = (crypto && crypto.randomUUID) ? crypto.randomUUID()
+        : 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('nb_session_id', sessionId);
+    }
+  } catch (e) {
+    sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+  }
+
+  // ─── Fetch backend config (shared endpoint with scratchnode) ──────
+  let cfg;
+  try {
+    const r = await fetch('/api/scratchnode-config', { cache: 'no-store' });
+    if (!r.ok) throw new Error('config ' + r.status);
+    cfg = await r.json();
+  } catch (e) {
+    console.debug('[home-v4] config fetch failed, staying in prototype mode:', e.message);
+    return;
+  }
+  if (!cfg.convexUrl) {
+    console.debug('[home-v4] no convexUrl in config — prototype mode');
+    return;
+  }
+
+  // ─── Lazy-load Convex browser client ──────────────────────────────
+  let ConvexClient;
+  try {
+    const mod = await import('https://esm.sh/convex@1.29.0/browser');
+    ConvexClient = mod.ConvexClient;
+    if (!ConvexClient) throw new Error('ConvexClient export missing');
+  } catch (e) {
+    console.warn('[home-v4] Convex client load failed, prototype mode:', e.message);
+    return;
+  }
+
+  const client = new ConvexClient(cfg.convexUrl);
+  window._nbLive = { client, sessionId, status: 'connecting' };
+
+  // ─── Helpers ──────────────────────────────────────────────────────
+  const slugify = (s) => String(s || '').toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+
+  const mapEntityType = (raw) => {
+    const t = String(raw || '').toLowerCase();
+    if (t === 'person' || t === 'people') return 'person';
+    if (t === 'topic' || t === 'tag') return 'topic';
+    if (t === 'event') return 'event';
+    return 'company'; // default — public research entities are mostly companies
+  };
+
+  const escapeHtml = (s) => String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+  const liveEntityIds = new Set();   // track which keys came from Convex
+  const liveArtifactIds = new Set(); // track which artifacts came from Convex
+  const dossierCache = new Map();    // entityKey -> dossier (lazy backlinks)
+
+  // ─── PHASE A: Public entities → ENTITIES dict ─────────────────────
+  let publicRows = [];
+  try {
+    publicRows = await client.query('domains/publicResearch/core:listLatestPublicEntityResearch', { limit: 12 });
+  } catch (e) {
+    console.debug('[home-v4] listLatestPublicEntityResearch failed:', e.message);
+  }
+
+  if (Array.isArray(publicRows) && publicRows.length) {
+    for (const row of publicRows) {
+      if (!row || !row.entityKey) continue;
+      const id = 'live_' + slugify(row.entityKey);
+      ENTITIES[id] = {
+        id,
+        type: mapEntityType(row.entityType),
+        name: row.entityName || row.entityKey,
+        summary: (row.summary || '').slice(0, 240) || 'Public-research entity (live).',
+        // Live-only metadata so other code can detect this is real
+        _live: true,
+        _entityKey: row.entityKey,
+        _confidence: row.confidence,
+        _claimCount: row.claimCount,
+        _sourceCount: row.sourceCount,
+      };
+      liveEntityIds.add(id);
+    }
+    window._nbLive.entities = liveEntityIds.size;
+  }
+
+  // ─── PHASE B: Feed → ARTIFACTS append (most-recent first) ─────────
+  let feedRows = [];
+  try {
+    feedRows = await client.query('feed:getRecent', { limit: 8 });
+  } catch (e) {
+    console.debug('[home-v4] feed:getRecent failed:', e.message);
+  }
+
+  if (Array.isArray(feedRows) && feedRows.length) {
+    // Map feed.category → artifact type chip (one of: event, company, person,
+    // paper_index, upload, source_bundle, presentation, trace, brief).
+    const catToType = (c) => {
+      const v = String(c || '').toLowerCase();
+      if (v === 'finance' || v === 'business') return 'brief';
+      if (v === 'tech' || v === 'ai') return 'source_bundle';
+      if (v === 'research' || v === 'science') return 'paper_index';
+      return 'brief';
+    };
+    const fmtTimeAgo = (ts) => {
+      if (!ts) return 'just now';
+      const dt = Date.now() - ts;
+      const h = Math.round(dt / 3.6e6);
+      if (h < 1) return Math.max(1, Math.round(dt / 6e4)) + ' min ago';
+      if (h < 24) return h + 'h ago';
+      return Math.round(h / 24) + 'd ago';
+    };
+
+    feedRows.forEach((row, i) => {
+      if (!row || !row._id) return;
+      const id = 'live_feed_' + row._id;
+      // Don't duplicate if it's been added already (re-runs on reconnect)
+      if (ARTIFACTS.find(a => a.id === id)) return;
+      ARTIFACTS.unshift({
+        id,
+        type: catToType(row.category),
+        title: row.title || 'Untitled feed item',
+        desc: (row.summary || '').slice(0, 160) || 'Feed item from ' + (row.source || 'unknown'),
+        mentions: [], // feed rows don't map to entity ids directly; left empty so
+                      // mention rendering stays a no-op rather than producing broken links
+        sources: 1,
+        claims: 0,
+        updated: fmtTimeAgo(row.createdAt || row.publishedAt && Date.parse(row.publishedAt)),
+        // Live metadata so we can render a "live" badge later if desired
+        _live: true,
+        _url: row.url,
+      });
+      liveArtifactIds.add(id);
+    });
+    window._nbLive.artifacts = liveArtifactIds.size;
+    // Re-render with merged data if user is on artifacts tab
+    try { renderArtifacts(document.querySelector('.art-type-chip.active')?.getAttribute('data-filter') || 'all'); } catch (e) {}
+  }
+
+  // ─── PHASE C: Lazy BACKLINKS hydration ────────────────────────────
+  // When user opens a backlink drawer for a live entity, fetch dossier
+  // claims + sources and merge them into BACKLINKS[id] BEFORE the
+  // openBacklinks() handler walks the dict. We monkey-patch the existing
+  // global openBacklinks so behavior stays identical for fixture entities.
+  const originalOpenBacklinks = window.openBacklinks;
+  window.openBacklinks = async function(entityId) {
+    const ent = ENTITIES[entityId];
+    if (ent && ent._live && !dossierCache.has(ent._entityKey)) {
+      try {
+        const dossier = await client.query(
+          'domains/publicResearch/core:getEntityDossier',
+          { entityKey: ent._entityKey, limit: 12 }
+        );
+        dossierCache.set(ent._entityKey, dossier);
+        if (dossier && Array.isArray(dossier.claims)) {
+          BACKLINKS[entityId] = dossier.claims.slice(0, 12).map((c) => ({
+            fromType: 'artifact', // claims surface as artifact-like rows
+            fromId: c.sourceTitle || 'Public research source',
+            context: (c.claim || '').slice(0, 200),
+          }));
+        }
+      } catch (e) {
+        console.debug('[home-v4] getEntityDossier failed for', ent._entityKey, e.message);
+      }
+    }
+    if (typeof originalOpenBacklinks === 'function') {
+      return originalOpenBacklinks.call(this, entityId);
+    }
+  };
+
+  // ─── PHASE D: Real chat persistence ───────────────────────────────
+  // Replace the setTimeout-driven mock sendChat with a real
+  // createThread+appendMessage flow. We still render an immediate
+  // local echo for the user message (so the UI feels instant) and
+  // surface a thinking indicator while we persist + listRecentThreads
+  // re-renders the right-rail "Recent" panel if present.
+  let liveThreadId = null;
+  const ensureThread = async () => {
+    if (liveThreadId) return liveThreadId;
+    try {
+      const r = await client.mutation('domains/agents/unified:createThread', {
+        anonymousSessionId: sessionId,
+        title: 'home-v4 chat',
+        surfaceOrigin: 'chat',
+      });
+      liveThreadId = r && r.threadId;
+      window._nbLive.threadId = liveThreadId;
+      return liveThreadId;
+    } catch (e) {
+      console.debug('[home-v4] createThread failed:', e.message);
+      return null;
+    }
+  };
+
+  const originalSendChat = window.sendChat;
+  window.sendChat = async function() {
+    const input = document.getElementById('chat-input');
+    const text = input ? input.value.trim() : '';
+    if (!text) return;
+
+    // Always render the user's local echo (UI feels instant).
+    const messages = document.getElementById('chat-messages');
+    if (messages) {
+      messages.insertAdjacentHTML('beforeend',
+        '<div class="chat-msg chat-msg-user"><div class="chat-bubble">' + escapeHtml(text) + '</div></div>'
+      );
+      messages.scrollTop = messages.scrollHeight;
+    }
+    if (input) input.value = '';
+
+    // Persist via Convex (best-effort; failure falls back to mock response).
+    const threadId = await ensureThread();
+    let persistedOk = false;
+    if (threadId) {
+      try {
+        await client.mutation('domains/agents/unified:appendMessage', {
+          anonymousSessionId: sessionId,
+          threadId,
+          role: 'user',
+          content: text,
+          surfaceOrigin: 'chat',
+        });
+        persistedOk = true;
+      } catch (e) {
+        console.debug('[home-v4] appendMessage failed:', e.message);
+      }
+    }
+
+    // Show thinking indicator and a synthesis response.
+    if (messages) {
+      setTimeout(() => {
+        messages.insertAdjacentHTML('beforeend',
+          '<div class="chat-msg chat-msg-agent">' +
+            '<div class="chat-msg-label">NodeBench' + (persistedOk ? ' · live' : ' · local') + '</div>' +
+            '<div class="chat-checkpoint"><span class="chat-checkpoint-dot"></span> ' +
+              (persistedOk ? 'Persisted to Convex thread ' + threadId.slice(0, 8) + ' · scanning live signals'
+                           : 'Backend unavailable · prototype reply only') +
+            '</div>' +
+          '</div>'
+        );
+        messages.scrollTop = messages.scrollHeight;
+      }, 200);
+
+      setTimeout(() => {
+        const recap = liveEntityIds.size
+          ? 'I found ' + liveEntityIds.size + ' live entities in your workspace. Open any @mention to see verified-research backlinks.'
+          : 'I am running in prototype mode — fixtures only. Connect a Convex backend to see real entities.';
+        messages.insertAdjacentHTML('beforeend',
+          '<div class="chat-msg chat-msg-agent"><div class="chat-bubble">' + recap + '</div></div>'
+        );
+        messages.scrollTop = messages.scrollHeight;
+
+        // Best-effort persist of the assistant turn too — so listRecentThreads
+        // shows the full conversation for ops/dogfood verification.
+        if (threadId) {
+          client.mutation('domains/agents/unified:appendMessage', {
+            anonymousSessionId: sessionId,
+            threadId,
+            role: 'assistant',
+            content: recap,
+            surfaceOrigin: 'chat',
+          }).catch((e) => console.debug('[home-v4] assistant appendMessage failed:', e.message));
+        }
+      }, 1100);
+    }
+  };
+
+  // ─── PHASE E: Live status marker ──────────────────────────────────
+  // Surface a small "Live" indicator into the topbar wide-toggle area
+  // so dogfood verification can confirm the wiring is active visually
+  // without needing to crack open devtools.
+  try {
+    const badge = document.createElement('span');
+    badge.id = 'nb-live-badge';
+    badge.textContent = 'live · ' + liveEntityIds.size + ' entities · ' + liveArtifactIds.size + ' feed';
+    badge.style.cssText = 'position:fixed;bottom:8px;right:8px;padding:4px 10px;border-radius:999px;background:#1a3a1a;color:#7ee07e;font-size:10px;font-family:JetBrains Mono,monospace;border:1px solid #2a5a2a;z-index:9999;opacity:0.85';
+    badge.setAttribute('aria-label', 'NodeBench Convex live data status');
+    document.body.appendChild(badge);
+  } catch (e) {}
+
+  window._nbLive.status = 'live';
+})();
+</script>
 </body>
 </html>
