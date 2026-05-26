@@ -66,6 +66,19 @@ Brief - Cards - Notebook - Sources - Chat - Map
 
 Workspace is a separate deployed surface, not a sixth tab in the main web app.
 
+## Route Ownership Guardrail
+
+Before claiming that a runtime or UI-kit change affects "NodeBench chat",
+"Reports", "the proto", or "ScratchNode", name the route and owning files:
+
+- Current NodeBench redesign: `/redesign/*` in `src/features/redesign/*`
+- ExactKit cockpit: `/?surface=*` in `src/features/designKit/exact/ExactKit.tsx`
+- ScratchNode public room: `scratchnode.live/e/:slug` in `public/proto/home-v5.html` plus `convex/events.ts`
+
+Use `docs/architecture/PRODUCT_SURFACE_RUNTIME_OWNERSHIP.md` as the canonical
+map. A change to `ExactKit.tsx` is not a `/redesign/chat` change. A change to
+`home-v5.html` is not a NodeBench redesign change.
+
 ## Runtime Safety Rules
 
 - Preserve live Convex-backed flows.

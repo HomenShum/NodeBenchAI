@@ -70,7 +70,8 @@ export function RightInspector({ activeLiveArtifactDetail, agentSnapshot }: Righ
     <aside
       className="rd-pane rd-pane--right chat-context"
       data-testid="right-inspector"
-      aria-label="Session context"
+      aria-label="Agent runtime inspector"
+      data-agent-runtime-surface="redesign-chat"
       data-agent-context-ref={graphPacket?.contextRef ?? ""}
       data-agent-context-rank={graphPacket?.agentRank ?? ""}
     >
