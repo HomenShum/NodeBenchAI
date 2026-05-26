@@ -797,3 +797,142 @@ describe("claimHost — concurrent race invariant", () => {
     expect(hostRows).toBeGreaterThanOrEqual(1);
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* Phase 4 follow-up Item 5 — host-claim-code janitor                          */
+/* -------------------------------------------------------------------------- */
+//
+// Scenario: a host clicks "Generate claim code", copies the code, then closes
+// their tab and never redeems it. `requestHostClaim` already wrote
+// `hostClaimCodeHash` + `hostClaimCodeCreatedAt` to the liveEvents row. The
+// hash sits there forever unless somebody force-clears it. Codes are 24-char
+// A-Z2-9 (~120 bits of entropy), so brute-force is already infeasible — but
+// keeping a stale hash around indefinitely widens the attack surface for no
+// reason. The 10-min janitor cron sweeps any row whose
+// `hostClaimCodeCreatedAt` is older than 30 min and clears both fields.
+//
+// Coverage matrix:
+//   1. Empty result — no liveEvents rows are stale → evicted: 0.
+//   2. Clears stale rows — row with createdAt > 30 min ago AND hash set →
+//      both fields are unset after the janitor runs.
+//   3. Skips rows without a hash — row with hash undefined is NEVER patched
+//      (even if some other timestamp says it's old).
+
+const _evictStaleHostClaimCodes = (eventsModule as any)._evictStaleHostClaimCodes;
+
+describe("_evictStaleHostClaimCodes — Phase 4 defense-in-depth janitor", () => {
+  it("empty result when no rows are stale (fresh event, recent code)", async () => {
+    // Persona: a host who just minted a code 30 seconds ago. The janitor must
+    // NOT touch this row — the user is still mid-flow toward redemption.
+    // Goal: verify the janitor's TTL respects in-flight claims.
+    // Scale: 1 event, 1 row.
+    // Duration: single tick.
+    const now = Date.now();
+    const tables: Tables = {
+      liveEvents: [
+        baseEvent({
+          hostClaimCodeHash: "fresh-hash-aaaaa",
+          hostClaimCodeCreatedAt: now - 30 * 1000, // 30s ago, well inside TTL
+        }),
+      ],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await _evictStaleHostClaimCodes._handler(ctx);
+
+    expect(result).toEqual({ evicted: 0 });
+    // Row untouched — the hash and timestamp must still be there for the
+    // upcoming claimHostWithCode call to succeed.
+    expect(tables.liveEvents[0].hostClaimCodeHash).toBe("fresh-hash-aaaaa");
+    expect(tables.liveEvents[0].hostClaimCodeCreatedAt).toBe(now - 30 * 1000);
+    expect((ctx.db as MockDb).patches.length).toBe(0);
+  });
+
+  it("clears fields when hostClaimCodeCreatedAt is older than 30 min", async () => {
+    // Persona: a host abandoned their claim flow 31 min ago — closed the tab,
+    // never came back. The hash sat on the event row that whole time. The
+    // janitor must clear both fields so the hash stops widening the
+    // brute-force window.
+    // Goal: verify the eviction is correct and HONEST_STATUS reports the
+    // count truthfully.
+    // Scale: 1 event.
+    // Duration: single tick.
+    const now = Date.now();
+    const tables: Tables = {
+      liveEvents: [
+        baseEvent({
+          hostClaimCodeHash: "stale-hash-zzzzz",
+          hostClaimCodeCreatedAt: now - 31 * 60 * 1000, // 31 min ago — past TTL
+        }),
+      ],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await _evictStaleHostClaimCodes._handler(ctx);
+
+    expect(result).toEqual({ evicted: 1 });
+    // Both fields cleared. (MockDb patches set them to undefined directly;
+    // Convex translates undefined → field-removal at the row level.)
+    expect(tables.liveEvents[0].hostClaimCodeHash).toBeUndefined();
+    expect(tables.liveEvents[0].hostClaimCodeCreatedAt).toBeUndefined();
+    expect((ctx.db as MockDb).patches.length).toBe(1);
+  });
+
+  it("does NOT touch rows where hostClaimCodeHash is undefined", async () => {
+    // Persona: an event that NEVER minted a claim code. The row has no hash
+    // field at all (or it's explicitly undefined). The janitor must skip it
+    // — patching `undefined` onto a row that already has undefined is a
+    // wasted write, and more importantly, this proves the filter doesn't
+    // catch ghost rows.
+    // Goal: surface false positives — if the janitor patches events with no
+    // hash, it has a bug that wastes DB ops on every cron tick.
+    // Scale: mix of 3 rows in one run — one stale-with-hash, one no-hash, one
+    // recent-with-hash. Verify exactly one eviction happens.
+    // Duration: single tick.
+    const now = Date.now();
+    const tables: Tables = {
+      liveEvents: [
+        baseEvent({
+          _id: "liveEvents:no-hash",
+          // No hostClaimCodeHash, no hostClaimCodeCreatedAt — pristine event.
+        }),
+        baseEvent({
+          _id: "liveEvents:stale-with-hash",
+          hostClaimCodeHash: "stale-hash-yyyyy",
+          hostClaimCodeCreatedAt: now - 45 * 60 * 1000, // 45 min ago
+        }),
+        baseEvent({
+          _id: "liveEvents:fresh-with-hash",
+          hostClaimCodeHash: "fresh-hash-bbbbb",
+          hostClaimCodeCreatedAt: now - 5 * 60 * 1000, // 5 min ago
+        }),
+      ],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await _evictStaleHostClaimCodes._handler(ctx);
+
+    // Exactly one row evicted — the stale one.
+    expect(result).toEqual({ evicted: 1 });
+
+    // Pristine row (no hash) — never patched.
+    const pristine = tables.liveEvents.find((r) => r._id === "liveEvents:no-hash")!;
+    expect(pristine.hostClaimCodeHash).toBeUndefined();
+    expect(pristine.hostClaimCodeCreatedAt).toBeUndefined();
+
+    // Stale row — cleared.
+    const stale = tables.liveEvents.find((r) => r._id === "liveEvents:stale-with-hash")!;
+    expect(stale.hostClaimCodeHash).toBeUndefined();
+    expect(stale.hostClaimCodeCreatedAt).toBeUndefined();
+
+    // Fresh row (recent code) — UNTOUCHED. This is the load-bearing
+    // assertion: the janitor must never race a legitimate redemption.
+    const fresh = tables.liveEvents.find((r) => r._id === "liveEvents:fresh-with-hash")!;
+    expect(fresh.hostClaimCodeHash).toBe("fresh-hash-bbbbb");
+    expect(fresh.hostClaimCodeCreatedAt).toBe(now - 5 * 60 * 1000);
+
+    // Exactly 1 patch was issued (only the stale row).
+    expect((ctx.db as MockDb).patches.length).toBe(1);
+    expect((ctx.db as MockDb).patches[0].id).toBe("liveEvents:stale-with-hash");
+  });
+});
