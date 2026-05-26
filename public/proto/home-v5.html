@@ -2874,8 +2874,11 @@ setTimeout(refreshNotesCounter, 100);
 (async () => {
   // ─── Bail-early checks ─────────────────────────────────────────────
   const slugMatch = location.pathname.match(/^\/e\/([a-z0-9][a-z0-9-]{0,60})\/?$/i);
-  if (!slugMatch) return; // not an event URL — keep prototype-only behavior
-  const slug = slugMatch[1];
+  const isCanonicalApex =
+    (location.pathname === '/' || location.pathname === '/index.html') &&
+    ON_PUBLIC_DOMAIN;
+  if (!slugMatch && !isCanonicalApex) return; // not an event URL — keep prototype-only behavior
+  const slug = slugMatch ? slugMatch[1] : EVENT_SLUG;
 
   // Stable anonymous session UUID — persists across reloads, per-device.
   let sessionId;
@@ -3121,19 +3124,24 @@ setTimeout(refreshNotesCounter, 100);
   const noteOwnerKey = sessionId;
   // Pending optimistic ops keyed by tempId so we can dedupe when Convex echoes back.
   const _pendingOps = new Map();
+  const _convexNoteIds = new Set();
+  const isLiveConvexNoteId = (id) => !!id && _convexNoteIds.has(id);
 
   // Map Convex rows → the shape the notes editor expects.
-  const mapConvexNote = (row) => ({
-    id: row._id,
-    title: row.title || 'Untitled',
-    body: row.bodyHtml || '',
-    tags: row.tags || [],
-    pinned: !!row.pinned,
-    isAsk: !!row.isAsk,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    _convex: true,
-  });
+  const mapConvexNote = (row) => {
+    _convexNoteIds.add(row._id);
+    return {
+      id: row._id,
+      title: row.title || 'Untitled',
+      body: row.bodyHtml || '',
+      tags: row.tags || [],
+      pinned: !!row.pinned,
+      isAsk: !!row.isAsk,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      _convex: true,
+    };
+  };
 
   client.onUpdate('notes:listMyNotes', { ownerKey: noteOwnerKey, eventId }, (rows) => {
     if (!Array.isArray(rows)) return;
@@ -3169,6 +3177,7 @@ setTimeout(refreshNotesCounter, 100);
         isAsk: false,
         pinned: false,
       });
+      _convexNoteIds.add(res.noteId);
       window._activeNoteId = res.noteId;
       // Re-render with the new note focused (subscription will confirm within 1s).
       if (typeof renderNotesListOnly === 'function') renderNotesListOnly();
@@ -3196,7 +3205,7 @@ setTimeout(refreshNotesCounter, 100);
   const _origUpdateActive = window.updateActiveNote;
   window.updateActiveNote = function(field, value) {
     const id = window._activeNoteId;
-    if (!id || !id.match(/^[a-z0-9]{16,40}$/i)) {
+    if (!isLiveConvexNoteId(id)) {
       // Fallback for temp ids: just call original (in-memory)
       return _origUpdateActive && _origUpdateActive.call(this, field, value);
     }
@@ -3241,7 +3250,7 @@ setTimeout(refreshNotesCounter, 100);
   const _origTogglePin = window.togglePinNote;
   window.togglePinNote = async function() {
     const id = window._activeNoteId;
-    if (!id || !id.match(/^[a-z0-9]{16,40}$/i)) {
+    if (!isLiveConvexNoteId(id)) {
       return _origTogglePin && _origTogglePin.call(this);
     }
     try {
@@ -3256,7 +3265,7 @@ setTimeout(refreshNotesCounter, 100);
   const _origDelete = window.deleteActiveNote;
   window.deleteActiveNote = async function() {
     const id = window._activeNoteId;
-    if (!id || !id.match(/^[a-z0-9]{16,40}$/i)) {
+    if (!isLiveConvexNoteId(id)) {
       return _origDelete && _origDelete.call(this);
     }
     try {

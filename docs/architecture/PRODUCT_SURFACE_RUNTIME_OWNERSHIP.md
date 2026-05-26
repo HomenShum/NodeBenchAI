@@ -38,7 +38,8 @@ For ScratchNode:
 - `home-v5.html` is the live event-room shell.
 - `convex/events.ts` is the public event backend.
 - Public `/ask` currently composes sourced answers deterministically from the public event corpus. If an LLM-backed agent is added later, name the boundary clearly so "agent" does not hide deterministic behavior.
-- Private notes stay in `userNotes` and must not be read by `askAgent` or public wiki publishing.
+- Private notes stay in `userNotes` and must not be read by `composeAnswer` or public wiki publishing.
+- Real backend dogfood for `home-v5` and interaction dogfood for `home-v4` are documented in `docs/architecture/PROTO_SURFACE_REAL_BACKEND_DOGFOOD.md`.
 
 ## Required Start Checklist
 
