@@ -20,11 +20,16 @@ import {
   emailSyncState,
 } from "./schema/emailSchema";
 
-// Live event-room schema (Phase 1 of scratchnode.live live prod plan)
+// Live event-room schema (Phases 1–3 of scratchnode.live live prod plan)
 import {
   liveEvents,
   liveEventMembers,
   liveEventMessages,
+  liveEventSources,
+  liveEventAnswers,
+  userNotes,
+  liveEventHosts,
+  liveEventWikiVersions,
 } from "./schema/eventsSchema";
 
 // Proactive system schema imports
@@ -4873,12 +4878,20 @@ export default defineSchema({
   dossierEnrichment,
 
   /* ------------------------------------------------------------------ */
-  /* SCRATCHNODE.LIVE EVENT ROOMS - Phase 1 of live prod plan           */
-  /* Anonymous shared chat; see public/proto/docs.html#live-prod-plan   */
+  /* SCRATCHNODE.LIVE EVENT ROOMS - Phases 1–3 of live prod plan        */
+  /* See public/proto/docs.html#live-prod-plan for the full spec.       */
+  /*  Phase 1: shared chat (liveEvents, liveEventMembers, liveEventMessages)  */
+  /*  Phase 2: agent sources + answers (liveEventSources, liveEventAnswers)  */
+  /*  Phase 3: private notes (userNotes)                                */
   /* ------------------------------------------------------------------ */
   liveEvents,
   liveEventMembers,
   liveEventMessages,
+  liveEventSources,
+  liveEventAnswers,
+  userNotes,
+  liveEventHosts,
+  liveEventWikiVersions,
 
   /* ------------------------------------------------------------------ */
   /* EMAIL MANAGEMENT - Full email thread/message management system     */

@@ -1368,6 +1368,7 @@ import type * as lib_streamingDelegation from "../lib/streamingDelegation.js";
 import type * as lib_withArtifactPersistence from "../lib/withArtifactPersistence.js";
 import type * as lib_withResourceLinkWrapping from "../lib/withResourceLinkWrapping.js";
 import type * as lib_xaiClient from "../lib/xaiClient.js";
+import type * as notes from "../notes.js";
 import type * as presence from "../presence.js";
 import type * as prosemirror from "../prosemirror.js";
 import type * as router from "../router.js";
@@ -2879,6 +2880,7 @@ declare const fullApi: ApiFromModules<{
   "lib/withArtifactPersistence": typeof lib_withArtifactPersistence;
   "lib/withResourceLinkWrapping": typeof lib_withResourceLinkWrapping;
   "lib/xaiClient": typeof lib_xaiClient;
+  notes: typeof notes;
   presence: typeof presence;
   prosemirror: typeof prosemirror;
   router: typeof router;

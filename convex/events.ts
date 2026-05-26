@@ -24,8 +24,19 @@
  *   - TIMEOUT: Convex functions have a 1s mutation / 10s query budget by default
  */
 
-import { v, ConvexError } from "convex/values";
+import { v } from "convex/values";
 import { query, mutation, internalMutation } from "./_generated/server";
+
+class ConvexError<T extends Record<string, unknown>> extends Error {
+  data: T;
+
+  constructor(data: T) {
+    super(String(data.message ?? JSON.stringify(data)));
+    this.name = "ConvexError";
+    this.data = data;
+    (this as Record<PropertyKey, unknown>)[Symbol.for("ConvexError")] = true;
+  }
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────
 const MAX_DISPLAY_NAME = 40;
@@ -33,6 +44,144 @@ const MAX_MESSAGE_TEXT = 4000;
 const DEFAULT_MESSAGE_LIMIT = 200;
 const MAX_MESSAGE_LIMIT = 500;
 const PRESENCE_TTL_MS = 5 * 60 * 1000; // 5 min
+const MAX_SOURCE_BODY = 12_000;
+const MAX_ANSWER_BODY = 4_000;
+const MAX_ANSWER_LIMIT = 100;
+const MAX_WIKI_ANSWERS = 20;
+
+const DEMO_SOURCES = [
+  {
+    uri: "transcript://ai-infra-summit-2026/mcp-auth-panel",
+    kind: "transcript" as const,
+    title: "MCP auth panel transcript",
+    excerpt: "Panelists agreed that scoped credentials, audit trails, and revocation UX are the gating items for enterprise MCP adoption.",
+    body: "MCP auth timeline: teams are moving from static API keys toward scoped, revocable credentials, delegated OAuth-style flows, and visible audit trails. The key adoption concern is not tool count, it is whether every agent action can be traced to a person, policy, source, and approval state. Enterprise buyers asked for admin dashboards, session revocation, and least-privilege tool profiles before broad rollout.",
+  },
+  {
+    uri: "doc://ai-infra-summit-2026/voice-agent-eval-notes",
+    kind: "doc" as const,
+    title: "Voice-agent evaluation notes",
+    excerpt: "Voice agents need evaluation on latency, interruption handling, hallucinated actions, and handoff quality, not only transcript accuracy.",
+    body: "Voice-agent evaluation: attendees compared latency, barge-in handling, transcription quality, hallucinated tool calls, escalation to humans, and post-call summary faithfulness. The strongest recurring point was that voice agents fail in edge cases where a user interrupts, changes intent, or asks for an action that needs approval.",
+  },
+  {
+    uri: "slide://ai-infra-summit-2026/healthcare-pilots",
+    kind: "slide" as const,
+    title: "Healthcare workflow pilot slide",
+    excerpt: "Healthcare pilots clustered around intake, clinical note preparation, payer admin, and compliance-heavy review workflows.",
+    body: "Healthcare pilots: the session separated low-risk workflow automation from clinical decision support. Good first deployments include intake routing, clinical note preparation, prior-authorization packet assembly, and quality review. Buyers asked for HIPAA boundaries, source retention, and human approval before any patient-impacting write.",
+  },
+  {
+    uri: "url://ai-infra-summit-2026/orbital-labs-demo",
+    kind: "url" as const,
+    title: "Orbital Labs demo brief",
+    excerpt: "Orbital Labs positioned its eval layer as a way to compare agent behavior across tools, memories, and approval policies.",
+    body: "Orbital Labs demo: the company framed agent evaluation as a runtime problem across tools, memory, policies, and approvals. The team showed comparison dashboards for tool-call failure, answer grounding, and human correction loops. The market implication is that eval moves closer to operations and workflow governance.",
+  },
+  {
+    uri: "doc://ai-infra-summit-2026/event-wiki-policy",
+    kind: "doc" as const,
+    title: "Event wiki privacy policy",
+    excerpt: "Public wiki compaction may use public chat, public answers, and host-uploaded sources, but never private attendee notes.",
+    body: "Event wiki policy: only public chat messages, public sourced answers, host-uploaded sources, and host-promoted FAQ entries may enter the durable wiki. Private notes, private asks, and attendee-local drafts are excluded from compaction and from answer caches. The trace should explicitly say when private notes were not used.",
+  },
+];
+
+const stableHash = (value: string) => {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+};
+
+const normalizeQuestion = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().slice(0, 240);
+
+const tokenize = (value: string) =>
+  new Set(normalizeQuestion(value).split(" ").filter((token) => token.length > 2));
+
+const scoreSource = (question: string, source: { title: string; excerpt: string; body: string }) => {
+  const qTokens = tokenize(question);
+  const haystack = tokenize(`${source.title} ${source.excerpt} ${source.body}`);
+  let overlap = 0;
+  for (const token of qTokens) {
+    if (haystack.has(token)) overlap += 1;
+  }
+  return overlap + (source.title.toLowerCase().includes(question.toLowerCase()) ? 3 : 0);
+};
+
+const requireOwnerKey = (ownerKey: string) => {
+  if (!ownerKey || ownerKey.length < 8 || ownerKey.length > 80) {
+    throw new ConvexError({
+      code: "invalid_owner_key",
+      message: "ownerKey must be 8-80 chars.",
+    });
+  }
+};
+
+const ensureDemoSourcesForEvent = async (ctx: any, eventId: any) => {
+  const now = Date.now();
+  let inserted = 0;
+  for (const source of DEMO_SOURCES) {
+    const existing = await ctx.db
+      .query("liveEventSources")
+      .withIndex("by_event_uri", (q: any) => q.eq("eventId", eventId).eq("uri", source.uri))
+      .first();
+    if (existing) continue;
+    await ctx.db.insert("liveEventSources", {
+      eventId,
+      uri: source.uri,
+      kind: source.kind,
+      title: source.title,
+      excerpt: source.excerpt,
+      body: source.body.slice(0, MAX_SOURCE_BODY),
+      sourceHash: stableHash(`${source.uri}|${source.body}`),
+      isSeeded: true,
+      uploadedAt: now,
+    });
+    inserted += 1;
+  }
+  return inserted;
+};
+
+const requireMember = async (ctx: any, eventId: any, sessionId: string) => {
+  if (!sessionId || sessionId.length < 8) {
+    throw new ConvexError({
+      code: "invalid_session",
+      message: "Must join the event first.",
+    });
+  }
+  const member = await ctx.db
+    .query("liveEventMembers")
+    .withIndex("by_event_session", (q: any) =>
+      q.eq("eventId", eventId).eq("sessionId", sessionId),
+    )
+    .first();
+  if (!member) {
+    throw new ConvexError({
+      code: "not_joined",
+      message: "Call joinEvent before using this event.",
+    });
+  }
+  return member;
+};
+
+const requireHost = async (ctx: any, eventId: any, ownerKey: string) => {
+  requireOwnerKey(ownerKey);
+  const host = await ctx.db
+    .query("liveEventHosts")
+    .withIndex("by_event_owner", (q: any) => q.eq("eventId", eventId).eq("ownerKey", ownerKey))
+    .first();
+  if (!host) {
+    throw new ConvexError({
+      code: "not_host",
+      message: "Host ownership is required for this action.",
+    });
+  }
+  return host;
+};
 
 // ─── QUERIES ──────────────────────────────────────────────────────────────
 
@@ -134,6 +283,9 @@ export const joinEvent = mutation({
     }
     if (!event) {
       throw new ConvexError({ code: "event_not_found", message: "No such event slug." });
+    }
+    if (event.slug === "ai-infra-summit-2026") {
+      await ensureDemoSourcesForEvent(ctx, event._id);
     }
 
     const now = Date.now();
@@ -299,7 +451,8 @@ export const ensureDemoEvent = mutation({
       status: "live",
       startedAt: Date.now(),
     });
-    return { eventId: id, created: true };
+    const sourcesInserted = await ensureDemoSourcesForEvent(ctx, id);
+    return { eventId: id, created: true, sourcesInserted };
   },
 });
 
