@@ -1684,6 +1684,12 @@ var SHEET_RENDERERS = {
   },
 
   wiki: function() {
+    if (window._sn_published_wiki_body) {
+      return '<div class="sheet-head"><h2 id="sheet-title">AI Infra Summit &middot; Wiki</h2><span class="badge">live Convex</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+        '<div class="wiki-shell"><aside class="wiki-toc" aria-label="Table of contents"><div class="wiki-toc-label">Source</div><a class="wiki-toc-link active">Published snapshot</a></aside>' +
+        '<article class="wiki-article" id="wiki-article">' + window._sn_published_wiki_body + '</article>' +
+        '<aside class="wiki-onpage" aria-label="Actions"><div class="wiki-onpage-label">Actions</div><a onclick="window.snPublishWiki && window.snPublishWiki()">Republish</a></aside></div>';
+    }
     var h = [];
     h.push('<div class="sheet-head"><h2 id="sheet-title">AI Infra Summit &middot; Wiki</h2><span class="badge">v1 &middot; live</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>');
     h.push('<div class="wiki-shell">');
@@ -1823,6 +1829,8 @@ var SHEET_RENDERERS = {
       '<button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#128295;</span><span style="font-size:11px">Workshop</span></button>' +
       '<button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#9749;</span><span style="font-size:11px">Office hrs</span></button></div></div>' +
       '<button type="button" class="sheet-button" onclick="toast(\'Event created!\',\'Room code: SOLARIS · Share the link with attendees.\'); closeSheet();">Create event &rarr;</button>' +
+      '<button type="button" class="sheet-button ghost" onclick="window.snClaimHost ? window.snClaimHost() : toast(\'Host console\',\'Live backend not connected yet.\'); closeSheet();">Claim live host console</button>' +
+      '<button type="button" class="sheet-button ghost host-only" onclick="window.snPublishWiki ? window.snPublishWiki() : toast(\'Wiki publish\',\'Live backend not connected yet.\'); closeSheet();">Publish wiki snapshot</button>' +
       '<button type="button" class="sheet-button ghost" onclick="closeSheet()">Maybe later</button>' +
       '<p style="margin-top:10px;font-size:11px;color:var(--ink-faint);text-align:center">Sign in first to save the event and access the host console.</p>';
   }
@@ -2938,6 +2946,12 @@ setTimeout(refreshNotesCounter, 100);
     return (h > 12 ? h - 12 : (h || 12)) + ':' + m + (h >= 12 ? 'p' : 'a');
   };
   const seenIds = new Set();
+  const seenAnswerIds = new Set();
+  const snEscape = (value) => String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
   const renderMessage = (msg) => {
     if (!feedEl || seenIds.has(msg._id)) return;
     seenIds.add(msg._id);
@@ -2954,10 +2968,45 @@ setTimeout(refreshNotesCounter, 100);
     row.scrollIntoView({ behavior: 'smooth', block: 'end' });
   };
 
+  const renderAnswer = (answer) => {
+    if (!feedEl || !answer || seenAnswerIds.has(answer._id)) return;
+    seenAnswerIds.add(answer._id);
+    const article = document.createElement('article');
+    article.className = 'ans';
+    article.setAttribute('data-answer-id', answer._id);
+    const sourceCount = (answer.sources || []).length || (answer.sourceIds || []).length || 0;
+    const sourceChips = (answer.sources || []).slice(0, 5).map((source) =>
+      '<span title="' + snEscape(source.excerpt || source.uri) + '">' + snEscape(source.title || source.uri) + '</span>'
+    ).join('');
+    const trace = (answer.trace || []).map((step) =>
+      '<div class="step"><span class="c">' + (step.status === 'ok' ? '&check;' : step.status === 'miss' ? '&middot;' : '!') + '</span><span>' +
+      snEscape(String(step.step || '').replace(/_/g, ' ')) + (step.detail ? ' · ' + snEscape(step.detail) : '') +
+      (typeof step.durationMs === 'number' ? ' · ' + step.durationMs + 'ms' : '') + '</span></div>'
+    ).join('');
+    article.innerHTML =
+      '<div class="ans-head"><span class="who">ScratchNode</span><span class="sep">·</span><span>' +
+      (answer.cacheHit ? 'cache hit' : 'sourced answer') + '</span><span class="sep">·</span><span>' + fmtTime(answer.createdAt) + '</span></div>' +
+      '<div class="ans-q"></div>' +
+      '<div class="ans-body"></div>' +
+      '<div class="ans-sources">' + (sourceChips || '<span>public event corpus</span>') + '<span>' + sourceCount + ' sources</span></div>' +
+      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">' + (answer.cacheHit ? 'Answered from cache' : 'Answered from event corpus') + '</span><span class="sep">·</span><span><b>' + sourceCount + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>0</b> live searches</span><span class="sep">·</span><span class="priv">no private notes</span></div>' +
+      '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
+      '<div class="ans-how">' + trace + '</div>' +
+      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="window.snSuggestFaq && window.snSuggestFaq(\'' + answer._id + '\')">Suggest for FAQ</button><button type="button" class="primary host-only" onclick="window.snPromoteFaq && window.snPromoteFaq(\'' + answer._id + '\')">Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
+    article.querySelector('.ans-q').textContent = answer.question || '';
+    article.querySelector('.ans-body').innerHTML = snEscape(answer.body || '').replace(/\n/g, '<br>');
+    feedEl.appendChild(article);
+    article.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  };
+
   // Realtime subscription — Convex re-pushes the full array on every change
   client.onUpdate('events:getMessages', { eventId, limit: 200 }, (rows) => {
     if (!Array.isArray(rows)) return;
     for (const msg of rows) renderMessage(msg);
+  });
+  client.onUpdate('events:getAnswers', { eventId, limit: 100 }, (rows) => {
+    if (!Array.isArray(rows)) return;
+    for (const answer of rows) renderAnswer(answer);
   });
 
   // ─── Override the send pipeline to route public chat through Convex ─
@@ -2981,6 +3030,16 @@ setTimeout(refreshNotesCounter, 100);
       displayName: liveName,
       text: intent.clean,
       kind: intent.kind === 'agent_ask' ? 'ask' : 'chat',
+    }).then((res) => {
+      if (intent.kind !== 'agent_ask') return null;
+      return client.mutation('events:askAgent', {
+        eventId,
+        sessionId,
+        questionMessageId: res.messageId,
+        question: intent.clean,
+      }).then((answer) => {
+        if (answer) renderAnswer(answer);
+      });
     }).catch((e) => {
       console.warn('[scratchnode] sendMessage failed:', e.message || e);
       // Fall back to prototype DOM append so the message isn't lost in the void.
@@ -2993,6 +3052,61 @@ setTimeout(refreshNotesCounter, 100);
   };
   // Make sure both global aliases stay in sync (existing onclick handlers).
   window.send = window.sendComposerMessage;
+
+  window.snSuggestFaq = function(answerId) {
+    client.mutation('events:suggestAnswerForFaq', { eventId, answerId, sessionId })
+      .then(() => toast('Suggested for FAQ', 'The host can promote this into the public wiki.'))
+      .catch((e) => toast('FAQ suggestion failed', e.message || String(e)));
+  };
+
+  window.snClaimHost = function() {
+    const ownerKey = localStorage.getItem('sn_host_owner_key') || sessionId;
+    localStorage.setItem('sn_host_owner_key', ownerKey);
+    const hostName = (window._userName && String(window._userName).trim()) || 'Host';
+    client.mutation('events:claimHost', { eventId, ownerKey, displayName: hostName })
+      .then(() => {
+        document.body.setAttribute('data-role', 'host');
+        window._sn_live.hostOwnerKey = ownerKey;
+        toast('Host console enabled', 'You can now promote answers and publish the wiki.');
+      })
+      .catch((e) => toast('Host claim blocked', e.message || String(e)));
+  };
+
+  window.snPromoteFaq = function(answerId) {
+    const ownerKey = window._sn_live.hostOwnerKey || localStorage.getItem('sn_host_owner_key') || sessionId;
+    client.mutation('events:promoteAnswerToFaq', { eventId, answerId, ownerKey })
+      .then(() => toast('Promoted to FAQ', 'This answer is ready for the event wiki.'))
+      .catch((e) => toast('Promotion blocked', e.message || String(e)));
+  };
+
+  window.snPublishWiki = function() {
+    const ownerKey = window._sn_live.hostOwnerKey || localStorage.getItem('sn_host_owner_key') || sessionId;
+    client.mutation('events:publishWiki', { eventId, ownerKey })
+      .then((res) => {
+        toast('Wiki published', 'Version ' + res.version + ' is now live.');
+        return client.query('events:getPublishedWiki', { eventId });
+      })
+      .then((wiki) => {
+        if (wiki) window._sn_published_wiki_body = wiki.bodyHtml;
+      })
+      .catch((e) => toast('Wiki publish blocked', e.message || String(e)));
+  };
+
+  client.query('events:getHostStatus', {
+    eventId,
+    ownerKey: localStorage.getItem('sn_host_owner_key') || sessionId,
+  }).then((status) => {
+    if (status && status.isHost) {
+      document.body.setAttribute('data-role', 'host');
+      window._sn_live.hostOwnerKey = localStorage.getItem('sn_host_owner_key') || sessionId;
+    }
+  }).catch(() => {});
+
+  client.query('events:getPublishedWiki', { eventId })
+    .then((wiki) => {
+      if (wiki) window._sn_published_wiki_body = wiki.bodyHtml;
+    })
+    .catch(() => {});
 
   // ─── Presence heartbeat — every 30s ─────────────────────────────────
   setInterval(() => {
@@ -3184,8 +3298,8 @@ setTimeout(refreshNotesCounter, 100);
 
   // Mark the page as Convex-connected so devs / e2e tests can detect it.
   document.body.setAttribute('data-sn-live', 'true');
-  document.body.setAttribute('data-sn-phases', '1,3');
-  console.info('[scratchnode] Phases 1+3 live — connected to', cfg.convexUrl, 'event', joined.slug);
+  document.body.setAttribute('data-sn-phases', '1,2,3,4,5');
+  console.info('[scratchnode] Phases 1-5 live - connected to', cfg.convexUrl, 'event', joined.slug);
 })();
 </script>
 </body>

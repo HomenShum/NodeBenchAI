@@ -183,6 +183,81 @@ const requireHost = async (ctx: any, eventId: any, ownerKey: string) => {
   return host;
 };
 
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+function synthesizeAnswer(
+  question: string,
+  eventName: string,
+  sources: Array<{ title: string; excerpt: string; body: string }>,
+) {
+  const evidence = sources
+    .map((source, index) => {
+      const sentence = (source.excerpt || source.body || "").split(/[.!?]/)[0]?.trim();
+      return `${index + 1}. ${source.title}: ${sentence || "Relevant event source."}.`;
+    })
+    .join("\n");
+  const top = sources[0];
+  return [
+    `The strongest sourced read from ${eventName} is that ${top.excerpt || top.title}.`,
+    "",
+    "Evidence used:",
+    evidence,
+    "",
+    `What to do next: treat this as a public-event answer, then open the cited sources or ask a narrower follow-up before using it as a final decision record.`,
+    `Question answered: ${question}`,
+  ].join("\n");
+}
+
+async function buildAnswerPayload(ctx: any, answerId: any) {
+  const answer = await ctx.db.get(answerId);
+  if (!answer) return null;
+  const sources: any[] = [];
+  for (const sourceId of answer.sourceIds.slice(0, 8)) {
+    const source = await ctx.db.get(sourceId);
+    if (source) {
+      sources.push({
+        _id: source._id,
+        title: source.title,
+        uri: source.uri,
+        excerpt: source.excerpt,
+        kind: source.kind,
+      });
+    }
+  }
+  return { ...answer, sources };
+}
+
+async function buildWikiHtml(ctx: any, eventName: string, answers: any[], sourceIds: any[]) {
+  const sourceRows: any[] = [];
+  for (const sourceId of sourceIds.slice(0, 20)) {
+    const source = await ctx.db.get(sourceId);
+    if (source) sourceRows.push(source);
+  }
+  const qa = answers.length
+    ? answers
+      .map((answer) =>
+        `<h3>${escapeHtml(answer.question)}</h3><p>${escapeHtml(answer.body).replace(/\n/g, "<br>")}</p>`,
+      )
+      .join("\n")
+    : "<p>No promoted public answers yet. Ask public questions during the event to build this wiki.</p>";
+  const sources = sourceRows.length
+    ? `<ul>${sourceRows.map((source) => `<li><strong>${escapeHtml(source.title)}</strong> - ${escapeHtml(source.excerpt)}</li>`).join("")}</ul>`
+    : "<p>No public sources attached yet.</p>";
+  return [
+    `<h1>${escapeHtml(eventName)} Wiki</h1>`,
+    "<p>This wiki is generated only from public event sources and public /ask answers. Private notes are excluded.</p>",
+    "<h2>Common Q&A</h2>",
+    qa,
+    "<h2>Sources</h2>",
+    sources,
+  ].join("\n");
+}
+
 // ─── QUERIES ──────────────────────────────────────────────────────────────
 
 /**
@@ -236,6 +311,76 @@ export const getMembers = query({
       )
       .collect();
     return all;
+  },
+});
+
+export const getSources = query({
+  args: { eventId: v.id("liveEvents") },
+  handler: async (ctx, { eventId }) => {
+    return await ctx.db
+      .query("liveEventSources")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .take(100);
+  },
+});
+
+export const getAnswers = query({
+  args: {
+    eventId: v.id("liveEvents"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { eventId, limit }) => {
+    const safeLimit = Math.min(Math.max(limit ?? DEFAULT_MESSAGE_LIMIT, 1), MAX_ANSWER_LIMIT);
+    const rows = await ctx.db
+      .query("liveEventAnswers")
+      .withIndex("by_event_time", (q) => q.eq("eventId", eventId))
+      .order("desc")
+      .take(safeLimit);
+    const enriched: any[] = [];
+    for (const row of rows.reverse()) {
+      const sources: any[] = [];
+      for (const sourceId of row.sourceIds.slice(0, 8)) {
+        const source = await ctx.db.get(sourceId);
+        if (source) {
+          sources.push({
+            _id: source._id,
+            title: source.title,
+            uri: source.uri,
+            excerpt: source.excerpt,
+            kind: source.kind,
+          });
+        }
+      }
+      enriched.push({ ...row, sources });
+    }
+    return enriched;
+  },
+});
+
+export const getHostStatus = query({
+  args: {
+    eventId: v.id("liveEvents"),
+    ownerKey: v.string(),
+  },
+  handler: async (ctx, { eventId, ownerKey }) => {
+    if (!ownerKey || ownerKey.length < 8) return { isHost: false };
+    const host = await ctx.db
+      .query("liveEventHosts")
+      .withIndex("by_event_owner", (q) => q.eq("eventId", eventId).eq("ownerKey", ownerKey))
+      .first();
+    return host ? { isHost: true, role: host.role, displayName: host.displayName } : { isHost: false };
+  },
+});
+
+export const getPublishedWiki = query({
+  args: { eventId: v.id("liveEvents") },
+  handler: async (ctx, { eventId }) => {
+    const rows = await ctx.db
+      .query("liveEventWikiVersions")
+      .withIndex("by_event_status", (q) => q.eq("eventId", eventId).eq("status", "published"))
+      .order("desc")
+      .take(1);
+    return rows[0] ?? null;
   },
 });
 
@@ -402,6 +547,230 @@ export const sendMessage = mutation({
   },
 });
 
+export const askAgent = mutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    sessionId: v.string(),
+    questionMessageId: v.id("liveEventMessages"),
+    question: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const startedAt = Date.now();
+    const question = (args.question || "").trim().slice(0, 1000);
+    if (!question) {
+      throw new ConvexError({ code: "empty_question", message: "/ask question required." });
+    }
+    const event = await ctx.db.get(args.eventId);
+    if (!event) {
+      throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
+    }
+    if (event.status === "ended") {
+      throw new ConvexError({ code: "event_ended", message: "This event has ended." });
+    }
+    await requireMember(ctx, args.eventId, args.sessionId);
+    if (event.slug === "ai-infra-summit-2026") {
+      await ensureDemoSourcesForEvent(ctx, args.eventId);
+    }
+
+    const normalizedQuestion = normalizeQuestion(question);
+    const cached = await ctx.db
+      .query("liveEventAnswers")
+      .withIndex("by_event_normalized", (q) =>
+        q.eq("eventId", args.eventId).eq("normalizedQuestion", normalizedQuestion),
+      )
+      .order("desc")
+      .first();
+
+    if (cached) {
+      const answerId = await ctx.db.insert("liveEventAnswers", {
+        eventId: args.eventId,
+        questionMessageId: args.questionMessageId,
+        question,
+        normalizedQuestion,
+        body: cached.body,
+        sourceIds: cached.sourceIds,
+        trace: [
+          {
+            step: "semantic_cache_lookup",
+            status: "ok",
+            detail: `Reused answer ${cached._id}; source bundle unchanged.`,
+            durationMs: Date.now() - startedAt,
+          },
+        ],
+        cacheHit: true,
+        faqStatus: "none",
+        createdAt: Date.now(),
+      });
+      return await buildAnswerPayload(ctx, answerId);
+    }
+
+    const retrieveStarted = Date.now();
+    const sources = await ctx.db
+      .query("liveEventSources")
+      .withIndex("by_event", (q) => q.eq("eventId", args.eventId))
+      .take(100);
+    const ranked = sources
+      .map((source) => ({ source, score: scoreSource(question, source) }))
+      .sort((a, b) => b.score - a.score || b.source.uploadedAt - a.source.uploadedAt);
+    const selected = ranked.filter((row) => row.score > 0).slice(0, 4);
+    const topSources = (selected.length ? selected : ranked.slice(0, 3)).map((row) => row.source);
+    if (!topSources.length) {
+      throw new ConvexError({
+        code: "no_sources",
+        message: "No event sources are available for sourced /ask yet.",
+      });
+    }
+
+    const answerBody = synthesizeAnswer(question, event.name, topSources).slice(0, MAX_ANSWER_BODY);
+    const answerId = await ctx.db.insert("liveEventAnswers", {
+      eventId: args.eventId,
+      questionMessageId: args.questionMessageId,
+      question,
+      normalizedQuestion,
+      body: answerBody,
+      sourceIds: topSources.map((source) => source._id),
+      trace: [
+        {
+          step: "semantic_cache_lookup",
+          status: "miss",
+          detail: "No same-question public answer found for this event.",
+          durationMs: retrieveStarted - startedAt,
+        },
+        {
+          step: "bounded_source_retrieval",
+          status: "ok",
+          detail: `Scored ${sources.length} sources; selected ${topSources.length}.`,
+          durationMs: Date.now() - retrieveStarted,
+        },
+        {
+          step: "deterministic_synthesis",
+          status: "ok",
+          detail: "Generated from public event corpus only; private notes excluded.",
+          durationMs: Date.now() - startedAt,
+        },
+      ],
+      cacheHit: false,
+      faqStatus: "none",
+      createdAt: Date.now(),
+    });
+    return await buildAnswerPayload(ctx, answerId);
+  },
+});
+
+export const suggestAnswerForFaq = mutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    answerId: v.id("liveEventAnswers"),
+    sessionId: v.string(),
+  },
+  handler: async (ctx, { eventId, answerId, sessionId }) => {
+    await requireMember(ctx, eventId, sessionId);
+    const answer = await ctx.db.get(answerId);
+    if (!answer || answer.eventId !== eventId) {
+      throw new ConvexError({ code: "answer_not_found", message: "Answer no longer exists." });
+    }
+    if (answer.faqStatus === "none") {
+      await ctx.db.patch(answerId, { faqStatus: "suggested" });
+    }
+    return { ok: true, faqStatus: answer.faqStatus === "promoted" ? "promoted" : "suggested" };
+  },
+});
+
+export const claimHost = mutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    ownerKey: v.string(),
+    displayName: v.string(),
+  },
+  handler: async (ctx, { eventId, ownerKey, displayName }) => {
+    requireOwnerKey(ownerKey);
+    const existingForOwner = await ctx.db
+      .query("liveEventHosts")
+      .withIndex("by_event_owner", (q) => q.eq("eventId", eventId).eq("ownerKey", ownerKey))
+      .first();
+    if (existingForOwner) {
+      return { ok: true, hostId: existingForOwner._id, role: existingForOwner.role, created: false };
+    }
+    const existingHosts = await ctx.db
+      .query("liveEventHosts")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .take(1);
+    if (existingHosts.length > 0) {
+      throw new ConvexError({
+        code: "host_already_claimed",
+        message: "This room already has a host.",
+      });
+    }
+    const hostId = await ctx.db.insert("liveEventHosts", {
+      eventId,
+      ownerKey,
+      displayName: (displayName || "Host").slice(0, MAX_DISPLAY_NAME).trim() || "Host",
+      role: "owner",
+      createdAt: Date.now(),
+    });
+    return { ok: true, hostId, role: "owner", created: true };
+  },
+});
+
+export const promoteAnswerToFaq = mutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    answerId: v.id("liveEventAnswers"),
+    ownerKey: v.string(),
+  },
+  handler: async (ctx, { eventId, answerId, ownerKey }) => {
+    await requireHost(ctx, eventId, ownerKey);
+    const answer = await ctx.db.get(answerId);
+    if (!answer || answer.eventId !== eventId) {
+      throw new ConvexError({ code: "answer_not_found", message: "Answer no longer exists." });
+    }
+    await ctx.db.patch(answerId, { faqStatus: "promoted" });
+    return { ok: true, faqStatus: "promoted" };
+  },
+});
+
+export const publishWiki = mutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    ownerKey: v.string(),
+  },
+  handler: async (ctx, { eventId, ownerKey }) => {
+    const host = await requireHost(ctx, eventId, ownerKey);
+    const event = await ctx.db.get(eventId);
+    if (!event) {
+      throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
+    }
+    const answers = await ctx.db
+      .query("liveEventAnswers")
+      .withIndex("by_event_time", (q) => q.eq("eventId", eventId))
+      .order("desc")
+      .take(MAX_WIKI_ANSWERS);
+    const promoted = answers.filter((answer) => answer.faqStatus === "promoted");
+    const publicAnswers = (promoted.length ? promoted : answers.slice(0, 8)).reverse();
+    const sourceIds = Array.from(new Set(publicAnswers.flatMap((answer) => answer.sourceIds)));
+    const latest = await ctx.db
+      .query("liveEventWikiVersions")
+      .withIndex("by_event_version", (q) => q.eq("eventId", eventId))
+      .order("desc")
+      .first();
+    const version = (latest?.version ?? 0) + 1;
+    const bodyHtml = await buildWikiHtml(ctx, event.name, publicAnswers, sourceIds);
+    const wikiId = await ctx.db.insert("liveEventWikiVersions", {
+      eventId,
+      version,
+      status: "published",
+      title: `${event.name} Wiki`,
+      bodyHtml,
+      sourceAnswerIds: publicAnswers.map((answer) => answer._id),
+      sourceIds,
+      createdByOwnerKey: host.ownerKey,
+      createdAt: Date.now(),
+      publishedAt: Date.now(),
+    });
+    return { ok: true, wikiId, version };
+  },
+});
+
 /**
  * Cheap presence heartbeat. UI calls this every 30s. Idempotent — early-returns
  * if lastSeenAt was bumped within the last 15s (rate-limits accidental spam).
@@ -443,7 +812,10 @@ export const ensureDemoEvent = mutation({
       .query("liveEvents")
       .withIndex("by_slug", (q) => q.eq("slug", "ai-infra-summit-2026"))
       .first();
-    if (existing) return { eventId: existing._id, created: false };
+    if (existing) {
+      const sourcesInserted = await ensureDemoSourcesForEvent(ctx, existing._id);
+      return { eventId: existing._id, created: false, sourcesInserted };
+    }
     const id = await ctx.db.insert("liveEvents", {
       slug: "ai-infra-summit-2026",
       name: "AI Infra Summit",
