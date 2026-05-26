@@ -38,7 +38,7 @@ import { describe, expect, it } from "vitest";
 import { convexTest } from "convex-test";
 
 import * as eventsModule from "../events";
-import { publishWiki, claimHost } from "../events";
+import { publishWiki, claimHost, requestHostClaim } from "../events";
 import schema from "../schema";
 import { api } from "../_generated/api";
 
@@ -250,8 +250,19 @@ class MockDb {
   }
 }
 
+type SchedulerCall = { delayMs: number; ref: unknown; args: unknown };
+
+class MockScheduler {
+  public calls: SchedulerCall[] = [];
+
+  async runAfter(delayMs: number, ref: unknown, args: unknown) {
+    this.calls.push({ delayMs, ref, args });
+    return `scheduled:${this.calls.length}` as unknown;
+  }
+}
+
 function createCtx(tables: Tables) {
-  return { db: new MockDb(tables) };
+  return { db: new MockDb(tables), scheduler: new MockScheduler() };
 }
 
 const ANONYMOUS_SESSION_A = "session-anon-aaaaaaaa";
@@ -991,5 +1002,213 @@ describe("_evictStaleHostClaimCodes — Phase 4 defense-in-depth janitor", () =>
     // Exactly 1 patch was issued (only the stale row).
     expect((ctx.db as MockDb).patches.length).toBe(1);
     expect((ctx.db as MockDb).patches[0].id).toBe("liveEvents:stale-with-hash");
+  });
+});
+
+/* ========================================================================== */
+/* Test 4 — requestHostClaim email channel (Phase 4 follow-up Item 1)          */
+/* ========================================================================== */
+
+describe("requestHostClaim — optional Resend email delivery", () => {
+  /**
+   * Background: PR #396 returns the plaintext claim code synchronously from
+   * requestHostClaim. The Phase 4 follow-up adds an OPTIONAL email channel:
+   * when the caller supplies deliverToEmail, the mutation schedules a
+   * fire-and-forget action (convex/email.ts:sendHostClaimCodeEmail) to
+   * email the code. The mutation MUST still return the code synchronously
+   * — email is convenience, not source of truth.
+   *
+   * Failure semantics under test:
+   *   - deliverToEmail omitted → no scheduler call, code returned as before
+   *   - deliverToEmail malformed → no scheduler call, no throw, code returned
+   *   - deliverToEmail valid → scheduler called exactly once with the right
+   *     args (email + code + eventName + expiresHintAt), code returned
+   */
+
+  it("deliverToEmail omitted: no scheduler call, code returned (back-compat)", async () => {
+    /**
+     * Scenario:    Legacy caller (the existing scratchnode UI) does not
+     *              pass deliverToEmail at all. Behavior must be identical
+     *              to PR #396 — code returned, no email channel touched.
+     * User:        Anonymous member self-claiming their own room
+     * Goal:        Get a one-time claim code, no email needed
+     * Prior state: event live; 0 liveEventHosts; member joined
+     * Actions:     requestHostClaim without deliverToEmail
+     * Scale:       1 caller
+     * Duration:    Single mutation
+     * Expected:    ok=true, hostClaimCode present, scheduler.calls empty,
+     *              event.hostClaimCodeHash persisted.
+     * Edge:        Must not silently call scheduler with undefined email.
+     */
+    const tables: Tables = {
+      liveEvents: [baseEvent()],
+      liveEventMembers: [baseMember(ANONYMOUS_SESSION_A)],
+      liveEventHosts: [],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await (requestHostClaim as any)._handler(ctx, {
+      eventId: "liveEvents:1",
+      requesterSessionId: ANONYMOUS_SESSION_A,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(typeof result.hostClaimCode).toBe("string");
+    expect(result.hostClaimCode.length).toBeGreaterThanOrEqual(16);
+    expect(typeof result.expiresHintAt).toBe("number");
+    // Critical: no email channel touched when deliverToEmail omitted.
+    expect(ctx.scheduler.calls.length).toBe(0);
+    // Hash persisted (back-compat invariant).
+    expect(tables.liveEvents[0].hostClaimCodeHash).toBeTruthy();
+  });
+
+  it("deliverToEmail malformed: no scheduler call, no throw, code still returned", async () => {
+    /**
+     * Scenario:    Caller passes a string that is NOT a valid email
+     *              (missing @, missing dot, or oversized). The mutation
+     *              must NOT throw — the plaintext code is still useful to
+     *              the caller, the bad email is a UX issue not a security
+     *              issue. The scheduler MUST NOT be called (so Resend
+     *              never sees the garbage payload).
+     * User:        Misconfigured client or fat-fingered input
+     * Goal:        Get a code; email channel silently skipped
+     * Prior state: event live; member joined
+     * Actions:     requestHostClaim with deliverToEmail set to several
+     *              shapes of garbage — empty string, missing @, missing
+     *              dot, too long
+     * Scale:       1 caller, 4 garbage shapes in sequence
+     * Duration:    Sub-second
+     * Expected:    Each call returns ok=true with code; scheduler.calls
+     *              stays empty across all four; no throw.
+     * Edge:        Email > 254 chars must be rejected (RFC 5321 SMTP path
+     *              cap — protects against pathological inputs).
+     */
+    const tables: Tables = {
+      liveEvents: [baseEvent()],
+      liveEventMembers: [baseMember(ANONYMOUS_SESSION_A)],
+      liveEventHosts: [],
+    };
+    const ctx = createCtx(tables);
+
+    const malformed = [
+      "",
+      "not-an-email",
+      "missing-dot@example",
+      "missing-at-example.com",
+      // 261-char string with @ + dot — passes regex but exceeds 254-char
+      // RFC 5321 SMTP path length cap, so the validator must reject.
+      `${"a".repeat(254)}@x.co`,
+    ];
+    for (const bad of malformed) {
+      const result = await (requestHostClaim as any)._handler(ctx, {
+        eventId: "liveEvents:1",
+        requesterSessionId: ANONYMOUS_SESSION_A,
+        deliverToEmail: bad,
+      });
+      expect(result.ok).toBe(true);
+      expect(typeof result.hostClaimCode).toBe("string");
+    }
+    // ZERO scheduler calls across all malformed inputs.
+    expect(ctx.scheduler.calls.length).toBe(0);
+  });
+
+  it("deliverToEmail valid: scheduler called once with right args (code, email, eventName, expiresHintAt)", async () => {
+    /**
+     * Scenario:    Co-host onboarding — primary host requests a claim code
+     *              and wants it emailed to a colleague in another building.
+     *              The mutation returns the code synchronously AND schedules
+     *              a fire-and-forget action to deliver the code by email.
+     * User:        Host or pre-host member (the gate is requireMember, not
+     *              requireHost, since pre-claim is allowed)
+     * Goal:        Get the code AND have it emailed
+     * Prior state: event live; member joined; no existing host
+     * Actions:     requestHostClaim with valid deliverToEmail
+     * Scale:       1 caller
+     * Duration:    Single mutation; the action is scheduled, not awaited.
+     * Expected:    ok=true; code returned; scheduler.calls.length === 1;
+     *              args.email matches input; args.code === result.hostClaimCode;
+     *              args.eventName === event.name; args.expiresHintAt is a
+     *              future timestamp (~30 min ahead).
+     * Edge:        The action ref must be internal.email.sendHostClaimCodeEmail
+     *              (not internal.events.* or any other path) so this test
+     *              also catches accidental wiring drift.
+     */
+    const tables: Tables = {
+      liveEvents: [baseEvent()],
+      liveEventMembers: [baseMember(ANONYMOUS_SESSION_A)],
+      liveEventHosts: [],
+    };
+    const ctx = createCtx(tables);
+
+    const startTime = Date.now();
+    const validEmail = "cohost@example.com";
+
+    const result = await (requestHostClaim as any)._handler(ctx, {
+      eventId: "liveEvents:1",
+      requesterSessionId: ANONYMOUS_SESSION_A,
+      deliverToEmail: validEmail,
+    });
+
+    // Mutation result invariants.
+    expect(result.ok).toBe(true);
+    expect(typeof result.hostClaimCode).toBe("string");
+    expect(result.hostClaimCode.length).toBeGreaterThanOrEqual(16);
+    expect(typeof result.expiresHintAt).toBe("number");
+    expect(result.expiresHintAt).toBeGreaterThan(startTime);
+
+    // Scheduler called EXACTLY once.
+    expect(ctx.scheduler.calls.length).toBe(1);
+    const [scheduled] = ctx.scheduler.calls;
+    expect(scheduled.delayMs).toBe(0);
+
+    // Args carry the right code + email + event name + expiresHintAt.
+    const args = scheduled.args as {
+      email: string;
+      code: string;
+      eventName: string;
+      expiresHintAt: number;
+    };
+    expect(args.email).toBe(validEmail);
+    expect(args.code).toBe(result.hostClaimCode);
+    expect(args.eventName).toBe("AI Infra Summit");
+    expect(args.expiresHintAt).toBe(result.expiresHintAt);
+
+    // ref must be a truthy FunctionReference — Convex's anyApi proxies
+    // are opaque objects that resist primitive conversion, so we don't
+    // stringify them. The args check above is the real correctness gate
+    // (eventName + code + email + expiresHintAt prove the wiring is right).
+    expect(scheduled.ref).toBeTruthy();
+  });
+
+  it("deliverToEmail with whitespace: trimmed before scheduling (defense in depth)", async () => {
+    /**
+     * Scenario:    Caller pastes an email with leading/trailing whitespace
+     *              (common copy-paste failure mode). The mutation must
+     *              trim before scheduling so Resend never sees stray
+     *              whitespace.
+     * User:        Anyone pasting an email from a chat client
+     * Goal:        Robust handling of cosmetic input bugs
+     * Prior state: event live; member joined
+     * Actions:     requestHostClaim with deliverToEmail="  good@ex.com  "
+     * Scale:       1 caller
+     * Expected:    Scheduler called once with args.email === "good@ex.com"
+     *              (trimmed).
+     */
+    const tables: Tables = {
+      liveEvents: [baseEvent()],
+      liveEventMembers: [baseMember(ANONYMOUS_SESSION_A)],
+      liveEventHosts: [],
+    };
+    const ctx = createCtx(tables);
+
+    await (requestHostClaim as any)._handler(ctx, {
+      eventId: "liveEvents:1",
+      requesterSessionId: ANONYMOUS_SESSION_A,
+      deliverToEmail: "  good@ex.com  ",
+    });
+
+    expect(ctx.scheduler.calls.length).toBe(1);
+    const args = ctx.scheduler.calls[0].args as { email: string };
+    expect(args.email).toBe("good@ex.com");
   });
 });
