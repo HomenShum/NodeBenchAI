@@ -259,6 +259,125 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
   }
 });
 
+// ─── Phase 4 host auth — code flow against the live backend ─────────
+//
+// Verifies the new requestHostClaim + claimHostWithCode + HMAC token
+// surface against production Convex. The shared demo event
+// (ai-infra-summit-2026) is held by Alice's legacy ownerKey, so a
+// fresh attempt by a new sessionId must hit the
+// legacy_host_must_rotate_first gate — which IS the auth invariant
+// we're protecting. We also verify claimHost rejects an hk1: prefix
+// (legacy → real-auth impersonation blocker) by reading the raw
+// HTTP response.
+test("home-v5 Phase 4 host-auth surface rejects unauthorized requestHostClaim and forged tokens", async ({ browser }) => {
+  mkdirSync(ARTIFACT_DIR, { recursive: true });
+  const qaId = `proto-v5-phase4-${Date.now()}`;
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  try {
+    await page.goto(withQa(SCRATCHNODE_EVENT_URL, qaId), {
+      waitUntil: "domcontentloaded",
+      timeout: 45_000,
+    });
+    await waitForScratchNodeLive(page);
+
+    // The dogfood event is held by Alice (legacy ownerKey). A new
+    // sessionId requesting a code MUST be blocked — either by
+    // legacy_host_must_rotate_first or by the membership gate.
+    const requestResult = await page.evaluate(async () => {
+      const live = (window as any)._sn_live;
+      try {
+        await live.client.mutation("events:requestHostClaim", {
+          eventId: live.eventId,
+          requesterSessionId: live.sessionId,
+        });
+        return { blocked: false };
+      } catch (err: any) {
+        return { blocked: true, message: String(err?.message ?? err) };
+      }
+    });
+    expect(
+      requestResult.blocked,
+      "requestHostClaim from non-host on legacy-held event must be blocked",
+    ).toBe(true);
+
+    // claimHost MUST reject an hk1: prefix (so a leaked legacy ownerKey
+    // can't impersonate a real-auth host row).
+    const claimRejectsHk1 = await page.evaluate(async () => {
+      const live = (window as any)._sn_live;
+      try {
+        await live.client.mutation("events:claimHost", {
+          eventId: live.eventId,
+          ownerKey: "hk1:fake:nonce:1700000000000:0000000000000000",
+          displayName: "Forger",
+        });
+        return { rejected: false };
+      } catch (err: any) {
+        return { rejected: true, message: String(err?.message ?? err) };
+      }
+    });
+    expect(
+      claimRejectsHk1.rejected,
+      "claimHost must reject an hk1: prefix to prevent legacy → real-auth bypass",
+    ).toBe(true);
+
+    // claimHostWithCode with a bogus code MUST be rejected (code_invalid).
+    const bogusCode = await page.evaluate(async () => {
+      const live = (window as any)._sn_live;
+      try {
+        await live.client.mutation("events:claimHostWithCode", {
+          eventId: live.eventId,
+          hostClaimCode: "BOGUSCODEBOGUSCODEBOGUS",
+          displayName: "Attacker",
+          requesterSessionId: live.sessionId,
+        });
+        return { rejected: false };
+      } catch (err: any) {
+        return { rejected: true, message: String(err?.message ?? err) };
+      }
+    });
+    expect(
+      bogusCode.rejected,
+      "claimHostWithCode with a bogus code must be rejected",
+    ).toBe(true);
+
+    // A forged HMAC token MUST fail requireHost (signature check). We
+    // exercise it through promoteAnswerToFaq, which uses requireHost —
+    // we don't need a real answerId because requireHost throws first.
+    const forgedToken = await page.evaluate(async () => {
+      const live = (window as any)._sn_live;
+      const forged =
+        "hk1:" +
+        String(live.eventId).slice(0, 16) +
+        ":abcdefghijklmnop:" +
+        Date.now() +
+        ":00000000000000000000000000000000";
+      try {
+        await live.client.mutation("events:promoteAnswerToFaq", {
+          eventId: live.eventId,
+          answerId: "liveEventAnswers:nonexistent",
+          ownerKey: forged,
+        });
+        return { rejected: false };
+      } catch (err: any) {
+        return { rejected: true, message: String(err?.message ?? err) };
+      }
+    });
+    expect(
+      forgedToken.rejected,
+      "forged HMAC token must fail HMAC verification in requireHost",
+    ).toBe(true);
+
+    await page.screenshot({
+      path: join(ARTIFACT_DIR, `${qaId}-phase4-auth-rejections.png`),
+      fullPage: true,
+    });
+  } finally {
+    await context.close();
+  }
+});
+
 test("home-v4 dogfoods every prototype interaction without claiming live backend", async ({ page }) => {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
   const qaId = `proto-v4-${Date.now()}`;

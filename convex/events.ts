@@ -48,6 +48,10 @@ const MAX_SOURCE_BODY = 12_000;
 const MAX_ANSWER_BODY = 4_000;
 const MAX_ANSWER_LIMIT = 100;
 const MAX_WIKI_ANSWERS = 20;
+// Phase 4 raised this from 80 -> 120 to fit HMAC-signed host tokens
+// (hk1:<eventIdShort>:<nonce>:<issuedAt>:<hmacShort> ~ 80-90 chars).
+// 120 is still tight enough to reject obvious junk.
+const MAX_OWNER_KEY_LEN = 120;
 
 const DEMO_SOURCES = [
   {
@@ -113,12 +117,177 @@ const scoreSource = (question: string, source: { title: string; excerpt: string;
 };
 
 const requireOwnerKey = (ownerKey: string) => {
-  if (!ownerKey || ownerKey.length < 8 || ownerKey.length > 80) {
+  if (!ownerKey || ownerKey.length < 8 || ownerKey.length > MAX_OWNER_KEY_LEN) {
     throw new ConvexError({
       code: "invalid_owner_key",
-      message: "ownerKey must be 8-80 chars.",
+      message: `ownerKey must be 8-${MAX_OWNER_KEY_LEN} chars.`,
     });
   }
+};
+
+// ─── Phase 4 real-auth: claim-code + HMAC-signed ownerKey ─────────────────
+//
+// SECURITY MODEL
+//   The Phase 1-3 ownerKey was chosen by the client (any 8+ char string).
+//   That was structurally enforced (only one owner per event) but did NOT
+//   prove identity — anyone could call claimHost first and become owner.
+//
+//   Phase 4 closes the gap with a two-step proof-of-possession flow:
+//     1. requestHostClaim — server generates a 24-char random code, stores
+//        SHA-256(eventId|code) on the event, returns the plaintext code
+//        ONCE. Only callable by a member; when a real-auth host already
+//        holds the event, rotation requires the existing token.
+//     2. claimHostWithCode — client submits the plaintext code. Server
+//        re-hashes and constant-time compares against the stored hash.
+//        On match, server generates an HMAC-signed ownerKey and persists
+//        the host row with authMethod=claim_code. Returns the signed
+//        token, which the client must persist (it is the new ownerKey).
+//     3. requireHost — accepts both formats. Plain ownerKeys match by
+//        DB lookup (Phase 1-3 back-compat). HMAC tokens are
+//        cryptographically verified, then confirmed by DB row lookup
+//        so revoked hosts are caught even if the token is still
+//        cryptographically valid.
+//
+// PRIOR ART
+//   - GitHub/Linear/Notion: server-issued bearer tokens
+//   - JWT-lite: HMAC-signed self-contained tokens
+//   - PagerDuty/Datadog: one-time codes for first-claim flows
+//
+// SCRATCHNODE_HOST_TOKEN_SECRET
+//   Set via Convex env (`npx convex env set SCRATCHNODE_HOST_TOKEN_SECRET
+//   <random>`). Falls back to a dev-only deterministic value when running
+//   on a non-prod deployment (CONVEX_DEPLOYMENT starts with "dev:"). In
+//   production with no secret set, getHostAuthSecret throws — better to
+//   fail closed than silently issue forgeable tokens.
+// ─────────────────────────────────────────────────────────────────────────
+
+const HOST_AUTH_SECRET_DEV_FALLBACK =
+  "scratchnode-dev-only-host-auth-fallback-do-not-use-in-prod-aaaaaaaaaaaaaa";
+
+const HOST_CLAIM_CODE_LEN = 24; // 24 chars from a 32-symbol alphabet ≈ 120 bits entropy
+const HOST_TOKEN_PREFIX = "hk1:";
+const HOST_TOKEN_NONCE_LEN = 16; // 16 chars ≈ 95 bits entropy on the nonce alone
+
+const getHostAuthSecret = (): string => {
+  const fromEnv = (globalThis as any)?.process?.env?.SCRATCHNODE_HOST_TOKEN_SECRET;
+  const deployment = (globalThis as any)?.process?.env?.CONVEX_DEPLOYMENT;
+  if (typeof fromEnv === "string" && fromEnv.length >= 32) return fromEnv;
+  // Allow dev fallback ONLY when explicitly running on a dev: deployment.
+  if (typeof deployment === "string" && deployment.startsWith("dev:")) {
+    return HOST_AUTH_SECRET_DEV_FALLBACK;
+  }
+  // In production with no secret set, refuse to operate — better to fail
+  // closed than silently issue forgeable tokens.
+  throw new ConvexError({
+    code: "host_auth_secret_missing",
+    message:
+      "SCRATCHNODE_HOST_TOKEN_SECRET env var required. Run: npx convex env set SCRATCHNODE_HOST_TOKEN_SECRET <random-32+-char-string>",
+  });
+};
+
+// Convex runtime exposes Web Crypto (`crypto.subtle`) and
+// `crypto.getRandomValues` for cryptographic operations. Same APIs used
+// in convex/domains/agents/receipts/actionReceipts.ts.
+const randomString = (len: number, alphabet: string): string => {
+  const buf = new Uint8Array(len);
+  (globalThis as any).crypto.getRandomValues(buf);
+  let out = "";
+  for (let i = 0; i < len; i += 1) {
+    out += alphabet.charAt(buf[i] % alphabet.length);
+  }
+  return out;
+};
+
+const generateClaimCode = (): string => {
+  // Avoid ambiguous chars (0/O/I/1) so users can read+type the code
+  // from a screen accurately.
+  return randomString(HOST_CLAIM_CODE_LEN, "ABCDEFGHJKLMNPQRSTUVWXYZ23456789");
+};
+
+const generateNonce = (): string => {
+  return randomString(HOST_TOKEN_NONCE_LEN, "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789");
+};
+
+const sha256Hex = async (input: string): Promise<string> => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  const hashBuffer = await (globalThis as any).crypto.subtle.digest("SHA-256", data);
+  const bytes = Array.from(new Uint8Array(hashBuffer));
+  return bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
+};
+
+const hmacSha256Hex = async (secret: string, message: string): Promise<string> => {
+  const encoder = new TextEncoder();
+  const key = await (globalThis as any).crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
+  const sig = await (globalThis as any).crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(message),
+  );
+  const bytes = Array.from(new Uint8Array(sig));
+  return bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
+};
+
+// Constant-time string compare — prevents timing side channels on
+// the hmac/hash equality check.
+const constantTimeEquals = (a: string, b: string): boolean => {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+};
+
+const buildHmacPayload = (eventIdShort: string, nonce: string, issuedAt: number) =>
+  `${eventIdShort}|${nonce}|${issuedAt}`;
+
+const issueHostToken = async (eventId: string, issuedAt: number): Promise<string> => {
+  // Use a stable short prefix of the eventId so the token self-identifies
+  // the event without needing a separate field.
+  const eventIdShort = eventId.slice(0, 16);
+  const nonce = generateNonce();
+  const secret = getHostAuthSecret();
+  const hmac = await hmacSha256Hex(secret, buildHmacPayload(eventIdShort, nonce, issuedAt));
+  // Truncate hmac to 32 hex chars (128 bits) — keeps tokens under 120 chars
+  // (MAX_OWNER_KEY_LEN) while remaining infeasible to brute force.
+  const hmacShort = hmac.slice(0, 32);
+  return `${HOST_TOKEN_PREFIX}${eventIdShort}:${nonce}:${issuedAt}:${hmacShort}`;
+};
+
+// Returns true iff the ownerKey is a well-formed HMAC token AND its
+// signature verifies under SCRATCHNODE_HOST_TOKEN_SECRET AND its eventId
+// prefix matches the provided event. Does NOT check DB for host row
+// existence — that's the caller's job (so revoked hosts are caught).
+const verifyHostToken = async (
+  ownerKey: string,
+  eventId: string,
+): Promise<boolean> => {
+  if (!ownerKey.startsWith(HOST_TOKEN_PREFIX)) return false;
+  const body = ownerKey.slice(HOST_TOKEN_PREFIX.length);
+  const parts = body.split(":");
+  if (parts.length !== 4) return false;
+  const [eventIdShort, nonce, issuedAtStr, hmacShort] = parts;
+  if (!eventIdShort || !nonce || !issuedAtStr || !hmacShort) return false;
+  if (eventIdShort !== eventId.slice(0, 16)) return false;
+  const issuedAt = Number(issuedAtStr);
+  if (!Number.isFinite(issuedAt) || issuedAt <= 0) return false;
+  // Reject tokens dated in the future (> 60s skew) or impossibly old
+  // (> 365 days) — the latter catches stale tokens after secret rotation.
+  const now = Date.now();
+  if (issuedAt > now + 60_000) return false;
+  if (issuedAt < now - 365 * 24 * 60 * 60 * 1000) return false;
+  const secret = getHostAuthSecret();
+  const expectedHmac = (
+    await hmacSha256Hex(secret, buildHmacPayload(eventIdShort, nonce, issuedAt))
+  ).slice(0, 32);
+  return constantTimeEquals(hmacShort, expectedHmac);
 };
 
 const ensureDemoSourcesForEvent = async (ctx: any, eventId: any) => {
@@ -168,8 +337,45 @@ const requireMember = async (ctx: any, eventId: any, sessionId: string) => {
   return member;
 };
 
+// Verifies the caller is a registered host for this event.
+//
+// Phase 4: accepts both formats —
+//   1. HMAC token (hk1:...): cryptographically verified under
+//      SCRATCHNODE_HOST_TOKEN_SECRET first (cheap, no DB read), then
+//      confirmed by a liveEventHosts row lookup (so revoked hosts are
+//      caught even if their token is still cryptographically valid).
+//   2. Legacy plain ownerKey: must match an existing liveEventHosts
+//      row (authMethod=legacy_ownerkey). Authentication = "you possess
+//      the ownerKey that was registered". Acceptable for back-compat
+//      ONLY — the legacy claimHost path is being phased out.
+//
+// In both cases the function returns the liveEventHosts row so callers
+// can record createdByOwnerKey, etc.
 const requireHost = async (ctx: any, eventId: any, ownerKey: string) => {
   requireOwnerKey(ownerKey);
+  // Path 1: HMAC token. Verify signature first (cheap, no DB read), then
+  // confirm row exists (catches revocations / db cleanups).
+  if (ownerKey.startsWith(HOST_TOKEN_PREFIX)) {
+    const valid = await verifyHostToken(ownerKey, eventId);
+    if (!valid) {
+      throw new ConvexError({
+        code: "not_host",
+        message: "Host token failed verification.",
+      });
+    }
+    const host = await ctx.db
+      .query("liveEventHosts")
+      .withIndex("by_event_owner", (q: any) => q.eq("eventId", eventId).eq("ownerKey", ownerKey))
+      .first();
+    if (!host) {
+      throw new ConvexError({
+        code: "not_host",
+        message: "Host record revoked or not found.",
+      });
+    }
+    return host;
+  }
+  // Path 2: legacy ownerKey. Match against row directly.
   const host = await ctx.db
     .query("liveEventHosts")
     .withIndex("by_event_owner", (q: any) => q.eq("eventId", eventId).eq("ownerKey", ownerKey))
@@ -689,6 +895,26 @@ export const suggestAnswerForFaq = mutation({
   },
 });
 
+/**
+ * claimHost — Phase 1-3 legacy entry point. KEPT FOR BACKWARD COMPAT.
+ *
+ * The client picks an 8+ char ownerKey and "owns" the event. This is
+ * structurally exclusive (one owner per event) but does NOT prove
+ * identity — anyone who races to call this first becomes owner.
+ *
+ * Phase 4 callers should use `requestHostClaim` + `claimHostWithCode`
+ * instead, which give the same surface but require possession of a
+ * server-issued one-time code. This entry point remains so:
+ *   - the dogfood static-key flow keeps passing
+ *   - in-flight legacy localStorage sessions don't break mid-deploy
+ *     (expand-contract per .claude/rules/backend_contract_migration.md)
+ *
+ * Hardenings vs. Phase 1-3:
+ *   - Rejects ownerKeys starting with "hk1:" — those go through
+ *     claimHostWithCode. Allowing them here would let a leaked legacy
+ *     ownerKey forge a real-auth host row.
+ *   - Records authMethod=legacy_ownerkey so future audits can sort.
+ */
 export const claimHost = mutation({
   args: {
     eventId: v.id("liveEvents"),
@@ -697,6 +923,15 @@ export const claimHost = mutation({
   },
   handler: async (ctx, { eventId, ownerKey, displayName }) => {
     requireOwnerKey(ownerKey);
+    // Reject HMAC tokens here — those go through claimHostWithCode.
+    // Allowing them in claimHost would let a leaked legacy ownerKey
+    // impersonate a real-auth host row.
+    if (ownerKey.startsWith(HOST_TOKEN_PREFIX)) {
+      throw new ConvexError({
+        code: "use_claim_host_with_code",
+        message: "HMAC tokens must be claimed via claimHostWithCode after requestHostClaim.",
+      });
+    }
     const existingForOwner = await ctx.db
       .query("liveEventHosts")
       .withIndex("by_event_owner", (q) => q.eq("eventId", eventId).eq("ownerKey", ownerKey))
@@ -719,9 +954,201 @@ export const claimHost = mutation({
       ownerKey,
       displayName: (displayName || "Host").slice(0, MAX_DISPLAY_NAME).trim() || "Host",
       role: "owner",
+      authMethod: "legacy_ownerkey",
       createdAt: Date.now(),
     });
     return { ok: true, hostId, role: "owner", created: true };
+  },
+});
+
+/**
+ * requestHostClaim — Phase 4 step 1: server generates a one-time claim code.
+ *
+ * Returns the plaintext code EXACTLY ONCE. The caller must:
+ *   - Show it to the legitimate host out-of-band (event creator email,
+ *     printed page, organizer dashboard) OR
+ *   - Immediately call claimHostWithCode on the SAME browser session that
+ *     just generated the code (the bootstrap UX for scratchnode.live).
+ *
+ * Idempotency / replay:
+ *   - If a host with authMethod=claim_code already exists for this event,
+ *     the code may only be regenerated by the existing host (proven by
+ *     supplying their current HMAC token in existingOwnerKey) — supports
+ *     rotation / device migration.
+ *   - If a legacy host (authMethod=legacy_ownerkey) holds the event, the
+ *     code cannot be regenerated through this endpoint — the legacy
+ *     ownerKey path must be used. Prevents bypass via "request a code,
+ *     legacy holder didn't see it, race to claim".
+ *   - Each call OVERWRITES the previous hash — old codes stop working
+ *     immediately. "Lost the code? request a new one" is the legitimate
+ *     recovery path for an unclaimed event.
+ *
+ * Pre-claim window (no host exists):
+ *   - ANY member can request a code. This matches the legacy claimHost
+ *     race semantics but adds proof-of-possession (need both the code
+ *     AND the subsequent claimHostWithCode call to win). The pre-claim
+ *     window closes the moment the first claimHostWithCode succeeds.
+ */
+export const requestHostClaim = mutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    // requesterSessionId is the joinEvent sessionId of the caller. We
+    // require that the caller is a member of the event (proves they
+    // can at least see the room) so this isn't a drive-by enumeration.
+    requesterSessionId: v.string(),
+    // If this event is already held by a real-auth host, the existing
+    // host can rotate by providing their current ownerKey (HMAC token).
+    // Required only when an existing claim_code host exists.
+    existingOwnerKey: v.optional(v.string()),
+  },
+  handler: async (ctx, { eventId, requesterSessionId, existingOwnerKey }) => {
+    // Membership gate — same shape as composeAnswer / suggestAnswerForFaq.
+    await requireMember(ctx, eventId, requesterSessionId);
+    const event = await ctx.db.get(eventId);
+    if (!event) {
+      throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
+    }
+    const existingHosts = await ctx.db
+      .query("liveEventHosts")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .take(2);
+    if (existingHosts.length > 0) {
+      const realAuthHost = existingHosts.find((h) => h.authMethod === "claim_code");
+      const legacyHost = existingHosts.find((h) => h.authMethod !== "claim_code");
+      if (realAuthHost) {
+        // Rotation path — must prove possession of current token.
+        if (!existingOwnerKey) {
+          throw new ConvexError({
+            code: "claim_code_rotation_requires_token",
+            message: "Event already has a real-auth host. Provide existingOwnerKey to rotate.",
+          });
+        }
+        await requireHost(ctx, eventId, existingOwnerKey);
+        // proceed below — caller is the existing host, allowed to rotate
+      } else if (legacyHost) {
+        // Legacy host holds the event. Can't upgrade through this endpoint
+        // because we have no way to verify the legacy host is the one
+        // requesting (they chose their own ownerKey).
+        throw new ConvexError({
+          code: "legacy_host_must_rotate_first",
+          message:
+            "Event held by a legacy host. The legacy host must release or rotate via claimHost before requesting a code.",
+        });
+      }
+    }
+    const code = generateClaimCode();
+    const codeHash = await sha256Hex(`${eventId}|${code}`);
+    await ctx.db.patch(eventId, {
+      hostClaimCodeHash: codeHash,
+      hostClaimCodeCreatedAt: Date.now(),
+    });
+    // Return the plaintext code EXACTLY ONCE. Caller must persist it
+    // immediately — it is never recoverable from the database.
+    return {
+      ok: true,
+      hostClaimCode: code,
+      // Bound how long the UI should wait before assuming the code is
+      // stale. Not enforced server-side (the hash is the source of
+      // truth) — purely for UX. requestHostClaim can be re-called any
+      // time to mint a new code.
+      expiresHintAt: Date.now() + 30 * 60 * 1000,
+    };
+  },
+});
+
+/**
+ * claimHostWithCode — Phase 4 step 2: redeem the one-time code, receive
+ * a server-issued HMAC token, become host.
+ *
+ * On success:
+ *   - Removes the claim code hash from the event (single-use).
+ *   - Inserts liveEventHosts row with authMethod=claim_code.
+ *   - Returns the HMAC token. Caller MUST store it (localStorage) — it
+ *     is the ONLY way to authenticate as host going forward.
+ *
+ * Race semantics:
+ *   - Two concurrent claimHostWithCode calls for the same event: Convex
+ *     mutations are serialized, so the second call finds the hash
+ *     cleared and rejects with code_invalid.
+ *
+ * Re-using the same code twice:
+ *   - First call clears the hash. Second call sees no hash → rejects
+ *     with code_invalid. To re-issue, the caller must go back to
+ *     requestHostClaim.
+ */
+export const claimHostWithCode = mutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    hostClaimCode: v.string(),
+    displayName: v.string(),
+    requesterSessionId: v.string(),
+  },
+  handler: async (ctx, { eventId, hostClaimCode, displayName, requesterSessionId }) => {
+    await requireMember(ctx, eventId, requesterSessionId);
+    const code = (hostClaimCode || "").trim();
+    if (!code || code.length < 16 || code.length > 64) {
+      throw new ConvexError({
+        code: "code_invalid",
+        message: "Host claim code must be 16-64 chars.",
+      });
+    }
+    const event = await ctx.db.get(eventId);
+    if (!event) {
+      throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
+    }
+    if (!event.hostClaimCodeHash) {
+      throw new ConvexError({
+        code: "code_invalid",
+        message: "No active host claim code for this event. Request a new code first.",
+      });
+    }
+    const submittedHash = await sha256Hex(`${eventId}|${code}`);
+    if (!constantTimeEquals(submittedHash, event.hostClaimCodeHash)) {
+      throw new ConvexError({
+        code: "code_invalid",
+        message: "Host claim code did not match.",
+      });
+    }
+    // Code matches. Check for an existing real-auth host (rotation case).
+    // Convex mutations are serialized per-document so this is safe.
+    const existingHosts = await ctx.db
+      .query("liveEventHosts")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .take(2);
+    const issuedAt = Date.now();
+    const newOwnerKey = await issueHostToken(eventId, issuedAt);
+    const safeName =
+      (displayName || "Host").slice(0, MAX_DISPLAY_NAME).trim() || "Host";
+    // Clear the claim-code hash atomically with the host insert so the
+    // code is single-use.
+    await ctx.db.patch(eventId, {
+      hostClaimCodeHash: undefined,
+      hostClaimCodeCreatedAt: undefined,
+    });
+    // If there's an existing real-auth host (rotation), revoke it by
+    // deleting that row. Legacy hosts (authMethod != claim_code) are
+    // explicitly NOT auto-revoked here — the legacy_host_must_rotate
+    // gate in requestHostClaim already blocks that path.
+    for (const h of existingHosts) {
+      if (h.authMethod === "claim_code") {
+        await ctx.db.delete(h._id);
+      }
+    }
+    const hostId = await ctx.db.insert("liveEventHosts", {
+      eventId,
+      ownerKey: newOwnerKey,
+      displayName: safeName,
+      role: "owner",
+      authMethod: "claim_code",
+      createdAt: issuedAt,
+    });
+    return {
+      ok: true,
+      hostId,
+      role: "owner" as const,
+      // The token IS the ownerKey going forward. Caller must persist it.
+      ownerKey: newOwnerKey,
+    };
   },
 });
 
