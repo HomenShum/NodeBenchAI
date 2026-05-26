@@ -655,9 +655,9 @@ curl -sL https://nodebenchai.com/ | grep -E <span class="str">'(VITE|root|index)
 
     <div class="tldr">
       <div class="tldr-label">⚡ TL;DR — where we are vs where we're going</div>
-      <p><strong>Today:</strong> <code>scratchnode.live</code> serves a static HTML prototype. Real domain, real DNS, real SSL, real Vercel routing — but zero Convex calls. Chat, <code>/ask</code>, sources, counts, notes are all DOM-only / localStorage / hardcoded.</p>
-      <p><strong>Goal:</strong> <em>"Two strangers on different devices open the same room URL and chat with each other in real time, with sourced agent answers and a private notebook each."</em> That's the minimum for the product to deserve the domain.</p>
-      <p><strong>Floor (Phases 1+2+3): ~6–10 days of work.</strong> Phases 4–7 layer hosts, durable wiki, and the Redis semantic-cache layer on top.</p>
+      <p><strong>Today (Phase 1 + 3 SHIPPED):</strong> <code>scratchnode.live/e/&lt;slug&gt;</code> is real Convex-backed multi-user chat. Two strangers see each other's messages in &lt;1s. Private notes persist across reload via Convex. Phase 2 schema in place but agent action awaits Anthropic wiring.</p>
+      <p><strong>Goal:</strong> <em>"Two strangers on different devices open the same room URL and chat with each other in real time, with sourced agent answers and a private notebook each."</em> First two clauses ✅. Sourced agent answers next.</p>
+      <p><strong>Remaining work:</strong> Phase 2 Anthropic wiring (~3-5d) · Phase 4 host actions + auth (~2-3d) · Phase 5 wiki compaction (~3-4d) · Phase 6 Redis semantic cache (~1-2w infra + integration) · Phase 7+ polish (ongoing).</p>
     </div>
 
     <h3 id="plan-where-we-are">Where we are today (honest baseline)</h3>
@@ -744,22 +744,22 @@ curl -sL https://nodebenchai.com/ | grep -E <span class="str">'(VITE|root|index)
 
         <h4>Convex functions to write</h4>
         <ul class="checklist">
-          <li><input type="checkbox"> <span><code>convex/events/queries.ts</code> — <code>getEventBySlug(slug)</code>, <code>getMessages(eventId, limit, beforeCursor)</code>, <code>getMembers(eventId)</code></span></li>
-          <li><input type="checkbox"> <span><code>convex/events/mutations.ts</code> — <code>joinEvent({slug, sessionId, displayName})</code>, <code>sendMessage({eventId, sessionId, text, kind, replyToMessageId?})</code>, <code>heartbeat({eventId, sessionId})</code></span></li>
-          <li><input type="checkbox"> <span><code>convex/events/crons.ts</code> — janitor that evicts <code>eventMembers</code> with <code>lastSeenAt &lt; now - 5min</code></span></li>
-          <li><input type="checkbox"> <span>Seed mutation for the demo event <code>ai-infra-summit-2026</code> with code <code>ORBITAL</code></span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span><code>convex/events/queries.ts</code> — <code>getEventBySlug(slug)</code>, <code>getMessages(eventId, limit, beforeCursor)</code>, <code>getMembers(eventId)</code></span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span><code>convex/events/mutations.ts</code> — <code>joinEvent({slug, sessionId, displayName})</code>, <code>sendMessage({eventId, sessionId, text, kind, replyToMessageId?})</code>, <code>heartbeat({eventId, sessionId})</code></span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span><code>convex/events/crons.ts</code> — janitor that evicts <code>eventMembers</code> with <code>lastSeenAt &lt; now - 5min</code></span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Seed mutation for the demo event <code>ai-infra-summit-2026</code> with code <code>ORBITAL</code></span></li>
         </ul>
 
         <h4>UI rewiring (<code>public/proto/home-v5.html</code>)</h4>
         <p>The good news: <code>sendComposerMessage()</code> is already the single entry point. Wire the three branches to Convex.</p>
         <ul class="checklist">
-          <li><input type="checkbox"> <span>Add <code>&lt;script type="module"&gt;</code> that imports <code>ConvexClient</code> from a CDN ESM build (or build a tiny bundled file at <code>/public/proto/_convex.js</code>)</span></li>
-          <li><input type="checkbox"> <span>Generate or recover anonymous session UUID via <code>localStorage.getItem('sn_session_id')</code> or <code>crypto.randomUUID()</code></span></li>
-          <li><input type="checkbox"> <span>On page load: call <code>joinEvent({slug, sessionId, displayName})</code> where slug = URL path's <code>/e/&lt;slug&gt;</code></span></li>
-          <li><input type="checkbox"> <span>Subscribe to <code>getMessages</code> via Convex realtime — append/dedupe rows in <code>#feed</code> as they stream in</span></li>
-          <li><input type="checkbox"> <span>Replace <code>postPublicChat()</code> + <code>postPublicAsk()</code> DOM-append with <code>sendMessage</code> mutation (kind=chat or ask)</span></li>
-          <li><input type="checkbox"> <span>Add 30-second <code>setInterval</code> for <code>heartbeat</code> to keep presence alive</span></li>
-          <li><input type="checkbox"> <span>Wire <code>onbeforeunload</code> to send a final heartbeat with stale-flag (optional)</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Add <code>&lt;script type="module"&gt;</code> that imports <code>ConvexClient</code> from a CDN ESM build (or build a tiny bundled file at <code>/public/proto/_convex.js</code>)</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Generate or recover anonymous session UUID via <code>localStorage.getItem('sn_session_id')</code> or <code>crypto.randomUUID()</code></span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>On page load: call <code>joinEvent({slug, sessionId, displayName})</code> where slug = URL path's <code>/e/&lt;slug&gt;</code></span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Subscribe to <code>getMessages</code> via Convex realtime — append/dedupe rows in <code>#feed</code> as they stream in</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Replace <code>postPublicChat()</code> + <code>postPublicAsk()</code> DOM-append with <code>sendMessage</code> mutation (kind=chat or ask)</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Add 30-second <code>setInterval</code> for <code>heartbeat</code> to keep presence alive</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Wire <code>onbeforeunload</code> to send a final heartbeat with stale-flag (optional)</span></li>
         </ul>
 
         <p class="accept">Open <code>https://scratchnode.live/e/ai-infra-summit-2026</code> in Chrome and Safari (or two different browsers). Type "hi from chrome" in one; within 1s the other should show that message. The 318/47/38 counters stay hardcoded for now — that's Phase 5.</p>
@@ -851,12 +851,12 @@ eventAnswers: <span class="fn">defineTable</span>({
 
         <h4>Tasks</h4>
         <ul class="checklist">
-          <li><input type="checkbox"> <span><code>convex/notes/mutations.ts</code> — <code>createNote</code>, <code>updateNote</code>, <code>pinNote</code>, <code>deleteNote</code> (all gated by <code>ownerKey === ctx.session.ownerKey</code>)</span></li>
-          <li><input type="checkbox"> <span><code>convex/notes/queries.ts</code> — <code>listMyNotes(eventId?)</code> returns only notes where <code>ownerKey === currentOwnerKey</code></span></li>
-          <li><input type="checkbox"> <span>Replace <code>window._notes_v5</code> read paths with Convex query subscription</span></li>
-          <li><input type="checkbox"> <span>Replace <code>createNewNote</code> / <code>updateActiveNote</code> / <code>togglePinNote</code> / <code>deleteActiveNote</code> with the corresponding mutations</span></li>
-          <li><input type="checkbox"> <span>Keep localStorage as offline-first cache; on Convex confirm, mark synced</span></li>
-          <li><input type="checkbox"> <span>Server-side test: try to read someone else's notes by spoofing <code>ownerKey</code> → must return 403</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span><code>convex/notes/mutations.ts</code> — <code>createNote</code>, <code>updateNote</code>, <code>pinNote</code>, <code>deleteNote</code> (all gated by <code>ownerKey === ctx.session.ownerKey</code>)</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span><code>convex/notes/queries.ts</code> — <code>listMyNotes(eventId?)</code> returns only notes where <code>ownerKey === currentOwnerKey</code></span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Replace <code>window._notes_v5</code> read paths with Convex query subscription</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Replace <code>createNewNote</code> / <code>updateActiveNote</code> / <code>togglePinNote</code> / <code>deleteActiveNote</code> with the corresponding mutations</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Keep localStorage as offline-first cache; on Convex confirm, mark synced</span></li>
+          <li class="done"><input type="checkbox" checked disabled> <span>Server-side test: try to read someone else's notes by spoofing <code>ownerKey</code> → must return 403</span></li>
         </ul>
 
         <p class="accept">Open notes sheet, add 3 notes, refresh page → all 3 still there. Open in incognito with a new session ID → empty (notes are session-scoped). Sign in (Phase 4) → previous-session notes migrate to your userId.</p>

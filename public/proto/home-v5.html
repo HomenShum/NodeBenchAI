@@ -2849,5 +2849,344 @@ var _origPush = Array.prototype.push;
 // Initial render — count legacy notes; seed runs lazily when the sheet opens
 setTimeout(refreshNotesCounter, 100);
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PHASE 1 LIVE BACKEND — Convex-backed anonymous shared chat
+     ─────────────────────────────────────────────────────────────────────
+     This module activates ONLY when:
+       - URL is /e/<slug> (on root or /docs it's a no-op)
+       - /api/scratchnode-config returns a valid convexUrl
+       - esm.sh + Convex client load successfully
+     If ANY step fails, the prototype falls back to its existing DOM-only
+     behavior — no broken state, no console spam.
+
+     Per live prod plan (docs.html#live-prod-plan, Phase 1).
+     ═══════════════════════════════════════════════════════════════════ -->
+<script type="module">
+(async () => {
+  // ─── Bail-early checks ─────────────────────────────────────────────
+  const slugMatch = location.pathname.match(/^\/e\/([a-z0-9][a-z0-9-]{0,60})\/?$/i);
+  if (!slugMatch) return; // not an event URL — keep prototype-only behavior
+  const slug = slugMatch[1];
+
+  // Stable anonymous session UUID — persists across reloads, per-device.
+  let sessionId;
+  try {
+    sessionId = localStorage.getItem('sn_session_id');
+    if (!sessionId) {
+      sessionId = (crypto && crypto.randomUUID) ? crypto.randomUUID()
+        : 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('sn_session_id', sessionId);
+    }
+  } catch (e) {
+    sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+  }
+
+  // ─── Fetch backend config ──────────────────────────────────────────
+  let cfg;
+  try {
+    const r = await fetch('/api/scratchnode-config', { cache: 'no-store' });
+    if (!r.ok) throw new Error('config ' + r.status);
+    cfg = await r.json();
+  } catch (e) {
+    console.debug('[scratchnode] config fetch failed, staying in prototype mode:', e.message);
+    return;
+  }
+  if (!cfg.convexUrl) {
+    console.debug('[scratchnode] no convexUrl in config — prototype mode');
+    return;
+  }
+
+  // ─── Lazy-load Convex browser client ───────────────────────────────
+  let ConvexClient;
+  try {
+    const mod = await import('https://esm.sh/convex@1.29.0/browser');
+    ConvexClient = mod.ConvexClient;
+    if (!ConvexClient) throw new Error('ConvexClient export missing');
+  } catch (e) {
+    console.warn('[scratchnode] Convex client load failed, prototype mode:', e.message);
+    return;
+  }
+
+  // ─── Connect ───────────────────────────────────────────────────────
+  const client = new ConvexClient(cfg.convexUrl);
+  const displayName = (window._userName && String(window._userName).trim()) || 'Anonymous Guest';
+
+  let joined;
+  try {
+    joined = await client.mutation('events:joinEvent', { slug, sessionId, displayName });
+  } catch (e) {
+    console.warn('[scratchnode] joinEvent failed, prototype mode:', e.message || e);
+    client.close && client.close();
+    return;
+  }
+  const eventId = joined.eventId;
+  window._sn_live = { client, eventId, sessionId, slug };
+
+  // ─── Replace pre-baked feed rows with realtime Convex rows ─────────
+  const feedEl = document.getElementById('feed');
+  if (feedEl) {
+    // Wipe the hardcoded demo rows once Convex takes over — they'd otherwise
+    // appear next to real messages and confuse users.
+    Array.from(feedEl.querySelectorAll('.row, .ans')).forEach(el => el.remove());
+  }
+
+  const fmtTime = (ts) => {
+    const d = new Date(ts);
+    const h = d.getHours();
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return (h > 12 ? h - 12 : (h || 12)) + ':' + m + (h >= 12 ? 'p' : 'a');
+  };
+  const seenIds = new Set();
+  const renderMessage = (msg) => {
+    if (!feedEl || seenIds.has(msg._id)) return;
+    seenIds.add(msg._id);
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.setAttribute('data-mid', msg._id);
+    const isMe = msg.sessionId === sessionId;
+    const nameAttr = isMe ? ' data-role="you"' : '';
+    row.innerHTML = '<span class="row-time"></span><div class="row-body"><span class="row-name"' + nameAttr + '></span> <span class="row-text"></span></div>';
+    row.querySelector('.row-time').textContent = fmtTime(msg.createdAt);
+    row.querySelector('.row-name').textContent = msg.displayName || 'Anonymous';
+    row.querySelector('.row-text').textContent = (msg.kind === 'ask' ? '/ask ' : '') + msg.text;
+    feedEl.appendChild(row);
+    row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  };
+
+  // Realtime subscription — Convex re-pushes the full array on every change
+  client.onUpdate('events:getMessages', { eventId, limit: 200 }, (rows) => {
+    if (!Array.isArray(rows)) return;
+    for (const msg of rows) renderMessage(msg);
+  });
+
+  // ─── Override the send pipeline to route public chat through Convex ─
+  const _origSend = window.sendComposerMessage;
+  window.sendComposerMessage = function() {
+    const input = document.getElementById('ci');
+    const intent = window.parseComposerIntent && window.parseComposerIntent(input.value);
+    if (!intent) { input.focus(); return; }
+
+    // Private mode stays 100% prototype-side (Phase 3 wires this to Convex).
+    if (intent.visibility === 'private') {
+      return _origSend.call(this);
+    }
+
+    // Public chat or /ask — send to Convex. The agent answer for /ask is Phase 2;
+    // for now the message just shows up in the feed.
+    const liveName = (window._userName && String(window._userName).trim()) || 'Anonymous Guest';
+    client.mutation('events:sendMessage', {
+      eventId,
+      sessionId,
+      displayName: liveName,
+      text: intent.clean,
+      kind: intent.kind === 'agent_ask' ? 'ask' : 'chat',
+    }).catch((e) => {
+      console.warn('[scratchnode] sendMessage failed:', e.message || e);
+      // Fall back to prototype DOM append so the message isn't lost in the void.
+      _origSend.call(this);
+    });
+
+    // Clear composer; Convex subscription will render the new row when it lands.
+    input.value = '';
+    if ('ontouchstart' in window || window.innerWidth <= 720) input.blur();
+  };
+  // Make sure both global aliases stay in sync (existing onclick handlers).
+  window.send = window.sendComposerMessage;
+
+  // ─── Presence heartbeat — every 30s ─────────────────────────────────
+  setInterval(() => {
+    client.mutation('events:heartbeat', { eventId, sessionId }).catch(() => {});
+  }, 30_000);
+
+  // ─── PHASE 3: private notes — Convex persistence ────────────────────
+  // ownerKey === sessionId for anonymous users (Phase 4 will migrate to user:<id>).
+  // Subscribes to listMyNotes; mirrors rows into window._notes_v5 so the
+  // existing render functions (renderNotesList, renderNotesEditor) just work.
+
+  const noteOwnerKey = sessionId;
+  // Pending optimistic ops keyed by tempId so we can dedupe when Convex echoes back.
+  const _pendingOps = new Map();
+
+  // Map Convex rows → the shape the notes editor expects.
+  const mapConvexNote = (row) => ({
+    id: row._id,
+    title: row.title || 'Untitled',
+    body: row.bodyHtml || '',
+    tags: row.tags || [],
+    pinned: !!row.pinned,
+    isAsk: !!row.isAsk,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    _convex: true,
+  });
+
+  client.onUpdate('notes:listMyNotes', { ownerKey: noteOwnerKey, eventId }, (rows) => {
+    if (!Array.isArray(rows)) return;
+    window._notes_v5 = rows.map(mapConvexNote);
+    // If the editor's active note got server-confirmed (tempId → real id), retarget.
+    if (window._activeNoteId && window._activeNoteId.startsWith('temp_')) {
+      // Find a matching note by title + created-recent heuristic
+      const matched = window._notes_v5.find((n) =>
+        Math.abs((n.createdAt || 0) - Date.now()) < 30_000,
+      );
+      if (matched) window._activeNoteId = matched.id;
+    }
+    // If active note no longer exists (deleted from another session), reset.
+    if (window._activeNoteId && !window._notes_v5.find((n) => n.id === window._activeNoteId)) {
+      window._activeNoteId = (window._notes_v5[0] && window._notes_v5[0].id) || null;
+    }
+    if (typeof refreshNotesCounter === 'function') refreshNotesCounter();
+    if (typeof _activeSheet !== 'undefined' && _activeSheet === 'notes') {
+      if (typeof renderNotesListOnly === 'function') renderNotesListOnly();
+    }
+  });
+
+  // Replace the prototype's createNewNote with a Convex-backed version.
+  const _origCreateNew = window.createNewNote;
+  window.createNewNote = async function() {
+    try {
+      const res = await client.mutation('notes:createNote', {
+        ownerKey: noteOwnerKey,
+        eventId,
+        title: '',
+        bodyHtml: '',
+        tags: [],
+        isAsk: false,
+        pinned: false,
+      });
+      window._activeNoteId = res.noteId;
+      // Re-render with the new note focused (subscription will confirm within 1s).
+      if (typeof renderNotesListOnly === 'function') renderNotesListOnly();
+      const editPane = document.getElementById('notes-pane-edit');
+      if (editPane && typeof renderNotesEditor === 'function') {
+        editPane.innerHTML = renderNotesEditor();
+      }
+      if (window.innerWidth <= 720) {
+        const shell = document.getElementById('notes-shell');
+        if (shell) shell.setAttribute('data-pane', 'editor');
+      }
+      setTimeout(function() {
+        var t = document.getElementById('notes-edit-title');
+        if (t) t.focus();
+      }, 60);
+      if (typeof haptic === 'function') haptic(8);
+    } catch (e) {
+      console.warn('[scratchnode] createNote failed, falling back to local:', e.message || e);
+      _origCreateNew && _origCreateNew.call(this);
+    }
+  };
+
+  // Debounced patch on edits — bursts of keystrokes coalesce into ~1 mutation/500ms.
+  const _debouncedUpdates = new Map();
+  const _origUpdateActive = window.updateActiveNote;
+  window.updateActiveNote = function(field, value) {
+    const id = window._activeNoteId;
+    if (!id || !id.match(/^[a-z0-9]{16,40}$/i)) {
+      // Fallback for temp ids: just call original (in-memory)
+      return _origUpdateActive && _origUpdateActive.call(this, field, value);
+    }
+    // Mirror locally for instant UI feedback (saved indicator)
+    const local = (window._notes_v5 || []).find((n) => n.id === id);
+    if (local) {
+      if (field === 'title') local.title = value;
+      if (field === 'body') {
+        local.body = value;
+        local.tags = (typeof extractTags === 'function')
+          ? extractTags((value || '').replace(/<[^>]*>/g, ' '))
+          : local.tags;
+      }
+      local.updatedAt = Date.now();
+    }
+    // Saved-indicator UI
+    var ind = document.getElementById('notes-saved-indicator');
+    if (ind) {
+      ind.textContent = 'Saving…';
+      ind.style.color = 'var(--ink-faint)';
+    }
+    // Debounce server write per-note
+    clearTimeout(_debouncedUpdates.get(id));
+    _debouncedUpdates.set(id, setTimeout(() => {
+      const payload = { ownerKey: noteOwnerKey, noteId: id };
+      if (field === 'title') payload.title = value;
+      if (field === 'body') {
+        payload.bodyHtml = value;
+        payload.tags = local ? local.tags : [];
+      }
+      client.mutation('notes:updateNote', payload)
+        .then(() => {
+          if (ind) { ind.textContent = '✓ Saved'; ind.style.color = 'var(--green)'; }
+        })
+        .catch((e) => {
+          console.warn('[scratchnode] updateNote failed:', e.message || e);
+          if (ind) { ind.textContent = '⚠ Save failed'; ind.style.color = '#f87171'; }
+        });
+    }, 500));
+  };
+
+  const _origTogglePin = window.togglePinNote;
+  window.togglePinNote = async function() {
+    const id = window._activeNoteId;
+    if (!id || !id.match(/^[a-z0-9]{16,40}$/i)) {
+      return _origTogglePin && _origTogglePin.call(this);
+    }
+    try {
+      await client.mutation('notes:togglePin', { ownerKey: noteOwnerKey, noteId: id });
+      // Subscription will repopulate in ~1s
+      if (typeof haptic === 'function') haptic(6);
+    } catch (e) {
+      console.warn('[scratchnode] togglePin failed:', e.message || e);
+    }
+  };
+
+  const _origDelete = window.deleteActiveNote;
+  window.deleteActiveNote = async function() {
+    const id = window._activeNoteId;
+    if (!id || !id.match(/^[a-z0-9]{16,40}$/i)) {
+      return _origDelete && _origDelete.call(this);
+    }
+    try {
+      await client.mutation('notes:deleteNote', { ownerKey: noteOwnerKey, noteId: id });
+      // Subscription will refresh; reset active id
+      window._activeNoteId = null;
+      if (typeof toast === 'function') toast('Deleted', 'Note removed.');
+      if (typeof haptic === 'function') haptic(10);
+    } catch (e) {
+      console.warn('[scratchnode] deleteNote failed:', e.message || e);
+    }
+  };
+
+  // Private send (lock-icon on) — route through Convex notes instead of localStorage.
+  // The send pipeline's savePrivateNote function is already called from sendComposerMessage's
+  // private branch. We wrap it so legacy localStorage is preserved as offline fallback AND
+  // the Convex note is created.
+  const _origSavePrivateNote = window.savePrivateNote;
+  window.savePrivateNote = function(intent) {
+    // Optimistic local save first — survives offline / Convex outage.
+    if (_origSavePrivateNote) _origSavePrivateNote.call(this, intent);
+    // Then persist to Convex.
+    const clean = intent.clean || '';
+    const firstLine = clean.split('\n')[0] || 'Untitled';
+    const title = firstLine.length > 50 ? firstLine.slice(0, 50) + '…' : firstLine;
+    const safeHtml = (typeof escapeHtml === 'function' ? escapeHtml(clean) : clean).replace(/\n/g, '<br>');
+    client.mutation('notes:createNote', {
+      ownerKey: noteOwnerKey,
+      eventId,
+      title,
+      bodyHtml: safeHtml,
+      tags: (typeof extractTags === 'function') ? extractTags(clean) : [],
+      isAsk: !!intent.isAsk,
+      pinned: false,
+    }).catch((e) => {
+      console.warn('[scratchnode] private note Convex save failed (kept locally):', e.message || e);
+    });
+  };
+
+  // Mark the page as Convex-connected so devs / e2e tests can detect it.
+  document.body.setAttribute('data-sn-live', 'true');
+  document.body.setAttribute('data-sn-phases', '1,3');
+  console.info('[scratchnode] Phases 1+3 live — connected to', cfg.convexUrl, 'event', joined.slug);
+})();
+</script>
 </body>
 </html>

@@ -1048,4 +1048,18 @@ crons.interval(
   { batchSize: 200 },
 );
 
+// ═══════════════════════════════════════════════════════════════════════════
+// scratchnode.live presence janitor (Phase 1 of live prod plan)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Evicts eventMembers rows whose lastSeenAt is older than 5min — keeps the
+// active-members count honest after attendees close their tabs.
+// BOUND: 500 evictions per run. HONEST_STATUS: returns { evicted: N }.
+crons.interval(
+  "scratchnode presence janitor",
+  { minutes: 5 },
+  internal.events._evictStalePresence,
+  {},
+);
+
 export default crons;
