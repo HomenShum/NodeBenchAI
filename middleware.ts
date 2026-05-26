@@ -19,9 +19,9 @@
 //   which lets us rewrite the path for scratchnode.live hosts only — without
 //   touching nodebenchai.com behavior.
 //
-// Cost note: Vercel charges per middleware invocation. The matcher below
-// excludes asset paths (/assets/*, /api/*, /proto/*, /_next/*) so we don't
-// pay for image/script/api traffic.
+// Cost note: Vercel charges per middleware invocation. The matcher below is
+// intentionally limited to the two paths that can be stolen by static-file
+// matching before vercel.json rewrites: "/" and "/index.html".
 //
 // Related rules:
 //   - .claude/rules/live_dom_verification.md
@@ -31,9 +31,9 @@
 import { next, rewrite } from '@vercel/edge';
 
 export const config = {
-  // Run on apex root + entity routes only.
-  // Excludes assets, API routes, /proto/*, and Vercel internals.
-  matcher: ['/((?!assets|api|proto|_next|favicon|robots\\.txt|sitemap\\.xml).*)'],
+  // Keep middleware cost bounded: event/docs/random-path routing remains in
+  // vercel.json because those rewrites already fire correctly.
+  matcher: ['/', '/index.html'],
 };
 
 export default function middleware(request: Request): Response {
@@ -57,7 +57,9 @@ export default function middleware(request: Request): Response {
   // next() so Vercel's normal rewrite pipeline takes over.
   const pathname = url.pathname;
   if (pathname === '/' || pathname === '/index.html') {
-    return rewrite(new URL('/proto/home-v5.html', request.url));
+    const destination = new URL('/proto/home-v5.html', request.url);
+    destination.search = url.search;
+    return rewrite(destination);
   }
 
   return next();
