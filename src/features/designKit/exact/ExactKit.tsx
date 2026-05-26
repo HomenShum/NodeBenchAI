@@ -2983,6 +2983,7 @@ export function ExactChatSurface() {
       : "skip",
   );
   const liveThreadTurns: ChatTurn[] | null = (() => {
+    if (!realChat.state.available) return null;
     if (!liveThread || !(liveThread as any)?.live) return null;
     const lt = liveThread as any;
     if (!Array.isArray(lt.turns) || lt.turns.length === 0) return null;
