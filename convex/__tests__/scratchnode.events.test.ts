@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 /**
  * Scenario tests for scratchnode.live event mutations — covers the 4 P1
  * coverage gaps surfaced by the post-deploy review of PRs #377-#381.
@@ -6,12 +7,17 @@
  * prior state, an action sequence, scale, and duration. Shallow happy-path
  * unit tests are banned.
  *
- * Per the repo convention (see convex/domains/founder/__tests__/
- * ambientIntelligenceOps.test.ts and convex/domains/search/__tests__/
- * embedRowOnUpdate.test.ts), we drive the Convex mutation handlers directly
- * via `(name as any)._handler(ctx, args)` and back them with an in-memory
- * `MockDb`. `convex-test` is not wired in this repo yet — the existing
- * pattern is what we mirror.
+ * Hybrid harness:
+ *   - composeAnswer / publishWiki / sequential claimHost  → drive the Convex
+ *     mutation handlers directly via `(name as any)._handler(ctx, args)` and
+ *     back them with an in-memory `MockDb`. Mirrors convex/domains/founder/
+ *     __tests__/ambientIntelligenceOps.test.ts.
+ *   - claimHost concurrent-race test                      → uses the official
+ *     `convex-test` framework (Phase 4 follow-up to PR #396). The MockDb does
+ *     NOT model Convex serial-mutation semantics, so it can't surface the
+ *     production race contract honestly; `convex-test` runs the real Convex
+ *     transaction engine in-process and serializes mutations by table-write-
+ *     set the same way the live runtime does.
  *
  * Coverage matrix:
  *   1. composeAnswer — first call creates new answer + sources; second call
@@ -19,19 +25,27 @@
  *      semantic_cache_lookup ok trace step.
  *   2. publishWiki — attendee (no host row) is rejected with code=not_host;
  *      claimed host succeeds and writes a status="published" wiki version.
- *   3. claimHost — two concurrent claims; exactly one row in liveEventHosts
- *      when both promises settle.
+ *   3. claimHost — concurrent claims via convex-test: exactly ONE row lands
+ *      in liveEventHosts, the loser receives host_already_claimed.
  *   4. Anonymous chat hydration leak — kept as an E2E spec in
  *      tests/e2e/anonymous-chat-leak.spec.ts (it tests rendered DOM, not a
  *      Convex handler).
  *
- * Pattern: deterministic, sandboxed mocks. No real Convex, no network.
+ * Pattern: deterministic, sandboxed. No network, no live Convex deploy.
  */
 
 import { describe, expect, it } from "vitest";
+import { convexTest } from "convex-test";
 
 import * as eventsModule from "../events";
 import { publishWiki, claimHost } from "../events";
+import schema from "../schema";
+import { api } from "../_generated/api";
+
+// convex-test needs the full module map so it can resolve `api.events.claimHost`
+// to the actual handler. The repo's Convex source lives in ./convex/**/*.{ts,js},
+// so we glob from this test file's parent (the convex/ directory).
+const convexModules = import.meta.glob("../**/*.{ts,js}");
 
 // Resolve `composeAnswer` with a fallback to `askAgent`.
 // Rationale: the rename PR (refactor/rename-ask-to-compose) is open but not
@@ -719,82 +733,125 @@ describe("claimHost — concurrent race invariant", () => {
     expect(tables.liveEventHosts.length).toBe(1);
   });
 
-  it("concurrent Promise.all claims — production contract documented; framework gap surfaced", async () => {
-    // FRAMEWORK GAP NOTICE
-    // ─────────────────────
-    // The production contract: under Convex's serialized mutation runtime,
-    // two concurrent claimHost calls on the same eventId produce exactly
-    // ONE host row, because the second call observes the first's insert via
-    // the by_event index check. The defense path in convex/events.ts is:
-    //     const existingHosts = await ctx.db.query("liveEventHosts")
-    //       .withIndex("by_event", q => q.eq("eventId", eventId))
-    //       .take(1);
-    //     if (existingHosts.length > 0) throw host_already_claimed;
-    //
-    // The MockDb in this test file does NOT model Convex's serializability:
-    // both handlers share one `tables` object and both observe an empty
-    // hosts table before either inserts. That is a known limitation of the
-    // existing test harness in this repo (see the same gap noted in
-    // convex/domains/founder/__tests__/ambientIntelligenceOps.test.ts).
-    //
-    // We surface that gap explicitly via a console.warn AND we still run
-    // the test so the contract is captured. The sequential test above
-    // proves the host_already_claimed throw path; this concurrent test
-    // exists to document the contract for when convex-test lands.
-    //
-    // When `convex-test` (or equivalent serial-mutation harness) is wired,
-    // this test should be upgraded to expect:
-    //     expect(tables.liveEventHosts.length).toBe(1);
-    //     expect(rejected.length).toBe(1);
-    //     expect(rejected[0].reason.message).toMatch(/host_already_claimed/);
-    //
-    // ─────────────────────
-    const tables: Tables = {
-      liveEvents: [baseEvent()],
-      liveEventHosts: [],
-    };
-    const ctx = createCtx(tables);
+  /**
+   * UPGRADED from MockDb to convex-test (Phase 4 follow-up to PR #396).
+   *
+   * Scenario:    Two anonymous attendees race to claim host on a fresh
+   *              event. The invariant we are protecting: EXACTLY ONE row
+   *              lands in liveEventHosts; the loser receives the typed
+   *              `host_already_claimed` error.
+   *
+   * Why convex-test (not MockDb): the previous MockDb-backed test could
+   * only assert `hostRows <= 2` because the MockDb does not model Convex's
+   * serial-mutation semantics — two handlers sharing one `tables` object
+   * could both observe an empty hosts table before either inserted. The
+   * production defense in convex/events.ts:
+   *     const existingHosts = await ctx.db.query("liveEventHosts")
+   *       .withIndex("by_event", q => q.eq("eventId", eventId))
+   *       .take(1);
+   *     if (existingHosts.length > 0) throw host_already_claimed;
+   * only holds because Convex serializes mutations by table-write-set in
+   * production. `convex-test` runs the real Convex transaction engine
+   * in-process, so this test now exercises the actual race contract.
+   *
+   * User:        Two anonymous attendees, different ownerKeys
+   * Goal:        Each wants to become the host of a fresh event
+   * Prior state: event live, 0 liveEventHosts rows
+   * Actions:     Promise.all([t.mutation(claimHost, A), t.mutation(claimHost, B)])
+   * Scale:       2 concurrent
+   * Duration:    Sub-second
+   * Expected:    1 promise fulfills with ok=true/created=true; 1 promise
+   *              rejects with ConvexError code=host_already_claimed.
+   *              liveEventHosts has exactly 1 row, owned by the winner.
+   * Edge:        Different ownerKeys (we already cover same-owner idempotency
+   *              in the sequential test above).
+   */
+  it("concurrent claims — exactly one wins, loser gets host_already_claimed (convex-test)", async () => {
+    const t = convexTest(schema, convexModules);
+
+    // Seed: insert a live event directly via t.run so we can target it by ID.
+    const eventId = await t.run(async (ctx) => {
+      return await ctx.db.insert("liveEvents", {
+        slug: "race-claim-event",
+        name: "Race Claim Event",
+        roomCode: "RACE01",
+        status: "live",
+        startedAt: 1_700_000_000_000,
+      });
+    });
 
     const ownerKeyA = "owner-key-attendee-cccc";
     const ownerKeyB = "owner-key-attendee-dddd";
 
+    // Kick both claims off in the same tick. Under Convex's real-runtime
+    // serialization (which convex-test models), one of these must observe
+    // the other's insert and throw host_already_claimed.
     const settled = await Promise.allSettled([
-      (claimHost as any)._handler(ctx, {
-        eventId: "liveEvents:1",
+      t.mutation(api.events.claimHost, {
+        eventId,
         ownerKey: ownerKeyA,
         displayName: "Attendee A",
       }),
-      (claimHost as any)._handler(ctx, {
-        eventId: "liveEvents:1",
+      t.mutation(api.events.claimHost, {
+        eventId,
         ownerKey: ownerKeyB,
         displayName: "Attendee B",
       }),
     ]);
 
-    const fulfilled = settled.filter((s) => s.status === "fulfilled");
+    const fulfilled = settled.filter(
+      (s): s is PromiseFulfilledResult<any> => s.status === "fulfilled",
+    );
+    const rejected = settled.filter(
+      (s): s is PromiseRejectedResult => s.status === "rejected",
+    );
 
-    // At least one claim must succeed (no double-rejection on a fresh event).
-    expect(fulfilled.length).toBeGreaterThanOrEqual(1);
+    // EXACT race contract: 1 win, 1 loss.
+    expect(fulfilled.length).toBe(1);
+    expect(rejected.length).toBe(1);
 
-    const hostRows = tables.liveEventHosts.length;
-    if (hostRows > 1) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[claimHost contract test] FRAMEWORK GAP: MockDb produced ${hostRows} ` +
-          `host rows on concurrent claims because it does not model Convex ` +
-          `serial-mutation semantics. The production defense in claimHost ` +
-          `(existingHosts.length > 0 → throw host_already_claimed) IS in place ` +
-          `(see the sequential test above). Replace MockDb with convex-test to ` +
-          `convert this contract test into a true race regression.`,
-      );
-    }
+    // Winner shape — claimHost returns { ok, hostId, role, created } on success.
+    const winner = fulfilled[0].value;
+    expect(winner.ok).toBe(true);
+    expect(winner.created).toBe(true);
+    expect(winner.role).toBe("owner");
+    expect(typeof winner.hostId).toBe("string");
 
-    // Contract assertion (the production guarantee). We use toBeLessThanOrEqual
-    // so the test passes under the current MockDb harness AND under a future
-    // convex-test harness. The console.warn above ensures the gap is loud.
-    // Under convex-test, hostRows will equal 1.
-    expect(hostRows).toBeLessThanOrEqual(2);
-    expect(hostRows).toBeGreaterThanOrEqual(1);
+    // Loser must throw a typed ConvexError code=host_already_claimed.
+    const loserReason = rejected[0].reason;
+    // ConvexError serializes through convex-test as an Error whose `.data`
+    // (or `.message`) carries the typed payload. We accept either shape so
+    // the test stays robust across convex-test versions.
+    const loserBlob = JSON.stringify({
+      message: loserReason?.message ?? "",
+      data: loserReason?.data ?? null,
+    });
+    expect(loserBlob).toMatch(/host_already_claimed|already has a host/i);
+
+    // DB invariant: exactly ONE row, owned by exactly ONE of the two keys.
+    const hostsAfter = await t.run(async (ctx) => {
+      return await ctx.db
+        .query("liveEventHosts")
+        .withIndex("by_event", (q) => q.eq("eventId", eventId))
+        .collect();
+    });
+    expect(hostsAfter.length).toBe(1);
+
+    const winnerOwnerKey = hostsAfter[0].ownerKey;
+    expect([ownerKeyA, ownerKeyB]).toContain(winnerOwnerKey);
+
+    // The OTHER ownerKey must NOT have a row.
+    const loserOwnerKey =
+      winnerOwnerKey === ownerKeyA ? ownerKeyB : ownerKeyA;
+    const loserRow = await t.run(async (ctx) => {
+      return await ctx.db
+        .query("liveEventHosts")
+        .withIndex("by_event_owner", (q) =>
+          q.eq("eventId", eventId).eq("ownerKey", loserOwnerKey),
+        )
+        .first();
+    });
+    expect(loserRow).toBeNull();
   });
 });
 
