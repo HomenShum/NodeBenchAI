@@ -1330,6 +1330,7 @@ import type * as domains_verification_validation_selfQuestionAgent from "../doma
 import type * as domains_verification_verificationAuditTrail from "../domains/verification/verificationAuditTrail.js";
 import type * as domains_verification_verificationWorkflow from "../domains/verification/verificationWorkflow.js";
 import type * as domains_world_operations from "../domains/world/operations.js";
+import type * as email from "../email.js";
 import type * as events from "../events.js";
 import type * as feed from "../feed.js";
 import type * as globalResearch_artifacts from "../globalResearch/artifacts.js";
@@ -2842,6 +2843,7 @@ declare const fullApi: ApiFromModules<{
   "domains/verification/verificationAuditTrail": typeof domains_verification_verificationAuditTrail;
   "domains/verification/verificationWorkflow": typeof domains_verification_verificationWorkflow;
   "domains/world/operations": typeof domains_world_operations;
+  email: typeof email;
   events: typeof events;
   feed: typeof feed;
   "globalResearch/artifacts": typeof globalResearch_artifacts;

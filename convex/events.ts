@@ -26,6 +26,7 @@
 
 import { v } from "convex/values";
 import { query, mutation, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 class ConvexError<T extends Record<string, unknown>> extends Error {
   data: T;
@@ -61,6 +62,22 @@ const MAX_WIKI_ANSWERS = 20;
 // (hk1:<eventIdShort>:<nonce>:<issuedAt>:<hmacShort> ~ 80-90 chars).
 // 120 is still tight enough to reject obvious junk.
 const MAX_OWNER_KEY_LEN = 120;
+
+// Phase 4 follow-up Item 1: optional email channel for claim codes.
+// Validation kept basic on purpose — Resend re-validates server-side, and
+// the regex is meant to catch *obviously* malformed input (missing @,
+// missing dot, oversized strings) before we even schedule the action.
+// MAX_EMAIL_LEN matches RFC 5321 (SMTP path length).
+const MAX_EMAIL_LEN = 254;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const isLikelyValidEmail = (value: string | undefined): value is string => {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (trimmed.length > MAX_EMAIL_LEN) return false;
+  return EMAIL_REGEX.test(trimmed);
+};
 
 const DEMO_SOURCES = [
   {
@@ -1009,8 +1026,15 @@ export const requestHostClaim = mutation({
     // host can rotate by providing their current ownerKey (HMAC token).
     // Required only when an existing claim_code host exists.
     existingOwnerKey: v.optional(v.string()),
+    // Phase 4 follow-up Item 1: optional out-of-band email channel. When
+    // present and well-formed, the mutation schedules a fire-and-forget
+    // action (convex/email.ts:sendHostClaimCodeEmail) to deliver the
+    // plaintext code by email. The mutation STILL returns the code
+    // synchronously — email is a convenience channel, not a source of
+    // truth. Failed delivery does NOT break the claim flow.
+    deliverToEmail: v.optional(v.string()),
   },
-  handler: async (ctx, { eventId, requesterSessionId, existingOwnerKey }) => {
+  handler: async (ctx, { eventId, requesterSessionId, existingOwnerKey, deliverToEmail }) => {
     // Membership gate — same shape as composeAnswer / suggestAnswerForFaq.
     await requireMember(ctx, eventId, requesterSessionId);
     const event = await ctx.db.get(eventId);
@@ -1051,6 +1075,32 @@ export const requestHostClaim = mutation({
       hostClaimCodeHash: codeHash,
       hostClaimCodeCreatedAt: Date.now(),
     });
+    const expiresHintAt = Date.now() + 30 * 60 * 1000;
+
+    // Phase 4 follow-up Item 1 — optional email channel.
+    // Fire-and-forget: schedule the action so the mutation can return
+    // synchronously. Validation here is cheap (regex + length) — the
+    // action re-validates as defense in depth. Failures inside the
+    // action are logged but do NOT break the claim flow.
+    if (deliverToEmail !== undefined) {
+      if (isLikelyValidEmail(deliverToEmail)) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.email.sendHostClaimCodeEmail,
+          {
+            email: deliverToEmail.trim(),
+            code,
+            eventName: event.name,
+            expiresHintAt,
+          },
+        );
+      }
+      // Malformed email: silently skip scheduling. We don't throw because
+      // the plaintext code is still being returned to the caller, and a
+      // bad email is a UX issue, not a security issue. (Future: surface
+      // a soft warning field in the response if UX needs it.)
+    }
+
     // Return the plaintext code EXACTLY ONCE. Caller must persist it
     // immediately — it is never recoverable from the database.
     return {
@@ -1060,7 +1110,7 @@ export const requestHostClaim = mutation({
       // stale. Not enforced server-side (the hash is the source of
       // truth) — purely for UX. requestHostClaim can be re-called any
       // time to mint a new code.
-      expiresHintAt: Date.now() + 30 * 60 * 1000,
+      expiresHintAt,
     };
   },
 });
