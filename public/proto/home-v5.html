@@ -1,0 +1,2853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#151413">
+<title>AI Infra Summit · ScratchNode</title>
+<meta name="description" content="Live event knowledge room. Join with code ORBITAL — no account, no app. Ask anything, get sourced answers, the room compacts into a public wiki when the event ends.">
+<link rel="canonical" href="https://scratchnode.live/e/ai-infra-summit-2026">
+
+<!-- ScratchNode-branded Open Graph (event surface — distinct from nodebenchai.com workspace) -->
+<meta property="og:site_name" content="ScratchNode">
+<meta property="og:title" content="AI Infra Summit · LIVE on ScratchNode">
+<meta property="og:description" content="318 in the room · 47 sourced answers · join with code ORBITAL — no account needed.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://scratchnode.live/e/ai-infra-summit-2026">
+<meta property="og:image" content="https://scratchnode.live/og/ai-infra-summit-2026.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="ScratchNode · AI Infra Summit · LIVE · Room code ORBITAL">
+
+<!-- Twitter card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@scratchnode">
+<meta name="twitter:title" content="AI Infra Summit · LIVE on ScratchNode">
+<meta name="twitter:description" content="318 in the room · 47 sourced answers · join with code ORBITAL.">
+<meta name="twitter:image" content="https://scratchnode.live/og/ai-infra-summit-2026.png">
+<meta name="twitter:image:alt" content="ScratchNode · AI Infra Summit · LIVE">
+
+<!-- Lightweight favicon (replace with branded SVG before prod launch) -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23151413'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23d97757'/%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #151413;
+  --paper: #1c1b1a;
+  --ink: #e8e6e3;
+  --ink-muted: #a8a5a0;
+  --ink-faint: #6b6864;
+  --line: rgba(255,255,255,.08);
+  --accent: #d97757;
+  --accent-soft: rgba(217,119,87,.08);
+  --green: #5ea867;
+  --purple: #a78bfa;
+  --ui: "Manrope", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  --r: 12px;
+  --r-sm: 8px;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: var(--ui); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%; }
+body { min-height: 100vh; min-height: 100dvh; overscroll-behavior-y: contain; }
+button, input { font-family: inherit; font-size: inherit; color: inherit; }
+button { cursor: pointer; touch-action: manipulation; }
+button:active { transform: scale(.97); transition: transform .08s; }
+*:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Safe-area helpers */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bot: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* ─── Sticky header (minimal) ─── */
+.h {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 12px;
+  padding: calc(12px + var(--safe-top)) calc(20px + var(--safe-right)) 12px calc(20px + var(--safe-left));
+  background: linear-gradient(180deg, rgba(21,20,19,.92), rgba(21,20,19,.6));
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-bottom: 1px solid var(--line);
+}
+.h-logo { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; }
+.h-logo-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px rgba(217,119,87,.7); }
+.h-logo span { color: var(--accent); }
+.h-live { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 100px; background: rgba(94,168,103,.1); border: 1px solid rgba(94,168,103,.25); font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--green); letter-spacing: .1em; }
+.h-live::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px rgba(94,168,103,.7); animation: livePulse 2s infinite; }
+@keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { .h-live::before { animation: none; } }
+.h-spacer { flex: 1; }
+.h-code {
+  min-height: 36px; padding: 6px 14px; border-radius: var(--r-sm);
+  background: transparent; border: 1px solid var(--line);
+  color: var(--accent); font-family: var(--mono); font-size: 12px; font-weight: 700;
+  letter-spacing: .18em; cursor: pointer; transition: border-color .12s;
+}
+.h-code:hover { border-color: var(--accent); }
+.h-menu { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-sm); border: 1px solid var(--line); background: transparent; color: var(--ink-muted); }
+.h-menu:hover { color: var(--ink); border-color: var(--ink-faint); }
+@media (max-width: 540px) { .h-menu { width: 44px; height: 44px; } .h-code { min-height: 44px; } }
+
+/* ─── Event identity strip (persistent after scroll) ─── */
+.event-strip {
+  position: sticky; top: calc(56px + var(--safe-top)); z-index: 49;
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 20px;
+  background: linear-gradient(180deg, rgba(21,20,19,.86), rgba(21,20,19,.5));
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono); font-size: 10px; color: var(--ink-muted);
+  letter-spacing: .04em;
+  overflow-x: auto; white-space: nowrap;
+  scrollbar-width: none;
+}
+.event-strip::-webkit-scrollbar { display: none; }
+.event-strip b { color: var(--ink); font-weight: 700; font-family: var(--ui); font-size: 11px; letter-spacing: 0; }
+.event-strip .dot { color: var(--ink-faint); }
+.event-strip .ev-link {
+  margin-left: auto;
+  color: var(--accent); border: 1px solid rgba(217,119,87,.3);
+  padding: 2px 8px; border-radius: 100px;
+  text-decoration: none; cursor: pointer;
+  flex-shrink: 0;
+}
+.event-strip .ev-link:hover { background: rgba(217,119,87,.08); }
+@media (max-width: 540px) {
+  .event-strip { padding: 5px 14px; font-size: 9px; gap: 8px; }
+  .event-strip b { font-size: 10px; }
+  .event-strip .ev-link { font-size: 9px; }
+}
+
+/* ─── Main (single column) ─── */
+.m { max-width: 720px; margin: 0 auto; padding: 24px calc(20px + var(--safe-right)) calc(80px + var(--safe-bot)) calc(20px + var(--safe-left)); }
+@media (min-width: 900px) { .m { max-width: 760px; } }
+
+/* ─── Hero (small, scannable) ─── */
+.hero { margin-bottom: 20px; }
+.hero h1 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 4px; }
+.hero-meta { font-size: 13px; color: var(--ink-muted); }
+.hero-meta b { color: var(--ink); font-weight: 600; }
+
+/* ─── Composer (gravitational center) ─── */
+.c {
+  position: sticky; top: 64px; z-index: 40;
+  margin: 0 -4px 28px;
+  background: var(--bg);
+  padding: 8px 4px 12px;
+}
+.c-box {
+  display: flex; align-items: stretch; gap: 6px;
+  background: var(--paper); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 8px;
+  transition: border-color .15s;
+}
+.c-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.c-input {
+  flex: 1; min-width: 0;
+  background: transparent; border: 0; outline: none;
+  padding: 6px 10px; font-size: 15px; color: var(--ink);
+}
+.c-input::placeholder { color: var(--ink-faint); }
+
+/* Composer mode-state badge — answers "Am I public or private?" */
+.c-mode {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px;
+  border-radius: 100px;
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .04em;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.02);
+  color: var(--ink-muted);
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.c-mode .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+body[data-mode="public"] .c-mode { color: var(--green); border-color: rgba(94,168,103,.3); background: rgba(94,168,103,.05); }
+body[data-mode="private"] .c-mode { color: var(--purple); border-color: rgba(167,139,250,.35); background: rgba(167,139,250,.06); }
+
+/* Persistent composer help line — answers "Am I chatting or asking the agent?" */
+.c-helpline {
+  margin: 8px 4px 0;
+  font-size: 11px; color: var(--ink-faint);
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap;
+}
+.c-helpline .pill {
+  font-family: var(--mono); font-size: 10px;
+  padding: 1px 7px; border-radius: 100px;
+  background: rgba(255,255,255,.04); color: var(--ink-muted);
+  border: 1px solid var(--line);
+}
+.c-helpline .pill.ask { color: var(--accent); border-color: rgba(217,119,87,.3); background: rgba(217,119,87,.06); }
+body[data-mode="private"] .c-helpline .privacy-state { color: var(--purple); }
+
+/* Role-gated host-only actions on agent cards */
+body[data-role="attendee"] .ans-actions .host-only { display: none; }
+body[data-role="host"] .ans-actions .attendee-only { display: none; }
+.c-tool {
+  width: 44px; height: 44px; border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; color: var(--ink-muted);
+  transition: color .12s, background .12s;
+  flex-shrink: 0;
+}
+.c-tool:hover { color: var(--ink); background: rgba(255,255,255,.04); }
+.c-tool svg { width: 18px; height: 18px; }
+.c-tool.lock[data-on="true"] { color: var(--purple); background: rgba(167,139,250,.12); }
+.c-tool.send { background: var(--accent); color: #fff; }
+.c-tool.send:hover { filter: brightness(1.08); }
+.c-tool.voice.listening { color: var(--accent); background: rgba(217,119,87,.16); animation: voicePulse 1.2s ease-in-out infinite; }
+@keyframes voicePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(217,119,87,.4); } 50% { box-shadow: 0 0 0 6px rgba(217,119,87,0); } }
+@media (prefers-reduced-motion: reduce) { .c-tool.voice.listening { animation: none; } }
+.c-hint { display: flex; align-items: center; gap: 6px; padding: 6px 10px 0; font-size: 11px; color: var(--ink-faint); }
+.c-hint kbd { font-family: var(--mono); font-size: 10px; background: rgba(255,255,255,.04); border: 1px solid var(--line); padding: 1px 5px; border-radius: 3px; color: var(--ink-muted); }
+body[data-mode="private"] .c-box { border-color: rgba(167,139,250,.4); background: rgba(167,139,250,.04); }
+body[data-mode="private"] .c-input::placeholder::before { content: "Private · "; }
+body[data-mode="private"] .c-hint::before { content: "🔒 Private — saves to your notebook, not visible to others. "; color: var(--purple); }
+
+/* ─── Feed ─── */
+.feed { display: flex; flex-direction: column; gap: 4px; }
+.feed-divider { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; font-family: var(--mono); font-size: 10px; color: var(--ink-faint); letter-spacing: .12em; text-transform: uppercase; }
+.feed-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+/* Chat row (minimal, dense) */
+.row {
+  display: grid; grid-template-columns: 56px 1fr;
+  gap: 8px; padding: 8px 4px;
+  border-radius: var(--r-sm);
+  transition: background .12s;
+  position: relative;
+}
+.row:hover { background: rgba(255,255,255,.015); }
+.row-time { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); padding-top: 3px; }
+.row-body { min-width: 0; }
+.row-name { font-size: 12px; font-weight: 600; color: var(--ink); }
+.row-name[data-role="you"] { color: var(--accent); }
+.row-name[data-role="mod"] { color: var(--green); }
+.row-text { font-size: 14px; color: var(--ink-muted); line-height: 1.5; word-wrap: break-word; }
+
+/* — Row hover actions (Reply / React) — sit at the bottom-right of the text — */
+.row-actions {
+  position: absolute; right: 6px; bottom: 4px;
+  display: flex; gap: 2px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 100px;
+  padding: 2px 3px; opacity: 0; pointer-events: none;
+  transform: translateY(2px);
+  transition: opacity .15s ease, transform .15s ease;
+  box-shadow: 0 2px 10px rgba(0,0,0,.4);
+}
+.row:hover .row-actions, .row:focus-within .row-actions {
+  opacity: 1; pointer-events: auto; transform: translateY(0);
+}
+.row-actions button {
+  width: 26px; height: 26px; padding: 0;
+  background: transparent; border: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--ink-muted);
+  transition: color .12s, background .12s, transform .12s;
+}
+.row-actions button:hover { color: var(--ink); background: rgba(255,255,255,.06); transform: scale(1.08); }
+/* When reactions are visible below the text, lift the actions above them */
+.row:has(.row-reactions) .row-actions { bottom: 30px; }
+
+/* — Reply badge above a message that's a reply — */
+.row-replying { display: flex; align-items: center; gap: 4px; font-size: 10px; font-family: var(--mono); color: var(--ink-faint); margin-bottom: 2px; padding-left: 2px; }
+.row-replying::before { content: '↳'; color: var(--accent); }
+.row-replying .name { color: var(--accent); font-weight: 600; }
+.row-replying .quote { color: var(--ink-faint); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+
+/* — Reply context bar (above composer when replying) — */
+.reply-context {
+  display: none; align-items: center; gap: 8px;
+  padding: 6px 10px; margin-bottom: 6px;
+  background: rgba(217,119,87,.08); border: 1px solid rgba(217,119,87,.25); border-left: 2px solid var(--accent);
+  border-radius: 6px; font-size: 11px; color: var(--ink-muted);
+}
+.reply-context[data-open="true"] { display: flex; }
+.reply-context::before { content: '↳'; color: var(--accent); font-weight: 700; }
+.reply-context .name { color: var(--accent); font-weight: 600; }
+.reply-context .quote { color: var(--ink-faint); font-style: italic; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reply-context .cancel { background: transparent; border: 0; color: var(--ink-faint); font-size: 14px; line-height: 1; padding: 2px 4px; cursor: pointer; border-radius: 4px; }
+.reply-context .cancel:hover { color: var(--ink); background: rgba(255,255,255,.05); }
+
+/* — @mention pill (rendered in feed text) — */
+/* Accessible mention chip — works as <button> or legacy <span>. */
+.mention {
+  display: inline-block; padding: 1px 8px;
+  background: rgba(167,139,250,.12); color: #c7b9ff;
+  border: 1px solid transparent; border-radius: 100px;
+  font-weight: 500; font-size: 13px; font-family: inherit; line-height: inherit;
+  cursor: pointer; transition: all .12s;
+  text-decoration: none; vertical-align: baseline;
+}
+button.mention { /* reset native button chrome when rendered as a real button */
+  padding: 1px 8px; margin: 0;
+  -webkit-appearance: none; appearance: none;
+}
+.mention:hover { background: rgba(167,139,250,.22); color: #fff; }
+.mention:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-color: rgba(217,119,87,.5); }
+.mention:active { transform: scale(.96); }
+.mention.is-you { background: rgba(217,119,87,.15); color: var(--accent); }
+
+/* — @mention picker dropdown (above composer when typing @) — */
+.mention-picker {
+  display: none; position: absolute; left: 8px; right: 8px; bottom: calc(100% + 4px);
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 6px; max-height: 220px; overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4); z-index: 50;
+}
+.mention-picker[data-open="true"] { display: block; }
+.mention-picker .item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 5px;
+  cursor: pointer;
+}
+.mention-picker .item:hover, .mention-picker .item[aria-selected="true"] { background: rgba(255,255,255,.05); }
+.mention-picker .av { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
+.mention-picker .name { font-size: 13px; color: var(--ink); font-weight: 500; }
+.mention-picker .role { font-size: 10px; color: var(--ink-faint); font-family: var(--mono); margin-left: auto; }
+
+/* — Reactions (below message text) — */
+.row-reactions { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.row-reactions button {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 1px 7px; border-radius: 100px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--line);
+  font-size: 11px; color: var(--ink-muted);
+  transition: all .12s;
+}
+.row-reactions button:hover { border-color: var(--accent); color: var(--ink); }
+.row-reactions button.is-mine { background: rgba(217,119,87,.1); border-color: rgba(217,119,87,.35); color: var(--accent); }
+.row-reactions button .count { font-family: var(--mono); font-size: 10px; }
+
+/* Reaction picker (pops UP from the actions bar) */
+.react-picker {
+  position: absolute; right: 6px; bottom: 38px;
+  display: none; gap: 2px; z-index: 5;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 100px;
+  padding: 3px 6px;
+  box-shadow: 0 6px 16px rgba(0,0,0,.5);
+  animation: rpFadeIn .15s ease-out;
+}
+.react-picker[data-open="true"] { display: flex; }
+.react-picker button { width: 30px; height: 30px; padding: 0; background: transparent; border: 0; font-size: 16px; border-radius: 50%; transition: transform .12s; }
+.react-picker button:hover { transform: scale(1.3); background: rgba(255,255,255,.06); }
+@keyframes rpFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+/* When reactions exist below, lift the picker above the actions bar above the reactions */
+.row:has(.row-reactions) .react-picker { bottom: 64px; }
+
+/* — Notes badge in identity row — */
+.id-notes {
+  display: none; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 100px;
+  background: rgba(167,139,250,.12); border: 1px solid rgba(167,139,250,.3);
+  color: var(--purple); font-family: var(--mono); font-size: 10px; font-weight: 600;
+  cursor: pointer; transition: all .12s; letter-spacing: .04em;
+}
+.id-notes:hover { background: rgba(167,139,250,.2); color: #c7b9ff; }
+.id-notes[data-count]:not([data-count="0"]) { display: inline-flex; }
+
+/* — Private mode inline notes link (above composer) — */
+.private-notes-inline {
+  display: none; align-items: center; justify-content: space-between;
+  padding: 5px 10px; margin: 0 -4px 4px;
+  background: rgba(167,139,250,.08); border-radius: 4px;
+  font-size: 11px; color: var(--purple); font-family: var(--mono);
+}
+body[data-mode="private"] .private-notes-inline[data-count]:not([data-count="0"]) { display: flex; }
+.private-notes-inline button { background: transparent; border: 0; color: var(--purple); text-decoration: underline; font-family: inherit; font-size: inherit; padding: 0; cursor: pointer; }
+.private-notes-inline button:hover { color: #c7b9ff; }
+
+/* Agent answer card — hierarchically nested CHILD of the parent /ask row
+   (Slack-thread / Notion child-block feel: indented, narrower, lighter chrome,
+   smaller body type, with a visual connector tying it to the message above) */
+.ans {
+  position: relative;
+  margin: 2px 0 12px 56px;     /* indent matches the 56px time column above */
+  padding: 10px 14px 10px 12px;
+  max-width: calc(100% - 60px); /* narrower than parent row */
+  background: rgba(217,119,87,.035);
+  border: 1px solid rgba(217,119,87,.14);
+  border-left: 2px solid var(--accent);
+  border-radius: 4px 8px 8px 4px;
+}
+/* Tree connector: vertical pipe from above + horizontal hook tying to parent */
+.ans::before {
+  content: ''; position: absolute;
+  left: -22px; top: -12px;
+  width: 2px; height: 20px;
+  background: var(--accent); opacity: .25; border-radius: 1px;
+}
+.ans::after {
+  content: ''; position: absolute;
+  left: -22px; top: 6px;
+  width: 22px; height: 2px;
+  background: var(--accent); opacity: .25; border-bottom-left-radius: 4px;
+}
+.ans[data-private="true"] { background: rgba(167,139,250,.035); border-color: rgba(167,139,250,.18); border-left-color: var(--purple); }
+.ans[data-private="true"]::before, .ans[data-private="true"]::after { background: var(--purple); }
+
+/* Head: smaller, lighter — clearly a reply not a peer */
+.ans-head { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--ink-faint); margin-bottom: 6px; line-height: 1.4; flex-wrap: wrap; font-family: var(--mono); letter-spacing: .02em; }
+.ans-head .who { font-weight: 700; color: var(--accent); font-size: 11px; font-family: var(--ui); letter-spacing: 0; }
+.ans[data-private="true"] .ans-head .who { color: var(--purple); }
+.ans-head .sep { color: var(--ink-faint); opacity: .5; }
+
+/* Quoted question — clearly references parent (light, italic, subordinate to body) */
+.ans-q {
+  font-size: 11px; color: var(--ink-faint);
+  padding: 2px 0 2px 8px; border-left: 2px solid rgba(255,255,255,.06);
+  margin: 0 0 8px;
+  line-height: 1.5; font-style: normal;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ans-q::before, .ans-q::after { content: none; }
+
+/* Body — the actual answer. Slightly smaller than parent rows (13px vs 14px) */
+.ans-body { font-size: 13px; color: var(--ink); line-height: 1.55; }
+
+/* Sources — small mono chips, no border, tighter */
+.ans-sources { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 8px; }
+.ans-sources span {
+  font-family: var(--mono); font-size: 9px;
+  padding: 1px 6px; border-radius: 3px;
+  background: rgba(255,255,255,.03); color: var(--ink-faint);
+  border: 1px solid rgba(255,255,255,.05);
+}
+
+/* Reuse / cost-summary line — "Ask once, answer many" surfaced visibly */
+.ans-reuse {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 8px; padding: 5px 9px;
+  background: rgba(94,168,103,.05);
+  border: 1px solid rgba(94,168,103,.18);
+  border-radius: 100px;
+  font-family: var(--mono); font-size: 10px;
+  color: var(--green);
+}
+.ans-reuse .pin { color: var(--green); font-weight: 700; }
+.ans-reuse .sep { color: var(--ink-faint); }
+.ans-reuse .priv { color: var(--purple); }
+.ans-reuse .pulled { color: var(--accent); }
+.ans-reuse .miss { color: #fbbf24; }
+
+.ans-show {
+  margin-top: 6px; padding: 2px 0;
+  background: transparent; border: 0;
+  font-size: 10px; color: var(--ink-faint); font-family: var(--mono);
+}
+.ans-show:hover { color: var(--accent); }
+.ans-show[aria-expanded="true"] + .ans-how { display: block; }
+.ans-how {
+  display: none; margin-top: 6px; padding-top: 8px;
+  border-top: 1px dotted rgba(255,255,255,.06);
+  font-family: var(--mono); font-size: 10px; color: var(--ink-faint); line-height: 1.7;
+}
+.ans-how .step { display: flex; gap: 6px; padding: 1px 0; }
+.ans-how .step .c { color: var(--green); }
+.ans-how .branch { color: var(--accent); margin-top: 4px; font-weight: 600; }
+.ans-how .keep { color: var(--green); padding-left: 14px; }
+
+/* Actions — small ghost buttons + one primary */
+.ans-actions { display: flex; gap: 4px; margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.05); flex-wrap: wrap; }
+.ans-actions button {
+  font-size: 10px; padding: 3px 8px; border-radius: 5px;
+  background: transparent; border: 1px solid rgba(255,255,255,.06); color: var(--ink-faint);
+}
+.ans-actions button:hover { color: var(--ink); border-color: var(--ink-faint); }
+.ans-actions .primary { background: rgba(217,119,87,.12); color: var(--accent); border-color: rgba(217,119,87,.3); font-weight: 600; }
+.ans-actions .primary:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Mobile: adjust indent to match the 44px time column */
+@media (max-width: 540px) {
+  .ans { margin-left: 44px; max-width: calc(100% - 48px); padding: 10px 12px; }
+  .ans::before, .ans::after { left: -18px; }
+  .ans::after { width: 18px; }
+  .ans-body { font-size: 13px; }
+}
+
+/* Thinking */
+.thinking { display: inline-flex; gap: 3px; align-items: center; padding: 8px 12px; border-radius: 100px; background: rgba(217,119,87,.08); color: var(--accent); font-size: 11px; font-weight: 600; font-family: var(--mono); margin: 8px 0; letter-spacing: .04em; }
+.thinking .dots { display: inline-flex; gap: 2px; }
+.thinking .dots span { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); opacity: .5; animation: thinkDot 1.2s infinite; }
+.thinking .dots span:nth-child(2) { animation-delay: .15s; }
+.thinking .dots span:nth-child(3) { animation-delay: .3s; }
+@keyframes thinkDot { 0%,80%,100% { opacity: .3; transform: scale(.8); } 40% { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .thinking .dots span { animation: none; } }
+
+/* Toast (private note saved, etc.) */
+.toast {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 100; max-width: calc(100vw - 32px); padding: 10px 16px;
+  background: linear-gradient(135deg, rgba(167,139,250,.12), rgba(167,139,250,.04));
+  border: 1px solid rgba(167,139,250,.35); border-left: 3px solid var(--purple);
+  border-radius: var(--r); color: var(--ink); font-size: 13px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4); display: none;
+  animation: toastIn .2s ease-out;
+}
+.toast[data-open="true"] { display: block; }
+.toast strong { color: var(--purple); margin-right: 6px; }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translateX(-50%); } }
+
+/* Menu sheet */
+.menu-sheet {
+  position: fixed; inset: auto 0 0 0; z-index: 110;
+  transform: translateY(100%); transition: transform .25s ease;
+  background: var(--paper); border-top: 1px solid var(--line);
+  border-top-left-radius: 16px; border-top-right-radius: 16px;
+  padding: 14px calc(20px + var(--safe-right)) calc(24px + var(--safe-bot)) calc(20px + var(--safe-left));
+  box-shadow: 0 -16px 48px rgba(0,0,0,.5);
+  touch-action: pan-y;
+}
+@media (prefers-reduced-motion: reduce) { .menu-sheet { transition: none; } }
+.menu-sheet button { min-height: 44px; }
+.menu-sheet[data-open="true"] { transform: translateY(0); }
+.menu-sheet-handle { width: 32px; height: 3px; border-radius: 2px; background: var(--line); margin: 0 auto 14px; }
+.menu-sheet h4 { margin: 0 0 8px; font-size: 11px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .12em; font-family: var(--mono); }
+.menu-sheet button {
+  display: block; width: 100%; text-align: left;
+  padding: 10px 12px; margin: 2px 0;
+  background: transparent; border: 0; border-radius: var(--r-sm);
+  color: var(--ink); font-size: 14px;
+}
+.menu-sheet button:hover { background: rgba(255,255,255,.04); }
+.menu-sheet button .sub { display: block; color: var(--ink-faint); font-size: 11px; margin-top: 2px; }
+/* Role-gated menu items. Hosts see everything; attendees never see Host console.
+   "Sign in" hides for already-named users; "My private notes" hides for anonymous. */
+.menu-sheet [data-show-for="host"] { display: none; }
+body[data-role="host"] .menu-sheet [data-show-for="host"] { display: block; }
+body[data-role="host"] .menu-sheet [data-hide-for="host"] { display: none; }
+.menu-sheet [data-show-for="named"] { display: none; }
+body[data-named="true"] .menu-sheet [data-show-for="named"] { display: block; }
+body[data-named="true"] .menu-sheet [data-hide-for="named"] { display: none; }
+.menu-sheet h4[data-show-for]:not([data-show-for="all"]) { display: none; }
+body[data-role="host"] .menu-sheet h4[data-show-for="host"] { display: block; }
+body[data-named="true"] .menu-sheet h4[data-show-for="named"] { display: block; }
+.menu-scrim { position: fixed; inset: 0; z-index: 105; background: rgba(0,0,0,.5); display: none; }
+.menu-scrim[data-open="true"] { display: block; }
+
+/* ─── First-visit welcome banner ─── */
+.welcome {
+  display: none; align-items: center; gap: 10px; padding: 10px 14px;
+  margin: 0 0 12px;
+  background: linear-gradient(135deg, rgba(217,119,87,.1), rgba(217,119,87,.02));
+  border: 1px solid rgba(217,119,87,.25); border-radius: var(--r-sm);
+  font-size: 12px; color: var(--ink-muted);
+}
+body[data-new-user="true"] .welcome { display: flex; }
+.welcome-emoji { font-size: 16px; }
+.welcome-text { flex: 1; line-height: 1.4; }
+.welcome-text strong { color: var(--ink); }
+.welcome-text a { color: var(--accent); cursor: pointer; text-decoration: none; }
+.welcome-text a:hover { text-decoration: underline; }
+.welcome-close { background: none; border: 0; color: var(--ink-faint); font-size: 18px; line-height: 1; padding: 4px; min-width: 32px; }
+.welcome-close:hover { color: var(--ink); }
+
+/* ─── Identity row ─── */
+.id-row { display: flex; align-items: center; gap: 8px; padding: 6px 0 14px; font-size: 12px; color: var(--ink-faint); }
+.id-avatar { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #b85f44); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.id-text { flex: 1; }
+.id-text b { color: var(--ink); font-weight: 600; }
+.id-set { background: transparent; border: 0; color: var(--accent); font-size: 11px; cursor: pointer; padding: 4px 6px; border-radius: 4px; font-family: var(--mono); }
+.id-set:hover { background: rgba(217,119,87,.08); }
+
+/* ─── Empty state (when feed has zero rows) ─── */
+.empty {
+  display: none; flex-direction: column; align-items: center; gap: 8px;
+  padding: 48px 20px; text-align: center;
+}
+body[data-feed-empty="true"] .empty { display: flex; }
+body[data-feed-empty="true"] #feed > .row,
+body[data-feed-empty="true"] #feed > .ans { display: none; }
+.empty-icon { font-size: 28px; opacity: .6; margin-bottom: 4px; }
+.empty-title { font-size: 14px; color: var(--ink); font-weight: 600; }
+.empty-body { font-size: 12px; color: var(--ink-faint); max-width: 280px; line-height: 1.5; }
+
+/* ─── Attention pulses for first-visit ─── */
+body[data-new-user="true"] #lock,
+body[data-new-user="true"] .h-menu { position: relative; }
+body[data-new-user="true"] #lock::after,
+body[data-new-user="true"] .h-menu::after {
+  content: ''; position: absolute; inset: -2px; border-radius: inherit;
+  box-shadow: 0 0 0 0 rgba(217,119,87,.5);
+  animation: attentionPulse 2s ease-out 3;
+  pointer-events: none;
+}
+@keyframes attentionPulse {
+  0% { box-shadow: 0 0 0 0 rgba(217,119,87,.5); }
+  70% { box-shadow: 0 0 0 8px rgba(217,119,87,0); }
+  100% { box-shadow: 0 0 0 0 rgba(217,119,87,0); }
+}
+@media (prefers-reduced-motion: reduce) { body[data-new-user="true"] #lock::after, body[data-new-user="true"] .h-menu::after { animation: none; } }
+
+/* ─── Tooltip popover on first interaction ─── */
+.tip-popover {
+  position: absolute; z-index: 200; max-width: 240px;
+  padding: 8px 12px; background: var(--paper); border: 1px solid var(--accent);
+  border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  font-size: 12px; color: var(--ink); line-height: 1.4;
+  display: none;
+}
+.tip-popover[data-open="true"] { display: block; animation: tipFadeIn .2s ease-out; }
+@keyframes tipFadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.tip-popover::before {
+  content: ''; position: absolute; bottom: -5px; left: 16px;
+  width: 8px; height: 8px; background: var(--paper);
+  border-right: 1px solid var(--accent); border-bottom: 1px solid var(--accent);
+  transform: rotate(45deg);
+}
+.tip-popover button { background: transparent; border: 0; color: var(--accent); font-size: 11px; padding: 4px 0 0; cursor: pointer; }
+
+/* ─── "What is this" inline link ─── */
+.about-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-left: 6px; padding: 2px 7px; border-radius: 100px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--line);
+  color: var(--ink-faint); font-size: 10px; font-family: var(--mono); letter-spacing: .04em;
+  text-transform: uppercase; cursor: pointer; transition: all .12s;
+}
+.about-link:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+/* ─── UNIVERSAL FEATURE SHEET (slides up — name, about, share, notes, wiki, people, signin, host, shortcuts) ─── */
+.sheet-scrim { position: fixed; inset: 0; z-index: 115; background: rgba(0,0,0,.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: none; }
+.sheet-scrim[data-open="true"] { display: block; animation: fadeIn .15s ease-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 120;
+  transform: translateY(100%); transition: transform .25s ease;
+  background: var(--paper); border-top: 1px solid var(--line);
+  border-top-left-radius: 18px; border-top-right-radius: 18px;
+  max-height: 88vh; overflow-y: auto;
+  padding: 12px calc(20px + var(--safe-right)) calc(28px + var(--safe-bot)) calc(20px + var(--safe-left));
+  box-shadow: 0 -20px 60px rgba(0,0,0,.5);
+}
+.sheet[data-open="true"] { transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) { .sheet { transition: none; } }
+@media (min-width: 720px) {
+  .sheet { left: 50%; right: auto; bottom: 50%; transform: translate(-50%, calc(50% + 100vh)); max-width: 480px; width: 100%; max-height: 80vh; border-radius: 14px; border: 1px solid var(--line); }
+  .sheet[data-open="true"] { transform: translate(-50%, 50%); }
+}
+.sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 14px; }
+@media (min-width: 720px) { .sheet-handle { display: none; } }
+.sheet-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.sheet-head h2 { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink); flex: 1; letter-spacing: -.01em; }
+.sheet-head .badge { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 100px; background: rgba(255,255,255,.05); color: var(--ink-muted); letter-spacing: .04em; }
+.sheet-close { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; color: var(--ink-faint); font-size: 20px; line-height: 1; border-radius: var(--r-sm); }
+.sheet-close:hover { color: var(--ink); background: rgba(255,255,255,.04); }
+.sheet-sub { font-size: 13px; color: var(--ink-muted); margin: 0 0 16px; line-height: 1.5; }
+.sheet-section { margin-top: 18px; }
+.sheet-section h3 { margin: 0 0 8px; font-family: var(--mono); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .14em; color: var(--ink-faint); }
+
+/* Form fields inside sheet */
+.sheet-field { margin-bottom: 12px; }
+.sheet-label { display: block; font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.sheet-input { width: 100%; box-sizing: border-box; padding: 10px 12px; min-height: 44px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--ink); font-family: var(--ui); font-size: 14px; outline: none; transition: border-color .12s; }
+.sheet-input:focus { border-color: var(--accent); }
+.sheet-button { width: 100%; box-sizing: border-box; padding: 12px 18px; min-height: 48px; background: var(--accent); color: #fff; border: 0; border-radius: var(--r-sm); font-family: var(--ui); font-size: 14px; font-weight: 600; cursor: pointer; transition: filter .12s; }
+.sheet-button:hover { filter: brightness(1.08); }
+.sheet-button.ghost { background: transparent; border: 1px solid var(--line); color: var(--ink); font-weight: 500; }
+.sheet-button.ghost:hover { border-color: var(--ink-faint); }
+.sheet-button + .sheet-button { margin-top: 8px; }
+
+/* Avatar grid (color picker for identity) */
+.avatar-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin: 8px 0; }
+.avatar-swatch { width: 32px; height: 32px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; transition: transform .12s; }
+.avatar-swatch[aria-pressed="true"] { transform: scale(1.15); border-color: #fff; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+
+/* Share platforms */
+.share-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.share-tile { display: flex; align-items: center; gap: 10px; padding: 14px; min-height: 44px; background: transparent; border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--ink); font-family: var(--ui); font-size: 13px; cursor: pointer; transition: all .12s; text-align: left; }
+.share-tile:hover { border-color: var(--ink-faint); background: rgba(255,255,255,.02); }
+.share-tile .icon { font-size: 18px; flex-shrink: 0; }
+.share-url-box { display: flex; gap: 6px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-sm); margin-bottom: 8px; align-items: center; }
+.share-url-box code { flex: 1; font-family: var(--mono); font-size: 12px; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-url-box button { padding: 6px 10px; font-size: 11px; border-radius: 5px; background: var(--accent); color: #fff; border: 0; font-family: var(--mono); }
+
+/* ─── Wiki — SDK-docs-page treatment (Stripe / Vercel grade) ─── */
+@media (min-width: 720px) {
+  .sheet[data-sheet-type="wiki"] { max-width: 920px; width: 90vw; max-height: 88vh; }
+}
+.wiki-shell { display: grid; grid-template-columns: 200px 1fr 180px; gap: 24px; }
+@media (max-width: 900px) { .wiki-shell { grid-template-columns: 1fr; gap: 0; } .wiki-toc, .wiki-onpage { display: none; } }
+.wiki-toc { position: sticky; top: 0; align-self: start; padding-right: 12px; border-right: 1px solid var(--line); max-height: 70vh; overflow-y: auto; }
+.wiki-toc-label { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px; }
+.wiki-toc-link { display: block; padding: 5px 8px; margin: 0 -8px; font-size: 12px; color: var(--ink-muted); border-radius: 4px; cursor: pointer; transition: all .12s; text-decoration: none; border-left: 2px solid transparent; }
+.wiki-toc-link:hover { color: var(--ink); background: rgba(255,255,255,.03); }
+.wiki-toc-link.active { color: var(--accent); border-left-color: var(--accent); background: rgba(217,119,87,.05); }
+.wiki-toc-link.sub { padding-left: 18px; font-size: 11px; }
+.wiki-search { display: flex; align-items: center; gap: 6px; padding: 7px 10px; margin-bottom: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+.wiki-search input { flex: 1; background: transparent; border: 0; outline: none; color: var(--ink); font-size: 12px; font-family: var(--ui); }
+.wiki-search kbd { font-family: var(--mono); font-size: 10px; padding: 1px 5px; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 3px; color: var(--ink-faint); }
+.wiki-article { min-width: 0; max-width: 640px; font-size: 14px; color: var(--ink); line-height: 1.65; }
+.wiki-article h1 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 4px; color: var(--ink); }
+.wiki-article > .lead { font-size: 14px; color: var(--ink-muted); margin: 0 0 24px; line-height: 1.55; }
+.wiki-article h2 { font-size: 18px; font-weight: 700; letter-spacing: -.01em; margin: 32px 0 10px; color: var(--ink); padding-top: 16px; border-top: 1px solid var(--line); position: relative; scroll-margin-top: 16px; }
+.wiki-article h2:first-of-type { padding-top: 0; border-top: 0; margin-top: 0; }
+.wiki-article h2 .anchor { opacity: 0; position: absolute; left: -20px; color: var(--accent); font-weight: 400; transition: opacity .12s; }
+.wiki-article h2:hover .anchor { opacity: 1; }
+.wiki-article h3 { font-size: 14px; font-weight: 700; margin: 18px 0 8px; color: var(--ink); scroll-margin-top: 16px; }
+.wiki-article p { margin: 0 0 14px; }
+.wiki-article p code, .wiki-article li code { font-family: var(--mono); font-size: 12px; padding: 1px 6px; background: rgba(217,119,87,.1); color: var(--accent); border-radius: 3px; border: 1px solid rgba(217,119,87,.18); }
+.wiki-article pre { margin: 12px 0; padding: 14px 16px; background: rgba(0,0,0,.35); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--ink); position: relative; }
+.wiki-article pre .lang { position: absolute; top: 8px; right: 12px; font-size: 9px; color: var(--ink-faint); letter-spacing: .08em; text-transform: uppercase; font-family: var(--mono); }
+.wiki-article pre .kw { color: #c084fc; }
+.wiki-article pre .str { color: #86efac; }
+.wiki-article pre .num { color: #fbbf24; }
+.wiki-article pre .com { color: var(--ink-faint); font-style: italic; }
+.wiki-article pre .fn { color: #60a5fa; }
+.wiki-article blockquote { margin: 14px 0; padding: 10px 14px; border-left: 3px solid var(--accent); background: rgba(217,119,87,.04); border-radius: 0 6px 6px 0; font-size: 13px; color: var(--ink-muted); }
+.wiki-article blockquote::before { content: '⚡ '; color: var(--accent); font-style: normal; }
+.wiki-article ul, .wiki-article ol { margin: 8px 0 14px; padding-left: 20px; }
+.wiki-article li { margin: 4px 0; color: var(--ink-muted); }
+.wiki-article table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
+.wiki-article th, .wiki-article td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+.wiki-article th { color: var(--ink); font-weight: 600; background: rgba(255,255,255,.02); font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+.wiki-article td { color: var(--ink-muted); }
+.wiki-article a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted rgba(217,119,87,.4); }
+.wiki-article a:hover { border-bottom-style: solid; }
+.wiki-callout { margin: 14px 0; padding: 12px 14px; background: rgba(167,139,250,.06); border: 1px solid rgba(167,139,250,.22); border-radius: 8px; font-size: 13px; color: var(--ink-muted); display: flex; gap: 10px; }
+.wiki-callout .icon { font-size: 16px; line-height: 1.4; }
+.wiki-callout strong { color: var(--purple); font-weight: 700; }
+.wiki-src-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 14px; }
+.wiki-src-chips span { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 100px; background: rgba(255,255,255,.04); color: var(--ink-muted); border: 1px solid var(--line); }
+.wiki-onpage { position: sticky; top: 0; align-self: start; padding-left: 12px; border-left: 1px solid var(--line); max-height: 70vh; overflow-y: auto; font-size: 11px; }
+.wiki-onpage-label { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px; }
+.wiki-onpage a { display: block; padding: 4px 0; color: var(--ink-faint); text-decoration: none; transition: color .12s; }
+.wiki-onpage a:hover { color: var(--ink); }
+.wiki-onpage a.active { color: var(--accent); font-weight: 600; }
+
+/* People list */
+.people-list { display: flex; flex-direction: column; gap: 4px; }
+.people-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-sm); }
+.people-row:hover { background: rgba(255,255,255,.02); }
+.people-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0; }
+.people-info { flex: 1; min-width: 0; }
+.people-name { font-size: 13px; color: var(--ink); font-weight: 500; }
+.people-role { font-size: 11px; color: var(--ink-faint); font-family: var(--mono); }
+.people-status { font-size: 10px; padding: 2px 7px; border-radius: 100px; background: rgba(94,168,103,.1); color: var(--green); font-family: var(--mono); font-weight: 600; }
+
+/* ─── Notes — Apple Notes + Mem.ai treatment (two-panel + TipTap toolbar) ─── */
+@media (min-width: 720px) {
+  .sheet[data-sheet-type="notes"] { max-width: 980px; width: 92vw; max-height: 88vh; padding: 0; overflow: hidden; }
+  .sheet[data-sheet-type="notes"] > .sheet-content,
+  .sheet[data-sheet-type="notes"] #sheet-content { padding: 0; height: 100%; }
+}
+.notes-shell { display: grid; grid-template-columns: 260px 1fr; height: min(78vh, 640px); background: var(--bg); }
+@media (max-width: 720px) {
+  .notes-shell { grid-template-columns: 1fr; height: 86vh; }
+  .notes-shell[data-pane="editor"] .notes-pane-list { display: none; }
+  .notes-shell[data-pane="list"] .notes-pane-edit { display: none; }
+  .notes-pane-edit .notes-back { display: inline-flex !important; }
+}
+.notes-pane-list { display: flex; flex-direction: column; border-right: 1px solid var(--line); min-height: 0; background: var(--bg); }
+.notes-list-head { padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--line); }
+.notes-list-titlerow { display: flex; align-items: center; justify-content: space-between; }
+.notes-list-title { font-size: 14px; font-weight: 700; color: var(--ink); margin: 0; display: flex; align-items: center; gap: 8px; }
+.notes-list-title .lock { color: var(--purple); }
+.notes-new-btn { width: 28px; height: 28px; border-radius: 6px; background: var(--accent); color: #fff; border: 0; cursor: pointer; font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; transition: transform .12s; }
+.notes-new-btn:hover { transform: scale(1.08); }
+.notes-search { display: flex; align-items: center; gap: 6px; padding: 7px 10px; background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 6px; }
+.notes-search input { flex: 1; background: transparent; border: 0; outline: none; color: var(--ink); font-size: 12px; font-family: var(--ui); }
+.notes-list-scroll { flex: 1; overflow-y: auto; padding: 6px 0; }
+.notes-section-head { padding: 10px 14px 4px; font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
+.notes-row { display: block; padding: 10px 14px; cursor: pointer; border-left: 2px solid transparent; transition: background .12s; position: relative; }
+.notes-row:hover { background: rgba(255,255,255,.02); }
+.notes-row.active { background: rgba(217,119,87,.08); border-left-color: var(--accent); }
+.notes-row.active .notes-row-title { color: var(--accent); }
+.notes-row-titlerow { display: flex; align-items: center; gap: 6px; }
+.notes-row-pin { color: var(--accent); font-size: 11px; flex-shrink: 0; }
+.notes-row-title { font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.notes-row-preview { font-size: 11px; color: var(--ink-faint); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4; }
+.notes-row-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-family: var(--mono); font-size: 9px; color: var(--ink-faint); }
+.notes-row-meta .tag { padding: 1px 5px; border-radius: 3px; background: rgba(167,139,250,.1); color: var(--purple); font-weight: 600; }
+.notes-list-empty { padding: 40px 20px; text-align: center; color: var(--ink-faint); font-size: 12px; }
+.notes-list-empty .icon { font-size: 28px; opacity: .4; margin-bottom: 8px; }
+
+.notes-pane-edit { display: flex; flex-direction: column; min-height: 0; background: var(--paper); }
+.notes-edit-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.notes-back { display: none; align-items: center; gap: 4px; padding: 6px 10px; background: transparent; border: 1px solid var(--line); border-radius: 5px; color: var(--ink-muted); font-size: 12px; cursor: pointer; }
+.notes-edit-meta { flex: 1; font-family: var(--mono); font-size: 10px; color: var(--ink-faint); display: flex; gap: 10px; align-items: center; }
+.notes-edit-meta .saved { color: var(--green); }
+.notes-edit-actions { display: flex; gap: 4px; }
+.notes-edit-actions button { width: 28px; height: 28px; border-radius: 5px; background: transparent; border: 1px solid var(--line); color: var(--ink-muted); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: all .12s; }
+.notes-edit-actions button:hover { color: var(--ink); border-color: var(--ink-muted); }
+.notes-edit-actions button.active { background: rgba(217,119,87,.1); color: var(--accent); border-color: var(--accent); }
+.notes-edit-actions button.danger:hover { color: #f87171; border-color: #f87171; }
+
+.notes-toolbar { display: flex; align-items: center; gap: 2px; padding: 6px 14px; border-bottom: 1px solid var(--line); background: rgba(0,0,0,.15); flex-wrap: wrap; }
+.notes-toolbar button { width: 30px; height: 30px; min-width: 30px; border-radius: 5px; background: transparent; border: 0; color: var(--ink-muted); cursor: pointer; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all .12s; }
+.notes-toolbar button:hover { background: rgba(255,255,255,.05); color: var(--ink); }
+.notes-toolbar button.active { background: rgba(217,119,87,.15); color: var(--accent); }
+.notes-toolbar .sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
+.notes-toolbar .toolbar-label { font-family: var(--mono); font-size: 10px; }
+
+.notes-edit-body { flex: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 8px; }
+@media (max-width: 720px) { .notes-edit-body { padding: 16px 18px; } }
+.notes-edit-title { font-size: 22px; font-weight: 700; color: var(--ink); border: 0; outline: none; background: transparent; font-family: var(--ui); letter-spacing: -.01em; padding: 0; }
+.notes-edit-title::placeholder { color: var(--ink-faint); }
+.notes-edit-tags { display: flex; flex-wrap: wrap; gap: 4px; min-height: 18px; }
+.notes-edit-tag { padding: 2px 8px; border-radius: 100px; background: rgba(167,139,250,.1); border: 1px solid rgba(167,139,250,.25); color: var(--purple); font-family: var(--mono); font-size: 10px; font-weight: 600; cursor: pointer; }
+.notes-editor { flex: 1; min-height: 200px; font-size: 14px; color: var(--ink); line-height: 1.65; outline: none; border: 0; background: transparent; font-family: var(--ui); padding: 8px 0; }
+.notes-editor:empty::before { content: attr(data-placeholder); color: var(--ink-faint); }
+.notes-editor h1 { font-size: 20px; font-weight: 800; margin: 18px 0 6px; color: var(--ink); }
+.notes-editor h2 { font-size: 16px; font-weight: 700; margin: 14px 0 4px; color: var(--ink); }
+.notes-editor ul, .notes-editor ol { padding-left: 22px; margin: 4px 0; }
+.notes-editor li { margin: 2px 0; }
+.notes-editor li.check { list-style: none; position: relative; padding-left: 6px; }
+.notes-editor li.check::before { content: '☐ '; color: var(--ink-muted); margin-right: 4px; }
+.notes-editor li.check.done::before { content: '☑ '; color: var(--green); }
+.notes-editor li.check.done { color: var(--ink-faint); text-decoration: line-through; }
+.notes-editor blockquote { border-left: 3px solid var(--accent); padding: 4px 12px; margin: 8px 0; color: var(--ink-muted); background: rgba(217,119,87,.04); border-radius: 0 6px 6px 0; }
+.notes-editor a.mention { color: var(--purple); background: rgba(167,139,250,.1); border: 1px solid rgba(167,139,250,.25); border-radius: 100px; padding: 1px 7px; font-size: .9em; font-weight: 600; text-decoration: none; cursor: pointer; }
+.notes-editor a.hashtag { color: var(--accent); font-weight: 600; cursor: pointer; }
+.notes-editor a.backlink { color: var(--purple); text-decoration: none; border-bottom: 1px dotted rgba(167,139,250,.5); }
+.notes-editor code { font-family: var(--mono); font-size: 12px; padding: 1px 6px; background: rgba(0,0,0,.25); border-radius: 3px; }
+
+.notes-empty-editor { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 40px; text-align: center; color: var(--ink-faint); }
+.notes-empty-editor .big { font-size: 36px; opacity: .35; }
+.notes-empty-editor .hint { font-size: 13px; max-width: 280px; line-height: 1.55; }
+.notes-empty-editor .privacy { margin-top: 8px; font-family: var(--mono); font-size: 10px; color: var(--purple); padding: 5px 10px; border-radius: 100px; background: rgba(167,139,250,.06); border: 1px solid rgba(167,139,250,.2); }
+
+.notes-backlinks { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.notes-backlinks-label { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 6px; }
+.notes-backlink-row { padding: 6px 10px; margin: 2px 0; background: rgba(167,139,250,.04); border-left: 2px solid var(--purple); border-radius: 0 6px 6px 0; font-size: 12px; color: var(--ink-muted); cursor: pointer; }
+.notes-backlink-row:hover { background: rgba(167,139,250,.08); }
+
+/* Keyboard shortcuts overlay */
+.kbd-overlay { display: none; position: fixed; inset: 0; z-index: 130; background: rgba(0,0,0,.6); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 20px; }
+.kbd-overlay[data-open="true"] { display: flex; animation: fadeIn .15s ease-out; }
+.kbd-dialog { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; width: 420px; max-width: 92vw; padding: 22px 24px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.kbd-dialog h2 { margin: 0 0 14px; font-size: 14px; font-weight: 700; color: var(--ink); }
+.kbd-grid { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; font-size: 13px; }
+.kbd-grid .key { color: var(--ink); }
+.kbd-grid .combo { font-family: var(--mono); font-size: 11px; color: var(--ink-muted); }
+.kbd-grid .combo kbd { background: rgba(255,255,255,.05); border: 1px solid var(--line); padding: 2px 6px; border-radius: 4px; font-family: inherit; margin: 0 1px; }
+.kbd-foot { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 11px; color: var(--ink-faint); text-align: center; }
+
+/* About content */
+.about-card { padding: 14px 16px; background: linear-gradient(135deg, rgba(217,119,87,.06), rgba(217,119,87,.01)); border: 1px solid rgba(217,119,87,.18); border-radius: var(--r-sm); margin-bottom: 10px; }
+.about-card h4 { margin: 0 0 4px; font-size: 13px; color: var(--accent); font-weight: 700; }
+.about-card p { margin: 0; font-size: 12px; color: var(--ink-muted); line-height: 1.55; }
+
+/* Empty state CTA */
+.empty-cta { margin-top: 14px; padding: 10px 18px; min-height: 44px; background: var(--accent); color: #fff; border: 0; border-radius: var(--r-sm); font-family: var(--ui); font-size: 13px; font-weight: 600; cursor: pointer; }
+.empty-cta:hover { filter: brightness(1.08); }
+
+/* Footer (tiny) */
+.f { padding: 24px 20px calc(32px + var(--safe-bot)); text-align: center; font-size: 11px; color: var(--ink-faint); }
+.f a { color: var(--ink-muted); margin: 0 6px; text-decoration: none; }
+.f a:hover { color: var(--ink); }
+
+/* Mobile tweaks */
+@media (max-width: 540px) {
+  .h { padding: calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left)); }
+  .m { padding: 16px calc(14px + var(--safe-right)) calc(80px + var(--safe-bot)) calc(14px + var(--safe-left)); }
+  .hero h1 { font-size: 22px; }
+  .c { top: 60px; }
+  .row { grid-template-columns: 44px 1fr; gap: 6px; }
+  .row-time { font-size: 9px; }
+  .ans { padding: 12px 14px; margin-left: -4px; margin-right: -4px; }
+  .feed-divider { font-size: 9px; }
+}
+
+/* Landscape (short height) — hide hero, compact composer */
+@media (max-height: 480px) and (orientation: landscape) {
+  .hero { display: none; }
+  .c { top: 56px; margin-top: -8px; }
+  .feed-divider { display: none; }
+}
+</style>
+</head>
+<body data-mode="public" data-role="attendee">
+
+<header class="h">
+  <div class="h-logo"><span class="h-logo-dot"></span>Scratch<span>Node</span></div>
+  <span class="h-live">LIVE</span>
+  <div class="h-spacer"></div>
+  <button class="h-code" type="button" onclick="copyRoom()" aria-label="Room code — click to copy join link">ORBITAL</button>
+  <button class="h-menu" type="button" onclick="openMenu()" aria-label="Menu">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+  </button>
+</header>
+
+<!-- Persistent event-identity strip — answers Q1: "What event am I in?" -->
+<div class="event-strip" role="region" aria-label="Event identity">
+  <b>AI Infra Summit</b>
+  <span class="dot">·</span>
+  <span>MCP Auth breakout</span>
+  <span class="dot">·</span>
+  <span><b style="color:var(--ink)">318</b> joined</span>
+  <span class="dot">·</span>
+  <span><b style="color:var(--ink)">47</b> FAQ</span>
+  <span class="dot">·</span>
+  <span><b style="color:var(--ink)">38</b> sources</span>
+  <a class="ev-link" onclick="openWiki()">Open wiki →</a>
+</div>
+
+<main class="m">
+
+  <!-- First-visit welcome banner (only shows for new users) -->
+  <div class="welcome" role="status" aria-live="polite">
+    <span class="welcome-emoji" aria-hidden="true">&#128075;</span>
+    <span class="welcome-text">
+      <strong>New to ScratchNode?</strong> Type to chat, <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:0 4px;border-radius:3px">/ask</code> for sourced answers, or tap <a onclick="startTour()">take the 20-second tour&nbsp;&rarr;</a>
+    </span>
+    <button class="welcome-close" type="button" onclick="dismissWelcome()" aria-label="Dismiss">&times;</button>
+  </div>
+
+  <section class="hero">
+    <h1>AI Infra Summit <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h1>
+    <p class="hero-meta">May 22–23 · <b>318</b> in the room · hosted by Orbital Labs</p>
+  </section>
+
+  <!-- Identity row -->
+  <div class="id-row" id="id-row">
+    <span class="id-avatar" id="id-avatar">G</span>
+    <span class="id-text">Joined as <b id="id-name">Anonymous Guest</b></span>
+    <button type="button" class="id-notes" id="id-notes" data-count="0" onclick="openSheet('notes'); haptic();" aria-label="My private notes">
+      <span>🔒</span>
+      <span><b id="id-notes-count">0</b> notes</span>
+    </button>
+    <button class="id-set" type="button" onclick="setIdentity()" id="id-set">Set name</button>
+  </div>
+
+  <!-- COMPOSER (the only primary action visible above the fold) -->
+  <div class="c" style="position:sticky;top:64px;z-index:40">
+    <!-- Reply context bar (visible when replying to a message) -->
+    <div class="reply-context" id="reply-ctx" data-open="false">
+      <span>Replying to <span class="name" id="reply-ctx-name"></span></span>
+      <span class="quote" id="reply-ctx-quote"></span>
+      <button type="button" class="cancel" onclick="cancelReply()" aria-label="Cancel reply">&times;</button>
+    </div>
+    <!-- Inline private notes link (visible only when in private mode + notes exist) -->
+    <div class="private-notes-inline" id="pn-inline" data-count="0">
+      <span>🔒 <b id="pn-inline-count">0</b> private note(s) saved this event</span>
+      <button type="button" onclick="openSheet('notes')">View all →</button>
+    </div>
+    <div class="c-box" role="group" style="position:relative">
+    <!-- Mention picker dropdown (appears when typing @) -->
+    <div class="mention-picker" id="mention-picker" data-open="false" role="listbox" aria-label="Mention someone"></div>
+      <input id="ci" class="c-input" type="text" placeholder="Message the room… or /ask ScratchNode for a sourced answer" aria-label="Message or ask the agent" autocapitalize="sentences" autocomplete="off" autocorrect="on" spellcheck="true" inputmode="text" enterkeyhint="send" />
+      <span class="c-mode" id="c-mode" aria-live="polite" title="Current sending mode"><span class="dot"></span><span id="c-mode-label">Public room</span></span>
+      <button class="c-tool voice" type="button" id="voice" onclick="startVoice()" aria-label="Dictate /ask" title="Dictate your question">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <button class="c-tool lock" type="button" id="lock" data-on="false" onclick="toggleLock()" aria-label="Private mode" title="Private (saves to your notebook)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </button>
+      <button class="c-tool send" type="button" onclick="send()" aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+      </button>
+    </div>
+    <!-- Persistent helpline — answers Q3: "Am I chatting or asking the agent?" -->
+    <div class="c-helpline">
+      <span class="pill">Chat</span>
+      <span>by default · type to talk to the room.</span>
+      <span class="pill ask">/ask</span>
+      <span>ScratchNode for a sourced answer.</span>
+      <span class="privacy-state" style="margin-left:auto;font-family:var(--mono);font-size:10px" id="c-privacy-state">🔓 public</span>
+    </div>
+    <div class="c-hint" id="hint" style="display:none"><kbd>/ask</kbd> agent · <kbd>@name</kbd> mention · <kbd>↑</kbd> send</div>
+  </div>
+
+  <div class="feed-divider">Live room</div>
+
+  <!-- Empty state (only shows when feed is empty) -->
+  <div class="empty">
+    <div class="empty-icon">&#128172;</div>
+    <div class="empty-title">No messages yet</div>
+    <div class="empty-body">Be the first to ask a question. Type below or tap the &#127908; to dictate.</div>
+    <button class="empty-cta" type="button" onclick="document.getElementById('ci').focus(); haptic();">Ask the first question &rarr;</button>
+  </div>
+
+  <section class="feed" id="feed">
+    <div class="row"><span class="row-time">2:31p</span><div class="row-body"><span class="row-name" data-role="mod">Mod</span> <span class="row-text">Welcome to the MCP Auth breakout. Drop questions here or <kbd style="font-family:var(--mono);font-size:10px;background:rgba(255,255,255,.04);padding:0 4px;border-radius:3px">/ask</kbd> the agent.</span></div></div>
+    <div class="row"><span class="row-time">2:33p</span><div class="row-body"><span class="row-name">Rachel M.</span> <span class="row-text">Is there a reference impl for the auth flow?</span></div></div>
+    <div class="row"><span class="row-time">2:35p</span><div class="row-body"><span class="row-name">Dario A.</span> <span class="row-text">Yes — shipping a reference alongside the spec. OAuth 2.1 + scoped tools.</span></div></div>
+    <div class="row"><span class="row-time">2:38p</span><div class="row-body"><span class="row-name">Tom B.</span> <span class="row-text">How does scoped permissions interact with existing RBAC?</span></div></div>
+    <div class="row"><span class="row-time">2:42p</span><div class="row-body"><span class="row-name">Sarah K.</span> <span class="row-text">/ask What is the MCP auth timeline?</span></div></div>
+
+    <article class="ans">
+      <div class="ans-head"><span class="who">ScratchNode</span><span class="sep">·</span><span>replying to Sarah K.</span><span class="sep">·</span><span>2:42p</span></div>
+      <div class="ans-q">What is the MCP auth timeline?</div>
+      <div class="ans-body">Q3 2026 confirmed by Anthropic at the breakout. Includes a scoped tool-use permissions model mapping tool categories to OAuth 2.1 scopes — backwards-compatible with current transport. Google DeepMind is shipping compatible tooling; 34% of Fortune 500 have evaluated the spec.</div>
+      <div class="ans-sources">
+        <span>panel transcript</span>
+        <span>MCP spec v0.9</span>
+        <span>Anthropic docs</span>
+        <span>3 of 3 verified</span>
+      </div>
+      <!-- Cost-summary chip line — "Ask once, answer many" -->
+      <div class="ans-reuse" aria-label="Reuse summary">
+        <span class="pin">Answered from event wiki</span>
+        <span class="sep">·</span>
+        <span><b>12</b> similar questions</span>
+        <span class="sep">·</span>
+        <span><b>4</b> sources reused</span>
+        <span class="sep">·</span>
+        <span class="pulled"><b>0</b> new searches</span>
+        <span class="sep">·</span>
+        <span class="priv">🔒 no private notes</span>
+      </div>
+      <button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace →</button>
+      <div class="ans-how" aria-label="Agent reasoning">
+        <div class="step"><span class="c">✓</span><span>Checked event wiki cache · v3 · sourceBundle fresh</span></div>
+        <div class="step"><span class="c">✓</span><span>Matched 12 similar questions in semantic cache</span></div>
+        <div class="step"><span class="c">✓</span><span>Reused 4 sources from event corpus</span></div>
+        <div class="step"><span class="c">✓</span><span>0 new searches · Linkup skipped</span></div>
+        <div class="step"><span class="c">✓</span><span>No private notes used · public layer only</span></div>
+        <div class="branch">Branch walk · 4 explored, 3 kept</div>
+        <div class="keep">↪ @Orbital Labs · 7 FAQ matches</div>
+        <div class="keep">↪ @Anthropic · 4 chat mentions</div>
+        <div class="keep">↪ [[MCP auth]] · 12 reuses</div>
+      </div>
+      <div class="ans-actions">
+        <button type="button" class="primary attendee-only" onclick="toast('Suggested for FAQ','The host will review and add it to the wiki.')">★ Suggest for FAQ</button>
+        <button type="button" class="primary host-only" onclick="toast('Promoted to FAQ','Now part of the durable wiki.')">★ Promote to FAQ</button>
+        <button type="button" onclick="openWiki()">View in wiki →</button>
+        <button type="button" onclick="toast('Shared','Answer link copied.')">Share</button>
+        <button type="button" onclick="ask('Follow-up on MCP auth timeline')">Follow-up</button>
+      </div>
+    </article>
+
+    <div class="row"><span class="row-time">2:44p</span><div class="row-body"><span class="row-name">James L.</span> <span class="row-text">Anyone tested with multi-tenant?</span></div></div>
+    <div class="row"><span class="row-time">2:45p</span><div class="row-body"><span class="row-name">Lisa W.</span> <span class="row-text">+1 multi-tenant — we run 200+ isolated MCP servers per customer</span></div></div>
+    <div class="row"><span class="row-time">2:47p</span><div class="row-body"><span class="row-name">Maya</span> <span class="row-text">anyone know who's doing voice-agent eval?</span></div></div>
+    <div class="row"><span class="row-time">2:47p</span><div class="row-body"><span class="row-name">Dario A.</span> <span class="row-text">Orbital Labs — just closed Series A. Alex Chen is the founder.</span></div></div>
+  </section>
+</main>
+
+<!-- Menu sheet -->
+<div class="menu-scrim" id="menu-scrim" onclick="closeMenu()"></div>
+<aside class="menu-sheet" id="menu-sheet" role="dialog" aria-modal="true" aria-label="Menu">
+  <div class="menu-sheet-handle"></div>
+  <!-- Always visible to everyone -->
+  <h4 data-show-for="all">This event</h4>
+  <button type="button" onclick="openWiki()">Wiki<span class="sub">Need to know · What changed · Sources</span></button>
+  <button type="button" onclick="openPeople()">People in the room<span class="sub">318 joined · 24 online</span></button>
+  <button type="button" onclick="openShare()">Share<span class="sub">QR · Copy link · Social</span></button>
+  <!-- Notes appear once user has set a name (matches the privacy/identity contract) -->
+  <h4 style="margin-top:14px" data-show-for="named">Your notes</h4>
+  <button type="button" data-show-for="named" onclick="openNotes()">My private notes<span class="sub">🔒 only you can see</span></button>
+  <!-- Host console hidden until data-role="host" on body -->
+  <h4 style="margin-top:14px" data-show-for="host">For hosts</h4>
+  <button type="button" data-show-for="host" onclick="openHost()">Host console<span class="sub">Moderation · /ask queue · Publish wiki</span></button>
+  <h4 style="margin-top:14px" data-show-for="all">Account</h4>
+  <button type="button" data-hide-for="named" onclick="openSignIn()">Sign in<span class="sub">Magic link — get your own events</span></button>
+  <button type="button" data-show-for="named" onclick="setIdentity()">Change name<span class="sub" id="menu-name-sub">—</span></button>
+  <button type="button" onclick="openShortcuts()">Keyboard shortcuts<span class="sub">Press ? anywhere</span></button>
+  <h4 style="margin-top:14px" data-show-for="all">More</h4>
+  <button type="button" onclick="closeMenu(); showAbout();">About ScratchNode<span class="sub">Open source · MIT</span></button>
+</aside>
+
+<!-- Universal feature sheet (slides up; content swapped per type) -->
+<div class="sheet-scrim" id="sheet-scrim" onclick="closeSheet()"></div>
+<aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+  <div class="sheet-handle"></div>
+  <div class="sheet-content" id="sheet-content"></div>
+</aside>
+
+<!-- Keyboard shortcuts overlay (centered modal, desktop) -->
+<div class="kbd-overlay" id="kbd-overlay" role="dialog" aria-modal="true" aria-labelledby="kbd-title" onclick="if(event.target===this) closeShortcuts()">
+  <div class="kbd-dialog">
+    <h2 id="kbd-title">Keyboard shortcuts</h2>
+    <div class="kbd-grid">
+      <span class="key">Send message</span><span class="combo"><kbd>↵</kbd></span>
+      <span class="key">New line</span><span class="combo"><kbd>Shift</kbd> + <kbd>↵</kbd></span>
+      <span class="key">Toggle private mode</span><span class="combo"><kbd>Ctrl</kbd> + <kbd>P</kbd></span>
+      <span class="key">Dictate (voice)</span><span class="combo"><kbd>Ctrl</kbd> + <kbd>M</kbd></span>
+      <span class="key">Open menu</span><span class="combo"><kbd>M</kbd></span>
+      <span class="key">Share event</span><span class="combo"><kbd>Ctrl</kbd> + <kbd>S</kbd></span>
+      <span class="key">Show shortcuts</span><span class="combo"><kbd>?</kbd></span>
+      <span class="key">Close dialog</span><span class="combo"><kbd>Esc</kbd></span>
+    </div>
+    <div class="kbd-foot">On macOS, use ⌘ instead of Ctrl</div>
+  </div>
+</div>
+
+<!-- Toast (single, for transient confirmations) -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<footer class="f">
+  ScratchNode · <a href="#" onclick="event.preventDefault()">privacy</a> · <a href="#" onclick="event.preventDefault()">terms</a> · <a href="#" onclick="event.preventDefault()">contact</a>
+</footer>
+
+<script>
+// ── Single source of truth for the public domain ──
+// Derived from the current host in production so preview deploys
+// (preview-xyz.vercel.app, localhost, file://) get the right share URLs.
+// Falls back to the canonical scratchnode.live for static/file:// previews.
+var CANONICAL_PUBLIC_HOST = 'scratchnode.live';
+var PUBLIC_BASE_URL = (function() {
+  try {
+    var h = location.hostname || '';
+    var proto = (location.protocol === 'http:' || location.protocol === 'https:') ? location.protocol : 'https:';
+    // file:// / about:blank / empty → use canonical
+    if (!h || h === 'localhost' || h === '127.0.0.1') {
+      // local preview: use the local origin so QR/share copies the real testable URL
+      return (location.origin && location.origin.indexOf('http') === 0) ? location.origin : ('https://' + CANONICAL_PUBLIC_HOST);
+    }
+    // Production: trust the live host (scratchnode.live OR preview-xyz.vercel.app)
+    return proto + '//' + h + (location.port && location.port !== '80' && location.port !== '443' ? (':' + location.port) : '');
+  } catch (e) {
+    return 'https://' + CANONICAL_PUBLIC_HOST;
+  }
+})();
+var EVENT_SLUG = 'ai-infra-summit-2026';
+var EVENT_URL = PUBLIC_BASE_URL + '/e/' + EVENT_SLUG;
+// On scratchnode.live, host-actions (sign-in, host console) live on the workspace domain.
+var WORKSPACE_BASE_URL = 'https://nodebenchai.com';
+var ON_PUBLIC_DOMAIN = (function() {
+  try { return location.hostname === CANONICAL_PUBLIC_HOST || location.hostname.endsWith('.' + CANONICAL_PUBLIC_HOST); }
+  catch (e) { return false; }
+})();
+
+// ── Debug-gate flag for prototype helpers ──
+// Production builds should keep this false. ?debug=1 in URL enables sim* helpers on window.
+var DEBUG_MODE = (function() {
+  try { return new URLSearchParams(location.search).get('debug') === '1'; }
+  catch (e) { return false; }
+})();
+
+// ── Composer ──
+function toggleLock() {
+  var btn = document.getElementById('lock');
+  var on = btn.getAttribute('data-on') === 'true';
+  var goingPrivate = !on;
+  btn.setAttribute('data-on', goingPrivate ? 'true' : 'false');
+  document.body.setAttribute('data-mode', goingPrivate ? 'private' : 'public');
+  var input = document.getElementById('ci');
+  input.placeholder = goingPrivate
+    ? 'Private note… only you will see this — type or /ask'
+    : 'Message the room… or /ask ScratchNode for a sourced answer';
+  // Sync the mode badge next to the lock
+  var modeLabel = document.getElementById('c-mode-label');
+  if (modeLabel) modeLabel.textContent = goingPrivate ? 'Private note' : 'Public room';
+  // Sync the helpline privacy state
+  var privacyState = document.getElementById('c-privacy-state');
+  if (privacyState) privacyState.textContent = goingPrivate ? '🔒 private — saves to your notebook' : '🔓 public — everyone in the room sees this';
+  haptic(8);
+  input.focus();
+}
+// ─────────────────────────────────────────────────────────────
+// CONSOLIDATED COMPOSER PIPELINE (replaces 4 monkey-patched wrappers)
+// Single explicit path:
+//   parseComposerIntent → getRoomContext → getIdentity → dispatch
+// Each branch (private note / public chat / public /ask) owns its
+// own side effects. No stacked wrappers, no order-dependent behavior.
+// ─────────────────────────────────────────────────────────────
+
+function parseComposerIntent(raw) {
+  var v = (raw || '').trim();
+  if (!v) return null;
+  var isAsk = /^\/ask\s+/i.test(v) || /^@scratchnode\b/i.test(v);
+  var clean = v.replace(/^\/ask\s+/i, '').replace(/^@scratchnode\s+/i, '').trim();
+  var mode = document.body.getAttribute('data-mode') === 'private' ? 'private' : 'public';
+  return {
+    raw: v,
+    clean: clean,
+    isAsk: isAsk,
+    visibility: mode,
+    kind: isAsk ? 'agent_ask' : 'chat',
+    timestamp: Date.now()
+  };
+}
+
+function getRoomContext() {
+  return {
+    roomCode: 'ORBITAL',
+    event: 'AI Infra Summit',
+    replyingToMid: typeof _replyingToMid !== 'undefined' ? _replyingToMid : null
+  };
+}
+
+function getIdentity() {
+  return {
+    displayName: (window._userName && window._userName.trim()) || 'You',
+    isAnonymous: !window._userName
+  };
+}
+
+function _hhmm() {
+  var n = new Date();
+  var h = n.getHours();
+  var m = String(n.getMinutes()).padStart(2, '0');
+  return (h > 12 ? h - 12 : (h || 12)) + ':' + m + (h >= 12 ? 'p' : 'a');
+}
+function _clearComposer() {
+  var input = document.getElementById('ci');
+  input.value = '';
+  // Mobile: dismiss virtual keyboard
+  if ('ontouchstart' in window || window.innerWidth <= 720) input.blur();
+}
+function _isMobile() { return 'ontouchstart' in window || window.innerWidth <= 720; }
+
+// ── PRIVATE branch ──
+function savePrivateNote(intent) {
+  var clean = intent.clean;
+  // Ensure the rich notes store is initialized FIRST (this migrates any pre-existing
+  // legacy entries — must run before we push so the new note isn't double-counted).
+  if (typeof ensureNotesStore === 'function') ensureNotesStore();
+  // Legacy flat store (kept for badge counter compatibility)
+  window._privateNotes_v5 = window._privateNotes_v5 || [];
+  window._privateNotes_v5.push({ text: clean, isAsk: intent.isAsk, time: _hhmm(), savedAt: intent.timestamp });
+  // Rich store (single source of truth for the editor)
+  var firstLine = clean.split('\n')[0] || 'Untitled';
+  var note = {
+    id: 'n_' + intent.timestamp + '_' + Math.random().toString(36).slice(2, 7),
+    title: firstLine.length > 50 ? firstLine.slice(0, 50) + '…' : firstLine,
+    body: (typeof escapeHtml === 'function' ? escapeHtml(clean) : clean).replace(/\n/g, '<br>'),
+    tags: (typeof extractTags === 'function' ? extractTags(clean) : []),
+    pinned: false, isAsk: intent.isAsk,
+    createdAt: intent.timestamp, updatedAt: intent.timestamp
+  };
+  (window._notes_v5 = window._notes_v5 || []).unshift(note);
+  if (typeof _activeSheet !== 'undefined' && _activeSheet === 'notes' && typeof renderNotesListOnly === 'function') {
+    renderNotesListOnly();
+  }
+  if (typeof refreshNotesBadge === 'function') refreshNotesBadge();
+  toast(
+    'Private ' + (intent.isAsk ? '/ask' : 'note') + ' saved',
+    '"' + (clean.length > 60 ? clean.slice(0, 60) + '…' : clean) + '" — only you see this.'
+  );
+}
+
+// ── PUBLIC branch — append row to feed ──
+function _appendChatRow(intent, identity, room, time) {
+  var feed = document.getElementById('feed');
+  var row = document.createElement('div');
+  row.className = 'row';
+  var mid = 'mid_' + intent.timestamp;
+  row.setAttribute('data-mid', mid);
+  row.innerHTML = '<span class="row-time">' + time + '</span><div class="row-body"><span class="row-name" data-role="you">' + identity.displayName + '</span> <span class="row-text"></span></div>';
+  row.querySelector('.row-text').textContent = (intent.isAsk ? '/ask ' : '') + intent.clean;
+  // Reply context — if user is replying, insert a row-replying badge BEFORE the name
+  if (room.replyingToMid) {
+    var parent = document.querySelector('[data-mid="' + room.replyingToMid + '"]');
+    if (parent) {
+      var parentName = parent.querySelector('.row-name') ? parent.querySelector('.row-name').textContent : '';
+      var parentText = parent.querySelector('.row-text') ? parent.querySelector('.row-text').textContent : '';
+      var quote = parentText.length > 50 ? parentText.slice(0, 50) + '…' : parentText;
+      var rb = document.createElement('div');
+      rb.className = 'row-replying';
+      rb.innerHTML = 'replying to <span class="name"></span> <span class="quote"></span>';
+      rb.querySelector('.name').textContent = parentName;
+      rb.querySelector('.quote').textContent = '"' + quote + '"';
+      var body = row.querySelector('.row-body');
+      var nameEl = body.querySelector('.row-name');
+      body.insertBefore(rb, nameEl);
+    }
+    cancelReply();
+  }
+  feed.appendChild(row);
+  return row;
+}
+
+function postPublicChat(intent, identity, room) {
+  var time = _hhmm();
+  var row = _appendChatRow(intent, identity, room, time);
+  row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function postPublicAsk(intent, identity, room) {
+  var time = _hhmm();
+  var row = _appendChatRow(intent, identity, room, time);
+  streamAgentAnswer(intent, identity, time);
+}
+
+function streamAgentAnswer(intent, identity, time) {
+  var feed = document.getElementById('feed');
+  var think = document.createElement('div');
+  think.className = 'thinking';
+  think.innerHTML = '<span>ScratchNode thinking</span><span class="dots"><span></span><span></span><span></span></span>';
+  feed.appendChild(think);
+  think.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  setTimeout(function() {
+    think.remove();
+    var ans = document.createElement('article');
+    ans.className = 'ans';
+    var nameText = identity.displayName === 'You' ? 'your /ask' : identity.displayName + '\'s /ask';
+    var sim = 3 + Math.floor(Math.random() * 15);
+    var reused = 3 + Math.floor(Math.random() * 4);
+    ans.innerHTML = '<div class="ans-head"><span class="who">ScratchNode</span><span class="sep">·</span><span>replying to ' + nameText + '</span><span class="sep">·</span><span>' + time + '</span></div>' +
+      '<div class="ans-q"></div>' +
+      '<div class="ans-body">Based on the event corpus and 38 indexed sources, here\'s what I found. The current consensus from this session covers related aspects across multiple speakers. Cross-referenced with 3 sources from the event knowledge base.</div>' +
+      '<div class="ans-sources"><span>event corpus</span><span>panel transcript</span><span>3 backlinks</span><span>3 of 3 verified</span></div>' +
+      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">Answered from event wiki</span><span class="sep">·</span><span><b>' + sim + '</b> similar</span><span class="sep">·</span><span><b>' + reused + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>0</b> new searches</span><span class="sep">·</span><span class="priv">🔒 no private notes</span></div>' +
+      '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace →</button>' +
+      '<div class="ans-how"><div class="step"><span class="c">✓</span><span>Checked event wiki cache · sourceBundle fresh</span></div><div class="step"><span class="c">✓</span><span>Matched ' + sim + ' similar questions in semantic cache</span></div><div class="step"><span class="c">✓</span><span>Reused ' + reused + ' sources from event corpus</span></div><div class="step"><span class="c">✓</span><span>0 new searches · Linkup skipped</span></div><div class="step"><span class="c">✓</span><span>No private notes used · public layer only</span></div></div>' +
+      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="toast(\'Suggested for FAQ\',\'The host will review and add it to the wiki.\')">★ Suggest for FAQ</button><button type="button" class="primary host-only" onclick="toast(\'Promoted to FAQ\',\'Now in the wiki.\')">★ Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki →</button> <button type="button" onclick="toast(\'Shared\',\'Link copied.\')">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
+    ans.querySelector('.ans-q').textContent = intent.clean;
+    feed.appendChild(ans);
+    ans.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, 1100);
+}
+
+// ── The single public entry point ──
+function sendComposerMessage() {
+  var input = document.getElementById('ci');
+  var intent = parseComposerIntent(input.value);
+  if (!intent) { input.focus(); return; }
+  var room = getRoomContext();
+  var identity = getIdentity();
+
+  // Branch 1: private — never touches the public feed (release-blocker invariant)
+  if (intent.visibility === 'private') {
+    savePrivateNote(intent);
+    _clearComposer();
+    return;
+  }
+
+  // Branch 2: public + /ask
+  if (intent.kind === 'agent_ask') {
+    postPublicAsk(intent, identity, room);
+    _clearComposer();
+    return;
+  }
+
+  // Branch 3: public chat
+  postPublicChat(intent, identity, room);
+  _clearComposer();
+}
+
+// Backwards-compatible alias for existing onclick="send()" / setTimeout(send) callers
+var send = sendComposerMessage;
+function toggleHow(btn) {
+  var open = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  btn.textContent = open ? 'Show trace →' : 'Hide trace';
+}
+
+// ── Send on Enter ──
+document.getElementById('ci').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+// ── Programmatic ask (used by Follow-up etc) ──
+function ask(text) {
+  var input = document.getElementById('ci');
+  input.value = '/ask ' + text;
+  input.focus();
+  setTimeout(send, 50);
+}
+
+// ── Room code copy + share ──
+function copyRoom() {
+  var url = location.href.split('#')[0];
+  var text = 'Join AI Infra Summit on ScratchNode\nCode: ORBITAL\n' + url;
+  if (navigator.share) {
+    navigator.share({ title: 'AI Infra Summit · ScratchNode', text: text }).catch(function(){});
+    return;
+  }
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function(){ toast('Copied join link', 'ORBITAL · paste in any chat.'); });
+  } else {
+    toast('Room: ORBITAL', 'Share this URL with attendees.');
+  }
+}
+
+// ── Menu ──
+function openMenu() {
+  document.getElementById('menu-sheet').setAttribute('data-open','true');
+  document.getElementById('menu-scrim').setAttribute('data-open','true');
+}
+function closeMenu() {
+  document.getElementById('menu-sheet').setAttribute('data-open','false');
+  document.getElementById('menu-scrim').setAttribute('data-open','false');
+}
+function openWiki()    { closeMenu(); openSheet('wiki'); }
+function openPeople()  { closeMenu(); openSheet('people'); }
+function openShare()   { closeMenu(); openSheet('share'); }
+function openNotes()   { closeMenu(); openSheet('notes'); }
+// Host & sign-in are workspace-domain actions. On scratchnode.live they
+// redirect to nodebenchai.com with a return-URL hint; on the workspace
+// domain (or local preview) they open the in-page sheet.
+function openHost() {
+  closeMenu();
+  if (ON_PUBLIC_DOMAIN) {
+    var returnUrl = encodeURIComponent(PUBLIC_BASE_URL + '/e/' + EVENT_SLUG);
+    window.location.assign(WORKSPACE_BASE_URL + '/host?return=' + returnUrl + '&intent=create-event');
+    return;
+  }
+  openSheet('host');
+}
+function openSignIn() {
+  closeMenu();
+  if (ON_PUBLIC_DOMAIN) {
+    var returnUrl = encodeURIComponent(location.href);
+    window.location.assign(WORKSPACE_BASE_URL + '/sign-in?return=' + returnUrl);
+    return;
+  }
+  openSheet('signin');
+}
+function openShortcuts() { closeMenu(); var o = document.getElementById('kbd-overlay'); o.setAttribute('data-open','true'); }
+function closeShortcuts() { document.getElementById('kbd-overlay').setAttribute('data-open','false'); }
+
+// ── Toast ──
+var _toastTimer;
+function toast(title, body) {
+  var el = document.getElementById('toast');
+  el.innerHTML = '<strong>' + title + '</strong>' + (body || '');
+  el.setAttribute('data-open','true');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function() { el.setAttribute('data-open','false'); }, 3800);
+}
+
+// Esc closes menu
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeMenu();
+});
+
+// On load: focus composer on desktop (Linear/ChatGPT pattern)
+// On mobile, DON'T auto-focus — prevents virtual keyboard from popping unsolicited.
+setTimeout(function() {
+  if (window.innerWidth > 720 && !('ontouchstart' in window)) {
+    document.getElementById('ci').focus();
+  }
+}, 200);
+
+// ── Mobile-native polish ──
+
+// Voice capture (Web Speech API → /ask)
+var _voiceRec = null;
+function startVoice() {
+  var btn = document.getElementById('voice');
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('Voice not supported', 'Try Chrome, Safari, or Edge.'); return; }
+  if (_voiceRec) { _voiceRec.stop(); _voiceRec = null; if (btn) btn.classList.remove('listening'); return; }
+  _voiceRec = new SR();
+  _voiceRec.continuous = false;
+  _voiceRec.interimResults = false;
+  _voiceRec.lang = navigator.language || 'en-US';
+  _voiceRec.onstart = function() { if (btn) btn.classList.add('listening'); toast('Listening…', 'Speak your question.'); };
+  _voiceRec.onresult = function(e) {
+    var t = '';
+    for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+    t = t.trim();
+    if (t) {
+      var input = document.getElementById('ci');
+      input.value = '/ask ' + t;
+      send();
+    }
+  };
+  _voiceRec.onerror = function(e) {
+    toast('Voice error', e.error === 'not-allowed' ? 'Mic permission denied.' : 'Try again.');
+    if (btn) btn.classList.remove('listening');
+    _voiceRec = null;
+  };
+  _voiceRec.onend = function() { if (btn) btn.classList.remove('listening'); _voiceRec = null; };
+  try { _voiceRec.start(); } catch (e) { if (btn) btn.classList.remove('listening'); _voiceRec = null; }
+}
+
+// (Wrapper #1 removed — mobile keyboard dismiss now folded into _clearComposer())
+
+// Swipe-to-dismiss menu sheet (touch gesture)
+(function wireSwipeDismiss() {
+  var sheet = document.getElementById('menu-sheet');
+  if (!sheet) return;
+  var startY = 0, currentY = 0, dragging = false;
+  sheet.addEventListener('touchstart', function(e) {
+    if (sheet.getAttribute('data-open') !== 'true') return;
+    startY = e.touches[0].clientY;
+    dragging = true;
+  }, { passive: true });
+  sheet.addEventListener('touchmove', function(e) {
+    if (!dragging) return;
+    currentY = e.touches[0].clientY;
+    var delta = currentY - startY;
+    if (delta > 0) {
+      sheet.style.transform = 'translateY(' + delta + 'px)';
+    }
+  }, { passive: true });
+  sheet.addEventListener('touchend', function() {
+    if (!dragging) return;
+    dragging = false;
+    var delta = currentY - startY;
+    sheet.style.transform = '';
+    if (delta > 60) closeMenu();
+  });
+})();
+
+// Service worker for PWA-ish caching (skip if file:// or http://)
+// Not registered — keep prototype lean. Add when productionizing.
+
+// Reduce viewport height jump on iOS keyboard open: use dvh
+// Already set on body with min-height: 100dvh fallback.
+
+// ── ONBOARDING ──
+
+// First-visit detection: show welcome banner + attention pulses
+(function firstVisitOnboard() {
+  try {
+    var seen = localStorage.getItem('sn_v5_seen');
+    if (!seen) {
+      document.body.setAttribute('data-new-user', 'true');
+    }
+  } catch(e) {
+    document.body.setAttribute('data-new-user', 'true');
+  }
+})();
+
+function dismissWelcome() {
+  document.body.removeAttribute('data-new-user');
+  try { localStorage.setItem('sn_v5_seen', '1'); } catch(e){}
+}
+
+// 3-step inline tour (mini overlay positioned near each target)
+var TOUR = [
+  { target: '#ci',     text: '<b>This is your input.</b> Type to chat with the room, or start with <code style="font-family:var(--mono);color:var(--accent)">/ask</code> to get a sourced agent answer.' },
+  { target: '#lock',   text: '<b>The lock turns notes private.</b> Anything you send while it’s purple saves to your private notebook — not visible to others.' },
+  { target: '.h-code', text: '<b>This is the room code.</b> Tap it to copy the join link — anyone with the code can join. No account needed.' }
+];
+var _tourIdx = 0;
+var _tourEl = null;
+function startTour() {
+  _tourIdx = 0;
+  renderTourStep();
+}
+function renderTourStep() {
+  closeTour();
+  var step = TOUR[_tourIdx];
+  if (!step) { dismissWelcome(); return; }
+  var target = document.querySelector(step.target);
+  if (!target) { _tourIdx++; renderTourStep(); return; }
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(function() {
+    var r = target.getBoundingClientRect();
+    var el = document.createElement('div');
+    el.className = 'tip-popover';
+    el.innerHTML = step.text + '<br><button onclick="nextTour()">' + (_tourIdx === TOUR.length - 1 ? 'Got it' : 'Next →') + '</button> <button onclick="closeTour()" style="margin-left:6px;color:var(--ink-faint)">Skip</button>';
+    document.body.appendChild(el);
+    var top = r.bottom + 10 + window.scrollY;
+    var left = Math.max(8, Math.min(window.innerWidth - 260, r.left + window.scrollX));
+    el.style.top = top + 'px';
+    el.style.left = left + 'px';
+    el.setAttribute('data-open', 'true');
+    _tourEl = el;
+  }, 280);
+}
+function nextTour() { _tourIdx++; renderTourStep(); }
+function closeTour() { if (_tourEl) { _tourEl.remove(); _tourEl = null; } }
+
+// "What is this?" — compact explainer (uses toast for prototype simplicity, could be a modal)
+function showAbout() {
+  toast('ScratchNode', 'A live event knowledge room. Guests join with a code, ask sourced questions, and the room compacts into a public wiki when the event ends.');
+}
+
+// Identity (set/edit display name; persists to localStorage)
+(function initIdentity() {
+  try {
+    var name = localStorage.getItem('sn_v5_name');
+    if (name) applyIdentity(name);
+  } catch(e){}
+})();
+function applyIdentity(name) {
+  var initial = (name || 'G').trim().charAt(0).toUpperCase() || 'G';
+  document.getElementById('id-name').textContent = name;
+  document.getElementById('id-avatar').textContent = initial;
+  document.getElementById('id-set').textContent = 'Change';
+  window._userName = name;
+  // Flip the role gate — menu now shows "My private notes" + "Change name", hides "Sign in"
+  document.body.setAttribute('data-named', 'true');
+  var menuNameSub = document.getElementById('menu-name-sub');
+  if (menuNameSub) menuNameSub.textContent = 'Joined as ' + name;
+}
+function setIdentity() { openSheet('name'); }
+function saveIdentity() {
+  var input = document.getElementById('sheet-name-input');
+  if (!input) return;
+  var name = (input.value || '').trim().slice(0, 32);
+  if (!name) { input.focus(); return; }
+  applyIdentity(name);
+  try { localStorage.setItem('sn_v5_name', name); } catch(e){}
+  closeSheet();
+  toast('Joined as ' + name, 'Your future messages will show this name.');
+  haptic();
+}
+
+// Replace About link to open sheet (was toast)
+function showAbout() { openSheet('about'); }
+
+// (Wrapper #2 removed — display name now sourced from getIdentity() up front, no post-patch needed)
+
+// Mark feed as empty when 0 children remain (after dismiss/delete actions in the future)
+function refreshEmptyState() {
+  var feed = document.getElementById('feed');
+  if (!feed) return;
+  var visibleRows = feed.querySelectorAll('.row, .ans');
+  if (visibleRows.length === 0) {
+    document.body.setAttribute('data-feed-empty', 'true');
+  } else {
+    document.body.removeAttribute('data-feed-empty');
+  }
+}
+// Debug toggle: empty state preview via URL hash #empty
+if (location.hash === '#empty') {
+  document.body.setAttribute('data-feed-empty', 'true');
+}
+
+// First-touch tip on lock icon (only fires once for new users)
+document.getElementById('lock').addEventListener('click', function() {
+  try {
+    if (!localStorage.getItem('sn_v5_lock_tip')) {
+      localStorage.setItem('sn_v5_lock_tip', '1');
+      // Pulse already shows for new users; nothing more needed
+    }
+  } catch(e){}
+}, { once: false });
+
+// First-touch hint on menu icon: tooltip caption on hover or after 3s of new visit
+setTimeout(function() {
+  if (document.body.getAttribute('data-new-user') === 'true') {
+    var menu = document.querySelector('.h-menu');
+    if (menu) menu.setAttribute('title', 'Menu — wiki, people, share, host console');
+  }
+}, 1500);
+
+// ── HAPTIC FEEDBACK (mobile) ──
+function haptic(intensity) {
+  if (!('vibrate' in navigator)) return;
+  try { navigator.vibrate(intensity || 8); } catch(e){}
+}
+
+// Wire haptic to key actions
+(function wireHaptics() {
+  document.getElementById('lock').addEventListener('click', function() { haptic(10); });
+  document.querySelector('.c-tool.send').addEventListener('click', function() { haptic(8); });
+  document.querySelector('.h-code').addEventListener('click', function() { haptic(12); });
+})();
+
+// ── UNIVERSAL FEATURE SHEET ──
+var SHEET_RENDERERS = {
+  name: function() {
+    var current = window._userName || '';
+    var seed = (current.charAt(0) || 'G').toUpperCase();
+    return '<div class="sheet-head"><h2 id="sheet-title">Set your display name</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+      '<p class="sheet-sub">Anyone in the room will see this name on your messages. You can change it later.</p>' +
+      '<div class="sheet-field"><label class="sheet-label" for="sheet-name-input">Display name</label>' +
+      '<input id="sheet-name-input" class="sheet-input" type="text" placeholder="e.g. Maya from VoiceLayer" maxlength="32" autocomplete="off" autocapitalize="words" value="' + current.replace(/"/g, '&quot;') + '" /></div>' +
+      '<button type="button" class="sheet-button" onclick="saveIdentity()">Save &amp; join as this name</button>' +
+      '<button type="button" class="sheet-button ghost" onclick="closeSheet()">Stay anonymous</button>';
+  },
+
+  about: function() {
+    return '<div class="sheet-head"><h2 id="sheet-title">What is ScratchNode?</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+      '<div class="about-card"><h4>&#127908; The room</h4><p>Every event has a short code (this one is <strong style="color:var(--accent);font-family:var(--mono);letter-spacing:.12em">ORBITAL</strong>). Anyone with the code can join — no account, no app.</p></div>' +
+      '<div class="about-card"><h4>&#128172; Public chat + /ask</h4><p>Type to talk to the room. Start with <code style="font-family:var(--mono);color:var(--accent)">/ask</code> to get a sourced answer drafted from the event\'s sources, transcripts, and prior Q&amp;A.</p></div>' +
+      '<div class="about-card"><h4>&#128274; Private notes</h4><p>Tap the lock icon to switch to private mode. Anything you write goes to your private notebook — never visible to other guests.</p></div>' +
+      '<div class="about-card"><h4>&#128214; Compacts into a wiki</h4><p>When the event ends, the host publishes a clean public wiki — Q&amp;A, sources, what changed. It outlives the live moment.</p></div>' +
+      '<button type="button" class="sheet-button" onclick="closeSheet(); openSheet(\'host\');">Create your own event &rarr;</button>' +
+      '<button type="button" class="sheet-button ghost" onclick="window.open(PUBLIC_BASE_URL,\'_blank\'); closeSheet();">Learn more &nearr;</button>';
+  },
+
+  share: function() {
+    var url = EVENT_URL;
+    return '<div class="sheet-head"><h2 id="sheet-title">Share AI Infra Summit</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+      '<div class="share-url-box"><code>' + url + '</code><button type="button" onclick="copyShareUrl()">Copy</button></div>' +
+      '<div class="share-grid">' +
+      '<button type="button" class="share-tile" onclick="shareTo(\'twitter\')"><span class="icon">&#119909;</span><span>Post on X</span></button>' +
+      '<button type="button" class="share-tile" onclick="shareTo(\'linkedin\')"><span class="icon">&#119923;</span><span>LinkedIn</span></button>' +
+      '<button type="button" class="share-tile" onclick="shareTo(\'email\')"><span class="icon">&#9993;</span><span>Email</span></button>' +
+      '<button type="button" class="share-tile" onclick="shareTo(\'native\')"><span class="icon">&#10548;</span><span>More&hellip;</span></button>' +
+      '</div>' +
+      '<div class="sheet-section"><h3>Or scan to join on mobile</h3>' +
+      '<div style="display:flex;justify-content:center;padding:16px;background:#fff;border-radius:var(--r-sm)"><img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&amp;margin=4&amp;data=' + encodeURIComponent(url + '#room=ORBITAL') + '" alt="QR code" width="140" height="140" loading="lazy" /></div></div>' +
+      '<div style="margin-top:12px;font-size:11px;color:var(--ink-faint);text-align:center;font-family:var(--mono)">318 already joined &middot; 47 FAQ &middot; 38 sources</div>';
+  },
+
+  notes: function() {
+    // Normalize the legacy private-notes data into the new note schema
+    ensureNotesStore();
+    var initialMobilePane = (window.innerWidth <= 720) ? 'list' : 'editor';
+    return '<div class="notes-shell" id="notes-shell" data-pane="' + initialMobilePane + '">' +
+      '<div class="notes-pane-list">' +
+      '<div class="notes-list-head">' +
+      '<div class="notes-list-titlerow">' +
+      '<h2 class="notes-list-title" id="sheet-title"><span class="lock">&#128274;</span>My notes</h2>' +
+      '<button type="button" class="notes-new-btn" onclick="createNewNote()" aria-label="New note" title="New note (⌘N)">&#43;</button>' +
+      '</div>' +
+      '<div class="notes-search"><span>&#128269;</span><input type="text" id="notes-search-input" placeholder="Search notes &amp; #tags..." oninput="filterNotesList(this.value)"><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close" style="background:transparent;border:0;color:var(--ink-faint);cursor:pointer;font-size:18px;padding:0 4px">&times;</button></div>' +
+      '</div>' +
+      '<div class="notes-list-scroll" id="notes-list-scroll">' + renderNotesList() + '</div>' +
+      '</div>' +
+      '<div class="notes-pane-edit" id="notes-pane-edit">' + renderNotesEditor() + '</div>' +
+      '</div>';
+  },
+
+  wiki: function() {
+    var h = [];
+    h.push('<div class="sheet-head"><h2 id="sheet-title">AI Infra Summit &middot; Wiki</h2><span class="badge">v1 &middot; live</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>');
+    h.push('<div class="wiki-shell">');
+    // ── Left: TOC ──
+    h.push('<aside class="wiki-toc" aria-label="Table of contents">');
+    h.push('<div class="wiki-toc-label">On this page</div>');
+    h.push('<a class="wiki-toc-link active" href="#overview" data-toc="overview">Overview</a>');
+    h.push('<a class="wiki-toc-link" href="#need-to-know" data-toc="need-to-know">Need to know</a>');
+    h.push('<a class="wiki-toc-link" href="#whats-changed" data-toc="whats-changed">What changed</a>');
+    h.push('<a class="wiki-toc-link" href="#qa" data-toc="qa">Common Q&amp;A</a>');
+    h.push('<a class="wiki-toc-link sub" href="#mcp-auth" data-toc="mcp-auth">MCP auth timeline</a>');
+    h.push('<a class="wiki-toc-link sub" href="#voice-eval" data-toc="voice-eval">Voice-agent eval</a>');
+    h.push('<a class="wiki-toc-link sub" href="#healthcare" data-toc="healthcare">Healthcare pilots</a>');
+    h.push('<a class="wiki-toc-link" href="#people" data-toc="people">People</a>');
+    h.push('<a class="wiki-toc-link" href="#companies" data-toc="companies">Companies</a>');
+    h.push('<a class="wiki-toc-link" href="#sources" data-toc="sources">Sources</a>');
+    h.push('</aside>');
+
+    // ── Center: article ──
+    h.push('<article class="wiki-article" id="wiki-article">');
+    h.push('<div class="wiki-search"><span>&#128269;</span><input type="text" placeholder="Search this wiki..." aria-label="Search wiki" oninput="filterWikiTOC(this.value)"><kbd>&#8984;K</kbd></div>');
+    h.push('<h1>AI Infra Summit &middot; Wiki</h1>');
+    h.push('<p class="lead">Published v1 — regenerated each round from public panel transcripts, /ask conversations, and verified sources. 318 attendees, 47 questions answered, 38 sources cited.</p>');
+
+    h.push('<h2 id="overview">Overview <a class="anchor" href="#overview">#</a></h2>');
+    h.push('<p>MCP auth standardization is on track for Q3 2026. Roughly <code>34%</code> of Fortune 500 have already evaluated. Orbital Labs holds an early lead in voice-agent evaluation infrastructure (Series A closed); two healthcare pilots are underway. See the <a href="#sources">Sources</a> section below for verifiable references.</p>');
+    h.push('<div class="wiki-callout"><span class="icon">&#9889;</span><div><strong>Tip:</strong> The wiki regenerates after each round. Use <code>/ask</code> in the chat to query the same sources directly. Every answer below has a <code>[N sources]</code> badge you can expand.</div></div>');
+
+    h.push('<h2 id="need-to-know">Need to know <a class="anchor" href="#need-to-know">#</a></h2>');
+    h.push('<ul>');
+    h.push('<li><strong>MCP auth</strong> — Standardization confirmed for <code>Q3 2026</code>. Backwards compatible with 2024-11 clients.</li>');
+    h.push('<li><strong>Voice-agent eval</strong> — Orbital Labs leads with source-backed eval. Closed Series A in May 2026.</li>');
+    h.push('<li><strong>Healthcare pilots</strong> — Two design partners (Northstar Bio, MedLayer). Q4 2026 GA target.</li>');
+    h.push('</ul>');
+    h.push('<div class="wiki-src-chips"><span>panel transcript</span><span>MCP spec v0.9</span><span>TechCrunch May 15</span><span>orbital.ai/blog</span></div>');
+
+    h.push('<h2 id="whats-changed">What changed since last round <a class="anchor" href="#whats-changed">#</a></h2>');
+    h.push('<table><thead><tr><th>Player</th><th>Change</th><th>Source</th></tr></thead><tbody>');
+    h.push('<tr><td>Anthropic</td><td>Repriced enterprise tier +40%</td><td>blog Apr 18</td></tr>');
+    h.push('<tr><td>Google DeepMind</td><td>Shipping MCP-compatible tooling</td><td>DevDay keynote</td></tr>');
+    h.push('<tr><td>Orbital Labs</td><td>From "capture only" → source-backed watchlist</td><td>panel Q&amp;A</td></tr>');
+    h.push('<tr><td>VectorDock</td><td>Open-sourced their retrieval pipeline</td><td>GitHub release</td></tr>');
+    h.push('</tbody></table>');
+
+    h.push('<h2 id="qa">Common Q&amp;A <a class="anchor" href="#qa">#</a></h2>');
+    h.push('<p>Top three questions from the room, with verified answers and source chains.</p>');
+
+    h.push('<h3 id="mcp-auth">What is the MCP auth timeline?</h3>');
+    h.push('<p>Standardization confirmed for <code>Q3 2026</code>. The auth flow uses OAuth 2.1 scopes mapped to tool capabilities — see the example below.</p>');
+    h.push('<pre><span class="lang">json</span><span class="com">// MCP auth scope example (v0.9 spec)</span>\n{\n  <span class="kw">"scope"</span>: <span class="str">"tools.read tools.invoke"</span>,\n  <span class="kw">"tier"</span>: <span class="str">"enterprise"</span>,\n  <span class="kw">"expires_in"</span>: <span class="num">3600</span>\n}</pre>');
+    h.push('<blockquote>Backwards compatible with 2024-11 clients. Old <code>api_key</code> auth deprecated by 2027-Q1.</blockquote>');
+    h.push('<div class="wiki-src-chips"><span>3 of 3 verified</span><span>MCP spec v0.9</span><span>panel transcript</span><span>Anthropic blog</span></div>');
+
+    h.push('<h3 id="voice-eval">Who is building voice-agent eval infra?</h3>');
+    h.push('<p><strong>Orbital Labs</strong> (Alex Chen) — Series A closed at <code>$18M</code> in May 2026. Their evaluation runs are source-backed: every output traces back to a citation chain.</p>');
+    h.push('<p>Call the eval API like this:</p>');
+    h.push('<pre><span class="lang">ts</span><span class="kw">const</span> result = <span class="kw">await</span> orbital.<span class="fn">evalRun</span>({\n  <span class="kw">agent</span>: <span class="str">"voice-v3"</span>,\n  <span class="kw">corpus</span>: <span class="str">"medical-2026"</span>,\n  <span class="kw">verify</span>: <span class="num">true</span>\n});</pre>');
+    h.push('<div class="wiki-src-chips"><span>4 sources</span><span>Series A press</span><span>orbital.ai/api</span><span>Alex Chen panel</span><span>TechCrunch</span></div>');
+
+    h.push('<h3 id="healthcare">Healthcare pilots — who has design partners?</h3>');
+    h.push('<p><strong>Orbital Labs</strong> + <strong>Northstar Bio</strong>: voice-eval for clinical note dictation, Q4 2026 GA target. <strong>MedLayer</strong>: triage automation, currently in HIPAA review.</p>');
+    h.push('<div class="wiki-src-chips"><span>2 sources</span><span>Northstar press</span><span>panel Q&amp;A</span></div>');
+
+    h.push('<h2 id="people">People (24) <a class="anchor" href="#people">#</a></h2>');
+    h.push('<p>Top contributors to this wiki, ranked by upvoted answers and panel quotes.</p>');
+    h.push('<ul>');
+    h.push('<li><strong>Alex Chen</strong> — Founder, Orbital Labs (12 quotes)</li>');
+    h.push('<li><strong>Dario Amodei</strong> — CEO, Anthropic (8 quotes)</li>');
+    h.push('<li><strong>Sarah Kim</strong> — VP Eng, Google DeepMind (6 quotes)</li>');
+    h.push('<li>+21 more — <a href="#" onclick="event.preventDefault(); closeSheet(); openSheet(\'people\')">View full roster &rarr;</a></li>');
+    h.push('</ul>');
+
+    h.push('<h2 id="companies">Companies (8) <a class="anchor" href="#companies">#</a></h2>');
+    h.push('<p>Orbital Labs &middot; Anthropic &middot; Google DeepMind &middot; VectorDock &middot; Northstar Bio &middot; MedLayer &middot; VoiceLayer &middot; LangCore</p>');
+
+    h.push('<h2 id="sources">Sources (38) <a class="anchor" href="#sources">#</a></h2>');
+    h.push('<p>38 public sources cited, 0 private notes used. Every claim above links to at least one source.</p>');
+    h.push('<div class="wiki-callout"><span class="icon">&#128274;</span><div><strong>Privacy:</strong> Your private notes never enter the wiki. Only public chat, /ask answers, and host-uploaded sources are compacted into this page.</div></div>');
+    h.push('</article>');
+
+    // ── Right: On-page rail ──
+    h.push('<aside class="wiki-onpage" aria-label="On this page">');
+    h.push('<div class="wiki-onpage-label">Jump to</div>');
+    h.push('<a href="#overview" class="active" data-onpage="overview">Overview</a>');
+    h.push('<a href="#need-to-know" data-onpage="need-to-know">Need to know</a>');
+    h.push('<a href="#whats-changed" data-onpage="whats-changed">What changed</a>');
+    h.push('<a href="#qa" data-onpage="qa">Common Q&amp;A</a>');
+    h.push('<a href="#people" data-onpage="people">People</a>');
+    h.push('<a href="#companies" data-onpage="companies">Companies</a>');
+    h.push('<a href="#sources" data-onpage="sources">Sources</a>');
+    h.push('</aside>');
+    h.push('</div>');
+    return h.join('');
+  },
+
+  people: function() {
+    var folks = [
+      { name: 'Alex Chen', role: 'Founder · Orbital Labs', color: '#d97757', initial: 'A', online: true },
+      { name: 'Dario Amodei', role: 'CEO · Anthropic', color: '#a78bfa', initial: 'D', online: true },
+      { name: 'Sarah Kim', role: 'VP Eng · Google DeepMind', color: '#5ea867', initial: 'S', online: true },
+      { name: 'Rachel M.', role: 'Attendee', color: '#7e7be0', initial: 'R', online: true },
+      { name: 'Tom B.', role: 'Attendee', color: '#c46a8c', initial: 'T', online: true },
+      { name: 'Maya from VoiceLayer', role: 'Attendee', color: '#5da89e', initial: 'M', online: true },
+      { name: 'James L.', role: 'Attendee', color: '#d97757', initial: 'J', online: false },
+      { name: 'Lisa W.', role: 'Attendee', color: '#a78bfa', initial: 'L', online: false }
+    ];
+    var rows = folks.map(function(p) {
+      return '<div class="people-row"><div class="people-avatar" style="background:' + p.color + '">' + p.initial + '</div>' +
+        '<div class="people-info"><div class="people-name">' + p.name + '</div><div class="people-role">' + p.role + '</div></div>' +
+        (p.online ? '<span class="people-status">online</span>' : '') + '</div>';
+    }).join('');
+    return '<div class="sheet-head"><h2 id="sheet-title">People in the room</h2><span class="badge">318 joined &middot; 24 online</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+      '<p class="sheet-sub">Showing first 8. Tap a name to see their @-mentions and questions.</p>' +
+      '<div class="people-list">' + rows + '</div>' +
+      '<button type="button" class="sheet-button ghost" style="margin-top:14px">Show all 318 &darr;</button>';
+  },
+
+  signin: function() {
+    return '<div class="sheet-head"><h2 id="sheet-title">Sign in to ScratchNode</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+      '<p class="sheet-sub">No password. We&rsquo;ll email you a magic link. Sign in to create your own events, persist notes across devices, and host with full controls.</p>' +
+      '<div class="sheet-field"><label class="sheet-label" for="sheet-signin-email">Email address</label>' +
+      '<input id="sheet-signin-email" class="sheet-input" type="email" placeholder="you@company.com" autocomplete="email" inputmode="email" /></div>' +
+      '<button type="button" class="sheet-button" onclick="sendMagicLink()">Send me a magic link</button>' +
+      '<div style="display:flex;gap:8px;margin:12px 0;align-items:center;color:var(--ink-faint);font-size:10px;font-family:var(--mono);letter-spacing:.1em"><span style="flex:1;height:1px;background:var(--line)"></span>OR<span style="flex:1;height:1px;background:var(--line)"></span></div>' +
+      '<button type="button" class="sheet-button ghost" onclick="toast(\'Google sign-in\',\'OAuth handoff (demo).\'); closeSheet();">Continue with Google</button>' +
+      '<button type="button" class="sheet-button ghost" onclick="toast(\'GitHub sign-in\',\'OAuth handoff (demo).\'); closeSheet();">Continue with GitHub</button>' +
+      '<p style="margin-top:14px;font-size:11px;color:var(--ink-faint);text-align:center">By signing in, you accept the <a href="#" onclick="event.preventDefault()" style="color:var(--ink-muted)">Terms</a> &amp; <a href="#" onclick="event.preventDefault()" style="color:var(--ink-muted)">Privacy</a>.</p>';
+  },
+
+  host: function() {
+    return '<div class="sheet-head"><h2 id="sheet-title">Create your own event</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+      '<p class="sheet-sub">Spin up a room with a code, seed it with sources, and let attendees ask sourced questions. It compacts into a public wiki at the end.</p>' +
+      '<div class="sheet-field"><label class="sheet-label" for="sheet-host-title">Event title</label>' +
+      '<input id="sheet-host-title" class="sheet-input" type="text" placeholder="e.g. Q4 Strategy Offsite" autocapitalize="words" /></div>' +
+      '<div class="sheet-field"><label class="sheet-label">Template</label>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px"><button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#127908;</span><span style="font-size:11px">Conference</span></button>' +
+      '<button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#128295;</span><span style="font-size:11px">Workshop</span></button>' +
+      '<button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#9749;</span><span style="font-size:11px">Office hrs</span></button></div></div>' +
+      '<button type="button" class="sheet-button" onclick="toast(\'Event created!\',\'Room code: SOLARIS · Share the link with attendees.\'); closeSheet();">Create event &rarr;</button>' +
+      '<button type="button" class="sheet-button ghost" onclick="closeSheet()">Maybe later</button>' +
+      '<p style="margin-top:10px;font-size:11px;color:var(--ink-faint);text-align:center">Sign in first to save the event and access the host console.</p>';
+  }
+};
+
+var _activeSheet = null;
+function openSheet(type) {
+  var rend = SHEET_RENDERERS[type];
+  if (!rend) return;
+  closeSheet();
+  document.getElementById('sheet-content').innerHTML = rend();
+  var sheetEl = document.getElementById('sheet');
+  sheetEl.setAttribute('data-open', 'true');
+  sheetEl.setAttribute('data-sheet-type', type);
+  document.getElementById('sheet-scrim').setAttribute('data-open', 'true');
+  _activeSheet = type;
+  haptic(6);
+  // Auto-focus first input in sheet (mobile-friendly delay)
+  setTimeout(function() {
+    var firstInput = document.querySelector('#sheet-content input');
+    if (firstInput && window.innerWidth > 720) firstInput.focus();
+  }, 280);
+  // Wire wiki-specific behavior: TOC scroll-spy + smooth anchor scroll
+  if (type === 'wiki') wireWikiBehaviors();
+  // Wire notes-specific behavior: list + editor split
+  if (type === 'notes') wireNotesBehaviors();
+}
+function closeSheet() {
+  var sheetEl = document.getElementById('sheet');
+  sheetEl.setAttribute('data-open', 'false');
+  sheetEl.removeAttribute('data-sheet-type');
+  document.getElementById('sheet-scrim').setAttribute('data-open', 'false');
+  _activeSheet = null;
+}
+
+// ── Wiki: scroll-spy + smooth anchor + search filter ──
+function wireWikiBehaviors() {
+  var article = document.getElementById('wiki-article');
+  if (!article) return;
+  // Smooth scroll on TOC click (sheet is the scroll container)
+  var sheetBody = article.closest('.sheet');
+  var tocLinks = document.querySelectorAll('.wiki-toc-link, .wiki-onpage a');
+  tocLinks.forEach(function(a) {
+    a.addEventListener('click', function(e) {
+      var href = a.getAttribute('href') || '';
+      if (href.charAt(0) !== '#' || href.length < 2) return;
+      var target = document.getElementById(href.slice(1));
+      if (!target) return;
+      e.preventDefault();
+      var top = target.offsetTop - 12;
+      sheetBody.scrollTo({ top: top, behavior: 'smooth' });
+    });
+  });
+  // Scroll-spy via IntersectionObserver
+  var headings = article.querySelectorAll('h2[id], h3[id]');
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (!entry.isIntersecting) return;
+      var id = entry.target.id;
+      document.querySelectorAll('.wiki-toc-link').forEach(function(a) {
+        a.classList.toggle('active', a.getAttribute('data-toc') === id);
+      });
+      document.querySelectorAll('.wiki-onpage a').forEach(function(a) {
+        a.classList.toggle('active', a.getAttribute('data-onpage') === id);
+      });
+    });
+  }, { root: sheetBody, rootMargin: '0px 0px -70% 0px', threshold: 0.01 });
+  headings.forEach(function(h) { io.observe(h); });
+}
+function filterWikiTOC(q) {
+  q = (q || '').trim().toLowerCase();
+  var links = document.querySelectorAll('.wiki-toc-link');
+  links.forEach(function(a) {
+    var t = (a.textContent || '').toLowerCase();
+    a.style.display = !q || t.indexOf(q) !== -1 ? '' : 'none';
+  });
+  // Also fade non-matching article sections (subtle hint, not hide)
+  var article = document.getElementById('wiki-article');
+  if (!article) return;
+  if (!q) { article.querySelectorAll('h2, h3, p, ul, table, pre, blockquote').forEach(function(el) { el.style.opacity = ''; }); return; }
+  article.querySelectorAll('h2, h3').forEach(function(h) {
+    var section = [h];
+    var n = h.nextElementSibling;
+    while (n && n.tagName !== 'H2' && n.tagName !== 'H3') { section.push(n); n = n.nextElementSibling; }
+    var combined = section.map(function(el) { return el.textContent || ''; }).join(' ').toLowerCase();
+    var match = combined.indexOf(q) !== -1;
+    section.forEach(function(el) { el.style.opacity = match ? '' : '.35'; });
+  });
+}
+
+// ── Notes (Apple Notes + Mem.ai) — store, render, wire ──
+// Note schema: { id, title, body (HTML), tags (auto-extracted from #tag), pinned, isAsk, createdAt, updatedAt }
+window._notes_v5 = window._notes_v5 || null;
+window._activeNoteId = window._activeNoteId || null;
+
+function ensureNotesStore() {
+  if (window._notes_v5 !== null) return;
+  // Migrate the legacy _privateNotes_v5 (flat text array) into the rich schema
+  var legacy = window._privateNotes_v5 || [];
+  var seed = legacy.map(function(n, i) {
+    var text = (n.text || '').trim();
+    var firstLine = text.split('\n')[0] || 'Untitled';
+    return {
+      id: 'n_legacy_' + i,
+      title: firstLine.length > 50 ? firstLine.slice(0, 50) + '…' : firstLine,
+      body: escapeHtml(text).replace(/\n/g, '<br>'),
+      tags: extractTags(text),
+      pinned: false,
+      isAsk: !!n.isAsk,
+      createdAt: n.savedAt || Date.now() - (legacy.length - i) * 60000,
+      updatedAt: n.savedAt || Date.now() - (legacy.length - i) * 60000
+    };
+  });
+  // Sample notes if no legacy data — show the user what's possible
+  if (!seed.length) {
+    var now = Date.now();
+    seed = [
+      {
+        id: 'n_seed_1', pinned: true, isAsk: false,
+        title: 'AI Infra Summit takeaways',
+        body: 'Three signals worth tracking from today:<br><br><ul><li>MCP auth Q3 — <a class="mention" href="#">@Alex Chen</a> confident on Q3 timing</li><li>Voice-eval traction — <a class="hashtag" href="#">#orbital</a> closed Series A</li><li>Healthcare pilots — 2 design partners (Northstar + MedLayer)</li></ul><br>Followup: ping <a class="mention" href="#">@Sarah Kim</a> re: DeepMind MCP tooling.',
+        tags: ['orbital', 'mcp', 'healthcare'],
+        createdAt: now - 1000 * 60 * 12, updatedAt: now - 1000 * 60 * 12
+      },
+      {
+        id: 'n_seed_2', pinned: false, isAsk: false,
+        title: 'Questions to ask the panel',
+        body: '<ul class="check"><li class="check done">What is the MCP auth timeline?</li><li class="check done">Who is leading voice-agent eval?</li><li class="check">Healthcare design partners — names?</li><li class="check">Pricing model for enterprise tier</li></ul>',
+        tags: ['questions'],
+        createdAt: now - 1000 * 60 * 45, updatedAt: now - 1000 * 60 * 30
+      },
+      {
+        id: 'n_seed_3', pinned: false, isAsk: true,
+        title: '/ask — competitive landscape',
+        body: '<blockquote>Asked: "Who is competing with Orbital Labs in voice-eval infra?"</blockquote>Answer: VoiceLayer (smaller, no source backing), VectorDock (adjacent but retrieval-focused), LangCore (eval but no voice). Orbital has structural lead on source-backed eval. <a class="hashtag" href="#">#competitive</a>',
+        tags: ['competitive', 'orbital'],
+        createdAt: now - 1000 * 60 * 60 * 2, updatedAt: now - 1000 * 60 * 60 * 2
+      }
+    ];
+  }
+  window._notes_v5 = seed;
+  if (seed.length && !window._activeNoteId) window._activeNoteId = seed[0].id;
+  refreshNotesBadge();
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function extractTags(text) {
+  var m = (text || '').match(/#([a-z0-9_-]+)/gi) || [];
+  return Array.from(new Set(m.map(function(t) { return t.slice(1).toLowerCase(); })));
+}
+function extractMentions(text) {
+  var m = (text || '').match(/@([a-z][a-z0-9 ._-]{0,40})/gi) || [];
+  return Array.from(new Set(m.map(function(t) { return t.slice(1).trim(); })));
+}
+function fmtNoteDate(ts) {
+  var d = new Date(ts);
+  var now = new Date();
+  var diff = (now - d) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+  if (diff < 86400 * 7) return Math.floor(diff / 86400) + 'd';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+function noteSectionFor(ts) {
+  var d = new Date(ts), now = new Date();
+  var sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  if (sameDay) return 'Today';
+  var yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (d.getFullYear() === yest.getFullYear() && d.getMonth() === yest.getMonth() && d.getDate() === yest.getDate()) return 'Yesterday';
+  var diff = (now - d) / 86400000;
+  if (diff < 7) return 'Earlier this week';
+  if (diff < 30) return 'Earlier this month';
+  return 'Older';
+}
+
+function renderNotesList() {
+  var notes = (window._notes_v5 || []).slice();
+  var filter = (window._notesFilter || '').toLowerCase();
+  if (filter) {
+    notes = notes.filter(function(n) {
+      var hay = (n.title + ' ' + n.body + ' ' + (n.tags || []).join(' ')).toLowerCase();
+      return hay.indexOf(filter) !== -1;
+    });
+  }
+  if (!notes.length) {
+    return '<div class="notes-list-empty"><div class="icon">&#128274;</div>' +
+      (filter ? 'No notes match <code>' + escapeHtml(filter) + '</code>' : 'No notes yet.<br>Tap <strong>+</strong> or send in private mode to start.') +
+      '</div>';
+  }
+  // Sort: pinned first (by updatedAt desc), then others by updatedAt desc
+  notes.sort(function(a, b) {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    return (b.updatedAt || 0) - (a.updatedAt || 0);
+  });
+  var sections = {};
+  var order = [];
+  notes.forEach(function(n) {
+    var key = n.pinned ? '📌 Pinned' : noteSectionFor(n.updatedAt || n.createdAt);
+    if (!sections[key]) { sections[key] = []; order.push(key); }
+    sections[key].push(n);
+  });
+  var h = [];
+  order.forEach(function(key) {
+    h.push('<div class="notes-section-head">' + key + '</div>');
+    sections[key].forEach(function(n) {
+      var active = n.id === window._activeNoteId ? ' active' : '';
+      var preview = (n.body || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+      var tags = (n.tags || []).slice(0, 2).map(function(t) { return '<span class="tag">#' + escapeHtml(t) + '</span>'; }).join('');
+      h.push('<div class="notes-row' + active + '" data-note-id="' + n.id + '" onclick="selectNote(\'' + n.id + '\')">');
+      h.push('<div class="notes-row-titlerow">');
+      if (n.pinned) h.push('<span class="notes-row-pin">&#9733;</span>');
+      h.push('<div class="notes-row-title">' + escapeHtml(n.title || 'Untitled') + '</div>');
+      h.push('</div>');
+      h.push('<div class="notes-row-preview">' + escapeHtml(preview) + '</div>');
+      h.push('<div class="notes-row-meta"><span>' + fmtNoteDate(n.updatedAt || n.createdAt) + '</span>' + (n.isAsk ? '<span class="tag" style="background:rgba(217,119,87,.1);color:var(--accent)">/ask</span>' : '') + tags + '</div>');
+      h.push('</div>');
+    });
+  });
+  return h.join('');
+}
+
+function renderNotesEditor() {
+  var id = window._activeNoteId;
+  var note = (window._notes_v5 || []).find(function(n) { return n.id === id; });
+  if (!note) {
+    return '<div class="notes-empty-editor">' +
+      '<div class="big">&#128221;</div>' +
+      '<div class="hint">Select a note from the left, or tap <strong>+</strong> to create a new one. Use <code>#tag</code> to organize and <code>@name</code> to link people.</div>' +
+      '<div class="privacy">&#128274; Private — only you see these</div>' +
+      '</div>';
+  }
+  // Backlinks: other notes that @mention or #tag this one's title/tags
+  var backlinks = (window._notes_v5 || []).filter(function(other) {
+    if (other.id === note.id) return false;
+    var hay = (other.body || '').toLowerCase();
+    if (note.title && hay.indexOf(note.title.toLowerCase()) !== -1) return true;
+    return (note.tags || []).some(function(t) { return hay.indexOf('#' + t) !== -1; });
+  });
+  var backlinksHtml = '';
+  if (backlinks.length) {
+    backlinksHtml = '<div class="notes-backlinks"><div class="notes-backlinks-label">Linked to this note</div>' +
+      backlinks.map(function(b) {
+        return '<div class="notes-backlink-row" onclick="selectNote(\'' + b.id + '\')">&#8627; ' + escapeHtml(b.title) + '</div>';
+      }).join('') + '</div>';
+  }
+  var tagsHtml = (note.tags || []).map(function(t) {
+    return '<span class="notes-edit-tag" onclick="filterByTag(\'' + escapeHtml(t) + '\')">#' + escapeHtml(t) + '</span>';
+  }).join('');
+  var h = [];
+  h.push('<div class="notes-edit-head">');
+  h.push('<button type="button" class="notes-back" onclick="document.getElementById(\'notes-shell\').setAttribute(\'data-pane\',\'list\')">&larr; Notes</button>');
+  h.push('<div class="notes-edit-meta"><span>' + fmtNoteDate(note.updatedAt) + '</span>' + (note.isAsk ? '<span style="color:var(--accent)">/ask</span>' : '') + '<span class="saved" id="notes-saved-indicator">&#10003; Saved</span></div>');
+  h.push('<div class="notes-edit-actions">');
+  h.push('<button type="button" class="' + (note.pinned ? 'active' : '') + '" onclick="togglePinNote()" aria-label="Pin" title="Pin (⌘P)">&#9733;</button>');
+  h.push('<button type="button" onclick="copyNoteBody()" aria-label="Copy" title="Copy">&#128203;</button>');
+  h.push('<button type="button" class="danger" onclick="deleteActiveNote()" aria-label="Delete" title="Delete">&#128465;</button>');
+  h.push('</div>');
+  h.push('</div>');
+  // Toolbar — TipTap-style
+  h.push('<div class="notes-toolbar">');
+  h.push('<button type="button" data-cmd="bold" onclick="noteCmd(\'bold\')" title="Bold (⌘B)"><b>B</b></button>');
+  h.push('<button type="button" data-cmd="italic" onclick="noteCmd(\'italic\')" title="Italic (⌘I)"><i>I</i></button>');
+  h.push('<button type="button" data-cmd="underline" onclick="noteCmd(\'underline\')" title="Underline (⌘U)"><u>U</u></button>');
+  h.push('<button type="button" data-cmd="strikeThrough" onclick="noteCmd(\'strikeThrough\')" title="Strike"><s>S</s></button>');
+  h.push('<span class="sep"></span>');
+  h.push('<button type="button" class="toolbar-label" onclick="noteFormatBlock(\'H1\')" title="Heading 1">H1</button>');
+  h.push('<button type="button" class="toolbar-label" onclick="noteFormatBlock(\'H2\')" title="Heading 2">H2</button>');
+  h.push('<span class="sep"></span>');
+  h.push('<button type="button" onclick="noteCmd(\'insertUnorderedList\')" title="Bulleted list">&#8226;</button>');
+  h.push('<button type="button" onclick="noteCmd(\'insertOrderedList\')" title="Numbered list">1.</button>');
+  h.push('<button type="button" onclick="noteInsertCheck()" title="Checkbox">&#9744;</button>');
+  h.push('<button type="button" onclick="noteFormatBlock(\'BLOCKQUOTE\')" title="Quote">&#8220;&#8221;</button>');
+  h.push('<span class="sep"></span>');
+  h.push('<button type="button" class="toolbar-label" onclick="noteInsertText(\'@\')" title="Mention person" style="color:var(--purple)">@</button>');
+  h.push('<button type="button" class="toolbar-label" onclick="noteInsertText(\'#\')" title="Add tag" style="color:var(--accent)">#</button>');
+  h.push('</div>');
+  h.push('<div class="notes-edit-body">');
+  h.push('<input type="text" class="notes-edit-title" id="notes-edit-title" placeholder="Untitled" value="' + escapeHtml(note.title || '') + '" oninput="updateActiveNote(\'title\', this.value)" />');
+  if (tagsHtml) h.push('<div class="notes-edit-tags">' + tagsHtml + '</div>');
+  h.push('<div class="notes-editor" id="notes-editor-body" contenteditable="true" data-placeholder="Start writing… use # for tags, @ for mentions" oninput="updateActiveNote(\'body\', this.innerHTML)" onblur="renderNotesListOnly()">' + (note.body || '') + '</div>');
+  h.push(backlinksHtml);
+  h.push('</div>');
+  return h.join('');
+}
+
+function wireNotesBehaviors() {
+  // Auto-focus editor body on open if a note is active
+  setTimeout(function() {
+    var editor = document.getElementById('notes-editor-body');
+    if (editor && window.innerWidth > 720) editor.focus();
+  }, 320);
+  // Keyboard shortcuts scoped to the notes sheet
+  var sheet = document.getElementById('sheet');
+  if (!sheet || sheet._notesKeysWired) return;
+  sheet._notesKeysWired = true;
+  sheet.addEventListener('keydown', function(e) {
+    if (_activeSheet !== 'notes') return;
+    var meta = e.metaKey || e.ctrlKey;
+    if (meta && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); createNewNote(); }
+    if (meta && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); togglePinNote(); }
+    if (meta && e.shiftKey && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      var s = document.getElementById('notes-search-input'); if (s) s.focus();
+    }
+  });
+}
+
+function selectNote(id) {
+  window._activeNoteId = id;
+  document.getElementById('notes-pane-edit').innerHTML = renderNotesEditor();
+  renderNotesListOnly();
+  // On mobile, swipe to editor pane
+  if (window.innerWidth <= 720) {
+    document.getElementById('notes-shell').setAttribute('data-pane', 'editor');
+  }
+  haptic(4);
+}
+function renderNotesListOnly() {
+  var scroll = document.getElementById('notes-list-scroll');
+  if (scroll) scroll.innerHTML = renderNotesList();
+}
+function filterNotesList(q) {
+  window._notesFilter = q || '';
+  renderNotesListOnly();
+}
+function filterByTag(tag) {
+  var input = document.getElementById('notes-search-input');
+  if (input) { input.value = '#' + tag; filterNotesList('#' + tag); }
+}
+function createNewNote() {
+  ensureNotesStore();
+  var n = {
+    id: 'n_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    title: '', body: '', tags: [], pinned: false, isAsk: false,
+    createdAt: Date.now(), updatedAt: Date.now()
+  };
+  (window._notes_v5 = window._notes_v5 || []).unshift(n);
+  window._activeNoteId = n.id;
+  document.getElementById('notes-pane-edit').innerHTML = renderNotesEditor();
+  renderNotesListOnly();
+  if (window.innerWidth <= 720) document.getElementById('notes-shell').setAttribute('data-pane', 'editor');
+  setTimeout(function() { var t = document.getElementById('notes-edit-title'); if (t) t.focus(); }, 60);
+  refreshNotesBadge();
+  haptic(8);
+}
+function updateActiveNote(field, value) {
+  var n = (window._notes_v5 || []).find(function(x) { return x.id === window._activeNoteId; });
+  if (!n) return;
+  n[field] = value;
+  if (field === 'body') {
+    // Re-extract tags from raw text
+    var text = (value || '').replace(/<[^>]*>/g, ' ');
+    n.tags = extractTags(text);
+  }
+  n.updatedAt = Date.now();
+  // Debounced saved indicator
+  var ind = document.getElementById('notes-saved-indicator');
+  if (ind) {
+    ind.textContent = 'Saving…'; ind.style.color = 'var(--ink-faint)';
+    clearTimeout(window._notesSaveTimer);
+    window._notesSaveTimer = setTimeout(function() { ind.textContent = '✓ Saved'; ind.style.color = 'var(--green)'; }, 400);
+  }
+}
+function togglePinNote() {
+  var n = (window._notes_v5 || []).find(function(x) { return x.id === window._activeNoteId; });
+  if (!n) return;
+  n.pinned = !n.pinned;
+  n.updatedAt = Date.now();
+  document.getElementById('notes-pane-edit').innerHTML = renderNotesEditor();
+  renderNotesListOnly();
+  toast(n.pinned ? 'Pinned' : 'Unpinned', n.title || 'Untitled');
+  haptic(6);
+}
+function copyNoteBody() {
+  var n = (window._notes_v5 || []).find(function(x) { return x.id === window._activeNoteId; });
+  if (!n) return;
+  var text = (n.title ? n.title + '\n\n' : '') + (n.body || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(function() { toast('Copied', 'Note copied to clipboard'); haptic(); });
+}
+function deleteActiveNote() {
+  var idx = (window._notes_v5 || []).findIndex(function(x) { return x.id === window._activeNoteId; });
+  if (idx === -1) return;
+  var deleted = window._notes_v5.splice(idx, 1)[0];
+  window._activeNoteId = (window._notes_v5[0] && window._notes_v5[0].id) || null;
+  document.getElementById('notes-pane-edit').innerHTML = renderNotesEditor();
+  renderNotesListOnly();
+  refreshNotesBadge();
+  toast('Deleted', deleted.title || 'Untitled');
+  haptic(10);
+}
+function noteCmd(cmd) {
+  document.execCommand(cmd, false, null);
+  var editor = document.getElementById('notes-editor-body');
+  if (editor) updateActiveNote('body', editor.innerHTML);
+}
+function noteFormatBlock(tag) {
+  document.execCommand('formatBlock', false, tag);
+  var editor = document.getElementById('notes-editor-body');
+  if (editor) updateActiveNote('body', editor.innerHTML);
+}
+function noteInsertCheck() {
+  document.execCommand('insertHTML', false, '<ul class="check"><li class="check">&nbsp;</li></ul>');
+  var editor = document.getElementById('notes-editor-body');
+  if (editor) updateActiveNote('body', editor.innerHTML);
+}
+function noteInsertText(s) {
+  document.execCommand('insertText', false, s);
+  var editor = document.getElementById('notes-editor-body');
+  if (editor) updateActiveNote('body', editor.innerHTML);
+}
+function refreshNotesBadge() {
+  // Delegate to the canonical counter (handles both badge variants and inline pill)
+  if (typeof refreshNotesCounter === 'function') { refreshNotesCounter(); return; }
+  var el = document.getElementById('id-notes');
+  if (!el) return;
+  var count = (window._notes_v5 || window._privateNotes_v5 || []).length;
+  el.setAttribute('data-count', String(count));
+}
+
+// ── Share platform handlers ──
+function copyShareUrl() {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(EVENT_URL).then(function() { toast('Copied', EVENT_URL); haptic(); });
+  }
+}
+function shareTo(p) {
+  var url = encodeURIComponent(EVENT_URL);
+  var text = encodeURIComponent('Joining the AI Infra Summit on ScratchNode — room code ORBITAL.');
+  if (p === 'native' && navigator.share) {
+    navigator.share({ title: 'AI Infra Summit', text: 'Join — room code ORBITAL', url: EVENT_URL }).catch(function(){});
+    closeSheet(); return;
+  }
+  var dest = {
+    twitter: 'https://twitter.com/intent/tweet?text=' + text + '&url=' + url,
+    linkedin: 'https://www.linkedin.com/sharing/share-offsite/?url=' + url,
+    email: 'mailto:?subject=' + encodeURIComponent('AI Infra Summit') + '&body=' + text + '%0A%0A' + url
+  }[p];
+  if (dest) { window.open(dest, '_blank', 'noopener'); closeSheet(); haptic(); }
+}
+
+// ── Magic-link sign-in ──
+function sendMagicLink() {
+  var input = document.getElementById('sheet-signin-email');
+  if (!input) return;
+  var email = (input.value || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    input.focus();
+    input.style.borderColor = '#f87171';
+    toast('Invalid email', 'Try again.');
+    return;
+  }
+  closeSheet();
+  toast('Magic link sent to ' + email, 'Check your inbox.');
+  haptic(15);
+}
+
+// (Wrapper #3 removed — private-note routing now lives in savePrivateNote() in the consolidated pipeline)
+window._privateNotes_v5 = window._privateNotes_v5 || [];
+function copyNote(btn, text) {
+  if (navigator.clipboard) navigator.clipboard.writeText(text);
+  toast('Copied', 'Note in clipboard.');
+}
+
+// ─── Overlay manager ────────────────────────────────────────────────────────
+// Single source of truth for "what is currently open and how to close it."
+// Order = z-index priority (highest first). closeTopOverlay() closes only the
+// topmost; closeAllOverlays() is the carpet-bomb option for nav transitions.
+var OVERLAY_REGISTRY = [
+  // [id of element, getter for "is open?", close function, friendly name]
+  { name: 'shortcuts',     isOpen: function() { var el = document.getElementById('kbd-overlay'); return el && el.getAttribute('data-open') === 'true'; },             close: function() { closeShortcuts(); } },
+  { name: 'tour',          isOpen: function() { return !!_tourEl; },                                                                                                  close: function() { closeTour(); } },
+  { name: 'mention-picker',isOpen: function() { var el = document.getElementById('mention-picker'); return el && el.getAttribute('data-open') === 'true'; },          close: function() { if (typeof closeMentionPicker === 'function') closeMentionPicker(); } },
+  { name: 'sheet',         isOpen: function() { var el = document.getElementById('sheet'); return el && el.getAttribute('data-open') === 'true'; },                   close: function() { closeSheet(); } },
+  { name: 'menu',          isOpen: function() { var el = document.getElementById('menu-sheet'); return el && el.getAttribute('data-open') === 'true'; },              close: function() { closeMenu(); } }
+];
+function isOverlayOpen() {
+  return OVERLAY_REGISTRY.some(function(o) { return o.isOpen(); });
+}
+function closeTopOverlay() {
+  // Walk in priority order; close the first one that's open.
+  for (var i = 0; i < OVERLAY_REGISTRY.length; i++) {
+    if (OVERLAY_REGISTRY[i].isOpen()) {
+      OVERLAY_REGISTRY[i].close();
+      return OVERLAY_REGISTRY[i].name;
+    }
+  }
+  return null;
+}
+function closeAllOverlays() {
+  OVERLAY_REGISTRY.forEach(function(o) { if (o.isOpen()) o.close(); });
+}
+
+// ── KEYBOARD SHORTCUTS ──
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    // Close only the topmost overlay, not all of them — preserves any
+    // backgrounded sheets and matches user expectation in stacked dialogs.
+    if (isOverlayOpen()) { e.preventDefault(); closeTopOverlay(); return; }
+  }
+  // Don't fire shortcuts when typing in inputs (except Ctrl/Cmd combinations)
+  var inField = e.target.matches('input, textarea, [contenteditable]');
+  var meta = e.ctrlKey || e.metaKey;
+  if (inField && !meta) return;
+  if (e.key === '?' && !meta) { e.preventDefault(); openShortcuts(); }
+  if (meta && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); toggleLock(); haptic(); }
+  if (meta && (e.key === 'm' || e.key === 'M')) { e.preventDefault(); startVoice(); }
+  if (meta && (e.key === 's' || e.key === 'S')) { e.preventDefault(); openSheet('share'); }
+  if (!meta && e.key === 'm' && !inField) { e.preventDefault(); openMenu(); }
+});
+
+// Refresh empty state on first render
+setTimeout(refreshEmptyState, 100);
+
+// ═══════════════════════════════════════════════════════
+// LIVE CONVERSATION SIMULATION
+// Spawned by 4 Claude subagents — each playing a real character:
+//   • Maya from VoiceLayer (voice-AI founder)
+//   • Dario Amodei (Anthropic CEO)
+//   • Sarah Kim (Google DeepMind VP Eng)
+//   • Alex Chen (Orbital Labs founder)
+// Run with #demo in URL hash, or call runDemo() from console.
+// ═══════════════════════════════════════════════════════
+
+var CHAR_COLORS = {
+  'Maya from VoiceLayer': '#5da89e',
+  'Dario A.': '#a78bfa',
+  'Sarah Kim': '#5ea867',
+  'Alex Chen': '#d97757',
+  'You': '#7e7be0'
+};
+
+function _time() {
+  var n = new Date();
+  var h = n.getHours(); var m = String(n.getMinutes()).padStart(2,'0');
+  return (h > 12 ? h - 12 : (h || 12)) + ':' + m + (h >= 12 ? 'p' : 'a');
+}
+
+// ─── Debug-gated prototype simulators ───────────────────────────────────────
+// All sim* helpers are scaffolding for live demos and screenshots. They are
+// NOT shipped to production unless the user opts in via ?debug=1 or #demo in
+// the URL. Production builds should keep DEBUG_MODE false and remove this
+// block entirely (it is marked Prototype in docs.html).
+var _DEBUG_HELPERS_ON = (function() {
+  if (DEBUG_MODE) return true;
+  try { return location.hash.indexOf('demo') !== -1; } catch (e) { return false; }
+})();
+if (!_DEBUG_HELPERS_ON) {
+  // Production / non-debug: leave window.sim* undefined and skip the rest of this block.
+  console.debug('[scratchnode] sim* helpers gated — pass ?debug=1 or #demo to enable.');
+}
+
+// Inject a chat row from any character
+if (_DEBUG_HELPERS_ON) window.simPost = function(name, text, opts) {
+  opts = opts || {};
+  var feed = document.getElementById('feed');
+  if (!feed) return;
+  var row = document.createElement('div');
+  row.className = 'row';
+  var role = name === 'You' ? 'you' : '';
+  row.innerHTML = '<span class="row-time">' + (opts.time || _time()) + '</span><div class="row-body"><span class="row-name"' + (role ? ' data-role="' + role + '"' : '') + ' style="color:' + (CHAR_COLORS[name] || 'var(--ink)') + '"></span> <span class="row-text"></span></div>';
+  row.querySelector('.row-name').textContent = name;
+  row.querySelector('.row-text').textContent = text;
+  feed.appendChild(row);
+  row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+};
+
+// Inject an /ask + agent response with custom answer + sources
+if (_DEBUG_HELPERS_ON) window.simAsk = function(name, question, answerText, sources, options) {
+  options = options || {};
+  var feed = document.getElementById('feed');
+  if (!feed) return;
+  // 1. User /ask row
+  var time = _time();
+  var row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = '<span class="row-time">' + time + '</span><div class="row-body"><span class="row-name" style="color:' + (CHAR_COLORS[name] || 'var(--accent)') + '"></span> <span class="row-text"></span></div>';
+  row.querySelector('.row-name').textContent = name;
+  row.querySelector('.row-text').textContent = '/ask ' + question;
+  feed.appendChild(row);
+  row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  // 2. Thinking
+  var think = document.createElement('div');
+  think.className = 'thinking';
+  think.innerHTML = '<span>ScratchNode thinking</span><span class="dots"><span></span><span></span><span></span></span>';
+  feed.appendChild(think);
+  think.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  // 3. After ~1.4s, replace with answer
+  setTimeout(function() {
+    think.remove();
+    var ans = document.createElement('article');
+    ans.className = 'ans';
+    var srcChips = (sources || ['event corpus','panel transcript','3 backlinks']).map(function(s){return '<span>'+s+'</span>';}).join('');
+    var sim = 3 + Math.floor(Math.random() * 15);
+    var reused = sources.length;
+    ans.innerHTML = '<div class="ans-head"><span class="who">ScratchNode</span><span class="sep">·</span><span>replying to ' + name + '’s /ask</span><span class="sep">·</span><span>' + time + '</span></div>' +
+      '<div class="ans-q"></div>' +
+      '<div class="ans-body"></div>' +
+      '<div class="ans-sources">' + srcChips + '<span>3 of 3 verified</span></div>' +
+      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">Answered from event wiki</span><span class="sep">·</span><span><b>' + sim + '</b> similar</span><span class="sep">·</span><span><b>' + reused + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>0</b> new searches</span><span class="sep">·</span><span class="priv">🔒 no private notes</span></div>' +
+      '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
+      '<div class="ans-how"><div class="step"><span class="c">&check;</span><span>Checked event wiki cache · sourceBundle fresh</span></div><div class="step"><span class="c">&check;</span><span>Matched ' + sim + ' similar questions in semantic cache</span></div><div class="step"><span class="c">&check;</span><span>Reused ' + reused + ' sources from event corpus</span></div><div class="step"><span class="c">&check;</span><span>0 new searches · Linkup skipped</span></div><div class="step"><span class="c">&check;</span><span>No private notes used · public layer only</span></div></div>' +
+      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="toast(\'Suggested for FAQ\',\'The host will review and add it to the wiki.\'); haptic();">★ Suggest for FAQ</button><button type="button" class="primary host-only" onclick="toast(\'Promoted to FAQ\',\'Now in the wiki.\'); haptic();">★ Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="toast(\'Shared\',\'Link copied.\'); haptic();">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
+    ans.querySelector('.ans-q').textContent = question;
+    ans.querySelector('.ans-body').textContent = answerText;
+    feed.appendChild(ans);
+    ans.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    if (options.onAnswer) options.onAnswer(ans);
+  }, options.thinkMs || 1400);
+};
+
+// Simulate a private-note save (just shows toast, no feed leak)
+if (_DEBUG_HELPERS_ON) window.simPrivate = function(name, text) {
+  var snippet = text.length > 70 ? text.slice(0, 70) + '…' : text;
+  window._privateNotes_v5 = window._privateNotes_v5 || [];
+  window._privateNotes_v5.push({ text: text, isAsk: false, time: _time() });
+  toast('🔒 Private note saved', snippet + ' — only you see this.');
+  haptic(12);
+};
+
+// Simulate someone joining the room (system message)
+if (_DEBUG_HELPERS_ON) window.simJoin = function(name) {
+  var feed = document.getElementById('feed');
+  if (!feed) return;
+  var div = document.createElement('div');
+  div.style.cssText = 'text-align:center;padding:4px 0;font-family:var(--mono);font-size:10px;color:var(--ink-faint);letter-spacing:.06em';
+  div.textContent = '— ' + name + ' joined —';
+  feed.appendChild(div);
+  div.scrollIntoView({behavior:'smooth', block:'end'});
+};
+
+// Briefly open a sheet then close after N ms
+if (_DEBUG_HELPERS_ON) window.simOpenSheet = function(type, ms) {
+  openSheet(type);
+  setTimeout(closeSheet, ms || 2500);
+};
+
+// Run a timeline: list of {at: ms, fn: function}
+if (_DEBUG_HELPERS_ON) window.simRun = function(timeline) {
+  timeline.forEach(function(step) {
+    setTimeout(step.fn, step.at);
+  });
+};
+
+// ── Demo timeline (90 seconds) ──
+function runDemo() {
+  // Reset feed for clean demo + force the empty-state OFF so new rows render
+  var feed = document.getElementById('feed');
+  if (feed) feed.innerHTML = '';
+  document.body.removeAttribute('data-feed-empty');
+  dismissWelcome();
+  toast('▶ Live demo starting', '4 characters joining the room — watch their conversation unfold in real time.');
+  haptic(20);
+
+  var script = [
+    // — 0-5s: People join —
+    { at:  500, fn: function() { simJoin('Maya from VoiceLayer'); } },
+    { at: 1300, fn: function() { simJoin('Dario A.'); } },
+    { at: 2100, fn: function() { simJoin('Alex Chen'); } },
+    { at: 2900, fn: function() { simJoin('Sarah Kim'); } },
+
+    // — Opening moves (Maya breaks the ice) —
+    { at: 4200, fn: function() { simPost('Maya from VoiceLayer', "ok who's actually doing voice-agent eval here? trying to compare notes"); } },
+    { at: 7200, fn: function() { simPost('Dario A.', "On voice eval — Orbital Labs is the team I'd point to. Their Series A closed in Q1, and the benchmarks are credible."); } },
+    { at: 10500, fn: function() { simPost('Alex Chen', "Appreciate the shout. Yeah, we're at 230+ voice-agent benchmarks evaluated so far, three design partners onboarding now."); } },
+    { at: 13500, fn: function() { simPost('Maya from VoiceLayer', "wait orbital labs is building eval infra?? ok i need to know more"); } },
+
+    // — Healthcare angle —
+    { at: 16500, fn: function() { simPost('Alex Chen', "Healthcare's been the eye-opener. Clinicians abandon the agent past 350ms round-trip. Our text-eval assumptions just don't transfer."); } },
+    { at: 20000, fn: function() { simPost('Maya from VoiceLayer', "do you handle healthcare-specific stuff? hipaa, clinical accuracy, the messy edge cases — that's our whole thing rn"); } },
+    { at: 23500, fn: function() { simPost('Dario A.', "They're now onboarding healthcare design partners, which is the right sequencing. Voice in clinical settings raises real safety considerations we haven't fully solved."); } },
+
+    // — Maya invokes /ask (agent answer + sources) —
+    { at: 27500, fn: function() {
+      simAsk('Maya from VoiceLayer',
+        "what's the realistic p95 latency budget for voice agents in clinical triage? our target is sub-800ms end-to-end but curious what others see",
+        "Clinical-grade voice agents converge on a sub-350ms round-trip budget per turn (mouth-to-ear), per the Epic ambient-scribe SLA and Orbital Labs panel data. 800ms end-to-end is workable for non-acute triage but clinicians disengage past that cliff. Orbital's 230+ benchmark set isolates the latency contributors: ASR (~80ms), LLM TTFT (~120ms), TTS (~80ms), network (~60-100ms). Multi-tenant adds 30-90ms tail.",
+        ['Orbital Labs panel', 'Epic SLA doc', 'MCP latency benchmarks', 'Series A coverage']);
+    } },
+
+    // — Sarah jumps in with technical pushback —
+    { at: 31500, fn: function() { simPost('Sarah Kim', "How does your scoped tool permission model differ from standard RBAC? Specifically curious about the threat model for prompt-injection escalation."); } },
+    { at: 35000, fn: function() { simPost('Dario A.', "Quick clarification on MCP auth — the 2025-06 spec is backwards compatible with 2024-11 clients. The breaking change people fear is in resource indicators, not the core OAuth flow."); } },
+    { at: 39000, fn: function() { simPost('Sarah Kim', "That's the marketing answer. In multi-tenant, what stops a compromised tool in tenant A from enumerating tenant B's tool registry?"); } },
+
+    // — Sarah's /ask —
+    { at: 42500, fn: function() {
+      simAsk('Sarah Kim',
+        "Cheapest GPU stack for live voice-agent eval at ~50 concurrent sessions? Need actual $/hr numbers, not vendor decks.",
+        "At 50 concurrent voice eval sessions: cheapest viable is 2× L40S on Lambda Labs ($1.40/hr × 2 = $2.80/hr) handling Whisper-large-v3 + Llama-3.1-70B-Instruct quantized. RunPod H100 80GB single ($3.20/hr) wins on tail latency for clinical use. Orbital's benchmark stack uses 4× A100 40GB SXM with NVLink ($6.40/hr) — overkill for eval but matches production parity.",
+        ['Lambda Labs pricing', 'RunPod GPU sheet', 'Orbital eval infra docs', 'Llama-3.1 quantization paper']);
+    } },
+
+    // — Alex's warm-intro ask —
+    { at: 47000, fn: function() { simPost('Sarah Kim', "Fair, the capability-token isolation makes sense. We run 200+ MCP servers per customer at DeepMind — what surprised us was tail latency on tool discovery, not auth."); } },
+    { at: 50500, fn: function() { simPost('Alex Chen', "If anyone here knows health-system CIOs or voice clinicians piloting ambient scribes, I'd love a warm intro. Still learning the buyer."); } },
+
+    // — User switches to private mode + saves a note —
+    { at: 54000, fn: function() {
+      var lockBtn = document.getElementById('lock');
+      if (lockBtn && lockBtn.getAttribute('data-on') !== 'true') toggleLock();
+      toast('Watching demo', 'Lock toggled to PRIVATE — next note saves to your notebook, not the room.');
+    } },
+    { at: 56000, fn: function() {
+      simPrivate('You', 'Email Priya re: Mayo CIO intro. Verify 350ms cliff against Epic\'s latest ambient-scribe SLA doc before Thursday\'s board update.');
+    } },
+    { at: 58500, fn: function() {
+      var lockBtn = document.getElementById('lock');
+      if (lockBtn && lockBtn.getAttribute('data-on') === 'true') toggleLock();
+    } },
+
+    // — Quick feature tour: open Wiki briefly —
+    { at: 61000, fn: function() { simOpenSheet('wiki', 4500); } },
+    { at: 66500, fn: function() { simOpenSheet('people', 4500); } },
+    { at: 72000, fn: function() { simOpenSheet('share', 4500); } },
+
+    // — Closing tip —
+    { at: 78000, fn: function() {
+      toast('▶ Demo complete', 'You saw chat, /ask with sources, private mode, wiki, people, share — all in 75s.');
+      haptic(30);
+    } },
+    { at: 81000, fn: function() {
+      simPost('Mod', 'Welcome to the room. Try /ask, switch to 🔒 for private notes, or hit ☰ to explore.');
+    } }
+  ];
+  simRun(script);
+}
+
+// Trigger demo via URL hash #demo
+if (location.hash === '#demo') {
+  setTimeout(runDemo, 600);
+}
+window.addEventListener('hashchange', function() {
+  if (location.hash === '#demo') runDemo();
+});
+
+// ═══════════════════════════════════════════════════════
+// INTERACTIONS — Reply, @mention, React
+// ═══════════════════════════════════════════════════════
+
+// Known room members for mention picker
+var ROOM_MEMBERS = [
+  { name: 'Maya from VoiceLayer', role: 'VoiceLayer', color: '#5da89e', initial: 'M' },
+  { name: 'Dario A.', role: 'Anthropic', color: '#a78bfa', initial: 'D' },
+  { name: 'Sarah Kim', role: 'Google DeepMind', color: '#5ea867', initial: 'S' },
+  { name: 'Alex Chen', role: 'Orbital Labs', color: '#d97757', initial: 'A' },
+  { name: 'Rachel M.', role: 'attendee', color: '#7e7be0', initial: 'R' },
+  { name: 'Tom B.', role: 'attendee', color: '#c46a8c', initial: 'T' },
+  { name: 'Mod', role: 'host', color: '#5ea867', initial: 'M' },
+  { name: 'ScratchNode', role: 'agent', color: '#d97757', initial: '🤖' }
+];
+
+// Render @mentions as accessible buttons (keyboard-focusable, aria-labeled).
+// Click delegation handled by document-level listener — no inline onclick.
+function renderMentions(text) {
+  var safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  ROOM_MEMBERS.forEach(function(m) {
+    var pattern = new RegExp('@' + m.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+    var youClass = (window._userName && m.name === window._userName) ? ' is-you' : '';
+    var safeName = m.name.replace(/"/g, '&quot;');
+    safe = safe.replace(
+      pattern,
+      '<button type="button" class="mention' + youClass + '" data-member="' + safeName + '" aria-label="Mention ' + safeName + ' — open profile">@' + m.name + '</button>'
+    );
+  });
+  return safe;
+}
+// Delegated click + keyboard handler for any .mention button (works for
+// dynamically-injected mentions, agent-card mentions, and notes-editor mentions).
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest && e.target.closest('.mention[data-member]');
+  if (!btn) return;
+  e.preventDefault();
+  var name = btn.getAttribute('data-member');
+  if (typeof openMember === 'function' && name) openMember(name);
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  var btn = e.target.closest && e.target.closest('.mention[data-member]');
+  if (!btn) return;
+  e.preventDefault();
+  var name = btn.getAttribute('data-member');
+  if (typeof openMember === 'function' && name) openMember(name);
+});
+
+// Apply mention rendering + add hover actions to all rows in feed
+function decorateRow(row, opts) {
+  opts = opts || {};
+  var mid = opts.mid || 'm' + Date.now() + Math.floor(Math.random()*999);
+  row.setAttribute('data-mid', mid);
+  // Add hover-action bar
+  if (!row.querySelector('.row-actions')) {
+    var actions = document.createElement('div');
+    actions.className = 'row-actions';
+    actions.innerHTML =
+      '<button type="button" title="Reply" aria-label="Reply" onclick="replyTo(\'' + mid + '\')">↳</button>' +
+      '<button type="button" title="React" aria-label="React" onclick="toggleReactPicker(this, \'' + mid + '\')">😊</button>';
+    row.appendChild(actions);
+  }
+  // Render @mentions inside row-text
+  var textEl = row.querySelector('.row-text');
+  if (textEl && !textEl.dataset.rendered) {
+    var raw = textEl.textContent;
+    textEl.innerHTML = renderMentions(raw);
+    textEl.dataset.rendered = '1';
+  }
+}
+
+// MutationObserver: auto-decorate any new rows added to the feed
+(function watchFeed() {
+  var feed = document.getElementById('feed');
+  if (!feed) return;
+  var obs = new MutationObserver(function(muts) {
+    muts.forEach(function(m) {
+      m.addedNodes.forEach(function(n) {
+        if (n.nodeType !== 1) return;
+        if (n.classList && n.classList.contains('row')) decorateRow(n);
+      });
+    });
+  });
+  obs.observe(feed, { childList: true });
+  // Decorate any pre-existing rows
+  feed.querySelectorAll('.row').forEach(function(r) { decorateRow(r); });
+})();
+
+// — Reply to a specific message —
+var _replyingToMid = null;
+function replyTo(mid) {
+  var row = document.querySelector('[data-mid="' + mid + '"]');
+  if (!row) return;
+  var name = row.querySelector('.row-name') ? row.querySelector('.row-name').textContent : 'someone';
+  var quote = row.querySelector('.row-text') ? row.querySelector('.row-text').textContent : '';
+  _replyingToMid = mid;
+  document.getElementById('reply-ctx-name').textContent = name;
+  document.getElementById('reply-ctx-quote').textContent = '"' + (quote.length > 60 ? quote.slice(0, 60) + '…' : quote) + '"';
+  document.getElementById('reply-ctx').setAttribute('data-open', 'true');
+  document.getElementById('ci').focus();
+  haptic(6);
+}
+function cancelReply() {
+  _replyingToMid = null;
+  document.getElementById('reply-ctx').setAttribute('data-open', 'false');
+}
+
+// (Wrapper #4 removed — reply context is now resolved inside _appendChatRow() via getRoomContext().replyingToMid)
+
+// — @mention picker —
+var _mentionStart = -1;
+var _mentionFiltered = [];
+var _mentionSelectedIdx = 0;
+function openMember(name) {
+  toast('@' + name, 'Would open ' + name + '\'s profile sheet — questions, mentions, follow.');
+  haptic(6);
+}
+function showMentionPicker(query, atCaretLeft) {
+  var picker = document.getElementById('mention-picker');
+  var q = (query || '').toLowerCase();
+  _mentionFiltered = ROOM_MEMBERS.filter(function(m) { return m.name.toLowerCase().indexOf(q) !== -1; }).slice(0, 6);
+  if (!_mentionFiltered.length) { picker.setAttribute('data-open', 'false'); return; }
+  _mentionSelectedIdx = 0;
+  picker.innerHTML = _mentionFiltered.map(function(m, i) {
+    return '<div class="item" role="option" data-mention-idx="' + i + '" aria-selected="' + (i === 0 ? 'true' : 'false') + '" onmousedown="event.preventDefault(); insertMention(' + i + ');">' +
+      '<span class="av" style="background:' + m.color + '">' + m.initial + '</span>' +
+      '<span class="name">' + m.name + '</span>' +
+      '<span class="role">' + m.role + '</span>' +
+    '</div>';
+  }).join('');
+  picker.setAttribute('data-open', 'true');
+}
+function closeMentionPicker() {
+  document.getElementById('mention-picker').setAttribute('data-open', 'false');
+  _mentionStart = -1;
+}
+function insertMention(idx) {
+  var input = document.getElementById('ci');
+  var m = _mentionFiltered[idx];
+  if (!m || _mentionStart < 0) return;
+  var v = input.value;
+  var before = v.slice(0, _mentionStart);
+  var afterIdx = input.selectionStart || _mentionStart + 1;
+  var after = v.slice(afterIdx);
+  input.value = before + '@' + m.name + ' ' + after;
+  var caret = before.length + m.name.length + 2;
+  input.setSelectionRange(caret, caret);
+  closeMentionPicker();
+  input.focus();
+  haptic(4);
+}
+document.getElementById('ci').addEventListener('input', function(e) {
+  var v = e.target.value;
+  var caret = e.target.selectionStart;
+  // Find last @ before caret
+  var beforeCaret = v.slice(0, caret);
+  var atIdx = beforeCaret.lastIndexOf('@');
+  if (atIdx >= 0 && (atIdx === 0 || /\s/.test(beforeCaret[atIdx-1]))) {
+    var q = beforeCaret.slice(atIdx + 1);
+    if (/^[^\s@]{0,30}$/.test(q)) {
+      _mentionStart = atIdx;
+      showMentionPicker(q);
+      return;
+    }
+  }
+  closeMentionPicker();
+});
+document.getElementById('ci').addEventListener('keydown', function(e) {
+  var picker = document.getElementById('mention-picker');
+  if (picker.getAttribute('data-open') !== 'true') return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    _mentionSelectedIdx = Math.max(0, Math.min(_mentionFiltered.length - 1, _mentionSelectedIdx + (e.key === 'ArrowDown' ? 1 : -1)));
+    picker.querySelectorAll('.item').forEach(function(it, i) { it.setAttribute('aria-selected', i === _mentionSelectedIdx ? 'true' : 'false'); });
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    e.preventDefault();
+    insertMention(_mentionSelectedIdx);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeMentionPicker();
+  }
+});
+
+// — Reactions —
+function toggleReactPicker(btn, mid) {
+  // Close any open pickers first
+  document.querySelectorAll('.react-picker').forEach(function(p) { p.remove(); });
+  var row = btn.closest('.row');
+  if (!row) return;
+  var picker = document.createElement('div');
+  picker.className = 'react-picker';
+  picker.setAttribute('data-open', 'true');
+  ['👍','❤️','🎯','🔥','😄'].forEach(function(emoji) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = emoji;
+    b.onclick = function(e) { e.stopPropagation(); addReaction(mid, emoji); picker.remove(); };
+    picker.appendChild(b);
+  });
+  row.appendChild(picker);
+  setTimeout(function() {
+    document.addEventListener('click', function close(e) {
+      if (!picker.contains(e.target) && e.target !== btn) { picker.remove(); document.removeEventListener('click', close); }
+    });
+  }, 0);
+}
+function addReaction(mid, emoji) {
+  var row = document.querySelector('[data-mid="' + mid + '"]');
+  if (!row) return;
+  var bar = row.querySelector('.row-reactions');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.className = 'row-reactions';
+    row.querySelector('.row-body').appendChild(bar);
+  }
+  // Find existing reaction button
+  var existing = Array.prototype.find ? Array.prototype.find.call(bar.children, function(b) { return b.dataset.emoji === emoji; }) : null;
+  if (!existing) {
+    Array.prototype.forEach.call(bar.children, function(b) { if (b.dataset.emoji === emoji) existing = b; });
+  }
+  if (existing) {
+    if (existing.classList.contains('is-mine')) {
+      var c = parseInt(existing.querySelector('.count').textContent, 10) - 1;
+      if (c <= 0) { existing.remove(); } else { existing.querySelector('.count').textContent = c; existing.classList.remove('is-mine'); }
+    } else {
+      var c2 = parseInt(existing.querySelector('.count').textContent, 10) + 1;
+      existing.querySelector('.count').textContent = c2;
+      existing.classList.add('is-mine');
+    }
+  } else {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.emoji = emoji;
+    b.className = 'is-mine';
+    b.innerHTML = '<span>' + emoji + '</span> <span class="count">1</span>';
+    b.onclick = function() { addReaction(mid, emoji); };
+    bar.appendChild(b);
+  }
+  haptic(8);
+}
+
+// — Notes counter updater —
+function refreshNotesCounter() {
+  // Prefer the new rich store if present; fall back to legacy flat array
+  var count = (window._notes_v5 && window._notes_v5.length) || (window._privateNotes_v5 || []).length;
+  var badge = document.getElementById('id-notes');
+  var inline = document.getElementById('pn-inline');
+  if (badge) {
+    badge.setAttribute('data-count', count);
+    var cc = document.getElementById('id-notes-count');
+    if (cc) cc.textContent = count;
+  }
+  if (inline) {
+    inline.setAttribute('data-count', count);
+    var ic = document.getElementById('pn-inline-count');
+    if (ic) ic.textContent = count;
+  }
+}
+
+// Wrap simPrivate (debug-gated) to update counter + add "View" toast action
+if (_DEBUG_HELPERS_ON && typeof window.simPrivate === 'function') {
+  var _origSimPrivate = window.simPrivate;
+  window.simPrivate = function(name, text) {
+    _origSimPrivate(name, text);
+    refreshNotesCounter();
+    setTimeout(function() {
+      var t = document.getElementById('toast');
+      if (t && t.getAttribute('data-open') === 'true' && t.innerHTML.indexOf('Private') !== -1) {
+        t.innerHTML = '<strong>🔒 Private note saved</strong> "' + (text.length > 40 ? text.slice(0,40) + '…' : text) + '" — <button type="button" onclick="openSheet(\'notes\')" style="background:transparent;border:0;color:var(--purple);text-decoration:underline;cursor:pointer;font-family:inherit;font-size:inherit;padding:0">View all notes →</button>';
+      }
+    }, 50);
+  };
+}
+// Watch for any push to _privateNotes_v5 (via send() private branch)
+var _origPush = Array.prototype.push;
+(function() {
+  var orig = window._privateNotes_v5.push.bind(window._privateNotes_v5);
+  window._privateNotes_v5.push = function() {
+    var r = orig.apply(this, arguments);
+    refreshNotesCounter();
+    return r;
+  };
+})();
+// Initial render — count legacy notes; seed runs lazily when the sheet opens
+setTimeout(refreshNotesCounter, 100);
+</script>
+</body>
+</html>

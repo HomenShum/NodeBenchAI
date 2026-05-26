@@ -52,6 +52,20 @@
       "maxDuration": 60
     }
   },
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "www.scratchnode.live" }],
+      "destination": "https://scratchnode.live/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "www.nodebenchai.com" }],
+      "destination": "https://nodebenchai.com/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/api/og/:id", "destination": "/api/og/[id]" },
     { "source": "/api/harness/:path*", "destination": "/api/harness" },
@@ -66,6 +80,33 @@
     { "source": "/api/search/stream", "destination": "/api/search" },
     { "source": "/api/search/insights", "destination": "/api/search" },
     { "source": "/install.sh", "destination": "https://raw.githubusercontent.com/HomenShum/nodebench-ai/main/packages/mcp-local/scripts/install.sh" },
+    {
+      "//": "scratchnode.live: public event-room surface. Root + /docs serve the proto; /e/:slug also serves v5 (slug read client-side).",
+      "source": "/",
+      "has": [{ "type": "host", "value": "scratchnode.live" }],
+      "destination": "/proto/home-v5.html"
+    },
+    {
+      "source": "/e/:slug*",
+      "has": [{ "type": "host", "value": "scratchnode.live" }],
+      "destination": "/proto/home-v5.html"
+    },
+    {
+      "source": "/docs",
+      "has": [{ "type": "host", "value": "scratchnode.live" }],
+      "destination": "/proto/docs.html"
+    },
+    {
+      "source": "/docs.html",
+      "has": [{ "type": "host", "value": "scratchnode.live" }],
+      "destination": "/proto/docs.html"
+    },
+    {
+      "//": "scratchnode.live fallthrough: anything else on the .live domain → home (don't show NodeBench workspace by accident)",
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "scratchnode.live" }],
+      "destination": "/proto/home-v5.html"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
