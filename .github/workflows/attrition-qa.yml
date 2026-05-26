@@ -21,7 +21,7 @@ jobs:
 
       - name: Crawl all surfaces
         run: |
-          BASE="${{ github.event.inputs.api_url || github.event.deployment_status.environment_url || github.event.deployment_status.target_url || 'https://scratchnode.live' }}"
+          BASE="${{ github.event.inputs.api_url || 'https://scratchnode.live' }}"
           if [[ "$BASE" == https://vercel.com/* ]]; then
             BASE="https://scratchnode.live"
           fi
@@ -70,7 +70,7 @@ jobs:
 
       - name: Run golden queries
         env:
-          NODEBENCH_API_URL: ${{ github.event.inputs.api_url || github.event.deployment_status.environment_url || github.event.deployment_status.target_url || 'https://scratchnode.live' }}
+          NODEBENCH_API_URL: ${{ github.event.inputs.api_url || 'https://scratchnode.live' }}
         run: |
           if [[ "$NODEBENCH_API_URL" == https://vercel.com/* ]]; then
             export NODEBENCH_API_URL="https://scratchnode.live"
