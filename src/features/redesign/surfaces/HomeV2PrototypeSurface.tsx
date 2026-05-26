@@ -1680,7 +1680,9 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
   return (
     <aside
       className="rd-pane rd-pane--right right-rail"
-      aria-label="Agent chat"
+      aria-label="Report runtime inspector"
+      data-testid="reports-runtime-inspector"
+      data-agent-runtime-surface="redesign-reports"
       data-agent-context-ref={contextPacket.contextRef}
       data-agent-context-rank={contextPacket.agentRank}
       data-agent-context-attention-score={contextPacket.attentionScore}
@@ -1689,8 +1691,8 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
       <div className="ar-head">
         <span className="ar-dot" />
         <div className="ar-head-info">
-          <div className="ar-name">Coverage agent</div>
-          <div className="ar-meta">Reports · {contextEntityCount} entities · {entity.sources * 4} sources · {needsReview ? "3 active" : "12 active"}</div>
+          <div className="ar-name">Report Runtime Inspector</div>
+          <div className="ar-meta">Reports · ContextRuntimePacket · {contextEntityCount} entities · {entity.sources * 4} sources · {needsReview ? "3 active" : "12 active"}</div>
         </div>
         <div className="ar-head-actions">
           <button className="ar-head-btn" type="button" aria-label="Expand chat" title="Expand" onClick={() => ask(`Open Chat with ${entity.name} report context.`)}>↗</button>
@@ -1716,7 +1718,7 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
           <div className="ar-msg-system-line">
             <div className="ar-msg-system-body">
               <span className="ar-msg-system-icon">⚙</span>
-              Context loaded · {contextEntityCount} entities · {entity.sources * 4} sources
+              ContextRuntimePacket loaded · {contextEntityCount} entities · {entity.sources * 4} sources
               <time>3 min ago</time>
             </div>
           </div>
@@ -1731,7 +1733,7 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
           <div className="ar-msg-system-line">
             <div className="ar-msg-system-body">
               <span className="ar-msg-system-icon">↻</span>
-              Routed to deep-analysis model for multi-entity comparison
+              Parallel routing · memory · graph · source cache · verification lanes
             </div>
           </div>
         </div>
@@ -1742,7 +1744,7 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
             <div className="ar-msg-detail">
               <strong>{entity.name}</strong> — {needsReview ? "Evidence or freshness is below threshold. Verify stale claims before notebook patch or export." : "Current source rows are verified enough for the active coverage task."}<br />
               <strong>Notebook</strong> — {needsReview ? "Patch should stay proposed until review clears." : "Notebook can be opened, reused, or exported with the current source trail."}<br />
-              <strong>Graph</strong> — Related entities remain attached for comparison and follow-up routing.
+              <strong>Graph</strong> — Related entities stay bounded as a context packet, not a full graph dump.
             </div>
             <div className="ar-msg-tools">
               <span className="ar-tool-badge">Source scan</span>
@@ -1802,6 +1804,7 @@ function ReportsPrototypeRail({ onAsk, selectedEntity = "Anthropic", selectedRep
           <span className="ar-drawer-chevron">▾</span>
         </button>
         <div className="ar-drawer-body">
+          <div className="ar-ctx-row"><span className="ar-ctx-lbl">Runtime</span><span className="ar-ctx-val">parallel context routing → scored planning → layered verification</span></div>
           <div className="ar-drawer-entity">
             <span className="ar-drawer-icon">{entity.initial}</span>
             <span className="ar-drawer-name">{entity.name}</span>
