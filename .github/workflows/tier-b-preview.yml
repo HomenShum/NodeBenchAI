@@ -154,11 +154,18 @@ jobs:
           # we treat it as "Vercel never built anything for this branch" → skip
           # green (matches Vercel's own ignore-build decision).
           deadline=$(( $(date +%s) + 600 ))
+          # URL-encode the branch ref. Branches with "/" in the name (refactor/X,
+          # fix/Y, test/Z) require encoding — without it, Vercel's API treats
+          # the query as an empty match, returns no deployments, and the loop
+          # below burns the full 10-min deadline to skip-green. With encoding,
+          # the API returns the actual deployment within seconds.
+          # (jq is preinstalled on ubuntu-latest GitHub runners.)
+          encoded_ref=$(printf '%s' "$GITHUB_REF" | jq -sRr @uri)
           while [ "$(date +%s)" -lt "$deadline" ]; do
             # Query by branch name (stable) AND limit=20 to catch the latest few
             # deployments on this branch even if Vercel created multiple builds.
             payload=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
-              "https://api.vercel.com/v6/deployments?teamId=$VERCEL_TEAM_ID&projectId=$VERCEL_PROJECT_ID&meta-githubCommitRef=$GITHUB_REF&limit=20&target=preview")
+              "https://api.vercel.com/v6/deployments?teamId=$VERCEL_TEAM_ID&projectId=$VERCEL_PROJECT_ID&meta-githubCommitRef=$encoded_ref&limit=20&target=preview")
             result=$(GITHUB_SHA="$GITHUB_SHA" node -e "
               let s=''; process.stdin.on('data',c=>s+=c).on('end',()=>{
                 try {
