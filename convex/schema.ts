@@ -20,6 +20,13 @@ import {
   emailSyncState,
 } from "./schema/emailSchema";
 
+// Live event-room schema (Phase 1 of scratchnode.live live prod plan)
+import {
+  liveEvents,
+  liveEventMembers,
+  liveEventMessages,
+} from "./schema/eventsSchema";
+
 // Proactive system schema imports
 import {
   proactiveEvents,
@@ -4864,6 +4871,14 @@ export default defineSchema({
   dossierFocusState,
   dossierAnnotations,
   dossierEnrichment,
+
+  /* ------------------------------------------------------------------ */
+  /* SCRATCHNODE.LIVE EVENT ROOMS - Phase 1 of live prod plan           */
+  /* Anonymous shared chat; see public/proto/docs.html#live-prod-plan   */
+  /* ------------------------------------------------------------------ */
+  liveEvents,
+  liveEventMembers,
+  liveEventMessages,
 
   /* ------------------------------------------------------------------ */
   /* EMAIL MANAGEMENT - Full email thread/message management system     */

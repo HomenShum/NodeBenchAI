@@ -2849,5 +2849,160 @@ var _origPush = Array.prototype.push;
 // Initial render — count legacy notes; seed runs lazily when the sheet opens
 setTimeout(refreshNotesCounter, 100);
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PHASE 1 LIVE BACKEND — Convex-backed anonymous shared chat
+     ─────────────────────────────────────────────────────────────────────
+     This module activates ONLY when:
+       - URL is /e/<slug> (on root or /docs it's a no-op)
+       - /api/scratchnode-config returns a valid convexUrl
+       - esm.sh + Convex client load successfully
+     If ANY step fails, the prototype falls back to its existing DOM-only
+     behavior — no broken state, no console spam.
+
+     Per live prod plan (docs.html#live-prod-plan, Phase 1).
+     ═══════════════════════════════════════════════════════════════════ -->
+<script type="module">
+(async () => {
+  // ─── Bail-early checks ─────────────────────────────────────────────
+  const slugMatch = location.pathname.match(/^\/e\/([a-z0-9][a-z0-9-]{0,60})\/?$/i);
+  if (!slugMatch) return; // not an event URL — keep prototype-only behavior
+  const slug = slugMatch[1];
+
+  // Stable anonymous session UUID — persists across reloads, per-device.
+  let sessionId;
+  try {
+    sessionId = localStorage.getItem('sn_session_id');
+    if (!sessionId) {
+      sessionId = (crypto && crypto.randomUUID) ? crypto.randomUUID()
+        : 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('sn_session_id', sessionId);
+    }
+  } catch (e) {
+    sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+  }
+
+  // ─── Fetch backend config ──────────────────────────────────────────
+  let cfg;
+  try {
+    const r = await fetch('/api/scratchnode-config', { cache: 'no-store' });
+    if (!r.ok) throw new Error('config ' + r.status);
+    cfg = await r.json();
+  } catch (e) {
+    console.debug('[scratchnode] config fetch failed, staying in prototype mode:', e.message);
+    return;
+  }
+  if (!cfg.convexUrl) {
+    console.debug('[scratchnode] no convexUrl in config — prototype mode');
+    return;
+  }
+
+  // ─── Lazy-load Convex browser client ───────────────────────────────
+  let ConvexClient;
+  try {
+    const mod = await import('https://esm.sh/convex@1.29.0/browser');
+    ConvexClient = mod.ConvexClient;
+    if (!ConvexClient) throw new Error('ConvexClient export missing');
+  } catch (e) {
+    console.warn('[scratchnode] Convex client load failed, prototype mode:', e.message);
+    return;
+  }
+
+  // ─── Connect ───────────────────────────────────────────────────────
+  const client = new ConvexClient(cfg.convexUrl);
+  const displayName = (window._userName && String(window._userName).trim()) || 'Anonymous Guest';
+
+  let joined;
+  try {
+    joined = await client.mutation('events:joinEvent', { slug, sessionId, displayName });
+  } catch (e) {
+    console.warn('[scratchnode] joinEvent failed, prototype mode:', e.message || e);
+    client.close && client.close();
+    return;
+  }
+  const eventId = joined.eventId;
+  window._sn_live = { client, eventId, sessionId, slug };
+
+  // ─── Replace pre-baked feed rows with realtime Convex rows ─────────
+  const feedEl = document.getElementById('feed');
+  if (feedEl) {
+    // Wipe the hardcoded demo rows once Convex takes over — they'd otherwise
+    // appear next to real messages and confuse users.
+    Array.from(feedEl.querySelectorAll('.row, .ans')).forEach(el => el.remove());
+  }
+
+  const fmtTime = (ts) => {
+    const d = new Date(ts);
+    const h = d.getHours();
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return (h > 12 ? h - 12 : (h || 12)) + ':' + m + (h >= 12 ? 'p' : 'a');
+  };
+  const seenIds = new Set();
+  const renderMessage = (msg) => {
+    if (!feedEl || seenIds.has(msg._id)) return;
+    seenIds.add(msg._id);
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.setAttribute('data-mid', msg._id);
+    const isMe = msg.sessionId === sessionId;
+    const nameAttr = isMe ? ' data-role="you"' : '';
+    row.innerHTML = '<span class="row-time"></span><div class="row-body"><span class="row-name"' + nameAttr + '></span> <span class="row-text"></span></div>';
+    row.querySelector('.row-time').textContent = fmtTime(msg.createdAt);
+    row.querySelector('.row-name').textContent = msg.displayName || 'Anonymous';
+    row.querySelector('.row-text').textContent = (msg.kind === 'ask' ? '/ask ' : '') + msg.text;
+    feedEl.appendChild(row);
+    row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  };
+
+  // Realtime subscription — Convex re-pushes the full array on every change
+  client.onUpdate('events:getMessages', { eventId, limit: 200 }, (rows) => {
+    if (!Array.isArray(rows)) return;
+    for (const msg of rows) renderMessage(msg);
+  });
+
+  // ─── Override the send pipeline to route public chat through Convex ─
+  const _origSend = window.sendComposerMessage;
+  window.sendComposerMessage = function() {
+    const input = document.getElementById('ci');
+    const intent = window.parseComposerIntent && window.parseComposerIntent(input.value);
+    if (!intent) { input.focus(); return; }
+
+    // Private mode stays 100% prototype-side (Phase 3 wires this to Convex).
+    if (intent.visibility === 'private') {
+      return _origSend.call(this);
+    }
+
+    // Public chat or /ask — send to Convex. The agent answer for /ask is Phase 2;
+    // for now the message just shows up in the feed.
+    const liveName = (window._userName && String(window._userName).trim()) || 'Anonymous Guest';
+    client.mutation('events:sendMessage', {
+      eventId,
+      sessionId,
+      displayName: liveName,
+      text: intent.clean,
+      kind: intent.kind === 'agent_ask' ? 'ask' : 'chat',
+    }).catch((e) => {
+      console.warn('[scratchnode] sendMessage failed:', e.message || e);
+      // Fall back to prototype DOM append so the message isn't lost in the void.
+      _origSend.call(this);
+    });
+
+    // Clear composer; Convex subscription will render the new row when it lands.
+    input.value = '';
+    if ('ontouchstart' in window || window.innerWidth <= 720) input.blur();
+  };
+  // Make sure both global aliases stay in sync (existing onclick handlers).
+  window.send = window.sendComposerMessage;
+
+  // ─── Presence heartbeat — every 30s ─────────────────────────────────
+  setInterval(() => {
+    client.mutation('events:heartbeat', { eventId, sessionId }).catch(() => {});
+  }, 30_000);
+
+  // Mark the page as Convex-connected so devs / e2e tests can detect it.
+  document.body.setAttribute('data-sn-live', 'true');
+  console.info('[scratchnode] Phase 1 live — connected to', cfg.convexUrl, 'event', joined.slug);
+})();
+</script>
 </body>
 </html>

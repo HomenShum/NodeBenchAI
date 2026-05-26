@@ -1330,6 +1330,7 @@ import type * as domains_verification_validation_selfQuestionAgent from "../doma
 import type * as domains_verification_verificationAuditTrail from "../domains/verification/verificationAuditTrail.js";
 import type * as domains_verification_verificationWorkflow from "../domains/verification/verificationWorkflow.js";
 import type * as domains_world_operations from "../domains/world/operations.js";
+import type * as events from "../events.js";
 import type * as feed from "../feed.js";
 import type * as globalResearch_artifacts from "../globalResearch/artifacts.js";
 import type * as globalResearch_cacheSimple from "../globalResearch/cacheSimple.js";
@@ -1372,6 +1373,7 @@ import type * as prosemirror from "../prosemirror.js";
 import type * as router from "../router.js";
 import type * as schema_apiUsage from "../schema/apiUsage.js";
 import type * as schema_emailSchema from "../schema/emailSchema.js";
+import type * as schema_eventsSchema from "../schema/eventsSchema.js";
 import type * as schema_searchQuota from "../schema/searchQuota.js";
 import type * as schema_toolSearchSchema from "../schema/toolSearchSchema.js";
 import type * as shared_actionSpan from "../shared/actionSpan.js";
@@ -2839,6 +2841,7 @@ declare const fullApi: ApiFromModules<{
   "domains/verification/verificationAuditTrail": typeof domains_verification_verificationAuditTrail;
   "domains/verification/verificationWorkflow": typeof domains_verification_verificationWorkflow;
   "domains/world/operations": typeof domains_world_operations;
+  events: typeof events;
   feed: typeof feed;
   "globalResearch/artifacts": typeof globalResearch_artifacts;
   "globalResearch/cacheSimple": typeof globalResearch_cacheSimple;
@@ -2881,6 +2884,7 @@ declare const fullApi: ApiFromModules<{
   router: typeof router;
   "schema/apiUsage": typeof schema_apiUsage;
   "schema/emailSchema": typeof schema_emailSchema;
+  "schema/eventsSchema": typeof schema_eventsSchema;
   "schema/searchQuota": typeof schema_searchQuota;
   "schema/toolSearchSchema": typeof schema_toolSearchSchema;
   "shared/actionSpan": typeof shared_actionSpan;
