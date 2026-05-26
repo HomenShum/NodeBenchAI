@@ -15,13 +15,13 @@ function functionBlock(name: string): string {
 
 describe("scratchnode public runtime boundaries", () => {
   it("keeps public /ask isolated from private user notes", () => {
-    const askAgent = functionBlock("askAgent");
+    const composeAnswer = functionBlock("composeAnswer");
 
-    expect(askAgent).not.toContain("userNotes");
-    expect(askAgent).not.toContain("getPrivate");
-    expect(askAgent).toContain("requireMember");
-    expect(askAgent).toContain("liveEventSources");
-    expect(askAgent).toContain("deterministic_synthesis");
+    expect(composeAnswer).not.toContain("userNotes");
+    expect(composeAnswer).not.toContain("getPrivate");
+    expect(composeAnswer).toContain("requireMember");
+    expect(composeAnswer).toContain("liveEventSources");
+    expect(composeAnswer).toContain("deterministic_synthesis");
   });
 
   it("keeps wiki publishing host-gated and sourced from public answers", () => {
