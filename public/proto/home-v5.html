@@ -58,6 +58,11 @@ button, input { font-family: inherit; font-size: inherit; color: inherit; }
 button { cursor: pointer; touch-action: manipulation; }
 button:active { transform: scale(.97); transition: transform .08s; }
 *:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* ─── Screen-reader-only utility + skip link ─── */
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.skip-link { position: absolute; left: 8px; top: 8px; z-index: 9999; padding: 8px 12px; background: var(--accent); color: #fff; border-radius: 6px; font-weight: 600; font-size: 13px; text-decoration: none; transform: translateY(-200%); transition: transform .15s ease-out; }
+.skip-link:focus { transform: translateY(0); outline: 2px solid #fff; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .skip-link { transition: none; } }
 /* Safe-area helpers */
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
@@ -341,6 +346,7 @@ button.mention { /* reset native button chrome when rendered as a real button */
 .react-picker button { width: 30px; height: 30px; padding: 0; background: transparent; border: 0; font-size: 16px; border-radius: 50%; transition: transform .12s; }
 .react-picker button:hover { transform: scale(1.3); background: rgba(255,255,255,.06); }
 @keyframes rpFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .react-picker { animation: none !important; } }
 /* When reactions exist below, lift the picker above the actions bar above the reactions */
 .row:has(.row-reactions) .react-picker { bottom: 64px; }
 
@@ -497,6 +503,7 @@ body[data-mode="private"] .private-notes-inline[data-count]:not([data-count="0"]
 .toast[data-open="true"] { display: block; }
 .toast strong { color: var(--purple); margin-right: 6px; }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .toast[data-open="true"] { animation: none !important; } }
 
 /* Menu sheet */
 .menu-sheet {
@@ -599,6 +606,7 @@ body[data-new-user="true"] .h-menu::after {
 }
 .tip-popover[data-open="true"] { display: block; animation: tipFadeIn .2s ease-out; }
 @keyframes tipFadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tip-popover[data-open="true"] { animation: none; } }
 .tip-popover::before {
   content: ''; position: absolute; bottom: -5px; left: 16px;
   width: 8px; height: 8px; background: var(--paper);
@@ -621,6 +629,7 @@ body[data-new-user="true"] .h-menu::after {
 .sheet-scrim { position: fixed; inset: 0; z-index: 115; background: rgba(0,0,0,.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: none; }
 .sheet-scrim[data-open="true"] { display: block; animation: fadeIn .15s ease-out; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sheet-scrim[data-open="true"], .menu-scrim[data-open="true"], .kbd-overlay[data-open="true"] { animation: none !important; } }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 120;
   transform: translateY(100%); transition: transform .25s ease;
@@ -869,6 +878,8 @@ body[data-new-user="true"] .h-menu::after {
 </head>
 <body data-mode="public" data-role="attendee">
 
+<a class="skip-link" href="#feed">Skip to chat</a>
+
 <header class="h">
   <div class="h-logo"><span class="h-logo-dot"></span>Scratch<span>Node</span></div>
   <span class="h-live">LIVE</span>
@@ -941,7 +952,7 @@ body[data-new-user="true"] .h-menu::after {
       <button class="c-tool voice" type="button" id="voice" onclick="startVoice()" aria-label="Dictate /ask" title="Dictate your question">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
       </button>
-      <button class="c-tool lock" type="button" id="lock" data-on="false" onclick="toggleLock()" aria-label="Private mode" title="Private (saves to your notebook)">
+      <button class="c-tool lock" type="button" id="lock" data-on="false" onclick="toggleLock()" aria-label="Private mode" aria-pressed="false" title="Private (saves to your notebook)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </button>
       <button class="c-tool send" type="button" onclick="send()" aria-label="Send">
@@ -969,7 +980,7 @@ body[data-new-user="true"] .h-menu::after {
     <button class="empty-cta" type="button" onclick="document.getElementById('ci').focus(); haptic();">Ask the first question &rarr;</button>
   </div>
 
-  <section class="feed" id="feed">
+  <section class="feed" id="feed" role="log" aria-label="Room chat" aria-live="polite" aria-relevant="additions" tabindex="-1">
     <div class="row"><span class="row-time">2:31p</span><div class="row-body"><span class="row-name" data-role="mod">Mod</span> <span class="row-text">Welcome to the MCP Auth breakout. Drop questions here or <kbd style="font-family:var(--mono);font-size:10px;background:rgba(255,255,255,.04);padding:0 4px;border-radius:3px">/ask</kbd> the agent.</span></div></div>
     <div class="row"><span class="row-time">2:33p</span><div class="row-body"><span class="row-name">Rachel M.</span> <span class="row-text">Is there a reference impl for the auth flow?</span></div></div>
     <div class="row"><span class="row-time">2:35p</span><div class="row-body"><span class="row-name">Dario A.</span> <span class="row-text">Yes — shipping a reference alongside the spec. OAuth 2.1 + scoped tools.</span></div></div>
@@ -1124,6 +1135,7 @@ function toggleLock() {
   var on = btn.getAttribute('data-on') === 'true';
   var goingPrivate = !on;
   btn.setAttribute('data-on', goingPrivate ? 'true' : 'false');
+  btn.setAttribute('aria-pressed', goingPrivate ? 'true' : 'false');
   document.body.setAttribute('data-mode', goingPrivate ? 'private' : 'public');
   var input = document.getElementById('ci');
   input.placeholder = goingPrivate
@@ -1356,13 +1368,21 @@ function copyRoom() {
 }
 
 // ── Menu ──
+// Track the element that opened each overlay so we can return focus on close
+// (a11y best practice: keyboard users shouldn't be dumped at the top of <body>).
+var _focusReturn = { menu: null, sheet: null, kbd: null };
 function openMenu() {
+  _focusReturn.menu = document.activeElement;
   document.getElementById('menu-sheet').setAttribute('data-open','true');
   document.getElementById('menu-scrim').setAttribute('data-open','true');
 }
 function closeMenu() {
   document.getElementById('menu-sheet').setAttribute('data-open','false');
   document.getElementById('menu-scrim').setAttribute('data-open','false');
+  if (_focusReturn.menu && typeof _focusReturn.menu.focus === 'function') {
+    try { _focusReturn.menu.focus(); } catch (e) {}
+    _focusReturn.menu = null;
+  }
 }
 function openWiki()    { closeMenu(); openSheet('wiki'); }
 function openPeople()  { closeMenu(); openSheet('people'); }
@@ -1389,8 +1409,14 @@ function openSignIn() {
   }
   openSheet('signin');
 }
-function openShortcuts() { closeMenu(); var o = document.getElementById('kbd-overlay'); o.setAttribute('data-open','true'); }
-function closeShortcuts() { document.getElementById('kbd-overlay').setAttribute('data-open','false'); }
+function openShortcuts() { _focusReturn.kbd = document.activeElement; closeMenu(); var o = document.getElementById('kbd-overlay'); o.setAttribute('data-open','true'); }
+function closeShortcuts() {
+  document.getElementById('kbd-overlay').setAttribute('data-open','false');
+  if (_focusReturn.kbd && typeof _focusReturn.kbd.focus === 'function') {
+    try { _focusReturn.kbd.focus(); } catch (e) {}
+    _focusReturn.kbd = null;
+  }
+}
 
 // ── Toast ──
 var _toastTimer;
@@ -1840,7 +1866,10 @@ var _activeSheet = null;
 function openSheet(type) {
   var rend = SHEET_RENDERERS[type];
   if (!rend) return;
-  closeSheet();
+  // Remember the trigger so we can return focus on close (a11y).
+  // Don't overwrite if we're already inside a sheet (chained opens).
+  if (!_focusReturn.sheet) _focusReturn.sheet = document.activeElement;
+  closeSheet({ skipFocusReturn: true });
   document.getElementById('sheet-content').innerHTML = rend();
   var sheetEl = document.getElementById('sheet');
   sheetEl.setAttribute('data-open', 'true');
@@ -1858,12 +1887,19 @@ function openSheet(type) {
   // Wire notes-specific behavior: list + editor split
   if (type === 'notes') wireNotesBehaviors();
 }
-function closeSheet() {
+function closeSheet(opts) {
+  opts = opts || {};
   var sheetEl = document.getElementById('sheet');
   sheetEl.setAttribute('data-open', 'false');
   sheetEl.removeAttribute('data-sheet-type');
   document.getElementById('sheet-scrim').setAttribute('data-open', 'false');
   _activeSheet = null;
+  // Return focus to the element that opened this sheet — unless we're
+  // mid-chain (open A → close A → open B keeps the original trigger).
+  if (!opts.skipFocusReturn && _focusReturn.sheet && typeof _focusReturn.sheet.focus === 'function') {
+    try { _focusReturn.sheet.focus(); } catch (e) {}
+    _focusReturn.sheet = null;
+  }
 }
 
 // ── Wiki: scroll-spy + smooth anchor + search filter ──
@@ -2103,10 +2139,10 @@ function renderNotesEditor() {
   h.push('<button type="button" class="toolbar-label" onclick="noteFormatBlock(\'H1\')" title="Heading 1">H1</button>');
   h.push('<button type="button" class="toolbar-label" onclick="noteFormatBlock(\'H2\')" title="Heading 2">H2</button>');
   h.push('<span class="sep"></span>');
-  h.push('<button type="button" onclick="noteCmd(\'insertUnorderedList\')" title="Bulleted list">&#8226;</button>');
-  h.push('<button type="button" onclick="noteCmd(\'insertOrderedList\')" title="Numbered list">1.</button>');
-  h.push('<button type="button" onclick="noteInsertCheck()" title="Checkbox">&#9744;</button>');
-  h.push('<button type="button" onclick="noteFormatBlock(\'BLOCKQUOTE\')" title="Quote">&#8220;&#8221;</button>');
+  h.push('<button type="button" aria-label="Bulleted list" onclick="noteCmd(\'insertUnorderedList\')" title="Bulleted list">&#8226;</button>');
+  h.push('<button type="button" aria-label="Numbered list" onclick="noteCmd(\'insertOrderedList\')" title="Numbered list">1.</button>');
+  h.push('<button type="button" aria-label="Checkbox" onclick="noteInsertCheck()" title="Checkbox">&#9744;</button>');
+  h.push('<button type="button" aria-label="Blockquote" onclick="noteFormatBlock(\'BLOCKQUOTE\')" title="Quote">&#8220;&#8221;</button>');
   h.push('<span class="sep"></span>');
   h.push('<button type="button" class="toolbar-label" onclick="noteInsertText(\'@\')" title="Mention person" style="color:var(--purple)">@</button>');
   h.push('<button type="button" class="toolbar-label" onclick="noteInsertText(\'#\')" title="Add tag" style="color:var(--accent)">#</button>');
@@ -2327,12 +2363,40 @@ function closeAllOverlays() {
   OVERLAY_REGISTRY.forEach(function(o) { if (o.isOpen()) o.close(); });
 }
 
+// ── Focus trap for open dialogs ──
+// Returns the open dialog element (sheet, menu, or kbd overlay), or null.
+function _activeDialog() {
+  var sheet = document.getElementById('sheet');
+  if (sheet && sheet.getAttribute('data-open') === 'true') return sheet;
+  var kbd = document.getElementById('kbd-overlay');
+  if (kbd && kbd.getAttribute('data-open') === 'true') return kbd;
+  var menu = document.getElementById('menu-sheet');
+  if (menu && menu.getAttribute('data-open') === 'true') return menu;
+  return null;
+}
+function _focusableIn(el) {
+  return Array.prototype.slice.call(el.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )).filter(function(n) { return n.offsetParent !== null || n === document.activeElement; });
+}
+
 // ── KEYBOARD SHORTCUTS ──
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
     // Close only the topmost overlay, not all of them — preserves any
     // backgrounded sheets and matches user expectation in stacked dialogs.
     if (isOverlayOpen()) { e.preventDefault(); closeTopOverlay(); return; }
+  }
+  // Focus trap: when a dialog is open, Tab/Shift+Tab cycle within it.
+  if (e.key === 'Tab') {
+    var dlg = _activeDialog();
+    if (dlg) {
+      var f = _focusableIn(dlg);
+      if (!f.length) { e.preventDefault(); dlg.focus && dlg.focus(); return; }
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
   }
   // Don't fire shortcuts when typing in inputs (except Ctrl/Cmd combinations)
   var inField = e.target.matches('input, textarea, [contenteditable]');
