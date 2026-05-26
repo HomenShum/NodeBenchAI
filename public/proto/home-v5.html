@@ -3032,7 +3032,7 @@ setTimeout(refreshNotesCounter, 100);
       kind: intent.kind === 'agent_ask' ? 'ask' : 'chat',
     }).then((res) => {
       if (intent.kind !== 'agent_ask') return null;
-      return client.mutation('events:askAgent', {
+      return client.mutation('events:composeAnswer', {
         eventId,
         sessionId,
         questionMessageId: res.messageId,

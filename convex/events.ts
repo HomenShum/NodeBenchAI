@@ -547,7 +547,20 @@ export const sendMessage = mutation({
   },
 });
 
-export const askAgent = mutation({
+/**
+ * composeAnswer — Phase 2 deterministic synthesis for /ask in live events.
+ *
+ * Ranks event sources by source-token-overlap against the question, then
+ * stitches a citation-grounded answer together with NO LLM call. This is the
+ * Phase 2 wiring that runs today.
+ *
+ * The future LLM-backed action (vector search + Anthropic) will ship as a
+ * separate function named `askAgent` when the Anthropic integration lands —
+ * see public/proto/docs.html "Live prod plan / Phase 2". Renaming this
+ * function frees the `askAgent` name for that real-LLM caller and prevents
+ * future readers from assuming LLM behavior that isn't here.
+ */
+export const composeAnswer = mutation({
   args: {
     eventId: v.id("liveEvents"),
     sessionId: v.string(),
