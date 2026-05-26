@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>ScratchNode — Docs (v4 + v5 + mobile/web)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #161513;
+  --paper: #1c1b18;
+  --paper-2: #211f1c;
+  --accent: #d97757;
+  --purple: #a78bfa;
+  --green: #5ea867;
+  --ink: #e8e4dc;
+  --ink-muted: #b3ac9f;
+  --ink-faint: #7a7368;
+  --line: #2a2823;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ui: 'Manrope', system-ui, -apple-system, sans-serif;
+  --r: 12px;
+  --r-sm: 8px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--ink);
+  font-family: var(--ui);
+  font-size: 14px; line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted rgba(217,119,87,.4); }
+a:hover { border-bottom-style: solid; }
+
+/* ─── Top bar ─── */
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 24px;
+  background: rgba(22,21,19,.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; }
+.topbar-logo {
+  width: 24px; height: 24px;
+  background: linear-gradient(135deg, var(--accent), #f9a87a);
+  border-radius: 6px;
+}
+.topbar-version { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); padding: 2px 7px; border: 1px solid var(--line); border-radius: 100px; }
+.topbar-nav { display: flex; gap: 16px; font-size: 12px; }
+.topbar-nav a { color: var(--ink-muted); border: 0; }
+.topbar-nav a:hover { color: var(--ink); }
+
+/* ─── Shell ─── */
+.shell {
+  display: grid;
+  grid-template-columns: 240px 1fr 200px;
+  gap: 36px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 30px 24px 60px;
+}
+@media (max-width: 1024px) { .shell { grid-template-columns: 200px 1fr; } .onpage { display: none; } }
+@media (max-width: 720px) { .shell { grid-template-columns: 1fr; gap: 0; padding: 20px 18px 60px; } .toc { display: none; } }
+
+/* ─── Sidebar TOC ─── */
+.toc { position: sticky; top: 80px; align-self: start; max-height: calc(100vh - 100px); overflow-y: auto; padding-right: 8px; }
+.toc-search {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px; margin-bottom: 14px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 6px;
+}
+.toc-search input {
+  flex: 1; background: transparent; border: 0; outline: none;
+  color: var(--ink); font-size: 12px; font-family: var(--ui);
+}
+.toc-search kbd { font-family: var(--mono); font-size: 10px; padding: 1px 5px; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 3px; color: var(--ink-faint); }
+.toc-section-label { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin: 18px 0 6px; }
+.toc-section-label:first-child { margin-top: 0; }
+.toc-link {
+  display: block; padding: 5px 10px; margin: 0 -10px;
+  font-size: 12px; color: var(--ink-muted);
+  border-radius: 4px; border-left: 2px solid transparent;
+  text-decoration: none; transition: all .12s;
+}
+.toc-link:hover { color: var(--ink); background: rgba(255,255,255,.03); }
+.toc-link.active { color: var(--accent); border-left-color: var(--accent); background: rgba(217,119,87,.05); }
+.toc-link.sub { padding-left: 22px; font-size: 11px; }
+
+/* ─── Article ─── */
+.article { min-width: 0; max-width: 720px; }
+.article-eyebrow { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+.article h1 { font-size: 32px; font-weight: 800; letter-spacing: -.025em; margin: 0 0 8px; }
+.article > .lead { font-size: 16px; color: var(--ink-muted); margin: 0 0 32px; line-height: 1.55; }
+.article h2 {
+  font-size: 22px; font-weight: 700; letter-spacing: -.015em;
+  margin: 44px 0 12px; padding-top: 24px;
+  border-top: 1px solid var(--line); position: relative; scroll-margin-top: 80px;
+}
+.article h2 .anchor { opacity: 0; position: absolute; left: -22px; color: var(--accent); font-weight: 400; transition: opacity .12s; }
+.article h2:hover .anchor { opacity: 1; }
+.article h3 { font-size: 16px; font-weight: 700; margin: 24px 0 10px; scroll-margin-top: 80px; }
+.article h4 { font-size: 13px; font-weight: 700; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); font-family: var(--mono); }
+.article p { margin: 0 0 14px; color: var(--ink-muted); }
+.article p strong { color: var(--ink); font-weight: 600; }
+.article ul, .article ol { margin: 8px 0 16px; padding-left: 22px; }
+.article li { margin: 4px 0; color: var(--ink-muted); }
+.article li strong { color: var(--ink); }
+.article p code, .article li code, .article td code, .article th code {
+  font-family: var(--mono); font-size: 12px;
+  padding: 1px 6px;
+  background: rgba(217,119,87,.1); color: var(--accent);
+  border-radius: 3px;
+  border: 1px solid rgba(217,119,87,.18);
+  white-space: nowrap;
+}
+.article pre {
+  margin: 12px 0 18px;
+  padding: 14px 16px;
+  background: rgba(0,0,0,.35);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: var(--mono); font-size: 12px; line-height: 1.65;
+  color: var(--ink); position: relative;
+}
+.article pre .lang { position: absolute; top: 8px; right: 12px; font-size: 9px; color: var(--ink-faint); letter-spacing: .08em; text-transform: uppercase; }
+.article pre .kw { color: #c084fc; }
+.article pre .str { color: #86efac; }
+.article pre .num { color: #fbbf24; }
+.article pre .com { color: var(--ink-faint); font-style: italic; }
+.article pre .fn { color: #60a5fa; }
+.article blockquote {
+  margin: 14px 0;
+  padding: 12px 16px;
+  border-left: 3px solid var(--accent);
+  background: rgba(217,119,87,.04);
+  border-radius: 0 6px 6px 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.article blockquote::before { content: '⚡ '; color: var(--accent); }
+.article table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12px; }
+.article th, .article td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.article th { color: var(--ink); font-weight: 600; background: rgba(255,255,255,.02); font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+.article td { color: var(--ink-muted); }
+
+.callout {
+  margin: 14px 0;
+  padding: 12px 16px;
+  background: rgba(167,139,250,.06);
+  border: 1px solid rgba(167,139,250,.22);
+  border-radius: 8px;
+  font-size: 13px; color: var(--ink-muted);
+  display: flex; gap: 12px;
+}
+.callout.note { background: rgba(217,119,87,.04); border-color: rgba(217,119,87,.2); }
+.callout.warn { background: rgba(248,113,113,.04); border-color: rgba(248,113,113,.22); }
+.callout .icon { font-size: 16px; }
+.callout strong { color: var(--purple); }
+.callout.note strong { color: var(--accent); }
+.callout.warn strong { color: #f87171; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 16px; }
+.chip { font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 100px; background: rgba(255,255,255,.04); color: var(--ink-muted); border: 1px solid var(--line); }
+.chip.v4 { color: var(--purple); border-color: rgba(167,139,250,.3); background: rgba(167,139,250,.06); }
+.chip.v5 { color: var(--accent); border-color: rgba(217,119,87,.3); background: rgba(217,119,87,.06); }
+.chip.mob { color: var(--green); border-color: rgba(94,168,103,.3); background: rgba(94,168,103,.06); }
+.chip.web { color: #60a5fa; border-color: rgba(96,165,250,.3); background: rgba(96,165,250,.06); }
+.chip.proto { color: #fbbf24; border-color: rgba(251,191,36,.3); background: rgba(251,191,36,.06); }
+.chip.prod   { color: #5ea867; border-color: rgba(94,168,103,.3); background: rgba(94,168,103,.06); }
+
+/* Release-blocker invariants banner (top of article) */
+.invariants {
+  margin: 0 0 32px;
+  padding: 14px 18px;
+  background: rgba(248,113,113,.04);
+  border: 1px solid rgba(248,113,113,.25);
+  border-radius: 10px;
+}
+.invariants-label {
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: #f87171;
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 8px;
+}
+.invariants-label .icon { font-size: 14px; }
+.invariants ol { margin: 0; padding-left: 22px; font-size: 13px; line-height: 1.65; }
+.invariants ol li { color: var(--ink); margin: 3px 0; }
+.invariants ol li strong { color: #f87171; font-weight: 700; }
+
+/* Prototype/production status table */
+.status-table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 12px; }
+.status-table th, .status-table td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.status-table th { color: var(--ink); font-weight: 600; background: rgba(255,255,255,.02); font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+.status-table td { color: var(--ink-muted); }
+.status-table td:first-child { color: var(--ink); font-weight: 600; }
+.status-table .badge { display: inline-block; font-family: var(--mono); font-size: 9px; padding: 1px 7px; border-radius: 100px; letter-spacing: .04em; }
+.status-table .badge.proto { color: #fbbf24; background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.25); }
+.status-table .badge.prod  { color: #5ea867; background: rgba(94,168,103,.08); border: 1px solid rgba(94,168,103,.25); }
+
+/* ─── On-page rail ─── */
+.onpage { position: sticky; top: 80px; align-self: start; max-height: calc(100vh - 100px); overflow-y: auto; padding-left: 14px; border-left: 1px solid var(--line); font-size: 11px; }
+.onpage-label { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px; }
+.onpage a { display: block; padding: 4px 0; color: var(--ink-faint); text-decoration: none; transition: color .12s; border: 0; }
+.onpage a:hover { color: var(--ink); }
+.onpage a.active { color: var(--accent); font-weight: 600; }
+
+kbd {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 6px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink);
+  margin: 0 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo"></div>
+    <span>ScratchNode</span>
+    <span class="topbar-version">docs · v5</span>
+  </div>
+  <nav class="topbar-nav">
+    <a href="home-v5.html">Open v5</a>
+    <a href="home-v4.html">Open v4</a>
+    <a href="#demo-controls">Demo controls</a>
+    <a href="https://github.com/" target="_blank" rel="noopener">GitHub ↗</a>
+  </nav>
+</header>
+
+<div class="shell">
+
+  <!-- ─── Left: TOC ─── -->
+  <aside class="toc" aria-label="Table of contents">
+    <div class="toc-search"><span>🔍</span><input id="toc-search" type="text" placeholder="Filter docs..." aria-label="Filter docs" /><kbd>/</kbd></div>
+
+    <div class="toc-section-label">Get started</div>
+    <a class="toc-link active" href="#overview" data-toc="overview">Overview</a>
+    <a class="toc-link sub" href="#prototype-vs-production" data-toc="prototype-vs-production">Prototype vs production</a>
+    <a class="toc-link" href="#production-arch" data-toc="production-arch">Production architecture</a>
+    <a class="toc-link sub" href="#prod-stack" data-toc="prod-stack">The stack</a>
+    <a class="toc-link sub" href="#prod-responsibilities" data-toc="prod-responsibilities">Layer responsibilities</a>
+    <a class="toc-link sub" href="#prod-ask-runtime" data-toc="prod-ask-runtime">/ask runtime pipeline</a>
+    <a class="toc-link sub" href="#prod-cache-key" data-toc="prod-cache-key">Cache key shape</a>
+    <a class="toc-link sub" href="#prod-mcp-tools" data-toc="prod-mcp-tools">MCP tool design</a>
+    <a class="toc-link sub" href="#prod-phases" data-toc="prod-phases">Implementation phases</a>
+    <a class="toc-link" href="#two-domains" data-toc="two-domains">Two-domain deploy</a>
+    <a class="toc-link sub" href="#domain-split" data-toc="domain-split">Domain responsibilities</a>
+    <a class="toc-link sub" href="#vercel-setup" data-toc="vercel-setup">Vercel setup</a>
+    <a class="toc-link sub" href="#setup-checklist" data-toc="setup-checklist">Setup checklist</a>
+    <a class="toc-link sub" href="#live-check" data-toc="live-check">Live verify</a>
+    <a class="toc-link" href="#concepts" data-toc="concepts">Concepts &amp; metaphor</a>
+    <a class="toc-link" href="#quick-start" data-toc="quick-start">Quick start</a>
+
+    <div class="toc-section-label">v5 — viral SaaS</div>
+    <a class="toc-link" href="#v5-overview" data-toc="v5-overview">v5 at a glance</a>
+    <a class="toc-link" href="#v5-composer" data-toc="v5-composer">Composer &amp; modes</a>
+    <a class="toc-link sub" href="#v5-mention" data-toc="v5-mention">@mention picker</a>
+    <a class="toc-link sub" href="#v5-reply" data-toc="v5-reply">Reply &amp; react</a>
+    <a class="toc-link sub" href="#v5-private" data-toc="v5-private">Private notes</a>
+    <a class="toc-link sub" href="#v5-voice" data-toc="v5-voice">Voice input</a>
+    <a class="toc-link" href="#v5-sheets" data-toc="v5-sheets">Universal sheets</a>
+    <a class="toc-link sub" href="#v5-wiki" data-toc="v5-wiki">Wiki (SDK page)</a>
+    <a class="toc-link sub" href="#v5-notes" data-toc="v5-notes">Notes editor</a>
+    <a class="toc-link sub" href="#v5-share" data-toc="v5-share">Share</a>
+    <a class="toc-link sub" href="#v5-people" data-toc="v5-people">People</a>
+    <a class="toc-link sub" href="#v5-host" data-toc="v5-host">Host / create event</a>
+    <a class="toc-link" href="#v5-landing" data-toc="v5-landing">Landing &amp; onboarding</a>
+    <a class="toc-link" href="#v5-feed" data-toc="v5-feed">Feed &amp; agent threads</a>
+
+    <div class="toc-section-label">v4 — spec proof</div>
+    <a class="toc-link" href="#v4-overview" data-toc="v4-overview">v4 at a glance</a>
+    <a class="toc-link" href="#v4-views" data-toc="v4-views">View modes</a>
+    <a class="toc-link sub" href="#v4-landing" data-toc="v4-landing">Landing</a>
+    <a class="toc-link sub" href="#v4-workspace" data-toc="v4-workspace">Workspace</a>
+    <a class="toc-link sub" href="#v4-public" data-toc="v4-public">Public event</a>
+    <a class="toc-link sub" href="#v4-host" data-toc="v4-host">Host console</a>
+    <a class="toc-link" href="#v4-tabs" data-toc="v4-tabs">Notebook · Library · Chat · Stage</a>
+    <a class="toc-link" href="#v4-graph" data-toc="v4-graph">Graph snapshots &amp; branches</a>
+    <a class="toc-link" href="#v4-attention" data-toc="v4-attention">Attention walk</a>
+
+    <div class="toc-section-label">Mobile vs Web</div>
+    <a class="toc-link" href="#mobile-web" data-toc="mobile-web">Behavior matrix</a>
+    <a class="toc-link" href="#tap-targets" data-toc="tap-targets">Tap targets &amp; safe area</a>
+    <a class="toc-link" href="#bottom-sheets" data-toc="bottom-sheets">Bottom sheets vs modals</a>
+    <a class="toc-link" href="#haptics" data-toc="haptics">Haptics</a>
+
+    <div class="toc-section-label">Reference</div>
+    <a class="toc-link" href="#demo-controls" data-toc="demo-controls">Demo controls</a>
+    <a class="toc-link sub" href="#hash-routes" data-toc="hash-routes">URL hashes</a>
+    <a class="toc-link sub" href="#js-api" data-toc="js-api">JS API (sim*)</a>
+    <a class="toc-link" href="#keyboard" data-toc="keyboard">Keyboard shortcuts</a>
+    <a class="toc-link" href="#design-tokens" data-toc="design-tokens">Design tokens</a>
+    <a class="toc-link" href="#storage" data-toc="storage">localStorage keys</a>
+    <a class="toc-link" href="#privacy" data-toc="privacy">Privacy invariants</a>
+  </aside>
+
+  <!-- ─── Center: article ─── -->
+  <article class="article" id="article">
+
+    <div class="article-eyebrow">v5.0 · docs · last updated 2026-05-25</div>
+    <h1>ScratchNode developer notes</h1>
+    <p class="lead">A complete map of every feature shipped across <a href="home-v4.html">home-v4.html</a> (spec proof) and <a href="home-v5.html">home-v5.html</a> (viral SaaS). Mobile and web behaviors are called out where they diverge. Demo controls let you trigger any state without clicking through the UI.</p>
+
+    <!-- Release-blocker invariants — coding agents must never violate -->
+    <section class="invariants" aria-labelledby="invariants-label">
+      <div class="invariants-label" id="invariants-label"><span class="icon">🛑</span>Release-blocker invariants — never violate these</div>
+      <ol>
+        <li><strong>Private notes never enter the public feed.</strong> The composer says "only your notebook." The code path matches that string — <code>savePrivateNote()</code> returns before any feed insert.</li>
+        <li><strong>Normal chat never invokes the agent.</strong> Only <code>/ask</code> or <code>@ScratchNode</code> dispatches to <code>postPublicAsk</code>.</li>
+        <li><strong>Agent answers always show their parent ask.</strong> Every <code>.ans</code> card renders <em>"replying to &lt;name&gt;'s /ask"</em> in the head.</li>
+        <li><strong>Public users suggest, hosts promote.</strong> Attendees see <em>"★ Suggest for FAQ"</em>; <code>data-role="host"</code> unlocks <em>"★ Promote to FAQ"</em>. Public users never directly mutate the durable wiki.</li>
+        <li><strong>Public traces show "no private notes used."</strong> The agent trace step explicitly states <em>"No private notes used · public layer only"</em>.</li>
+      </ol>
+    </section>
+
+    <h2 id="overview">Overview <a class="anchor" href="#overview">#</a></h2>
+    <p>ScratchNode is an event-knowledge product: a room code (e.g. <code>ORBITAL</code>) joins anyone — without an app or account — into a public live chat that compounds into a public wiki when the host wraps. Private notes live in a parallel notebook that never touches the public feed.</p>
+    <div class="chips">
+      <span class="chip v5">v5 = home-v5.html (viral SaaS, mobile-first)</span>
+      <span class="chip v4">v4 = home-v4.html (spec proof, 4 view modes)</span>
+      <span class="chip mob">mob = phone / safe-area behavior</span>
+      <span class="chip web">web = desktop browser behavior</span>
+      <span class="chip proto">proto = prototype-only (replace before prod)</span>
+      <span class="chip prod">prod = production-ready or close</span>
+    </div>
+
+    <h3 id="prototype-vs-production">What's prototype vs production-target</h3>
+    <p>Several v5 behaviors are deliberately mocked for single-file demo simplicity. Each row below shows the current shape and what production needs.</p>
+    <table class="status-table">
+      <thead><tr><th>Feature</th><th>Status</th><th>Now</th><th>Production target</th></tr></thead>
+      <tbody>
+        <tr><td>Identity / display name</td><td><span class="badge proto">Prototype</span></td><td>localStorage <code>sn_v5_name</code></td><td>Guest session + optional account with magic link</td></tr>
+        <tr><td>Sign-in / magic link</td><td><span class="badge proto">Prototype</span></td><td><code>sendMagicLink()</code> just toasts</td><td>Real OTP email + verified session token</td></tr>
+        <tr><td>Private notes</td><td><span class="badge proto">Prototype</span></td><td><code>window._notes_v5</code> + localStorage</td><td>Per-user encrypted store, syncs across devices when signed in</td></tr>
+        <tr><td>Notes editor</td><td><span class="badge proto">Prototype</span></td><td><code>document.execCommand</code> rich-text</td><td>TipTap / ProseMirror with mentions, backlinks, graph anchors</td></tr>
+        <tr><td>QR code generation</td><td><span class="badge proto">Prototype</span></td><td>External <code>api.qrserver.com</code> image</td><td>Client-side SVG generator — privacy, offline, branding</td></tr>
+        <tr><td><code>sim*</code> demo helpers</td><td><span class="badge proto">Prototype</span></td><td>Global functions on <code>window</code></td><td>Hidden behind <code>?debug=1</code> or removed entirely in prod build</td></tr>
+        <tr><td>Reactions / replies</td><td><span class="badge proto">Prototype</span></td><td>DOM-only, lost on reload</td><td>Persisted server-side, broadcast via websocket</td></tr>
+        <tr><td>Event identity strip</td><td><span class="badge prod">Production-ready</span></td><td>Sticky line under header w/ live counts</td><td>Same shape, counts from event metadata API</td></tr>
+        <tr><td>Public/Private composer state</td><td><span class="badge prod">Production-ready</span></td><td><code>data-mode</code> + visible badge</td><td>Same shape — keep the visible text label</td></tr>
+        <tr><td>Role-gated FAQ promotion</td><td><span class="badge prod">Production-ready</span></td><td><code>data-role="attendee" / "host"</code></td><td>Same shape — role from auth claim, not body attribute</td></tr>
+        <tr><td>Consolidated send pipeline</td><td><span class="badge prod">Production-ready</span></td><td>Single <code>sendComposerMessage()</code> entry</td><td>Same shape — sub-functions become server RPC calls</td></tr>
+        <tr><td>Accessible mention chips</td><td><span class="badge prod">Production-ready</span></td><td><code>&lt;button class="mention"&gt;</code> + delegated handler</td><td>Same shape</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="production-arch">Production architecture <a class="anchor" href="#production-arch">#</a></h2>
+    <p>The prototype keeps everything in <code>window._notes_v5</code> and DOM. Production splits responsibilities across four layers so the runtime is fast, cheap, and the durable layer stays trustworthy. The product message stays simple: <strong>"Ask once, answer many. Live context while the event is happening. Durable wiki after it ends. Private notes stay private."</strong></p>
+
+    <h3 id="prod-stack">The stack</h3>
+    <pre><span class="lang">arch</span>                         ┌──────────────────────────┐
+                         │      ScratchNode UI       │
+                         │ public room / private note│
+                         └─────────────┬────────────┘
+                                       │
+                                       ▼
+                         ┌──────────────────────────┐
+                         │  API / pi-ai runtime     │
+                         │ context router + tools   │
+                         └─────────────┬────────────┘
+                                       │
+      ┌────────────────────────────────┼────────────────────────────────┐
+      ▼                                ▼                                ▼
+┌─────────────┐              ┌──────────────────┐              ┌─────────────┐
+│   Convex    │              │  Redis hot layer │              │  Typesense  │
+│ source truth│              │ live/session AI  │              │ snappy search│
+└──────┬──────┘              └────────┬─────────┘              └──────┬──────┘
+       │                              │                               │
+       ▼                              ▼                               ▼
+event wiki                  presence / chat tail              @mention search
+FAQ entries                 semantic answer cache             event/entity search
+private notes               TTL session memory                public wiki search
+artifacts                   active run state                  upload/source search
+sources/traces              context retrieval packets         autocomplete
+                                                                       │
+                                       Linkup / external ──────────────┘
+                                       only when corpus misses
+                                       or freshness needs refresh</pre>
+
+    <h3 id="prod-responsibilities">Responsibilities (do not blur these lines)</h3>
+    <table>
+      <thead><tr><th>Layer</th><th>Owns</th><th>Does NOT own</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Convex</strong></td><td>Durable source of truth, permissions, event wiki versions, notebook blocks, private notes, traces</td><td>Millisecond semantic reuse</td></tr>
+        <tr><td><strong>Redis hot layer</strong></td><td>Live room state, semantic answer cache, TTL memory, agent run state, context-retrieval packets</td><td>Canonical records</td></tr>
+        <tr><td><strong>Typesense</strong></td><td>Fast human-facing search, autocomplete, filters, typo-tolerant lookup</td><td>Agent memory or session state</td></tr>
+        <tr><td><strong>Linkup / external</strong></td><td>External source discovery and fetch when corpus misses</td><td>Repeated FAQ answers</td></tr>
+        <tr><td><strong>pi-ai runtime</strong></td><td>Orchestration, streaming, skill/tool dispatch</td><td>Owning data directly</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="prod-ask-runtime">The <code>/ask</code> runtime pipeline</h3>
+    <p>The agent answer trace shown in the UI is a flattened view of this pipeline. Every step in the trace corresponds to a real cache/retrieval decision.</p>
+    <ol>
+      <li><strong>Resolve context</strong> — eventId, threadId, visibility, mentioned entities, private/public mode.</li>
+      <li><strong>Semantic cache lookup (LangCache pattern)</strong> — is this substantially the same as a known FAQ/answer? Hit → return cached, increment reuse. Miss/stale → continue.</li>
+      <li><strong>Context retriever</strong> — fetch event wiki, FAQ, chat tail, source bundles, backlinks, famous branches. Only governed tools, never raw DB access.</li>
+      <li><strong>pi-ai run</strong> — answer only with retrieved handles + allowed tools.</li>
+      <li><strong>Persist</strong> — Convex writes answer, sources, trace, optional FAQ candidate.</li>
+      <li><strong>Update hot layer</strong> — Redis semantic cache, run state, FAQ similarity index, room pulse.</li>
+    </ol>
+    <div class="callout"><span class="icon">⚡</span><div>The UI surfaces this as the <strong>cost-summary chip line</strong> on every <code>.ans</code> card: <em>"Answered from event wiki · 12 similar · 4 reused · 0 new searches · 🔒 no private notes."</em> When users see "0 new searches" they're literally seeing the cache hit.</div></div>
+
+    <h3 id="prod-cache-key">Semantic-cache key shape</h3>
+    <p>Every cache key MUST include the boundary fields below — otherwise a private answer could satisfy a public cache hit, or a stale wiki version could satisfy a fresh query.</p>
+    <pre><span class="lang">ts</span><span class="kw">type</span> <span class="fn">SemanticAnswerCacheEntry</span> = {
+  <span class="kw">eventId</span>: <span class="kw">string</span>;
+  <span class="kw">visibility</span>: <span class="str">"event_public"</span> | <span class="str">"private"</span>;
+  <span class="kw">questionEmbedding</span>: <span class="kw">number</span>[];
+  <span class="kw">normalizedQuestion</span>: <span class="kw">string</span>;
+  <span class="kw">answerId</span>: <span class="kw">string</span>;
+  <span class="kw">faqEntryId</span>?: <span class="kw">string</span>;
+  <span class="kw">wikiVersion</span>: <span class="kw">number</span>;
+  <span class="kw">sourceBundleVersion</span>: <span class="kw">number</span>;
+  <span class="kw">privateContextAllowed</span>: <span class="kw">boolean</span>;
+  <span class="kw">freshness</span>: <span class="str">"fresh"</span> | <span class="str">"stale"</span> | <span class="str">"needs_review"</span>;
+  <span class="kw">ttlSeconds</span>: <span class="kw">number</span>;
+  <span class="kw">reuseCount</span>: <span class="kw">number</span>;
+  <span class="kw">lastUsedAt</span>: <span class="kw">number</span>;
+};
+
+<span class="com">// A cache HIT is valid only if all of these match:</span>
+<span class="kw">const</span> valid =
+  entry.eventId === ctx.eventId &amp;&amp;
+  entry.visibility === ctx.visibility &amp;&amp;
+  entry.wikiVersion === ctx.wikiVersion &amp;&amp;
+  entry.sourceBundleVersion === ctx.sourceBundleVersion &amp;&amp;
+  entry.freshness !== <span class="str">"stale"</span> &amp;&amp;
+  similarity &gt;= threshold;</pre>
+
+    <h3 id="prod-ttl">TTL policy</h3>
+    <table>
+      <thead><tr><th>Data</th><th>TTL</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Event presence</td><td>minutes</td><td>Drops when user leaves</td></tr>
+        <tr><td>Composer draft</td><td>minutes</td><td>Recover from tab refresh</td></tr>
+        <tr><td>Active run state</td><td>1–24h</td><td>Span an event session</td></tr>
+        <tr><td>Chat hot tail</td><td>event duration + buffer</td><td>Fast scrollback during the event</td></tr>
+        <tr><td>Semantic answer cache</td><td>event-defined, source-aware</td><td>Hit rate vs freshness tradeoff</td></tr>
+        <tr><td>Published wiki cache</td><td>long, invalidated on new version</td><td>Post-event the wiki is cheap to serve</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="prod-mcp-tools">MCP tool design (governed, not raw)</h3>
+    <p>Agent tools receive <strong>context handles</strong> and <strong>citation handles</strong>, not arbitrary Redis keys or Convex queries. This is the Redis Context Retriever pattern applied to ScratchNode.</p>
+    <pre><span class="lang">ts</span>scratchnode.<span class="fn">resolve_context</span>({ text, activeEventId, visibility, mentionedUris });
+scratchnode.<span class="fn">semantic_cache_lookup</span>({ normalizedQuestion, eventId, visibility, wikiVersion });
+scratchnode.<span class="fn">retrieve_context</span>({
+  eventId, query,
+  scope: [<span class="str">"faq"</span>, <span class="str">"wiki"</span>, <span class="str">"chat"</span>, <span class="str">"sources"</span>, <span class="str">"backlinks"</span>, <span class="str">"famous_branches"</span>],
+  visibility
+});
+scratchnode.<span class="fn">write_session_memory</span>({ eventId, runId, ttl, payload });
+scratchnode.<span class="fn">promote_answer_candidate</span>({ answerId, eventId, role: <span class="str">"guest"</span> | <span class="str">"host"</span> });
+scratchnode.<span class="fn">get_private_notes</span>({ userId, eventId }); <span class="com">// PRIVATE MODE ONLY — gated by visibility check</span></pre>
+
+    <h3 id="prod-cache-policy">What to cache vs not cache</h3>
+    <table>
+      <thead><tr><th>Cache aggressively</th><th>Never cache</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>
+            Public FAQ answers<br>
+            Public event wiki sections<br>
+            Source bundle summaries<br>
+            Entity profile snippets<br>
+            Mention autocomplete<br>
+            Event chat search windows<br>
+            Famous graph branches
+          </td>
+          <td>
+            Private answers<br>
+            Answers using private notes<br>
+            Answers from stale sources<br>
+            Answers with unresolved contradictions<br>
+            Host-draft wiki sections<br>
+            Deep-research-in-progress
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="prod-phases">Implementation phases</h3>
+    <ol>
+      <li><strong>Phase 1 — Convex + Typesense only.</strong> Event wiki, FAQ, chat, private notes, sources, traces in Convex. Search-as-you-type via Typesense. In-memory app cache for basic FAQ reuse.</li>
+      <li><strong>Phase 2 — Add Redis hot room layer.</strong> Presence, room chat tail, active <code>/ask</code> runs, Q&amp;A queue, poll state.</li>
+      <li><strong>Phase 3 — Add semantic cache.</strong> Question normalization, embeddings, similarity threshold, context-bound cache key, TTL/freshness, strict public/private separation.</li>
+      <li><strong>Phase 4 — Add context retriever tools.</strong> Governed structured tools for FAQ, wiki, chat, backlinks, source bundles, private notes.</li>
+      <li><strong>Phase 5 — Add live mirror / CDC.</strong> Convex outbox → worker → Redis projection update → index update. Skip full RDI on day one.</li>
+    </ol>
+
+    <h3 id="prod-risks">Risk controls</h3>
+    <table>
+      <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Stale cache</strong> — semantic cache returns old answer confidently</td><td>Key includes <code>sourceBundleVersion</code> + <code>wikiVersion</code>; stale hits trigger delta refresh; trace shows cache use; host can invalidate FAQ</td></tr>
+        <tr><td><strong>Wrong event corpus</strong> — agent answers using wrong context</td><td><code>activeEventId</code> required; room code visible in event-identity strip; context resolver trace shown; ambiguous events ask confirmation</td></tr>
+        <tr><td><strong>Private leak</strong> — private note enters public cache</td><td><code>visibility</code> in every cache key; private answers never auto-promote; public traces explicitly say <em>"No private notes used"</em>; Convex permission filter before cache write</td></tr>
+        <tr><td><strong>Client-side role bypass</strong> — user flips <code>body[data-role="host"]</code> in devtools and sees host UI</td><td><strong>Server-side enforcement is mandatory.</strong> See callout below.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn"><span class="icon">🛡️</span><div><strong>Role gating is CSS-only in this prototype.</strong> The patterns <code>body[data-role="attendee"]</code> / <code>body[data-role="host"]</code> hide the host actions visually, but a user can flip the attribute in devtools and reveal the buttons. Production MUST verify membership role server-side on every mutation — <code>promoteAnswerToFAQ</code>, <code>publishWiki</code>, <code>hideMessage</code>, <code>approveRevision</code>, and any other host capability — using the authenticated session claim, not the request body. Client-side gating is a UX hint, not a security boundary.</div></div>
+
+    <div class="callout note"><span class="icon">📐</span><div><strong>Anti-recommendation:</strong> Do <em>not</em> replace Convex with Redis. Use Redis to make the runtime fast and cheap; let Convex stay the durable source of truth. Do not expose "Redis" as a product concept — expose the benefits (cache-hit %, searches avoided, fresh sources).</div></div>
+
+    <h2 id="two-domains">Two-domain deploy <a class="anchor" href="#two-domains">#</a></h2>
+    <p>ScratchNode and NodeBench AI ship from one repo but live on two domains. The URL boundary matches the product boundary the v4/v5 prototypes already encode.</p>
+
+    <h3 id="domain-split">Domain responsibilities</h3>
+    <table>
+      <thead><tr><th>Domain</th><th>Surface</th><th>Audience</th><th>Auth</th></tr></thead>
+      <tbody>
+        <tr><td><strong>scratchnode.live</strong></td><td>Public event rooms only (v5 surface). Root, <code>/e/:slug</code>, <code>/docs</code>.</td><td>Anonymous guests who joined via room code or share link</td><td>None — guests are anonymous by design</td></tr>
+        <tr><td><strong>nodebenchai.com</strong></td><td>Workspace, host console, billing, marketing site (v4 + existing surfaces).</td><td>Signed-in operators, founders, hosts creating events</td><td>Magic link / OAuth, session cookie</td></tr>
+      </tbody>
+    </table>
+    <div class="callout"><span class="icon">🔀</span><div><strong>Anonymous-by-default on scratchnode.live.</strong> No cross-domain cookies, no shared session. Host actions ("Sign in", "Create event") redirect to <code>nodebenchai.com/sign-in?return=&lt;scratchnode-url&gt;</code> and bounce back after auth. Guests never need to sign in to chat, /ask, or save private notes (notes are localStorage-scoped to the device).</div></div>
+
+    <h3 id="vercel-setup">Vercel setup — single project, host-based routing</h3>
+    <p>One Vercel project serves both domains. <code>vercel.json</code> has host-keyed rewrites + www→apex redirects:</p>
+    <pre><span class="lang">json</span>{
+  <span class="kw">"redirects"</span>: [
+    { <span class="kw">"source"</span>: <span class="str">"/(.*)"</span>, <span class="kw">"has"</span>: [{<span class="kw">"type"</span>:<span class="str">"host"</span>, <span class="kw">"value"</span>:<span class="str">"www.scratchnode.live"</span>}], <span class="kw">"destination"</span>: <span class="str">"https://scratchnode.live/$1"</span>, <span class="kw">"permanent"</span>: <span class="kw">true</span> },
+    { <span class="kw">"source"</span>: <span class="str">"/(.*)"</span>, <span class="kw">"has"</span>: [{<span class="kw">"type"</span>:<span class="str">"host"</span>, <span class="kw">"value"</span>:<span class="str">"www.nodebenchai.com"</span>}], <span class="kw">"destination"</span>: <span class="str">"https://nodebenchai.com/$1"</span>, <span class="kw">"permanent"</span>: <span class="kw">true</span> }
+  ],
+  <span class="kw">"rewrites"</span>: [
+    <span class="com">// scratchnode.live: serve the v5 event-room shell for root, /e/:slug, /docs</span>
+    { <span class="kw">"source"</span>: <span class="str">"/"</span>,           <span class="kw">"has"</span>: [{<span class="kw">"type"</span>:<span class="str">"host"</span>, <span class="kw">"value"</span>:<span class="str">"scratchnode.live"</span>}], <span class="kw">"destination"</span>: <span class="str">"/proto/home-v5.html"</span> },
+    { <span class="kw">"source"</span>: <span class="str">"/e/:slug*"</span>,  <span class="kw">"has"</span>: [{<span class="kw">"type"</span>:<span class="str">"host"</span>, <span class="kw">"value"</span>:<span class="str">"scratchnode.live"</span>}], <span class="kw">"destination"</span>: <span class="str">"/proto/home-v5.html"</span> },
+    { <span class="kw">"source"</span>: <span class="str">"/docs"</span>,       <span class="kw">"has"</span>: [{<span class="kw">"type"</span>:<span class="str">"host"</span>, <span class="kw">"value"</span>:<span class="str">"scratchnode.live"</span>}], <span class="kw">"destination"</span>: <span class="str">"/proto/docs.html"</span> },
+    { <span class="kw">"source"</span>: <span class="str">"/(.*)"</span>,       <span class="kw">"has"</span>: [{<span class="kw">"type"</span>:<span class="str">"host"</span>, <span class="kw">"value"</span>:<span class="str">"scratchnode.live"</span>}], <span class="kw">"destination"</span>: <span class="str">"/proto/home-v5.html"</span> },
+    <span class="com">// nodebenchai.com: SPA catch-all (existing behavior)</span>
+    { <span class="kw">"source"</span>: <span class="str">"/(.*)"</span>, <span class="kw">"destination"</span>: <span class="str">"/index.html"</span> }
+  ]
+}</pre>
+
+    <h3 id="setup-checklist">First-time setup checklist</h3>
+    <ol>
+      <li><strong>Buy <code>scratchnode.live</code></strong> — Cloudflare Registrar (at-cost, free WHOIS privacy, no upsells). Turn on auto-renew, 2FA, registrar lock.</li>
+      <li><strong>Point nameservers to Vercel</strong> — or use Cloudflare's DNS with proxy OFF for the apex (Vercel handles cert + edge). On Cloudflare: <code>A</code> record <code>@</code> → <code>76.76.21.21</code>, <code>CNAME</code> <code>www</code> → <code>cname.vercel-dns.com</code>.</li>
+      <li><strong>Add the domain to the existing Vercel project</strong> — Project Settings → Domains → Add <code>scratchnode.live</code> + <code>www.scratchnode.live</code>. Both auto-issue Let's Encrypt certs.</li>
+      <li><strong>Deploy</strong> — push to <code>main</code>. Vercel builds once and serves both hosts from the same artifacts.</li>
+      <li><strong>Verify with the live-DOM check</strong> — see <a href="#live-check">Live verify</a> below. Don't claim "deployed" until the raw HTML at <code>https://scratchnode.live/</code> contains the ScratchNode OG tags, not NodeBench ones.</li>
+    </ol>
+
+    <h3 id="live-check">Live verify (don't trust <code>git push</code> alone)</h3>
+    <pre><span class="lang">bash</span><span class="com"># Should return ScratchNode-branded HTML</span>
+curl -sL https://scratchnode.live/ | grep -E <span class="str">'(og:site_name|canonical|AI Infra Summit)'</span>
+
+<span class="com"># Should redirect www → apex (HTTP 301)</span>
+curl -sI https://www.scratchnode.live/ | head -3
+
+<span class="com"># /e/:slug must serve the v5 shell, not 404</span>
+curl -sI https://scratchnode.live/e/ai-infra-summit-2026 | head -3
+
+<span class="com"># nodebenchai.com still serves the workspace SPA</span>
+curl -sL https://nodebenchai.com/ | grep -E <span class="str">'(VITE|root|index)'</span></pre>
+
+    <h3 id="shared-backend">Shared backend</h3>
+    <table>
+      <thead><tr><th>Layer</th><th>Shape</th></tr></thead>
+      <tbody>
+        <tr><td>Convex</td><td>Single deployment. Both UIs query the same project. Permissions checks gate cross-product reads.</td></tr>
+        <tr><td>Stripe</td><td>One account, two product lines (<code>workspace_pro</code>, <code>event_host_pro</code>). Webhooks go to <code>nodebenchai.com/api/stripe</code>.</td></tr>
+        <tr><td>Analytics</td><td>One Posthog/GA4 property. Stitch cross-domain sessions with <code>linker: ['nodebenchai.com', 'scratchnode.live']</code>.</td></tr>
+        <tr><td>Email</td><td>Resend / Postmark. <code>events@scratchnode.live</code> for guest comms, <code>hello@nodebenchai.com</code> for host/account comms.</td></tr>
+        <tr><td>Convex env</td><td>Add <code>PUBLIC_EVENT_BASE_URL=https://scratchnode.live</code> and <code>WORKSPACE_BASE_URL=https://nodebenchai.com</code> so server-side share-URL generation matches client-side.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="anti-patterns">Deploy anti-patterns to avoid</h3>
+    <ul>
+      <li><strong>Two Vercel projects</strong> until ScratchNode forks meaningfully (probably 6+ months). Doubles build minutes and preview-deploy chains for no benefit.</li>
+      <li><strong>Shared session cookies via subdomain trick</strong>. <code>.com</code> and <code>.io</code> can't share. Use redirect handshake instead — and skip it entirely in v0 (anonymous guests).</li>
+      <li><strong>Hard-coding domain in source.</strong> Use <code>PUBLIC_BASE_URL</code> derived from <code>location.hostname</code> so preview deploys work. Only the canonical OG tags reference <code>scratchnode.live</code> literally.</li>
+      <li><strong>Claiming "deployed" on <code>git push</code> exit 0.</strong> Always fetch the live URL and grep for a concrete content signal. See <a href="#live-check">Live verify</a>.</li>
+    </ul>
+
+    <h2 id="concepts">Concepts &amp; metaphor <a class="anchor" href="#concepts">#</a></h2>
+    <p>Think Mentimeter × Jackbox × Notion: a room code, a live shared chat, an /ask agent backed by sources, private notes that you can promote into the public conversation, and a clean wiki published when the event ends.</p>
+    <ul>
+      <li><strong>Room code</strong> — short pronounceable identifier (e.g. <code>ORBITAL</code>) joins anyone.</li>
+      <li><strong>Public chat</strong> — what everyone sees. Type to talk to the room.</li>
+      <li><strong>/ask</strong> — agent that drafts a sourced answer from the event's sources, transcripts, and prior Q&amp;A. Renders as a nested child block under the question.</li>
+      <li><strong>@mention</strong> — picks a person from the roster and inserts a reference chip. <em>v5 prototype renders the chip only — no notification endpoint is called.</em> See the privacy invariants for details.</li>
+      <li><strong>Reply</strong> — quotes a row and creates a thread badge on the response.</li>
+      <li><strong>React</strong> — emoji reactions per row.</li>
+      <li><strong>Private notes</strong> — switch the composer lock on, anything you send goes to <em>only your</em> notebook.</li>
+      <li><strong>Wiki</strong> — compacts public chat + /ask answers + host-uploaded sources into an SDK-style published page.</li>
+    </ul>
+
+    <h2 id="quick-start">Quick start <a class="anchor" href="#quick-start">#</a></h2>
+    <p>Open <a href="home-v5.html">home-v5.html</a> directly in a browser. No build, no npm. To skip onboarding and land mid-conversation:</p>
+    <pre><span class="lang">url</span>home-v5.html<span class="kw">#demo</span></pre>
+    <p>To replay onboarding from a specific step:</p>
+    <pre><span class="lang">url</span>home-v5.html<span class="kw">#wiz=</span><span class="num">2</span></pre>
+    <div class="callout note"><span class="icon">⚡</span><div><strong>Tip:</strong> All demo controls are also exposed as functions on <code>window</code> — see <a href="#js-api">JS API</a>.</div></div>
+
+    <h2 id="v5-overview">v5 at a glance <a class="anchor" href="#v5-overview">#</a></h2>
+    <p>The viral-SaaS simplification: <strong>one room, one feed, one notebook</strong>. Mobile-first. Single-file HTML, ~2000 lines. Brutal feature reduction from v4.</p>
+    <table>
+      <thead><tr><th>Surface</th><th>Purpose</th><th>How to open</th></tr></thead>
+      <tbody>
+        <tr><td>Hero + composer</td><td>Type to chat the room</td><td>Default landing</td></tr>
+        <tr><td>Wiki sheet</td><td>SDK-style live wiki</td><td><code>openSheet('wiki')</code></td></tr>
+        <tr><td>Notes sheet</td><td>Apple+Mem editor</td><td><code>openSheet('notes')</code></td></tr>
+        <tr><td>People sheet</td><td>Roster + presence</td><td><code>openSheet('people')</code></td></tr>
+        <tr><td>Share sheet</td><td>QR + platforms</td><td><code>openSheet('share')</code></td></tr>
+        <tr><td>Host sheet</td><td>Create your own event</td><td><code>openSheet('host')</code></td></tr>
+        <tr><td>Sign-in sheet</td><td>Magic-link auth</td><td><code>openSheet('signin')</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="v5-composer">Composer &amp; modes <a class="anchor" href="#v5-composer">#</a></h2>
+    <p>The composer is the only persistent input. It supports four input affordances:</p>
+    <ul>
+      <li><strong>Type</strong> — plain message to the room.</li>
+      <li><strong>/ask &lt;question&gt;</strong> — agent draft, sourced.</li>
+      <li><strong>@&lt;name&gt;</strong> — opens the mention picker.</li>
+      <li><strong>Reply</strong> — context badge above the composer pinning the quoted row.</li>
+    </ul>
+    <h4>Mode toggle</h4>
+    <p>The lock icon switches between <code>public</code> (default) and <code>private</code>. Mode lives on <code>document.body[data-mode]</code>. CSS keys off this for color shifts.</p>
+
+    <h3 id="v5-mention">@mention picker</h3>
+    <p>Typing <code>@</code> opens a floating picker positioned at the caret. Arrow keys navigate, <kbd>Enter</kbd> inserts. Inserted mentions render as purple chips. <span class="chip web">web</span> picker stays open while typing. <span class="chip mob">mob</span> picker docks above keyboard.</p>
+
+    <h3 id="v5-reply">Reply &amp; react</h3>
+    <p>Hover (or long-press on mobile) any row → action icons appear at the <strong>bottom-right</strong>:</p>
+    <ul>
+      <li><strong>Reply</strong> — populates the composer with a reply context badge.</li>
+      <li><strong>React</strong> — pops an emoji picker; selected emoji becomes a row-bottom chip.</li>
+    </ul>
+    <p>When a row has reactions, the hover actions automatically lift above the reactions row.</p>
+    <pre><span class="lang">css</span><span class="com">/* Actions snap to bottom-right; lift above reactions when present */</span>
+.row-actions { <span class="kw">position</span>: <span class="kw">absolute</span>; <span class="kw">right</span>: <span class="num">8px</span>; <span class="kw">bottom</span>: <span class="num">4px</span>; }
+.row:<span class="fn">has</span>(.row-reactions) .row-actions { <span class="kw">bottom</span>: <span class="num">30px</span>; }</pre>
+
+    <h3 id="v5-private">Private notes</h3>
+    <p>Lock icon → purple → composer switches to private mode. Anything you send while purple:</p>
+    <ol>
+      <li><strong>Never enters</strong> the public feed (release-blocker invariant).</li>
+      <li>Routes to the rich notes store (<code>window._notes_v5</code>).</li>
+      <li>Triggers a centered toast: <em>"🔒 Private note saved — View all notes →"</em>.</li>
+      <li>Increments the <code>🔒 N notes</code> badge in the identity row.</li>
+    </ol>
+    <div class="callout warn"><span class="icon">🛑</span><div><strong>Privacy invariant:</strong> The data path matches the promise. The composer says "only your notebook." A private send <code>return</code>s before any <code>#feed</code> insert.</div></div>
+
+    <h3 id="v5-voice">Voice input</h3>
+    <p>🎤 button uses the Web Speech API (<code>webkitSpeechRecognition</code>). Transcribes into the composer in real time. Graceful fallback: tooltip "Voice not supported" if the API is missing.</p>
+
+    <h2 id="v5-sheets">Universal sheets <a class="anchor" href="#v5-sheets">#</a></h2>
+    <p>All feature surfaces use a single sheet system. <span class="chip mob">mob</span> slides up from bottom. <span class="chip web">web</span> centers as a modal. Driven by:</p>
+    <pre><span class="lang">js</span><span class="kw">var</span> SHEET_RENDERERS = {
+  <span class="fn">name</span>:    <span class="fn">function</span>() { ... },
+  <span class="fn">about</span>:   <span class="fn">function</span>() { ... },
+  <span class="fn">share</span>:   <span class="fn">function</span>() { ... },
+  <span class="fn">notes</span>:   <span class="fn">function</span>() { ... },
+  <span class="fn">wiki</span>:    <span class="fn">function</span>() { ... },
+  <span class="fn">people</span>:  <span class="fn">function</span>() { ... },
+  <span class="fn">signin</span>:  <span class="fn">function</span>() { ... },
+  <span class="fn">host</span>:    <span class="fn">function</span>() { ... }
+};
+<span class="fn">openSheet</span>(<span class="str">'wiki'</span>); <span class="com">// renders, opens scrim, sets data-sheet-type</span></pre>
+
+    <h3 id="v5-wiki">Wiki — SDK-page treatment</h3>
+    <p>The wiki sheet upgrades to a 3-column SDK-style docs layout when the viewport is &ge; 720px:</p>
+    <ul>
+      <li><strong>Left rail:</strong> sticky TOC with active-section highlight (IntersectionObserver scroll-spy).</li>
+      <li><strong>Center:</strong> article with H1/H2 anchors, syntax-highlighted code blocks, callouts, tables, blockquotes, source chips.</li>
+      <li><strong>Right rail:</strong> on-page navigation (hidden &lt;1024px).</li>
+    </ul>
+    <p>Below 720px, the layout collapses to a single-column readable article (TOC and on-page rails hidden).</p>
+    <h4>Selectors</h4>
+    <table>
+      <thead><tr><th>Class</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td><code>.wiki-shell</code></td><td>3-column CSS grid</td></tr>
+        <tr><td><code>.wiki-toc</code></td><td>Sticky left rail with <code>.wiki-toc-link</code>s</td></tr>
+        <tr><td><code>.wiki-article</code></td><td>Main typography column</td></tr>
+        <tr><td><code>.wiki-callout</code></td><td>Notion-style purple callout</td></tr>
+        <tr><td><code>.wiki-src-chips</code></td><td>Source-citation chip row</td></tr>
+        <tr><td><code>.wiki-onpage</code></td><td>Right-rail jump list</td></tr>
+      </tbody>
+    </table>
+    <h4>Wiring</h4>
+    <pre><span class="lang">js</span><span class="fn">wireWikiBehaviors</span>(); <span class="com">// called automatically by openSheet('wiki')</span>
+<span class="com">// Sets up: smooth-scroll on TOC click, IO-based scroll-spy, search filter</span></pre>
+
+    <h3 id="v5-notes">Notes — Apple + Mem.ai editor</h3>
+    <p>Two-panel layout: list (left, 260px) + editor (right). Mobile collapses to single pane with a "← Notes" back button.</p>
+    <h4>Features</h4>
+    <ul>
+      <li><strong>List pane</strong>: pinned section, "Today / Yesterday / Earlier this week / Older" date headers, tag chips, /ask badge, fuzzy search across title+body+tags.</li>
+      <li><strong>Editor pane</strong>: large title input, auto-extracted tag chips, TipTap-style toolbar (B / I / U / S / H1 / H2 / bullet / numbered / checkbox / quote / @ / #).</li>
+      <li><strong>Auto-save</strong>: every keystroke updates <code>_notes_v5</code>; saved indicator transitions <em>"Saving…" → "✓ Saved"</em> after 400ms idle.</li>
+      <li><strong>Backlinks (Mem.ai-style)</strong>: shown below the editor when other notes @mention this note's title or share a <code>#tag</code>.</li>
+      <li><strong>Pin / Copy / Delete</strong>: header actions on every active note.</li>
+    </ul>
+    <h4>Note schema</h4>
+    <pre><span class="lang">ts</span>{
+  <span class="kw">id</span>: <span class="str">"n_1748212398_x7k"</span>,
+  <span class="kw">title</span>: <span class="str">"AI Infra Summit takeaways"</span>,
+  <span class="kw">body</span>: <span class="str">"&lt;p&gt;Three signals worth tracking...&lt;/p&gt;"</span>, <span class="com">// rich HTML</span>
+  <span class="kw">tags</span>: [<span class="str">"orbital"</span>, <span class="str">"mcp"</span>],
+  <span class="kw">pinned</span>: <span class="kw">true</span>,
+  <span class="kw">isAsk</span>: <span class="kw">false</span>,
+  <span class="kw">createdAt</span>: <span class="num">1748212398000</span>,
+  <span class="kw">updatedAt</span>: <span class="num">1748212398000</span>
+}</pre>
+    <h4>Keyboard shortcuts (notes sheet)</h4>
+    <table>
+      <thead><tr><th>Key</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>⌘</kbd>+<kbd>N</kbd></td><td>New note</td></tr>
+        <tr><td><kbd>⌘</kbd>+<kbd>P</kbd></td><td>Pin / unpin active note</td></tr>
+        <tr><td><kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd></td><td>Focus search</td></tr>
+        <tr><td><kbd>⌘</kbd>+<kbd>B</kbd> / <kbd>I</kbd> / <kbd>U</kbd></td><td>Bold / italic / underline (native)</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="v5-share">Share sheet</h3>
+    <p>Copy URL, native share (<code>navigator.share</code>), or platform-specific intents (Twitter / LinkedIn / Email). Also displays a QR code for in-room scan-to-join.</p>
+
+    <h3 id="v5-people">People sheet</h3>
+    <p>Roster of attendees with name, role, online status. Tap a row to open their @-mentions and questions (toast in current proto).</p>
+
+    <h3 id="v5-host">Host / create event</h3>
+    <p>Title input + template chips (Conference / Workshop / Office hrs). Calls <code>toast()</code> with the generated room code (<code>SOLARIS</code> in demo).</p>
+
+    <h2 id="v5-landing">Landing &amp; onboarding <a class="anchor" href="#v5-landing">#</a></h2>
+    <p>First-visit IIFE (<code>detectFirstVisit</code>) routes new users to the landing surface and persists their last view mode. Onboarding tour: 3 pulse-positioned steps over the composer and identity row.</p>
+    <h4>Storage keys</h4>
+    <ul>
+      <li><code>sn_v5_first_visit_done</code> — set after first session</li>
+      <li><code>sn_v5_last_view_mode</code> — restored on return</li>
+      <li><code>sn_v5_tour_done</code> — onboarding completion</li>
+    </ul>
+
+    <h2 id="v5-feed">Feed &amp; agent threads <a class="anchor" href="#v5-feed">#</a></h2>
+    <p>The feed is a single column of <code>.row</code> elements with <code>data-mid</code> identifiers. Agent responses to <code>/ask</code> render as <code>.ans</code> children nested visually under the asking row:</p>
+    <pre><span class="lang">css</span>.ans {
+  <span class="kw">margin-left</span>: <span class="num">56px</span>; <span class="com">/* indent under question */</span>
+  <span class="kw">max-width</span>: <span class="num">560px</span>;
+  <span class="kw">position</span>: <span class="kw">relative</span>;
+}
+.ans::before { <span class="com">/* L-hook tree connector */</span>
+  <span class="kw">content</span>: <span class="str">''</span>;
+  <span class="kw">position</span>: <span class="kw">absolute</span>; <span class="kw">left</span>: -<span class="num">28px</span>; <span class="kw">top</span>: <span class="num">0</span>;
+  <span class="kw">width</span>: <span class="num">12px</span>; <span class="kw">height</span>: <span class="num">18px</span>;
+  <span class="kw">border-left</span>: <span class="num">1px</span> <span class="kw">solid</span> <span class="kw">var</span>(--line);
+  <span class="kw">border-bottom</span>: <span class="num">1px</span> <span class="kw">solid</span> <span class="kw">var</span>(--line);
+  <span class="kw">border-bottom-left-radius</span>: <span class="num">6px</span>;
+}</pre>
+    <p>A <code>MutationObserver</code> watches <code>#feed</code> and auto-decorates new rows with hover actions and mention rendering.</p>
+
+    <h2 id="v4-overview">v4 at a glance <a class="anchor" href="#v4-overview">#</a></h2>
+    <p><a href="home-v4.html">home-v4.html</a> is the comprehensive spec proof. Four view modes, all the affordances v5 simplified away. ~9300 lines.</p>
+
+    <h2 id="v4-views">View modes <a class="anchor" href="#v4-views">#</a></h2>
+    <p>v4 switches between four orthogonal surfaces via <code>setViewMode(mode)</code> and the URL fragment <code>#viewmode=&lt;mode&gt;</code>.</p>
+    <table>
+      <thead><tr><th>Mode</th><th>Audience</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr><td id="v4-landing"><code>landing</code></td><td>Marketing / first-touch</td><td>cold start, no localStorage</td></tr>
+        <tr><td id="v4-workspace"><code>workspace</code></td><td>Returning power user</td><td><code>setViewMode('workspace')</code></td></tr>
+        <tr><td id="v4-public"><code>public_event</code></td><td>Attendees in a live room</td><td>room URL or <code>setViewMode('public_event')</code></td></tr>
+        <tr><td id="v4-host"><code>host_console</code></td><td>Event host live ops</td><td><code>setViewMode('host_console')</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="v4-tabs">Notebook · Library · Chat · Stage <a class="anchor" href="#v4-tabs">#</a></h2>
+    <p>Inside <code>workspace</code>, v4 exposes four tabs:</p>
+    <ul>
+      <li><strong>Notebook</strong> — your private thinking. v5 collapsed this into the notes sheet.</li>
+      <li><strong>Library</strong> — saved sources, transcripts, attachments. v5 hides; surfaces via /ask citations only.</li>
+      <li><strong>Chat</strong> — public room. Identical concept to v5's main feed.</li>
+      <li><strong>Stage</strong> — the host's curated picks. v5 folds into the wiki.</li>
+    </ul>
+
+    <h2 id="v4-graph">Graph snapshots &amp; branches <a class="anchor" href="#v4-graph">#</a></h2>
+    <p>v4 builds an entity graph from chat content. Each version of the graph is a snapshot; users can branch at any point and famous-branches surface the most-traversed cuts. Reverse sync writes branch state back to the source text.</p>
+
+    <h2 id="v4-attention">Attention walk <a class="anchor" href="#v4-attention">#</a></h2>
+    <p>Animates the host or a guest's path through the graph during a panel — a literal cursor that walks node → node so remote viewers can follow the line of reasoning.</p>
+
+    <h2 id="mobile-web">Mobile vs Web — behavior matrix <a class="anchor" href="#mobile-web">#</a></h2>
+    <table>
+      <thead><tr><th>Surface</th><th>Mobile (&lt;720px)</th><th>Web (&ge;720px)</th></tr></thead>
+      <tbody>
+        <tr><td>Sheet</td><td>Slides up from bottom, full-width</td><td>Centered modal, capped width</td></tr>
+        <tr><td>Wiki TOC + on-page</td><td>Hidden — readable article only</td><td>3-column SDK layout</td></tr>
+        <tr><td>Notes pane</td><td>Single-pane; tap row → editor; ← back</td><td>Two-pane (list 260px + editor)</td></tr>
+        <tr><td>Hover actions</td><td>Long-press → bottom-sheet menu</td><td>Hover reveal, bottom-right</td></tr>
+        <tr><td>Mention picker</td><td>Docks above keyboard</td><td>Floats at caret</td></tr>
+        <tr><td>Onboarding tour</td><td>Pulse-positioned, vertical</td><td>Pulse-positioned, with arrows</td></tr>
+        <tr><td>Keyboard shortcut overlay</td><td>Hidden (no keyboard)</td><td><kbd>?</kbd> opens modal</td></tr>
+        <tr><td>Haptics</td><td><code>navigator.vibrate</code> on every action</td><td>No-op</td></tr>
+        <tr><td>Voice button</td><td>Native push-to-talk feel</td><td>Click-to-record</td></tr>
+        <tr><td>Share</td><td><code>navigator.share</code> opens native sheet</td><td>Platform tiles open new tabs</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="tap-targets">Tap targets &amp; safe area</h3>
+    <p>All interactive elements are minimum <strong>44×44px</strong> on mobile. Header/footer pad by <code>env(safe-area-inset-*)</code> so the iPhone notch and home indicator don't overlap UI.</p>
+    <pre><span class="lang">css</span>:<span class="kw">root</span> {
+  <span class="kw">--safe-top</span>: <span class="kw">env</span>(safe-area-inset-top);
+  <span class="kw">--safe-bot</span>: <span class="kw">env</span>(safe-area-inset-bottom);
+  <span class="kw">--safe-right</span>: <span class="kw">env</span>(safe-area-inset-right);
+  <span class="kw">--safe-left</span>: <span class="kw">env</span>(safe-area-inset-left);
+}
+.h { <span class="kw">padding-top</span>: <span class="kw">calc</span>(<span class="num">10px</span> + <span class="kw">var</span>(--safe-top)); }</pre>
+
+    <h3 id="bottom-sheets">Bottom sheets vs modals</h3>
+    <p>A single sheet element with <code>data-open</code> + <code>data-sheet-type</code> attributes. CSS swaps the transform target based on viewport width.</p>
+    <pre><span class="lang">css</span>.sheet { <span class="kw">transform</span>: <span class="kw">translateY</span>(<span class="num">100%</span>); } <span class="com">/* mobile: slides up */</span>
+.sheet[data-open=<span class="str">"true"</span>] { <span class="kw">transform</span>: <span class="kw">translateY</span>(<span class="num">0</span>); }
+@media (<span class="kw">min-width</span>: <span class="num">720px</span>) {
+  .sheet { <span class="kw">transform</span>: <span class="kw">translate</span>(-<span class="num">50%</span>, <span class="num">100%</span>); } <span class="com">/* web: centered */</span>
+  .sheet[data-open=<span class="str">"true"</span>] { <span class="kw">transform</span>: <span class="kw">translate</span>(-<span class="num">50%</span>, <span class="num">50%</span>); }
+}</pre>
+
+    <h3 id="haptics">Haptics</h3>
+    <p>Wrapped in a <code>haptic(ms = 6)</code> helper. No-ops on unsupported platforms (most desktop browsers). Calibrations:</p>
+    <ul>
+      <li><strong>4ms</strong> — selection / row tap</li>
+      <li><strong>6ms</strong> — sheet open</li>
+      <li><strong>8ms</strong> — send</li>
+      <li><strong>10ms</strong> — destructive (delete)</li>
+      <li><strong>12-15ms</strong> — confirmation / sign-in</li>
+    </ul>
+
+    <h2 id="demo-controls">Demo controls <a class="anchor" href="#demo-controls">#</a></h2>
+    <p>Every demoable state is reachable from either a URL hash or a window-scoped function. Use URL hashes when driving headless screenshots (Chromium can't always exec JS); use functions when you're hand-driving a live demo.</p>
+
+    <h3 id="hash-routes">URL hashes</h3>
+    <table>
+      <thead><tr><th>Hash</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>#demo</code></td><td>Triggers <code>runDemo()</code> — full live timeline of incoming messages, /ask answers, mentions, reactions.</td></tr>
+        <tr><td><code>#wiz=1</code> / <code>2</code> / <code>3</code></td><td>Jump directly to onboarding step N.</td></tr>
+        <tr><td><code>#empty</code></td><td>Clears the feed and shows the empty-state CTA.</td></tr>
+        <tr><td><code>#viewmode=workspace</code></td><td>(v4) sets view mode without going through landing.</td></tr>
+        <tr><td><code>?debug=1</code></td><td>Exposes <code>window._debug</code> with internal state inspectors.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="js-api">JS API (<code>sim*</code>)</h3>
+    <p>These are global helpers safe to call from the console:</p>
+    <pre><span class="lang">js</span><span class="fn">simPost</span>(<span class="str">"Alex Chen"</span>, <span class="str">"Series A closed today. Source-backed eval ships v3 next month."</span>);
+<span class="fn">simAsk</span>(<span class="str">"What is the MCP auth timeline?"</span>);
+<span class="fn">simPrivate</span>(<span class="str">"Followup: ping Sarah about DeepMind tooling. #orbital"</span>);
+<span class="fn">simJoin</span>(<span class="str">"Maya from VoiceLayer"</span>);
+<span class="fn">simOpenSheet</span>(<span class="str">"wiki"</span>); <span class="com">// or: notes, people, share, host, signin, about, name</span>
+<span class="fn">simRun</span>(<span class="str">"demo-full"</span>); <span class="com">// alias for runDemo()</span></pre>
+
+    <h2 id="keyboard">Keyboard shortcuts <a class="anchor" href="#keyboard">#</a></h2>
+    <p>Press <kbd>?</kbd> at any time on web to open the cheatsheet modal.</p>
+    <table>
+      <thead><tr><th>Key</th><th>Where</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>?</kbd></td><td>Anywhere (no input focused)</td><td>Open shortcut overlay</td></tr>
+        <tr><td><kbd>Escape</kbd></td><td>Sheet / overlay open</td><td>Close</td></tr>
+        <tr><td><kbd>⌘</kbd>+<kbd>S</kbd></td><td>Anywhere</td><td>Open share sheet</td></tr>
+        <tr><td><kbd>⌘</kbd>+<kbd>K</kbd></td><td>Anywhere</td><td>Focus composer</td></tr>
+        <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Mention picker open</td><td>Navigate</td></tr>
+        <tr><td><kbd>Enter</kbd></td><td>Mention picker open</td><td>Insert selected</td></tr>
+        <tr><td><kbd>⌘</kbd>+<kbd>N</kbd></td><td>Notes sheet</td><td>New note</td></tr>
+        <tr><td><kbd>⌘</kbd>+<kbd>P</kbd></td><td>Notes sheet</td><td>Pin / unpin</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="design-tokens">Design tokens <a class="anchor" href="#design-tokens">#</a></h2>
+    <pre><span class="lang">css</span>:<span class="kw">root</span> {
+  <span class="kw">--bg</span>:        <span class="str">#161513</span>;  <span class="com">/* darkest layer */</span>
+  <span class="kw">--paper</span>:     <span class="str">#1c1b18</span>;  <span class="com">/* card / sheet bg */</span>
+  <span class="kw">--accent</span>:    <span class="str">#d97757</span>;  <span class="com">/* terracotta — primary CTA + branding */</span>
+  <span class="kw">--purple</span>:    <span class="str">#a78bfa</span>;  <span class="com">/* private / personal data */</span>
+  <span class="kw">--green</span>:     <span class="str">#5ea867</span>;  <span class="com">/* success / saved */</span>
+  <span class="kw">--ink</span>:       <span class="str">#e8e4dc</span>;  <span class="com">/* primary text */</span>
+  <span class="kw">--ink-muted</span>: <span class="str">#b3ac9f</span>;  <span class="com">/* secondary text */</span>
+  <span class="kw">--ink-faint</span>: <span class="str">#7a7368</span>;  <span class="com">/* tertiary / hint */</span>
+  <span class="kw">--line</span>:      <span class="str">#2a2823</span>;  <span class="com">/* dividers / borders */</span>
+  <span class="kw">--mono</span>: <span class="str">'JetBrains Mono'</span>, ui-monospace, monospace;
+  <span class="kw">--ui</span>:   <span class="str">'Manrope'</span>, system-ui, sans-serif;
+  <span class="kw">--r</span>:    <span class="num">12px</span>; <span class="com">/* card radius */</span>
+  <span class="kw">--r-sm</span>: <span class="num">8px</span>;  <span class="com">/* control radius */</span>
+}</pre>
+    <h4>Color semantics</h4>
+    <ul>
+      <li><strong>Terracotta</strong> = primary CTAs, branding, active state, /ask agent.</li>
+      <li><strong>Purple</strong> = private mode, personal notes, user-only data.</li>
+      <li><strong>Green</strong> = online presence, saved indicator, verified.</li>
+    </ul>
+
+    <h2 id="storage">localStorage keys <a class="anchor" href="#storage">#</a></h2>
+    <table>
+      <thead><tr><th>Key</th><th>Value</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>sn_v5_seen</code></td><td><code>'1'</code></td><td>Returning-user flag</td></tr>
+        <tr><td><code>sn_v5_name</code></td><td>string</td><td>Display name</td></tr>
+        <tr><td><code>sn_v5_first_visit_done</code></td><td><code>'1'</code></td><td>Skip first-visit landing</td></tr>
+        <tr><td><code>sn_v5_last_view_mode</code></td><td>view name</td><td>Restored on return</td></tr>
+        <tr><td><code>sn_v5_host_coached</code></td><td><code>'1'</code></td><td>Host-tour seen</td></tr>
+        <tr><td><code>sn_v5_lock_tip</code></td><td><code>'1'</code></td><td>"What does lock do?" tip dismissed</td></tr>
+        <tr><td><code>sn_v5_tour_done</code></td><td><code>'1'</code></td><td>Onboarding completion</td></tr>
+      </tbody>
+    </table>
+    <div class="callout"><span class="icon">🧹</span><div>To reset the experience: <code>localStorage.clear()</code> then reload — you'll get the cold-start landing.</div></div>
+
+    <h2 id="privacy">Privacy invariants <a class="anchor" href="#privacy">#</a></h2>
+    <p>These are non-negotiable. Every send-related code path is audited against them.</p>
+    <ol>
+      <li><strong>Private mode never writes to the public feed.</strong> <code>send</code> short-circuits before <code>#feed</code> insert when <code>data-mode === 'private'</code>.</li>
+      <li><strong>Private notes never feed the public wiki.</strong> The wiki compaction reads only public messages, /ask answers, and host-uploaded sources.</li>
+      <li><strong>UI promise matches data path.</strong> The composer reads "only your notebook" while purple — the code path matches that string.</li>
+      <li><strong>Mentions ≠ notifications.</strong> Inserting <code>@Alex</code> renders a pill but does not call a notification endpoint in v5.</li>
+      <li><strong>localStorage is per-device.</strong> No data leaves the browser in either prototype.</li>
+    </ol>
+
+    <h2 id="closing">What's next <a class="anchor" href="#closing">#</a></h2>
+    <p>The two prototypes are deliberately parallel: v4 proves the full feature surface; v5 proves you can ship 10% of it and still earn the room. The docs page you're reading is the canonical reference between them.</p>
+    <p>Open v5 with <code>#demo</code> to see all of it animated end-to-end. Open v4 to see the spec proof at full fidelity.</p>
+  </article>
+
+  <!-- ─── Right rail: on-page nav ─── -->
+  <aside class="onpage" aria-label="On this page">
+    <div class="onpage-label">On this page</div>
+    <a href="#overview" class="active" data-onpage="overview">Overview</a>
+    <a href="#concepts" data-onpage="concepts">Concepts</a>
+    <a href="#quick-start" data-onpage="quick-start">Quick start</a>
+    <a href="#v5-overview" data-onpage="v5-overview">v5 at a glance</a>
+    <a href="#v5-composer" data-onpage="v5-composer">Composer</a>
+    <a href="#v5-sheets" data-onpage="v5-sheets">Universal sheets</a>
+    <a href="#v5-feed" data-onpage="v5-feed">Feed &amp; threads</a>
+    <a href="#v4-overview" data-onpage="v4-overview">v4 at a glance</a>
+    <a href="#mobile-web" data-onpage="mobile-web">Mobile vs Web</a>
+    <a href="#demo-controls" data-onpage="demo-controls">Demo controls</a>
+    <a href="#keyboard" data-onpage="keyboard">Keyboard</a>
+    <a href="#design-tokens" data-onpage="design-tokens">Design tokens</a>
+    <a href="#storage" data-onpage="storage">localStorage</a>
+    <a href="#privacy" data-onpage="privacy">Privacy</a>
+  </aside>
+</div>
+
+<script>
+(function() {
+  // Smooth anchor scroll (account for sticky top bar)
+  document.querySelectorAll('.toc-link, .onpage a').forEach(function(a) {
+    a.addEventListener('click', function(e) {
+      var href = a.getAttribute('href');
+      if (!href || href.charAt(0) !== '#') return;
+      var target = document.getElementById(href.slice(1));
+      if (!target) return;
+      e.preventDefault();
+      var topOffset = 70;
+      window.scrollTo({ top: target.offsetTop - topOffset, behavior: 'smooth' });
+      history.replaceState(null, '', href);
+    });
+  });
+
+  // Scroll-spy: highlight active section in both rails
+  if ('IntersectionObserver' in window) {
+    var headings = document.querySelectorAll('.article h2[id], .article h3[id]');
+    var io = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (!entry.isIntersecting) return;
+        var id = entry.target.id;
+        document.querySelectorAll('.toc-link').forEach(function(a) {
+          a.classList.toggle('active', a.getAttribute('data-toc') === id);
+        });
+        document.querySelectorAll('.onpage a').forEach(function(a) {
+          a.classList.toggle('active', a.getAttribute('data-onpage') === id);
+        });
+      });
+    }, { rootMargin: '-72px 0px -70% 0px', threshold: 0.01 });
+    headings.forEach(function(h) { io.observe(h); });
+  }
+
+  // TOC filter
+  var search = document.getElementById('toc-search');
+  if (search) {
+    search.addEventListener('input', function() {
+      var q = (search.value || '').trim().toLowerCase();
+      document.querySelectorAll('.toc-link').forEach(function(a) {
+        var t = (a.textContent || '').toLowerCase();
+        a.style.display = !q || t.indexOf(q) !== -1 ? '' : 'none';
+      });
+    });
+    // / shortcut focuses the search
+    document.addEventListener('keydown', function(e) {
+      if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+        e.preventDefault();
+        search.focus();
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
