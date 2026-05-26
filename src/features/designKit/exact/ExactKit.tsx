@@ -87,6 +87,11 @@ import {
   getPipelineModelOption,
   type PipelineModelSelection,
 } from "@/shared/llm/pipelineModelRoutes";
+import {
+  useRedesignChatRun,
+  type ChatAnswer as LiveChatAnswer,
+  type RealChatRun,
+} from "@/features/redesign/hooks/useRedesignChatRun";
 
 import "./exactKit.css";
 
@@ -2746,6 +2751,211 @@ function ChatTurnView({
 
 const STREAM_PROMPTS = ["Research a company", "Capture an event note", "Ask about a person"];
 
+function sourceDomain(source: string | undefined) {
+  if (!source) return "source";
+  try {
+    const parsed = new URL(source);
+    return parsed.hostname.replace(/^www\./, "");
+  } catch {
+    return source.replace(/^https?:\/\//, "").split("/")[0] || "source";
+  }
+}
+
+function chatSourceFav(domain: string) {
+  return (domain.match(/[a-z0-9]/i)?.[0] ?? "S").toUpperCase();
+}
+
+function liveAnswerSources(packet: LiveChatAnswer): ChatSource[] {
+  return (packet.evidence ?? []).slice(0, 8).map((row, index) => {
+    const domain = sourceDomain(row.source);
+    return {
+      n: row.idx ?? index + 1,
+      fav: chatSourceFav(domain),
+      domain,
+      title: row.quote || row.source || `Source ${index + 1}`,
+      cached: row.verificationState === "cached_reference" ? true : row.verificationState === "provider_grounded" ? false : undefined,
+    };
+  });
+}
+
+function liveAnswerTrace(run: RealChatRun | null): ChatTraceStep[] {
+  const runtime = run?.runtime;
+  const contextRows = runtime?.contextCandidates?.slice(0, 3).map((row) => ({
+    step: "context",
+    label: `${row.status} - ${row.label}`,
+    hits: row.detail,
+  })) ?? [];
+  const toolRows = runtime?.toolDecisions?.slice(0, 3).map((row) => ({
+    step: "tool",
+    label: `${row.status} - ${row.label}`,
+    hits: row.detail,
+  })) ?? [];
+  const claimRows = runtime?.claimChecks?.slice(0, 3).map((row) => ({
+    step: "verify",
+    label: `${row.status} - claim ${row.idx}`,
+    hits: row.detail ?? row.verificationDetail ?? row.validationError,
+  })) ?? [];
+  const streamRows = run?.toolCalls?.slice(0, 4).map((row) => ({
+    step: row.step || "tool",
+    label: row.detail || row.step || "runtime checkpoint",
+    hits: typeof row.durationMs === "number" ? `${row.durationMs}ms` : undefined,
+  })) ?? [];
+  return [...contextRows, ...toolRows, ...claimRows, ...streamRows].slice(0, 8);
+}
+
+function liveAnswerBlocks(packet: LiveChatAnswer, scratchpad?: string): ChatBlock[] {
+  const blocks: ChatBlock[] = [];
+  if (packet.shortAnswer) {
+    blocks.push({ kind: "h", v: "Short answer" });
+    blocks.push({ kind: "p", segs: [{ t: "t", v: packet.shortAnswer }] });
+  } else if (scratchpad) {
+    blocks.push({ kind: "p", segs: [{ t: "t", v: scratchpad.slice(0, 900) }] });
+  } else {
+    blocks.push({ kind: "p", segs: [{ t: "t", v: "Starting the live NodeBench runtime. Context routing, search, graph recall, and verification will stream here as they finish." }] });
+  }
+  if (packet.whyItMatters) {
+    blocks.push({ kind: "h", v: "Why it matters" });
+    blocks.push({ kind: "p", segs: [{ t: "t", v: packet.whyItMatters }] });
+  }
+  const evidence = (packet.evidence ?? []).slice(0, 4);
+  if (evidence.length > 0) {
+    blocks.push({ kind: "h", v: "Evidence" });
+    blocks.push({
+      kind: "list",
+      items: evidence.map((row, index) => [
+        { t: "t", v: row.quote || row.source || "Source-backed evidence" },
+        { t: "cite", n: row.idx ?? index + 1 },
+      ]),
+    });
+  }
+  if (packet.risks?.length) {
+    blocks.push({ kind: "h", v: "Open risks" });
+    blocks.push({
+      kind: "list",
+      items: packet.risks.slice(0, 4).map((risk) => [{ t: "t", v: risk }]),
+    });
+  }
+  if (packet.nextAction) {
+    blocks.push({ kind: "h", v: "Next action" });
+    blocks.push({ kind: "p", segs: [{ t: "t", v: packet.nextAction }] });
+  }
+  return blocks;
+}
+
+function liveRunUpdates(run: RealChatRun | null): ChatRunUpdate[] {
+  const metrics = run?.runtime.metrics;
+  const packet = run?.runtime.contextPacket;
+  const updates: ChatRunUpdate[] = [];
+  if (packet) {
+    updates.push({
+      kind: "graph",
+      label: "ContextRuntimePacket loaded",
+      detail: `${packet.telemetry.candidateCount} candidates - ${packet.graph.nodeCount} nodes - ${packet.graph.edgeCount} edges`,
+    });
+  }
+  if (metrics) {
+    updates.push({
+      kind: "session",
+      label: "Cost and latency tracked",
+      detail: `${metrics.totalLatencyMs ?? metrics.timeToFinalMs ?? 0}ms - $${(metrics.estimatedCostUsd ?? 0).toFixed(4)}`,
+    });
+  }
+  const pendingClaims = run?.runtime.claimChecks?.filter((row) => !row.verified).length ?? 0;
+  if (pendingClaims > 0) {
+    updates.push({
+      kind: "notebook",
+      label: `${pendingClaims} claims need review`,
+      detail: "High-impact writes stay gated before notebook patching.",
+    });
+  }
+  if (run?.status === "complete") {
+    updates.push({
+      kind: "followup",
+      label: "Run complete",
+      detail: run.hash ? `Share hash ${run.hash}` : undefined,
+    });
+  }
+  return updates;
+}
+
+function liveAgentTurnFromRun(turnId: string, run: RealChatRun, previous?: ChatTurn): ChatTurn {
+  const statusText = run.status === "complete"
+    ? "Live answer ready"
+    : run.status === "error"
+      ? "Live run failed"
+      : "Live run in progress";
+  return {
+    id: turnId,
+    role: "agent",
+    time: previous?.role === "agent" ? previous.time : nowTime(),
+    run: {
+      kind: "research",
+      summary: statusText,
+      detail: `${run.runtime.contextCandidates.length} context candidates - ${run.runtime.toolDecisions.length} tool decisions`,
+    },
+    trace: liveAnswerTrace(run),
+    body: run.status === "error"
+      ? [{ kind: "p", segs: [{ t: "t", v: run.errorMessage ?? "The live run failed before producing an answer packet." }] }]
+      : liveAnswerBlocks(run.packet, run.scratchpad),
+    sources: liveAnswerSources(run.packet),
+    runUpdates: liveRunUpdates(run),
+    followups: run.status === "complete"
+      ? ["Open the report", "Show sources used", "Draft a follow-up", "Compare related entities"]
+      : undefined,
+  };
+}
+
+function liveUnavailableTurn(turnId: string, reason: string): ChatTurn {
+  return {
+    id: turnId,
+    role: "agent",
+    time: nowTime(),
+    run: { kind: "context", summary: "Live runtime not started", detail: "No fixture answer inserted" },
+    trace: [
+      { step: "auth", label: "checked live run eligibility", hits: reason },
+      { step: "policy", label: "blocked synthetic fallback", hits: "production chat stays honest" },
+    ],
+    body: [
+      { kind: "p", segs: [{ t: "t", v: reason }] },
+      { kind: "p", segs: [{ t: "t", v: "NodeBench can still show public memory and saved reports, but live research runs require an email-backed account." }] },
+    ],
+    runUpdates: [{ kind: "session", label: "No paid calls", detail: "No backend run was created." }],
+  };
+}
+
+function initialLiveChatTurn(): ChatTurn {
+  return {
+    id: "live-ready",
+    role: "agent",
+    time: nowTime(),
+    run: { kind: "context", summary: "Live Context Runtime ready", detail: "Convex chat runs - graph packets - source verification" },
+    trace: [
+      { step: "runtime", label: "waiting for prompt", hits: "no fixture answer loaded" },
+      { step: "context", label: "pins available", hits: "Ship Demo Day can be replaced with any report/entity" },
+    ],
+    body: [
+      {
+        kind: "p",
+        segs: [
+          { t: "t", v: "Ask a company, person, event, market, or notebook question. When you submit, NodeBench starts the real Convex-backed agent runtime and streams context, tool decisions, verification, sources, and write proposals here." },
+        ],
+      },
+    ],
+    followups: STREAM_PROMPTS,
+  };
+}
+
+function contextRefFromPins(searchParams: URLSearchParams, pins: Array<{ kind: string; label: string }>) {
+  const explicit = searchParams.get("contextRef");
+  if (explicit) return explicit;
+  const report = searchParams.get("report");
+  if (report) return report.startsWith("graphctx:") ? report : `graphctx:${report}`;
+  const firstPin = pins[0];
+  if (!firstPin?.label) return undefined;
+  const slug = firstPin.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return slug ? `graphctx:${firstPin.kind}_${slug}` : undefined;
+}
+
 export function ExactChatSurface() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -2758,9 +2968,12 @@ export function ExactChatSurface() {
     DEFAULT_PIPELINE_MODEL_SELECTION,
   );
   const chatModelOption = getPipelineModelOption(chatModelId);
+  const realChat = useRedesignChatRun();
+  const [activeLiveTurnId, setActiveLiveTurnId] = useState<string | null>(null);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
 
-  // Tier D — when authenticated user has a live chat thread, prefer it
-  // over the seed ORBITAL_THREAD_TURNS demo.  Anonymous → seed.
+  // Live cockpit chat: prefer a persisted Convex thread when one exists.
+  // Otherwise start from an honest live-ready state, not a synthetic answer.
   const api = useConvexApi();
   const anonymousSessionId = getAnonymousProductSessionId();
   const liveThread = useQuery(
@@ -2779,21 +2992,76 @@ export function ExactChatSurface() {
         : { id: String(t.id), role: "agent", time: String(t.time), body: [{ kind: "p", segs: [{ t: "t", v: String(t.text ?? "") }] }] },
     );
   })();
-  const [turns, setTurns] = useState<ChatTurn[]>(liveThreadTurns ?? ORBITAL_THREAD_TURNS);
+  const [turns, setTurns] = useState<ChatTurn[]>(liveThreadTurns ?? [initialLiveChatTurn()]);
   // When the live thread arrives later (Convex query resolves async), swap.
   useEffect(() => {
-    if (liveThreadTurns && liveThreadTurns.length > 0) setTurns(liveThreadTurns);
+    if (!hasUserInteracted && liveThreadTurns && liveThreadTurns.length > 0) setTurns(liveThreadTurns);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveThread]);
+  }, [liveThread, hasUserInteracted]);
+
+  useEffect(() => {
+    if (!activeLiveTurnId) return;
+    const run = realChat.state.run;
+    if (!run) return;
+    setTurns((prev) => prev.map((turn) =>
+      turn.id === activeLiveTurnId
+        ? liveAgentTurnFromRun(activeLiveTurnId, run, turn)
+        : turn,
+    ));
+    if (run.status === "complete" || run.status === "error") {
+      setActiveLiveTurnId(null);
+    }
+  }, [activeLiveTurnId, realChat.state.run]);
+
+  useEffect(() => {
+    if (!activeLiveTurnId || realChat.state.status !== "error" || !realChat.state.error) return;
+    setTurns((prev) => prev.map((turn) =>
+      turn.id === activeLiveTurnId
+        ? liveUnavailableTurn(activeLiveTurnId, realChat.state.error ?? "The live run could not be started.")
+        : turn,
+    ));
+    setActiveLiveTurnId(null);
+  }, [activeLiveTurnId, realChat.state.error, realChat.state.status]);
 
   const sendTurn = (text: string) => {
     const t = text.trim();
     if (!t) return;
+    const userTurnId = `u${Date.now()}`;
+    const agentTurnId = `a${Date.now()}`;
+    const submittedTier = chatModelOption.isFree ? "free" : "auto";
+    const contextRef = contextRefFromPins(searchParams, pins);
+    setHasUserInteracted(true);
     setTurns((prev) => [
       ...prev,
-      { id: `u${Date.now()}`, role: "user", time: nowTime(), text: t },
+      { id: userTurnId, role: "user", time: nowTime(), text: t },
+      {
+        id: agentTurnId,
+        role: "agent",
+        time: nowTime(),
+        run: {
+          kind: "research",
+          summary: "Starting live run",
+          detail: contextRef ? `context ${contextRef}` : "prompt-only context",
+        },
+        trace: [{ step: "submit", label: "starting Convex chat run", hits: "waiting for run id" }],
+        body: [{ kind: "p", segs: [{ t: "t", v: "Starting live research. NodeBench is routing memory, reports, graph context, source cache, and verification lanes." }] }],
+      },
     ]);
     setComposer("");
+    void realChat.submit(t, submittedTier, contextRef).then((runId) => {
+      if (runId) {
+        setActiveLiveTurnId(agentTurnId);
+        return;
+      }
+      setTurns((prev) => prev.map((turn) =>
+        turn.id === agentTurnId
+          ? liveUnavailableTurn(
+              agentTurnId,
+              realChat.state.error ?? "Sign in with an email-backed account before running live research.",
+            )
+          : turn,
+      ));
+    });
   };
 
   useRoutePerformanceRecord({
@@ -2801,18 +3069,24 @@ export function ExactChatSurface() {
     surfaceId: "chat",
     rootSelector: '[data-testid="exact-web-chat-stream"]',
     firstActionSelector: '[data-nb-perf-action="chat-send"]',
-    dataSource: liveThreadTurns ? "live_convex" : "starter",
+    dataSource: realChat.state.run ? "live_convex_run" : liveThreadTurns ? "live_convex_thread" : "live_runtime_ready",
   });
 
   return (
     <ResponsiveSurface mobile="chat">
-      <section data-testid="exact-web-chat-stream" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <section
+        data-testid="exact-web-chat-stream"
+        data-chat-live-status={realChat.state.status}
+        data-chat-live-eligible={realChat.state.available ? "true" : "false"}
+        data-chat-run-id={realChat.state.run?.runId ?? ""}
+        style={{ display: "flex", flexDirection: "column", gap: 14 }}
+      >
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", margin: 0 }}>
             Chat
           </h1>
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
-            6 threads. Every turn keeps the entity context, sources, and report — so you can keep going without restarting.
+            Live agent runtime with ContextRuntimePacket routing, source-backed answers, traceable tool decisions, and gated report writes.
           </div>
         </div>
 
@@ -2824,17 +3098,17 @@ export function ExactChatSurface() {
               </button>
               <div className="nb-chat-header-icon">O</div>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <h2>Orbital Labs · should I follow up?</h2>
+                <h2>Live Context Runtime</h2>
                 <div className="nb-stream-header-meta">
                   <span className="nb-stream-fresh" data-state="fresh">● fresh</span>
                   <span>·</span>
                   <span>{turns.length} turns</span>
                   <span>·</span>
-                  <span>14 sources</span>
+                  <span>{realChat.state.run?.packet.sourceCount ?? "live"} sources</span>
                   <span>·</span>
-                  <span>6 entities</span>
+                  <span>{realChat.state.run?.runtime.contextCandidates.length ?? "bounded"} context candidates</span>
                   <span>·</span>
-                  <span>1 paid calls</span>
+                  <span>{realChat.state.run?.packet.paidCalls ?? 0} paid calls</span>
                 </div>
               </div>
               <div className="nb-chat-header-actions" style={{ display: "flex" }}>
@@ -2852,8 +3126,8 @@ export function ExactChatSurface() {
 
             <div className="nb-stream-savebar">
               <span className="nb-stream-savebar-icon">●</span>
-              <span>Saved to <strong>Orbital Labs · diligence</strong></span>
-              <span className="dim">· 3 sections · 7 claims · 2 follow-ups</span>
+              <span>{realChat.state.run ? "Streaming from" : "Ready for"} <strong>NodeBench live runtime</strong></span>
+              <span className="dim">- context routing - layered verification - notebook writes require gates</span>
               <span style={{ flex: 1 }} />
               <button type="button" onClick={() => navigate(buildCockpitPath({ surfaceId: "packets", extra: { report: "orbital" } }))}>Open notebook</button>
               <button type="button">Export</button>

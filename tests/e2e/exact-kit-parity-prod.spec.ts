@@ -64,6 +64,10 @@ test("PR A8: Chat renders ExactChatSurface ChatStream (full conversation thread)
   await navigate(page, "workspace");
   const result = await page.evaluate(() => ({
     streamMount: !!document.querySelector('[data-testid="exact-web-chat-stream"]'),
+    liveStatus: document.querySelector('[data-testid="exact-web-chat-stream"]')?.getAttribute("data-chat-live-status"),
+    liveEligible: document.querySelector('[data-testid="exact-web-chat-stream"]')?.getAttribute("data-chat-live-eligible"),
+    noFixtureText: document.body.textContent?.includes("no fixture answer loaded"),
+    contextRuntimeText: document.body.textContent?.includes("Context Runtime") || document.body.textContent?.includes("ContextRuntimePacket"),
     streamRoot: !!document.querySelector(".nb-stream-root"),
     threadHeader: !!document.querySelector(".nb-stream-header h2"),
     headerTitle: document.querySelector(".nb-stream-header h2")?.textContent,
@@ -87,16 +91,19 @@ test("PR A8: Chat renders ExactChatSurface ChatStream (full conversation thread)
   }));
   console.log("CHAT STREAM:", JSON.stringify(result, null, 2));
   expect(result.streamMount, "ChatStream mount").toBe(true);
+  expect(result.liveStatus, "live run status marker").toBeTruthy();
+  expect(result.noFixtureText, "chat starts from honest live-ready state").toBe(true);
+  expect(result.contextRuntimeText, "Context Runtime copy").toBe(true);
   expect(result.streamRoot).toBe(true);
   expect(result.threadHeader).toBe(true);
-  expect(result.headerTitle).toContain("Orbital Labs");
+  expect(result.headerTitle).toContain("Live Context Runtime");
   expect(result.saveBar, "Save bar").toBe(true);
-  expect(result.saveBarReportName).toContain("Orbital Labs");
-  expect(result.turns, "≥4 turns (2 user + 2 agent)").toBeGreaterThanOrEqual(4);
-  expect(result.userTurns).toBeGreaterThanOrEqual(2);
-  expect(result.agentTurns).toBeGreaterThanOrEqual(2);
-  expect(result.runBars, "agent run bars").toBeGreaterThanOrEqual(2);
-  expect(result.entityPills, "inline entity pills").toBeGreaterThan(0);
+  expect(result.saveBarReportName).toContain("NodeBench live runtime");
+  expect(result.turns, "at least the live-ready agent turn").toBeGreaterThanOrEqual(1);
+  expect(result.userTurns).toBeGreaterThanOrEqual(0);
+  expect(result.agentTurns).toBeGreaterThanOrEqual(1);
+  expect(result.runBars, "agent run bars").toBeGreaterThanOrEqual(1);
+  expect(result.entityPills, "inline entity pills").toBeGreaterThanOrEqual(0);
   expect(result.followupChips, "follow-up chips").toBeGreaterThan(0);
   expect(result.composerCard).toBe(true);
   expect(result.goldenComposer, "shared golden composer contract").toBe(true);

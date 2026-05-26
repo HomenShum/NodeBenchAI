@@ -655,9 +655,9 @@ curl -sL https://nodebenchai.com/ | grep -E <span class="str">'(VITE|root|index)
 
     <div class="tldr">
       <div class="tldr-label">⚡ TL;DR — where we are vs where we're going</div>
-      <p><strong>Today (Phase 1 + 3 SHIPPED):</strong> <code>scratchnode.live/e/&lt;slug&gt;</code> is real Convex-backed multi-user chat. Two strangers see each other's messages in &lt;1s. Private notes persist across reload via Convex. Phase 2 schema in place but agent action awaits Anthropic wiring.</p>
-      <p><strong>Goal:</strong> <em>"Two strangers on different devices open the same room URL and chat with each other in real time, with sourced agent answers and a private notebook each."</em> First two clauses ✅. Sourced agent answers next.</p>
-      <p><strong>Remaining work:</strong> Phase 2 Anthropic wiring (~3-5d) · Phase 4 host actions + auth (~2-3d) · Phase 5 wiki compaction (~3-4d) · Phase 6 Redis semantic cache (~1-2w infra + integration) · Phase 7+ polish (ongoing).</p>
+      <p><strong>Today (Phases 1-5 SHIPPED):</strong> <code>scratchnode.live/e/&lt;slug&gt;</code> is real Convex-backed multi-user chat with sourced <code>/ask</code>, FAQ suggestion, host claim, wiki publish, public source packets, answer cache, and private notes persisted through Convex. The current production floor is live enough to dogfood in a real small event room.</p>
+      <p><strong>Goal:</strong> <em>"Two strangers on different devices open the same room URL and chat with each other in real time, with sourced agent answers and a private notebook each."</em> That core loop is now live through Convex; the remaining work is hardening quality, auth, rate limits, and provider-grade deep research.</p>
+      <p><strong>Remaining work:</strong> Replace the deterministic sourced-answer fallback with provider-grade research when keys/budget are enabled, add durable host authentication, add Redis/edge hot-room projection only after measuring Convex latency, and continue UX polish with browser QA. These are hardening layers, not blockers for the current live Convex product loop.</p>
     </div>
 
     <h3 id="plan-where-we-are">Where we are today (honest baseline)</h3>
@@ -1006,13 +1006,13 @@ eventAnswers: <span class="fn">defineTable</span>({
     </table>
 
     <h3 id="plan-go-no-go">Go/no-go launch criteria</h3>
-    <p>Don't announce <code>scratchnode.live</code> publicly (Twitter, Product Hunt, etc.) until <strong>at least Phase 3 is shipped and Phase 4 is in progress</strong>. Before that, the product is a beautiful demo without a real product loop — public reception will be confused and the brand burns its first impression.</p>
+    <p>Do not announce <code>scratchnode.live</code> as a finished self-serve platform until host auth, abuse controls, provider-backed deep research, and event creation are hardened. It is now safe for controlled dogfood: small event rooms, founder demos, and QA sessions where the live Convex loop is the point being tested.</p>
     <p>Soft-launch milestones (sharing privately):</p>
     <ul>
-      <li><strong>Phase 1 ships</strong> → share with 5 people for "does this feel real?" testing</li>
-      <li><strong>Phase 2 ships</strong> → share with 10–20 founders/builders for /ask quality calibration</li>
-      <li><strong>Phase 3 ships</strong> → share with a friend's actual upcoming event (small group, in-room) as a beta host</li>
-      <li><strong>Phase 4 ships</strong> → open self-serve event creation; launch on Product Hunt; full marketing push</li>
+      <li><strong>Current live dogfood</strong> → share with 5 to 10 trusted people for "does this feel real?" and /ask quality calibration</li>
+      <li><strong>Next hardening pass</strong> → run a friend's actual upcoming event as a small beta room with host review enabled</li>
+      <li><strong>Self-serve readiness</strong> → open event creation only after auth, abuse controls, billing/rate limits, and provider-backed deep research are verified</li>
+      <li><strong>Public launch</strong> → launch when event setup, crawlable wiki, source cache, and QA videos show stable before/during/after flows</li>
     </ul>
 
     <h2 id="concepts">Concepts &amp; metaphor <a class="anchor" href="#concepts">#</a></h2>
