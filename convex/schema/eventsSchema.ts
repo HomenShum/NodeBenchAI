@@ -18,6 +18,13 @@ export const liveEvents = defineTable({
   name: v.string(),                                     // "AI Infra Summit"
   roomCode: v.string(),                                 // "ORBITAL" — short pronounceable code
   hostUserId: v.optional(v.id("users")),                // optional in Phase 1; required from Phase 4
+  // Phase 4 real-auth: SHA-256 hash of the one-time host claim code.
+  // Server-generated, never readable by clients. Plaintext code is
+  // returned exactly once from requestHostClaim and must be shown
+  // out-of-band to the legitimate host. claimHostWithCode validates
+  // by hashing the submitted code and comparing constant-time.
+  hostClaimCodeHash: v.optional(v.string()),
+  hostClaimCodeCreatedAt: v.optional(v.number()),
   status: v.union(
     v.literal("draft"),
     v.literal("live"),
@@ -149,13 +156,35 @@ export const userNotes = defineTable({
 
 // ------------------------------------------------------------------
 // liveEventHosts - Phase 4 host ownership and moderation gate.
-// ownerKey is sessionId for anonymous demo hosts and user:<id> after auth.
+//
+// ownerKey field carries one of two formats:
+//
+//   1. Legacy demo format (Phase 1-3 backward compat):
+//      Plain string 8-80 chars. Verified only by table membership
+//      (the row exists with this exact ownerKey). Used by the
+//      dogfood static key and any localStorage-only host.
+//
+//   2. Real-auth format (Phase 4+):
+//      "hk1:<eventIdShort>:<nonce>:<issuedAt>:<hmac>" where hmac =
+//      HMAC-SHA256(SCRATCHNODE_HOST_TOKEN_SECRET, eventId|nonce|issuedAt).
+//      Verified cryptographically by requireHost — no DB lookup needed
+//      to prove the token was issued by the server. Server-generated
+//      only after a successful claimHostWithCode call, so possession of
+//      the token IS proof of having possessed the one-time host claim
+//      code.
+//
+// authMethod records which path issued this row so future audits can
+// distinguish legacy from real-auth hosts.
 // ------------------------------------------------------------------
 export const liveEventHosts = defineTable({
   eventId: v.id("liveEvents"),
   ownerKey: v.string(),
   displayName: v.string(),
   role: v.union(v.literal("owner"), v.literal("host")),
+  authMethod: v.optional(v.union(
+    v.literal("legacy_ownerkey"),                       // Phase 1-3 — client-chosen key
+    v.literal("claim_code"),                            // Phase 4+ — server-issued HMAC token
+  )),
   createdAt: v.number(),
 })
   .index("by_event_owner", ["eventId", "ownerKey"])

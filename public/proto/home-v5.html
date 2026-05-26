@@ -3062,28 +3062,138 @@ setTimeout(refreshNotesCounter, 100);
       .catch((e) => toast('FAQ suggestion failed', e.message || String(e)));
   };
 
+  // ─── Phase 4 real-auth host claim ───────────────────────────────────
+  //
+  // Three execution paths:
+  //   A) sn_host_owner_key_v2 already stored (HMAC token from a prior
+  //      claim) — skip prompts, re-affirm via getHostStatus.
+  //   B) User has an out-of-band claim code (event organizer shared it
+  //      via email or printout) — prompt for it, redeem via
+  //      claimHostWithCode.
+  //   C) Bootstrap: no host exists yet, so the caller becomes the first
+  //      host. Server mints a code via requestHostClaim, we show it
+  //      briefly so the user can save it for recovery, then redeem it
+  //      immediately in the same browser session.
+  //
+  // Legacy sn_host_owner_key remains a read-fallback on getHostStatus
+  // boot so in-flight Phase 1-3 sessions (or the dogfood static key)
+  // continue working. The legacy events:claimHost mutation is still
+  // available — expand-contract per
+  // .claude/rules/backend_contract_migration.md — but no longer the
+  // default path from this UI.
+  function _snReadHostOwnerKey() {
+    return (
+      window._sn_live.hostOwnerKey ||
+      localStorage.getItem('sn_host_owner_key_v2') ||
+      localStorage.getItem('sn_host_owner_key') ||
+      sessionId
+    );
+  }
+
   window.snClaimHost = function() {
-    const ownerKey = localStorage.getItem('sn_host_owner_key') || sessionId;
-    localStorage.setItem('sn_host_owner_key', ownerKey);
     const hostName = (window._userName && String(window._userName).trim()) || 'Host';
-    client.mutation('events:claimHost', { eventId, ownerKey, displayName: hostName })
-      .then(() => {
-        document.body.setAttribute('data-role', 'host');
-        window._sn_live.hostOwnerKey = ownerKey;
-        toast('Host console enabled', 'You can now promote answers and publish the wiki.');
+    const existingV2 = localStorage.getItem('sn_host_owner_key_v2');
+
+    // Path A: already have a Phase 4 HMAC token. Re-affirm.
+    if (existingV2 && existingV2.startsWith('hk1:')) {
+      client.query('events:getHostStatus', { eventId, ownerKey: existingV2 })
+        .then((status) => {
+          if (status && status.isHost) {
+            document.body.setAttribute('data-role', 'host');
+            window._sn_live.hostOwnerKey = existingV2;
+            toast('Host console re-enabled', 'Welcome back, ' + (status.displayName || hostName) + '.');
+          } else {
+            // Token didn't verify — clear it and re-prompt.
+            localStorage.removeItem('sn_host_owner_key_v2');
+            window.snClaimHost();
+          }
+        })
+        .catch(() => {
+          localStorage.removeItem('sn_host_owner_key_v2');
+          toast('Host token expired', 'Please re-claim host with a fresh code.');
+        });
+      return;
+    }
+
+    // Determine Phase 4 flow: do we have a code already, or do we need to
+    // bootstrap one? Ask the user with a single prompt; empty input means
+    // "generate one for me". A null return (user cancelled) preserves
+    // the no-op behavior for headless test contexts and lets the e2e
+    // test fall through to its "non-host can't promote" branch.
+    const codeInput = window.prompt(
+      'Host claim code\n\nEnter the one-time host code shared by the event organizer.\nLeave blank to generate a fresh code (only if this event has no host yet).',
+      '',
+    );
+    if (codeInput === null) return; // user cancelled
+
+    const trimmed = codeInput.trim();
+    if (trimmed.length === 0) {
+      // Path C: bootstrap. Ask server to mint a code, show it, redeem it.
+      client.mutation('events:requestHostClaim', {
+        eventId,
+        requesterSessionId: sessionId,
       })
-      .catch((e) => toast('Host claim blocked', e.message || String(e)));
+        .then((res) => {
+          const generated = res && res.hostClaimCode;
+          if (!generated) throw new Error('Server did not return a claim code.');
+          // Show the code so the user can save it for recovery. We do
+          // NOT auto-paste it — forces them to acknowledge.
+          const confirmed = window.confirm(
+            'Save this host claim code for recovery:\n\n' +
+            generated + '\n\n' +
+            'This code can be used to re-claim host access from another device if you lose your browser storage. ' +
+            'It will NOT be shown again. Click OK to redeem now.',
+          );
+          if (!confirmed) {
+            toast('Host claim cancelled', 'No host token issued. The code is still active but unused.');
+            return;
+          }
+          return client.mutation('events:claimHostWithCode', {
+            eventId,
+            hostClaimCode: generated,
+            displayName: hostName,
+            requesterSessionId: sessionId,
+          });
+        })
+        .then((claimRes) => {
+          if (!claimRes) return; // user backed out
+          const newToken = claimRes.ownerKey;
+          localStorage.setItem('sn_host_owner_key_v2', newToken);
+          document.body.setAttribute('data-role', 'host');
+          window._sn_live.hostOwnerKey = newToken;
+          toast('Host console enabled', 'Real-auth host token issued and saved.');
+        })
+        .catch((e) => toast('Host claim blocked', (e && e.message) || String(e)));
+      return;
+    }
+
+    // Path B: user provided a code. Redeem directly.
+    client.mutation('events:claimHostWithCode', {
+      eventId,
+      hostClaimCode: trimmed,
+      displayName: hostName,
+      requesterSessionId: sessionId,
+    })
+      .then((claimRes) => {
+        const newToken = claimRes && claimRes.ownerKey;
+        if (!newToken) throw new Error('Server did not return a host token.');
+        localStorage.setItem('sn_host_owner_key_v2', newToken);
+        document.body.setAttribute('data-role', 'host');
+        window._sn_live.hostOwnerKey = newToken;
+        toast('Host console enabled', 'Code verified — host token issued.');
+      })
+      .catch((e) => toast('Host claim blocked', (e && e.message) || String(e)));
   };
 
   window.snPromoteFaq = function(answerId) {
-    const ownerKey = window._sn_live.hostOwnerKey || localStorage.getItem('sn_host_owner_key') || sessionId;
+    const ownerKey = _snReadHostOwnerKey();
     client.mutation('events:promoteAnswerToFaq', { eventId, answerId, ownerKey })
       .then(() => toast('Promoted to FAQ', 'This answer is ready for the event wiki.'))
       .catch((e) => toast('Promotion blocked', e.message || String(e)));
   };
 
   window.snPublishWiki = function() {
-    const ownerKey = window._sn_live.hostOwnerKey || localStorage.getItem('sn_host_owner_key') || sessionId;
+    const ownerKey = _snReadHostOwnerKey();
     client.mutation('events:publishWiki', { eventId, ownerKey })
       .then((res) => {
         toast('Wiki published', 'Version ' + res.version + ' is now live.');
@@ -3095,13 +3205,21 @@ setTimeout(refreshNotesCounter, 100);
       .catch((e) => toast('Wiki publish blocked', e.message || String(e)));
   };
 
+  // On load, re-affirm host status using whichever key we have stored.
+  // Prefer v2 (Phase 4 HMAC token) — if it verifies, we're a real-auth host.
+  // Otherwise fall back to legacy lookup so existing demo sessions and
+  // the proto-live-backend-dogfood test continue to work.
+  const _bootstrapKey =
+    localStorage.getItem('sn_host_owner_key_v2') ||
+    localStorage.getItem('sn_host_owner_key') ||
+    sessionId;
   client.query('events:getHostStatus', {
     eventId,
-    ownerKey: localStorage.getItem('sn_host_owner_key') || sessionId,
+    ownerKey: _bootstrapKey,
   }).then((status) => {
     if (status && status.isHost) {
       document.body.setAttribute('data-role', 'host');
-      window._sn_live.hostOwnerKey = localStorage.getItem('sn_host_owner_key') || sessionId;
+      window._sn_live.hostOwnerKey = _bootstrapKey;
     }
   }).catch(() => {});
 
