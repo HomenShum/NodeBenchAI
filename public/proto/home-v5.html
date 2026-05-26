@@ -666,6 +666,16 @@ body[data-new-user="true"] .h-menu::after {
 .sheet-button.ghost { background: transparent; border: 1px solid var(--line); color: var(--ink); font-weight: 500; }
 .sheet-button.ghost:hover { border-color: var(--ink-faint); }
 .sheet-button + .sheet-button { margin-top: 8px; }
+/* Host-console multi-section layout (Phase 4 rotation UI). */
+.sheet-block { margin: 0 0 4px; }
+.sheet-block + .sheet-block { margin-top: 4px; }
+.sheet-block-title { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-muted); margin-bottom: 8px; }
+.sheet-divider { height: 1px; background: var(--line); margin: 14px 0; }
+.sn-rotate-output { padding: 10px 12px; border: 1px solid rgba(217,119,87,.25); border-radius: var(--r-sm); background: rgba(217,119,87,.05); font-family: var(--mono); font-size: 12px; color: var(--ink); word-break: break-all; }
+.sn-rotate-output .sn-rotate-code { display: block; margin-bottom: 6px; font-size: 13px; letter-spacing: .04em; color: var(--accent); }
+.sn-rotate-output .sn-rotate-hint { display: block; font-size: 10px; color: var(--ink-faint); font-family: var(--ui); margin-top: 6px; }
+.sn-rotate-output .sn-rotate-copy { margin-top: 8px; padding: 6px 10px; min-height: 32px; background: transparent; color: var(--accent); border: 1px solid rgba(217,119,87,.35); border-radius: var(--r-sm); font-family: var(--ui); font-size: 11px; font-weight: 600; cursor: pointer; }
+.sn-rotate-output .sn-rotate-copy:hover { background: rgba(217,119,87,.08); }
 
 /* Avatar grid (color picker for identity) */
 .avatar-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin: 8px 0; }
@@ -1846,8 +1856,33 @@ var SHEET_RENDERERS = {
   },
 
   host: function() {
-    return '<div class="sheet-head"><h2 id="sheet-title">Create your own event</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
-      '<p class="sheet-sub">Spin up a room with a code, seed it with sources, and let attendees ask sourced questions. It compacts into a public wiki at the end.</p>' +
+    // Two parallel paths, plus an optional host-only rotation panel.
+    // Path 1: Create a brand-new event (demo-only — toast & close).
+    // Path 2: Claim host on THIS event by typing a one-time code from
+    //         another device. Calls events:claimHostWithCode.
+    // Path 3 (host-only): Mint a new claim code to migrate to a fresh
+    //         device. Requires the current Phase 4 HMAC token in
+    //         localStorage. Calls events:requestHostClaim with
+    //         existingOwnerKey, then renders the plaintext code.
+    var isRealAuthHost =
+      document.body.getAttribute('data-role') === 'host' &&
+      !!localStorage.getItem('sn_host_owner_key_v2');
+    var rotationPanel = '';
+    if (isRealAuthHost) {
+      rotationPanel =
+        '<div class="sheet-divider" role="separator" aria-hidden="true"></div>' +
+        '<section class="sheet-block" role="region" aria-label="Rotate host to a new device">' +
+        '<div class="sheet-block-title">Rotate to a new device</div>' +
+        '<p class="sheet-sub" style="margin-bottom:10px">Mint a fresh one-time claim code for another browser or device. The new device redeems it once — your current host token stays valid until the new device claims.</p>' +
+        '<button type="button" class="sheet-button" onclick="window.snRotateHostDevice && window.snRotateHostDevice()">Mint new claim code</button>' +
+        '<div id="sn-host-rotate-output" class="sn-rotate-output" role="status" aria-live="polite" style="margin-top:10px;display:none"></div>' +
+        '</section>';
+    }
+    return '<div class="sheet-head"><h2 id="sheet-title">Host console</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+      '<p class="sheet-sub">Create a new event, claim host on this one with a code, or rotate your host token to another device.</p>' +
+      // ── Section A: create event (demo) ────────────────────────────
+      '<section class="sheet-block" role="region" aria-label="Create a new event">' +
+      '<div class="sheet-block-title">Create a new event</div>' +
       '<div class="sheet-field"><label class="sheet-label" for="sheet-host-title">Event title</label>' +
       '<input id="sheet-host-title" class="sheet-input" type="text" placeholder="e.g. Q4 Strategy Offsite" autocapitalize="words" /></div>' +
       '<div class="sheet-field"><label class="sheet-label">Template</label>' +
@@ -1855,7 +1890,20 @@ var SHEET_RENDERERS = {
       '<button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#128295;</span><span style="font-size:11px">Workshop</span></button>' +
       '<button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#9749;</span><span style="font-size:11px">Office hrs</span></button></div></div>' +
       '<button type="button" class="sheet-button" onclick="toast(\'Event created!\',\'Room code: SOLARIS · Share the link with attendees.\'); closeSheet();">Create event &rarr;</button>' +
-      '<button type="button" class="sheet-button ghost" onclick="window.snClaimHost ? window.snClaimHost() : toast(\'Host console\',\'Live backend not connected yet.\'); closeSheet();">Claim live host console</button>' +
+      '</section>' +
+      '<div class="sheet-divider" role="separator" aria-hidden="true"></div>' +
+      // ── Section B: claim host with one-time code ─────────────────
+      '<section class="sheet-block" role="region" aria-label="Claim host with a code">' +
+      '<div class="sheet-block-title">I have a code</div>' +
+      '<p class="sheet-sub" style="margin-bottom:10px">Paste the one-time host claim code from your other device or the event organizer.</p>' +
+      '<div class="sheet-field"><label class="sheet-label" for="sn-host-code-input">Host claim code</label>' +
+      '<input id="sn-host-code-input" class="sheet-input" type="text" placeholder="e.g. K3X7Q92ABCDEF456GHIJKLM2" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="64" /></div>' +
+      '<button type="button" class="sheet-button" onclick="window.snClaimWithCodeFromInput && window.snClaimWithCodeFromInput()">Claim host</button>' +
+      '</section>' +
+      rotationPanel +
+      '<div class="sheet-divider" role="separator" aria-hidden="true"></div>' +
+      // ── Section C: legacy/bootstrap paths ────────────────────────
+      '<button type="button" class="sheet-button ghost" onclick="window.snClaimHost ? window.snClaimHost() : toast(\'Host console\',\'Live backend not connected yet.\'); closeSheet();">Claim live host console (bootstrap)</button>' +
       '<button type="button" class="sheet-button ghost host-only" onclick="window.snPublishWiki ? window.snPublishWiki() : toast(\'Wiki publish\',\'Live backend not connected yet.\'); closeSheet();">Publish wiki snapshot</button>' +
       '<button type="button" class="sheet-button ghost" onclick="closeSheet()">Maybe later</button>' +
       '<p style="margin-top:10px;font-size:11px;color:var(--ink-faint);text-align:center">Sign in first to save the event and access the host console.</p>';
@@ -3247,6 +3295,106 @@ setTimeout(refreshNotesCounter, 100);
         toast('Host console enabled', 'Code verified — host token issued.');
       })
       .catch((e) => toast('Host claim blocked', (e && e.message) || String(e)));
+  };
+
+  // ─── Phase 4 host rotation UI helpers ────────────────────────────────
+  // These power the Host Console sheet's two new sections:
+  //   - "I have a code" (always shown)        → snClaimWithCodeFromInput
+  //   - "Rotate to a new device" (host-only)  → snRotateHostDevice
+  //
+  // Both call events:claimHostWithCode / events:requestHostClaim directly
+  // rather than reusing snClaimHost (which relies on window.prompt and
+  // bootstraps from scratch). That keeps the headless e2e dogfood test
+  // happy — it still drives snClaimHost via prompt-returns-null fallback
+  // — while giving real users a no-prompt path through the same Convex
+  // mutations.
+
+  // Section B handler: read the typed code from the sheet input, redeem.
+  window.snClaimWithCodeFromInput = function() {
+    const input = document.getElementById('sn-host-code-input');
+    const raw = (input && input.value) || '';
+    const code = raw.trim();
+    if (code.length < 16) {
+      toast('Code too short', 'Host claim codes are 16+ characters.');
+      if (input) input.focus();
+      return;
+    }
+    const hostName = (window._userName && String(window._userName).trim()) || 'Host';
+    client.mutation('events:claimHostWithCode', {
+      eventId,
+      hostClaimCode: code,
+      displayName: hostName,
+      requesterSessionId: sessionId,
+    })
+      .then((claimRes) => {
+        const newToken = claimRes && claimRes.ownerKey;
+        if (!newToken) throw new Error('Server did not return a host token.');
+        localStorage.setItem('sn_host_owner_key_v2', newToken);
+        document.body.setAttribute('data-role', 'host');
+        window._sn_live.hostOwnerKey = newToken;
+        if (input) input.value = '';
+        toast('You are now host', 'Code verified — host token issued.');
+        // Re-render the sheet so the rotation section becomes visible
+        // without forcing the user to close and reopen.
+        if (typeof openSheet === 'function') openSheet('host');
+      })
+      .catch((e) => toast('Host claim blocked', (e && e.message) || String(e)));
+  };
+
+  // Section C handler: mint a fresh code while proving we're the current
+  // host via the stored HMAC token. Shows the plaintext code in the
+  // sheet (NOT in a window.prompt) so the user can copy it to the next
+  // device. The current host token stays valid until that next device
+  // redeems — at which point the server revokes this row atomically.
+  window.snRotateHostDevice = function() {
+    const existingToken = localStorage.getItem('sn_host_owner_key_v2');
+    if (!existingToken || !existingToken.startsWith('hk1:')) {
+      toast('Not a real-auth host', 'Claim host with a code first, then you can rotate.');
+      return;
+    }
+    const out = document.getElementById('sn-host-rotate-output');
+    if (out) {
+      out.style.display = 'block';
+      out.innerHTML = '<span class="sn-rotate-hint">Requesting fresh code from server…</span>';
+    }
+    client.mutation('events:requestHostClaim', {
+      eventId,
+      requesterSessionId: sessionId,
+      existingOwnerKey: existingToken,
+    })
+      .then((res) => {
+        const newCode = res && res.hostClaimCode;
+        if (!newCode) throw new Error('Server did not return a claim code.');
+        if (out) {
+          // Build with textContent for the code to avoid HTML injection
+          // (defense-in-depth — server-generated A-Z2-9 only, but safe
+          // is safe).
+          out.innerHTML =
+            '<span class="sn-rotate-code" id="sn-host-rotate-code"></span>' +
+            '<span class="sn-rotate-hint">Copy this code and paste it on your other device. Valid ~30 min.</span>' +
+            '<button type="button" class="sn-rotate-copy" id="sn-host-rotate-copy-btn" aria-label="Copy host claim code to clipboard">Copy code</button>';
+          const codeEl = document.getElementById('sn-host-rotate-code');
+          if (codeEl) codeEl.textContent = newCode;
+          const copyBtn = document.getElementById('sn-host-rotate-copy-btn');
+          if (copyBtn) {
+            copyBtn.onclick = function() {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(newCode).then(function() {
+                  toast('Copied claim code', 'Paste it on your other device.');
+                  haptic && haptic();
+                });
+              } else {
+                toast('Copy unavailable', 'Select the code manually to copy.');
+              }
+            };
+          }
+        }
+        toast('New claim code ready', 'Copy this code and paste it on your other device.');
+      })
+      .catch((e) => {
+        if (out) out.innerHTML = '<span class="sn-rotate-hint">Failed: ' + ((e && e.message) || String(e)) + '</span>';
+        toast('Rotation blocked', (e && e.message) || String(e));
+      });
   };
 
   window.snPromoteFaq = function(answerId) {
