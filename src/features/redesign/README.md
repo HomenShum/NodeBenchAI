@@ -1,8 +1,10 @@
 # `src/features/redesign/`
 
-> Standalone redesign showcase mounted at `/redesign`. Self-contained — does not touch the live cockpit.
+> Current NodeBench redesign surface mounted at `/redesign`. It is route-distinct from the ExactKit cockpit at `/?surface=...` and from ScratchNode's event room at `scratchnode.live`.
 >
 > Read [docs/architecture/REDESIGN_ROADMAP.md](../../../docs/architecture/REDESIGN_ROADMAP.md) for the full architecture and journey. This README is the developer-facing inventory + extension cookbook.
+>
+> Route ownership and runtime boundaries are documented in [docs/architecture/PRODUCT_SURFACE_RUNTIME_OWNERSHIP.md](../../../docs/architecture/PRODUCT_SURFACE_RUNTIME_OWNERSHIP.md). Read it before claiming a PR changed "the chat runtime" or "the proto" because several routes have chat-like UIs.
 
 ---
 
@@ -15,7 +17,7 @@ npm run dev
 # Toggle the "◐" FAB next to it to switch light/dark mode
 ```
 
-All redesign code is scoped to `[data-redesign]`. Nothing leaks into the existing cockpit.
+All redesign code is scoped to `[data-redesign]`. It shares live Convex runtime primitives with the product, but route ownership is explicit: `/redesign/*` is the current redesign, `/?surface=*` is the ExactKit cockpit, and `scratchnode.live/e/:slug` is the ScratchNode event room.
 
 ---
 
@@ -54,12 +56,20 @@ src/features/redesign/
 |---|---|
 | `/redesign` | HomeSurface |
 | `/redesign/reports` | ReportsSurface |
-| `/redesign/chat` | ChatSurface (with RightInspector on desktop) |
+| `/redesign/chat` | ChatSurface (with `RightInspector` Agent Runtime Inspector on desktop) |
 | `/redesign/inbox` | InboxSurface |
 | `/redesign/me` | MeSurface |
 | `/redesign/workspace` | WorkspaceSurface (6-tab — Brief default) |
 
 Wired in [src/App.tsx](../../App.tsx) as a standalone route check before `/memo` — bypasses the cockpit entirely.
+
+Important route split:
+
+| Route | Do not confuse with |
+|---|---|
+| `/redesign/chat` | `/?surface=chat` ExactKit cockpit |
+| `/redesign/reports` | `/?surface=reports` ExactKit cockpit |
+| `scratchnode.live/e/:slug` | NodeBench redesign or cockpit routes |
 
 ---
 
