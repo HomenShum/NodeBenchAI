@@ -44,6 +44,15 @@ const MAX_MESSAGE_TEXT = 4000;
 const DEFAULT_MESSAGE_LIMIT = 200;
 const MAX_MESSAGE_LIMIT = 500;
 const PRESENCE_TTL_MS = 5 * 60 * 1000; // 5 min
+// Phase 4 defense-in-depth: after this window, an unredeemed host-claim-code
+// hash is force-cleared by the janitor cron. Codes are ~120 bits of entropy
+// already; this just narrows the brute-force window further. Cutoff is
+// deliberately wider than the UI expiresHintAt (also 30 min) so that a slow
+// human still completes their claim — the janitor only sweeps abandoned
+// codes, never racing the redemption path.
+const HOST_CLAIM_CODE_TTL_MS = 30 * 60 * 1000; // 30 min
+// BOUND: cap per-run evictions so the janitor never thunders the DB.
+const MAX_STALE_HOST_CLAIM_EVICT = 100;
 const MAX_SOURCE_BODY = 12_000;
 const MAX_ANSWER_BODY = 4_000;
 const MAX_ANSWER_LIMIT = 100;
@@ -1291,5 +1300,57 @@ export const _evictStalePresence = internalMutation({
       await ctx.db.delete(row._id);
     }
     return { evicted: stale.length };
+  },
+});
+
+/**
+ * Phase 4 follow-up Item 5 — soft-prune stale host-claim-code hashes.
+ *
+ * Defense-in-depth janitor. `requestHostClaim` writes a code hash + minted-at
+ * timestamp on the event row; `claimHostWithCode` clears both atomically on
+ * a successful redemption. If a user mints a code and never redeems, the hash
+ * lingers — codes already have ~120 bits of entropy (24 chars A-Z2-9), but
+ * letting the hash sit forever widens the brute-force attack window for no
+ * reason. This cron narrows that window to ~30 min.
+ *
+ * Contract:
+ *   - Runs every 10 min from convex/crons.ts.
+ *   - Clears `hostClaimCodeHash` and `hostClaimCodeCreatedAt` on rows where
+ *     `hostClaimCodeCreatedAt < Date.now() - HOST_CLAIM_CODE_TTL_MS`.
+ *   - Rows without a hash (no claim ever requested, or already-redeemed) are
+ *     filtered out by the `hostClaimCodeCreatedAt` lt-check (undefined fails
+ *     lt comparison) — they are never patched.
+ *   - BOUND: at most MAX_STALE_HOST_CLAIM_EVICT rows per run. If more accrue
+ *     than that in a 10-min window, the next tick catches them.
+ *   - HONEST_STATUS: returns { evicted: N } so the operator surface (and
+ *     tests) can verify behavior.
+ *
+ * Idempotent — patching `undefined` onto an already-cleared row is a no-op
+ * (Convex treats `undefined` as field-removal).
+ */
+export const _evictStaleHostClaimCodes = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - HOST_CLAIM_CODE_TTL_MS;
+    // Filter on hostClaimCodeCreatedAt (the timestamp). Convex `q.lt` against
+    // an undefined field yields false, so rows that never minted a code are
+    // skipped — exactly the behavior we want.
+    const stale = await ctx.db
+      .query("liveEvents")
+      .filter((q) => q.lt(q.field("hostClaimCodeCreatedAt"), cutoff))
+      .take(MAX_STALE_HOST_CLAIM_EVICT);
+    let evicted = 0;
+    for (const row of stale) {
+      // Belt-and-suspenders: only patch when the hash is actually set. The
+      // filter above should already guarantee this, but checking the hash
+      // explicitly keeps the eviction safe if the filter ever loosens.
+      if (!row.hostClaimCodeHash) continue;
+      await ctx.db.patch(row._id, {
+        hostClaimCodeHash: undefined,
+        hostClaimCodeCreatedAt: undefined,
+      });
+      evicted += 1;
+    }
+    return { evicted };
   },
 });

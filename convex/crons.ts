@@ -1062,4 +1062,15 @@ crons.interval(
   {},
 );
 
+// Phase 4 defense-in-depth: soft-prune host-claim-code hashes that were
+// minted but never redeemed within 30 min. Codes already carry ~120 bits of
+// entropy, but a stale hash widens the brute-force window for no reason.
+// BOUND: 100 evictions per run. HONEST_STATUS: returns { evicted: N }.
+crons.interval(
+  "scratchnode host-claim-code janitor",
+  { minutes: 10 },
+  internal.events._evictStaleHostClaimCodes,
+  {},
+);
+
 export default crons;
