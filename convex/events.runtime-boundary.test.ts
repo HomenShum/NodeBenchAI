@@ -6,9 +6,9 @@ import { dirname, join } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const eventsSource = readFileSync(join(here, "events.ts"), "utf8");
 
-function functionBlock(name: string): string {
-  const start = eventsSource.indexOf(`export const ${name} = mutation({`);
-  expect(start, `${name} mutation should exist`).toBeGreaterThanOrEqual(0);
+function functionBlock(name: string, kind: "mutation" | "action" | "internalQuery" | "internalMutation" = "mutation"): string {
+  const start = eventsSource.indexOf(`export const ${name} = ${kind}({`);
+  expect(start, `${name} ${kind} should exist`).toBeGreaterThanOrEqual(0);
   const next = eventsSource.indexOf("\nexport const ", start + 1);
   return eventsSource.slice(start, next > start ? next : undefined);
 }
@@ -16,12 +16,19 @@ function functionBlock(name: string): string {
 describe("scratchnode public runtime boundaries", () => {
   it("keeps public /ask isolated from private user notes", () => {
     const composeAnswer = functionBlock("composeAnswer");
+    const askAgent = functionBlock("askAgent", "action");
 
     expect(composeAnswer).not.toContain("userNotes");
     expect(composeAnswer).not.toContain("getPrivate");
     expect(composeAnswer).toContain("requireMember");
     expect(composeAnswer).toContain("liveEventSources");
     expect(composeAnswer).toContain("deterministic_synthesis");
+    expect(askAgent).not.toContain("userNotes");
+    expect(askAgent).not.toContain("getPrivate");
+    expect(askAgent).toContain("_prepareAskAgentContext");
+    expect(askAgent).toContain("generateProviderAnswer");
+    expect(askAgent).toContain("quality_gate");
+    expect(askAgent).toContain("private notes excluded");
   });
 
   it("keeps wiki publishing host-gated and sourced from public answers", () => {

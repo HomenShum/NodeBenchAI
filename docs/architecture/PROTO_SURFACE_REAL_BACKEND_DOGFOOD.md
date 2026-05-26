@@ -8,7 +8,7 @@ This note removes the recurring confusion between the two prototype surfaces.
 
 | Surface | Route | Backend status | Test expectation |
 | --- | --- | --- | --- |
-| ScratchNode v5 | `https://scratchnode.live/`, `/e/:slug` | Live Convex-backed event room. Phases 1-5 are wired. | Must prove data moves browser -> Convex -> second browser or rendered answer/wiki/note. |
+| ScratchNode v5 | `https://scratchnode.live/`, `/e/:slug` | Live Convex-backed event room. Phases 1-5 are wired, and `/ask` now uses the provider-ready `events:askAgent` action with deterministic fallback. | Must prove data moves browser -> Convex -> second browser or rendered answer/wiki/note. |
 | NodeBench v4 | `https://www.nodebenchai.com/proto/home-v4.html` | Static spec proof for notebook, artifacts, chat, mentions, backlinks, wide mode. | Must prove every interaction works, and must explicitly assert no live Convex runtime marker exists. |
 
 ## Live Dogfood Command
@@ -41,10 +41,12 @@ The dogfood covers these live boundaries:
 1. Apex `scratchnode.live/` serves the `home-v5` event shell and connects to Convex.
 2. Two anonymous browser contexts join the same event.
 3. Public chat from browser A appears in browser B through `events:sendMessage` and `events:getMessages`.
-4. `/ask` creates a sourced answer through `events:composeAnswer`.
+4. `/ask` creates a sourced answer through `events:askAgent`, falling back to `events:composeAnswer` only when Convex actions are unavailable.
 5. The rendered answer exposes:
    - source reuse
-   - deterministic synthesis trace
+   - provider or deterministic-fallback trace
+   - answer quality gate score
+   - model/cost metadata when the provider path runs
    - `no private notes`
    - `data-answer-id`
 6. FAQ suggestion changes answer state through `events:suggestAnswerForFaq`.

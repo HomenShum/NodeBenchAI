@@ -409,6 +409,9 @@ describe("composeAnswer — cache reuse across attendees", () => {
     expect(Array.isArray(callA.sourceIds)).toBe(true);
     expect(callA.sourceIds.length).toBeGreaterThanOrEqual(1);
     expect(callA.body.length).toBeGreaterThan(20);
+    expect(callA.agentMode).toBe("deterministic");
+    expect(callA.evaluation?.passed).toBe(true);
+    expect(callA.evaluation?.score).toBeGreaterThanOrEqual(80);
     expect(callA.trace.some((step: any) => step.step === "deterministic_synthesis")).toBe(true);
     expect(callA.trace.find((step: any) => step.step === "deterministic_synthesis").status).toBe("ok");
 
@@ -422,6 +425,8 @@ describe("composeAnswer — cache reuse across attendees", () => {
 
     expect(callB).toBeTruthy();
     expect(callB.cacheHit).toBe(true);
+    expect(callB.agentMode).toBe("cache");
+    expect(callB.evaluation?.passed).toBe(true);
     expect(callB.body).toBe(callA.body);
     expect(callB.sourceIds).toEqual(callA.sourceIds);
     const cacheStep = callB.trace.find((step: any) => step.step === "semantic_cache_lookup");

@@ -108,6 +108,7 @@ export const liveEventSources = defineTable({
 export const liveEventAnswers = defineTable({
   eventId: v.id("liveEvents"),
   questionMessageId: v.id("liveEventMessages"),
+  askedBySessionId: v.optional(v.string()),
   question: v.string(),
   normalizedQuestion: v.string(),
   body: v.string(),
@@ -123,6 +124,27 @@ export const liveEventAnswers = defineTable({
     durationMs: v.number(),
   })),
   cacheHit: v.boolean(),
+  agentMode: v.optional(v.union(
+    v.literal("deterministic"),
+    v.literal("provider"),
+    v.literal("provider_fallback"),
+    v.literal("cache"),
+  )),
+  provider: v.optional(v.string()),
+  modelId: v.optional(v.string()),
+  inputTokens: v.optional(v.number()),
+  outputTokens: v.optional(v.number()),
+  estimatedCostCents: v.optional(v.number()),
+  externalSearches: v.optional(v.number()),
+  evaluation: v.optional(v.object({
+    passed: v.boolean(),
+    score: v.number(),
+    checks: v.array(v.object({
+      name: v.string(),
+      status: v.union(v.literal("pass"), v.literal("warn"), v.literal("fail")),
+      detail: v.optional(v.string()),
+    })),
+  })),
   faqStatus: v.union(
     v.literal("none"),
     v.literal("suggested"),                             // attendee proposed it

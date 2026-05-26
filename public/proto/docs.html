@@ -405,7 +405,7 @@ kbd {
       <tbody>
         <tr><td>Identity / display name</td><td><span class="badge proto">Prototype</span></td><td>localStorage <code>sn_v5_name</code></td><td>Guest session + optional account with magic link</td></tr>
         <tr><td>Sign-in / magic link</td><td><span class="badge proto">Prototype</span></td><td><code>sendMagicLink()</code> just toasts</td><td>Real OTP email + verified session token</td></tr>
-        <tr><td>Private notes</td><td><span class="badge proto">Prototype</span></td><td><code>window._notes_v5</code> + localStorage</td><td>Per-user encrypted store, syncs across devices when signed in</td></tr>
+        <tr><td>Private notes</td><td><span class="badge prod">Production floor</span></td><td>Convex <code>userNotes</code> scoped by owner key, with local fallback only when backend is unavailable</td><td>Per-user encrypted store, syncs across devices when signed in</td></tr>
         <tr><td>Notes editor</td><td><span class="badge proto">Prototype</span></td><td><code>document.execCommand</code> rich-text</td><td>TipTap / ProseMirror with mentions, backlinks, graph anchors</td></tr>
         <tr><td>QR code generation</td><td><span class="badge proto">Prototype</span></td><td>External <code>api.qrserver.com</code> image</td><td>Client-side SVG generator — privacy, offline, branding</td></tr>
         <tr><td><code>sim*</code> demo helpers</td><td><span class="badge proto">Prototype</span></td><td>Global functions on <code>window</code></td><td>Hidden behind <code>?debug=1</code> or removed entirely in prod build</td></tr>
@@ -419,7 +419,7 @@ kbd {
     </table>
 
     <h2 id="production-arch">Production architecture <a class="anchor" href="#production-arch">#</a></h2>
-    <p>The prototype keeps everything in <code>window._notes_v5</code> and DOM. Production splits responsibilities across four layers so the runtime is fast, cheap, and the durable layer stays trustworthy. The product message stays simple: <strong>"Ask once, answer many. Live context while the event is happening. Durable wiki after it ends. Private notes stay private."</strong></p>
+    <p>The static file still has local fallback state, but <code>scratchnode.live</code> now boots a Convex-backed live runtime for chat, sourced answers, FAQ, wiki publishing, and private notes. Production splits responsibilities across four layers so the runtime is fast, cheap, and the durable layer stays trustworthy. The product message stays simple: <strong>"Ask once, answer many. Live context while the event is happening. Durable wiki after it ends. Private notes stay private."</strong></p>
 
     <h3 id="prod-stack">The stack</h3>
     <pre><span class="lang">arch</span>                         ┌──────────────────────────┐
@@ -657,22 +657,22 @@ curl -sL https://nodebenchai.com/ | grep -E <span class="str">'(VITE|root|index)
       <div class="tldr-label">⚡ TL;DR — where we are vs where we're going</div>
       <p><strong>Today (Phases 1-5 SHIPPED):</strong> <code>scratchnode.live/e/&lt;slug&gt;</code> is real Convex-backed multi-user chat with sourced <code>/ask</code>, FAQ suggestion, host claim, wiki publish, public source packets, answer cache, and private notes persisted through Convex. The current production floor is live enough to dogfood in a real small event room.</p>
       <p><strong>Goal:</strong> <em>"Two strangers on different devices open the same room URL and chat with each other in real time, with sourced agent answers and a private notebook each."</em> That core loop is now live through Convex; the remaining work is hardening quality, auth, rate limits, and provider-grade deep research.</p>
-      <p><strong>Remaining work:</strong> Replace the deterministic sourced-answer fallback with provider-grade research when keys/budget are enabled, add durable host authentication, add Redis/edge hot-room projection only after measuring Convex latency, and continue UX polish with browser QA. These are hardening layers, not blockers for the current live Convex product loop.</p>
+      <p><strong>Remaining work:</strong> Harden durable host authentication, add Redis/edge hot-room projection only after measuring Convex latency, and keep expanding browser QA. Provider-grade <code>/ask</code> now has a real action path with deterministic fallback; the next frontier is deeper research quality, not basic backend wiring.</p>
     </div>
 
     <h3 id="plan-where-we-are">Where we are today (honest baseline)</h3>
     <table class="status-table">
       <thead><tr><th>Capability</th><th>Today</th><th>Production target</th></tr></thead>
       <tbody>
-        <tr><td>Shared chat between visitors</td><td><span class="badge proto">DOM-only</span></td><td>Convex realtime query</td></tr>
-        <tr><td><code>/ask</code> agent answers</td><td><span class="badge proto">setTimeout(1100ms) → hardcoded card</span></td><td>Convex action → Anthropic + Linkup</td></tr>
-        <tr><td>Sources / citation counts</td><td><span class="badge proto">Hardcoded strings</span></td><td>Real source-bundle records w/ provenance</td></tr>
-        <tr><td>Private notes</td><td><span class="badge proto">window._notes_v5 + localStorage</span></td><td>Convex per-session table</td></tr>
+        <tr><td>Shared chat between visitors</td><td><span class="badge prod">Convex realtime query + presence</span></td><td>Rate limits, moderation, and account upgrade path</td></tr>
+        <tr><td><code>/ask</code> agent answers</td><td><span class="badge prod">Convex action → Anthropic when configured, deterministic fallback otherwise</span></td><td>Add richer eval sets, rate limits, and provider budgets</td></tr>
+        <tr><td>Sources / citation counts</td><td><span class="badge prod">Convex source records + answer source chips</span></td><td>Expand provider/source ingest coverage</td></tr>
+        <tr><td>Private notes</td><td><span class="badge prod">Convex per-session table with owner-key gating</span></td><td>Auth upgrade + encrypted per-user store</td></tr>
         <tr><td>Identity / display name</td><td><span class="badge proto">localStorage</span></td><td>Anon session UUID + optional auth upgrade</td></tr>
-        <tr><td>FAQ promote / wiki publish</td><td><span class="badge proto">Toast only</span></td><td>Server-gated mutation w/ role check</td></tr>
-        <tr><td>Sign-in</td><td><span class="badge proto">Toast only</span></td><td>Redirect to <code>nodebenchai.com/sign-in?return=…</code></td></tr>
-        <tr><td>Event wiki</td><td><span class="badge proto">Hardcoded HTML in sheet</span></td><td>Convex-backed, version-snapshotted, compacted on event end</td></tr>
-        <tr><td>Semantic answer cache</td><td><span class="badge proto">None</span></td><td>Redis LangCache pattern (Phase 6)</td></tr>
+        <tr><td>FAQ promote / wiki publish</td><td><span class="badge prod">Convex mutations with host gate</span></td><td>Reviewer workflow, audit trail, and stronger policy UI</td></tr>
+        <tr><td>Sign-in</td><td><span class="badge proto">Guest/session + host-code auth</span></td><td>Redirect to <code>nodebenchai.com/sign-in?return=…</code></td></tr>
+        <tr><td>Event wiki</td><td><span class="badge prod">Convex-backed, version snapshotted</span></td><td>Scheduled compaction and richer source grouping</td></tr>
+        <tr><td>Semantic answer cache</td><td><span class="badge prod">Exact normalized public-answer cache</span></td><td>Redis/LangCache semantic projection only after measuring need</td></tr>
       </tbody>
     </table>
 
@@ -806,10 +806,10 @@ eventAnswers: <span class="fn">defineTable</span>({
 
         <h4>Convex action + UI wiring</h4>
         <ul class="checklist">
-          <li><input type="checkbox"> <span><code>convex/events/actions.ts</code> — <code>askAgent({eventId, question, sessionId})</code>: vector-search <code>eventSources</code> (top-k=8), prior <code>eventAnswers</code> (cache lookup), call Anthropic with retrieved context, return <code>{answerId, body, sourceIds, trace}</code></span></li>
-          <li><input type="checkbox"> <span>Replace <code>streamAgentAnswer</code>'s <code>setTimeout</code> with: <code>const result = await client.action(api.events.askAgent, {eventId, question, sessionId})</code></span></li>
-          <li><input type="checkbox"> <span>Render <code>result.sources</code> as the source chips (with real URLs from <code>eventSources</code>)</span></li>
-          <li><input type="checkbox"> <span>Render <code>result.trace</code> as the 5-step canonical trace (real durations from action steps)</span></li>
+          <li><input type="checkbox" checked> <span><code>convex/events.ts</code> — <code>askAgent({eventId, question, sessionId})</code>: bounded public-source retrieval, prior <code>eventAnswers</code> cache lookup, optional Linkup freshness probe, Anthropic provider call when configured, deterministic fallback, quality gate, and persisted <code>{answerId, body, sourceIds, trace}</code></span></li>
+          <li><input type="checkbox" checked> <span>Replace <code>streamAgentAnswer</code>'s <code>setTimeout</code> with: <code>client.action('events:askAgent', {eventId, question, sessionId})</code>, falling back to <code>events:composeAnswer</code> only if actions are unavailable</span></li>
+          <li><input type="checkbox" checked> <span>Render <code>result.sources</code> as the source chips (with real URLs from <code>eventSources</code>)</span></li>
+          <li><input type="checkbox" checked> <span>Render <code>result.trace</code>, model/cost metadata, live-search count, and deterministic QA score as the canonical agent trace</span></li>
           <li><input type="checkbox"> <span>Replace the hardcoded reuse chip (<em>"Answered from event wiki · 12 similar"</em>) with counts from <code>result</code></span></li>
           <li><input type="checkbox"> <span>Wire "Suggest for FAQ" / "Promote to FAQ" buttons to a server mutation that updates <code>eventAnswers.faqStatus</code> (gated by role in Phase 4)</span></li>
         </ul>
@@ -821,7 +821,7 @@ eventAnswers: <span class="fn">defineTable</span>({
         </ul>
 
         <p class="accept">/ask "What is the MCP auth timeline?" — answer comes back in &lt;5s, body is non-canned text grounded in the seeded sources, source chips link to real URLs, trace shows real durations. Same question 30s later: cache hit, &lt;500ms, trace says "Matched 1 similar in semantic cache".</p>
-        <p class="risk">Anthropic API key in Convex env (<code>ANTHROPIC_API_KEY</code>) — already set for the workspace. Cost: ~$0.01–0.05 per /ask depending on model and context size. Mitigation: per-event spending caps + the cache hit path.</p>
+        <p class="risk">Anthropic API key in Convex env (<code>ANTHROPIC_API_KEY</code>) - required for provider generation. If it is missing or the provider fails, the same public-source action falls back to deterministic synthesis. Cost: track per answer and cap by event budget.</p>
       </div>
     </div>
 
@@ -1354,7 +1354,7 @@ eventAnswers: <span class="fn">defineTable</span>({
       <li><strong>Private notes never feed the public wiki.</strong> The wiki compaction reads only public messages, /ask answers, and host-uploaded sources.</li>
       <li><strong>UI promise matches data path.</strong> The composer reads "only your notebook" while purple — the code path matches that string.</li>
       <li><strong>Mentions ≠ notifications.</strong> Inserting <code>@Alex</code> renders a pill but does not call a notification endpoint in v5.</li>
-      <li><strong>localStorage is per-device.</strong> No data leaves the browser in either prototype.</li>
+      <li><strong>v4 stays local; v5 is live.</strong> <code>home-v4.html</code> stores only browser-local prototype data. <code>home-v5.html</code> writes public room data and private owner-key-scoped notes to Convex when loaded through <code>scratchnode.live</code>.</li>
     </ol>
 
     <h2 id="closing">What's next <a class="anchor" href="#closing">#</a></h2>

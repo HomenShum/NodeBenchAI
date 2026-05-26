@@ -139,9 +139,15 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
     const answerRecord = await queryAnswer(pageA, answer!.id!);
     expect(answerRecord.cacheHit).toBe(false);
     expect(answerRecord.sources.length).toBeGreaterThan(0);
-    expect(answerRecord.trace.some((step: any) => step.step === "deterministic_synthesis")).toBe(
-      true,
-    );
+    expect(["provider", "provider_fallback", "deterministic"]).toContain(answerRecord.agentMode);
+    expect(answerRecord.evaluation?.passed).toBe(true);
+    expect(answerRecord.evaluation?.score).toBeGreaterThanOrEqual(80);
+    expect(
+      answerRecord.trace.some((step: any) =>
+        ["provider_llm", "deterministic_synthesis", "deterministic_fallback"].includes(step.step),
+      ),
+    ).toBe(true);
+    expect(answerRecord.trace.some((step: any) => step.step === "quality_gate")).toBe(true);
 
     await pageA.evaluate((answerId) => (window as any).snSuggestFaq(answerId), answer!.id);
     await expect
