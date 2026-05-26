@@ -63,17 +63,6 @@
       ],
       "destination": "https://scratchnode.live/$1",
       "permanent": true
-    },
-    {
-      "source": "/(.*)",
-      "has": [
-        {
-          "type": "host",
-          "value": "www.nodebenchai.com"
-        }
-      ],
-      "destination": "https://nodebenchai.com/$1",
-      "permanent": true
     }
   ],
   "rewrites": [
