@@ -1466,7 +1466,7 @@ function openMyEvents() {
 }
 
 // Step 8 — render the list of joined/hosted events into #sn-my-events-list.
-// Live mode only: calls events:listMyEvents via the Convex client. In
+// Live mode only: calls users:listMyEvents via the Convex client. In
 // prototype mode (no Convex), shows a "live backend required" hint.
 function renderMyEventsList(userId) {
   var el = document.getElementById('sn-my-events-list');
@@ -1479,7 +1479,7 @@ function renderMyEventsList(userId) {
       '</div>';
     return;
   }
-  live.client.query('events:listMyEvents', { userId: userId })
+  live.client.query('users:listMyEvents', { userId: userId })
     .then(function(res) {
       var rows = (res && Array.isArray(res.joined)) ? res.joined : [];
       if (rows.length === 0) {
@@ -1525,7 +1525,7 @@ function renderMyEventsList(userId) {
 }
 
 // Step 8 — magic-link landing. If the page URL carries ?sign-in-token=XXX,
-// auto-call events:verifySignInToken, persist the resulting user to
+// auto-call users:verifySignInToken, persist the resulting user to
 // localStorage, clean the URL, and toast the result.
 function consumeSignInTokenFromUrl() {
   var params;
@@ -1555,7 +1555,7 @@ window.consumeSignInTokenFromUrl = consumeSignInTokenFromUrl;
 function consumeSignInTokenInner(live, token) {
   var sid = null;
   try { sid = localStorage.getItem('sn_session_id'); } catch (e) {}
-  live.client.mutation('events:verifySignInToken', {
+  live.client.mutation('users:verifySignInToken', {
     token: token,
     sessionId: sid || undefined,
   })
@@ -2009,7 +2009,7 @@ var SHEET_RENDERERS = {
   },
 
   myevents: function() {
-    // Step 8 — "My events" surface. Calls events:listMyEvents with the
+    // Step 8 — "My events" surface. Calls users:listMyEvents with the
     // stored userId. Renders a list of joined/hosted events; tap a row
     // to navigate. Empty state explains how to populate it.
     var u = loadSignedInUser();
@@ -2550,7 +2550,7 @@ function shareTo(p) {
   if (dest) { window.open(dest, '_blank', 'noopener'); closeSheet(); haptic(); }
 }
 
-// ── Magic-link sign-in (Step 8 — calls events:requestSignInLink) ──
+// ── Magic-link sign-in (Step 8 — calls users:requestSignInLink) ──
 // Wires the email input on the 'signin' sheet to the Convex backend. If
 // Convex isn't live yet (prototype mode), falls back to the demo toast.
 // On success: closes sheet, shows "check your inbox" toast.
@@ -2570,7 +2570,7 @@ function sendMagicLink() {
     // brings the user back to the same event with ?sign-in-token=XXX
     // in the URL.
     var returnUrl = location.origin + location.pathname;
-    live.client.mutation('events:requestSignInLink', {
+    live.client.mutation('users:requestSignInLink', {
       email: email,
       returnUrl: returnUrl,
     })
