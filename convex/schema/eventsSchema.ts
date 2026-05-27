@@ -230,3 +230,38 @@ export const liveEventWikiVersions = defineTable({
 })
   .index("by_event_version", ["eventId", "version"])
   .index("by_event_status", ["eventId", "status", "version"]);
+
+// ------------------------------------------------------------------
+// liveEventNoteAnchors — Phase 5 follow-up: link a private note to a
+// specific public chat message or public /ask answer.
+//
+// Privacy invariants (release-blocker per .claude audit 2026-05-27):
+//   - Anchor content (the linked note) is owner-keyed and NEVER appears
+//     in any public surface — chat feed, wiki, or others' /ask traces.
+//   - Marker visibility is decided client-side from listMyAnchors;
+//     no broadcast query exposes "is X anchored?" to non-owners.
+//   - There is INTENTIONALLY no by_target_* index. Looking up "does any
+//     anyone have a note anchored at messageId M?" would let an attacker
+//     map other users' private interest in M. All lookups must go
+//     through (ownerKey, eventId).
+//
+// Cascade contract:
+//   - notes:deleteNote removes anchors for that note inline (no janitor
+//     cron). Keeps the (note, anchors) state transactionally consistent.
+//
+// Reliability (per .claude/rules/agentic_reliability.md):
+//   - BOUND: listMyAnchors capped at 500 with _truncated flag
+//   - HONEST_STATUS: createNoteAnchor throws typed ConvexError on validation
+//   - DETERMINISTIC: pure inserts, server-generated createdAt
+// ------------------------------------------------------------------
+export const liveEventNoteAnchors = defineTable({
+  ownerKey: v.string(),                                 // same shape as userNotes.ownerKey
+  eventId: v.id("liveEvents"),
+  noteId: v.id("userNotes"),
+  targetKind: v.union(v.literal("message"), v.literal("answer")),
+  targetMessageId: v.optional(v.id("liveEventMessages")),
+  targetAnswerId: v.optional(v.id("liveEventAnswers")),
+  createdAt: v.number(),
+})
+  .index("by_owner_event", ["ownerKey", "eventId"])
+  .index("by_note", ["noteId"]);

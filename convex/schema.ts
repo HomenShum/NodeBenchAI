@@ -30,6 +30,7 @@ import {
   userNotes,
   liveEventHosts,
   liveEventWikiVersions,
+  liveEventNoteAnchors,
 } from "./schema/eventsSchema";
 
 // Proactive system schema imports
@@ -4892,6 +4893,7 @@ export default defineSchema({
   userNotes,
   liveEventHosts,
   liveEventWikiVersions,
+  liveEventNoteAnchors,
 
   /* ------------------------------------------------------------------ */
   /* EMAIL MANAGEMENT - Full email thread/message management system     */
