@@ -29,6 +29,21 @@ const EditionPrintPage = lazy(() =>
     default: m.EditionPrintPage,
   })),
 );
+// Step 9 of scratchnode release loop: ScratchNode → NodeBench handoff.
+// These are top-level standalone routes (NOT inside the cockpit) so the
+// page renders without auth — the data is gated server-side by ownerKey
+// matching the user's ScratchNode sn_session_id from localStorage.
+// See: convex/scratchnodeHandoff.ts, src/features/redesign/surfaces/ScratchnodeEventsSurface.tsx
+const ScratchnodeEventsSurface = lazy(() =>
+  import("@/features/redesign/surfaces/ScratchnodeEventsSurface").then((m) => ({
+    default: m.ScratchnodeEventsSurface,
+  })),
+);
+const ScratchnodeNoteDetailPage = lazy(() =>
+  import("@/features/redesign/pages/ScratchnodeNoteDetailPage").then((m) => ({
+    default: m.ScratchnodeNoteDetailPage,
+  })),
+);
 const ShareableMemoView = lazy(() => import("@/features/founder/views/ShareableMemoView"));
 const PublicEntityShareView = lazy(() => import("@/features/share/views/PublicEntityShareView"));
 const PublicCompanyProfileView = lazy(() => import("@/features/founder/views/PublicCompanyProfileView"));
@@ -251,6 +266,51 @@ function App() {
           <Suspense fallback={<ViewSkeleton />}>
             <div key="memo" className="route-fade-in">
               <ShareableMemoView />
+            </div>
+          </Suspense>
+        </ErrorBoundary>
+      </ThemeProvider>
+    );
+  }
+
+  // Step 9: ScratchNode → NodeBench handoff routes (must match BEFORE the
+  // cockpit fall-through). Both render without requiring NodeBench auth —
+  // the data is gated server-side by ownerKey matching the visitor's
+  // sn_session_id localStorage value. See:
+  //   - convex/scratchnodeHandoff.ts (listMyJoinedEvents query)
+  //   - src/features/redesign/surfaces/ScratchnodeEventsSurface.tsx
+  //   - src/features/redesign/pages/ScratchnodeNoteDetailPage.tsx
+  // Order matters: the more-specific note-detail path must come first so
+  // its segment count doesn't shadow the list page.
+  const scratchnodeNoteRouteMatch = location.pathname.match(
+    /^\/scratchnode-event\/([^/]+)\/notes\/([^/]+)\/?$/,
+  );
+  if (scratchnodeNoteRouteMatch) {
+    return (
+      <ThemeProvider>
+        <ErrorBoundary title="ScratchNode note failed to load">
+          <Suspense fallback={<ViewSkeleton />}>
+            <div
+              key={`scratchnode-note-${scratchnodeNoteRouteMatch[2]}`}
+              className="route-fade-in"
+            >
+              <ScratchnodeNoteDetailPage />
+            </div>
+          </Suspense>
+        </ErrorBoundary>
+      </ThemeProvider>
+    );
+  }
+  const isScratchnodeEventsRoute =
+    location.pathname === "/scratchnode-events" ||
+    location.pathname === "/scratchnode-events/";
+  if (isScratchnodeEventsRoute) {
+    return (
+      <ThemeProvider>
+        <ErrorBoundary title="ScratchNode handoff failed to load">
+          <Suspense fallback={<ViewSkeleton />}>
+            <div key="scratchnode-events" className="route-fade-in">
+              <ScratchnodeEventsSurface />
             </div>
           </Suspense>
         </ErrorBoundary>
