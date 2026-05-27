@@ -124,6 +124,7 @@ input { font-family: var(--ui); }
 .left-group { display: flex; flex-direction: column; gap: 2px; }
 /* hide mode-specific index panels */
 .left-index[data-mode] .left-panel { display: none; }
+.left-index[data-mode="home"] .left-panel[data-for="home"] { display: flex; flex-direction: column; gap: 2px; }
 .left-index[data-mode="notebook"] .left-panel[data-for="notebook"] { display: flex; flex-direction: column; gap: 2px; }
 .left-index[data-mode="artifacts"] .left-panel[data-for="artifacts"] { display: flex; flex-direction: column; gap: 2px; }
 .left-index[data-mode="chat"] .left-panel[data-for="chat"] { display: flex; flex-direction: column; gap: 2px; }
@@ -978,6 +979,318 @@ input { font-family: var(--ui); }
   .bl-drawer { transition: none; }
   .art-card:hover { transform: none; }
 }
+
+/* ═══════════════════════════════════════════════════
+   HOME SURFACE — redesigned daily-edition (ported from src/features/redesign/)
+   Mirrors HomeSurface.tsx + EditorialHomeSurface.tsx visual treatment.
+   Static-only — NO Convex wiring (preserves home-v4 spec-proof invariant).
+   ═══════════════════════════════════════════════════ */
+.home-surface {
+  --rd-paper-warm: #1f1e1c;
+  --rd-line-faint: rgba(255,255,255,.05);
+  --rd-line: rgba(255,255,255,.10);
+  --rd-accent-strong: #e88f6e;
+  --rd-accent-soft: rgba(217,119,87,.16);
+  --rd-accent-tint: rgba(217,119,87,.10);
+  --rd-accent-ring: rgba(217,119,87,.30);
+  --rd-ink-strong: #f7f5f1;
+  --rd-ink-mute: #a8a39c;
+  --rd-ink-faint: #74706a;
+  --rd-green: #4ade80;
+  --rd-amber: #e4c567;
+  padding: 28px clamp(20px, 4vw, 56px) 80px;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  overflow-y: auto;
+  height: 100%;
+}
+.home-eyebrow {
+  font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--rd-accent-strong); font-weight: 600;
+}
+.home-mono-faint {
+  font-family: var(--mono); font-size: 10.5px; color: var(--rd-ink-faint);
+}
+.home-faint { color: var(--rd-ink-mute); }
+
+/* Section 1 — Pulse hero */
+.pulse-hero {
+  background: var(--rd-paper-warm);
+  border: 1px solid var(--rd-line-faint);
+  border-radius: 14px;
+  padding: 14px 18px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.pulse-hero__head {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+.pulse-hero__discover-link {
+  margin-left: auto; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--rd-accent-strong); text-decoration: none;
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--rd-accent-ring);
+  background: var(--rd-accent-tint);
+  white-space: nowrap; transition: background 150ms;
+}
+.pulse-hero__discover-link:hover { background: var(--rd-accent-soft); }
+.pulse-hero__voice {
+  width: 36px; height: 36px; border-radius: 999px;
+  border: 1px solid var(--rd-line);
+  background: transparent; color: var(--rd-ink-mute);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 14px; transition: all 150ms;
+}
+.pulse-hero__voice:hover { color: var(--rd-accent-strong); border-color: var(--rd-accent-ring); }
+.pulse-hero__rows { display: flex; flex-direction: column; gap: 4px; }
+.pulse-row {
+  display: flex; gap: 12px; padding: 8px 10px; border-radius: 6px;
+  background: transparent; border: 1px solid transparent;
+  text-align: left; cursor: pointer; align-items: center;
+  width: 100%; transition: background 150ms, border-color 150ms;
+  font-family: inherit; color: inherit;
+}
+.pulse-row:hover { background: rgba(255,255,255,.025); border-color: var(--rd-line-faint); }
+.pulse-row:focus-visible { outline: 2px solid var(--rd-accent-ring); outline-offset: 2px; }
+.pulse-row__label {
+  font-family: var(--mono); width: 70px; font-size: 10.5px;
+  letter-spacing: 0.06em; color: var(--rd-ink-faint);
+}
+.pulse-row__title {
+  font-size: 13.5px; color: var(--rd-ink-strong); flex: 1; font-weight: 600;
+}
+.pulse-row__detail { font-size: 11.5px; color: var(--rd-ink-mute); }
+.pulse-row__when { font-family: var(--mono); font-size: 10px; color: var(--rd-ink-faint); }
+.pulse-row--action {
+  background: var(--rd-accent-tint);
+  border-color: var(--rd-accent-ring);
+}
+.pulse-row--action .pulse-row__label { color: var(--rd-accent-strong); }
+.pulse-row--action .pulse-row__cta {
+  font-family: var(--mono); font-size: 10px; color: var(--rd-accent-strong); font-weight: 600;
+}
+.pulse-row--new { border: 1px dashed var(--rd-line-faint); }
+.pulse-row--new .pulse-row__title { color: var(--rd-ink-mute); font-weight: 500; }
+.pulse-row__trend-up { color: var(--rd-green); margin-left: 8px; font-size: 11.5px; }
+.pulse-row__trend-flat { color: var(--rd-amber); margin-left: 8px; font-size: 11.5px; }
+
+/* Section 2 — WhatChangedStrip */
+.whatchanged {
+  background: var(--rd-paper-warm);
+  border: 1px solid var(--rd-line-faint);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.whatchanged__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.whatchanged__h { font-size: 14px; font-weight: 600; color: var(--rd-ink-strong); margin: 2px 0 0; }
+.whatchanged__dismiss {
+  font-size: 11px; padding: 4px 10px; border-radius: 6px;
+  border: 1px solid var(--rd-line); color: var(--rd-ink-mute); background: transparent;
+  cursor: pointer; transition: all 150ms;
+}
+.whatchanged__dismiss:hover { color: var(--rd-ink); background: rgba(255,255,255,.04); }
+.whatchanged__list { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; }
+.whatchanged__row {
+  display: grid; grid-template-columns: 24px 1fr auto auto;
+  gap: 12px; align-items: center;
+  width: 100%; padding: 8px 10px; border-radius: 6px;
+  background: transparent; border: 1px solid transparent;
+  text-align: left; cursor: pointer; color: inherit;
+  font-family: inherit; transition: all 150ms;
+}
+.whatchanged__row:hover { background: rgba(255,255,255,.025); border-color: var(--rd-line-faint); }
+.whatchanged__row:focus-visible { outline: 2px solid var(--rd-accent-ring); outline-offset: 2px; }
+.whatchanged__icon { font-size: 14px; text-align: center; }
+.whatchanged__row--accent .whatchanged__icon { color: var(--rd-accent-strong); }
+.whatchanged__row--green  .whatchanged__icon { color: var(--rd-green); }
+.whatchanged__row--blue   .whatchanged__icon { color: var(--blue); }
+.whatchanged__row--amber  .whatchanged__icon { color: var(--rd-amber); }
+.whatchanged__title { font-size: 13px; font-weight: 600; color: var(--rd-ink-strong); }
+.whatchanged__detail { font-size: 11.5px; color: var(--rd-ink-mute); }
+.whatchanged__when { font-family: var(--mono); font-size: 10px; color: var(--rd-ink-faint); }
+
+/* Section 4 — 3-column ops dashboard */
+.home-ops {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+}
+@media (max-width: 900px) { .home-ops { grid-template-columns: 1fr; } }
+.home-ops__col {
+  background: var(--rd-paper-warm); border: 1px solid var(--rd-line-faint);
+  border-radius: 10px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.home-ops__head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.home-ops__title { font-size: 12px; font-weight: 600; color: var(--rd-ink-strong); letter-spacing: 0.02em; }
+.home-ops__count { font-family: var(--mono); font-size: 10px; color: var(--rd-ink-faint); }
+.home-ops__row {
+  padding: 8px 10px; border-radius: 6px;
+  background: transparent; border: 1px solid var(--rd-line-faint);
+  cursor: pointer; display: flex; flex-direction: column; gap: 2px;
+  transition: all 150ms;
+}
+.home-ops__row:hover { background: rgba(255,255,255,.025); border-color: var(--rd-line); }
+.home-ops__row-title { font-size: 13px; font-weight: 600; color: var(--rd-ink-strong); display: flex; align-items: center; gap: 6px; }
+.home-ops__row-meta { font-family: var(--mono); font-size: 10px; color: var(--rd-ink-faint); }
+.home-ops__row-body { font-size: 11.5px; color: var(--rd-ink-mute); line-height: 1.45; }
+.home-ops__pending-badge {
+  background: var(--rd-accent-soft); color: var(--rd-accent-strong);
+  font-size: 10px; padding: 1px 6px; border-radius: 999px; font-weight: 700;
+}
+
+/* Section 5 — Public research feed */
+.home-research__head {
+  display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap;
+}
+.home-research__h2 { font-size: 18px; font-weight: 600; color: var(--rd-ink-strong); margin-top: 4px; }
+.home-pill {
+  font-size: 10.5px; padding: 3px 9px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--rd-accent-ring); color: var(--rd-accent-strong);
+  background: var(--rd-accent-tint); font-weight: 600;
+}
+.home-pill--green { color: var(--rd-green); border-color: rgba(74,222,128,.30); background: rgba(74,222,128,.10); }
+.home-filter-bar {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.home-filter-bar__chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.home-filter-chip {
+  font-size: 11px; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--rd-line); color: var(--rd-ink-mute);
+  background: transparent; cursor: pointer; transition: all 150ms;
+  font-family: inherit;
+}
+.home-filter-chip:hover { color: var(--rd-ink); border-color: var(--rd-ink-faint); }
+.home-filter-chip[aria-pressed="true"] {
+  color: var(--rd-accent-strong); border-color: var(--rd-accent-ring);
+  background: var(--rd-accent-tint); font-weight: 600;
+}
+.home-sort-select {
+  font-size: 11px; padding: 5px 10px; border-radius: 6px;
+  border: 1px solid var(--rd-line); background: transparent;
+  color: var(--rd-ink-mute); cursor: pointer; font-family: inherit;
+}
+.home-entity-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;
+}
+.home-entity-card {
+  background: var(--rd-paper-warm); border: 1px solid var(--rd-line-faint);
+  border-radius: 10px; padding: 14px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 8px;
+  text-align: left; color: inherit; font-family: inherit;
+  transition: all 150ms;
+}
+.home-entity-card:hover { border-color: var(--rd-line); transform: translateY(-1px); }
+.home-entity-card:focus-visible { outline: 2px solid var(--rd-accent-ring); outline-offset: 2px; }
+.home-entity-card__head { display: flex; align-items: center; gap: 10px; }
+.home-entity-card__icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--rd-accent-soft); color: var(--rd-accent-strong);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 11px; flex-shrink: 0;
+}
+.home-entity-card__entity { font-size: 14px; font-weight: 600; color: var(--rd-ink-strong); }
+.home-entity-card__kind { font-family: var(--mono); font-size: 10px; color: var(--rd-ink-faint); }
+.home-entity-card__signal { font-size: 12px; color: var(--rd-ink); line-height: 1.45; }
+.home-entity-card__foot {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10px; color: var(--rd-ink-faint);
+  border-top: 1px solid var(--rd-line-faint); padding-top: 8px;
+}
+.home-entity-card__delta-up { color: var(--rd-green); font-weight: 600; }
+.home-entity-card__delta-flat { color: var(--rd-amber); }
+
+/* Sections 6 + 7 — collapsed <details> */
+.home-details {
+  background: var(--rd-paper-warm); border: 1px solid var(--rd-line-faint);
+  border-radius: 10px; padding: 0;
+}
+.home-details > summary {
+  padding: 12px 18px; cursor: pointer; font-size: 13px; font-weight: 600;
+  color: var(--rd-ink-strong); display: flex; justify-content: space-between; align-items: center;
+  list-style: none;
+}
+.home-details > summary::-webkit-details-marker { display: none; }
+.home-details > summary::after {
+  content: "+"; font-family: var(--mono); color: var(--rd-ink-faint);
+  font-size: 14px; transition: transform 200ms;
+}
+.home-details[open] > summary::after { content: "−"; }
+.home-details > summary:hover { color: var(--rd-accent-strong); }
+.home-details__body { padding: 4px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+.home-details__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.home-style-card {
+  border: 1px solid var(--rd-line-faint); border-radius: 8px;
+  padding: 12px; cursor: pointer; background: transparent;
+  display: flex; flex-direction: column; gap: 4px;
+  text-align: left; color: inherit; font-family: inherit;
+  transition: all 150ms;
+}
+.home-style-card:hover { border-color: var(--rd-accent-ring); }
+.home-style-card__name { font-size: 12.5px; font-weight: 600; color: var(--rd-ink-strong); }
+.home-style-card__desc { font-size: 11px; color: var(--rd-ink-mute); line-height: 1.45; }
+
+/* Headline */
+.home-headline {
+  text-align: center; padding-top: 4px;
+  display: flex; flex-direction: column; gap: 6px; align-items: center;
+}
+.home-headline h1 {
+  font-size: clamp(22px, 3.4vw, 32px); font-weight: 600;
+  color: var(--rd-ink-strong); letter-spacing: -0.02em; margin: 0;
+  line-height: 1.18;
+}
+.home-headline p { font-size: 13px; color: var(--rd-ink-mute); margin: 0; }
+
+/* Section 3 — composer hint (already exists in chat mode — this is a teaser) */
+.home-composer-hint {
+  background: var(--rd-paper-warm); border: 1px solid var(--rd-line-faint);
+  border-radius: 12px; padding: 14px 18px;
+  display: flex; gap: 12px; align-items: center;
+}
+.home-composer-hint button {
+  background: var(--accent); color: #fff; border-radius: 6px;
+  padding: 8px 16px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity 150ms;
+  font-family: inherit;
+}
+.home-composer-hint button:hover { opacity: .9; }
+.home-composer-hint button:focus-visible { outline: 2px solid var(--rd-accent-ring); outline-offset: 2px; }
+.home-composer-hint__placeholder {
+  flex: 1; font-size: 13px; color: var(--rd-ink-faint);
+  border: 1px dashed var(--rd-line); border-radius: 6px;
+  padding: 8px 12px; cursor: text;
+}
+
+/* Left index home panel */
+.left-index[data-mode="home"] .left-panel[data-for="home"] {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.home-left-meta {
+  padding: 10px 8px; font-size: 11px; color: var(--ink-muted);
+  line-height: 1.55;
+}
+.home-left-meta strong { color: var(--ink); font-weight: 600; }
+
+/* Hide three-column right-context when home is active (cleaner editorial view) */
+.shell[data-mode="home"] .right-context > *:not(#mention-preview):not(.mobile-sheet-backdrop):not(.mobile-sheet) {
+  display: none;
+}
+.shell[data-mode="home"] #right-context::before {
+  content: "Daily edition · static spec";
+  display: block; padding: 16px;
+  font-size: 11px; color: var(--ink-faint);
+  font-family: var(--mono); letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+/* Reduced motion for home surface */
+@media (prefers-reduced-motion: reduce) {
+  .home-entity-card:hover { transform: none; }
+  .home-details > summary::after { transition: none; }
+}
 </style>
 </head>
 <body>
@@ -985,13 +1298,14 @@ input { font-family: var(--ui); }
 <!-- ═══════════════════════════════════════════════════
      SHELL
      ═══════════════════════════════════════════════════ -->
-<div class="shell" data-mode="notebook">
+<div class="shell" data-mode="home">
 
 <!-- TOPBAR -->
 <header class="topbar">
   <div class="topbar-logo">Node<span>Bench</span></div>
   <nav class="topbar-nav" role="tablist" aria-label="Main navigation">
-    <button role="tab" class="active" aria-selected="true" onclick="switchMode('notebook')">Notebook</button>
+    <button role="tab" class="active" aria-selected="true" onclick="switchMode('home')">Home</button>
+    <button role="tab" aria-selected="false" onclick="switchMode('notebook')">Notebook</button>
     <button role="tab" aria-selected="false" onclick="switchMode('artifacts')">Artifacts</button>
     <button role="tab" aria-selected="false" onclick="switchMode('chat')">Chat</button>
   </nav>
@@ -1007,8 +1321,23 @@ input { font-family: var(--ui); }
 <div class="workspace">
 
 <!-- LEFT INDEX -->
-<aside class="left-index" data-mode="notebook" aria-label="Index">
+<aside class="left-index" data-mode="home" aria-label="Index">
   <input class="left-search" type="search" placeholder="Search notebooks, artifacts, entities..." aria-label="Search all">
+
+  <!-- Home daily-edition index -->
+  <div class="left-panel" data-for="home">
+    <div class="left-section-label">Daily edition</div>
+    <div class="left-group">
+      <div class="left-item active" onclick="document.querySelector('.pulse-hero').scrollIntoView({behavior:'smooth',block:'start'})"><span class="left-item-icon">&#9728;</span> Today's pulse</div>
+      <div class="left-item" onclick="document.querySelector('.whatchanged').scrollIntoView({behavior:'smooth',block:'start'})"><span class="left-item-icon">&#9851;</span> What changed</div>
+      <div class="left-item" onclick="document.querySelector('.home-ops').scrollIntoView({behavior:'smooth',block:'start'})"><span class="left-item-icon">&#9776;</span> Continue / Watch</div>
+      <div class="left-item" onclick="document.querySelector('[data-section=\'research\']').scrollIntoView({behavior:'smooth',block:'start'})"><span class="left-item-icon">&#128202;</span> Public research</div>
+    </div>
+    <div class="home-left-meta">
+      <strong>Daily Intelligence Pulse</strong><br>
+      Ported from <code>src/features/redesign/surfaces/HomeSurface.tsx</code>. Static spec proof — no live wiring.
+    </div>
+  </div>
 
   <!-- Notebook index -->
   <div class="left-panel" data-for="notebook">
@@ -1157,7 +1486,137 @@ input { font-family: var(--ui); }
 <main class="center" id="center">
 
 <!-- ─── NOTEBOOK MODE ─── -->
-<div class="center-surface active" data-mode="notebook" id="nb-surface">
+<!-- ═══════════════════════════════════════════════════
+     HOME — daily-edition surface (ported from src/features/redesign/)
+     Sections: pulse hero · what changed · headline · ops dashboard ·
+               public research feed · memo styles · situations
+     Data: inline JS fixtures (PULSE_ITEMS, CHANGED_ITEMS, PUBLIC_RESEARCH, etc.)
+     NO Convex wiring — preserves home-v4 spec-proof invariant.
+     ═══════════════════════════════════════════════════ -->
+<div class="center-surface active" data-mode="home" id="home-surface">
+<main class="home-surface" data-section-root>
+
+  <!-- Section 1 — Daily Intelligence Pulse -->
+  <section class="pulse-hero" role="region" aria-label="Daily Intelligence Pulse" data-testid="daily-pulse-hero" data-section="pulse">
+    <header class="pulse-hero__head">
+      <span class="home-eyebrow">Daily intelligence pulse</span>
+      <span class="home-mono-faint" id="pulse-hero-meta">3 active reports · 5 watched entities</span>
+      <a href="#" class="pulse-hero__discover-link" role="button" aria-label="Open today's daily brief"
+         onclick="event.preventDefault(); alert('Daily edition — static spec only')">&#8592; Back to daily edition</a>
+      <button type="button" class="pulse-hero__voice" aria-label="Voice input"
+              onclick="alert('Voice input — static spec only')">&#127908;</button>
+    </header>
+    <div class="pulse-hero__rows" id="pulse-rows">
+      <!-- Populated by JS fixture below -->
+    </div>
+  </section>
+
+  <!-- Section 2 — WhatChangedStrip -->
+  <section class="whatchanged" role="region" aria-label="What changed since last visit" data-section="changed" id="whatchanged-section">
+    <div class="whatchanged__head">
+      <div>
+        <span class="home-eyebrow">What changed</span>
+        <h2 class="whatchanged__h" id="whatchanged-heading">Welcome back — fresh signals since you stepped away.</h2>
+      </div>
+      <button type="button" class="whatchanged__dismiss"
+              aria-label="Dismiss what changed strip"
+              onclick="document.getElementById('whatchanged-section').style.display='none'">Dismiss</button>
+    </div>
+    <ul class="whatchanged__list" role="list" id="whatchanged-list">
+      <!-- Populated by JS fixture below -->
+    </ul>
+  </section>
+
+  <!-- Section 3 — Headline + composer hint (slim, links to chat mode) -->
+  <div class="home-headline">
+    <h1>Ask once. Turn it into reusable intelligence.</h1>
+    <p>Drop a name, a link, or a question. Watch sources land. Memo stays in your notebook.</p>
+  </div>
+  <div class="home-composer-hint" role="region" aria-label="Composer shortcut">
+    <div class="home-composer-hint__placeholder" onclick="switchMode('chat')" role="button" tabindex="0"
+         aria-label="Open the chat composer"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchMode('chat')}">
+      Ask about a company, person, market trend&hellip; (jumps to chat)
+    </div>
+    <button type="button" onclick="switchMode('chat')" aria-label="Start in chat mode">Start &rarr;</button>
+  </div>
+
+  <!-- Section 4 — 3-column ops dashboard (Continue / Changed / Watchlist) -->
+  <section class="home-ops" role="region" aria-label="Operations dashboard" data-section="ops">
+    <div class="home-ops__col">
+      <div class="home-ops__head">
+        <span class="home-ops__title">Continue working</span>
+        <span class="home-ops__count" id="ops-continue-count">3 open</span>
+      </div>
+      <div id="ops-continue-rows"><!-- Populated by JS --></div>
+    </div>
+    <div class="home-ops__col">
+      <div class="home-ops__head">
+        <span class="home-ops__title">What changed</span>
+        <span class="home-ops__count" id="ops-changed-count">today · 4</span>
+      </div>
+      <div id="ops-changed-rows"><!-- Populated by JS --></div>
+    </div>
+    <div class="home-ops__col">
+      <div class="home-ops__head">
+        <span class="home-ops__title">Watchlist</span>
+        <span class="home-ops__count" id="ops-watch-count">5 entities</span>
+      </div>
+      <div id="ops-watch-rows"><!-- Populated by JS --></div>
+    </div>
+  </section>
+
+  <!-- Section 5 — Latest public research (Pitchbook entity feed) -->
+  <section role="region" aria-label="Latest public research" data-section="research"
+           style="display:flex;flex-direction:column;gap:10px">
+    <div class="home-research__head">
+      <div>
+        <div class="home-eyebrow">Latest public research</div>
+        <h2 class="home-research__h2">Reusable public memory from recent entity runs.</h2>
+      </div>
+      <span class="home-pill">Static spec feed</span>
+    </div>
+    <div class="home-filter-bar">
+      <div class="home-filter-bar__chips" role="tablist" aria-label="Filter entity feed">
+        <button type="button" class="home-filter-chip" aria-pressed="true"  data-filter="all">All</button>
+        <button type="button" class="home-filter-chip" aria-pressed="false" data-filter="company">Companies</button>
+        <button type="button" class="home-filter-chip" aria-pressed="false" data-filter="person">People</button>
+        <button type="button" class="home-filter-chip" aria-pressed="false" data-filter="topic">Markets</button>
+      </div>
+      <select class="home-sort-select" aria-label="Sort entity feed" id="home-sort-select">
+        <option value="newest">Newest</option>
+        <option value="confidence">By confidence</option>
+        <option value="delta">Most movement</option>
+      </select>
+    </div>
+    <div class="home-entity-grid" id="home-entity-grid"><!-- Populated by JS --></div>
+  </section>
+
+  <!-- Section 6 — Memo styles (collapsed by default) -->
+  <details class="home-details" data-section="memo-styles">
+    <summary>Try a memo style</summary>
+    <div class="home-details__body">
+      <p class="home-faint" style="font-size:12px;margin:0">
+        Each style is a saved template that turns the current notebook into a different audience-facing memo.
+      </p>
+      <div class="home-details__grid" id="home-style-grid"><!-- Populated by JS --></div>
+    </div>
+  </details>
+
+  <!-- Section 7 — Situations (collapsed by default) -->
+  <details class="home-details" data-section="situations">
+    <summary>Pick the situation</summary>
+    <div class="home-details__body">
+      <p class="home-faint" style="font-size:12px;margin:0">
+        Situation templates pre-stage entities, sources, and acceptance criteria.
+      </p>
+      <div class="home-details__grid" id="home-situation-grid"><!-- Populated by JS --></div>
+    </div>
+  </details>
+</main>
+</div>
+
+<div class="center-surface" data-mode="notebook" id="nb-surface">
 
 <!-- ── DAILY BRIEF PAGE (default) ── -->
 <div class="nb-page active" id="nb-daily-brief">
@@ -2180,9 +2639,10 @@ input { font-family: var(--ui); }
 
 <!-- MOBILE BOTTOM NAV -->
 <nav class="mobile-bottom-nav" aria-label="Mobile navigation">
-  <button class="mobile-nav-btn active" onclick="switchMode('notebook')"><span class="mobile-nav-icon">&#128203;</span><span>Notebook</span></button>
-  <button class="mobile-nav-btn" onclick="switchMode('artifacts')"><span class="mobile-nav-icon">&#9670;</span><span>Artifacts</span></button>
-  <button class="mobile-nav-btn" onclick="switchMode('chat')"><span class="mobile-nav-icon">&#128172;</span><span>Chat</span></button>
+  <button class="mobile-nav-btn active" onclick="switchMode('home')" aria-label="Home"><span class="mobile-nav-icon">&#127969;</span><span>Home</span></button>
+  <button class="mobile-nav-btn" onclick="switchMode('notebook')" aria-label="Notebook"><span class="mobile-nav-icon">&#128203;</span><span>Notebook</span></button>
+  <button class="mobile-nav-btn" onclick="switchMode('artifacts')" aria-label="Artifacts"><span class="mobile-nav-icon">&#9670;</span><span>Artifacts</span></button>
+  <button class="mobile-nav-btn" onclick="switchMode('chat')" aria-label="Chat"><span class="mobile-nav-icon">&#128172;</span><span>Chat</span></button>
 </nav>
 
 <!-- MOBILE SHEET + BACKDROP -->
@@ -2438,7 +2898,7 @@ function switchMode(mode) {
 
   // Mobile nav
   document.querySelectorAll('.mobile-nav-btn').forEach(function(btn, i) {
-    var modes = ['notebook', 'artifacts', 'chat'];
+    var modes = ['home', 'notebook', 'artifacts', 'chat'];
     btn.classList.toggle('active', modes[i] === mode);
   });
 
@@ -2795,8 +3255,265 @@ function closeWikiDetail() {
   if (detail) detail.style.display = 'none';
 }
 
+/* ═══════════════════════════════════════════════════
+   HOME SURFACE — static fixtures + renderers
+   Ported from src/features/redesign/fixtures.ts
+   NO Convex client, NO fetch — static spec only.
+   ═══════════════════════════════════════════════════ */
+
+/** Pulse hero rows — fixtures match HomeSurface.tsx pulseLastResearch /
+ *  pulseRelevantUpdate / pulseEntityChanged / pulseRecommendedAction. */
+var PULSE_ROWS = [
+  { label: 'continue',  title: 'Orbital Labs — pilot pre-read',     detail: 'Mid-edit on Decision section',         when: '12m ago' },
+  { label: 'update',    title: 'Mercor closed Series B',            detail: '+$30M led by General Catalyst, 2x val', when: '11m ago' },
+  { label: 'watchlist', title: 'Anthropic',                          detail: 'MCP host extensions confirmed for Q3', when: '1h ago', trend: 'up', signal: '↑ +2 claims' },
+  { label: 'action',    title: 'Approve voice-agent eval export',   detail: 'CRM queue ready — Orbital pilot lead', when: 'now',   kind: 'action' },
+  { label: 'new',       title: 'Start new research',                 detail: '',                                      when: 'jump to composer', kind: 'new' },
+];
+
+/** WhatChangedStrip rows — mirrors WhatChangedStrip.tsx FALLBACK_ITEMS. */
+var CHANGED_ITEMS = [
+  { kind: 'report',    icon: '📑', title: 'Ship Demo Day report updated',  detail: '12 captures · 8 companies · 14 people',  when: '12m ago' },
+  { kind: 'watchlist', icon: '\u{1F441}',    title: 'Orbital Labs hiring spike',      detail: '4x ML eval engineer postings this week', when: '1h ago' },
+  { kind: 'claim',     icon: '✓',       title: 'Source action needed',           detail: '3 weak claims pending verification',     when: '3h ago' },
+  { kind: 'follow_up', icon: '→',       title: 'Next action queued',             detail: 'Approve voice-agent eval pilot export',  when: 'yesterday' },
+];
+
+/** Continue-working rows — mirrors fixtures.ts continueWorking. */
+var CONTINUE_ROWS = [
+  { title: 'Orbital Labs — pilot pre-read',     kind: 'Diligence',     when: '12m ago',   left: 'Mid-edit on Decision section',  pending: 1 },
+  { title: 'Ship Demo Day — event report',      kind: 'Event · active', when: '2h ago',    left: '9 follow-ups pending review' },
+  { title: 'Voice-agent evaluation — theme',    kind: 'Theme',          when: 'Yesterday', left: 'Awaiting source refresh',       pending: 2 },
+];
+
+/** What-changed ops column — mirrors pulseCards. */
+var CHANGED_ROWS = [
+  { kind: 'memory_win',   meta: '2m ago · Ship Demo Day',  title: 'Orbital Labs answered from event corpus', body: '4 sources reused. No external refresh needed.' },
+  { kind: 'report_update',meta: '11m ago · Event corpus',  title: 'Ship Demo Day report updated',            body: '12 captures · 8 companies · 14 people · 9 follow-ups' },
+  { kind: 'follow_up',    meta: 'Due tomorrow',            title: 'Alex at Orbital Labs',                    body: 'Ask about healthcare pilot criteria. Tag: Watching · pilot.' },
+  { kind: 'event',        meta: '1h ago',                  title: 'Shipped: voice-agent eval pilot lead',    body: 'Linked to Orbital Labs entity. CRM export queued.' },
+];
+
+/** Watchlist rows — mirrors fixtures.ts watchlist. */
+var WATCH_ROWS = [
+  { entity: 'Orbital Labs',           signal: 'Hiring spike: 4x ML eval engineers this week', conf: 0.78, when: '12m ago', trend: 'up',   delta: 4 },
+  { entity: 'Anthropic',              signal: 'MCP host extensions confirmed for Q3',          conf: 0.91, when: '1h ago',  trend: 'up',   delta: 2 },
+  { entity: 'Voice-agent evaluation', signal: '2 new vendors entered the space',               conf: 0.66, when: '3h ago',  trend: 'up',   delta: 2 },
+  { entity: 'Mercor',                 signal: 'No movement since last refresh',                conf: 0.72, when: '2d ago',  trend: 'flat', delta: 0 },
+  { entity: 'Alex Chen',              signal: 'LinkedIn updated: now hiring co-founder',       conf: 0.84, when: '5h ago',  trend: 'up',   delta: 1 },
+];
+
+/** PublicResearch cards — mirrors fixtures.ts publicResearch. */
+var PUBLIC_RESEARCH = [
+  { entity: 'OpenAI',                entityClass: 'company', kind: 'Hiring · 4 new roles',           when: '2h ago',     signal: 'Posted Forward Deploy Engineer + 3 GenAI roles — heavy enterprise tilt', delta: 4, trend: 'up',   claims: 12, sources: 6, conf: 0.91, icon: 'AI' },
+  { entity: 'Mercor',                entityClass: 'company', kind: 'Funding · Series B closed',      when: '11m ago',    signal: '+$30M Series B led by General Catalyst; valuation 2x last round',         delta: 5, trend: 'up',   claims: 18, sources: 9, conf: 0.88, icon: 'Mc' },
+  { entity: 'DISCO',                 entityClass: 'company', kind: 'Coverage · diligence brief',     when: '1h ago',     signal: 'SOC2 Type II achieved — clears the legal-AI procurement gate',           delta: 3, trend: 'up',   claims: 14, sources: 7, conf: 0.84, icon: 'Di' },
+  { entity: 'Anthropic',             entityClass: 'company', kind: 'Shipping · MCP host extensions', when: '3h ago',     signal: 'Confirmed for Q3 ship; agent SDK + Claude Code lanes now public',         delta: 2, trend: 'up',   claims:  8, sources: 4, conf: 0.90, icon: 'An' },
+  { entity: 'Voice-agent evaluation',entityClass: 'topic',   kind: 'Theme · 2 new vendors',          when: '3h ago',     signal: 'Crowded but unowned — 6 vendors, only 1 targets healthcare (Orbital)',    delta: 2, trend: 'up',   claims: 11, sources: 5, conf: 0.66, icon: 'VE' },
+  { entity: 'Foundation Labs',       entityClass: 'company', kind: 'Coverage · positioning',         when: 'Yesterday',  signal: 'New landscape map — category edges shifting toward eval infra',           delta: 1, trend: 'up',   claims:  6, sources: 3, conf: 0.74, icon: 'FL' },
+];
+
+/** Memo styles — mirrors fixtures.ts memoStyles (just the cards). */
+var MEMO_STYLES = [
+  { name: 'IC pre-read',          desc: 'Two-page brief, decision-front. Used for partner meetings.' },
+  { name: 'Founder voicenote',    desc: 'Conversational summary in your voice, 4 paragraphs.' },
+  { name: 'Sourcing one-pager',   desc: 'Hiring funnel framing — role, asks, must-haves, signals.' },
+  { name: 'Diligence briefing',   desc: 'Technical + commercial split, with weak-claim callouts.' },
+  { name: 'Newsletter section',   desc: 'Editorial intro, three named signals, 1 follow-up.' },
+];
+
+/** Situations — mirrors fixtures.ts situations (just labels). */
+var SITUATIONS = [
+  { name: 'Pre-meeting brief',   desc: '~6 min · 14 used this week. Stages 1 entity, 3 sources.' },
+  { name: 'Event followup',      desc: '~12 min · 8 used this week. Multi-entity capture loop.' },
+  { name: 'Hiring sourcing',     desc: '~15 min · 5 used. Role-templated entity expansion.' },
+  { name: 'Market scan',         desc: '~20 min · 11 used. Topic-shaped, refresh-aware.' },
+  { name: 'Diligence deep-dive', desc: '~30 min · 4 used. Multi-pass, weak-claim grading.' },
+  { name: 'Pipeline weekly',     desc: '~10 min · 9 used. Multi-account roll-up.' },
+];
+
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+
+function renderPulseHero() {
+  var host = document.getElementById('pulse-rows');
+  if (!host) return;
+  host.innerHTML = PULSE_ROWS.map(function(r) {
+    var rowClass = 'pulse-row';
+    if (r.kind === 'action') rowClass += ' pulse-row--action';
+    if (r.kind === 'new')    rowClass += ' pulse-row--new';
+    var trend = '';
+    if (r.trend === 'up')   trend = '<span class="pulse-row__trend-up">' + escHtml(r.signal || '') + '</span>';
+    if (r.trend === 'flat') trend = '<span class="pulse-row__trend-flat">' + escHtml(r.signal || '') + '</span>';
+    var endChunk = '';
+    if (r.kind === 'action') {
+      endChunk = '<span class="pulse-row__cta">open &rarr;</span>';
+    } else {
+      endChunk = '<span class="pulse-row__detail">' + escHtml(r.detail) + '</span>' +
+                 '<span class="pulse-row__when">' + escHtml(r.when) + '</span>';
+    }
+    var clickHandler = '';
+    if (r.kind === 'new') clickHandler = "switchMode('chat')";
+    return '<button type="button" class="' + rowClass + '" ' +
+      'aria-label="Pulse row: ' + escHtml(r.title) + '" ' +
+      (clickHandler ? 'onclick="' + clickHandler + '"' : '') + '>' +
+      '<span class="pulse-row__label">' + escHtml(r.label) + '</span>' +
+      '<strong class="pulse-row__title">' + escHtml(r.title) + trend + '</strong>' +
+      endChunk +
+    '</button>';
+  }).join('');
+}
+
+function renderWhatChanged() {
+  var host = document.getElementById('whatchanged-list');
+  if (!host) return;
+  host.innerHTML = CHANGED_ITEMS.slice(0, 5).map(function(it) {
+    return '<li><button type="button" class="whatchanged__row whatchanged__row--accent" ' +
+      'aria-label="' + escHtml(it.title) + '">' +
+      '<span class="whatchanged__icon" aria-hidden="true">' + it.icon + '</span>' +
+      '<div><div class="whatchanged__title">' + escHtml(it.title) + '</div>' +
+      '<div class="whatchanged__detail">' + escHtml(it.detail) + '</div></div>' +
+      '<span class="whatchanged__when">' + escHtml(it.when) + '</span>' +
+      '<span aria-hidden="true" style="color:var(--rd-ink-faint);font-family:var(--mono);font-size:11px">&rarr;</span>' +
+    '</button></li>';
+  }).join('');
+}
+
+function renderHomeOps() {
+  var c1 = document.getElementById('ops-continue-rows');
+  if (c1) {
+    c1.innerHTML = CONTINUE_ROWS.map(function(c) {
+      var badge = c.pending ? '<span class="home-ops__pending-badge">' + c.pending + ' new</span>' : '';
+      return '<div class="home-ops__row" role="button" tabindex="0" aria-label="' + escHtml(c.title) + '">' +
+        '<div class="home-ops__row-title">' + escHtml(c.title) + badge + '</div>' +
+        '<span class="home-ops__row-meta">' + escHtml(c.kind) + ' &middot; ' + escHtml(c.when) + '</span>' +
+        '<span class="home-ops__row-body">' + escHtml(c.left) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+  document.getElementById('ops-continue-count').textContent = CONTINUE_ROWS.length + ' open';
+
+  var c2 = document.getElementById('ops-changed-rows');
+  if (c2) {
+    c2.innerHTML = CHANGED_ROWS.map(function(card) {
+      return '<div class="home-ops__row">' +
+        '<span class="home-ops__row-meta">' + escHtml(card.meta) + '</span>' +
+        '<div class="home-ops__row-title" style="font-size:13px;margin-top:2px">' + escHtml(card.title) + '</div>' +
+        '<span class="home-ops__row-body">' + escHtml(card.body) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+  document.getElementById('ops-changed-count').textContent = 'today · ' + CHANGED_ROWS.length;
+
+  var c3 = document.getElementById('ops-watch-rows');
+  if (c3) {
+    c3.innerHTML = WATCH_ROWS.map(function(w) {
+      var arrow = w.trend === 'up' ? '&uarr;' : (w.trend === 'flat' ? '&middot;' : '&darr;');
+      var arrowCls = w.trend === 'up' ? 'home-entity-card__delta-up' : 'home-entity-card__delta-flat';
+      var deltaTxt = w.delta > 0 ? ('+' + w.delta) : (w.delta === 0 ? '0' : String(w.delta));
+      return '<div class="home-ops__row">' +
+        '<div class="home-ops__row-title">' + escHtml(w.entity) +
+        ' <span class="' + arrowCls + '" aria-label="trend">' + arrow + ' ' + deltaTxt + '</span></div>' +
+        '<span class="home-ops__row-body">' + escHtml(w.signal) + '</span>' +
+        '<span class="home-ops__row-meta">conf ' + Math.round(w.conf * 100) + '% &middot; ' + escHtml(w.when) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+  document.getElementById('ops-watch-count').textContent = WATCH_ROWS.length + ' entities';
+}
+
+function renderEntityGrid(filter, sort) {
+  var host = document.getElementById('home-entity-grid');
+  if (!host) return;
+  var rows = PUBLIC_RESEARCH.slice();
+  if (filter && filter !== 'all') {
+    rows = rows.filter(function(r) { return r.entityClass === filter; });
+  }
+  if (sort === 'confidence') rows.sort(function(a, b) { return b.conf - a.conf; });
+  else if (sort === 'delta') rows.sort(function(a, b) { return Math.abs(b.delta) - Math.abs(a.delta); });
+  if (rows.length === 0) {
+    host.innerHTML = '<div class="home-entity-card" style="grid-column:1/-1">' +
+      '<div class="home-eyebrow">Feed empty</div>' +
+      '<p class="home-faint" style="margin-top:6px;font-size:12px">No entities match this filter. Clear filters or run an artifact refresh.</p>' +
+    '</div>';
+    return;
+  }
+  host.innerHTML = rows.map(function(e) {
+    var arrow = e.trend === 'up' ? '&uarr;' : '&darr;';
+    var arrowCls = e.trend === 'up' ? 'home-entity-card__delta-up' : 'home-entity-card__delta-flat';
+    return '<button type="button" class="home-entity-card" ' +
+      'aria-label="Open ' + escHtml(e.entity) + ' research card">' +
+      '<div class="home-entity-card__head">' +
+        '<span class="home-entity-card__icon" aria-hidden="true">' + escHtml(e.icon || '?') + '</span>' +
+        '<div>' +
+          '<div class="home-entity-card__entity">' + escHtml(e.entity) + '</div>' +
+          '<div class="home-entity-card__kind">' + escHtml(e.kind) + ' &middot; ' + escHtml(e.when) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="home-entity-card__signal">' + escHtml(e.signal) + '</div>' +
+      '<div class="home-entity-card__foot">' +
+        '<span><span class="' + arrowCls + '">' + arrow + ' +' + e.delta + '</span> claims · ' + e.sources + ' sources</span>' +
+        '<span>conf ' + Math.round(e.conf * 100) + '%</span>' +
+      '</div>' +
+    '</button>';
+  }).join('');
+}
+
+function renderHomeDetails() {
+  var styles = document.getElementById('home-style-grid');
+  if (styles) {
+    styles.innerHTML = MEMO_STYLES.map(function(s) {
+      return '<button type="button" class="home-style-card" aria-label="Use memo style: ' + escHtml(s.name) + '">' +
+        '<div class="home-style-card__name">' + escHtml(s.name) + '</div>' +
+        '<div class="home-style-card__desc">' + escHtml(s.desc) + '</div>' +
+      '</button>';
+    }).join('');
+  }
+  var sits = document.getElementById('home-situation-grid');
+  if (sits) {
+    sits.innerHTML = SITUATIONS.map(function(s) {
+      return '<button type="button" class="home-style-card" aria-label="Use situation: ' + escHtml(s.name) + '">' +
+        '<div class="home-style-card__name">' + escHtml(s.name) + '</div>' +
+        '<div class="home-style-card__desc">' + escHtml(s.desc) + '</div>' +
+      '</button>';
+    }).join('');
+  }
+}
+
+/* ─── filter + sort wiring (no state on window) ─── */
+var _homeFilter = 'all';
+var _homeSort = 'newest';
+function bindHomeFilters() {
+  document.querySelectorAll('.home-filter-chip').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      _homeFilter = btn.getAttribute('data-filter') || 'all';
+      document.querySelectorAll('.home-filter-chip').forEach(function(b) {
+        b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+      });
+      renderEntityGrid(_homeFilter, _homeSort);
+    });
+  });
+  var sel = document.getElementById('home-sort-select');
+  if (sel) {
+    sel.addEventListener('change', function() {
+      _homeSort = sel.value;
+      renderEntityGrid(_homeFilter, _homeSort);
+    });
+  }
+}
+
 /* ─── INIT ─── */
 renderArtifacts('all');
+renderPulseHero();
+renderWhatChanged();
+renderHomeOps();
+renderEntityGrid('all', 'newest');
+renderHomeDetails();
+bindHomeFilters();
 </script>
 </body>
 </html>
