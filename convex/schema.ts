@@ -21,6 +21,11 @@ import {
 } from "./schema/emailSchema";
 
 // Live event-room schema (Phases 1–3 of scratchnode.live live prod plan)
+// Step 8 adds users + userSignInTokens — see ./schema/usersSchema.ts.
+import {
+  users as scratchnodeUsers,
+  userSignInTokens,
+} from "./schema/usersSchema";
 import {
   liveEvents,
   liveEventMembers,
@@ -4894,6 +4899,10 @@ export default defineSchema({
   liveEventHosts,
   liveEventWikiVersions,
   liveEventNoteAnchors,
+  // Step 8: persistent user identity + magic-link sign-in tokens.
+  // Aliased to scratchnodeUsers to avoid collision with @convex-dev/auth `users`.
+  scratchnodeUsers,
+  userSignInTokens,
 
   /* ------------------------------------------------------------------ */
   /* EMAIL MANAGEMENT - Full email thread/message management system     */

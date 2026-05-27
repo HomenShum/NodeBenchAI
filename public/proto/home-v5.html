@@ -536,6 +536,9 @@ body[data-role="host"] .menu-sheet [data-hide-for="host"] { display: none; }
 .menu-sheet [data-show-for="named"] { display: none; }
 body[data-named="true"] .menu-sheet [data-show-for="named"] { display: block; }
 body[data-named="true"] .menu-sheet [data-hide-for="named"] { display: none; }
+.menu-sheet [data-show-for="signed-in"] { display: none; }
+body[data-signed-in="true"] .menu-sheet [data-show-for="signed-in"] { display: block; }
+body[data-signed-in="true"] .menu-sheet [data-hide-for="signed-in"] { display: none; }
 .menu-sheet h4[data-show-for]:not([data-show-for="all"]) { display: none; }
 body[data-role="host"] .menu-sheet h4[data-show-for="host"] { display: block; }
 body[data-named="true"] .menu-sheet h4[data-show-for="named"] { display: block; }
@@ -1064,7 +1067,9 @@ body[data-new-user="true"] .h-menu::after {
   <h4 style="margin-top:14px" data-show-for="host">For hosts</h4>
   <button type="button" data-show-for="host" onclick="openHost()">Host console<span class="sub">Moderation · /ask queue · Publish wiki</span></button>
   <h4 style="margin-top:14px" data-show-for="all">Account</h4>
-  <button type="button" data-hide-for="named" onclick="openSignIn()">Sign in<span class="sub">Magic link — get your own events</span></button>
+  <button type="button" data-hide-for="signed-in" onclick="openSignIn()">Sign in<span class="sub">Magic link — get your own events</span></button>
+  <button type="button" data-show-for="signed-in" onclick="openMyEvents()">My events<span class="sub">Joined and hosted rooms across devices</span></button>
+  <button type="button" data-show-for="signed-in" onclick="snSignOut()">Sign out<span class="sub">Return to anonymous mode</span></button>
   <button type="button" data-show-for="named" onclick="setIdentity()">Change name<span class="sub" id="menu-name-sub">—</span></button>
   <button type="button" onclick="openShortcuts()">Keyboard shortcuts<span class="sub">Press ? anywhere</span></button>
   <h4 style="margin-top:14px" data-show-for="all">More</h4>
@@ -1452,6 +1457,128 @@ function openSignIn() {
     return;
   }
   openSheet('signin');
+}
+
+// Step 8 — open the "My events" sheet. Falls back to signin if not signed in.
+function openMyEvents() {
+  closeMenu();
+  openSheet('myevents');
+}
+
+// Step 8 — render the list of joined/hosted events into #sn-my-events-list.
+// Live mode only: calls events:listMyEvents via the Convex client. In
+// prototype mode (no Convex), shows a "live backend required" hint.
+function renderMyEventsList(userId) {
+  var el = document.getElementById('sn-my-events-list');
+  if (!el) return;
+  var live = window._sn_live;
+  if (!live || !live.client) {
+    el.innerHTML =
+      '<div class="sheet-sub" style="text-align:center;padding:16px 0">' +
+      'Live backend not connected. Sign in works only on /e/&lt;slug&gt; pages.' +
+      '</div>';
+    return;
+  }
+  live.client.query('events:listMyEvents', { userId: userId })
+    .then(function(res) {
+      var rows = (res && Array.isArray(res.joined)) ? res.joined : [];
+      if (rows.length === 0) {
+        el.innerHTML =
+          '<div class="sheet-sub" style="text-align:center;padding:16px 0">' +
+          'No events yet. Join a room with <code>/e/&lt;slug&gt;</code>, then come back here.' +
+          '</div>';
+        return;
+      }
+      var truncatedNote = (res && res._truncated)
+        ? '<div class="sheet-sub" style="text-align:center;margin-top:8px">Showing first 500. Older events may not appear.</div>'
+        : '';
+      var items = rows.map(function(r) {
+        var safeName = (r.eventName || r.eventSlug || 'Event').replace(/[<>&"']/g, function(c) {
+          return ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;' })[c];
+        });
+        var roleBadge = r.role === 'host'
+          ? '<span class="badge" style="background:#d97757;color:#fff">Host</span>'
+          : '<span class="badge">Joined</span>';
+        var joinedAt = r.joinedAt
+          ? new Date(r.joinedAt).toISOString().slice(0, 10)
+          : '';
+        // Build the navigation URL safely — encode the slug.
+        var slug = encodeURIComponent(r.eventSlug || '');
+        return '<button type="button" class="people-row" style="width:100%;text-align:left;border:none;background:none;cursor:pointer;padding:10px 0;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--line)" ' +
+          'onclick="window.location.assign(\'/e/' + slug + '\')" ' +
+          'aria-label="Open event ' + safeName + '">' +
+          '<div class="people-info" style="flex:1">' +
+            '<div class="people-name">' + safeName + '</div>' +
+            '<div class="people-role" style="font-size:11px;color:var(--ink-faint)">' + joinedAt + '</div>' +
+          '</div>' +
+          roleBadge +
+          '</button>';
+      }).join('');
+      el.innerHTML = '<div class="people-list">' + items + '</div>' + truncatedNote;
+    })
+    .catch(function(err) {
+      el.innerHTML =
+        '<div class="sheet-sub" style="text-align:center;padding:16px 0;color:#f87171">' +
+        'Could not load events: ' + ((err && err.message) || 'unknown error') +
+        '</div>';
+    });
+}
+
+// Step 8 — magic-link landing. If the page URL carries ?sign-in-token=XXX,
+// auto-call events:verifySignInToken, persist the resulting user to
+// localStorage, clean the URL, and toast the result.
+function consumeSignInTokenFromUrl() {
+  var params;
+  try { params = new URLSearchParams(location.search); } catch (e) { return; }
+  var token = params.get('sign-in-token');
+  if (!token) return;
+  // Clean URL immediately so a refresh doesn't re-submit a consumed token.
+  try {
+    params.delete('sign-in-token');
+    var clean = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
+    history.replaceState({}, '', clean);
+  } catch (e) {}
+  var live = window._sn_live;
+  if (!live || !live.client) {
+    // Live backend hasn't booted yet — retry once after a short delay.
+    setTimeout(function() {
+      var l = window._sn_live;
+      if (l && l.client) consumeSignInTokenInner(l, token);
+    }, 1500);
+    return;
+  }
+  consumeSignInTokenInner(live, token);
+}
+// Expose for the module-scoped Convex bootstrap.
+window.consumeSignInTokenFromUrl = consumeSignInTokenFromUrl;
+
+function consumeSignInTokenInner(live, token) {
+  var sid = null;
+  try { sid = localStorage.getItem('sn_session_id'); } catch (e) {}
+  live.client.mutation('events:verifySignInToken', {
+    token: token,
+    sessionId: sid || undefined,
+  })
+    .then(function(res) {
+      if (!res || !res.userId) return;
+      saveSignedInUser({
+        userId: res.userId,
+        email: res.email,
+        displayName: res.displayName,
+      });
+      var merged = (res.mergedSessionIds && res.mergedSessionIds.length)
+        ? ' (' + res.mergedSessionIds.length + ' prior session merged)' : '';
+      toast('Signed in as ' + (res.displayName || res.email), 'Welcome back' + merged + '.');
+    })
+    .catch(function(err) {
+      var code = err && err.data && err.data.code;
+      var msg = code === 'token_expired'
+        ? 'Sign-in link has expired. Request a new one.'
+        : (code === 'token_invalid'
+          ? 'Sign-in link is invalid or already used.'
+          : ((err && err.message) || 'Try again.'));
+      toast('Sign-in failed', msg);
+    });
 }
 function openShortcuts() { _focusReturn.kbd = document.activeElement; closeMenu(); var o = document.getElementById('kbd-overlay'); o.setAttribute('data-open','true'); }
 function closeShortcuts() {
@@ -1879,6 +2006,31 @@ var SHEET_RENDERERS = {
       '<p class="sheet-sub">Showing first 8. Tap a name to see their @-mentions and questions.</p>' +
       '<div class="people-list">' + rows + '</div>' +
       '<button type="button" class="sheet-button ghost" style="margin-top:14px">Show all 318 &darr;</button>';
+  },
+
+  myevents: function() {
+    // Step 8 — "My events" surface. Calls events:listMyEvents with the
+    // stored userId. Renders a list of joined/hosted events; tap a row
+    // to navigate. Empty state explains how to populate it.
+    var u = loadSignedInUser();
+    if (!u) {
+      return '<div class="sheet-head"><h2 id="sheet-title">My events</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+        '<p class="sheet-sub">Sign in to see the events you have joined or hosted across devices.</p>' +
+        '<button type="button" class="sheet-button" onclick="openSheet(\'signin\')">Sign in</button>';
+    }
+    // Render the shell; content fetched async and injected.
+    var shell =
+      '<div class="sheet-head"><h2 id="sheet-title">My events</h2>' +
+      '<span class="badge" id="sn-me-badge">' + (u.displayName ? u.displayName : u.email) + '</span>' +
+      '<button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+      '<p class="sheet-sub">Events you have joined or hosted on this account.</p>' +
+      '<div id="sn-my-events-list" role="region" aria-label="Joined events" aria-live="polite">' +
+        '<div class="sheet-sub" style="text-align:center;padding:16px 0">Loading…</div>' +
+      '</div>' +
+      '<button type="button" class="sheet-button ghost" style="margin-top:14px" onclick="snSignOut()">Sign out</button>';
+    // Kick off the list query — the result populates #sn-my-events-list.
+    setTimeout(function() { renderMyEventsList(u.userId); }, 30);
+    return shell;
   },
 
   signin: function() {
@@ -2398,7 +2550,10 @@ function shareTo(p) {
   if (dest) { window.open(dest, '_blank', 'noopener'); closeSheet(); haptic(); }
 }
 
-// ── Magic-link sign-in ──
+// ── Magic-link sign-in (Step 8 — calls events:requestSignInLink) ──
+// Wires the email input on the 'signin' sheet to the Convex backend. If
+// Convex isn't live yet (prototype mode), falls back to the demo toast.
+// On success: closes sheet, shows "check your inbox" toast.
 function sendMagicLink() {
   var input = document.getElementById('sheet-signin-email');
   if (!input) return;
@@ -2409,10 +2564,71 @@ function sendMagicLink() {
     toast('Invalid email', 'Try again.');
     return;
   }
+  var live = window._sn_live;
+  if (live && live.client) {
+    // Build returnUrl pointing at this very page so the email link
+    // brings the user back to the same event with ?sign-in-token=XXX
+    // in the URL.
+    var returnUrl = location.origin + location.pathname;
+    live.client.mutation('events:requestSignInLink', {
+      email: email,
+      returnUrl: returnUrl,
+    })
+      .then(function() {
+        closeSheet();
+        toast('Magic link sent to ' + email, 'Check your inbox to finish signing in.');
+        haptic(15);
+      })
+      .catch(function(err) {
+        toast('Could not send link', (err && err.message) || 'Try again.');
+      });
+    return;
+  }
+  // Prototype fallback when Convex isn't live (proto-only previews).
   closeSheet();
   toast('Magic link sent to ' + email, 'Check your inbox. Return target: NodeBench event notebook.');
   haptic(15);
 }
+
+// ── Step 8 user state (signed-in identity) ──
+// Persisted in localStorage as `sn_user_v1`. Stays put across reloads.
+// Carries { userId, email, displayName, signedInAt }. The presence of
+// this key flips body[data-signed-in="true"] which the menu can react to.
+function loadSignedInUser() {
+  try {
+    var raw = localStorage.getItem('sn_user_v1');
+    if (!raw) return null;
+    var parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.userId !== 'string') return null;
+    return parsed;
+  } catch (e) { return null; }
+}
+function saveSignedInUser(u) {
+  try {
+    localStorage.setItem('sn_user_v1', JSON.stringify({
+      userId: u.userId,
+      email: u.email,
+      displayName: u.displayName,
+      signedInAt: Date.now(),
+    }));
+    document.body.setAttribute('data-signed-in', 'true');
+  } catch (e) {}
+}
+function clearSignedInUser() {
+  try { localStorage.removeItem('sn_user_v1'); } catch (e) {}
+  document.body.removeAttribute('data-signed-in');
+}
+function snSignOut() {
+  clearSignedInUser();
+  toast('Signed out', 'Anonymous mode active. Notes from this session remain.');
+  closeMenu();
+}
+
+// Reflect signed-in state in the body on load (the menu CSS hooks off this).
+(function() {
+  var u = loadSignedInUser();
+  if (u) document.body.setAttribute('data-signed-in', 'true');
+})();
 
 // (Wrapper #3 removed — private-note routing now lives in savePrivateNote() in the consolidated pipeline)
 window._privateNotes_v5 = window._privateNotes_v5 || [];
@@ -3084,6 +3300,15 @@ setTimeout(refreshNotesCounter, 100);
   }
   const eventId = joined.eventId;
   window._sn_live = { client, eventId, sessionId, slug };
+
+  // Step 8 — auto-consume ?sign-in-token=XXX from URL once Convex is live.
+  try {
+    if (typeof window.consumeSignInTokenFromUrl === 'function') {
+      window.consumeSignInTokenFromUrl();
+    }
+  } catch (e) {
+    console.debug('[scratchnode] sign-in token consume failed:', e && e.message);
+  }
 
   // ─── Replace pre-baked feed rows with realtime Convex rows ─────────
   const feedEl = document.getElementById('feed');
