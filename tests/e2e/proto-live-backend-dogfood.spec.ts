@@ -138,6 +138,23 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
     await waitForScratchNodeLive(pageA);
     await waitForScratchNodeLive(pageB);
 
+    const myEvents = await pageA.evaluate(async () => {
+      const live = (window as any)._sn_live;
+      return await live.client.query("events:getMyEvents", {
+        sessionId: live.sessionId,
+        ownerKey:
+          localStorage.getItem("sn_host_owner_key_v2") ||
+          localStorage.getItem("sn_host_owner_key") ||
+          live.sessionId,
+        limit: 10,
+      });
+    });
+    expect(myEvents.joined.some((event: any) => event.slug === "ai-infra-summit-2026")).toBe(true);
+    await pageA.evaluate(() => (window as any).openEvents());
+    await expect(pageA.locator("#sheet-title")).toContainText("My events");
+    await expect(pageA.locator("#sheet-content")).toContainText("AI Infra Summit");
+    await pageA.evaluate(() => (window as any).closeSheet());
+
     const chatText = `QA public chat sync ${qaId}`;
     await sendComposer(pageA, chatText);
     await expect
@@ -151,6 +168,13 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
         { timeout: 30_000 },
       )
       .toBe(true);
+    const publicMessageId = await pageA.evaluate((text) => {
+      const row = Array.from(document.querySelectorAll(".row[data-mid]")).find((node) =>
+        node.querySelector(".row-text")?.textContent?.includes(text),
+      );
+      return row?.getAttribute("data-mid") ?? null;
+    }, chatText);
+    expect(publicMessageId, "public message should have a stable row id for private anchors").toBeTruthy();
 
     const question = `what did attendees say about MCP auth ${qaId}`;
     await sendComposer(pageA, `/ask ${question}`);
@@ -219,11 +243,10 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
     }
 
     const privateNote = `QA private note ${qaId}`;
-    await pageA.evaluate(() => {
-      if (document.body.getAttribute("data-mode") !== "private") {
-        (window as any).toggleLock();
-      }
-    });
+    await pageA.evaluate((mid) => (window as any).noteOnMessage(mid), publicMessageId);
+    await expect
+      .poll(() => pageA.evaluate(() => document.body.getAttribute("data-mode")), { timeout: 5_000 })
+      .toBe("private");
     await sendComposer(pageA, privateNote);
 
     await expect
@@ -250,6 +273,35 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
       return note?.id ?? null;
     }, privateNote);
     expect(noteId, "private note should have a Convex id").toBeTruthy();
+    const anchoredNote = await pageA.evaluate((id) => {
+      return ((window as any)._notes_v5 || []).find((note: any) => note.id === id) ?? null;
+    }, noteId);
+    expect(anchoredNote.anchorType).toBe("message");
+    expect(anchoredNote.anchorId).toBe(publicMessageId);
+    await expect
+      .poll(
+        () =>
+          pageA.evaluate((mid) => {
+            const row = Array.from(document.querySelectorAll(".row[data-mid]")).find(
+              (node) => node.getAttribute("data-mid") === mid,
+            );
+            return row?.querySelector(".private-note-marker")?.textContent ?? "";
+          }, publicMessageId),
+        { timeout: 15_000 },
+      )
+      .toContain("private note");
+    await expect
+      .poll(
+        () =>
+          pageB.evaluate((mid) => {
+            const row = Array.from(document.querySelectorAll(".row[data-mid]")).find(
+              (node) => node.getAttribute("data-mid") === mid,
+            );
+            return !!row?.querySelector(".private-note-marker");
+          }, publicMessageId),
+        { timeout: 5_000 },
+      )
+      .toBe(false);
 
     await pageA.evaluate(() => (window as any).openNotes());
     await expect(pageA.locator("#sn-nodebench-private-handoff")).toBeVisible();
@@ -289,6 +341,18 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
         { timeout: 15_000 },
       )
       .toBe(true);
+    await expect
+      .poll(
+        () =>
+          pageA.evaluate((mid) => {
+            const row = Array.from(document.querySelectorAll(".row[data-mid]")).find(
+              (node) => node.getAttribute("data-mid") === mid,
+            );
+            return !!row?.querySelector(".private-note-marker");
+          }, publicMessageId),
+        { timeout: 15_000 },
+      )
+      .toBe(false);
 
     await pageA.screenshot({
       path: join(ARTIFACT_DIR, `${qaId}-event-final.png`),

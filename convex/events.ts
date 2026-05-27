@@ -8,6 +8,7 @@
  *   - getEventBySlug({ slug })
  *   - getMessages({ eventId, limit? })            // realtime subscription
  *   - getMembers({ eventId })                     // realtime subscription
+ *   - getMyEvents({ sessionId, ownerKey, limit? }) // lightweight account/event state
  *   - joinEvent({ slug, sessionId, displayName }) // returns { eventId, ... }
  *   - sendMessage({ eventId, sessionId, displayName, text, kind, replyToMessageId? })
  *   - heartbeat({ eventId, sessionId })
@@ -57,6 +58,7 @@ const MAX_STALE_HOST_CLAIM_EVICT = 100;
 const MAX_SOURCE_BODY = 12_000;
 const MAX_ANSWER_BODY = 4_000;
 const MAX_ANSWER_LIMIT = 100;
+const MAX_MY_EVENTS_LIMIT = 50;
 const MAX_WIKI_ANSWERS = 20;
 // Phase 4 raised this from 80 -> 120 to fit HMAC-signed host tokens
 // (hk1:<eventIdShort>:<nonce>:<issuedAt>:<hmacShort> ~ 80-90 chars).
@@ -817,6 +819,67 @@ export const getHostStatus = query({
       .withIndex("by_event_owner", (q) => q.eq("eventId", eventId).eq("ownerKey", ownerKey))
       .first();
     return host ? { isHost: true, role: host.role, displayName: host.displayName } : { isHost: false };
+  },
+});
+
+export const getMyEvents = query({
+  args: {
+    sessionId: v.optional(v.string()),
+    ownerKey: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { sessionId, ownerKey, limit }) => {
+    const safeLimit = Math.min(Math.max(limit ?? 20, 1), MAX_MY_EVENTS_LIMIT);
+    const joined: any[] = [];
+    const hosted: any[] = [];
+
+    if (sessionId && sessionId.length >= 8 && sessionId.length <= 64) {
+      const memberRows = await ctx.db
+        .query("liveEventMembers")
+        .withIndex("by_session_joined", (q) => q.eq("sessionId", sessionId))
+        .order("desc")
+        .take(safeLimit);
+
+      for (const membership of memberRows) {
+        const event = await ctx.db.get(membership.eventId);
+        if (!event) continue;
+        joined.push({
+          eventId: event._id,
+          slug: event.slug,
+          name: event.name,
+          roomCode: event.roomCode,
+          status: event.status,
+          role: "attendee",
+          joinedAt: membership.joinedAt,
+          lastSeenAt: membership.lastSeenAt,
+        });
+      }
+    }
+
+    if (ownerKey && ownerKey.length >= 8 && ownerKey.length <= MAX_OWNER_KEY_LEN) {
+      const hostRows = await ctx.db
+        .query("liveEventHosts")
+        .withIndex("by_owner", (q) => q.eq("ownerKey", ownerKey))
+        .order("desc")
+        .take(safeLimit);
+
+      for (const host of hostRows) {
+        const event = await ctx.db.get(host.eventId);
+        if (!event) continue;
+        hosted.push({
+          eventId: event._id,
+          slug: event.slug,
+          name: event.name,
+          roomCode: event.roomCode,
+          status: event.status,
+          role: host.role,
+          authMethod: host.authMethod ?? "legacy_ownerkey",
+          createdAt: host.createdAt,
+        });
+      }
+    }
+
+    return { joined, hosted };
   },
 });
 

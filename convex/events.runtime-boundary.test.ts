@@ -5,8 +5,10 @@ import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const eventsSource = readFileSync(join(here, "events.ts"), "utf8");
+const notesSource = readFileSync(join(here, "notes.ts"), "utf8");
+const eventsSchemaSource = readFileSync(join(here, "schema", "eventsSchema.ts"), "utf8");
 
-function functionBlock(name: string, kind: "mutation" | "action" | "internalQuery" | "internalMutation" = "mutation"): string {
+function functionBlock(name: string, kind: "query" | "mutation" | "action" | "internalQuery" | "internalMutation" = "mutation"): string {
   const start = eventsSource.indexOf(`export const ${name} = ${kind}({`);
   expect(start, `${name} ${kind} should exist`).toBeGreaterThanOrEqual(0);
   const next = eventsSource.indexOf("\nexport const ", start + 1);
@@ -38,6 +40,29 @@ describe("scratchnode public runtime boundaries", () => {
     expect(publishWiki).toContain("liveEventAnswers");
     expect(publishWiki).toContain("liveEventWikiVersions");
     expect(publishWiki).not.toContain("userNotes");
+  });
+
+  it("models private note anchors without making them public messages", () => {
+    expect(eventsSchemaSource).toContain("anchorType");
+    expect(eventsSchemaSource).toContain("by_owner_event_anchor");
+    expect(eventsSchemaSource).toContain("by_session_joined");
+    expect(eventsSchemaSource).toContain("by_owner");
+    expect(notesSource).toContain("sanitizeAnchor");
+    expect(notesSource).toContain("Private note anchors require anchorId");
+
+    const sendMessage = functionBlock("sendMessage");
+    expect(sendMessage).not.toContain("userNotes");
+    expect(sendMessage).not.toContain("anchorType");
+  });
+
+  it("keeps ScratchNode account event state as bounded joined and hosted lists", () => {
+    const getMyEvents = functionBlock("getMyEvents", "query");
+
+    expect(getMyEvents).toContain("MAX_MY_EVENTS_LIMIT");
+    expect(getMyEvents).toContain("by_session_joined");
+    expect(getMyEvents).toContain("by_owner");
+    expect(getMyEvents).toContain("joined");
+    expect(getMyEvents).toContain("hosted");
   });
 
   it("keeps host claim idempotent for the same owner key before rejecting claimed rooms", () => {
