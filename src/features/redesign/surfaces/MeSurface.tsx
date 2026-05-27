@@ -735,6 +735,25 @@ function MeV2DocumentCenter({
           );
         }
         )}
+        {/* Step 9 of scratchnode release loop — ScratchNode handoff entry
+            point. Keeps the integrations grid as the canonical "linked apps"
+            surface (per the audit's request to add the surface under Me).
+            Link wins because ScratchNode is the FIRST sibling app on the
+            shared Convex deployment; it is the prototype for cross-app
+            handoff inside the NodeBench identity. */}
+        <article data-testid="me-integration-scratchnode">
+          <strong>ScratchNode</strong>
+          <span data-tone="green">Linked via session</span>
+          <p>
+            <a
+              href="/scratchnode-events"
+              data-testid="me-integration-scratchnode-link"
+              style={{ color: "var(--rd-accent-strong)", textDecoration: "none" }}
+            >
+              View joined events &amp; private notes →
+            </a>
+          </p>
+        </article>
       </section>
     </div>
   );
