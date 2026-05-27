@@ -3695,6 +3695,225 @@ setTimeout(refreshNotesCounter, 100);
     });
   };
 
+  // ─── PHASE 5 follow-up: private note anchors ─────────────────────────
+  //
+  // Link a private note to a specific public chat message (.row[data-mid])
+  // or public /ask answer (.ans[data-answer-id]). Owner-keyed: only the
+  // owner sees the pin marker. Backend rejects cross-owner anchor creation
+  // (see convex/notes.ts createNoteAnchor).
+  //
+  // Privacy invariant: the marker is rendered purely from listMyAnchors
+  // which is owner-keyed. There is NO public broadcast of anchor data —
+  // an attendee never learns that anyone else has anchored a note here.
+
+  // Map of (kind:id) → anchor row, kept in sync by the subscription.
+  // Used by drawAllMarkers to decide which feed rows get a pin.
+  window._sn_anchors_by_target = new Map();
+  // Map of noteId → array of anchor rows (for jumping from a note back to
+  // its anchored targets; exposed for future UX work).
+  window._sn_anchors_by_note = new Map();
+
+  const anchorKey = (kind, id) => kind + ':' + id;
+
+  const _drawSingleMarker = (kind, targetId, anchor) => {
+    const sel = kind === 'message'
+      ? '.row[data-mid="' + targetId + '"] .row-text'
+      : '.ans[data-answer-id="' + targetId + '"] .ans-head';
+    const host = document.querySelector(sel);
+    if (!host) return;
+    if (host.querySelector('.sn-anchor-pin')) return;
+    const pin = document.createElement('button');
+    pin.type = 'button';
+    pin.className = 'sn-anchor-pin';
+    pin.setAttribute('aria-label', 'Open anchored private note');
+    pin.setAttribute('data-anchor-id', anchor._id);
+    pin.setAttribute('data-note-id', anchor.noteId);
+    pin.textContent = '📌';
+    pin.style.cssText =
+      'background:none;border:0;cursor:pointer;font-size:13px;margin-left:6px;' +
+      'opacity:0.85;padding:0 2px;color:#d97757;';
+    pin.addEventListener('click', (evt) => {
+      evt.stopPropagation();
+      window._activeNoteId = anchor.noteId;
+      if (typeof openSheet === 'function') openSheet('notes');
+    });
+    host.appendChild(pin);
+  };
+
+  const drawAllMarkers = () => {
+    for (const [k, anchor] of window._sn_anchors_by_target.entries()) {
+      const idx = k.indexOf(':');
+      if (idx < 0) continue;
+      _drawSingleMarker(k.slice(0, idx), k.slice(idx + 1), anchor);
+    }
+  };
+
+  const removeStaleMarkers = () => {
+    document.querySelectorAll('.sn-anchor-pin').forEach((el) => {
+      const anchorId = el.getAttribute('data-anchor-id');
+      const stillLive = Array.from(window._sn_anchors_by_target.values())
+        .some((a) => a._id === anchorId);
+      if (!stillLive) el.remove();
+    });
+  };
+
+  client.onUpdate('notes:listMyAnchors', { ownerKey: noteOwnerKey, eventId }, (result) => {
+    const anchors = (result && Array.isArray(result.anchors)) ? result.anchors : [];
+    window._sn_anchors_by_target.clear();
+    window._sn_anchors_by_note.clear();
+    for (const a of anchors) {
+      const tid = a.targetKind === 'message' ? a.targetMessageId : a.targetAnswerId;
+      if (!tid) continue;
+      window._sn_anchors_by_target.set(anchorKey(a.targetKind, tid), a);
+      const bucket = window._sn_anchors_by_note.get(a.noteId) || [];
+      bucket.push(a);
+      window._sn_anchors_by_note.set(a.noteId, bucket);
+    }
+    removeStaleMarkers();
+    drawAllMarkers();
+    if (result && result._truncated) {
+      console.warn('[scratchnode] listMyAnchors hit truncation cap — some anchors not rendered');
+    }
+  });
+
+  // ─── Anchor-target capture API ───────────────────────────────────────
+  //
+  // The UI surfaces a small "📌+" affordance on each chat row / answer
+  // card. Clicking it stores the (kind, id) pair in
+  // window._sn_pending_anchor. When the user then writes a private note
+  // (lock icon ON in the composer) and sends, savePrivateNote also calls
+  // notes:createNoteAnchor and clears the pending state on success.
+  window._sn_pending_anchor = null;
+
+  // Explicit programmatic entry point — Playwright/dogfood drives this
+  // directly rather than chasing a pixel-level DOM click.
+  window.snAnchorTo = function(kind, id) {
+    if (kind !== 'message' && kind !== 'answer') {
+      console.warn('[scratchnode] snAnchorTo: invalid kind', kind);
+      return;
+    }
+    if (!id || typeof id !== 'string') {
+      console.warn('[scratchnode] snAnchorTo: invalid id');
+      return;
+    }
+    window._sn_pending_anchor = { kind, id };
+    if (typeof toast === 'function') {
+      toast('Anchor armed', 'Your next private note will be anchored here.');
+    }
+  };
+
+  const _addPinButtons = () => {
+    document.querySelectorAll('.feed .row[data-mid]').forEach((row) => {
+      if (row.querySelector('.sn-anchor-add')) return;
+      const body = row.querySelector('.row-body');
+      if (!body) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sn-anchor-add';
+      btn.setAttribute('aria-label', 'Anchor private note here');
+      btn.setAttribute('title', 'Anchor private note here');
+      btn.textContent = '📌+';
+      btn.style.cssText =
+        'background:none;border:0;cursor:pointer;font-size:11px;margin-left:6px;' +
+        'opacity:0.45;padding:0 2px;color:#d97757;';
+      btn.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
+      btn.addEventListener('mouseleave', () => { btn.style.opacity = '0.45'; });
+      btn.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        window.snAnchorTo('message', row.getAttribute('data-mid'));
+      });
+      body.appendChild(btn);
+    });
+    document.querySelectorAll('.feed .ans[data-answer-id]').forEach((ans) => {
+      if (ans.querySelector('.sn-anchor-add')) return;
+      const head = ans.querySelector('.ans-head');
+      if (!head) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sn-anchor-add';
+      btn.setAttribute('aria-label', 'Anchor private note to this answer');
+      btn.setAttribute('title', 'Anchor private note to this answer');
+      btn.textContent = '📌+';
+      btn.style.cssText =
+        'background:none;border:0;cursor:pointer;font-size:11px;margin-left:6px;' +
+        'opacity:0.6;padding:0 2px;color:#d97757;';
+      btn.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        window.snAnchorTo('answer', ans.getAttribute('data-answer-id'));
+      });
+      head.appendChild(btn);
+    });
+  };
+
+  // The realtime renderers (renderMessage / renderAnswer) append new feed
+  // rows asynchronously. MutationObserver re-runs the pin-button placement
+  // and re-draws known anchor markers whenever new rows arrive.
+  const feedHost = document.getElementById('feed');
+  if (feedHost && typeof MutationObserver === 'function') {
+    const mo = new MutationObserver(() => {
+      _addPinButtons();
+      drawAllMarkers();
+    });
+    mo.observe(feedHost, { childList: true, subtree: false });
+  }
+  _addPinButtons();
+
+  // ─── Wrap savePrivateNote to also create the anchor ──────────────────
+  //
+  // The previous wrapper (above, in the Phase 3 block) already redirects
+  // private composer submissions through notes:createNote. We extend it
+  // here so that if _sn_pending_anchor is armed, the same submission also
+  // calls notes:createNoteAnchor and clears the pending state on success.
+  const _origSavePrivateNoteForAnchor = window.savePrivateNote;
+  window.savePrivateNote = function(intent) {
+    const pending = window._sn_pending_anchor;
+    const tStart = Date.now();
+    const ret = _origSavePrivateNoteForAnchor
+      ? _origSavePrivateNoteForAnchor.call(this, intent)
+      : undefined;
+    if (!pending) return ret;
+    // Poll briefly for the Convex-confirmed note id. The Convex echo
+    // typically lands within ~1s via the listMyNotes subscription.
+    const tryAnchor = () => {
+      const recent = (window._notes_v5 || [])
+        .filter((n) => Math.abs((n.createdAt || 0) - tStart) < 5000)
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+      if (!recent || !recent.id || String(recent.id).startsWith('temp_')) {
+        if (Date.now() - tStart < 3000) {
+          setTimeout(tryAnchor, 150);
+        } else {
+          console.warn('[scratchnode] anchor creation timed out — no live note id within 3s');
+          window._sn_pending_anchor = null;
+        }
+        return;
+      }
+      const args = {
+        ownerKey: noteOwnerKey,
+        noteId: recent.id,
+        eventId,
+        targetKind: pending.kind,
+      };
+      if (pending.kind === 'message') args.targetMessageId = pending.id;
+      else args.targetAnswerId = pending.id;
+      client.mutation('notes:createNoteAnchor', args)
+        .then(() => {
+          window._sn_pending_anchor = null;
+          if (typeof toast === 'function') {
+            toast('Anchored', 'Pin will appear on the source.');
+          }
+        })
+        .catch((e) => {
+          console.warn('[scratchnode] createNoteAnchor failed:', e.message || e);
+          window._sn_pending_anchor = null;
+          if (typeof toast === 'function') {
+            toast('Anchor failed', e.message || String(e));
+          }
+        });
+    };
+    tryAnchor();
+    return ret;
+  };
+
   // Mark the page as Convex-connected so devs / e2e tests can detect it.
   document.body.setAttribute('data-sn-live', 'true');
   document.body.setAttribute('data-sn-phases', '1,2,3,4,5');

@@ -1,5 +1,7 @@
 /**
  * convex/notes.ts — Phase 3 of the scratchnode.live live prod plan
+ *   (+ Phase 5 follow-up: private note anchors — link a note to a
+ *    specific public chat message or public /ask answer)
  *
  * Private notes per anonymous session. Replaces the prototype's
  * window._notes_v5 localStorage store.
@@ -199,6 +201,12 @@ export const togglePin = mutation({
 
 /**
  * Permanent delete. ownerKey gated.
+ *
+ * Cascade: any liveEventNoteAnchors pointing at this note are deleted
+ * inline in the same mutation. Inline (not janitor cron) so the
+ * (note, anchors) state is transactionally consistent — a UI render
+ * that ran a half-second after deletion can never see a phantom anchor
+ * whose noteId returns null.
  */
 export const deleteNote = mutation({
   args: {
@@ -212,8 +220,197 @@ export const deleteNote = mutation({
     if (note.ownerKey !== ownerKey) {
       throw new ConvexError({ code: "not_owner", message: "You don't own this note." });
     }
+    // Cascade: remove anchors. by_note index keeps this O(anchor-count-for-note),
+    // not a table scan.
+    const anchors = await ctx.db
+      .query("liveEventNoteAnchors")
+      .withIndex("by_note", (q) => q.eq("noteId", noteId))
+      .take(MAX_NOTES_PER_QUERY);
+    let anchorsDeleted = 0;
+    for (const anchor of anchors) {
+      await ctx.db.delete(anchor._id);
+      anchorsDeleted += 1;
+    }
     await ctx.db.delete(noteId);
-    return { ok: true };
+    return { ok: true, anchorsDeleted };
+  },
+});
+
+// ─── ANCHOR MUTATIONS + QUERIES (Phase 5 follow-up) ────────────────────────
+//
+// Threat model:
+//   T1 — Forged ownership: attacker tries to anchor someone else's note.
+//        Mitigated by verifying note.ownerKey === args.ownerKey before insert.
+//   T2 — Cross-event leakage: attacker sets eventId=A but targetMessageId
+//        belongs to event B. Mitigated by verifying target.eventId === args.eventId.
+//   T3 — Existence enumeration: attacker queries "is there an anchor at
+//        targetMessageId X?". Mitigated by NOT shipping a by_target_* index
+//        — there is no query path from target → anchor. All reads go
+//        through (ownerKey, eventId).
+//   T4 — Dangling anchors: note deleted but anchor survives, leaking that
+//        the note ever existed. Mitigated by cascade in deleteNote.
+//
+// Out of scope for this PR (filed as P1):
+//   - targetKind="range" (timestamp window). Will require a window-overlap
+//     check at render time and additional schema fields.
+
+const MAX_ANCHORS_PER_QUERY = 500;
+
+/**
+ * List anchors owned by ownerKey, scoped to eventId.
+ * Used by the v5 prototype to render owner-only pin markers on chat
+ * messages and answer cards.
+ *
+ * BOUND: capped at MAX_ANCHORS_PER_QUERY rows; returns `_truncated: true`
+ * inside the wrapper when the cap is hit so the UI can warn the user.
+ */
+export const listMyAnchors = query({
+  args: {
+    ownerKey: v.string(),
+    eventId: v.id("liveEvents"),
+  },
+  handler: async (ctx, { ownerKey, eventId }) => {
+    validateOwnerKey(ownerKey);
+    // Read up to cap+1 so we can honestly report whether more exist.
+    const rows = await ctx.db
+      .query("liveEventNoteAnchors")
+      .withIndex("by_owner_event", (q) =>
+        q.eq("ownerKey", ownerKey).eq("eventId", eventId),
+      )
+      .take(MAX_ANCHORS_PER_QUERY + 1);
+    const truncated = rows.length > MAX_ANCHORS_PER_QUERY;
+    return {
+      anchors: rows.slice(0, MAX_ANCHORS_PER_QUERY),
+      _truncated: truncated,
+    };
+  },
+});
+
+/**
+ * Create an anchor linking a private note to a public message or answer.
+ *
+ * Verification order is significant:
+ *   1. ownerKey shape (cheap, no DB read)
+ *   2. exactly-one-target-set (cheap)
+ *   3. note ownership (DB read; biggest privacy leak vector → check early)
+ *   4. target existence + cross-event match (DB read; catches typos)
+ */
+export const createNoteAnchor = mutation({
+  args: {
+    ownerKey: v.string(),
+    noteId: v.id("userNotes"),
+    eventId: v.id("liveEvents"),
+    targetKind: v.union(v.literal("message"), v.literal("answer")),
+    targetMessageId: v.optional(v.id("liveEventMessages")),
+    targetAnswerId: v.optional(v.id("liveEventAnswers")),
+  },
+  handler: async (ctx, args) => {
+    validateOwnerKey(args.ownerKey);
+
+    // Exactly one of targetMessageId / targetAnswerId must be set, and it
+    // must match targetKind. Reject both states (none-set, both-set).
+    const hasMsg = typeof args.targetMessageId === "string" && args.targetMessageId.length > 0;
+    const hasAns = typeof args.targetAnswerId === "string" && args.targetAnswerId.length > 0;
+    if (hasMsg === hasAns) {
+      throw new ConvexError({
+        code: "invalid_target",
+        message: "Exactly one of targetMessageId / targetAnswerId must be set.",
+      });
+    }
+    if (args.targetKind === "message" && !hasMsg) {
+      throw new ConvexError({
+        code: "target_kind_mismatch",
+        message: 'targetKind="message" requires targetMessageId.',
+      });
+    }
+    if (args.targetKind === "answer" && !hasAns) {
+      throw new ConvexError({
+        code: "target_kind_mismatch",
+        message: 'targetKind="answer" requires targetAnswerId.',
+      });
+    }
+
+    // Verify note exists AND is owned by this ownerKey. Return-null-on-foreign
+    // semantics would let attackers learn "this noteId exists but isn't yours"
+    // by trying anchors on stolen ids — throw instead.
+    const note = await ctx.db.get(args.noteId);
+    if (!note) {
+      throw new ConvexError({ code: "note_not_found", message: "Note does not exist." });
+    }
+    if (note.ownerKey !== args.ownerKey) {
+      throw new ConvexError({
+        code: "not_owner",
+        message: "You don't own this note.",
+      });
+    }
+
+    // Verify target exists and belongs to args.eventId. Catches typos AND
+    // prevents an attacker who knows a foreign event's message id from
+    // creating an anchor that would later render against the wrong room.
+    if (args.targetKind === "message") {
+      const msg = await ctx.db.get(args.targetMessageId!);
+      if (!msg) {
+        throw new ConvexError({
+          code: "target_not_found",
+          message: "Target message does not exist.",
+        });
+      }
+      if (msg.eventId !== args.eventId) {
+        throw new ConvexError({
+          code: "target_event_mismatch",
+          message: "Target message belongs to a different event.",
+        });
+      }
+    } else {
+      const ans = await ctx.db.get(args.targetAnswerId!);
+      if (!ans) {
+        throw new ConvexError({
+          code: "target_not_found",
+          message: "Target answer does not exist.",
+        });
+      }
+      if (ans.eventId !== args.eventId) {
+        throw new ConvexError({
+          code: "target_event_mismatch",
+          message: "Target answer belongs to a different event.",
+        });
+      }
+    }
+
+    const anchorId = await ctx.db.insert("liveEventNoteAnchors", {
+      ownerKey: args.ownerKey,
+      eventId: args.eventId,
+      noteId: args.noteId,
+      targetKind: args.targetKind,
+      targetMessageId: args.targetMessageId,
+      targetAnswerId: args.targetAnswerId,
+      createdAt: Date.now(),
+    });
+    return { ok: true as const, anchorId };
+  },
+});
+
+/**
+ * Delete a single anchor. Owner gated by re-reading the row and matching
+ * ownerKey — never trust args.ownerKey to be enough.
+ */
+export const deleteNoteAnchor = mutation({
+  args: {
+    ownerKey: v.string(),
+    anchorId: v.id("liveEventNoteAnchors"),
+  },
+  handler: async (ctx, { ownerKey, anchorId }) => {
+    validateOwnerKey(ownerKey);
+    const anchor = await ctx.db.get(anchorId);
+    if (!anchor) return { ok: true as const, alreadyGone: true };
+    if (anchor.ownerKey !== ownerKey) {
+      throw new ConvexError({
+        code: "not_owner",
+        message: "You don't own this anchor.",
+      });
+    }
+    await ctx.db.delete(anchorId);
+    return { ok: true as const };
   },
 });
 

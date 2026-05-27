@@ -568,6 +568,123 @@ async function main() {
     }
   }
 
+  // ───────────────────────────────────────────────────────────────
+  header('SCENARIO 25: Carol anchors a private note to Alice\'s public message');
+  // ───────────────────────────────────────────────────────────────
+  // Pre-req: carolNoteId from scenario 10; Alice sent a public chat
+  // message in scenario 3 whose messageId we look up via getMessages.
+  // We pick Alice's chat row (kind='chat') so the anchor exercises the
+  // backend's target-existence + cross-event checks under realistic load.
+  let carolAnchorId;
+  try {
+    const msgList = await convexQuery('events:getMessages', { eventId, limit: 50 });
+    const aliceChat = (msgList.value || []).find(
+      (m) => m.text === `Hello from Alice in dogfood run ${RUN_ID}`,
+    );
+    if (!aliceChat || !carolNoteId) {
+      record('Carol createNoteAnchor (msg)', false,
+        `prereq missing — aliceChat=${!!aliceChat}, carolNoteId=${!!carolNoteId}`);
+    } else {
+      const r = await convexMutation('notes:createNoteAnchor', {
+        ownerKey: carol.noteOwnerKey,
+        noteId: carolNoteId,
+        eventId,
+        targetKind: 'message',
+        targetMessageId: aliceChat._id,
+      });
+      carolAnchorId = r.value?.anchorId;
+      record('Carol createNoteAnchor (msg)', !!carolAnchorId && r.value?.ok === true,
+        `id=${String(carolAnchorId).slice(-8)}`, r.latency);
+    }
+  } catch (e) {
+    record('Carol createNoteAnchor (msg)', false, e.message);
+  }
+
+  // Verify Carol's listMyAnchors returns the anchor she just created.
+  try {
+    const r = await convexQuery('notes:listMyAnchors', {
+      ownerKey: carol.noteOwnerKey,
+      eventId,
+    });
+    const anchors = (r.value && r.value.anchors) || [];
+    const found = !!carolAnchorId && anchors.some(
+      (a) => a._id === carolAnchorId && a.targetKind === 'message',
+    );
+    record('Carol listMyAnchors shows her anchor', found,
+      `${anchors.length} anchors, _truncated=${r.value?._truncated}`, r.latency);
+  } catch (e) {
+    record('Carol listMyAnchors shows her anchor', false, e.message);
+  }
+
+  // ───────────────────────────────────────────────────────────────
+  header('SCENARIO 26: PRIVACY INVARIANT — Bob CANNOT see Carol\'s anchors');
+  // ───────────────────────────────────────────────────────────────
+  // The marker UI renders purely from listMyAnchors, owner-keyed. If Bob's
+  // ownerKey could see Carol's anchors, the marker would leak — proving
+  // private interest in a public message. This is the exact attack we
+  // prevent by NOT having a by_target_* index on the table.
+  try {
+    const r = await convexQuery('notes:listMyAnchors', {
+      ownerKey: bob.noteOwnerKey,
+      eventId,
+    });
+    const anchors = (r.value && r.value.anchors) || [];
+    const leaked = !!carolAnchorId && anchors.some((a) => a._id === carolAnchorId);
+    const onlyOwn = anchors.every(
+      (a) => a.ownerKey === bob.noteOwnerKey || a.ownerKey === undefined,
+    );
+    record('Bob cannot see Carol\'s anchors', !leaked && onlyOwn,
+      leaked
+        ? 'LEAK DETECTED — Carol\'s anchor visible to Bob'
+        : `${anchors.length} anchors (none Carol\'s)`,
+      r.latency);
+  } catch (e) {
+    record('Bob cannot see Carol\'s anchors', false, e.message);
+  }
+
+  // ───────────────────────────────────────────────────────────────
+  header('SCENARIO 27: Cascade — deleting Carol\'s note removes her anchors');
+  // ───────────────────────────────────────────────────────────────
+  // After deleteNote, the anchors that pointed at carolNoteId must be
+  // gone. The render contract depends on this: an in-flight UI render
+  // that ran half a second after the delete must not see a phantom
+  // marker whose noteId resolves to null.
+  if (carolNoteId && carolAnchorId) {
+    try {
+      const del = await convexMutation('notes:deleteNote', {
+        ownerKey: carol.noteOwnerKey,
+        noteId: carolNoteId,
+      });
+      const cascaded = del.value?.anchorsDeleted >= 1;
+      record('deleteNote cascades to anchors', cascaded,
+        `anchorsDeleted=${del.value?.anchorsDeleted}`, del.latency);
+    } catch (e) {
+      record('deleteNote cascades to anchors', false, e.message);
+    }
+
+    // Re-list and confirm the anchor is gone.
+    try {
+      const r = await convexQuery('notes:listMyAnchors', {
+        ownerKey: carol.noteOwnerKey,
+        eventId,
+      });
+      const anchors = (r.value && r.value.anchors) || [];
+      const stillThere = anchors.some((a) => a._id === carolAnchorId);
+      record('Carol\'s anchor is gone after cascade', !stillThere,
+        stillThere
+          ? 'GHOST anchor survived cascade'
+          : `${anchors.length} anchors remaining`,
+        r.latency);
+    } catch (e) {
+      record('Carol\'s anchor is gone after cascade', false, e.message);
+    }
+  } else {
+    record('deleteNote cascades to anchors', false,
+      `SKIPPED — carolNoteId=${!!carolNoteId}, carolAnchorId=${!!carolAnchorId}`, null);
+    record('Carol\'s anchor is gone after cascade', false,
+      'SKIPPED — prior step did not create anchor', null);
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   // Summary
   // ═══════════════════════════════════════════════════════════════════
