@@ -49,6 +49,61 @@ const MAX_TAG_LEN = 40;
 const MAX_NOTES_PER_QUERY = 500;
 const MIN_OWNER_KEY_LEN = 8;
 const MAX_OWNER_KEY_LEN = 80;             // accommodates "user:<convexId>" form
+const MAX_ANCHOR_ID = 200;
+const MAX_ANCHOR_LABEL = 160;
+const MAX_ANCHOR_PREVIEW = 240;
+
+const anchorTypeValidator = v.union(
+  v.literal("message"),
+  v.literal("thread"),
+  v.literal("time_range"),
+  v.literal("answer"),
+  v.literal("entity"),
+  v.literal("event"),
+);
+
+type PrivateNoteAnchorType = "message" | "thread" | "time_range" | "answer" | "entity" | "event";
+
+const sanitizeAnchor = (args: {
+  anchorType?: PrivateNoteAnchorType;
+  anchorId?: string;
+  anchorLabel?: string;
+  anchorPreview?: string;
+  startTs?: number;
+  endTs?: number;
+}) => {
+  if (!args.anchorType) return {};
+  const anchorId = typeof args.anchorId === "string" ? args.anchorId.trim().slice(0, MAX_ANCHOR_ID) : undefined;
+  if (args.anchorType !== "time_range" && !anchorId) {
+    throw new ConvexError({
+      code: "invalid_anchor",
+      message: "Private note anchors require anchorId unless anchorType is time_range.",
+    });
+  }
+  if (args.anchorType === "time_range") {
+    const startTs = Number(args.startTs);
+    const endTs = Number(args.endTs);
+    if (!Number.isFinite(startTs) || !Number.isFinite(endTs) || endTs < startTs) {
+      throw new ConvexError({
+        code: "invalid_anchor",
+        message: "time_range anchors require valid startTs and endTs.",
+      });
+    }
+  }
+  const anchor: Record<string, string | number> = {
+    anchorType: args.anchorType,
+  };
+  if (anchorId) anchor.anchorId = anchorId;
+  if (typeof args.anchorLabel === "string" && args.anchorLabel.trim()) {
+    anchor.anchorLabel = args.anchorLabel.trim().slice(0, MAX_ANCHOR_LABEL);
+  }
+  if (typeof args.anchorPreview === "string" && args.anchorPreview.trim()) {
+    anchor.anchorPreview = args.anchorPreview.trim().slice(0, MAX_ANCHOR_PREVIEW);
+  }
+  if (typeof args.startTs === "number") anchor.startTs = args.startTs;
+  if (typeof args.endTs === "number") anchor.endTs = args.endTs;
+  return anchor;
+};
 
 const validateOwnerKey = (ownerKey: string) => {
   if (!ownerKey || ownerKey.length < MIN_OWNER_KEY_LEN || ownerKey.length > MAX_OWNER_KEY_LEN) {
@@ -122,6 +177,12 @@ export const createNote = mutation({
     tags: v.optional(v.array(v.string())),
     isAsk: v.optional(v.boolean()),
     pinned: v.optional(v.boolean()),
+    anchorType: v.optional(anchorTypeValidator),
+    anchorId: v.optional(v.string()),
+    anchorLabel: v.optional(v.string()),
+    anchorPreview: v.optional(v.string()),
+    startTs: v.optional(v.number()),
+    endTs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     validateOwnerKey(args.ownerKey);
@@ -137,6 +198,7 @@ export const createNote = mutation({
       tags,
       pinned: !!args.pinned,
       isAsk: !!args.isAsk,
+      ...sanitizeAnchor(args),
       createdAt: now,
       updatedAt: now,
     });

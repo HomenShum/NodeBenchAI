@@ -48,6 +48,7 @@ export const liveEventMembers = defineTable({
   lastSeenAt: v.number(),
 })
   .index("by_event_session", ["eventId", "sessionId"])
+  .index("by_session_joined", ["sessionId", "joinedAt"])
   .index("by_event_lastSeen", ["eventId", "lastSeenAt"]);
 
 // ------------------------------------------------------------------
@@ -170,11 +171,25 @@ export const userNotes = defineTable({
   tags: v.array(v.string()),
   pinned: v.boolean(),
   isAsk: v.boolean(),                                   // created via private /ask
+  anchorType: v.optional(v.union(
+    v.literal("message"),
+    v.literal("thread"),
+    v.literal("time_range"),
+    v.literal("answer"),
+    v.literal("entity"),
+    v.literal("event"),
+  )),
+  anchorId: v.optional(v.string()),                      // messageId, answerId, entityUri, event slug, etc.
+  anchorLabel: v.optional(v.string()),                   // human readable label: "Sarah Kim - 1:37p"
+  anchorPreview: v.optional(v.string()),                 // short public-context preview visible only to owner
+  startTs: v.optional(v.number()),                       // for time_range anchors
+  endTs: v.optional(v.number()),                         // for time_range anchors
   createdAt: v.number(),
   updatedAt: v.number(),
 })
   .index("by_owner_updated", ["ownerKey", "updatedAt"])
-  .index("by_owner_event", ["ownerKey", "eventId"]);
+  .index("by_owner_event", ["ownerKey", "eventId"])
+  .index("by_owner_event_anchor", ["ownerKey", "eventId", "anchorType", "anchorId"]);
 
 // ------------------------------------------------------------------
 // liveEventHosts - Phase 4 host ownership and moderation gate.
@@ -210,6 +225,7 @@ export const liveEventHosts = defineTable({
   createdAt: v.number(),
 })
   .index("by_event_owner", ["eventId", "ownerKey"])
+  .index("by_owner", ["ownerKey", "createdAt"])
   .index("by_event", ["eventId"]);
 
 // ------------------------------------------------------------------

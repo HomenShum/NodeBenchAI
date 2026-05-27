@@ -263,6 +263,16 @@ body[data-mode="private"] .c-hint::before { content: "🔒 Private — saves to 
 /* When reactions are visible below the text, lift the actions above them */
 .row:has(.row-reactions) .row-actions { bottom: 30px; }
 
+.private-note-marker {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-left: 8px; padding: 2px 7px;
+  border: 1px solid rgba(167,139,250,.28); border-radius: 999px;
+  background: rgba(167,139,250,.08); color: var(--purple);
+  font-family: var(--mono); font-size: 10px; line-height: 1.4;
+  cursor: pointer; vertical-align: baseline;
+}
+.private-note-marker:hover { border-color: rgba(167,139,250,.5); background: rgba(167,139,250,.14); }
+
 /* — Reply badge above a message that's a reply — */
 .row-replying { display: flex; align-items: center; gap: 4px; font-size: 10px; font-family: var(--mono); color: var(--ink-faint); margin-bottom: 2px; padding-left: 2px; }
 .row-replying::before { content: '↳'; color: var(--accent); }
@@ -1068,7 +1078,7 @@ body[data-new-user="true"] .h-menu::after {
   <button type="button" data-show-for="host" onclick="openHost()">Host console<span class="sub">Moderation · /ask queue · Publish wiki</span></button>
   <h4 style="margin-top:14px" data-show-for="all">Account</h4>
   <button type="button" data-hide-for="signed-in" onclick="openSignIn()">Sign in<span class="sub">Magic link — get your own events</span></button>
-  <button type="button" data-show-for="signed-in" onclick="openMyEvents()">My events<span class="sub">Joined and hosted rooms across devices</span></button>
+  <button type="button" onclick="openMyEvents()">My events<span class="sub" id="menu-events-sub">Joined and hosted rooms across devices</span></button>
   <button type="button" data-show-for="signed-in" onclick="snSignOut()">Sign out<span class="sub">Return to anonymous mode</span></button>
   <button type="button" data-show-for="named" onclick="setIdentity()">Change name<span class="sub" id="menu-name-sub">—</span></button>
   <button type="button" onclick="openShortcuts()">Keyboard shortcuts<span class="sub">Press ? anywhere</span></button>
@@ -1131,7 +1141,9 @@ var PUBLIC_BASE_URL = (function() {
 })();
 var EVENT_SLUG = 'ai-infra-summit-2026';
 var EVENT_URL = PUBLIC_BASE_URL + '/e/' + EVENT_SLUG;
-// On scratchnode.live, host-actions (sign-in, host console) live on the workspace domain.
+// NodeBench is the deeper private workspace. ScratchNode keeps lightweight
+// event account state, host controls, joined events, and private annotations
+// on the public room domain.
 var CANONICAL_WORKSPACE_HOST = 'nodebenchai.com';
 var WORKSPACE_BASE_URL = (function() {
   try {
@@ -1252,6 +1264,30 @@ function _clearComposer() {
 }
 function _isMobile() { return 'ontouchstart' in window || window.innerWidth <= 720; }
 
+function getMessageRowById(mid) {
+  var rows = document.querySelectorAll('.row[data-mid]');
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].getAttribute('data-mid') === mid) return rows[i];
+  }
+  return null;
+}
+
+function buildPrivateNoteAnchor(room) {
+  var mid = room && room.replyingToMid;
+  if (!mid) return { type: 'event', id: EVENT_SLUG, label: 'AI Infra Summit', preview: 'Event-level private note' };
+  var row = getMessageRowById(mid);
+  if (!row) return { type: 'message', id: mid, label: 'Message', preview: '' };
+  var name = row.querySelector('.row-name') ? row.querySelector('.row-name').textContent : 'Message';
+  var time = row.querySelector('.row-time') ? row.querySelector('.row-time').textContent : '';
+  var text = row.querySelector('.row-text') ? row.querySelector('.row-text').textContent : '';
+  return {
+    type: 'message',
+    id: mid,
+    label: name + (time ? ' - ' + time : ''),
+    preview: text.length > 180 ? text.slice(0, 180) + '...' : text
+  };
+}
+
 // ── PRIVATE branch ──
 function savePrivateNote(intent) {
   var clean = intent.clean;
@@ -1269,6 +1305,10 @@ function savePrivateNote(intent) {
     body: (typeof escapeHtml === 'function' ? escapeHtml(clean) : clean).replace(/\n/g, '<br>'),
     tags: (typeof extractTags === 'function' ? extractTags(clean) : []),
     pinned: false, isAsk: intent.isAsk,
+    anchorType: intent.anchor && intent.anchor.type,
+    anchorId: intent.anchor && intent.anchor.id,
+    anchorLabel: intent.anchor && intent.anchor.label,
+    anchorPreview: intent.anchor && intent.anchor.preview,
     createdAt: intent.timestamp, updatedAt: intent.timestamp
   };
   (window._notes_v5 = window._notes_v5 || []).unshift(note);
@@ -1276,6 +1316,7 @@ function savePrivateNote(intent) {
     renderNotesListOnly();
   }
   if (typeof refreshNotesBadge === 'function') refreshNotesBadge();
+  if (typeof renderPrivateNoteMarkers === 'function') renderPrivateNoteMarkers();
   toast(
     'Private ' + (intent.isAsk ? '/ask' : 'note') + ' saved',
     '"' + (clean.length > 60 ? clean.slice(0, 60) + '…' : clean) + '" — only you see this.'
@@ -1363,7 +1404,9 @@ function sendComposerMessage() {
 
   // Branch 1: private — never touches the public feed (release-blocker invariant)
   if (intent.visibility === 'private') {
+    intent.anchor = buildPrivateNoteAnchor(room);
     savePrivateNote(intent);
+    if (room.replyingToMid) cancelReply();
     _clearComposer();
     return;
   }
@@ -1437,25 +1480,15 @@ function openWiki()    { closeMenu(); openSheet('wiki'); }
 function openPeople()  { closeMenu(); openSheet('people'); }
 function openShare()   { closeMenu(); openSheet('share'); }
 function openNotes()   { closeMenu(); openSheet('notes'); }
-// Host & sign-in are workspace-domain actions. On scratchnode.live they
-// redirect to nodebenchai.com with a return-URL hint; on the workspace
-// domain (or local preview) they open the in-page sheet.
+function openEvents()  { openMyEvents(); }
+// Host and sign-in stay on ScratchNode. "Open in NodeBench" is a separate
+// continuation action for deeper notebooks, reports, and artifacts.
 function openHost() {
   closeMenu();
-  if (ON_PUBLIC_DOMAIN) {
-    var returnUrl = encodeURIComponent(PUBLIC_BASE_URL + '/e/' + EVENT_SLUG);
-    window.location.assign(WORKSPACE_BASE_URL + '/host?return=' + returnUrl + '&intent=create-event');
-    return;
-  }
   openSheet('host');
 }
 function openSignIn() {
   closeMenu();
-  if (ON_PUBLIC_DOMAIN) {
-    var returnUrl = encodeURIComponent(location.href);
-    window.location.assign(WORKSPACE_BASE_URL + '/sign-in?return=' + returnUrl);
-    return;
-  }
   openSheet('signin');
 }
 
@@ -1846,6 +1879,29 @@ var SHEET_RENDERERS = {
       '<button type="button" class="sheet-button ghost" onclick="window.open(PUBLIC_BASE_URL,\'_blank\'); closeSheet();">Learn more &nearr;</button>';
   },
 
+  events: function() {
+    var state = window._sn_my_events || {
+      joined: [{ name: 'AI Infra Summit', slug: EVENT_SLUG, roomCode: 'ORBITAL', status: 'live', role: 'attendee' }],
+      hosted: []
+    };
+    var renderEvent = function(ev, kind) {
+      return '<div class="about-card"><h4>' + escapeHtml(ev.name || ev.slug || 'Untitled event') + '</h4>' +
+        '<p><strong>' + escapeHtml(kind) + '</strong> - ' + escapeHtml(ev.status || 'live') +
+        ' - code ' + escapeHtml(ev.roomCode || 'ORBITAL') + '</p>' +
+        '<button type="button" class="sheet-button ghost" onclick="window.location.href=\'' + PUBLIC_BASE_URL + '/e/' + escapeHtml(ev.slug || EVENT_SLUG) + '\'">Open room</button></div>';
+    };
+    var joined = (state.joined || []).map(function(ev) { return renderEvent(ev, 'Joined'); }).join('');
+    var hosted = (state.hosted || []).map(function(ev) { return renderEvent(ev, 'Hosted'); }).join('');
+    if (!joined) joined = '<p class="sheet-sub">No joined events yet. Join a room with its event link or room code.</p>';
+    if (!hosted) hosted = '<p class="sheet-sub">No hosted events yet. Use the Host console to claim or create one.</p>';
+    return '<div class="sheet-head"><h2 id="sheet-title">My events</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+      '<p class="sheet-sub">ScratchNode account state lives here: joined events, hosted events, saved answers, and private notes. NodeBench is for deeper notebooks and artifacts.</p>' +
+      '<div class="sheet-section"><h3>Joined</h3>' + joined + '</div>' +
+      '<div class="sheet-section"><h3>Hosted</h3>' + hosted + '</div>' +
+      '<button type="button" class="sheet-button" onclick="openHost()">Host console</button>' +
+      '<button type="button" class="sheet-button ghost" onclick="openNodeBenchPrivateHandoff()">Open in NodeBench</button>';
+  },
+
   share: function() {
     var url = EVENT_URL;
     return '<div class="sheet-head"><h2 id="sheet-title">Share AI Infra Summit</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
@@ -2014,9 +2070,27 @@ var SHEET_RENDERERS = {
     // to navigate. Empty state explains how to populate it.
     var u = loadSignedInUser();
     if (!u) {
+      var state = window._sn_my_events || {
+        joined: [{ name: 'AI Infra Summit', slug: EVENT_SLUG, roomCode: 'ORBITAL', status: 'live', role: 'attendee' }],
+        hosted: []
+      };
+      var renderGuestEvent = function(ev, kind) {
+        var safeName = escapeHtml(ev.name || ev.slug || 'Untitled event');
+        var safeSlug = encodeURIComponent(ev.slug || EVENT_SLUG);
+        return '<div class="about-card"><h4>' + safeName + '</h4>' +
+          '<p><strong>' + escapeHtml(kind) + '</strong> - ' + escapeHtml(ev.status || 'live') +
+          ' - code ' + escapeHtml(ev.roomCode || 'ORBITAL') + '</p>' +
+          '<button type="button" class="sheet-button ghost" onclick="window.location.assign(\'/e/' + safeSlug + '\')">Open room</button></div>';
+      };
+      var joined = (state.joined || []).map(function(ev) { return renderGuestEvent(ev, 'Joined'); }).join('');
+      var hosted = (state.hosted || []).map(function(ev) { return renderGuestEvent(ev, 'Hosted'); }).join('');
+      if (!joined) joined = '<p class="sheet-sub">No joined events yet. Join a room with its event link or room code.</p>';
+      if (!hosted) hosted = '<p class="sheet-sub">No hosted events yet. Use the Host console to claim or create one.</p>';
       return '<div class="sheet-head"><h2 id="sheet-title">My events</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
-        '<p class="sheet-sub">Sign in to see the events you have joined or hosted across devices.</p>' +
-        '<button type="button" class="sheet-button" onclick="openSheet(\'signin\')">Sign in</button>';
+        '<p class="sheet-sub">This device can show the rooms you joined here. Sign in to sync joined events, hosted events, saved answers, and private notes across devices.</p>' +
+        '<div class="sheet-section"><h3>Joined on this device</h3>' + joined + '</div>' +
+        '<div class="sheet-section"><h3>Hosted on this device</h3>' + hosted + '</div>' +
+        '<button type="button" class="sheet-button" onclick="openSheet(\'signin\')">Sign in to sync</button>';
     }
     // Render the shell; content fetched async and injected.
     var shell =
@@ -2389,6 +2463,12 @@ function renderNotesEditor() {
   h.push('<div class="notes-edit-body">');
   h.push('<input type="text" class="notes-edit-title" id="notes-edit-title" placeholder="Untitled" value="' + escapeHtml(note.title || '') + '" oninput="updateActiveNote(\'title\', this.value)" />');
   if (tagsHtml) h.push('<div class="notes-edit-tags">' + tagsHtml + '</div>');
+  if (note.anchorType) {
+    h.push('<div class="notes-backlinks"><div class="notes-backlinks-label">Private anchor</div><div class="notes-backlink-row">' +
+      escapeHtml(note.anchorType) + (note.anchorLabel ? ' · ' + escapeHtml(note.anchorLabel) : '') +
+      (note.anchorPreview ? '<br><span style="color:var(--ink-faint)">' + escapeHtml(note.anchorPreview) + '</span>' : '') +
+      '</div></div>');
+  }
   h.push('<div class="notes-editor" id="notes-editor-body" contenteditable="true" data-placeholder="Start writing… use # for tags, @ for mentions" oninput="updateActiveNote(\'body\', this.innerHTML)" onblur="renderNotesListOnly()">' + (note.body || '') + '</div>');
   h.push(backlinksHtml);
   h.push('</div>');
@@ -2586,7 +2666,7 @@ function sendMagicLink() {
   }
   // Prototype fallback when Convex isn't live (proto-only previews).
   closeSheet();
-  toast('Magic link sent to ' + email, 'Check your inbox. Return target: NodeBench event notebook.');
+  toast('Magic link sent to ' + email, 'Check your inbox. This will save your ScratchNode events and private notes.');
   haptic(15);
 }
 
@@ -2989,13 +3069,14 @@ document.addEventListener('keydown', function(e) {
 // Apply mention rendering + add hover actions to all rows in feed
 function decorateRow(row, opts) {
   opts = opts || {};
-  var mid = opts.mid || 'm' + Date.now() + Math.floor(Math.random()*999);
+  var mid = opts.mid || row.getAttribute('data-mid') || 'm' + Date.now() + Math.floor(Math.random()*999);
   row.setAttribute('data-mid', mid);
   // Add hover-action bar
   if (!row.querySelector('.row-actions')) {
     var actions = document.createElement('div');
     actions.className = 'row-actions';
     actions.innerHTML =
+      '<button type="button" title="Save private note" aria-label="Save private note" onclick="noteOnMessage(\'' + mid + '\')">note</button>' +
       '<button type="button" title="Reply" aria-label="Reply" onclick="replyTo(\'' + mid + '\')">↳</button>' +
       '<button type="button" title="React" aria-label="React" onclick="toggleReactPicker(this, \'' + mid + '\')">😊</button>';
     row.appendChild(actions);
@@ -3007,6 +3088,7 @@ function decorateRow(row, opts) {
     textEl.innerHTML = renderMentions(raw);
     textEl.dataset.rendered = '1';
   }
+  if (typeof renderPrivateNoteMarkers === 'function') renderPrivateNoteMarkers();
 }
 
 // MutationObserver: auto-decorate any new rows added to the feed
@@ -3043,6 +3125,46 @@ function replyTo(mid) {
 function cancelReply() {
   _replyingToMid = null;
   document.getElementById('reply-ctx').setAttribute('data-open', 'false');
+}
+
+function noteOnMessage(mid) {
+  replyTo(mid);
+  if (document.body.getAttribute('data-mode') !== 'private') toggleLock();
+  toast('Private note anchor set', 'Your next private note will attach to this public message.');
+}
+
+function getPrivateNotesForAnchor(anchorId) {
+  return (window._notes_v5 || []).filter(function(n) {
+    return n.anchorType === 'message' && n.anchorId === anchorId;
+  });
+}
+
+function openPrivateAnchorNotes(anchorId) {
+  var notes = getPrivateNotesForAnchor(anchorId);
+  if (notes.length) window._activeNoteId = notes[0].id;
+  openNotes();
+}
+
+function renderPrivateNoteMarkers() {
+  document.querySelectorAll('.private-note-marker').forEach(function(el) { el.remove(); });
+  var rows = document.querySelectorAll('.row[data-mid]');
+  rows.forEach(function(row) {
+    var mid = row.getAttribute('data-mid');
+    var notes = getPrivateNotesForAnchor(mid);
+    if (!notes.length) return;
+    var body = row.querySelector('.row-body');
+    if (!body) return;
+    var marker = document.createElement('button');
+    marker.type = 'button';
+    marker.className = 'private-note-marker';
+    marker.setAttribute('aria-label', notes.length + ' private note' + (notes.length === 1 ? '' : 's') + ' anchored here');
+    marker.textContent = notes.length + ' private note' + (notes.length === 1 ? '' : 's');
+    marker.onclick = function(e) {
+      e.stopPropagation();
+      openPrivateAnchorNotes(mid);
+    };
+    body.appendChild(marker);
+  });
 }
 
 // (Wrapper #4 removed — reply context is now resolved inside _appendChatRow() via getRoomContext().replyingToMid)
@@ -3300,6 +3422,25 @@ setTimeout(refreshNotesCounter, 100);
   }
   const eventId = joined.eventId;
   window._sn_live = { client, eventId, sessionId, slug };
+  window._sn_my_events = {
+    joined: [{ eventId, slug: joined.slug, name: joined.name, roomCode: joined.roomCode, status: joined.status, role: 'attendee' }],
+    hosted: []
+  };
+  window.snRefreshMyEvents = function() {
+    const ownerKey = (typeof _snReadHostOwnerKey === 'function') ? _snReadHostOwnerKey() : sessionId;
+    return client.query('events:getMyEvents', { sessionId, ownerKey, limit: 20 })
+      .then((state) => {
+        window._sn_my_events = state || window._sn_my_events;
+        const joinedCount = ((state && state.joined) || []).length;
+        const hostedCount = ((state && state.hosted) || []).length;
+        const sub = document.getElementById('menu-events-sub');
+        if (sub) sub.textContent = joinedCount + ' joined - ' + hostedCount + ' hosted';
+        if (typeof _activeSheet !== 'undefined' && _activeSheet === 'events') openSheet('events');
+        return state;
+      })
+      .catch((e) => console.warn('[scratchnode] getMyEvents failed:', e.message || e));
+  };
+  window.snRefreshMyEvents();
 
   // Step 8 — auto-consume ?sign-in-token=XXX from URL once Convex is live.
   try {
@@ -3498,6 +3639,7 @@ setTimeout(refreshNotesCounter, 100);
           if (status && status.isHost) {
             document.body.setAttribute('data-role', 'host');
             window._sn_live.hostOwnerKey = existingV2;
+            if (window.snRefreshMyEvents) window.snRefreshMyEvents();
             toast('Host console re-enabled', 'Welcome back, ' + (status.displayName || hostName) + '.');
           } else {
             // Token didn't verify — clear it and re-prompt.
@@ -3558,6 +3700,7 @@ setTimeout(refreshNotesCounter, 100);
           localStorage.setItem('sn_host_owner_key_v2', newToken);
           document.body.setAttribute('data-role', 'host');
           window._sn_live.hostOwnerKey = newToken;
+          if (window.snRefreshMyEvents) window.snRefreshMyEvents();
           toast('Host console enabled', 'Real-auth host token issued and saved.');
         })
         .catch((e) => toast('Host claim blocked', (e && e.message) || String(e)));
@@ -3577,6 +3720,7 @@ setTimeout(refreshNotesCounter, 100);
         localStorage.setItem('sn_host_owner_key_v2', newToken);
         document.body.setAttribute('data-role', 'host');
         window._sn_live.hostOwnerKey = newToken;
+        if (window.snRefreshMyEvents) window.snRefreshMyEvents();
         toast('Host console enabled', 'Code verified — host token issued.');
       })
       .catch((e) => toast('Host claim blocked', (e && e.message) || String(e)));
@@ -3617,6 +3761,7 @@ setTimeout(refreshNotesCounter, 100);
         localStorage.setItem('sn_host_owner_key_v2', newToken);
         document.body.setAttribute('data-role', 'host');
         window._sn_live.hostOwnerKey = newToken;
+        if (window.snRefreshMyEvents) window.snRefreshMyEvents();
         if (input) input.value = '';
         toast('You are now host', 'Code verified — host token issued.');
         // Re-render the sheet so the rotation section becomes visible
@@ -3717,6 +3862,7 @@ setTimeout(refreshNotesCounter, 100);
     if (status && status.isHost) {
       document.body.setAttribute('data-role', 'host');
       window._sn_live.hostOwnerKey = _bootstrapKey;
+      if (window.snRefreshMyEvents) window.snRefreshMyEvents();
     }
   }).catch(() => {});
 
@@ -3752,6 +3898,12 @@ setTimeout(refreshNotesCounter, 100);
       tags: row.tags || [],
       pinned: !!row.pinned,
       isAsk: !!row.isAsk,
+      anchorType: row.anchorType,
+      anchorId: row.anchorId,
+      anchorLabel: row.anchorLabel,
+      anchorPreview: row.anchorPreview,
+      startTs: row.startTs,
+      endTs: row.endTs,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       _convex: true,
@@ -3774,6 +3926,7 @@ setTimeout(refreshNotesCounter, 100);
       window._activeNoteId = (window._notes_v5[0] && window._notes_v5[0].id) || null;
     }
     if (typeof refreshNotesCounter === 'function') refreshNotesCounter();
+    if (typeof renderPrivateNoteMarkers === 'function') renderPrivateNoteMarkers();
     if (typeof _activeSheet !== 'undefined' && _activeSheet === 'notes') {
       if (typeof renderNotesListOnly === 'function') renderNotesListOnly();
     }
@@ -3915,6 +4068,10 @@ setTimeout(refreshNotesCounter, 100);
       tags: (typeof extractTags === 'function') ? extractTags(clean) : [],
       isAsk: !!intent.isAsk,
       pinned: false,
+      anchorType: intent.anchor && intent.anchor.type,
+      anchorId: intent.anchor && intent.anchor.id,
+      anchorLabel: intent.anchor && intent.anchor.label,
+      anchorPreview: intent.anchor && intent.anchor.preview,
     }).catch((e) => {
       console.warn('[scratchnode] private note Convex save failed (kept locally):', e.message || e);
     });

@@ -52,6 +52,10 @@ https://scratchnode.live/e/:eventSlug
 https://scratchnode.live/join/:roomCode
 https://scratchnode.live/e/:eventSlug/wiki
 https://scratchnode.live/e/:eventSlug/archive
+https://scratchnode.live/me/events
+https://scratchnode.live/me/notes
+https://scratchnode.live/host
+https://scratchnode.live/sign-in
 ```
 
 NodeBench private continuation URLs:
@@ -60,6 +64,9 @@ NodeBench private continuation URLs:
 https://nodebenchai.com/events/:eventSlug/private?source=scratchnode&room=:roomCode&return=:scratchnodeEventUrl
 https://nodebenchai.com/sign-in?return=:nodebenchPrivateEventUrl&intent=save-private-notes
 ```
+
+ScratchNode sign-in owns event participation state. NodeBench sign-in is only
+for the explicit "Open in NodeBench" private-workspace continuation.
 
 Current implementation in `public/proto/home-v5.html` exposes:
 
@@ -86,6 +93,88 @@ parseComposerIntent(raw)
 ```
 
 Private notes must return before public feed insertion. Normal chat must never invoke the agent.
+
+## Private Annotation Rule
+
+Lock this as the product and data rule:
+
+```text
+Private notes are never public messages.
+They may appear as private overlays anchored to public chat, visible only to the note owner.
+```
+
+Implementation shape:
+
+```text
+Public chat row
+  -> liveEventMessages row visible to everyone
+
+Private note
+  -> userNotes row owned by ownerKey
+  -> optional anchorType/anchorId/anchorLabel/anchorPreview
+  -> rendered as an owner-only marker beside the public row
+```
+
+Allowed:
+
+```text
+Private note marker visible only to owner
+Private note opens the owner notebook
+Private note can be exported by owner
+Private note can become a separate public FAQ suggestion only after explicit owner action
+```
+
+Never allowed:
+
+```text
+Private note inserted into liveEventMessages
+Private note compacted into liveEventWikiVersions
+Private note used by public /ask
+Private note cached in a public answer cache
+Private note visible to host by default
+```
+
+## ScratchNode Account Layer
+
+ScratchNode should support lightweight signed-in state without becoming the
+full NodeBench workspace.
+
+```text
+Anonymous visitor
+  -> view public room/wiki/archive
+
+Guest session
+  -> join event, chat, limited /ask, private notes owned by guest session
+
+Signed-in ScratchNode user
+  -> my joined events
+  -> my hosted events
+  -> my private notes
+  -> my saved /ask answers
+  -> my published event wikis
+```
+
+Host controls live on ScratchNode because they are event operations:
+
+```text
+create event
+set room code
+moderate chat
+review FAQ suggestions
+manage sources
+publish wiki
+export event analytics
+```
+
+NodeBench remains the deeper continuation surface:
+
+```text
+turn event notes into report notebooks
+run deep company/person research
+merge event deltas into Daily Brief
+export CRM/follow-up workflows
+inspect full trace DAG and graph context
+```
 
 ## Data Boundary
 
