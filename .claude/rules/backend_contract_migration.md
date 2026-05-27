@@ -99,6 +99,51 @@ After each deploy step:
 
 If verification fails at any step, do not proceed to the next step.
 
+## Contract path discipline (added 2026-05-27)
+
+**Every Convex contract MUST specify the deployed path as `<filename>:<exportName>`, not just the export name.** Convex resolves paths by filename — putting `requestSignInLink` in `convex/users.ts` deploys it at `users:requestSignInLink`, not `events:requestSignInLink`, regardless of what the contract doc says.
+
+Case study — PR #407/#409 hotfix (2026-05-27): the Step 8 contract specified mutations as `events:requestSignInLink` / `events:verifySignInToken` / `events:listMyEvents` to match the existing scratchnode namespace. The implementing agent put them in `convex/users.ts` (sensible — `events.ts` was overloaded). Deployed paths became `users:*`. Frontend and dogfood script kept calling `events:*` — silent function-not-found at runtime. Convex's HTTP API masks this as a generic "Server Error" message, hiding the mismatch from CI.
+
+### Required contract format
+
+```ts
+// ❌ BAD — ambiguous, doesn't capture deployed path
+events:requestSignInLink({ email }) → { ok }
+
+// ✅ GOOD — deployed path is explicit
+users:requestSignInLink({ email }) → { ok }
+// implemented in convex/users.ts as `export const requestSignInLink = mutation({...})`
+```
+
+If the contract author wants the path to be `events:*` despite the implementation living in another file, the implementing PR must add an explicit re-export:
+
+```ts
+// convex/events.ts
+export { requestSignInLink, verifySignInToken, listMyEvents } from "./users";
+```
+
+This is one valid mitigation (preserves contract path stability), but it should be a deliberate choice documented in the PR description, not an accident.
+
+## Happy-path-success verification (added 2026-05-27)
+
+**Dogfood scenarios that only test sad-path validation can pass coincidentally even when the deployed path is wrong** — because validation throws *before* dispatching to the mistargeted function. The PR #407 case study: scenarios 23/24/25 (sad paths — bogus token, malformed email, nonexistent userId) all passed live; only scenario 22 (the happy path that ACTUALLY dispatched) failed.
+
+Required pattern: for every new mutation/query, the dogfood suite MUST include at least ONE scenario that exercises the **happy-path-success branch** (returns ok=true with expected payload shape), not just rejection scenarios.
+
+### Verification floor extension
+
+After the existing `tsc / convex tsc / vitest / build / dogfood` gates, add:
+
+5. **Happy-path probe via `npx convex run`** for any new mutation. Example:
+   ```bash
+   npx convex run --prod <fullPath>:<funcName> '{...validArgs}'
+   # Must return success (not throw, not Server Error)
+   ```
+   This bypasses the HTTP API's "Server Error" masking — `npx convex run` surfaces the typed ConvexError code, making path mismatches immediately diagnosable.
+
+6. **Inventory check**: `npx convex run` with a deliberately-wrong path lists ALL deployed function names. Use this to confirm `<file>:<export>` matches what you expect after every schema/function-add PR.
+
 ## Anti-patterns
 
 - Renaming + frontend flip + old-name removal in one PR
@@ -107,6 +152,10 @@ If verification fails at any step, do not proceed to the next step.
 - Removing the legacy alias before confirming zero callers remain
 - Manually triggering Convex deploy before Vercel finishes — flips
   the race direction but doesn't close the window
+- **Specifying contract paths by export name only** (e.g. `requestSignInLink`)
+  without the deployed `<file>:<export>` form
+- **Shipping a feature with only sad-path scenarios** — happy-path-success
+  must be exercised at least once to catch path mismatches that throw post-validation
 
 ## Detection
 
