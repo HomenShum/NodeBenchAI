@@ -39,6 +39,11 @@ import { convexTest } from "convex-test";
 
 import * as eventsModule from "../events";
 import { publishWiki, claimHost, requestHostClaim, releaseHost } from "../events";
+import {
+  requestSignInLink,
+  verifySignInToken,
+  listMyEvents,
+} from "../users";
 import schema from "../schema";
 import { api } from "../_generated/api";
 
@@ -1414,5 +1419,372 @@ describe("releaseHost — host can relinquish ownership", () => {
     expect(result.released).toBe(true);
     expect(result.hostsDeleted).toBe(2);
     expect(tables.liveEventHosts.length).toBe(0);
+  });
+});
+
+/* ========================================================================== */
+/* Test 8 — Step 8: user sign-in + listMyEvents                                */
+/* ========================================================================== */
+
+describe("requestSignInLink + verifySignInToken — magic-link sign-in", () => {
+  /**
+   * Background: Step 8 introduces persistent user identity. Two mutations
+   * compose the magic-link flow:
+   *   1. requestSignInLink({ email }) — generates a 24-char base32 token,
+   *      hashes it (SHA-256 over email+token+pepper), stores a
+   *      userSignInTokens row, schedules an email action. Returns
+   *      { ok: true }. Does NOT return the plaintext (the recipient gets
+   *      it via the email channel — proves identity via inbox).
+   *   2. verifySignInToken({ token, displayName?, sessionId? }) — looks up
+   *      the row by re-hashing, validates expiry + consumed state, marks
+   *      consumed, creates or updates scratchnodeUsers row, returns
+   *      { ok, userId, email, displayName, mergedSessionIds }.
+   *
+   * For tests we extract the plaintext token via the scheduler.args record
+   * (since the mutation doesn't return it). This mirrors how a real
+   * recipient extracts it from their email body.
+   */
+
+  it("happy path: requestSignInLink → token hashed + stored → verifySignInToken consumes + creates user", async () => {
+    /**
+     * Scenario:    First-time user signs in. They submit an email; the
+     *              system mints a token, hashes it, schedules an email
+     *              with the plaintext. The user clicks the magic-link;
+     *              the server verifies the token, marks it consumed,
+     *              creates a scratchnodeUsers row, returns identity.
+     * User:        First-timer with no prior account
+     * Goal:        Establish persistent identity tied to their email
+     * Prior state: 0 scratchnodeUsers rows; 0 userSignInTokens rows
+     * Actions:     requestSignInLink → extract token from scheduler.args
+     *              → verifySignInToken with that token + their sessionId
+     * Scale:       1 user
+     * Duration:    Two mutations, sub-second
+     * Expected:    requestSignInLink returns ok=true; one
+     *              userSignInTokens row inserted with consumed=false +
+     *              tokenHash + future expiresAt; scheduler.calls.length=1
+     *              with the right ref + args.
+     *              verifySignInToken returns ok=true, userId is a string,
+     *              email matches, displayName defaults to local part,
+     *              mergedSessionIds=[] (first sign-in).
+     *              userSignInTokens row is now consumed=true.
+     *              scratchnodeUsers row created with lastSessionId set.
+     */
+    process.env.CONVEX_DEPLOYMENT = "dev:test";
+    const tables: Tables = {
+      userSignInTokens: [],
+      scratchnodeUsers: [],
+      liveEventMembers: [],
+    };
+    const ctx = createCtx(tables);
+
+    const requestResult = await (requestSignInLink as any)._handler(ctx, {
+      email: "newuser@example.com",
+    });
+    expect(requestResult.ok).toBe(true);
+    expect(ctx.scheduler.calls.length).toBe(1);
+    // Token row created.
+    expect(tables.userSignInTokens.length).toBe(1);
+    const row = tables.userSignInTokens[0];
+    expect(row.consumed).toBe(false);
+    expect(row.email).toBe("newuser@example.com");
+    expect(typeof row.tokenHash).toBe("string");
+    expect(row.tokenHash.length).toBe(64); // SHA-256 hex
+    expect(row.expiresAt).toBeGreaterThan(Date.now());
+
+    // Extract the plaintext token from the scheduled email args — the
+    // recipient would extract it the same way (from their inbox).
+    const args = ctx.scheduler.calls[0].args as { token: string; email: string };
+    expect(args.email).toBe("newuser@example.com");
+    const plaintext = args.token;
+    expect(typeof plaintext).toBe("string");
+    expect(plaintext.length).toBe(24);
+
+    // Now verify.
+    const verifyResult = await (verifySignInToken as any)._handler(ctx, {
+      token: plaintext,
+      sessionId: "session-newuser-aaaaaaaa",
+    });
+    expect(verifyResult.ok).toBe(true);
+    expect(typeof verifyResult.userId).toBe("string");
+    expect(verifyResult.email).toBe("newuser@example.com");
+    expect(verifyResult.displayName).toBe("newuser"); // local part fallback
+    expect(verifyResult.mergedSessionIds).toEqual([]); // first sign-in
+
+    // Token now consumed.
+    expect(tables.userSignInTokens[0].consumed).toBe(true);
+    // User row created with the right sessionId pin.
+    expect(tables.scratchnodeUsers.length).toBe(1);
+    expect(tables.scratchnodeUsers[0].email).toBe("newuser@example.com");
+    expect(tables.scratchnodeUsers[0].lastSessionId).toBe("session-newuser-aaaaaaaa");
+  });
+
+  it("token replay: second verify with same token throws token_invalid", async () => {
+    /**
+     * Scenario:    Attacker / accidental refresh re-submits the same
+     *              token after a successful verify. Server must reject —
+     *              single-use guarantee.
+     * User:        Anyone holding a once-redeemed token
+     * Goal:        Prove tokens cannot be replayed
+     * Prior state: One consumed userSignInTokens row from a prior verify
+     * Actions:     Run requestSignInLink + verifySignInToken happy path,
+     *              then call verifySignInToken AGAIN with the same token
+     * Scale:       1 attacker
+     * Expected:    Second verify throws ConvexError code=token_invalid.
+     */
+    process.env.CONVEX_DEPLOYMENT = "dev:test";
+    const tables: Tables = {
+      userSignInTokens: [],
+      scratchnodeUsers: [],
+      liveEventMembers: [],
+    };
+    const ctx = createCtx(tables);
+
+    await (requestSignInLink as any)._handler(ctx, {
+      email: "replay@example.com",
+    });
+    const plaintext = (ctx.scheduler.calls[0].args as { token: string }).token;
+    await (verifySignInToken as any)._handler(ctx, {
+      token: plaintext,
+      sessionId: "session-replay-aaaaaaaa",
+    });
+
+    // Second call with the same token MUST throw.
+    await expect(
+      (verifySignInToken as any)._handler(ctx, {
+        token: plaintext,
+        sessionId: "session-replay-aaaaaaaa",
+      }),
+    ).rejects.toThrow(/token_invalid|did not match/);
+  });
+
+  it("token expiry: backdated expiresAt → verifySignInToken throws token_expired", async () => {
+    /**
+     * Scenario:    User receives a magic link, takes too long to click,
+     *              the link has expired. Server must reject with
+     *              token_expired (not token_invalid — the token DID
+     *              match a row, it just expired).
+     * User:        Slow or distracted user
+     * Goal:        Distinguish expired from invalid for accurate UX
+     * Prior state: One non-consumed row with expiresAt in the past
+     * Actions:     verifySignInToken with the matching token
+     * Expected:    Throws ConvexError code=token_expired; row is also
+     *              marked consumed so it doesn't linger as a candidate
+     *              for future scans (defense in depth).
+     */
+    process.env.CONVEX_DEPLOYMENT = "dev:test";
+    const tables: Tables = {
+      userSignInTokens: [],
+      scratchnodeUsers: [],
+      liveEventMembers: [],
+    };
+    const ctx = createCtx(tables);
+
+    await (requestSignInLink as any)._handler(ctx, {
+      email: "slow@example.com",
+    });
+    const plaintext = (ctx.scheduler.calls[0].args as { token: string }).token;
+    // Backdate expiresAt to 1 hour ago.
+    tables.userSignInTokens[0].expiresAt = Date.now() - 60 * 60 * 1000;
+
+    await expect(
+      (verifySignInToken as any)._handler(ctx, {
+        token: plaintext,
+        sessionId: "session-slow-aaaaaaaa",
+      }),
+    ).rejects.toThrow(/token_expired|expired/);
+
+    // Defense in depth: expired token marked consumed.
+    expect(tables.userSignInTokens[0].consumed).toBe(true);
+  });
+
+  it("email idempotency: requestSignInLink twice for same email → verify returns same user row", async () => {
+    /**
+     * Scenario:    User asks for two magic links in a row (forgot to
+     *              check first, asked again). Whichever they click first
+     *              should land on the same user row — same email → same
+     *              persistent identity.
+     * User:        Someone who hit "resend" before checking inbox
+     * Goal:        Idempotent identity by email
+     * Prior state: 2 userSignInTokens rows for same email; 0 users
+     * Actions:     verifySignInToken with the first link; then run a
+     *              second requestSignInLink + verifySignInToken on the
+     *              same email — must update the same row, not create
+     *              a second one.
+     * Expected:    Exactly one scratchnodeUsers row after both flows.
+     *              Same _id returned on the second verify.
+     */
+    process.env.CONVEX_DEPLOYMENT = "dev:test";
+    const tables: Tables = {
+      userSignInTokens: [],
+      scratchnodeUsers: [],
+      liveEventMembers: [],
+    };
+    const ctx = createCtx(tables);
+
+    await (requestSignInLink as any)._handler(ctx, {
+      email: "same@example.com",
+    });
+    const t1 = (ctx.scheduler.calls[0].args as { token: string }).token;
+    const v1 = await (verifySignInToken as any)._handler(ctx, {
+      token: t1,
+      sessionId: "session-first-aaaaaaaa",
+    });
+    expect(tables.scratchnodeUsers.length).toBe(1);
+
+    // Second flow on the same email.
+    await (requestSignInLink as any)._handler(ctx, {
+      email: "same@example.com",
+    });
+    const t2 = (ctx.scheduler.calls[1].args as { token: string }).token;
+    const v2 = await (verifySignInToken as any)._handler(ctx, {
+      token: t2,
+      sessionId: "session-second-bbbbbbbb",
+    });
+
+    // Still exactly one user row.
+    expect(tables.scratchnodeUsers.length).toBe(1);
+    expect(v1.userId).toBe(v2.userId);
+    // The second verify returned mergedSessionIds=[firstSession] because
+    // we replaced lastSessionId from session-first to session-second.
+    expect(v2.mergedSessionIds).toContain("session-first-aaaaaaaa");
+    // lastSessionId updated to the latest.
+    expect(tables.scratchnodeUsers[0].lastSessionId).toBe("session-second-bbbbbbbb");
+  });
+});
+
+describe("listMyEvents — surfaces joined events for signed-in user", () => {
+  it("user with 0 events returns joined:[] and _truncated:false", async () => {
+    /**
+     * Scenario:    Brand-new signed-in user with no prior anonymous
+     *              event activity. listMyEvents should return an empty
+     *              joined array, not throw.
+     * User:        First-time signed-in user
+     * Goal:        Honest "no events" surface (vs error)
+     * Prior state: scratchnodeUsers row exists; no liveEventMembers
+     * Expected:    { joined: [], _truncated: false }
+     */
+    const tables: Tables = {
+      scratchnodeUsers: [
+        {
+          _id: "scratchnodeUsers:1",
+          email: "empty@example.com",
+          displayName: "empty",
+          emailVerifiedAt: 1_700_000_000_000,
+          createdAt: 1_700_000_000_000,
+          lastSessionId: "session-empty-aaaaaaaa",
+        },
+      ],
+      liveEventMembers: [],
+      liveEvents: [],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await (listMyEvents as any)._handler(ctx, {
+      userId: "scratchnodeUsers:1",
+    });
+    expect(result.joined).toEqual([]);
+    expect(result._truncated).toBe(false);
+  });
+
+  it("user with 2 attendee events: returns 2 rows sorted by joinedAt desc", async () => {
+    /**
+     * Scenario:    User joined two events as a guest before signing in.
+     *              After sign-in, listMyEvents finds both via the
+     *              lastSessionId pointer. The two events appear in the
+     *              joined array.
+     * User:        Power user who has been guesting around
+     * Goal:        See all rooms they have joined in one surface
+     * Prior state:
+     *   - 1 scratchnodeUsers row with lastSessionId="session-pwr-aaa"
+     *   - 2 liveEvents
+     *   - 2 liveEventMembers rows tying that sessionId to both events
+     * Expected: joined.length === 2, role="attendee" on both, joined[0]
+     *           is the more recently joined event (sorted desc).
+     */
+    const tables: Tables = {
+      scratchnodeUsers: [
+        {
+          _id: "scratchnodeUsers:1",
+          email: "power@example.com",
+          displayName: "power",
+          emailVerifiedAt: 1_700_000_000_000,
+          createdAt: 1_700_000_000_000,
+          lastSessionId: "session-pwr-aaa",
+        },
+      ],
+      liveEvents: [
+        {
+          _id: "liveEvents:1",
+          slug: "summit-2026",
+          name: "AI Summit",
+          roomCode: "ALPHA",
+          status: "live",
+          startedAt: 1_700_000_000_000,
+        },
+        {
+          _id: "liveEvents:2",
+          slug: "ops-2026",
+          name: "Ops Day",
+          roomCode: "BETA",
+          status: "live",
+          startedAt: 1_700_000_000_000,
+        },
+      ],
+      liveEventMembers: [
+        {
+          _id: "liveEventMembers:1",
+          eventId: "liveEvents:1",
+          sessionId: "session-pwr-aaa",
+          displayName: "power",
+          joinedAt: 1_700_000_000_000,
+          lastSeenAt: 1_700_000_000_000,
+        },
+        {
+          _id: "liveEventMembers:2",
+          eventId: "liveEvents:2",
+          sessionId: "session-pwr-aaa",
+          displayName: "power",
+          joinedAt: 1_700_000_005_000, // 5s later → first in desc sort
+          lastSeenAt: 1_700_000_005_000,
+        },
+      ],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await (listMyEvents as any)._handler(ctx, {
+      userId: "scratchnodeUsers:1",
+    });
+    expect(result._truncated).toBe(false);
+    expect(result.joined.length).toBe(2);
+    // Sorted by joinedAt desc.
+    expect(result.joined[0].eventSlug).toBe("ops-2026");
+    expect(result.joined[1].eventSlug).toBe("summit-2026");
+    expect(result.joined[0].role).toBe("attendee");
+    expect(result.joined[1].role).toBe("attendee");
+    expect(result.joined[0].hostToken).toBeUndefined();
+  });
+
+  it("nonexistent userId: returns joined:[] honestly (does not throw)", async () => {
+    /**
+     * Scenario:    Stale localStorage carries a userId that no longer
+     *              exists (admin deleted the user, dev environment was
+     *              reset, etc.). listMyEvents must not throw — that
+     *              would leak which userIds exist.
+     * User:        Any client with stale state
+     * Goal:        Quiet honest empty surface
+     * Expected:    { joined: [], _truncated: false }
+     */
+    const tables: Tables = {
+      scratchnodeUsers: [],
+      liveEventMembers: [],
+      liveEvents: [],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await (listMyEvents as any)._handler(ctx, {
+      userId: "scratchnodeUsers:nonexistent",
+    });
+    expect(result.joined).toEqual([]);
+    expect(result._truncated).toBe(false);
   });
 });
