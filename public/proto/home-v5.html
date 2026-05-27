@@ -1059,6 +1059,7 @@ body[data-new-user="true"] .h-menu::after {
   <!-- Notes appear once user has set a name (matches the privacy/identity contract) -->
   <h4 style="margin-top:14px" data-show-for="named">Your notes</h4>
   <button type="button" data-show-for="named" onclick="openNotes()">My private notes<span class="sub">🔒 only you can see</span></button>
+  <button type="button" onclick="openNodeBenchPrivateHandoff()">Continue in NodeBench<span class="sub">Private notes + event artifact</span></button>
   <!-- Host console hidden until data-role="host" on body -->
   <h4 style="margin-top:14px" data-show-for="host">For hosts</h4>
   <button type="button" data-show-for="host" onclick="openHost()">Host console<span class="sub">Moderation · /ask queue · Publish wiki</span></button>
@@ -1126,11 +1127,44 @@ var PUBLIC_BASE_URL = (function() {
 var EVENT_SLUG = 'ai-infra-summit-2026';
 var EVENT_URL = PUBLIC_BASE_URL + '/e/' + EVENT_SLUG;
 // On scratchnode.live, host-actions (sign-in, host console) live on the workspace domain.
-var WORKSPACE_BASE_URL = 'https://nodebenchai.com';
+var CANONICAL_WORKSPACE_HOST = 'nodebenchai.com';
+var WORKSPACE_BASE_URL = (function() {
+  try {
+    var h = location.hostname || '';
+    var proto = (location.protocol === 'http:' || location.protocol === 'https:') ? location.protocol : 'https:';
+    if (h === CANONICAL_WORKSPACE_HOST || h === 'www.' + CANONICAL_WORKSPACE_HOST) {
+      return proto + '//' + h + (location.port && location.port !== '80' && location.port !== '443' ? (':' + location.port) : '');
+    }
+  } catch (e) {}
+  return 'https://' + CANONICAL_WORKSPACE_HOST;
+})();
 var ON_PUBLIC_DOMAIN = (function() {
   try { return location.hostname === CANONICAL_PUBLIC_HOST || location.hostname.endsWith('.' + CANONICAL_PUBLIC_HOST); }
   catch (e) { return false; }
 })();
+
+function buildNodeBenchEventPrivateUrl() {
+  var roomCode = 'ORBITAL';
+  try {
+    var room = getRoomContext();
+    roomCode = (room && room.roomCode) || roomCode;
+  } catch (e) {}
+  return WORKSPACE_BASE_URL +
+    '/events/' + encodeURIComponent(EVENT_SLUG) +
+    '/private?source=scratchnode&room=' + encodeURIComponent(roomCode) +
+    '&return=' + encodeURIComponent(EVENT_URL);
+}
+
+function buildNodeBenchSignInUrl(targetUrl) {
+  var target = targetUrl || buildNodeBenchEventPrivateUrl();
+  return WORKSPACE_BASE_URL + '/sign-in?return=' + encodeURIComponent(target) + '&intent=save-private-notes';
+}
+
+function openNodeBenchPrivateHandoff() {
+  closeMenu();
+  closeSheet();
+  window.location.assign(buildNodeBenchSignInUrl(buildNodeBenchEventPrivateUrl()));
+}
 
 // ── Debug-gate flag for prototype helpers ──
 // Production builds should keep this false. ?debug=1 in URL enables sim* helpers on window.
@@ -1716,7 +1750,11 @@ var SHEET_RENDERERS = {
       '<div class="notes-list-scroll" id="notes-list-scroll">' + renderNotesList() + '</div>' +
       '</div>' +
       '<div class="notes-pane-edit" id="notes-pane-edit">' + renderNotesEditor() + '</div>' +
-      '</div>';
+      '</div>' +
+      '<div class="sheet-section" style="margin-top:14px"><h3>Continue privately</h3>' +
+      '<p class="sheet-sub">Open this event in NodeBench with the public wiki, your private notes, saved asks, and follow-up workspace attached.</p>' +
+      '<button type="button" class="sheet-button" id="sn-nodebench-private-handoff" onclick="openNodeBenchPrivateHandoff()">Open NodeBench event notebook</button>' +
+      '<div style="margin-top:8px;font-size:11px;color:var(--ink-faint);font-family:var(--mono);word-break:break-all">' + buildNodeBenchEventPrivateUrl() + '</div></div>';
   },
 
   wiki: function() {
@@ -1845,10 +1883,11 @@ var SHEET_RENDERERS = {
 
   signin: function() {
     return '<div class="sheet-head"><h2 id="sheet-title">Sign in to ScratchNode</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
-      '<p class="sheet-sub">No password. We&rsquo;ll email you a magic link. Sign in to create your own events, persist notes across devices, and host with full controls.</p>' +
+      '<p class="sheet-sub">No password. We&rsquo;ll email you a magic link. Sign in to create your own events, persist notes across devices, and continue this room privately in NodeBench.</p>' +
       '<div class="sheet-field"><label class="sheet-label" for="sheet-signin-email">Email address</label>' +
       '<input id="sheet-signin-email" class="sheet-input" type="email" placeholder="you@company.com" autocomplete="email" inputmode="email" /></div>' +
       '<button type="button" class="sheet-button" onclick="sendMagicLink()">Send me a magic link</button>' +
+      '<button type="button" class="sheet-button ghost" onclick="openNodeBenchPrivateHandoff()">Continue this event in NodeBench</button>' +
       '<div style="display:flex;gap:8px;margin:12px 0;align-items:center;color:var(--ink-faint);font-size:10px;font-family:var(--mono);letter-spacing:.1em"><span style="flex:1;height:1px;background:var(--line)"></span>OR<span style="flex:1;height:1px;background:var(--line)"></span></div>' +
       '<button type="button" class="sheet-button ghost" onclick="toast(\'Google sign-in\',\'OAuth handoff (demo).\'); closeSheet();">Continue with Google</button>' +
       '<button type="button" class="sheet-button ghost" onclick="toast(\'GitHub sign-in\',\'OAuth handoff (demo).\'); closeSheet();">Continue with GitHub</button>' +
@@ -2371,7 +2410,7 @@ function sendMagicLink() {
     return;
   }
   closeSheet();
-  toast('Magic link sent to ' + email, 'Check your inbox.');
+  toast('Magic link sent to ' + email, 'Check your inbox. Return target: NodeBench event notebook.');
   haptic(15);
 }
 

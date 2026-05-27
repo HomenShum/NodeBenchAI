@@ -94,6 +94,34 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
     });
     await waitForScratchNodeLive(pageA);
     await expect(pageA).toHaveTitle(/ScratchNode/i);
+    const boundary = await pageA.evaluate(() => {
+      const win = window as any;
+      return {
+        publicBaseUrl: win.PUBLIC_BASE_URL,
+        eventUrl: win.EVENT_URL,
+        workspaceBaseUrl: win.WORKSPACE_BASE_URL,
+        privateHandoffUrl: win.buildNodeBenchEventPrivateUrl?.(),
+        signInHandoffUrl: win.buildNodeBenchSignInUrl?.(),
+        hasOpenHandoff: typeof win.openNodeBenchPrivateHandoff,
+      };
+    });
+    const expectedPublicOrigin = new URL(SCRATCHNODE_APEX_URL).origin;
+    expect(boundary.publicBaseUrl).toBe(expectedPublicOrigin);
+    expect(boundary.eventUrl).toBe(`${expectedPublicOrigin}/e/ai-infra-summit-2026`);
+    expect(boundary.eventUrl).not.toContain("scratchnode.com");
+    expect(boundary.workspaceBaseUrl).toBe("https://nodebenchai.com");
+    expect(boundary.privateHandoffUrl).toContain(
+      "https://nodebenchai.com/events/ai-infra-summit-2026/private",
+    );
+    expect(boundary.privateHandoffUrl).toContain("source=scratchnode");
+    expect(boundary.privateHandoffUrl).toContain("room=ORBITAL");
+    expect(decodeURIComponent(boundary.privateHandoffUrl)).toContain(
+      `return=${expectedPublicOrigin}/e/ai-infra-summit-2026`,
+    );
+    expect(decodeURIComponent(boundary.signInHandoffUrl)).toContain(
+      "/events/ai-infra-summit-2026/private",
+    );
+    expect(boundary.hasOpenHandoff).toBe("function");
     await pageA.screenshot({
       path: join(ARTIFACT_DIR, `${qaId}-apex-live.png`),
       fullPage: true,
@@ -136,6 +164,9 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
       "no private notes",
     );
 
+    await expect
+      .poll(() => queryAnswer(pageA, answer!.id!), { timeout: 15_000 })
+      .not.toBeNull();
     const answerRecord = await queryAnswer(pageA, answer!.id!);
     expect(answerRecord.cacheHit).toBe(false);
     expect(answerRecord.sources.length).toBeGreaterThan(0);
@@ -219,6 +250,14 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
       return note?.id ?? null;
     }, privateNote);
     expect(noteId, "private note should have a Convex id").toBeTruthy();
+
+    await pageA.evaluate(() => (window as any).openNotes());
+    await expect(pageA.locator("#sn-nodebench-private-handoff")).toBeVisible();
+    await expect(pageA.locator("#sheet-content")).toContainText("Open NodeBench event notebook");
+    await expect(pageA.locator("#sheet-content")).toContainText(
+      "https://nodebenchai.com/events/ai-infra-summit-2026/private",
+    );
+    await pageA.evaluate(() => (window as any).closeSheet());
 
     await pageA.evaluate((id) => {
       (window as any)._activeNoteId = id;
