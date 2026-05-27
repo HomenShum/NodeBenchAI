@@ -381,7 +381,7 @@ async function main() {
   if (aliceIsHost) {
     try {
       const r = await convexQuery('events:getPublishedWiki', { eventId });
-      const wikiHtml = r.value?.html || '';
+      const wikiHtml = r.value?.bodyHtml || r.value?.html || '';
       const hasBobsQ = wikiHtml.includes(bobQ.slice(0, 30));
       record('Wiki contains Bob\'s promoted Q', hasBobsQ,
         `wiki=${wikiHtml.length}ch`, r.latency);
@@ -398,7 +398,7 @@ async function main() {
   // ───────────────────────────────────────────────────────────────
   try {
     const r = await convexQuery('events:getPublishedWiki', { eventId });
-    const wikiHtml = r.value?.html || '';
+    const wikiHtml = r.value?.bodyHtml || r.value?.html || '';
     const leaked = wikiHtml.includes(`SECRET-${RUN_ID}`);
     record('Wiki excludes Carol\'s private note', !leaked,
       leaked ? 'CRITICAL P0 LEAK' : 'invariant holds', r.latency);
