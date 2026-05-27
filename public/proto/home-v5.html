@@ -3093,6 +3093,20 @@ setTimeout(refreshNotesCounter, 100);
     const sourceChips = (answer.sources || []).slice(0, 5).map((source) =>
       '<span title="' + snEscape(source.excerpt || source.uri) + '">' + snEscape(source.title || source.uri) + '</span>'
     ).join('');
+    const liveSearches = Number(answer.externalSearches || 0);
+    const agentLabel = answer.agentMode === 'provider'
+      ? ('AI agent' + (answer.modelId ? ' · ' + answer.modelId : ''))
+      : answer.agentMode === 'provider_fallback'
+        ? 'AI fallback · deterministic'
+        : answer.cacheHit
+          ? 'cache hit'
+          : 'sourced answer';
+    const costLabel = typeof answer.estimatedCostCents === 'number'
+      ? answer.estimatedCostCents.toFixed(4) + '¢'
+      : 'cost tracked';
+    const qualityLabel = answer.evaluation && typeof answer.evaluation.score === 'number'
+      ? 'QA ' + answer.evaluation.score
+      : 'QA pending';
     const trace = (answer.trace || []).map((step) =>
       '<div class="step"><span class="c">' + (step.status === 'ok' ? '&check;' : step.status === 'miss' ? '&middot;' : '!') + '</span><span>' +
       snEscape(String(step.step || '').replace(/_/g, ' ')) + (step.detail ? ' · ' + snEscape(step.detail) : '') +
@@ -3104,7 +3118,7 @@ setTimeout(refreshNotesCounter, 100);
       '<div class="ans-q"></div>' +
       '<div class="ans-body"></div>' +
       '<div class="ans-sources">' + (sourceChips || '<span>public event corpus</span>') + '<span>' + sourceCount + ' sources</span></div>' +
-      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">' + (answer.cacheHit ? 'Answered from cache' : 'Answered from event corpus') + '</span><span class="sep">·</span><span><b>' + sourceCount + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>0</b> live searches</span><span class="sep">·</span><span class="priv">no private notes</span></div>' +
+      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">' + agentLabel + '</span><span class="sep">·</span><span><b>' + sourceCount + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>' + liveSearches + '</b> live searches</span><span class="sep">·</span><span>' + costLabel + '</span><span class="sep">·</span><span>' + qualityLabel + '</span><span class="sep">·</span><span class="priv">no private notes</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
       '<div class="ans-how">' + trace + '</div>' +
       '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="window.snSuggestFaq && window.snSuggestFaq(\'' + answer._id + '\')">Suggest for FAQ</button><button type="button" class="primary host-only" onclick="window.snPromoteFaq && window.snPromoteFaq(\'' + answer._id + '\')">Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
@@ -3147,12 +3161,19 @@ setTimeout(refreshNotesCounter, 100);
       kind: intent.kind === 'agent_ask' ? 'ask' : 'chat',
     }).then((res) => {
       if (intent.kind !== 'agent_ask') return null;
-      return client.mutation('events:composeAnswer', {
+      const payload = {
         eventId,
         sessionId,
         questionMessageId: res.messageId,
         question: intent.clean,
-      }).then((answer) => {
+      };
+      const runAsk = typeof client.action === 'function'
+        ? client.action('events:askAgent', payload).catch((actionError) => {
+            console.warn('[scratchnode] askAgent action failed, falling back to composeAnswer:', actionError.message || actionError);
+            return client.mutation('events:composeAnswer', payload);
+          })
+        : client.mutation('events:composeAnswer', payload);
+      return runAsk.then((answer) => {
         if (answer) renderAnswer(answer);
       });
     }).catch((e) => {

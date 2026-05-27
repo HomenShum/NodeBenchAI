@@ -25,8 +25,8 @@
  */
 
 import { v } from "convex/values";
-import { query, mutation, internalMutation } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
+import { action, query, mutation, internalMutation, internalQuery } from "./_generated/server";
 
 class ConvexError<T extends Record<string, unknown>> extends Error {
   data: T;
@@ -62,6 +62,10 @@ const MAX_WIKI_ANSWERS = 20;
 // (hk1:<eventIdShort>:<nonce>:<issuedAt>:<hmacShort> ~ 80-90 chars).
 // 120 is still tight enough to reject obvious junk.
 const MAX_OWNER_KEY_LEN = 120;
+const MAX_AGENT_CONTEXT_SOURCES = 6;
+const MAX_AGENT_CONTEXT_CHARS = 9_000;
+const MAX_LINKUP_SOURCES = 4;
+const SCRATCHNODE_DEFAULT_ASK_MODEL = "claude-haiku-4-5-20251001";
 
 // Phase 4 follow-up Item 1: optional email channel for claim codes.
 // Validation kept basic on purpose — Resend re-validates server-side, and
@@ -445,6 +449,218 @@ function synthesizeAnswer(
   ].join("\n");
 }
 
+function shouldProbeLiveSearch(question: string, ranked: Array<{ score: number }>) {
+  const q = question.toLowerCase();
+  const freshnessIntent = /\b(today|latest|recent|this week|this month|2026|now|new|announced|raised|launched)\b/.test(q);
+  const weakCorpusMatch = ranked.length === 0 || (ranked[0]?.score ?? 0) <= 1;
+  return freshnessIntent || weakCorpusMatch;
+}
+
+function boundedContextText(sources: Array<{ title: string; excerpt: string; body: string; uri?: string }>) {
+  let remaining = MAX_AGENT_CONTEXT_CHARS;
+  return sources.slice(0, MAX_AGENT_CONTEXT_SOURCES).map((source, index) => {
+    const raw = `${source.excerpt || ""}\n${source.body || ""}`.trim();
+    const body = raw.slice(0, Math.max(0, remaining));
+    remaining -= body.length;
+    return [
+      `[${index + 1}] ${source.title}`,
+      `URI: ${source.uri || "event-source"}`,
+      body,
+    ].join("\n");
+  }).join("\n\n---\n\n");
+}
+
+function estimateTokens(input: string) {
+  return Math.ceil((input || "").length / 4);
+}
+
+function estimateAnthropicCostCents(inputTokens: number, outputTokens: number, modelId: string) {
+  // Conservative planning rates per 1M tokens. Actual billing is provider-side.
+  const fast = modelId.includes("haiku");
+  const inputPer1M = fast ? 1 : 3;
+  const outputPer1M = fast ? 5 : 15;
+  return Number((((inputTokens / 1_000_000) * inputPer1M + (outputTokens / 1_000_000) * outputPer1M) * 100).toFixed(4));
+}
+
+function evaluateAnswerQuality(args: {
+  question: string;
+  body: string;
+  sourceCount: number;
+  traceSteps: string[];
+}) {
+  const checks: Array<{ name: string; status: "pass" | "warn" | "fail"; detail?: string }> = [];
+  const body = args.body || "";
+  const hasBody = body.trim().length >= 80;
+  checks.push({
+    name: "substantive_answer",
+    status: hasBody ? "pass" : "fail",
+    detail: hasBody ? "Answer has enough body to be useful." : "Answer is too short.",
+  });
+  const hasSources = args.sourceCount > 0;
+  checks.push({
+    name: "source_backed",
+    status: hasSources ? "pass" : "fail",
+    detail: `${args.sourceCount} public sources attached.`,
+  });
+  const privateLeak = /\bprivate note|userNotes|only your notebook\b/i.test(body);
+  checks.push({
+    name: "public_private_boundary",
+    status: privateLeak ? "fail" : "pass",
+    detail: privateLeak ? "Answer body references private-note implementation details." : "No private-note content in answer body.",
+  });
+  const hasRuntimeTrace = args.traceSteps.length >= 3;
+  checks.push({
+    name: "runtime_trace",
+    status: hasRuntimeTrace ? "pass" : "warn",
+    detail: `${args.traceSteps.length} trace steps persisted.`,
+  });
+  const failed = checks.filter((check) => check.status === "fail").length;
+  const warned = checks.filter((check) => check.status === "warn").length;
+  const score = Math.max(0, 100 - failed * 35 - warned * 10);
+  return { passed: failed === 0, score, checks };
+}
+
+async function searchLinkup(question: string) {
+  const apiKey = process.env.LINKUP_API_KEY;
+  if (!apiKey || process.env.SCRATCHNODE_ALLOW_LINKUP !== "1") {
+    return { status: "skipped" as const, sources: [], detail: "Linkup disabled or key not configured." };
+  }
+  const startedAt = Date.now();
+  try {
+    const response = await fetch("https://api.linkup.so/v1/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        q: question,
+        depth: "standard",
+        outputType: "searchResults",
+        includeSources: true,
+        maxResults: MAX_LINKUP_SOURCES,
+      }),
+    });
+    if (!response.ok) {
+      return {
+        status: "error" as const,
+        sources: [],
+        detail: `Linkup returned HTTP ${response.status} in ${Date.now() - startedAt}ms.`,
+      };
+    }
+    const data: any = await response.json();
+    const rawSources = Array.isArray(data.sources) ? data.sources : Array.isArray(data.results) ? data.results : [];
+    const sources = rawSources.slice(0, MAX_LINKUP_SOURCES).map((source: any, index: number) => ({
+      uri: String(source.url || source.uri || `linkup://${stableHash(`${question}:${index}`)}`).slice(0, 500),
+      kind: "url" as const,
+      title: String(source.name || source.title || "External source").slice(0, 200),
+      excerpt: String(source.snippet || source.content || "").slice(0, 500),
+      body: String(source.content || source.snippet || source.name || "").slice(0, MAX_SOURCE_BODY),
+    }));
+    return {
+      status: "ok" as const,
+      sources,
+      detail: `Linkup returned ${sources.length} sources in ${Date.now() - startedAt}ms.`,
+    };
+  } catch (err: any) {
+    return {
+      status: "error" as const,
+      sources: [],
+      detail: `Linkup failed: ${err?.message || String(err)}`,
+    };
+  }
+}
+
+async function generateProviderAnswer(args: {
+  eventName: string;
+  question: string;
+  sources: Array<{ title: string; excerpt: string; body: string; uri?: string }>;
+}) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return { ok: false as const, detail: "ANTHROPIC_API_KEY not configured." };
+  }
+  const model = process.env.SCRATCHNODE_ASK_MODEL || SCRATCHNODE_DEFAULT_ASK_MODEL;
+  const system = [
+    "You are ScratchNode's event answer agent.",
+    "Answer only from the provided public event sources.",
+    "Do not use or mention private notes.",
+    "If evidence is thin, say what is known and what remains unclear.",
+    "Write concise, useful prose for an event attendee.",
+    "End with a short 'Next move:' sentence.",
+  ].join(" ");
+  const context = boundedContextText(args.sources);
+  const user = [
+    `Event: ${args.eventName}`,
+    `Question: ${args.question}`,
+    "",
+    "Public event sources:",
+    context,
+  ].join("\n");
+  const inputTokens = estimateTokens(system + "\n" + user);
+  const startedAt = Date.now();
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 700,
+        temperature: 0.2,
+        system,
+        messages: [{ role: "user", content: user }],
+      }),
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      return {
+        ok: false as const,
+        detail: `Anthropic HTTP ${response.status}: ${body.slice(0, 240)}`,
+        model,
+        inputTokens,
+        elapsedMs: Date.now() - startedAt,
+      };
+    }
+    const data: any = await response.json();
+    const text = Array.isArray(data.content)
+      ? data.content.map((part: any) => part?.type === "text" ? part.text : "").join("").trim()
+      : "";
+    const outputTokens = Number(data.usage?.output_tokens ?? estimateTokens(text));
+    const usageInput = Number(data.usage?.input_tokens ?? inputTokens);
+    if (!text) {
+      return {
+        ok: false as const,
+        detail: "Anthropic returned an empty text response.",
+        model,
+        inputTokens: usageInput,
+        outputTokens,
+        elapsedMs: Date.now() - startedAt,
+      };
+    }
+    return {
+      ok: true as const,
+      body: text.slice(0, MAX_ANSWER_BODY),
+      model,
+      inputTokens: usageInput,
+      outputTokens,
+      estimatedCostCents: estimateAnthropicCostCents(usageInput, outputTokens, model),
+      elapsedMs: Date.now() - startedAt,
+    };
+  } catch (err: any) {
+    return {
+      ok: false as const,
+      detail: `Anthropic request failed: ${err?.message || String(err)}`,
+      model,
+      inputTokens,
+      elapsedMs: Date.now() - startedAt,
+    };
+  }
+}
+
 async function buildAnswerPayload(ctx: any, answerId: any) {
   const answer = await ctx.db.get(answerId);
   if (!answer) return null;
@@ -616,6 +832,162 @@ export const getPublishedWiki = query({
   },
 });
 
+export const _prepareAskAgentContext = internalQuery({
+  args: {
+    eventId: v.id("liveEvents"),
+    sessionId: v.string(),
+    question: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const question = (args.question || "").trim().slice(0, 1000);
+    if (!question) {
+      throw new ConvexError({ code: "empty_question", message: "/ask question required." });
+    }
+    const event = await ctx.db.get(args.eventId);
+    if (!event) {
+      throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
+    }
+    if (event.status === "ended") {
+      throw new ConvexError({ code: "event_ended", message: "This event has ended." });
+    }
+    await requireMember(ctx, args.eventId, args.sessionId);
+    const normalizedQuestion = normalizeQuestion(question);
+    const cached = await ctx.db
+      .query("liveEventAnswers")
+      .withIndex("by_event_normalized", (q) =>
+        q.eq("eventId", args.eventId).eq("normalizedQuestion", normalizedQuestion),
+      )
+      .order("desc")
+      .first();
+    const sources = await ctx.db
+      .query("liveEventSources")
+      .withIndex("by_event", (q) => q.eq("eventId", args.eventId))
+      .take(100);
+    return {
+      event: {
+        _id: event._id,
+        slug: event.slug,
+        name: event.name,
+        status: event.status,
+      },
+      normalizedQuestion,
+      cached,
+      sources,
+    };
+  },
+});
+
+export const _upsertAgentSources = internalMutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    sources: v.array(v.object({
+      uri: v.string(),
+      kind: v.union(
+        v.literal("transcript"),
+        v.literal("doc"),
+        v.literal("url"),
+        v.literal("slide"),
+      ),
+      title: v.string(),
+      excerpt: v.string(),
+      body: v.string(),
+    })),
+  },
+  handler: async (ctx, { eventId, sources }) => {
+    const rows: any[] = [];
+    for (const source of sources.slice(0, MAX_LINKUP_SOURCES)) {
+      const uri = source.uri.slice(0, 500);
+      const body = (source.body || source.excerpt || source.title).slice(0, MAX_SOURCE_BODY);
+      const existing = await ctx.db
+        .query("liveEventSources")
+        .withIndex("by_event_uri", (q) => q.eq("eventId", eventId).eq("uri", uri))
+        .first();
+      if (existing) {
+        rows.push(existing);
+        continue;
+      }
+      const id = await ctx.db.insert("liveEventSources", {
+        eventId,
+        uri,
+        kind: source.kind,
+        title: source.title.slice(0, 200),
+        excerpt: source.excerpt.slice(0, 500),
+        body,
+        sourceHash: stableHash(`${uri}|${body}`),
+        isSeeded: false,
+        uploadedAt: Date.now(),
+      });
+      const inserted = await ctx.db.get(id);
+      if (inserted) rows.push(inserted);
+    }
+    return rows;
+  },
+});
+
+export const _persistAgentAnswer = internalMutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    sessionId: v.string(),
+    questionMessageId: v.id("liveEventMessages"),
+    question: v.string(),
+    normalizedQuestion: v.string(),
+    body: v.string(),
+    sourceIds: v.array(v.id("liveEventSources")),
+    trace: v.array(v.object({
+      step: v.string(),
+      status: v.union(v.literal("ok"), v.literal("miss"), v.literal("error")),
+      detail: v.optional(v.string()),
+      durationMs: v.number(),
+    })),
+    cacheHit: v.boolean(),
+    agentMode: v.union(
+      v.literal("deterministic"),
+      v.literal("provider"),
+      v.literal("provider_fallback"),
+      v.literal("cache"),
+    ),
+    provider: v.optional(v.string()),
+    modelId: v.optional(v.string()),
+    inputTokens: v.optional(v.number()),
+    outputTokens: v.optional(v.number()),
+    estimatedCostCents: v.optional(v.number()),
+    externalSearches: v.optional(v.number()),
+    evaluation: v.object({
+      passed: v.boolean(),
+      score: v.number(),
+      checks: v.array(v.object({
+        name: v.string(),
+        status: v.union(v.literal("pass"), v.literal("warn"), v.literal("fail")),
+        detail: v.optional(v.string()),
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const answerId = await ctx.db.insert("liveEventAnswers", {
+      eventId: args.eventId,
+      questionMessageId: args.questionMessageId,
+      askedBySessionId: args.sessionId,
+      question: args.question,
+      normalizedQuestion: args.normalizedQuestion,
+      body: args.body.slice(0, MAX_ANSWER_BODY),
+      sourceIds: args.sourceIds,
+      trace: args.trace,
+      cacheHit: args.cacheHit,
+      agentMode: args.agentMode,
+      provider: args.provider,
+      modelId: args.modelId,
+      inputTokens: args.inputTokens,
+      outputTokens: args.outputTokens,
+      estimatedCostCents: args.estimatedCostCents,
+      externalSearches: args.externalSearches,
+      evaluation: args.evaluation,
+      faqStatus: "none",
+      createdAt: Date.now(),
+    });
+    return await buildAnswerPayload(ctx, answerId);
+  },
+});
+
 // ─── MUTATIONS ────────────────────────────────────────────────────────────
 
 /**
@@ -780,18 +1152,201 @@ export const sendMessage = mutation({
 });
 
 /**
- * composeAnswer — Phase 2 deterministic synthesis for /ask in live events.
+ * askAgent - provider-ready /ask path for live events.
  *
- * Ranks event sources by source-token-overlap against the question, then
- * stitches a citation-grounded answer together with NO LLM call. This is the
- * Phase 2 wiring that runs today.
- *
- * The future LLM-backed action (vector search + Anthropic) will ship as a
- * separate function named `askAgent` when the Anthropic integration lands —
- * see public/proto/docs.html "Live prod plan / Phase 2". Renaming this
- * function frees the `askAgent` name for that real-LLM caller and prevents
- * future readers from assuming LLM behavior that isn't here.
+ * This action is the production path. It reads only public event sources,
+ * optionally probes Linkup when freshness is justified, calls Anthropic when the
+ * key is configured, and falls back to deterministic synthesis with the same
+ * source and quality metadata. `composeAnswer` remains the deterministic
+ * mutation fallback for older clients or environments where Convex actions are
+ * unavailable.
  */
+export const askAgent = action({
+  args: {
+    eventId: v.id("liveEvents"),
+    sessionId: v.string(),
+    questionMessageId: v.id("liveEventMessages"),
+    question: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const startedAt = Date.now();
+    const question = (args.question || "").trim().slice(0, 1000);
+    let prepared: any = await ctx.runQuery((internal as any).events._prepareAskAgentContext, {
+      eventId: args.eventId,
+      sessionId: args.sessionId,
+      question,
+    });
+
+    if (prepared.cached) {
+      const evaluation = evaluateAnswerQuality({
+        question,
+        body: prepared.cached.body,
+        sourceCount: prepared.cached.sourceIds?.length ?? 0,
+        traceSteps: ["semantic_cache_lookup"],
+      });
+      return await ctx.runMutation((internal as any).events._persistAgentAnswer, {
+        eventId: args.eventId,
+        sessionId: args.sessionId,
+        questionMessageId: args.questionMessageId,
+        question,
+        normalizedQuestion: prepared.normalizedQuestion,
+        body: prepared.cached.body,
+        sourceIds: prepared.cached.sourceIds,
+        trace: [{
+          step: "semantic_cache_lookup",
+          status: "ok",
+          detail: `Reused public answer ${prepared.cached._id}; private notes excluded.`,
+          durationMs: Date.now() - startedAt,
+        }],
+        cacheHit: true,
+        agentMode: "cache",
+        provider: prepared.cached.provider || "cache",
+        modelId: prepared.cached.modelId || "cached-answer",
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedCostCents: 0,
+        externalSearches: 0,
+        evaluation,
+      });
+    }
+
+    let sources: any[] = prepared.sources || [];
+    if (sources.length === 0 && prepared.event?.slug === "ai-infra-summit-2026") {
+      await ctx.runMutation((api as any).events.ensureDemoEvent, {});
+      prepared = await ctx.runQuery((internal as any).events._prepareAskAgentContext, {
+        eventId: args.eventId,
+        sessionId: args.sessionId,
+        question,
+      });
+      sources = prepared.sources || [];
+    }
+
+    const retrievalStarted = Date.now();
+    let ranked = sources
+      .map((source: any) => ({ source, score: scoreSource(question, source) }))
+      .sort((a: any, b: any) => b.score - a.score || b.source.uploadedAt - a.source.uploadedAt);
+    const trace: Array<{ step: string; status: "ok" | "miss" | "error"; detail?: string; durationMs: number }> = [
+      {
+        step: "semantic_cache_lookup",
+        status: "miss",
+        detail: "No same-question public answer found for this event.",
+        durationMs: retrievalStarted - startedAt,
+      },
+    ];
+
+    let externalSearches = 0;
+    if (shouldProbeLiveSearch(question, ranked)) {
+      const externalStarted = Date.now();
+      const linkup = await searchLinkup(question);
+      trace.push({
+        step: "external_search",
+        status: linkup.status === "ok" ? "ok" : linkup.status === "skipped" ? "miss" : "error",
+        detail: linkup.detail,
+        durationMs: Date.now() - externalStarted,
+      });
+      if (linkup.status === "ok" && linkup.sources.length > 0) {
+        externalSearches = 1;
+        const rows = await ctx.runMutation((internal as any).events._upsertAgentSources, {
+          eventId: args.eventId,
+          sources: linkup.sources,
+        });
+        sources = [...sources, ...rows];
+        ranked = sources
+          .map((source: any) => ({ source, score: scoreSource(question, source) }))
+          .sort((a: any, b: any) => b.score - a.score || b.source.uploadedAt - a.source.uploadedAt);
+      }
+    } else {
+      trace.push({
+        step: "external_search",
+        status: "miss",
+        detail: "Skipped because event corpus had enough matching public sources.",
+        durationMs: 0,
+      });
+    }
+
+    const selected = ranked.filter((row: any) => row.score > 0).slice(0, MAX_AGENT_CONTEXT_SOURCES);
+    const topSources = (selected.length ? selected : ranked.slice(0, 3)).map((row: any) => row.source);
+    trace.push({
+      step: "bounded_source_retrieval",
+      status: topSources.length > 0 ? "ok" : "error",
+      detail: `Scored ${sources.length} sources; selected ${topSources.length}.`,
+      durationMs: Date.now() - retrievalStarted,
+    });
+    if (!topSources.length) {
+      throw new ConvexError({
+        code: "no_sources",
+        message: "No event sources are available for sourced /ask yet.",
+      });
+    }
+
+    const provider = await generateProviderAnswer({
+      eventName: prepared.event.name,
+      question,
+      sources: topSources,
+    });
+    let body: string;
+    let agentMode: "provider" | "provider_fallback";
+    if (provider.ok) {
+      body = provider.body;
+      agentMode = "provider";
+      trace.push({
+        step: "provider_llm",
+        status: "ok",
+        detail: `Anthropic ${provider.model}; estimated ${provider.estimatedCostCents} cents.`,
+        durationMs: provider.elapsedMs,
+      });
+    } else {
+      body = synthesizeAnswer(question, prepared.event.name, topSources).slice(0, MAX_ANSWER_BODY);
+      agentMode = "provider_fallback";
+      trace.push({
+        step: "provider_llm",
+        status: "error",
+        detail: provider.detail,
+        durationMs: provider.elapsedMs ?? 0,
+      });
+      trace.push({
+        step: "deterministic_fallback",
+        status: "ok",
+        detail: "Generated from public event corpus only; private notes excluded.",
+        durationMs: Date.now() - startedAt,
+      });
+    }
+
+    const evaluation = evaluateAnswerQuality({
+      question,
+      body,
+      sourceCount: topSources.length,
+      traceSteps: trace.map((step) => step.step),
+    });
+    trace.push({
+      step: "quality_gate",
+      status: evaluation.passed ? "ok" : "error",
+      detail: `Deterministic answer quality score ${evaluation.score}.`,
+      durationMs: Date.now() - startedAt,
+    });
+
+    return await ctx.runMutation((internal as any).events._persistAgentAnswer, {
+      eventId: args.eventId,
+      sessionId: args.sessionId,
+      questionMessageId: args.questionMessageId,
+      question,
+      normalizedQuestion: prepared.normalizedQuestion,
+      body,
+      sourceIds: topSources.map((source: any) => source._id),
+      trace,
+      cacheHit: false,
+      agentMode,
+      provider: provider.ok ? "anthropic" : "deterministic",
+      modelId: provider.model || "bounded-source-synthesizer",
+      inputTokens: provider.inputTokens ?? 0,
+      outputTokens: provider.outputTokens ?? estimateTokens(body),
+      estimatedCostCents: provider.estimatedCostCents ?? 0,
+      externalSearches,
+      evaluation,
+    });
+  },
+});
+
 export const composeAnswer = mutation({
   args: {
     eventId: v.id("liveEvents"),
@@ -830,6 +1385,7 @@ export const composeAnswer = mutation({
       const answerId = await ctx.db.insert("liveEventAnswers", {
         eventId: args.eventId,
         questionMessageId: args.questionMessageId,
+        askedBySessionId: args.sessionId,
         question,
         normalizedQuestion,
         body: cached.body,
@@ -843,6 +1399,19 @@ export const composeAnswer = mutation({
           },
         ],
         cacheHit: true,
+        agentMode: "cache",
+        provider: cached.provider,
+        modelId: cached.modelId,
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedCostCents: 0,
+        externalSearches: 0,
+        evaluation: evaluateAnswerQuality({
+          question,
+          body: cached.body,
+          sourceCount: cached.sourceIds.length,
+          traceSteps: ["semantic_cache_lookup"],
+        }),
         faqStatus: "none",
         createdAt: Date.now(),
       });
@@ -870,6 +1439,7 @@ export const composeAnswer = mutation({
     const answerId = await ctx.db.insert("liveEventAnswers", {
       eventId: args.eventId,
       questionMessageId: args.questionMessageId,
+      askedBySessionId: args.sessionId,
       question,
       normalizedQuestion,
       body: answerBody,
@@ -895,6 +1465,19 @@ export const composeAnswer = mutation({
         },
       ],
       cacheHit: false,
+      agentMode: "deterministic",
+      provider: "deterministic",
+      modelId: "bounded-source-synthesizer",
+      inputTokens: estimateTokens(`${question}\n${topSources.map((source) => source.body).join("\n")}`),
+      outputTokens: estimateTokens(answerBody),
+      estimatedCostCents: 0,
+      externalSearches: 0,
+      evaluation: evaluateAnswerQuality({
+        question,
+        body: answerBody,
+        sourceCount: topSources.length,
+        traceSteps: ["semantic_cache_lookup", "bounded_source_retrieval", "deterministic_synthesis"],
+      }),
       faqStatus: "none",
       createdAt: Date.now(),
     });
