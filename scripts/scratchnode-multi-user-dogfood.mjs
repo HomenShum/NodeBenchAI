@@ -710,7 +710,7 @@ async function main() {
   header('SCENARIO 22: Step 8 — requestSignInLink schedules email (Resend wiring)');
   // ───────────────────────────────────────────────────────────────
   try {
-    const r = await convexMutation('events:requestSignInLink', { email: step8Email });
+    const r = await convexMutation('users:requestSignInLink', { email: step8Email });
     record('Phase8 requestSignInLink ok', !!r.value?.ok,
       `mutation returned ok=${r.value?.ok}; email scheduled fire-and-forget`,
       r.latency);
@@ -726,7 +726,7 @@ async function main() {
   // bogus token must throw token_invalid (NOT silently succeed, NOT
   // crash the server).
   try {
-    await convexMutation('events:verifySignInToken', {
+    await convexMutation('users:verifySignInToken', {
       token: 'BOGUSTOKENBOGUSTOKEN',
       sessionId: `dogfood-step8-${RUN_ID}-`.padEnd(40, 'x'),
     });
@@ -741,7 +741,7 @@ async function main() {
   header('SCENARIO 24: Step 8 — malformed email rejected by requestSignInLink');
   // ───────────────────────────────────────────────────────────────
   try {
-    await convexMutation('events:requestSignInLink', { email: 'not-an-email' });
+    await convexMutation('users:requestSignInLink', { email: 'not-an-email' });
     record('Phase8 malformed email rejected', false,
       'CRITICAL: requestSignInLink accepted malformed email (no @ + dot check)');
   } catch (e) {
@@ -768,7 +768,7 @@ async function main() {
     // is HONEST_STATUS. Test passes if we get either:
     //   (a) the call returns { joined: [], _truncated: false }, or
     //   (b) the call throws on schema validation.
-    const r = await convexQuery('events:listMyEvents', { userId: eventId });
+    const r = await convexQuery('users:listMyEvents', { userId: eventId });
     const ok = Array.isArray(r.value?.joined) && r.value.joined.length === 0
       && r.value._truncated === false;
     record('Phase8 listMyEvents empty for unknown user', ok,
