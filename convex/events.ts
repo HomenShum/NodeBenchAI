@@ -1854,6 +1854,67 @@ export const publishWiki = mutation({
 });
 
 /**
+ * releaseHost — relinquish host ownership of an event.
+ *
+ * Why this exists: once a `liveEventHosts` row exists, both `claimHost` and
+ * `requestHostClaim` refuse to proceed (a different ownerKey gets either
+ * `host_already_claimed` or `legacy_host_must_rotate_first`). Without a
+ * release path, an event whose host loses access OR a test event that needs
+ * to be reset is permanently stuck. This is the canonical release.
+ *
+ * Auth: the caller must prove possession of the CURRENT host's ownerKey —
+ * either the legacy plain-string format OR the `hk1:` HMAC token. Same
+ * `requireHost` gate that `promoteAnswerToFaq` / `publishWiki` use.
+ *
+ * Side effects:
+ *   - Deletes ALL `liveEventHosts` rows for this eventId (rotation history
+ *     can leave more than one row from prior `claimHostWithCode` migrations;
+ *     this clears them all so the next host starts from a clean state).
+ *   - Clears `liveEvents.hostClaimCodeHash` + `hostClaimCodeCreatedAt` so a
+ *     dangling code mid-rotation doesn't become exploitable.
+ *
+ * HONEST_STATUS: emits `console.warn` for audit visibility — host release
+ * is a destructive operation and operators should see it in logs.
+ *
+ * Idempotency: a second call from a now-non-host caller throws `not_host`
+ * (because the host row was just deleted). This is correct — the operation
+ * was applied, the contract is "you must be the current host to call this."
+ */
+export const releaseHost = mutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    ownerKey: v.string(),
+  },
+  handler: async (ctx, { eventId, ownerKey }) => {
+    const callingHost = await requireHost(ctx, eventId, ownerKey);
+    // Pull every host row for the event — rotation may have left more than
+    // one. Use the by_event index so we don't scan the full table.
+    const allHosts = await ctx.db
+      .query("liveEventHosts")
+      .withIndex("by_event", (q: any) => q.eq("eventId", eventId))
+      .collect();
+    let hostsDeleted = 0;
+    for (const row of allHosts) {
+      await ctx.db.delete(row._id);
+      hostsDeleted += 1;
+    }
+    // Defensive: clear any dangling claim code so the event is fully reset.
+    const event = await ctx.db.get(eventId);
+    if (event && (event.hostClaimCodeHash || event.hostClaimCodeCreatedAt)) {
+      await ctx.db.patch(eventId, {
+        hostClaimCodeHash: undefined,
+        hostClaimCodeCreatedAt: undefined,
+      });
+    }
+    console.warn(
+      `[releaseHost] eventId=${eventId} hostsDeleted=${hostsDeleted} ` +
+        `by=${callingHost.role} authMethod=${callingHost.authMethod ?? "legacy_ownerkey"}`,
+    );
+    return { ok: true, released: hostsDeleted > 0, hostsDeleted };
+  },
+});
+
+/**
  * Cheap presence heartbeat. UI calls this every 30s. Idempotent — early-returns
  * if lastSeenAt was bumped within the last 15s (rate-limits accidental spam).
  */

@@ -38,7 +38,7 @@ import { describe, expect, it } from "vitest";
 import { convexTest } from "convex-test";
 
 import * as eventsModule from "../events";
-import { publishWiki, claimHost, requestHostClaim } from "../events";
+import { publishWiki, claimHost, requestHostClaim, releaseHost } from "../events";
 import schema from "../schema";
 import { api } from "../_generated/api";
 
@@ -1215,5 +1215,204 @@ describe("requestHostClaim — optional Resend email delivery", () => {
     expect(ctx.scheduler.calls.length).toBe(1);
     const args = ctx.scheduler.calls[0].args as { email: string };
     expect(args.email).toBe("good@ex.com");
+  });
+});
+
+/* ========================================================================== */
+/* Test 7 — releaseHost                                                        */
+/* ========================================================================== */
+
+describe("releaseHost — host can relinquish ownership", () => {
+  /**
+   * Scenario:    The current host needs to step down (lost access, rotating
+   *              away from a test event, etc.). They call releaseHost with
+   *              their ownerKey. The contract: their host row is deleted,
+   *              any dangling claim code is cleared, and the event is now
+   *              freshly claimable by anyone.
+   * User:        Current host with legacy plain-string ownerKey
+   * Goal:        Step down so the event can be re-claimed by someone else
+   * Prior state: event live; one liveEventHosts row owned by HOST_OWNER_KEY
+   * Actions:     releaseHost({ eventId, ownerKey: HOST_OWNER_KEY })
+   * Scale:       1 user
+   * Duration:    Sub-second
+   * Expected:    ok=true, released=true, hostsDeleted=1. liveEventHosts is
+   *              now empty. claimHost with a NEW ownerKey now succeeds.
+   */
+  it("host can release with valid legacy ownerKey", async () => {
+    const tables: Tables = {
+      liveEvents: [baseEvent()],
+      liveEventHosts: [
+        {
+          _id: "liveEventHosts:1",
+          eventId: "liveEvents:1",
+          ownerKey: HOST_OWNER_KEY,
+          displayName: "Host",
+          role: "owner",
+          createdAt: 1_700_000_000_000,
+        },
+      ],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await (releaseHost as any)._handler(ctx, {
+      eventId: "liveEvents:1",
+      ownerKey: HOST_OWNER_KEY,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.released).toBe(true);
+    expect(result.hostsDeleted).toBe(1);
+    expect(tables.liveEventHosts.length).toBe(0);
+
+    // A new ownerKey can now claim cleanly.
+    const newOwnerKey = "different-owner-key-67890";
+    const newClaim = await (claimHost as any)._handler(ctx, {
+      eventId: "liveEvents:1",
+      ownerKey: newOwnerKey,
+      displayName: "Fresh Host",
+    });
+    expect(newClaim.ok).toBe(true);
+    expect(newClaim.created).toBe(true);
+    expect(tables.liveEventHosts.length).toBe(1);
+    expect(tables.liveEventHosts[0].ownerKey).toBe(newOwnerKey);
+  });
+
+  /**
+   * Scenario:    An attendee tries to release a host they don't own.
+   *              requireHost must reject them with code=not_host. The host
+   *              row stays intact. This protects against the most obvious
+   *              attack: anyone who knows the eventId calling releaseHost
+   *              to steal control.
+   * User:        Attacker / attendee
+   * Goal:        Steal host by force-releasing
+   * Prior state: event live; HOST_OWNER_KEY holds host row
+   * Actions:     releaseHost with ATTENDEE_OWNER_KEY
+   * Scale:       1 attacker
+   * Expected:    Throws code=not_host. liveEventHosts unchanged (still 1 row,
+   *              still owned by HOST_OWNER_KEY).
+   */
+  it("non-host cannot release another host's event", async () => {
+    const tables: Tables = {
+      liveEvents: [baseEvent()],
+      liveEventHosts: [
+        {
+          _id: "liveEventHosts:1",
+          eventId: "liveEvents:1",
+          ownerKey: HOST_OWNER_KEY,
+          displayName: "Host",
+          role: "owner",
+          createdAt: 1_700_000_000_000,
+        },
+      ],
+    };
+    const ctx = createCtx(tables);
+
+    await expect(
+      (releaseHost as any)._handler(ctx, {
+        eventId: "liveEvents:1",
+        ownerKey: ATTENDEE_OWNER_KEY,
+      }),
+    ).rejects.toThrow(/not_host|Host ownership/i);
+
+    expect(tables.liveEventHosts.length).toBe(1);
+    expect(tables.liveEventHosts[0].ownerKey).toBe(HOST_OWNER_KEY);
+  });
+
+  /**
+   * Scenario:    Defense-in-depth — when a host releases, any dangling
+   *              hostClaimCodeHash + hostClaimCodeCreatedAt on the event
+   *              row MUST be cleared, so a mid-rotation code can't be
+   *              exploited by the next person to call claimHostWithCode
+   *              without going through requestHostClaim.
+   * User:        Host who minted a claim code (for rotation) and then
+   *              changed their mind and released directly
+   * Goal:        Leave the event in a clean state with no exploitable
+   *              dangling state
+   * Prior state: event has hostClaimCodeHash + hostClaimCodeCreatedAt;
+   *              host row exists
+   * Actions:     releaseHost
+   * Scale:       1 host
+   * Expected:    Both hostClaimCodeHash and hostClaimCodeCreatedAt are
+   *              cleared from the event row.
+   */
+  it("clears dangling claim code on release (defense-in-depth)", async () => {
+    const event = baseEvent({
+      hostClaimCodeHash: "sha256:fake-hash-from-prior-requestHostClaim",
+      hostClaimCodeCreatedAt: 1_700_000_000_000,
+    });
+    const tables: Tables = {
+      liveEvents: [event],
+      liveEventHosts: [
+        {
+          _id: "liveEventHosts:1",
+          eventId: "liveEvents:1",
+          ownerKey: HOST_OWNER_KEY,
+          displayName: "Host",
+          role: "owner",
+          createdAt: 1_700_000_000_000,
+        },
+      ],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await (releaseHost as any)._handler(ctx, {
+      eventId: "liveEvents:1",
+      ownerKey: HOST_OWNER_KEY,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(tables.liveEvents[0].hostClaimCodeHash).toBeUndefined();
+    expect(tables.liveEvents[0].hostClaimCodeCreatedAt).toBeUndefined();
+  });
+
+  /**
+   * Scenario:    A host who's been rotated (e.g. via claimHostWithCode
+   *              after a prior release) calls releaseHost. The releaseHost
+   *              implementation must clean up EVERY host row for the event,
+   *              not just the one matching the calling ownerKey. This
+   *              protects against rotation history leaving stale rows that
+   *              would block future claims.
+   * User:        Host with rotation history
+   * Goal:        Fully release so the next claim starts clean
+   * Prior state: event live; 2 liveEventHosts rows (current + stale legacy)
+   * Actions:     releaseHost with the CURRENT host's ownerKey
+   * Scale:       1 user
+   * Expected:    Both host rows deleted. hostsDeleted=2.
+   */
+  it("deletes all host rows for the event, not just the calling row", async () => {
+    const tables: Tables = {
+      liveEvents: [baseEvent()],
+      liveEventHosts: [
+        {
+          _id: "liveEventHosts:1",
+          eventId: "liveEvents:1",
+          ownerKey: HOST_OWNER_KEY,
+          displayName: "Current Host",
+          role: "owner",
+          authMethod: "claim_code",
+          createdAt: 1_700_000_000_100,
+        },
+        {
+          _id: "liveEventHosts:2",
+          eventId: "liveEvents:1",
+          ownerKey: "stale-legacy-key-from-old-rotation",
+          displayName: "Stale Host",
+          role: "owner",
+          authMethod: "legacy_ownerkey",
+          createdAt: 1_700_000_000_000,
+        },
+      ],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await (releaseHost as any)._handler(ctx, {
+      eventId: "liveEvents:1",
+      ownerKey: HOST_OWNER_KEY,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.released).toBe(true);
+    expect(result.hostsDeleted).toBe(2);
+    expect(tables.liveEventHosts.length).toBe(0);
   });
 });
