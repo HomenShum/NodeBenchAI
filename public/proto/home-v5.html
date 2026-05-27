@@ -887,6 +887,237 @@ body[data-new-user="true"] .h-menu::after {
   .c { top: 56px; margin-top: -8px; }
   .feed-divider { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   DEMO VISUAL PRIMITIVES (runDemoFull only — story-teller, not real)
+   Only renders when window.demo.runFull() is active. All elements
+   carry data-demo-injected="true" so demoReset() can clean them up.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Private marker — small pin icon next to a public row, owner-only.
+   The "owner" is whoever has data-actor-id matching body[data-actor-id]. */
+.private-marker {
+  display: none;
+  align-items: center; gap: 4px;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 100px;
+  background: rgba(167,139,250,.1);
+  border: 1px solid rgba(167,139,250,.28);
+  color: var(--purple);
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+.private-marker .pin-icon { font-size: 9px; line-height: 1; }
+/* The owner of the marker is matched by data-owner === body[data-actor-id] */
+body[data-actor-id] .private-marker[data-owner] { /* default hidden */ }
+
+/* Join card — fake "joined as X" splash */
+.demo-join-card {
+  margin: 12px 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(217,119,87,.28);
+  background: rgba(217,119,87,.06);
+  border-radius: var(--r);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.demo-join-card .title { font-weight: 700; font-size: 14px; color: var(--ink); }
+.demo-join-card .sub { font-size: 12px; color: var(--ink-muted); }
+.demo-join-card .code-line { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: .12em; }
+
+/* Shorthand-enhance card (Phase 5) */
+.shorthand-enhance-card {
+  margin: 8px 0;
+  padding: 12px;
+  border: 1px solid rgba(167,139,250,.3);
+  background: rgba(167,139,250,.04);
+  border-radius: var(--r);
+  font-size: 13px;
+}
+.shorthand-enhance-card .head { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--purple); margin-bottom: 8px; letter-spacing: .08em; }
+.shorthand-enhance-card .row-pair { display: flex; gap: 10px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.shorthand-enhance-card .row-pair:first-of-type { border-top: 0; }
+.shorthand-enhance-card .label { flex: 0 0 64px; font-family: var(--mono); font-size: 10px; color: var(--ink-faint); padding-top: 1px; letter-spacing: .04em; }
+.shorthand-enhance-card .text { flex: 1; color: var(--ink); line-height: 1.5; }
+.shorthand-enhance-card .text.raw { color: var(--ink-muted); font-style: italic; }
+.shorthand-enhance-card .actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.shorthand-enhance-card button {
+  background: rgba(255,255,255,.04); color: var(--ink); border: 1px solid var(--line);
+  padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+}
+.shorthand-enhance-card button.primary { background: rgba(167,139,250,.14); border-color: rgba(167,139,250,.4); color: var(--purple); }
+
+/* Voice capture state machine (Phase 6) */
+.voice-capture {
+  margin: 8px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(217,119,87,.32);
+  background: rgba(217,119,87,.05);
+  border-radius: var(--r);
+  font-size: 13px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.voice-capture .state { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: .08em; }
+.voice-capture .state .pulse {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 8px rgba(217,119,87,.7);
+}
+.voice-capture[data-state="recording"] .pulse { animation: vcPulse 1s infinite; }
+@keyframes vcPulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .voice-capture[data-state="recording"] .pulse { animation: none; } }
+.voice-capture .transcript { color: var(--ink); line-height: 1.5; }
+.voice-capture .transcript.empty { color: var(--ink-faint); font-style: italic; }
+
+/* Host queue (Phase 8) — visible only to hosts */
+.host-queue {
+  margin: 8px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: var(--r);
+}
+.host-queue .head { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: .08em; margin-bottom: 8px; }
+.host-queue .item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px dashed var(--line); font-size: 12px; }
+.host-queue .item:first-of-type { border-top: 0; }
+.host-queue .item .q { flex: 1; color: var(--ink); }
+.host-queue .item button { font-size: 10px; padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(217,119,87,.32); background: rgba(217,119,87,.08); color: var(--accent); font-weight: 700; }
+body[data-role="attendee"] .host-queue { display: none; }
+
+/* Compaction progress (Phase 9) */
+.compaction-progress {
+  margin: 8px 0;
+  padding: 14px;
+  border: 1px solid rgba(94,168,103,.3);
+  background: rgba(94,168,103,.05);
+  border-radius: var(--r);
+}
+.compaction-progress .head { font-weight: 700; font-size: 13px; margin-bottom: 8px; color: var(--ink); }
+.compaction-progress .step {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0; font-size: 12px; color: var(--ink-muted);
+  font-family: var(--mono);
+}
+.compaction-progress .step .c { width: 14px; height: 14px; border-radius: 50%; background: var(--line); color: var(--ink-faint); display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--ui); font-weight: 700; }
+.compaction-progress .step[data-done="true"] .c { background: var(--green); color: #fff; }
+.compaction-progress .step[data-done="true"] { color: var(--ink); }
+
+/* Published wiki card (Phase 9b) */
+.published-wiki-card {
+  margin: 8px 0;
+  padding: 14px;
+  border: 1px solid rgba(217,119,87,.32);
+  background: linear-gradient(180deg, rgba(217,119,87,.06), rgba(217,119,87,.02));
+  border-radius: var(--r);
+}
+.published-wiki-card .head { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; color: var(--ink); margin-bottom: 4px; }
+.published-wiki-card .sub { font-size: 12px; color: var(--ink-muted); margin-bottom: 10px; }
+.published-wiki-card .section-list { display: flex; flex-direction: column; gap: 4px; }
+.published-wiki-card .section { font-size: 12px; color: var(--ink); padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,.03); }
+.published-wiki-card .privacy-notice { margin-top: 10px; padding: 8px; border-radius: 6px; background: rgba(167,139,250,.06); border: 1px solid rgba(167,139,250,.25); font-size: 11px; color: var(--purple); font-family: var(--mono); letter-spacing: .04em; }
+
+/* NodeBench overlay (Phase 11-13) — full-screen story-teller */
+.nodebench-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: #0e1018;
+  color: #e8e6e3;
+  font-family: var(--ui);
+  overflow-y: auto;
+  display: none;
+  flex-direction: column;
+}
+.nodebench-overlay[data-open="true"] { display: flex; }
+.nodebench-overlay .nb-header {
+  position: sticky; top: 0; z-index: 1;
+  padding: 14px 20px; background: rgba(14,16,24,.94); backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  display: flex; align-items: center; gap: 12px;
+}
+.nodebench-overlay .nb-logo { font-weight: 700; font-size: 14px; color: var(--accent); letter-spacing: -.01em; }
+.nodebench-overlay .nb-logo b { color: #e8e6e3; }
+.nodebench-overlay .nb-tabs { display: flex; gap: 4px; margin-left: 18px; }
+.nodebench-overlay .nb-tab {
+  padding: 6px 10px; border-radius: 6px; background: transparent; border: 1px solid transparent;
+  color: rgba(255,255,255,.6); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.nodebench-overlay .nb-tab[data-active="true"] { background: rgba(217,119,87,.1); border-color: rgba(217,119,87,.32); color: var(--accent); }
+.nodebench-overlay .nb-close { margin-left: auto; background: none; border: 1px solid rgba(255,255,255,.1); color: #e8e6e3; padding: 6px 12px; border-radius: 6px; font-size: 12px; }
+.nodebench-overlay .nb-body { padding: 22px; max-width: 1100px; margin: 0 auto; width: 100%; }
+.nodebench-overlay .nb-section { margin-bottom: 24px; }
+.nodebench-overlay .nb-section-head { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; color: rgba(255,255,255,.5); text-transform: uppercase; margin-bottom: 8px; }
+.nodebench-overlay .nb-card { padding: 14px; border-radius: 10px; background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.06); }
+.nodebench-overlay .nb-card + .nb-card { margin-top: 8px; }
+.nodebench-overlay .nb-card h4 { margin: 0 0 4px; font-size: 13px; font-weight: 700; }
+.nodebench-overlay .nb-card .meta { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,.45); letter-spacing: .04em; }
+.nodebench-overlay .nb-card p { margin: 6px 0 0; font-size: 12px; color: rgba(255,255,255,.82); line-height: 1.55; }
+.nodebench-overlay .nb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 720px) { .nodebench-overlay .nb-grid { grid-template-columns: 1fr; } }
+.nodebench-overlay .nb-chip { display: inline-flex; padding: 2px 7px; border-radius: 100px; font-family: var(--mono); font-size: 10px; background: rgba(167,139,250,.1); border: 1px solid rgba(167,139,250,.26); color: var(--purple); margin-right: 4px; }
+.nodebench-overlay .nb-chip.green { background: rgba(94,168,103,.1); border-color: rgba(94,168,103,.26); color: var(--green); }
+.nodebench-overlay .nb-chip.accent { background: rgba(217,119,87,.1); border-color: rgba(217,119,87,.26); color: var(--accent); }
+.nodebench-overlay .nb-trace { font-family: var(--mono); font-size: 11px; color: rgba(255,255,255,.7); line-height: 1.7; padding: 10px; background: rgba(0,0,0,.3); border-radius: 6px; }
+.nodebench-overlay .nb-trace .ok { color: var(--green); }
+.nodebench-overlay .nb-trace .priv { color: var(--purple); }
+
+/* Daily brief delta card (Phase 13) */
+.daily-brief-delta {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(94,168,103,.32);
+  background: rgba(94,168,103,.05);
+  border-radius: 10px;
+}
+.daily-brief-delta .head { font-family: var(--mono); font-size: 10px; color: var(--green); letter-spacing: .12em; margin-bottom: 6px; }
+.daily-brief-delta .title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+.daily-brief-delta .body { font-size: 12px; color: rgba(255,255,255,.75); line-height: 1.55; }
+.daily-brief-delta .body ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* Demo step toast - small floating progress bar to show what phase is running */
+.demo-step-banner {
+  position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
+  z-index: 90;
+  padding: 6px 12px;
+  border-radius: 100px;
+  background: rgba(21,20,19,.92); backdrop-filter: blur(10px);
+  border: 1px solid var(--accent);
+  font-family: var(--mono); font-size: 10px; color: var(--accent);
+  letter-spacing: .08em;
+  pointer-events: none;
+  display: flex; align-items: center; gap: 8px;
+}
+.demo-step-banner .ph-num { background: var(--accent); color: #fff; padding: 1px 6px; border-radius: 100px; font-weight: 700; }
+
+/* Demo-only owner-marker visibility: show the marker only when its data-owner matches body's data-actor-id */
+body:not([data-actor-id]) .private-marker { display: none !important; }
+body[data-actor-id="u_1"] .private-marker[data-owner="u_1"] { display: inline-flex; }
+body[data-actor-id="u_2"] .private-marker[data-owner="u_2"] { display: inline-flex; }
+body[data-actor-id="u_3"] .private-marker[data-owner="u_3"] { display: inline-flex; }
+body[data-actor-id="u_4"] .private-marker[data-owner="u_4"] { display: inline-flex; }
+body[data-actor-id="u_5"] .private-marker[data-owner="u_5"] { display: inline-flex; }
+body[data-actor-id="u_6"] .private-marker[data-owner="u_6"] { display: inline-flex; }
+body[data-actor-id="u_7"] .private-marker[data-owner="u_7"] { display: inline-flex; }
+body[data-actor-id="u_8"] .private-marker[data-owner="u_8"] { display: inline-flex; }
+body[data-actor-id="u_9"] .private-marker[data-owner="u_9"] { display: inline-flex; }
+body[data-actor-id="u_10"] .private-marker[data-owner="u_10"] { display: inline-flex; }
+body[data-actor-id="u_11"] .private-marker[data-owner="u_11"] { display: inline-flex; }
+body[data-actor-id="guest"] .private-marker[data-owner="guest"] { display: inline-flex; }
+body[data-actor-id="host_1"] .private-marker[data-owner="host_1"] { display: inline-flex; }
+body[data-actor-id="mod_1"] .private-marker[data-owner="mod_1"] { display: inline-flex; }
+
+/* SignIn sheet helper for the demo */
+.demo-signin-sheet {
+  margin: 8px 0;
+  padding: 14px;
+  border: 1px solid rgba(217,119,87,.32);
+  background: rgba(217,119,87,.06);
+  border-radius: var(--r);
+}
+.demo-signin-sheet .head { font-weight: 700; margin-bottom: 6px; font-size: 14px; }
+.demo-signin-sheet .sub { font-size: 12px; color: var(--ink-muted); margin-bottom: 10px; }
+.demo-signin-sheet .field { display: flex; gap: 6px; }
+.demo-signin-sheet input { flex: 1; padding: 8px 10px; border-radius: 6px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); font-size: 13px; }
+.demo-signin-sheet button { padding: 8px 14px; border-radius: 6px; background: var(--accent); color: #fff; border: 0; font-weight: 700; font-size: 12px; }
+
 </style>
 </head>
 <body data-mode="public" data-role="attendee">
@@ -4143,6 +4374,1141 @@ setTimeout(refreshNotesCounter, 100);
   document.body.setAttribute('data-sn-live', 'true');
   document.body.setAttribute('data-sn-phases', '1,2,3,4,5');
   console.info('[scratchnode] Phases 1-5 live - connected to', cfg.convexUrl, 'event', joined.slug);
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     NodeBench overlay (Phase 11-13 of runDemoFull only — story-teller)
+     Hidden by default; opened by window.demo.openNodeBenchWorkspace().
+     Carries data-demo-injected="true" implicitly via being touched only by demo helpers.
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="nodebench-overlay" id="demo-nb-overlay" data-open="false" role="dialog" aria-modal="true" aria-label="NodeBench workspace (demo)">
+  <div class="nb-header">
+    <div class="nb-logo">NodeBench<b>AI</b></div>
+    <div class="nb-tabs" role="tablist" aria-label="NodeBench surfaces">
+      <button class="nb-tab" type="button" data-active="true"  data-tab="home"    onclick="window.demo&&window.demo._switchNbTab&&window.demo._switchNbTab('home')">Home</button>
+      <button class="nb-tab" type="button" data-active="false" data-tab="reports" onclick="window.demo&&window.demo._switchNbTab&&window.demo._switchNbTab('reports')">Reports</button>
+      <button class="nb-tab" type="button" data-active="false" data-tab="chat"    onclick="window.demo&&window.demo._switchNbTab&&window.demo._switchNbTab('chat')">Chat</button>
+      <button class="nb-tab" type="button" data-active="false" data-tab="inbox"   onclick="window.demo&&window.demo._switchNbTab&&window.demo._switchNbTab('inbox')">Inbox</button>
+      <button class="nb-tab" type="button" data-active="false" data-tab="me"      onclick="window.demo&&window.demo._switchNbTab&&window.demo._switchNbTab('me')">Me</button>
+    </div>
+    <button class="nb-close" type="button" onclick="window.demo&&window.demo.closeNodeBench&&window.demo.closeNodeBench()" aria-label="Close NodeBench">&larr; Back to ScratchNode</button>
+  </div>
+  <div class="nb-body" id="demo-nb-body" role="region" aria-label="NodeBench content"></div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   runDemoFull — 13 actors, 13 phases, story-teller demo
+   ─────────────────────────────────────────────────────────────
+   Independent from the legacy runDemo() (4-character v1).
+   This is the canonical product demo for ScratchNode.
+   DOES NOT call client.mutation. Paints DOM only.
+   Preserves all dogfood-spec selectors (#feed, #ci, .row-text, .ans, _sn_live).
+   ═══════════════════════════════════════════════════════════════ */
+(function() {
+  'use strict';
+
+  // ── Actor cast (13) ──
+  var DEMO_ACTORS = [
+    { id: 'host_1', name: 'Maya Patel',     role: 'host',                 org: 'AI Infra Summit',     color: '#5ea867' },
+    { id: 'mod_1',  name: 'Nora Lee',       role: 'moderator',            org: 'ScratchNode',         color: '#5da89e' },
+    { id: 'u_1',    name: 'Sarah Kim',      role: 'founder',              org: 'OrbitMed',            color: '#a78bfa' },
+    { id: 'u_2',    name: 'Dario Alvarez',  role: 'infra lead',           org: 'CloudLayer',          color: '#7e7be0' },
+    { id: 'u_3',    name: 'Alex Chen',      role: 'founder',              org: 'Orbital Labs',        color: '#d97757' },
+    { id: 'u_4',    name: 'Priya Shah',     role: 'VC associate',         org: 'Sequoia',             color: '#c46a8c' },
+    { id: 'u_5',    name: 'Marcus Reed',    role: 'hospital CIO',         org: 'Northbay Health',     color: '#e0a96d' },
+    { id: 'u_6',    name: 'Elena Park',     role: 'MLOps engineer',       org: 'RunPod',              color: '#6dcfa1' },
+    { id: 'u_7',    name: 'Jon Bell',       role: 'security architect',   org: 'Okta',                color: '#9bb5e0' },
+    { id: 'u_8',    name: 'Grace Liu',      role: 'AI product lead',      org: 'Epic',                color: '#5da89e' },
+    { id: 'u_9',    name: 'Owen Brooks',    role: 'banker',               org: 'JPM Startup Banking', color: '#a8a5a0' },
+    { id: 'u_10',   name: 'Lena Torres',    role: 'academic researcher',  org: 'Stanford',            color: '#d29770' },
+    { id: 'u_11',   name: 'Guest Panther',  role: 'anonymous guest',      org: 'guest',               color: '#6b6864' }
+  ];
+  var ACTOR_BY_ID = {};
+  DEMO_ACTORS.forEach(function(a) { ACTOR_BY_ID[a.id] = a; });
+
+  // ── Speed profiles ──
+  var SPEED = {
+    normal:  { mult: 1.0,   thinkMs: 1200, streamMs: 100 },
+    fast:    { mult: 0.35,  thinkMs:  400, streamMs:  40 },
+    instant: { mult: 0,     thinkMs:    0, streamMs:   0 }
+  };
+  var _currentSpeed = SPEED.normal;
+  function _delay(baseMs) {
+    if (_currentSpeed.mult === 0) return Promise.resolve();
+    return new Promise(function(resolve) { setTimeout(resolve, baseMs * _currentSpeed.mult); });
+  }
+  function _hhmm() {
+    var n = new Date();
+    var h = n.getHours(); var m = String(n.getMinutes()).padStart(2,'0');
+    return (h > 12 ? h - 12 : (h || 12)) + ':' + m + (h >= 12 ? 'p' : 'a');
+  }
+  function _esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function _nextId(prefix) {
+    var s = window._demo_state;
+    s._idSeq = (s._idSeq || 0) + 1;
+    return prefix + '_' + s._idSeq;
+  }
+  // Safe scrollIntoView — guards against environments without layout (e.g. linkedom in tests).
+  function _scroll(el) {
+    if (el && typeof el.scrollIntoView === 'function') {
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'end' }); } catch (e) {}
+    }
+  }
+
+  // ── Pre-demo snapshot (for demoReset to restore) ──
+  function _snapshotPreDemo() {
+    var idName = document.getElementById('id-name');
+    var idAvatar = document.getElementById('id-avatar');
+    return {
+      mode: document.body.getAttribute('data-mode'),
+      role: document.body.getAttribute('data-role'),
+      actorId: document.body.getAttribute('data-actor-id'),
+      named: document.body.getAttribute('data-named'),
+      newUser: document.body.getAttribute('data-new-user'),
+      userName: window._userName || null,
+      idNameText: idName ? idName.textContent : null,
+      idAvatarText: idAvatar ? idAvatar.textContent : null
+    };
+  }
+  function _restorePreDemo(snap) {
+    if (!snap) return;
+    if (snap.mode) document.body.setAttribute('data-mode', snap.mode); else document.body.removeAttribute('data-mode');
+    if (snap.role) document.body.setAttribute('data-role', snap.role); else document.body.removeAttribute('data-role');
+    if (snap.actorId) document.body.setAttribute('data-actor-id', snap.actorId); else document.body.removeAttribute('data-actor-id');
+    if (snap.named) document.body.setAttribute('data-named', snap.named); else document.body.removeAttribute('data-named');
+    if (snap.newUser) document.body.setAttribute('data-new-user', snap.newUser); else document.body.removeAttribute('data-new-user');
+    var idName = document.getElementById('id-name');
+    var idAvatar = document.getElementById('id-avatar');
+    if (idName && snap.idNameText !== null) idName.textContent = snap.idNameText;
+    if (idAvatar && snap.idAvatarText !== null) idAvatar.textContent = snap.idAvatarText;
+  }
+
+  // ── State scaffolding (no Convex writes) ──
+  function _initDemoState() {
+    window._demo_state = {
+      actors: DEMO_ACTORS,
+      publicMessages: [],   // [{id, actorId, text, isAsk, time}]
+      privateNotes: [],     // [{id, ownerId, anchorMessageId, text, source, time}]
+      agentAnswers: [],     // [{id, replyingToActorId, question, body, sources, reuse, trace}]
+      hostQueue: [],        // [{id, question, suggestedByActorId, promoted}]
+      wikiPublished: false,
+      activeActorId: null,
+      _idSeq: 0,
+      _snapshot: _snapshotPreDemo()
+    };
+    window._demo_log = [];
+  }
+
+  // ── DOM primitives (paint, don't persist to backend) ──
+  function _feed() { return document.getElementById('feed'); }
+
+  function _ensureFeedVisible() {
+    var b = document.body;
+    if (b.getAttribute('data-feed-empty') === 'true') b.removeAttribute('data-feed-empty');
+    if (typeof dismissWelcome === 'function') {
+      try { dismissWelcome(); } catch (e) {}
+    }
+  }
+
+  // Append a public chat row, returns DOM id assigned.
+  function addPublicMessage(actor, text, opts) {
+    opts = opts || {};
+    if (typeof actor === 'string') actor = ACTOR_BY_ID[actor] || { id: actor, name: actor, color: 'var(--ink)' };
+    _ensureFeedVisible();
+    var feed = _feed();
+    if (!feed) return null;
+    var msgId = _nextId('msg');
+    var time = opts.time || _hhmm();
+    var row = document.createElement('div');
+    row.className = 'row';
+    row.setAttribute('data-demo-injected', 'true');
+    row.setAttribute('data-msg-id', msgId);
+    row.setAttribute('data-actor-id', actor.id);
+    row.innerHTML =
+      '<span class="row-time">' + _esc(time) + '</span>' +
+      '<div class="row-body">' +
+        '<span class="row-name" style="color:' + (actor.color || 'var(--ink)') + '">' + _esc(actor.name) + '</span> ' +
+        '<span class="row-text"></span>' +
+        '<span class="private-marker-slot"></span>' +
+      '</div>';
+    row.querySelector('.row-text').textContent = text;
+    feed.appendChild(row);
+    if (!opts.noScroll) _scroll(row);
+    window._demo_state.publicMessages.push({ id: msgId, actorId: actor.id, text: text, isAsk: !!opts.isAsk, time: time });
+    return msgId;
+  }
+
+  // /ask helper — adds the public ask row, marks it as the parent for the agent answer.
+  function postPublicAsk(args) {
+    var actor = (typeof args.actor === 'string') ? ACTOR_BY_ID[args.actor] : args.actor;
+    var msgId = addPublicMessage(actor, '/ask ' + args.text, { isAsk: true });
+    return { askMessageId: msgId, askActor: actor, question: args.text };
+  }
+
+  // Show the agent thinking + stream the answer into an ans card.
+  // Returns a Promise that resolves when the answer card is rendered.
+  function streamAgentAnswer(args) {
+    var askActor = (typeof args.replyingTo === 'string') ? ACTOR_BY_ID[args.replyingTo] : args.replyingTo;
+    var feed = _feed();
+    if (!feed) return Promise.resolve();
+    // 1. Thinking row
+    var think = document.createElement('div');
+    think.className = 'thinking';
+    think.setAttribute('data-demo-injected', 'true');
+    think.innerHTML = '<span>ScratchNode thinking</span><span class="dots"><span></span><span></span><span></span></span>';
+    feed.appendChild(think);
+    _scroll(think);
+    return _delay(_currentSpeed.thinkMs).then(function() {
+      think.remove();
+      var ans = document.createElement('article');
+      ans.className = 'ans';
+      ans.setAttribute('data-demo-injected', 'true');
+      var ansId = _nextId('ans');
+      ans.setAttribute('data-ans-id', ansId);
+      var sources = Array.isArray(args.sources) ? args.sources : ['event corpus','panel transcript','3 backlinks'];
+      var srcChips = sources.map(function(s) { return '<span>' + _esc(s) + '</span>'; }).join('');
+      var reuse = args.reuse || { similar: 12, reused: sources.length, newSearches: 0 };
+      var time = _hhmm();
+      var trace = args.trace || [
+        'Checked event wiki cache · sourceBundle fresh',
+        'Matched ' + reuse.similar + ' similar questions in semantic cache',
+        'Reused ' + reuse.reused + ' sources from event corpus',
+        reuse.newSearches + ' new searches · Linkup ' + (reuse.newSearches === 0 ? 'skipped' : 'consulted'),
+        'No private notes used · public layer only'
+      ];
+      var traceHtml = trace.map(function(t) { return '<div class="step"><span class="c">&check;</span><span>' + _esc(t) + '</span></div>'; }).join('');
+      ans.innerHTML =
+        '<div class="ans-head">' +
+          '<span class="who">ScratchNode</span>' +
+          '<span class="sep">·</span>' +
+          '<span>replying to ' + _esc(askActor.name) + '’s /ask</span>' +
+          '<span class="sep">·</span>' +
+          '<span>' + _esc(time) + '</span>' +
+        '</div>' +
+        '<div class="ans-q"></div>' +
+        '<div class="ans-body"></div>' +
+        '<div class="ans-sources">' + srcChips + '<span>' + sources.length + ' of ' + sources.length + ' verified</span></div>' +
+        '<div class="ans-reuse" aria-label="Reuse summary">' +
+          '<span class="pin">Answered from event wiki</span>' +
+          '<span class="sep">·</span>' +
+          '<span><b>' + reuse.similar + '</b> similar</span>' +
+          '<span class="sep">·</span>' +
+          '<span><b>' + reuse.reused + '</b> reused</span>' +
+          '<span class="sep">·</span>' +
+          '<span class="pulled"><b>' + reuse.newSearches + '</b> new searches</span>' +
+          '<span class="sep">·</span>' +
+          '<span class="priv">🔒 no private notes</span>' +
+        '</div>' +
+        '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
+        '<div class="ans-how">' + traceHtml + '</div>' +
+        '<div class="ans-actions">' +
+          '<button type="button" class="primary attendee-only" onclick="window.demo&&window.demo._suggestFaq&&window.demo._suggestFaq(\'' + ansId + '\')">★ Suggest for FAQ</button>' +
+          '<button type="button" class="primary host-only" onclick="window.demo&&window.demo._promoteFaq&&window.demo._promoteFaq(\'' + ansId + '\')">★ Promote to FAQ</button>' +
+          '<button type="button" onclick="openWiki()">View in wiki &rarr;</button>' +
+        '</div>';
+      ans.querySelector('.ans-q').textContent = args.question || '';
+      ans.querySelector('.ans-body').textContent = args.body || '';
+      feed.appendChild(ans);
+      _scroll(ans);
+      window._demo_state.agentAnswers.push({
+        id: ansId, replyingToActorId: askActor.id, question: args.question, body: args.body,
+        sources: sources, reuse: reuse, trace: trace
+      });
+      return ansId;
+    });
+  }
+
+  // Add an inline private-marker pip next to a public row — visible only to the owner.
+  function showPrivateMarker(args) {
+    var row = document.querySelector('[data-msg-id="' + args.anchorMessageId + '"]');
+    if (!row) return;
+    var slot = row.querySelector('.private-marker-slot');
+    if (!slot) return;
+    var marker = document.createElement('span');
+    marker.className = 'private-marker';
+    marker.setAttribute('data-demo-injected', 'true');
+    marker.setAttribute('data-owner', args.ownerId);
+    marker.setAttribute('title', args.label || 'Your private note on this message');
+    marker.innerHTML = '<span class="pin-icon">📌</span><span>' + _esc(args.label || 'note') + '</span>';
+    slot.appendChild(marker);
+  }
+
+  // Save a private note (stored in window._notes_v5 so the existing notes-sheet UI picks it up).
+  function sendPrivateNote(args) {
+    var ownerActor = ACTOR_BY_ID[args.owner] || { id: args.owner, name: args.owner };
+    var noteId = _nextId('note');
+    var note = {
+      id: noteId,
+      ownerId: ownerActor.id,
+      anchorMessageId: args.anchor || null,
+      text: args.text,
+      source: args.source || 'composer',
+      time: _hhmm()
+    };
+    window._demo_state.privateNotes.push(note);
+    // Mirror into _notes_v5 so the notes sheet shows it (owner-only view in real product)
+    window._notes_v5 = window._notes_v5 || [];
+    window._notes_v5.unshift({
+      id: noteId,
+      title: args.title || (args.text.split('\n')[0].slice(0, 48) || 'Note'),
+      body: args.text,
+      tags: [], mentions: [], links: [],
+      isAsk: false, ts: Date.now(),
+      pinned: false,
+      _demoInjected: true,
+      _ownerId: ownerActor.id
+    });
+    if (typeof refreshNotesCounter === 'function') {
+      try { refreshNotesCounter(); } catch (e) {}
+    }
+    // If anchor provided, show the private marker
+    if (args.anchor) {
+      showPrivateMarker({ anchorMessageId: args.anchor, ownerId: ownerActor.id, label: args.label || 'note' });
+    }
+    // Toast for visual feedback (only when in normal/fast speed)
+    if (_currentSpeed.mult > 0 && typeof toast === 'function') {
+      var snippet = args.text.length > 60 ? args.text.slice(0, 60) + '…' : args.text;
+      try { toast('🔒 Private note saved', snippet); } catch (e) {}
+    }
+    return noteId;
+  }
+
+  // Shorthand enhance card (Phase 5)
+  function enhancePrivateNote(args) {
+    var feed = _feed();
+    if (!feed) return Promise.resolve();
+    var card = document.createElement('div');
+    card.className = 'shorthand-enhance-card';
+    card.setAttribute('data-demo-injected', 'true');
+    card.innerHTML =
+      '<div class="head">🧠 Enhance shorthand — owner-only</div>' +
+      '<div class="row-pair"><span class="label">raw:</span><span class="text raw">' + _esc(args.raw) + '</span></div>' +
+      '<div class="row-pair"><span class="label">enhanced:</span><span class="text enhanced">…</span></div>' +
+      '<div class="actions">' +
+        '<button class="primary" type="button">Keep enhanced</button>' +
+        '<button type="button">Keep original</button>' +
+        '<button type="button">Edit</button>' +
+      '</div>';
+    feed.appendChild(card);
+    _scroll(card);
+    return _delay(_currentSpeed.thinkMs).then(function() {
+      card.querySelector('.enhanced').textContent = args.enhanced || (args.raw + ' (expanded)');
+      return card;
+    });
+  }
+
+  // Voice capture state machine (Phase 6) — recording → transcribing → enhancing → saved
+  function startVoiceCapture(args) {
+    var feed = _feed();
+    if (!feed) return null;
+    var vc = document.createElement('div');
+    vc.className = 'voice-capture';
+    vc.setAttribute('data-demo-injected', 'true');
+    vc.setAttribute('data-state', 'recording');
+    vc.setAttribute('data-vc-id', _nextId('vc'));
+    vc.innerHTML =
+      '<div class="state"><span class="pulse"></span><span class="state-label">Recording…</span></div>' +
+      '<div class="transcript empty">listening for speech…</div>';
+    feed.appendChild(vc);
+    _scroll(vc);
+    return vc;
+  }
+  function stopVoiceCapture(args) {
+    var vc = args.element || document.querySelector('.voice-capture[data-state="recording"]');
+    if (!vc) return Promise.resolve();
+    vc.setAttribute('data-state', 'transcribing');
+    vc.querySelector('.state-label').textContent = 'Transcribing…';
+    return _delay(_currentSpeed.thinkMs).then(function() {
+      vc.setAttribute('data-state', 'transcribed');
+      vc.querySelector('.state-label').textContent = 'Transcribed';
+      var t = vc.querySelector('.transcript');
+      t.classList.remove('empty');
+      t.textContent = args.transcript;
+      return vc;
+    });
+  }
+
+  // Host queue (Phase 8)
+  function _appendHostQueueItem(item) {
+    var feed = _feed();
+    if (!feed) return;
+    var queue = document.querySelector('.host-queue[data-demo-injected]');
+    if (!queue) {
+      queue = document.createElement('div');
+      queue.className = 'host-queue';
+      queue.setAttribute('data-demo-injected', 'true');
+      queue.innerHTML = '<div class="head">👑 Host queue — hosts only</div><div class="items"></div>';
+      feed.appendChild(queue);
+    }
+    var row = document.createElement('div');
+    row.className = 'item';
+    row.setAttribute('data-queue-id', item.id);
+    row.innerHTML =
+      '<span class="q">' + _esc(item.question) + '</span>' +
+      '<button type="button" onclick="window.demo&&window.demo._promoteFaq&&window.demo._promoteFaq(\'' + item.ansId + '\')">Promote to FAQ</button>';
+    queue.querySelector('.items').appendChild(row);
+    _scroll(queue);
+  }
+
+  function _suggestFaq(ansId) {
+    var ans = window._demo_state.agentAnswers.find(function(a) { return a.id === ansId; });
+    if (!ans) return;
+    var qid = _nextId('q');
+    window._demo_state.hostQueue.push({ id: qid, question: ans.question, ansId: ansId, suggestedByActorId: window._demo_state.activeActorId, promoted: false });
+    _appendHostQueueItem({ id: qid, question: ans.question, ansId: ansId });
+    if (typeof toast === 'function') { try { toast('★ Suggested for FAQ', 'The host will review and add it to the wiki.'); } catch (e) {} }
+  }
+  function _promoteFaq(ansId) {
+    var entry = window._demo_state.hostQueue.find(function(q) { return q.ansId === ansId; });
+    if (entry) entry.promoted = true;
+    if (typeof toast === 'function') { try { toast('★ Promoted to FAQ', 'Now part of the durable wiki.'); } catch (e) {} }
+  }
+
+  // Wiki compaction (Phase 9)
+  function showCompactionProgress(steps) {
+    var feed = _feed();
+    if (!feed) return Promise.resolve();
+    var card = document.createElement('div');
+    card.className = 'compaction-progress';
+    card.setAttribute('data-demo-injected', 'true');
+    card.innerHTML =
+      '<div class="head">📚 Compacting event into wiki…</div>' +
+      steps.map(function(s, i) {
+        return '<div class="step" data-done="false"><span class="c">' + (i + 1) + '</span><span>' + _esc(s) + '</span></div>';
+      }).join('');
+    feed.appendChild(card);
+    _scroll(card);
+    var stepEls = card.querySelectorAll('.step');
+    var chain = Promise.resolve();
+    stepEls.forEach(function(el) {
+      chain = chain.then(function() {
+        return _delay(Math.max(280, _currentSpeed.thinkMs / 3)).then(function() {
+          el.setAttribute('data-done', 'true');
+          el.querySelector('.c').textContent = '✓';
+        });
+      });
+    });
+    return chain.then(function() { return card; });
+  }
+  function showPublishedWiki(args) {
+    var feed = _feed();
+    if (!feed) return;
+    window._demo_state.wikiPublished = true;
+    var sections = args.sections || ['Need to know','What changed','Sources','FAQ','People'];
+    var card = document.createElement('div');
+    card.className = 'published-wiki-card';
+    card.setAttribute('data-demo-injected', 'true');
+    card.innerHTML =
+      '<div class="head">📖 Event wiki — published</div>' +
+      '<div class="sub">v1 — ' + _hhmm() + ' — ' + window._demo_state.publicMessages.length + ' messages compacted • ' + window._demo_state.agentAnswers.length + ' Q&amp;A pairs</div>' +
+      '<div class="section-list">' +
+        sections.map(function(s) { return '<div class="section">' + _esc(s) + '</div>'; }).join('') +
+      '</div>' +
+      '<div class="privacy-notice">' + _esc(args.privacyNotice || 'Wiki uses only public messages + suggested FAQs. Private notes were not included.') + '</div>';
+    feed.appendChild(card);
+    _scroll(card);
+    return card;
+  }
+
+  // Show join card (Phase 1)
+  function showJoinCard(args) {
+    var feed = _feed();
+    if (!feed) return;
+    var card = document.createElement('div');
+    card.className = 'demo-join-card';
+    card.setAttribute('data-demo-injected', 'true');
+    card.innerHTML =
+      '<div class="title">' + _esc(args.title || 'Joined — AI Infra Summit') + '</div>' +
+      '<div class="sub">' + _esc(args.joined ? 'You are in. No account needed.' : 'Connecting…') + '</div>' +
+      '<div class="code-line">room code: ' + _esc(args.code || 'ORBITAL') + ' • ' + _esc(args.mode || 'guest') + '</div>';
+    feed.appendChild(card);
+    _scroll(card);
+    return card;
+  }
+
+  // Sign-in sheet (Phase 10)
+  function openSignInSheet() {
+    var feed = _feed();
+    if (!feed) return;
+    var sheet = document.createElement('div');
+    sheet.className = 'demo-signin-sheet';
+    sheet.setAttribute('data-demo-injected', 'true');
+    sheet.innerHTML =
+      '<div class="head">Sign in to save your private notes</div>' +
+      '<div class="sub">Get a magic link. Your guest notes will merge into your account automatically.</div>' +
+      '<div class="field">' +
+        '<input type="email" value="priya@sequoiacap.com" placeholder="you@example.com" aria-label="Email" />' +
+        '<button type="button">Send magic link</button>' +
+      '</div>';
+    feed.appendChild(sheet);
+    _scroll(sheet);
+    return sheet;
+  }
+  function sendMagicLink(email) {
+    if (typeof toast === 'function') {
+      try { toast('Magic link sent', _esc(email) + ' — check your email.'); } catch (e) {}
+    }
+    return Promise.resolve();
+  }
+  function simulateAuthComplete(args) {
+    document.body.setAttribute('data-named', 'true');
+    var idName = document.getElementById('id-name');
+    var idAvatar = document.getElementById('id-avatar');
+    if (idName) idName.textContent = args.userId || 'priya@sequoiacap.com';
+    if (idAvatar) idAvatar.textContent = (args.userId || 'P').charAt(0).toUpperCase();
+    if (args.mergeGuestSession) {
+      // Merge all guest-session demo notes into the new authenticated account.
+      // "Guest session" = any note injected during the demo, regardless of which
+      // ephemeral actor created it — the demo's pre-signin actors are all guests
+      // until this point. This preserves the user's work across sign-in.
+      var activeBefore = window._demo_state && window._demo_state.activeActorId;
+      (window._notes_v5 || []).forEach(function(n) {
+        if (n._demoInjected && (n._ownerId === 'guest' || n._ownerId === activeBefore || !n._ownerId)) {
+          n._ownerId = args.userId;
+        }
+      });
+      // Mirror into the demo state's privateNotes list so downstream queries see the merge.
+      if (window._demo_state && Array.isArray(window._demo_state.privateNotes)) {
+        window._demo_state.privateNotes.forEach(function(n) {
+          if (n.ownerId === activeBefore || n.ownerId === 'guest') n.ownerId = args.userId;
+        });
+      }
+    }
+    if (typeof refreshNotesCounter === 'function') {
+      try { refreshNotesCounter(); } catch (e) {}
+    }
+    return Promise.resolve();
+  }
+
+  // Helpers that delegate to existing sheet UI (story-teller mode).
+  function openWikiDemo()    { if (typeof openSheet === 'function') openSheet('wiki');    return Promise.resolve(); }
+  function openPeopleDemo()  { if (typeof openSheet === 'function') openSheet('people');  return Promise.resolve(); }
+  function openNotesDemo()   { if (typeof openSheet === 'function') openSheet('notes');   return Promise.resolve(); }
+  function openHostDemo()    { if (typeof openSheet === 'function') openSheet('host');    return Promise.resolve(); }
+  function openMyEventsDemo(){ if (typeof openSheet === 'function') openSheet('my-events'); return Promise.resolve(); }
+
+  // NodeBench workspace overlay
+  function openNodeBenchWorkspace() {
+    var overlay = document.getElementById('demo-nb-overlay');
+    if (!overlay) return Promise.resolve();
+    overlay.setAttribute('data-open', 'true');
+    _renderNbBody('home');
+    if (typeof overlay.focus === 'function') overlay.focus();
+    return Promise.resolve();
+  }
+  function closeNodeBench() {
+    var overlay = document.getElementById('demo-nb-overlay');
+    if (overlay) overlay.setAttribute('data-open', 'false');
+  }
+  function _switchNbTab(tab) {
+    document.querySelectorAll('.nodebench-overlay .nb-tab').forEach(function(b) {
+      b.setAttribute('data-active', b.getAttribute('data-tab') === tab ? 'true' : 'false');
+    });
+    _renderNbBody(tab);
+  }
+  function _renderNbBody(tab) {
+    var body = document.getElementById('demo-nb-body');
+    if (!body) return;
+    var notes = (window._notes_v5 || []).filter(function(n) { return n._demoInjected; });
+    var artifactCount = window._demo_state.publicMessages.length;
+    var answerCount = window._demo_state.agentAnswers.length;
+    var actor = ACTOR_BY_ID[window._demo_state.activeActorId] || { name: 'Anonymous', org: 'guest' };
+    var html = '';
+    if (tab === 'home') {
+      html =
+        '<div class="nb-section"><div class="nb-section-head">Recent events</div>' +
+          '<div class="nb-card">' +
+            '<h4>AI Infra Summit — May 22–23</h4>' +
+            '<div class="meta">' + artifactCount + ' messages • ' + answerCount + ' agent answers • ' + notes.length + ' private notes</div>' +
+            '<p>You joined as <strong>' + _esc(actor.name) + '</strong> (' + _esc(actor.org) + '). All your private notes from the event are saved here.</p>' +
+            '<div style="margin-top:8px"><span class="nb-chip accent">event-artifact</span><span class="nb-chip green">wiki-published</span><span class="nb-chip">private-notes ready</span></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="nb-section"><div class="nb-section-head">From the event</div>' +
+          '<div class="nb-grid">' +
+            '<div class="nb-card"><h4>🔒 Private notes</h4><div class="meta">' + notes.length + ' notes • owner: ' + _esc(actor.name) + '</div><p>Your shorthand, voice memos, and anchored notes from the chat. Public attendees never saw these.</p></div>' +
+            '<div class="nb-card"><h4>📋 Event artifact</h4><div class="meta">v1 • wiki published</div><p>Public Q&amp;A, FAQs, and sources from the breakout session. Linked to OrbitMed and Orbital Labs entities.</p></div>' +
+            '<div class="nb-card"><h4>🎯 Entity library</h4><div class="meta">3 entities linked</div><p>OrbitMed, Orbital Labs, Anthropic — auto-extracted from the chat and your notes.</p></div>' +
+            '<div class="nb-card"><h4>⚡ Agent runtime</h4><div class="meta">private mode • can read your notes</div><p>Ask the private NodeBench agent anything about this event. It uses your notes + the public wiki.</p></div>' +
+          '</div>' +
+        '</div>';
+    } else if (tab === 'reports') {
+      html =
+        '<div class="nb-section"><div class="nb-section-head">Reports — Generated from event artifacts</div>' +
+          '<div class="nb-card">' +
+            '<h4>AI Infra Summit briefing</h4>' +
+            '<div class="meta">auto-generated • ' + _hhmm() + '</div>' +
+            '<p>"Healthcare voice agents need sub-350ms round-trip. Orbital Labs is the eval-infra reference. MCP auth Q3 2026 shipping with OAuth 2.1 scopes."</p>' +
+          '</div>' +
+          '<div class="daily-brief-delta">' +
+            '<div class="head">🌟 daily brief — delta</div>' +
+            '<div class="title">3 new entities since yesterday</div>' +
+            '<div class="body">From the AI Infra Summit event:<ul><li>OrbitMed (founder: Sarah Kim) — new entity</li><li>Orbital Labs (founder: Alex Chen) — signal: Series A closed, 230+ benchmarks</li><li>Northbay Health CIO Marcus Reed — new contact</li></ul></div>' +
+          '</div>' +
+        '</div>';
+    } else if (tab === 'chat') {
+      html =
+        '<div class="nb-section"><div class="nb-section-head">Private chat with NodeBench agent</div>' +
+          '<div class="nb-card">' +
+            '<h4>Ask anything about the AI Infra Summit</h4>' +
+            '<p>Your private agent can read your private notes from the event + the public wiki. Public ScratchNode answers cannot.</p>' +
+            '<div class="nb-trace" style="margin-top:10px">' +
+              '<span class="ok">✓</span> agent.scope = private<br>' +
+              '<span class="ok">✓</span> reads: private_notes, event_wiki, entity_library<br>' +
+              '<span class="priv">🔒</span> public ScratchNode answer trace excludes private_notes<br>' +
+              '<span class="ok">✓</span> last query: "summarize what I learned about Orbital Labs"<br>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+    } else if (tab === 'inbox') {
+      html =
+        '<div class="nb-section"><div class="nb-section-head">Inbox</div>' +
+          '<div class="nb-card"><h4>Event artifact ready</h4><div class="meta">just now</div><p>AI Infra Summit wiki has been published. Your ' + notes.length + ' private notes have been linked.</p></div>' +
+          '<div class="nb-card"><h4>3 new entity matches</h4><div class="meta">10 min ago</div><p>Northbay Health, OrbitMed, Orbital Labs — auto-extracted from the event.</p></div>' +
+        '</div>';
+    } else if (tab === 'me') {
+      html =
+        '<div class="nb-section"><div class="nb-section-head">Account</div>' +
+          '<div class="nb-card"><h4>' + _esc(actor.name) + '</h4><div class="meta">' + _esc(actor.org) + '</div><p>Joined ScratchNode via the AI Infra Summit event. ' + notes.length + ' private notes preserved across sign-in.</p></div>' +
+        '</div>';
+    }
+    body.innerHTML = html;
+  }
+
+  function createNodeBenchArtifact() {
+    return Promise.resolve({ id: 'art_' + Date.now(), kind: 'event-artifact', label: 'AI Infra Summit' });
+  }
+  function createDailyBriefDelta() {
+    // The brief is rendered by the Reports tab in the overlay.
+    return Promise.resolve({ entitiesAdded: 3, signalsAdded: 5 });
+  }
+
+  // ── Actor switch (toggles body[data-actor-id] + identity strip) ──
+  function _setActiveActor(actorId) {
+    var actor = ACTOR_BY_ID[actorId];
+    if (!actor) return;
+    window._demo_state.activeActorId = actorId;
+    document.body.setAttribute('data-actor-id', actorId);
+    document.body.setAttribute('data-role', actor.role === 'host' ? 'host' : 'attendee');
+    document.body.setAttribute('data-named', 'true');
+    var idName = document.getElementById('id-name');
+    var idAvatar = document.getElementById('id-avatar');
+    if (idName) idName.textContent = actor.name;
+    if (idAvatar) idAvatar.textContent = actor.name.charAt(0).toUpperCase();
+  }
+
+  // ── demoStep wrapper: announces, logs, and runs the phase fn ──
+  function demoStep(name, fn) {
+    // Update step banner
+    var banner = document.querySelector('.demo-step-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.className = 'demo-step-banner';
+      banner.setAttribute('data-demo-injected', 'true');
+      banner.innerHTML = '<span class="ph-num">PH</span><span class="ph-label"></span>';
+      document.body.appendChild(banner);
+    }
+    var m = name.match(/^PHASE (\d+)/);
+    var phNum = banner.querySelector('.ph-num');
+    var phLabel = banner.querySelector('.ph-label');
+    if (m && phNum) phNum.textContent = m[1];
+    if (phLabel) phLabel.textContent = name.replace(/^PHASE \d+\s*/, '');
+    var startedAt = Date.now();
+    return Promise.resolve()
+      .then(function() { return fn(); })
+      .then(function() {
+        window._demo_log.push({
+          phase: name,
+          t: Date.now() - startedAt,
+          actors_visible: _countDistinctActorsVisible(),
+          public_messages: window._demo_state.publicMessages.length,
+          private_notes: window._demo_state.privateNotes.length,
+          agent_answers: window._demo_state.agentAnswers.length
+        });
+      });
+  }
+
+  function _countDistinctActorsVisible() {
+    var ids = {};
+    document.querySelectorAll('#feed .row[data-actor-id]').forEach(function(r) {
+      ids[r.getAttribute('data-actor-id')] = true;
+    });
+    return Object.keys(ids).length;
+  }
+
+  // ── PHASES (13: 0..13 with extras) ──
+
+  // PHASE 0 — Reset + load event
+  function PHASE_0() {
+    _ensureFeedVisible();
+    var feed = _feed();
+    // Clear demo-injected rows from prior runs only; keep real Convex rows if any.
+    document.querySelectorAll('#feed [data-demo-injected="true"]').forEach(function(el) { el.remove(); });
+    document.querySelectorAll('#feed .row:not([data-demo-injected])').forEach(function(el) {
+      // Suppress legacy seeded rows so the demo has a clean stage.
+      if (!el.hasAttribute('data-real-convex')) el.style.display = 'none';
+    });
+    var ans = document.querySelector('#feed .ans:not([data-demo-injected])');
+    if (ans) ans.style.display = 'none';
+    return Promise.resolve();
+  }
+
+  // PHASE 1 — Public visitor joins by room code
+  function PHASE_1() {
+    _setActiveActor('u_11'); // Guest Panther (anonymous)
+    showJoinCard({ title: 'Joined — AI Infra Summit', code: 'ORBITAL', joined: true, mode: 'guest — no account' });
+    return _delay(800);
+  }
+
+  // PHASE 2 — 10+ person live public chat
+  function PHASE_2() {
+    var chain = Promise.resolve();
+    // Wave 1: 5 messages
+    var wave1 = [
+      ['host_1', 'Welcome to the AI Infra Summit. MCP Auth breakout is starting now.'],
+      ['mod_1',  'Mods active. Drop questions here or /ask the agent.'],
+      ['u_2',    'Anyone seeing tail-latency spikes on multi-region MCP servers?'],
+      ['u_6',    'L40S at 2x is fine for eval but H100 wins on tail. We benchmarked last week.'],
+      ['u_7',    'On auth — OAuth 2.1 scopes work for us, but token-rotation cost is real for fleet.']
+    ];
+    wave1.forEach(function(t) {
+      chain = chain.then(function() { addPublicMessage(t[0], t[1]); return _delay(380); });
+    });
+    chain = chain.then(function() { return _delay(800); });
+    // Wave 2: 6 messages
+    var wave2 = [
+      ['u_3',    'Healthcare clinicians abandon agents past 350ms round-trip. We see it every pilot.'],
+      ['u_5',    'Confirmed — our nurses give up around 380ms. Even when accuracy is fine.'],
+      ['u_8',    'At Epic we route ambient-scribe to a regional cache. Cuts P95 by 40%.'],
+      ['u_9',    'Curious from a banking angle — what is the typical burn for these MCP infra teams?'],
+      ['u_10',   'I am writing a paper on agent latency budgets. Anyone got cited numbers?'],
+      ['u_4',    'Sequoia is tracking 6 teams in voice-eval infra. Latency budget is the moat.']
+    ];
+    wave2.forEach(function(t) {
+      chain = chain.then(function() { addPublicMessage(t[0], t[1]); return _delay(380); });
+    });
+    return chain;
+  }
+
+  // PHASE 3 — First /ask agent answer (event wiki cache)
+  function PHASE_3() {
+    var ask = postPublicAsk({
+      actor: 'u_1',
+      text: 'what is the realistic p95 latency budget for voice agents in clinical triage?'
+    });
+    return streamAgentAnswer({
+      replyingTo: ask.askActor,
+      question: ask.question,
+      body: 'Clinical-grade voice agents converge on a sub-350ms round-trip budget per turn. 800ms end-to-end is workable for non-acute triage but clinicians disengage past that. Orbital Labs panel data isolates contributors: ASR ~80ms, LLM TTFT ~120ms, TTS ~80ms, network ~60-100ms.',
+      sources: ['Orbital Labs panel', 'Epic SLA doc', 'MCP latency benchmarks', 'Series A coverage'],
+      reuse: { similar: 15, reused: 4, newSearches: 0 },
+      trace: [
+        'Checked event wiki cache · v3 · sourceBundle fresh',
+        'Matched 15 similar questions in semantic cache',
+        'Reused 4 sources from event corpus',
+        '0 new searches · Linkup skipped',
+        'No private notes used · public layer only'
+      ]
+    });
+  }
+
+  // PHASE 4 — Private note anchored to a public chat row
+  function PHASE_4() {
+    // Switch active actor to u_4 (Priya, VC), who anchors a note to the last public message from u_3 (Alex)
+    _setActiveActor('u_4');
+    var alexMsg = window._demo_state.publicMessages.filter(function(m) { return m.actorId === 'u_3'; }).pop();
+    if (!alexMsg) return Promise.resolve();
+    sendPrivateNote({
+      owner: 'u_4',
+      anchor: alexMsg.id,
+      text: 'Alex Chen / Orbital Labs — follow up. Sounds like the right team for healthcare voice eval. Get a warm intro.',
+      label: 'note'
+    });
+    return _delay(600);
+  }
+
+  // PHASE 5 — Agent-enhanced shorthand private note
+  function PHASE_5() {
+    return enhancePrivateNote({
+      raw: 'orb labs - 230 bench - intro alex - check mayo cio',
+      enhanced: 'Orbital Labs — 230+ voice-agent benchmarks evaluated. Action: get warm intro to Alex Chen. Also: verify Mayo CIO (Marcus?) on ambient-scribe pilot status before Thursday board update.'
+    }).then(function() {
+      sendPrivateNote({
+        owner: 'u_4',
+        text: 'Orbital Labs — 230+ voice-agent benchmarks evaluated. Action: get warm intro to Alex Chen. Also: verify Mayo CIO (Marcus?) on ambient-scribe pilot status before Thursday board update.',
+        source: 'shorthand-enhance',
+        label: 'enhanced'
+      });
+      return _delay(500);
+    });
+  }
+
+  // PHASE 6 — Voice note capture → transcript → private note
+  function PHASE_6() {
+    var vc = startVoiceCapture();
+    return _delay(_currentSpeed.thinkMs).then(function() {
+      return stopVoiceCapture({
+        element: vc,
+        transcript: 'Note to self: ask Alex about CloudLayer’s region setup. Worth a separate meeting before partner pitch on Friday.'
+      });
+    }).then(function() {
+      sendPrivateNote({
+        owner: 'u_4',
+        text: 'Ask Alex about CloudLayer region setup. Schedule separate meeting before partner pitch Friday.',
+        source: 'voice'
+      });
+      return _delay(400);
+    });
+  }
+
+  // PHASE 7 — Mention/backlink preview from public chat (additive: another public ask + agent answer using event wiki)
+  function PHASE_7() {
+    // u_2 posts an ask that mentions Orbital Labs (entity backlink)
+    var ask = postPublicAsk({
+      actor: 'u_2',
+      text: 'how does Orbital Labs benchmark voice agents at scale? GPU stack + concurrency numbers?'
+    });
+    return streamAgentAnswer({
+      replyingTo: ask.askActor,
+      question: ask.question,
+      body: 'Orbital Labs runs 50 concurrent voice eval sessions on a 4x A100 40GB SXM rig with NVLink ($6.40/hr) for production parity. For dev: 2x L40S on Lambda ($2.80/hr) handles Whisper-large-v3 + Llama-3.1-70B quantized. RunPod H100 80GB single ($3.20/hr) wins tail-latency for clinical use.',
+      sources: ['Orbital eval infra docs', 'Lambda Labs pricing', 'RunPod GPU sheet', 'Llama-3.1 quantization paper'],
+      reuse: { similar: 8, reused: 4, newSearches: 0 },
+      trace: [
+        'Checked event wiki cache · v3 · sourceBundle fresh',
+        'Matched 8 similar questions in semantic cache',
+        'Backlink → Orbital Labs — 12 entity mentions',
+        'Reused 4 sources from event corpus',
+        '0 new searches · Linkup skipped',
+        'No private notes used · public layer only'
+      ]
+    });
+  }
+
+  // PHASE 8 — FAQ suggestion + host promotion
+  function PHASE_8() {
+    var lastAns = window._demo_state.agentAnswers[window._demo_state.agentAnswers.length - 1];
+    if (!lastAns) return Promise.resolve();
+    // 1. As an attendee (still Priya u_4), suggest for FAQ
+    _suggestFaq(lastAns.id);
+    return _delay(800).then(function() {
+      // 2. Switch to host
+      _setActiveActor('host_1');
+      return _delay(400);
+    }).then(function() {
+      // 3. Host promotes
+      _promoteFaq(lastAns.id);
+      return _delay(600);
+    });
+  }
+
+  // PHASE 9 — Host wraps event → wiki compaction
+  function PHASE_9() {
+    // Still as host_1
+    return showCompactionProgress([
+      'Collecting public messages (' + window._demo_state.publicMessages.length + ')',
+      'Folding agent answers (' + window._demo_state.agentAnswers.length + ')',
+      'De-duplicating sources (4 unique)',
+      'Promoting host-approved FAQs (1)',
+      'Stripping private notes from corpus (' + window._demo_state.privateNotes.length + ' excluded)',
+      'Publishing v1 wiki'
+    ]).then(function() {
+      return _delay(400);
+    }).then(function() {
+      showPublishedWiki({
+        sections: ['Need to know','What changed','Sources','FAQ','People'],
+        privacyNotice: '🔒 Wiki uses only public messages + suggested FAQs. ' + window._demo_state.privateNotes.length + ' private notes were excluded.'
+      });
+      return _delay(800);
+    });
+  }
+
+  // PHASE 10 — Sign in → preserve private notes
+  function PHASE_10() {
+    // Switch back to Priya (the guest who has private notes)
+    _setActiveActor('u_4');
+    openSignInSheet();
+    return _delay(600).then(function() {
+      return sendMagicLink('priya@sequoiacap.com');
+    }).then(function() {
+      return _delay(400);
+    }).then(function() {
+      return simulateAuthComplete({ userId: 'priya@sequoiacap.com', mergeGuestSession: true });
+    }).then(function() {
+      if (typeof toast === 'function') {
+        try { toast('Welcome back, Priya', '3 private notes preserved across sign-in.'); } catch (e) {}
+      }
+      return _delay(500);
+    });
+  }
+
+  // PHASE 11 — NodeBench handoff: private workspace
+  function PHASE_11() {
+    return openNodeBenchWorkspace().then(function() { return _delay(900); });
+  }
+
+  // PHASE 12 — NodeBench agent/runtime/infra view
+  function PHASE_12() {
+    _switchNbTab('chat');
+    return _delay(700).then(function() {
+      _switchNbTab('reports');
+      return _delay(700);
+    });
+  }
+
+  // PHASE 13 — Final export / artifact / daily brief
+  function PHASE_13() {
+    return createNodeBenchArtifact().then(function() {
+      return createDailyBriefDelta();
+    }).then(function() {
+      _switchNbTab('home');
+      return _delay(400);
+    });
+  }
+
+  // ── runDemoFull orchestrator ──
+  function runDemoFull(opts) {
+    opts = opts || {};
+    var speedName = opts.speed || 'normal';
+    _currentSpeed = SPEED[speedName] || SPEED.normal;
+    if (!window._demo_state) _initDemoState();
+    else { _initDemoState(); /* hard reset on re-run */ }
+    var phases = [
+      ['PHASE 0  Reset + load event',              PHASE_0],
+      ['PHASE 1  Public visitor joins',            PHASE_1],
+      ['PHASE 2  10+ person live public chat',     PHASE_2],
+      ['PHASE 3  First /ask agent answer',         PHASE_3],
+      ['PHASE 4  Private note anchored',           PHASE_4],
+      ['PHASE 5  Shorthand note enhanced',         PHASE_5],
+      ['PHASE 6  Voice note captured',             PHASE_6],
+      ['PHASE 7  Mention/backlink agent answer',   PHASE_7],
+      ['PHASE 8  FAQ suggested + promoted',        PHASE_8],
+      ['PHASE 9  Host wraps event → wiki',    PHASE_9],
+      ['PHASE 10 Sign in — notes preserved',  PHASE_10],
+      ['PHASE 11 NodeBench handoff',               PHASE_11],
+      ['PHASE 12 NodeBench agent/runtime view',    PHASE_12],
+      ['PHASE 13 Export / artifact / daily brief', PHASE_13]
+    ];
+    var chain = Promise.resolve();
+    phases.forEach(function(p) {
+      chain = chain.then(function() { return demoStep(p[0], p[1]); });
+    });
+    return chain.then(function() {
+      // Final banner
+      var banner = document.querySelector('.demo-step-banner');
+      if (banner) banner.querySelector('.ph-label').textContent = 'Demo complete — runDemoQA() to verify';
+      if (typeof toast === 'function') {
+        try { toast('▶ Demo complete', '13 phases done. Call window.runDemoQA() to verify the 17 invariants.'); } catch (e) {}
+      }
+      return { ok: true, phases: phases.length, log: window._demo_log };
+    }).catch(function(err) {
+      console.error('[scratchnode][demo] runDemoFull error:', err);
+      throw err;
+    });
+  }
+
+  // ── demoReset: restore pre-demo state ──
+  function demoReset() {
+    var snap = window._demo_state && window._demo_state._snapshot;
+    document.querySelectorAll('[data-demo-injected="true"]').forEach(function(el) { el.remove(); });
+    // Un-hide legacy seeded rows
+    document.querySelectorAll('#feed .row[style*="display: none"], #feed .ans[style*="display: none"]').forEach(function(el) {
+      el.style.display = '';
+    });
+    // Strip demo notes from notes store
+    if (Array.isArray(window._notes_v5)) {
+      window._notes_v5 = window._notes_v5.filter(function(n) { return !n._demoInjected; });
+    }
+    closeNodeBench();
+    _restorePreDemo(snap);
+    window._demo_state = null;
+    window._demo_log = [];
+    if (typeof refreshNotesCounter === 'function') {
+      try { refreshNotesCounter(); } catch (e) {}
+    }
+  }
+
+  // ── runDemoQA: 17 DEMO-* assertions over _demo_log + DOM state ──
+  function runDemoQA() {
+    var results = [];
+    function check(id, desc, pass, detail) {
+      results.push({ id: id, desc: desc, pass: !!pass, detail: detail || '' });
+    }
+    var log = window._demo_log || [];
+    var state = window._demo_state || {};
+    var feed = _feed();
+
+    // DEMO-001: run_demo_full completes without JS error
+    check('DEMO-001', 'runDemoFull completes without JS error', log.length === 14, 'phases logged=' + log.length);
+
+    // DEMO-002: At least 10 distinct human actors appear
+    var actorIds = {};
+    document.querySelectorAll('#feed .row[data-actor-id]').forEach(function(r) { actorIds[r.getAttribute('data-actor-id')] = true; });
+    var actorCount = Object.keys(actorIds).length;
+    check('DEMO-002', 'At least 10 distinct human actors appear', actorCount >= 10, 'distinct actors=' + actorCount);
+
+    // DEMO-003: Normal public messages do not trigger agent (only /ask msgs spawn .ans cards; agent answers === ask count)
+    var publicAsks = state.publicMessages ? state.publicMessages.filter(function(m) { return m.isAsk; }).length : 0;
+    var ansCount = state.agentAnswers ? state.agentAnswers.length : 0;
+    check('DEMO-003', 'Normal public messages do not trigger agent', publicAsks === ansCount && publicAsks > 0, '/ask=' + publicAsks + ' ans=' + ansCount);
+
+    // DEMO-004: /ask creates parent ask row + nested agent answer
+    var hasParentAsk = !!document.querySelector('#feed .row[data-actor-id="u_1"] .row-text');
+    var hasAnsAfter = !!document.querySelector('#feed .ans[data-demo-injected="true"]');
+    check('DEMO-004', '/ask creates parent ask row + nested agent answer', hasParentAsk && hasAnsAfter);
+
+    // DEMO-005: Agent answer says "replying to Sarah Kim's /ask"
+    var firstAns = document.querySelector('#feed .ans[data-demo-injected="true"] .ans-head');
+    var replyingText = firstAns ? firstAns.textContent : '';
+    check('DEMO-005', 'Agent answer says "replying to Sarah Kim’s /ask"', /Sarah Kim/.test(replyingText) && /replying to/.test(replyingText), replyingText.slice(0, 80));
+
+    // DEMO-006: Agent trace shows event wiki cache, reused sources, no private notes
+    var howEl = document.querySelector('#feed .ans[data-demo-injected="true"] .ans-how');
+    var howText = howEl ? howEl.textContent : '';
+    check('DEMO-006', 'Trace shows wiki cache, reused sources, no private notes',
+      /wiki cache/i.test(howText) && /Reused/i.test(howText) && /No private notes used/i.test(howText));
+
+    // DEMO-007: Private note does not appear as public event message.
+    // "Public" = .row .row-text (public chat row content) + .ans-body (agent answer body).
+    // Owner-only widgets (.voice-capture, .shorthand-enhance-card, .private-marker, .demo-signin-sheet)
+    // are NOT public — they render only for the owner and are excluded from the leak check.
+    var privateTexts = (state.privateNotes || []).map(function(n) { return n.text; });
+    var publicNodes = [];
+    document.querySelectorAll('#feed .row .row-text').forEach(function(n) { publicNodes.push(n.textContent || ''); });
+    document.querySelectorAll('#feed .ans .ans-body, #feed .ans .ans-q').forEach(function(n) { publicNodes.push(n.textContent || ''); });
+    var publicBlob = publicNodes.join(' \n ');
+    var leaked = privateTexts.some(function(t) { return t && publicBlob.indexOf(t) !== -1; });
+    check('DEMO-007', 'Private note does not appear in public chat rows or agent answers', !leaked && privateTexts.length > 0, 'private notes=' + privateTexts.length + ' leaked=' + leaked);
+
+    // DEMO-008: Private marker appears only for the note owner
+    var markers = document.querySelectorAll('.private-marker[data-demo-injected]');
+    var allHaveOwner = markers.length > 0 && Array.from(markers).every(function(m) { return m.getAttribute('data-owner'); });
+    check('DEMO-008', 'Private marker has data-owner (owner-scoped)', allHaveOwner, 'markers=' + markers.length);
+
+    // DEMO-009: Shorthand note gets enhanced but remains private (not in public chat rows or ans bodies).
+    var enhanceCards = document.querySelectorAll('.shorthand-enhance-card[data-demo-injected]');
+    var enhancedTexts = Array.from(enhanceCards).map(function(c) { var e = c.querySelector('.text.enhanced'); return e ? e.textContent : ''; });
+    var enhancedLeaked = enhancedTexts.some(function(t) { return t && publicBlob.indexOf(t) !== -1; });
+    check('DEMO-009', 'Shorthand enhanced but remains private', enhanceCards.length > 0 && !enhancedLeaked, 'enhance cards=' + enhanceCards.length);
+
+    // DEMO-010: Voice note transcript becomes private note
+    var voiceCaps = document.querySelectorAll('.voice-capture[data-demo-injected]');
+    var voiceNotes = (state.privateNotes || []).filter(function(n) { return n.source === 'voice'; });
+    check('DEMO-010', 'Voice transcript becomes private note', voiceCaps.length > 0 && voiceNotes.length > 0, 'vc=' + voiceCaps.length + ' voiceNotes=' + voiceNotes.length);
+
+    // DEMO-011: Attendee sees Suggest for FAQ — the attendee-only button is in ans-actions
+    var suggestBtns = document.querySelectorAll('#feed .ans[data-demo-injected="true"] .ans-actions .attendee-only');
+    check('DEMO-011', 'Attendee can see Suggest for FAQ', suggestBtns.length > 0, 'suggest buttons=' + suggestBtns.length);
+
+    // DEMO-012: Host sees Promote to FAQ — the host-only button + host queue exists and 1 promoted entry
+    var promotedCount = (state.hostQueue || []).filter(function(q) { return q.promoted; }).length;
+    var hostQueueRendered = !!document.querySelector('.host-queue[data-demo-injected]');
+    check('DEMO-012', 'Host can Promote to FAQ', hostQueueRendered && promotedCount > 0, 'host queue=' + hostQueueRendered + ' promoted=' + promotedCount);
+
+    // DEMO-013: Published wiki excludes private notes
+    var wikiCard = document.querySelector('.published-wiki-card[data-demo-injected]');
+    var wikiText = wikiCard ? wikiCard.textContent : '';
+    var wikiLeaked = privateTexts.some(function(t) { return t && wikiText.indexOf(t) !== -1; });
+    check('DEMO-013', 'Published wiki excludes private notes', !!wikiCard && !wikiLeaked && /private notes were excluded/i.test(wikiText));
+
+    // DEMO-014: Sign-in merges guest notes
+    var mergedOwners = (window._notes_v5 || []).filter(function(n) { return n._demoInjected && n._ownerId && n._ownerId.indexOf('@') !== -1; });
+    check('DEMO-014', 'Sign-in merges guest notes into account', mergedOwners.length > 0, 'merged notes=' + mergedOwners.length);
+
+    // DEMO-015: NodeBench shows event artifact, private notes, entities, and trace
+    var nbOverlay = document.getElementById('demo-nb-overlay');
+    var nbOpen = nbOverlay && nbOverlay.getAttribute('data-open') === 'true';
+    var nbHasArtifacts = nbOverlay && /event artifact/i.test(nbOverlay.textContent || '');
+    var nbHasNotes = nbOverlay && /private notes/i.test(nbOverlay.textContent || '');
+    var nbHasEntities = nbOverlay && /entity library/i.test(nbOverlay.textContent || '');
+    check('DEMO-015', 'NodeBench shows artifact, notes, entities', nbOpen && nbHasArtifacts && nbHasNotes && nbHasEntities, 'open=' + nbOpen);
+
+    // DEMO-016: NodeBench private agent can use private notes (trace says agent.scope = private)
+    var nbTrace = nbOverlay ? (nbOverlay.textContent || '') : '';
+    // We render the trace text only after the chat tab has been visited (Phase 12); fall back to overlay text scan.
+    var hasPrivScopeText = /private mode/i.test(nbTrace) || /agent\.scope/i.test(nbTrace);
+    check('DEMO-016', 'NodeBench private agent uses private notes', hasPrivScopeText, 'priv scope text found=' + hasPrivScopeText);
+
+    // DEMO-017: Public ScratchNode answer cannot use private notes (asserted by trace text)
+    var anyPubAns = document.querySelectorAll('#feed .ans[data-demo-injected="true"] .ans-how');
+    var allClean = anyPubAns.length > 0 && Array.from(anyPubAns).every(function(h) { return /No private notes used/i.test(h.textContent); });
+    check('DEMO-017', 'Public agent answer trace says no private notes', allClean, 'clean ans=' + anyPubAns.length);
+
+    var passed = results.filter(function(r) { return r.pass; }).length;
+    var failed = results.length - passed;
+    var summary = { passed: passed, failed: failed, total: results.length, results: results };
+    // Pretty-print failures for the console
+    if (failed > 0) {
+      console.group('[scratchnode][demoQA] ' + passed + '/' + results.length + ' passed (' + failed + ' failed)');
+      results.filter(function(r) { return !r.pass; }).forEach(function(r) { console.warn(r.id, r.desc, '—', r.detail); });
+      console.groupEnd();
+    } else {
+      console.log('[scratchnode][demoQA] ' + passed + '/' + results.length + ' passed ✅');
+    }
+    return summary;
+  }
+
+  // ── Public surface ──
+  window.demo = {
+    runFull: runDemoFull,
+    reset: demoReset,
+    qa: runDemoQA,
+    actors: DEMO_ACTORS,
+    step: demoStep,
+    addPublicMessage: addPublicMessage,
+    postPublicAsk: postPublicAsk,
+    streamAgentAnswer: streamAgentAnswer,
+    sendPrivateNote: sendPrivateNote,
+    showPrivateMarker: showPrivateMarker,
+    startVoiceCapture: startVoiceCapture,
+    stopVoiceCapture: stopVoiceCapture,
+    enhancePrivateNote: enhancePrivateNote,
+    showJoinCard: showJoinCard,
+    showCompactionProgress: showCompactionProgress,
+    showPublishedWiki: showPublishedWiki,
+    openSignInSheet: openSignInSheet,
+    sendMagicLink: sendMagicLink,
+    simulateAuthComplete: simulateAuthComplete,
+    openWiki: openWikiDemo,
+    openPeople: openPeopleDemo,
+    openNotes: openNotesDemo,
+    openHost: openHostDemo,
+    openMyEvents: openMyEventsDemo,
+    openNodeBenchWorkspace: openNodeBenchWorkspace,
+    closeNodeBench: closeNodeBench,
+    createNodeBenchArtifact: createNodeBenchArtifact,
+    createDailyBriefDelta: createDailyBriefDelta,
+    setActiveActor: _setActiveActor,
+    _suggestFaq: _suggestFaq,
+    _promoteFaq: _promoteFaq,
+    _switchNbTab: _switchNbTab
+  };
+  // Top-level callables for product-reviewer console use
+  window.runDemoFull = runDemoFull;
+  window.runDemoQA   = runDemoQA;
+  window.demoReset   = demoReset;
+  window.demoStep    = demoStep;
+
+  // ?demo=1 URL auto-run for one-click presentations.
+  try {
+    var params = new URLSearchParams(location.search);
+    if (params.get('demo') === '1') {
+      var speed = params.get('demoSpeed') || 'normal';
+      // Defer until after DOMContentLoaded + small delay so live Convex bootstrap can settle.
+      var kickoff = function() { setTimeout(function() { runDemoFull({ speed: speed }); }, 600); };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', kickoff);
+      } else {
+        kickoff();
+      }
+    }
+  } catch (e) { /* no-op */ }
 })();
 </script>
 </body>
