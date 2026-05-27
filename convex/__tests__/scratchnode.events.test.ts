@@ -37,7 +37,7 @@
 import { describe, expect, it } from "vitest";
 
 import * as eventsModule from "../events";
-import { publishWiki, claimHost, requestHostClaim, releaseHost } from "../events";
+import { publishWiki, claimHost, requestHostClaim, releaseHost, _adminForceReleaseHost } from "../events";
 import {
   deleteNote,
   createNoteAnchor,
@@ -2269,5 +2269,134 @@ describe("listMyEvents — surfaces joined events for signed-in user", () => {
     });
     expect(result.joined).toEqual([]);
     expect(result._truncated).toBe(false);
+  });
+});
+
+/* ========================================================================== */
+/* Test — _adminForceReleaseHost (one-time pollution recovery tool)           */
+/* ========================================================================== */
+
+describe("_adminForceReleaseHost — internal admin tool", () => {
+  /**
+   * Scenario:    The demo event ai-infra-summit-2026 was claimed by a
+   *              now-unknown ownerKey from an earlier dogfood run before
+   *              the static-key migration. Real users + Phase 4
+   *              requestHostClaim are blocked because legitimate
+   *              releaseHost requires the original ownerKey. Ops calls
+   *              this internal mutation via `npx convex run --prod` to
+   *              force-clear.
+   * User:        Operator (CLI via npx convex run), NOT end users
+   * Goal:        Clear stuck legacy host so the event can be re-claimed
+   * Prior state: event live; 1 liveEventHosts row with unknown ownerKey
+   * Actions:     _adminForceReleaseHost({ eventId }) — NO ownerKey arg
+   * Scale:       1 ops call
+   * Duration:    Sub-second
+   * Expected:    ok=true, released=true, hostsDeleted=1.
+   *              liveEventHosts table empty. New ownerKey can immediately claim.
+   */
+  it("force-clears a stuck legacy host (no ownerKey required)", async () => {
+    const tables: Tables = {
+      liveEvents: [baseEvent()],
+      liveEventHosts: [
+        {
+          _id: "liveEventHosts:1",
+          eventId: "liveEvents:1",
+          ownerKey: "unknown-legacy-key-from-old-dogfood-run-aaaaaaa",
+          displayName: "Stuck Legacy",
+          role: "owner",
+          authMethod: "legacy_ownerkey",
+          createdAt: 1_700_000_000_000,
+        },
+      ],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await (_adminForceReleaseHost as any)._handler(ctx, {
+      eventId: "liveEvents:1",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.released).toBe(true);
+    expect(result.hostsDeleted).toBe(1);
+    expect(tables.liveEventHosts.length).toBe(0);
+
+    // Verify the event is now claimable by anyone
+    const newClaim = await (claimHost as any)._handler(ctx, {
+      eventId: "liveEvents:1",
+      ownerKey: "fresh-owner-key-12345",
+      displayName: "Fresh Host",
+    });
+    expect(newClaim.ok).toBe(true);
+    expect(newClaim.created).toBe(true);
+    expect(tables.liveEventHosts.length).toBe(1);
+  });
+
+  /**
+   * Scenario:    Defense-in-depth — force-release also clears any
+   *              dangling claim code on the event row. Without this,
+   *              a Phase 4 code that was minted mid-pollution could be
+   *              redeemed after force-release to claim host (the legacy
+   *              host gate is what normally protects against this).
+   * User:        Operator (CLI)
+   * Goal:        Leave the event in a fully clean state
+   * Prior state: event has hostClaimCodeHash set; 1 stuck host row
+   * Actions:     _adminForceReleaseHost
+   * Expected:    Both hostClaimCodeHash and hostClaimCodeCreatedAt are
+   *              undefined on the event row after the call.
+   */
+  it("clears dangling claim code on force-release (defense-in-depth)", async () => {
+    const event = baseEvent({
+      hostClaimCodeHash: "sha256:dangling-from-mid-pollution",
+      hostClaimCodeCreatedAt: 1_700_000_000_000,
+    });
+    const tables: Tables = {
+      liveEvents: [event],
+      liveEventHosts: [
+        {
+          _id: "liveEventHosts:1",
+          eventId: "liveEvents:1",
+          ownerKey: "stuck-key",
+          displayName: "Stuck",
+          role: "owner",
+          createdAt: 1_700_000_000_000,
+        },
+      ],
+    };
+    const ctx = createCtx(tables);
+
+    await (_adminForceReleaseHost as any)._handler(ctx, {
+      eventId: "liveEvents:1",
+    });
+
+    expect(tables.liveEvents[0].hostClaimCodeHash).toBeUndefined();
+    expect(tables.liveEvents[0].hostClaimCodeCreatedAt).toBeUndefined();
+  });
+
+  /**
+   * Scenario:    Idempotency — calling force-release on an event with no
+   *              host record (already released, never claimed) returns
+   *              ok=true with released=false, hostsDeleted=0. Does not
+   *              throw. This matters for ops re-running the command after
+   *              a successful release to confirm the state.
+   * User:        Operator (CLI)
+   * Goal:        Confirm post-release state is stable
+   * Prior state: event with 0 liveEventHosts rows
+   * Actions:     _adminForceReleaseHost
+   * Expected:    Returns ok=true, released=false, hostsDeleted=0.
+   */
+  it("is idempotent on an already-released event", async () => {
+    const tables: Tables = {
+      liveEvents: [baseEvent()],
+      liveEventHosts: [],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await (_adminForceReleaseHost as any)._handler(ctx, {
+      eventId: "liveEvents:1",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.released).toBe(false);
+    expect(result.hostsDeleted).toBe(0);
   });
 });

@@ -1880,6 +1880,65 @@ export const publishWiki = mutation({
  * (because the host row was just deleted). This is correct — the operation
  * was applied, the contract is "you must be the current host to call this."
  */
+/**
+ * _adminForceReleaseHost — internal admin tool for one-time pollution
+ * recovery. NEVER call from user-facing code. Callable ONLY via:
+ *
+ *   npx convex run --prod events:_adminForceReleaseHost '{"eventId":"..."}'
+ *
+ * Use case: an event was claimed by a now-unknown ownerKey (e.g., an
+ * earlier dogfood run with a RUN_ID-randomized key). The legitimate
+ * `releaseHost` mutation requires the current host's ownerKey, so the
+ * event is stuck — neither legacy `claimHost` nor Phase 4
+ * `requestHostClaim` can proceed. This internal mutation force-deletes
+ * all liveEventHosts rows + clears any dangling claim code WITHOUT
+ * proving host ownership.
+ *
+ * Security:
+ *   - `internalMutation` is NOT exposed via api.* — only via
+ *     `internal.events._adminForceReleaseHost`, which Convex restricts
+ *     to server-side callers (CLI via `npx convex run`, scheduler,
+ *     crons, other actions).
+ *   - The HTTP /api/mutation endpoint refuses internal paths — a
+ *     curl POST to "events:_adminForceReleaseHost" returns
+ *     function_not_found.
+ *   - Audit log emitted via console.warn for forensic visibility.
+ *
+ * Naming convention:
+ *   - Leading underscore signals "internal, do not call from frontend"
+ *     (same convention as `_evictStalePresence`, `_evictStaleHostClaimCodes`).
+ *   - `Unsafe` not in the name to keep the CLI command paste-friendly,
+ *     but the JSDoc above is the canonical "do not use lightly" warning.
+ */
+export const _adminForceReleaseHost = internalMutation({
+  args: {
+    eventId: v.id("liveEvents"),
+  },
+  handler: async (ctx, { eventId }) => {
+    const allHosts = await ctx.db
+      .query("liveEventHosts")
+      .withIndex("by_event", (q: any) => q.eq("eventId", eventId))
+      .collect();
+    let hostsDeleted = 0;
+    for (const row of allHosts) {
+      await ctx.db.delete(row._id);
+      hostsDeleted += 1;
+    }
+    const event = await ctx.db.get(eventId);
+    if (event && (event.hostClaimCodeHash || event.hostClaimCodeCreatedAt)) {
+      await ctx.db.patch(eventId, {
+        hostClaimCodeHash: undefined,
+        hostClaimCodeCreatedAt: undefined,
+      });
+    }
+    console.warn(
+      `[_adminForceReleaseHost] eventId=${eventId} hostsDeleted=${hostsDeleted} ` +
+        `(force release — no auth check; called via internal admin path)`,
+    );
+    return { ok: true, released: hostsDeleted > 0, hostsDeleted };
+  },
+});
+
 export const releaseHost = mutation({
   args: {
     eventId: v.id("liveEvents"),
