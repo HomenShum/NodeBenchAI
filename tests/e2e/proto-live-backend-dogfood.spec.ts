@@ -368,6 +368,48 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
   }
 });
 
+test("home-v5 runDemoFull emits evaluated L1/L2/L3 output envelopes", async ({ page }) => {
+  mkdirSync(ARTIFACT_DIR, { recursive: true });
+  const qaId = `proto-v5-contract-${Date.now()}`;
+  const parsed = new URL(SCRATCHNODE_EVENT_URL);
+  parsed.searchParams.set("demo", "1");
+  parsed.searchParams.set("demoSpeed", "instant");
+  parsed.searchParams.set("qa", qaId);
+
+  await page.goto(parsed.toString(), { waitUntil: "domcontentloaded", timeout: 45_000 });
+  await page.waitForFunction(() => typeof (window as any).runDemoQA === "function", null, {
+    timeout: 45_000,
+  });
+  await page.waitForTimeout(2_500);
+
+  const qa = await page.evaluate(async () => {
+    await (window as any).runDemoFull({ speed: "instant" });
+    return (window as any).runDemoQA();
+  });
+
+  expect(qa.failed).toBe(0);
+  expect(qa.total).toBe(17);
+  expect(qa.contract.passed).toBe(true);
+  expect(qa.contract.missingFamilies).toEqual([]);
+  expect(qa.contract.rendererMapped).toBe(true);
+  expect(qa.contract.evaluatorMapped).toBe(true);
+  expect(Object.keys(qa.contract.byL1).sort()).toEqual([
+    "agent_trace",
+    "generated_artifact",
+    "graph_memory",
+    "operational_cache",
+    "private_memory",
+    "public_knowledge",
+    "retrieval_context",
+    "ui_renderable",
+  ]);
+
+  await page.screenshot({
+    path: join(ARTIFACT_DIR, `${qaId}-output-contract.png`),
+    fullPage: true,
+  });
+});
+
 // ─── Phase 4 host auth — code flow against the live backend ─────────
 //
 // Verifies the new requestHostClaim + claimHostWithCode + HMAC token
