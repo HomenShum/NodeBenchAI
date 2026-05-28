@@ -1721,9 +1721,168 @@ input { font-family: var(--ui); }
   .home-entity-card:hover { transform: none; }
   .home-details > summary::after { transition: none; }
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   Landing-mode UI for home-v4 — shown when the URL lacks ?demo=1.
+   nodebenchai.com is NOT routed via Edge Middleware (only scratchnode.live
+   apex is), so query-param gating is the right tool here.
+   See block comment near body bootstrap script for full intent.
+   ────────────────────────────────────────────────────────────────── */
+.landing-v4 { display: none; }
+body[data-page-mode="landing"] .landing-v4 { display: flex; }
+
+/* Hide the full prototype shell when in landing mode. */
+body[data-page-mode="landing"] .shell { display: none !important; }
+
+/* Landing layout — minimal, centered hero matching NodeBench design DNA. */
+.landing-v4 {
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 24px;
+  background: var(--bg, #151413);
+  color: var(--ink, #e8e6e3);
+  font-family: "Manrope", system-ui, -apple-system, sans-serif;
+}
+.landing-v4 .landing-hero {
+  max-width: 560px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+.landing-v4 .landing-logo {
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  color: var(--ink, #e8e6e3);
+}
+.landing-v4 .landing-logo span { color: var(--accent, #d97757); }
+.landing-v4 h1 {
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 8px 0 0;
+  color: var(--ink, #e8e6e3);
+}
+.landing-v4 p {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-muted, #a8a5a0);
+  margin: 0;
+  max-width: 460px;
+}
+.landing-v4 .landing-cta-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.landing-v4 .landing-primary,
+.landing-v4 .landing-secondary {
+  font-weight: 600;
+  font-size: 15px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.landing-v4 .landing-primary {
+  border: 1px solid var(--accent, #d97757);
+  background: var(--accent, #d97757);
+  color: #fff;
+}
+.landing-v4 .landing-primary:hover { background: #c46a4e; }
+.landing-v4 .landing-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(217,119,87,.35);
+}
+.landing-v4 .landing-secondary {
+  border: 1px solid rgba(255,255,255,.12);
+  background: transparent;
+  color: var(--ink-muted, #a8a5a0);
+}
+.landing-v4 .landing-secondary:hover,
+.landing-v4 .landing-secondary:focus-visible {
+  color: var(--ink, #e8e6e3);
+  border-color: rgba(255,255,255,.24);
+  outline: none;
+}
+.landing-v4 .landing-trust {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--ink-faint, #6b6864);
+  margin-top: 24px;
+}
+.landing-v4 .landing-trust span:not(:last-child)::after {
+  content: '·';
+  margin-left: 14px;
+  color: var(--ink-faint, #6b6864);
+}
+@media (max-width: 600px) {
+  .landing-v4 h1 { font-size: 22px; }
+  .landing-v4 p { font-size: 14px; }
+  .landing-v4 .landing-primary,
+  .landing-v4 .landing-secondary { width: 100%; text-align: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-v4 .landing-primary,
+  .landing-v4 .landing-secondary { transition: none; }
+}
 </style>
 </head>
 <body>
+
+<!--
+  ═══════════════════════════════════════════════════════════════════════════
+  page-mode detector — must run synchronously BEFORE any other JS / paint.
+
+  home-v4 has no Edge Middleware routing (only scratchnode.live apex does),
+  so we use a query-param gate:
+    - ?demo=1  -> "demo" mode (full NodeBench mockup as before)
+    - else     -> "landing" mode (minimal NodeBench hero)
+
+  Sets data-page-mode on body so CSS gates fire on first paint, preventing
+  a flash of the mockup on the bare URL.
+  ═══════════════════════════════════════════════════════════════════════════
+-->
+<script>
+(function () {
+  try {
+    var hasDemoQuery = new URLSearchParams(location.search || '').get('demo') === '1';
+    document.body.dataset.pageMode = hasDemoQuery ? 'demo' : 'landing';
+  } catch (e) {
+    try { document.body.dataset.pageMode = 'landing'; } catch (e2) {}
+  }
+})();
+</script>
+
+<!-- Landing-mode hero — visible only when data-page-mode === "landing" -->
+<section class="landing-v4" role="region" aria-label="NodeBench landing">
+  <div class="landing-hero">
+    <span class="landing-logo">Node<span>Bench</span></span>
+    <h1>Entity intelligence workspace.</h1>
+    <p>Notebook, Artifacts, Chat, Daily Brief. Private memory that compounds across events, companies, people, and topics.</p>
+    <div class="landing-cta-row">
+      <a href="https://www.nodebenchai.com/" class="landing-primary">Open NodeBench app &rarr;</a>
+      <a href="?demo=1" class="landing-secondary">See the prototype &rarr;</a>
+    </div>
+  </div>
+  <div class="landing-trust" aria-label="Privacy posture">
+    <span>Local-first.</span>
+    <span>Private by default.</span>
+    <span>Open source.</span>
+  </div>
+</section>
 
 <!-- ═══════════════════════════════════════════════════
      SHELL

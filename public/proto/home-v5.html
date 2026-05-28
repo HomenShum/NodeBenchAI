@@ -1531,9 +1531,248 @@ body[data-event-mode="sensitive"] .c-helpline::before {
   color: var(--accent); font-weight: 600;
 }
 
+/* ──────────────────────────────────────────────────────────────────
+   Landing-mode UI — shown when location.pathname === '/' (bare apex)
+   See block comment near body bootstrap script for full intent.
+   ────────────────────────────────────────────────────────────────── */
+.landing { display: none; }
+body[data-page-mode="landing"] .landing { display: flex; }
+
+/* When in landing mode, hide the event-room shell entirely so the
+   apex does NOT read as "the demo is running on the live site". */
+body[data-page-mode="landing"] .event-strip,
+body[data-page-mode="landing"] main.m,
+body[data-page-mode="landing"] .h-code,
+body[data-page-mode="landing"] .h-live,
+body[data-page-mode="landing"] #live-assist-rail,
+body[data-page-mode="landing"] .welcome {
+  display: none !important;
+}
+
+/* Landing layout — minimal, centered, glass-card hero. */
+.landing {
+  min-height: calc(100vh - 64px);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 24px;
+}
+.landing-hero {
+  max-width: 560px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+.landing-logo {
+  font-family: var(--ui);
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.landing-logo span { color: var(--accent); }
+.landing-hero h1 {
+  font-family: var(--ui);
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 8px 0 0;
+}
+.landing-hero p {
+  font-family: var(--ui);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  margin: 0;
+  max-width: 460px;
+}
+.landing-join {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+  margin-top: 8px;
+}
+.landing-join input {
+  flex: 1;
+  font-family: var(--ui);
+  font-size: 15px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color .15s ease;
+}
+.landing-join input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(217,119,87,.18);
+}
+.landing-join input::placeholder { color: var(--ink-faint); }
+.landing-join button {
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 15px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.landing-join button:hover { background: #c46a4e; }
+.landing-join button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(217,119,87,.35);
+}
+.landing-cta-row {
+  display: flex;
+  gap: 18px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.landing-secondary {
+  font-family: var(--ui);
+  font-size: 14px;
+  color: var(--ink-muted);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color .15s ease, border-color .15s ease;
+}
+.landing-secondary:hover,
+.landing-secondary:focus-visible {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  outline: none;
+}
+.landing-trust {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-family: var(--ui);
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-top: 24px;
+}
+.landing-trust span:not(:last-child)::after {
+  content: '·';
+  margin-left: 14px;
+  color: var(--ink-faint);
+}
+@media (max-width: 600px) {
+  .landing-hero h1 { font-size: 22px; }
+  .landing-hero p { font-size: 14px; }
+  .landing-join { flex-direction: column; }
+  .landing-join button { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-join input,
+  .landing-join button,
+  .landing-secondary { transition: none; }
+}
+
 </style>
 </head>
 <body data-mode="public" data-role="attendee" data-event-mode="event" data-capture-level="0" data-la-open="false">
+
+<!--
+  ═══════════════════════════════════════════════════════════════════════════
+  page-mode detector — must run synchronously BEFORE any other JS / paint.
+
+  Three modes:
+    - "landing"  — bare apex `/` or `/index.html`. Show minimal landing only.
+                   No event auto-join, no demo auto-play, no event shell.
+    - "demo"     — `/demo_ver{N}` paths (rewritten by middleware.ts to this
+                   HTML but URL bar preserved). Full mockup + auto-play
+                   runDemoFull. Also triggered by legacy `?demo=1` query.
+    - "event"    — `/e/:slug` real event rooms. Convex bootstrap takes over.
+
+  Why inline + early: prevents a flash of demo content on the bare apex.
+  Sets data-page-mode on body so CSS gates fire on first paint.
+  ═══════════════════════════════════════════════════════════════════════════
+-->
+<script>
+(function () {
+  try {
+    var path = location.pathname || '/';
+    var search = location.search || '';
+    var demoVerMatch = path.match(/^\/demo_ver(\d+)\/?$/);
+    var isLandingPath = (path === '/' || path === '/index.html');
+    var isEventPath   = /^\/e\/[a-z0-9][a-z0-9-]{0,60}\/?$/i.test(path);
+    var hasDemoQuery  = new URLSearchParams(search).get('demo') === '1';
+    var pageMode;
+    if (demoVerMatch || hasDemoQuery) {
+      pageMode = 'demo';
+    } else if (isEventPath) {
+      pageMode = 'event';
+    } else if (isLandingPath) {
+      pageMode = 'landing';
+    } else {
+      // Unknown path that landed here via catch-all rewrite — default to
+      // landing so we don't leak the demo shell.
+      pageMode = 'landing';
+    }
+    document.body.dataset.pageMode = pageMode;
+    if (demoVerMatch) {
+      document.body.dataset.demoVer = demoVerMatch[1];
+    }
+  } catch (e) {
+    // If detection throws, default to landing — safer than leaking demo.
+    try { document.body.dataset.pageMode = 'landing'; } catch (e2) {}
+  }
+})();
+
+/**
+ * _landingJoin — handler for the landing-mode "Join" form.
+ * Encodes the room code, navigates to /e/<code>. Empty input → focus.
+ */
+function _landingJoin(ev) {
+  try { ev.preventDefault(); } catch (e) {}
+  var form = ev && ev.target;
+  if (!form) return false;
+  var input = form.querySelector('input[type="text"]');
+  if (!input) return false;
+  var code = String(input.value || '').trim().toLowerCase();
+  if (!code) { try { input.focus(); } catch (e) {} return false; }
+  // Allow only [a-z0-9-]; trim leading/trailing dashes; cap 60 chars.
+  code = code.replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+  if (!code) { try { input.focus(); } catch (e) {} return false; }
+  location.href = '/e/' + encodeURIComponent(code);
+  return false;
+}
+</script>
+
+<!-- Landing-mode hero — visible only when data-page-mode === "landing" -->
+<section class="landing" role="region" aria-label="ScratchNode landing">
+  <div class="landing-hero">
+    <span class="landing-logo">Scratch<span>Node</span></span>
+    <h1>Live event Q&amp;A that compounds into a wiki.</h1>
+    <p>Anyone with a room code can join. Public chat, <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:1px 6px;border-radius:3px">/ask</code> for sourced answers, private notes that stay yours. After the event, knowledge persists.</p>
+    <form class="landing-join" onsubmit="return _landingJoin(event)" aria-label="Join an event by room code">
+      <input type="text" placeholder="Enter room code (e.g. ORBITAL)" aria-label="Room code" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button type="submit">Join &rarr;</button>
+    </form>
+    <div class="landing-cta-row">
+      <a href="/demo_ver1" class="landing-secondary">See the demo &rarr;</a>
+      <a href="/docs" class="landing-secondary">Read the docs &rarr;</a>
+    </div>
+  </div>
+  <div class="landing-trust" aria-label="Privacy posture">
+    <span>Consent-first.</span>
+    <span>Private by default.</span>
+    <span>No stealth overlays.</span>
+  </div>
+</section>
 
 <a class="skip-link" href="#feed">Skip to chat</a>
 
@@ -4861,12 +5100,16 @@ window._laCueAction       = _laCueAction;
 <script type="module">
 (async () => {
   // ─── Bail-early checks ─────────────────────────────────────────────
+  // Apex-landing refactor: bare `/` is now a marketing landing page, NOT
+  // an auto-join into the canonical event. Convex bootstrap only fires on
+  // explicit /e/:slug paths. The demo route /demo_ver{N} stays prototype-only
+  // (no live joinEvent call) so the demo never pollutes the canonical event's
+  // participant count.
   const slugMatch = location.pathname.match(/^\/e\/([a-z0-9][a-z0-9-]{0,60})\/?$/i);
-  const isCanonicalApex =
-    (location.pathname === '/' || location.pathname === '/index.html') &&
-    ON_PUBLIC_DOMAIN;
-  if (!slugMatch && !isCanonicalApex) return; // not an event URL — keep prototype-only behavior
-  const slug = slugMatch ? slugMatch[1] : EVENT_SLUG;
+  const pageMode = (document.body && document.body.dataset && document.body.dataset.pageMode) || '';
+  if (!slugMatch) return; // landing & demo modes stay prototype-only
+  if (pageMode === 'landing' || pageMode === 'demo') return; // belt-and-suspenders
+  const slug = slugMatch[1];
 
   // Stable anonymous session UUID — persists across reloads, per-device.
   let sessionId;
@@ -7685,10 +7928,18 @@ window._laCueAction       = _laCueAction;
   window.evaluateAgentOutputEnvelope = evaluateAgentOutputEnvelope;
   window.recordAgentOutputEnvelope = recordAgentOutputEnvelope;
 
-  // ?demo=1 URL auto-run for one-click presentations.
+  // Auto-run runDemoFull for one-click presentations. Triggers:
+  //   - /demo_ver{N} routes (rewritten by middleware.ts → home-v5.html with
+  //     URL bar preserved; we detect via location.pathname)
+  //   - Legacy `?demo=1` query (preserved for shareable demo links and
+  //     backwards compatibility with prior PRs).
+  // Does NOT fire on bare apex `/` or `/index.html` — that's the landing
+  // mode and the whole point of this refactor is no demo content there.
   try {
     var params = new URLSearchParams(location.search);
-    if (params.get('demo') === '1') {
+    var demoVerMatch = location.pathname.match(/^\/demo_ver(\d+)\/?$/);
+    var isDemoRoute = !!demoVerMatch || params.get('demo') === '1';
+    if (isDemoRoute) {
       var speed = params.get('demoSpeed') || 'normal';
       // Defer until after DOMContentLoaded + small delay so live Convex bootstrap can settle.
       var kickoff = function() { setTimeout(function() { runDemoFull({ speed: speed }); }, 600); };
