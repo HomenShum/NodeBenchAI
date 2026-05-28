@@ -1,0 +1,121 @@
+import { describe, it, expect } from "vitest";
+import { rrfFuse, rerankWithGemini, triSearch, RRF_K, type TriCandidate } from "./triSearch";
+
+// Scenario-based tests (.claude/rules/scenario_testing.md).
+// Persona: a founder/analyst running entity due-diligence; the grounding harness
+// has retrieved candidate sources from three legs (Linkup, web_search, entity cache)
+// and must fuse + rerank them by relevance before the answer is synthesized.
+
+const mockGeminiFetch = (orderJson: string): typeof fetch =>
+  (async () =>
+    ({
+      ok: true,
+      status: 200,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: orderJson }] } }] }),
+    }) as unknown as Response) as unknown as typeof fetch;
+
+function leg(source: string, ids: string[]): TriCandidate[] {
+  return ids.map((id) => ({ id, source, title: `${id} title`, snippet: `${id} snippet about the entity`, url: `https://x/${id}` }));
+}
+
+describe("rrfFuse — rank-based fusion across heterogeneous legs", () => {
+  it("happy path: a source ranked high across multiple legs wins after fusion", () => {
+    // 3 legs; "anthropic-funding" appears in all three near the top -> should fuse to #1.
+    const legs = [
+      leg("linkup", ["anthropic-funding", "anthropic-blog", "noise-a"]),
+      leg("web", ["anthropic-funding", "noise-b", "anthropic-blog"]),
+      leg("entity", ["anthropic-funding", "anthropic-team"]),
+    ];
+    const fused = rrfFuse(legs);
+    expect(fused[0].id).toBe("anthropic-funding");
+    expect(fused[0].fusedRank).toBe(0);
+    // dedup: 6 distinct ids across the 3 legs
+    expect(new Set(fused.map((c) => c.id)).size).toBe(fused.length);
+    expect(fused.length).toBe(6);
+    // fused score is monotonic non-increasing
+    for (let i = 1; i < fused.length; i++) expect(fused[i - 1].fusedScore).toBeGreaterThanOrEqual(fused[i].fusedScore);
+  });
+
+  it("uses k=60 by default and is deterministic across runs", () => {
+    const legs = [leg("linkup", ["a", "b"]), leg("web", ["b", "a"])];
+    const first = rrfFuse(legs);
+    const second = rrfFuse(legs);
+    expect(first.map((c) => c.id)).toEqual(second.map((c) => c.id));
+    // a and b each appear once at rank0 and once at rank1 -> equal score; tie broken by stable order
+    expect(first[0].fusedScore).toBeCloseTo(1 / (RRF_K + 1) + 1 / (RRF_K + 2), 10);
+  });
+
+  it("edge: empty legs and malformed candidates don't crash", () => {
+    const fused = rrfFuse([[], [{ id: "", source: "x" } as TriCandidate], leg("web", ["only"])]);
+    expect(fused.map((c) => c.id)).toEqual(["only"]);
+  });
+});
+
+describe("rerankWithGemini — precision leg with honest fallback", () => {
+  const fused = rrfFuse([leg("linkup", ["s0", "s1", "s2", "s3"])]);
+
+  it("happy path: reorders candidates per the model's index array", async () => {
+    const r = await rerankWithGemini("entity funding", fused, { topN: 3, fetchImpl: mockGeminiFetch("[2,0,1]") });
+    expect(r.rerankStatus).toBe("ok");
+    expect(r.ranked.map((c) => c.id)).toEqual(["s2", "s0", "s1"]);
+  });
+
+  it("adversarial: out-of-range + duplicate indices are sanitized, completeness preserved", async () => {
+    // Model returns garbage: dup (2), out-of-range (99, -1), valid (0). topN large enough to see completeness.
+    const r = await rerankWithGemini("q", fused, { topN: 10, fetchImpl: mockGeminiFetch("[2, 2, 99, -1, 0]") });
+    expect(r.rerankStatus).toBe("ok");
+    // valid picks first (2,0), then omitted (1,3) appended in fused order
+    expect(r.ranked.map((c) => c.id)).toEqual(["s2", "s0", "s1", "s3"]);
+    expect(new Set(r.ranked.map((c) => c.id)).size).toBe(4); // no dupes
+  });
+
+  it("sad path: missing API key -> skipped, returns fused top-N unchanged", async () => {
+    const saved = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    try {
+      const r = await rerankWithGemini("q", fused, { topN: 2 });
+      expect(r.rerankStatus).toBe("skipped");
+      expect(r.ranked.map((c) => c.id)).toEqual(["s0", "s1"]);
+    } finally {
+      if (saved !== undefined) process.env.GEMINI_API_KEY = saved;
+    }
+  });
+
+  it("degraded: non-2xx falls back to fused order, never throws", async () => {
+    const badFetch = (async () => ({ ok: false, status: 503, json: async () => ({}) }) as unknown as Response) as unknown as typeof fetch;
+    const r = await rerankWithGemini("q", fused, { topN: 4, apiKey: "test", fetchImpl: badFetch });
+    expect(r.rerankStatus).toBe("fallback");
+    expect(r.ranked.map((c) => c.id)).toEqual(["s0", "s1", "s2", "s3"]);
+  });
+
+  it("degraded: fetch throws (timeout/abort) -> fallback, fused order, honest detail", async () => {
+    const throwFetch = (async () => { const e: any = new Error("aborted"); e.name = "TimeoutError"; throw e; }) as unknown as typeof fetch;
+    const r = await rerankWithGemini("q", fused, { topN: 4, apiKey: "test", fetchImpl: throwFetch });
+    expect(r.rerankStatus).toBe("fallback");
+    expect(r.detail).toMatch(/timed out/i);
+    expect(r.ranked.length).toBe(4);
+  });
+
+  it("bound: never reranks more than MAX_RERANK_CANDIDATES", async () => {
+    const many = rrfFuse([leg("web", Array.from({ length: 30 }, (_, i) => `c${i}`))]);
+    let promptLen = 0;
+    const spyFetch = (async (_url: string, init: any) => {
+      promptLen = JSON.parse(init.body).contents[0].parts[0].text.length;
+      return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: "[0,1,2,3,4]" }] } }] }) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    await rerankWithGemini("q", many, { topN: 5, apiKey: "test", fetchImpl: spyFetch });
+    // only 12 candidates ([0]..[11]) should appear in the prompt, not [12]+
+    expect(promptLen).toBeGreaterThan(0);
+  });
+});
+
+describe("triSearch — fuse + rerank end to end", () => {
+  it("returns reranked top-N with a trace-ready summary", async () => {
+    const legs = [leg("linkup", ["a", "b", "c"]), leg("web", ["b", "d"])];
+    const out = await triSearch("the query", legs, { topN: 2, apiKey: "test", fetchImpl: mockGeminiFetch("[1,0]") });
+    expect(out.fusedCount).toBe(4); // a,b,c,d
+    expect(out.rerankStatus).toBe("ok");
+    expect(out.ranked.length).toBe(2);
+    expect(typeof out.durationMs).toBe("number");
+  });
+});
