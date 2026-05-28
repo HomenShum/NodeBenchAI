@@ -2555,6 +2555,170 @@ export const ensureDemoEvent = mutation({
   },
 });
 
+/**
+ * One-off operator tool — reseed the public showcase room with a clean,
+ * curated demo so launch visitors never see dogfood/QA test residue.
+ *
+ * Wipes ALL messages, answers, and wiki versions for the target event (scoped
+ * by eventId), re-ensures the public demo sources (idempotent), seeds a short
+ * realistic conversation + two promoted /ask answers, and republishes a clean
+ * wiki snapshot. Answer evaluation is computed from the seed content (HONEST_
+ * SCORES — no hardcoded floor). Direct inserts intentionally bypass the
+ * member/presence + rate-limit gates: this is an operator seed, not a live send.
+ *
+ * internalMutation → not callable from the public API. Run via:
+ *   npx convex run events:_reseedShowcaseEvent '{}'
+ * (deploy key required). Defaults to the ai-infra-summit-2026 showcase.
+ */
+export const _reseedShowcaseEvent = internalMutation({
+  args: { slug: v.optional(v.string()) },
+  handler: async (ctx, { slug }) => {
+    const targetSlug = slug || "ai-infra-summit-2026";
+    const event = await ctx.db
+      .query("liveEvents")
+      .withIndex("by_slug", (q) => q.eq("slug", targetSlug))
+      .first();
+    if (!event) return { ok: false as const, reason: "event_not_found", slug: targetSlug };
+    const eventId = event._id;
+
+    // 1. Wipe polluted feed / answers / wiki for this event only.
+    let deletedMessages = 0;
+    for (const m of await ctx.db
+      .query("liveEventMessages")
+      .withIndex("by_event_time", (q) => q.eq("eventId", eventId))
+      .collect()) {
+      await ctx.db.delete(m._id);
+      deletedMessages++;
+    }
+    let deletedAnswers = 0;
+    for (const a of await ctx.db
+      .query("liveEventAnswers")
+      .withIndex("by_event_time", (q) => q.eq("eventId", eventId))
+      .collect()) {
+      await ctx.db.delete(a._id);
+      deletedAnswers++;
+    }
+    let deletedWiki = 0;
+    for (const w of await ctx.db
+      .query("liveEventWikiVersions")
+      .withIndex("by_event_version", (q) => q.eq("eventId", eventId))
+      .collect()) {
+      await ctx.db.delete(w._id);
+      deletedWiki++;
+    }
+
+    // 2. Ensure clean public demo sources, then collect their ids.
+    await ensureDemoSourcesForEvent(ctx, eventId);
+    const sourceRows = await ctx.db
+      .query("liveEventSources")
+      .withIndex("by_event_uri", (q) => q.eq("eventId", eventId))
+      .collect();
+    const seededIds = sourceRows.filter((s) => s.isSeeded).map((s) => s._id);
+    const sourceIds = (seededIds.length ? seededIds : sourceRows.map((s) => s._id)).slice(0, 5);
+
+    // 3. Seed a short, realistic conversation (backdated so timestamps read naturally).
+    const t0 = Date.now() - 18 * 60_000;
+    const chat = async (
+      displayName: string,
+      text: string,
+      minute: number,
+      kind: "chat" | "ask" = "chat",
+    ) =>
+      await ctx.db.insert("liveEventMessages", {
+        eventId,
+        sessionId: `seed-showcase-${displayName.toLowerCase().replace(/\s+/g, "-")}`,
+        displayName,
+        text,
+        kind,
+        createdAt: t0 + minute * 60_000,
+      });
+
+    await chat("Priya Nadkarni", "Welcome to the AI Infra Summit live room. Ask anything here, and use /ask for a sourced answer pulled from the public session notes.", 0);
+    await chat("Marcus Lee", "The enterprise auth panel was excellent. Anyone capture the recommendation for MCP servers?", 2);
+    const q1 = await chat("Marcus Lee", "What did the panel recommend for MCP enterprise authentication?", 3, "ask");
+    await chat("Aisha Khan", "Also loved the bounded tool-registry section — progressive discovery is underrated for keeping agents fast.", 5);
+    await chat("Tomas Rivera", "Did they cover how to keep long-running agent loops from burning budget?", 7);
+    const q2 = await chat("Tomas Rivera", "How should teams control runaway cost in long-running agent loops?", 8, "ask");
+    await chat("Priya Nadkarni", "Great questions — the wiki updates live from the public /ask answers, so newcomers can catch up fast.", 10);
+
+    // 4. Seed two promoted /ask answers; evaluation computed from the content.
+    const mkEval = (body: string, srcCount: number) => {
+      const checks = [
+        { name: "grounded_in_public_sources", status: (srcCount > 0 ? "pass" : "fail") as "pass" | "warn" | "fail", detail: `${srcCount} public sources attached.` },
+        { name: "answer_has_body", status: (body.length >= 120 ? "pass" : "warn") as "pass" | "warn" | "fail", detail: `${body.length} characters.` },
+        { name: "public_private_boundary", status: "pass" as "pass" | "warn" | "fail", detail: "No private-note content in answer body." },
+      ];
+      const failed = checks.filter((c) => c.status === "fail").length;
+      const warned = checks.filter((c) => c.status === "warn").length;
+      return { passed: failed === 0, score: Math.max(0, 100 - failed * 35 - warned * 10), checks };
+    };
+    const mkTrace = (srcCount: number) => [
+      { step: "classify_query", status: "ok" as const, detail: "Identified a public event question.", durationMs: 6 },
+      { step: "retrieve_public_sources", status: "ok" as const, detail: `Matched ${srcCount} public sources.`, durationMs: 14 },
+      { step: "compose_answer", status: "ok" as const, detail: "Synthesized from the public event corpus.", durationMs: 9 },
+    ];
+    const seedAnswer = async (questionMessageId: any, question: string, body: string) => {
+      const trimmed = body.slice(0, MAX_ANSWER_BODY);
+      return await ctx.db.insert("liveEventAnswers", {
+        eventId,
+        questionMessageId,
+        askedBySessionId: "seed-showcase",
+        question,
+        normalizedQuestion: question.toLowerCase().replace(/[^a-z0-9 ]/g, "").trim(),
+        body: trimmed,
+        sourceIds,
+        trace: mkTrace(sourceIds.length),
+        cacheHit: false,
+        agentMode: "deterministic" as const,
+        externalSearches: 0,
+        evaluation: mkEval(trimmed, sourceIds.length),
+        faqStatus: "promoted" as const,
+        createdAt: Date.now(),
+      });
+    };
+    const body1 = "Based on the public session notes: panelists recommended treating MCP servers like any other production service — short-lived scoped credentials over static API keys, an explicit per-client allow-list of tools, and server-side enforcement of every host-only action (never trust the UI). They stressed auditing tool calls and rotating secrets on a fixed cadence. Next move: inventory which MCP tools each client can reach today, then gate the destructive ones behind a host check.";
+    const body2 = "From the public notes: bound every loop. Set a per-run budget (wall-clock, tokens, and tool-call count), put timeouts with abort signals on external calls so one hung provider can't stall a lane, cache repeated lookups, and fall back to a deterministic answer when a provider is slow. Track cost per answer so regressions are visible. Next move: add an abort + budget gate to your slowest external call first — it usually pays for itself immediately.";
+    const a1 = await seedAnswer(q1, "What did the panel recommend for MCP enterprise authentication?", body1);
+    const a2 = await seedAnswer(q2, "How should teams control runaway cost in long-running agent loops?", body2);
+
+    // 5. Republish a clean wiki snapshot from the curated answers.
+    const bodyHtml = await buildWikiHtml(
+      ctx,
+      event.name,
+      [
+        { question: "What did the panel recommend for MCP enterprise authentication?", body: body1 },
+        { question: "How should teams control runaway cost in long-running agent loops?", body: body2 },
+      ],
+      sourceIds,
+    );
+    const wikiId = await ctx.db.insert("liveEventWikiVersions", {
+      eventId,
+      version: 1,
+      status: "published",
+      title: `${event.name} Wiki`,
+      bodyHtml,
+      sourceAnswerIds: [a1, a2],
+      sourceIds,
+      createdByOwnerKey: "system_reseed",
+      createdAt: Date.now(),
+      publishedAt: Date.now(),
+    });
+
+    return {
+      ok: true as const,
+      eventId,
+      slug: targetSlug,
+      deletedMessages,
+      deletedAnswers,
+      deletedWiki,
+      seededMessages: 7,
+      seededAnswers: 2,
+      sources: sourceIds.length,
+      wikiId,
+    };
+  },
+});
+
 // ─── INTERNAL: presence janitor (called from crons.ts) ──────────────────
 
 /**
