@@ -281,3 +281,24 @@ export const liveEventNoteAnchors = defineTable({
 })
   .index("by_owner_event", ["ownerKey", "eventId"])
   .index("by_note", ["noteId"]);
+
+// scratchnodeRateLimits — DB-backed fixed-window rate-limit counters for the
+// public ScratchNode mutations (join / send / hostclaim / signin). WHY A TABLE
+// AND NOT AN IN-MEMORY MAP: Convex mutations run in V8 isolates that do NOT
+// share memory and get recycled between calls, so an in-memory counter would
+// reset to 0 on every cold isolate — a HONEST_SCORES violation (the limiter
+// would report "allowed" while counting nothing). A counter ROW under Convex
+// OCC serializability is exact even under a concurrent burst: a range-read that
+// finds no row is in the txn read set, so a competing insert into the same
+// (key, windowStart) range invalidates it → retry → re-read → patch.
+//   - BOUND: janitor sweeps expired rows via by_expiresAt, ≤500/run.
+//   - DETERMINISTIC: windowStart = floor(now / windowMs) * windowMs.
+// See convex/scratchnodeRateLimit.ts for the enforcement + eviction logic.
+export const scratchnodeRateLimits = defineTable({
+  key: v.string(),            // "<action>:<identity>" — e.g. "send:<sessionId>"
+  windowStart: v.number(),    // floor(now / windowMs) * windowMs
+  count: v.number(),
+  expiresAt: v.number(),      // windowStart + windowMs — janitor sweep key
+})
+  .index("by_key_window", ["key", "windowStart"])
+  .index("by_expiresAt", ["expiresAt"]);

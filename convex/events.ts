@@ -29,6 +29,7 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, query, mutation, internalMutation, internalQuery } from "./_generated/server";
+import { enforceRateLimit } from "./scratchnodeRateLimit";
 
 class ConvexError<T extends Record<string, unknown>> extends Error {
   data: T;
@@ -1476,6 +1477,14 @@ export const joinEvent = mutation({
     const safeName = (displayName || "Anonymous Guest").slice(0, MAX_DISPLAY_NAME).trim()
       || "Anonymous Guest";
 
+    // Rate-limit joins per session: a join can auto-seed an event + insert a
+    // member row. 20 per minute absorbs reconnect churn but caps a join-storm.
+    await enforceRateLimit(ctx, {
+      key: `join:${sessionId}`,
+      limit: 20,
+      windowMs: 60_000,
+    });
+
     let event = await ctx.db
       .query("liveEvents")
       .withIndex("by_slug", (q) => q.eq("slug", slug))
@@ -1563,6 +1572,14 @@ export const sendMessage = mutation({
         message: "Must join the event before sending.",
       });
     }
+
+    // Rate-limit sends per session: 30/min ≈ one message every 2s sustained,
+    // comfortably above human typing cadence but caps spam/flood bursts.
+    await enforceRateLimit(ctx, {
+      key: `send:${args.sessionId}`,
+      limit: 30,
+      windowMs: 60_000,
+    });
 
     const event = await ctx.db.get(args.eventId);
     if (!event) {
@@ -2078,6 +2095,14 @@ export const requestHostClaim = mutation({
   handler: async (ctx, { eventId, requesterSessionId, existingOwnerKey, deliverToEmail }) => {
     // Membership gate — same shape as composeAnswer / suggestAnswerForFaq.
     await requireMember(ctx, eventId, requesterSessionId);
+    // Rate-limit host-claim requests per session: each generates a claim code
+    // (and may schedule a delivery email). 5 per 10 min stops claim-code
+    // grinding while leaving room for a host who fat-fingers the flow.
+    await enforceRateLimit(ctx, {
+      key: `hostclaim:${requesterSessionId}`,
+      limit: 5,
+      windowMs: 600_000,
+    });
     const event = await ctx.db.get(eventId);
     if (!event) {
       throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });

@@ -36,6 +36,7 @@ import {
   liveEventHosts,
   liveEventWikiVersions,
   liveEventNoteAnchors,
+  scratchnodeRateLimits,
 } from "./schema/eventsSchema";
 
 // Proactive system schema imports
@@ -4899,6 +4900,7 @@ export default defineSchema({
   liveEventHosts,
   liveEventWikiVersions,
   liveEventNoteAnchors,
+  scratchnodeRateLimits,
   // Step 8: persistent user identity + magic-link sign-in tokens.
   // Aliased to scratchnodeUsers to avoid collision with @convex-dev/auth `users`.
   scratchnodeUsers,

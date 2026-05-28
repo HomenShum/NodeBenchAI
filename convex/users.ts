@@ -54,6 +54,7 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction, mutation, query } from "./_generated/server";
+import { enforceRateLimit } from "./scratchnodeRateLimit";
 
 class ConvexError<T extends Record<string, unknown>> extends Error {
   data: T;
@@ -368,6 +369,15 @@ export const requestSignInLink = mutation({
       });
     }
     const normalized = normalizeEmail(email);
+
+    // Rate-limit per normalized email: each call schedules an external email
+    // (cost burn + victim inbox flood + sender-reputation hit). 5 per 10 min.
+    // Keyed by email (not sessionId) so a fresh-session attacker can't bypass.
+    await enforceRateLimit(ctx, {
+      key: `signin:${normalized}`,
+      limit: 5,
+      windowMs: 600_000,
+    });
 
     const token = generateSignInToken();
     const tokenHash = await hashSignInToken(normalized, token);
