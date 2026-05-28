@@ -576,6 +576,19 @@ describe("createEvent - host-created rooms are real Convex rooms", () => {
       roomCode: "SOURCE2",
       status: "live",
     });
+    const joinedByUpdatedRoomCode = await (joinEvent as any)._handler(ctx, {
+      slug: "source2",
+      sessionId: ANONYMOUS_SESSION_B,
+      displayName: "Guest",
+    });
+    expect(joinedByUpdatedRoomCode.eventId).toBe(created.eventId);
+    await expect(
+      (joinEvent as any)._handler(ctx, {
+        slug: "source1",
+        sessionId: "sess_other_guest_123",
+        displayName: "Other Guest",
+      }),
+    ).rejects.toThrow(/event_not_found|not found|No such event slug/);
 
     const source = await (upsertEventSource as any)._handler(ctx, {
       eventId: created.eventId,
@@ -616,6 +629,13 @@ describe("createEvent - host-created rooms are real Convex rooms", () => {
         kind: "chat",
       }),
     ).rejects.toThrow(/event_ended|ended/);
+    await expect(
+      (updateEvent as any)._handler(ctx, {
+        eventId: created.eventId,
+        ownerKey: created.ownerKey,
+        status: "live",
+      }),
+    ).rejects.toThrow(/event_ended|reopened|ended/);
   });
 
   it("attendee cannot spoof system messages", async () => {
@@ -636,6 +656,41 @@ describe("createEvent - host-created rooms are real Convex rooms", () => {
       }),
     ).rejects.toThrow(/not_host|Host ownership/);
     expect(tables.liveEventMessages).toHaveLength(0);
+  });
+
+  it("rate-limits anonymous self-serve event creation", async () => {
+    process.env.CONVEX_DEPLOYMENT = "dev:test";
+    const tables: Tables = {
+      liveEvents: [],
+      liveEventMembers: [],
+      liveEventHosts: [],
+      liveEventSources: [],
+      scratchnodeRateLimits: [],
+    };
+    const ctx = createCtx(tables);
+
+    for (let i = 0; i < 5; i += 1) {
+      await (createEvent as any)._handler(ctx, {
+        title: `Launch QA Room ${i}`,
+        sessionId: ANONYMOUS_SESSION_A,
+        displayName: "Host",
+        status: "live",
+      });
+    }
+
+    await expect(
+      (createEvent as any)._handler(ctx, {
+        title: "Launch QA Room Overflow",
+        sessionId: ANONYMOUS_SESSION_A,
+        displayName: "Host",
+        status: "live",
+      }),
+    ).rejects.toThrow(/Too many requests|rate_limited/);
+    expect(tables.liveEvents).toHaveLength(5);
+    const createLimit = tables.scratchnodeRateLimits.find(
+      (row: any) => row.key === `create:${ANONYMOUS_SESSION_A}`,
+    );
+    expect(createLimit?.count).toBe(5);
   });
 });
 

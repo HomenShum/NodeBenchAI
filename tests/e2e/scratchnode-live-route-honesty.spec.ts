@@ -71,12 +71,42 @@ async function fulfillScratchNodePage(
                 ownerKey: 'hk1:liveEvents:new:nonce:1770000000000:abcdefabcdefabcdefabcdefabcdef12',
               });
             }
+            if (name === 'events:updateEvent') {
+              window.__snUpdatedEventArgs = args;
+              localStorage.setItem('__snUpdatedEventArgs', JSON.stringify(args));
+              return Promise.resolve({
+                ok: true,
+                eventId: args.eventId,
+                slug: 'ai-infra-summit-2026',
+                name: args.title,
+                roomCode: args.roomCode,
+                status: args.status || 'live',
+              });
+            }
+            if (name === 'events:upsertEventSource') {
+              window.__snUpsertedSourceArgs = args;
+              localStorage.setItem('__snUpsertedSourceArgs', JSON.stringify(args));
+              return Promise.resolve({ ok: true, sourceId: 'liveEventSources:qa', created: true });
+            }
+            if (name === 'events:deleteEventSource') {
+              window.__snDeletedSourceArgs = args;
+              localStorage.setItem('__snDeletedSourceArgs', JSON.stringify(args));
+              return Promise.resolve({ ok: true, sourceId: args.sourceId });
+            }
+            if (name === 'events:endEvent') {
+              window.__snEndedEventArgs = args;
+              localStorage.setItem('__snEndedEventArgs', JSON.stringify(args));
+              return Promise.resolve({ ok: true, eventId: args.eventId, status: 'ended' });
+            }
             return Promise.resolve({});
           }
           query(name) {
             if (name === 'events:getMyEvents') return Promise.resolve({ joined: [], hosted: [] });
             if (name === 'events:getPublishedWiki') return Promise.resolve(null);
-            if (name === 'events:getHostStatus') return Promise.resolve({ isHost: false });
+            if (name === 'events:getHostStatus') {
+              const token = localStorage.getItem('sn_host_owner_key_v2');
+              return Promise.resolve(token ? { isHost: true, role: 'owner', displayName: 'Mock Host' } : { isHost: false });
+            }
             return Promise.resolve([]);
           }
           action() { return Promise.resolve(null); }
@@ -186,9 +216,12 @@ test.describe("ScratchNode live route honesty", () => {
     await page.evaluate(() => (window as any).openSheet("host"));
     await expect(page.locator("#sheet-title")).toContainText("Host console");
     await expect(page.locator("#sn-create-event-btn")).toBeEnabled();
-    await page.fill("#sheet-host-title", "Launch Room");
-    await page.fill("#sheet-host-room-code", "LAUNCH");
-    await page.fill("#sheet-host-agenda", "Public starter source for launch.");
+    await page.evaluate(() => {
+      (document.getElementById("sheet-host-title") as HTMLInputElement).value = "Launch Room";
+      (document.getElementById("sheet-host-room-code") as HTMLInputElement).value = "LAUNCH";
+      (document.getElementById("sheet-host-agenda") as HTMLTextAreaElement).value = "Public starter source for launch.";
+    });
+    await expect(page.locator("#sheet-host-room-code")).toHaveValue("LAUNCH");
     await page.click("#sn-create-event-btn");
 
     await expect
@@ -203,5 +236,58 @@ test.describe("ScratchNode live route honesty", () => {
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem("sn_host_owner_key_v2")))
       .toContain("hk1:");
+  });
+
+  test("verified host can manage room metadata, public sources, and end session", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    page.on("dialog", (dialog) => dialog.accept());
+    await page.addInitScript(() => {
+      localStorage.setItem("sn_host_owner_key_v2", "hk1:liveEvents:1:nonce:1770000000000:abcdefabcdefabcdefabcdefabcdef12");
+    });
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+    await expect.poll(() => page.evaluate(() => document.body.getAttribute("data-role")), { timeout: 5_000 }).toBe("host");
+    await expect.poll(() => page.evaluate(() => (window as any)._sn_live?.hostVerified === true), { timeout: 5_000 }).toBe(true);
+    await page.evaluate(() => (window as any).openSheet("host"));
+
+    await expect(page.locator("#sheet-content")).toContainText("Manage this live room");
+    await expect(page.locator("#sheet-content")).toContainText("Public source context");
+    await page.fill("#sheet-host-update-title", "Launch QA Room");
+    await page.fill("#sheet-host-update-room-code", "QA-ROOM");
+    await page.click("#sn-update-event-btn");
+    await expect
+      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("__snUpdatedEventArgs") || "{}")), { timeout: 5_000 })
+      .toMatchObject({ title: "Launch QA Room", roomCode: "QA-ROOM" });
+    await expect
+      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("__snUpdatedEventArgs") || "{}").status ?? null), { timeout: 5_000 })
+      .toBeNull();
+    await expect(page.locator("#sn-manage-event-output")).toContainText("Saved room QA-ROOM");
+
+    await page.fill("#sheet-host-source-title", "Launch source");
+    await page.fill("#sheet-host-source-uri", "doc://launch/source");
+    await page.fill("#sheet-host-source-body", "This is public launch source context for the event ask runtime and wiki.");
+    await page.click("#sn-save-source-btn");
+    await expect
+      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("__snUpsertedSourceArgs") || "{}")), { timeout: 5_000 })
+      .toMatchObject({
+        title: "Launch source",
+        uri: "doc://launch/source",
+        kind: "doc",
+      });
+    await expect(page.locator("#sn-source-output")).toContainText("Saved public source");
+
+    await page.click("#sn-delete-source-btn");
+    await expect
+      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("__snDeletedSourceArgs") || "{}")), { timeout: 5_000 })
+      .toMatchObject({ sourceId: "liveEventSources:qa" });
+    await expect(page.locator("#sn-source-output")).toContainText("Deleted the last source");
+
+    await page.click("#sn-end-event-btn");
+    await expect
+      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("__snEndedEventArgs") || "{}")), { timeout: 5_000 })
+      .toMatchObject({ eventId: "liveEvents:1" });
+    await expect(page.locator("#sn-manage-event-output")).toContainText("Session ended");
+    await expect(page.locator("#ev-mode-label")).toContainText("ended");
   });
 });

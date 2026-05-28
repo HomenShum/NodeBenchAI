@@ -690,6 +690,18 @@ body[data-new-user="true"] .h-menu::after {
 .sheet-block + .sheet-block { margin-top: 4px; }
 .sheet-block-title { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-muted); margin-bottom: 8px; }
 .sheet-divider { height: 1px; background: var(--line); margin: 14px 0; }
+.host-console-grid { display: grid; gap: 12px; }
+.host-console-grid + .host-console-grid { margin-top: 12px; }
+.host-status-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-sm); background: rgba(255,255,255,.025); font-size: 12px; color: var(--ink-muted); }
+.host-status-line b { color: var(--ink); font-weight: 650; }
+.host-status-line code { font-family: var(--mono); color: var(--accent); }
+.host-action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sheet-button.danger { background: rgba(185,78,68,.12); border: 1px solid rgba(185,78,68,.45); color: #f4b3aa; }
+.sheet-button.danger:hover { background: rgba(185,78,68,.18); border-color: rgba(185,78,68,.7); }
+@media (max-width: 520px) {
+  .host-action-row { grid-template-columns: 1fr; }
+  .host-status-line { align-items: flex-start; flex-direction: column; }
+}
 .sn-rotate-output { padding: 10px 12px; border: 1px solid rgba(217,119,87,.25); border-radius: var(--r-sm); background: rgba(217,119,87,.05); font-family: var(--mono); font-size: 12px; color: var(--ink); word-break: break-all; }
 .sn-rotate-output .sn-rotate-code { display: block; margin-bottom: 6px; font-size: 13px; letter-spacing: .04em; color: var(--accent); }
 .sn-rotate-output .sn-rotate-hint { display: block; font-size: 10px; color: var(--ink-faint); font-family: var(--ui); margin-top: 6px; }
@@ -3247,8 +3259,8 @@ var SHEET_RENDERERS = {
   },
 
   host: function() {
-    // Two parallel paths, plus an optional host-only rotation panel.
-    // Path 1: Create a brand-new event (demo-only — toast & close).
+    // Two public paths, plus host-only management once a real token verifies.
+    // Path 1: Create a brand-new Convex-backed event.
     // Path 2: Claim host on THIS event by typing a one-time code from
     //         another device. Calls events:claimHostWithCode.
     // Path 3 (host-only): Mint a new claim code to migrate to a fresh
@@ -3257,9 +3269,39 @@ var SHEET_RENDERERS = {
     //         existingOwnerKey, then renders the plaintext code.
     var isRealAuthHost =
       document.body.getAttribute('data-role') === 'host' &&
-      !!localStorage.getItem('sn_host_owner_key_v2');
+      !!(window._sn_live && window._sn_live.hostVerified && window._sn_live.hostOwnerKey);
+    var managementPanel = '';
     var rotationPanel = '';
     if (isRealAuthHost) {
+      managementPanel =
+        '<div class="sheet-divider" role="separator" aria-hidden="true"></div>' +
+        '<section class="sheet-block" role="region" aria-label="Manage live event">' +
+        '<div class="sheet-block-title">Manage this live room</div>' +
+        '<div class="host-console-grid">' +
+        '<div class="host-status-line"><span><b>' + escapeHtml(EVENT_TITLE) + '</b></span><code>' + escapeHtml(EVENT_ROOM_CODE) + '</code></div>' +
+        '<div class="sheet-field"><label class="sheet-label" for="sheet-host-update-title">Event title</label>' +
+        '<input id="sheet-host-update-title" class="sheet-input" type="text" value="' + escapeHtml(EVENT_TITLE) + '" /></div>' +
+        '<div class="sheet-field"><label class="sheet-label" for="sheet-host-update-room-code">Room code</label>' +
+        '<input id="sheet-host-update-room-code" class="sheet-input" type="text" value="' + escapeHtml(EVENT_ROOM_CODE) + '" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" /></div>' +
+        '<div class="host-action-row"><button type="button" class="sheet-button ghost" id="sn-update-event-btn" onclick="window.snUpdateEventFromHostSheet && window.snUpdateEventFromHostSheet()">Save room details</button>' +
+        '<button type="button" class="sheet-button danger" id="sn-end-event-btn" onclick="window.snEndEventFromHostSheet && window.snEndEventFromHostSheet()">End session</button></div>' +
+        '</div>' +
+        '<div id="sn-manage-event-output" class="sn-rotate-output" role="status" aria-live="polite" style="margin-top:10px;display:none"></div>' +
+        '</section>' +
+        '<div class="sheet-divider" role="separator" aria-hidden="true"></div>' +
+        '<section class="sheet-block" role="region" aria-label="Manage public sources">' +
+        '<div class="sheet-block-title">Public source context</div>' +
+        '<p class="sheet-sub" style="margin-bottom:10px">Add bounded public context for /ask. Private notes are never copied here.</p>' +
+        '<div class="sheet-field"><label class="sheet-label" for="sheet-host-source-title">Source title</label>' +
+        '<input id="sheet-host-source-title" class="sheet-input" type="text" placeholder="Agenda, transcript, speaker notes" /></div>' +
+        '<div class="sheet-field"><label class="sheet-label" for="sheet-host-source-uri">Source URI <span style="color:var(--ink-faint);font-weight:400">(optional)</span></label>' +
+        '<input id="sheet-host-source-uri" class="sheet-input" type="text" placeholder="https://... or doc://..." inputmode="url" /></div>' +
+        '<div class="sheet-field"><label class="sheet-label" for="sheet-host-source-body">Public source body</label>' +
+        '<textarea id="sheet-host-source-body" class="sheet-input" rows="4" placeholder="Paste public source text the room agent may cite."></textarea></div>' +
+        '<div class="host-action-row"><button type="button" class="sheet-button" id="sn-save-source-btn" onclick="window.snUpsertEventSourceFromHostSheet && window.snUpsertEventSourceFromHostSheet()">Save public source</button>' +
+        '<button type="button" class="sheet-button ghost" id="sn-delete-source-btn" onclick="window.snDeleteLastEventSource && window.snDeleteLastEventSource()">Delete last saved source</button></div>' +
+        '<div id="sn-source-output" class="sn-rotate-output" role="status" aria-live="polite" style="margin-top:10px;display:none"></div>' +
+        '</section>';
       rotationPanel =
         '<div class="sheet-divider" role="separator" aria-hidden="true"></div>' +
         '<section class="sheet-block" role="region" aria-label="Rotate host to a new device">' +
@@ -3271,6 +3313,7 @@ var SHEET_RENDERERS = {
     }
     return '<div class="sheet-head"><h2 id="sheet-title">Host console</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
       '<p class="sheet-sub">Claim host on this event with a code, publish the wiki, or rotate your host token to another device.</p>' +
+      managementPanel +
       // ── Section A: create a real Convex-backed live event ─────────
       '<section class="sheet-block" role="region" aria-label="Create a new event">' +
       '<div class="sheet-block-title">Create a new event</div>' +
@@ -3280,10 +3323,7 @@ var SHEET_RENDERERS = {
       '<input id="sheet-host-room-code" class="sheet-input" type="text" placeholder="e.g. Q4OFFSITE" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" /></div>' +
       '<div class="sheet-field"><label class="sheet-label" for="sheet-host-agenda">Starter context <span style="color:var(--ink-faint);font-weight:400">(optional, public)</span></label>' +
       '<textarea id="sheet-host-agenda" class="sheet-input" rows="3" placeholder="Agenda, speakers, source notes, or what attendees should ask about. Public /ask can use this."></textarea></div>' +
-      '<div class="sheet-field"><label class="sheet-label">Template</label>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px"><button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#127908;</span><span style="font-size:11px">Conference</span></button>' +
-      '<button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#128295;</span><span style="font-size:11px">Workshop</span></button>' +
-      '<button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#9749;</span><span style="font-size:11px">Office hrs</span></button></div></div>' +
+      '<div class="host-status-line"><span>Creates a live room, joins you as host, and seeds one public source.</span><code>Convex</code></div>' +
       '<button type="button" class="sheet-button" id="sn-create-event-btn" onclick="window.snCreateEventFromHostSheet && window.snCreateEventFromHostSheet()">Create live event</button>' +
       '<div id="sn-create-event-output" class="sn-rotate-output" role="status" aria-live="polite" style="margin-top:10px;display:none"></div>' +
       '</section>' +
@@ -5308,7 +5348,7 @@ window._laCueAction       = _laCueAction;
   }
   const eventId = joined.eventId;
   setScratchNodeLiveEventContext(joined);
-  window._sn_live = { client, eventId, sessionId, slug };
+  window._sn_live = { client, eventId, sessionId, slug, hostVerified: false };
   window._sn_my_events = {
     joined: [{ eventId, slug: joined.slug, name: joined.name, roomCode: joined.roomCode, status: joined.status, role: 'attendee' }],
     hosted: []
@@ -5591,7 +5631,7 @@ window._laCueAction       = _laCueAction;
     }).then((res) => {
       if (!res || !res.eventId || !res.ownerKey) throw new Error('Server did not return the new event.');
       localStorage.setItem('sn_host_owner_key_v2', res.ownerKey);
-      window._sn_live.hostOwnerKey = res.ownerKey;
+      _snSetVerifiedHost(res.ownerKey);
       setScratchNodeLiveEventContext(res);
       if (out) out.textContent = 'Created room ' + res.roomCode + '. Opening now...';
       toast('Event created', 'Room code ' + res.roomCode + ' is live.');
@@ -5606,6 +5646,186 @@ window._laCueAction       = _laCueAction;
         btn.textContent = 'Create live event';
       }
     });
+  };
+
+  function _snSetHostOutput(id, message) {
+    const out = document.getElementById(id);
+    if (!out) return;
+    out.style.display = 'block';
+    out.textContent = message;
+  }
+
+  function _snSetButtonBusy(id, busy, label) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = !!busy;
+    if (label) btn.textContent = label;
+  }
+
+  function _snSetVerifiedHost(ownerKey) {
+    if (!ownerKey) return;
+    document.body.setAttribute('data-role', 'host');
+    window._sn_live.hostOwnerKey = ownerKey;
+    window._sn_live.hostVerified = true;
+    var sheetContent = document.getElementById('sheet-content');
+    var alreadyShowingManagement = sheetContent && /Manage this live room/.test(sheetContent.textContent || '');
+    if (
+      document.getElementById('sheet-title') &&
+      document.getElementById('sheet-title').textContent === 'Host console' &&
+      !alreadyShowingManagement
+    ) {
+      setTimeout(function() { if (typeof openSheet === 'function') openSheet('host'); }, 0);
+    }
+  }
+
+  function _snClearVerifiedHost() {
+    window._sn_live.hostOwnerKey = null;
+    window._sn_live.hostVerified = false;
+    document.body.setAttribute('data-role', 'attendee');
+  }
+
+  function _snRequireVerifiedHostOwnerKey(outputId) {
+    const ownerKey = window._sn_live && window._sn_live.hostVerified && window._sn_live.hostOwnerKey;
+    if (ownerKey) return ownerKey;
+    _snSetHostOutput(outputId || 'sn-manage-event-output', 'Host controls require a freshly verified host token.');
+    toast('Host verification required', 'Re-open Host Console after your token verifies, or claim host with a code.');
+    return null;
+  }
+
+  window.snUpdateEventFromHostSheet = function() {
+    const ownerKey = _snRequireVerifiedHostOwnerKey('sn-manage-event-output');
+    if (!ownerKey) return;
+    const titleEl = document.getElementById('sheet-host-update-title');
+    const roomEl = document.getElementById('sheet-host-update-room-code');
+    const title = (titleEl && titleEl.value || '').trim();
+    const roomCode = (roomEl && roomEl.value || '').trim();
+    if (title.length < 3) {
+      toast('Event title required', 'Add at least 3 characters.');
+      if (titleEl) titleEl.focus();
+      return;
+    }
+    if (roomCode.length < 2) {
+      toast('Room code required', 'Use 2-24 letters, numbers, or dashes.');
+      if (roomEl) roomEl.focus();
+      return;
+    }
+    _snSetButtonBusy('sn-update-event-btn', true, 'Saving...');
+    _snSetHostOutput('sn-manage-event-output', 'Saving event metadata...');
+    client.mutation('events:updateEvent', {
+      eventId,
+      ownerKey,
+      title,
+      roomCode,
+    }).then((res) => {
+      setScratchNodeLiveEventContext(res);
+      _snSetHostOutput('sn-manage-event-output', 'Saved room ' + res.roomCode + '. Share URL updated.');
+      toast('Room updated', 'Title and room code are live.');
+      if (window.snRefreshMyEvents) window.snRefreshMyEvents();
+    }).catch((e) => {
+      const msg = (e && e.message) || String(e);
+      _snSetHostOutput('sn-manage-event-output', 'Update failed: ' + msg);
+      toast('Update blocked', msg);
+    }).finally(() => {
+      _snSetButtonBusy('sn-update-event-btn', false, 'Save room details');
+    });
+  };
+
+  window.snUpsertEventSourceFromHostSheet = function() {
+    const ownerKey = _snRequireVerifiedHostOwnerKey('sn-source-output');
+    if (!ownerKey) return;
+    const titleEl = document.getElementById('sheet-host-source-title');
+    const uriEl = document.getElementById('sheet-host-source-uri');
+    const bodyEl = document.getElementById('sheet-host-source-body');
+    const title = (titleEl && titleEl.value || '').trim();
+    const uri = (uriEl && uriEl.value || '').trim();
+    const body = (bodyEl && bodyEl.value || '').trim();
+    if (title.length < 3) {
+      toast('Source title required', 'Name the public context before saving.');
+      if (titleEl) titleEl.focus();
+      return;
+    }
+    if (body.length < 20) {
+      toast('Source body too short', 'Add enough public context for a sourced answer.');
+      if (bodyEl) bodyEl.focus();
+      return;
+    }
+    _snSetButtonBusy('sn-save-source-btn', true, 'Saving source...');
+    _snSetHostOutput('sn-source-output', 'Saving public source context...');
+    client.mutation('events:upsertEventSource', {
+      eventId,
+      ownerKey,
+      title,
+      uri: uri || undefined,
+      body,
+      excerpt: body.slice(0, 240),
+      kind: 'doc',
+    }).then((res) => {
+      window._sn_live.lastSourceId = res.sourceId;
+      try { localStorage.setItem('sn_last_event_source_' + eventId, res.sourceId); } catch (e) {}
+      _snSetHostOutput('sn-source-output', (res.created ? 'Saved' : 'Updated') + ' public source. /ask can now cite it.');
+      toast(res.created ? 'Source saved' : 'Source updated', 'Public /ask context is ready.');
+    }).catch((e) => {
+      const msg = (e && e.message) || String(e);
+      _snSetHostOutput('sn-source-output', 'Source save failed: ' + msg);
+      toast('Source blocked', msg);
+    }).finally(() => {
+      _snSetButtonBusy('sn-save-source-btn', false, 'Save public source');
+    });
+  };
+
+  window.snDeleteLastEventSource = function() {
+    const ownerKey = _snRequireVerifiedHostOwnerKey('sn-source-output');
+    if (!ownerKey) return;
+    let sourceId = window._sn_live.lastSourceId;
+    try { sourceId = sourceId || localStorage.getItem('sn_last_event_source_' + eventId); } catch (e) {}
+    if (!sourceId) {
+      _snSetHostOutput('sn-source-output', 'No source from this device to delete yet.');
+      toast('No source selected', 'Save a source first, then delete it if needed.');
+      return;
+    }
+    _snSetButtonBusy('sn-delete-source-btn', true, 'Deleting...');
+    _snSetHostOutput('sn-source-output', 'Deleting last saved source...');
+    client.mutation('events:deleteEventSource', {
+      eventId,
+      ownerKey,
+      sourceId,
+    }).then(() => {
+      window._sn_live.lastSourceId = null;
+      try { localStorage.removeItem('sn_last_event_source_' + eventId); } catch (e) {}
+      _snSetHostOutput('sn-source-output', 'Deleted the last source saved from this device.');
+      toast('Source deleted', 'The public corpus was updated.');
+    }).catch((e) => {
+      const msg = (e && e.message) || String(e);
+      _snSetHostOutput('sn-source-output', 'Delete failed: ' + msg);
+      toast('Delete blocked', msg);
+    }).finally(() => {
+      _snSetButtonBusy('sn-delete-source-btn', false, 'Delete last saved source');
+    });
+  };
+
+  window.snEndEventFromHostSheet = function() {
+    const ownerKey = _snRequireVerifiedHostOwnerKey('sn-manage-event-output');
+    if (!ownerKey) return;
+    const ok = window.confirm('End this live session? Attendees will no longer be able to post new public messages.');
+    if (!ok) return;
+    _snSetButtonBusy('sn-end-event-btn', true, 'Ending...');
+    _snSetHostOutput('sn-manage-event-output', 'Ending live session...');
+    client.mutation('events:endEvent', { eventId, ownerKey })
+      .then((res) => {
+        setScratchNodeLiveEventContext({ status: res.status || 'ended' });
+        window._sn_live.eventStatus = 'ended';
+        _snSetHostOutput('sn-manage-event-output', 'Session ended. Public chat is now closed for this event.');
+        toast('Session ended', 'Public sends are blocked for this room.');
+        if (window.snRefreshMyEvents) window.snRefreshMyEvents();
+      })
+      .catch((e) => {
+        const msg = (e && e.message) || String(e);
+        _snSetHostOutput('sn-manage-event-output', 'End session failed: ' + msg);
+        toast('End session blocked', msg);
+      })
+      .finally(() => {
+        _snSetButtonBusy('sn-end-event-btn', false, 'End session');
+      });
   };
 
   function _snReadHostOwnerKey() {
@@ -5626,18 +5846,19 @@ window._laCueAction       = _laCueAction;
       client.query('events:getHostStatus', { eventId, ownerKey: existingV2 })
         .then((status) => {
           if (status && status.isHost) {
-            document.body.setAttribute('data-role', 'host');
-            window._sn_live.hostOwnerKey = existingV2;
+            _snSetVerifiedHost(existingV2);
             if (window.snRefreshMyEvents) window.snRefreshMyEvents();
             toast('Host console re-enabled', 'Welcome back, ' + (status.displayName || hostName) + '.');
           } else {
             // Token didn't verify — clear it and re-prompt.
             localStorage.removeItem('sn_host_owner_key_v2');
+            _snClearVerifiedHost();
             window.snClaimHost();
           }
         })
         .catch(() => {
           localStorage.removeItem('sn_host_owner_key_v2');
+          _snClearVerifiedHost();
           toast('Host token expired', 'Please re-claim host with a fresh code.');
         });
       return;
@@ -5687,8 +5908,7 @@ window._laCueAction       = _laCueAction;
           if (!claimRes) return; // user backed out
           const newToken = claimRes.ownerKey;
           localStorage.setItem('sn_host_owner_key_v2', newToken);
-          document.body.setAttribute('data-role', 'host');
-          window._sn_live.hostOwnerKey = newToken;
+          _snSetVerifiedHost(newToken);
           if (window.snRefreshMyEvents) window.snRefreshMyEvents();
           toast('Host console enabled', 'Real-auth host token issued and saved.');
         })
@@ -5707,8 +5927,7 @@ window._laCueAction       = _laCueAction;
         const newToken = claimRes && claimRes.ownerKey;
         if (!newToken) throw new Error('Server did not return a host token.');
         localStorage.setItem('sn_host_owner_key_v2', newToken);
-        document.body.setAttribute('data-role', 'host');
-        window._sn_live.hostOwnerKey = newToken;
+        _snSetVerifiedHost(newToken);
         if (window.snRefreshMyEvents) window.snRefreshMyEvents();
         toast('Host console enabled', 'Code verified — host token issued.');
       })
@@ -5748,8 +5967,7 @@ window._laCueAction       = _laCueAction;
         const newToken = claimRes && claimRes.ownerKey;
         if (!newToken) throw new Error('Server did not return a host token.');
         localStorage.setItem('sn_host_owner_key_v2', newToken);
-        document.body.setAttribute('data-role', 'host');
-        window._sn_live.hostOwnerKey = newToken;
+        _snSetVerifiedHost(newToken);
         if (window.snRefreshMyEvents) window.snRefreshMyEvents();
         if (input) input.value = '';
         toast('You are now host', 'Code verified — host token issued.');
@@ -5849,9 +6067,10 @@ window._laCueAction       = _laCueAction;
     ownerKey: _bootstrapKey,
   }).then((status) => {
     if (status && status.isHost) {
-      document.body.setAttribute('data-role', 'host');
-      window._sn_live.hostOwnerKey = _bootstrapKey;
+      _snSetVerifiedHost(_bootstrapKey);
       if (window.snRefreshMyEvents) window.snRefreshMyEvents();
+    } else {
+      window._sn_live.hostVerified = false;
     }
   }).catch(() => {});
 
