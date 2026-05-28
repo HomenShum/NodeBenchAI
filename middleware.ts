@@ -2,22 +2,22 @@
 //
 // Why this file exists:
 //
-//   Vercel's static-file matching runs BEFORE the rewrites in vercel.json.
+//   Vercel's static-file matching runs before the rewrites in vercel.json.
 //   For the apex path "/", Vercel resolves to dist/index.html (NodeBench AI's
 //   Vite-built bundle) and never reaches the rewrites array. That means the
-//   rewrite { source: "/", has: [scratchnode.live] } → /proto/home-v5.html
+//   rewrite { source: "/", has: [scratchnode.live] } -> /proto/home-v5.html
 //   was dead code: it never fired.
 //
 //   Diagnostic on 2026-05-26 17:30Z confirmed:
-//     - scratchnode.live/docs              → docs.html  (rewrite worked)
-//     - scratchnode.live/e/:slug           → home-v5.html (rewrite worked)
-//     - scratchnode.live/random-path-xyz   → home-v5.html (catch-all worked)
-//     - scratchnode.live/                  → NodeBench (rewrite DID NOT fire)
-//     - scratchnode.live/index.html        → NodeBench (static file won)
+//     - scratchnode.live/docs              -> docs.html  (rewrite worked)
+//     - scratchnode.live/e/:slug           -> home-v5.html (rewrite worked)
+//     - scratchnode.live/random-path-xyz   -> home-v5.html (catch-all worked)
+//     - scratchnode.live/                  -> NodeBench (rewrite did not fire)
+//     - scratchnode.live/index.html        -> NodeBench (static file won)
 //
-//   Edge Middleware runs at the edge BEFORE any rewrites or static matching,
-//   which lets us rewrite the path for scratchnode.live hosts only — without
-//   touching nodebenchai.com behavior.
+//   Edge Middleware runs at the edge before rewrites/static matching, which
+//   lets us rewrite the path for scratchnode.live hosts only without touching
+//   nodebenchai.com behavior.
 //
 // Cost note: Vercel charges per middleware invocation. The matcher below is
 // intentionally limited to the two paths that can be stolen by static-file
@@ -25,8 +25,7 @@
 //
 // Related rules:
 //   - .claude/rules/live_dom_verification.md
-//   - .claude/rules/backend_contract_migration.md (different problem class,
-//     same root vibe: routing assumptions need verification at the live URL)
+//   - .claude/rules/backend_contract_migration.md
 
 import { next, rewrite } from '@vercel/edge';
 
@@ -34,45 +33,37 @@ export const config = {
   // Keep middleware cost bounded: event/docs/random-path routing remains in
   // vercel.json because those rewrites already fire correctly.
   //
-  // /demo_ver:n* is intentionally included so /demo_ver1, /demo_ver2, etc.
-  // all rewrite to /proto/home-v5.html while PRESERVING the URL bar so the
-  // page-side detector can read location.pathname.
-  matcher: ['/', '/index.html', '/demo_ver:n*'],
+  // /demo_ver{N} routes are intentionally not matched here. They are handled
+  // by the scratchnode.live catch-all rewrite in vercel.json, which preserves
+  // the URL bar so home-v5.html can read location.pathname and run the demo.
+  // Keeping this matcher to exact static-steal paths avoids invalid dynamic
+  // matcher syntax and prevents middleware from running on every demo path.
+  matcher: ['/', '/index.html'],
 };
-
-// /demo_ver{N} where N is one or more digits. Trailing slash optional.
-const DEMO_VER_RE = /^\/demo_ver\d+\/?$/;
 
 export default function middleware(request: Request): Response {
   const url = new URL(request.url);
   const host = request.headers.get('host') ?? '';
 
-  // Only act on the scratchnode apex. www → apex is handled by the redirect
+  // Only act on the scratchnode apex. www -> apex is handled by the redirect
   // already in vercel.json; nodebenchai.com is unaffected.
   if (host !== 'scratchnode.live') {
     return next();
   }
 
   // Path-specific routing for scratchnode.live:
-  //   /                → /proto/home-v5.html   (apex landing — minimal page)
-  //   /index.html      → /proto/home-v5.html   (defensive)
-  //   /demo_ver{N}     → /proto/home-v5.html   (URL bar preserved by rewrite;
-  //                                            page-side reads location.pathname
-  //                                            to set data-page-mode="demo" and
-  //                                            auto-run runDemoFull)
-  //   /docs            → handled by vercel.json rewrite
-  //   /e/:slug*        → handled by vercel.json rewrite
-  //   /(any other)     → handled by vercel.json catch-all
+  //   /            -> /proto/home-v5.html  (apex landing)
+  //   /index.html  -> /proto/home-v5.html  (defensive)
+  //   /demo_ver{N} -> handled by vercel.json catch-all; URL bar preserved.
   //
-  // Per-file landing-vs-demo split inside home-v5.html itself —
-  // see public/proto/home-v5.html "page-mode detector" block.
+  // Per-file landing-vs-demo split lives inside the home-v5.html page-mode
+  // detector block.
   const pathname = url.pathname;
   const isApex = pathname === '/' || pathname === '/index.html';
-  const isDemoVer = DEMO_VER_RE.test(pathname);
-  if (isApex || isDemoVer) {
+  if (isApex) {
     const destination = new URL('/proto/home-v5.html', request.url);
-    // Preserve search params (e.g. ?demoSpeed=fast) so they still reach the
-    // page-side runDemoFull options parser.
+    // Preserve search params so stale demo URLs like ?demo=1#demo still reach
+    // home-v5.html and are explicitly ignored by the page-side route gate.
     destination.search = url.search;
     return rewrite(destination);
   }

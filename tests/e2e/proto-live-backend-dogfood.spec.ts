@@ -79,6 +79,71 @@ async function waitForHostRole(page: import("@playwright/test").Page, timeoutMs 
   return false;
 }
 
+test("home-v5 apex is landing-only and never autoplays the demo", async ({ page }) => {
+  mkdirSync(ARTIFACT_DIR, { recursive: true });
+  const qaId = `proto-v5-apex-${Date.now()}`;
+
+  await page.goto(withQa(SCRATCHNODE_APEX_URL, qaId), {
+    waitUntil: "domcontentloaded",
+    timeout: 45_000,
+  });
+  await expect(page).toHaveTitle(/ScratchNode/i);
+  await expect(page.locator(".landing")).toContainText("ScratchNode Live");
+  await expect
+    .poll(() => page.evaluate(() => document.body.getAttribute("data-page-mode")), {
+      timeout: 15_000,
+    })
+    .toBe("landing");
+  await expect(page.locator("body")).not.toContainText("Maya from VoiceLayer");
+
+  const apexState = await page.evaluate(() => ({
+    live: document.body.getAttribute("data-sn-live"),
+    logLength: ((window as any)._demo_log || []).length,
+    fullDemo:
+      typeof (window as any).shouldRunScratchNodeFullDemo === "function"
+        ? (window as any).shouldRunScratchNodeFullDemo()
+        : null,
+    legacyDemo:
+      typeof (window as any).shouldRunScratchNodeLegacyDemo === "function"
+        ? (window as any).shouldRunScratchNodeLegacyDemo()
+        : null,
+  }));
+  expect(apexState).toMatchObject({
+    live: null,
+    logLength: 0,
+    fullDemo: false,
+    legacyDemo: false,
+  });
+
+  const staleDemoUrl = new URL(SCRATCHNODE_APEX_URL);
+  staleDemoUrl.searchParams.set("demo", "1");
+  staleDemoUrl.hash = "demo";
+  await page.goto(withQa(staleDemoUrl.toString(), `${qaId}-stale-demo`), {
+    waitUntil: "domcontentloaded",
+    timeout: 45_000,
+  });
+  await page.waitForTimeout(1_500);
+  const staleState = await page.evaluate(() => ({
+    pageMode: document.body.getAttribute("data-page-mode"),
+    live: document.body.getAttribute("data-sn-live"),
+    logLength: ((window as any)._demo_log || []).length,
+    fullDemo: (window as any).shouldRunScratchNodeFullDemo?.() ?? null,
+    legacyDemo: (window as any).shouldRunScratchNodeLegacyDemo?.() ?? null,
+    feedText: document.getElementById("feed")?.textContent || "",
+  }));
+  expect(staleState.pageMode).toBe("landing");
+  expect(staleState.live).toBeNull();
+  expect(staleState.logLength).toBe(0);
+  expect(staleState.fullDemo).toBe(false);
+  expect(staleState.legacyDemo).toBe(false);
+  expect(staleState.feedText).not.toContain("Maya from VoiceLayer");
+
+  await page.screenshot({
+    path: join(ARTIFACT_DIR, `${qaId}-apex-landing.png`),
+    fullPage: true,
+  });
+});
+
 test("home-v5 runs the live Convex event-room loop across shipped phases", async ({ browser }) => {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
   const qaId = `proto-v5-${Date.now()}`;
@@ -88,7 +153,7 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
   const pageB = await contextB.newPage();
 
   try {
-    await pageA.goto(withQa(SCRATCHNODE_APEX_URL, `${qaId}-apex`), {
+    await pageA.goto(withQa(SCRATCHNODE_EVENT_URL, `${qaId}-a`), {
       waitUntil: "domcontentloaded",
       timeout: 45_000,
     });
@@ -105,7 +170,7 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
         hasOpenHandoff: typeof win.openNodeBenchPrivateHandoff,
       };
     });
-    const expectedPublicOrigin = new URL(SCRATCHNODE_APEX_URL).origin;
+    const expectedPublicOrigin = new URL(SCRATCHNODE_EVENT_URL).origin;
     expect(boundary.publicBaseUrl).toBe(expectedPublicOrigin);
     expect(boundary.eventUrl).toBe(`${expectedPublicOrigin}/e/ai-infra-summit-2026`);
     expect(boundary.eventUrl).not.toContain("scratchnode.com");
@@ -123,14 +188,10 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
     );
     expect(boundary.hasOpenHandoff).toBe("function");
     await pageA.screenshot({
-      path: join(ARTIFACT_DIR, `${qaId}-apex-live.png`),
+      path: join(ARTIFACT_DIR, `${qaId}-event-live.png`),
       fullPage: true,
     });
 
-    await pageA.goto(withQa(SCRATCHNODE_EVENT_URL, `${qaId}-a`), {
-      waitUntil: "domcontentloaded",
-      timeout: 45_000,
-    });
     await pageB.goto(withQa(SCRATCHNODE_EVENT_URL, `${qaId}-b`), {
       waitUntil: "domcontentloaded",
       timeout: 45_000,

@@ -1,6 +1,6 @@
 # Proto Surface Real Backend Dogfood
 
-Last updated: 2026-05-26
+Last updated: 2026-05-28
 
 This note removes the recurring confusion between the two prototype surfaces.
 
@@ -8,7 +8,9 @@ This note removes the recurring confusion between the two prototype surfaces.
 
 | Surface | Route | Backend status | Test expectation |
 | --- | --- | --- | --- |
-| ScratchNode v5 | `https://scratchnode.live/`, `/e/:slug` | Live Convex-backed event room. Phases 1-5 are wired, and `/ask` now uses the provider-ready `events:askAgent` action with deterministic fallback. | Must prove data moves browser -> Convex -> second browser or rendered answer/wiki/note. |
+| ScratchNode v5 landing | `https://scratchnode.live/`, `/index.html` | Landing-only shell. It must not auto-run demos and must not bootstrap Convex. | Must prove stale demo URLs like `?demo=1#demo` still render landing-only state. |
+| ScratchNode v5 event room | `https://scratchnode.live/e/:slug` | Live Convex-backed event room. Phases 1-5 are wired, and `/ask` now uses the provider-ready `events:askAgent` action with deterministic fallback. | Must prove data moves browser -> Convex -> second browser or rendered answer/wiki/note. |
+| ScratchNode v5 demo | `https://scratchnode.live/demo_ver{N}` | Scripted story-teller route only. No live Convex join. | Must prove `runDemoFull()` autoplays only on this owned route family. |
 | NodeBench v4 | `https://www.nodebenchai.com/proto/home-v4.html` | Static spec proof for notebook, artifacts, chat, mentions, backlinks, wide mode. | Must prove every interaction works, and must explicitly assert no live Convex runtime marker exists. |
 
 ## Live Dogfood Command
@@ -38,27 +40,28 @@ tests/e2e/proto-live-backend-dogfood.spec.ts
 
 The dogfood covers these live boundaries:
 
-1. Apex `scratchnode.live/` serves the `home-v5` event shell and connects to Convex.
-2. Two anonymous browser contexts join the same event.
-3. Public chat from browser A appears in browser B through `events:sendMessage` and `events:getMessages`.
-4. `/ask` creates a sourced answer through `events:askAgent`, falling back to `events:composeAnswer` only when Convex actions are unavailable.
-5. The rendered answer exposes:
+1. Apex `scratchnode.live/` serves the `home-v5` landing shell only: no demo autoplay, no `data-sn-live`, and stale `?demo=1#demo` values are ignored.
+2. `/e/ai-infra-summit-2026` serves the live Convex-backed event room.
+3. Two anonymous browser contexts join the same event.
+4. Public chat from browser A appears in browser B through `events:sendMessage` and `events:getMessages`.
+5. `/ask` creates a sourced answer through `events:askAgent`, falling back to `events:composeAnswer` only when Convex actions are unavailable.
+6. The rendered answer exposes:
    - source reuse
    - provider or deterministic-fallback trace
    - answer quality gate score
    - model/cost metadata when the provider path runs
    - `no private notes`
    - `data-answer-id`
-6. FAQ suggestion changes answer state through `events:suggestAnswerForFaq`.
-7. Host claim is attempted through `events:claimHost`.
-8. If the shared demo room is claimable, the run also promotes the answer and publishes the wiki through:
+7. FAQ suggestion changes answer state through `events:suggestAnswerForFaq`.
+8. Host claim is attempted through `events:claimHost`.
+9. If the shared demo room is claimable, the run also promotes the answer and publishes the wiki through:
    - `events:promoteAnswerToFaq`
    - `events:publishWiki`
    - `events:getPublishedWiki`
-9. If the room is already claimed, the run verifies the expected host gate instead of pretending publish happened.
-10. Private composer mode creates a Convex-backed note through `notes:createNote`.
-11. Pin and delete use `notes:togglePin` and `notes:deleteNote`.
-12. Private note text is asserted absent from:
+10. If the room is already claimed, the run verifies the expected host gate instead of pretending publish happened.
+11. Private composer mode creates a Convex-backed note through `notes:createNote`.
+12. Pin and delete use `notes:togglePin` and `notes:deleteNote`.
+13. Private note text is asserted absent from:
    - public event feed
    - second anonymous browser
 
@@ -102,4 +105,4 @@ The shared production demo event can only have one host owner. If a previous liv
 
 ## Apex Routing Note
 
-`home-v5.html` now treats `scratchnode.live/` and `scratchnode.live/index.html` as aliases for the canonical `ai-infra-summit-2026` event slug before bootstrapping Convex. Without that explicit alias, the HTML could serve correctly while the live runtime exited early because the URL was not `/e/:slug`.
+`home-v5.html` now treats `scratchnode.live/` and `scratchnode.live/index.html` as landing-only routes. Live Convex boot is owned by explicit `/e/:slug` event routes. Scripted demo autoplay is owned only by `/demo_ver{N}` routes, so old `?demo=1` or `#demo` URLs cannot turn the public landing page or event room into a demo run.

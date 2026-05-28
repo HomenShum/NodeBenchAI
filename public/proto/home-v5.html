@@ -14,7 +14,7 @@
 <meta property="og:description" content="318 in the room · 47 sourced answers · join with code ORBITAL — no account needed.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://scratchnode.live/e/ai-infra-summit-2026">
-<meta property="og:image" content="https://scratchnode.live/og/ai-infra-summit-2026.png">
+<meta property="og:image" content="https://scratchnode.live/og-scratchnode-ai-infra-summit.svg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="ScratchNode · AI Infra Summit · LIVE · Room code ORBITAL">
@@ -24,7 +24,7 @@
 <meta name="twitter:site" content="@scratchnode">
 <meta name="twitter:title" content="AI Infra Summit · LIVE on ScratchNode">
 <meta name="twitter:description" content="318 in the room · 47 sourced answers · join with code ORBITAL.">
-<meta name="twitter:image" content="https://scratchnode.live/og/ai-infra-summit-2026.png">
+<meta name="twitter:image" content="https://scratchnode.live/og-scratchnode-ai-infra-summit.svg">
 <meta name="twitter:image:alt" content="ScratchNode · AI Infra Summit · LIVE">
 
 <!-- Lightweight favicon (replace with branded SVG before prod launch) -->
@@ -1694,7 +1694,7 @@ body[data-page-mode="landing"] .welcome {
                    No event auto-join, no demo auto-play, no event shell.
     - "demo"     — `/demo_ver{N}` paths (rewritten by middleware.ts to this
                    HTML but URL bar preserved). Full mockup + auto-play
-                   runDemoFull. Also triggered by legacy `?demo=1` query.
+                   runDemoFull.
     - "event"    — `/e/:slug` real event rooms. Convex bootstrap takes over.
 
   Why inline + early: prevents a flash of demo content on the bare apex.
@@ -1705,13 +1705,11 @@ body[data-page-mode="landing"] .welcome {
 (function () {
   try {
     var path = location.pathname || '/';
-    var search = location.search || '';
-    var demoVerMatch = path.match(/^\/demo_ver(\d+)\/?$/);
+    var demoVerMatch = path.match(/^\/demo_ver(\d+)\/?$/i);
     var isLandingPath = (path === '/' || path === '/index.html');
     var isEventPath   = /^\/e\/[a-z0-9][a-z0-9-]{0,60}\/?$/i.test(path);
-    var hasDemoQuery  = new URLSearchParams(search).get('demo') === '1';
     var pageMode;
-    if (demoVerMatch || hasDemoQuery) {
+    if (demoVerMatch) {
       pageMode = 'demo';
     } else if (isEventPath) {
       pageMode = 'event';
@@ -1723,9 +1721,7 @@ body[data-page-mode="landing"] .welcome {
       pageMode = 'landing';
     }
     document.body.dataset.pageMode = pageMode;
-    if (demoVerMatch) {
-      document.body.dataset.demoVer = demoVerMatch[1];
-    }
+    if (demoVerMatch) document.body.dataset.demoVer = demoVerMatch[1];
   } catch (e) {
     // If detection throws, default to landing — safer than leaking demo.
     try { document.body.dataset.pageMode = 'landing'; } catch (e2) {}
@@ -2090,6 +2086,33 @@ var ON_PUBLIC_DOMAIN = (function() {
   try { return location.hostname === CANONICAL_PUBLIC_HOST || location.hostname.endsWith('.' + CANONICAL_PUBLIC_HOST); }
   catch (e) { return false; }
 })();
+
+function isScratchNodeDemoRoute(pathname) {
+  var p = String(pathname || '/').toLowerCase();
+  // Owned demo routes: /demo_ver1, /demo_ver2, etc.
+  // Deliberately does not match /, /e/:slug, /proto/home-v5.html, or /demo_version.
+  return /^\/demo_ver\d+\/?$/.test(p);
+}
+
+function shouldRunScratchNodeFullDemo() {
+  if (!isScratchNodeDemoRoute(location.pathname)) return false;
+  if (location.hash === '#legacy-demo') return false;
+  try {
+    var params = new URLSearchParams(location.search);
+    return params.get('demo') !== '0' && params.get('autorun') !== '0' && params.get('demo') !== 'legacy';
+  } catch (e) {
+    return true;
+  }
+}
+
+function shouldRunScratchNodeLegacyDemo() {
+  if (!isScratchNodeDemoRoute(location.pathname)) return false;
+  try {
+    var params = new URLSearchParams(location.search);
+    if (params.get('demo') === 'legacy') return true;
+  } catch (e) {}
+  return location.hash === '#legacy-demo';
+}
 
 function buildNodeBenchEventPrivateUrl() {
   var roomCode = 'ORBITAL';
@@ -3837,7 +3860,7 @@ setTimeout(refreshEmptyState, 100);
 //   • Dario Amodei (Anthropic CEO)
 //   • Sarah Kim (Google DeepMind VP Eng)
 //   • Alex Chen (Orbital Labs founder)
-// Run with #demo in URL hash, or call runDemo() from console.
+// Run on /demo_ver{N}?demo=legacy, or call runDemo() from console.
 // ═══════════════════════════════════════════════════════
 
 var CHAR_COLORS = {
@@ -3856,16 +3879,16 @@ function _time() {
 
 // ─── Debug-gated prototype simulators ───────────────────────────────────────
 // All sim* helpers are scaffolding for live demos and screenshots. They are
-// NOT shipped to production unless the user opts in via ?debug=1 or #demo in
-// the URL. Production builds should keep DEBUG_MODE false and remove this
+// NOT shipped to production unless the user opts in via ?debug=1 or /demo_ver{N}
+// in the URL. Production builds should keep DEBUG_MODE false and remove this
 // block entirely (it is marked Prototype in docs.html).
 var _DEBUG_HELPERS_ON = (function() {
   if (DEBUG_MODE) return true;
-  try { return location.hash.indexOf('demo') !== -1; } catch (e) { return false; }
+  try { return isScratchNodeDemoRoute(location.pathname); } catch (e) { return false; }
 })();
 if (!_DEBUG_HELPERS_ON) {
   // Production / non-debug: leave window.sim* undefined and skip the rest of this block.
-  console.debug('[scratchnode] sim* helpers gated — pass ?debug=1 or #demo to enable.');
+  console.debug('[scratchnode] sim* helpers gated — pass ?debug=1 or /demo_ver1 to enable.');
 }
 
 // Inject a chat row from any character
@@ -4044,12 +4067,13 @@ function runDemo() {
   simRun(script);
 }
 
-// Trigger demo via URL hash #demo
-if (location.hash === '#demo') {
+// Legacy short demo is route-gated. Production/event roots must never
+// autoplay because of query/hash leftovers.
+if (shouldRunScratchNodeLegacyDemo()) {
   setTimeout(runDemo, 600);
 }
 window.addEventListener('hashchange', function() {
-  if (location.hash === '#demo') runDemo();
+  if (shouldRunScratchNodeLegacyDemo()) runDemo();
 });
 
 // ═══════════════════════════════════════════════════════
@@ -7927,19 +7951,15 @@ window._laCueAction       = _laCueAction;
   window.SN_AGENT_OUTPUT_REGISTRY = AGENT_OUTPUT_REGISTRY;
   window.evaluateAgentOutputEnvelope = evaluateAgentOutputEnvelope;
   window.recordAgentOutputEnvelope = recordAgentOutputEnvelope;
+  window.isScratchNodeDemoRoute = isScratchNodeDemoRoute;
+  window.shouldRunScratchNodeFullDemo = shouldRunScratchNodeFullDemo;
+  window.shouldRunScratchNodeLegacyDemo = shouldRunScratchNodeLegacyDemo;
 
-  // Auto-run runDemoFull for one-click presentations. Triggers:
-  //   - /demo_ver{N} routes (rewritten by middleware.ts → home-v5.html with
-  //     URL bar preserved; we detect via location.pathname)
-  //   - Legacy `?demo=1` query (preserved for shareable demo links and
-  //     backwards compatibility with prior PRs).
-  // Does NOT fire on bare apex `/` or `/index.html` — that's the landing
-  // mode and the whole point of this refactor is no demo content there.
+  // Demo autoplay is route-owned. Root/event/live routes never run the demo
+  // because of stale ?demo=1/#demo URLs; use /demo_ver{N} for presentations.
   try {
     var params = new URLSearchParams(location.search);
-    var demoVerMatch = location.pathname.match(/^\/demo_ver(\d+)\/?$/);
-    var isDemoRoute = !!demoVerMatch || params.get('demo') === '1';
-    if (isDemoRoute) {
+    if (shouldRunScratchNodeFullDemo()) {
       var speed = params.get('demoSpeed') || 'normal';
       // Defer until after DOMContentLoaded + small delay so live Convex bootstrap can settle.
       var kickoff = function() { setTimeout(function() { runDemoFull({ speed: speed }); }, 600); };
