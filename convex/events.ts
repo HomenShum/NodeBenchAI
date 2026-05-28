@@ -711,9 +711,19 @@ async function buildWikiHtml(ctx: any, eventName: string, answers: any[], source
 // ─── QUERIES ──────────────────────────────────────────────────────────────
 
 /**
- * Fetch an event by its slug. Returns null if missing — callers (UI) should
- * fall back to the demo event flow.
+ * Resolve a user-facing path segment to an event. Tries slug first, then
+ * roomCode (case-insensitive, normalized to UPPERCASE). Returns null if
+ * neither resolves — callers (UI) should fall back / surface "not found".
+ *
+ * Why both: the share copy on every event card says "join with code
+ * ORBITAL". Users type the room code into the URL bar (`/e/orbital`)
+ * expecting it to work — the v1 launch bug was exactly this: slug-only
+ * lookup → null → silent local-only chat → no cross-tab sync.
  */
+function isRoomCodeShape(s: string): boolean {
+  return /^[A-Z0-9][A-Z0-9-]{1,23}$/.test(s);
+}
+
 export const getEventBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
@@ -722,7 +732,14 @@ export const getEventBySlug = query({
       .query("liveEvents")
       .withIndex("by_slug", (q) => q.eq("slug", slug))
       .first();
-    return event;
+    if (event) return event;
+    // Fallback: treat the path segment as a room code.
+    const roomCode = slug.trim().toUpperCase();
+    if (!isRoomCodeShape(roomCode)) return null;
+    return await ctx.db
+      .query("liveEvents")
+      .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
+      .first();
   },
 });
 
@@ -1090,9 +1107,22 @@ export const joinEvent = mutation({
       .withIndex("by_slug", (q) => q.eq("slug", slug))
       .first();
 
+    // Fallback: roomCode lookup. Share copy on event cards reads "join
+    // with code ORBITAL" — users type the code into the URL bar
+    // (`/e/orbital`). Without this, both windows render the static mock
+    // chat, sendMessage fails silently, and cross-tab sync never works.
+    const normalizedRoomCode = slug.trim().toUpperCase();
+    if (!event && isRoomCodeShape(normalizedRoomCode)) {
+      event = await ctx.db
+        .query("liveEvents")
+        .withIndex("by_roomCode", (q) => q.eq("roomCode", normalizedRoomCode))
+        .first();
+    }
+
     // Auto-seed the demo event so the first visitor to scratchnode.live
-    // doesn't hit an empty room.
-    if (!event && slug === "ai-infra-summit-2026") {
+    // doesn't hit an empty room. Triggers on either the canonical slug
+    // OR the canonical room code (typed as a URL slug — case-insensitive).
+    if (!event && (slug === "ai-infra-summit-2026" || normalizedRoomCode === "ORBITAL")) {
       const id = await ctx.db.insert("liveEvents", {
         slug: "ai-infra-summit-2026",
         name: "AI Infra Summit",

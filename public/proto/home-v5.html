@@ -5168,6 +5168,21 @@ window._laCueAction       = _laCueAction;
   } catch (e) {
     console.warn('[scratchnode] joinEvent failed, prototype mode:', e.message || e);
     client.close && client.close();
+    // HONEST_STATUS: don't silently render mock chat when the slug/code
+    // doesn't resolve. Users typing /e/whatever expected to land in a
+    // real room; silent fallback leads them to think their messages
+    // sent when nothing was persisted.
+    var errCode = (e && e.data && e.data.code) || '';
+    var notFound = errCode === 'event_not_found' || /event_not_found/i.test(String(e && e.message || ''));
+    try {
+      var banner = document.createElement('div');
+      banner.setAttribute('role', 'alert');
+      banner.style.cssText = 'position:sticky;top:0;z-index:50;padding:10px 14px;background:#3a2a24;color:#f1d6c8;border-bottom:1px solid #5a3a30;font:500 13px/1.4 var(--ui,system-ui);text-align:center;';
+      banner.innerHTML = notFound
+        ? 'No room matches <code style="font-family:var(--mono,monospace);background:#2a1f1c;padding:2px 6px;border-radius:4px">/e/' + (slug.replace(/[<>&"]/g, '') || '?') + '</code>. <a href="/" style="color:#f1d6c8;text-decoration:underline">Back to landing</a> or check your room code.'
+        : 'Could not connect to the live room. <a href="javascript:location.reload()" style="color:#f1d6c8;text-decoration:underline">Retry</a>';
+      document.body.insertBefore(banner, document.body.firstChild);
+    } catch (_) { /* belt-and-suspenders — never throw from error handler */ }
     return;
   }
   const eventId = joined.eventId;
