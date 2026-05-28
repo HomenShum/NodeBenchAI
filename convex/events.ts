@@ -749,18 +749,27 @@ export const getMessages = query({
 /**
  * Active members — only those with a lastSeenAt within the presence TTL window.
  * Stale rows are evicted by the janitor cron (see convex/crons.ts).
+ *
+ * BOUNDED (agentic_reliability: BOUND): capped at MAX_ACTIVE_MEMBERS = 500.
+ * Without this cap, a large public event (e.g. a YC demo day at 5k+ joiners)
+ * would force the query to scan + serialize every active member row on every
+ * caller refresh. The janitor cron normally keeps this small, but a launch-day
+ * spike can outpace eviction. 500 is the soft ceiling we surface to the UI;
+ * the member-count strip already says "500+ in the room" past that.
  */
+const MAX_ACTIVE_MEMBERS = 500;
+
 export const getMembers = query({
   args: { eventId: v.id("liveEvents") },
   handler: async (ctx, { eventId }) => {
     const cutoff = Date.now() - PRESENCE_TTL_MS;
-    const all = await ctx.db
+    const rows = await ctx.db
       .query("liveEventMembers")
       .withIndex("by_event_lastSeen", (q) =>
         q.eq("eventId", eventId).gte("lastSeenAt", cutoff),
       )
-      .collect();
-    return all;
+      .take(MAX_ACTIVE_MEMBERS);
+    return rows;
   },
 });
 

@@ -4,28 +4,34 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#151413">
-<title>AI Infra Summit · ScratchNode</title>
-<meta name="description" content="Live event knowledge room. Join with code ORBITAL — no account, no app. Ask anything, get sourced answers, the room compacts into a public wiki when the event ends.">
-<link rel="canonical" href="https://scratchnode.live/e/ai-infra-summit-2026">
+<title>ScratchNode — turn live events into public knowledge</title>
+<meta name="description" content="Join with a room code. Ask anything, get sourced answers. The room compacts into a public wiki when the event ends. No account needed.">
+<link rel="canonical" href="https://scratchnode.live/">
 
-<!-- ScratchNode-branded Open Graph (event surface — distinct from nodebenchai.com workspace) -->
+<!--
+  Default OG = generic ScratchNode brand card. Event-specific OG cards are
+  not server-rendered here — middleware.ts rewrites /e/:slug and /demo_ver{N}
+  to this same file. Social crawlers see this brand-level preview, which is
+  the right default. Event-specific previews would require either per-route
+  pre-render or an OG image function, both of which are post-launch work.
+-->
 <meta property="og:site_name" content="ScratchNode">
-<meta property="og:title" content="AI Infra Summit · LIVE on ScratchNode">
-<meta property="og:description" content="318 in the room · 47 sourced answers · join with code ORBITAL — no account needed.">
+<meta property="og:title" content="ScratchNode — turn live events into public knowledge">
+<meta property="og:description" content="Join with a room code. Ask anything, get sourced answers. The room compacts into a public wiki when the event ends. No account needed.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://scratchnode.live/e/ai-infra-summit-2026">
-<meta property="og:image" content="https://scratchnode.live/og/ai-infra-summit-2026.png">
+<meta property="og:url" content="https://scratchnode.live/">
+<meta property="og:image" content="https://scratchnode.live/og-scratchnode.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="ScratchNode · AI Infra Summit · LIVE · Room code ORBITAL">
+<meta property="og:image:alt" content="ScratchNode — live event knowledge room with a public wiki at the end">
 
 <!-- Twitter card -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@scratchnode">
-<meta name="twitter:title" content="AI Infra Summit · LIVE on ScratchNode">
-<meta name="twitter:description" content="318 in the room · 47 sourced answers · join with code ORBITAL.">
-<meta name="twitter:image" content="https://scratchnode.live/og/ai-infra-summit-2026.png">
-<meta name="twitter:image:alt" content="ScratchNode · AI Infra Summit · LIVE">
+<meta name="twitter:title" content="ScratchNode — turn live events into public knowledge">
+<meta name="twitter:description" content="Join with a room code. Ask anything, get sourced answers. Compacts into a public wiki at event end. No account needed.">
+<meta name="twitter:image" content="https://scratchnode.live/og-scratchnode.png">
+<meta name="twitter:image:alt" content="ScratchNode — live event knowledge room">
 
 <!-- Lightweight favicon (replace with branded SVG before prod launch) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23151413'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23d97757'/%3E%3C/svg%3E">
@@ -1694,7 +1700,8 @@ body[data-page-mode="landing"] .welcome {
                    No event auto-join, no demo auto-play, no event shell.
     - "demo"     — `/demo_ver{N}` paths (rewritten by middleware.ts to this
                    HTML but URL bar preserved). Full mockup + auto-play
-                   runDemoFull. Also triggered by legacy `?demo=1` query.
+                   runDemoFull. STRICT GATE: `?demo=1` no longer triggers
+                   demo mode — only the explicit /demo_ver{N} path does.
     - "event"    — `/e/:slug` real event rooms. Convex bootstrap takes over.
 
   Why inline + early: prevents a flash of demo content on the bare apex.
@@ -1705,13 +1712,14 @@ body[data-page-mode="landing"] .welcome {
 (function () {
   try {
     var path = location.pathname || '/';
-    var search = location.search || '';
     var demoVerMatch = path.match(/^\/demo_ver(\d+)\/?$/);
     var isLandingPath = (path === '/' || path === '/index.html');
     var isEventPath   = /^\/e\/[a-z0-9][a-z0-9-]{0,60}\/?$/i.test(path);
-    var hasDemoQuery  = new URLSearchParams(search).get('demo') === '1';
+    // STRICT GATE: only /demo_ver{N} triggers demo mode. `?demo=1` no longer
+    // counts — stale bookmarks pointing at /e/:slug?demo=1 must NOT autoplay
+    // demo content over a real event.
     var pageMode;
-    if (demoVerMatch || hasDemoQuery) {
+    if (demoVerMatch) {
       pageMode = 'demo';
     } else if (isEventPath) {
       pageMode = 'event';
@@ -7928,17 +7936,17 @@ window._laCueAction       = _laCueAction;
   window.evaluateAgentOutputEnvelope = evaluateAgentOutputEnvelope;
   window.recordAgentOutputEnvelope = recordAgentOutputEnvelope;
 
-  // Auto-run runDemoFull for one-click presentations. Triggers:
-  //   - /demo_ver{N} routes (rewritten by middleware.ts → home-v5.html with
-  //     URL bar preserved; we detect via location.pathname)
-  //   - Legacy `?demo=1` query (preserved for shareable demo links and
-  //     backwards compatibility with prior PRs).
-  // Does NOT fire on bare apex `/` or `/index.html` — that's the landing
-  // mode and the whole point of this refactor is no demo content there.
+  // Auto-run runDemoFull for one-click presentations.
+  // STRICT GATE: ONLY /demo_ver{N} routes trigger autoplay. `?demo=1` no
+  // longer triggers — stale shareable links pointing at /e/:slug?demo=1
+  // must NOT play demo content over a real event. To share a demo, link
+  // to /demo_ver{N} directly (rewritten by middleware.ts → home-v5.html
+  // with URL bar preserved). `demoSpeed=fast|slow` query param is still
+  // honored for pacing on demo routes.
   try {
     var params = new URLSearchParams(location.search);
     var demoVerMatch = location.pathname.match(/^\/demo_ver(\d+)\/?$/);
-    var isDemoRoute = !!demoVerMatch || params.get('demo') === '1';
+    var isDemoRoute = !!demoVerMatch;
     if (isDemoRoute) {
       var speed = params.get('demoSpeed') || 'normal';
       // Defer until after DOMContentLoaded + small delay so live Convex bootstrap can settle.

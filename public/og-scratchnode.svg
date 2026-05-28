@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <rect width="1200" height="630" fill="#151413"/>
+  <rect x="40" y="40" width="1120" height="550" rx="24" fill="#1c1b1a" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <circle cx="112" cy="232" r="32" fill="#d97757"/>
+  <text x="80" y="320" fill="#e8e6e3" font-family="Manrope, system-ui, sans-serif" font-weight="700" font-size="52">ScratchNode</text>
+  <text x="80" y="378" fill="#a8a5a0" font-family="Manrope, system-ui, sans-serif" font-weight="500" font-size="28">Turn live events into public knowledge</text>
+  <text x="80" y="430" fill="#6b6864" font-family="Manrope, system-ui, sans-serif" font-weight="400" font-size="20">Join with a room code. Ask anything. The room compacts into a wiki at event end.</text>
+  <rect x="80" y="480" width="200" height="48" rx="10" fill="#d97757"/>
+  <text x="180" y="510" text-anchor="middle" fill="white" font-family="Manrope, system-ui, sans-serif" font-weight="600" font-size="17">scratchnode.live</text>
+  <text x="80" y="556" fill="#6b6864" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="400" font-size="14">no account · no app · public by default</text>
+</svg>
