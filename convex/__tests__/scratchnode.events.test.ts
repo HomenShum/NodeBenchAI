@@ -61,6 +61,10 @@ import {
 } from "../users";
 import schema from "../schema";
 import { api } from "../_generated/api";
+import {
+  enforceRateLimit,
+  _evictStaleRateLimits,
+} from "../scratchnodeRateLimit";
 
 // convex-test needs the full module map so it can resolve `api.events.claimHost`
 // to the actual handler. The repo's Convex source lives in ./convex/**/*.{ts,js},
@@ -2506,5 +2510,303 @@ describe("_adminForceReleaseHost — internal admin tool", () => {
     expect(result.ok).toBe(true);
     expect(result.released).toBe(false);
     expect(result.hostsDeleted).toBe(0);
+  });
+});
+
+/**
+ * ScratchNode public-mutation rate limiting (#92, P0 launch-blocker).
+ *
+ * enforceRateLimit is the DB-backed fixed-window counter guarding every
+ * unauthenticated public mutation (joinEvent, sendMessage, requestHostClaim,
+ * requestSignInLink). These scenarios model the real abuse vectors a public
+ * room URL is exposed to the moment scratchnode.live is shared: a spammer
+ * flooding chat, a script hammering sign-in emails, a host-claim brute force,
+ * plus the long-running janitor that keeps the counter table BOUND.
+ *
+ * Harness note: enforceRateLimit is a plain async fn — call it directly with a
+ * MockDb ctx. _evictStaleRateLimits is an internalMutation — invoke via
+ * (_evictStaleRateLimits as any)._handler(ctx). No vi/fake-timers: the
+ * window-reset scenario seeds a previous-bucket row instead of mocking time
+ * (DETERMINISTIC bucketing: windowStart = floor(now / windowMs) * windowMs).
+ */
+describe("enforceRateLimit + _evictStaleRateLimits — public-mutation burst protection", () => {
+  // Mirror the production caps wired in events.ts / users.ts.
+  const PROD = {
+    send: { limit: 30, windowMs: 60_000 },
+    join: { limit: 20, windowMs: 60_000 },
+    signin: { limit: 5, windowMs: 600_000 },
+    hostclaim: { limit: 5, windowMs: 600_000 },
+  };
+
+  // `enforceRateLimit` is a plain helper typed against the real Convex
+  // `MutationCtx`; the shared test mock only implements the `.db` surface the
+  // helper actually touches. Cast the ctx once here (same spirit as the
+  // file-wide `(name as any)._handler(ctx, ...)` convention) so the `spec`
+  // argument stays fully type-checked while the ctx structural gap is bridged
+  // in exactly one place instead of scattered across every call site.
+  const rl = (
+    ctx: ReturnType<typeof createCtx>,
+    spec: Parameters<typeof enforceRateLimit>[1],
+  ): Promise<void> =>
+    enforceRateLimit(ctx as unknown as Parameters<typeof enforceRateLimit>[0], spec);
+
+  /**
+   * Scenario:    Engaged attendee chatting in a live room
+   * User:        First-time attendee, anonymous session
+   * Goal:        Send many messages during a talk without being throttled
+   * Prior state: Empty rate-limit table
+   * Actions:     29 sendMessage calls in one 60s window (under the 30 cap)
+   * Scale:       1 user, single window
+   * Duration:    Short burst (<10ms)
+   * Expected:    All 29 succeed; one counter row reaches count=29 (1 insert)
+   * Edge cases:  The legitimate-use ceiling must NOT trip before the cap
+   */
+  it("allows a legitimate burst up to the cap (29 of 30 sends)", async () => {
+    const tables: Tables = { scratchnodeRateLimits: [] };
+    const ctx = createCtx(tables);
+    const key = "send:session-anon-aaaaaaaa";
+
+    for (let i = 0; i < 29; i += 1) {
+      await rl(ctx, { key, ...PROD.send });
+    }
+
+    const row = tables.scratchnodeRateLimits.find((r) => r.key === key);
+    expect(row).toBeDefined();
+    expect(row!.count).toBe(29);
+    // One insert + 28 patches — never two rows for the same (key, window).
+    expect(
+      (ctx.db as MockDb).inserts.filter(
+        (i) => i.table === "scratchnodeRateLimits",
+      ).length,
+    ).toBe(1);
+  });
+
+  /**
+   * Scenario:    Chat spammer floods a public room
+   * User:        Adversary, single anonymous session
+   * Goal:        Post unlimited messages to drown out the room
+   * Prior state: Empty rate-limit table
+   * Actions:     30 sends (fill the window) then a 31st
+   * Scale:       1 abuser, burst
+   * Duration:    Short burst
+   * Expected:    Sends 1-30 pass; 31st throws rate_limited with retryAfterMs in
+   *              (0, windowMs]; no 31st row/patch is written
+   * Edge cases:  The >= check fires BEFORE increment — exactly `limit` allowed
+   */
+  it("throws rate_limited on the (limit+1)th send in one window", async () => {
+    const tables: Tables = { scratchnodeRateLimits: [] };
+    const ctx = createCtx(tables);
+    const key = "send:session-spammer";
+
+    for (let i = 0; i < PROD.send.limit; i += 1) {
+      await rl(ctx, { key, ...PROD.send });
+    }
+
+    let caught: any;
+    try {
+      await rl(ctx, { key, ...PROD.send });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeDefined();
+    expect(caught.data.code).toBe("rate_limited");
+    expect(caught.data.retryAfterMs).toBeGreaterThan(0);
+    expect(caught.data.retryAfterMs).toBeLessThanOrEqual(PROD.send.windowMs);
+    expect(caught.message).toMatch(/too many requests/i);
+
+    const row = tables.scratchnodeRateLimits.find((r) => r.key === key);
+    expect(row!.count).toBe(PROD.send.limit); // never incremented past the cap
+    expect((ctx.db as MockDb).patches.length).toBe(PROD.send.limit - 1);
+  });
+
+  /**
+   * Scenario:    Window rolls over — a prior window's count must not bleed in
+   * User:        Returning attendee in a long-lived room
+   * Goal:        Resume sending after the previous window expired
+   * Prior state: A maxed-out counter row in the PREVIOUS window bucket
+   * Actions:     One sign-in request in the current window
+   * Scale:       1 user across two windows
+   * Duration:    Long-running (window boundary crossed)
+   * Expected:    Current-window call inserts a fresh count=1 row and passes;
+   *              the stale previous-bucket row is untouched
+   * Edge cases:  DETERMINISTIC bucketing isolates windows without a wall clock
+   */
+  it("resets the count when the window advances (prev-bucket isolation)", async () => {
+    const { windowMs, limit } = PROD.signin;
+    const now = Date.now();
+    const currentBucket = Math.floor(now / windowMs) * windowMs;
+    const prevBucket = currentBucket - windowMs;
+    const key = "signin:returning@example.com";
+
+    const tables: Tables = {
+      scratchnodeRateLimits: [
+        {
+          _id: "scratchnodeRateLimits:seed",
+          key,
+          windowStart: prevBucket,
+          count: limit, // fully used up in the previous window
+          expiresAt: prevBucket + windowMs,
+        },
+      ],
+    };
+    const ctx = createCtx(tables);
+
+    // Must NOT throw — the previous window's exhausted count is irrelevant now.
+    await rl(ctx, { key, limit, windowMs });
+
+    const current = tables.scratchnodeRateLimits.find(
+      (r) => r.key === key && r.windowStart >= currentBucket,
+    );
+    expect(current).toBeDefined();
+    expect(current!.count).toBe(1);
+    // Stale previous-bucket row untouched.
+    const stale = tables.scratchnodeRateLimits.find(
+      (r) => r.windowStart === prevBucket,
+    );
+    expect(stale!.count).toBe(limit);
+  });
+
+  /**
+   * Scenario:    Two attendees chat simultaneously
+   * User:        Two distinct anonymous sessions (concurrent)
+   * Goal:        Each sends freely; one heavy user must not starve the other
+   * Prior state: Empty table
+   * Actions:     Session A exhausts its send cap; Session B sends once
+   * Scale:       2 concurrent users
+   * Duration:    Short burst
+   * Expected:    A's (limit+1)th throws; B's first send still succeeds —
+   *              keys are isolated per session
+   * Edge cases:  Per-key isolation prevents collateral throttling
+   */
+  it("isolates limits per key (one session maxed, another unaffected)", async () => {
+    const tables: Tables = { scratchnodeRateLimits: [] };
+    const ctx = createCtx(tables);
+    const keyA = "send:session-heavy";
+    const keyB = "send:session-light";
+
+    for (let i = 0; i < PROD.send.limit; i += 1) {
+      await rl(ctx, { key: keyA, ...PROD.send });
+    }
+    await expect(
+      rl(ctx, { key: keyA, ...PROD.send }),
+    ).rejects.toThrow(/too many requests/i);
+
+    // Session B is a different key — its first send is unaffected.
+    await expect(
+      rl(ctx, { key: keyB, ...PROD.send }),
+    ).resolves.toBeUndefined();
+
+    const rowB = tables.scratchnodeRateLimits.find((r) => r.key === keyB);
+    expect(rowB!.count).toBe(1);
+  });
+
+  /**
+   * Scenario:    Sign-in email flood via session rotation
+   * User:        Adversary rotating sessionIds to bypass throttling
+   * Goal:        Trigger many sign-in emails to one victim inbox / burn cost
+   * Prior state: Empty table
+   * Actions:     5 sign-in requests for one email (allowed), then a 6th from a
+   *              "fresh session" — but the key is the EMAIL, not the session
+   * Scale:       1 victim email, attacker varies session
+   * Duration:    Short burst within the 10-min window
+   * Expected:    6th call throws rate_limited — email-keying defeats session
+   *              rotation; only `limit` emails can ever be scheduled per window
+   * Edge cases:  Keying choice (email vs session) is the actual defense
+   */
+  it("email-keyed signin limit cannot be bypassed by rotating sessions", async () => {
+    const tables: Tables = { scratchnodeRateLimits: [] };
+    const ctx = createCtx(tables);
+    // Production key shape: `signin:${normalizedEmail}` — independent of session.
+    const key = "signin:victim@example.com";
+
+    for (let i = 0; i < PROD.signin.limit; i += 1) {
+      await rl(ctx, { key, ...PROD.signin });
+    }
+
+    // Attacker spins up a brand-new session — but the key is still the email.
+    await expect(
+      rl(ctx, { key, ...PROD.signin }),
+    ).rejects.toThrow(/too many requests/i);
+  });
+
+  /**
+   * Scenario:    Long-running janitor sweep keeps the counter table BOUND
+   * User:        System cron (every 15 min)
+   * Goal:        Evict counter rows whose window has closed
+   * Prior state: Mix of expired (expiresAt < now) and live (expiresAt > now) rows
+   * Actions:     One _evictStaleRateLimits sweep
+   * Scale:       Table-wide
+   * Duration:    Long-running accumulation (rows pile up between sweeps)
+   * Expected:    Only expired rows deleted; live rows survive; returns {evicted}
+   * Edge cases:  Margins kept wide (now +/- 60s) so the janitor's own Date.now()
+   *              advancing a few ms cannot flip a row's expired/live verdict
+   */
+  it("evicts only expired rows and leaves live ones", async () => {
+    const now = Date.now();
+    const tables: Tables = {
+      scratchnodeRateLimits: [
+        { _id: "scratchnodeRateLimits:1", key: "send:a", windowStart: 0, count: 5, expiresAt: now - 1 },
+        { _id: "scratchnodeRateLimits:2", key: "send:b", windowStart: 0, count: 3, expiresAt: now - 60_000 },
+        { _id: "scratchnodeRateLimits:3", key: "send:c", windowStart: 0, count: 1, expiresAt: now + 60_000 },
+        { _id: "scratchnodeRateLimits:4", key: "send:d", windowStart: 0, count: 9, expiresAt: now + 600_000 },
+      ],
+    };
+    const ctx = createCtx(tables);
+
+    const result = await (_evictStaleRateLimits as any)._handler(ctx, {});
+
+    expect(result).toEqual({ evicted: 2 });
+    const remaining = tables.scratchnodeRateLimits.map((r) => r._id).sort();
+    expect(remaining).toEqual([
+      "scratchnodeRateLimits:3",
+      "scratchnodeRateLimits:4",
+    ]);
+  });
+
+  /**
+   * Scenario:    Eviction is BOUND — a backlog never blocks the cron
+   * User:        System cron after a traffic spike left a huge backlog
+   * Goal:        Sweep without an unbounded delete loop
+   * Prior state: 600 expired rows (more than the 500/sweep cap)
+   * Actions:     One sweep
+   * Scale:       600 rows
+   * Duration:    Long-running accumulation
+   * Expected:    Exactly 500 evicted this sweep; 100 remain for the next sweep
+   * Edge cases:  Proves .take(MAX_RATE_LIMIT_EVICT) caps the batch (BOUND)
+   */
+  it("caps eviction at 500 rows per sweep (BOUND)", async () => {
+    const now = Date.now();
+    const rows = Array.from({ length: 600 }, (_, i) => ({
+      _id: `scratchnodeRateLimits:${i + 1}`,
+      key: `send:bulk-${i}`,
+      windowStart: 0,
+      count: 1,
+      expiresAt: now - 1, // all expired
+    }));
+    const tables: Tables = { scratchnodeRateLimits: rows };
+    const ctx = createCtx(tables);
+
+    const result = await (_evictStaleRateLimits as any)._handler(ctx, {});
+
+    expect(result).toEqual({ evicted: 500 });
+    expect(tables.scratchnodeRateLimits.length).toBe(100);
+  });
+
+  /**
+   * Scenario:    Janitor runs on an idle/empty table
+   * User:        System cron during a quiet period
+   * Goal:        No-op cleanly when there's nothing to evict
+   * Prior state: Empty table
+   * Actions:     One sweep
+   * Scale:       0 rows
+   * Duration:    Single run
+   * Expected:    { evicted: 0 }, no throw, no deletes
+   * Edge cases:  Empty table must not crash the sweep
+   */
+  it("is a clean no-op when there are no rows", async () => {
+    const ctx = createCtx({ scratchnodeRateLimits: [] });
+    const result = await (_evictStaleRateLimits as any)._handler(ctx, {});
+    expect(result).toEqual({ evicted: 0 });
   });
 });

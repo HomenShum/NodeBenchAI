@@ -1073,4 +1073,13 @@ crons.interval(
   {},
 );
 
+// Evict expired ScratchNode rate-limit buckets (BOUND). Fixed-window rows go
+// stale once their window closes; sweep every 15 min via the by_expiresAt index.
+crons.interval(
+  "scratchnode rate-limit janitor",
+  { minutes: 15 },
+  internal.scratchnodeRateLimit._evictStaleRateLimits,
+  {},
+);
+
 export default crons;
