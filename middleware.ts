@@ -33,8 +33,15 @@ import { next, rewrite } from '@vercel/edge';
 export const config = {
   // Keep middleware cost bounded: event/docs/random-path routing remains in
   // vercel.json because those rewrites already fire correctly.
-  matcher: ['/', '/index.html'],
+  //
+  // /demo_ver:n* is intentionally included so /demo_ver1, /demo_ver2, etc.
+  // all rewrite to /proto/home-v5.html while PRESERVING the URL bar so the
+  // page-side detector can read location.pathname.
+  matcher: ['/', '/index.html', '/demo_ver:n*'],
 };
+
+// /demo_ver{N} where N is one or more digits. Trailing slash optional.
+const DEMO_VER_RE = /^\/demo_ver\d+\/?$/;
 
 export default function middleware(request: Request): Response {
   const url = new URL(request.url);
@@ -47,17 +54,25 @@ export default function middleware(request: Request): Response {
   }
 
   // Path-specific routing for scratchnode.live:
-  //   /            → /proto/home-v5.html   (apex landing — the bug this fixes)
-  //   /index.html  → /proto/home-v5.html   (defensive)
-  //   /docs        → handled by vercel.json rewrite
-  //   /e/:slug*    → handled by vercel.json rewrite
-  //   /(any other) → handled by vercel.json catch-all
+  //   /                → /proto/home-v5.html   (apex landing — minimal page)
+  //   /index.html      → /proto/home-v5.html   (defensive)
+  //   /demo_ver{N}     → /proto/home-v5.html   (URL bar preserved by rewrite;
+  //                                            page-side reads location.pathname
+  //                                            to set data-page-mode="demo" and
+  //                                            auto-run runDemoFull)
+  //   /docs            → handled by vercel.json rewrite
+  //   /e/:slug*        → handled by vercel.json rewrite
+  //   /(any other)     → handled by vercel.json catch-all
   //
-  // We only need to handle the apex root here. For all other paths, return
-  // next() so Vercel's normal rewrite pipeline takes over.
+  // Per-file landing-vs-demo split inside home-v5.html itself —
+  // see public/proto/home-v5.html "page-mode detector" block.
   const pathname = url.pathname;
-  if (pathname === '/' || pathname === '/index.html') {
+  const isApex = pathname === '/' || pathname === '/index.html';
+  const isDemoVer = DEMO_VER_RE.test(pathname);
+  if (isApex || isDemoVer) {
     const destination = new URL('/proto/home-v5.html', request.url);
+    // Preserve search params (e.g. ?demoSpeed=fast) so they still reach the
+    // page-side runDemoFull options parser.
     destination.search = url.search;
     return rewrite(destination);
   }
