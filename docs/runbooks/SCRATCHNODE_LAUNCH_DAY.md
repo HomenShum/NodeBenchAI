@@ -11,7 +11,7 @@
 
 ## TL;DR
 
-- **GO** if PR #423 lands + the green checks below pass.
+- **GO** if #423, #425, and the launch honesty hotfix land + the green checks below pass.
 - **NO-GO** if any P0 in the [Open P0 list](#open-p0-list) is still red 30 min before launch.
 - **Rollback path:** force-redeploy the last known-good Vercel build (commit `141b8c10`, PR #419). See [Rollback](#rollback-procedure-5-min).
 
@@ -22,10 +22,12 @@
 | Change | PR | Status | Why it matters |
 |---|---|---|---|
 | Apex landing split (apex = landing, `/demo_ver{N}` = demo) | #419 | Merged + live | Stops bare apex from rendering as a fake live event |
-| Strict autoplay gate (`?demo=1` no longer triggers demo) | #423 | In review, auto-merge enabled | Stale bookmarks like `/e/:slug?demo=1` can no longer hijack real events with demo content |
-| Generic OG / title / canonical on apex | #423 (same PR) | In review | Bare apex social-shares no longer preview as "AI Infra Summit · 318 in the room · 47 sourced answers" |
-| `getMembers` bounded at 500 active | #423 (same PR) | In review | Launch-day join spike on a viral event no longer scans + serializes the full member set on every refresh |
-| `/docs` canonical + OG | #423 (same PR) | In review | Docs page indexable + shareable |
+| Strict autoplay gate (`?demo=1` no longer triggers demo) | #423 + launch honesty hotfix | Merged + reinforced | Stale bookmarks like `/e/:slug?demo=1` can no longer hijack real events with demo content |
+| Generic OG / title / canonical on apex | #423 (same PR) | Merged + live | Bare apex social-shares no longer preview as "AI Infra Summit · 318 in the room · 47 sourced answers" |
+| `getMembers` bounded at 500 active | #423 (same PR) | Merged + live | Launch-day join spike on a viral event no longer scans + serializes the full member set on every refresh |
+| `/docs` canonical + OG | #423 (same PR) | Merged + live | Docs page indexable + shareable |
+| Room-code URL lookup (`/e/orbital`) | #425 | Merged + live | Room-code links now join the canonical event instead of silently falling back to local-only chat |
+| Live-route honesty gates | launch honesty hotfix | In review | Config/join/send failures clear mock rows, disable public send, and restore drafts instead of pretending messages synced |
 
 ---
 
@@ -141,7 +143,7 @@ Visit and confirm NodeBench landing loads, not ScratchNode content.
 | 8 | V3 | Demo screenshot images eager-loaded below fold | `public/proto/home-v5.html` | Wasted bytes on landing-mode load |
 | 9 | V3 | Polling intervals (`setInterval`) not gated by `document.hidden` | `public/proto/home-v5.html` lines 4507, 5620 | Battery drain when tab inactive |
 | 10 | V3 | 30+ `addEventListener` without `removeEventListener` | `public/proto/home-v5.html` | Memory bloat if user navigates many events in one tab |
-| 11 | V5 | `/scratchnode-events` on scratchnode.live falls into landing mode (route catch-all rewrites to home-v5.html) | `vercel.json` + `public/proto/home-v5.html` | Currently NO user-facing CTA points here, so non-issue today. If we add a cross-host handoff CTA, link it to `https://www.nodebenchai.com/scratchnode-events` (absolute) |
+| 11 | V5 | `/scratchnode-events` on scratchnode.live falls into landing mode (route catch-all rewrites to home-v5.html) | `vercel.json` + `public/proto/home-v5.html` | ScratchNode CTA must use absolute `https://nodebenchai.com/scratchnode-events?...`; relative links are launch-blocking |
 | 12 | V5 | Per-route event OG cards (currently brand-only on all rewritten paths) | new — OG function | Each event shares as generic brand card; nice-to-have, not blocking |
 | 13 | V5 | "Event not found" → blank page edge case unverified live | `public/proto/home-v5.html` | Test by visiting `/e/zzz-does-not-exist-zzz` after launch |
 

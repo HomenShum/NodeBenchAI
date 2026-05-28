@@ -2099,6 +2099,41 @@ var ON_PUBLIC_DOMAIN = (function() {
   catch (e) { return false; }
 })();
 
+function isScratchNodeDemoRoute(pathname) {
+  try {
+    var p = String(pathname || location.pathname || '/').toLowerCase();
+    // Owned demo routes: /demo_ver1, /demo_ver2, etc.
+    // Deliberately does not match /, /e/:slug, /proto/home-v5.html, or /demo_version.
+    return /^\/demo_ver\d+\/?$/.test(p);
+  } catch (e) {
+    return false;
+  }
+}
+
+function shouldRunScratchNodeFullDemo() {
+  try {
+    if (!isScratchNodeDemoRoute(location.pathname)) return false;
+    var params = new URLSearchParams(location.search);
+    var demo = (params.get('demo') || '').toLowerCase();
+    var autorun = (params.get('autorun') || '').toLowerCase();
+    if (location.hash === '#legacy-demo') return false;
+    if (demo === 'legacy' || demo === '0' || autorun === '0') return false;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function shouldRunScratchNodeLegacyDemo() {
+  try {
+    if (!isScratchNodeDemoRoute(location.pathname)) return false;
+    var params = new URLSearchParams(location.search);
+    return (params.get('demo') || '').toLowerCase() === 'legacy' || location.hash === '#legacy-demo';
+  } catch (e) {
+    return false;
+  }
+}
+
 function buildNodeBenchEventPrivateUrl() {
   var roomCode = 'ORBITAL';
   try {
@@ -2106,8 +2141,9 @@ function buildNodeBenchEventPrivateUrl() {
     roomCode = (room && room.roomCode) || roomCode;
   } catch (e) {}
   return WORKSPACE_BASE_URL +
-    '/events/' + encodeURIComponent(EVENT_SLUG) +
-    '/private?source=scratchnode&room=' + encodeURIComponent(roomCode) +
+    '/scratchnode-events?source=scratchnode' +
+    '&event=' + encodeURIComponent(EVENT_SLUG) +
+    '&room=' + encodeURIComponent(roomCode) +
     '&return=' + encodeURIComponent(EVENT_URL);
 }
 
@@ -3187,9 +3223,9 @@ var SHEET_RENDERERS = {
         '</section>';
     }
     return '<div class="sheet-head"><h2 id="sheet-title">Host console</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
-      '<p class="sheet-sub">Create a new event, claim host on this one with a code, or rotate your host token to another device.</p>' +
+      '<p class="sheet-sub">Claim host on this event with a code, publish the wiki, or rotate your host token to another device.</p>' +
       // ── Section A: create event (demo) ────────────────────────────
-      '<section class="sheet-block" role="region" aria-label="Create a new event">' +
+      '<section class="sheet-block" role="region" aria-label="Create a new event" hidden style="display:none">' +
       '<div class="sheet-block-title">Create a new event</div>' +
       '<div class="sheet-field"><label class="sheet-label" for="sheet-host-title">Event title</label>' +
       '<input id="sheet-host-title" class="sheet-input" type="text" placeholder="e.g. Q4 Strategy Offsite" autocapitalize="words" /></div>' +
@@ -3197,7 +3233,7 @@ var SHEET_RENDERERS = {
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px"><button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#127908;</span><span style="font-size:11px">Conference</span></button>' +
       '<button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#128295;</span><span style="font-size:11px">Workshop</span></button>' +
       '<button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#9749;</span><span style="font-size:11px">Office hrs</span></button></div></div>' +
-      '<button type="button" class="sheet-button" onclick="toast(\'Event created!\',\'Room code: SOLARIS · Share the link with attendees.\'); closeSheet();">Create event &rarr;</button>' +
+      '<button type="button" class="sheet-button ghost" disabled aria-disabled="true" title="Create event is disabled until the live createEvent mutation ships">Create event unavailable for launch</button>' +
       '</section>' +
       '<div class="sheet-divider" role="separator" aria-hidden="true"></div>' +
       // ── Section B: claim host with one-time code ─────────────────
@@ -3845,7 +3881,7 @@ setTimeout(refreshEmptyState, 100);
 //   • Dario Amodei (Anthropic CEO)
 //   • Sarah Kim (Google DeepMind VP Eng)
 //   • Alex Chen (Orbital Labs founder)
-// Run with #demo in URL hash, or call runDemo() from console.
+// Run legacy demo only on /demo_ver{N}?demo=legacy or /demo_ver{N}#legacy-demo.
 // ═══════════════════════════════════════════════════════
 
 var CHAR_COLORS = {
@@ -3864,16 +3900,16 @@ function _time() {
 
 // ─── Debug-gated prototype simulators ───────────────────────────────────────
 // All sim* helpers are scaffolding for live demos and screenshots. They are
-// NOT shipped to production unless the user opts in via ?debug=1 or #demo in
-// the URL. Production builds should keep DEBUG_MODE false and remove this
-// block entirely (it is marked Prototype in docs.html).
+// NOT shipped to production unless the user opts in via ?debug=1 or the URL is
+// an explicit /demo_ver{N} route. Production builds should keep DEBUG_MODE
+// false and remove this block entirely (it is marked Prototype in docs.html).
 var _DEBUG_HELPERS_ON = (function() {
   if (DEBUG_MODE) return true;
-  try { return location.hash.indexOf('demo') !== -1; } catch (e) { return false; }
+  try { return isScratchNodeDemoRoute(location.pathname); } catch (e) { return false; }
 })();
 if (!_DEBUG_HELPERS_ON) {
   // Production / non-debug: leave window.sim* undefined and skip the rest of this block.
-  console.debug('[scratchnode] sim* helpers gated — pass ?debug=1 or #demo to enable.');
+  console.debug('[scratchnode] sim* helpers gated — pass ?debug=1 or use /demo_ver{N} to enable.');
 }
 
 // Inject a chat row from any character
@@ -4052,12 +4088,12 @@ function runDemo() {
   simRun(script);
 }
 
-// Trigger demo via URL hash #demo
-if (location.hash === '#demo') {
+// Trigger the older short demo only from explicit demo routes.
+if (shouldRunScratchNodeLegacyDemo()) {
   setTimeout(runDemo, 600);
 }
 window.addEventListener('hashchange', function() {
-  if (location.hash === '#demo') runDemo();
+  if (shouldRunScratchNodeLegacyDemo()) runDemo();
 });
 
 // ═══════════════════════════════════════════════════════
@@ -5118,6 +5154,34 @@ window._laCueAction       = _laCueAction;
   if (!slugMatch) return; // landing & demo modes stay prototype-only
   if (pageMode === 'landing' || pageMode === 'demo') return; // belt-and-suspenders
   const slug = slugMatch[1];
+  const feedEl = document.getElementById('feed');
+
+  const clearPrototypeFeed = () => {
+    if (!feedEl) return;
+    Array.from(feedEl.querySelectorAll('.row, .ans')).forEach(el => el.remove());
+  };
+
+  const showLiveRoomError = (messageHtml) => {
+    clearPrototypeFeed();
+    try {
+      var input = document.getElementById('ci');
+      if (input) {
+        input.value = '';
+        input.setAttribute('disabled', 'disabled');
+        input.setAttribute('placeholder', 'Live room unavailable - reload to retry');
+      }
+      var existing = document.querySelector('[data-sn-live-error="true"]');
+      if (existing) existing.remove();
+      var banner = document.createElement('div');
+      banner.setAttribute('role', 'alert');
+      banner.setAttribute('data-sn-live-error', 'true');
+      banner.style.cssText = 'position:sticky;top:0;z-index:50;padding:10px 14px;background:#3a2a24;color:#f1d6c8;border-bottom:1px solid #5a3a30;font:500 13px/1.4 var(--ui,system-ui);text-align:center;';
+      banner.innerHTML = messageHtml;
+      document.body.insertBefore(banner, document.body.firstChild);
+    } catch (_) {
+      // Never throw from the error surface.
+    }
+  };
 
   // Stable anonymous session UUID — persists across reloads, per-device.
   let sessionId;
@@ -5139,11 +5203,13 @@ window._laCueAction       = _laCueAction;
     if (!r.ok) throw new Error('config ' + r.status);
     cfg = await r.json();
   } catch (e) {
-    console.debug('[scratchnode] config fetch failed, staying in prototype mode:', e.message);
+    console.debug('[scratchnode] config fetch failed, live room unavailable:', e.message);
+    showLiveRoomError('Could not load live room config. <a href="javascript:location.reload()" style="color:#f1d6c8;text-decoration:underline">Retry</a>');
     return;
   }
   if (!cfg.convexUrl) {
-    console.debug('[scratchnode] no convexUrl in config — prototype mode');
+    console.debug('[scratchnode] no convexUrl in config - live room unavailable');
+    showLiveRoomError('Live room config is missing Convex. <a href="javascript:location.reload()" style="color:#f1d6c8;text-decoration:underline">Retry</a>');
     return;
   }
 
@@ -5154,7 +5220,8 @@ window._laCueAction       = _laCueAction;
     ConvexClient = mod.ConvexClient;
     if (!ConvexClient) throw new Error('ConvexClient export missing');
   } catch (e) {
-    console.warn('[scratchnode] Convex client load failed, prototype mode:', e.message);
+    console.warn('[scratchnode] Convex client load failed, live room unavailable:', e.message);
+    showLiveRoomError('Could not load the realtime client. <a href="javascript:location.reload()" style="color:#f1d6c8;text-decoration:underline">Retry</a>');
     return;
   }
 
@@ -5166,7 +5233,7 @@ window._laCueAction       = _laCueAction;
   try {
     joined = await client.mutation('events:joinEvent', { slug, sessionId, displayName });
   } catch (e) {
-    console.warn('[scratchnode] joinEvent failed, prototype mode:', e.message || e);
+    console.warn('[scratchnode] joinEvent failed, live room unavailable:', e.message || e);
     client.close && client.close();
     // HONEST_STATUS: don't silently render mock chat when the slug/code
     // doesn't resolve. Users typing /e/whatever expected to land in a
@@ -5174,15 +5241,9 @@ window._laCueAction       = _laCueAction;
     // sent when nothing was persisted.
     var errCode = (e && e.data && e.data.code) || '';
     var notFound = errCode === 'event_not_found' || /event_not_found/i.test(String(e && e.message || ''));
-    try {
-      var banner = document.createElement('div');
-      banner.setAttribute('role', 'alert');
-      banner.style.cssText = 'position:sticky;top:0;z-index:50;padding:10px 14px;background:#3a2a24;color:#f1d6c8;border-bottom:1px solid #5a3a30;font:500 13px/1.4 var(--ui,system-ui);text-align:center;';
-      banner.innerHTML = notFound
-        ? 'No room matches <code style="font-family:var(--mono,monospace);background:#2a1f1c;padding:2px 6px;border-radius:4px">/e/' + (slug.replace(/[<>&"]/g, '') || '?') + '</code>. <a href="/" style="color:#f1d6c8;text-decoration:underline">Back to landing</a> or check your room code.'
-        : 'Could not connect to the live room. <a href="javascript:location.reload()" style="color:#f1d6c8;text-decoration:underline">Retry</a>';
-      document.body.insertBefore(banner, document.body.firstChild);
-    } catch (_) { /* belt-and-suspenders — never throw from error handler */ }
+    showLiveRoomError(notFound
+      ? 'No room matches <code style="font-family:var(--mono,monospace);background:#2a1f1c;padding:2px 6px;border-radius:4px">/e/' + (slug.replace(/[<>&"]/g, '') || '?') + '</code>. <a href="/" style="color:#f1d6c8;text-decoration:underline">Back to landing</a> or check your room code.'
+      : 'Could not connect to the live room. <a href="javascript:location.reload()" style="color:#f1d6c8;text-decoration:underline">Retry</a>');
     return;
   }
   const eventId = joined.eventId;
@@ -5217,7 +5278,6 @@ window._laCueAction       = _laCueAction;
   }
 
   // ─── Replace pre-baked feed rows with realtime Convex rows ─────────
-  const feedEl = document.getElementById('feed');
   if (feedEl) {
     // Wipe the hardcoded demo rows once Convex takes over — they'd otherwise
     // appear next to real messages and confuse users.
@@ -5314,6 +5374,7 @@ window._laCueAction       = _laCueAction;
     const input = document.getElementById('ci');
     const intent = window.parseComposerIntent && window.parseComposerIntent(input.value);
     if (!intent) { input.focus(); return; }
+    const submittedValue = input.value;
 
     // Private mode stays 100% prototype-side (Phase 3 wires this to Convex).
     if (intent.visibility === 'private') {
@@ -5323,13 +5384,15 @@ window._laCueAction       = _laCueAction;
     // Public chat or /ask — send to Convex. The agent answer for /ask is Phase 2;
     // for now the message just shows up in the feed.
     const liveName = (window._userName && String(window._userName).trim()) || 'Anonymous Guest';
-    client.mutation('events:sendMessage', {
+    const messagePayload = {
       eventId,
       sessionId,
       displayName: liveName,
       text: intent.clean,
       kind: intent.kind === 'agent_ask' ? 'ask' : 'chat',
-    }).then((res) => {
+    };
+    const postMessage = () => client.mutation('events:sendMessage', messagePayload);
+    const runAskIfNeeded = (res) => {
       if (intent.kind !== 'agent_ask') return null;
       const payload = {
         eventId,
@@ -5345,12 +5408,32 @@ window._laCueAction       = _laCueAction;
         : client.mutation('events:composeAnswer', payload);
       return runAsk.then((answer) => {
         if (answer) renderAnswer(answer);
+      }).catch((askError) => {
+        console.warn('[scratchnode] /ask answer failed:', askError.message || askError);
+        if (typeof toast === 'function') {
+          toast('Question saved', 'The message posted, but the answer did not complete. Try again in a moment.');
+        }
       });
-    }).catch((e) => {
-      console.warn('[scratchnode] sendMessage failed:', e.message || e);
-      // Fall back to prototype DOM append so the message isn't lost in the void.
-      _origSend.call(this);
-    });
+    };
+
+    postMessage()
+      .catch((e) => {
+        const code = (e && e.data && e.data.code) || '';
+        const notJoined = code === 'not_joined' || /not_joined/i.test(String(e && e.message || ''));
+        if (!notJoined) throw e;
+        return client
+          .mutation('events:joinEvent', { slug, sessionId, displayName: liveName })
+          .then(() => postMessage());
+      })
+      .then(runAskIfNeeded)
+      .catch((e) => {
+        console.warn('[scratchnode] sendMessage failed:', e.message || e);
+        input.value = submittedValue;
+        input.focus();
+        if (typeof toast === 'function') {
+          toast('Message not sent', 'The live room did not confirm it. Your draft was restored.');
+        }
+      });
 
     // Clear composer; Convex subscription will render the new row when it lands.
     input.value = '';
@@ -7947,6 +8030,9 @@ window._laCueAction       = _laCueAction;
   window.runRiskAttackQA = runRiskAttackQA;
   window.demoReset   = demoReset;
   window.demoStep    = demoStep;
+  window.isScratchNodeDemoRoute = isScratchNodeDemoRoute;
+  window.shouldRunScratchNodeFullDemo = shouldRunScratchNodeFullDemo;
+  window.shouldRunScratchNodeLegacyDemo = shouldRunScratchNodeLegacyDemo;
   window.SN_AGENT_OUTPUT_REGISTRY = AGENT_OUTPUT_REGISTRY;
   window.evaluateAgentOutputEnvelope = evaluateAgentOutputEnvelope;
   window.recordAgentOutputEnvelope = recordAgentOutputEnvelope;
@@ -7960,9 +8046,7 @@ window._laCueAction       = _laCueAction;
   // honored for pacing on demo routes.
   try {
     var params = new URLSearchParams(location.search);
-    var demoVerMatch = location.pathname.match(/^\/demo_ver(\d+)\/?$/);
-    var isDemoRoute = !!demoVerMatch;
-    if (isDemoRoute) {
+    if (shouldRunScratchNodeFullDemo()) {
       var speed = params.get('demoSpeed') || 'normal';
       // Defer until after DOMContentLoaded + small delay so live Convex bootstrap can settle.
       var kickoff = function() { setTimeout(function() { runDemoFull({ speed: speed }); }, 600); };

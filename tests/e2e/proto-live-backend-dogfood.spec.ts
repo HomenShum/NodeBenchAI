@@ -92,8 +92,15 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
       waitUntil: "domcontentloaded",
       timeout: 45_000,
     });
-    await waitForScratchNodeLive(pageA);
     await expect(pageA).toHaveTitle(/ScratchNode/i);
+    const apexState = await pageA.evaluate(() => ({
+      pageMode: document.body.getAttribute("data-page-mode"),
+      live: document.body.getAttribute("data-sn-live"),
+      demoLogLength: Array.isArray((window as any)._demo_log)
+        ? (window as any)._demo_log.length
+        : 0,
+    }));
+    expect(apexState).toMatchObject({ pageMode: "landing", live: null, demoLogLength: 0 });
     const boundary = await pageA.evaluate(() => {
       const win = window as any;
       return {
@@ -111,19 +118,20 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
     expect(boundary.eventUrl).not.toContain("scratchnode.com");
     expect(boundary.workspaceBaseUrl).toBe("https://nodebenchai.com");
     expect(boundary.privateHandoffUrl).toContain(
-      "https://nodebenchai.com/events/ai-infra-summit-2026/private",
+      "https://nodebenchai.com/scratchnode-events",
     );
     expect(boundary.privateHandoffUrl).toContain("source=scratchnode");
+    expect(boundary.privateHandoffUrl).toContain("event=ai-infra-summit-2026");
     expect(boundary.privateHandoffUrl).toContain("room=ORBITAL");
     expect(decodeURIComponent(boundary.privateHandoffUrl)).toContain(
       `return=${expectedPublicOrigin}/e/ai-infra-summit-2026`,
     );
     expect(decodeURIComponent(boundary.signInHandoffUrl)).toContain(
-      "/events/ai-infra-summit-2026/private",
+      "/scratchnode-events",
     );
     expect(boundary.hasOpenHandoff).toBe("function");
     await pageA.screenshot({
-      path: join(ARTIFACT_DIR, `${qaId}-apex-live.png`),
+      path: join(ARTIFACT_DIR, `${qaId}-apex-landing.png`),
       fullPage: true,
     });
 
@@ -307,7 +315,7 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
     await expect(pageA.locator("#sn-nodebench-private-handoff")).toBeVisible();
     await expect(pageA.locator("#sheet-content")).toContainText("Open NodeBench event notebook");
     await expect(pageA.locator("#sheet-content")).toContainText(
-      "https://nodebenchai.com/events/ai-infra-summit-2026/private",
+      "https://nodebenchai.com/scratchnode-events",
     );
     await pageA.evaluate(() => (window as any).closeSheet());
 
