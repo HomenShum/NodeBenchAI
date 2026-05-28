@@ -59,6 +59,44 @@ rules apply to it. L1/L2/L3 gives one gate for public wiki generation, private
 LightRAG memory, search retrieval tools, semantic cache entries, trace nodes,
 artifacts, and UI renderers.
 
+## Live Assist Additions
+
+```text
+private_memory
+  live_cue
+    cue.question_suggestion
+    cue.context_card
+    cue.contradiction_warning
+    cue.followup_prompt
+    cue.decision_hint
+  private_note
+    note.raw_shorthand
+    note.agent_enhanced
+    note.voice_transcript
+    note.anchored_to_chat
+
+generated_artifact
+  meeting_brief
+    artifact.private_meeting_summary
+    artifact.team_meeting_summary
+```
+
+Live Assist cues are private by default and must never auto-post:
+
+```text
+visibility = private | workspace
+cueText required
+trigger required
+autoPost = false
+```
+
+Meeting summaries that use owner notes must remain private:
+
+```text
+artifact.private_meeting_summary may use privateNotesUsed=true
+artifact.team_meeting_summary cannot include private-note payloads
+```
+
 ## L1 Families
 
 ```text

@@ -223,10 +223,12 @@ Examples:
 
 ```text
 public_knowledge / event_faq / faq.cached_reuse_answer
+private_memory / live_cue / cue.question_suggestion
 private_memory / private_note / note.anchored_to_chat
 retrieval_context / index_search / retrieval.context_packet
 operational_cache / semantic_answer_cache / cache.public_faq_answer
 agent_trace / output_node / trace.output.public_answer
+generated_artifact / meeting_brief / artifact.private_meeting_summary
 generated_artifact / event_archive / artifact.published_event_wiki
 ```
 

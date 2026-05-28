@@ -4305,7 +4305,51 @@ function pushLiveAssistCue(text, opts) {
   // (Ive principle: every element earns its place; oldest cues age out).
   if (window._live_assist.cues.length > 3) window._live_assist.cues.length = 3;
   _renderLiveAssist();
+  if (typeof window.recordAgentOutputEnvelope === 'function') {
+    var trigger = opts.trigger || _inferLiveCueTrigger(text);
+    var l3 = opts.l3 || _inferLiveCueL3(text);
+    var traceRef = 'trace_' + cue.id;
+    window.recordAgentOutputEnvelope({
+      id: 'out_' + cue.id,
+      l1: 'private_memory',
+      l2: 'live_cue',
+      l3: l3,
+      target: { eventId: 'evt_ai_infra_summit', messageId: opts.messageId || undefined, traceId: traceRef },
+      visibility: opts.visibility || 'private',
+      sourceRefs: opts.sourceRefs || ['event:evt_ai_infra_summit'],
+      citationRefs: opts.citationRefs || [],
+      traceRef: traceRef,
+      producedBy: {
+        runId: 'run_' + cue.id,
+        skill: opts.skill || 'meeting-live-cue',
+        toolChain: opts.toolChain || ['retrieve_event_context']
+      },
+      version: { memorySnapshotVersion: 1 },
+      output: {
+        cueText: text,
+        trigger: trigger,
+        autoPost: false,
+        actions: ['save_note','ask_private','make_followup'],
+        ownerOnly: true,
+        source: cue.source
+      }
+    });
+  }
   return cue.id;
+}
+function _inferLiveCueL3(text) {
+  if (/contradict|earlier|now said/i.test(text || '')) return 'cue.contradiction_warning';
+  if (/follow.?up|owner|deadline|next step/i.test(text || '')) return 'cue.followup_prompt';
+  if (/decision|decide|approved|agreed/i.test(text || '')) return 'cue.decision_hint';
+  if (/@|context|source/i.test(text || '')) return 'cue.context_card';
+  return 'cue.question_suggestion';
+}
+function _inferLiveCueTrigger(text) {
+  if (/contradict|earlier|now said/i.test(text || '')) return 'contradiction_detected';
+  if (/follow.?up|owner|deadline|next step/i.test(text || '')) return 'action_item_detected';
+  if (/decision|decide|approved|agreed/i.test(text || '')) return 'decision_detected';
+  if (/@|context|source/i.test(text || '')) return 'entity_topic_changed';
+  return 'question_detected';
 }
 
 // Set context chips (entity mentions, current focus).
@@ -5837,6 +5881,7 @@ window._laCueAction       = _laCueAction;
       public_agent_answer: ['answer.public_event_card','answer.cached_event_answer','answer.delta_refreshed_answer']
     },
     private_memory: {
+      live_cue: ['cue.question_suggestion','cue.context_card','cue.contradiction_warning','cue.followup_prompt','cue.decision_hint'],
       private_note: ['note.raw_shorthand','note.agent_enhanced','note.voice_transcript','note.anchored_to_chat','note.followup_task'],
       private_notebook_patch: ['notebook.append_block','notebook.update_block','notebook.followup_task']
     },
@@ -5853,6 +5898,7 @@ window._laCueAction       = _laCueAction;
     },
     generated_artifact: {
       presentation: ['artifact.presentation_html'],
+      meeting_brief: ['artifact.private_meeting_summary','artifact.team_meeting_summary'],
       source_bundle: ['artifact.source_bundle'],
       export: ['artifact.csv_export','artifact.crm_export'],
       event_archive: ['artifact.published_event_wiki']
@@ -5866,6 +5912,11 @@ window._laCueAction       = _laCueAction;
   };
   var AGENT_OUTPUT_POLICIES = {
     'faq.cached_reuse_answer': { l1:'public_knowledge', l2:'event_faq', storage:'convex', renderer:'AgentAnswerCard', evaluator:'faq_validator', allowedVisibility:['event_public'] },
+    'cue.question_suggestion': { l1:'private_memory', l2:'live_cue', storage:'convex', renderer:'LiveAssistCueCard', evaluator:'live_cue_validator', allowedVisibility:['private','workspace'] },
+    'cue.context_card': { l1:'private_memory', l2:'live_cue', storage:'convex', renderer:'LiveAssistContextCard', evaluator:'live_cue_validator', allowedVisibility:['private','workspace'] },
+    'cue.contradiction_warning': { l1:'private_memory', l2:'live_cue', storage:'convex', renderer:'LiveAssistCueCard', evaluator:'live_cue_validator', allowedVisibility:['private','workspace'] },
+    'cue.followup_prompt': { l1:'private_memory', l2:'live_cue', storage:'convex', renderer:'LiveAssistCueCard', evaluator:'live_cue_validator', allowedVisibility:['private','workspace'] },
+    'cue.decision_hint': { l1:'private_memory', l2:'live_cue', storage:'convex', renderer:'LiveAssistCueCard', evaluator:'live_cue_validator', allowedVisibility:['private','workspace'] },
     'note.anchored_to_chat': { l1:'private_memory', l2:'private_note', storage:'convex', renderer:'PrivateNoteMarker', evaluator:'note_validator', allowedVisibility:['private'] },
     'note.agent_enhanced': { l1:'private_memory', l2:'private_note', storage:'convex', renderer:'PrivateNoteSheet', evaluator:'note_validator', allowedVisibility:['private'] },
     'note.voice_transcript': { l1:'private_memory', l2:'private_note', storage:'convex', renderer:'PrivateNoteSheet', evaluator:'note_validator', allowedVisibility:['private'] },
@@ -5884,6 +5935,8 @@ window._laCueAction       = _laCueAction;
     'wiki.what_changed_item': { l1:'public_knowledge', l2:'event_wiki', storage:'convex', renderer:'WikiSectionItem', evaluator:'wiki_validator', allowedVisibility:['event_public','host_draft'] },
     'artifact.published_event_wiki': { l1:'generated_artifact', l2:'event_archive', storage:'artifact_lake', renderer:'EventArchiveArtifact', evaluator:'artifact_validator', allowedVisibility:['event_public'] },
     'artifact.presentation_html': { l1:'generated_artifact', l2:'presentation', storage:'artifact_lake', renderer:'PresentationArtifact', evaluator:'artifact_validator', allowedVisibility:['event_public','workspace'] },
+    'artifact.private_meeting_summary': { l1:'generated_artifact', l2:'meeting_brief', storage:'artifact_lake', renderer:'MeetingBriefArtifact', evaluator:'artifact_validator', allowedVisibility:['private','workspace'] },
+    'artifact.team_meeting_summary': { l1:'generated_artifact', l2:'meeting_brief', storage:'artifact_lake', renderer:'MeetingBriefArtifact', evaluator:'artifact_validator', allowedVisibility:['workspace'] },
     'ui.agent_answer_card': { l1:'ui_renderable', l2:'ui_card', storage:'ui_only', renderer:'AgentAnswerCard', evaluator:'ui_snapshot_evaluator', allowedVisibility:['event_public'] },
     'ui.private_note_marker': { l1:'ui_renderable', l2:'ui_card', storage:'ui_only', renderer:'PrivateNoteMarker', evaluator:'ui_snapshot_evaluator', allowedVisibility:['private'] }
   };
@@ -5944,6 +5997,18 @@ window._laCueAction       = _laCueAction;
     }
     if (envelope.l2 === 'private_note') {
       if (!_readOutputPath(envelope.output, ['body'])) err('NOTE-002', 'Private note requires body.');
+    }
+    if (envelope.l2 === 'live_cue') {
+      if (['private','workspace'].indexOf(envelope.visibility) === -1) err('CUE-001', 'Live Assist cues must be private or workspace-scoped.');
+      if (!_readOutputPath(envelope.output, ['cueText'])) err('CUE-002', 'Live Assist cues require cueText.');
+      if (_readOutputPath(envelope.output, ['autoPost']) !== false) err('CUE-003', 'Live Assist cues must set autoPost=false.');
+      if (!_readOutputPath(envelope.output, ['trigger'])) err('CUE-004', 'Live Assist cues require trigger.');
+    }
+    if (envelope.l2 === 'meeting_brief') {
+      if (envelope.visibility === 'event_public') err('ART-007', 'Meeting brief artifacts cannot be event_public.');
+      if (!_readOutputPath(envelope.output, ['summary'])) err('ART-001', 'Meeting brief artifacts require summary.');
+      if (!Array.isArray(_readOutputPath(envelope.output, ['actionItems']))) err('ART-002', 'Meeting brief artifacts require actionItems.');
+      if (_readOutputPath(envelope.output, ['privateNotesUsed']) === true && envelope.visibility !== 'private') err('ART-005', 'Meeting briefs with private notes must remain private.');
     }
     return { passed: issues.length === 0, issues: issues, policy: policy };
   }
@@ -6992,8 +7057,28 @@ window._laCueAction       = _laCueAction;
     return Promise.resolve(artifact);
   }
   function createDailyBriefDelta() {
-    // The brief is rendered by the Reports tab in the overlay.
-    return Promise.resolve({ entitiesAdded: 3, signalsAdded: 5 });
+    // The brief is rendered by the Reports tab in the overlay. The private
+    // meeting summary is a first-class artifact because it may use owner notes.
+    recordAgentOutputEnvelope({
+      id: 'artifact_private_meeting_summary',
+      l1: 'generated_artifact',
+      l2: 'meeting_brief',
+      l3: 'artifact.private_meeting_summary',
+      target: { eventId: 'evt_ai_infra_summit', artifactId: 'artifact_private_meeting_summary', traceId: 'trace_nodebench_handoff' },
+      visibility: 'private',
+      sourceRefs: ['source:event-wiki:v1', 'private-notebook-summary'],
+      citationRefs: [],
+      traceRef: 'trace_nodebench_handoff',
+      producedBy: { runId: 'run_post_meeting_brief', skill: 'post-meeting-brief', toolChain: ['retrieve_event_context','save_private_note_patch'] },
+      version: { wikiVersion: 1, sourceBundleVersion: 7, memorySnapshotVersion: 1 },
+      output: {
+        summary: 'Orbital Labs and clinical triage latency became the private follow-through theme.',
+        actionItems: ['Ask Alex about p95 latency targets.', 'Confirm whether Epic integration is planned.'],
+        privateNotesUsed: true,
+        workspaceOnly: true
+      }
+    });
+    return Promise.resolve({ entitiesAdded: 3, signalsAdded: 5, privateMeetingSummary: true });
   }
 
   // ── Actor switch (toggles body[data-actor-id] + identity strip) ──
@@ -7516,12 +7601,15 @@ window._laCueAction       = _laCueAction;
     var invalidOutputs = outputs.filter(function(out) { return !out.evaluation || !out.evaluation.passed; });
     var rendererMapped = outputs.every(function(out) { return out.evaluation && out.evaluation.policy && out.evaluation.policy.renderer; });
     var evaluatorMapped = outputs.every(function(out) { return out.evaluation && out.evaluation.policy && out.evaluation.policy.evaluator; });
+    var liveCueCount = outputs.filter(function(out) { return out.l2 === 'live_cue'; }).length;
+    var meetingBriefCount = outputs.filter(function(out) { return out.l2 === 'meeting_brief'; }).length;
     var contractSummary = {
       passed: outputs.length > 0 && invalidOutputs.length === 0 && missingFamilies.length === 0 && rendererMapped && evaluatorMapped,
       total: outputs.length,
       invalid: invalidOutputs.map(function(out) { return out.id; }),
       missingFamilies: missingFamilies,
       byL1: byL1,
+      liveAssist: { liveCueCount: liveCueCount, meetingBriefCount: meetingBriefCount },
       rendererMapped: rendererMapped,
       evaluatorMapped: evaluatorMapped
     };
@@ -7595,6 +7683,7 @@ window._laCueAction       = _laCueAction;
   window.demoStep    = demoStep;
   window.SN_AGENT_OUTPUT_REGISTRY = AGENT_OUTPUT_REGISTRY;
   window.evaluateAgentOutputEnvelope = evaluateAgentOutputEnvelope;
+  window.recordAgentOutputEnvelope = recordAgentOutputEnvelope;
 
   // ?demo=1 URL auto-run for one-click presentations.
   try {

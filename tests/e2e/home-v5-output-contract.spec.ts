@@ -25,6 +25,8 @@ test("home-v5 runDemoFull keeps visible invariants and L1/L2/L3 output contracts
   expect(qa.contract.missingFamilies).toEqual([]);
   expect(qa.contract.rendererMapped).toBe(true);
   expect(qa.contract.evaluatorMapped).toBe(true);
+  expect(qa.contract.liveAssist.liveCueCount).toBeGreaterThanOrEqual(1);
+  expect(qa.contract.liveAssist.meetingBriefCount).toBe(1);
   expect(qa.riskAttack.passed).toBe(7);
   expect(qa.riskAttack.failed).toBe(0);
   expect(qa.riskAttack.total).toBe(7);

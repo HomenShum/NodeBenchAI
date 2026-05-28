@@ -23,6 +23,13 @@ export const OUTPUT_REGISTRY = {
     ],
   },
   private_memory: {
+    live_cue: [
+      "cue.question_suggestion",
+      "cue.context_card",
+      "cue.contradiction_warning",
+      "cue.followup_prompt",
+      "cue.decision_hint",
+    ],
     private_note: [
       "note.raw_shorthand",
       "note.agent_enhanced",
@@ -80,6 +87,7 @@ export const OUTPUT_REGISTRY = {
   },
   generated_artifact: {
     presentation: ["artifact.presentation_html"],
+    meeting_brief: ["artifact.private_meeting_summary", "artifact.team_meeting_summary"],
     source_bundle: ["artifact.source_bundle"],
     export: ["artifact.csv_export", "artifact.crm_export"],
     event_archive: ["artifact.published_event_wiki"],
@@ -189,6 +197,11 @@ export const AGENT_OUTPUT_POLICIES: AgentOutputPolicy[] = [
   policy("public_knowledge", "public_agent_answer", "answer.public_event_card", "convex", "AgentAnswerCard", "answer_validator", ["event_public"]),
   policy("public_knowledge", "public_agent_answer", "answer.cached_event_answer", "convex", "AgentAnswerCard", "answer_validator", ["event_public"]),
   policy("public_knowledge", "public_agent_answer", "answer.delta_refreshed_answer", "convex", "AgentAnswerCard", "answer_validator", ["event_public"]),
+  policy("private_memory", "live_cue", "cue.question_suggestion", "convex", "LiveAssistCueCard", "live_cue_validator", ["private", "workspace"]),
+  policy("private_memory", "live_cue", "cue.context_card", "convex", "LiveAssistContextCard", "live_cue_validator", ["private", "workspace"]),
+  policy("private_memory", "live_cue", "cue.contradiction_warning", "convex", "LiveAssistCueCard", "live_cue_validator", ["private", "workspace"]),
+  policy("private_memory", "live_cue", "cue.followup_prompt", "convex", "LiveAssistCueCard", "live_cue_validator", ["private", "workspace"]),
+  policy("private_memory", "live_cue", "cue.decision_hint", "convex", "LiveAssistCueCard", "live_cue_validator", ["private", "workspace"]),
   policy("private_memory", "private_note", "note.raw_shorthand", "convex", "PrivateNoteSheet", "note_validator", ["private"]),
   policy("private_memory", "private_note", "note.agent_enhanced", "convex", "PrivateNoteSheet", "note_validator", ["private"]),
   policy("private_memory", "private_note", "note.voice_transcript", "convex", "PrivateNoteSheet", "note_validator", ["private"]),
@@ -224,6 +237,8 @@ export const AGENT_OUTPUT_POLICIES: AgentOutputPolicy[] = [
   policy("agent_trace", "tool_call", "trace.tool.linkup_search", "convex", "TraceToolCall", "tool_call_evaluator", ["event_public", "private", "workspace"]),
   policy("agent_trace", "tool_call", "trace.tool.save_private_note_patch", "convex", "TraceToolCall", "tool_call_evaluator", ["private", "workspace"]),
   policy("generated_artifact", "presentation", "artifact.presentation_html", "artifact_lake", "PresentationArtifact", "artifact_validator", ["event_public", "workspace"]),
+  policy("generated_artifact", "meeting_brief", "artifact.private_meeting_summary", "artifact_lake", "MeetingBriefArtifact", "artifact_validator", ["private", "workspace"]),
+  policy("generated_artifact", "meeting_brief", "artifact.team_meeting_summary", "artifact_lake", "MeetingBriefArtifact", "artifact_validator", ["workspace"]),
   policy("generated_artifact", "source_bundle", "artifact.source_bundle", "artifact_lake", "SourceBundleArtifact", "artifact_validator", ["event_public", "workspace"]),
   policy("generated_artifact", "export", "artifact.csv_export", "artifact_lake", "ExportArtifact", "artifact_validator", ["private", "workspace"]),
   policy("generated_artifact", "export", "artifact.crm_export", "artifact_lake", "ExportArtifact", "artifact_validator", ["private", "workspace"]),
@@ -389,10 +404,39 @@ function validateSpecificContract(
     if (envelope.visibility !== "private") addError("NOTE-001", "Private notes require visibility=private.");
     if (!stringField(envelope.output, "body")) addError("NOTE-002", "Private notes require a body.");
   }
+
+  if (envelope.l2 === "live_cue") {
+    if (!["private", "workspace"].includes(envelope.visibility)) {
+      addError("CUE-001", "Live Assist cues must be private or workspace-scoped.");
+    }
+    if (!stringField(envelope.output, "cueText")) addError("CUE-002", "Live Assist cues require cueText.");
+    if (readPath(envelope.output, ["autoPost"]) !== false) {
+      addError("CUE-003", "Live Assist cues must set autoPost=false.");
+    }
+    if (!stringField(envelope.output, "trigger")) addError("CUE-004", "Live Assist cues require the event trigger.");
+  }
+
+  if (envelope.l2 === "meeting_brief") {
+    if (envelope.visibility === "event_public") {
+      addError("ART-007", "Meeting brief artifacts cannot be event_public.");
+    }
+    if (!stringField(envelope.output, "summary")) addError("ART-001", "Meeting brief artifacts require a summary.");
+    if (!Array.isArray(readPath(envelope.output, ["actionItems"]))) {
+      addError("ART-002", "Meeting brief artifacts require actionItems.");
+    }
+    if (containsPrivatePayload(envelope.output) && envelope.visibility !== "private") {
+      addError("ART-005", "Meeting briefs with private note content must remain private.");
+    }
+  }
 }
 
 function isPrivateRef(ref: string): boolean {
   return /^private[:/_-]|private_note|userNotes|note_private/i.test(ref);
+}
+
+function containsPrivatePayload(value: unknown): boolean {
+  if (!value) return false;
+  return /"(?:privateNoteIds?|private_source_refs?|privateNotesUsed)"\s*:\s*true/i.test(JSON.stringify(value));
 }
 
 function stringField(value: Record<string, unknown> | undefined, key: string): boolean {
