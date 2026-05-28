@@ -84,7 +84,35 @@ jobs:
           src/features/product/lib/captureRouter.test.ts
           src/features/workspace/lib/eventWorkspacePersistence.test.ts
           src/features/workspace/data/eventWorkspaceMemory.test.ts
+          convex/__tests__/scratchnode.events.test.ts
           server/searchRoute.test.ts
+
+  scratchnode-launch-gates:
+    name: ScratchNode launch gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          package-manager-cache: false
+          node-version-file: ".nvmrc"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify demo route gate and live route honesty
+        run: >
+          npx playwright test
+          tests/e2e/scratchnode-demo-route-gate.spec.ts
+          tests/e2e/scratchnode-live-route-honesty.spec.ts
+          --project=chromium
+          --workers=1
+          --reporter=list
 
   build:
     name: Build
@@ -93,6 +121,7 @@ jobs:
     needs:
       - typecheck
       - runtime-smoke
+      - scratchnode-launch-gates
     steps:
       - uses: actions/checkout@v6
 

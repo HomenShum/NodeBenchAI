@@ -1477,7 +1477,7 @@ eventAnswers: <span class="fn">defineTable</span>({
 
     <h2 id="quick-start">Quick start <a class="anchor" href="#quick-start">#</a></h2>
     <p>Open <a href="home-v5.html">home-v5.html</a> directly in a browser. No build, no npm. To skip onboarding and land mid-conversation:</p>
-    <pre><span class="lang">url</span>home-v5.html<span class="kw">#demo</span></pre>
+    <pre><span class="lang">url</span>/demo_ver1<span class="kw">?demoSpeed=instant</span></pre>
     <p>To replay onboarding from a specific step:</p>
     <pre><span class="lang">url</span>home-v5.html<span class="kw">#wiz=</span><span class="num">2</span></pre>
     <div class="callout note"><span class="icon">⚡</span><div><strong>Tip:</strong> All demo controls are also exposed as functions on <code>window</code> — see <a href="#js-api">JS API</a>.</div></div>
@@ -1612,7 +1612,7 @@ eventAnswers: <span class="fn">defineTable</span>({
     <p>Roster of attendees with name, role, online status. Tap a row to open their @-mentions and questions (toast in current proto).</p>
 
     <h3 id="v5-host">Host / create event</h3>
-    <p>Title input + template chips (Conference / Workshop / Office hrs). Calls <code>toast()</code> with the generated room code (<code>SOLARIS</code> in demo).</p>
+    <p>Launch surface supports claiming host on an existing room, rotating a host claim code, reviewing FAQ suggestions, and publishing the wiki. New room creation is hidden until the live <code>createEvent</code> mutation ships.</p>
 
     <h2 id="v5-landing">Landing &amp; onboarding <a class="anchor" href="#v5-landing">#</a></h2>
     <p>First-visit IIFE (<code>detectFirstVisit</code>) routes new users to the landing surface and persists their last view mode. Onboarding tour: 3 pulse-positioned steps over the composer and identity row.</p>
@@ -1723,7 +1723,7 @@ eventAnswers: <span class="fn">defineTable</span>({
     <table>
       <thead><tr><th>Hash</th><th>Effect</th></tr></thead>
       <tbody>
-        <tr><td><code>#demo</code></td><td>Triggers <code>runDemo()</code> — full live timeline of incoming messages, /ask answers, mentions, reactions.</td></tr>
+        <tr><td><code>/demo_ver1</code></td><td>Triggers <code>runDemoFull()</code> — full live timeline of incoming messages, /ask answers, mentions, reactions. Stale <code>?demo=1</code> and <code>#demo</code> links are ignored on live routes.</td></tr>
         <tr><td><code>#wiz=1</code> / <code>2</code> / <code>3</code></td><td>Jump directly to onboarding step N.</td></tr>
         <tr><td><code>#empty</code></td><td>Clears the feed and shows the empty-state CTA.</td></tr>
         <tr><td><code>#viewmode=workspace</code></td><td>(v4) sets view mode without going through landing.</td></tr>
@@ -1806,7 +1806,7 @@ eventAnswers: <span class="fn">defineTable</span>({
 
     <h2 id="closing">What's next <a class="anchor" href="#closing">#</a></h2>
     <p>The two prototypes are deliberately parallel: v4 proves the full feature surface; v5 proves you can ship 10% of it and still earn the room. The docs page you're reading is the canonical reference between them.</p>
-    <p>Open v5 with <code>#demo</code> to see all of it animated end-to-end. Open v4 to see the spec proof at full fidelity.</p>
+    <p>Open v5 at <code>/demo_ver1</code> to see all of it animated end-to-end. Open v4 to see the spec proof at full fidelity.</p>
   </article>
 
   <!-- ─── Right rail: on-page nav ─── -->

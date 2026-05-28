@@ -37,7 +37,17 @@
 import { describe, expect, it } from "vitest";
 
 import * as eventsModule from "../events";
-import { publishWiki, claimHost, requestHostClaim, releaseHost, _adminForceReleaseHost } from "../events";
+import {
+  publishWiki,
+  claimHost,
+  requestHostClaim,
+  releaseHost,
+  _adminForceReleaseHost,
+  getEventBySlug,
+  joinEvent,
+  sendMessage,
+  getMessages,
+} from "../events";
 import {
   deleteNote,
   createNoteAnchor,
@@ -374,6 +384,104 @@ function baseMessage(messageId: string, eventId = "liveEvents:1"): TableRecord {
     createdAt: 1_700_000_000_000,
   };
 }
+
+/* ========================================================================== */
+/* P0 launch gate — room-code URL lookup powers realtime chat                  */
+/* ========================================================================== */
+
+describe("event room-code lookup — /e/:roomCode joins the canonical live room", () => {
+  /**
+   * Scenario:    Two attendees open scratchnode.live/e/orbital because the
+   *              event card tells them the room code is ORBITAL.
+   * User:        Anonymous public attendees in separate browser windows.
+   * Goal:        Both windows join the same Convex event and messages persist
+   *              into the shared realtime stream instead of local-only DOM.
+   * Prior state: Canonical event exists as slug ai-infra-summit-2026 with
+   *              roomCode ORBITAL.
+   * Duration:    Single join/send/read round trip.
+   */
+  it("resolves lowercase room codes and persists shared messages to the canonical event", async () => {
+    const ctx = createCtx({
+      liveEvents: [baseEvent()],
+      liveEventMembers: [],
+      liveEventMessages: [],
+      liveEventSources: baseSources(),
+    });
+
+    const resolved = await (getEventBySlug as any)._handler(ctx, { slug: "orbital" });
+    expect(resolved?._id).toBe("liveEvents:1");
+    expect(resolved?.slug).toBe("ai-infra-summit-2026");
+
+    const joinA = await (joinEvent as any)._handler(ctx, {
+      slug: "orbital",
+      sessionId: ANONYMOUS_SESSION_A,
+      displayName: "Alice",
+    });
+    const joinB = await (joinEvent as any)._handler(ctx, {
+      slug: "ORBITAL",
+      sessionId: ANONYMOUS_SESSION_B,
+      displayName: "Bob",
+    });
+
+    expect(joinA.eventId).toBe("liveEvents:1");
+    expect(joinB.eventId).toBe("liveEvents:1");
+    expect(joinA.slug).toBe("ai-infra-summit-2026");
+    expect(joinA.roomCode).toBe("ORBITAL");
+
+    await (sendMessage as any)._handler(ctx, {
+      eventId: joinA.eventId,
+      sessionId: ANONYMOUS_SESSION_A,
+      displayName: "Alice",
+      text: "hello from /e/orbital",
+      kind: "chat",
+    });
+
+    const rows = await (getMessages as any)._handler(ctx, { eventId: joinB.eventId, limit: 10 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      eventId: "liveEvents:1",
+      sessionId: ANONYMOUS_SESSION_A,
+      text: "hello from /e/orbital",
+      kind: "chat",
+    });
+  });
+
+  it("does not cross-wire room-code messages between separate rooms", async () => {
+    const ctx = createCtx({
+      liveEvents: [
+        baseEvent({ _id: "liveEvents:alpha", slug: "alpha-event", name: "Alpha Event", roomCode: "ALPHA" }),
+        baseEvent({ _id: "liveEvents:beta", slug: "beta-event", name: "Beta Event", roomCode: "BETA" }),
+      ],
+      liveEventMembers: [],
+      liveEventMessages: [],
+    });
+
+    const alpha = await (joinEvent as any)._handler(ctx, {
+      slug: "alpha",
+      sessionId: ANONYMOUS_SESSION_A,
+      displayName: "Alice",
+    });
+    const beta = await (joinEvent as any)._handler(ctx, {
+      slug: "beta",
+      sessionId: ANONYMOUS_SESSION_B,
+      displayName: "Bob",
+    });
+
+    expect(alpha.eventId).toBe("liveEvents:alpha");
+    expect(beta.eventId).toBe("liveEvents:beta");
+
+    await (sendMessage as any)._handler(ctx, {
+      eventId: alpha.eventId,
+      sessionId: ANONYMOUS_SESSION_A,
+      displayName: "Alice",
+      text: "alpha-only launch check",
+      kind: "chat",
+    });
+
+    const betaRows = await (getMessages as any)._handler(ctx, { eventId: beta.eventId, limit: 10 });
+    expect(betaRows).toEqual([]);
+  });
+});
 
 /* ========================================================================== */
 /* Test 1 — composeAnswer cache reuse                                          */
