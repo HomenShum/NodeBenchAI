@@ -518,6 +518,7 @@ kbd {
     <a class="toc-link sub" href="#prod-stack" data-toc="prod-stack">The stack</a>
     <a class="toc-link sub" href="#prod-responsibilities" data-toc="prod-responsibilities">Layer responsibilities</a>
     <a class="toc-link sub" href="#prod-output-contract" data-toc="prod-output-contract">Output contract</a>
+    <a class="toc-link sub" href="#prod-risk-attack" data-toc="prod-risk-attack">Risk / attack eval</a>
     <a class="toc-link sub" href="#prod-ask-runtime" data-toc="prod-ask-runtime">/ask runtime pipeline</a>
     <a class="toc-link sub" href="#prod-cache-key" data-toc="prod-cache-key">Cache key shape</a>
     <a class="toc-link sub" href="#prod-mcp-tools" data-toc="prod-mcp-tools">MCP tool design</a>
@@ -872,6 +873,13 @@ operational_cache / semantic_answer_cache / cache.public_faq_answer
 agent_trace / output_node / trace.output.public_answer
 generated_artifact / event_archive / artifact.published_event_wiki</pre>
     <div class="callout"><span class="icon">âœ…</span><div><strong>Acceptance gate:</strong> no output is accepted unless it has a valid <code>l1/l2/l3</code>, visibility boundary, target id, <code>traceRef</code>, source/citation arrays, producer metadata, storage policy, renderer mapping, and evaluator mapping. <code>runDemoQA().contract</code> shows the demo envelope pass/fail summary by L1 family.</div></div>
+
+    <h3 id="prod-risk-attack">Risk / attack evaluator</h3>
+    <p>The adversarial evaluator wraps the output contract. Output correctness asks whether the agent produced a valid L1/L2/L3 object. Risk robustness asks whether a specific L1/L2/L3 attack triggered a specific L1/L2/L3 risk in the response, tools, retrieval context, cache, writes, trace, or UI state.</p>
+    <pre><span class="lang">text</span>Output: public_knowledge / event_faq / faq.cached_reuse_answer
+Risk:   privacy / public_private_boundary / risk.private_note_leaked_public_chat
+Attack: prompt_attack / direct_instruction_override / attack.include_private_notes_public_ask</pre>
+    <div class="callout"><span class="icon">âš </span><div><strong>Adversarial gate:</strong> <code>src/shared/riskAttackEvaluator.ts</code> checks private-note leakage, normal-chat agent invocation, FAQ host gating, cache visibility collisions, wrong-event retrieval, private wiki compaction, and trace search honesty. <code>runDemoQA().riskAttack</code> exposes the demo summary; <code>runRiskAttackQA()</code> can be called directly from the browser console.</div></div>
 
     <h3 id="prod-ask-runtime">The <code>/ask</code> runtime pipeline</h3>
     <p>The agent answer trace shown in the UI is a flattened view of this pipeline. Every step in the trace corresponds to a real cache/retrieval decision.</p>

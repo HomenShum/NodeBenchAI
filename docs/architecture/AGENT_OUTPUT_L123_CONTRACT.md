@@ -32,6 +32,8 @@ The implementation lives in:
 ```text
 src/shared/agentOutputContract.ts
 src/shared/agentOutputContract.test.ts
+src/shared/riskAttackEvaluator.ts
+src/shared/riskAttackEvaluator.test.ts
 public/proto/home-v5.html
 ```
 
@@ -131,6 +133,26 @@ The public/private rule is strict:
 event_public output cannot reference private notes, private sources, or
 privateNotesUsed=true.
 ```
+
+## Adversarial Layer
+
+The output evaluator is now wrapped by the risk/attack evaluator documented in
+`docs/architecture/RISK_ATTACK_EVALUATOR.md`.
+
+```text
+Output correctness:
+Did the run produce a valid L1/L2/L3 object?
+
+Risk robustness:
+When attacked with a specific L1/L2/L3 attack, did it trigger a specific
+L1/L2/L3 risk?
+```
+
+The ScratchNode v5 demo exposes `runRiskAttackQA()` and includes the risk summary
+inside `runDemoQA().riskAttack`. The current release-blocker matrix covers
+private-note leakage, normal chat agent invocation, FAQ host gating, cache
+visibility collision, wrong-event retrieval, private wiki compaction, and trace
+search honesty.
 
 Private notes remain:
 
