@@ -563,12 +563,21 @@ function evaluateAnswerQuality(args: {
   return { passed: failed === 0, score, checks };
 }
 
+// External-provider fetch timeouts (TIMEOUT — agentic_reliability #4). Convex
+// actions get a multi-minute budget, NOT the query budget, so without an
+// AbortController a hung provider socket would stall the /ask lane and never
+// reach the deterministic synthesizeAnswer fallback below.
+const LINKUP_TIMEOUT_MS = Number(process.env.SCRATCHNODE_LINKUP_TIMEOUT_MS) || 12000;
+const ANTHROPIC_TIMEOUT_MS = Number(process.env.SCRATCHNODE_ANTHROPIC_TIMEOUT_MS) || 20000;
+
 async function searchLinkup(question: string) {
   const apiKey = process.env.LINKUP_API_KEY;
   if (!apiKey || process.env.SCRATCHNODE_ALLOW_LINKUP !== "1") {
     return { status: "skipped" as const, sources: [], detail: "Linkup disabled or key not configured." };
   }
   const startedAt = Date.now();
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), LINKUP_TIMEOUT_MS);
   try {
     const response = await fetch("https://api.linkup.so/v1/search", {
       method: "POST",
@@ -583,6 +592,7 @@ async function searchLinkup(question: string) {
         includeSources: true,
         maxResults: MAX_LINKUP_SOURCES,
       }),
+      signal: ac.signal,
     });
     if (!response.ok) {
       return {
@@ -609,8 +619,12 @@ async function searchLinkup(question: string) {
     return {
       status: "error" as const,
       sources: [],
-      detail: `Linkup failed: ${err?.message || String(err)}`,
+      detail: ac.signal.aborted
+        ? `Linkup timed out after ${LINKUP_TIMEOUT_MS}ms.`
+        : `Linkup failed: ${err?.message || String(err)}`,
     };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -642,6 +656,8 @@ async function generateProviderAnswer(args: {
   ].join("\n");
   const inputTokens = estimateTokens(system + "\n" + user);
   const startedAt = Date.now();
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ANTHROPIC_TIMEOUT_MS);
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -657,6 +673,7 @@ async function generateProviderAnswer(args: {
         system,
         messages: [{ role: "user", content: user }],
       }),
+      signal: ac.signal,
     });
     if (!response.ok) {
       const body = await response.text().catch(() => "");
@@ -696,11 +713,15 @@ async function generateProviderAnswer(args: {
   } catch (err: any) {
     return {
       ok: false as const,
-      detail: `Anthropic request failed: ${err?.message || String(err)}`,
+      detail: ac.signal.aborted
+        ? `Anthropic timed out after ${ANTHROPIC_TIMEOUT_MS}ms.`
+        : `Anthropic request failed: ${err?.message || String(err)}`,
       model,
       inputTokens,
       elapsedMs: Date.now() - startedAt,
     };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
