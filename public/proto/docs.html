@@ -278,6 +278,205 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ─── Positioning hero (consent-first) ─── */
+.positioning {
+  margin: 0 0 32px;
+  padding: 22px 24px;
+  background: linear-gradient(180deg, rgba(217,119,87,.08), rgba(217,119,87,.02));
+  border: 1px solid rgba(217,119,87,.32);
+  border-radius: 14px;
+  position: relative;
+}
+.positioning-label {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.positioning-label .icon { font-size: 14px; }
+.positioning h2 {
+  font-size: 24px; font-weight: 800; letter-spacing: -.02em;
+  margin: 0 0 14px; padding: 0; border: 0; color: var(--ink);
+}
+.positioning p { color: var(--ink); font-size: 14px; line-height: 1.65; margin: 0 0 12px; }
+.positioning p:last-of-type { margin-bottom: 0; }
+.positioning p strong { color: var(--accent); }
+.positioning .anti-cluely-sub {
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(217,119,87,.2);
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.positioning .anti-cluely-sub strong { color: #f87171; }
+
+/* ─── Capture-level cards ─── */
+.capture-levels {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  margin: 14px 0 20px;
+}
+@media (max-width: 720px) { .capture-levels { grid-template-columns: 1fr; } }
+.capture-card {
+  padding: 14px 16px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 10px;
+}
+.capture-card .level-num {
+  display: inline-block;
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 100px;
+  border: 1px solid rgba(94,168,103,.3); background: rgba(94,168,103,.08);
+  color: var(--green); margin-bottom: 8px;
+}
+.capture-card[data-level="1"] .level-num { color: #fbbf24; border-color: rgba(251,191,36,.3); background: rgba(251,191,36,.08); }
+.capture-card[data-level="2"] .level-num { color: #60a5fa; border-color: rgba(96,165,250,.3); background: rgba(96,165,250,.08); }
+.capture-card h4 {
+  font-family: var(--ui); font-size: 14px; font-weight: 700;
+  color: var(--ink); margin: 0 0 8px; text-transform: none; letter-spacing: 0;
+}
+.capture-card dl { margin: 0; font-size: 12px; }
+.capture-card dt {
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink-faint); margin-top: 8px;
+}
+.capture-card dd { margin: 2px 0 0; color: var(--ink-muted); line-height: 1.5; }
+
+/* ─── Live Assist rail forecast ─── */
+.assist-rail {
+  margin: 14px 0 20px;
+  padding: 16px 18px;
+  background: rgba(167,139,250,.04);
+  border: 1px solid rgba(167,139,250,.22);
+  border-radius: 10px;
+}
+.assist-rail ul.assist-list { list-style: none; padding: 0; margin: 0; }
+.assist-rail ul.assist-list li {
+  display: grid; grid-template-columns: 140px 1fr; gap: 12px;
+  padding: 8px 0; border-bottom: 1px dashed rgba(255,255,255,.06);
+  font-size: 13px; align-items: baseline;
+}
+.assist-rail ul.assist-list li:last-child { border-bottom: 0; }
+.assist-rail ul.assist-list li strong {
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: .04em; color: var(--purple); text-transform: uppercase;
+}
+.assist-rail .sub-names {
+  margin-top: 14px; padding: 10px 12px;
+  background: rgba(0,0,0,.2); border-radius: 6px;
+  font-family: var(--mono); font-size: 11px; color: var(--ink);
+  letter-spacing: .04em;
+}
+.assist-rail .sub-names span { color: var(--accent); font-weight: 700; }
+.assist-rail .ux-rules {
+  margin: 12px 0 0; padding-left: 18px; font-size: 12px;
+}
+.assist-rail .ux-rules li { color: var(--ink-muted); margin: 4px 0; }
+.assist-rail .ux-rules li strong { color: var(--ink); font-weight: 700; }
+@media (max-width: 720px) {
+  .assist-rail ul.assist-list li { grid-template-columns: 1fr; gap: 2px; }
+}
+
+/* ─── Anti-Cluely safety rules ─── */
+.safety-rules {
+  list-style: none; padding: 0; margin: 14px 0 20px;
+  counter-reset: safety;
+}
+.safety-rules li {
+  position: relative;
+  padding: 10px 14px 10px 44px;
+  margin: 6px 0;
+  background: rgba(248,113,113,.03);
+  border: 1px solid rgba(248,113,113,.15);
+  border-radius: 8px;
+  font-size: 13px; color: var(--ink-muted);
+  counter-increment: safety;
+}
+.safety-rules li::before {
+  content: counter(safety);
+  position: absolute; left: 12px; top: 10px;
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 100px;
+  color: #f87171;
+  background: rgba(248,113,113,.1);
+  border: 1px solid rgba(248,113,113,.3);
+}
+.safety-rules li strong { color: #f87171; font-weight: 700; }
+
+/* ─── Master feature map ─── */
+.feature-map {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  margin: 14px 0 20px;
+}
+@media (max-width: 900px) { .feature-map { grid-template-columns: 1fr; } }
+.feature-col {
+  padding: 14px 16px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 10px;
+}
+.feature-col .col-title {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink); margin-bottom: 4px;
+}
+.feature-col[data-track="scratchnode"] .col-title { color: var(--accent); }
+.feature-col[data-track="nodebench"] .col-title { color: var(--purple); }
+.feature-col[data-track="sync"] .col-title { color: #60a5fa; }
+.feature-col .col-sub {
+  font-family: var(--mono); font-size: 9px; color: var(--ink-faint);
+  letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px;
+}
+.feature-col ul { list-style: none; padding: 0; margin: 0; }
+.feature-col ul li {
+  padding: 6px 0; font-size: 12px; color: var(--ink-muted);
+  display: flex; align-items: baseline; gap: 8px;
+  border-bottom: 1px dashed rgba(255,255,255,.05);
+}
+.feature-col ul li:last-child { border-bottom: 0; }
+.feature-col ul li .status-icon {
+  font-family: var(--mono); font-size: 12px; flex-shrink: 0; width: 16px;
+}
+.feature-col ul li.shipped .status-icon { color: var(--green); }
+.feature-col ul li.partial .status-icon { color: #fbbf24; }
+.feature-col ul li.missing .status-icon { color: #f87171; }
+.feature-col ul li .feat-name { color: var(--ink); font-weight: 500; }
+.feature-map-legend {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  margin: 6px 0 14px;
+  font-family: var(--mono); font-size: 10px; color: var(--ink-muted);
+}
+.feature-map-legend span { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ─── MVP build order ladder ─── */
+.mvp-ladder { margin: 14px 0 20px; }
+.mvp-step {
+  display: grid; grid-template-columns: 90px 1fr 90px; gap: 12px;
+  padding: 12px 14px; margin: 8px 0;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
+  align-items: baseline;
+}
+.mvp-step .mvp-tag {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 100px;
+  border: 1px solid var(--line); background: rgba(255,255,255,.03);
+  color: var(--ink-faint); text-align: center;
+}
+.mvp-step[data-status="done"] .mvp-tag { color: var(--green); border-color: rgba(94,168,103,.3); background: rgba(94,168,103,.08); }
+.mvp-step[data-status="active"] .mvp-tag { color: var(--accent); border-color: rgba(217,119,87,.3); background: rgba(217,119,87,.08); }
+.mvp-step[data-status="next"] .mvp-tag { color: #60a5fa; border-color: rgba(96,165,250,.3); background: rgba(96,165,250,.08); }
+.mvp-step .mvp-body { font-size: 13px; color: var(--ink); }
+.mvp-step .mvp-body strong { color: var(--ink); font-weight: 700; }
+.mvp-step .mvp-body small { display: block; color: var(--ink-muted); font-size: 12px; margin-top: 4px; }
+.mvp-step .mvp-pct {
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  text-align: right; color: var(--ink-muted);
+}
+@media (max-width: 720px) {
+  .mvp-step { grid-template-columns: 70px 1fr; }
+  .mvp-step .mvp-pct { grid-column: 1 / -1; text-align: left; padding-top: 4px; }
+}
 </style>
 </head>
 <body>
@@ -305,6 +504,16 @@ kbd {
     <div class="toc-section-label">Get started</div>
     <a class="toc-link active" href="#overview" data-toc="overview">Overview</a>
     <a class="toc-link sub" href="#prototype-vs-production" data-toc="prototype-vs-production">Prototype vs production</a>
+
+    <div class="toc-section-label">Positioning &amp; Live Assist</div>
+    <a class="toc-link" href="#positioning" data-toc="positioning">Consent-first positioning</a>
+    <a class="toc-link" href="#capture-levels" data-toc="capture-levels">3 capture levels</a>
+    <a class="toc-link" href="#assist-rail" data-toc="assist-rail">Live Assist rail</a>
+    <a class="toc-link" href="#safety-rules" data-toc="safety-rules">Anti-Cluely rules</a>
+    <a class="toc-link" href="#feature-map" data-toc="feature-map">Master feature map</a>
+    <a class="toc-link" href="#mvp-order" data-toc="mvp-order">MVP build order</a>
+
+    <div class="toc-section-label">Architecture</div>
     <a class="toc-link" href="#production-arch" data-toc="production-arch">Production architecture</a>
     <a class="toc-link sub" href="#prod-stack" data-toc="prod-stack">The stack</a>
     <a class="toc-link sub" href="#prod-responsibilities" data-toc="prod-responsibilities">Layer responsibilities</a>
@@ -416,8 +625,197 @@ kbd {
         <tr><td>Role-gated FAQ promotion</td><td><span class="badge prod">Production-ready</span></td><td><code>data-role="attendee" / "host"</code></td><td>Same shape — role from auth claim, not body attribute</td></tr>
         <tr><td>Consolidated send pipeline</td><td><span class="badge prod">Production-ready</span></td><td>Single <code>sendComposerMessage()</code> entry</td><td>Same shape — sub-functions become server RPC calls</td></tr>
         <tr><td>Accessible mention chips</td><td><span class="badge prod">Production-ready</span></td><td><code>&lt;button class="mention"&gt;</code> + delegated handler</td><td>Same shape</td></tr>
+        <tr><td>Cue rail UI (Live Assist)</td><td><span class="badge proto">Prototype</span></td><td>Prototype-only on home-v5; Live Assist agent in flight</td><td>Persistent rail driven by Convex action; budget-aware cue cards</td></tr>
+        <tr><td>Cue generator (Convex action)</td><td><span class="badge proto">Prototype</span></td><td>Not yet built</td><td>Transcript-aware Convex action with rate + cost budget</td></tr>
+        <tr><td>Meeting mode toggle</td><td><span class="badge proto">Prototype</span></td><td>Prototype-only on home-v5; Live Assist agent in flight</td><td>Per-session mode selector (manual / user-capture / room-bot), surfaced in composer + header</td></tr>
+        <tr><td>3 capture levels selector</td><td><span class="badge proto">Prototype</span></td><td>Prototype-only on home-v5</td><td>Visible indicator + consent gate before level changes; persisted per event</td></tr>
+        <tr><td><code>/ask</code> variants (public / private / team)</td><td><span class="badge proto">Partial</span></td><td>Backend has <code>composeAnswer</code> + <code>askAgent</code> for public; no private/team variants yet</td><td>3 variants: public (no private), private (owner notes only), team (member-scoped)</td></tr>
+        <tr><td>Transcript ingestion (Level 1+)</td><td><span class="badge proto">Prototype</span></td><td>Not yet built</td><td>User-side capture with visible recording indicator + per-event consent record</td></tr>
+        <tr><td>Meeting bot (Level 2)</td><td><span class="badge proto">Prototype</span></td><td>Not yet built</td><td>Zoom/Meet/Teams bot joins as visible participant; host opt-in required</td></tr>
+        <tr><td>Decision / action extractor</td><td><span class="badge proto">Prototype</span></td><td>Not yet built</td><td>Convex action over transcript spans; emits Decision Trace + Follow-up Builder items</td></tr>
       </tbody>
     </table>
+
+    <!-- ─── Section A: Consent-first positioning ─── -->
+    <section class="positioning" id="positioning" role="region" aria-label="Consent-first positioning">
+      <div class="positioning-label"><span class="icon">🟢</span>Positioning — consent-first, owner-only</div>
+      <h2 style="font-size:24px;margin:0 0 14px;border:0;padding:0;">ScratchNode Live Assist — consent-first real-time meeting / event help</h2>
+      <p><strong>Private cues, anchored notes, source-backed answers — visible only to you during the call.</strong> Public chat compounds into a public wiki. Private notes live in a parallel notebook that never touches the public feed.</p>
+      <p>We are <strong>not Cluely</strong>. There is no stealth mode, no invisible overlay, no undetectable assistant. Every capture state is visible to the user. Every shared answer says whether private context was excluded.</p>
+      <p>The product earns trust by being legible: you always know what is being captured, who can see it, and what the agent used to answer. Owner-only by default. Public only when the user chooses.</p>
+      <div class="anti-cluely-sub"><strong>Anti-Cluely commitments</strong> — see <a href="#safety-rules" style="color:#f87171;">the 10 safety rules</a> below.</div>
+    </section>
+
+    <!-- ─── Section B: 3 Capture Levels ─── -->
+    <h2 id="capture-levels">Three capture levels <a class="anchor" href="#capture-levels">#</a></h2>
+    <p>Live Assist is graduated: pick the lowest level that gets the job done. Each level is visibly indicated in the UI; level changes require an explicit consent action.</p>
+
+    <div class="capture-levels" role="region" aria-label="Capture levels">
+      <div class="capture-card" data-level="0">
+        <div class="level-num">Level 0 · Manual</div>
+        <h4>Manual assist</h4>
+        <dl>
+          <dt>How it works</dt>
+          <dd>No audio capture. User types notes. Agent enhances private notes. <code>/ask</code> uses manually selected context.</dd>
+          <dt>Best for</dt>
+          <dd>Sensitive calls, regulated industries, high-stakes meetings.</dd>
+          <dt>Privacy</dt>
+          <dd>Most private — nothing recorded.</dd>
+        </dl>
+      </div>
+      <div class="capture-card" data-level="1">
+        <div class="level-num">Level 1 · User-side</div>
+        <h4>User-side capture</h4>
+        <dl>
+          <dt>How it works</dt>
+          <dd>User records or transcribes their own notes locally. Visible consent indicator. Private by default.</dd>
+          <dt>Best for</dt>
+          <dd>Personal use, solo prep, observed meetings.</dd>
+          <dt>Privacy</dt>
+          <dd>Local — consent may still be required by jurisdiction.</dd>
+        </dl>
+      </div>
+      <div class="capture-card" data-level="2">
+        <div class="level-num">Level 2 · Room bot</div>
+        <h4>Meeting room bot</h4>
+        <dl>
+          <dt>How it works</dt>
+          <dd>Bot joins Zoom/Meet/Teams as a visible participant. Transcript shared by room settings. Host controls.</dd>
+          <dt>Best for</dt>
+          <dd>Team meetings, public events, enterprise workflows.</dd>
+          <dt>Privacy</dt>
+          <dd>Most transparent — bot is visible to all participants.</dd>
+        </dl>
+      </div>
+    </div>
+
+    <!-- ─── Section C: Live Assist Rail forecast ─── -->
+    <h2 id="assist-rail">Live Assist rail — what it surfaces <a class="anchor" href="#assist-rail">#</a></h2>
+    <p>Live Assist is a persistent owner-only rail next to the chat / meeting view. It does not speak for the user. It does not auto-post. It surfaces a small budget of cues, context, and quick actions tied to what is happening in the call right now.</p>
+
+    <section class="assist-rail" role="region" aria-label="Live Assist rail">
+      <ul class="assist-list">
+        <li><strong>Current topic</strong><span>Auto-detected from recent messages. Updates every 30s. One-line summary plus 1–3 active entities.</span></li>
+        <li><strong>Suggested cue</strong><span>1–3 cards stacked: <em>"Ask about p95 vs average latency"</em>, <em>"Clarify scoped tool grant vs RBAC"</em>. Owner clicks or dismisses; cues never auto-post.</span></li>
+        <li><strong>Quick context</strong><span>Entity chips for current topic. Click → opens entity preview (definition, recent mentions, related wiki sections).</span></li>
+        <li><strong>My notes</strong><span>Last 2 private notes you took, with anchors back to the message or transcript span that prompted them.</span></li>
+        <li><strong>Actions</strong><span>[Ask privately] · [Save note] · [Make follow-up] — each maps to a private-by-default action.</span></li>
+      </ul>
+      <div class="sub-names">Sub-feature names: <span>Cue Cards</span> · <span>Micronotes</span> · <span>Private Anchors</span> · <span>Decision Trace</span> · <span>Follow-up Builder</span></div>
+      <ul class="ux-rules">
+        <li><strong>Owner-only visibility</strong> — every cue and every note marker is rendered for the owner alone.</li>
+        <li><strong>No auto-post</strong> — cues never speak for the user; they prefill drafts at most.</li>
+        <li><strong>No auto-record</strong> — transcript ingestion requires explicit consent (Level 1+).</li>
+        <li><strong>Cost-aware</strong> — cues are budgeted (token + rate limited), not generated per token.</li>
+      </ul>
+    </section>
+
+    <!-- ─── Section D: Anti-Cluely safety rules ─── -->
+    <h2 id="safety-rules">Anti-Cluely safety rules (10) <a class="anchor" href="#safety-rules">#</a></h2>
+    <p>Hard product invariants. Each rule is paired with a code-level enforcement point. Violating any of these is a release blocker.</p>
+
+    <ol class="safety-rules" role="region" aria-label="Anti-Cluely safety rules">
+      <li><strong>No stealth mode.</strong> Every capture state is visible to the user — recording / transcribing / enhancing indicators are persistent and unmistakable.</li>
+      <li><strong>User-visible capture state.</strong> Recording, transcribing, and enhancing each show a distinct visible indicator. Indicator visibility is non-dismissible while active.</li>
+      <li><strong>Public/team vs private mode always visible.</strong> Composer placeholder updates by mode; rail badge mirrors the active mode at all times.</li>
+      <li><strong>Private cues never auto-post.</strong> Users decide whether to use each suggestion. Cues at most prefill a draft, never send.</li>
+      <li><strong>Private notes never enter shared transcript/wiki.</strong> Hard invariant enforced by <code>convex/events.ts:requireMember</code> + <code>publishWiki</code> exclusion path.</li>
+      <li><strong>Public/team answers say whether private context was excluded.</strong> Every public trace ends with <em>"No private notes used · public layer only"</em>.</li>
+      <li><strong>Meeting organizer controls shared bot mode.</strong> Level 2 requires host opt-in. No room bot ever joins without host approval.</li>
+      <li><strong>Every generated note keeps original transcript/span anchor.</strong> Backward traceability — owner can verify what the agent enhanced versus what they wrote.</li>
+      <li><strong>Sensitive calls can use manual-only mode.</strong> Level 0 disables all audio + transcript capture; the indicator confirms the lock.</li>
+      <li><strong>Enterprise admin can disable recording, sharing, or model training.</strong> Future P2 — admin controls in NodeBench settings; defaults are restrictive.</li>
+    </ol>
+
+    <!-- ─── Section E: Master feature map ─── -->
+    <h2 id="feature-map">Master feature map <a class="anchor" href="#feature-map">#</a></h2>
+    <p>Nineteen features across three layers: 8 ScratchNode Live P0s, 6 NodeBench AI P0s, 5 Sync pipes. Status reflects the 2026-05-27 reconciliation.</p>
+    <div class="feature-map-legend" role="region" aria-label="Status legend">
+      <span><span style="color:var(--green);">✅</span> shipped</span>
+      <span><span style="color:#fbbf24;">🟡</span> partial</span>
+      <span><span style="color:#f87171;">❌</span> not yet</span>
+    </div>
+
+    <div class="feature-map" role="region" aria-label="Master feature map">
+      <div class="feature-col" data-track="scratchnode">
+        <div class="col-title">ScratchNode Live</div>
+        <div class="col-sub">8 P0 · public event room</div>
+        <ul>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Join room</span> — anonymous, no app, no account</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Public chat</span> — Convex realtime + presence</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">/ask</span> — public sourced agent answers</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Answer card + trace</span> — sources + reuse chip</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Private note</span> — owner-only, anchored</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">FAQ suggest / promote</span> — guest suggests, host promotes</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Wiki publish</span> — host-gated version snapshot</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Sign-in / my events</span> — joined &amp; hosted events</span></li>
+        </ul>
+      </div>
+
+      <div class="feature-col" data-track="nodebench">
+        <div class="col-title">NodeBench AI</div>
+        <div class="col-sub">6 P0 · private workspace</div>
+        <ul>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Daily Brief</span> — narrative + signals</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Notebook</span> — TipTap blocks + backlinks</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Library / Artifacts</span> — saved memos &amp; reports</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Private chat</span> — owner-only agent thread</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Search</span> — Typesense across workspace</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Trace</span> — audit + telemetry surface</span></li>
+        </ul>
+      </div>
+
+      <div class="feature-col" data-track="sync">
+        <div class="col-title">Sync Transfer</div>
+        <div class="col-sub">5 P0 · ScratchNode → NodeBench</div>
+        <ul>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Event artifact</span> — PR #408 handoff packet</span></li>
+          <li class="shipped"><span class="status-icon">✅</span><span><span class="feat-name">Private notes</span> — synced on sign-in</span></li>
+          <li class="partial"><span class="status-icon">🟡</span><span><span class="feat-name">Entities / mentions</span> — partial wiring</span></li>
+          <li class="partial"><span class="status-icon">🟡</span><span><span class="feat-name">Sources / claims</span> — manual export only</span></li>
+          <li class="missing"><span class="status-icon">❌</span><span><span class="feat-name">Trace / usage</span> — not yet wired across domains</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ─── Section F: MVP build order (Live Assist track) ─── -->
+    <h2 id="mvp-order">MVP build order — Live Assist track <a class="anchor" href="#mvp-order">#</a></h2>
+    <p>Four-phase ladder. P0 covers what the prototype already proves; P1 introduces transcript awareness; P2 ships the meeting bot; P3 wires the handoff back to NodeBench.</p>
+
+    <div class="mvp-ladder" role="region" aria-label="MVP build order">
+      <div class="mvp-step" data-status="active">
+        <div class="mvp-tag">P0</div>
+        <div class="mvp-body">
+          <strong>Private live note assist</strong>
+          <small>private mode ✅, anchors ✅, voice (impl pending), summary (partial)</small>
+        </div>
+        <div class="mvp-pct">80%</div>
+      </div>
+      <div class="mvp-step" data-status="next">
+        <div class="mvp-tag">P1</div>
+        <div class="mvp-body">
+          <strong>Transcript-aware assist</strong>
+          <small>cue cards, decision extraction, /ask over transcript, entity tracking</small>
+        </div>
+        <div class="mvp-pct">0%</div>
+      </div>
+      <div class="mvp-step" data-status="next">
+        <div class="mvp-tag">P2</div>
+        <div class="mvp-body">
+          <strong>Meeting bot integration</strong>
+          <small>Zoom / Meet / Teams, visible participant, host + admin settings</small>
+        </div>
+        <div class="mvp-pct">0%</div>
+      </div>
+      <div class="mvp-step" data-status="done">
+        <div class="mvp-tag">P3</div>
+        <div class="mvp-body">
+          <strong>NodeBench handoff</strong>
+          <small>PR #408 shipped — joined events + private notes flow</small>
+        </div>
+        <div class="mvp-pct">100%</div>
+      </div>
+    </div>
 
     <h2 id="production-arch">Production architecture <a class="anchor" href="#production-arch">#</a></h2>
     <p>The static file still has local fallback state, but <code>scratchnode.live</code> now boots a Convex-backed live runtime for chat, sourced answers, FAQ, wiki publishing, and private notes. Production splits responsibilities across four layers so the runtime is fast, cheap, and the durable layer stays trustworthy. The product message stays simple: <strong>"Ask once, answer many. Live context while the event is happening. Durable wiki after it ends. Private notes stay private."</strong></p>
