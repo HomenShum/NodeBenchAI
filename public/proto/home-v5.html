@@ -1035,8 +1035,20 @@ body[data-role="attendee"] .host-queue { display: none; }
   overflow-y: auto;
   display: none;
   flex-direction: column;
+  /* 400ms slide-in from the right (matches the "Now in NodeBench" handoff feel).
+     Use [data-visible] (set on next frame after data-open) to trigger transition,
+     because display:none → display:flex alone won't animate. */
+  transform: translateX(8%); opacity: 0;
+  transition: transform .4s cubic-bezier(.22,.61,.36,1), opacity .28s ease-out;
 }
 .nodebench-overlay[data-open="true"] { display: flex; }
+.nodebench-overlay[data-visible="true"] {
+  transform: translateX(0); opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nodebench-overlay { transition: none; transform: none; }
+  .nodebench-overlay[data-visible="true"] { transform: none; opacity: 1; }
+}
 .nodebench-overlay .nb-header {
   position: sticky; top: 0; z-index: 1;
   padding: 14px 20px; background: rgba(14,16,24,.94); backdrop-filter: blur(20px);
@@ -6641,11 +6653,31 @@ window._laCueAction       = _laCueAction;
     overlay.setAttribute('data-open', 'true');
     _renderNbBody('home');
     if (typeof overlay.focus === 'function') overlay.focus();
+    // Trigger the 400ms slide-in: set [data-visible] on the next animation frame,
+    // so the browser sees a transition from the initial transform/opacity.
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(function() {
+        window.requestAnimationFrame(function() {
+          overlay.setAttribute('data-visible', 'true');
+        });
+      });
+    } else {
+      overlay.setAttribute('data-visible', 'true');
+    }
     return Promise.resolve();
   }
   function closeNodeBench() {
     var overlay = document.getElementById('demo-nb-overlay');
-    if (overlay) overlay.setAttribute('data-open', 'false');
+    if (!overlay) return;
+    // Mirror the slide-in: remove data-visible first, then data-open after transition.
+    overlay.removeAttribute('data-visible');
+    // Wait for transition to end before display:none — but in test envs without
+    // layout / RAF, just close immediately. Keep below the 400ms transition.
+    if (typeof window.requestAnimationFrame === 'function' && _currentSpeed && _currentSpeed.mult !== 0) {
+      setTimeout(function() { overlay.setAttribute('data-open', 'false'); }, 280);
+    } else {
+      overlay.setAttribute('data-open', 'false');
+    }
   }
   function _switchNbTab(tab) {
     document.querySelectorAll('.nodebench-overlay .nb-tab').forEach(function(b) {
