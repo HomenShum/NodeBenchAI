@@ -165,7 +165,7 @@ button:active { transform: scale(.97); transition: transform .08s; }
   background: transparent; border: 0; outline: none;
   padding: 6px 10px; font-size: 15px; color: var(--ink);
 }
-.c-input::placeholder { color: var(--ink-faint); }
+.c-input::placeholder { color: var(--ink-muted); } /* AA contrast — placeholder is the primary "what do I type" affordance */
 
 /* Composer mode-state badge — answers "Am I public or private?" */
 .c-mode {
@@ -596,7 +596,7 @@ body[data-feed-empty="true"] #feed > .row,
 body[data-feed-empty="true"] #feed > .ans { display: none; }
 .empty-icon { font-size: 28px; opacity: .6; margin-bottom: 4px; }
 .empty-title { font-size: 14px; color: var(--ink); font-weight: 600; }
-.empty-body { font-size: 12px; color: var(--ink-faint); max-width: 280px; line-height: 1.5; }
+.empty-body { font-size: 12px; color: var(--ink-muted); max-width: 280px; line-height: 1.5; } /* AA contrast — instructional empty-state copy must be readable */
 
 /* ─── Attention pulses for first-visit ─── */
 body[data-new-user="true"] #lock,
@@ -3901,7 +3901,8 @@ var OVERLAY_REGISTRY = [
   { name: 'tour',          isOpen: function() { return !!_tourEl; },                                                                                                  close: function() { closeTour(); } },
   { name: 'mention-picker',isOpen: function() { var el = document.getElementById('mention-picker'); return el && el.getAttribute('data-open') === 'true'; },          close: function() { if (typeof closeMentionPicker === 'function') closeMentionPicker(); } },
   { name: 'sheet',         isOpen: function() { var el = document.getElementById('sheet'); return el && el.getAttribute('data-open') === 'true'; },                   close: function() { closeSheet(); } },
-  { name: 'menu',          isOpen: function() { var el = document.getElementById('menu-sheet'); return el && el.getAttribute('data-open') === 'true'; },              close: function() { closeMenu(); } }
+  { name: 'menu',          isOpen: function() { var el = document.getElementById('menu-sheet'); return el && el.getAttribute('data-open') === 'true'; },              close: function() { closeMenu(); } },
+  { name: 'live-assist',   isOpen: function() { var r = document.getElementById('live-assist-rail'); var s = document.getElementById('live-assist-sheet'); return !!((r && r.getAttribute('data-open') === 'true') || (s && s.getAttribute('data-open') === 'true')); }, close: function() { if (typeof toggleLiveAssist === 'function') toggleLiveAssist(false); } }
 ];
 function isOverlayOpen() {
   return OVERLAY_REGISTRY.some(function(o) { return o.isOpen(); });
@@ -3929,6 +3930,10 @@ function _activeDialog() {
   if (kbd && kbd.getAttribute('data-open') === 'true') return kbd;
   var menu = document.getElementById('menu-sheet');
   if (menu && menu.getAttribute('data-open') === 'true') return menu;
+  // Mobile Live Assist sheet is scrim-backed (modal-like) → trap focus.
+  // The desktop rail is role="complementary" (non-modal, coexists with chat) → do NOT trap.
+  var laSheet = document.getElementById('live-assist-sheet');
+  if (laSheet && laSheet.getAttribute('data-open') === 'true') return laSheet;
   return null;
 }
 function _focusableIn(el) {
@@ -5378,7 +5383,19 @@ window._laCueAction       = _laCueAction;
     // Wipe the hardcoded demo rows once Convex takes over — they'd otherwise
     // appear next to real messages and confuse users.
     Array.from(feedEl.querySelectorAll('.row, .ans')).forEach(el => el.remove());
+    // Bridge the wipe→first-push gap so users never stare at a blank feed on
+    // join. Neutral element (not .row/.ans) so refreshEmptyState + the mention
+    // observer ignore it. Cleared on the first getMessages push (even if empty).
+    if (!feedEl.querySelector('[data-sn-connecting]')) {
+      feedEl.insertAdjacentHTML('beforeend',
+        '<div data-sn-connecting="true" role="status" aria-live="polite" style="padding:14px 6px;color:var(--ink-muted);font-size:13px;">Connecting to the live room…</div>');
+    }
   }
+  const _clearConnecting = () => {
+    if (!feedEl) return;
+    const c = feedEl.querySelector('[data-sn-connecting]');
+    if (c) c.remove();
+  };
 
   const fmtTime = (ts) => {
     const d = new Date(ts);
@@ -5458,6 +5475,8 @@ window._laCueAction       = _laCueAction;
   client.onUpdate('events:getMessages', { eventId, limit: 200 }, (rows) => {
     if (!Array.isArray(rows)) return;
     for (const msg of rows) renderMessage(msg);
+    _clearConnecting(); // subscription responded (even if empty) — no longer "connecting"
+    if (typeof refreshEmptyState === 'function') refreshEmptyState();
   });
   client.onUpdate('events:getAnswers', { eventId, limit: 100 }, (rows) => {
     if (!Array.isArray(rows)) return;
@@ -5465,6 +5484,8 @@ window._laCueAction       = _laCueAction;
     const faqCount = rows.filter((answer) => answer && answer.faqStatus && answer.faqStatus !== 'none').length;
     const faqEl = document.getElementById('ev-faq-count');
     if (faqEl) faqEl.textContent = String(faqCount);
+    _clearConnecting();
+    if (typeof refreshEmptyState === 'function') refreshEmptyState();
   });
   client.onUpdate('events:getMembers', { eventId }, (rows) => {
     if (!Array.isArray(rows)) return;

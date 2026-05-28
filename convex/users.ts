@@ -451,6 +451,17 @@ export const verifySignInToken = mutation({
       });
     }
 
+    // Rate-limit verify attempts: the per-row hash scan below is the costliest
+    // path in the sign-in flow, so unbounded verify calls are a CPU-DoS vector.
+    // No email is known here (can't key by email like requestSignInLink), so a
+    // global cap bounds total scan load; a per-session cap stops a single abuser.
+    // NOT keyed on an "anon" bucket — that would false-positive and block the
+    // many new-device magic-link users who have no sessionId yet at launch.
+    await enforceRateLimit(ctx, { key: "verify:global", limit: 300, windowMs: 60_000 });
+    if (sessionId) {
+      await enforceRateLimit(ctx, { key: `verify:sess:${sessionId}`, limit: 20, windowMs: 60_000 });
+    }
+
     // We don't know the email yet — the token table is indexed by
     // tokenHash for direct lookup, but the hash binds email + token, so
     // we have to enumerate active (non-consumed) tokens and recompute the
