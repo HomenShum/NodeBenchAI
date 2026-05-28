@@ -393,6 +393,10 @@ test("home-v5 runDemoFull emits evaluated L1/L2/L3 output envelopes", async ({ p
   expect(qa.contract.missingFamilies).toEqual([]);
   expect(qa.contract.rendererMapped).toBe(true);
   expect(qa.contract.evaluatorMapped).toBe(true);
+  expect(qa.riskAttack.passed).toBe(7);
+  expect(qa.riskAttack.failed).toBe(0);
+  expect(qa.riskAttack.total).toBe(7);
+  expect(qa.riskAttack.observedRisks).toEqual([]);
   expect(Object.keys(qa.contract.byL1).sort()).toEqual([
     "agent_trace",
     "generated_artifact",
