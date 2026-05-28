@@ -2474,6 +2474,35 @@ function startVoice() {
   });
 })();
 
+// Swipe-down dismiss for Live Assist mobile sheet (matches spec: "swipe-down to dismiss")
+// Mirrors the menu-sheet pattern — same gesture, but routes to toggleLiveAssist(false).
+(function wireLiveAssistSwipeDismiss() {
+  var sheet = document.getElementById('live-assist-sheet');
+  if (!sheet) return;
+  var startY = 0, currentY = 0, dragging = false;
+  sheet.addEventListener('touchstart', function(e) {
+    if (sheet.getAttribute('data-open') !== 'true') return;
+    startY = e.touches[0].clientY;
+    currentY = startY;
+    dragging = true;
+  }, { passive: true });
+  sheet.addEventListener('touchmove', function(e) {
+    if (!dragging) return;
+    currentY = e.touches[0].clientY;
+    var delta = currentY - startY;
+    if (delta > 0) {
+      sheet.style.transform = 'translateY(' + delta + 'px)';
+    }
+  }, { passive: true });
+  sheet.addEventListener('touchend', function() {
+    if (!dragging) return;
+    dragging = false;
+    var delta = currentY - startY;
+    sheet.style.transform = '';
+    if (delta > 60 && typeof toggleLiveAssist === 'function') toggleLiveAssist(false);
+  });
+})();
+
 // Service worker for PWA-ish caching (skip if file:// or http://)
 // Not registered — keep prototype lean. Add when productionizing.
 
