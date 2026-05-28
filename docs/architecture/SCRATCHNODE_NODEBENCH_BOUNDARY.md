@@ -208,6 +208,35 @@ Linkup: external discovery only when event corpus misses or freshness requires i
 pi-ai / NodeBench runtime: orchestration and governed tools, not raw database access
 ```
 
+## Agent Output Contract
+
+All agent outputs must pass the shared L1/L2/L3 contract before they are stored,
+rendered, cached, or promoted:
+
+```text
+L1 = broad output family
+L2 = object category
+L3 = exact contract / renderer / validator
+```
+
+Examples:
+
+```text
+public_knowledge / event_faq / faq.cached_reuse_answer
+private_memory / private_note / note.anchored_to_chat
+retrieval_context / index_search / retrieval.context_packet
+operational_cache / semantic_answer_cache / cache.public_faq_answer
+agent_trace / output_node / trace.output.public_answer
+generated_artifact / event_archive / artifact.published_event_wiki
+```
+
+The executable registry and evaluator live in
+`src/shared/agentOutputContract.ts`. The ScratchNode demo records evaluated
+envelopes during `runDemoFull()` and exposes the contract result through
+`runDemoQA().contract`.
+
+Reference: `docs/architecture/AGENT_OUTPUT_L123_CONTRACT.md`.
+
 ## Trace Contract
 
 ScratchNode shows a compact public trace:

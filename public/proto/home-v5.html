@@ -4606,6 +4606,134 @@ setTimeout(refreshNotesCounter, 100);
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
+  var AGENT_OUTPUT_REGISTRY = {
+    public_knowledge: {
+      event_wiki: ['wiki.need_to_know_item','wiki.what_changed_item','wiki.followup_item','wiki.people_item','wiki.company_item','wiki.source_item','wiki.trace_summary'],
+      event_faq: ['faq.answer_candidate','faq.host_promoted_answer','faq.cached_reuse_answer','faq.delta_refreshed_answer'],
+      public_agent_answer: ['answer.public_event_card','answer.cached_event_answer','answer.delta_refreshed_answer']
+    },
+    private_memory: {
+      private_note: ['note.raw_shorthand','note.agent_enhanced','note.voice_transcript','note.anchored_to_chat','note.followup_task'],
+      private_notebook_patch: ['notebook.append_block','notebook.update_block','notebook.followup_task']
+    },
+    retrieval_context: {
+      index_search: ['retrieval.typesense_hit','retrieval.convex_exact','retrieval.redis_semantic_cache_hit','retrieval.linkup_result','retrieval.source_bundle','retrieval.context_packet']
+    },
+    graph_memory: {
+      lightrag_memory: ['memory.entity','memory.atomic_claim','memory.semantic_edge','memory.citation','memory.compacted_summary','memory.famous_branch','memory.versioned_snapshot']
+    },
+    agent_trace: {
+      output_node: ['trace.output.public_answer','trace.output.private_note_patch','trace.output.wiki_update','trace.output.artifact_created'],
+      phase: ['trace.phase.context_resolved','trace.phase.cache_lookup','trace.phase.context_retrieval','trace.phase.verification','trace.phase.persistence'],
+      tool_call: ['trace.tool.semantic_cache_lookup','trace.tool.retrieve_context','trace.tool.linkup_search','trace.tool.save_private_note_patch']
+    },
+    generated_artifact: {
+      presentation: ['artifact.presentation_html'],
+      source_bundle: ['artifact.source_bundle'],
+      export: ['artifact.csv_export','artifact.crm_export'],
+      event_archive: ['artifact.published_event_wiki']
+    },
+    operational_cache: {
+      semantic_answer_cache: ['cache.public_faq_answer','cache.private_answer_forbidden','cache.stale_public_answer','cache.delta_refresh_required']
+    },
+    ui_renderable: {
+      ui_card: ['ui.agent_answer_card','ui.trace_drawer','ui.private_note_marker','ui.mention_chip']
+    }
+  };
+  var AGENT_OUTPUT_POLICIES = {
+    'faq.cached_reuse_answer': { l1:'public_knowledge', l2:'event_faq', storage:'convex', renderer:'AgentAnswerCard', evaluator:'faq_validator', allowedVisibility:['event_public'] },
+    'note.anchored_to_chat': { l1:'private_memory', l2:'private_note', storage:'convex', renderer:'PrivateNoteMarker', evaluator:'note_validator', allowedVisibility:['private'] },
+    'note.agent_enhanced': { l1:'private_memory', l2:'private_note', storage:'convex', renderer:'PrivateNoteSheet', evaluator:'note_validator', allowedVisibility:['private'] },
+    'note.voice_transcript': { l1:'private_memory', l2:'private_note', storage:'convex', renderer:'PrivateNoteSheet', evaluator:'note_validator', allowedVisibility:['private'] },
+    'note.raw_shorthand': { l1:'private_memory', l2:'private_note', storage:'convex', renderer:'PrivateNoteSheet', evaluator:'note_validator', allowedVisibility:['private'] },
+    'retrieval.context_packet': { l1:'retrieval_context', l2:'index_search', storage:'convex', renderer:'ContextPacket', evaluator:'context_resolver_evaluator', allowedVisibility:['event_public','private','workspace'] },
+    'memory.atomic_claim': { l1:'graph_memory', l2:'lightrag_memory', storage:'convex', renderer:'ClaimCard', evaluator:'memory_compaction_evaluator', allowedVisibility:['event_public','private','workspace'] },
+    'cache.public_faq_answer': { l1:'operational_cache', l2:'semantic_answer_cache', storage:'redis', renderer:'CacheTraceRow', evaluator:'cache_safety_evaluator', allowedVisibility:['event_public'] },
+    'trace.output.public_answer': { l1:'agent_trace', l2:'output_node', storage:'convex', renderer:'TraceNode', evaluator:'trace_evaluator', allowedVisibility:['event_public'] },
+    'trace.output.private_note_patch': { l1:'agent_trace', l2:'output_node', storage:'convex', renderer:'TraceNode', evaluator:'trace_evaluator', allowedVisibility:['private','workspace'] },
+    'trace.output.wiki_update': { l1:'agent_trace', l2:'output_node', storage:'convex', renderer:'TraceNode', evaluator:'trace_evaluator', allowedVisibility:['event_public','host_draft'] },
+    'trace.output.artifact_created': { l1:'agent_trace', l2:'output_node', storage:'convex', renderer:'TraceNode', evaluator:'trace_evaluator', allowedVisibility:['event_public','workspace'] },
+    'trace.tool.semantic_cache_lookup': { l1:'agent_trace', l2:'tool_call', storage:'convex', renderer:'TraceToolCall', evaluator:'tool_call_evaluator', allowedVisibility:['event_public','private','workspace'] },
+    'trace.tool.retrieve_context': { l1:'agent_trace', l2:'tool_call', storage:'convex', renderer:'TraceToolCall', evaluator:'tool_call_evaluator', allowedVisibility:['event_public','private','workspace'] },
+    'trace.tool.save_private_note_patch': { l1:'agent_trace', l2:'tool_call', storage:'convex', renderer:'TraceToolCall', evaluator:'tool_call_evaluator', allowedVisibility:['private','workspace'] },
+    'wiki.need_to_know_item': { l1:'public_knowledge', l2:'event_wiki', storage:'convex', renderer:'WikiSectionItem', evaluator:'wiki_validator', allowedVisibility:['event_public','host_draft'] },
+    'wiki.what_changed_item': { l1:'public_knowledge', l2:'event_wiki', storage:'convex', renderer:'WikiSectionItem', evaluator:'wiki_validator', allowedVisibility:['event_public','host_draft'] },
+    'artifact.published_event_wiki': { l1:'generated_artifact', l2:'event_archive', storage:'artifact_lake', renderer:'EventArchiveArtifact', evaluator:'artifact_validator', allowedVisibility:['event_public'] },
+    'artifact.presentation_html': { l1:'generated_artifact', l2:'presentation', storage:'artifact_lake', renderer:'PresentationArtifact', evaluator:'artifact_validator', allowedVisibility:['event_public','workspace'] },
+    'ui.agent_answer_card': { l1:'ui_renderable', l2:'ui_card', storage:'ui_only', renderer:'AgentAnswerCard', evaluator:'ui_snapshot_evaluator', allowedVisibility:['event_public'] },
+    'ui.private_note_marker': { l1:'ui_renderable', l2:'ui_card', storage:'ui_only', renderer:'PrivateNoteMarker', evaluator:'ui_snapshot_evaluator', allowedVisibility:['private'] }
+  };
+  function _isValidOutputTaxonomy(l1, l2, l3) {
+    return !!(AGENT_OUTPUT_REGISTRY[l1] && AGENT_OUTPUT_REGISTRY[l1][l2] && AGENT_OUTPUT_REGISTRY[l1][l2].indexOf(l3) !== -1);
+  }
+  function _hasOutputTarget(target) {
+    if (!target) return false;
+    return Object.keys(target).some(function(k) { return typeof target[k] === 'string' && target[k].length > 0; });
+  }
+  function _readOutputPath(obj, path) {
+    var cur = obj;
+    for (var i = 0; i < path.length; i++) {
+      if (!cur || typeof cur !== 'object') return undefined;
+      cur = cur[path[i]];
+    }
+    return cur;
+  }
+  function _hasPrivateOutputRef(envelope) {
+    var refs = [].concat(envelope.sourceRefs || [], envelope.citationRefs || []);
+    if (refs.some(function(r) { return /^private[:/_-]|private_note|userNotes|note_private/i.test(String(r)); })) return true;
+    return /"(?:privateNoteIds?|private_source_refs?|privateNotesUsed)"\s*:\s*true/i.test(JSON.stringify(envelope.output || {}));
+  }
+  function evaluateAgentOutputEnvelope(envelope) {
+    var issues = [];
+    function err(code, message) { issues.push({ code: code, message: message, severity: 'error' }); }
+    var policy = AGENT_OUTPUT_POLICIES[envelope && envelope.l3];
+    if (!envelope || !envelope.id) err('EVAL-SCHEMA-000', 'Envelope id is required.');
+    if (!envelope || !_isValidOutputTaxonomy(envelope.l1, envelope.l2, envelope.l3)) err('EVAL-SCHEMA-001', 'l1/l2/l3 must match registry.');
+    if (!policy) err('EVAL-SCHEMA-005', 'l3 must map to storage, renderer, and evaluator.');
+    if (policy && (policy.l1 !== envelope.l1 || policy.l2 !== envelope.l2)) err('EVAL-SCHEMA-003', 'l3 belongs to a different l1/l2 pair.');
+    if (policy && policy.allowedVisibility.indexOf(envelope.visibility) === -1) err('EVAL-POLICY-006', 'visibility not allowed for l3.');
+    if (!_hasOutputTarget(envelope && envelope.target)) err('EVAL-SCHEMA-006', 'At least one target id is required.');
+    if (!envelope.traceRef) err('EVAL-TRACE-001', 'traceRef is required.');
+    if (!envelope.producedBy || !envelope.producedBy.runId || !envelope.producedBy.skill || !Array.isArray(envelope.producedBy.toolChain)) err('EVAL-TRACE-002', 'producedBy.runId, skill, and toolChain are required.');
+    if (!Array.isArray(envelope.sourceRefs) || !Array.isArray(envelope.citationRefs)) err('EVAL-CITE-000', 'sourceRefs and citationRefs must be arrays.');
+    if (envelope.visibility === 'event_public' && _hasPrivateOutputRef(envelope)) err('EVAL-POLICY-001', 'event_public output cannot reference private notes.');
+    if (envelope.l1 === 'private_memory' && envelope.visibility !== 'private') err('NOTE-001', 'private_memory outputs must be private.');
+    if (envelope.l2 === 'event_faq' || envelope.l2 === 'public_agent_answer') {
+      if (!_readOutputPath(envelope.output, ['parentAskMessageId'])) err('FAQ-001', 'Public answer requires parentAskMessageId.');
+      if (_readOutputPath(envelope.output, ['reuseSummary','privateNotesUsed']) !== false) err('FAQ-003', 'Public answer privateNotesUsed must be false.');
+      if ((envelope.sourceRefs || []).length === 0) err('FAQ-009', 'Public answer requires sourceRefs.');
+    }
+    if (envelope.l2 === 'semantic_answer_cache') {
+      if (!envelope.target || !envelope.target.eventId) err('CACHE-002', 'Cache entry requires eventId.');
+      if (!envelope.version || typeof envelope.version.wikiVersion !== 'number') err('CACHE-003', 'Cache entry requires wikiVersion.');
+      if (!envelope.version || typeof envelope.version.sourceBundleVersion !== 'number') err('CACHE-004', 'Cache entry requires sourceBundleVersion.');
+      if (envelope.visibility === 'event_public' && _readOutputPath(envelope.output, ['privateContextAllowed']) !== false) err('CACHE-005', 'Public cache privateContextAllowed must be false.');
+    }
+    if (envelope.l2 === 'index_search') {
+      if (envelope.visibility === 'event_public' && _readOutputPath(envelope.output, ['scope','includePrivate']) !== false) err('RET-003', 'Public retrieval must set includePrivate=false.');
+      var results = _readOutputPath(envelope.output, ['results']);
+      if (envelope.visibility === 'event_public' && Array.isArray(results) && results.some(function(r) { return r && r.visibility === 'private'; })) err('RET-003', 'Public retrieval cannot include private results.');
+    }
+    if (envelope.l2 === 'event_wiki') {
+      if (!envelope.target || !envelope.target.eventId) err('WIKI-STRUCT-001', 'Wiki output requires eventId.');
+      if (!envelope.version || typeof envelope.version.wikiVersion !== 'number') err('WIKI-STRUCT-007', 'Wiki output requires wikiVersion.');
+    }
+    if (envelope.l2 === 'private_note') {
+      if (!_readOutputPath(envelope.output, ['body'])) err('NOTE-002', 'Private note requires body.');
+    }
+    return { passed: issues.length === 0, issues: issues, policy: policy };
+  }
+  function recordAgentOutputEnvelope(envelope) {
+    var result = evaluateAgentOutputEnvelope(envelope);
+    envelope.evaluation = result;
+    if (!window._demo_state) _initDemoState();
+    window._demo_state.agentOutputs.push(envelope);
+    if (!result.passed) console.warn('[scratchnode][contract] invalid envelope', envelope.id, result.issues);
+    return envelope;
+  }
+  function _refSlug(value) {
+    return String(value || 'ref').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'ref';
+  }
   function _nextId(prefix) {
     var s = window._demo_state;
     s._idSeq = (s._idSeq || 0) + 1;
@@ -4653,6 +4781,7 @@ setTimeout(refreshNotesCounter, 100);
       publicMessages: [],   // [{id, actorId, text, isAsk, time}]
       privateNotes: [],     // [{id, ownerId, anchorMessageId, text, source, time}]
       agentAnswers: [],     // [{id, replyingToActorId, question, body, sources, reuse, trace}]
+      agentOutputs: [],     // AgentOutputEnvelope[] classified by L1/L2/L3 contract.
       hostQueue: [],        // [{id, question, suggestedByActorId, promoted}]
       wikiPublished: false,
       activeActorId: null,
@@ -4777,6 +4906,110 @@ setTimeout(refreshNotesCounter, 100);
         id: ansId, replyingToActorId: askActor.id, question: args.question, body: args.body,
         sources: sources, reuse: reuse, trace: trace
       });
+      var parentAskMessageId = args.parentAskMessageId || args.askMessageId || ansId;
+      var runId = 'run_' + ansId;
+      var traceRef = 'trace_' + ansId;
+      var sourceRefs = sources.map(function(s, i) { return 'source:event:' + _refSlug(s) + ':' + i; });
+      var citationRefs = sources.map(function(s, i) { return 'citation:' + ansId + ':' + i; });
+      var commonProducedBy = { runId: runId, skill: 'event-room-qa', toolChain: ['semantic_cache_lookup','retrieve_event_context'] };
+      recordAgentOutputEnvelope({
+        id: 'out_' + ansId,
+        l1: 'public_knowledge',
+        l2: 'event_faq',
+        l3: 'faq.cached_reuse_answer',
+        target: { eventId: 'evt_ai_infra_summit', messageId: parentAskMessageId, traceId: traceRef },
+        visibility: 'event_public',
+        sourceRefs: sourceRefs,
+        citationRefs: citationRefs,
+        traceRef: traceRef,
+        producedBy: commonProducedBy,
+        version: { wikiVersion: 3, sourceBundleVersion: 7 },
+        output: {
+          parentAskMessageId: parentAskMessageId,
+          canonicalQuestion: args.question || '',
+          answerMarkdown: args.body || '',
+          answerMode: reuse.newSearches === 0 ? 'cache_hit' : 'delta_refresh',
+          reuseSummary: { similarQuestions: reuse.similar || 0, reusedSources: reuse.reused || sources.length, newSearches: reuse.newSearches || 0, privateNotesUsed: false },
+          promotionState: 'suggested'
+        }
+      });
+      recordAgentOutputEnvelope({
+        id: 'cache_' + ansId,
+        l1: 'operational_cache',
+        l2: 'semantic_answer_cache',
+        l3: 'cache.public_faq_answer',
+        target: { eventId: 'evt_ai_infra_summit', messageId: parentAskMessageId, traceId: traceRef },
+        visibility: 'event_public',
+        sourceRefs: sourceRefs,
+        citationRefs: citationRefs,
+        traceRef: traceRef,
+        producedBy: commonProducedBy,
+        version: { wikiVersion: 3, sourceBundleVersion: 7 },
+        output: { normalizedQuestion: _refSlug(args.question || ''), privateContextAllowed: false, reuseCount: reuse.similar || 0 }
+      });
+      recordAgentOutputEnvelope({
+        id: 'ctx_' + ansId,
+        l1: 'retrieval_context',
+        l2: 'index_search',
+        l3: 'retrieval.context_packet',
+        target: { eventId: 'evt_ai_infra_summit', messageId: parentAskMessageId, traceId: traceRef },
+        visibility: 'event_public',
+        sourceRefs: sourceRefs,
+        citationRefs: citationRefs,
+        traceRef: traceRef,
+        producedBy: commonProducedBy,
+        version: { wikiVersion: 3, sourceBundleVersion: 7 },
+        output: {
+          query: args.question || '',
+          normalizedQuery: _refSlug(args.question || ''),
+          scope: { eventId: 'evt_ai_infra_summit', includePrivate: false, visibility: 'event_public' },
+          results: sources.map(function(s, i) {
+            return { uri: sourceRefs[i], type: 'source', title: s, snippet: 'Event corpus source reused for public answer', reasonSelected: 'semantic cache + event wiki match', visibility: 'event_public' };
+          })
+        }
+      });
+      recordAgentOutputEnvelope({
+        id: 'trace_out_' + ansId,
+        l1: 'agent_trace',
+        l2: 'output_node',
+        l3: 'trace.output.public_answer',
+        target: { eventId: 'evt_ai_infra_summit', messageId: parentAskMessageId, traceId: traceRef },
+        visibility: 'event_public',
+        sourceRefs: sourceRefs,
+        citationRefs: citationRefs,
+        traceRef: traceRef,
+        producedBy: commonProducedBy,
+        version: { wikiVersion: 3, sourceBundleVersion: 7 },
+        output: { summary: 'Public answer card produced from event wiki cache', trace: trace, noPrivateNotesUsed: true }
+      });
+      recordAgentOutputEnvelope({
+        id: 'trace_cache_' + ansId,
+        l1: 'agent_trace',
+        l2: 'tool_call',
+        l3: 'trace.tool.semantic_cache_lookup',
+        target: { eventId: 'evt_ai_infra_summit', messageId: parentAskMessageId, traceId: traceRef },
+        visibility: 'event_public',
+        sourceRefs: sourceRefs,
+        citationRefs: [],
+        traceRef: traceRef,
+        producedBy: commonProducedBy,
+        version: { wikiVersion: 3, sourceBundleVersion: 7 },
+        output: { cacheHit: true, privateContextAllowed: false, newSearches: reuse.newSearches || 0 }
+      });
+      recordAgentOutputEnvelope({
+        id: 'ui_' + ansId,
+        l1: 'ui_renderable',
+        l2: 'ui_card',
+        l3: 'ui.agent_answer_card',
+        target: { eventId: 'evt_ai_infra_summit', messageId: parentAskMessageId, traceId: traceRef },
+        visibility: 'event_public',
+        sourceRefs: sourceRefs,
+        citationRefs: citationRefs,
+        traceRef: traceRef,
+        producedBy: commonProducedBy,
+        version: { wikiVersion: 3, sourceBundleVersion: 7 },
+        output: { renderer: 'AgentAnswerCard', parentAskMessageId: parentAskMessageId, privateNotesUsed: false }
+      });
       return ansId;
     });
   }
@@ -4827,6 +5060,78 @@ setTimeout(refreshNotesCounter, 100);
     // If anchor provided, show the private marker
     if (args.anchor) {
       showPrivateMarker({ anchorMessageId: args.anchor, ownerId: ownerActor.id, label: args.label || 'note' });
+    }
+    var traceRef = 'trace_' + noteId;
+    var noteL3 = args.source === 'voice'
+      ? 'note.voice_transcript'
+      : (args.source === 'shorthand-enhance' ? 'note.agent_enhanced' : (args.anchor ? 'note.anchored_to_chat' : 'note.raw_shorthand'));
+    var producedBy = {
+      runId: 'run_' + noteId,
+      skill: args.source === 'voice' ? 'voice-capture-note-builder' : 'private-note-builder',
+      toolChain: ['save_private_note_patch']
+    };
+    recordAgentOutputEnvelope({
+      id: 'out_' + noteId,
+      l1: 'private_memory',
+      l2: 'private_note',
+      l3: noteL3,
+      target: { eventId: 'evt_ai_infra_summit', messageId: args.anchor || undefined, traceId: traceRef },
+      visibility: 'private',
+      sourceRefs: args.anchor ? ['message:' + args.anchor] : ['event:evt_ai_infra_summit'],
+      citationRefs: [],
+      traceRef: traceRef,
+      producedBy: producedBy,
+      version: { memorySnapshotVersion: 1 },
+      output: {
+        body: args.text,
+        anchor: args.anchor ? { type: 'message', id: args.anchor } : { type: 'event', id: 'evt_ai_infra_summit' },
+        extractedEntities: args.text.indexOf('Orbital') !== -1 ? ['@Orbital Labs'] : [],
+        followUps: /follow|ask|schedule/i.test(args.text) ? [args.text] : []
+      }
+    });
+    recordAgentOutputEnvelope({
+      id: 'trace_' + noteId + '_out',
+      l1: 'agent_trace',
+      l2: 'output_node',
+      l3: 'trace.output.private_note_patch',
+      target: { eventId: 'evt_ai_infra_summit', messageId: args.anchor || undefined, traceId: traceRef },
+      visibility: 'private',
+      sourceRefs: args.anchor ? ['message:' + args.anchor] : ['event:evt_ai_infra_summit'],
+      citationRefs: [],
+      traceRef: traceRef,
+      producedBy: producedBy,
+      version: { memorySnapshotVersion: 1 },
+      output: { summary: 'Private note stored owner-only; not written to public feed.', storageTarget: 'userNotes' }
+    });
+    recordAgentOutputEnvelope({
+      id: 'trace_' + noteId + '_tool',
+      l1: 'agent_trace',
+      l2: 'tool_call',
+      l3: 'trace.tool.save_private_note_patch',
+      target: { eventId: 'evt_ai_infra_summit', messageId: args.anchor || undefined, traceId: traceRef },
+      visibility: 'private',
+      sourceRefs: args.anchor ? ['message:' + args.anchor] : ['event:evt_ai_infra_summit'],
+      citationRefs: [],
+      traceRef: traceRef,
+      producedBy: producedBy,
+      version: { memorySnapshotVersion: 1 },
+      output: { table: 'userNotes', publicFeedWrite: false }
+    });
+    if (args.anchor) {
+      recordAgentOutputEnvelope({
+        id: 'ui_' + noteId,
+        l1: 'ui_renderable',
+        l2: 'ui_card',
+        l3: 'ui.private_note_marker',
+        target: { eventId: 'evt_ai_infra_summit', messageId: args.anchor, traceId: traceRef },
+        visibility: 'private',
+        sourceRefs: ['message:' + args.anchor],
+        citationRefs: [],
+        traceRef: traceRef,
+        producedBy: producedBy,
+        version: { memorySnapshotVersion: 1 },
+        output: { renderer: 'PrivateNoteMarker', ownerId: ownerActor.id, publicContentVisible: false }
+      });
     }
     // Toast for visual feedback (only when in normal/fast speed)
     if (_currentSpeed.mult > 0 && typeof toast === 'function') {
@@ -4970,6 +5275,51 @@ setTimeout(refreshNotesCounter, 100);
       '<div class="privacy-notice">' + _esc(args.privacyNotice || 'Wiki uses only public messages + suggested FAQs. Private notes were not included.') + '</div>';
     feed.appendChild(card);
     _scroll(card);
+    var traceRef = 'trace_wiki_v1';
+    ['Need to know', 'What changed'].forEach(function(section, i) {
+      recordAgentOutputEnvelope({
+        id: 'wiki_v1_' + i,
+        l1: 'public_knowledge',
+        l2: 'event_wiki',
+        l3: i === 0 ? 'wiki.need_to_know_item' : 'wiki.what_changed_item',
+        target: { eventId: 'evt_ai_infra_summit', traceId: traceRef },
+        visibility: 'event_public',
+        sourceRefs: ['source:event-wiki:v1', 'source:event-corpus'],
+        citationRefs: ['citation:wiki:v1:' + i],
+        traceRef: traceRef,
+        producedBy: { runId: 'run_wiki_v1', skill: 'faq-promoter', toolChain: ['retrieve_event_context'] },
+        version: { wikiVersion: 1, sourceBundleVersion: 7 },
+        output: { title: section, body: section + ' section generated from public chat, public answers, and host-promoted FAQ only.' }
+      });
+    });
+    recordAgentOutputEnvelope({
+      id: 'trace_wiki_v1_out',
+      l1: 'agent_trace',
+      l2: 'output_node',
+      l3: 'trace.output.wiki_update',
+      target: { eventId: 'evt_ai_infra_summit', traceId: traceRef },
+      visibility: 'event_public',
+      sourceRefs: ['source:event-wiki:v1', 'source:event-corpus'],
+      citationRefs: [],
+      traceRef: traceRef,
+      producedBy: { runId: 'run_wiki_v1', skill: 'faq-promoter', toolChain: ['retrieve_event_context'] },
+      version: { wikiVersion: 1, sourceBundleVersion: 7 },
+      output: { privateNotesExcluded: true, hostPromotedOnly: true }
+    });
+    recordAgentOutputEnvelope({
+      id: 'artifact_wiki_v1',
+      l1: 'generated_artifact',
+      l2: 'event_archive',
+      l3: 'artifact.published_event_wiki',
+      target: { eventId: 'evt_ai_infra_summit', artifactId: 'artifact_ai_infra_summit_wiki_v1', traceId: traceRef },
+      visibility: 'event_public',
+      sourceRefs: ['source:event-wiki:v1', 'source:event-corpus'],
+      citationRefs: [],
+      traceRef: traceRef,
+      producedBy: { runId: 'run_wiki_v1', skill: 'faq-promoter', toolChain: ['retrieve_event_context'] },
+      version: { wikiVersion: 1, sourceBundleVersion: 7 },
+      output: { renderer: 'EventArchiveArtifact', privateNotesExcluded: true }
+    });
     return card;
   }
 
@@ -5139,7 +5489,36 @@ setTimeout(refreshNotesCounter, 100);
   }
 
   function createNodeBenchArtifact() {
-    return Promise.resolve({ id: 'art_' + Date.now(), kind: 'event-artifact', label: 'AI Infra Summit' });
+    var artifact = { id: 'art_' + Date.now(), kind: 'event-artifact', label: 'AI Infra Summit' };
+    recordAgentOutputEnvelope({
+      id: 'artifact_recap_deck',
+      l1: 'generated_artifact',
+      l2: 'presentation',
+      l3: 'artifact.presentation_html',
+      target: { eventId: 'evt_ai_infra_summit', artifactId: artifact.id, traceId: 'trace_nodebench_handoff' },
+      visibility: 'workspace',
+      sourceRefs: ['source:event-wiki:v1', 'source:private-notebook-summary'],
+      citationRefs: [],
+      traceRef: 'trace_nodebench_handoff',
+      producedBy: { runId: 'run_nodebench_handoff', skill: 'nodebench-event-handoff', toolChain: ['retrieve_event_context'] },
+      version: { wikiVersion: 1, sourceBundleVersion: 7, memorySnapshotVersion: 1 },
+      output: { renderer: 'PresentationArtifact', title: 'AI Infra Summit Recap', slideCount: 6 }
+    });
+    recordAgentOutputEnvelope({
+      id: 'trace_nodebench_handoff_out',
+      l1: 'agent_trace',
+      l2: 'output_node',
+      l3: 'trace.output.artifact_created',
+      target: { eventId: 'evt_ai_infra_summit', artifactId: artifact.id, traceId: 'trace_nodebench_handoff' },
+      visibility: 'workspace',
+      sourceRefs: ['source:event-wiki:v1', 'source:private-notebook-summary'],
+      citationRefs: [],
+      traceRef: 'trace_nodebench_handoff',
+      producedBy: { runId: 'run_nodebench_handoff', skill: 'nodebench-event-handoff', toolChain: ['retrieve_event_context'] },
+      version: { wikiVersion: 1, sourceBundleVersion: 7, memorySnapshotVersion: 1 },
+      output: { publicWikiUsed: true, privateNotesUsed: true, workspaceOnly: true }
+    });
+    return Promise.resolve(artifact);
   }
   function createDailyBriefDelta() {
     // The brief is rendered by the Reports tab in the overlay.
@@ -5260,6 +5639,7 @@ setTimeout(refreshNotesCounter, 100);
       text: 'what is the realistic p95 latency budget for voice agents in clinical triage?'
     });
     return streamAgentAnswer({
+      parentAskMessageId: ask.askMessageId,
       replyingTo: ask.askActor,
       question: ask.question,
       body: 'Clinical-grade voice agents converge on a sub-350ms round-trip budget per turn. 800ms end-to-end is workable for non-acute triage but clinicians disengage past that. Orbital Labs panel data isolates contributors: ASR ~80ms, LLM TTFT ~120ms, TTS ~80ms, network ~60-100ms.',
@@ -5272,6 +5652,27 @@ setTimeout(refreshNotesCounter, 100);
         '0 new searches · Linkup skipped',
         'No private notes used · public layer only'
       ]
+    }).then(function(ansId) {
+      recordAgentOutputEnvelope({
+        id: 'memory_orbital_claim_' + ansId,
+        l1: 'graph_memory',
+        l2: 'lightrag_memory',
+        l3: 'memory.atomic_claim',
+        target: { eventId: 'evt_ai_infra_summit', entityId: 'entity_orbital_labs', traceId: 'trace_' + ansId },
+        visibility: 'event_public',
+        sourceRefs: ['source:event:orbital-eval-infra-docs:0', 'source:event:lambda-labs-pricing:1'],
+        citationRefs: ['citation:' + ansId + ':orbital-claim'],
+        traceRef: 'trace_' + ansId,
+        producedBy: { runId: 'run_' + ansId, skill: 'event-room-qa', toolChain: ['semantic_cache_lookup','retrieve_event_context'] },
+        version: { wikiVersion: 3, sourceBundleVersion: 7, memorySnapshotVersion: 1 },
+        output: {
+          claim: 'Orbital Labs benchmarks voice agents at scale and is repeatedly referenced in the event corpus.',
+          atomic: true,
+          relation: 'mentioned_in',
+          anchors: [{ sourceType: 'chat_message', sourceId: ask.askMessageId }]
+        }
+      });
+      return ansId;
     });
   }
 
@@ -5332,6 +5733,7 @@ setTimeout(refreshNotesCounter, 100);
       text: 'how does Orbital Labs benchmark voice agents at scale? GPU stack + concurrency numbers?'
     });
     return streamAgentAnswer({
+      parentAskMessageId: ask.askMessageId,
       replyingTo: ask.askActor,
       question: ask.question,
       body: 'Orbital Labs runs 50 concurrent voice eval sessions on a 4x A100 40GB SXM rig with NVLink ($6.40/hr) for production parity. For dev: 2x L40S on Lambda ($2.80/hr) handles Whisper-large-v3 + Llama-3.1-70B quantized. RunPod H100 80GB single ($3.20/hr) wins tail-latency for clinical use.',
@@ -5597,9 +5999,27 @@ setTimeout(refreshNotesCounter, 100);
     var allClean = anyPubAns.length > 0 && Array.from(anyPubAns).every(function(h) { return /No private notes used/i.test(h.textContent); });
     check('DEMO-017', 'Public agent answer trace says no private notes', allClean, 'clean ans=' + anyPubAns.length);
 
+    var outputs = state.agentOutputs || [];
+    var requiredFamilies = ['public_knowledge','private_memory','retrieval_context','graph_memory','agent_trace','generated_artifact','operational_cache','ui_renderable'];
+    var byL1 = {};
+    outputs.forEach(function(out) { byL1[out.l1] = (byL1[out.l1] || 0) + 1; });
+    var missingFamilies = requiredFamilies.filter(function(l1) { return !byL1[l1]; });
+    var invalidOutputs = outputs.filter(function(out) { return !out.evaluation || !out.evaluation.passed; });
+    var rendererMapped = outputs.every(function(out) { return out.evaluation && out.evaluation.policy && out.evaluation.policy.renderer; });
+    var evaluatorMapped = outputs.every(function(out) { return out.evaluation && out.evaluation.policy && out.evaluation.policy.evaluator; });
+    var contractSummary = {
+      passed: outputs.length > 0 && invalidOutputs.length === 0 && missingFamilies.length === 0 && rendererMapped && evaluatorMapped,
+      total: outputs.length,
+      invalid: invalidOutputs.map(function(out) { return out.id; }),
+      missingFamilies: missingFamilies,
+      byL1: byL1,
+      rendererMapped: rendererMapped,
+      evaluatorMapped: evaluatorMapped
+    };
+
     var passed = results.filter(function(r) { return r.pass; }).length;
     var failed = results.length - passed;
-    var summary = { passed: passed, failed: failed, total: results.length, results: results };
+    var summary = { passed: passed, failed: failed, total: results.length, results: results, contract: contractSummary };
     // Pretty-print failures for the console
     if (failed > 0) {
       console.group('[scratchnode][demoQA] ' + passed + '/' + results.length + ' passed (' + failed + ' failed)');
@@ -5607,6 +6027,11 @@ setTimeout(refreshNotesCounter, 100);
       console.groupEnd();
     } else {
       console.log('[scratchnode][demoQA] ' + passed + '/' + results.length + ' passed ✅');
+    }
+    if (contractSummary.passed) {
+      console.log('[scratchnode][outputContract] ' + contractSummary.total + ' envelopes passed L1/L2/L3 evaluation', contractSummary.byL1);
+    } else {
+      console.warn('[scratchnode][outputContract] failed', contractSummary);
     }
     return summary;
   }
@@ -5651,6 +6076,8 @@ setTimeout(refreshNotesCounter, 100);
   window.runDemoQA   = runDemoQA;
   window.demoReset   = demoReset;
   window.demoStep    = demoStep;
+  window.SN_AGENT_OUTPUT_REGISTRY = AGENT_OUTPUT_REGISTRY;
+  window.evaluateAgentOutputEnvelope = evaluateAgentOutputEnvelope;
 
   // ?demo=1 URL auto-run for one-click presentations.
   try {
