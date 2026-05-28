@@ -1788,7 +1788,7 @@ function _landingJoin(ev) {
   <div class="h-logo"><span class="h-logo-dot"></span>Scratch<span>Node</span></div>
   <span class="h-live">LIVE</span>
   <div class="h-spacer"></div>
-  <button class="h-code" type="button" onclick="copyRoom()" aria-label="Room code — click to copy join link">ORBITAL</button>
+  <button class="h-code" id="sn-room-code-btn" type="button" onclick="copyRoom()" aria-label="Room code — click to copy join link">ORBITAL</button>
   <button class="h-menu" type="button" onclick="openMenu()" aria-label="Menu">
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
   </button>
@@ -1796,13 +1796,13 @@ function _landingJoin(ev) {
 
 <!-- Persistent event-identity strip — answers Q1: "What event am I in?" -->
 <div class="event-strip" role="region" aria-label="Event identity">
-  <b>AI Infra Summit</b>
+  <b id="sn-event-title-strip">AI Infra Summit</b>
   <span class="dot">·</span>
   <span>MCP Auth breakout</span>
   <span class="dot">·</span>
-  <span><b style="color:var(--ink)" id="ev-joined-count">318</b> joined</span>
+  <span><b style="color:var(--ink)" id="ev-joined-count">0</b> joined</span>
   <span class="dot">·</span>
-  <span><b style="color:var(--ink)">47</b> FAQ</span>
+  <span><b style="color:var(--ink)" id="ev-faq-count">0</b> FAQ</span>
   <button type="button" class="ev-mode" id="ev-mode-btn" onclick="openModePicker()" aria-label="Event mode" title="Switch event mode">
     <span class="icon">●</span><span id="ev-mode-label">Event</span>
   </button>
@@ -1827,8 +1827,8 @@ function _landingJoin(ev) {
   </div>
 
   <section class="hero">
-    <h1>AI Infra Summit <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h1>
-    <p class="hero-meta">May 22–23 · <b>318</b> in the room · hosted by Orbital Labs</p>
+    <h1><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h1>
+    <p class="hero-meta" id="sn-event-hero-meta">Live public room · <b id="sn-hero-joined-count">0</b> joined</p>
   </section>
 
   <!-- Identity row -->
@@ -2006,7 +2006,7 @@ function _landingJoin(ev) {
   <!-- Always visible to everyone -->
   <h4 data-show-for="all">This event</h4>
   <button type="button" onclick="openWiki()">Wiki<span class="sub">Need to know · What changed · Sources</span></button>
-  <button type="button" onclick="openPeople()">People in the room<span class="sub">318 joined · 24 online</span></button>
+  <button type="button" onclick="openPeople()">People in the room<span class="sub" id="menu-people-sub">Live members</span></button>
   <button type="button" onclick="openShare()">Share<span class="sub">QR · Copy link · Social</span></button>
   <!-- Notes appear once user has set a name (matches the privacy/identity contract) -->
   <h4 style="margin-top:14px" data-show-for="named">Your notes</h4>
@@ -2079,6 +2079,8 @@ var PUBLIC_BASE_URL = (function() {
   }
 })();
 var EVENT_SLUG = 'ai-infra-summit-2026';
+var EVENT_TITLE = 'AI Infra Summit';
+var EVENT_ROOM_CODE = 'ORBITAL';
 var EVENT_URL = PUBLIC_BASE_URL + '/e/' + EVENT_SLUG;
 // NodeBench is the deeper private workspace. ScratchNode keeps lightweight
 // event account state, host controls, joined events, and private annotations
@@ -2134,8 +2136,35 @@ function shouldRunScratchNodeLegacyDemo() {
   }
 }
 
+function refreshEventUrl() {
+  EVENT_URL = PUBLIC_BASE_URL + '/e/' + encodeURIComponent(EVENT_SLUG);
+}
+
+function setScratchNodeLiveEventContext(event) {
+  if (!event) return;
+  EVENT_SLUG = event.slug || EVENT_SLUG;
+  EVENT_TITLE = event.name || event.title || EVENT_TITLE;
+  EVENT_ROOM_CODE = event.roomCode || EVENT_ROOM_CODE;
+  refreshEventUrl();
+  var codeBtn = document.getElementById('sn-room-code-btn');
+  if (codeBtn) {
+    codeBtn.textContent = EVENT_ROOM_CODE;
+    codeBtn.setAttribute('aria-label', 'Room code ' + EVENT_ROOM_CODE + ' — click to copy join link');
+  }
+  var stripTitle = document.getElementById('sn-event-title-strip');
+  if (stripTitle) stripTitle.textContent = EVENT_TITLE;
+  var heroTitle = document.getElementById('sn-event-title-hero');
+  if (heroTitle) heroTitle.textContent = EVENT_TITLE;
+  var heroMeta = document.getElementById('sn-event-hero-meta');
+  if (heroMeta) heroMeta.innerHTML = 'Live public room · <b id="sn-hero-joined-count">0</b> joined · code ' + escapeHtml(EVENT_ROOM_CODE);
+  var peopleSub = document.getElementById('menu-people-sub');
+  if (peopleSub) peopleSub.textContent = 'Live members';
+  var mode = document.getElementById('ev-mode-label');
+  if (mode) mode.textContent = (event.status || 'Event');
+}
+
 function buildNodeBenchEventPrivateUrl() {
-  var roomCode = 'ORBITAL';
+  var roomCode = EVENT_ROOM_CODE;
   try {
     var room = getRoomContext();
     roomCode = (room && room.roomCode) || roomCode;
@@ -2496,16 +2525,16 @@ function ask(text) {
 
 // ── Room code copy + share ──
 function copyRoom() {
-  var url = location.href.split('#')[0];
-  var text = 'Join AI Infra Summit on ScratchNode\nCode: ORBITAL\n' + url;
+  var url = EVENT_URL || location.href.split('#')[0];
+  var text = 'Join ' + EVENT_TITLE + ' on ScratchNode\nCode: ' + EVENT_ROOM_CODE + '\n' + url;
   if (navigator.share) {
-    navigator.share({ title: 'AI Infra Summit · ScratchNode', text: text }).catch(function(){});
+    navigator.share({ title: EVENT_TITLE + ' · ScratchNode', text: text }).catch(function(){});
     return;
   }
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(function(){ toast('Copied join link', 'ORBITAL · paste in any chat.'); });
+    navigator.clipboard.writeText(text).then(function(){ toast('Copied join link', EVENT_ROOM_CODE + ' · paste in any chat.'); });
   } else {
-    toast('Room: ORBITAL', 'Share this URL with attendees.');
+    toast('Room: ' + EVENT_ROOM_CODE, 'Share this URL with attendees.');
   }
 }
 
@@ -2983,7 +3012,7 @@ var SHEET_RENDERERS = {
 
   share: function() {
     var url = EVENT_URL;
-    return '<div class="sheet-head"><h2 id="sheet-title">Share AI Infra Summit</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+    return '<div class="sheet-head"><h2 id="sheet-title">Share ' + escapeHtml(EVENT_TITLE) + '</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
       '<div class="share-url-box"><code>' + url + '</code><button type="button" onclick="copyShareUrl()">Copy</button></div>' +
       '<div class="share-grid">' +
       '<button type="button" class="share-tile" onclick="shareTo(\'twitter\')"><span class="icon">&#119909;</span><span>Post on X</span></button>' +
@@ -2992,8 +3021,8 @@ var SHEET_RENDERERS = {
       '<button type="button" class="share-tile" onclick="shareTo(\'native\')"><span class="icon">&#10548;</span><span>More&hellip;</span></button>' +
       '</div>' +
       '<div class="sheet-section"><h3>Or scan to join on mobile</h3>' +
-      '<div style="display:flex;justify-content:center;padding:16px;background:#fff;border-radius:var(--r-sm)"><img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&amp;margin=4&amp;data=' + encodeURIComponent(url + '#room=ORBITAL') + '" alt="QR code" width="140" height="140" loading="lazy" /></div></div>' +
-      '<div style="margin-top:12px;font-size:11px;color:var(--ink-faint);text-align:center;font-family:var(--mono)">318 already joined &middot; 47 FAQ &middot; 38 sources</div>';
+      '<div style="display:flex;justify-content:center;padding:16px;background:#fff;border-radius:var(--r-sm)"><img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&amp;margin=4&amp;data=' + encodeURIComponent(url + '#room=' + EVENT_ROOM_CODE) + '" alt="QR code" width="140" height="140" loading="lazy" /></div></div>' +
+      '<div style="margin-top:12px;font-size:11px;color:var(--ink-faint);text-align:center;font-family:var(--mono)">Live room code ' + escapeHtml(EVENT_ROOM_CODE) + ' &middot; realtime chat backed by Convex</div>';
   },
 
   notes: function() {
@@ -3021,10 +3050,16 @@ var SHEET_RENDERERS = {
 
   wiki: function() {
     if (window._sn_published_wiki_body) {
-      return '<div class="sheet-head"><h2 id="sheet-title">AI Infra Summit &middot; Wiki</h2><span class="badge">live Convex</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+      return '<div class="sheet-head"><h2 id="sheet-title">' + escapeHtml(EVENT_TITLE) + ' &middot; Wiki</h2><span class="badge">live Convex</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
         '<div class="wiki-shell"><aside class="wiki-toc" aria-label="Table of contents"><div class="wiki-toc-label">Source</div><a class="wiki-toc-link active">Published snapshot</a></aside>' +
         '<article class="wiki-article" id="wiki-article">' + window._sn_published_wiki_body + '</article>' +
         '<aside class="wiki-onpage" aria-label="Actions"><div class="wiki-onpage-label">Actions</div><a onclick="window.snPublishWiki && window.snPublishWiki()">Republish</a></aside></div>';
+    }
+    if (window._sn_live && window._sn_live.eventId) {
+      return '<div class="sheet-head"><h2 id="sheet-title">' + escapeHtml(EVENT_TITLE) + ' &middot; Wiki</h2><span class="badge">not published</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+        '<div class="sheet-section"><h3>Wiki not published yet</h3>' +
+        '<p class="sheet-sub">This room is live. The public wiki appears here only after a host promotes answers and publishes a snapshot. Private notes are excluded.</p>' +
+        '<button type="button" class="sheet-button ghost host-only" onclick="window.snPublishWiki && window.snPublishWiki()">Publish wiki snapshot</button></div>';
     }
     var h = [];
     h.push('<div class="sheet-head"><h2 id="sheet-title">AI Infra Summit &middot; Wiki</h2><span class="badge">v1 &middot; live</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>');
@@ -3122,6 +3157,18 @@ var SHEET_RENDERERS = {
   },
 
   people: function() {
+    if (window._sn_live && Array.isArray(window._sn_live_members)) {
+      var liveRows = window._sn_live_members.slice(0, 50).map(function(p) {
+        var name = escapeHtml(p.displayName || 'Anonymous Guest');
+        var initial = name.charAt(0).toUpperCase() || 'G';
+        return '<div class="people-row"><div class="people-avatar">' + initial + '</div>' +
+          '<div class="people-info"><div class="people-name">' + name + '</div><div class="people-role">Joined this live room</div></div>' +
+          '<span class="people-status">online</span></div>';
+      }).join('');
+      return '<div class="sheet-head"><h2 id="sheet-title">People in the room</h2><span class="badge">' + window._sn_live_members.length + ' online</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
+        '<p class="sheet-sub">Live presence from Convex. Private notes and private markers are never shown here.</p>' +
+        '<div class="people-list">' + (liveRows || '<p class="sheet-sub">No active attendees yet.</p>') + '</div>';
+    }
     var folks = [
       { name: 'Alex Chen', role: 'Founder · Orbital Labs', color: '#d97757', initial: 'A', online: true },
       { name: 'Dario Amodei', role: 'CEO · Anthropic', color: '#a78bfa', initial: 'D', online: true },
@@ -3224,16 +3271,21 @@ var SHEET_RENDERERS = {
     }
     return '<div class="sheet-head"><h2 id="sheet-title">Host console</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
       '<p class="sheet-sub">Claim host on this event with a code, publish the wiki, or rotate your host token to another device.</p>' +
-      // ── Section A: create event (demo) ────────────────────────────
-      '<section class="sheet-block" role="region" aria-label="Create a new event" hidden style="display:none">' +
+      // ── Section A: create a real Convex-backed live event ─────────
+      '<section class="sheet-block" role="region" aria-label="Create a new event">' +
       '<div class="sheet-block-title">Create a new event</div>' +
       '<div class="sheet-field"><label class="sheet-label" for="sheet-host-title">Event title</label>' +
       '<input id="sheet-host-title" class="sheet-input" type="text" placeholder="e.g. Q4 Strategy Offsite" autocapitalize="words" /></div>' +
+      '<div class="sheet-field"><label class="sheet-label" for="sheet-host-room-code">Room code <span style="color:var(--ink-faint);font-weight:400">(optional)</span></label>' +
+      '<input id="sheet-host-room-code" class="sheet-input" type="text" placeholder="e.g. Q4OFFSITE" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" /></div>' +
+      '<div class="sheet-field"><label class="sheet-label" for="sheet-host-agenda">Starter context <span style="color:var(--ink-faint);font-weight:400">(optional, public)</span></label>' +
+      '<textarea id="sheet-host-agenda" class="sheet-input" rows="3" placeholder="Agenda, speakers, source notes, or what attendees should ask about. Public /ask can use this."></textarea></div>' +
       '<div class="sheet-field"><label class="sheet-label">Template</label>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px"><button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#127908;</span><span style="font-size:11px">Conference</span></button>' +
       '<button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#128295;</span><span style="font-size:11px">Workshop</span></button>' +
       '<button type="button" class="share-tile" style="padding:10px;flex-direction:column;align-items:center;text-align:center;gap:4px"><span class="icon">&#9749;</span><span style="font-size:11px">Office hrs</span></button></div></div>' +
-      '<button type="button" class="sheet-button ghost" disabled aria-disabled="true" title="Create event is disabled until the live createEvent mutation ships">Create event unavailable for launch</button>' +
+      '<button type="button" class="sheet-button" id="sn-create-event-btn" onclick="window.snCreateEventFromHostSheet && window.snCreateEventFromHostSheet()">Create live event</button>' +
+      '<div id="sn-create-event-output" class="sn-rotate-output" role="status" aria-live="polite" style="margin-top:10px;display:none"></div>' +
       '</section>' +
       '<div class="sheet-divider" role="separator" aria-hidden="true"></div>' +
       // ── Section B: claim host with one-time code ─────────────────
@@ -3690,21 +3742,24 @@ function refreshNotesBadge() {
 
 // ── Share platform handlers ──
 function copyShareUrl() {
+  refreshEventUrl();
   if (navigator.clipboard) {
     navigator.clipboard.writeText(EVENT_URL).then(function() { toast('Copied', EVENT_URL); haptic(); });
   }
 }
 function shareTo(p) {
+  refreshEventUrl();
   var url = encodeURIComponent(EVENT_URL);
-  var text = encodeURIComponent('Joining the AI Infra Summit on ScratchNode — room code ORBITAL.');
+  var dynamicShareText = 'Joining ' + EVENT_TITLE + ' on ScratchNode - room code ' + EVENT_ROOM_CODE + '.';
+  var text = encodeURIComponent(dynamicShareText);
   if (p === 'native' && navigator.share) {
-    navigator.share({ title: 'AI Infra Summit', text: 'Join — room code ORBITAL', url: EVENT_URL }).catch(function(){});
+    navigator.share({ title: EVENT_TITLE, text: 'Join - room code ' + EVENT_ROOM_CODE, url: EVENT_URL }).catch(function(){});
     closeSheet(); return;
   }
   var dest = {
     twitter: 'https://twitter.com/intent/tweet?text=' + text + '&url=' + url,
     linkedin: 'https://www.linkedin.com/sharing/share-offsite/?url=' + url,
-    email: 'mailto:?subject=' + encodeURIComponent('AI Infra Summit') + '&body=' + text + '%0A%0A' + url
+    email: 'mailto:?subject=' + encodeURIComponent(EVENT_TITLE) + '&body=' + text + '%0A%0A' + url
   }[p];
   if (dest) { window.open(dest, '_blank', 'noopener'); closeSheet(); haptic(); }
 }
@@ -5247,6 +5302,7 @@ window._laCueAction       = _laCueAction;
     return;
   }
   const eventId = joined.eventId;
+  setScratchNodeLiveEventContext(joined);
   window._sn_live = { client, eventId, sessionId, slug };
   window._sn_my_events = {
     joined: [{ eventId, slug: joined.slug, name: joined.name, roomCode: joined.roomCode, status: joined.status, role: 'attendee' }],
@@ -5366,6 +5422,20 @@ window._laCueAction       = _laCueAction;
   client.onUpdate('events:getAnswers', { eventId, limit: 100 }, (rows) => {
     if (!Array.isArray(rows)) return;
     for (const answer of rows) renderAnswer(answer);
+    const faqCount = rows.filter((answer) => answer && answer.faqStatus && answer.faqStatus !== 'none').length;
+    const faqEl = document.getElementById('ev-faq-count');
+    if (faqEl) faqEl.textContent = String(faqCount);
+  });
+  client.onUpdate('events:getMembers', { eventId }, (rows) => {
+    if (!Array.isArray(rows)) return;
+    window._sn_live_members = rows;
+    const count = String(rows.length);
+    const stripCount = document.getElementById('ev-joined-count');
+    if (stripCount) stripCount.textContent = count;
+    const heroCount = document.getElementById('sn-hero-joined-count');
+    if (heroCount) heroCount.textContent = count;
+    const menuPeopleSub = document.getElementById('menu-people-sub');
+    if (menuPeopleSub) menuPeopleSub.textContent = count + ' live member' + (rows.length === 1 ? '' : 's');
   });
 
   // ─── Override the send pipeline to route public chat through Convex ─
@@ -5467,6 +5537,56 @@ window._laCueAction       = _laCueAction;
   // available — expand-contract per
   // .claude/rules/backend_contract_migration.md — but no longer the
   // default path from this UI.
+  window.snCreateEventFromHostSheet = function() {
+    const titleEl = document.getElementById('sheet-host-title');
+    const roomEl = document.getElementById('sheet-host-room-code');
+    const agendaEl = document.getElementById('sheet-host-agenda');
+    const btn = document.getElementById('sn-create-event-btn');
+    const out = document.getElementById('sn-create-event-output');
+    const title = (titleEl && titleEl.value || '').trim();
+    const roomCode = (roomEl && roomEl.value || '').trim();
+    const agendaText = (agendaEl && agendaEl.value || '').trim();
+    if (title.length < 3) {
+      toast('Event title required', 'Add at least 3 characters.');
+      if (titleEl) titleEl.focus();
+      return;
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Creating live event...';
+    }
+    if (out) {
+      out.style.display = 'block';
+      out.textContent = 'Creating Convex event room and host token...';
+    }
+    const liveName = (window._userName && String(window._userName).trim()) || 'Host';
+    client.mutation('events:createEvent', {
+      title,
+      sessionId,
+      displayName: liveName,
+      roomCode: roomCode || undefined,
+      agendaText: agendaText || undefined,
+      status: 'live',
+    }).then((res) => {
+      if (!res || !res.eventId || !res.ownerKey) throw new Error('Server did not return the new event.');
+      localStorage.setItem('sn_host_owner_key_v2', res.ownerKey);
+      window._sn_live.hostOwnerKey = res.ownerKey;
+      setScratchNodeLiveEventContext(res);
+      if (out) out.textContent = 'Created room ' + res.roomCode + '. Opening now...';
+      toast('Event created', 'Room code ' + res.roomCode + ' is live.');
+      window.location.assign('/e/' + encodeURIComponent(res.slug || res.roomCode));
+    }).catch((e) => {
+      const msg = (e && e.message) || String(e);
+      if (out) out.textContent = 'Create failed: ' + msg;
+      toast('Create event blocked', msg);
+    }).finally(() => {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Create live event';
+      }
+    });
+  };
+
   function _snReadHostOwnerKey() {
     return (
       window._sn_live.hostOwnerKey ||
