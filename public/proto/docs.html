@@ -509,6 +509,7 @@ kbd {
     <a class="toc-link" href="#positioning" data-toc="positioning">Consent-first positioning</a>
     <a class="toc-link" href="#capture-levels" data-toc="capture-levels">3 capture levels</a>
     <a class="toc-link" href="#assist-rail" data-toc="assist-rail">Live Assist rail</a>
+    <a class="toc-link" href="#global-assist-cost" data-toc="global-assist-cost">Global assist cost</a>
     <a class="toc-link" href="#safety-rules" data-toc="safety-rules">Anti-Cluely rules</a>
     <a class="toc-link" href="#feature-map" data-toc="feature-map">Master feature map</a>
     <a class="toc-link" href="#mvp-order" data-toc="mvp-order">MVP build order</a>
@@ -712,6 +713,18 @@ kbd {
       </ul>
     </section>
 
+    <h2 id="global-assist-cost">Global event chat assist cost model <a class="anchor" href="#global-assist-cost">#</a></h2>
+    <p>Global event chat assist is the default because it amortizes agent work across the room. Normal public chat stays human-to-human. <code>/ask</code> or <code>@ScratchNode</code> creates one shared answer card, one trace, one FAQ candidate, and one cacheable public knowledge object.</p>
+    <table>
+      <thead><tr><th>Path</th><th>Runtime behavior</th><th>Cost posture</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Normal chat</strong></td><td>Public row only; no agent call; no Linkup search.</td><td>Near-zero marginal cost.</td></tr>
+        <tr><td><strong>Public /ask</strong></td><td>One room-visible sourced answer; eligible for FAQ/wiki/cache.</td><td>Shared once, reused by everyone.</td></tr>
+        <tr><td><strong>Private Live Assist</strong></td><td>Owner-only cue cards, micronotes, follow-ups, private meeting summary.</td><td>Opt-in and budgeted by trigger.</td></tr>
+      </tbody>
+    </table>
+    <p>Track: cache hit rate, new searches avoided, cost per <code>/ask</code>, cost per attendee, FAQ reuse count, private vs public agent calls, semantic-cache miss rate, and stale-cache refresh count.</p>
+
     <!-- ─── Section D: Anti-Cluely safety rules ─── -->
     <h2 id="safety-rules">Anti-Cluely safety rules (10) <a class="anchor" href="#safety-rules">#</a></h2>
     <p>Hard product invariants. Each rule is paired with a code-level enforcement point. Violating any of these is a release blocker.</p>
@@ -867,10 +880,12 @@ sources/traces              context retrieval packets         autocomplete
     <h3 id="prod-output-contract">Agent output L1/L2/L3 contract</h3>
     <p>Every agent output must now be classified, validated, stored, rendered, traced, and evaluated through one shared contract: <code>L1</code> broad family, <code>L2</code> object category, and <code>L3</code> exact contract / renderer / validator. The executable registry lives in <code>src/shared/agentOutputContract.ts</code>; <code>home-v5.html</code> records evaluated envelopes during <code>runDemoFull()</code>.</p>
     <pre><span class="lang">text</span>public_knowledge / event_faq / faq.cached_reuse_answer
+private_memory / live_cue / cue.question_suggestion
 private_memory / private_note / note.anchored_to_chat
 retrieval_context / index_search / retrieval.context_packet
 operational_cache / semantic_answer_cache / cache.public_faq_answer
 agent_trace / output_node / trace.output.public_answer
+generated_artifact / meeting_brief / artifact.private_meeting_summary
 generated_artifact / event_archive / artifact.published_event_wiki</pre>
     <div class="callout"><span class="icon">âœ…</span><div><strong>Acceptance gate:</strong> no output is accepted unless it has a valid <code>l1/l2/l3</code>, visibility boundary, target id, <code>traceRef</code>, source/citation arrays, producer metadata, storage policy, renderer mapping, and evaluator mapping. <code>runDemoQA().contract</code> shows the demo envelope pass/fail summary by L1 family.</div></div>
 

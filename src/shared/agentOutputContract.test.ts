@@ -83,6 +83,81 @@ describe("agent output L1/L2/L3 contract", () => {
     expect(result.policy?.renderer).toBe("PrivateNoteMarker");
   });
 
+  it("accepts a private Live Assist cue and rejects auto-posting cues", () => {
+    const envelope: AgentOutputEnvelope = {
+      ...baseEnvelope,
+      id: "cue_1",
+      l1: "private_memory",
+      l2: "live_cue",
+      l3: "cue.question_suggestion",
+      visibility: "private",
+      sourceRefs: ["message:msg_sarah_latency"],
+      citationRefs: [],
+      traceRef: "trace_cue_1",
+      producedBy: {
+        runId: "run_cue_1",
+        skill: "meeting-live-cue",
+        toolChain: ["retrieve_event_context"],
+      },
+      output: {
+        cueText: "Clarify whether this is p95 or average latency.",
+        trigger: "question_detected",
+        autoPost: false,
+        actions: ["save_note", "ask_private", "make_followup"],
+      },
+    };
+
+    const result = evaluateAgentOutput(envelope);
+
+    expect(result.passed).toBe(true);
+    expect(result.policy?.renderer).toBe("LiveAssistCueCard");
+
+    const unsafe = {
+      ...envelope,
+      id: "cue_unsafe",
+      output: { ...envelope.output, autoPost: true },
+    };
+
+    expect(evaluateAgentOutput(unsafe).issues.map((issue) => issue.code)).toContain("CUE-003");
+  });
+
+  it("accepts private meeting brief artifacts and blocks private content from workspace summaries", () => {
+    const envelope: AgentOutputEnvelope = {
+      ...baseEnvelope,
+      id: "brief_1",
+      l1: "generated_artifact",
+      l2: "meeting_brief",
+      l3: "artifact.private_meeting_summary",
+      visibility: "private",
+      traceRef: "trace_meeting_brief_1",
+      producedBy: {
+        runId: "run_meeting_brief_1",
+        skill: "post-meeting-brief",
+        toolChain: ["retrieve_event_context", "save_private_note_patch"],
+      },
+      output: {
+        summary: "Orbital Labs and clinical triage latency dominated the meeting.",
+        actionItems: ["Ask Alex about p95 latency targets."],
+        sourceTranscriptAnchors: ["msg_sarah_latency"],
+        privateNotesUsed: true,
+      },
+    };
+
+    expect(evaluateAgentOutput(envelope).passed).toBe(true);
+
+    const unsafeWorkspaceSummary: AgentOutputEnvelope = {
+      ...envelope,
+      id: "brief_workspace_unsafe",
+      l3: "artifact.team_meeting_summary",
+      visibility: "workspace",
+    };
+
+    const result = evaluateAgentOutput(unsafeWorkspaceSummary);
+
+    expect(result.passed).toBe(false);
+    expect(result.issues.map((issue) => issue.code)).toContain("ART-005");
+  });
+
   it("rejects public answers that use private notes", () => {
     const envelope: AgentOutputEnvelope = {
       ...baseEnvelope,
