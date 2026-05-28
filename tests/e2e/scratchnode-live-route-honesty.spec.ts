@@ -58,6 +58,19 @@ async function fulfillScratchNodePage(
               }
               return Promise.resolve({ messageId: 'liveEventMessages:1' });
             }
+            if (name === 'events:createEvent') {
+              window.__snCreatedEventArgs = args;
+              localStorage.setItem('__snCreatedEventArgs', JSON.stringify(args));
+              return Promise.resolve({
+                ok: true,
+                eventId: 'liveEvents:new',
+                slug: 'launch-room',
+                name: args.title,
+                roomCode: args.roomCode || 'LAUNCH',
+                status: 'live',
+                ownerKey: 'hk1:liveEvents:new:nonce:1770000000000:abcdefabcdefabcdefabcdefabcdef12',
+              });
+            }
             return Promise.resolve({});
           }
           query(name) {
@@ -67,7 +80,11 @@ async function fulfillScratchNodePage(
             return Promise.resolve([]);
           }
           action() { return Promise.resolve(null); }
-          onUpdate() {}
+          onUpdate(name, _args, cb) {
+            if (name === 'events:getMembers') {
+              setTimeout(() => cb([{ displayName: 'Mock Host' }, { displayName: 'Mock Guest' }]), 0);
+            }
+          }
         }
       `,
     });
@@ -140,5 +157,51 @@ test.describe("ScratchNode live route honesty", () => {
       })
       .toBe(0);
     await expect(page.locator("#ci")).toHaveValue("this must not be local-only");
+  });
+
+  test("live wiki and people sheets do not show stale static launch counts", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    await page.evaluate(() => (window as any).openWiki());
+    await expect(page.locator("#sheet-title")).toContainText("AI Infra Summit");
+    await expect(page.locator("#sheet-content")).toContainText("Wiki not published yet");
+    await expect(page.locator("#sheet-content")).not.toContainText("318 attendees");
+    await page.evaluate(() => (window as any).closeSheet());
+
+    await page.evaluate(() => (window as any).openPeople());
+    await expect(page.locator("#sheet-title")).toContainText("People in the room");
+    await expect(page.locator("#sheet-content")).toContainText("Mock Host");
+    await expect(page.locator("#sheet-content")).not.toContainText("318 joined");
+  });
+
+  test("host create event uses live mutation and navigates to the created room", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    await page.evaluate(() => (window as any).openSheet("host"));
+    await expect(page.locator("#sheet-title")).toContainText("Host console");
+    await expect(page.locator("#sn-create-event-btn")).toBeEnabled();
+    await page.fill("#sheet-host-title", "Launch Room");
+    await page.fill("#sheet-host-room-code", "LAUNCH");
+    await page.fill("#sheet-host-agenda", "Public starter source for launch.");
+    await page.click("#sn-create-event-btn");
+
+    await expect
+      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("__snCreatedEventArgs") || "{}")), { timeout: 5_000 })
+      .toMatchObject({
+        title: "Launch Room",
+        roomCode: "LAUNCH",
+        agendaText: "Public starter source for launch.",
+        status: "live",
+      });
+    await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("/e/launch-room");
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("sn_host_owner_key_v2")))
+      .toContain("hk1:");
   });
 });

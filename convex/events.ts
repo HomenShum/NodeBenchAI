@@ -9,10 +9,11 @@
  *   - getMessages({ eventId, limit? })            // realtime subscription
  *   - getMembers({ eventId })                     // realtime subscription
  *   - getMyEvents({ sessionId, ownerKey, limit? }) // lightweight account/event state
+ *   - createEvent({ title, sessionId, displayName, ... }) // creates live room + host token
  *   - joinEvent({ slug, sessionId, displayName }) // returns { eventId, ... }
  *   - sendMessage({ eventId, sessionId, displayName, text, kind, replyToMessageId? })
  *   - heartbeat({ eventId, sessionId })
- *   - ensureDemoEvent()                            // seeds ai-infra-summit-2026 if missing
+ *   - ensureDemoEvent()                            // dev/explicit demo seed only
  *
  * Privacy invariants (release-blocker, per docs.html):
  *   - This file only handles PUBLIC chat. Private notes will be a separate
@@ -26,7 +27,7 @@
  */
 
 import { v } from "convex/values";
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { action, query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { enforceRateLimit } from "./scratchnodeRateLimit";
 
@@ -44,6 +45,9 @@ class ConvexError<T extends Record<string, unknown>> extends Error {
 // ─── Constants ────────────────────────────────────────────────────────────
 const MAX_DISPLAY_NAME = 40;
 const MAX_MESSAGE_TEXT = 4000;
+const MAX_EVENT_NAME = 90;
+const MAX_EVENT_SLUG = 80;
+const MAX_EVENT_CONTEXT = 2_000;
 const DEFAULT_MESSAGE_LIMIT = 200;
 const MAX_MESSAGE_LIMIT = 500;
 const PRESENCE_TTL_MS = 5 * 60 * 1000; // 5 min
@@ -136,6 +140,30 @@ const stableHash = (value: string) => {
 const normalizeQuestion = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().slice(0, 240);
 
+const normalizeEventTitle = (value: string) =>
+  (value || "").replace(/\s+/g, " ").trim().slice(0, MAX_EVENT_NAME);
+
+const slugifyEventTitle = (value: string): string => {
+  const base = normalizeEventTitle(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, MAX_EVENT_SLUG)
+    .replace(/-+$/g, "");
+  return base || "event";
+};
+
+const normalizeRequestedSlug = (value: string | undefined, title: string): string => {
+  const raw = (value || "").trim();
+  return slugifyEventTitle(raw || title);
+};
+
+const normalizeRequestedRoomCode = (value: string | undefined): string | null => {
+  const raw = (value || "").trim().toUpperCase().replace(/[^A-Z0-9-]+/g, "");
+  if (!raw) return null;
+  return raw.slice(0, 24);
+};
+
 const tokenize = (value: string) =>
   new Set(normalizeQuestion(value).split(" ").filter((token) => token.length > 2));
 
@@ -216,6 +244,12 @@ const getHostAuthSecret = (): string => {
     message:
       "SCRATCHNODE_HOST_TOKEN_SECRET env var required. Run: npx convex env set SCRATCHNODE_HOST_TOKEN_SECRET <random-32+-char-string>",
   });
+};
+
+const canSeedDemoEvent = (): boolean => {
+  const allow = (globalThis as any)?.process?.env?.SCRATCHNODE_ALLOW_DEMO_SEED;
+  const deployment = (globalThis as any)?.process?.env?.CONVEX_DEPLOYMENT;
+  return allow === "1" || (typeof deployment === "string" && deployment.startsWith("dev:"));
 };
 
 // Convex runtime exposes Web Crypto (`crypto.subtle`) and
@@ -305,8 +339,14 @@ const verifyHostToken = async (
   if (!ownerKey.startsWith(HOST_TOKEN_PREFIX)) return false;
   const body = ownerKey.slice(HOST_TOKEN_PREFIX.length);
   const parts = body.split(":");
-  if (parts.length !== 4) return false;
-  const [eventIdShort, nonce, issuedAtStr, hmacShort] = parts;
+  // Convex ids contain ":" (for example "liveEvents:123"), so parse the
+  // token from the right instead of assuming exactly four colon-separated
+  // segments.
+  if (parts.length < 4) return false;
+  const hmacShort = parts.pop() || "";
+  const issuedAtStr = parts.pop() || "";
+  const nonce = parts.pop() || "";
+  const eventIdShort = parts.join(":");
   if (!eventIdShort || !nonce || !issuedAtStr || !hmacShort) return false;
   if (eventIdShort !== eventId.slice(0, 16)) return false;
   const issuedAt = Number(issuedAtStr);
@@ -1081,8 +1121,342 @@ export const _persistAgentAnswer = internalMutation({
 // ─── MUTATIONS ────────────────────────────────────────────────────────────
 
 /**
+ * Create a real ScratchNode event room and return a server-issued host token.
+ *
+ * This is the launch replacement for the old Host Console "SOLARIS" toast.
+ * The mutation creates the event, joins the creator, registers them as host,
+ * and inserts one public starter source so `/ask` has a bounded public corpus
+ * from the first minute. Private notes are not read or copied.
+ */
+export const createEvent = mutation({
+  args: {
+    title: v.string(),
+    sessionId: v.string(),
+    displayName: v.string(),
+    slug: v.optional(v.string()),
+    roomCode: v.optional(v.string()),
+    agendaText: v.optional(v.string()),
+    status: v.optional(v.union(v.literal("draft"), v.literal("live"))),
+  },
+  handler: async (ctx, args) => {
+    // Fail before writing if production host-token env is missing.
+    // `issueHostToken` calls this again after we have the event id.
+    void getHostAuthSecret();
+
+    const title = normalizeEventTitle(args.title);
+    if (title.length < 3) {
+      throw new ConvexError({
+        code: "invalid_event_title",
+        message: "Event title must be at least 3 characters.",
+      });
+    }
+    if (!args.sessionId || args.sessionId.length < 8 || args.sessionId.length > 64) {
+      throw new ConvexError({
+        code: "invalid_session",
+        message: "sessionId must be a 8-64 char UUID-like string.",
+      });
+    }
+
+    const requestedSlug = normalizeRequestedSlug(args.slug, title);
+    const explicitSlug = !!(args.slug && args.slug.trim());
+    const existingSlug = await ctx.db
+      .query("liveEvents")
+      .withIndex("by_slug", (q) => q.eq("slug", requestedSlug))
+      .first();
+    if (existingSlug && explicitSlug) {
+      throw new ConvexError({
+        code: "slug_taken",
+        message: "That event slug is already in use.",
+      });
+    }
+
+    let slug = requestedSlug;
+    if (existingSlug) {
+      for (let i = 0; i < 8; i += 1) {
+        const suffix = randomString(4, "abcdefghjkmnpqrstuvwxyz23456789").toLowerCase();
+        const candidate = `${requestedSlug.slice(0, Math.max(1, MAX_EVENT_SLUG - 5))}-${suffix}`;
+        const collision = await ctx.db
+          .query("liveEvents")
+          .withIndex("by_slug", (q) => q.eq("slug", candidate))
+          .first();
+        if (!collision) {
+          slug = candidate;
+          break;
+        }
+      }
+      if (slug === requestedSlug) {
+        throw new ConvexError({
+          code: "slug_generation_failed",
+          message: "Could not generate a unique event slug. Try another title.",
+        });
+      }
+    }
+
+    const requestedRoomCode = normalizeRequestedRoomCode(args.roomCode);
+    if (requestedRoomCode && !isRoomCodeShape(requestedRoomCode)) {
+      throw new ConvexError({
+        code: "invalid_room_code",
+        message: "Room code must be 2-24 letters, numbers, or dashes.",
+      });
+    }
+
+    let roomCode = requestedRoomCode || "";
+    if (roomCode) {
+      const existingRoom = await ctx.db
+        .query("liveEvents")
+        .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
+        .first();
+      if (existingRoom) {
+        throw new ConvexError({
+          code: "room_code_taken",
+          message: "That room code is already in use.",
+        });
+      }
+    } else {
+      for (let i = 0; i < 12; i += 1) {
+        const candidate = randomString(6, "ABCDEFGHJKLMNPQRSTUVWXYZ23456789");
+        const existingRoom = await ctx.db
+          .query("liveEvents")
+          .withIndex("by_roomCode", (q) => q.eq("roomCode", candidate))
+          .first();
+        if (!existingRoom) {
+          roomCode = candidate;
+          break;
+        }
+      }
+      if (!roomCode) {
+        throw new ConvexError({
+          code: "room_code_generation_failed",
+          message: "Could not generate a room code. Try again.",
+        });
+      }
+    }
+
+    const now = Date.now();
+    const status = args.status || "live";
+    const eventId = await ctx.db.insert("liveEvents", {
+      slug,
+      name: title,
+      roomCode,
+      status,
+      startedAt: now,
+    });
+
+    const safeName = (args.displayName || "Host").slice(0, MAX_DISPLAY_NAME).trim() || "Host";
+    await ctx.db.insert("liveEventMembers", {
+      eventId,
+      sessionId: args.sessionId,
+      displayName: safeName,
+      joinedAt: now,
+      lastSeenAt: now,
+    });
+
+    const ownerKey = await issueHostToken(eventId, now);
+    const hostId = await ctx.db.insert("liveEventHosts", {
+      eventId,
+      ownerKey,
+      displayName: safeName,
+      role: "owner",
+      authMethod: "claim_code",
+      createdAt: now,
+    });
+
+    const agenda = (args.agendaText || "").replace(/\s+/g, " ").trim().slice(0, MAX_EVENT_CONTEXT);
+    const sourceBody = [
+      `${title} live room starter context.`,
+      agenda || "The host has not uploaded a detailed agenda yet. Use public chat and host-approved sources as the event develops.",
+      "Privacy rule: public answers use public event context only. Private attendee notes are excluded from public answers, public wiki compaction, and public cache.",
+    ].join("\n");
+    const sourceId = await ctx.db.insert("liveEventSources", {
+      eventId,
+      uri: `event://${slug}/starter-context`,
+      kind: "doc",
+      title: `${title} starter context`,
+      excerpt: (agenda || `Host-created room ${roomCode}. Public answers exclude private notes.`).slice(0, 280),
+      body: sourceBody.slice(0, MAX_SOURCE_BODY),
+      sourceHash: stableHash(`${slug}|${sourceBody}`),
+      isSeeded: true,
+      uploadedAt: now,
+    });
+
+    return {
+      ok: true as const,
+      eventId,
+      slug,
+      name: title,
+      roomCode,
+      status,
+      ownerKey,
+      hostId,
+      sourceId,
+    };
+  },
+});
+
+export const updateEvent = mutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    ownerKey: v.string(),
+    title: v.optional(v.string()),
+    roomCode: v.optional(v.string()),
+    status: v.optional(v.union(v.literal("draft"), v.literal("live"))),
+  },
+  handler: async (ctx, { eventId, ownerKey, title, roomCode, status }) => {
+    await requireHost(ctx, eventId, ownerKey);
+    const event = await ctx.db.get(eventId);
+    if (!event) {
+      throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
+    }
+
+    const patch: Record<string, unknown> = {};
+    if (title !== undefined) {
+      const cleanTitle = normalizeEventTitle(title);
+      if (cleanTitle.length < 3) {
+        throw new ConvexError({
+          code: "invalid_event_title",
+          message: "Event title must be at least 3 characters.",
+        });
+      }
+      patch.name = cleanTitle;
+    }
+    if (status !== undefined) {
+      patch.status = status;
+      if (status === "live" && event.status === "draft") {
+        patch.startedAt = Date.now();
+      }
+    }
+    if (roomCode !== undefined) {
+      const nextRoomCode = normalizeRequestedRoomCode(roomCode);
+      if (!nextRoomCode || !isRoomCodeShape(nextRoomCode)) {
+        throw new ConvexError({
+          code: "invalid_room_code",
+          message: "Room code must be 2-24 letters, numbers, or dashes.",
+        });
+      }
+      if (nextRoomCode !== event.roomCode) {
+        const existingRoom = await ctx.db
+          .query("liveEvents")
+          .withIndex("by_roomCode", (q) => q.eq("roomCode", nextRoomCode))
+          .first();
+        if (existingRoom && existingRoom._id !== eventId) {
+          throw new ConvexError({
+            code: "room_code_taken",
+            message: "That room code is already in use.",
+          });
+        }
+        patch.roomCode = nextRoomCode;
+      }
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(eventId, patch);
+    }
+    const updated = await ctx.db.get(eventId);
+    return {
+      ok: true as const,
+      eventId,
+      slug: updated?.slug ?? event.slug,
+      name: updated?.name ?? event.name,
+      roomCode: updated?.roomCode ?? event.roomCode,
+      status: updated?.status ?? event.status,
+    };
+  },
+});
+
+export const endEvent = mutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    ownerKey: v.string(),
+  },
+  handler: async (ctx, { eventId, ownerKey }) => {
+    await requireHost(ctx, eventId, ownerKey);
+    const event = await ctx.db.get(eventId);
+    if (!event) {
+      throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
+    }
+    const endedAt = Date.now();
+    await ctx.db.patch(eventId, { status: "ended", endedAt });
+    return { ok: true as const, eventId, status: "ended" as const, endedAt };
+  },
+});
+
+export const upsertEventSource = mutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    ownerKey: v.string(),
+    title: v.string(),
+    body: v.string(),
+    uri: v.optional(v.string()),
+    excerpt: v.optional(v.string()),
+    kind: v.optional(v.union(
+      v.literal("transcript"),
+      v.literal("doc"),
+      v.literal("url"),
+      v.literal("slide"),
+    )),
+  },
+  handler: async (ctx, args) => {
+    await requireHost(ctx, args.eventId, args.ownerKey);
+    const event = await ctx.db.get(args.eventId);
+    if (!event) {
+      throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
+    }
+    const title = (args.title || "").replace(/\s+/g, " ").trim().slice(0, 180);
+    const body = (args.body || "").replace(/\s+/g, " ").trim().slice(0, MAX_SOURCE_BODY);
+    if (title.length < 2 || body.length < 10) {
+      throw new ConvexError({
+        code: "invalid_source",
+        message: "Source title and body are required.",
+      });
+    }
+    const uri = (args.uri || `event://${event.slug}/source/${stableHash(`${title}|${body}`).slice(0, 10)}`)
+      .trim()
+      .slice(0, 500);
+    const excerpt = (args.excerpt || body).replace(/\s+/g, " ").trim().slice(0, 280);
+    const existing = await ctx.db
+      .query("liveEventSources")
+      .withIndex("by_event_uri", (q) => q.eq("eventId", args.eventId).eq("uri", uri))
+      .first();
+    const patch = {
+      eventId: args.eventId,
+      uri,
+      kind: args.kind || "doc",
+      title,
+      excerpt,
+      body,
+      sourceHash: stableHash(`${uri}|${body}`),
+      isSeeded: false,
+      uploadedAt: Date.now(),
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, patch);
+      return { ok: true as const, sourceId: existing._id, created: false };
+    }
+    const sourceId = await ctx.db.insert("liveEventSources", patch);
+    return { ok: true as const, sourceId, created: true };
+  },
+});
+
+export const deleteEventSource = mutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    ownerKey: v.string(),
+    sourceId: v.id("liveEventSources"),
+  },
+  handler: async (ctx, { eventId, ownerKey, sourceId }) => {
+    await requireHost(ctx, eventId, ownerKey);
+    const source = await ctx.db.get(sourceId);
+    if (!source || source.eventId !== eventId) {
+      throw new ConvexError({ code: "source_not_found", message: "Source no longer exists." });
+    }
+    await ctx.db.delete(sourceId);
+    return { ok: true as const, sourceId };
+  },
+});
+
+/**
  * Idempotent join: upsert liveEventMembers by (eventId, sessionId).
- * Auto-creates the demo event on first call if missing.
+ * Missing rooms fail honestly; production join never creates demo fixtures.
  */
 export const joinEvent = mutation({
   args: {
@@ -1128,24 +1502,8 @@ export const joinEvent = mutation({
         .first();
     }
 
-    // Auto-seed the demo event so the first visitor to scratchnode.live
-    // doesn't hit an empty room. Triggers on either the canonical slug
-    // OR the canonical room code (typed as a URL slug — case-insensitive).
-    if (!event && (slug === "ai-infra-summit-2026" || normalizedRoomCode === "ORBITAL")) {
-      const id = await ctx.db.insert("liveEvents", {
-        slug: "ai-infra-summit-2026",
-        name: "AI Infra Summit",
-        roomCode: "ORBITAL",
-        status: "live",
-        startedAt: Date.now(),
-      });
-      event = await ctx.db.get(id);
-    }
     if (!event) {
       throw new ConvexError({ code: "event_not_found", message: "No such event slug." });
-    }
-    if (event.slug === "ai-infra-summit-2026") {
-      await ensureDemoSourcesForEvent(ctx, event._id);
     }
 
     const now = Date.now();
@@ -1195,6 +1553,7 @@ export const sendMessage = mutation({
     text: v.string(),
     kind: v.union(v.literal("chat"), v.literal("ask"), v.literal("system")),
     replyToMessageId: v.optional(v.id("liveEventMessages")),
+    ownerKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const text = (args.text || "").trim();
@@ -1234,6 +1593,16 @@ export const sendMessage = mutation({
     }
 
     // Verify the sender is a member (presence row exists) — prevents drive-by sends.
+    if (args.kind === "system") {
+      if (!args.ownerKey) {
+        throw new ConvexError({
+          code: "not_host",
+          message: "Host ownership is required for system messages.",
+        });
+      }
+      await requireHost(ctx, args.eventId, args.ownerKey);
+    }
+
     const member = await ctx.db
       .query("liveEventMembers")
       .withIndex("by_event_session", (q) =>
@@ -1330,15 +1699,6 @@ export const askAgent = action({
     }
 
     let sources: any[] = prepared.sources || [];
-    if (sources.length === 0 && prepared.event?.slug === "ai-infra-summit-2026") {
-      await ctx.runMutation((api as any).events.ensureDemoEvent, {});
-      prepared = await ctx.runQuery((internal as any).events._prepareAskAgentContext, {
-        eventId: args.eventId,
-        sessionId: args.sessionId,
-        question,
-      });
-      sources = prepared.sources || [];
-    }
 
     const retrievalStarted = Date.now();
     let ranked = sources
@@ -1487,10 +1847,6 @@ export const composeAnswer = mutation({
       throw new ConvexError({ code: "event_ended", message: "This event has ended." });
     }
     await requireMember(ctx, args.eventId, args.sessionId);
-    if (event.slug === "ai-infra-summit-2026") {
-      await ensureDemoSourcesForEvent(ctx, args.eventId);
-    }
-
     const normalizedQuestion = normalizeQuestion(question);
     const cached = await ctx.db
       .query("liveEventAnswers")
@@ -2137,6 +2493,12 @@ export const heartbeat = mutation({
 export const ensureDemoEvent = mutation({
   args: {},
   handler: async (ctx) => {
+    if (!canSeedDemoEvent()) {
+      throw new ConvexError({
+        code: "demo_seed_disabled",
+        message: "Demo seeding is disabled on this deployment.",
+      });
+    }
     const existing = await ctx.db
       .query("liveEvents")
       .withIndex("by_slug", (q) => q.eq("slug", "ai-infra-summit-2026"))

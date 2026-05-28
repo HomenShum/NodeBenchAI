@@ -1209,7 +1209,7 @@ curl -sL https://nodebenchai.com/ | grep -E <span class="str">'(VITE|root|index)
           <li class="done"><input type="checkbox" checked disabled> <span>Wire <code>onbeforeunload</code> to send a final heartbeat with stale-flag (optional)</span></li>
         </ul>
 
-        <p class="accept">Open <code>https://scratchnode.live/e/ai-infra-summit-2026</code> in Chrome and Safari (or two different browsers). Type "hi from chrome" in one; within 1s the other should show that message. The 318/47/38 counters stay hardcoded for now — that's Phase 5.</p>
+        <p class="accept">Open <code>https://scratchnode.live/e/ai-infra-summit-2026</code> in Chrome and Safari (or two different browsers). Type "hi from chrome" in one; within 1s the other should show that message. Event title, room code, member count, FAQ count, people, and unpublished-wiki state now hydrate from the live room instead of stale static counts.</p>
         <p class="risk">Convex action budget on free tier (1M function calls/month). Heartbeat at 30s × 100 users × 1 event = 3M/month — so heartbeats must be cheap (return early if state unchanged), or move presence to a Redis-style hot layer later (Phase 6).</p>
       </div>
     </div>
@@ -1612,7 +1612,7 @@ eventAnswers: <span class="fn">defineTable</span>({
     <p>Roster of attendees with name, role, online status. Tap a row to open their @-mentions and questions (toast in current proto).</p>
 
     <h3 id="v5-host">Host / create event</h3>
-    <p>Launch surface supports claiming host on an existing room, rotating a host claim code, reviewing FAQ suggestions, and publishing the wiki. New room creation is hidden until the live <code>createEvent</code> mutation ships.</p>
+    <p>Launch surface supports creating a real Convex-backed room, claiming host on an existing room, rotating a host claim code, reviewing FAQ suggestions, managing host-owned sources, ending events, and publishing the wiki. <code>createEvent</code> creates the event, joins the creator, issues a server-signed host token, and inserts a starter public source so <code>/ask</code> has honest context without demo fallback.</p>
 
     <h2 id="v5-landing">Landing &amp; onboarding <a class="anchor" href="#v5-landing">#</a></h2>
     <p>First-visit IIFE (<code>detectFirstVisit</code>) routes new users to the landing surface and persists their last view mode. Onboarding tour: 3 pulse-positioned steps over the composer and identity row.</p>

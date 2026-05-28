@@ -44,6 +44,11 @@ import {
   releaseHost,
   _adminForceReleaseHost,
   getEventBySlug,
+  createEvent,
+  updateEvent,
+  endEvent,
+  upsertEventSource,
+  deleteEventSource,
   joinEvent,
   sendMessage,
   getMessages,
@@ -487,6 +492,153 @@ describe("event room-code lookup — /e/:roomCode joins the canonical live room"
   });
 });
 
+describe("createEvent - host-created rooms are real Convex rooms", () => {
+  it("creates a live room, joins creator, issues host token, and seeds a public source", async () => {
+    process.env.CONVEX_DEPLOYMENT = "dev:test";
+    const tables: Tables = {
+      liveEvents: [],
+      liveEventMembers: [],
+      liveEventHosts: [],
+      liveEventSources: [],
+    };
+    const ctx = createCtx(tables);
+
+    const created = await (createEvent as any)._handler(ctx, {
+      title: "Launch Readiness War Room",
+      sessionId: ANONYMOUS_SESSION_A,
+      displayName: "Maya Host",
+      roomCode: "LAUNCH",
+      agendaText: "Ship live backend. Verify public chat, asks, private notes, and wiki.",
+      status: "live",
+    });
+
+    expect(created.ok).toBe(true);
+    expect(created.slug).toBe("launch-readiness-war-room");
+    expect(created.roomCode).toBe("LAUNCH");
+    expect(created.ownerKey).toMatch(/^hk1:/);
+    expect(tables.liveEvents).toHaveLength(1);
+    expect(tables.liveEventMembers).toHaveLength(1);
+    expect(tables.liveEventHosts).toHaveLength(1);
+    expect(tables.liveEventHosts[0]).toMatchObject({
+      eventId: created.eventId,
+      displayName: "Maya Host",
+      role: "owner",
+      authMethod: "claim_code",
+    });
+    expect(tables.liveEventSources).toHaveLength(1);
+    expect(tables.liveEventSources[0].body).toContain("Privacy rule");
+
+    const byRoom = await (joinEvent as any)._handler(ctx, {
+      slug: "launch",
+      sessionId: ANONYMOUS_SESSION_B,
+      displayName: "Guest",
+    });
+    expect(byRoom.eventId).toBe(created.eventId);
+
+    await (sendMessage as any)._handler(ctx, {
+      eventId: created.eventId,
+      sessionId: ANONYMOUS_SESSION_B,
+      displayName: "Guest",
+      text: "real created room chat",
+      kind: "chat",
+    });
+    const rows = await (getMessages as any)._handler(ctx, { eventId: created.eventId, limit: 10 });
+    expect(rows.some((row: any) => row.text === "real created room chat")).toBe(true);
+  });
+
+  it("host can update metadata, manage sources, and end the event", async () => {
+    process.env.CONVEX_DEPLOYMENT = "dev:test";
+    const tables: Tables = {
+      liveEvents: [],
+      liveEventMembers: [],
+      liveEventHosts: [],
+      liveEventSources: [],
+      liveEventMessages: [],
+    };
+    const ctx = createCtx(tables);
+    const created = await (createEvent as any)._handler(ctx, {
+      title: "Source Room",
+      sessionId: ANONYMOUS_SESSION_A,
+      displayName: "Host",
+      roomCode: "SOURCE1",
+      status: "draft",
+    });
+
+    await (updateEvent as any)._handler(ctx, {
+      eventId: created.eventId,
+      ownerKey: created.ownerKey,
+      title: "Source Room Live",
+      roomCode: "SOURCE2",
+      status: "live",
+    });
+    expect(tables.liveEvents[0]).toMatchObject({
+      name: "Source Room Live",
+      roomCode: "SOURCE2",
+      status: "live",
+    });
+
+    const source = await (upsertEventSource as any)._handler(ctx, {
+      eventId: created.eventId,
+      ownerKey: created.ownerKey,
+      title: "Launch agenda",
+      body: "Public agenda source for the event ask runtime.",
+      uri: "doc://source-room/agenda",
+    });
+    expect(source.created).toBe(true);
+    const updatedSource = await (upsertEventSource as any)._handler(ctx, {
+      eventId: created.eventId,
+      ownerKey: created.ownerKey,
+      title: "Launch agenda v2",
+      body: "Updated public agenda source for the event ask runtime.",
+      uri: "doc://source-room/agenda",
+    });
+    expect(updatedSource.created).toBe(false);
+    expect(tables.liveEventSources.filter((row: any) => row.uri === "doc://source-room/agenda")).toHaveLength(1);
+
+    await (deleteEventSource as any)._handler(ctx, {
+      eventId: created.eventId,
+      ownerKey: created.ownerKey,
+      sourceId: updatedSource.sourceId,
+    });
+    expect(tables.liveEventSources.some((row: any) => row._id === updatedSource.sourceId)).toBe(false);
+
+    const ended = await (endEvent as any)._handler(ctx, {
+      eventId: created.eventId,
+      ownerKey: created.ownerKey,
+    });
+    expect(ended.status).toBe("ended");
+    await expect(
+      (sendMessage as any)._handler(ctx, {
+        eventId: created.eventId,
+        sessionId: ANONYMOUS_SESSION_A,
+        displayName: "Host",
+        text: "should not send",
+        kind: "chat",
+      }),
+    ).rejects.toThrow(/event_ended|ended/);
+  });
+
+  it("attendee cannot spoof system messages", async () => {
+    const tables: Tables = {
+      liveEvents: [baseEvent()],
+      liveEventMembers: [baseMember(ANONYMOUS_SESSION_A)],
+      liveEventMessages: [],
+    };
+    const ctx = createCtx(tables);
+
+    await expect(
+      (sendMessage as any)._handler(ctx, {
+        eventId: "liveEvents:1",
+        sessionId: ANONYMOUS_SESSION_A,
+        displayName: "Attendee",
+        text: "I am a system row",
+        kind: "system",
+      }),
+    ).rejects.toThrow(/not_host|Host ownership/);
+    expect(tables.liveEventMessages).toHaveLength(0);
+  });
+});
+
 /* ========================================================================== */
 /* Test 1 — composeAnswer cache reuse                                          */
 /* ========================================================================== */
@@ -584,8 +736,8 @@ describe("composeAnswer — cache reuse across attendees", () => {
    * Duration:    Sub-second
    * Expected:    Throws ConvexError with code=no_sources; no liveEventAnswers
    *              row created.
-   * Edge:        Demo event auto-seeds sources; non-demo event with 0 sources
-   *              must surface the gap honestly.
+   * Edge:        No production path auto-seeds sources; empty rooms must surface
+   *              the gap honestly until a host adds public source context.
    */
   it("rejects /ask when no event sources exist (HONEST_STATUS)", async () => {
     const tables: Tables = {
