@@ -372,6 +372,410 @@ input { font-family: var(--ui); }
 }
 
 /* ═══════════════════════════════════════════════════
+   TIPTAP NOTEBOOK MOCKUP (block-based editor visual)
+   ═══════════════════════════════════════════════════ */
+.tt-toolbar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; gap: 2px; align-items: center;
+  padding: 6px 8px; margin: -4px -4px 12px;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  border: 1px solid var(--glass-border); border-radius: var(--radius);
+  backdrop-filter: blur(6px); flex-wrap: wrap;
+}
+.tt-tool-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 8px; font-size: 12px; font-weight: 500; border-radius: var(--radius-sm);
+  color: var(--ink-muted); transition: color .12s, background .12s; min-height: 28px;
+}
+.tt-tool-btn:hover, .tt-tool-btn:focus-visible { color: var(--ink); background: var(--glass-bg); outline: none; }
+.tt-tool-btn[aria-pressed="true"] { color: var(--accent); background: var(--accent-dim); }
+.tt-tool-btn kbd {
+  font-family: var(--mono); font-size: 9px; color: var(--ink-faint);
+  padding: 1px 4px; border-radius: 3px; background: var(--surface); margin-left: 2px;
+}
+.tt-tool-sep { width: 1px; height: 16px; background: var(--line); margin: 0 4px; align-self: center; }
+
+.tt-block {
+  position: relative; padding: 6px 8px 6px 36px;
+  border-radius: var(--radius-sm); border: 1px solid transparent;
+  font-size: 14px; line-height: 1.65;
+  transition: background .12s, border-color .12s;
+}
+.tt-block:hover, .tt-block:focus-within {
+  background: var(--glass-bg); border-color: var(--glass-border);
+}
+.tt-block:hover .tt-block-affords { opacity: 1; }
+.tt-block-affords {
+  position: absolute; left: 4px; top: 6px; display: flex; gap: 2px;
+  opacity: 0; transition: opacity .15s;
+}
+.tt-block-handle, .tt-block-add {
+  width: 14px; height: 14px; border-radius: 3px; display: grid; place-items: center;
+  font-size: 11px; color: var(--ink-faint); cursor: grab; line-height: 1;
+}
+.tt-block-handle:hover, .tt-block-add:hover { background: var(--surface); color: var(--ink); }
+.tt-block-add { cursor: pointer; }
+.tt-block[data-block-id]::before {
+  content: attr(data-block-id); position: absolute; right: 6px; top: 6px;
+  font-family: var(--mono); font-size: 9px; color: var(--ink-faint); opacity: 0;
+  background: var(--surface); padding: 1px 4px; border-radius: 3px;
+  transition: opacity .15s;
+}
+.tt-block:hover::before, .tt-block:focus-within::before { opacity: .8; }
+
+.tt-block--h1 { font-size: 22px; font-weight: 700; letter-spacing: -.015em; line-height: 1.25; }
+.tt-block--h2 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
+.tt-block--quote {
+  border-left: 2px solid var(--accent); padding-left: 14px;
+  color: var(--ink-muted); font-style: italic;
+}
+.tt-block--code {
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 10px 12px 10px 36px;
+  white-space: pre-wrap; color: var(--ink);
+}
+.tt-block--code::before { background: transparent; }
+
+/* Notebook patches sidebar (agent-proposed diffs) */
+.tt-patches {
+  margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line);
+}
+.tt-patches-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.tt-patches-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .15em;
+  color: var(--ink-faint);
+}
+.tt-patches-count {
+  font-size: 10px; font-family: var(--mono); font-weight: 600;
+  background: var(--accent-dim); color: var(--accent);
+  padding: 1px 6px; border-radius: 8px;
+}
+.tt-patch {
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.tt-patch-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tt-patch-agent {
+  font-size: 11px; font-weight: 600; font-family: var(--mono);
+  background: rgba(167,139,250,.12); color: var(--purple);
+  padding: 1px 6px; border-radius: 3px;
+}
+.tt-patch-target {
+  font-size: 11px; color: var(--ink-muted); font-family: var(--mono);
+}
+.tt-patch-when { margin-left: auto; font-size: 10px; color: var(--ink-faint); font-family: var(--mono); }
+.tt-patch-title { font-size: 13px; font-weight: 600; }
+.tt-patch-diff {
+  font-family: var(--mono); font-size: 12px; line-height: 1.55;
+  background: var(--surface); border-radius: var(--radius-sm);
+  padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;
+}
+.tt-patch-diff-line { white-space: pre-wrap; }
+.tt-patch-diff-line[data-kind="add"]    { color: var(--green);  background: rgba(74,222,128,.06); padding-left: 4px; border-left: 2px solid var(--green); }
+.tt-patch-diff-line[data-kind="remove"] { color: var(--red);    background: rgba(248,113,113,.06); padding-left: 4px; border-left: 2px solid var(--red); text-decoration: line-through; opacity: .85; }
+.tt-patch-diff-line[data-kind="ctx"]    { color: var(--ink-faint); padding-left: 4px; }
+.tt-patch-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.tt-patch-btn {
+  padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: var(--radius-sm);
+  cursor: pointer; transition: opacity .12s, background .12s; min-height: 26px;
+}
+.tt-patch-btn[data-kind="accept"] { background: var(--green); color: #0a1f10; }
+.tt-patch-btn[data-kind="reject"] { background: var(--surface); color: var(--ink-muted); border: 1px solid var(--line); }
+.tt-patch-btn[data-kind="edit"]   { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.tt-patch-btn:hover { opacity: .85; }
+
+/* ═══════════════════════════════════════════════════
+   GRAPH SNAPSHOT VIEW (side overlay)
+   ═══════════════════════════════════════════════════ */
+.graph-view-toggle {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; font-size: 12px; font-weight: 500; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); color: var(--ink-muted); cursor: pointer;
+  transition: border-color .12s, color .12s;
+}
+.graph-view-toggle:hover, .graph-view-toggle:focus-visible {
+  border-color: var(--accent); color: var(--accent); outline: none;
+}
+#graph-view-overlay {
+  position: fixed; top: var(--topbar-h); right: 0; bottom: 0;
+  width: 480px; max-width: 96vw; z-index: 70;
+  background: var(--panel); border-left: 1px solid var(--line);
+  display: none; flex-direction: column;
+  box-shadow: -8px 0 24px rgba(0,0,0,.3);
+}
+#graph-view-overlay.open { display: flex; }
+.gv-head {
+  padding: 14px 16px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.gv-title { font-weight: 700; font-size: 14px; letter-spacing: -.01em; }
+.gv-version {
+  font-family: var(--mono); font-size: 11px; padding: 3px 8px;
+  border-radius: var(--radius-sm); background: var(--surface);
+  border: 1px solid var(--line); color: var(--ink); cursor: pointer;
+  min-height: 26px;
+}
+.gv-close {
+  margin-left: auto; width: 28px; height: 28px; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); display: grid; place-items: center;
+  font-size: 14px; color: var(--ink-muted); cursor: pointer;
+}
+.gv-close:hover { border-color: var(--accent); color: var(--accent); }
+.gv-body { flex: 1; overflow-y: auto; padding: 16px; }
+.gv-canvas {
+  background: var(--paper); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 14px;
+}
+.gv-svg { width: 100%; height: 260px; display: block; }
+.gv-svg-edge { stroke: var(--ink-faint); stroke-width: 1; }
+.gv-svg-edge-label { font-family: var(--mono); font-size: 9px; fill: var(--ink-faint); }
+.gv-svg-node {
+  cursor: pointer; transition: opacity .15s;
+}
+.gv-svg-node:hover, .gv-svg-node:focus { opacity: .85; outline: none; }
+.gv-svg-node-circle { stroke: var(--ink-faint); stroke-width: 1; }
+.gv-svg-node-circle[data-type="company"] { fill: rgba(91,155,245,.15); stroke: var(--blue); }
+.gv-svg-node-circle[data-type="person"]  { fill: rgba(167,139,250,.15); stroke: var(--purple); }
+.gv-svg-node-circle[data-type="event"]   { fill: var(--accent-dim); stroke: var(--accent); }
+.gv-svg-node-circle[data-type="topic"]   { fill: rgba(228,197,103,.12); stroke: var(--yellow); }
+.gv-svg-node-circle.gv-hero { stroke-width: 2; }
+.gv-svg-node-label { font-family: var(--ui); font-size: 11px; fill: var(--ink); text-anchor: middle; pointer-events: none; }
+.gv-legend { font-size: 11px; color: var(--ink-faint); display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-family: var(--mono); }
+.gv-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.gv-legend span::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+}
+.gv-legend [data-t="company"]::before { background: var(--blue); }
+.gv-legend [data-t="person"]::before { background: var(--purple); }
+.gv-legend [data-t="event"]::before { background: var(--accent); }
+.gv-legend [data-t="topic"]::before { background: var(--yellow); }
+
+.gv-neighbors-list {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.gv-neighbor-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm); font-size: 13px; cursor: pointer;
+  transition: border-color .12s; min-height: 36px;
+}
+.gv-neighbor-row:hover, .gv-neighbor-row:focus-visible {
+  border-color: var(--accent); outline: none;
+}
+.gv-neighbor-edge {
+  font-size: 10px; font-family: var(--mono); color: var(--ink-faint);
+  background: var(--surface); padding: 1px 6px; border-radius: 3px;
+  margin-left: auto;
+}
+.gv-section-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .15em;
+  color: var(--ink-faint); margin: 14px 0 8px;
+}
+.gv-mobile-list { display: none; }
+
+/* Highlighted block from graph node click */
+.tt-block.graph-highlight {
+  background: var(--accent-dim); border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(217,119,87,.2);
+}
+
+/* ═══════════════════════════════════════════════════
+   PRESENTATION ENGINE CARD (Artifacts mode)
+   ═══════════════════════════════════════════════════ */
+.presentation-card {
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  margin-bottom: 16px;
+}
+.pres-card-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.pres-card-title { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.pres-card-sub { font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
+.pres-card-badge {
+  font-size: 10px; font-weight: 600; font-family: var(--mono);
+  background: rgba(167,139,250,.12); color: var(--purple);
+  padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: .06em;
+}
+.pres-slide-strip {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+}
+.pres-slide-thumb {
+  aspect-ratio: 16/9; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 8px; display: flex; flex-direction: column;
+  gap: 4px; cursor: pointer; transition: border-color .12s;
+  min-height: 80px;
+}
+.pres-slide-thumb:hover, .pres-slide-thumb:focus-visible {
+  border-color: var(--accent); outline: none;
+}
+.pres-slide-num {
+  font-family: var(--mono); font-size: 9px; color: var(--ink-faint);
+}
+.pres-slide-title { font-size: 10.5px; font-weight: 600; line-height: 1.3; color: var(--ink); }
+.pres-slide-meta { margin-top: auto; font-size: 9px; color: var(--ink-faint); font-family: var(--mono); }
+
+.pres-actions {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+}
+.pres-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: var(--radius-sm);
+  cursor: pointer; transition: opacity .12s; min-height: 30px;
+}
+.pres-btn[data-kind="primary"] { background: var(--accent); color: #fff; }
+.pres-btn[data-kind="ghost"] { background: transparent; color: var(--ink-muted); border: 1px solid var(--line); }
+.pres-btn:hover { opacity: .85; }
+.pres-btn[data-kind="ghost"]:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+.pres-share-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.pres-share-label {
+  font-size: 10px; font-family: var(--mono); color: var(--ink-faint);
+  text-transform: uppercase; letter-spacing: .1em;
+}
+.pres-share-url {
+  flex: 1; min-width: 200px; font-family: var(--mono); font-size: 11px;
+  background: transparent; border: none; outline: none; color: var(--ink);
+  text-overflow: ellipsis;
+}
+.pres-share-copy {
+  font-size: 11px; color: var(--accent); cursor: pointer;
+  font-weight: 600; padding: 2px 6px; border-radius: 3px;
+}
+.pres-share-copy:hover { background: var(--accent-dim); }
+
+.pres-linked {
+  font-size: 12px; color: var(--ink-muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+}
+.pres-linked-label {
+  font-size: 10px; font-family: var(--mono); color: var(--ink-faint);
+  text-transform: uppercase; letter-spacing: .1em;
+}
+
+/* Presentation editor modal */
+.pres-editor-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 80;
+  display: none; align-items: center; justify-content: center; padding: 24px;
+}
+.pres-editor-overlay.open { display: flex; }
+.pres-editor {
+  width: 96vw; max-width: 1100px; height: 80vh; max-height: 720px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  display: grid; grid-template-rows: auto 1fr; overflow: hidden;
+}
+.pres-editor-head {
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 10px;
+}
+.pres-editor-title { font-weight: 700; font-size: 14px; }
+.pres-editor-close {
+  margin-left: auto; width: 28px; height: 28px; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); display: grid; place-items: center;
+  font-size: 14px; color: var(--ink-muted); cursor: pointer;
+}
+.pres-editor-close:hover { border-color: var(--accent); color: var(--accent); }
+.pres-editor-body {
+  display: grid; grid-template-columns: 1fr 1fr; overflow: hidden;
+}
+.pres-editor-pane {
+  overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px;
+}
+.pres-editor-pane:first-child {
+  border-right: 1px solid var(--line); background: var(--paper);
+}
+.pres-editor-pane-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .15em;
+  color: var(--ink-faint); margin-bottom: 4px;
+}
+.pres-edit-slide {
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm); padding: 10px 12px; cursor: pointer;
+  font-size: 12px; transition: border-color .12s;
+}
+.pres-edit-slide:hover, .pres-edit-slide.active { border-color: var(--accent); }
+.pres-edit-slide-num { font-family: var(--mono); font-size: 9px; color: var(--ink-faint); }
+.pres-edit-slide-title { font-weight: 600; margin-top: 2px; }
+.pres-preview-slide {
+  aspect-ratio: 16/9; background: #fff; color: #1a1a1a; border-radius: var(--radius-sm);
+  padding: 30px 36px; display: flex; flex-direction: column; gap: 12px;
+  border: 1px solid var(--line);
+}
+.pres-preview-slide h3 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; }
+.pres-preview-slide ul { padding-left: 20px; font-size: 13px; line-height: 1.6; color: #4a4a4a; }
+.pres-preview-slide li { margin-bottom: 4px; }
+
+/* ═══════════════════════════════════════════════════
+   EVENT DELTA ROW (Home pulse)
+   ═══════════════════════════════════════════════════ */
+.event-delta-row {
+  display: flex; align-items: stretch; gap: 0;
+  text-align: left; width: 100%; padding: 12px 14px;
+  background: var(--accent-dim); border: 1px solid rgba(217,119,87,.25);
+  border-radius: var(--radius); cursor: pointer;
+  transition: border-color .12s, transform .12s;
+  margin-top: 10px;
+}
+.event-delta-row:hover, .event-delta-row:focus-visible {
+  border-color: var(--accent); transform: translateY(-1px); outline: none;
+}
+.event-delta-row__icon {
+  flex-shrink: 0; font-size: 18px; color: var(--accent);
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(217,119,87,.18); display: grid; place-items: center;
+  margin-right: 12px;
+}
+.event-delta-row__body { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.event-delta-row__eyebrow {
+  font-size: 10px; font-family: var(--mono); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .15em; color: var(--accent);
+}
+.event-delta-row__title { font-weight: 600; font-size: 14px; color: var(--ink); }
+.event-delta-row__sub { font-size: 12px; color: var(--ink-muted); }
+.event-delta-row__cta {
+  font-size: 12px; color: var(--accent); font-weight: 600;
+  align-self: center; padding-left: 12px; white-space: nowrap;
+}
+
+/* Event private notes section (Notebook mode) */
+.event-private-notes-block {
+  margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line);
+}
+.event-pn-head {
+  display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.event-pn-eyebrow {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .15em;
+  color: var(--accent); font-family: var(--mono);
+}
+.event-pn-source {
+  font-size: 11px; color: var(--ink-faint); font-family: var(--mono);
+}
+.event-pn-note {
+  padding: 12px 14px; margin-bottom: 8px;
+  border-left: 2px solid var(--purple); background: rgba(167,139,250,.04);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.event-pn-anchor {
+  font-size: 10px; font-family: var(--mono); color: var(--ink-faint);
+}
+.event-pn-title { font-size: 13px; font-weight: 600; }
+.event-pn-preview { font-size: 12px; color: var(--ink-muted); line-height: 1.55; }
+.event-pn-links {
+  display: flex; gap: 4px; flex-wrap: wrap; font-size: 11px; color: var(--ink-faint);
+}
+.event-pn-links-label { font-family: var(--mono); letter-spacing: .05em; }
+
+/* ═══════════════════════════════════════════════════
    CHAT MODE
    ═══════════════════════════════════════════════════ */
 .chat-layout { display: grid; grid-template-columns: 1fr; height: calc(100vh - var(--topbar-h)); margin: -24px -32px -80px; }
@@ -968,9 +1372,35 @@ input { font-family: var(--ui); }
   .mobile-bottom-nav { display: flex; }
   .art-grid { grid-template-columns: 1fr; }
   .bl-drawer { width: 100%; }
+  /* TipTap mockup — simpler toolbar (drop H2/Heading split) */
+  .tt-toolbar { padding: 4px 6px; gap: 0; }
+  .tt-tool-btn kbd { display: none; }
+  .tt-tool-btn[data-tool="heading2"] { display: none; }
+  .tt-block { padding: 8px 10px 8px 12px; } /* shrink left padding, drag handles surface on tap-hold */
+  .tt-block-affords { left: 2px; }
+  .tt-block[data-block-id]::before { display: none; }
+  /* Graph overlay — full sheet on mobile, no SVG */
+  #graph-view-overlay { width: 100vw; max-width: 100vw; top: 0; box-shadow: none; }
+  .gv-canvas { display: none; }
+  .gv-mobile-list { display: flex; flex-direction: column; gap: 4px; }
+  /* Presentation card — horizontal scroll-snap thumb strip */
+  .pres-slide-strip {
+    grid-template-columns: none; display: flex;
+    overflow-x: auto; scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch; gap: 8px;
+  }
+  .pres-slide-thumb {
+    flex: 0 0 56%; scroll-snap-align: start; min-height: 96px;
+  }
+  /* Presentation editor — stack panes vertically */
+  .pres-editor { height: 92vh; max-height: none; }
+  .pres-editor-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .pres-editor-pane:first-child { border-right: none; border-bottom: 1px solid var(--line); max-height: 35vh; }
 }
 @media (max-width: 600px) {
   .center { padding: 12px 12px 72px; }
+  .tt-block--h1 { font-size: 19px; }
+  .event-delta-row__icon { width: 32px; height: 32px; font-size: 16px; margin-right: 10px; }
 }
 
 /* Reduced motion */
@@ -1482,6 +1912,49 @@ input { font-family: var(--ui); }
   </div>
 </div>
 
+<!-- GRAPH SNAPSHOT VIEW OVERLAY -->
+<aside id="graph-view-overlay" role="dialog" aria-modal="true" aria-label="Entity graph snapshot">
+  <div class="gv-head">
+    <div>
+      <div class="gv-title" id="gv-hero-name">Orbital Labs</div>
+      <div style="font-size:11px;color:var(--ink-faint);font-family:var(--mono)">Scoped graph &middot; 1 hop &middot; <span id="gv-edge-count">5</span> neighbors</div>
+    </div>
+    <select class="gv-version" id="gv-version-select" aria-label="Graph snapshot version" onchange="renderGraphSnapshot(this.value)">
+      <option value="live_v1">Live &middot; v1 (current)</option>
+      <option value="wiki_v1">wiki v1 &middot; May 18</option>
+      <option value="wiki_v2">wiki v2 &middot; May 22</option>
+      <option value="archived">archived &middot; Apr 30</option>
+    </select>
+    <button class="gv-close" onclick="closeGraphView()" aria-label="Close graph view" type="button">&times;</button>
+  </div>
+  <div class="gv-body" id="gv-body">
+    <!-- Populated by renderGraphSnapshot() -->
+  </div>
+</aside>
+
+<!-- PRESENTATION EDITOR MODAL -->
+<div class="pres-editor-overlay" id="pres-editor-overlay" onclick="if(event.target===this){closePresEditor()}">
+  <div class="pres-editor" role="dialog" aria-modal="true" aria-label="Presentation editor">
+    <div class="pres-editor-head">
+      <span class="pres-editor-title">AI Infra Summit Recap &mdash; split-pane editor</span>
+      <span style="font-size:11px;color:var(--ink-faint);font-family:var(--mono)">6 slides &middot; static mockup</span>
+      <button class="pres-editor-close" onclick="closePresEditor()" aria-label="Close editor" type="button">&times;</button>
+    </div>
+    <div class="pres-editor-body">
+      <div class="pres-editor-pane">
+        <div class="pres-editor-pane-label">Slides</div>
+        <div id="pres-edit-slide-list"><!-- Populated by JS --></div>
+      </div>
+      <div class="pres-editor-pane">
+        <div class="pres-editor-pane-label">Live preview</div>
+        <div class="pres-preview-slide" id="pres-preview-slide">
+          <h3>Loading&hellip;</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- CENTER -->
 <main class="center" id="center">
 
@@ -1508,6 +1981,10 @@ input { font-family: var(--ui); }
     </header>
     <div class="pulse-hero__rows" id="pulse-rows">
       <!-- Populated by JS fixture below -->
+    </div>
+    <!-- Event delta row — published-wiki signals with handoff to Notebook -->
+    <div id="event-delta-rows" role="list" aria-label="Event delta signals">
+      <!-- Populated by renderEventDeltas() -->
     </div>
   </section>
 
@@ -1641,6 +2118,8 @@ input { font-family: var(--ui); }
     <button class="brief-scope-tab" role="tab" data-scope="week" onclick="switchBriefScope('week')">This week</button>
     <button class="brief-scope-tab" role="tab" data-scope="month" onclick="switchBriefScope('month')">This month</button>
     <button class="brief-scope-tab" role="tab" data-scope="quarter" onclick="switchBriefScope('quarter')">Quarter</button>
+    <button class="graph-view-toggle" onclick="openGraphView('ent_orbital')" aria-label="Open scoped graph snapshot" type="button" style="margin-left:auto">&#9678; Graph</button>
+    <button class="graph-view-toggle" onclick="showNotebook('tiptap_demo')" aria-label="Open TipTap editor mockup" type="button">&#9998; Editor mockup</button>
   </div>
 
   <!-- NEED TO KNOW -->
@@ -2314,6 +2793,69 @@ input { font-family: var(--ui); }
   </div>
 </div>
 
+<!-- ── TIPTAP EDITOR MOCKUP PAGE — block-based, stable IDs, mentions, patches ── -->
+<div class="nb-page" id="nb-tiptap-demo">
+  <div class="nb-header">
+    <div class="nb-title">TipTap block editor &mdash; preview</div>
+    <span class="nb-type-badge" style="background:rgba(167,139,250,.12);color:var(--purple)">Editor mockup</span>
+    <div class="nb-meta">Styled mockup of the block-based editor that will replace <code>document.execCommand</code>. Stable block IDs in <code>data-block-id</code>, inline @ mentions, [[backlinks]], source &amp; trace chips, agent-proposed notebook patches.</div>
+    <div class="nb-xrefs">
+      <span class="nb-xref" onclick="showNotebook('daily_brief')"><span class="nb-xref-arrow">&rarr;</span> Daily Brief</span>
+      <span class="nb-xref" onclick="openGraphView('ent_orbital')"><span class="nb-xref-arrow">&rarr;</span> Open in graph view</span>
+    </div>
+  </div>
+
+  <!-- Sticky toolbar -->
+  <div class="tt-toolbar" role="toolbar" aria-label="Editor toolbar">
+    <button class="tt-tool-btn" type="button" aria-pressed="false" aria-label="Bold" data-tool="bold"><b>B</b><kbd>&#8984;B</kbd></button>
+    <button class="tt-tool-btn" type="button" aria-pressed="false" aria-label="Italic" data-tool="italic"><i>I</i><kbd>&#8984;I</kbd></button>
+    <span class="tt-tool-sep" aria-hidden="true"></span>
+    <button class="tt-tool-btn" type="button" aria-pressed="false" aria-label="Bullet list" data-tool="list">&#8801;</button>
+    <button class="tt-tool-btn" type="button" aria-pressed="false" aria-label="Heading" data-tool="heading">H</button>
+    <button class="tt-tool-btn" type="button" aria-pressed="false" aria-label="Heading level 2" data-tool="heading2">H2</button>
+    <span class="tt-tool-sep" aria-hidden="true"></span>
+    <button class="tt-tool-btn" type="button" aria-pressed="false" aria-label="Insert mention" data-tool="mention">@</button>
+    <button class="tt-tool-btn" type="button" aria-pressed="false" aria-label="Attach source" data-tool="source">&#128279;</button>
+    <button class="tt-tool-btn" type="button" aria-pressed="false" aria-label="Attach trace" data-tool="trace">&#128269;</button>
+  </div>
+
+  <!-- Block-based editor body (rendered from NOTEBOOK_BLOCKS) -->
+  <div class="nb-blocks" id="tt-blocks" role="region" aria-label="Notebook blocks">
+    <!-- Populated by renderTipTapBlocks() -->
+  </div>
+
+  <!-- Agent-proposed patches sidebar (mockup) -->
+  <div class="tt-patches" id="tt-patches" role="region" aria-label="Notebook patches">
+    <div class="tt-patches-head">
+      <span class="tt-patches-label">Notebook patches</span>
+      <span class="tt-patches-count" id="tt-patches-count">2 proposed</span>
+      <span style="margin-left:auto;font-size:11px;color:var(--ink-faint);font-family:var(--mono)">from MorningScan agent</span>
+    </div>
+    <!-- Populated by renderTipTapPatches() -->
+    <div id="tt-patches-list"></div>
+  </div>
+</div>
+
+<!-- ── EVENT PRIVATE NOTES PAGE — ScratchNode handoff from AI Infra Summit ── -->
+<div class="nb-page" id="nb-event-private-notes">
+  <div class="nb-header">
+    <div class="nb-title">AI Infra Summit &mdash; private notes
+      <span class="evt-room-badge" data-v="private" style="margin-left:8px">&#128274; Private handoff</span>
+    </div>
+    <span class="nb-type-badge" style="background:rgba(167,139,250,.12);color:var(--purple)">ScratchNode handoff</span>
+    <div class="nb-meta">4 private notes &middot; 2 follow-ups &middot; wiki v1 published 2h ago. Notes from your ScratchNode session joined to the event wiki on publish.</div>
+    <div class="nb-xrefs">
+      <span class="nb-xref" onclick="showNotebook('event_notebook')"><span class="nb-xref-arrow">&rarr;</span> Public wiki</span>
+      <span class="nb-xref" onclick="showNotebook('daily_brief')"><span class="nb-xref-arrow">&rarr;</span> Daily Brief</span>
+      <span class="nb-xref" onclick="openGraphView('evt_infra_summit')"><span class="nb-xref-arrow">&rarr;</span> Open in graph view</span>
+    </div>
+  </div>
+
+  <div class="event-private-notes-block" id="event-private-notes-list">
+    <!-- Populated by renderEventPrivateNotes() -->
+  </div>
+</div>
+
 </div>
 
 <!-- ─── ARTIFACTS MODE ─── -->
@@ -2327,8 +2869,46 @@ input { font-family: var(--ui); }
       <button class="art-type-chip" data-filter="paper_index">Papers</button>
       <button class="art-type-chip" data-filter="upload">Uploads</button>
     </div>
+    <button class="graph-view-toggle" onclick="openGraphView('ent_orbital')" aria-label="Open scoped graph snapshot" type="button" style="margin-left:auto">&#9678; Graph view</button>
     <div class="art-sort">Sort: <strong>Recent</strong></div>
   </div>
+
+  <!-- Presentation engine generation card -->
+  <section class="presentation-card" id="presentation-card" aria-label="Presentation artifact">
+    <div class="pres-card-head">
+      <div>
+        <div class="pres-card-title">AI Infra Summit Recap &mdash; 6 slides</div>
+        <div class="pres-card-sub">Generated from agent research &middot; 4 sources cited &middot; 1 trace linked</div>
+      </div>
+      <span class="pres-card-badge">Presentation</span>
+    </div>
+    <!-- 6-slide thumbnail strip -->
+    <div class="pres-slide-strip" id="pres-slide-strip" role="list" aria-label="Slide thumbnails">
+      <!-- Populated by renderPresentationSlides() -->
+    </div>
+    <!-- Actions -->
+    <div class="pres-actions">
+      <button class="pres-btn" data-kind="primary" type="button" onclick="openPresEditor(0)" aria-label="Open in split-pane editor">&#9998; Open in editor &rarr;</button>
+      <button class="pres-btn" data-kind="ghost" type="button" onclick="alert('Export PDF — static mockup')" aria-label="Export PDF">&#128196; Export PDF</button>
+      <button class="pres-btn" data-kind="ghost" type="button" onclick="alert('Embed code — static mockup')" aria-label="Get embed code">&lt;/&gt; Embed code</button>
+      <button class="pres-btn" data-kind="ghost" type="button" onclick="alert('Saved to notebook — static mockup')" aria-label="Save to notebook">&#128203; Save to Notebook</button>
+      <button class="pres-btn" data-kind="ghost" type="button" onclick="alert('Regenerate — static mockup')" aria-label="Regenerate slides">&#8635; Regenerate</button>
+    </div>
+    <!-- Shareable URL -->
+    <div class="pres-share-row">
+      <span class="pres-share-label">Share URL</span>
+      <input class="pres-share-url" type="text" readonly value="https://nodebenchai.com/p/ai-infra-summit-recap-v1" aria-label="Shareable presentation URL" onclick="this.select()">
+      <span class="pres-share-copy" role="button" tabindex="0" onclick="alert('Copied — static mockup')" onkeydown="if(event.key==='Enter'){alert('Copied — static mockup')}">Copy</span>
+    </div>
+    <!-- Linked artifacts -->
+    <div class="pres-linked">
+      <span class="pres-linked-label">Linked artifacts:</span>
+      <span class="mention" data-type="company" data-id="ent_orbital" onclick="openMention(this,event)">@Orbital Labs</span>
+      <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span>
+      <span class="source-chip">4 sources</span>
+      <span class="source-chip">1 trace</span>
+    </div>
+  </section>
 
   <div class="art-grid" id="art-grid">
     <!-- Rendered by JS -->
@@ -3506,6 +4086,501 @@ function bindHomeFilters() {
   }
 }
 
+/* ═══════════════════════════════════════════════════
+   DEEP UPGRADE — 4 SECTIONS (TipTap mockup, Graph snapshots, Presentation, Event delta)
+   All static spec — no Convex wiring, no fetches, no document.body.dataset.snLive.
+   ═══════════════════════════════════════════════════ */
+
+/** Notebook blocks — TipTap-like editor mockup with stable block IDs.
+ *  Block IDs use the same shape NodeBench production uses: ULID-style monotonic prefix.
+ *  Five block kinds: paragraph, heading, quote, code, plus inline mentions/backlinks. */
+var NOTEBOOK_BLOCKS = [
+  { id: 'blk_01H8Z9PARA_orbital', type: 'paragraph',
+    html: 'Met <span class="mention" data-type="person" data-id="ent_alex" onclick="openMention(this,event)">@Alex Chen</span>, founder at <span class="mention" data-type="company" data-id="ent_orbital" onclick="openMention(this,event)">@Orbital Labs</span><span class="backlink-count" onclick="openBacklinks(\'ent_orbital\')">7</span>. Strong technical background, came from Anthropic\'s eval team. Building voice-agent eval infra with healthcare design partner. <span class="source-chip" onclick="alert(\'Source: field-notes-may22-1431.md\')">&#128279; field notes</span>' },
+  { id: 'blk_01H8Z9HEAD_mcp', type: 'heading2',
+    html: '[[MCP auth timeline]] &mdash; what we know' },
+  { id: 'blk_01H8Z9LIST_mcp_facts', type: 'paragraph',
+    html: '&bull; Dario confirmed standardization timeline at AI Infra Summit panel<br>&bull; 34% of Fortune 500 have already evaluated MCP<br>&bull; Enterprise rollout expected Q3 2026 (single-source claim &mdash; needs corroboration) <span class="source-chip" onclick="alert(\'Source: Panel transcript — MCP auth breakout\')">&#128279; panel-transcript</span>' },
+  { id: 'blk_01H8Z9QUOTE_dario', type: 'quote',
+    html: '&ldquo;The auth standard is not a chicken-and-egg problem anymore &mdash; enterprises pulled it forward by Q1 2026.&rdquo; &mdash; <span class="mention" data-type="person" data-id="ent_dario" onclick="openMention(this,event)">@Dario Amodei</span>, summit panel <span class="source-chip" onclick="alert(\'Trace: agent-trace-pjy3 — quote extraction\')">&#128269; trace pjy3</span>' },
+  { id: 'blk_01H8Z9CODE_search', type: 'code',
+    html: 'await ctx.search("Orbital Labs voice-agent eval", {\n  scope: "event:infra_summit_may22",\n  hops: 1,\n  include_private_notes: true,\n});\n// returns: 4 sources, 2 wiki anchors, 1 trace' },
+  { id: 'blk_01H8Z9PARA_followup', type: 'paragraph',
+    html: 'Action: follow up with Alex about healthcare pilot criteria by Thursday. <span class="mention" data-type="topic" data-id="topic_voice_eval" onclick="openMention(this,event)">[[voice-agent eval infra]]</span> may map to our trajectory framework.' }
+];
+
+/** Agent-proposed notebook patches (mockup diff cards). */
+var NOTEBOOK_PATCHES = [
+  { id: 'patch_001', agent: 'MorningScan',
+    targetBlockId: 'blk_01H8Z9LIST_mcp_facts', when: '14m ago',
+    title: 'Add fresh source for MCP Q3 claim',
+    diff: [
+      { kind: 'ctx',    text: '  • Dario confirmed standardization timeline at AI Infra Summit panel' },
+      { kind: 'ctx',    text: '  • 34% of Fortune 500 have already evaluated MCP' },
+      { kind: 'remove', text: '  • Enterprise rollout expected Q3 2026 (single-source claim — needs corroboration)' },
+      { kind: 'add',    text: '  • Enterprise rollout expected Q3 2026 — corroborated by Forrester Q2 2026 wave + Anthropic developer blog (3 sources)' }
+    ] },
+  { id: 'patch_002', agent: 'EventCompactor',
+    targetBlockId: 'blk_01H8Z9PARA_orbital', when: '6m ago',
+    title: 'Link Orbital Labs to portfolio thesis',
+    diff: [
+      { kind: 'ctx',    text: 'Met @Alex Chen, founder at @Orbital Labs. Strong technical background…' },
+      { kind: 'add',    text: '+ Cross-link: matches healthcare-workflow thesis from [[portfolio q2 review]]' },
+      { kind: 'add',    text: '+ Add to watchlist: hiring spike (4x ML eval engineers this week)' }
+    ] }
+];
+
+/** Versioned graph snapshots — 1-2 hops, named versions. */
+var GRAPH_SNAPSHOTS = {
+  ent_orbital: {
+    live_v1: {
+      hero: { id: 'ent_orbital', name: 'Orbital Labs', type: 'company' },
+      nodes: [
+        { id: 'ent_alex',         name: 'Alex Chen',           type: 'person',  edge: 'founder of'  },
+        { id: 'evt_infra_summit', name: 'AI Infra Summit',     type: 'event',   edge: 'spoke at'    },
+        { id: 'topic_voice_eval', name: 'voice-agent eval',    type: 'topic',   edge: 'core domain' },
+        { id: 'topic_mcp',        name: 'MCP Protocol',        type: 'topic',   edge: 'mentioned in' },
+        { id: 'evt_jpm',          name: 'JPM Healthcare',      type: 'event',   edge: 'pilot interest' }
+      ],
+      blockHighlights: {
+        ent_alex:         ['blk_01H8Z9PARA_orbital', 'blk_01H8Z9PARA_followup'],
+        evt_infra_summit: ['blk_01H8Z9PARA_orbital', 'blk_01H8Z9QUOTE_dario'],
+        topic_voice_eval: ['blk_01H8Z9PARA_orbital', 'blk_01H8Z9PARA_followup'],
+        topic_mcp:        ['blk_01H8Z9HEAD_mcp', 'blk_01H8Z9LIST_mcp_facts', 'blk_01H8Z9QUOTE_dario'],
+        evt_jpm:          ['blk_01H8Z9PARA_followup']
+      }
+    },
+    wiki_v1: {
+      hero: { id: 'ent_orbital', name: 'Orbital Labs', type: 'company' },
+      nodes: [
+        { id: 'ent_alex',         name: 'Alex Chen',           type: 'person',  edge: 'founder of' },
+        { id: 'evt_infra_summit', name: 'AI Infra Summit',     type: 'event',   edge: 'spoke at'   },
+        { id: 'topic_voice_eval', name: 'voice-agent eval',    type: 'topic',   edge: 'core domain' }
+      ],
+      blockHighlights: {}
+    },
+    wiki_v2: {
+      hero: { id: 'ent_orbital', name: 'Orbital Labs', type: 'company' },
+      nodes: [
+        { id: 'ent_alex',         name: 'Alex Chen',           type: 'person',  edge: 'founder of'  },
+        { id: 'evt_infra_summit', name: 'AI Infra Summit',     type: 'event',   edge: 'spoke at'    },
+        { id: 'topic_voice_eval', name: 'voice-agent eval',    type: 'topic',   edge: 'core domain' },
+        { id: 'topic_mcp',        name: 'MCP Protocol',        type: 'topic',   edge: 'mentioned in' }
+      ],
+      blockHighlights: {}
+    },
+    archived: {
+      hero: { id: 'ent_orbital', name: 'Orbital Labs', type: 'company' },
+      nodes: [
+        { id: 'ent_alex', name: 'Alex Chen', type: 'person', edge: 'founder of' }
+      ],
+      blockHighlights: {}
+    }
+  },
+  evt_infra_summit: {
+    live_v1: {
+      hero: { id: 'evt_infra_summit', name: 'AI Infra Summit', type: 'event' },
+      nodes: [
+        { id: 'ent_orbital',      name: 'Orbital Labs',        type: 'company', edge: 'demoed at'   },
+        { id: 'ent_anthropic',    name: 'Anthropic',           type: 'company', edge: 'sponsored'   },
+        { id: 'ent_dario',        name: 'Dario Amodei',        type: 'person',  edge: 'panelist'    },
+        { id: 'topic_mcp',        name: 'MCP Protocol',        type: 'topic',   edge: '47 asks'     },
+        { id: 'topic_voice_eval', name: 'voice-agent eval',    type: 'topic',   edge: '23 asks'     }
+      ],
+      blockHighlights: {}
+    },
+    wiki_v1: {
+      hero: { id: 'evt_infra_summit', name: 'AI Infra Summit', type: 'event' },
+      nodes: [
+        { id: 'ent_orbital', name: 'Orbital Labs', type: 'company', edge: 'demoed at' },
+        { id: 'topic_mcp',   name: 'MCP Protocol', type: 'topic',   edge: '47 asks' }
+      ],
+      blockHighlights: {}
+    },
+    wiki_v2: {
+      hero: { id: 'evt_infra_summit', name: 'AI Infra Summit', type: 'event' },
+      nodes: [
+        { id: 'ent_orbital',      name: 'Orbital Labs',     type: 'company', edge: 'demoed at' },
+        { id: 'ent_dario',        name: 'Dario Amodei',     type: 'person',  edge: 'panelist'  },
+        { id: 'topic_mcp',        name: 'MCP Protocol',     type: 'topic',   edge: '47 asks'   },
+        { id: 'topic_voice_eval', name: 'voice-agent eval', type: 'topic',   edge: '23 asks'   }
+      ],
+      blockHighlights: {}
+    },
+    archived: {
+      hero: { id: 'evt_infra_summit', name: 'AI Infra Summit', type: 'event' },
+      nodes: [
+        { id: 'topic_mcp', name: 'MCP Protocol', type: 'topic', edge: 'mentioned' }
+      ],
+      blockHighlights: {}
+    }
+  }
+};
+
+/** Presentation slides — 6 slides for AI Infra Summit Recap. */
+var PRESENTATION_SLIDES = [
+  { num: 1, title: 'AI Infra Summit Recap',           body: 'May 22-23 2026 · 400+ attendees · 1,204 public Q&amp;A · 38 sources cited' },
+  { num: 2, title: 'Three signals that mattered',     body: 'MCP auth Q3 timeline · Anthropic +40% repricing · Orbital Labs healthcare pilot' },
+  { num: 3, title: 'Orbital Labs &mdash; partnership opportunity', body: 'Voice-agent eval infra · Series A closed · Alex Chen (Anthropic alum) · Pilot fit: high' },
+  { num: 4, title: 'MCP auth timeline &mdash; what changed',       body: 'Standardization confirmed Q3 · 34% Fortune 500 evaluated · 5 enterprise SDK lanes public' },
+  { num: 5, title: 'Anthropic pricing &mdash; cascading tiers',    body: 'Enterprise repriced +40% · Tiered cost cascading maps to autoRouter · Comparison doc by Friday' },
+  { num: 6, title: 'Follow-ups &mdash; ranked',                    body: '1) Alex Chen healthcare pilot · 2) Ship pricing doc · 3) Refresh Google DeepMind artifact' }
+];
+
+/** Event deltas — Home pulse signals tied to event handoffs. */
+var EVENT_DELTAS = [
+  { id: 'delta_infra_summit_wiki_v1',
+    eyebrow: 'Event signal',
+    title: 'AI Infra Summit published wiki v1',
+    sub: '4 private notes added &middot; 2 follow-ups created &middot; @Orbital Labs updated',
+    onclick: "switchMode('notebook'); showNotebook('event_private_notes')" }
+];
+
+/** Event private notes — handed off from ScratchNode on wiki publish. */
+var EVENT_PRIVATE_NOTES = [
+  { anchor: 'Anchored to Sarah Kim\'s /ask at 1:37p',
+    title: 'Alex mentioned eval scoring framework that maps to ours',
+    preview: 'After his slot, asked Alex about how Orbital scores voice-agent runs. He uses a deterministic boolean checklist (sounds identical to our trajectory framework). Could compare notes for healthcare pilot.',
+    linked: [
+      { type: 'person',  id: 'ent_alex',         label: '@Alex Chen' },
+      { type: 'company', id: 'ent_orbital',      label: '@Orbital Labs' },
+      { type: 'topic',   id: 'topic_voice_eval', label: '[[voice-agent eval infra]]' }
+    ] },
+  { anchor: 'Anchored to MCP auth panel at 2:14p',
+    title: 'Dario\'s Q3 timeline — single-source, verify',
+    preview: 'Dario said enterprise rollout is on track for Q3 but he was the only person who put a date on it. No corroborating slide. Action: confirm with at least one enterprise customer before treating as fact.',
+    linked: [
+      { type: 'person',  id: 'ent_dario', label: '@Dario Amodei' },
+      { type: 'topic',   id: 'topic_mcp', label: '[[MCP Protocol]]' }
+    ] },
+  { anchor: 'Anchored to coffee-room chat at 3:05p',
+    title: 'Google DeepMind quietly building MCP-compatible tooling',
+    preview: 'Overheard at coffee: DeepMind eng confirmed they\'re shipping MCP-compatible servers internally. Not announced. Validates our thesis that the protocol becomes table stakes by EOY.',
+    linked: [
+      { type: 'company', id: 'ent_google', label: '@Google DeepMind' },
+      { type: 'topic',   id: 'topic_mcp',  label: '[[MCP Protocol]]' }
+    ] },
+  { anchor: 'Anchored to Sarah Kim\'s /ask at 4:22p',
+    title: 'Orbital Labs healthcare pilot needs a clinical co-design partner',
+    preview: 'Alex made it clear: they want a clinical partner who can co-design eval criteria, not just consume the product. Our portfolio has 2 candidates (Curai, Hippocratic). Action: warm intro by Thursday.',
+    linked: [
+      { type: 'company', id: 'ent_orbital',      label: '@Orbital Labs' },
+      { type: 'person',  id: 'ent_alex',         label: '@Alex Chen' },
+      { type: 'topic',   id: 'topic_voice_eval', label: '[[clinical triage latency]]' }
+    ] }
+];
+
+/* ─── TIPTAP MOCKUP RENDERING ─── */
+function renderTipTapBlocks() {
+  var host = document.getElementById('tt-blocks');
+  if (!host) return;
+  host.innerHTML = NOTEBOOK_BLOCKS.map(function(b) {
+    var classes = 'tt-block tt-block--' + (b.type === 'heading2' ? 'h2' : b.type);
+    return '<div class="' + classes + '" data-block-id="' + escHtml(b.id) + '" tabindex="0" role="textbox" aria-label="Block ' + escHtml(b.id) + '">' +
+      '<div class="tt-block-affords" aria-hidden="true">' +
+        '<span class="tt-block-add" title="Insert above" onclick="alert(\'Insert above — mockup\')">+</span>' +
+        '<span class="tt-block-handle" title="Drag to reorder" onclick="alert(\'Drag handle — mockup\')">&#8801;</span>' +
+      '</div>' +
+      b.html +
+    '</div>';
+  }).join('');
+}
+
+function renderTipTapPatches() {
+  var host = document.getElementById('tt-patches-list');
+  if (!host) return;
+  host.innerHTML = NOTEBOOK_PATCHES.map(function(p) {
+    var diffHtml = p.diff.map(function(d) {
+      var prefix = d.kind === 'add' ? '+ ' : (d.kind === 'remove' ? '- ' : '  ');
+      return '<div class="tt-patch-diff-line" data-kind="' + d.kind + '">' + escHtml(prefix + d.text.replace(/^[+\-\s]+/, '')) + '</div>';
+    }).join('');
+    return '<div class="tt-patch">' +
+      '<div class="tt-patch-head">' +
+        '<span class="tt-patch-agent">' + escHtml(p.agent) + '</span>' +
+        '<span class="tt-patch-target">target: <code>' + escHtml(p.targetBlockId) + '</code></span>' +
+        '<span class="tt-patch-when">' + escHtml(p.when) + '</span>' +
+      '</div>' +
+      '<div class="tt-patch-title">' + escHtml(p.title) + '</div>' +
+      '<div class="tt-patch-diff">' + diffHtml + '</div>' +
+      '<div class="tt-patch-actions">' +
+        '<button class="tt-patch-btn" data-kind="accept" type="button" onclick="this.closest(\'.tt-patch\').style.opacity=\'.4\';this.closest(\'.tt-patch\').setAttribute(\'aria-disabled\',\'true\')" aria-label="Accept patch">&#10003; Accept</button>' +
+        '<button class="tt-patch-btn" data-kind="reject" type="button" onclick="this.closest(\'.tt-patch\').style.display=\'none\'" aria-label="Reject patch">&times; Reject</button>' +
+        '<button class="tt-patch-btn" data-kind="edit"   type="button" onclick="alert(\'Edit patch — mockup\')" aria-label="Edit patch">&#9998; Edit</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  var countEl = document.getElementById('tt-patches-count');
+  if (countEl) countEl.textContent = NOTEBOOK_PATCHES.length + ' proposed';
+}
+
+/* ─── GRAPH SNAPSHOT RENDERING ─── */
+var _gvCurrentHero = 'ent_orbital';
+function openGraphView(heroId) {
+  _gvCurrentHero = heroId || 'ent_orbital';
+  var overlay = document.getElementById('graph-view-overlay');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  var sel = document.getElementById('gv-version-select');
+  if (sel) sel.value = 'live_v1';
+  renderGraphSnapshot('live_v1');
+  // Focus close button for keyboard users
+  setTimeout(function() {
+    var btn = overlay.querySelector('.gv-close');
+    if (btn) btn.focus();
+  }, 50);
+}
+
+function closeGraphView() {
+  var overlay = document.getElementById('graph-view-overlay');
+  if (overlay) overlay.classList.remove('open');
+  // Clear any block highlights
+  document.querySelectorAll('.tt-block.graph-highlight').forEach(function(el) {
+    el.classList.remove('graph-highlight');
+  });
+}
+
+function renderGraphSnapshot(versionKey) {
+  var heroId = _gvCurrentHero || 'ent_orbital';
+  var entityGraph = GRAPH_SNAPSHOTS[heroId] || GRAPH_SNAPSHOTS.ent_orbital;
+  var snapshot = entityGraph[versionKey] || entityGraph.live_v1;
+  var heroName = (snapshot.hero && snapshot.hero.name) || 'Entity';
+  var nameEl = document.getElementById('gv-hero-name');
+  if (nameEl) nameEl.textContent = heroName;
+  var countEl = document.getElementById('gv-edge-count');
+  if (countEl) countEl.textContent = String(snapshot.nodes.length);
+
+  // Build SVG layout: hero at center, neighbors in circle
+  var cx = 240, cy = 130, r = 90;
+  var nodeCount = snapshot.nodes.length;
+  var svgParts = [];
+  svgParts.push('<svg class="gv-svg" viewBox="0 0 480 260" role="img" aria-label="Graph of ' + escHtml(heroName) + '">');
+  // Edges first (so nodes paint on top)
+  snapshot.nodes.forEach(function(n, i) {
+    var angle = (2 * Math.PI * i) / nodeCount - Math.PI / 2;
+    var nx = cx + r * Math.cos(angle);
+    var ny = cy + r * Math.sin(angle);
+    svgParts.push('<line class="gv-svg-edge" x1="' + cx + '" y1="' + cy + '" x2="' + nx + '" y2="' + ny + '"/>');
+    // edge label at midpoint
+    var lx = (cx + nx) / 2, ly = (cy + ny) / 2 - 4;
+    svgParts.push('<text class="gv-svg-edge-label" x="' + lx + '" y="' + ly + '" text-anchor="middle">' + escHtml(n.edge) + '</text>');
+  });
+  // Hero node
+  var heroType = (snapshot.hero && snapshot.hero.type) || 'company';
+  svgParts.push('<g class="gv-svg-node" tabindex="0">');
+  svgParts.push('<circle class="gv-svg-node-circle gv-hero" cx="' + cx + '" cy="' + cy + '" r="32" data-type="' + heroType + '"/>');
+  svgParts.push('<text class="gv-svg-node-label" x="' + cx + '" y="' + (cy + 4) + '">' + escHtml(heroName) + '</text>');
+  svgParts.push('</g>');
+  // Neighbor nodes
+  snapshot.nodes.forEach(function(n, i) {
+    var angle = (2 * Math.PI * i) / nodeCount - Math.PI / 2;
+    var nx = cx + r * Math.cos(angle);
+    var ny = cy + r * Math.sin(angle);
+    var safeAttrId = escHtml(n.id);
+    svgParts.push('<g class="gv-svg-node" tabindex="0" data-node-id="' + safeAttrId + '" onclick="highlightGraphNode(\'' + safeAttrId + '\')" role="button" aria-label="Open ' + escHtml(n.name) + '">');
+    svgParts.push('<circle class="gv-svg-node-circle" cx="' + nx + '" cy="' + ny + '" r="22" data-type="' + escHtml(n.type) + '"/>');
+    var label = n.name.length > 12 ? (n.name.slice(0, 11) + '…') : n.name;
+    svgParts.push('<text class="gv-svg-node-label" x="' + nx + '" y="' + (ny + 3) + '">' + escHtml(label) + '</text>');
+    svgParts.push('</g>');
+  });
+  svgParts.push('</svg>');
+
+  // Mobile list (collapses for narrow viewports via CSS)
+  var mobileList = '<div class="gv-mobile-list">' + snapshot.nodes.map(function(n) {
+    var iconMap = { company: '&#127970;', person: '&#128100;', event: '&#9889;', topic: '&#128279;' };
+    var icon = iconMap[n.type] || '&#9670;';
+    return '<button class="gv-neighbor-row" type="button" onclick="highlightGraphNode(\'' + escHtml(n.id) + '\')" aria-label="Open ' + escHtml(n.name) + '">' +
+      '<span style="font-size:14px">' + icon + '</span>' +
+      '<span style="flex:1">' + escHtml(n.name) + '</span>' +
+      '<span class="gv-neighbor-edge">' + escHtml(n.edge) + '</span>' +
+    '</button>';
+  }).join('') + '</div>';
+
+  var bodyHtml = '<div class="gv-canvas">' + svgParts.join('') + '<div class="gv-legend">' +
+    '<span data-t="company">company</span>' +
+    '<span data-t="person">person</span>' +
+    '<span data-t="event">event</span>' +
+    '<span data-t="topic">topic</span>' +
+    '</div></div>' +
+    '<div class="gv-section-label">1-hop neighbors</div>' +
+    mobileList +
+    '<div style="margin-top:14px;padding:10px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius);font-size:11px;color:var(--ink-faint);font-family:var(--mono);line-height:1.55">' +
+      'Snapshot: <strong style="color:var(--ink)">' + escHtml(versionKey) + '</strong> &middot; click any node to highlight where it appears in the notebook' +
+    '</div>';
+  var bodyEl = document.getElementById('gv-body');
+  if (bodyEl) bodyEl.innerHTML = bodyHtml;
+
+  // Stash highlights for click handler
+  window._gvCurrentHighlights = snapshot.blockHighlights || {};
+}
+
+function highlightGraphNode(nodeId) {
+  // Clear prior
+  document.querySelectorAll('.tt-block.graph-highlight').forEach(function(el) {
+    el.classList.remove('graph-highlight');
+  });
+  var highlights = window._gvCurrentHighlights || {};
+  var blockIds = highlights[nodeId] || [];
+  // Switch to TipTap mockup mode so blocks are visible
+  if (blockIds.length > 0) {
+    switchMode('notebook');
+    showNotebook('tiptap_demo');
+    setTimeout(function() {
+      blockIds.forEach(function(bid) {
+        var el = document.querySelector('[data-block-id="' + bid + '"]');
+        if (el) el.classList.add('graph-highlight');
+      });
+      // Scroll first highlighted block into view
+      var first = document.querySelector('[data-block-id="' + blockIds[0] + '"]');
+      if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  } else {
+    // No highlights for this snapshot version — just open the mention preview
+    openMentionById(nodeId);
+  }
+}
+
+/* ─── PRESENTATION CARD RENDERING ─── */
+function renderPresentationSlides() {
+  var host = document.getElementById('pres-slide-strip');
+  if (!host) return;
+  host.innerHTML = PRESENTATION_SLIDES.map(function(s, i) {
+    return '<button class="pres-slide-thumb" role="listitem" type="button" ' +
+      'onclick="openPresEditor(' + i + ')" aria-label="Slide ' + s.num + ': ' + escHtml(s.title) + '">' +
+      '<span class="pres-slide-num">Slide ' + s.num + ' / 6</span>' +
+      '<span class="pres-slide-title">' + s.title + '</span>' +
+      '<span class="pres-slide-meta">click to edit</span>' +
+    '</button>';
+  }).join('');
+}
+
+var _presCurrentSlide = 0;
+function openPresEditor(slideIdx) {
+  _presCurrentSlide = slideIdx || 0;
+  var overlay = document.getElementById('pres-editor-overlay');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  renderPresEditor();
+  setTimeout(function() {
+    var btn = overlay.querySelector('.pres-editor-close');
+    if (btn) btn.focus();
+  }, 50);
+}
+
+function closePresEditor() {
+  var overlay = document.getElementById('pres-editor-overlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+function renderPresEditor() {
+  var list = document.getElementById('pres-edit-slide-list');
+  if (list) {
+    list.innerHTML = PRESENTATION_SLIDES.map(function(s, i) {
+      var active = i === _presCurrentSlide ? ' active' : '';
+      return '<div class="pres-edit-slide' + active + '" role="button" tabindex="0" ' +
+        'onclick="_presCurrentSlide=' + i + ';renderPresEditor()" ' +
+        'onkeydown="if(event.key===\'Enter\'){_presCurrentSlide=' + i + ';renderPresEditor()}" ' +
+        'aria-label="Edit slide ' + s.num + '">' +
+        '<div class="pres-edit-slide-num">Slide ' + s.num + ' / 6</div>' +
+        '<div class="pres-edit-slide-title">' + s.title + '</div>' +
+        '<div style="font-size:11px;color:var(--ink-faint);margin-top:3px">' + s.body + '</div>' +
+      '</div>';
+    }).join('');
+  }
+  var prev = document.getElementById('pres-preview-slide');
+  if (prev) {
+    var s = PRESENTATION_SLIDES[_presCurrentSlide] || PRESENTATION_SLIDES[0];
+    // Split body into bullets if it contains middot
+    var bullets = String(s.body || '').split(/\s*&middot;\s*|\s*·\s*/).filter(Boolean);
+    var bulletsHtml = bullets.length > 1
+      ? '<ul>' + bullets.map(function(b) { return '<li>' + b + '</li>'; }).join('') + '</ul>'
+      : '<p style="font-size:14px;color:#4a4a4a">' + s.body + '</p>';
+    prev.innerHTML = '<h3>' + s.title + '</h3>' + bulletsHtml +
+      '<div style="margin-top:auto;font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#8a8a8a">Slide ' + s.num + ' / 6 &middot; AI Infra Summit Recap</div>';
+  }
+}
+
+/* ─── EVENT DELTA RENDERING ─── */
+function renderEventDeltas() {
+  var host = document.getElementById('event-delta-rows');
+  if (!host) return;
+  host.innerHTML = EVENT_DELTAS.map(function(d) {
+    var safeClick = String(d.onclick || '').replace(/"/g, '&quot;');
+    return '<button class="event-delta-row" role="listitem" type="button" ' +
+      'data-delta-id="' + escHtml(d.id) + '" ' +
+      'onclick="' + safeClick + '" ' +
+      'aria-label="Event delta: ' + escHtml(d.title) + '">' +
+      '<span class="event-delta-row__icon" aria-hidden="true">&#9889;</span>' +
+      '<span class="event-delta-row__body">' +
+        '<span class="event-delta-row__eyebrow">' + escHtml(d.eyebrow) + '</span>' +
+        '<span class="event-delta-row__title">' + escHtml(d.title) + '</span>' +
+        '<span class="event-delta-row__sub">' + d.sub + '</span>' +
+      '</span>' +
+      '<span class="event-delta-row__cta" aria-hidden="true">View in Notebook &rarr;</span>' +
+    '</button>';
+  }).join('');
+}
+
+function renderEventPrivateNotes() {
+  var host = document.getElementById('event-private-notes-list');
+  if (!host) return;
+  var headerHtml =
+    '<div class="event-pn-head">' +
+      '<span class="event-pn-eyebrow">Event private notes</span>' +
+      '<span class="event-pn-source">handed off from ScratchNode &middot; wiki v1</span>' +
+    '</div>';
+  var notesHtml = EVENT_PRIVATE_NOTES.map(function(n) {
+    var linkedHtml = n.linked.map(function(l) {
+      return '<span class="mention" data-type="' + escHtml(l.type) + '" data-id="' + escHtml(l.id) + '" onclick="openMention(this,event)">' + escHtml(l.label) + '</span>';
+    }).join(' ');
+    return '<div class="event-pn-note">' +
+      '<div class="event-pn-anchor">&#128205; ' + escHtml(n.anchor) + '</div>' +
+      '<div class="event-pn-title">' + escHtml(n.title) + '</div>' +
+      '<div class="event-pn-preview">' + escHtml(n.preview) + '</div>' +
+      '<div class="event-pn-links"><span class="event-pn-links-label">Linked entities:</span> ' + linkedHtml + '</div>' +
+    '</div>';
+  }).join('');
+  host.innerHTML = headerHtml + notesHtml;
+}
+
+/* ─── EXTEND showNotebook() — handle new pages ─── */
+var _origShowNotebook = showNotebook;
+showNotebook = function(nbId) {
+  // New tiptap / event_private_notes pages handled here; others delegate
+  if (nbId === 'tiptap_demo' || nbId === 'event_private_notes') {
+    currentNotebook = nbId;
+    document.querySelectorAll('.nb-page').forEach(function(p) { p.classList.remove('active'); });
+    var targetId = nbId === 'tiptap_demo' ? 'nb-tiptap-demo' : 'nb-event-private-notes';
+    var target = document.getElementById(targetId);
+    if (target) target.classList.add('active');
+    // Update left index active state (best-effort)
+    document.querySelectorAll('.left-panel[data-for="notebook"] .left-item[data-nb]').forEach(function(item) {
+      item.classList.toggle('active', item.getAttribute('data-nb') === nbId);
+    });
+    // Update right rail context
+    var ctxName = document.getElementById('ctx-entity-name');
+    var ctxType = document.getElementById('ctx-entity-type');
+    if (nbId === 'tiptap_demo') {
+      if (ctxName) ctxName.textContent = 'TipTap editor mockup';
+      if (ctxType) ctxType.textContent = '6 blocks · 2 patches · stable block IDs';
+    } else {
+      if (ctxName) ctxName.textContent = 'AI Infra Summit — private notes';
+      if (ctxType) ctxType.textContent = 'Handoff · 4 notes · wiki v1 · 2 follow-ups';
+    }
+    return;
+  }
+  return _origShowNotebook(nbId);
+};
+
+/* ─── KEYBOARD: Escape closes overlays ─── */
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var gv = document.getElementById('graph-view-overlay');
+    if (gv && gv.classList.contains('open')) { closeGraphView(); return; }
+    var pe = document.getElementById('pres-editor-overlay');
+    if (pe && pe.classList.contains('open')) { closePresEditor(); return; }
+  }
+});
+
 /* ─── INIT ─── */
 renderArtifacts('all');
 renderPulseHero();
@@ -3514,6 +4589,11 @@ renderHomeOps();
 renderEntityGrid('all', 'newest');
 renderHomeDetails();
 bindHomeFilters();
+renderTipTapBlocks();
+renderTipTapPatches();
+renderPresentationSlides();
+renderEventDeltas();
+renderEventPrivateNotes();
 </script>
 </body>
 </html>
