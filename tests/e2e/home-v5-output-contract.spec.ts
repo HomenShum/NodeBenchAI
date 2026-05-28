@@ -42,3 +42,46 @@ test("home-v5 runDemoFull keeps visible invariants and L1/L2/L3 output contracts
     "ui_renderable",
   ]);
 });
+
+test("home-v5 demo autoplay is gated to /demo_ver routes", async ({ page }) => {
+  const fileUrl = `${pathToFileURL(resolve("public/proto/home-v5.html")).toString()}?demo=1#demo`;
+
+  await page.goto(fileUrl, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(
+    () =>
+      typeof (window as any).shouldRunScratchNodeFullDemo === "function" &&
+      typeof (window as any).isScratchNodeDemoRoute === "function",
+  );
+
+  await page.waitForTimeout(1_500);
+
+  const state = await page.evaluate(() => ({
+    shouldRunHere: (window as any).shouldRunScratchNodeFullDemo(),
+    logLength: ((window as any)._demo_log ?? []).length,
+    feedText: document.getElementById("feed")?.textContent ?? "",
+    routes: {
+      root: (window as any).isScratchNodeDemoRoute("/"),
+      event: (window as any).isScratchNodeDemoRoute("/e/ai-infra-summit-2026"),
+      directProto: (window as any).isScratchNodeDemoRoute("/proto/home-v5.html"),
+      demoRoot: (window as any).isScratchNodeDemoRoute("/demo_ver"),
+      demoNumber: (window as any).isScratchNodeDemoRoute("/demo_ver1"),
+      demoSlug: (window as any).isScratchNodeDemoRoute("/demo_ver_v5"),
+      demoSlash: (window as any).isScratchNodeDemoRoute("/demo_ver/v5"),
+      nearMiss: (window as any).isScratchNodeDemoRoute("/demo_version"),
+    },
+  }));
+
+  expect(state.shouldRunHere).toBe(false);
+  expect(state.logLength).toBe(0);
+  expect(state.feedText).not.toContain("Maya from VoiceLayer");
+  expect(state.routes).toEqual({
+    root: false,
+    event: false,
+    directProto: false,
+    demoRoot: true,
+    demoNumber: true,
+    demoSlug: true,
+    demoSlash: true,
+    nearMiss: false,
+  });
+});

@@ -119,6 +119,10 @@
       "destination": "https://raw.githubusercontent.com/HomenShum/nodebench-ai/main/packages/mcp-local/scripts/install.sh"
     },
     {
+      "source": "/demo_ver(.*)",
+      "destination": "/proto/home-v5.html"
+    },
+    {
       "source": "/",
       "has": [
         {

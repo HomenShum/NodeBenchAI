@@ -1462,8 +1462,8 @@ eventAnswers: <span class="fn">defineTable</span>({
     </ul>
 
     <h2 id="quick-start">Quick start <a class="anchor" href="#quick-start">#</a></h2>
-    <p>Open <a href="home-v5.html">home-v5.html</a> directly in a browser. No build, no npm. To skip onboarding and land mid-conversation:</p>
-    <pre><span class="lang">url</span>home-v5.html<span class="kw">#demo</span></pre>
+    <p>Open <a href="home-v5.html">home-v5.html</a> directly in a browser. No build, no npm. Demo autoplay is production-route gated; use the dedicated public route:</p>
+    <pre><span class="lang">url</span>/demo_ver1</pre>
     <p>To replay onboarding from a specific step:</p>
     <pre><span class="lang">url</span>home-v5.html<span class="kw">#wiz=</span><span class="num">2</span></pre>
     <div class="callout note"><span class="icon">⚡</span><div><strong>Tip:</strong> All demo controls are also exposed as functions on <code>window</code> — see <a href="#js-api">JS API</a>.</div></div>
@@ -1703,13 +1703,15 @@ eventAnswers: <span class="fn">defineTable</span>({
     </ul>
 
     <h2 id="demo-controls">Demo controls <a class="anchor" href="#demo-controls">#</a></h2>
-    <p>Every demoable state is reachable from either a URL hash or a window-scoped function. Use URL hashes when driving headless screenshots (Chromium can't always exec JS); use functions when you're hand-driving a live demo.</p>
+    <p>Demo autoplay only belongs on <code>/demo_ver...</code> routes. Root, event, docs, and live production routes ignore stale <code>?demo=1</code> or <code>#demo</code> values.</p>
 
-    <h3 id="hash-routes">URL hashes</h3>
+    <h3 id="hash-routes">Demo routes</h3>
     <table>
-      <thead><tr><th>Hash</th><th>Effect</th></tr></thead>
+      <thead><tr><th>Route</th><th>Effect</th></tr></thead>
       <tbody>
-        <tr><td><code>#demo</code></td><td>Triggers <code>runDemo()</code> — full live timeline of incoming messages, /ask answers, mentions, reactions.</td></tr>
+        <tr><td><code>/demo_ver1</code></td><td>Triggers <code>runDemoFull()</code> - full end-to-end ScratchNode + NodeBench handoff demo.</td></tr>
+        <tr><td><code>/demo_ver1?demo=legacy</code></td><td>Triggers legacy <code>runDemo()</code> for the short conversation simulator.</td></tr>
+        <tr><td><code>/demo_ver1?demo=0</code></td><td>Loads the demo surface without autoplay for manual console driving.</td></tr>
         <tr><td><code>#wiz=1</code> / <code>2</code> / <code>3</code></td><td>Jump directly to onboarding step N.</td></tr>
         <tr><td><code>#empty</code></td><td>Clears the feed and shows the empty-state CTA.</td></tr>
         <tr><td><code>#viewmode=workspace</code></td><td>(v4) sets view mode without going through landing.</td></tr>
@@ -1792,7 +1794,7 @@ eventAnswers: <span class="fn">defineTable</span>({
 
     <h2 id="closing">What's next <a class="anchor" href="#closing">#</a></h2>
     <p>The two prototypes are deliberately parallel: v4 proves the full feature surface; v5 proves you can ship 10% of it and still earn the room. The docs page you're reading is the canonical reference between them.</p>
-    <p>Open v5 with <code>#demo</code> to see all of it animated end-to-end. Open v4 to see the spec proof at full fidelity.</p>
+    <p>Open v5 through <code>/demo_ver1</code> to see all of it animated end-to-end. Open v4 to see the spec proof at full fidelity.</p>
   </article>
 
   <!-- ─── Right rail: on-page nav ─── -->
