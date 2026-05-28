@@ -1157,6 +1157,15 @@ export const createEvent = mutation({
       });
     }
 
+    // Rate-limit self-serve room creation. Hosts can still manage an existing
+    // room with their host token, but anonymous sessions cannot create an
+    // unbounded number of durable public rooms.
+    await enforceRateLimit(ctx, {
+      key: `create:${args.sessionId}`,
+      limit: 5,
+      windowMs: 10 * 60_000,
+    });
+
     const requestedSlug = normalizeRequestedSlug(args.slug, title);
     const explicitSlug = !!(args.slug && args.slug.trim());
     const existingSlug = await ctx.db
@@ -1306,6 +1315,12 @@ export const updateEvent = mutation({
     const event = await ctx.db.get(eventId);
     if (!event) {
       throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
+    }
+    if (event.status === "ended" && status !== undefined) {
+      throw new ConvexError({
+        code: "event_ended",
+        message: "Ended events cannot be reopened.",
+      });
     }
 
     const patch: Record<string, unknown> = {};
