@@ -36,6 +36,8 @@ host creates event
 - `/ask` on empty non-demo rooms must fail with `no_sources`, not invent a fake answer.
 - Public `/ask` uses public sources only. Private notes stay outside public feed, public wiki, public trace, and public cache.
 - Host tokens use `hk1:` HMAC format. Parse token fields from the right because Convex ids contain colons.
+- Self-serve event creation is rate-limited per anonymous session. This is a guest-first abuse guard, not a full IP/account quota; public launch monitoring should watch for rotated-session room spam until account-backed host quotas ship.
+- Ended events are terminal for status changes. Hosts can still publish/review, but metadata saves must not reopen public chat.
 
 ## Host controls now live
 
@@ -54,6 +56,18 @@ events:updateEvent
 events:endEvent
 ```
 
+The Host Console exposes the same lifecycle surface:
+
+```text
+Create live event
+Save room details
+Save public source
+Delete last saved source
+Publish wiki snapshot
+End session
+Rotate host claim code
+```
+
 ## Launch verification
 
 Minimum local gate:
@@ -66,6 +80,16 @@ npx playwright test tests/e2e/scratchnode-demo-route-gate.spec.ts tests/e2e/scra
 npm run build
 npm run preflight:fast
 ```
+
+Live backend dogfood gate:
+
+```powershell
+$env:PROTO_DOGFOOD_LIVE="1"
+npx playwright test tests/e2e/proto-live-backend-dogfood.spec.ts --project=chromium --workers=1 --reporter=list
+Remove-Item Env:\PROTO_DOGFOOD_LIVE
+```
+
+The `proto-live-backend-dogfood` suite creates temporary QA rooms in the live backend. If `PROTO_DOGFOOD_LIVE` is not set, the suite intentionally skips and must not be treated as a launch green.
 
 Live smoke after deploy:
 

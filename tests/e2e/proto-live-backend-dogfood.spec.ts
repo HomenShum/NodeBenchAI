@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const RUN_LIVE = process.env.PROTO_DOGFOOD_LIVE === "1";
 const SCRATCHNODE_APEX_URL = process.env.SCRATCHNODE_APEX_URL ?? "https://scratchnode.live/";
@@ -9,6 +9,7 @@ const SCRATCHNODE_EVENT_URL =
 const NODEBENCH_V4_URL =
   process.env.NODEBENCH_V4_URL ?? "https://www.nodebenchai.com/proto/home-v4.html";
 const ARTIFACT_DIR = join(process.cwd(), ".tmp", "proto-live-backend-dogfood");
+const HOME_V5_HTML = readFileSync(resolve("public/proto/home-v5.html"), "utf8");
 
 test.skip(!RUN_LIVE, "Set PROTO_DOGFOOD_LIVE=1 to run real production backend dogfood.");
 test.describe.configure({ mode: "serial", timeout: 180_000 });
@@ -35,6 +36,19 @@ async function waitForScratchNodeLive(page: import("@playwright/test").Page) {
       phases: "1,2,3,4,5",
       eventId: expect.any(String),
     });
+}
+
+async function routeLocalScratchNodeHome(
+  target: import("@playwright/test").BrowserContext | import("@playwright/test").Page,
+) {
+  const scratchnodeOrigin = new URL(SCRATCHNODE_APEX_URL).origin;
+  await target.route(`${scratchnodeOrigin}/**`, async (route) => {
+    if (route.request().resourceType() === "document") {
+      await route.fulfill({ status: 200, contentType: "text/html", body: HOME_V5_HTML });
+      return;
+    }
+    await route.fallback();
+  });
 }
 
 async function sendComposer(page: import("@playwright/test").Page, text: string) {
@@ -84,6 +98,8 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
   const qaId = `proto-v5-${Date.now()}`;
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
+  await routeLocalScratchNodeHome(contextA);
+  await routeLocalScratchNodeHome(contextB);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
@@ -376,11 +392,137 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
   }
 });
 
+test("home-v5 dogfoods host-created room lifecycle against the live backend", async ({ browser }) => {
+  mkdirSync(ARTIFACT_DIR, { recursive: true });
+  const qaId = `proto-v5-create-${Date.now()}`;
+  const roomCode = `QA${Date.now().toString(36).toUpperCase().slice(-8)}`;
+  const updatedRoomCode = `${roomCode}B`.slice(0, 24);
+  const hostContext = await browser.newContext();
+  const guestContext = await browser.newContext();
+  await routeLocalScratchNodeHome(hostContext);
+  await routeLocalScratchNodeHome(guestContext);
+  const hostPage = await hostContext.newPage();
+  const guestPage = await guestContext.newPage();
+
+  try {
+    await hostPage.goto(withQa(SCRATCHNODE_EVENT_URL, `${qaId}-host`), {
+      waitUntil: "domcontentloaded",
+      timeout: 45_000,
+    });
+    await waitForScratchNodeLive(hostPage);
+
+    await hostPage.evaluate(() => (window as any).openSheet("host"));
+    await expect(hostPage.locator("#sheet-title")).toContainText("Host console");
+    await hostPage.fill("#sheet-host-title", `QA Dogfood Room ${qaId}`);
+    await hostPage.fill("#sheet-host-room-code", roomCode);
+    await hostPage.fill(
+      "#sheet-host-agenda",
+      "Production dogfood room for ScratchNode live backend lifecycle verification.",
+    );
+    await hostPage.click("#sn-create-event-btn");
+    await expect.poll(() => hostPage.url(), { timeout: 30_000 }).toContain("/e/");
+    await waitForScratchNodeLive(hostPage);
+    await expect
+      .poll(() => hostPage.evaluate(() => localStorage.getItem("sn_host_owner_key_v2")), {
+        timeout: 15_000,
+      })
+      .toContain("hk1:");
+    await expect.poll(() => waitForHostRole(hostPage, 1_000), { timeout: 15_000 }).toBe(true);
+
+    await hostPage.evaluate(() => (window as any).openSheet("host"));
+    await expect(hostPage.locator("#sheet-content")).toContainText("Manage this live room");
+    await hostPage.fill("#sheet-host-update-title", `QA Dogfood Room ${qaId} Updated`);
+    await hostPage.fill("#sheet-host-update-room-code", updatedRoomCode);
+    await hostPage.click("#sn-update-event-btn");
+    await expect(hostPage.locator("#sn-manage-event-output")).toContainText("Saved room", {
+      timeout: 15_000,
+    });
+
+    await hostPage.fill("#sheet-host-source-title", "QA lifecycle source");
+    await hostPage.fill("#sheet-host-source-uri", `doc://${qaId}/source`);
+    await hostPage.fill(
+      "#sheet-host-source-body",
+      "QA lifecycle source: the host-created ScratchNode room can add public source context, answer public questions from that source, and exclude private notes.",
+    );
+    await hostPage.click("#sn-save-source-btn");
+    await expect(hostPage.locator("#sn-source-output")).toContainText("public source", {
+      timeout: 15_000,
+    });
+
+    await guestPage.goto(withQa(`${new URL(SCRATCHNODE_EVENT_URL).origin}/e/${updatedRoomCode.toLowerCase()}`, `${qaId}-guest`), {
+      waitUntil: "domcontentloaded",
+      timeout: 45_000,
+    });
+    await waitForScratchNodeLive(guestPage);
+
+    const chatText = `QA created room chat ${qaId}`;
+    await sendComposer(hostPage, chatText);
+    await expect
+      .poll(
+        () =>
+          guestPage.evaluate((text) =>
+            Array.from(document.querySelectorAll(".row-text")).some((node) =>
+              node.textContent?.includes(text),
+            ),
+          chatText),
+        { timeout: 30_000 },
+      )
+      .toBe(true);
+
+    const question = `what does the QA lifecycle source prove ${qaId}`;
+    await sendComposer(hostPage, `/ask ${question}`);
+    await expect
+      .poll(() => findAnswerForQuestion(hostPage, question), { timeout: 60_000 })
+      .toMatchObject({ id: expect.any(String) });
+    const answer = await findAnswerForQuestion(hostPage, question);
+    expect(answer?.text).toContain("no private notes");
+    expect(answer?.id).toBeTruthy();
+    const answerRecord = await queryAnswer(hostPage, answer!.id!);
+    expect(answerRecord?.sources.some((source: any) => source.title === "QA lifecycle source")).toBe(true);
+
+    await hostPage.click("#sn-delete-source-btn");
+    await expect(hostPage.locator("#sn-source-output")).toContainText("Deleted the last source", {
+      timeout: 15_000,
+    });
+
+    await hostPage.once("dialog", (dialog) => dialog.accept());
+    await hostPage.click("#sn-end-event-btn");
+    await expect(hostPage.locator("#sn-manage-event-output")).toContainText("Session ended", {
+      timeout: 15_000,
+    });
+
+    const endedSend = await hostPage.evaluate(async () => {
+      const live = (window as any)._sn_live;
+      try {
+        await live.client.mutation("events:sendMessage", {
+          eventId: live.eventId,
+          sessionId: live.sessionId,
+          displayName: "QA Host",
+          text: "should not send after end",
+          kind: "chat",
+        });
+        return { blocked: false };
+      } catch (err: any) {
+        return { blocked: true, message: String(err?.message ?? err) };
+      }
+    });
+    expect(endedSend.blocked).toBe(true);
+
+    await hostPage.screenshot({
+      path: join(ARTIFACT_DIR, `${qaId}-host-created-lifecycle.png`),
+      fullPage: true,
+    });
+  } finally {
+    await hostContext.close();
+    await guestContext.close();
+  }
+});
+
 test("home-v5 runDemoFull emits evaluated L1/L2/L3 output envelopes", async ({ page }) => {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
   const qaId = `proto-v5-contract-${Date.now()}`;
-  const parsed = new URL(SCRATCHNODE_EVENT_URL);
-  parsed.searchParams.set("demo", "1");
+  await routeLocalScratchNodeHome(page);
+  const parsed = new URL("/demo_ver1", SCRATCHNODE_APEX_URL);
   parsed.searchParams.set("demoSpeed", "instant");
   parsed.searchParams.set("qa", qaId);
 
@@ -438,6 +580,7 @@ test("home-v5 Phase 4 host-auth surface rejects unauthorized requestHostClaim an
   mkdirSync(ARTIFACT_DIR, { recursive: true });
   const qaId = `proto-v5-phase4-${Date.now()}`;
   const context = await browser.newContext();
+  await routeLocalScratchNodeHome(context);
   const page = await context.newPage();
 
   try {
