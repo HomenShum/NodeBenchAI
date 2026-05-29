@@ -259,7 +259,8 @@ body[data-mode="private"] .c-hint::before { content: "🔒 Private — saves to 
 /* Grouped consecutive messages from the same author (Discord-style compaction) */
 .row--grouped { margin-top: -3px; padding-top: 1px; }
 .row--grouped .row-avatar { visibility: hidden; }
-.row--grouped .row-name { display: none; }
+/* Hide the repeated author visually but keep it in the a11y tree so screen readers still announce who spoke */
+.row--grouped .row-name { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .row--grouped .row-head { margin-bottom: 0; }
 .row--grouped .row-time { position: absolute; left: 0; top: 4px; width: 34px; text-align: center; opacity: 0; font-size: 9px; transition: opacity .12s; }
 .row--grouped:hover .row-time { opacity: 1; }
@@ -938,6 +939,11 @@ body[data-new-user="true"] .h-menu::after {
   .row-time { font-size: 9px; }
   .ans { padding: 10px 12px; margin-left: 40px; margin-right: 0; max-width: calc(100% - 44px); }
   .ans-bot { left: -40px; width: 30px; height: 30px; font-size: 14px; }
+  /* Compact the public/private badge to its colored dot on phones — frees composer input width.
+     The helpline below the composer still shows the mode word; aria-live still announces changes. */
+  .c-mode { padding: 0; width: 26px; min-width: 26px; height: 26px; justify-content: center; gap: 0; }
+  .c-mode #c-mode-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  .c-mode .dot { width: 7px; height: 7px; }
   .feed-divider { font-size: 9px; }
 }
 
@@ -4277,6 +4283,9 @@ document.addEventListener('keydown', function(e) {
   if (typeof openMember === 'function' && name) openMember(name);
 });
 
+// Curated avatar palette — every color is legible with a white initial AND as name text on the
+// dark surface (verified contrast); no orange/terracotta so the ScratchNode bot avatar stays unique.
+var AVATAR_PALETTE = ['#5b73c9','#8d62c4','#b566a0','#b5566e','#4a8fb0','#3f9488','#5a9450','#b07d2e'];
 // Deterministic avatar color from an author name (Discord-style); honors explicit name colors/roles.
 function avatarColorFor(nameEl, nm) {
   var c = (nameEl && nameEl.style && nameEl.style.color) || '';
@@ -4285,7 +4294,7 @@ function avatarColorFor(nameEl, nm) {
   if (role === 'mod') return 'var(--green)';
   if (role === 'you') return 'var(--accent)';
   var h = 0; for (var i = 0; i < nm.length; i++) h = (h * 31 + nm.charCodeAt(i)) >>> 0;
-  return 'hsl(' + (h % 360) + ', 50%, 52%)';
+  return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
 }
 // Give every ScratchNode answer card a bot avatar (the spark glyph) in the gutter, matching the chat avatars.
 function decorateAns(ans) {
@@ -5073,21 +5082,26 @@ function _updateComposerPlaceholder() {
   if (!bodyEl) return;
   var eventMode = bodyEl.getAttribute('data-event-mode') || 'event';
   var bodyMode = bodyEl.getAttribute('data-mode') || 'public';
+  // Narrow screens get a concise placeholder — the long copy truncates to "Chat wi…" once the
+  // public-room pill + mic/lock/send buttons claim the composer width.
+  var narrow = (typeof window !== 'undefined' && window.matchMedia) ? window.matchMedia('(max-width: 540px)').matches : false;
   var placeholder;
   if (eventMode === 'sensitive') {
     placeholder = 'Manual capture only — no transcription, no agent calls';
   } else if (eventMode === 'work' && bodyMode === 'private') {
-    placeholder = 'Private meeting note — saves to your NodeBench';
+    placeholder = narrow ? 'Private note → your NodeBench' : 'Private meeting note — saves to your NodeBench';
   } else if (eventMode === 'work' && bodyMode === 'public') {
     placeholder = 'Visible to meeting room';
   } else if (eventMode === 'event' && bodyMode === 'private') {
-    placeholder = 'Save a private note (only you can see this)';
+    placeholder = narrow ? 'Private note (only you can see this)' : 'Save a private note (only you can see this)';
   } else {
     // event + public (default)
-    placeholder = 'Chat with the room. /ask for sourced answers. 🔒 for private.';
+    placeholder = narrow ? 'Message or /ask…' : 'Chat with the room. /ask for sourced answers. 🔒 for private.';
   }
   ci.setAttribute('placeholder', placeholder);
 }
+// Re-run on breakpoint change so the placeholder swaps between full/concise copy at 540px.
+if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', _updateComposerPlaceholder);
 
 // Observe data-mode changes so placeholder updates on lock toggle
 (function() {
