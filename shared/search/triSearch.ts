@@ -51,7 +51,9 @@ export interface RerankResult {
 
 export const RRF_K = 60;
 export const MAX_RERANK_CANDIDATES = 12;
-const RERANK_MODEL = process.env.TRI_SEARCH_RERANK_MODEL || "gemini-2.5-flash-lite-preview";
+// NOTE: must be a real model id the key can reach (verified via GET /v1beta/models).
+// "gemini-2.5-flash-lite-preview" 404s — the correct stable id is "gemini-2.5-flash-lite".
+const RERANK_MODEL = process.env.TRI_SEARCH_RERANK_MODEL || "gemini-2.5-flash-lite";
 const RERANK_TIMEOUT_MS = Number(process.env.TRI_SEARCH_RERANK_TIMEOUT_MS) || 6000;
 const MAX_TITLE = 120;
 const MAX_SNIPPET = 280;
