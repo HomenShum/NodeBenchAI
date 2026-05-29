@@ -931,9 +931,18 @@ body[data-new-user="true"] .h-menu::after {
 /* Mobile tweaks */
 @media (max-width: 540px) {
   .h { padding: calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left)); }
-  .m { padding: 16px calc(14px + var(--safe-right)) calc(80px + var(--safe-bot)) calc(14px + var(--safe-left)); }
+  .m { padding: 16px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
   .hero h1 { font-size: 22px; }
-  .c { top: 60px; }
+  /* Mobile: pin the composer to the bottom (Slack/Discord/iMessage convention — thumb reach,
+     newest message sits right above where you type). Desktop keeps the sticky top command bar. */
+  .c {
+    position: fixed; top: auto; bottom: 0; left: 0; right: 0; z-index: 45;
+    margin: 0;
+    padding: 8px calc(14px + var(--safe-right)) calc(8px + var(--safe-bot)) calc(14px + var(--safe-left));
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+    box-shadow: 0 -8px 24px -12px rgba(0,0,0,.55);
+  }
   .row { grid-template-columns: 32px 1fr; column-gap: 8px; padding: 5px 4px 6px; }
   .row-avatar { width: 32px; height: 32px; font-size: 12px; }
   .row-time { font-size: 9px; }
@@ -1892,8 +1901,9 @@ function _landingJoin(ev) {
     <button class="id-set" type="button" onclick="setIdentity()" id="id-set">Set name</button>
   </div>
 
-  <!-- COMPOSER (the only primary action visible above the fold) -->
-  <div class="c" style="position:sticky;top:64px;z-index:40">
+  <!-- COMPOSER — desktop: sticky command bar (top); mobile: pinned to the bottom (see .c rules).
+       Position lives in the stylesheet (not inline) so the mobile media query can override it. -->
+  <div class="c">
     <!-- Reply context bar (visible when replying to a message) -->
     <div class="reply-context" id="reply-ctx" data-open="false">
       <span>Replying to <span class="name" id="reply-ctx-name"></span></span>
