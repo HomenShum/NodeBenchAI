@@ -30,6 +30,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { enforceRateLimit } from "./scratchnodeRateLimit";
+import { rerankWithGemini, type TriCandidate } from "../shared/search/triSearch";
 
 class ConvexError<T extends Record<string, unknown>> extends Error {
   data: T;
@@ -1780,7 +1781,7 @@ export const askAgent = action({
     }
 
     const selected = ranked.filter((row: any) => row.score > 0).slice(0, MAX_AGENT_CONTEXT_SOURCES);
-    const topSources = (selected.length ? selected : ranked.slice(0, 3)).map((row: any) => row.source);
+    let topSources = (selected.length ? selected : ranked.slice(0, 3)).map((row: any) => row.source);
     trace.push({
       step: "bounded_source_retrieval",
       status: topSources.length > 0 ? "ok" : "error",
@@ -1791,6 +1792,37 @@ export const askAgent = action({
       throw new ConvexError({
         code: "no_sources",
         message: "No event sources are available for sourced /ask yet.",
+      });
+    }
+
+    // Tri-search third leg: rerank the lexically-scored sources by LLM relevance
+    // (Gemini Flash-Lite cross-encoder, shared/search/triSearch) BEFORE synthesis,
+    // so the answer is grounded in — and cites — the most relevant sources first.
+    // Honest fallback: on no-key / timeout / failure, topSources keeps its lexical
+    // order (rerankWithGemini returns the input order with status skipped|fallback).
+    {
+      const candidates: TriCandidate[] = topSources.map((s: any) => ({
+        id: String(s._id),
+        title: s.title,
+        snippet: s.excerpt || s.body || "",
+        url: s.uri,
+        source: "event",
+      }));
+      const rr = await rerankWithGemini(question, candidates, { topN: candidates.length });
+      // Reorder topSources to the reranked id order; append any not reranked (completeness).
+      const byId = new Map<string, any>(topSources.map((s: any) => [String(s._id), s]));
+      const reordered: any[] = [];
+      for (const c of rr.ranked) {
+        const s = byId.get(c.id);
+        if (s) { reordered.push(s); byId.delete(c.id); }
+      }
+      for (const s of byId.values()) reordered.push(s);
+      topSources = reordered;
+      trace.push({
+        step: "rerank_sources",
+        status: rr.rerankStatus === "ok" ? "ok" : "miss",
+        detail: rr.detail,
+        durationMs: rr.durationMs,
       });
     }
 
