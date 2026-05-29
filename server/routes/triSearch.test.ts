@@ -29,9 +29,9 @@ describe("rrfFuse — rank-based fusion across heterogeneous legs", () => {
     const fused = rrfFuse(legs);
     expect(fused[0].id).toBe("anthropic-funding");
     expect(fused[0].fusedRank).toBe(0);
-    // dedup: 6 distinct ids across the 3 legs
+    // dedup: 5 distinct ids across the 3 legs (funding, blog, noise-a, noise-b, team)
     expect(new Set(fused.map((c) => c.id)).size).toBe(fused.length);
-    expect(fused.length).toBe(6);
+    expect(fused.length).toBe(5);
     // fused score is monotonic non-increasing
     for (let i = 1; i < fused.length; i++) expect(fused[i - 1].fusedScore).toBeGreaterThanOrEqual(fused[i].fusedScore);
   });
@@ -55,14 +55,14 @@ describe("rerankWithGemini — precision leg with honest fallback", () => {
   const fused = rrfFuse([leg("linkup", ["s0", "s1", "s2", "s3"])]);
 
   it("happy path: reorders candidates per the model's index array", async () => {
-    const r = await rerankWithGemini("entity funding", fused, { topN: 3, fetchImpl: mockGeminiFetch("[2,0,1]") });
+    const r = await rerankWithGemini("entity funding", fused, { topN: 3, apiKey: "test", fetchImpl: mockGeminiFetch("[2,0,1]") });
     expect(r.rerankStatus).toBe("ok");
     expect(r.ranked.map((c) => c.id)).toEqual(["s2", "s0", "s1"]);
   });
 
   it("adversarial: out-of-range + duplicate indices are sanitized, completeness preserved", async () => {
     // Model returns garbage: dup (2), out-of-range (99, -1), valid (0). topN large enough to see completeness.
-    const r = await rerankWithGemini("q", fused, { topN: 10, fetchImpl: mockGeminiFetch("[2, 2, 99, -1, 0]") });
+    const r = await rerankWithGemini("q", fused, { topN: 10, apiKey: "test", fetchImpl: mockGeminiFetch("[2, 2, 99, -1, 0]") });
     expect(r.rerankStatus).toBe("ok");
     // valid picks first (2,0), then omitted (1,3) appended in fused order
     expect(r.ranked.map((c) => c.id)).toEqual(["s2", "s0", "s1", "s3"]);
