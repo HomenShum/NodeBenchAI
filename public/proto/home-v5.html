@@ -231,19 +231,38 @@ body[data-mode="private"] .c-hint::before { content: "🔒 Private — saves to 
 
 /* Chat row (minimal, dense) */
 .row {
-  display: grid; grid-template-columns: 56px 1fr;
-  gap: 8px; padding: 8px 4px;
+  display: grid; grid-template-columns: 34px 1fr;
+  column-gap: 10px; padding: 5px 8px 6px;
   border-radius: var(--r-sm);
   transition: background .12s;
   position: relative;
+  align-items: start;
 }
-.row:hover { background: rgba(255,255,255,.015); }
-.row-time { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); padding-top: 3px; }
-.row-body { min-width: 0; }
-.row-name { font-size: 12px; font-weight: 600; color: var(--ink); }
+.row:hover { background: rgba(255,255,255,.025); }
+/* Slack/Discord-style avatar — colored circle with the author's initial (injected by decorateRow) */
+.row-avatar {
+  grid-column: 1; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--ui); font-size: 13px; font-weight: 700; color: #fff;
+  line-height: 1; user-select: none; margin-top: 1px; flex: none;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.07);
+  text-shadow: 0 1px 1px rgba(0,0,0,.3);
+}
+.row-body { grid-column: 2; min-width: 0; }
+.row-reactions { grid-column: 2; }
+.row-head { display: flex; align-items: baseline; gap: 7px; margin-bottom: 1px; line-height: 1.2; }
+.row-time { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); }
+.row-name { font-size: 13px; font-weight: 600; color: var(--ink); }
 .row-name[data-role="you"] { color: var(--accent); }
 .row-name[data-role="mod"] { color: var(--green); }
 .row-text { font-size: 14px; color: var(--ink-muted); line-height: 1.5; word-wrap: break-word; }
+/* Grouped consecutive messages from the same author (Discord-style compaction) */
+.row--grouped { margin-top: -3px; padding-top: 1px; }
+.row--grouped .row-avatar { visibility: hidden; }
+.row--grouped .row-name { display: none; }
+.row--grouped .row-head { margin-bottom: 0; }
+.row--grouped .row-time { position: absolute; left: 0; top: 4px; width: 34px; text-align: center; opacity: 0; font-size: 9px; transition: opacity .12s; }
+.row--grouped:hover .row-time { opacity: 1; }
 
 /* — Row hover actions (Reply / React) — sit at the bottom-right of the text — */
 .row-actions {
@@ -393,9 +412,9 @@ body[data-mode="private"] .private-notes-inline[data-count]:not([data-count="0"]
    smaller body type, with a visual connector tying it to the message above) */
 .ans {
   position: relative;
-  margin: 2px 0 12px 56px;     /* indent matches the 56px time column above */
+  margin: 2px 0 12px 44px;     /* indent aligns the card body with the avatar column */
   padding: 10px 14px 10px 12px;
-  max-width: calc(100% - 60px); /* narrower than parent row */
+  max-width: calc(100% - 48px); /* narrower than parent row */
   background: rgba(217,119,87,.035);
   border: 1px solid rgba(217,119,87,.14);
   border-left: 2px solid var(--accent);
@@ -416,6 +435,17 @@ body[data-mode="private"] .private-notes-inline[data-count]:not([data-count="0"]
 }
 .ans[data-private="true"] { background: rgba(167,139,250,.035); border-color: rgba(167,139,250,.18); border-left-color: var(--purple); }
 .ans[data-private="true"]::before, .ans[data-private="true"]::after { background: var(--purple); }
+/* Bot avatar (✦) replaces the old tree connector as the conversation anchor (injected by decorateAns) */
+.ans::before, .ans::after { display: none; }
+.ans-bot {
+  position: absolute; left: -44px; top: 6px;
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--accent), #b1481f);
+  color: #fff; font-size: 16px; font-weight: 700; line-height: 1;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.12), 0 2px 8px rgba(217,119,87,.3);
+}
+.ans[data-private="true"] .ans-bot { background: linear-gradient(135deg, var(--purple), #7c3aed); box-shadow: inset 0 0 0 2px rgba(255,255,255,.12), 0 2px 8px rgba(167,139,250,.3); }
 
 /* Head: smaller, lighter — clearly a reply not a peer */
 .ans-head { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--ink-faint); margin-bottom: 6px; line-height: 1.4; flex-wrap: wrap; font-family: var(--mono); letter-spacing: .02em; }
@@ -903,9 +933,11 @@ body[data-new-user="true"] .h-menu::after {
   .m { padding: 16px calc(14px + var(--safe-right)) calc(80px + var(--safe-bot)) calc(14px + var(--safe-left)); }
   .hero h1 { font-size: 22px; }
   .c { top: 60px; }
-  .row { grid-template-columns: 44px 1fr; gap: 6px; }
+  .row { grid-template-columns: 32px 1fr; column-gap: 8px; padding: 5px 4px 6px; }
+  .row-avatar { width: 32px; height: 32px; font-size: 12px; }
   .row-time { font-size: 9px; }
-  .ans { padding: 12px 14px; margin-left: -4px; margin-right: -4px; }
+  .ans { padding: 10px 12px; margin-left: 40px; margin-right: 0; max-width: calc(100% - 44px); }
+  .ans-bot { left: -40px; width: 30px; height: 30px; font-size: 14px; }
   .feed-divider { font-size: 9px; }
 }
 
@@ -4245,11 +4277,57 @@ document.addEventListener('keydown', function(e) {
   if (typeof openMember === 'function' && name) openMember(name);
 });
 
-// Apply mention rendering + add hover actions to all rows in feed
+// Deterministic avatar color from an author name (Discord-style); honors explicit name colors/roles.
+function avatarColorFor(nameEl, nm) {
+  var c = (nameEl && nameEl.style && nameEl.style.color) || '';
+  if (c && c.indexOf('--ink') === -1) return c;
+  var role = nameEl && nameEl.getAttribute('data-role');
+  if (role === 'mod') return 'var(--green)';
+  if (role === 'you') return 'var(--accent)';
+  var h = 0; for (var i = 0; i < nm.length; i++) h = (h * 31 + nm.charCodeAt(i)) >>> 0;
+  return 'hsl(' + (h % 360) + ', 50%, 52%)';
+}
+// Give every ScratchNode answer card a bot avatar (the spark glyph) in the gutter, matching the chat avatars.
+function decorateAns(ans) {
+  if (!ans || ans.querySelector('.ans-bot')) return;
+  var b = document.createElement('div');
+  b.className = 'ans-bot'; b.setAttribute('aria-hidden', 'true');
+  b.textContent = '✦';
+  ans.insertBefore(b, ans.firstChild);
+}
+
+// Apply mention rendering + avatar/header + hover actions to all rows in feed
 function decorateRow(row, opts) {
   opts = opts || {};
   var mid = opts.mid || row.getAttribute('data-mid') || 'm' + Date.now() + Math.floor(Math.random()*999);
   row.setAttribute('data-mid', mid);
+  // Slack/Discord-style avatar + name/time header (idempotent; skips the transient typing indicator)
+  if (!row.classList.contains('is-typing') && !row.querySelector('.row-avatar')) {
+    var nameEl = row.querySelector('.row-name');
+    var bodyEl = row.querySelector('.row-body');
+    if (nameEl && bodyEl) {
+      var nm = (nameEl.textContent || '').trim();
+      var col = avatarColorFor(nameEl, nm);
+      var av = document.createElement('div');
+      av.className = 'row-avatar'; av.style.background = col;
+      av.textContent = (nm.charAt(0) || '?').toUpperCase();
+      av.setAttribute('aria-hidden', 'true');
+      row.insertBefore(av, row.firstChild);
+      var head = document.createElement('div'); head.className = 'row-head';
+      head.appendChild(nameEl);
+      var timeEl = row.querySelector('.row-time');
+      if (timeEl) head.appendChild(timeEl);
+      bodyEl.insertBefore(head, bodyEl.firstChild);
+      var styleAttr = nameEl.getAttribute('style') || '';
+      if (styleAttr.indexOf('color') === -1 && !nameEl.getAttribute('data-role')) nameEl.style.color = col;
+      // Group consecutive messages from the same named author (skip generic "Anonymous" to avoid merging distinct guests)
+      var prev = row.previousElementSibling;
+      if (prev && prev.classList && prev.classList.contains('row') && nm && !/^anon/i.test(nm)) {
+        var prevName = prev.querySelector('.row-name');
+        if (prevName && (prevName.textContent || '').trim() === nm) row.classList.add('row--grouped');
+      }
+    }
+  }
   // Add hover-action bar
   if (!row.querySelector('.row-actions')) {
     var actions = document.createElement('div');
@@ -4279,12 +4357,18 @@ function decorateRow(row, opts) {
       m.addedNodes.forEach(function(n) {
         if (n.nodeType !== 1) return;
         if (n.classList && n.classList.contains('row')) decorateRow(n);
+        else if (n.classList && n.classList.contains('ans')) decorateAns(n);
+        if (n.querySelectorAll) {
+          n.querySelectorAll('.row').forEach(function(r) { decorateRow(r); });
+          n.querySelectorAll('.ans').forEach(function(a) { decorateAns(a); });
+        }
       });
     });
   });
   obs.observe(feed, { childList: true });
-  // Decorate any pre-existing rows
+  // Decorate any pre-existing rows + answer cards
   feed.querySelectorAll('.row').forEach(function(r) { decorateRow(r); });
+  feed.querySelectorAll('.ans').forEach(function(a) { decorateAns(a); });
 })();
 
 // — Reply to a specific message —
