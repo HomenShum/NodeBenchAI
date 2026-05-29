@@ -30,7 +30,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { enforceRateLimit } from "./scratchnodeRateLimit";
-import { rerankWithGemini, type TriCandidate } from "../shared/search/triSearch";
+import { rerankWithGemini, condenseQuery, type TriCandidate } from "../shared/search/triSearch";
 
 class ConvexError<T extends Record<string, unknown>> extends Error {
   data: T;
@@ -1015,6 +1015,18 @@ export const _prepareAskAgentContext = internalQuery({
       .query("liveEventSources")
       .withIndex("by_event", (q) => q.eq("eventId", args.eventId))
       .take(100);
+    // Asker's OWN recent turns for multi-turn query condensation. PRIVACY: filtered to
+    // this sessionId only — never other attendees' messages. Bounded recent scan.
+    const recentMsgs = await ctx.db
+      .query("liveEventMessages")
+      .withIndex("by_event_time", (q) => q.eq("eventId", args.eventId))
+      .order("desc")
+      .take(60);
+    const priorTurns = recentMsgs
+      .filter((m: any) => m.sessionId === args.sessionId && (m.kind === "chat" || m.kind === "ask") && (m.text || "").trim() && m.text.trim() !== question)
+      .slice(0, 5)
+      .reverse()
+      .map((m: any) => m.text.trim().slice(0, 300));
     return {
       event: {
         _id: event._id,
@@ -1025,6 +1037,7 @@ export const _prepareAskAgentContext = internalQuery({
       normalizedQuestion,
       cached,
       sources,
+      priorTurns,
     };
   },
 });
@@ -1737,9 +1750,15 @@ export const askAgent = action({
 
     let sources: any[] = prepared.sources || [];
 
+    // Multi-turn (rewrite-then-retrieve, the prod standard): condense the asker's OWN
+    // prior turns + this follow-up into a standalone retrieval query so "those"/"that"
+    // resolve. Raw `question` is kept verbatim for the answer (condense-plus-context).
+    const condensed = await condenseQuery(question, prepared.priorTurns || []);
+    const retrievalQuery = condensed.query;
+
     const retrievalStarted = Date.now();
     let ranked = sources
-      .map((source: any) => ({ source, score: scoreSource(question, source) }))
+      .map((source: any) => ({ source, score: scoreSource(retrievalQuery, source) }))
       .sort((a: any, b: any) => b.score - a.score || b.source.uploadedAt - a.source.uploadedAt);
     const trace: Array<{ step: string; status: "ok" | "miss" | "error"; detail?: string; durationMs: number }> = [
       {
@@ -1749,11 +1768,19 @@ export const askAgent = action({
         durationMs: retrievalStarted - startedAt,
       },
     ];
+    trace.push({
+      step: "condense_query",
+      status: condensed.status === "rewritten" ? "ok" : "miss",
+      detail: condensed.status === "rewritten"
+        ? `Rewrote follow-up from ${(prepared.priorTurns || []).length} prior turn(s) → "${retrievalQuery.slice(0, 80)}"`
+        : condensed.detail,
+      durationMs: condensed.durationMs,
+    });
 
     let externalSearches = 0;
-    if (shouldProbeLiveSearch(question, ranked)) {
+    if (shouldProbeLiveSearch(retrievalQuery, ranked)) {
       const externalStarted = Date.now();
-      const linkup = await searchLinkup(question);
+      const linkup = await searchLinkup(retrievalQuery);
       trace.push({
         step: "external_search",
         status: linkup.status === "ok" ? "ok" : linkup.status === "skipped" ? "miss" : "error",
@@ -1768,7 +1795,7 @@ export const askAgent = action({
         });
         sources = [...sources, ...rows];
         ranked = sources
-          .map((source: any) => ({ source, score: scoreSource(question, source) }))
+          .map((source: any) => ({ source, score: scoreSource(retrievalQuery, source) }))
           .sort((a: any, b: any) => b.score - a.score || b.source.uploadedAt - a.source.uploadedAt);
       }
     } else {
@@ -1808,7 +1835,7 @@ export const askAgent = action({
         url: s.uri,
         source: "event",
       }));
-      const rr = await rerankWithGemini(question, candidates, { topN: candidates.length });
+      const rr = await rerankWithGemini(retrievalQuery, candidates, { topN: candidates.length });
       // Reorder topSources to the reranked id order; append any not reranked (completeness).
       const byId = new Map<string, any>(topSources.map((s: any) => [String(s._id), s]));
       const reordered: any[] = [];
