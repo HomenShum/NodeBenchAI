@@ -201,3 +201,84 @@ export async function triSearch(
   const r = await rerankWithGemini(query, fused, opts);
   return { ranked: r.ranked, fusedCount: fused.length, rerankStatus: r.rerankStatus, detail: r.detail, durationMs: r.durationMs };
 }
+
+export type CondenseStatus = "rewritten" | "passthrough" | "fallback";
+
+/**
+ * Multi-turn query condensation — the production "rewrite-then-retrieve" standard
+ * (LangChain history-aware retriever, LlamaIndex CondensePlusContext, Glean
+ * decontextualize, Perplexity/ChatGPT reformulate). Turns the asker's recent OWN
+ * turns + the current follow-up into ONE standalone retrieval/rerank query that
+ * resolves pronouns/ellipsis ("those", "that", "their", "it").
+ *
+ * Why rewrite (not raw-history-append): cross-encoder rerankers score one query×doc
+ * blob — dumping history dilutes the signal + triggers lost-in-the-middle. Rewrite
+ * keeps the query sharp. Raw follow-up is kept by the CALLER for answer synthesis.
+ *
+ * PRIVACY: callers MUST pass only the asker's own turns — never other attendees'.
+ * HONEST fallback: no history / no key / non-2xx / timeout / empty → returns the raw
+ * question unchanged (status passthrough|fallback) so retrieval never breaks.
+ * thinkingBudget:0 so the thinking model returns the bare query, not a preamble.
+ */
+export async function condenseQuery(
+  question: string,
+  priorTurns: string[],
+  opts: { maxTurns?: number; timeoutMs?: number; apiKey?: string; fetchImpl?: typeof fetch } = {},
+): Promise<{ query: string; status: CondenseStatus; detail: string; durationMs: number }> {
+  const startedAt = Date.now();
+  const recent = (priorTurns || []).filter((t) => t && t.trim()).slice(-(opts.maxTurns ?? 5));
+  if (recent.length === 0) {
+    return { query: question, status: "passthrough", detail: "no prior turns; raw question used", durationMs: 0 };
+  }
+  const apiKey = opts.apiKey ?? process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return { query: question, status: "fallback", detail: "GEMINI_API_KEY not set; raw question used", durationMs: 0 };
+  }
+  const doFetch = opts.fetchImpl ?? fetch;
+  const history = recent.map((t, i) => `${i + 1}. ${t.slice(0, 300)}`).join("\n");
+  const prompt = [
+    "Rewrite the FOLLOW-UP into a single standalone search query.",
+    "Resolve pronouns/ellipsis ('those', 'that', 'their', 'it') using the conversation so far.",
+    "Stay faithful — do NOT answer it, do NOT invent facts, do NOT add commentary.",
+    "Return ONLY the rewritten query text — no quotes, no preamble.",
+    "",
+    "Conversation so far (same user):",
+    history,
+    "",
+    `Follow-up: ${question}`,
+  ].join("\n");
+  try {
+    const resp = await doFetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${RERANK_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 128, thinkingConfig: { thinkingBudget: 0 } },
+        }),
+        signal: AbortSignal.timeout(opts.timeoutMs ?? RERANK_TIMEOUT_MS),
+      },
+    );
+    if (!resp.ok) {
+      return { query: question, status: "fallback", detail: `condense HTTP ${resp.status}; raw question used`, durationMs: Date.now() - startedAt };
+    }
+    const data: any = await resp.json();
+    const text: string = (data?.candidates?.[0]?.content?.parts ?? []).map((p: any) => p?.text ?? "").join("").trim();
+    const cleaned = text.replace(/^["'`]+|["'`]+$/g, "").trim().slice(0, 400);
+    if (!cleaned) {
+      return { query: question, status: "fallback", detail: "empty condense response; raw question used", durationMs: Date.now() - startedAt };
+    }
+    return { query: cleaned, status: "rewritten", detail: cleaned, durationMs: Date.now() - startedAt };
+  } catch (err: any) {
+    const aborted = err?.name === "TimeoutError" || err?.name === "AbortError";
+    return {
+      query: question,
+      status: "fallback",
+      detail: aborted
+        ? `condense timed out after ${opts.timeoutMs ?? RERANK_TIMEOUT_MS}ms; raw question used`
+        : `condense failed: ${err?.message || String(err)}; raw question used`,
+      durationMs: Date.now() - startedAt,
+    };
+  }
+}

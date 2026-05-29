@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rrfFuse, rerankWithGemini, triSearch, RRF_K, type TriCandidate } from "./triSearch";
+import { rrfFuse, rerankWithGemini, triSearch, condenseQuery, RRF_K, type TriCandidate } from "./triSearch";
 
 // Scenario-based tests (.claude/rules/scenario_testing.md).
 // Persona: a founder/analyst running entity due-diligence; the grounding harness
@@ -117,5 +117,56 @@ describe("triSearch — fuse + rerank end to end", () => {
     expect(out.rerankStatus).toBe("ok");
     expect(out.ranked.length).toBe(2);
     expect(typeof out.durationMs).toBe("number");
+  });
+});
+
+// Multi-turn condense (rewrite-then-retrieve). Persona: an event attendee asking a
+// running /ask thread with context-dependent follow-ups ("how do I rotate those?").
+describe("condenseQuery — multi-turn query rewrite", () => {
+  it("passthrough: no prior turns → raw question unchanged (no LLM call)", async () => {
+    const r = await condenseQuery("how do I rotate those?", [], { apiKey: "test" });
+    expect(r.status).toBe("passthrough");
+    expect(r.query).toBe("how do I rotate those?");
+  });
+
+  it("happy path: rewrites the follow-up into a standalone query using history", async () => {
+    const r = await condenseQuery("how do I rotate those?", ["What did the panel say about MCP enterprise auth?"], {
+      apiKey: "test",
+      fetchImpl: mockGeminiFetch("rotate MCP scoped credentials"),
+    });
+    expect(r.status).toBe("rewritten");
+    expect(r.query).toBe("rotate MCP scoped credentials");
+  });
+
+  it("sad path: missing API key → fallback to raw question", async () => {
+    const saved = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    try {
+      const r = await condenseQuery("compare that to static keys", ["scoped creds vs static keys"]);
+      expect(r.status).toBe("fallback");
+      expect(r.query).toBe("compare that to static keys");
+    } finally {
+      if (saved !== undefined) process.env.GEMINI_API_KEY = saved;
+    }
+  });
+
+  it("degraded: non-2xx → fallback to raw question, never throws", async () => {
+    const bad = (async () => ({ ok: false, status: 503, json: async () => ({}) }) as unknown as Response) as unknown as typeof fetch;
+    const r = await condenseQuery("and the cost?", ["audit tool calls"], { apiKey: "test", fetchImpl: bad });
+    expect(r.status).toBe("fallback");
+    expect(r.query).toBe("and the cost?");
+  });
+
+  it("bound: only the last maxTurns of history reach the prompt", async () => {
+    let promptText = "";
+    const spy = (async (_u: string, init: any) => {
+      promptText = JSON.parse(init.body).contents[0].parts[0].text;
+      return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: "rewritten" }] } }] }) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const turns = Array.from({ length: 12 }, (_, i) => `turn ${i}`);
+    const r = await condenseQuery("now what?", turns, { apiKey: "test", maxTurns: 3, fetchImpl: spy });
+    expect(r.status).toBe("rewritten");
+    expect(promptText).toContain("turn 11"); // last turn included
+    expect(promptText).not.toContain("turn 0"); // beyond the last 3 → excluded
   });
 });
