@@ -86,6 +86,20 @@ async function main() {
       required: true,
     },
     {
+      id: "server",
+      label: "server-vitest",
+      command: "npm run test:run:server",
+      timeoutMs: 300_000,
+      required: true,
+    },
+    {
+      id: "shared",
+      label: "shared-vitest",
+      command: "npm run test:run:shared",
+      timeoutMs: 300_000,
+      required: true,
+    },
+    {
       id: "mcp-local",
       label: "mcp-local-vitest",
       command: "node scripts/testing/runVitestSegment.mjs --cwd packages/mcp-local --target src --mode filter",

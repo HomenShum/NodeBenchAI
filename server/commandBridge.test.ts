@@ -98,6 +98,12 @@ function seedApiKey(userId: string): { rawKey: string; record: ApiKeyRecord } {
 }
 
 /**
+ * Default founder userId. The single-tenant lifecycle suites register every
+ * agent under this id, so all user-scoped queries/dispatch must pass it.
+ */
+const DEFAULT_USER = "user_founder_jane";
+
+/**
  * Register a mock agent directly on the bridge by simulating the
  * WebSocket message flow (bypasses HTTP upgrade, tests the protocol logic).
  *
@@ -106,7 +112,7 @@ function seedApiKey(userId: string): { rawKey: string; record: ApiKeyRecord } {
 function registerAgent(
   bridge: CommandBridge,
   registration: AgentRegistration,
-  userId = "user_founder_jane",
+  userId = DEFAULT_USER,
 ): { agentId: string; ws: MockWebSocket } {
   const ws = new MockWebSocket();
 
@@ -229,11 +235,11 @@ describe("CommandBridge", () => {
       });
 
       // Agent should be in connected list
-      expect(bridge.getConnectedAgents()).toContain(agentId);
-      expect(bridge.isAgentConnected(agentId)).toBe(true);
+      expect(bridge.getConnectedAgents(DEFAULT_USER)).toContain(agentId);
+      expect(bridge.isAgentConnected(DEFAULT_USER, agentId)).toBe(true);
 
       // Registration metadata preserved
-      const reg = bridge.getAgentRegistration(agentId);
+      const reg = bridge.getAgentRegistration(DEFAULT_USER, agentId);
       expect(reg).toMatchObject({
         agentName: "Claude Code Primary",
         agentType: "claude_code",
@@ -257,7 +263,7 @@ describe("CommandBridge", () => {
         },
       });
 
-      const result = bridge.dispatchTask(agentId, packet);
+      const result = bridge.dispatchTask(DEFAULT_USER, agentId, packet);
       expect(result.dispatched).toBe(true);
       expect(bridge.getPendingTaskCount()).toBe(1);
 
@@ -347,7 +353,7 @@ describe("CommandBridge", () => {
       expect(ws.closed!.code).toBe(4010);
 
       // Should NOT be in connected agents
-      expect(bridge.getConnectedAgents()).not.toContain(agentId);
+      expect(bridge.getConnectedAgents("user_jane")).not.toContain(agentId);
     });
 
     it("emits agent:connected event with registration on successful register", () => {
@@ -396,12 +402,12 @@ describe("CommandBridge", () => {
 
     it("finds agents by capability and dispatches to the right one", () => {
       // Find who can do web research
-      const researchAgents = bridge.findAgentsByCapability("web_research");
+      const researchAgents = bridge.findAgentsByCapability(DEFAULT_USER, "web_research");
       expect(researchAgents).toContain(openclawAgent.agentId);
       expect(researchAgents).not.toContain(claudeAgent.agentId);
 
       // Find who can do code analysis
-      const codeAgents = bridge.findAgentsByCapability("code_analysis");
+      const codeAgents = bridge.findAgentsByCapability(DEFAULT_USER, "code_analysis");
       expect(codeAgents).toContain(claudeAgent.agentId);
       expect(codeAgents).not.toContain(openclawAgent.agentId);
 
@@ -418,7 +424,7 @@ describe("CommandBridge", () => {
         },
       });
 
-      const result = bridge.dispatchTask(openclawAgent.agentId, researchTask);
+      const result = bridge.dispatchTask(DEFAULT_USER, openclawAgent.agentId, researchTask);
       expect(result.dispatched).toBe(true);
 
       // Verify it went to OpenClaw, not Claude Code
@@ -442,7 +448,7 @@ describe("CommandBridge", () => {
         timeout: 120_000,
       });
 
-      bridge.dispatchTask(claudeAgent.agentId, packet);
+      bridge.dispatchTask(DEFAULT_USER, claudeAgent.agentId, packet);
 
       const progressHandler = vi.fn();
       bridge.on("task:progress", progressHandler);
@@ -485,7 +491,7 @@ describe("CommandBridge", () => {
         requestedCapabilities: ["file_operations"],
       });
 
-      bridge.dispatchTask(claudeAgent.agentId, packet);
+      bridge.dispatchTask(DEFAULT_USER, claudeAgent.agentId, packet);
 
       const approvalHandler = vi.fn();
       bridge.on("task:approval_request", approvalHandler);
@@ -511,7 +517,7 @@ describe("CommandBridge", () => {
       expect(sanitizedReq.action).toBe("delete_files");
 
       // Founder approves via UI
-      const sent = bridge.sendApprovalResponse(
+      const sent = bridge.sendApprovalResponse(DEFAULT_USER,
         claudeAgent.agentId,
         "task_cleanup_old_files",
         true,
@@ -535,7 +541,7 @@ describe("CommandBridge", () => {
         title: "Database migration for Acme Corp",
         requestedCapabilities: ["code_analysis"],
       });
-      bridge.dispatchTask(claudeAgent.agentId, packet);
+      bridge.dispatchTask(DEFAULT_USER, claudeAgent.agentId, packet);
 
       // Agent asks to drop tables
       const approvalReq: BridgeMessage = {
@@ -552,7 +558,7 @@ describe("CommandBridge", () => {
       claudeAgent.ws.emit("message", JSON.stringify(approvalReq));
 
       // Founder denies
-      bridge.sendApprovalResponse(
+      bridge.sendApprovalResponse(DEFAULT_USER,
         claudeAgent.agentId,
         "task_drop_tables",
         false,
@@ -585,7 +591,7 @@ describe("CommandBridge", () => {
         requestedCapabilities: ["code_analysis", "git_operations"],
       });
 
-      const result = bridge.dispatchTask(openclawAgent.agentId, packet);
+      const result = bridge.dispatchTask(DEFAULT_USER, openclawAgent.agentId, packet);
       expect(result.dispatched).toBe(false);
       expect(result.reason).toContain("missing capabilities");
       expect(result.reason).toContain("code_analysis");
@@ -613,7 +619,7 @@ describe("CommandBridge", () => {
       (bridge as any).runHeartbeat();
 
       expect(disconnectHandler).toHaveBeenCalled();
-      expect(bridge.isAgentConnected(agentId)).toBe(false);
+      expect(bridge.isAgentConnected(DEFAULT_USER, agentId)).toBe(false);
     });
 
     it("healthy agent stays connected when it responds to pongs", () => {
@@ -633,7 +639,7 @@ describe("CommandBridge", () => {
 
       // Run heartbeat — agent should still be connected
       (bridge as any).runHeartbeat();
-      expect(bridge.isAgentConnected(agentId)).toBe(true);
+      expect(bridge.isAgentConnected(DEFAULT_USER, agentId)).toBe(true);
     });
 
     it("broadcasts message to all connected agents", () => {
@@ -648,7 +654,7 @@ describe("CommandBridge", () => {
         payload: { status: "system_update", message: "Entering maintenance window at 02:00 UTC" },
       };
 
-      bridge.broadcast(broadcastMsg);
+      bridge.broadcastToUser(DEFAULT_USER, broadcastMsg);
 
       // All three agents should have received it (on top of their registration ack)
       for (const agent of [agent1, agent2, agent3]) {
@@ -676,7 +682,7 @@ describe("CommandBridge", () => {
       const resultHandler = vi.fn();
       bridge.on("task:result", resultHandler);
 
-      bridge.dispatchTask(agentId, packet);
+      bridge.dispatchTask(DEFAULT_USER, agentId, packet);
       expect(bridge.getPendingTaskCount()).toBe(1);
 
       // Agent never responds. Advance past timeout.
@@ -707,7 +713,7 @@ describe("CommandBridge", () => {
         packetId: "task_rate_test",
         requestedCapabilities: ["code_analysis"],
       });
-      bridge.dispatchTask(agentId, packet);
+      bridge.dispatchTask(DEFAULT_USER, agentId, packet);
 
       // Blast 51 heartbeat messages (limit is 50/min)
       for (let i = 0; i < 51; i++) {
@@ -785,7 +791,7 @@ describe("CommandBridge", () => {
           agentName: `Agent ${i}`,
         });
       }
-      expect(smallBridge.getConnectedAgents()).toHaveLength(5);
+      expect(smallBridge.getConnectedAgents(DEFAULT_USER)).toHaveLength(5);
 
       // 6th registration should fail at the capacity check inside handleRegistration
       const ws6 = new MockWebSocket();
@@ -802,7 +808,7 @@ describe("CommandBridge", () => {
         (m) => m.type === "error" && (m.payload as any).code === "CAPACITY_FULL",
       );
       expect(errMsg).toBeDefined();
-      expect(smallBridge.getConnectedAgents()).toHaveLength(5);
+      expect(smallBridge.getConnectedAgents(DEFAULT_USER)).toHaveLength(5);
 
       smallBridge.shutdown();
     });
@@ -838,7 +844,7 @@ describe("CommandBridge", () => {
         createTaskPacket({ packetId: "concurrent_5", requestedCapabilities: ["scheduling"] }),
       ];
 
-      const results = tasks.map((task, i) => bridge.dispatchTask(agents[i].agentId, task));
+      const results = tasks.map((task, i) => bridge.dispatchTask(DEFAULT_USER, agents[i].agentId, task));
 
       // All should succeed
       expect(results.every((r) => r.dispatched)).toBe(true);
@@ -850,7 +856,7 @@ describe("CommandBridge", () => {
 
       // Dispatch 3 tasks
       for (let i = 0; i < 3; i++) {
-        bridge.dispatchTask(agentId, createTaskPacket({
+        bridge.dispatchTask(DEFAULT_USER, agentId, createTaskPacket({
           packetId: `inflight_${i}`,
           requestedCapabilities: ["code_analysis"],
         }));
@@ -872,7 +878,7 @@ describe("CommandBridge", () => {
 
       // All tasks cleared
       expect(bridge.getPendingTaskCount()).toBe(0);
-      expect(bridge.isAgentConnected(agentId)).toBe(false);
+      expect(bridge.isAgentConnected(DEFAULT_USER, agentId)).toBe(false);
     });
 
     it("agent reconnects after disconnect and gets new agentId", () => {
@@ -882,13 +888,13 @@ describe("CommandBridge", () => {
       // Disconnect
       first.ws.emit("close", 1001, Buffer.from("Going away"));
 
-      expect(bridge.isAgentConnected(firstId)).toBe(false);
+      expect(bridge.isAgentConnected(DEFAULT_USER, firstId)).toBe(false);
 
       // Reconnect — gets a new agentId
       const second = registerAgent(bridge, CLAUDE_CODE_REG);
       expect(second.agentId).not.toBe(firstId);
-      expect(bridge.isAgentConnected(second.agentId)).toBe(true);
-      expect(bridge.getConnectedAgents()).toHaveLength(1);
+      expect(bridge.isAgentConnected(DEFAULT_USER, second.agentId)).toBe(true);
+      expect(bridge.getConnectedAgents(DEFAULT_USER)).toHaveLength(1);
     });
 
     it("rejects duplicate packetId on task dispatch", () => {
@@ -899,10 +905,10 @@ describe("CommandBridge", () => {
         requestedCapabilities: ["code_analysis"],
       });
 
-      const first = bridge.dispatchTask(agentId, packet);
+      const first = bridge.dispatchTask(DEFAULT_USER, agentId, packet);
       expect(first.dispatched).toBe(true);
 
-      const duplicate = bridge.dispatchTask(agentId, packet);
+      const duplicate = bridge.dispatchTask(DEFAULT_USER, agentId, packet);
       expect(duplicate.dispatched).toBe(false);
       expect(duplicate.reason).toContain("Duplicate packetId");
     });
@@ -979,7 +985,7 @@ describe("CommandBridge", () => {
         packetId: "'; DROP TABLE tasks; --",
         requestedCapabilities: ["code_analysis"],
       });
-      const result = bridge.dispatchTask(agentId, malicious);
+      const result = bridge.dispatchTask(DEFAULT_USER, agentId, malicious);
       expect(result.dispatched).toBe(false);
       expect(result.reason).toContain("Invalid packetId format");
 
@@ -988,7 +994,7 @@ describe("CommandBridge", () => {
         packetId: "../../etc/passwd",
         requestedCapabilities: ["code_analysis"],
       });
-      const result2 = bridge.dispatchTask(agentId, pathTraversal);
+      const result2 = bridge.dispatchTask(DEFAULT_USER, agentId, pathTraversal);
       expect(result2.dispatched).toBe(false);
 
       // Attempt oversized packetId (>128 chars)
@@ -996,7 +1002,7 @@ describe("CommandBridge", () => {
         packetId: "a".repeat(129),
         requestedCapabilities: ["code_analysis"],
       });
-      const result3 = bridge.dispatchTask(agentId, longId);
+      const result3 = bridge.dispatchTask(DEFAULT_USER, agentId, longId);
       expect(result3.dispatched).toBe(false);
     });
 
@@ -1038,7 +1044,7 @@ describe("CommandBridge", () => {
         platform: "linux",
       });
 
-      const reg = bridge.getAgentRegistration(agentId);
+      const reg = bridge.getAgentRegistration(DEFAULT_USER, agentId);
       expect(reg).toBeDefined();
       // XSS payload should be stripped of < > ( ) ' chars
       const sanitizedCap = reg!.capabilities.find((c) => c.includes("script"));
@@ -1058,7 +1064,7 @@ describe("CommandBridge", () => {
         packetId: "task_spoof_test",
         requestedCapabilities: ["code_analysis"],
       });
-      bridge.dispatchTask(agent1.agentId, packet);
+      bridge.dispatchTask(DEFAULT_USER, agent1.agentId, packet);
 
       const resultHandler = vi.fn();
       bridge.on("task:result", resultHandler);
@@ -1106,7 +1112,7 @@ describe("CommandBridge", () => {
         packetId: "task_sanitize_result",
         requestedCapabilities: ["code_analysis"],
       });
-      bridge.dispatchTask(agentId, packet);
+      bridge.dispatchTask(DEFAULT_USER, agentId, packet);
 
       const resultHandler = vi.fn();
       bridge.on("task:result", resultHandler);
@@ -1150,28 +1156,28 @@ describe("CommandBridge", () => {
 
   describe("Year 1 — Maturity", () => {
     it("agent presence tracking is accurate through connect/disconnect cycles", () => {
-      expect(bridge.getConnectedAgents()).toHaveLength(0);
+      expect(bridge.getConnectedAgents(DEFAULT_USER)).toHaveLength(0);
 
       const a1 = registerAgent(bridge, CLAUDE_CODE_REG);
-      expect(bridge.getConnectedAgents()).toHaveLength(1);
+      expect(bridge.getConnectedAgents(DEFAULT_USER)).toHaveLength(1);
 
       const a2 = registerAgent(bridge, OPENCLAW_REG);
-      expect(bridge.getConnectedAgents()).toHaveLength(2);
+      expect(bridge.getConnectedAgents(DEFAULT_USER)).toHaveLength(2);
 
       // Disconnect a1
       a1.ws.emit("close", 1000, Buffer.from("Normal closure"));
-      expect(bridge.getConnectedAgents()).toHaveLength(1);
-      expect(bridge.isAgentConnected(a1.agentId)).toBe(false);
-      expect(bridge.isAgentConnected(a2.agentId)).toBe(true);
+      expect(bridge.getConnectedAgents(DEFAULT_USER)).toHaveLength(1);
+      expect(bridge.isAgentConnected(DEFAULT_USER, a1.agentId)).toBe(false);
+      expect(bridge.isAgentConnected(DEFAULT_USER, a2.agentId)).toBe(true);
 
       // Reconnect a1 with new ID
       const a1b = registerAgent(bridge, CLAUDE_CODE_REG);
-      expect(bridge.getConnectedAgents()).toHaveLength(2);
+      expect(bridge.getConnectedAgents(DEFAULT_USER)).toHaveLength(2);
 
       // Disconnect both
       a2.ws.emit("close", 1000, Buffer.from("Normal closure"));
       a1b.ws.emit("close", 1000, Buffer.from("Normal closure"));
-      expect(bridge.getConnectedAgents()).toHaveLength(0);
+      expect(bridge.getConnectedAgents(DEFAULT_USER)).toHaveLength(0);
     });
 
     it("health snapshot includes accurate type counts and pending tasks", () => {
@@ -1179,11 +1185,11 @@ describe("CommandBridge", () => {
       const claude2 = registerAgent(bridge, { ...CLAUDE_CODE_REG, agentName: "CC2" });
       const oc = registerAgent(bridge, OPENCLAW_REG);
 
-      bridge.dispatchTask(
+      bridge.dispatchTask(DEFAULT_USER,
         claude1.agentId,
         createTaskPacket({ packetId: "health_task_1", requestedCapabilities: ["code_analysis"] }),
       );
-      bridge.dispatchTask(
+      bridge.dispatchTask(DEFAULT_USER,
         oc.agentId,
         createTaskPacket({ packetId: "health_task_2", requestedCapabilities: ["web_research"] }),
       );
@@ -1205,7 +1211,7 @@ describe("CommandBridge", () => {
 
       // Dispatch tasks to each
       agents.forEach((a, i) => {
-        bridge.dispatchTask(
+        bridge.dispatchTask(DEFAULT_USER,
           a.agentId,
           createTaskPacket({
             packetId: `shutdown_task_${i}`,
@@ -1215,7 +1221,7 @@ describe("CommandBridge", () => {
       });
       // Only claude_code agent's task should succeed (others lack code_analysis)
       // Dispatch tasks matching their real capabilities
-      bridge.dispatchTask(
+      bridge.dispatchTask(DEFAULT_USER,
         agents[1].agentId,
         createTaskPacket({
           packetId: "shutdown_task_oc",
@@ -1227,7 +1233,7 @@ describe("CommandBridge", () => {
 
       bridge.shutdown();
 
-      expect(bridge.getConnectedAgents()).toHaveLength(0);
+      expect(bridge.getConnectedAgents(DEFAULT_USER)).toHaveLength(0);
       expect(bridge.getPendingTaskCount()).toBe(0);
 
       // Agents should have received close frames
@@ -1243,12 +1249,12 @@ describe("CommandBridge", () => {
         agentName: "CC Backup",
       });
 
-      expect(bridge.findAgentsByCapability("code_analysis")).toHaveLength(2);
+      expect(bridge.findAgentsByCapability(DEFAULT_USER, "code_analysis")).toHaveLength(2);
 
       // Simulate a1's ws going to CLOSING state
       a1.ws.readyState = WebSocket.CLOSING;
 
-      const result = bridge.findAgentsByCapability("code_analysis");
+      const result = bridge.findAgentsByCapability(DEFAULT_USER, "code_analysis");
       expect(result).toHaveLength(1);
       expect(result[0]).toBe(a2.agentId);
     });
@@ -1259,7 +1265,7 @@ describe("CommandBridge", () => {
       // Disconnect
       ws.emit("close", 1000, Buffer.from("Normal closure"));
 
-      const sent = bridge.sendApprovalResponse(agentId, "some_packet", true);
+      const sent = bridge.sendApprovalResponse(DEFAULT_USER, agentId, "some_packet", true);
       expect(sent).toBe(false);
     });
 
@@ -1268,7 +1274,7 @@ describe("CommandBridge", () => {
 
       ws.emit("close", 1000, Buffer.from("Normal closure"));
 
-      const result = bridge.dispatchTask(
+      const result = bridge.dispatchTask(DEFAULT_USER,
         agentId,
         createTaskPacket({ requestedCapabilities: ["code_analysis"] }),
       );
@@ -1282,7 +1288,7 @@ describe("CommandBridge", () => {
       // Simulate WS going to CLOSED without close event processed yet
       ws.readyState = WebSocket.CLOSED;
 
-      const result = bridge.dispatchTask(
+      const result = bridge.dispatchTask(DEFAULT_USER,
         agentId,
         createTaskPacket({ requestedCapabilities: ["code_analysis"] }),
       );
@@ -1314,7 +1320,7 @@ describe("CommandBridge", () => {
       let dispatched = 0;
       for (let i = 0; i < 500; i++) {
         const agentIdx = i % agents.length;
-        const result = bridge.dispatchTask(
+        const result = bridge.dispatchTask(DEFAULT_USER,
           agents[agentIdx].agentId,
           createTaskPacket({
             packetId: `scale_task_${i}`,
@@ -1327,7 +1333,7 @@ describe("CommandBridge", () => {
       expect(bridge.getPendingTaskCount()).toBe(500);
 
       // Task 501 should be rejected
-      const overflow = bridge.dispatchTask(
+      const overflow = bridge.dispatchTask(DEFAULT_USER,
         agents[0].agentId,
         createTaskPacket({
           packetId: "scale_task_overflow",
@@ -1358,7 +1364,7 @@ describe("CommandBridge", () => {
         }
 
         const packetId = `sustained_${i}`;
-        bridge.dispatchTask(
+        bridge.dispatchTask(DEFAULT_USER,
           agentId,
           createTaskPacket({
             packetId,
@@ -1392,7 +1398,7 @@ describe("CommandBridge", () => {
     it("progress updates with out-of-range values are clamped", () => {
       const { agentId, ws } = registerAgent(bridge, CLAUDE_CODE_REG);
 
-      bridge.dispatchTask(
+      bridge.dispatchTask(DEFAULT_USER,
         agentId,
         createTaskPacket({
           packetId: "task_clamp_test",
@@ -1428,7 +1434,7 @@ describe("CommandBridge", () => {
     it("task result with invalid status is coerced to 'failed'", () => {
       const { agentId, ws } = registerAgent(bridge, CLAUDE_CODE_REG);
 
-      bridge.dispatchTask(
+      bridge.dispatchTask(DEFAULT_USER,
         agentId,
         createTaskPacket({
           packetId: "task_bad_status",
@@ -1460,7 +1466,7 @@ describe("CommandBridge", () => {
     it("negative durationMs is clamped to 0", () => {
       const { agentId, ws } = registerAgent(bridge, CLAUDE_CODE_REG);
 
-      bridge.dispatchTask(
+      bridge.dispatchTask(DEFAULT_USER,
         agentId,
         createTaskPacket({
           packetId: "task_neg_duration",
@@ -1514,7 +1520,7 @@ describe("CommandBridge", () => {
       const a1 = registerAgent(bridge, CLAUDE_CODE_REG);
       const a2 = registerAgent(bridge, OPENCLAW_REG);
 
-      expect(bridge.getConnectedAgents()).toHaveLength(2);
+      expect(bridge.getConnectedAgents(DEFAULT_USER)).toHaveLength(2);
 
       // Simulate a1's WS going to CLOSED state (e.g., network drop)
       a1.ws.readyState = WebSocket.CLOSED;
@@ -1522,8 +1528,8 @@ describe("CommandBridge", () => {
       // Run cleanup
       (bridge as any).cleanupStaleConnections();
 
-      expect(bridge.getConnectedAgents()).toHaveLength(1);
-      expect(bridge.isAgentConnected(a2.agentId)).toBe(true);
+      expect(bridge.getConnectedAgents(DEFAULT_USER)).toHaveLength(1);
+      expect(bridge.isAgentConnected(DEFAULT_USER, a2.agentId)).toBe(true);
     });
 
     it("agent-initiated heartbeat receives ack", () => {
@@ -1571,7 +1577,7 @@ describe("CommandBridge", () => {
         requestedCapabilities: ["code_analysis"],
       });
 
-      const result = bridge.dispatchTask(agentId, packet);
+      const result = bridge.dispatchTask(DEFAULT_USER, agentId, packet);
       // Should detect send failure and clean up
       expect(result.dispatched).toBe(false);
       expect(result.reason).toContain("Failed to send");
