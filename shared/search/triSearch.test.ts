@@ -69,6 +69,17 @@ describe("rerankWithGemini — precision leg with honest fallback", () => {
     expect(new Set(r.ranked.map((c) => c.id)).size).toBe(4); // no dupes
   });
 
+  it("HONEST_STATUS: zero usable indices ([], all out-of-range, non-numeric) -> fallback, not a phantom 'ok'", async () => {
+    // The model returned an array, but nothing in it maps to a real candidate. The result is pure
+    // fused order — so the status MUST be fallback, not "ok" (which would lie that a rerank happened).
+    for (const garbage of ["[]", "[999, -1, 7]", "[\"x\", \"y\"]"]) {
+      const r = await rerankWithGemini("q", fused, { topN: 4, apiKey: "test", fetchImpl: mockGeminiFetch(garbage) });
+      expect(r.rerankStatus).toBe("fallback");
+      expect(r.ranked.map((c) => c.id)).toEqual(["s0", "s1", "s2", "s3"]); // untouched fused order
+      expect(r.detail).toMatch(/no valid index/i);
+    }
+  });
+
   it("sad path: missing API key -> skipped, returns fused top-N unchanged", async () => {
     const saved = process.env.GEMINI_API_KEY;
     delete process.env.GEMINI_API_KEY;
