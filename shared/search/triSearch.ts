@@ -171,9 +171,16 @@ export async function rerankWithGemini(
         ranked.push(bounded[idx]);
       }
     }
+    // HONEST_STATUS: if the model produced NO usable index (e.g. [], [999], ["x"]), the result is
+    // pure fused order — it was not reranked. Report that truthfully so the trace can't claim a
+    // rerank that didn't happen.
+    if (seen.size === 0) {
+      const peek = JSON.stringify(order).slice(0, 60);
+      return { ranked: fusedTopN(bounded, topN), rerankStatus: "fallback", detail: `rerank produced no valid index (model returned ${peek}); fused order kept.`, durationMs: Date.now() - startedAt };
+    }
     // Append any candidate the reranker omitted, in fused order — deterministic completeness.
     bounded.forEach((c, i) => { if (!seen.has(i)) ranked.push(c); });
-    return { ranked: ranked.slice(0, topN), rerankStatus: "ok", detail: `reranked ${bounded.length} candidates -> top ${Math.min(topN, ranked.length)}.`, durationMs: Date.now() - startedAt };
+    return { ranked: ranked.slice(0, topN), rerankStatus: "ok", detail: `reranked ${seen.size}/${bounded.length} candidates -> top ${Math.min(topN, ranked.length)}.`, durationMs: Date.now() - startedAt };
   } catch (err: any) {
     const aborted = err?.name === "TimeoutError" || err?.name === "AbortError";
     return {
