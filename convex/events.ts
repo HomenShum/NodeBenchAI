@@ -63,6 +63,13 @@ const HOST_CLAIM_CODE_TTL_MS = 30 * 60 * 1000; // 30 min
 const MAX_STALE_HOST_CLAIM_EVICT = 100;
 const MAX_SOURCE_BODY = 12_000;
 const MAX_ANSWER_BODY = 4_000;
+// Dedicated /ask rate-limit (Finding #3). A sourced /ask is FAR more expensive
+// than a chat send: it scans the corpus, reranks, and calls a provider (~0.36¢
+// each). `send:<session>` (30/min) bounds chat flood but not provider cost, so a
+// single attendee could trigger 30 provider calls/min. 12/min/session stays well
+// above genuine human Q&A cadence while capping worst-case spend to ~4.3¢/min/session.
+const ASK_RATE_LIMIT_PER_MIN = 12;
+const ASK_RATE_WINDOW_MS = 60_000;
 const MAX_ANSWER_LIMIT = 100;
 const MAX_MY_EVENTS_LIMIT = 50;
 const MAX_WIKI_ANSWERS = 20;
@@ -984,6 +991,156 @@ export const getPublishedWiki = query({
   },
 });
 
+/**
+ * Shared /ask context loader — the SINGLE source of truth for question
+ * integrity, semantic-cache lookup, source corpus, and the asker's prior turns.
+ *
+ * Used by BOTH `_prepareAskAgentContext` (the askAgent action's internalQuery)
+ * AND `composeAnswer` (the deterministic mutation fallback) so the two /ask
+ * paths can NEVER drift on the security-critical integrity check (#2) or the
+ * multi-turn prior-turn derivation. Works with any ctx exposing `db` (query OR
+ * mutation), because every operation here is a read.
+ *
+ * Pattern: extracted-helper to enforce contract parity across two entrypoints.
+ * See: .claude/rules/backend_contract_migration.md (no-drift), agentic_reliability.
+ */
+async function loadAskContext(
+  ctx: any,
+  args: { eventId: any; sessionId: string; questionMessageId: any; question: string },
+) {
+  const event = await ctx.db.get(args.eventId);
+  if (!event) {
+    throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
+  }
+  if (event.status === "ended") {
+    throw new ConvexError({ code: "event_ended", message: "This event has ended." });
+  }
+  await requireMember(ctx, args.eventId, args.sessionId);
+  // INTEGRITY (review #2): never trust the client's question text or parent id blindly. Load the
+  // ask-message row server-side, prove it belongs to THIS event + THIS caller session, and derive
+  // the canonical question from the stored row — so an answer cannot be attached to someone else's
+  // (or another event's) message, and the question text can't be spoofed.
+  const askMsg: any = await ctx.db.get(args.questionMessageId);
+  if (!askMsg || askMsg.eventId !== args.eventId || askMsg.sessionId !== args.sessionId) {
+    throw new ConvexError({ code: "invalid_question_message", message: "Question message not found for this room and session." });
+  }
+  const question = (askMsg.text || args.question || "").trim().slice(0, 1000);
+  if (!question) {
+    throw new ConvexError({ code: "empty_question", message: "/ask question required." });
+  }
+  const normalizedQuestion = normalizeQuestion(question);
+  const cached = await ctx.db
+    .query("liveEventAnswers")
+    .withIndex("by_event_normalized", (q: any) =>
+      q.eq("eventId", args.eventId).eq("normalizedQuestion", normalizedQuestion),
+    )
+    .order("desc")
+    .first();
+  const sources = await ctx.db
+    .query("liveEventSources")
+    .withIndex("by_event", (q: any) => q.eq("eventId", args.eventId))
+    .take(100);
+  // Asker's OWN recent turns for multi-turn query condensation. PRIVACY: filtered to
+  // this sessionId only — never other attendees' messages. Bounded recent scan. The
+  // identical current-question text is excluded so a verbatim re-ask is NOT treated as a
+  // follow-up (it correctly reuses the cache instead of re-condensing).
+  const recentMsgs = await ctx.db
+    .query("liveEventMessages")
+    .withIndex("by_event_time", (q: any) => q.eq("eventId", args.eventId))
+    .order("desc")
+    .take(60);
+  const priorTurns = recentMsgs
+    .filter((m: any) => m.sessionId === args.sessionId && (m.kind === "chat" || m.kind === "ask") && (m.text || "").trim() && m.text.trim() !== question)
+    .slice(0, 5)
+    .reverse()
+    .map((m: any) => m.text.trim().slice(0, 300));
+  return {
+    event: {
+      _id: event._id,
+      slug: event.slug,
+      name: event.name,
+      status: event.status,
+    },
+    question,
+    normalizedQuestion,
+    cached,
+    sources,
+    priorTurns,
+  };
+}
+
+/**
+ * Pure decision: should a cache HIT be SKIPPED rather than reused? (reviews #1 + #4)
+ * The semantic cache is keyed by the RAW normalized question. Reusing it is only
+ * correct for a standalone question whose answer is still current. Returns a
+ * human-readable skip reason (surfaced in the trace) or null when the cache is safe.
+ *   - follow-up: prior-turn context means the condensed retrieval query differs
+ *     from the raw cache key, so the cached standalone answer may be wrong.
+ *   - stale: a source changed after the cached answer was written.
+ *   - freshness: the asker explicitly wants the latest/current info.
+ *
+ * Pure (no ctx) so askAgent (action) and composeAnswer (mutation) share IDENTICAL logic.
+ */
+function computeCacheSkipReason(opts: {
+  cached: any;
+  priorTurns: string[];
+  sources: any[];
+  question: string;
+}): string | null {
+  if (!opts.cached) return null;
+  const hasPriorContext = (opts.priorTurns || []).length > 0;
+  const maxSourceTs = (opts.sources || []).reduce((m: number, s: any) => Math.max(m, s.uploadedAt || 0), 0);
+  const cacheStale = (opts.cached._creationTime || 0) < maxSourceTs;
+  const freshnessIntent = /\b(latest|recent|current|today|now|just|update[ds]?|new(?:est|ly)?)\b/i.test(opts.question);
+  if (hasPriorContext) return "follow-up; condensed query differs from the raw cache key";
+  if (cacheStale) return "a source changed after the cached answer";
+  if (freshnessIntent) return "caller asked for the latest/current info";
+  return null;
+}
+
+/**
+ * Reserve the /ask slot before any expensive work (Finding #3): idempotency +
+ * a dedicated provider-cost rate-limit, in ONE transaction. Shared by askAgent
+ * (via the _reserveAskSlot internalMutation) and composeAnswer (inline) so the
+ * two paths enforce IDENTICAL idempotency + limits.
+ *
+ *  - Idempotency: if an answer already exists for THIS question message AND it
+ *    belongs to this caller, return it instead of computing/charging again. This
+ *    collapses the client's askAgent→composeAnswer fallback (both fire the same
+ *    questionMessageId) and any double-submit into a single answer. A mismatched
+ *    owner falls through — the authoritative integrity check (#2) then rejects it.
+ *  - Rate-limit: only NEW work is charged; idempotent replays are free.
+ */
+async function reserveAskSlot(
+  ctx: any,
+  args: { eventId: any; sessionId: string; questionMessageId: any },
+): Promise<{ existingAnswer: any | null }> {
+  const existing = await ctx.db
+    .query("liveEventAnswers")
+    .withIndex("by_question", (q: any) => q.eq("questionMessageId", args.questionMessageId))
+    .first();
+  if (existing && existing.eventId === args.eventId && existing.askedBySessionId === args.sessionId) {
+    return { existingAnswer: await buildAnswerPayload(ctx, existing._id) };
+  }
+  await enforceRateLimit(ctx, {
+    key: `ask:${args.sessionId}`,
+    limit: ASK_RATE_LIMIT_PER_MIN,
+    windowMs: ASK_RATE_WINDOW_MS,
+  });
+  return { existingAnswer: null };
+}
+
+// askAgent is an action (no DB-write ctx), so it reserves its slot through this
+// internalMutation — the idempotency check + rate-limit then happen in one txn.
+export const _reserveAskSlot = internalMutation({
+  args: {
+    eventId: v.id("liveEvents"),
+    sessionId: v.string(),
+    questionMessageId: v.id("liveEventMessages"),
+  },
+  handler: async (ctx, args) => reserveAskSlot(ctx, args),
+});
+
 export const _prepareAskAgentContext = internalQuery({
   args: {
     eventId: v.id("liveEvents"),
@@ -991,65 +1148,9 @@ export const _prepareAskAgentContext = internalQuery({
     questionMessageId: v.id("liveEventMessages"),
     question: v.string(),
   },
-  handler: async (ctx, args) => {
-    const event = await ctx.db.get(args.eventId);
-    if (!event) {
-      throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
-    }
-    if (event.status === "ended") {
-      throw new ConvexError({ code: "event_ended", message: "This event has ended." });
-    }
-    await requireMember(ctx, args.eventId, args.sessionId);
-    // INTEGRITY (review #2): never trust the client's question text or parent id blindly. Load the
-    // ask-message row server-side, prove it belongs to THIS event + THIS caller session, and derive
-    // the canonical question from the stored row — so an answer cannot be attached to someone else's
-    // (or another event's) message, and the question text can't be spoofed.
-    const askMsg: any = await ctx.db.get(args.questionMessageId);
-    if (!askMsg || askMsg.eventId !== args.eventId || askMsg.sessionId !== args.sessionId) {
-      throw new ConvexError({ code: "invalid_question_message", message: "Question message not found for this room and session." });
-    }
-    const question = (askMsg.text || args.question || "").trim().slice(0, 1000);
-    if (!question) {
-      throw new ConvexError({ code: "empty_question", message: "/ask question required." });
-    }
-    const normalizedQuestion = normalizeQuestion(question);
-    const cached = await ctx.db
-      .query("liveEventAnswers")
-      .withIndex("by_event_normalized", (q) =>
-        q.eq("eventId", args.eventId).eq("normalizedQuestion", normalizedQuestion),
-      )
-      .order("desc")
-      .first();
-    const sources = await ctx.db
-      .query("liveEventSources")
-      .withIndex("by_event", (q) => q.eq("eventId", args.eventId))
-      .take(100);
-    // Asker's OWN recent turns for multi-turn query condensation. PRIVACY: filtered to
-    // this sessionId only — never other attendees' messages. Bounded recent scan.
-    const recentMsgs = await ctx.db
-      .query("liveEventMessages")
-      .withIndex("by_event_time", (q) => q.eq("eventId", args.eventId))
-      .order("desc")
-      .take(60);
-    const priorTurns = recentMsgs
-      .filter((m: any) => m.sessionId === args.sessionId && (m.kind === "chat" || m.kind === "ask") && (m.text || "").trim() && m.text.trim() !== question)
-      .slice(0, 5)
-      .reverse()
-      .map((m: any) => m.text.trim().slice(0, 300));
-    return {
-      event: {
-        _id: event._id,
-        slug: event.slug,
-        name: event.name,
-        status: event.status,
-      },
-      question,
-      normalizedQuestion,
-      cached,
-      sources,
-      priorTurns,
-    };
-  },
+  // Thin wrapper over the shared loader (anti-drift): identical reads + integrity
+  // check that composeAnswer also runs. Keep this a pure pass-through.
+  handler: async (ctx, args) => loadAskContext(ctx, args),
 });
 
 export const _upsertAgentSources = internalMutation({
@@ -1718,6 +1819,16 @@ export const askAgent = action({
   },
   handler: async (ctx, args) => {
     const startedAt = Date.now();
+    // Idempotency + provider-cost rate-limit (Finding #3) in one txn, BEFORE any
+    // expensive work. An idempotent replay (the client's askAgent→composeAnswer
+    // fallback, or a double-submit) returns the existing answer instead of
+    // computing — and paying for — a second one.
+    const reserved: any = await ctx.runMutation((internal as any).events._reserveAskSlot, {
+      eventId: args.eventId,
+      sessionId: args.sessionId,
+      questionMessageId: args.questionMessageId,
+    });
+    if (reserved.existingAnswer) return reserved.existingAnswer;
     let prepared: any = await ctx.runQuery((internal as any).events._prepareAskAgentContext, {
       eventId: args.eventId,
       sessionId: args.sessionId,
@@ -1727,20 +1838,14 @@ export const askAgent = action({
     // Use the server-verified, canonical question for everything downstream (review #2).
     const question = prepared.question;
 
-    // Cache safety (review #1 + #4): the cache is keyed by the RAW normalized question. Reusing it is
-    // only correct for a standalone question whose answer is still current. Skip the cache when this is
-    // a follow-up (prior-turn context → the condensed retrieval query differs from the raw cache key),
-    // when a source changed after the cached answer (stale), or when the asker wants fresh/latest info.
-    const hasPriorContext = (prepared.priorTurns || []).length > 0;
-    const maxSourceTs = (prepared.sources || []).reduce((m: number, s: any) => Math.max(m, s.uploadedAt || 0), 0);
-    const cacheStale = !!prepared.cached && (prepared.cached._creationTime || 0) < maxSourceTs;
-    const freshnessIntent = /\b(latest|recent|current|today|now|just|update[ds]?|new(?:est|ly)?)\b/i.test(question);
-    const cacheSkipReason = !prepared.cached
-      ? null
-      : hasPriorContext ? "follow-up; condensed query differs from the raw cache key"
-      : cacheStale ? "a source changed after the cached answer"
-      : freshnessIntent ? "caller asked for the latest/current info"
-      : null;
+    // Cache safety (reviews #1 + #4) — shared pure decision so askAgent and the
+    // composeAnswer fallback can never disagree on when a cache hit is safe to reuse.
+    const cacheSkipReason = computeCacheSkipReason({
+      cached: prepared.cached,
+      priorTurns: prepared.priorTurns,
+      sources: prepared.sources,
+      question,
+    });
 
     if (prepared.cached && !cacheSkipReason) {
       const evaluation = evaluateAnswerQuality({
@@ -1978,56 +2083,56 @@ export const composeAnswer = mutation({
   },
   handler: async (ctx, args) => {
     const startedAt = Date.now();
-    const question = (args.question || "").trim().slice(0, 1000);
-    if (!question) {
-      throw new ConvexError({ code: "empty_question", message: "/ask question required." });
-    }
-    const event = await ctx.db.get(args.eventId);
-    if (!event) {
-      throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
-    }
-    if (event.status === "ended") {
-      throw new ConvexError({ code: "event_ended", message: "This event has ended." });
-    }
-    await requireMember(ctx, args.eventId, args.sessionId);
-    const normalizedQuestion = normalizeQuestion(question);
-    const cached = await ctx.db
-      .query("liveEventAnswers")
-      .withIndex("by_event_normalized", (q) =>
-        q.eq("eventId", args.eventId).eq("normalizedQuestion", normalizedQuestion),
-      )
-      .order("desc")
-      .first();
+    // Idempotency + dedicated provider-cost rate-limit (Finding #3), identical to
+    // askAgent — collapses the askAgent→composeAnswer fallback and double-submits
+    // into one answer, and bounds /ask volume per session.
+    const reserved = await reserveAskSlot(ctx, args);
+    if (reserved.existingAnswer) return reserved.existingAnswer;
 
-    if (cached) {
+    // Shared loader = the SAME integrity check (#2) + cache + prior-turn derivation
+    // askAgent runs, so this deterministic fallback can never be weaker than primary.
+    const prepared = await loadAskContext(ctx, args);
+    const question = prepared.question;
+    const normalizedQuestion = prepared.normalizedQuestion;
+
+    // Cache safety (#1 + #4): reuse a cache hit only when it's actually safe; skip
+    // + recompute on follow-ups, source staleness, or explicit freshness intent.
+    const cacheSkipReason = computeCacheSkipReason({
+      cached: prepared.cached,
+      priorTurns: prepared.priorTurns,
+      sources: prepared.sources,
+      question,
+    });
+
+    if (prepared.cached && !cacheSkipReason) {
       const answerId = await ctx.db.insert("liveEventAnswers", {
         eventId: args.eventId,
         questionMessageId: args.questionMessageId,
         askedBySessionId: args.sessionId,
         question,
         normalizedQuestion,
-        body: cached.body,
-        sourceIds: cached.sourceIds,
+        body: prepared.cached.body,
+        sourceIds: prepared.cached.sourceIds,
         trace: [
           {
             step: "semantic_cache_lookup",
             status: "ok",
-            detail: `Reused answer ${cached._id}; source bundle unchanged.`,
+            detail: `Reused answer ${prepared.cached._id}; source bundle unchanged.`,
             durationMs: Date.now() - startedAt,
           },
         ],
         cacheHit: true,
         agentMode: "cache",
-        provider: cached.provider,
-        modelId: cached.modelId,
+        provider: prepared.cached.provider,
+        modelId: prepared.cached.modelId,
         inputTokens: 0,
         outputTokens: 0,
         estimatedCostCents: 0,
         externalSearches: 0,
         evaluation: evaluateAnswerQuality({
           question,
-          body: cached.body,
-          sourceCount: cached.sourceIds.length,
+          body: prepared.cached.body,
+          sourceCount: prepared.cached.sourceIds.length,
           traceSteps: ["semantic_cache_lookup"],
         }),
         faqStatus: "none",
@@ -2037,15 +2142,12 @@ export const composeAnswer = mutation({
     }
 
     const retrieveStarted = Date.now();
-    const sources = await ctx.db
-      .query("liveEventSources")
-      .withIndex("by_event", (q) => q.eq("eventId", args.eventId))
-      .take(100);
+    const sources = prepared.sources;
     const ranked = sources
-      .map((source) => ({ source, score: scoreSource(question, source) }))
-      .sort((a, b) => b.score - a.score || b.source.uploadedAt - a.source.uploadedAt);
-    const selected = ranked.filter((row) => row.score > 0).slice(0, 4);
-    const topSources = (selected.length ? selected : ranked.slice(0, 3)).map((row) => row.source);
+      .map((source: any) => ({ source, score: scoreSource(question, source) }))
+      .sort((a: any, b: any) => b.score - a.score || b.source.uploadedAt - a.source.uploadedAt);
+    const selected = ranked.filter((row: any) => row.score > 0).slice(0, 4);
+    const topSources = (selected.length ? selected : ranked.slice(0, 3)).map((row: any) => row.source);
     if (!topSources.length) {
       throw new ConvexError({
         code: "no_sources",
@@ -2053,7 +2155,7 @@ export const composeAnswer = mutation({
       });
     }
 
-    const answerBody = synthesizeAnswer(question, event.name, topSources).slice(0, MAX_ANSWER_BODY);
+    const answerBody = synthesizeAnswer(question, prepared.event.name, topSources).slice(0, MAX_ANSWER_BODY);
     const answerId = await ctx.db.insert("liveEventAnswers", {
       eventId: args.eventId,
       questionMessageId: args.questionMessageId,
@@ -2061,12 +2163,14 @@ export const composeAnswer = mutation({
       question,
       normalizedQuestion,
       body: answerBody,
-      sourceIds: topSources.map((source) => source._id),
+      sourceIds: topSources.map((source: any) => source._id),
       trace: [
         {
           step: "semantic_cache_lookup",
           status: "miss",
-          detail: "No same-question public answer found for this event.",
+          detail: cacheSkipReason
+            ? `Cached answer skipped — ${cacheSkipReason}.`
+            : "No same-question public answer found for this event.",
           durationMs: retrieveStarted - startedAt,
         },
         {
@@ -2086,7 +2190,7 @@ export const composeAnswer = mutation({
       agentMode: "deterministic",
       provider: "deterministic",
       modelId: "bounded-source-synthesizer",
-      inputTokens: estimateTokens(`${question}\n${topSources.map((source) => source.body).join("\n")}`),
+      inputTokens: estimateTokens(`${question}\n${topSources.map((source: any) => source.body).join("\n")}`),
       outputTokens: estimateTokens(answerBody),
       estimatedCostCents: 0,
       externalSearches: 0,
