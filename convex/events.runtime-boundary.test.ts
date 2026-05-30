@@ -19,14 +19,34 @@ describe("scratchnode public runtime boundaries", () => {
   it("keeps public /ask isolated from private user notes", () => {
     const composeAnswer = functionBlock("composeAnswer");
     const askAgent = functionBlock("askAgent", "action");
+    // PR A: the membership gate, #2 question-ownership integrity check, and the
+    // public-source-only retrieval now live in the shared `loadAskContext` helper
+    // so askAgent (action) and composeAnswer (mutation) can never drift. It's a
+    // plain async function, so extract it directly (like requireHost below).
+    const lacStart = eventsSource.indexOf("async function loadAskContext");
+    expect(lacStart, "loadAskContext should exist").toBeGreaterThanOrEqual(0);
+    const lacEnd = eventsSource.indexOf("function computeCacheSkipReason", lacStart);
+    const loadAskContext = eventsSource.slice(lacStart, lacEnd > lacStart ? lacEnd : undefined);
 
+    // composeAnswer must NOT touch private notes and must delegate its gates to
+    // the shared loader + slot reservation (idempotency + ask rate-limit).
     expect(composeAnswer).not.toContain("userNotes");
     expect(composeAnswer).not.toContain("getPrivate");
-    expect(composeAnswer).toContain("requireMember");
-    expect(composeAnswer).toContain("liveEventSources");
+    expect(composeAnswer).toContain("loadAskContext");
+    expect(composeAnswer).toContain("reserveAskSlot");
     expect(composeAnswer).toContain("deterministic_synthesis");
+
+    // The shared loader enforces the public/private boundary for BOTH /ask paths:
+    // membership, public-source-only retrieval, and question-ownership integrity.
+    expect(loadAskContext).not.toContain("userNotes");
+    expect(loadAskContext).not.toContain("getPrivate");
+    expect(loadAskContext).toContain("requireMember");
+    expect(loadAskContext).toContain("liveEventSources");
+    expect(loadAskContext).toContain("invalid_question_message"); // #2 integrity gate
+
     expect(askAgent).not.toContain("userNotes");
     expect(askAgent).not.toContain("getPrivate");
+    expect(askAgent).toContain("_reserveAskSlot"); // idempotency + dedicated ask rate-limit
     expect(askAgent).toContain("_prepareAskAgentContext");
     expect(askAgent).toContain("generateProviderAnswer");
     expect(askAgent).toContain("quality_gate");
