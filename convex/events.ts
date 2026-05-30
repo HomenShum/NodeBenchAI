@@ -988,13 +988,10 @@ export const _prepareAskAgentContext = internalQuery({
   args: {
     eventId: v.id("liveEvents"),
     sessionId: v.string(),
+    questionMessageId: v.id("liveEventMessages"),
     question: v.string(),
   },
   handler: async (ctx, args) => {
-    const question = (args.question || "").trim().slice(0, 1000);
-    if (!question) {
-      throw new ConvexError({ code: "empty_question", message: "/ask question required." });
-    }
     const event = await ctx.db.get(args.eventId);
     if (!event) {
       throw new ConvexError({ code: "event_not_found", message: "Event no longer exists." });
@@ -1003,6 +1000,18 @@ export const _prepareAskAgentContext = internalQuery({
       throw new ConvexError({ code: "event_ended", message: "This event has ended." });
     }
     await requireMember(ctx, args.eventId, args.sessionId);
+    // INTEGRITY (review #2): never trust the client's question text or parent id blindly. Load the
+    // ask-message row server-side, prove it belongs to THIS event + THIS caller session, and derive
+    // the canonical question from the stored row — so an answer cannot be attached to someone else's
+    // (or another event's) message, and the question text can't be spoofed.
+    const askMsg: any = await ctx.db.get(args.questionMessageId);
+    if (!askMsg || askMsg.eventId !== args.eventId || askMsg.sessionId !== args.sessionId) {
+      throw new ConvexError({ code: "invalid_question_message", message: "Question message not found for this room and session." });
+    }
+    const question = (askMsg.text || args.question || "").trim().slice(0, 1000);
+    if (!question) {
+      throw new ConvexError({ code: "empty_question", message: "/ask question required." });
+    }
     const normalizedQuestion = normalizeQuestion(question);
     const cached = await ctx.db
       .query("liveEventAnswers")
@@ -1034,6 +1043,7 @@ export const _prepareAskAgentContext = internalQuery({
         name: event.name,
         status: event.status,
       },
+      question,
       normalizedQuestion,
       cached,
       sources,
@@ -1708,14 +1718,31 @@ export const askAgent = action({
   },
   handler: async (ctx, args) => {
     const startedAt = Date.now();
-    const question = (args.question || "").trim().slice(0, 1000);
     let prepared: any = await ctx.runQuery((internal as any).events._prepareAskAgentContext, {
       eventId: args.eventId,
       sessionId: args.sessionId,
-      question,
+      questionMessageId: args.questionMessageId,
+      question: (args.question || "").trim().slice(0, 1000),
     });
+    // Use the server-verified, canonical question for everything downstream (review #2).
+    const question = prepared.question;
 
-    if (prepared.cached) {
+    // Cache safety (review #1 + #4): the cache is keyed by the RAW normalized question. Reusing it is
+    // only correct for a standalone question whose answer is still current. Skip the cache when this is
+    // a follow-up (prior-turn context → the condensed retrieval query differs from the raw cache key),
+    // when a source changed after the cached answer (stale), or when the asker wants fresh/latest info.
+    const hasPriorContext = (prepared.priorTurns || []).length > 0;
+    const maxSourceTs = (prepared.sources || []).reduce((m: number, s: any) => Math.max(m, s.uploadedAt || 0), 0);
+    const cacheStale = !!prepared.cached && (prepared.cached._creationTime || 0) < maxSourceTs;
+    const freshnessIntent = /\b(latest|recent|current|today|now|just|update[ds]?|new(?:est|ly)?)\b/i.test(question);
+    const cacheSkipReason = !prepared.cached
+      ? null
+      : hasPriorContext ? "follow-up; condensed query differs from the raw cache key"
+      : cacheStale ? "a source changed after the cached answer"
+      : freshnessIntent ? "caller asked for the latest/current info"
+      : null;
+
+    if (prepared.cached && !cacheSkipReason) {
       const evaluation = evaluateAnswerQuality({
         question,
         body: prepared.cached.body,
@@ -1764,7 +1791,9 @@ export const askAgent = action({
       {
         step: "semantic_cache_lookup",
         status: "miss",
-        detail: "No same-question public answer found for this event.",
+        detail: cacheSkipReason
+          ? `Cached answer skipped — ${cacheSkipReason}.`
+          : "No same-question public answer found for this event.",
         durationMs: retrievalStarted - startedAt,
       },
     ];
@@ -1886,12 +1915,31 @@ export const askAgent = action({
       });
     }
 
-    const evaluation = evaluateAnswerQuality({
+    let evaluation = evaluateAnswerQuality({
       question,
       body,
       sourceCount: topSources.length,
       traceSteps: trace.map((step) => step.step),
     });
+    // PRIVACY ENFORCEMENT (review #5): the public/private gate must BLOCK, not just record telemetry.
+    // In a public room, never publish an answer that references private-note material — replace it with
+    // the deterministic public-only synthesis (built from public sources, which can't leak) and re-grade.
+    if (evaluation.checks.some((c: any) => c.name === "public_private_boundary" && c.status === "fail")) {
+      body = synthesizeAnswer(question, prepared.event.name, topSources).slice(0, MAX_ANSWER_BODY);
+      agentMode = "provider_fallback";
+      trace.push({
+        step: "privacy_redaction",
+        status: "ok",
+        detail: "Answer referenced private-note material; replaced with public-only synthesis before publishing.",
+        durationMs: Date.now() - startedAt,
+      });
+      evaluation = evaluateAnswerQuality({
+        question,
+        body,
+        sourceCount: topSources.length,
+        traceSteps: trace.map((step) => step.step),
+      });
+    }
     trace.push({
       step: "quality_gate",
       status: evaluation.passed ? "ok" : "error",
