@@ -1,7 +1,7 @@
 /**
  * blockOrdering.ts — Fractional indexing helper for productBlocks.
  *
- * Ports Mew's approach (see src/app/graph/FractionalPositionedList.ts in Ideaflow/mew).
+ * Uses fractional indexing (Roam Research / outliner-style positioning).
  * Every block has (positionInt, positionFrac). To insert between two blocks, we
  * generate a new fractional key between their positionFrac values — O(1), no
  * re-indexing ever. Different positionInt values are used for "tiers" so that
