@@ -502,6 +502,167 @@ describe("event room-code lookup — /e/:roomCode joins the canonical live room"
   });
 });
 
+/* ========================================================================== */
+/* P2 cold-load send race — first send before join commits must be recoverable */
+/* ========================================================================== */
+
+describe("cold-load send race — a send fired before joinEvent commits is never lost", () => {
+  /**
+   * Scenario:    A fast typer (or automation / e2e bot) hard-reloads
+   *              scratchnode.live/e/orbital and fires their first /ask within
+   *              the sub-second cold-load window — BEFORE the liveEventMembers
+   *              row has committed. sendMessage runs against a known eventId but
+   *              no membership row exists yet, so it rejects with not_joined.
+   *              The frontend send pipeline (public/proto/home-v5.html,
+   *              window.sendComposerMessage) defends against this by re-running
+   *              the idempotent joinEvent and resending ONCE on a not_joined
+   *              rejection. This test pins the backend contract that recovery
+   *              relies on: the failed first send persists NOTHING (so it would
+   *              truly be lost without the retry), and the join+resend sequence
+   *              lands EXACTLY ONE message with the original text intact.
+   * User:        Anonymous attendee typing faster than the cold-load handshake
+   *              (the production failure mode reported live on 2026-05-30 — the
+   *              very first send never reached liveEventMessages).
+   * Goal:        Send "What is the MCP auth timeline?" immediately on load and
+   *              have it actually persist to the shared realtime stream.
+   * Prior state: Canonical event live (slug ai-infra-summit-2026 / code ORBITAL),
+   *              3 seeded sources, ZERO members (join not yet committed),
+   *              ZERO messages.
+   * Actions:
+   *   1. sendMessage(text) BEFORE any join          → must throw not_joined
+   *   2. assert liveEventMessages is still empty     → the raw race loses it
+   *   3. joinEvent(slug)  (the retry's rejoin)       → member row created
+   *   4. sendMessage(text) again (the resend)        → persists
+   * Scale:       1 attendee (models the fast-typer / automation persona; the
+   *              window widens for non-humans).
+   * Duration:    Single sub-second cold-load handshake.
+   * Expected:    Step 1 throws code=not_joined; step 2 sees 0 message rows;
+   *              after step 4 exactly 1 row exists with the original text, and
+   *              getMessages returns it. The message is NOT lost and NOT
+   *              duplicated.
+   * Edge:        kind="ask" (the /ask path the live repro used) — the membership
+   *              gate fires identically for chat and ask, so proving it for ask
+   *              covers both. The rate limiter charges the failed first send too
+   *              (it runs before the membership check); 2 send tokens for one
+   *              user message is well within the 30/min budget.
+   */
+  it("first send rejects not_joined and persists nothing; join + resend lands exactly one message", async () => {
+    const ctx = createCtx({
+      liveEvents: [baseEvent()],
+      liveEventMembers: [],
+      liveEventMessages: [],
+      liveEventSources: baseSources(),
+      scratchnodeRateLimits: [],
+    });
+
+    // The client already knows the eventId (it resolved the room on load); the
+    // race is purely that the membership row hasn't committed yet.
+    const resolved = await (getEventBySlug as any)._handler(ctx, { slug: "orbital" });
+    const eventId = resolved._id;
+    const text = "What is the MCP auth timeline?";
+
+    // Step 1 — the first send fires before join → backend rejects honestly.
+    await expect(
+      (sendMessage as any)._handler(ctx, {
+        eventId,
+        sessionId: ANONYMOUS_SESSION_A,
+        displayName: "Fast Typer",
+        text,
+        kind: "ask",
+      }),
+    ).rejects.toThrow(/not_joined|Call joinEvent/i);
+
+    // Step 2 — INVARIANT: without the retry, the message is gone. Zero rows.
+    const afterFail = await (getMessages as any)._handler(ctx, { eventId, limit: 10 });
+    expect(afterFail).toEqual([]);
+
+    // Step 3 — the frontend's not_joined recovery re-runs the idempotent join.
+    const joined = await (joinEvent as any)._handler(ctx, {
+      slug: "orbital",
+      sessionId: ANONYMOUS_SESSION_A,
+      displayName: "Fast Typer",
+    });
+    expect(joined.eventId).toBe(eventId);
+
+    // Step 4 — the resend now succeeds.
+    const sent = await (sendMessage as any)._handler(ctx, {
+      eventId,
+      sessionId: ANONYMOUS_SESSION_A,
+      displayName: "Fast Typer",
+      text,
+      kind: "ask",
+    });
+    expect(typeof sent.messageId).toBe("string");
+
+    // The original message is persisted exactly once, text intact, not lost.
+    const rows = await (getMessages as any)._handler(ctx, { eventId, limit: 10 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      eventId,
+      sessionId: ANONYMOUS_SESSION_A,
+      text,
+      kind: "ask",
+    });
+  });
+
+  /**
+   * Scenario:    The cold-load await-join (home-v5.html line ~5482) AND the
+   *              not_joined resend retry (line ~5712) can BOTH call joinEvent for
+   *              the same session in the same sub-second window. joinEvent must be
+   *              idempotent so the double-join never forks a second membership row
+   *              and the single resent message is never duplicated.
+   * User:        Same fast-typer session whose join is invoked twice (await + retry).
+   * Goal:        Recover the dropped send without spawning duplicate presence or
+   *              duplicate messages.
+   * Prior state: Event live, ZERO members, ZERO messages.
+   * Actions:     joinEvent → joinEvent (same session) → single sendMessage.
+   * Scale:       1 attendee, 2 joins, 1 send.
+   * Duration:    Single cold-load window.
+   * Expected:    Exactly 1 liveEventMembers row (second join PATCHes lastSeenAt,
+   *              does not insert); exactly 1 liveEventMessages row.
+   * Edge:        The frontend retry is gated on not_joined ONLY (it re-throws any
+   *              other error), so a generic failure on an already-persisted send
+   *              cannot trigger a duplicate resend — the dedupe vector here is the
+   *              double JOIN, which idempotency closes.
+   */
+  it("idempotent re-join during recovery does not fork a second member or duplicate the message", async () => {
+    const tables: Tables = {
+      liveEvents: [baseEvent()],
+      liveEventMembers: [],
+      liveEventMessages: [],
+      liveEventSources: baseSources(),
+      scratchnodeRateLimits: [],
+    };
+    const ctx = createCtx(tables);
+
+    const first = await (joinEvent as any)._handler(ctx, {
+      slug: "orbital",
+      sessionId: ANONYMOUS_SESSION_A,
+      displayName: "Fast Typer",
+    });
+    const second = await (joinEvent as any)._handler(ctx, {
+      slug: "orbital",
+      sessionId: ANONYMOUS_SESSION_A,
+      displayName: "Fast Typer",
+    });
+    expect(first.eventId).toBe(second.eventId);
+    expect(tables.liveEventMembers).toHaveLength(1);
+
+    await (sendMessage as any)._handler(ctx, {
+      eventId: first.eventId,
+      sessionId: ANONYMOUS_SESSION_A,
+      displayName: "Fast Typer",
+      text: "recovered cold-load message",
+      kind: "chat",
+    });
+
+    expect(tables.liveEventMessages).toHaveLength(1);
+    const rows = await (getMessages as any)._handler(ctx, { eventId: first.eventId, limit: 10 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].text).toBe("recovered cold-load message");
+  });
+});
+
 describe("createEvent - host-created rooms are real Convex rooms", () => {
   it("creates a live room, joins creator, issues host token, and seeds a public source", async () => {
     process.env.CONVEX_DEPLOYMENT = "dev:test";
