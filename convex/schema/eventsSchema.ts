@@ -302,3 +302,64 @@ export const scratchnodeRateLimits = defineTable({
 })
   .index("by_key_window", ["key", "windowStart"])
   .index("by_expiresAt", ["expiresAt"]);
+
+// ------------------------------------------------------------------
+// liveEventWallItems — Phase 8: the spatial "Memory Wall" overlay.
+//
+// LAYOUT-ONLY overlay over PUBLIC content. A wall item carries a
+// position (x,y), size (w), style (color), optional flat group, and a
+// z-order, and POINTS at content that already lives elsewhere:
+//   - refType "message" -> refMessageId (a public chat message)
+//   - refType "answer"  -> refAnswerId  (a public /ask answer)
+//   - refType "note"    -> text         (a short free-text sticky
+//                                         authored directly on the wall)
+//
+// Content/layout separation (NodeBench-original adaptation of the
+// FigJam/Miro "frame holds widgets" model): message/answer text is
+// NEVER duplicated — the card renders by dereferencing the pointer.
+// Only a "note" sticky stores its own inline text, and that text is
+// PUBLIC by construction (every member of the room sees the wall),
+// exactly like a chat message. This keeps Chat and Wall a single
+// source of truth — the "Twitch" model of one stream, two render lanes.
+//
+// Privacy invariant (mirrors liveEventNoteAnchors): the Wall is a
+// PUBLIC surface. It may ONLY reference public content — NEVER
+// userNotes (private, owner-keyed). There is intentionally no field
+// or index that can reach a private note from a wall item.
+//
+// Reliability (per .claude/rules/agentic_reliability.md):
+//   - BOUND: listWallItems caps at MAX_WALL_ITEMS = 500 (mirrors getMembers);
+//     every id[] mutation caps at MAX_WALL_BATCH = 200.
+//   - HONEST_STATUS: mutations throw typed ConvexError on validation.
+//   - DETERMINISTIC: server-stamped createdAt/updatedAt; groupId derived
+//     from the lexicographically smallest member id ("g:" + minId), so the
+//     same selection always groups to the same id.
+//
+// Conflict resolution: position writes commit once on pointerup via
+// moveWallItems. Convex's serializable txn ordering IS the last-write-
+// wins resolver — no CRDT needed at room scale.
+// ------------------------------------------------------------------
+export const liveEventWallItems = defineTable({
+  eventId: v.id("liveEvents"),
+  refType: v.union(
+    v.literal("message"),
+    v.literal("answer"),
+    v.literal("note"),
+  ),
+  refMessageId: v.optional(v.id("liveEventMessages")),  // refType "message"
+  refAnswerId: v.optional(v.id("liveEventAnswers")),    // refType "answer"
+  text: v.optional(v.string()),                         // refType "note" — inline PUBLIC text
+  x: v.number(),
+  y: v.number(),
+  w: v.number(),
+  color: v.string(),                                    // validated vs WALL_COLORS in wall.ts
+  groupId: v.optional(v.string()),                      // flat Figma-style group model
+  z: v.number(),                                        // stacking order; bumped on interaction
+  createdBySessionId: v.string(),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index("by_event", ["eventId"])
+  .index("by_event_updated", ["eventId", "updatedAt"])
+  .index("by_event_message", ["eventId", "refMessageId"])  // pin-dedup for messages
+  .index("by_event_answer", ["eventId", "refAnswerId"]);   // pin-dedup for answers
