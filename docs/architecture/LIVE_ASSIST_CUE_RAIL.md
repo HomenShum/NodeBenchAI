@@ -24,7 +24,7 @@ right now, never just something to watch.
 | **Product vision** | NodeBench is the *operating-memory + entity-context layer for agent-native work*. The cue rail is that memory **acting in real time** — context in, sharp next-move out, in the live moment where it's most valuable. |
 | **Distribution** | Cues are the "output is the distribution" pattern: a well-timed cue in a packed room is the most screenshot-/show-someone-worthy moment scratchnode produces. |
 | **Trust** | Privacy is a release-blocker: a cue must **never** reference another attendee's private notes. The design makes that structurally impossible, not merely conventional. |
-| **Latest dev direction** | It extends the live-event **/ask agent lane** (`events:askAgent`, Claude on the `ANTHROPIC_API_KEY` lane) rather than forking a parallel system, and adopts **Claude Opus 4.8** (flagship, 2026-05-28) with the new `effort` control. |
+| **Latest dev direction** | It extends the live-event **/ask agent lane** (`events:askAgent`) rather than forking a parallel system, and runs **Gemini 3.5 Flash** (with `thinkingLevel` control) — fast + cheap, the right model tier for a per-user 30s loop. |
 
 ## Architecture
 
@@ -52,9 +52,9 @@ right now, never just something to watch.
         │        • read OWN notes    (by_owner_event — exact-match) ────┘   │
         │                  │  {messages, ownNoteTitles, eventName}          │
         │                  ▼                                                 │
-        │        Claude Opus 4.8  (claude-opus-4-8)                          │
-        │          effort=medium · no extended thinking · <UNTRUSTED> chat   │
-        │          structured JSON → parse/validate/cap                      │
+        │        Gemini 3.5 Flash  (gemini-3.5-flash)                        │
+        │          thinkingLevel=low · temp 0.4 · <UNTRUSTED> chat            │
+        │          responseSchema JSON → parse/validate/cap                  │
         │                  │ ok                         │ any failure        │
         │                  ▼                            ▼                    │
         │        source:"llm"          ───────►  deterministic fallback      │
@@ -82,7 +82,7 @@ Both deployed via re-export from `convex/users.ts` (the client-contract anchor):
 
 - **`users:generateLiveCues`** — mutation. Deterministic keyword→template.
   Free, instant, no external dependency. The reliable floor.
-- **`users:generateLiveCuesLLM`** — action. Claude Opus 4.8. On *any* LLM
+- **`users:generateLiveCuesLLM`** — action. Gemini 3.5 Flash. On *any* LLM
   failure it falls back to the deterministic generator **internally**, so the
   client makes exactly one network call and always gets cues.
 
@@ -108,19 +108,24 @@ privacy invariants live in exactly one place.
   case of a successful injection is one bad tick — there is no other user's
   private data in context to leak, and cues are never persisted.
 
-## Model: Claude Opus 4.8 + `effort`
+## Model: Gemini 3.5 Flash + `thinkingLevel`
 
-Verified against platform.claude.com (2026-06-01):
+Verified against ai.google.dev (2026-06-01):
 
-- **`claude-opus-4-8`** — Anthropic's flagship (released 2026-05-28). Dateless
-  pinned-snapshot id (the 4.6+ convention; NOT a date suffix).
-- **`temperature` is unsupported** on Opus 4.7/4.8 — setting it returns 400.
-  Reasoning depth is controlled by the **`effort`** parameter
-  (`output_config: {effort}`), values `low | medium | high | xhigh | max`.
-- Cue generation is a short, latency-sensitive "subagent" task on a 30s loop,
-  so we run at **`effort: medium`** with **no extended thinking** (the fast
-  path). Env overrides: `SCRATCHNODE_CUE_MODEL`, `SCRATCHNODE_CUE_EFFORT`,
-  and the kill-switch `SCRATCHNODE_CUE_LLM_DISABLED=1` (forces deterministic).
+- **`gemini-3.5-flash`** — Google's GA flash model (1M context, 65k max output).
+  Fast + low-cost, which is the right trade for a **per-user 30s loop** vs a
+  flagship reasoning model that's slower + pricier per tick.
+- Structured output via `generationConfig.responseMimeType: "application/json"`
+  + `responseSchema` (uppercase type names in REST). Auth: `x-goog-api-key`.
+  Gemini **supports `temperature`** (we use 0.4) — unlike Opus 4.7/4.8.
+- Reasoning depth is the **`thinkingLevel`** enum (`thinkingConfig`;
+  `minimal | low | medium | high`, raw `thinking_budget` deprecated). Cues run
+  at **`low`** (Google's "faster, cheaper, still strong quality" tier). Env
+  overrides: `SCRATCHNODE_CUE_MODEL`, `SCRATCHNODE_CUE_EFFORT` (the thinking
+  level), kill-switch `SCRATCHNODE_CUE_LLM_DISABLED=1` (forces deterministic).
+
+> History: this path originally shipped on Claude Opus 4.8 (#448); switched to
+> Gemini 3.5 Flash for the user-facing rail to cut per-tick latency + cost.
 
 ## Prior art
 
@@ -134,7 +139,7 @@ Verified against platform.claude.com (2026-06-01):
 
 | File | Role |
 |---|---|
-| `convex/scratchnodeLiveCues.ts` | Both paths + shared gate + Anthropic call |
+| `convex/scratchnodeLiveCues.ts` | Both paths + shared gate + Gemini call |
 | `convex/users.ts` | Re-exports → `users:generateLiveCues[LLM]` deployed paths |
 | `convex/schema/eventsSchema.ts` | `lastCueGenAt` (additive) for the rate limit |
 | `public/proto/home-v5.html` | `_resolveLiveCueSource` — action→mutation→stub |

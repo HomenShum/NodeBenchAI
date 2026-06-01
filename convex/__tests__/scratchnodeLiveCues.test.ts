@@ -18,9 +18,10 @@
  * The mutation path (generateLiveCues) and the action path
  * (generateLiveCuesLLM) share `gateAndReadContext`, so the presence /
  * rate-limit / privacy invariants are proven once through the mutation. The
- * action gets one focused test proving its LLM→deterministic fallback is
- * honestly labeled (`source: "fallback"`), exercised hermetically via the
- * SCRATCHNODE_CUE_LLM_DISABLED kill-switch so no network call is made.
+ * action gets focused tests: (a) LLM→deterministic fallback honestly labeled
+ * `source: "fallback"` (via the SCRATCHNODE_CUE_LLM_DISABLED kill-switch, no
+ * network), and (b) the Gemini 3.5 Flash request shape + response parsing via a
+ * stubbed global `fetch` — proves the deployed-provider call without a live key.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -472,6 +473,119 @@ describe("generateLiveCuesLLM — graceful degradation (HONEST_SCORES)", () => {
       });
       expect(res.status).toBe("skipped_not_member");
       expect(res.source).toBe("skipped");
+    },
+  );
+});
+
+describe("generateLiveCuesLLM — Gemini 3.5 Flash request (fetch-mocked)", () => {
+  const priorFetch = globalThis.fetch;
+  const priorKey = process.env.GEMINI_API_KEY;
+  const priorDisabled = process.env.SCRATCHNODE_CUE_LLM_DISABLED;
+  afterEach(() => {
+    globalThis.fetch = priorFetch;
+    if (priorKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = priorKey;
+    if (priorDisabled === undefined) delete process.env.SCRATCHNODE_CUE_LLM_DISABLED;
+    else process.env.SCRATCHNODE_CUE_LLM_DISABLED = priorDisabled;
+  });
+
+  it(
+    "Scenario: a member tick reaches Gemini → valid request, parsed cues, source=llm\n" +
+      "  User: a member in an MCP-auth discussion who also has a private note\n" +
+      "  Prior state: GEMINI_API_KEY set, kill-switch off, global fetch stubbed\n" +
+      "  Expected: POST to gemini-3.5-flash:generateContent with x-goog-api-key +\n" +
+      "            responseSchema body; cues come from the model; source=llm;\n" +
+      "            the prompt carries the note TITLE but never its bodyHtml.",
+    async () => {
+      process.env.GEMINI_API_KEY = "test-key-abc";
+      delete process.env.SCRATCHNODE_CUE_LLM_DISABLED;
+
+      const modelCue = "Clarify scoped tool grant vs tenant RBAC";
+      const cannedText = JSON.stringify({
+        topic: "MCP auth",
+        cues: [modelCue],
+        context: ["[[MCP auth]]"],
+      });
+      let captured: { url: string; init: any } | null = null;
+      globalThis.fetch = (async (url: any, init: any) => {
+        captured = { url: String(url), init };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            candidates: [{ content: { parts: [{ text: cannedText }] } }],
+          }),
+          text: async () => cannedText,
+        };
+      }) as any;
+
+      const NOTE_TITLE = "My roadmap question";
+      const tables: Tables = {
+        liveEvents: [baseEvent()],
+        liveEventMembers: [member(SESSION_B)],
+        liveEventMessages: [message(1, SESSION_A, "scoped tool grant vs tenant RBAC?")],
+        userNotes: [note(SESSION_B, NOTE_TITLE, 1)],
+      };
+      const ctx = createActionCtx(tables);
+      const res = await (generateLiveCuesLLM as any)._handler(ctx, {
+        eventId: EVENT_ID,
+        sessionId: SESSION_B,
+        sinceTimestamp: NOW - 30_000,
+      });
+
+      // Output: model-produced cues, honestly labeled.
+      expect(res.status).toBe("ok");
+      expect(res.source).toBe("llm");
+      expect(res.cues).toContain(modelCue);
+
+      // Request shape: endpoint + auth header + structured-output body.
+      expect(captured).not.toBeNull();
+      expect(captured!.url).toContain("generativelanguage.googleapis.com");
+      expect(captured!.url).toContain("gemini-3.5-flash:generateContent");
+      expect(captured!.init.headers["x-goog-api-key"]).toBe("test-key-abc");
+      const body = JSON.parse(captured!.init.body);
+      expect(body.generationConfig.responseMimeType).toBe("application/json");
+      expect(body.generationConfig.responseSchema).toBeTruthy();
+      expect(body.generationConfig.thinkingConfig.thinkingLevel).toBe("LOW"); // default, uppercased
+      expect(body.systemInstruction.parts[0].text).toContain("UNTRUSTED");
+
+      // Privacy at the prompt layer: the owner's note TITLE may be sent, but its
+      // bodyHtml ("secret body") must never enter the request.
+      const wire = JSON.stringify(body);
+      expect(wire).toContain(NOTE_TITLE);
+      expect(wire).not.toContain("secret body");
+    },
+  );
+
+  it(
+    "Scenario: Gemini safety-blocks the response (no text) → honest fallback\n" +
+      "  Prior state: fetch returns finishReason=SAFETY with empty parts\n" +
+      "  Expected: source=fallback (never a fabricated cue), cues still produced",
+    async () => {
+      process.env.GEMINI_API_KEY = "test-key-abc";
+      delete process.env.SCRATCHNODE_CUE_LLM_DISABLED;
+      globalThis.fetch = (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ candidates: [{ finishReason: "SAFETY", content: { parts: [] } }] }),
+        text: async () => "{}",
+      })) as any;
+
+      const tables: Tables = {
+        liveEvents: [baseEvent()],
+        liveEventMembers: [member(SESSION_B)],
+        liveEventMessages: [message(1, SESSION_A, "p95 latency under load")],
+        userNotes: [],
+      };
+      const ctx = createActionCtx(tables);
+      const res = await (generateLiveCuesLLM as any)._handler(ctx, {
+        eventId: EVENT_ID,
+        sessionId: SESSION_B,
+        sinceTimestamp: NOW - 30_000,
+      });
+      expect(res.status).toBe("ok");
+      expect(res.source).toBe("fallback");
+      expect(res.cues.length).toBeGreaterThan(0);
     },
   );
 });
