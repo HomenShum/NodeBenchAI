@@ -5421,6 +5421,45 @@ window._laCueAction       = _laCueAction;
     return;
   }
 
+  // ─── Cold-load send guard (PR B) ───────────────────────────────────
+  // Until the Convex-routing override installs below (AFTER the browser client
+  // lazy-loads AND joinEvent resolves), window.sendComposerMessage is still the
+  // prototype-only handler — it clears the composer and renders locally but
+  // NEVER persists to Convex. A public send fired in this cold-load window would
+  // be silently lost (the user thinks it sent). Install a queueing shim now:
+  // public sends are buffered (not lost), the composer clears, and a "connecting"
+  // hint shows. The real override drains the queue the moment the room is live;
+  // if init fails, _sn_failPendingSends restores the draft instead of dropping it.
+  window._sn_pendingSends = [];
+  const _preInitSend = window.sendComposerMessage;
+  window.sendComposerMessage = function() {
+    const input = document.getElementById('ci');
+    if (!input) return;
+    const intent = window.parseComposerIntent && window.parseComposerIntent(input.value);
+    if (!intent) { input.focus(); return; }
+    // Private notes stay 100% prototype-side and never touch Convex — pass through.
+    if (intent.visibility === 'private') { return _preInitSend.call(this); }
+    window._sn_pendingSends.push(input.value);
+    input.value = '';
+    if ('ontouchstart' in window || window.innerWidth <= 720) input.blur();
+    if (typeof toast === 'function') {
+      toast('Connecting to live room…', 'Your message will send the moment the room is live.');
+    }
+  };
+  window.send = window.sendComposerMessage;
+  window._sn_failPendingSends = function() {
+    if (!window._sn_pendingSends || !window._sn_pendingSends.length) return;
+    const input = document.getElementById('ci');
+    const lastDraft = window._sn_pendingSends[window._sn_pendingSends.length - 1];
+    window._sn_pendingSends = [];
+    // Restore the most recent un-sent draft so the user can retry once the room
+    // recovers — never silently drop what they typed.
+    if (input && !input.value) input.value = lastDraft;
+    if (typeof toast === 'function') {
+      toast('Live room unavailable', 'Your message was not sent — your draft is restored. Retry once the room loads.');
+    }
+  };
+
   // ─── Lazy-load Convex browser client ───────────────────────────────
   let ConvexClient;
   try {
@@ -5430,6 +5469,7 @@ window._laCueAction       = _laCueAction;
   } catch (e) {
     console.warn('[scratchnode] Convex client load failed, live room unavailable:', e.message);
     showLiveRoomError('Could not load the realtime client. <a href="javascript:location.reload()" style="color:#f1d6c8;text-decoration:underline">Retry</a>');
+    window._sn_failPendingSends && window._sn_failPendingSends();
     return;
   }
 
@@ -5452,6 +5492,7 @@ window._laCueAction       = _laCueAction;
     showLiveRoomError(notFound
       ? 'No room matches <code style="font-family:var(--mono,monospace);background:#2a1f1c;padding:2px 6px;border-radius:4px">/e/' + (slug.replace(/[<>&"]/g, '') || '?') + '</code>. <a href="/" style="color:#f1d6c8;text-decoration:underline">Back to landing</a> or check your room code.'
       : 'Could not connect to the live room. <a href="javascript:location.reload()" style="color:#f1d6c8;text-decoration:underline">Retry</a>');
+    window._sn_failPendingSends && window._sn_failPendingSends();
     return;
   }
   const eventId = joined.eventId;
@@ -5680,6 +5721,20 @@ window._laCueAction       = _laCueAction;
   };
   // Make sure both global aliases stay in sync (existing onclick handlers).
   window.send = window.sendComposerMessage;
+
+  // Drain any public sends queued during the cold-load init window (PR B). The
+  // real override reads #ci, so replay each buffered draft through it in order —
+  // each goes through the full Convex sendMessage → askAgent path and clears.
+  if (window._sn_pendingSends && window._sn_pendingSends.length) {
+    const _queued = window._sn_pendingSends.splice(0);
+    const _ci = document.getElementById('ci');
+    if (_ci) {
+      for (let _i = 0; _i < _queued.length; _i += 1) {
+        _ci.value = _queued[_i];
+        window.sendComposerMessage();
+      }
+    }
+  }
 
   window.snSuggestFaq = function(answerId) {
     client.mutation('events:suggestAnswerForFaq', { eventId, answerId, sessionId })
