@@ -726,8 +726,9 @@ export const getUser = query({
 //
 // Live Assist cue rail backend. Two deployed entry points the client uses:
 //   - `users:generateLiveCues`    (mutation) — deterministic, free, instant
-//   - `users:generateLiveCuesLLM` (action)   — max-quality Claude Opus 4.8 path,
-//        falls back to the deterministic generator internally on any failure
+//   - `users:generateLiveCuesLLM` (action)   — Gemini 3.5 Flash path (fast +
+//        cheap for the 30s loop); falls back to the deterministic generator
+//        internally on any failure
 //
 // Implementations live in convex/scratchnodeLiveCues.ts (sibling-file
 // convention from Step 9 scratchnodeHandoff.ts). The re-exports here are the
