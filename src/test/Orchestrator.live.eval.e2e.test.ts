@@ -35,7 +35,7 @@ if (!live) {
         };
 
         // Start with only an eval node. The LLM is instructed to return pass=false and add s1(search) -> a1(answer)
-        const topic = 'Summarize the latest about Ideaflow and Jacob Cole fundraising';
+        const topic = 'Summarize the latest about Anthropic and Dario Amodei fundraising';
         const graph = {
           nodes: [
             {

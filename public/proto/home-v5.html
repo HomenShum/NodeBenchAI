@@ -231,19 +231,39 @@ body[data-mode="private"] .c-hint::before { content: "🔒 Private — saves to 
 
 /* Chat row (minimal, dense) */
 .row {
-  display: grid; grid-template-columns: 56px 1fr;
-  gap: 8px; padding: 8px 4px;
+  display: grid; grid-template-columns: 34px 1fr;
+  column-gap: 10px; padding: 5px 8px 6px;
   border-radius: var(--r-sm);
   transition: background .12s;
   position: relative;
+  align-items: start;
 }
-.row:hover { background: rgba(255,255,255,.015); }
-.row-time { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); padding-top: 3px; }
-.row-body { min-width: 0; }
-.row-name { font-size: 12px; font-weight: 600; color: var(--ink); }
+.row:hover { background: rgba(255,255,255,.025); }
+/* Slack/Discord-style avatar — colored circle with the author's initial (injected by decorateRow) */
+.row-avatar {
+  grid-column: 1; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--ui); font-size: 13px; font-weight: 700; color: #fff;
+  line-height: 1; user-select: none; margin-top: 1px; flex: none;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.07);
+  text-shadow: 0 1px 1px rgba(0,0,0,.3);
+}
+.row-body { grid-column: 2; min-width: 0; }
+.row-reactions { grid-column: 2; }
+.row-head { display: flex; align-items: baseline; gap: 7px; margin-bottom: 1px; line-height: 1.2; }
+.row-time { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); }
+.row-name { font-size: 13px; font-weight: 600; color: var(--ink); }
 .row-name[data-role="you"] { color: var(--accent); }
 .row-name[data-role="mod"] { color: var(--green); }
 .row-text { font-size: 14px; color: var(--ink-muted); line-height: 1.5; word-wrap: break-word; }
+/* Grouped consecutive messages from the same author (Discord-style compaction) */
+.row--grouped { margin-top: -3px; padding-top: 1px; }
+.row--grouped .row-avatar { visibility: hidden; }
+/* Hide the repeated author visually but keep it in the a11y tree so screen readers still announce who spoke */
+.row--grouped .row-name { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.row--grouped .row-head { margin-bottom: 0; }
+.row--grouped .row-time { position: absolute; left: 0; top: 4px; width: 34px; text-align: center; opacity: 0; font-size: 9px; transition: opacity .12s; }
+.row--grouped:hover .row-time { opacity: 1; }
 
 /* — Row hover actions (Reply / React) — sit at the bottom-right of the text — */
 .row-actions {
@@ -393,9 +413,9 @@ body[data-mode="private"] .private-notes-inline[data-count]:not([data-count="0"]
    smaller body type, with a visual connector tying it to the message above) */
 .ans {
   position: relative;
-  margin: 2px 0 12px 56px;     /* indent matches the 56px time column above */
+  margin: 2px 0 12px 44px;     /* indent aligns the card body with the avatar column */
   padding: 10px 14px 10px 12px;
-  max-width: calc(100% - 60px); /* narrower than parent row */
+  max-width: calc(100% - 48px); /* narrower than parent row */
   background: rgba(217,119,87,.035);
   border: 1px solid rgba(217,119,87,.14);
   border-left: 2px solid var(--accent);
@@ -416,6 +436,17 @@ body[data-mode="private"] .private-notes-inline[data-count]:not([data-count="0"]
 }
 .ans[data-private="true"] { background: rgba(167,139,250,.035); border-color: rgba(167,139,250,.18); border-left-color: var(--purple); }
 .ans[data-private="true"]::before, .ans[data-private="true"]::after { background: var(--purple); }
+/* Bot avatar (✦) replaces the old tree connector as the conversation anchor (injected by decorateAns) */
+.ans::before, .ans::after { display: none; }
+.ans-bot {
+  position: absolute; left: -44px; top: 6px;
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--accent), #b1481f);
+  color: #fff; font-size: 16px; font-weight: 700; line-height: 1;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.12), 0 2px 8px rgba(217,119,87,.3);
+}
+.ans[data-private="true"] .ans-bot { background: linear-gradient(135deg, var(--purple), #7c3aed); box-shadow: inset 0 0 0 2px rgba(255,255,255,.12), 0 2px 8px rgba(167,139,250,.3); }
 
 /* Head: smaller, lighter — clearly a reply not a peer */
 .ans-head { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--ink-faint); margin-bottom: 6px; line-height: 1.4; flex-wrap: wrap; font-family: var(--mono); letter-spacing: .02em; }
@@ -900,12 +931,28 @@ body[data-new-user="true"] .h-menu::after {
 /* Mobile tweaks */
 @media (max-width: 540px) {
   .h { padding: calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left)); }
-  .m { padding: 16px calc(14px + var(--safe-right)) calc(80px + var(--safe-bot)) calc(14px + var(--safe-left)); }
+  .m { padding: 16px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
   .hero h1 { font-size: 22px; }
-  .c { top: 60px; }
-  .row { grid-template-columns: 44px 1fr; gap: 6px; }
+  /* Mobile: pin the composer to the bottom (Slack/Discord/iMessage convention — thumb reach,
+     newest message sits right above where you type). Desktop keeps the sticky top command bar. */
+  .c {
+    position: fixed; top: auto; bottom: 0; left: 0; right: 0; z-index: 45;
+    margin: 0;
+    padding: 8px calc(14px + var(--safe-right)) calc(8px + var(--safe-bot)) calc(14px + var(--safe-left));
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+    box-shadow: 0 -8px 24px -12px rgba(0,0,0,.55);
+  }
+  .row { grid-template-columns: 32px 1fr; column-gap: 8px; padding: 5px 4px 6px; }
+  .row-avatar { width: 32px; height: 32px; font-size: 12px; }
   .row-time { font-size: 9px; }
-  .ans { padding: 12px 14px; margin-left: -4px; margin-right: -4px; }
+  .ans { padding: 10px 12px; margin-left: 40px; margin-right: 0; max-width: calc(100% - 44px); }
+  .ans-bot { left: -40px; width: 30px; height: 30px; font-size: 14px; }
+  /* Compact the public/private badge to its colored dot on phones — frees composer input width.
+     The helpline below the composer still shows the mode word; aria-live still announces changes. */
+  .c-mode { padding: 0; width: 26px; min-width: 26px; height: 26px; justify-content: center; gap: 0; }
+  .c-mode #c-mode-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  .c-mode .dot { width: 7px; height: 7px; }
   .feed-divider { font-size: 9px; }
 }
 
@@ -1854,8 +1901,9 @@ function _landingJoin(ev) {
     <button class="id-set" type="button" onclick="setIdentity()" id="id-set">Set name</button>
   </div>
 
-  <!-- COMPOSER (the only primary action visible above the fold) -->
-  <div class="c" style="position:sticky;top:64px;z-index:40">
+  <!-- COMPOSER — desktop: sticky command bar (top); mobile: pinned to the bottom (see .c rules).
+       Position lives in the stylesheet (not inline) so the mobile media query can override it. -->
+  <div class="c">
     <!-- Reply context bar (visible when replying to a message) -->
     <div class="reply-context" id="reply-ctx" data-open="false">
       <span>Replying to <span class="name" id="reply-ctx-name"></span></span>
@@ -1894,6 +1942,15 @@ function _landingJoin(ev) {
   </div>
 
   <div class="feed-divider">Live room</div>
+
+  <div class="sn-room-toggle" role="tablist" aria-label="Room view" style="display:flex;gap:6px;margin:0 0 8px;">
+    <button type="button" class="sn-rt-btn" data-rt="chat" data-active="true" role="tab" aria-selected="true"
+      style="font:inherit;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:inherit;cursor:pointer;"
+      onclick="window.snWall&&snWall.show('chat')">Chat</button>
+    <button type="button" class="sn-rt-btn" data-rt="wall" data-active="false" role="tab" aria-selected="false"
+      style="font:inherit;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:transparent;color:inherit;cursor:pointer;"
+      onclick="window.snWall&&snWall.show('wall')">Wall</button>
+  </div>
 
   <!-- Empty state (only shows when feed is empty) -->
   <div class="empty">
@@ -1958,6 +2015,234 @@ function _landingJoin(ev) {
     <div class="row"><span class="row-time">2:47p</span><div class="row-body"><span class="row-name">Maya</span> <span class="row-text">anyone know who's doing voice-agent eval?</span></div></div>
     <div class="row"><span class="row-time">2:47p</span><div class="row-body"><span class="row-name">Dario A.</span> <span class="row-text">Orbital Labs — just closed Series A. Alex Chen is the founder.</span></div></div>
   </section>
+
+  <!-- ─── Memory Wall lane (Phase 8) — spatial overlay over the same event stream ───
+       Backed by api.wall.* (convex/wall.ts). A second render lane over the feed:
+       same room, two views (Twitch model). Sticky create/drag/recolor/delete +
+       pinned /ask answers, live via wall:listWallItems. -->
+  <style id="sn-wall-css">
+    #sn-wall{position:relative;display:none;height:min(68vh,560px);margin-top:10px;border:1px solid var(--edge,rgba(255,255,255,.08));border-radius:14px;overflow:hidden;
+      background:radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 0) 0 0/22px 22px, var(--bg-2,#15171c);}
+    #sn-wall[data-on="true"]{display:block;}
+    .sn-wall-bar{position:absolute;z-index:6;top:10px;left:10px;right:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+    .sn-wall-bar button{font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit;cursor:pointer;}
+    .sn-wall-bar button:focus-visible{outline:2px solid var(--accent,#d97757);outline-offset:2px;}
+    .sn-wall-bar .sn-add{background:var(--accent,#d97757);border-color:transparent;color:#1a1410;font-weight:600;}
+    .sn-wall-pal{display:inline-flex;gap:5px;align-items:center;}
+    .sn-sw{width:18px;height:18px;border-radius:50%;border:1px solid rgba(0,0,0,.25);cursor:pointer;padding:0;}
+    .sn-sw[aria-pressed="true"]{outline:2px solid #fff;outline-offset:1px;}
+    .sn-wall-hint{position:absolute;left:12px;bottom:10px;font-size:11px;color:var(--muted,#8a8f98);z-index:4;pointer-events:none;}
+    .sn-board{position:absolute;inset:0;}
+    .sn-note{position:absolute;left:0;top:0;transform:translate3d(var(--x,0),var(--y,0),0);width:var(--w,180px);min-height:72px;
+      background:var(--c,#f3d77b);color:#1c1a17;border-radius:10px;padding:10px 12px 22px;box-shadow:0 6px 18px rgba(0,0,0,.28);
+      font-size:13px;line-height:1.4;cursor:grab;touch-action:none;contain:layout paint;}
+    .sn-note:focus-visible{outline:2px solid var(--accent,#d97757);outline-offset:2px;}
+    .sn-note.drag{cursor:grabbing;will-change:transform;box-shadow:0 14px 32px rgba(0,0,0,.42);z-index:50;}
+    .sn-note.sel{box-shadow:0 0 0 2px var(--accent,#d97757),0 8px 22px rgba(0,0,0,.34);}
+    .sn-note.remote{transition:transform .16s ease;}
+    .sn-note .sn-body{outline:none;white-space:pre-wrap;word-break:break-word;}
+    .sn-note .sn-meta{position:absolute;left:12px;bottom:6px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;opacity:.5;}
+    .sn-note .sn-del{position:absolute;top:3px;right:5px;border:none;background:transparent;color:rgba(0,0,0,.45);cursor:pointer;font-size:15px;line-height:1;padding:2px;}
+    .sn-note[data-kind="answer"] .sn-meta::before{content:"\2605 answer \00b7 ";}
+    .sn-pin{font:inherit;}
+    @media (prefers-reduced-motion: reduce){ .sn-note.remote{transition:none;} }
+  </style>
+  <section id="sn-wall" aria-label="Memory Wall" aria-hidden="true">
+    <div class="sn-wall-bar">
+      <button type="button" class="sn-add" onclick="window.snWall&&snWall.addNote()">+ Note</button>
+      <span class="sn-wall-pal" role="group" aria-label="Sticky color"></span>
+      <button type="button" onclick="window.snWall&&snWall.fit()">Fit</button>
+      <span id="sn-wall-status" style="font-size:11px;color:var(--muted,#8a8f98)"></span>
+    </div>
+    <div class="sn-board" id="sn-board"></div>
+    <div class="sn-wall-hint">Drag to arrange &middot; double-click a sticky to edit &middot; pin /ask answers from Chat</div>
+  </section>
+
+  <script>
+  /* ─── Memory Wall engine (Phase 8) — translate3d + rAF + pointer capture,
+     wired to api.wall.* (convex/wall.ts). Self-contained; no-ops gracefully
+     until snWall.connect() is called by the realtime init. ─── */
+  (function(){
+    var COLORS=["#f3d77b","#f5b8c4","#a9d8f0","#bfe3b6","#e7b48f","#d8c9f2"];
+    var client=null, eventId=null, sessionId=null, connected=false;
+    var board=null, wallEl=null;
+    var els=new Map();          // itemId -> DOM node
+    var model=new Map();        // itemId -> latest server row
+    var newColor=COLORS[0], selId=null;
+    var drag=null;              // {id,raf,latest,ox,oy,sx,sy,_dx,_dy}
+    var dragging=new Set();     // ids being dragged locally (skip remote clobber)
+    function $(id){ return document.getElementById(id); }
+    function statusMsg(t){ var s=$('sn-wall-status'); if(s) s.textContent=t||''; }
+    function toastSafe(a,b){ try{ if(window.toast) window.toast(a,b); }catch(e){} }
+    function answerText(id){ var m=window._sn_answers_by_id||{}; return m[id]||'(answer)'; }
+    function messageText(id){ var m=window._sn_messages_by_id||{}; return m[id]||'(message)'; }
+    function toBoardXY(cx,cy){ var r=board.getBoundingClientRect(); return { x:cx-r.left, y:cy-r.top }; }
+
+    function buildPalette(){
+      var pal=document.querySelector('.sn-wall-pal'); if(!pal) return;
+      pal.innerHTML='';
+      COLORS.forEach(function(c){
+        var b=document.createElement('button');
+        b.type='button'; b.className='sn-sw'; b.style.background=c;
+        b.setAttribute('aria-label','Color '+c);
+        b.setAttribute('aria-pressed', (!selId && c===newColor)?'true':'false');
+        b.onclick=function(){ if(selId){ recolor(selId,c); } else { newColor=c; buildPalette(); } };
+        pal.appendChild(b);
+      });
+    }
+
+    function noteEl(item){
+      var el=els.get(item._id);
+      if(!el){
+        el=document.createElement('div');
+        el.className='sn-note'; el.tabIndex=0; el.setAttribute('role','group'); el.dataset.id=item._id;
+        el.innerHTML='<button class="sn-del" title="Remove" aria-label="Remove sticky">&times;</button>'+
+                     '<div class="sn-body"></div><div class="sn-meta">sticky</div>';
+        board.appendChild(el); els.set(item._id, el); wireNote(el, item._id);
+      }
+      el.dataset.kind=item.refType;
+      el.style.setProperty('--x',(item.x||0)+'px');
+      el.style.setProperty('--y',(item.y||0)+'px');
+      el.style.setProperty('--w',(item.w||180)+'px');
+      el.style.setProperty('--c', item.color||COLORS[0]);
+      var body=el.querySelector('.sn-body');
+      var txt = item.refType==='note' ? (item.text||'')
+              : item.refType==='answer' ? answerText(item.refAnswerId)
+              : messageText(item.refMessageId);
+      if(document.activeElement!==body && body.textContent!==txt) body.textContent=txt;
+      var meta=el.querySelector('.sn-meta'); if(meta) meta.textContent = item.refType==='note'?'sticky':item.refType;
+      el.classList.toggle('sel', selId===item._id);
+      return el;
+    }
+
+    function render(rows){
+      if(!board) return;
+      var live=new Set();
+      (rows||[]).forEach(function(it){ model.set(it._id,it); live.add(it._id); });
+      els.forEach(function(el,id){ if(!live.has(id)){ el.remove(); els.delete(id); model.delete(id); } });
+      (rows||[]).forEach(function(it){
+        if(dragging.has(it._id)){ var e=els.get(it._id); if(e) e.style.setProperty('--c', it.color||COLORS[0]); return; }
+        var existed=els.has(it._id); var el=noteEl(it); if(existed) el.classList.add('remote');
+      });
+      statusMsg((rows||[]).length+' on the wall');
+    }
+
+    function wireNote(el, id){
+      var body=el.querySelector('.sn-body');
+      el.querySelector('.sn-del').onclick=function(e){ e.stopPropagation(); del(id); };
+      el.addEventListener('dblclick', function(){
+        var it=model.get(id);
+        if(it && it.refType!=='note'){ toastSafe('Pinned content','Edit the source in Chat; only stickies are editable here.'); return; }
+        body.contentEditable='true'; body.focus();
+        var r=document.createRange(); r.selectNodeContents(body); r.collapse(false);
+        var s=getSelection(); s.removeAllRanges(); s.addRange(r);
+      });
+      body.addEventListener('blur', function(){
+        if(body.contentEditable!=='true') return;
+        body.contentEditable='false';
+        var it=model.get(id); if(!it||it.refType!=='note') return;
+        var t=(body.textContent||'').trim();
+        if(!t){ body.textContent=it.text||''; return; }
+        if(t===it.text) return;
+        if(!connected){ it.text=t; return; }
+        client.mutation('wall:editWallNote', { eventId:eventId, sessionId:sessionId, itemId:id, text:t })
+          .catch(function(err){ toastSafe('Edit failed',(err&&err.message)||'try again'); });
+      });
+      el.addEventListener('pointerdown', function(e){
+        if(e.target.classList.contains('sn-del')) return;
+        if(body.contentEditable==='true') return;
+        e.stopPropagation();
+        selId=id; buildPalette();
+        els.forEach(function(n,nid){ n.classList.toggle('sel', nid===id); });
+        var it=model.get(id); if(!it) return;
+        try{ el.setPointerCapture(e.pointerId); }catch(_){}
+        el.classList.add('drag'); el.classList.remove('remote');
+        var p=toBoardXY(e.clientX,e.clientY);
+        drag={ id:id, raf:null, latest:e, ox:it.x||0, oy:it.y||0, sx:p.x, sy:p.y, _dx:it.x||0, _dy:it.y||0 };
+        dragging.add(id);
+      });
+    }
+
+    function onMove(e){ if(!drag) return; drag.latest=e; if(!drag.raf) drag.raf=requestAnimationFrame(applyDrag); }
+    function applyDrag(){
+      if(!drag) return; drag.raf=null;
+      var p=toBoardXY(drag.latest.clientX, drag.latest.clientY);
+      var nx=Math.max(0, drag.ox+(p.x-drag.sx)), ny=Math.max(0, drag.oy+(p.y-drag.sy));
+      drag._dx=nx; drag._dy=ny;
+      var el=els.get(drag.id);
+      if(el){ el.style.setProperty('--x',nx+'px'); el.style.setProperty('--y',ny+'px'); }
+    }
+    function endDrag(){
+      if(!drag) return;
+      var id=drag.id, d=drag, nx=Math.round(drag._dx), ny=Math.round(drag._dy);
+      var el=els.get(id); if(el) el.classList.remove('drag');
+      var it=model.get(id); if(it){ it.x=nx; it.y=ny; }
+      drag=null;
+      var clear=function(){ dragging.delete(id); };
+      if(connected && (nx!==d.ox || ny!==d.oy)){
+        client.mutation('wall:moveWallItems', { eventId:eventId, sessionId:sessionId, updates:[{ id:id, x:nx, y:ny }] })
+          .then(clear).catch(function(err){ toastSafe('Move failed',(err&&err.message)||'try again'); clear(); });
+      } else { clear(); }
+    }
+    window.addEventListener('pointermove', onMove, { passive:true });
+    window.addEventListener('pointerup', endDrag);
+
+    function recolor(id,c){
+      var it=model.get(id); if(!it) return;
+      var el=els.get(id); if(el) el.style.setProperty('--c',c); it.color=c;
+      if(!connected) return;
+      client.mutation('wall:recolorWallItem', { eventId:eventId, sessionId:sessionId, itemId:id, color:c })
+        .catch(function(err){ toastSafe('Recolor failed',(err&&err.message)||'try again'); });
+    }
+    function del(id){
+      var el=els.get(id); if(el) el.remove(); els.delete(id); model.delete(id); if(selId===id) selId=null;
+      if(!connected) return;
+      client.mutation('wall:removeWallItems', { eventId:eventId, sessionId:sessionId, itemIds:[id] })
+        .catch(function(err){ toastSafe('Remove failed',(err&&err.message)||'try again'); });
+    }
+
+    var snWall={
+      connect:function(c,eid,sid){
+        client=c; eventId=eid; sessionId=sid; connected=!!(c&&eid&&sid);
+        board=$('sn-board'); wallEl=$('sn-wall'); buildPalette();
+        if(connected){ client.onUpdate('wall:listWallItems', { eventId:eventId }, function(rows){ if(Array.isArray(rows)) render(rows); }); }
+      },
+      show:function(view){
+        var feed=$('feed'); var empty=document.querySelector('.empty'); wallEl=$('sn-wall');
+        var on=view==='wall';
+        if(wallEl){ wallEl.dataset.on=on?'true':'false'; wallEl.setAttribute('aria-hidden', on?'false':'true'); }
+        if(feed) feed.style.display=on?'none':'';
+        if(empty){ if(on){ empty.style.display='none'; } else if(window.refreshEmptyState){ try{ window.refreshEmptyState(); }catch(_){} } }
+        document.querySelectorAll('.sn-rt-btn').forEach(function(b){
+          var act=b.dataset.rt===view; b.dataset.active=act?'true':'false'; b.setAttribute('aria-selected', act?'true':'false');
+          b.style.background = !act ? 'transparent' : (view==='wall' ? 'rgba(217,119,87,.18)' : 'rgba(255,255,255,.06)');
+        });
+        if(on && !connected) statusMsg('Join the room to use the wall');
+      },
+      addNote:function(){
+        if(!connected){ toastSafe('Wall','Join the room first to add notes.'); return; }
+        var r=board.getBoundingClientRect();
+        var x=Math.round(40+Math.random()*Math.max(40,(r.width-240))*0.5);
+        var y=Math.round(60+Math.random()*Math.max(40,(r.height-200))*0.5);
+        client.mutation('wall:createWallNote', { eventId:eventId, sessionId:sessionId, text:'New note', x:x, y:y, color:newColor })
+          .catch(function(err){ toastSafe('Add failed',(err&&err.message)||'try again'); });
+      },
+      pinAnswer:function(answerId){
+        if(!connected){ toastSafe('Wall','Join the room first.'); return; }
+        client.mutation('wall:pinToWall', { eventId:eventId, sessionId:sessionId, refType:'answer', refAnswerId:answerId, x:40, y:40, color:'#a9d8f0' })
+          .then(function(res){ snWall.show('wall'); toastSafe('Pinned to wall', (res&&res.alreadyPinned)?'Already on the wall.':'Added to the Memory Wall.'); })
+          .catch(function(err){ toastSafe('Pin failed',(err&&err.message)||'try again'); });
+      },
+      fit:function(){ if(board&&board.scrollTo) board.scrollTo(0,0); },
+      _refresh:function(){ if(board) render(Array.from(model.values())); }
+    };
+    window.snWall=snWall;
+    // Self-initialize DOM refs + palette immediately so the Wall is a coherent
+    // surface even before (or without) a Convex connection — connect() only
+    // adds the live subscription on top.
+    board=$('sn-board'); wallEl=$('sn-wall'); buildPalette();
+  })();
+  </script>
 </main>
 
 <!-- ─── LIVE ASSIST — desktop rail + mobile bottom sheet ───
@@ -4254,11 +4539,60 @@ document.addEventListener('keydown', function(e) {
   if (typeof openMember === 'function' && name) openMember(name);
 });
 
-// Apply mention rendering + add hover actions to all rows in feed
+// Curated avatar palette — every color is legible with a white initial AND as name text on the
+// dark surface (verified contrast); no orange/terracotta so the ScratchNode bot avatar stays unique.
+var AVATAR_PALETTE = ['#5b73c9','#8d62c4','#b566a0','#b5566e','#4a8fb0','#3f9488','#5a9450','#b07d2e'];
+// Deterministic avatar color from an author name (Discord-style); honors explicit name colors/roles.
+function avatarColorFor(nameEl, nm) {
+  var c = (nameEl && nameEl.style && nameEl.style.color) || '';
+  if (c && c.indexOf('--ink') === -1) return c;
+  var role = nameEl && nameEl.getAttribute('data-role');
+  if (role === 'mod') return 'var(--green)';
+  if (role === 'you') return 'var(--accent)';
+  var h = 0; for (var i = 0; i < nm.length; i++) h = (h * 31 + nm.charCodeAt(i)) >>> 0;
+  return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
+}
+// Give every ScratchNode answer card a bot avatar (the spark glyph) in the gutter, matching the chat avatars.
+function decorateAns(ans) {
+  if (!ans || ans.querySelector('.ans-bot')) return;
+  var b = document.createElement('div');
+  b.className = 'ans-bot'; b.setAttribute('aria-hidden', 'true');
+  b.textContent = '✦';
+  ans.insertBefore(b, ans.firstChild);
+}
+
+// Apply mention rendering + avatar/header + hover actions to all rows in feed
 function decorateRow(row, opts) {
   opts = opts || {};
   var mid = opts.mid || row.getAttribute('data-mid') || 'm' + Date.now() + Math.floor(Math.random()*999);
   row.setAttribute('data-mid', mid);
+  // Slack/Discord-style avatar + name/time header (idempotent; skips the transient typing indicator)
+  if (!row.classList.contains('is-typing') && !row.querySelector('.row-avatar')) {
+    var nameEl = row.querySelector('.row-name');
+    var bodyEl = row.querySelector('.row-body');
+    if (nameEl && bodyEl) {
+      var nm = (nameEl.textContent || '').trim();
+      var col = avatarColorFor(nameEl, nm);
+      var av = document.createElement('div');
+      av.className = 'row-avatar'; av.style.background = col;
+      av.textContent = (nm.charAt(0) || '?').toUpperCase();
+      av.setAttribute('aria-hidden', 'true');
+      row.insertBefore(av, row.firstChild);
+      var head = document.createElement('div'); head.className = 'row-head';
+      head.appendChild(nameEl);
+      var timeEl = row.querySelector('.row-time');
+      if (timeEl) head.appendChild(timeEl);
+      bodyEl.insertBefore(head, bodyEl.firstChild);
+      var styleAttr = nameEl.getAttribute('style') || '';
+      if (styleAttr.indexOf('color') === -1 && !nameEl.getAttribute('data-role')) nameEl.style.color = col;
+      // Group consecutive messages from the same named author (skip generic "Anonymous" to avoid merging distinct guests)
+      var prev = row.previousElementSibling;
+      if (prev && prev.classList && prev.classList.contains('row') && nm && !/^anon/i.test(nm)) {
+        var prevName = prev.querySelector('.row-name');
+        if (prevName && (prevName.textContent || '').trim() === nm) row.classList.add('row--grouped');
+      }
+    }
+  }
   // Add hover-action bar
   if (!row.querySelector('.row-actions')) {
     var actions = document.createElement('div');
@@ -4288,12 +4622,18 @@ function decorateRow(row, opts) {
       m.addedNodes.forEach(function(n) {
         if (n.nodeType !== 1) return;
         if (n.classList && n.classList.contains('row')) decorateRow(n);
+        else if (n.classList && n.classList.contains('ans')) decorateAns(n);
+        if (n.querySelectorAll) {
+          n.querySelectorAll('.row').forEach(function(r) { decorateRow(r); });
+          n.querySelectorAll('.ans').forEach(function(a) { decorateAns(a); });
+        }
       });
     });
   });
   obs.observe(feed, { childList: true });
-  // Decorate any pre-existing rows
+  // Decorate any pre-existing rows + answer cards
   feed.querySelectorAll('.row').forEach(function(r) { decorateRow(r); });
+  feed.querySelectorAll('.ans').forEach(function(a) { decorateAns(a); });
 })();
 
 // — Reply to a specific message —
@@ -4643,37 +4983,89 @@ function setLiveAssistTopic(topic, meta) {
   _renderLiveAssist();
 }
 
-// Auto-refresh cues every 30s while Live Assist is OPEN. Wired to the demo
-// stub for now; will swap to the real Convex action `users:generateLiveCues`
-// once the backend ships (filed as follow-up task).
+// Resolve the cue source for one tick. Preference order:
+//   1. users:generateLiveCuesLLM  (Convex ACTION — max-quality Claude Opus 4.8
+//      path; it falls back to the deterministic generator server-side on any
+//      LLM failure, so one network call always yields cues). If the action
+//      endpoint itself is unreachable (function-not-found / network), we
+//      fall to the deterministic mutation.
+//   2. users:generateLiveCues     (Convex MUTATION — deterministic) when the
+//      client has no .action support.
+//   3. window._demo_generateLiveCues (scripted stub) for preview / jsdom QA /
+//      unauthenticated guest with no live event.
+// Returns a Promise<res> or null when no source is available.
+function _resolveLiveCueSource(since) {
+  var live = window._sn_live;
+  var realBackendReady = !!(live && live.client && live.eventId && live.sessionId);
+  var convexArgs = realBackendReady ? {
+    eventId: String(live.eventId),
+    sessionId: String(live.sessionId),
+    sinceTimestamp: since
+  } : null;
+
+  try {
+    if (realBackendReady && typeof live.client.action === 'function') {
+      return live.client.action('users:generateLiveCuesLLM', convexArgs)
+        .catch(function() {
+          // Action endpoint unreachable — degrade to the deterministic mutation.
+          if (typeof live.client.mutation === 'function') {
+            return live.client.mutation('users:generateLiveCues', convexArgs);
+          }
+          return null;
+        });
+    }
+    if (realBackendReady && typeof live.client.mutation === 'function') {
+      return live.client.mutation('users:generateLiveCues', convexArgs);
+    }
+  } catch (e) {
+    // Synchronous throw from the client — fall through to the stub.
+  }
+  if (typeof window._demo_generateLiveCues === 'function') {
+    return window._demo_generateLiveCues({ sinceTimestamp: since });
+  }
+  return null;
+}
+
+// Auto-refresh cues every 30s while Live Assist is OPEN. Calls the real Convex
+// backend (Opus 4.8 action, deterministic-mutation fallback) when a live event
+// is wired; otherwise the scripted demo stub.
 //
 // Design notes (analyst-diagnostic):
 //   - Only runs when la.on === true (no background polling when closed = no waste)
 //   - 30s cadence matches the topic meta text "updates every 30s"
-//   - The stub returns scripted cues; the real backend will return live ones
+//   - Server-side rate limit is 25s — well-behaved clients never get rate_limited
+//   - status 'rate_limited' / 'skipped_*' returns empty cues; we leave the rail as-is
 //   - On error: silently degrade (no toast spam) — see agentic_reliability ERROR_BOUNDARY
 window._live_assist._refreshTimer = null;
 function _startLiveCueAutoRefresh() {
   if (window._live_assist._refreshTimer) return;
   window._live_assist._refreshTimer = setInterval(function() {
     if (!window._live_assist || !window._live_assist.on) return;
-    if (typeof window._demo_generateLiveCues !== 'function') return;
-    try {
-      window._demo_generateLiveCues({ sinceTimestamp: Date.now() - 30000 }).then(function(res) {
-        if (!res) return;
-        // Don't replace cues — append (newest at top), cap at 4 cards
-        if (Array.isArray(res.cues)) {
-          res.cues.forEach(function(text) {
-            // Skip duplicates of recent cue text
-            var dupe = (window._live_assist.cues || []).some(function(c) { return c.text === text; });
-            if (!dupe) pushLiveAssistCue(text);
-          });
-        }
-        if (typeof res.topic === 'string' && !window._live_assist.currentTopic) {
-          setLiveAssistTopic(res.topic, '');
-        }
-      }).catch(function() {});
-    } catch (e) {}
+
+    var since = Date.now() - 30000;
+    var cuePromise = _resolveLiveCueSource(since);
+    if (!cuePromise || typeof cuePromise.then !== 'function') return;
+
+    cuePromise.then(function(res) {
+      if (!res) return;
+      // Don't replace cues — append (newest at top), cap enforced in pushLiveAssistCue
+      if (Array.isArray(res.cues)) {
+        res.cues.forEach(function(text) {
+          // Skip duplicates of recent cue text
+          var dupe = (window._live_assist.cues || []).some(function(c) { return c.text === text; });
+          if (!dupe) pushLiveAssistCue(text);
+        });
+      }
+      if (typeof res.topic === 'string' && res.topic && !window._live_assist.currentTopic) {
+        setLiveAssistTopic(res.topic, '');
+      }
+      // res.context chips (real backend only) — refresh the rail's context section
+      if (Array.isArray(res.context) && res.context.length > 0 && typeof setLiveAssistContext === 'function') {
+        setLiveAssistContext(res.context);
+      }
+    }).catch(function() {
+      // ERROR_BOUNDARY: network blip / rate limit / server hiccup. Stay quiet.
+    });
   }, 30000);
 }
 function _stopLiveCueAutoRefresh() {
@@ -4998,21 +5390,26 @@ function _updateComposerPlaceholder() {
   if (!bodyEl) return;
   var eventMode = bodyEl.getAttribute('data-event-mode') || 'event';
   var bodyMode = bodyEl.getAttribute('data-mode') || 'public';
+  // Narrow screens get a concise placeholder — the long copy truncates to "Chat wi…" once the
+  // public-room pill + mic/lock/send buttons claim the composer width.
+  var narrow = (typeof window !== 'undefined' && window.matchMedia) ? window.matchMedia('(max-width: 540px)').matches : false;
   var placeholder;
   if (eventMode === 'sensitive') {
     placeholder = 'Manual capture only — no transcription, no agent calls';
   } else if (eventMode === 'work' && bodyMode === 'private') {
-    placeholder = 'Private meeting note — saves to your NodeBench';
+    placeholder = narrow ? 'Private note → your NodeBench' : 'Private meeting note — saves to your NodeBench';
   } else if (eventMode === 'work' && bodyMode === 'public') {
     placeholder = 'Visible to meeting room';
   } else if (eventMode === 'event' && bodyMode === 'private') {
-    placeholder = 'Save a private note (only you can see this)';
+    placeholder = narrow ? 'Private note (only you can see this)' : 'Save a private note (only you can see this)';
   } else {
     // event + public (default)
-    placeholder = 'Chat with the room. /ask for sourced answers. 🔒 for private.';
+    placeholder = narrow ? 'Message or /ask…' : 'Chat with the room. /ask for sourced answers. 🔒 for private.';
   }
   ci.setAttribute('placeholder', placeholder);
 }
+// Re-run on breakpoint change so the placeholder swaps between full/concise copy at 540px.
+if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', _updateComposerPlaceholder);
 
 // Observe data-mode changes so placeholder updates on lock toggle
 (function() {
@@ -5302,6 +5699,45 @@ window._laCueAction       = _laCueAction;
     return;
   }
 
+  // ─── Cold-load send guard (PR B) ───────────────────────────────────
+  // Until the Convex-routing override installs below (AFTER the browser client
+  // lazy-loads AND joinEvent resolves), window.sendComposerMessage is still the
+  // prototype-only handler — it clears the composer and renders locally but
+  // NEVER persists to Convex. A public send fired in this cold-load window would
+  // be silently lost (the user thinks it sent). Install a queueing shim now:
+  // public sends are buffered (not lost), the composer clears, and a "connecting"
+  // hint shows. The real override drains the queue the moment the room is live;
+  // if init fails, _sn_failPendingSends restores the draft instead of dropping it.
+  window._sn_pendingSends = [];
+  const _preInitSend = window.sendComposerMessage;
+  window.sendComposerMessage = function() {
+    const input = document.getElementById('ci');
+    if (!input) return;
+    const intent = window.parseComposerIntent && window.parseComposerIntent(input.value);
+    if (!intent) { input.focus(); return; }
+    // Private notes stay 100% prototype-side and never touch Convex — pass through.
+    if (intent.visibility === 'private') { return _preInitSend.call(this); }
+    window._sn_pendingSends.push(input.value);
+    input.value = '';
+    if ('ontouchstart' in window || window.innerWidth <= 720) input.blur();
+    if (typeof toast === 'function') {
+      toast('Connecting to live room…', 'Your message will send the moment the room is live.');
+    }
+  };
+  window.send = window.sendComposerMessage;
+  window._sn_failPendingSends = function() {
+    if (!window._sn_pendingSends || !window._sn_pendingSends.length) return;
+    const input = document.getElementById('ci');
+    const lastDraft = window._sn_pendingSends[window._sn_pendingSends.length - 1];
+    window._sn_pendingSends = [];
+    // Restore the most recent un-sent draft so the user can retry once the room
+    // recovers — never silently drop what they typed.
+    if (input && !input.value) input.value = lastDraft;
+    if (typeof toast === 'function') {
+      toast('Live room unavailable', 'Your message was not sent — your draft is restored. Retry once the room loads.');
+    }
+  };
+
   // ─── Lazy-load Convex browser client ───────────────────────────────
   let ConvexClient;
   try {
@@ -5311,6 +5747,7 @@ window._laCueAction       = _laCueAction;
   } catch (e) {
     console.warn('[scratchnode] Convex client load failed, live room unavailable:', e.message);
     showLiveRoomError('Could not load the realtime client. <a href="javascript:location.reload()" style="color:#f1d6c8;text-decoration:underline">Retry</a>');
+    window._sn_failPendingSends && window._sn_failPendingSends();
     return;
   }
 
@@ -5333,6 +5770,7 @@ window._laCueAction       = _laCueAction;
     showLiveRoomError(notFound
       ? 'No room matches <code style="font-family:var(--mono,monospace);background:#2a1f1c;padding:2px 6px;border-radius:4px">/e/' + (slug.replace(/[<>&"]/g, '') || '?') + '</code>. <a href="/" style="color:#f1d6c8;text-decoration:underline">Back to landing</a> or check your room code.'
       : 'Could not connect to the live room. <a href="javascript:location.reload()" style="color:#f1d6c8;text-decoration:underline">Retry</a>');
+    window._sn_failPendingSends && window._sn_failPendingSends();
     return;
   }
   const eventId = joined.eventId;
@@ -5433,6 +5871,13 @@ window._laCueAction       = _laCueAction;
         : answer.cacheHit
           ? 'cache hit'
           : 'sourced answer';
+    // Honest degraded status: when the AI provider was unavailable the answer was
+    // synthesized from public sources only. Flag it visibly (amber pill + ⚠ icon +
+    // text, never colour alone — a11y) with role=status so it's announced, so a
+    // reader never mistakes a degraded answer for a full AI one.
+    const degradedBadge = answer.agentMode === 'provider_fallback'
+      ? '<span class="sep">·</span><span class="ans-degraded" role="status" style="color:#e0a160;background:rgba(224,161,96,.14);border:1px solid rgba(224,161,96,.32);padding:0 7px;border-radius:999px;font-weight:600;white-space:nowrap" title="The AI provider was unavailable, so this answer was generated from the public event sources only. It may be less complete than a full AI answer.">&#9888; degraded &middot; sources only</span>'
+      : '';
     const costLabel = typeof answer.estimatedCostCents === 'number'
       ? answer.estimatedCostCents.toFixed(4) + '¢'
       : 'cost tracked';
@@ -5452,14 +5897,14 @@ window._laCueAction       = _laCueAction;
     article.setAttribute('data-trace-scope', 'public');
     article.innerHTML =
       '<div class="ans-head"><span class="who">ScratchNode</span><span class="sep">·</span><span>' +
-      (answer.cacheHit ? 'cache hit' : 'sourced answer') + '</span><span class="sep">·</span><span>' + fmtTime(answer.createdAt) + '</span></div>' +
+      (answer.cacheHit ? 'cache hit' : 'sourced answer') + '</span>' + degradedBadge + '<span class="sep">·</span><span>' + fmtTime(answer.createdAt) + '</span></div>' +
       '<div class="ans-q"></div>' +
       '<div class="ans-body"></div>' +
       '<div class="ans-sources">' + (sourceChips || '<span>public event corpus</span>') + '<span>' + sourceCount + ' sources</span></div>' +
       '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">' + agentLabel + '</span><span class="sep">·</span><span><b>' + sourceCount + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>' + liveSearches + '</b> live searches</span><span class="sep">·</span><span>' + costLabel + '</span><span class="sep">·</span><span>' + qualityLabel + '</span><span class="sep">·</span><span class="priv">private notes excluded</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
       '<div class="ans-how">' + trace + traceBoundary + '</div>' +
-      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="window.snSuggestFaq && window.snSuggestFaq(\'' + answer._id + '\')">Suggest for FAQ</button><button type="button" class="primary host-only" onclick="window.snPromoteFaq && window.snPromoteFaq(\'' + answer._id + '\')">Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
+      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="window.snSuggestFaq && window.snSuggestFaq(\'' + answer._id + '\')">Suggest for FAQ</button><button type="button" class="primary host-only" onclick="window.snPromoteFaq && window.snPromoteFaq(\'' + answer._id + '\')">Promote to FAQ</button> <button type="button" class="sn-pin" onclick="window.snWall && window.snWall.pinAnswer(\'' + answer._id + '\')">&#128204; Pin to wall</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
     article.querySelector('.ans-q').textContent = answer.question || '';
     article.querySelector('.ans-body').innerHTML = snEscape(answer.body || '').replace(/\n/g, '<br>');
     feedEl.appendChild(article);
@@ -5475,6 +5920,10 @@ window._laCueAction       = _laCueAction;
   });
   client.onUpdate('events:getAnswers', { eventId, limit: 100 }, (rows) => {
     if (!Array.isArray(rows)) return;
+    // Cache answer bodies so the Memory Wall can dereference answer pins.
+    window._sn_answers_by_id = window._sn_answers_by_id || {};
+    for (const a of rows) { if (a && a._id) window._sn_answers_by_id[a._id] = a.body || ''; }
+    if (window.snWall && window.snWall._refresh) window.snWall._refresh();
     for (const answer of rows) renderAnswer(answer);
     const faqCount = rows.filter((answer) => answer && answer.faqStatus && answer.faqStatus !== 'none').length;
     const faqEl = document.getElementById('ev-faq-count');
@@ -5493,6 +5942,11 @@ window._laCueAction       = _laCueAction;
     const menuPeopleSub = document.getElementById('menu-people-sub');
     if (menuPeopleSub) menuPeopleSub.textContent = count + ' live member' + (rows.length === 1 ? '' : 's');
   });
+
+  // Memory Wall (Phase 8): connect the spatial lane to the live event stream.
+  if (window.snWall && typeof window.snWall.connect === 'function') {
+    window.snWall.connect(client, eventId, sessionId);
+  }
 
   // ─── Override the send pipeline to route public chat through Convex ─
   const _origSend = window.sendComposerMessage;
@@ -5555,10 +6009,19 @@ window._laCueAction       = _laCueAction;
       .then(runAskIfNeeded)
       .catch((e) => {
         console.warn('[scratchnode] sendMessage failed:', e.message || e);
-        input.value = submittedValue;
+        // Restore the un-sent draft so a cold-load race — sendMessage rejected
+        // not_joined before the join row committed AND the join+resend retry
+        // above also failed — never silently eats the user's text. Guard the
+        // same way _sn_failPendingSends does (search "_sn_failPendingSends"):
+        // only repopulate when the composer is still empty, so we never clobber
+        // a newer draft the user started typing while the send was in flight.
+        const restored = !!(input && !input.value);
+        if (restored) input.value = submittedValue;
         input.focus();
         if (typeof toast === 'function') {
-          toast('Message not sent', 'The live room did not confirm it. Your draft was restored.');
+          toast('Message not sent', restored
+            ? 'The live room did not confirm it. Your draft was restored.'
+            : 'The live room did not confirm it. Send it again when the room is ready.');
         }
       });
 
@@ -5568,6 +6031,20 @@ window._laCueAction       = _laCueAction;
   };
   // Make sure both global aliases stay in sync (existing onclick handlers).
   window.send = window.sendComposerMessage;
+
+  // Drain any public sends queued during the cold-load init window (PR B). The
+  // real override reads #ci, so replay each buffered draft through it in order —
+  // each goes through the full Convex sendMessage → askAgent path and clears.
+  if (window._sn_pendingSends && window._sn_pendingSends.length) {
+    const _queued = window._sn_pendingSends.splice(0);
+    const _ci = document.getElementById('ci');
+    if (_ci) {
+      for (let _i = 0; _i < _queued.length; _i += 1) {
+        _ci.value = _queued[_i];
+        window.sendComposerMessage();
+      }
+    }
+  }
 
   window.snSuggestFaq = function(answerId) {
     client.mutation('events:suggestAnswerForFaq', { eventId, answerId, sessionId })

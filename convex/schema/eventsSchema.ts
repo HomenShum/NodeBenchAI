@@ -46,6 +46,11 @@ export const liveEventMembers = defineTable({
   displayName: v.string(),
   joinedAt: v.number(),
   lastSeenAt: v.number(),
+  // Step 10 (additive, optional): server-side rate-limit timestamp for the
+  // users:generateLiveCues / users:generateLiveCuesLLM cue rail. Unrelated to
+  // lastSeenAt — that one is updated by every presence ping and chat send; this
+  // one only by cue generation. Optional so existing rows don't need backfill.
+  lastCueGenAt: v.optional(v.number()),
 })
   .index("by_event_session", ["eventId", "sessionId"])
   .index("by_session_joined", ["sessionId", "joinedAt"])

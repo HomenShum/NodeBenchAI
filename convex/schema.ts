@@ -16056,4 +16056,146 @@ export default defineSchema({
   })
     .index("by_cache_key", ["cacheKey"])
     .index("by_ttl", ["ttlExpiresAt"]),
+
+  /* ------------------------------------------------------------------ */
+  /* EXPANDABLE GRAPH NOTEBOOK — Roam-style mention expansion            */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Tracks each mention expansion run: user clicks [⊕ Expand] on a mention
+   * chip, which queues a Linkup search + Gemini extraction pipeline.
+   *
+   * Pattern: async_reliability — idempotency key, bounded retries, honest status.
+   * Prior art: Roam Research bidirectional backlinks + block references
+   *
+   * BOUND:          max 5 search queries per run, 50 claims per patch
+   * HONEST_STATUS:  never "completed" if any branch failed → "partial"
+   * TIMEOUT:        60s AbortController on the action
+   * DETERMINISTIC:  runId = sha256(entityId + userId + timestamp)
+   */
+  expansionRuns: defineTable({
+    // Identity
+    runId: v.string(),
+    userId: v.string(),
+
+    // Target
+    targetEntityId: v.id("entityProfiles"),
+    targetBlockId: v.optional(v.string()),
+    targetDocumentId: v.optional(v.id("documents")),
+
+    // Execution state machine: queued → searching → extracting → persisting → completed|partial|failed
+    status: v.union(
+      v.literal("queued"),
+      v.literal("searching"),
+      v.literal("extracting"),
+      v.literal("persisting"),
+      v.literal("completed"),
+      v.literal("partial"),
+      v.literal("failed"),
+    ),
+
+    // Results (honest counts — reflect actual persisted data)
+    claimsCreated: v.number(),
+    edgesCreated: v.number(),
+    sourcesFound: v.number(),
+
+    // Budget tracking
+    searchQueries: v.number(),
+    maxSearchQueries: v.number(),
+    wallClockMs: v.optional(v.number()),
+
+    // Error handling
+    errorMessage: v.optional(v.string()),
+    retryCount: v.number(),
+
+    // Timestamps
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_entity", ["targetEntityId"])
+    .index("by_user", ["userId", "createdAt"])
+    .index("by_status", ["status"])
+    .index("by_runId", ["runId"]),
+
+  /**
+   * Bidirectional cross-references between entities/blocks/documents.
+   * Created automatically when a mention is inserted, or when an expansion
+   * agent discovers a relationship.
+   *
+   * Prior art: Roam Research bidirectional backlinks, Obsidian backlinks panel,
+   * Roam Research / Obsidian backlink extraction.
+   *
+   * BOUND_READ:     max 50 backlinks returned per query (paginated)
+   * DETERMINISTIC:  dedup by (sourceType, sourceId, targetEntityId, backlinkType)
+   */
+  backlinks: defineTable({
+    // Source (who references)
+    sourceType: v.union(
+      v.literal("block"),
+      v.literal("claim"),
+      v.literal("document"),
+      v.literal("signal"),
+      v.literal("action"),
+    ),
+    sourceId: v.string(),
+    sourceDocumentId: v.optional(v.string()),
+    sourceContext: v.optional(v.string()),
+
+    // Target (who is referenced)
+    targetEntityId: v.id("entityProfiles"),
+
+    // Relationship metadata
+    backlinkType: v.union(
+      v.literal("mention"),
+      v.literal("citation"),
+      v.literal("relatedTo"),
+      v.literal("causes"),
+      v.literal("contradicts"),
+      v.literal("supports"),
+      v.literal("derived"),
+    ),
+    confidence: v.optional(v.number()),
+
+    // Provenance
+    createdBy: v.union(
+      v.literal("user"),
+      v.literal("agent"),
+      v.literal("system"),
+    ),
+    agentRunId: v.optional(v.string()),
+
+    createdAt: v.number(),
+  })
+    .index("by_target", ["targetEntityId", "backlinkType"])
+    .index("by_source", ["sourceType", "sourceId"])
+    .index("by_document", ["sourceDocumentId"])
+    .index("by_agent_run", ["agentRunId"]),
+
+  /**
+   * Cached expanded content for each entity. Prevents re-expansion on every
+   * hover and enables instant preview. Refreshed on each successful expansion.
+   *
+   * BOUND:  keyFacts max 10, recentClaims max 20
+   * TTL:    staleAfterMs default 86400000 (24h) — re-expansion needed after
+   */
+  expansionSnapshots: defineTable({
+    entityId: v.id("entityProfiles"),
+
+    // Cached content
+    summary: v.string(),
+    keyFacts: v.array(v.string()),
+    recentClaims: v.array(v.object({
+      claimText: v.string(),
+      predicate: v.string(),
+      confidence: v.boolean(),
+      sourceUrl: v.optional(v.string()),
+    })),
+    backlinkCount: v.number(),
+    lastExpanded: v.number(),
+
+    // Staleness detection
+    version: v.number(),
+    staleAfterMs: v.number(),
+  })
+    .index("by_entity", ["entityId"]),
 });

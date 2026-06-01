@@ -1,0 +1,54 @@
+.git/
+node_modules/
+**/node_modules/
+
+# Local agent/worktree history. Keep these out of Augment uploads.
+.worktrees/
+.claude/worktrees/
+.claude/projects/
+.claude/shell-snapshots/
+.overstory/
+.serena/
+
+# Generated outputs and caches.
+.tmp/
+.tmp-tools/
+dist/
+dist-ssr/
+coverage/
+test-results/
+playwright-report/
+storybook-static/
+public/dogfood/screenshots/
+public/dogfood/videos/
+public/dogfood/scribe/
+public/dogfood/frames/
+public/evals/*.json
+scripts/eval-harness/results/
+.cache/
+.node-24/
+.vercel/
+
+# Local native/app build outputs.
+ios/App/DerivedData/
+ios/App/Pods/
+ios/App/build/
+ios/App/App/public/
+android/app/build/
+android/build/
+android/.gradle/
+android/app/src/main/assets/public/
+
+# Secrets and private references.
+.env
+.env.*
+*.local
+.mcpregistry_github_token
+packages/mcp-local/.mcpregistry_github_token
+scripts/tax-2025/credentials.json
+scripts/tax-2025/token.json
+scripts/tax-2025/.browser-profile/
+.nodebench-ref/
+docs/career/2025-Tax-Bundle/
+docs/architecture/COMPETITIVE_INTEL_*
+vendor/claw3d/

@@ -1,5 +1,5 @@
 ﻿/**
- * EntityNotebookLive â€” Phase 3-4 of the Ideaflow/Mew-inspired notebook.
+ * EntityNotebookLive — Phase 3-4 of the Roam-inspired notebook.
  *
  * Renders the entity as a single flowing document of persisted blocks from
  * productBlocks. Focused editable blocks use a Tiptap + Convex ProseMirror

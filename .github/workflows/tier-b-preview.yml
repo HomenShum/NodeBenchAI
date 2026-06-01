@@ -94,8 +94,20 @@ jobs:
             echo "Could not determine changed paths — assuming relevant."
             exit 0
           fi
+          # Strip test-only / non-shipping files BEFORE relevance detection. Vitest
+          # tests, __tests__/__mocks__ fixtures, and *.stories never reach the Vercel
+          # bundle, so a PR that ONLY touches them cannot change the preview — and
+          # must NOT burn the ~10-min preview-resolve poll. Without this, a
+          # convex/__tests__/*.test.ts PR matches the broad `convex` path and waits
+          # the full 10 min to skip-green (the "why is Tier B taking forever" case).
+          SHIPPING=$(echo "$CHANGED" | grep -vE '(\.test\.[cm]?tsx?$|\.spec\.[cm]?tsx?$|(^|/)__tests__/|(^|/)__mocks__/|\.stories\.[cm]?tsx?$)' || true)
+          if [ -z "$SHIPPING" ]; then
+            echo "has_relevant=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::PR touches only test/non-shipping files — no preview can change. Tier B skipped (instant)."
+            exit 0
+          fi
           for path in "${BUILD_RELEVANT[@]}"; do
-            if echo "$CHANGED" | grep -qE "(^|/)${path}(/|$)"; then
+            if echo "$SHIPPING" | grep -qE "(^|/)${path}(/|$)"; then
               echo "has_relevant=true" >> "$GITHUB_OUTPUT"
               echo "Detected change in build-relevant path: ${path}"
               exit 0
