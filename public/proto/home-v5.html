@@ -5390,25 +5390,22 @@ function _updateComposerPlaceholder() {
   if (!bodyEl) return;
   var eventMode = bodyEl.getAttribute('data-event-mode') || 'event';
   var bodyMode = bodyEl.getAttribute('data-mode') || 'public';
-  // Narrow screens get a concise placeholder — the long copy truncates to "Chat wi…" once the
-  // public-room pill + mic/lock/send buttons claim the composer width.
-  var narrow = (typeof window !== 'undefined' && window.matchMedia) ? window.matchMedia('(max-width: 540px)').matches : false;
   var placeholder;
   if (eventMode === 'sensitive') {
     placeholder = 'Manual capture only — no transcription, no agent calls';
   } else if (eventMode === 'work' && bodyMode === 'private') {
-    placeholder = narrow ? 'Private note → your NodeBench' : 'Private meeting note — saves to your NodeBench';
+    placeholder = 'Private meeting note — saves to your NodeBench';
   } else if (eventMode === 'work' && bodyMode === 'public') {
     placeholder = 'Visible to meeting room';
   } else if (eventMode === 'event' && bodyMode === 'private') {
-    placeholder = narrow ? 'Private note (only you can see this)' : 'Save a private note (only you can see this)';
+    placeholder = 'Save a private note (only you can see this)';
   } else {
     // event + public (default)
-    placeholder = narrow ? 'Message or /ask…' : 'Chat with the room. /ask for sourced answers. 🔒 for private.';
+    placeholder = 'Chat with the room. /ask for sourced answers. 🔒 for private.';
   }
   ci.setAttribute('placeholder', placeholder);
 }
-// Re-run on breakpoint change so the placeholder swaps between full/concise copy at 540px.
+// Re-run on resize so mode-driven placeholder updates stay in sync after layout changes.
 if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', _updateComposerPlaceholder);
 
 // Observe data-mode changes so placeholder updates on lock toggle
