@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>ScratchNode — Memory Wall (smooth post-it engine prototype)</title>
+<!--
+  SMOOTH POST-IT WALL — engineering prototype.
+  Proves the "buttery" recipe with the LEAST code, ready to drop into home-v5's Wall view.
+
+  Smoothness levers (in priority order):
+    1. transform: translate3d() for position — GPU-composited, never top/left (no reflow).
+    2. Optimistic local transform during drag; ONE commit on pointerup. (In prod that commit
+       is a single Convex `moveNotes` mutation — see commitMoves(). Convex's serializable
+       txn ordering IS the last-write-wins conflict resolver Figma hand-built.)
+    3. pointermove coalesced into ONE requestAnimationFrame per frame.
+    4. setPointerCapture + touch-action:none — unified mouse/touch/pen, no lost drags.
+    5. Single board transform for pan/zoom; the N notes inherit it as one composited layer.
+    6. will-change:transform ONLY on the actively-dragged notes.
+  Groups = flat note.groupId + a client-only selection Set; group-move = one delta to all.
+  Snap = grid + alignment guides computed from CACHED geometry (never getBoundingClientRect mid-drag).
+-->
+<style>
+  :root{
+    --bg:#151413; --panel:#1d1b19; --edge:rgba(255,255,255,.08); --ink:#f4efe9;
+    --ink-faint:#9a9088; --accent:#d97757; --accent-soft:rgba(217,119,87,.16);
+    --grid:rgba(255,255,255,.035);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:Manrope,system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden;
+    -webkit-font-smoothing:antialiased}
+
+  /* ── Viewport: clips, owns pan/zoom + marquee + create gestures ── */
+  .viewport{position:fixed;inset:0;touch-action:none;cursor:default;
+    background:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:24px 24px;background-position:0 0;}
+  .viewport.panning{cursor:grabbing}
+  .viewport.space{cursor:grab}
+
+  /* ── Board: the single transformed surface ── */
+  .board{position:absolute;top:0;left:0;width:0;height:0;
+    transform:translate3d(var(--pan-x,0),var(--pan-y,0),0) scale(var(--zoom,1));
+    transform-origin:0 0;will-change:transform;}
+
+  /* ── Note (post-it) ── */
+  .note{position:absolute;top:0;left:0;width:var(--w,180px);min-height:120px;
+    transform:translate3d(var(--x,0),var(--y,0),0);
+    touch-action:none;contain:layout paint;cursor:grab;
+    border-radius:12px;padding:12px 13px 30px;
+    background:var(--c,#f3d77b);color:#2a2118;
+    box-shadow:0 1px 2px rgba(0,0,0,.25),0 10px 24px rgba(0,0,0,.22);
+    font-size:14px;line-height:1.42;user-select:none;
+    transition:box-shadow .15s ease;}
+  .note:hover{box-shadow:0 1px 2px rgba(0,0,0,.3),0 14px 30px rgba(0,0,0,.3)}
+  .note.dragging{will-change:transform;cursor:grabbing;
+    box-shadow:0 2px 4px rgba(0,0,0,.3),0 24px 50px rgba(0,0,0,.42);z-index:50}
+  .note.remote{transition:transform 160ms ease-out}        /* interpolate remote moves (prod) */
+  .note.selected{outline:2px solid var(--accent);outline-offset:2px}
+  .note .handle{position:absolute;left:0;top:0;right:0;height:18px;border-radius:12px 12px 0 0;
+    cursor:grab;opacity:0;transition:opacity .12s}
+  .note:hover .handle{opacity:.001}
+  .note .body{outline:none;white-space:pre-wrap;word-break:break-word;min-height:64px;
+    user-select:text;-webkit-user-select:text;cursor:text}
+  .note .body:empty:before{content:attr(data-ph);color:rgba(42,33,24,.45)}
+  .note .meta{position:absolute;left:13px;bottom:9px;font-size:10px;letter-spacing:.04em;
+    color:rgba(42,33,24,.5);text-transform:uppercase;font-weight:700}
+  .note .del{position:absolute;right:6px;bottom:6px;width:20px;height:20px;border:none;
+    border-radius:6px;background:rgba(42,33,24,.08);color:rgba(42,33,24,.6);cursor:pointer;
+    font-size:13px;line-height:1;opacity:0;transition:opacity .12s}
+  .note:hover .del{opacity:1}
+  .note.grp::after{content:'';position:absolute;left:7px;top:7px;width:7px;height:7px;
+    border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px rgba(255,255,255,.5)}
+
+  /* ── Marquee + alignment guides (children of board, in board space) ── */
+  .marquee{position:absolute;top:0;left:0;border:1.5px solid var(--accent);
+    background:var(--accent-soft);border-radius:4px;pointer-events:none;
+    transform:translate3d(var(--mx,0),var(--my,0),0);width:var(--mw,0);height:var(--mh,0)}
+  .guide{position:absolute;background:var(--accent);pointer-events:none;opacity:.9}
+  .guide.v{top:0;left:0;width:1px;transform:translate3d(var(--gx,0),var(--gy,0),0);height:var(--gh,0)}
+  .guide.h{top:0;left:0;height:1px;transform:translate3d(var(--gx,0),var(--gy,0),0);width:var(--gw,0)}
+
+  /* ── Chrome ── */
+  .bar{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:100;
+    display:flex;gap:8px;align-items:center;background:rgba(29,27,25,.86);
+    backdrop-filter:blur(12px);border:1px solid var(--edge);border-radius:14px;
+    padding:7px 10px;box-shadow:0 12px 32px rgba(0,0,0,.4)}
+  .bar b{font-size:12.5px;letter-spacing:.02em;margin-right:4px}
+  .bar .sep{width:1px;height:18px;background:var(--edge)}
+  .btn{border:1px solid var(--edge);background:rgba(255,255,255,.03);color:var(--ink);
+    font:inherit;font-size:12px;font-weight:600;padding:6px 11px;border-radius:9px;cursor:pointer;
+    transition:background .12s,border-color .12s}
+  .btn:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.16)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#1a120e}
+  .btn.primary:hover{filter:brightness(1.06)}
+  .swatch{width:18px;height:18px;border-radius:5px;border:1.5px solid rgba(0,0,0,.18);cursor:pointer;
+    transition:transform .1s}
+  .swatch:hover{transform:scale(1.14)}
+  .hint{position:fixed;left:14px;bottom:14px;z-index:100;font-size:11.5px;color:var(--ink-faint);
+    background:rgba(29,27,25,.8);border:1px solid var(--edge);border-radius:10px;padding:9px 12px;
+    line-height:1.7;max-width:320px}
+  .hint kbd{font-family:JetBrains Mono,monospace;font-size:10.5px;background:rgba(255,255,255,.07);
+    border:1px solid var(--edge);border-radius:4px;padding:1px 5px;color:var(--ink)}
+  .zoom{position:fixed;right:14px;bottom:14px;z-index:100;font-size:11.5px;color:var(--ink-faint);
+    background:rgba(29,27,25,.8);border:1px solid var(--edge);border-radius:10px;padding:7px 10px;
+    font-family:JetBrains Mono,monospace}
+</style>
+</head>
+<body>
+  <div class="bar">
+    <b>Memory Wall</b>
+    <button class="btn primary" id="add">+ Note</button>
+    <div class="sep"></div>
+    <span style="display:flex;gap:6px" id="palette"></span>
+    <div class="sep"></div>
+    <button class="btn" id="group" title="Cmd/Ctrl+G">Group</button>
+    <button class="btn" id="ungroup">Ungroup</button>
+    <button class="btn" id="fit">Fit</button>
+  </div>
+
+  <div class="viewport" id="vp">
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="hint">
+    <b style="color:var(--ink)">Buttery test:</b> drag a note — it tracks your finger at native
+    framerate (translate3d + rAF, no reflow).<br>
+    Drag empty = <b>marquee select</b> · <kbd>Shift</kbd>+click adds · drag any selected = <b>group-move</b><br>
+    Double-click empty = new note · double-click note = edit · <kbd>Space</kbd>+drag or wheel = pan ·
+    <kbd>⌘/Ctrl</kbd>+wheel = zoom · <kbd>Del</kbd> = delete · <kbd>⌘/Ctrl+G</kbd> = group
+  </div>
+  <div class="zoom" id="zoomlabel">100%</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ── State (in prod this is a Convex useQuery result; selection stays client-only) ──
+  const COLORS = ["#f3d77b","#f5b8c4","#a9d8f0","#bfe3b6","#e7b48f","#d8c9f2"];
+  let notes = [];                 // {id,x,y,w,text,color,groupId}
+  const selected = new Set();     // ephemeral — NEVER persisted
+  let activeColor = COLORS[0];
+  let nextId = 1, nextZ = 1;
+  let pan = {x: 160, y: 120}, zoom = 1;
+
+  const vp = document.getElementById('vp');
+  const board = document.getElementById('board');
+  const els = new Map();          // id -> note element (avoid re-query)
+
+  // ── Coordinate transform: screen → board space (inverse of pan/zoom) ──
+  function toBoard(clientX, clientY){
+    const r = vp.getBoundingClientRect();
+    return { x:(clientX - r.left - pan.x)/zoom, y:(clientY - r.top - pan.y)/zoom };
+  }
+  function applyBoard(){
+    board.style.setProperty('--pan-x', pan.x+'px');
+    board.style.setProperty('--pan-y', pan.y+'px');
+    board.style.setProperty('--zoom', zoom);
+    document.getElementById('zoomlabel').textContent = Math.round(zoom*100)+'%';
+  }
+
+  // ── Render: build/patch note DOM from state (idempotent) ──
+  function noteEl(n){
+    let el = els.get(n.id);
+    if(!el){
+      el = document.createElement('div');
+      el.className = 'note'; el.dataset.id = n.id;
+      el.innerHTML =
+        '<div class="handle"></div>'+
+        '<div class="body" contenteditable="false" data-ph="Type a note, a question, a link…"></div>'+
+        '<div class="meta">sticky</div>'+
+        '<button class="del" title="Delete">×</button>';
+      board.appendChild(el); els.set(n.id, el);
+      wireNote(el, n.id);
+    }
+    el.style.setProperty('--x', n.x+'px');
+    el.style.setProperty('--y', n.y+'px');
+    el.style.setProperty('--w', (n.w||180)+'px');
+    el.style.setProperty('--c', n.color);
+    el.classList.toggle('selected', selected.has(n.id));
+    el.classList.toggle('grp', !!n.groupId);
+    const body = el.querySelector('.body');
+    if(document.activeElement !== body && body.textContent !== n.text) body.textContent = n.text;
+    el.style.zIndex = n.z || 1;
+    return el;
+  }
+  function render(){
+    const live = new Set(notes.map(n=>n.id));
+    for(const [id,el] of els){ if(!live.has(id)){ el.remove(); els.delete(id);} }
+    notes.forEach(noteEl);
+  }
+  function rowById(id){ return notes.find(n=>n.id===id); }
+
+  // ── COMMIT POINT: in prod, each is ONE Convex mutation (see convex/wall.ts). ──
+  // The backend contracts now exist; this standalone prototype keeps a local
+  // model so it runs without a Convex client. To go live, swap each stub body
+  // for the matching api.wall.* call and let listWallItems (a reactive query)
+  // stream remote changes back in.
+  function commitMoves(updates){
+    // updates:[{id,x,y}] → await convex.mutation(api.wall.moveWallItems,
+    //   { eventId, sessionId, updates })   — Convex txn ordering IS the LWW resolver.
+    updates.forEach(u=>{ const n=rowById(u.id); if(n){ n.x=u.x; n.y=u.y; } });
+  }
+  function commitCreate(n){
+    // note  → api.wall.createWallNote({ eventId, sessionId, text, x, y, w, color })
+    // pin   → api.wall.pinToWall({ eventId, sessionId, refType, refMessageId|refAnswerId })
+    notes.push(n); render();
+  }
+  function commitDelete(ids){
+    // → api.wall.removeWallItems({ eventId, sessionId, itemIds:[...ids] })
+    notes = notes.filter(n=>!ids.has(n.id)); render();
+  }
+
+  // ── DRAG ENGINE (notes + group): pointer capture + rAF + optimistic transform ──
+  let drag = null;   // {ids, origins, start, raf, latest, guides}
+  function wireNote(el, id){
+    const body = el.querySelector('.body');
+    el.querySelector('.del').onclick = (e)=>{ e.stopPropagation(); commitDelete(new Set([id])); selected.delete(id); };
+
+    // double-click → edit text (and suppress drag while editing)
+    el.addEventListener('dblclick',(e)=>{ if(e.target===body||body.contains(e.target)) return;
+      enterEdit(body); });
+    body.addEventListener('dblclick',()=>enterEdit(body));
+    body.addEventListener('blur',()=>{ body.setAttribute('contenteditable','false');
+      const n=rowById(id); if(n){ n.text = body.textContent; /* editNote(id,{text}) */ } });
+
+    el.addEventListener('pointerdown',(e)=>{
+      if(body.getAttribute('contenteditable')==='true') return;     // editing → no drag
+      if(e.target.classList.contains('del')) return;
+      if(spaceDown){ return; }                                       // space = pan, let vp handle
+      e.stopPropagation();
+      el.setPointerCapture(e.pointerId);
+
+      // selection logic (Figma-like): shift toggles; clicking an unselected note selects just it
+      if(e.shiftKey){ selected.has(id)?selected.delete(id):selected.add(id); }
+      else if(!selected.has(id)){ selected.clear(); selected.add(id); }
+      // bring to front
+      const n=rowById(id); n.z = ++nextZ;
+      render();
+
+      // expand to whole group(s) of every selected note
+      const ids = new Set();
+      selected.forEach(sid=>{ ids.add(sid); const g=rowById(sid)?.groupId;
+        if(g) notes.forEach(o=>{ if(o.groupId===g) ids.add(o.id); }); });
+
+      const origins = new Map();
+      ids.forEach(i=>{ const r=rowById(i); origins.set(i,{x:r.x,y:r.y}); els.get(i).classList.add('dragging'); });
+      // cache OTHER notes' edges once for alignment snap (no live layout reads mid-drag)
+      const others = notes.filter(n=>!ids.has(n.id)).map(n=>({x:n.x,y:n.y,w:n.w||180,h:el.offsetHeight||120}));
+      drag = { ids, origins, start: toBoard(e.clientX,e.clientY), raf:null, latest:e, others, w:el.offsetWidth, h:el.offsetHeight };
+    });
+  }
+  function enterEdit(body){ body.setAttribute('contenteditable','true'); body.focus();
+    const r=document.createRange(); r.selectNodeContents(body); r.collapse(false);
+    const s=getSelection(); s.removeAllRanges(); s.addRange(r); }
+
+  function onMove(e){ if(!drag) return; drag.latest=e; if(!drag.raf) drag.raf=requestAnimationFrame(applyDrag); }
+  function applyDrag(){
+    drag.raf=null;
+    const p=toBoard(drag.latest.clientX, drag.latest.clientY);
+    let dx=p.x-drag.start.x, dy=p.y-drag.start.y;
+    // GRID snap (cheap, always on)
+    const GRID=8;
+    // ALIGNMENT snap vs cached neighbour edges (the "Figma feel")
+    const lead = drag.origins.values().next().value;       // anchor = first dragged note's origin
+    const movingL=lead.x+dx, movingT=lead.y+dy, movingR=movingL+drag.w, movingB=movingT+drag.h;
+    const movingCX=movingL+drag.w/2, movingCY=movingT+drag.h/2;
+    const TH=6; let gx=null, gy=null;
+    for(const o of drag.others){
+      for(const [edge,val] of [['l',o.x],['r',o.x+o.w],['cx',o.x+o.w/2]]){
+        if(Math.abs(movingL-val)<TH){ dx+= val-movingL; gx=val; }
+        else if(Math.abs(movingR-val)<TH){ dx+= val-movingR; gx=val; }
+        else if(Math.abs(movingCX-val)<TH){ dx+= val-movingCX; gx=val; }
+      }
+      for(const val of [o.y,o.y+o.h,o.y+o.h/2]){
+        if(Math.abs(movingT-val)<TH){ dy+= val-movingT; gy=val; }
+        else if(Math.abs(movingB-val)<TH){ dy+= val-movingB; gy=val; }
+        else if(Math.abs(movingCY-val)<TH){ dy+= val-movingCY; gy=val; }
+      }
+    }
+    if(gx===null){ dx=Math.round((lead.x+dx)/GRID)*GRID-lead.x; }
+    if(gy===null){ dy=Math.round((lead.y+dy)/GRID)*GRID-lead.y; }
+    for(const [id,o] of drag.origins){
+      const el=els.get(id);
+      el.style.setProperty('--x',(o.x+dx)+'px'); el.style.setProperty('--y',(o.y+dy)+'px');
+    }
+    drag._dx=dx; drag._dy=dy;
+    showGuides(gx,gy);
+    // PROD: throttledPresence(dx,dy) on a SEPARATE ephemeral channel (~20-30Hz), never the doc.
+  }
+  function endDrag(e){
+    if(!drag) return;
+    const dx=drag._dx||0, dy=drag._dy||0;
+    const updates=[]; for(const [id,o] of drag.origins){ updates.push({id,x:o.x+dx,y:o.y+dy}); els.get(id).classList.remove('dragging'); }
+    commitMoves(updates);                  // ← the ONE write (Convex moveNotes in prod)
+    clearGuides(); drag=null;
+  }
+
+  // ── Alignment guide rendering ──
+  let guideEls=[];
+  function showGuides(gx,gy){ clearGuides();
+    if(gx!==null){ const g=document.createElement('div'); g.className='guide v';
+      g.style.setProperty('--gx',gx+'px'); g.style.setProperty('--gy','-4000px'); g.style.setProperty('--gh','8000px');
+      board.appendChild(g); guideEls.push(g); }
+    if(gy!==null){ const g=document.createElement('div'); g.className='guide h';
+      g.style.setProperty('--gy',gy+'px'); g.style.setProperty('--gx','-4000px'); g.style.setProperty('--gw','8000px');
+      board.appendChild(g); guideEls.push(g); }
+  }
+  function clearGuides(){ guideEls.forEach(g=>g.remove()); guideEls=[]; }
+
+  // ── MARQUEE select + PAN (on the viewport / empty space) ──
+  let marquee=null, panning=null, spaceDown=false;
+  vp.addEventListener('pointerdown',(e)=>{
+    if(e.target!==vp && e.target!==board) return;       // only on empty space
+    vp.setPointerCapture(e.pointerId);
+    if(spaceDown || e.button===1){                       // pan
+      panning={sx:e.clientX,sy:e.clientY,px:pan.x,py:pan.y}; vp.classList.add('panning');
+    } else {                                             // marquee select
+      if(!e.shiftKey) selected.clear();
+      const s=toBoard(e.clientX,e.clientY);
+      marquee={sx:s.x,sy:s.y,raf:null,latest:e,base:new Set(selected)};
+      const m=document.createElement('div'); m.className='marquee'; m.id='__mq'; board.appendChild(m);
+      render();
+    }
+  });
+  function vpMove(e){
+    if(panning){ pan.x=panning.px+(e.clientX-panning.sx); pan.y=panning.py+(e.clientY-panning.sy);
+      if(!panning.raf){ panning.raf=requestAnimationFrame(()=>{panning.raf=null;applyBoard();}); } return; }
+    if(marquee){ marquee.latest=e; if(!marquee.raf) marquee.raf=requestAnimationFrame(applyMarquee); }
+  }
+  function applyMarquee(){
+    marquee.raf=null; const p=toBoard(marquee.latest.clientX,marquee.latest.clientY);
+    const x=Math.min(marquee.sx,p.x), y=Math.min(marquee.sy,p.y), w=Math.abs(p.x-marquee.sx), h=Math.abs(p.y-marquee.sy);
+    const m=document.getElementById('__mq');
+    if(m){ m.style.setProperty('--mx',x+'px'); m.style.setProperty('--my',y+'px');
+      m.style.setProperty('--mw',w+'px'); m.style.setProperty('--mh',h+'px'); }
+    // live selection: base ∪ intersecting
+    selected.clear(); marquee.base.forEach(i=>selected.add(i));
+    for(const n of notes){ const el=els.get(n.id); const nh=el?el.offsetHeight:120, nw=n.w||180;
+      if(n.x < x+w && n.x+nw > x && n.y < y+h && n.y+nh > y) selected.add(n.id); }
+    notes.forEach(n=>els.get(n.id).classList.toggle('selected',selected.has(n.id)));
+  }
+  function vpUp(){
+    if(panning){ panning=null; vp.classList.remove('panning'); }
+    if(marquee){ const m=document.getElementById('__mq'); if(m) m.remove(); marquee=null; render(); }
+  }
+
+  // ── Global pointer move/up (capture continues anywhere) ──
+  window.addEventListener('pointermove',(e)=>{ onMove(e); vpMove(e); });
+  window.addEventListener('pointerup',(e)=>{ endDrag(e); vpUp(e); });
+
+  // ── Pan via wheel; zoom via ctrl/cmd+wheel (anchored at cursor) ──
+  vp.addEventListener('wheel',(e)=>{
+    e.preventDefault();
+    if(e.ctrlKey||e.metaKey){
+      const before=toBoard(e.clientX,e.clientY);
+      zoom=Math.min(3,Math.max(.3, zoom*(1 - e.deltaY*0.0015)));
+      const after=toBoard(e.clientX,e.clientY);
+      pan.x += (after.x-before.x)*zoom; pan.y += (after.y-before.y)*zoom;   // keep cursor anchored
+    } else { pan.x-=e.deltaX; pan.y-=e.deltaY; }
+    applyBoard();
+  },{passive:false});
+
+  // ── Keyboard: space=pan, delete, group ──
+  window.addEventListener('keydown',(e)=>{
+    if(e.code==='Space' && document.activeElement.tagName!=='DIV'){ spaceDown=true; vp.classList.add('space'); }
+    const editing=document.activeElement.getAttribute && document.activeElement.getAttribute('contenteditable')==='true';
+    if(editing) return;
+    if((e.key==='Delete'||e.key==='Backspace') && selected.size){ e.preventDefault(); commitDelete(new Set(selected)); selected.clear(); }
+    if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='g'){ e.preventDefault(); e.shiftKey?ungroup():group(); }
+    if(e.key==='Escape'){ selected.clear(); render(); }
+  });
+  window.addEventListener('keyup',(e)=>{ if(e.code==='Space'){ spaceDown=false; vp.classList.remove('space'); } });
+
+  // ── Group / ungroup (flat groupId model) ──
+  function group(){ if(selected.size<2) return; const gid='g'+(nextId++);
+    selected.forEach(id=>{ const n=rowById(id); if(n) n.groupId=gid; }); render(); }
+  function ungroup(){ selected.forEach(id=>{ const n=rowById(id); if(n) n.groupId=null; }); render(); }
+
+  // ── Create / palette / chrome ──
+  function makeNote(bx,by){ return { id:'n'+(nextId++), x:Math.round(bx/8)*8, y:Math.round(by/8)*8,
+    w:180, text:'', color:activeColor, z:++nextZ }; }
+  vp.addEventListener('dblclick',(e)=>{ if(e.target!==vp && e.target!==board) return;
+    const p=toBoard(e.clientX,e.clientY); const n=makeNote(p.x-90,p.y-60); commitCreate(n);
+    selected.clear(); selected.add(n.id); render(); enterEdit(els.get(n.id).querySelector('.body')); });
+  document.getElementById('add').onclick=()=>{ const c=toBoard(vp.clientWidth/2,vp.clientHeight/2);
+    const n=makeNote(c.x-90,c.y-60); commitCreate(n); selected.clear(); selected.add(n.id); render();
+    enterEdit(els.get(n.id).querySelector('.body')); };
+  document.getElementById('group').onclick=group;
+  document.getElementById('ungroup').onclick=ungroup;
+  document.getElementById('fit').onclick=()=>{ pan={x:160,y:120}; zoom=1; applyBoard(); };
+
+  const pal=document.getElementById('palette');
+  COLORS.forEach(c=>{ const s=document.createElement('div'); s.className='swatch'; s.style.background=c;
+    s.onclick=()=>{ activeColor=c; if(selected.size){ selected.forEach(id=>{ const n=rowById(id); if(n) n.color=c; }); render(); } };
+    pal.appendChild(s); });
+
+  // ── Seed a few notes so it's alive on open ──
+  function seed(){
+    const demo=[
+      {t:'What did the panel say about MCP enterprise auth?',c:COLORS[2],x:40,y:40},
+      {t:'/ask p95 latency budget for agent loops',c:COLORS[0],x:260,y:90},
+      {t:'Scoped, revocable credentials > static API keys',c:COLORS[3],x:90,y:230},
+      {t:'🔒 my note: follow up with Orbital on pricing',c:COLORS[1],x:300,y:300},
+      {t:'Healthcare pilots cluster around intake + note-prep',c:COLORS[4],x:540,y:160},
+      {t:'Audit every agent action → person/policy/source',c:COLORS[5],x:520,y:360},
+    ];
+    demo.forEach(d=>notes.push({id:'n'+(nextId++),x:d.x,y:d.y,w:180,text:d.t,color:d.c,z:++nextZ}));
+  }
+  seed(); applyBoard(); render();
+})();
+</script>
+</body>
+</html>

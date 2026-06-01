@@ -6,7 +6,15 @@ import { dirname, join } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const eventsSource = readFileSync(join(here, "events.ts"), "utf8");
 const notesSource = readFileSync(join(here, "notes.ts"), "utf8");
+const wallSource = readFileSync(join(here, "wall.ts"), "utf8");
 const eventsSchemaSource = readFileSync(join(here, "schema", "eventsSchema.ts"), "utf8");
+
+function wallFunctionBlock(name: string, kind: "query" | "mutation" = "mutation"): string {
+  const start = wallSource.indexOf(`export const ${name} = ${kind}({`);
+  expect(start, `${name} ${kind} should exist in wall.ts`).toBeGreaterThanOrEqual(0);
+  const next = wallSource.indexOf("\nexport const ", start + 1);
+  return wallSource.slice(start, next > start ? next : undefined);
+}
 
 function functionBlock(name: string, kind: "query" | "mutation" | "action" | "internalQuery" | "internalMutation" = "mutation"): string {
   const start = eventsSource.indexOf(`export const ${name} = ${kind}({`);
@@ -175,5 +183,86 @@ describe("scratchnode Phase 4 host auth", () => {
     // Production with no secret throws ConvexError (not a hardcoded
     // default that ships with the binary)
     expect(fn).toContain("host_auth_secret_missing");
+  });
+});
+
+// ─── Phase 8: Memory Wall (convex/wall.ts) — privacy + reliability invariants ──
+//
+// The Wall is a PUBLIC, collaborative-open overlay over the canonical event
+// stream. These static-source assertions catch the obvious regressions:
+// private-note leakage, removed BOUND/membership/rate-limit gates, and missing
+// cross-event integrity checks.
+describe("scratchnode Phase 8 Memory Wall boundaries", () => {
+  it("the public wall NEVER references private user notes", () => {
+    // The single most important invariant: a public spatial surface must not
+    // be able to read or surface private, owner-keyed notes.
+    //
+    // Check for ACTUAL ACCESS, not mentions: a Convex table is only reached via
+    // a quoted string literal — query("userNotes") / db access. Prose in the
+    // module header legitimately names userNotes to DOCUMENT the invariant, so
+    // we assert the quoted form, never the bare word.
+    expect(wallSource).not.toContain('"userNotes"');
+    expect(wallSource).not.toContain('"liveEventNoteAnchors"');
+    expect(wallSource).not.toContain("getPrivate");
+    expect(wallSource).not.toContain(".ownerKey");
+    // It only ever dereferences PUBLIC content tables.
+    expect(wallSource).toContain('"liveEventMessages"');
+    expect(wallSource).toContain('"liveEventAnswers"');
+  });
+
+  it("listWallItems is BOUND (no unbounded scan of a hot public table)", () => {
+    const listWallItems = wallFunctionBlock("listWallItems", "query");
+    expect(listWallItems).toContain("MAX_WALL_ITEMS");
+    expect(listWallItems).toContain(".take(");
+    // The cap constant itself is defined and finite.
+    expect(wallSource).toMatch(/const MAX_WALL_ITEMS = \d+/);
+  });
+
+  it("every wall mutation gates on membership before writing", () => {
+    for (const name of [
+      "pinToWall",
+      "createWallNote",
+      "moveWallItems",
+      "recolorWallItem",
+      "editWallNote",
+      "groupWallItems",
+      "ungroupWallItems",
+      "removeWallItems",
+    ]) {
+      expect(wallFunctionBlock(name)).toContain("requireMember");
+    }
+  });
+
+  it("every wall mutation enforces a rate limit", () => {
+    for (const name of [
+      "pinToWall",
+      "createWallNote",
+      "moveWallItems",
+      "recolorWallItem",
+      "editWallNote",
+      "groupWallItems",
+      "ungroupWallItems",
+      "removeWallItems",
+    ]) {
+      expect(wallFunctionBlock(name)).toContain("enforceRateLimit");
+    }
+  });
+
+  it("batch mutations are BOUND and id-mutations enforce cross-event integrity", () => {
+    for (const name of ["moveWallItems", "groupWallItems", "ungroupWallItems", "removeWallItems"]) {
+      const block = wallFunctionBlock(name);
+      expect(block, `${name} should cap batch size`).toContain("MAX_WALL_BATCH");
+    }
+    // pin + move + recolor + edit + remove all verify the row belongs to the
+    // event before touching it (prevents cross-event id smuggling).
+    for (const name of ["moveWallItems", "recolorWallItem", "editWallNote", "removeWallItems"]) {
+      expect(wallFunctionBlock(name)).toContain("item.eventId !== args.eventId");
+    }
+    expect(wallFunctionBlock("pinToWall")).toContain("!== args.eventId");
+  });
+
+  it("color writes are constrained to an allowlist (no arbitrary inline style)", () => {
+    expect(wallSource).toContain("WALL_COLORS");
+    expect(wallSource).toContain("safeColor");
   });
 });
