@@ -5715,10 +5715,19 @@ window._laCueAction       = _laCueAction;
       .then(runAskIfNeeded)
       .catch((e) => {
         console.warn('[scratchnode] sendMessage failed:', e.message || e);
-        input.value = submittedValue;
+        // Restore the un-sent draft so a cold-load race — sendMessage rejected
+        // not_joined before the join row committed AND the join+resend retry
+        // above also failed — never silently eats the user's text. Guard the
+        // same way _sn_failPendingSends does (search "_sn_failPendingSends"):
+        // only repopulate when the composer is still empty, so we never clobber
+        // a newer draft the user started typing while the send was in flight.
+        const restored = !!(input && !input.value);
+        if (restored) input.value = submittedValue;
         input.focus();
         if (typeof toast === 'function') {
-          toast('Message not sent', 'The live room did not confirm it. Your draft was restored.');
+          toast('Message not sent', restored
+            ? 'The live room did not confirm it. Your draft was restored.'
+            : 'The live room did not confirm it. Send it again when the room is ready.');
         }
       });
 
