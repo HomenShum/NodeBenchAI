@@ -1487,9 +1487,9 @@ export const productContextItems = defineTable({
   .index("by_owner_linked_report", ["ownerKey", "linkedReportId"]);
 
 // ──────────────────────────────────────────────────────────────────────────
-// Block model (Phase 1 of Ideaflow/Mew-inspired notebook)
+// Block model (Phase 1 of Roam-inspired graph notebook)
 // Inspired by Mew's graph_node + relation_lists with fractional indexing.
-// See docs/architecture/IDEAFLOW_BLOCK_NOTEBOOK_ULTRAPLAN.md
+// See docs/architecture/EXPANDABLE_GRAPH_NOTEBOOK.md
 // ──────────────────────────────────────────────────────────────────────────
 
 export const productBlockKindValidator = v.union(
