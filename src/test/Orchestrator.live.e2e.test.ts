@@ -37,7 +37,7 @@ if (!live) {
         };
 
         // Simple graph: Web search feeds into an answer. No dynamic branching.
-        const topic = "Research Jacob Cole, Ideaflow, and the company's fundraising for the next round";
+        const topic = "Research Anthropic and the company's fundraising for the next round";
         const graph = {
           nodes: [
             { id: 's1', kind: 'search', label: 'Web Research', prompt: '{{topic}}' },
