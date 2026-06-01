@@ -1060,6 +1060,124 @@ describe("composeAnswer — production hardening (idempotency / integrity / cach
 });
 
 /* ========================================================================== */
+/* Test 1c — getAskTelemetry: /ask operability aggregate (PR C)                */
+/* mode mix · PROVIDER FAILURE RATE · quality · cost · latency · HONEST_SCORES */
+/* ========================================================================== */
+
+describe("getAskTelemetry — /ask operability aggregate", () => {
+  const getAskTelemetry = (eventsModule as any).getAskTelemetry;
+
+  function telAnswer(
+    id: string,
+    agentMode: string,
+    opts: {
+      score?: number;
+      passed?: boolean;
+      costCents?: number;
+      providerMs?: number | null;
+      liveSearches?: number;
+      createdAt: number;
+    },
+  ): TableRecord {
+    const { score = 100, passed = true, costCents = 0, providerMs = null, liveSearches = 0, createdAt } = opts;
+    const trace = providerMs != null
+      ? [{ step: "provider_llm", status: "ok", detail: "", durationMs: providerMs }]
+      : [{ step: "deterministic_synthesis", status: "ok", detail: "", durationMs: 1 }];
+    return {
+      _id: id,
+      eventId: "liveEvents:1",
+      questionMessageId: "liveEventMessages:1",
+      askedBySessionId: ANONYMOUS_SESSION_A,
+      question: "q",
+      normalizedQuestion: "q",
+      body: "b",
+      sourceIds: [],
+      trace,
+      cacheHit: agentMode === "cache",
+      agentMode,
+      estimatedCostCents: costCents,
+      externalSearches: liveSearches,
+      evaluation: { passed, score, checks: [] },
+      faqStatus: "none",
+      createdAt,
+    };
+  }
+
+  /**
+   * Scenario:    A host opens the room's /ask health view mid-event.
+   * User:        Host / operator.
+   * Goal:        See the live mode mix, provider failure rate, cost, and quality.
+   * Prior state: 7 answers — 3 provider (1 with a live search), 1 provider_fallback,
+   *              2 cache, 1 deterministic; varied quality scores + provider latencies.
+   * Scale:       1 event, 7 answers.
+   * Duration:    Single query.
+   * Expected:    Every number computed from the rows: providerAttempts excludes
+   *              cache/deterministic; failure rate = fallbacks / attempts.
+   */
+  it("aggregates mode mix, provider failure rate, cost, quality, latency from real rows", async () => {
+    const tables: Tables = {
+      liveEvents: [baseEvent()],
+      liveEventAnswers: [
+        telAnswer("liveEventAnswers:1", "provider", { score: 100, costCents: 0.36, providerMs: 4000, createdAt: 1 }),
+        telAnswer("liveEventAnswers:2", "provider", { score: 90, costCents: 0.30, providerMs: 5000, liveSearches: 1, createdAt: 2 }),
+        telAnswer("liveEventAnswers:3", "provider", { score: 80, costCents: 0.40, providerMs: 6000, createdAt: 3 }),
+        telAnswer("liveEventAnswers:4", "provider_fallback", { score: 70, passed: false, costCents: 0, providerMs: null, createdAt: 4 }),
+        telAnswer("liveEventAnswers:5", "cache", { score: 100, costCents: 0, providerMs: null, createdAt: 5 }),
+        telAnswer("liveEventAnswers:6", "cache", { score: 95, costCents: 0, providerMs: null, createdAt: 6 }),
+        telAnswer("liveEventAnswers:7", "deterministic", { score: 85, costCents: 0, providerMs: null, createdAt: 7 }),
+      ],
+    };
+    const ctx = createCtx(tables);
+    const t = await getAskTelemetry._handler(ctx, { eventId: "liveEvents:1" });
+
+    expect(t.total).toBe(7);
+    expect(t.capped).toBe(false);
+    expect(t.modes).toEqual({ provider: 3, cache: 2, deterministic: 1, provider_fallback: 1 });
+    expect(t.providerAttempts).toBe(4); // 3 provider + 1 fallback (cache/deterministic excluded)
+    expect(t.providerFailureRate).toBe(0.25); // 1 fallback / 4 attempts
+    expect(t.qualityPassRate).toBeCloseTo(6 / 7, 3); // 6 of 7 passed
+    expect(t.avgQualityScore).toBe(89); // round((100+90+80+70+100+95+85)/7)
+    expect(t.totalCostCents).toBe(1.06); // 0.36+0.30+0.40
+    expect(t.avgProviderLatencyMs).toBe(5000); // (4000+5000+6000)/3
+    expect(t.liveSearchCount).toBe(1);
+  });
+
+  /**
+   * Scenario:    Host opens /ask health for a brand-new room before anyone asked.
+   * Goal:        Must NOT fabricate "0% failures" / "100% healthy" from no data.
+   * Prior state: 0 answers.
+   * Expected:    rates are null (UI renders "—"); HONEST_SCORES invariant.
+   */
+  it("HONEST_SCORES: empty event → rates are null, never a fabricated 0% or 100%", async () => {
+    const ctx = createCtx({ liveEvents: [baseEvent()], liveEventAnswers: [] });
+    const t = await getAskTelemetry._handler(ctx, { eventId: "liveEvents:1" });
+    expect(t.total).toBe(0);
+    expect(t.providerAttempts).toBe(0);
+    expect(t.providerFailureRate).toBeNull();
+    expect(t.qualityPassRate).toBeNull();
+    expect(t.avgQualityScore).toBeNull();
+    expect(t.avgProviderLatencyMs).toBeNull();
+    expect(t.totalCostCents).toBe(0);
+  });
+
+  /**
+   * Scenario:    A high-volume room accumulates more answers than the scan cap.
+   * Goal:        BOUND — never scan unbounded; flag that the window is truncated.
+   * Prior state: 30 answers; limit 10.
+   * Expected:    total=10, capped=true (so the UI can say "last 10 of many").
+   */
+  it("BOUND: caps the scan and flags capped=true at the limit", async () => {
+    const many = Array.from({ length: 30 }, (_, i) =>
+      telAnswer(`liveEventAnswers:${i}`, "cache", { createdAt: i }),
+    );
+    const ctx = createCtx({ liveEvents: [baseEvent()], liveEventAnswers: many });
+    const t = await getAskTelemetry._handler(ctx, { eventId: "liveEvents:1", limit: 10 });
+    expect(t.total).toBe(10);
+    expect(t.capped).toBe(true);
+  });
+});
+
+/* ========================================================================== */
 /* Test 2 — publishWiki host gate                                              */
 /* ========================================================================== */
 

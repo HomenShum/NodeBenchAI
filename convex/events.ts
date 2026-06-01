@@ -903,6 +903,78 @@ export const getAnswers = query({
   },
 });
 
+/**
+ * /ask operability telemetry (PR C) — a bounded, read-only aggregate over an
+ * event's answers, for launch-ops + host visibility into the /ask pipeline:
+ * mode mix, PROVIDER FAILURE RATE (the headline degraded-health signal),
+ * quality pass rate, cost, and provider latency.
+ *
+ * Honesty (agentic_reliability):
+ *   - BOUND: capped scan (≤1000), `capped` flag surfaced when the window is full.
+ *   - HONEST_SCORES: every number is computed from real rows; rates are null
+ *     (not a fake 0/100) when there's no denominator — the UI must show "—",
+ *     never a fabricated "100% healthy".
+ *   - No private data: liveEventAnswers are public; never touches userNotes.
+ */
+export const getAskTelemetry = query({
+  args: { eventId: v.id("liveEvents"), limit: v.optional(v.number()) },
+  handler: async (ctx, { eventId, limit }) => {
+    const cap = Math.min(Math.max(limit ?? 500, 1), 1000); // BOUND
+    const rows = await ctx.db
+      .query("liveEventAnswers")
+      .withIndex("by_event_time", (q) => q.eq("eventId", eventId))
+      .order("desc")
+      .take(cap);
+
+    const modes = { provider: 0, cache: 0, deterministic: 0, provider_fallback: 0 };
+    let costCentsTotal = 0;
+    let qualitySum = 0;
+    let qualityCount = 0;
+    let passCount = 0;
+    let providerLatencySum = 0;
+    let providerLatencyCount = 0;
+    let liveSearchCount = 0;
+
+    for (const r of rows) {
+      const mode = (r.agentMode ?? "deterministic") as keyof typeof modes;
+      if (mode in modes) modes[mode] += 1;
+      costCentsTotal += r.estimatedCostCents ?? 0;
+      liveSearchCount += r.externalSearches ?? 0;
+      if (r.evaluation) {
+        qualitySum += r.evaluation.score ?? 0;
+        qualityCount += 1;
+        if (r.evaluation.passed) passCount += 1;
+      }
+      const provStep = (r.trace ?? []).find(
+        (s: any) => s.step === "provider_llm" && s.status === "ok",
+      );
+      if (provStep) {
+        providerLatencySum += provStep.durationMs ?? 0;
+        providerLatencyCount += 1;
+      }
+    }
+
+    // Provider failure rate = fallbacks / (real provider ATTEMPTS). A provider
+    // attempt is a success (mode=provider) OR a fallback (mode=provider_fallback);
+    // cache/deterministic never reached the provider, so they're excluded from
+    // the denominator. Null when no attempts — no fabricated "0% failures".
+    const providerAttempts = modes.provider + modes.provider_fallback;
+    const round = (x: number, p: number) => Math.round(x * 10 ** p) / 10 ** p;
+    return {
+      total: rows.length,
+      capped: rows.length >= cap,
+      modes,
+      providerAttempts,
+      providerFailureRate: providerAttempts > 0 ? round(modes.provider_fallback / providerAttempts, 3) : null,
+      qualityPassRate: qualityCount > 0 ? round(passCount / qualityCount, 3) : null,
+      avgQualityScore: qualityCount > 0 ? Math.round(qualitySum / qualityCount) : null,
+      totalCostCents: round(costCentsTotal, 4),
+      avgProviderLatencyMs: providerLatencyCount > 0 ? Math.round(providerLatencySum / providerLatencyCount) : null,
+      liveSearchCount,
+    };
+  },
+});
+
 export const getHostStatus = query({
   args: {
     eventId: v.id("liveEvents"),
