@@ -5593,6 +5593,13 @@ window._laCueAction       = _laCueAction;
         : answer.cacheHit
           ? 'cache hit'
           : 'sourced answer';
+    // Honest degraded status: when the AI provider was unavailable the answer was
+    // synthesized from public sources only. Flag it visibly (amber pill + ⚠ icon +
+    // text, never colour alone — a11y) with role=status so it's announced, so a
+    // reader never mistakes a degraded answer for a full AI one.
+    const degradedBadge = answer.agentMode === 'provider_fallback'
+      ? '<span class="sep">·</span><span class="ans-degraded" role="status" style="color:#e0a160;background:rgba(224,161,96,.14);border:1px solid rgba(224,161,96,.32);padding:0 7px;border-radius:999px;font-weight:600;white-space:nowrap" title="The AI provider was unavailable, so this answer was generated from the public event sources only. It may be less complete than a full AI answer.">&#9888; degraded &middot; sources only</span>'
+      : '';
     const costLabel = typeof answer.estimatedCostCents === 'number'
       ? answer.estimatedCostCents.toFixed(4) + '¢'
       : 'cost tracked';
@@ -5606,7 +5613,7 @@ window._laCueAction       = _laCueAction;
     ).join('');
     article.innerHTML =
       '<div class="ans-head"><span class="who">ScratchNode</span><span class="sep">·</span><span>' +
-      (answer.cacheHit ? 'cache hit' : 'sourced answer') + '</span><span class="sep">·</span><span>' + fmtTime(answer.createdAt) + '</span></div>' +
+      (answer.cacheHit ? 'cache hit' : 'sourced answer') + '</span>' + degradedBadge + '<span class="sep">·</span><span>' + fmtTime(answer.createdAt) + '</span></div>' +
       '<div class="ans-q"></div>' +
       '<div class="ans-body"></div>' +
       '<div class="ans-sources">' + (sourceChips || '<span>public event corpus</span>') + '<span>' + sourceCount + ' sources</span></div>' +
