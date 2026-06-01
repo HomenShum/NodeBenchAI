@@ -134,16 +134,17 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
     expect(boundary.eventUrl).not.toContain("scratchnode.com");
     expect(boundary.workspaceBaseUrl).toBe("https://nodebenchai.com");
     expect(boundary.privateHandoffUrl).toContain(
-      "https://nodebenchai.com/scratchnode-events",
+      "https://nodebenchai.com/events/ai-infra-summit-2026/private",
     );
     expect(boundary.privateHandoffUrl).toContain("source=scratchnode");
-    expect(boundary.privateHandoffUrl).toContain("event=ai-infra-summit-2026");
     expect(boundary.privateHandoffUrl).toContain("room=ORBITAL");
+    expect(boundary.privateHandoffUrl).toContain("continuation=private-notes");
+    expect(boundary.privateHandoffUrl).toContain("publicArtifact=event-wiki");
     expect(decodeURIComponent(boundary.privateHandoffUrl)).toContain(
       `return=${expectedPublicOrigin}/e/ai-infra-summit-2026`,
     );
     expect(decodeURIComponent(boundary.signInHandoffUrl)).toContain(
-      "/scratchnode-events",
+      "/events/ai-infra-summit-2026/private",
     );
     expect(boundary.hasOpenHandoff).toBe("function");
     await pageA.screenshot({
@@ -208,9 +209,10 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
 
     const answer = await findAnswerForQuestion(pageA, question);
     expect(answer?.id, "sourced answer should render with data-answer-id").toBeTruthy();
-    expect(answer?.text, "answer reuse line should state private notes were excluded").toContain(
-      "no private notes",
-    );
+    expect(
+      answer?.text,
+      "answer reuse line should state private notes were excluded",
+    ).toMatch(/no private notes|private notes excluded/i);
 
     await expect
       .poll(() => queryAnswer(pageA, answer!.id!), { timeout: 15_000 })
@@ -331,7 +333,7 @@ test("home-v5 runs the live Convex event-room loop across shipped phases", async
     await expect(pageA.locator("#sn-nodebench-private-handoff")).toBeVisible();
     await expect(pageA.locator("#sheet-content")).toContainText("Open NodeBench event notebook");
     await expect(pageA.locator("#sheet-content")).toContainText(
-      "https://nodebenchai.com/scratchnode-events",
+      "https://nodebenchai.com/events/ai-infra-summit-2026/private",
     );
     await pageA.evaluate(() => (window as any).closeSheet());
 
@@ -475,7 +477,7 @@ test("home-v5 dogfoods host-created room lifecycle against the live backend", as
       .poll(() => findAnswerForQuestion(hostPage, question), { timeout: 60_000 })
       .toMatchObject({ id: expect.any(String) });
     const answer = await findAnswerForQuestion(hostPage, question);
-    expect(answer?.text).toContain("no private notes");
+    expect(answer?.text).toMatch(/no private notes|private notes excluded/i);
     expect(answer?.id).toBeTruthy();
     const answerRecord = await queryAnswer(hostPage, answer!.id!);
     expect(answerRecord?.sources.some((source: any) => source.title === "QA lifecycle source")).toBe(true);

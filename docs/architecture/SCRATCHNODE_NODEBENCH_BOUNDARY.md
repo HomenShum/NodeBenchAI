@@ -1,6 +1,6 @@
 # ScratchNode Live <-> NodeBench AI Boundary
 
-Last updated: 2026-05-27
+Last updated: 2026-06-01
 
 ## Locked Product Sentence
 
@@ -61,9 +61,14 @@ https://scratchnode.live/sign-in
 NodeBench private continuation URLs:
 
 ```text
-https://nodebenchai.com/events/:eventSlug/private?source=scratchnode&room=:roomCode&return=:scratchnodeEventUrl
+https://nodebenchai.com/events/:eventSlug/private?source=scratchnode&room=:roomCode&continuation=private-notes&noteCount=:count&publicArtifact=event-wiki&return=:scratchnodeEventUrl
 https://nodebenchai.com/sign-in?return=:nodebenchPrivateEventUrl&intent=save-private-notes
 ```
+
+The handoff URL carries continuation intent and counts, not the anonymous
+`ownerKey` itself. The `ownerKey` remains a server-validated note-operation key;
+future cross-domain import should use a one-time exchange token rather than
+placing session secrets in URLs.
 
 ScratchNode sign-in owns event participation state. NodeBench sign-in is only
 for the explicit "Open in NodeBench" private-workspace continuation.

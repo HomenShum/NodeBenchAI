@@ -161,6 +161,13 @@ budget. For events, NodeBench checks the event corpus and workspace memory
 before live search, then persists useful results as entities, claims, sources,
 and workspace context.
 
+ScratchNode is the lightweight live-event sidecar for this model: a disposable
+room that turns public chat and sourced `/ask` answers into a public wiki while
+keeping attendee notes private. It complements Luma, Slack, Eventbrite, and
+other event surfaces instead of replacing them; the explicit handoff to
+NodeBench opens `https://nodebenchai.com/events/:eventSlug/private` with
+private-note continuation context and no URL-borne `ownerKey`.
+
 The event flow is:
 
 ```text
@@ -177,7 +184,7 @@ After event
 The product model is:
 
 ```text
-Event corpus + live capture + post-event intelligence workspace
+ScratchNode sidecar room + public event corpus + private NodeBench continuation
 ```
 
 Event corpus and capture data stay separated:
@@ -185,7 +192,8 @@ Event corpus and capture data stay separated:
 - `Shared event corpus` = public event info, speakers, sponsors, company pages,
   sessions, and public source cache.
 - `Private captures` = what a user personally heard, wrote, recorded, or
-  photographed.
+  photographed; ScratchNode private notes never enter the public feed, public
+  wiki, or public `/ask` cache.
 - `Team/org memory` = shared only inside the fund, company, or workspace.
 - `Event aggregate insights` = opt-in or anonymized only.
 
@@ -223,6 +231,8 @@ Map        -> graph view later
 
 The canonical spec lives in
 [EVENT_INTELLIGENCE_SERVING_MODEL.md](./docs/architecture/EVENT_INTELLIGENCE_SERVING_MODEL.md).
+The ScratchNode/NodeBench privacy boundary lives in
+[SCRATCHNODE_NODEBENCH_BOUNDARY.md](./docs/architecture/SCRATCHNODE_NODEBENCH_BOUNDARY.md).
 
 ## Why This Design
 

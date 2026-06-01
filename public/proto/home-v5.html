@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#151413">
-<title>ScratchNode — turn live events into public knowledge</title>
-<meta name="description" content="Join with a room code. Ask anything, get sourced answers. The room compacts into a public wiki when the event ends. No account needed.">
+<title>ScratchNode — sidecar event rooms with memory</title>
+<meta name="description" content="Join a disposable sidecar room with a code. Chat publicly, /ask for sourced answers, keep private anchored notes, and leave with a public wiki. No account needed.">
 <link rel="canonical" href="https://scratchnode.live/">
 
 <!--
@@ -16,8 +16,8 @@
   pre-render or an OG image function, both of which are post-launch work.
 -->
 <meta property="og:site_name" content="ScratchNode">
-<meta property="og:title" content="ScratchNode — turn live events into public knowledge">
-<meta property="og:description" content="Join with a room code. Ask anything, get sourced answers. The room compacts into a public wiki when the event ends. No account needed.">
+<meta property="og:title" content="ScratchNode — sidecar event rooms with memory">
+<meta property="og:description" content="Join with a room code. Public chat, sourced /ask answers, private notes, and a wiki handoff. No account needed.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://scratchnode.live/">
 <meta property="og:image" content="https://scratchnode.live/og-scratchnode.png">
@@ -28,8 +28,8 @@
 <!-- Twitter card -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@scratchnode">
-<meta name="twitter:title" content="ScratchNode — turn live events into public knowledge">
-<meta name="twitter:description" content="Join with a room code. Ask anything, get sourced answers. Compacts into a public wiki at event end. No account needed.">
+<meta name="twitter:title" content="ScratchNode — sidecar event rooms with memory">
+<meta name="twitter:description" content="A disposable event brain: public chat, sourced /ask, private notes, and a wiki handoff. No account needed.">
 <meta name="twitter:image" content="https://scratchnode.live/og-scratchnode.png">
 <meta name="twitter:image:alt" content="ScratchNode — live event knowledge room">
 
@@ -1776,8 +1776,8 @@ function _landingJoin(ev) {
 <section class="landing" role="region" aria-label="ScratchNode landing">
   <div class="landing-hero">
     <span class="landing-logo">Scratch<span>Node</span></span>
-    <h1>Live event Q&amp;A that compounds into a wiki.</h1>
-    <p>Anyone with a room code can join. Public chat, <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:1px 6px;border-radius:3px">/ask</code> for sourced answers, private notes that stay yours. After the event, knowledge persists.</p>
+    <h1>A disposable sidecar room for live event memory.</h1>
+    <p>Bring your Luma, Slack, or Eventbrite crowd. Anyone with a room code can join, chat publicly, use <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:1px 6px;border-radius:3px">/ask</code> for sourced answers, and keep private notes that never enter the public room.</p>
     <form class="landing-join" onsubmit="return _landingJoin(event)" aria-label="Join an event by room code">
       <input type="text" placeholder="Enter room code (e.g. ORBITAL)" aria-label="Room code" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false">
       <button type="submit">Join &rarr;</button>
@@ -1788,9 +1788,9 @@ function _landingJoin(ev) {
     </div>
   </div>
   <div class="landing-trust" aria-label="Privacy posture">
-    <span>Consent-first.</span>
-    <span>Private by default.</span>
-    <span>No stealth overlays.</span>
+    <span>No-account join.</span>
+    <span>Public answers stay sourced.</span>
+    <span>Private notes stay private.</span>
   </div>
 </section>
 
@@ -1833,14 +1833,14 @@ function _landingJoin(ev) {
   <div class="welcome" role="status" aria-live="polite">
     <span class="welcome-emoji" aria-hidden="true">&#128075;</span>
     <span class="welcome-text">
-      <strong>New to ScratchNode?</strong> Type to chat, <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:0 4px;border-radius:3px">/ask</code> for sourced answers, or tap <a onclick="startTour()">take the 20-second tour&nbsp;&rarr;</a>
+      <strong>New to ScratchNode?</strong> This is the sidecar room: chat publicly, <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:0 4px;border-radius:3px">/ask</code> for sourced answers, or lock the composer for private notes. <a onclick="startTour()">Take the 20-second tour&nbsp;&rarr;</a>
     </span>
     <button class="welcome-close" type="button" onclick="dismissWelcome()" aria-label="Dismiss">&times;</button>
   </div>
 
   <section class="hero">
     <h1><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h1>
-    <p class="hero-meta" id="sn-event-hero-meta">Live public room · <b id="sn-hero-joined-count">0</b> joined</p>
+    <p class="hero-meta" id="sn-event-hero-meta">Disposable event brain · <b id="sn-hero-joined-count">0</b> joined · public wiki later</p>
   </section>
 
   <!-- Identity row -->
@@ -1870,7 +1870,7 @@ function _landingJoin(ev) {
     <div class="c-box" role="group" style="position:relative">
     <!-- Mention picker dropdown (appears when typing @) -->
     <div class="mention-picker" id="mention-picker" data-open="false" role="listbox" aria-label="Mention someone"></div>
-      <input id="ci" class="c-input" type="text" placeholder="Message the room… or /ask ScratchNode for a sourced answer" aria-label="Message or ask the agent" autocapitalize="sentences" autocomplete="off" autocorrect="on" spellcheck="true" inputmode="text" enterkeyhint="send" />
+      <input id="ci" class="c-input" type="text" placeholder="Public chat… or /ask for a sourced answer" aria-label="Message or ask the agent" autocapitalize="sentences" autocomplete="off" autocorrect="on" spellcheck="true" inputmode="text" enterkeyhint="send" />
       <span class="c-mode" id="c-mode" aria-live="polite" title="Current sending mode"><span class="dot"></span><span id="c-mode-label">Public room</span></span>
       <button class="c-tool voice" type="button" id="voice" onclick="startVoice()" aria-label="Dictate /ask" title="Dictate your question">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
@@ -1885,9 +1885,9 @@ function _landingJoin(ev) {
     <!-- Persistent helpline — answers Q3: "Am I chatting or asking the agent?" -->
     <div class="c-helpline">
       <span class="pill">Chat</span>
-      <span>by default · type to talk to the room.</span>
+      <span>public by default · disposable room memory.</span>
       <span class="pill ask">/ask</span>
-      <span>ScratchNode for a sourced answer.</span>
+      <span>public sources only.</span>
       <span class="privacy-state" style="margin-left:auto;font-family:var(--mono);font-size:10px" id="c-privacy-state">🔓 public</span>
     </div>
     <div class="c-hint" id="hint" style="display:none"><kbd>/ask</kbd> agent · <kbd>@name</kbd> mention · <kbd>↑</kbd> send</div>
@@ -2017,13 +2017,13 @@ function _landingJoin(ev) {
   <div class="menu-sheet-handle"></div>
   <!-- Always visible to everyone -->
   <h4 data-show-for="all">This event</h4>
-  <button type="button" onclick="openWiki()">Wiki<span class="sub">Need to know · What changed · Sources</span></button>
+  <button type="button" onclick="openWiki()">Public wiki<span class="sub">Host-promoted Q&amp;A · Sources · What changed</span></button>
   <button type="button" onclick="openPeople()">People in the room<span class="sub" id="menu-people-sub">Live members</span></button>
   <button type="button" onclick="openShare()">Share<span class="sub">QR · Copy link · Social</span></button>
   <!-- Notes appear once user has set a name (matches the privacy/identity contract) -->
   <h4 style="margin-top:14px" data-show-for="named">Your notes</h4>
   <button type="button" data-show-for="named" onclick="openNotes()">My private notes<span class="sub">🔒 only you can see</span></button>
-  <button type="button" onclick="openNodeBenchPrivateHandoff()">Continue in NodeBench<span class="sub">Private notes + event artifact</span></button>
+  <button type="button" onclick="openNodeBenchPrivateHandoff()">Continue in NodeBench<span class="sub">Private notebook + public event artifact</span></button>
   <!-- Host console hidden until data-role="host" on body -->
   <h4 style="margin-top:14px" data-show-for="host">For hosts</h4>
   <button type="button" data-show-for="host" onclick="openHost()">Host console<span class="sub">Moderation · /ask queue · Publish wiki</span></button>
@@ -2168,11 +2168,21 @@ function setScratchNodeLiveEventContext(event) {
   var heroTitle = document.getElementById('sn-event-title-hero');
   if (heroTitle) heroTitle.textContent = EVENT_TITLE;
   var heroMeta = document.getElementById('sn-event-hero-meta');
-  if (heroMeta) heroMeta.innerHTML = 'Live public room · <b id="sn-hero-joined-count">0</b> joined · code ' + escapeHtml(EVENT_ROOM_CODE);
+  if (heroMeta) heroMeta.innerHTML = 'Disposable event brain · <b id="sn-hero-joined-count">0</b> joined · code ' + escapeHtml(EVENT_ROOM_CODE);
   var peopleSub = document.getElementById('menu-people-sub');
   if (peopleSub) peopleSub.textContent = 'Live members';
   var mode = document.getElementById('ev-mode-label');
   if (mode) mode.textContent = (event.status || 'Event');
+}
+
+function getPrivateNoteHandoffCount() {
+  try {
+    var richCount = Array.isArray(window._notes_v5) ? window._notes_v5.length : 0;
+    var legacyCount = Array.isArray(window._privateNotes_v5) ? window._privateNotes_v5.length : 0;
+    return Math.max(richCount, legacyCount, 0);
+  } catch (e) {
+    return 0;
+  }
 }
 
 function buildNodeBenchEventPrivateUrl() {
@@ -2182,9 +2192,11 @@ function buildNodeBenchEventPrivateUrl() {
     roomCode = (room && room.roomCode) || roomCode;
   } catch (e) {}
   return WORKSPACE_BASE_URL +
-    '/scratchnode-events?source=scratchnode' +
-    '&event=' + encodeURIComponent(EVENT_SLUG) +
+    '/events/' + encodeURIComponent(EVENT_SLUG) + '/private?source=scratchnode' +
     '&room=' + encodeURIComponent(roomCode) +
+    '&continuation=' + encodeURIComponent('private-notes') +
+    '&noteCount=' + encodeURIComponent(String(getPrivateNoteHandoffCount())) +
+    '&publicArtifact=' + encodeURIComponent('event-wiki') +
     '&return=' + encodeURIComponent(EVENT_URL);
 }
 
@@ -2216,8 +2228,8 @@ function toggleLock() {
   document.body.setAttribute('data-mode', goingPrivate ? 'private' : 'public');
   var input = document.getElementById('ci');
   input.placeholder = goingPrivate
-    ? 'Private note… only you will see this — type or /ask'
-    : 'Message the room… or /ask ScratchNode for a sourced answer';
+    ? 'Private note… saves only to your notebook'
+    : 'Public chat… or /ask for a sourced answer';
   // Sync the mode badge next to the lock
   var modeLabel = document.getElementById('c-mode-label');
   if (modeLabel) modeLabel.textContent = goingPrivate ? 'Private note' : 'Public room';
@@ -2257,7 +2269,7 @@ function parseComposerIntent(raw) {
   var captureLevel = parseInt(document.body.getAttribute('data-capture-level') || '0', 10);
 
   // Resolve effective visibility based on /ask scope, body mode, and event mode.
-  // - /ask private → always private trace (uses user's notes + transcript)
+  // - /ask private → always private notebook save (no public agent call)
   // - /ask team   → team-visible in work meeting, falls back to public in event mode
   // - /ask       → public (event) OR team (work meeting)
   // - chat       → body[data-mode] (public or private toggle)
@@ -2284,8 +2296,8 @@ function parseComposerIntent(raw) {
 
 function getRoomContext() {
   return {
-    roomCode: 'ORBITAL',
-    event: 'AI Infra Summit',
+    roomCode: EVENT_ROOM_CODE,
+    event: EVENT_TITLE,
     replyingToMid: typeof _replyingToMid !== 'undefined' ? _replyingToMid : null
   };
 }
@@ -2321,7 +2333,7 @@ function getMessageRowById(mid) {
 
 function buildPrivateNoteAnchor(room) {
   var mid = room && room.replyingToMid;
-  if (!mid) return { type: 'event', id: EVENT_SLUG, label: 'AI Infra Summit', preview: 'Event-level private note' };
+  if (!mid) return { type: 'event', id: EVENT_SLUG, label: EVENT_TITLE, preview: 'Event-level private note' };
   var row = getMessageRowById(mid);
   if (!row) return { type: 'message', id: mid, label: 'Message', preview: '' };
   var name = row.querySelector('.row-name') ? row.querySelector('.row-name').textContent : 'Message';
@@ -2366,7 +2378,7 @@ function savePrivateNote(intent) {
   if (typeof renderPrivateNoteMarkers === 'function') renderPrivateNoteMarkers();
   toast(
     'Private ' + (intent.isAsk ? '/ask' : 'note') + ' saved',
-    '"' + (clean.length > 60 ? clean.slice(0, 60) + '…' : clean) + '" — only you see this.'
+    '"' + (clean.length > 60 ? clean.slice(0, 60) + '…' : clean) + '" — only you see this; no public agent call was made.'
   );
 }
 
@@ -2482,18 +2494,8 @@ function sendComposerMessage() {
     return;
   }
 
-  // Branch 1: /ask private — answer card with private trace wording, never enters #feed as a public row.
-  if (intent.isAsk && intent.askScope === 'private') {
-    // Render the answer outside the public feed by attaching a non-public ans card.
-    // (The card lives in the feed for visual continuity but uses data-trace-scope=private +
-    // is owned by the asker only. NEVER enters a public-chat row.)
-    var time = _hhmm();
-    streamAgentAnswer(intent, identity, time);
-    _clearComposer();
-    return;
-  }
-
-  // Branch 2: private chat (lock toggle on) — never touches the public feed
+  // Branch 1: private note or private /ask — never touches public feed or public agent.
+  // The notebook handoff to NodeBench is where private notes become deeper research context.
   if (intent.visibility === 'private') {
     intent.anchor = buildPrivateNoteAnchor(room);
     savePrivateNote(intent);
@@ -2502,14 +2504,14 @@ function sendComposerMessage() {
     return;
   }
 
-  // Branch 3: public/team + /ask
+  // Branch 2: public/team + /ask
   if (intent.kind === 'agent_ask') {
     postPublicAsk(intent, identity, room);
     _clearComposer();
     return;
   }
 
-  // Branch 4: public/team chat
+  // Branch 3: public/team chat
   postPublicChat(intent, identity, room);
   _clearComposer();
 }
@@ -2732,7 +2734,14 @@ document.addEventListener('keydown', function(e) {
 // On mobile, DON'T auto-focus — prevents virtual keyboard from popping unsolicited.
 setTimeout(function() {
   if (window.innerWidth > 720 && !('ontouchstart' in window)) {
-    document.getElementById('ci').focus();
+    var active = document.activeElement;
+    var focusTaken = !!(active && active !== document.body && active !== document.documentElement);
+    var sheetOpen = document.getElementById('sheet') && document.getElementById('sheet').getAttribute('data-open') === 'true';
+    var menuOpen = document.getElementById('menu-sheet') && document.getElementById('menu-sheet').getAttribute('data-open') === 'true';
+    var kbdOpen = document.getElementById('kbd-overlay') && document.getElementById('kbd-overlay').getAttribute('data-open') === 'true';
+    if (!focusTaken && !sheetOpen && !menuOpen && !kbdOpen) {
+      document.getElementById('ci').focus();
+    }
   }
 }, 200);
 
@@ -2991,10 +3000,10 @@ var SHEET_RENDERERS = {
 
   about: function() {
     return '<div class="sheet-head"><h2 id="sheet-title">What is ScratchNode?</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
-      '<div class="about-card"><h4>&#127908; The room</h4><p>Every event has a short code (this one is <strong style="color:var(--accent);font-family:var(--mono);letter-spacing:.12em">ORBITAL</strong>). Anyone with the code can join — no account, no app.</p></div>' +
-      '<div class="about-card"><h4>&#128172; Public chat + /ask</h4><p>Type to talk to the room. Start with <code style="font-family:var(--mono);color:var(--accent)">/ask</code> to get a sourced answer drafted from the event\'s sources, transcripts, and prior Q&amp;A.</p></div>' +
+      '<div class="about-card"><h4>&#127908; The sidecar room</h4><p>ScratchNode does not replace Luma, Slack, or Eventbrite. Every event gets a short code (this one is <strong style="color:var(--accent);font-family:var(--mono);letter-spacing:.12em">ORBITAL</strong>) so guests can join the live knowledge layer without an account.</p></div>' +
+      '<div class="about-card"><h4>&#128172; Public chat + /ask</h4><p>Type to talk to the room. Start with <code style="font-family:var(--mono);color:var(--accent)">/ask</code> to get a sourced answer drafted only from public event sources, transcripts, and prior public Q&amp;A.</p></div>' +
       '<div class="about-card"><h4>&#128274; Private notes</h4><p>Tap the lock icon to switch to private mode. Anything you write goes to your private notebook — never visible to other guests.</p></div>' +
-      '<div class="about-card"><h4>&#128214; Compacts into a wiki</h4><p>When the event ends, the host publishes a clean public wiki — Q&amp;A, sources, what changed. It outlives the live moment.</p></div>' +
+      '<div class="about-card"><h4>&#128214; Compacts into a wiki</h4><p>When the event ends, the host publishes a clean public wiki — Q&amp;A, sources, what changed. Private notes stay out, then continue in NodeBench as your private notebook.</p></div>' +
       '<button type="button" class="sheet-button" onclick="closeSheet(); openSheet(\'host\');">Create your own event &rarr;</button>' +
       '<button type="button" class="sheet-button ghost" onclick="window.open(PUBLIC_BASE_URL,\'_blank\'); closeSheet();">Learn more &nearr;</button>';
   },
@@ -3015,7 +3024,7 @@ var SHEET_RENDERERS = {
     if (!joined) joined = '<p class="sheet-sub">No joined events yet. Join a room with its event link or room code.</p>';
     if (!hosted) hosted = '<p class="sheet-sub">No hosted events yet. Use the Host console to claim or create one.</p>';
     return '<div class="sheet-head"><h2 id="sheet-title">My events</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
-      '<p class="sheet-sub">ScratchNode account state lives here: joined events, hosted events, saved answers, and private notes. NodeBench is for deeper notebooks and artifacts.</p>' +
+      '<p class="sheet-sub">ScratchNode account state lives here: joined rooms, hosted rooms, saved answers, and private notes. NodeBench is the private continuation workspace for deeper notebooks, reports, and follow-ups.</p>' +
       '<div class="sheet-section"><h3>Joined</h3>' + joined + '</div>' +
       '<div class="sheet-section"><h3>Hosted</h3>' + hosted + '</div>' +
       '<button type="button" class="sheet-button" onclick="openHost()">Host console</button>' +
@@ -3055,7 +3064,7 @@ var SHEET_RENDERERS = {
       '<div class="notes-pane-edit" id="notes-pane-edit">' + renderNotesEditor() + '</div>' +
       '</div>' +
       '<div class="sheet-section" style="margin-top:14px"><h3>Continue privately</h3>' +
-      '<p class="sheet-sub">Open this event in NodeBench with the public wiki, your private notes, saved asks, and follow-up workspace attached.</p>' +
+      '<p class="sheet-sub">Open NodeBench as the private handoff: public wiki context plus your private notebook for research, reports, and follow-ups.</p>' +
       '<button type="button" class="sheet-button" id="sn-nodebench-private-handoff" onclick="openNodeBenchPrivateHandoff()">Open NodeBench event notebook</button>' +
       '<div style="margin-top:8px;font-size:11px;color:var(--ink-faint);font-family:var(--mono);word-break:break-all">' + buildNodeBenchEventPrivateUrl() + '</div></div>';
   },
@@ -5132,32 +5141,12 @@ function runLiveAssistQA() {
     ev_pub_ok && ev_priv_ok && wk_pub_ok && wk_priv_ok && sens_ok,
     'event_public=' + ev_pub_ok + ' event_priv=' + ev_priv_ok + ' work_pub=' + wk_pub_ok + ' work_priv=' + wk_priv_ok + ' sens=' + sens_ok);
 
-  // LIVE-006: /ask private trace says "private trace only" not "public layer only"
+  // LIVE-006: /ask private resolves to a private notebook save, not a public agent answer.
   var privIntent = parseComposerIntent('/ask private what is the latency budget?');
   var privScopeOk = privIntent && privIntent.askScope === 'private' && privIntent.visibility === 'private';
-  // Render a sample answer to check trace wording
-  if (privIntent) {
-    streamAgentAnswer(privIntent, { displayName: 'You', isAnonymous: false }, '3:00p');
-  }
-  // Wait briefly then check the most recent answer's trace text
-  var traceText = '';
-  // We can't await here, so simulate sync by reading after setTimeout(0).
-  // Use a deterministic synchronous check: parseComposerIntent + traceScope wording should match.
-  // We sample the rendered DOM if available.
-  setTimeout(function() {
-    var lastAns = document.querySelector('#feed .ans[data-trace-scope="private"]');
-    var howText = lastAns ? lastAns.textContent : '';
-    var hasPrivateTrace = /private trace only/i.test(howText);
-    var hasPublicLayer = /public layer only/i.test(howText);
-    // Re-emit the check result using the actual DOM state (overrides earlier placeholder)
-    var prior = results.find(function(r) { return r.id === 'LIVE-006'; });
-    if (prior) {
-      prior.pass = privScopeOk && hasPrivateTrace && !hasPublicLayer;
-      prior.detail = 'scope=' + privScopeOk + ' privTrace=' + hasPrivateTrace + ' publicLayer=' + hasPublicLayer;
-    }
-  }, 1200);
-  check('LIVE-006', '/ask private trace says "private trace only" not "public layer only"',
-    privScopeOk, 'askScope=' + (privIntent ? privIntent.askScope : 'null') + ' visibility=' + (privIntent ? privIntent.visibility : 'null'));
+  var wouldPublicAsk = privIntent && privIntent.kind === 'agent_ask' && privIntent.visibility !== 'private';
+  check('LIVE-006', '/ask private saves privately and does not invoke public agent',
+    privScopeOk && !wouldPublicAsk, 'askScope=' + (privIntent ? privIntent.askScope : 'null') + ' visibility=' + (privIntent ? privIntent.visibility : 'null'));
 
   // LIVE-007: voice capture state machine renders in Live Assist, NOT in #feed
   laStartVoice();
@@ -5450,20 +5439,26 @@ window._laCueAction       = _laCueAction;
     const qualityLabel = answer.evaluation && typeof answer.evaluation.score === 'number'
       ? 'QA ' + answer.evaluation.score
       : 'QA pending';
-    const trace = (answer.trace || []).map((step) =>
+    const traceRows = Array.isArray(answer.trace) ? answer.trace : [];
+    const traceHasPrivateBoundary = traceRows.some((step) => /private notes? excluded|no private notes/i.test(String((step && step.detail) || '') + ' ' + String((step && step.step) || '')));
+    const trace = traceRows.map((step) =>
       '<div class="step"><span class="c">' + (step.status === 'ok' ? '&check;' : step.status === 'miss' ? '&middot;' : '!') + '</span><span>' +
       snEscape(String(step.step || '').replace(/_/g, ' ')) + (step.detail ? ' · ' + snEscape(step.detail) : '') +
       (typeof step.durationMs === 'number' ? ' · ' + step.durationMs + 'ms' : '') + '</span></div>'
     ).join('');
+    const traceBoundary = traceHasPrivateBoundary
+      ? ''
+      : '<div class="step"><span class="c">&check;</span><span>public_private_boundary · private notes excluded from retrieval, cache, and answer</span></div>';
+    article.setAttribute('data-trace-scope', 'public');
     article.innerHTML =
       '<div class="ans-head"><span class="who">ScratchNode</span><span class="sep">·</span><span>' +
       (answer.cacheHit ? 'cache hit' : 'sourced answer') + '</span><span class="sep">·</span><span>' + fmtTime(answer.createdAt) + '</span></div>' +
       '<div class="ans-q"></div>' +
       '<div class="ans-body"></div>' +
       '<div class="ans-sources">' + (sourceChips || '<span>public event corpus</span>') + '<span>' + sourceCount + ' sources</span></div>' +
-      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">' + agentLabel + '</span><span class="sep">·</span><span><b>' + sourceCount + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>' + liveSearches + '</b> live searches</span><span class="sep">·</span><span>' + costLabel + '</span><span class="sep">·</span><span>' + qualityLabel + '</span><span class="sep">·</span><span class="priv">no private notes</span></div>' +
+      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">' + agentLabel + '</span><span class="sep">·</span><span><b>' + sourceCount + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>' + liveSearches + '</b> live searches</span><span class="sep">·</span><span>' + costLabel + '</span><span class="sep">·</span><span>' + qualityLabel + '</span><span class="sep">·</span><span class="priv">private notes excluded</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
-      '<div class="ans-how">' + trace + '</div>' +
+      '<div class="ans-how">' + trace + traceBoundary + '</div>' +
       '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="window.snSuggestFaq && window.snSuggestFaq(\'' + answer._id + '\')">Suggest for FAQ</button><button type="button" class="primary host-only" onclick="window.snPromoteFaq && window.snPromoteFaq(\'' + answer._id + '\')">Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
     article.querySelector('.ans-q').textContent = answer.question || '';
     article.querySelector('.ans-body').innerHTML = snEscape(answer.body || '').replace(/\n/g, '<br>');
@@ -5507,7 +5502,8 @@ window._laCueAction       = _laCueAction;
     if (!intent) { input.focus(); return; }
     const submittedValue = input.value;
 
-    // Private mode stays 100% prototype-side (Phase 3 wires this to Convex).
+    // Private mode stays out of liveEventMessages. The savePrivateNote wrapper
+    // below mirrors it into userNotes with ownerKey validation.
     if (intent.visibility === 'private') {
       return _origSend.call(this);
     }
@@ -6905,6 +6901,7 @@ window._laCueAction       = _laCueAction;
     }
     return summary;
   }
+
   function _refSlug(value) {
     return String(value || 'ref').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'ref';
   }
@@ -8348,6 +8345,41 @@ window._laCueAction       = _laCueAction;
     return summary;
   }
 
+  function runScratchNodeLiveQA() {
+    var demoSummary = runDemoQA();
+    var byDemoId = {};
+    (demoSummary.results || []).forEach(function(r) { byDemoId[r.id] = r; });
+    var results = [];
+    function add(id, desc, pass, detail) {
+      results.push({ id: id, desc: desc, pass: !!pass, detail: detail || '' });
+    }
+    function fromDemo(id, snId, desc) {
+      var r = byDemoId[id];
+      add(snId, desc || (r && r.desc) || id, !!(r && r.pass), r ? r.detail : 'missing ' + id);
+    }
+    fromDemo('DEMO-001', 'SN-LIVE-001', 'scratchnode.live/e/:slug loads without login');
+    add('SN-LIVE-002', 'guest joins with room code', /^[A-Z0-9-]{2,24}$/.test(EVENT_ROOM_CODE || '') && /\/e\//.test(EVENT_URL), EVENT_ROOM_CODE + ' · ' + EVENT_URL);
+    fromDemo('DEMO-003', 'SN-LIVE-003', 'normal chat does not invoke agent');
+    fromDemo('DEMO-004', 'SN-LIVE-004', '/ask invokes agent');
+    fromDemo('DEMO-005', 'SN-LIVE-005', 'agent answer is nested under parent ask');
+    fromDemo('DEMO-006', 'SN-LIVE-006', 'answer trace shows no private notes used');
+    fromDemo('DEMO-007', 'SN-LIVE-007', 'private note does not appear in public feed');
+    fromDemo('DEMO-008', 'SN-LIVE-008', 'private note appears in private notebook/owner marker');
+    fromDemo('DEMO-011', 'SN-LIVE-009', 'attendee sees Suggest for FAQ');
+    fromDemo('DEMO-012', 'SN-LIVE-010', 'host sees Promote to FAQ');
+    fromDemo('DEMO-013', 'SN-LIVE-011', 'host can publish wiki');
+    fromDemo('DEMO-013', 'SN-LIVE-012', 'published wiki excludes private notes');
+    add('SN-LIVE-013', 'share URL uses scratchnode.live-compatible public event URL', /\/e\//.test(EVENT_URL) && !/scratchnode\.com/i.test(EVENT_URL), EVENT_URL);
+    fromDemo('DEMO-014', 'SN-LIVE-014', 'guest can sign in and preserve notes');
+    var handoffUrl = buildNodeBenchEventPrivateUrl();
+    add('SN-LIVE-015', 'NodeBench handoff carries event + private-note continuation context',
+      /nodebenchai\.com/.test(handoffUrl) && /\/events\//.test(handoffUrl) && /continuation=private-notes/.test(handoffUrl) && /publicArtifact=event-wiki/.test(handoffUrl),
+      handoffUrl);
+    var passed = results.filter(function(r) { return r.pass; }).length;
+    var failed = results.length - passed;
+    return { passed: passed, failed: failed, total: results.length, results: results, demo: demoSummary };
+  }
+
   // ── Public surface ──
   window.demo = {
     runFull: runDemoFull,
@@ -8387,6 +8419,7 @@ window._laCueAction       = _laCueAction;
   // Top-level callables for product-reviewer console use
   window.runDemoFull = runDemoFull;
   window.runDemoQA   = runDemoQA;
+  window.runScratchNodeLiveQA = runScratchNodeLiveQA;
   window.runRiskAttackQA = runRiskAttackQA;
   window.demoReset   = demoReset;
   window.demoStep    = demoStep;

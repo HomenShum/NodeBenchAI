@@ -1905,7 +1905,7 @@ export const composeAnswer = mutation({
           {
             step: "semantic_cache_lookup",
             status: "ok",
-            detail: `Reused answer ${cached._id}; source bundle unchanged.`,
+            detail: `Reused public answer ${cached._id}; source bundle unchanged; private notes excluded.`,
             durationMs: Date.now() - startedAt,
           },
         ],
