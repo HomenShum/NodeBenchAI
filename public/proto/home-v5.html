@@ -1943,6 +1943,15 @@ function _landingJoin(ev) {
 
   <div class="feed-divider">Live room</div>
 
+  <div class="sn-room-toggle" role="tablist" aria-label="Room view" style="display:flex;gap:6px;margin:0 0 8px;">
+    <button type="button" class="sn-rt-btn" data-rt="chat" data-active="true" role="tab" aria-selected="true"
+      style="font:inherit;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:inherit;cursor:pointer;"
+      onclick="window.snWall&&snWall.show('chat')">Chat</button>
+    <button type="button" class="sn-rt-btn" data-rt="wall" data-active="false" role="tab" aria-selected="false"
+      style="font:inherit;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:transparent;color:inherit;cursor:pointer;"
+      onclick="window.snWall&&snWall.show('wall')">Wall</button>
+  </div>
+
   <!-- Empty state (only shows when feed is empty) -->
   <div class="empty">
     <div class="empty-icon">&#128172;</div>
@@ -2006,6 +2015,234 @@ function _landingJoin(ev) {
     <div class="row"><span class="row-time">2:47p</span><div class="row-body"><span class="row-name">Maya</span> <span class="row-text">anyone know who's doing voice-agent eval?</span></div></div>
     <div class="row"><span class="row-time">2:47p</span><div class="row-body"><span class="row-name">Dario A.</span> <span class="row-text">Orbital Labs — just closed Series A. Alex Chen is the founder.</span></div></div>
   </section>
+
+  <!-- ─── Memory Wall lane (Phase 8) — spatial overlay over the same event stream ───
+       Backed by api.wall.* (convex/wall.ts). A second render lane over the feed:
+       same room, two views (Twitch model). Sticky create/drag/recolor/delete +
+       pinned /ask answers, live via wall:listWallItems. -->
+  <style id="sn-wall-css">
+    #sn-wall{position:relative;display:none;height:min(68vh,560px);margin-top:10px;border:1px solid var(--edge,rgba(255,255,255,.08));border-radius:14px;overflow:hidden;
+      background:radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 0) 0 0/22px 22px, var(--bg-2,#15171c);}
+    #sn-wall[data-on="true"]{display:block;}
+    .sn-wall-bar{position:absolute;z-index:6;top:10px;left:10px;right:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+    .sn-wall-bar button{font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit;cursor:pointer;}
+    .sn-wall-bar button:focus-visible{outline:2px solid var(--accent,#d97757);outline-offset:2px;}
+    .sn-wall-bar .sn-add{background:var(--accent,#d97757);border-color:transparent;color:#1a1410;font-weight:600;}
+    .sn-wall-pal{display:inline-flex;gap:5px;align-items:center;}
+    .sn-sw{width:18px;height:18px;border-radius:50%;border:1px solid rgba(0,0,0,.25);cursor:pointer;padding:0;}
+    .sn-sw[aria-pressed="true"]{outline:2px solid #fff;outline-offset:1px;}
+    .sn-wall-hint{position:absolute;left:12px;bottom:10px;font-size:11px;color:var(--muted,#8a8f98);z-index:4;pointer-events:none;}
+    .sn-board{position:absolute;inset:0;}
+    .sn-note{position:absolute;left:0;top:0;transform:translate3d(var(--x,0),var(--y,0),0);width:var(--w,180px);min-height:72px;
+      background:var(--c,#f3d77b);color:#1c1a17;border-radius:10px;padding:10px 12px 22px;box-shadow:0 6px 18px rgba(0,0,0,.28);
+      font-size:13px;line-height:1.4;cursor:grab;touch-action:none;contain:layout paint;}
+    .sn-note:focus-visible{outline:2px solid var(--accent,#d97757);outline-offset:2px;}
+    .sn-note.drag{cursor:grabbing;will-change:transform;box-shadow:0 14px 32px rgba(0,0,0,.42);z-index:50;}
+    .sn-note.sel{box-shadow:0 0 0 2px var(--accent,#d97757),0 8px 22px rgba(0,0,0,.34);}
+    .sn-note.remote{transition:transform .16s ease;}
+    .sn-note .sn-body{outline:none;white-space:pre-wrap;word-break:break-word;}
+    .sn-note .sn-meta{position:absolute;left:12px;bottom:6px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;opacity:.5;}
+    .sn-note .sn-del{position:absolute;top:3px;right:5px;border:none;background:transparent;color:rgba(0,0,0,.45);cursor:pointer;font-size:15px;line-height:1;padding:2px;}
+    .sn-note[data-kind="answer"] .sn-meta::before{content:"\2605 answer \00b7 ";}
+    .sn-pin{font:inherit;}
+    @media (prefers-reduced-motion: reduce){ .sn-note.remote{transition:none;} }
+  </style>
+  <section id="sn-wall" aria-label="Memory Wall" aria-hidden="true">
+    <div class="sn-wall-bar">
+      <button type="button" class="sn-add" onclick="window.snWall&&snWall.addNote()">+ Note</button>
+      <span class="sn-wall-pal" role="group" aria-label="Sticky color"></span>
+      <button type="button" onclick="window.snWall&&snWall.fit()">Fit</button>
+      <span id="sn-wall-status" style="font-size:11px;color:var(--muted,#8a8f98)"></span>
+    </div>
+    <div class="sn-board" id="sn-board"></div>
+    <div class="sn-wall-hint">Drag to arrange &middot; double-click a sticky to edit &middot; pin /ask answers from Chat</div>
+  </section>
+
+  <script>
+  /* ─── Memory Wall engine (Phase 8) — translate3d + rAF + pointer capture,
+     wired to api.wall.* (convex/wall.ts). Self-contained; no-ops gracefully
+     until snWall.connect() is called by the realtime init. ─── */
+  (function(){
+    var COLORS=["#f3d77b","#f5b8c4","#a9d8f0","#bfe3b6","#e7b48f","#d8c9f2"];
+    var client=null, eventId=null, sessionId=null, connected=false;
+    var board=null, wallEl=null;
+    var els=new Map();          // itemId -> DOM node
+    var model=new Map();        // itemId -> latest server row
+    var newColor=COLORS[0], selId=null;
+    var drag=null;              // {id,raf,latest,ox,oy,sx,sy,_dx,_dy}
+    var dragging=new Set();     // ids being dragged locally (skip remote clobber)
+    function $(id){ return document.getElementById(id); }
+    function statusMsg(t){ var s=$('sn-wall-status'); if(s) s.textContent=t||''; }
+    function toastSafe(a,b){ try{ if(window.toast) window.toast(a,b); }catch(e){} }
+    function answerText(id){ var m=window._sn_answers_by_id||{}; return m[id]||'(answer)'; }
+    function messageText(id){ var m=window._sn_messages_by_id||{}; return m[id]||'(message)'; }
+    function toBoardXY(cx,cy){ var r=board.getBoundingClientRect(); return { x:cx-r.left, y:cy-r.top }; }
+
+    function buildPalette(){
+      var pal=document.querySelector('.sn-wall-pal'); if(!pal) return;
+      pal.innerHTML='';
+      COLORS.forEach(function(c){
+        var b=document.createElement('button');
+        b.type='button'; b.className='sn-sw'; b.style.background=c;
+        b.setAttribute('aria-label','Color '+c);
+        b.setAttribute('aria-pressed', (!selId && c===newColor)?'true':'false');
+        b.onclick=function(){ if(selId){ recolor(selId,c); } else { newColor=c; buildPalette(); } };
+        pal.appendChild(b);
+      });
+    }
+
+    function noteEl(item){
+      var el=els.get(item._id);
+      if(!el){
+        el=document.createElement('div');
+        el.className='sn-note'; el.tabIndex=0; el.setAttribute('role','group'); el.dataset.id=item._id;
+        el.innerHTML='<button class="sn-del" title="Remove" aria-label="Remove sticky">&times;</button>'+
+                     '<div class="sn-body"></div><div class="sn-meta">sticky</div>';
+        board.appendChild(el); els.set(item._id, el); wireNote(el, item._id);
+      }
+      el.dataset.kind=item.refType;
+      el.style.setProperty('--x',(item.x||0)+'px');
+      el.style.setProperty('--y',(item.y||0)+'px');
+      el.style.setProperty('--w',(item.w||180)+'px');
+      el.style.setProperty('--c', item.color||COLORS[0]);
+      var body=el.querySelector('.sn-body');
+      var txt = item.refType==='note' ? (item.text||'')
+              : item.refType==='answer' ? answerText(item.refAnswerId)
+              : messageText(item.refMessageId);
+      if(document.activeElement!==body && body.textContent!==txt) body.textContent=txt;
+      var meta=el.querySelector('.sn-meta'); if(meta) meta.textContent = item.refType==='note'?'sticky':item.refType;
+      el.classList.toggle('sel', selId===item._id);
+      return el;
+    }
+
+    function render(rows){
+      if(!board) return;
+      var live=new Set();
+      (rows||[]).forEach(function(it){ model.set(it._id,it); live.add(it._id); });
+      els.forEach(function(el,id){ if(!live.has(id)){ el.remove(); els.delete(id); model.delete(id); } });
+      (rows||[]).forEach(function(it){
+        if(dragging.has(it._id)){ var e=els.get(it._id); if(e) e.style.setProperty('--c', it.color||COLORS[0]); return; }
+        var existed=els.has(it._id); var el=noteEl(it); if(existed) el.classList.add('remote');
+      });
+      statusMsg((rows||[]).length+' on the wall');
+    }
+
+    function wireNote(el, id){
+      var body=el.querySelector('.sn-body');
+      el.querySelector('.sn-del').onclick=function(e){ e.stopPropagation(); del(id); };
+      el.addEventListener('dblclick', function(){
+        var it=model.get(id);
+        if(it && it.refType!=='note'){ toastSafe('Pinned content','Edit the source in Chat; only stickies are editable here.'); return; }
+        body.contentEditable='true'; body.focus();
+        var r=document.createRange(); r.selectNodeContents(body); r.collapse(false);
+        var s=getSelection(); s.removeAllRanges(); s.addRange(r);
+      });
+      body.addEventListener('blur', function(){
+        if(body.contentEditable!=='true') return;
+        body.contentEditable='false';
+        var it=model.get(id); if(!it||it.refType!=='note') return;
+        var t=(body.textContent||'').trim();
+        if(!t){ body.textContent=it.text||''; return; }
+        if(t===it.text) return;
+        if(!connected){ it.text=t; return; }
+        client.mutation('wall:editWallNote', { eventId:eventId, sessionId:sessionId, itemId:id, text:t })
+          .catch(function(err){ toastSafe('Edit failed',(err&&err.message)||'try again'); });
+      });
+      el.addEventListener('pointerdown', function(e){
+        if(e.target.classList.contains('sn-del')) return;
+        if(body.contentEditable==='true') return;
+        e.stopPropagation();
+        selId=id; buildPalette();
+        els.forEach(function(n,nid){ n.classList.toggle('sel', nid===id); });
+        var it=model.get(id); if(!it) return;
+        try{ el.setPointerCapture(e.pointerId); }catch(_){}
+        el.classList.add('drag'); el.classList.remove('remote');
+        var p=toBoardXY(e.clientX,e.clientY);
+        drag={ id:id, raf:null, latest:e, ox:it.x||0, oy:it.y||0, sx:p.x, sy:p.y, _dx:it.x||0, _dy:it.y||0 };
+        dragging.add(id);
+      });
+    }
+
+    function onMove(e){ if(!drag) return; drag.latest=e; if(!drag.raf) drag.raf=requestAnimationFrame(applyDrag); }
+    function applyDrag(){
+      if(!drag) return; drag.raf=null;
+      var p=toBoardXY(drag.latest.clientX, drag.latest.clientY);
+      var nx=Math.max(0, drag.ox+(p.x-drag.sx)), ny=Math.max(0, drag.oy+(p.y-drag.sy));
+      drag._dx=nx; drag._dy=ny;
+      var el=els.get(drag.id);
+      if(el){ el.style.setProperty('--x',nx+'px'); el.style.setProperty('--y',ny+'px'); }
+    }
+    function endDrag(){
+      if(!drag) return;
+      var id=drag.id, d=drag, nx=Math.round(drag._dx), ny=Math.round(drag._dy);
+      var el=els.get(id); if(el) el.classList.remove('drag');
+      var it=model.get(id); if(it){ it.x=nx; it.y=ny; }
+      drag=null;
+      var clear=function(){ dragging.delete(id); };
+      if(connected && (nx!==d.ox || ny!==d.oy)){
+        client.mutation('wall:moveWallItems', { eventId:eventId, sessionId:sessionId, updates:[{ id:id, x:nx, y:ny }] })
+          .then(clear).catch(function(err){ toastSafe('Move failed',(err&&err.message)||'try again'); clear(); });
+      } else { clear(); }
+    }
+    window.addEventListener('pointermove', onMove, { passive:true });
+    window.addEventListener('pointerup', endDrag);
+
+    function recolor(id,c){
+      var it=model.get(id); if(!it) return;
+      var el=els.get(id); if(el) el.style.setProperty('--c',c); it.color=c;
+      if(!connected) return;
+      client.mutation('wall:recolorWallItem', { eventId:eventId, sessionId:sessionId, itemId:id, color:c })
+        .catch(function(err){ toastSafe('Recolor failed',(err&&err.message)||'try again'); });
+    }
+    function del(id){
+      var el=els.get(id); if(el) el.remove(); els.delete(id); model.delete(id); if(selId===id) selId=null;
+      if(!connected) return;
+      client.mutation('wall:removeWallItems', { eventId:eventId, sessionId:sessionId, itemIds:[id] })
+        .catch(function(err){ toastSafe('Remove failed',(err&&err.message)||'try again'); });
+    }
+
+    var snWall={
+      connect:function(c,eid,sid){
+        client=c; eventId=eid; sessionId=sid; connected=!!(c&&eid&&sid);
+        board=$('sn-board'); wallEl=$('sn-wall'); buildPalette();
+        if(connected){ client.onUpdate('wall:listWallItems', { eventId:eventId }, function(rows){ if(Array.isArray(rows)) render(rows); }); }
+      },
+      show:function(view){
+        var feed=$('feed'); var empty=document.querySelector('.empty'); wallEl=$('sn-wall');
+        var on=view==='wall';
+        if(wallEl){ wallEl.dataset.on=on?'true':'false'; wallEl.setAttribute('aria-hidden', on?'false':'true'); }
+        if(feed) feed.style.display=on?'none':'';
+        if(empty){ if(on){ empty.style.display='none'; } else if(window.refreshEmptyState){ try{ window.refreshEmptyState(); }catch(_){} } }
+        document.querySelectorAll('.sn-rt-btn').forEach(function(b){
+          var act=b.dataset.rt===view; b.dataset.active=act?'true':'false'; b.setAttribute('aria-selected', act?'true':'false');
+          b.style.background = !act ? 'transparent' : (view==='wall' ? 'rgba(217,119,87,.18)' : 'rgba(255,255,255,.06)');
+        });
+        if(on && !connected) statusMsg('Join the room to use the wall');
+      },
+      addNote:function(){
+        if(!connected){ toastSafe('Wall','Join the room first to add notes.'); return; }
+        var r=board.getBoundingClientRect();
+        var x=Math.round(40+Math.random()*Math.max(40,(r.width-240))*0.5);
+        var y=Math.round(60+Math.random()*Math.max(40,(r.height-200))*0.5);
+        client.mutation('wall:createWallNote', { eventId:eventId, sessionId:sessionId, text:'New note', x:x, y:y, color:newColor })
+          .catch(function(err){ toastSafe('Add failed',(err&&err.message)||'try again'); });
+      },
+      pinAnswer:function(answerId){
+        if(!connected){ toastSafe('Wall','Join the room first.'); return; }
+        client.mutation('wall:pinToWall', { eventId:eventId, sessionId:sessionId, refType:'answer', refAnswerId:answerId, x:40, y:40, color:'#a9d8f0' })
+          .then(function(res){ snWall.show('wall'); toastSafe('Pinned to wall', (res&&res.alreadyPinned)?'Already on the wall.':'Added to the Memory Wall.'); })
+          .catch(function(err){ toastSafe('Pin failed',(err&&err.message)||'try again'); });
+      },
+      fit:function(){ if(board&&board.scrollTo) board.scrollTo(0,0); },
+      _refresh:function(){ if(board) render(Array.from(model.values())); }
+    };
+    window.snWall=snWall;
+    // Self-initialize DOM refs + palette immediately so the Wall is a coherent
+    // surface even before (or without) a Convex connection — connect() only
+    // adds the live subscription on top.
+    board=$('sn-board'); wallEl=$('sn-wall'); buildPalette();
+  })();
+  </script>
 </main>
 
 <!-- ─── LIVE ASSIST — desktop rail + mobile bottom sheet ───
@@ -5672,7 +5909,7 @@ window._laCueAction       = _laCueAction;
       '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">' + agentLabel + '</span><span class="sep">·</span><span><b>' + sourceCount + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>' + liveSearches + '</b> live searches</span><span class="sep">·</span><span>' + costLabel + '</span><span class="sep">·</span><span>' + qualityLabel + '</span><span class="sep">·</span><span class="priv">no private notes</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
       '<div class="ans-how">' + trace + '</div>' +
-      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="window.snSuggestFaq && window.snSuggestFaq(\'' + answer._id + '\')">Suggest for FAQ</button><button type="button" class="primary host-only" onclick="window.snPromoteFaq && window.snPromoteFaq(\'' + answer._id + '\')">Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
+      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="window.snSuggestFaq && window.snSuggestFaq(\'' + answer._id + '\')">Suggest for FAQ</button><button type="button" class="primary host-only" onclick="window.snPromoteFaq && window.snPromoteFaq(\'' + answer._id + '\')">Promote to FAQ</button> <button type="button" class="sn-pin" onclick="window.snWall && window.snWall.pinAnswer(\'' + answer._id + '\')">&#128204; Pin to wall</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
     article.querySelector('.ans-q').textContent = answer.question || '';
     article.querySelector('.ans-body').innerHTML = snEscape(answer.body || '').replace(/\n/g, '<br>');
     feedEl.appendChild(article);
@@ -5688,6 +5925,10 @@ window._laCueAction       = _laCueAction;
   });
   client.onUpdate('events:getAnswers', { eventId, limit: 100 }, (rows) => {
     if (!Array.isArray(rows)) return;
+    // Cache answer bodies so the Memory Wall can dereference answer pins.
+    window._sn_answers_by_id = window._sn_answers_by_id || {};
+    for (const a of rows) { if (a && a._id) window._sn_answers_by_id[a._id] = a.body || ''; }
+    if (window.snWall && window.snWall._refresh) window.snWall._refresh();
     for (const answer of rows) renderAnswer(answer);
     const faqCount = rows.filter((answer) => answer && answer.faqStatus && answer.faqStatus !== 'none').length;
     const faqEl = document.getElementById('ev-faq-count');
@@ -5706,6 +5947,11 @@ window._laCueAction       = _laCueAction;
     const menuPeopleSub = document.getElementById('menu-people-sub');
     if (menuPeopleSub) menuPeopleSub.textContent = count + ' live member' + (rows.length === 1 ? '' : 's');
   });
+
+  // Memory Wall (Phase 8): connect the spatial lane to the live event stream.
+  if (window.snWall && typeof window.snWall.connect === 'function') {
+    window.snWall.connect(client, eventId, sessionId);
+  }
 
   // ─── Override the send pipeline to route public chat through Convex ─
   const _origSend = window.sendComposerMessage;
