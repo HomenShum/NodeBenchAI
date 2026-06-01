@@ -4737,37 +4737,89 @@ function setLiveAssistTopic(topic, meta) {
   _renderLiveAssist();
 }
 
-// Auto-refresh cues every 30s while Live Assist is OPEN. Wired to the demo
-// stub for now; will swap to the real Convex action `users:generateLiveCues`
-// once the backend ships (filed as follow-up task).
+// Resolve the cue source for one tick. Preference order:
+//   1. users:generateLiveCuesLLM  (Convex ACTION — max-quality Claude Opus 4.8
+//      path; it falls back to the deterministic generator server-side on any
+//      LLM failure, so one network call always yields cues). If the action
+//      endpoint itself is unreachable (function-not-found / network), we
+//      fall to the deterministic mutation.
+//   2. users:generateLiveCues     (Convex MUTATION — deterministic) when the
+//      client has no .action support.
+//   3. window._demo_generateLiveCues (scripted stub) for preview / jsdom QA /
+//      unauthenticated guest with no live event.
+// Returns a Promise<res> or null when no source is available.
+function _resolveLiveCueSource(since) {
+  var live = window._sn_live;
+  var realBackendReady = !!(live && live.client && live.eventId && live.sessionId);
+  var convexArgs = realBackendReady ? {
+    eventId: String(live.eventId),
+    sessionId: String(live.sessionId),
+    sinceTimestamp: since
+  } : null;
+
+  try {
+    if (realBackendReady && typeof live.client.action === 'function') {
+      return live.client.action('users:generateLiveCuesLLM', convexArgs)
+        .catch(function() {
+          // Action endpoint unreachable — degrade to the deterministic mutation.
+          if (typeof live.client.mutation === 'function') {
+            return live.client.mutation('users:generateLiveCues', convexArgs);
+          }
+          return null;
+        });
+    }
+    if (realBackendReady && typeof live.client.mutation === 'function') {
+      return live.client.mutation('users:generateLiveCues', convexArgs);
+    }
+  } catch (e) {
+    // Synchronous throw from the client — fall through to the stub.
+  }
+  if (typeof window._demo_generateLiveCues === 'function') {
+    return window._demo_generateLiveCues({ sinceTimestamp: since });
+  }
+  return null;
+}
+
+// Auto-refresh cues every 30s while Live Assist is OPEN. Calls the real Convex
+// backend (Opus 4.8 action, deterministic-mutation fallback) when a live event
+// is wired; otherwise the scripted demo stub.
 //
 // Design notes (analyst-diagnostic):
 //   - Only runs when la.on === true (no background polling when closed = no waste)
 //   - 30s cadence matches the topic meta text "updates every 30s"
-//   - The stub returns scripted cues; the real backend will return live ones
+//   - Server-side rate limit is 25s — well-behaved clients never get rate_limited
+//   - status 'rate_limited' / 'skipped_*' returns empty cues; we leave the rail as-is
 //   - On error: silently degrade (no toast spam) — see agentic_reliability ERROR_BOUNDARY
 window._live_assist._refreshTimer = null;
 function _startLiveCueAutoRefresh() {
   if (window._live_assist._refreshTimer) return;
   window._live_assist._refreshTimer = setInterval(function() {
     if (!window._live_assist || !window._live_assist.on) return;
-    if (typeof window._demo_generateLiveCues !== 'function') return;
-    try {
-      window._demo_generateLiveCues({ sinceTimestamp: Date.now() - 30000 }).then(function(res) {
-        if (!res) return;
-        // Don't replace cues — append (newest at top), cap at 4 cards
-        if (Array.isArray(res.cues)) {
-          res.cues.forEach(function(text) {
-            // Skip duplicates of recent cue text
-            var dupe = (window._live_assist.cues || []).some(function(c) { return c.text === text; });
-            if (!dupe) pushLiveAssistCue(text);
-          });
-        }
-        if (typeof res.topic === 'string' && !window._live_assist.currentTopic) {
-          setLiveAssistTopic(res.topic, '');
-        }
-      }).catch(function() {});
-    } catch (e) {}
+
+    var since = Date.now() - 30000;
+    var cuePromise = _resolveLiveCueSource(since);
+    if (!cuePromise || typeof cuePromise.then !== 'function') return;
+
+    cuePromise.then(function(res) {
+      if (!res) return;
+      // Don't replace cues — append (newest at top), cap enforced in pushLiveAssistCue
+      if (Array.isArray(res.cues)) {
+        res.cues.forEach(function(text) {
+          // Skip duplicates of recent cue text
+          var dupe = (window._live_assist.cues || []).some(function(c) { return c.text === text; });
+          if (!dupe) pushLiveAssistCue(text);
+        });
+      }
+      if (typeof res.topic === 'string' && res.topic && !window._live_assist.currentTopic) {
+        setLiveAssistTopic(res.topic, '');
+      }
+      // res.context chips (real backend only) — refresh the rail's context section
+      if (Array.isArray(res.context) && res.context.length > 0 && typeof setLiveAssistContext === 'function') {
+        setLiveAssistContext(res.context);
+      }
+    }).catch(function() {
+      // ERROR_BOUNDARY: network blip / rate limit / server hiccup. Stay quiet.
+    });
   }, 30000);
 }
 function _stopLiveCueAutoRefresh() {
