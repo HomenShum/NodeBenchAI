@@ -6,6 +6,8 @@
  *
  * Public API surface (called from public/proto/home-v5.html):
  *   - getEventBySlug({ slug })
+ *   - getLandingStats()                            // bounded landing social proof
+ *   - listPublicRooms({ limit? })                  // opt-in, recently active public directory
  *   - getMessages({ eventId, limit? })            // realtime subscription
  *   - getMembers({ eventId })                     // realtime subscription
  *   - getMyEvents({ sessionId, ownerKey, limit? }) // lightweight account/event state
@@ -73,6 +75,10 @@ const ASK_RATE_LIMIT_PER_MIN = 12;
 const ASK_RATE_WINDOW_MS = 60_000;
 const MAX_ANSWER_LIMIT = 100;
 const MAX_MY_EVENTS_LIMIT = 50;
+const MAX_PUBLIC_ROOM_CARDS = 8;
+const MAX_PUBLIC_ROOM_CANDIDATES = 40;
+const MAX_PUBLIC_ROOM_ACTIVE_MEMBERS = 50;
+const PUBLIC_ROOM_ACTIVE_WINDOW_MS = 30 * 60 * 1000;
 const MAX_WIKI_ANSWERS = 20;
 // Phase 4 raised this from 80 -> 120 to fit HMAC-signed host tokens
 // (hk1:<eventIdShort>:<nonce>:<issuedAt>:<hmacShort> ~ 80-90 chars).
@@ -101,6 +107,10 @@ const isLikelyValidEmail = (value: string | undefined): value is string => {
   if (trimmed.length > MAX_EMAIL_LEN) return false;
   return EMAIL_REGEX.test(trimmed);
 };
+
+function getEventActivityAt(event: { startedAt: number; lastActivityAt?: number }): number {
+  return event.lastActivityAt ?? event.startedAt;
+}
 
 const DEMO_SOURCES = [
   {
@@ -836,7 +846,7 @@ const MAX_LANDING_SESSION_SCAN = 5000;
  * contributed the index-backed presence counting; this keeps the reactive +
  * honest-hide framing):
  *   - roomsCreated: every room ever made (ended rooms keep their row) — by_startedAt
- *   - liveNow:      rooms still open (status=live)                     — by_status_startedAt
+ *   - liveNow:      open rooms with recent create/join/chat activity
  *   - activeNow:    member sessions seen within the presence TTL       — by_lastSeen
  *
  * Honesty (agentic_reliability HONEST_SCORES): every number is a real row count —
@@ -862,12 +872,83 @@ export const getLandingStats = query({
       .query("liveEventMembers")
       .withIndex("by_lastSeen", (q) => q.gte("lastSeenAt", cutoff))
       .take(MAX_LANDING_SESSION_SCAN + 1);
+    const activeCutoff = Date.now() - PUBLIC_ROOM_ACTIVE_WINDOW_MS;
+    let liveNow = 0;
+    for (const row of liveRows) {
+      if (row.status === "live" && getEventActivityAt(row) >= activeCutoff) liveNow += 1;
+    }
     return {
       roomsCreated: Math.min(rooms.length, MAX_LANDING_EVENT_SCAN),
-      liveNow: Math.min(liveRows.length, MAX_LANDING_EVENT_SCAN),
+      liveNow,
       activeNow: Math.min(activeRows.length, MAX_LANDING_SESSION_SCAN),
       capped: rooms.length > MAX_LANDING_EVENT_SCAN,
       activeCapped: activeRows.length > MAX_LANDING_SESSION_SCAN,
+    };
+  },
+});
+
+/**
+ * Public room directory for the apex landing.
+ *
+ * Cost and privacy rules:
+ * - Opt-in only (`publicDiscoverable === true`); old/code-only/test rooms stay hidden.
+ * - Recently active only; an idle tab heartbeat does not refresh lastActivityAt.
+ * - Bounded candidate scan and bounded per-card presence count.
+ */
+export const listPublicRooms = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { limit }) => {
+    const safeLimit = Math.min(Math.max(limit ?? 4, 1), MAX_PUBLIC_ROOM_CARDS);
+    const activeCutoff = Date.now() - PUBLIC_ROOM_ACTIVE_WINDOW_MS;
+    const presenceCutoff = Date.now() - PRESENCE_TTL_MS;
+    const rows = await ctx.db
+      .query("liveEvents")
+      .withIndex("by_public_status_startedAt", (q) =>
+        q.eq("publicDiscoverable", true).eq("status", "live"),
+      )
+      .order("desc")
+      .take(MAX_PUBLIC_ROOM_CANDIDATES);
+
+    const rooms: Array<{
+      eventId: string;
+      slug: string;
+      name: string;
+      roomCode: string;
+      startedAt: number;
+      lastActivityAt: number;
+      activeSessions: number;
+      activeSessionsCapped: boolean;
+      joinPolicy: "open" | "request";
+    }> = [];
+
+    for (const event of rows) {
+      const lastActivityAt = getEventActivityAt(event);
+      if (lastActivityAt < activeCutoff) continue;
+      const members = await ctx.db
+        .query("liveEventMembers")
+        .withIndex("by_event_lastSeen", (q) =>
+          q.eq("eventId", event._id).gte("lastSeenAt", presenceCutoff),
+        )
+        .take(MAX_PUBLIC_ROOM_ACTIVE_MEMBERS + 1);
+      rooms.push({
+        eventId: String(event._id),
+        slug: event.slug,
+        name: event.name,
+        roomCode: event.roomCode,
+        startedAt: event.startedAt,
+        lastActivityAt,
+        activeSessions: Math.min(members.length, MAX_PUBLIC_ROOM_ACTIVE_MEMBERS),
+        activeSessionsCapped: members.length > MAX_PUBLIC_ROOM_ACTIVE_MEMBERS,
+        joinPolicy: event.joinPolicy ?? "open",
+      });
+      if (rooms.length >= safeLimit) break;
+    }
+
+    return {
+      rooms,
+      activeWindowMs: PUBLIC_ROOM_ACTIVE_WINDOW_MS,
     };
   },
 });
@@ -1414,6 +1495,8 @@ export const createEvent = mutation({
     roomCode: v.optional(v.string()),
     agendaText: v.optional(v.string()),
     status: v.optional(v.union(v.literal("draft"), v.literal("live"))),
+    publicDiscoverable: v.optional(v.boolean()),
+    joinPolicy: v.optional(v.union(v.literal("open"), v.literal("request"))),
   },
   handler: async (ctx, args) => {
     // Fail before writing if production host-token env is missing.
@@ -1525,7 +1608,10 @@ export const createEvent = mutation({
       name: title,
       roomCode,
       status,
+      publicDiscoverable: args.publicDiscoverable === true,
+      joinPolicy: args.joinPolicy || "open",
       startedAt: now,
+      lastActivityAt: now,
     });
 
     const safeName = (args.displayName || "Host").slice(0, MAX_DISPLAY_NAME).trim() || "Host";
@@ -1572,6 +1658,8 @@ export const createEvent = mutation({
       name: title,
       roomCode,
       status,
+      publicDiscoverable: args.publicDiscoverable === true,
+      joinPolicy: args.joinPolicy || "open",
       ownerKey,
       hostId,
       sourceId,
@@ -1586,8 +1674,10 @@ export const updateEvent = mutation({
     title: v.optional(v.string()),
     roomCode: v.optional(v.string()),
     status: v.optional(v.union(v.literal("draft"), v.literal("live"))),
+    publicDiscoverable: v.optional(v.boolean()),
+    joinPolicy: v.optional(v.union(v.literal("open"), v.literal("request"))),
   },
-  handler: async (ctx, { eventId, ownerKey, title, roomCode, status }) => {
+  handler: async (ctx, { eventId, ownerKey, title, roomCode, status, publicDiscoverable, joinPolicy }) => {
     await requireHost(ctx, eventId, ownerKey);
     const event = await ctx.db.get(eventId);
     if (!event) {
@@ -1614,8 +1704,16 @@ export const updateEvent = mutation({
     if (status !== undefined) {
       patch.status = status;
       if (status === "live" && event.status === "draft") {
-        patch.startedAt = Date.now();
+        const now = Date.now();
+        patch.startedAt = now;
+        patch.lastActivityAt = now;
       }
+    }
+    if (publicDiscoverable !== undefined) {
+      patch.publicDiscoverable = publicDiscoverable;
+    }
+    if (joinPolicy !== undefined) {
+      patch.joinPolicy = joinPolicy;
     }
     if (roomCode !== undefined) {
       const nextRoomCode = normalizeRequestedRoomCode(roomCode);
@@ -1651,6 +1749,8 @@ export const updateEvent = mutation({
       name: updated?.name ?? event.name,
       roomCode: updated?.roomCode ?? event.roomCode,
       status: updated?.status ?? event.status,
+      publicDiscoverable: updated?.publicDiscoverable ?? event.publicDiscoverable ?? false,
+      joinPolicy: updated?.joinPolicy ?? event.joinPolicy ?? "open",
     };
   },
 });
@@ -1817,6 +1917,7 @@ export const joinEvent = mutation({
         lastSeenAt: now,
       });
     }
+    await ctx.db.patch(event._id, { lastActivityAt: now });
 
     return {
       eventId: event._id,
@@ -1926,6 +2027,7 @@ export const sendMessage = mutation({
 
     // Bump presence as a side effect of sending (saves a heartbeat round trip).
     await ctx.db.patch(member._id, { lastSeenAt: now });
+    await ctx.db.patch(args.eventId, { lastActivityAt: now });
 
     return { messageId, createdAt: now };
   },
@@ -2905,7 +3007,10 @@ export const ensureDemoEvent = mutation({
       name: "AI Infra Summit",
       roomCode: "ORBITAL",
       status: "live",
+      publicDiscoverable: false,
+      joinPolicy: "open",
       startedAt: Date.now(),
+      lastActivityAt: Date.now(),
     });
     const sourcesInserted = await ensureDemoSourcesForEvent(ctx, id);
     return { eventId: id, created: true, sourcesInserted };

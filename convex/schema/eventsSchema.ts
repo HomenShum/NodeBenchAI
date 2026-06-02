@@ -30,15 +30,16 @@ export const liveEvents = defineTable({
     v.literal("live"),
     v.literal("ended"),
   ),
+  publicDiscoverable: v.optional(v.boolean()),          // opt-in listing on the apex landing
+  joinPolicy: v.optional(v.union(
+    v.literal("open"),
+    v.literal("request"),
+  )),
   startedAt: v.number(),
-  endedAt: v.optional(v.number()),
-  // Tolerated drift field: a parallel agent (Codex live-metrics) deployed a
-  // schema variant to prod that stamped `lastActivityAt` onto liveEvents rows
-  // before this branch added its indexes. Declaring it optional lets the
-  // schema validate the existing prod data so `npx convex deploy` succeeds
-  // (it was failing with "extra field `lastActivityAt` not in the validator").
-  // No current code writes it; keep until the row is rewritten or pruned.
+  // create/join/message activity; heartbeat does not keep listings warm.
+  // Also validates existing prod rows from the earlier live-metrics drift.
   lastActivityAt: v.optional(v.number()),
+  endedAt: v.optional(v.number()),
 })
   .index("by_slug", ["slug"])
   .index("by_roomCode", ["roomCode"])
@@ -46,7 +47,8 @@ export const liveEvents = defineTable({
   // total room count and the "live rooms right now" count, so the apex counter
   // never full-scans the table. Additive — Convex builds them on deploy.
   .index("by_startedAt", ["startedAt"])
-  .index("by_status_startedAt", ["status", "startedAt"]);
+  .index("by_status_startedAt", ["status", "startedAt"])
+  .index("by_public_status_startedAt", ["publicDiscoverable", "status", "startedAt"]);
 
 // ------------------------------------------------------------------
 // liveEventMembers — anonymous presence per event
