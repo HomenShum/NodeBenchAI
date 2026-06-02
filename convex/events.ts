@@ -30,6 +30,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { enforceRateLimit } from "./scratchnodeRateLimit";
+import { routeLLM, askAnswerSignals } from "../shared/llm/router";
 import { rerankWithGemini, condenseQuery, type TriCandidate } from "../shared/search/triSearch";
 
 class ConvexError<T extends Record<string, unknown>> extends Error {
@@ -80,7 +81,10 @@ const MAX_OWNER_KEY_LEN = 120;
 const MAX_AGENT_CONTEXT_SOURCES = 6;
 const MAX_AGENT_CONTEXT_CHARS = 9_000;
 const MAX_LINKUP_SOURCES = 4;
-const SCRATCHNODE_DEFAULT_ASK_MODEL = "claude-haiku-4-5-20251001";
+// /ask model selection lives in shared/llm/router.ts — the ask_answer pool
+// (Haiku floor; escalates to Sonnet on long / analytical / multi-entity Qs).
+// Legacy SCRATCHNODE_ASK_MODEL still force-pins for ops; the pool floor defaults
+// to the exact prior Haiku id so an unset env is behavior-preserving.
 
 // Phase 4 follow-up Item 1: optional email channel for claim codes.
 // Validation kept basic on purpose — Resend re-validates server-side, and
@@ -640,12 +644,13 @@ async function generateProviderAnswer(args: {
   eventName: string;
   question: string;
   sources: Array<{ title: string; excerpt: string; body: string; uri?: string }>;
+  model: string; // chosen by the LLM router (shared/llm/router.ts) at the call site
 }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return { ok: false as const, detail: "ANTHROPIC_API_KEY not configured." };
   }
-  const model = process.env.SCRATCHNODE_ASK_MODEL || SCRATCHNODE_DEFAULT_ASK_MODEL;
+  const model = args.model;
   const system = [
     "You are ScratchNode's event answer agent.",
     "Answer only from the provided public event sources.",
@@ -2059,10 +2064,25 @@ export const askAgent = action({
       });
     }
 
+    // Prism-style routing (shared/llm/router.ts): a deterministic planner picks
+    // the model for THIS question from the ask_answer pool (Haiku floor ->
+    // Sonnet on long / analytical / multi-entity Qs). Single-shot path with no
+    // prompt-cache to evict, so we route per request at zero added latency.
+    const askRoute = routeLLM("ask_answer", askAnswerSignals(question, topSources.length));
+    const askModel = process.env.SCRATCHNODE_ASK_MODEL || askRoute.model; // legacy env force-pins
+    trace.push({
+      step: "model_route",
+      status: "ok",
+      detail: process.env.SCRATCHNODE_ASK_MODEL
+        ? `env-pinned ${askModel}`
+        : `${askRoute.reason} -> ${askRoute.model}${askRoute.escalated ? " (escalated)" : ""}`,
+      durationMs: 0,
+    });
     const provider = await generateProviderAnswer({
       eventName: prepared.event.name,
       question,
       sources: topSources,
+      model: askModel,
     });
     let body: string;
     let agentMode: "provider" | "provider_fallback";
