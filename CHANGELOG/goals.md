@@ -16,3 +16,8 @@ First OS self-review (5 lenses + reducer, 29 findings -> top 10) recorded to goa
 Added the agent-governance layer: GOVERNANCE.md (LOW/MEDIUM/HIGH merge classes + may/may-not rails, mapped to the REAL npm/Vercel/Convex CI + branch protection — not the generic pnpm example), AGENT_LOOP.md (11-step research→patch→PR loop + reference budget + VIS-001..010), prompts/agent-library.md (6 chained agent prompts). Live-inspected branch protection and flagged honest gaps (enforce_admins=false; privacy/visual not required) as a HIGH-risk Goal Card (runtime/003) for founder approval — NOT auto-applied, since branch-protection changes are a no-autonomy zone.
 
 **Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
+## 2026-06-02 — Executed nodebench/002 (loop honesty)
+run-cycle.mjs records now carry liveSignal:null (HONEST_STATUS — set only after live-DOM verify); pushConvex reports {reason:'endpoint-not-deployed'} instead of pointing at a phantom function; ledger backfilled liveSignal:null/liveVerified:false on existing cycles (no fabricated signals). Convex improvementLoopCycles table graduation still deferred (local codegen unverifiable). node --check + ledger JSON valid.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.

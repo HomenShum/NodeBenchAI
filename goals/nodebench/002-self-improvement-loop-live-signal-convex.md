@@ -5,7 +5,7 @@ with no `liveSignal`, despite the manual requiring a live-DOM signal after `veri
 (2) `run-cycle.mjs:72` calls `convex run improvementLoop:recordCycle`, but that function only exists
 in `convex-improvementLoop.ts.pending` (never deployed) → `--push-convex` degrades to a 404 path.
 
-- **status:** proposed
+- **status:** shipped (liveSignal field + honest pushConvex reason + ledger backfill; Convex table graduation still deferred — codegen unverifiable locally)
 - **surface:** nodebench (meta-loop / runtime)
 - **severity:** P1 (HONEST_STATUS / live_dom_verification — the ledger must not claim "shipped" without proof)
 
