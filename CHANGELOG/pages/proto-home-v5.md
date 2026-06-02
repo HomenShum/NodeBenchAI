@@ -2,6 +2,19 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-02 — Rewrite the landing headline for a viral hook
+Replaced the feature-describing hero line "A disposable sidecar room for live event
+memory" (jargon: "disposable", "sidecar"; no emotional/temporal hook — nobody screenshots
+it) with an outcome-first, say-it-out-loud headline: **"The room remembers everything."**
+Lineage: Linear ("the issue tracker you'll enjoy using" — emotional outcome), Slido
+("audience interaction made easy" — the closest live-event-Q&A comp), Luma ("delightful
+events start here"). The features (`/ask`, wiki handoff, no-account) move into the
+sub-headline where they belong: "Drop a code, chat live, hit /ask for sourced answers —
+and walk away with a wiki of everything that happened. No account, no app." Updated `<title>`,
+meta description, and all OG/Twitter card tags to match so shared links carry the new hook.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-02 — Live "big number" room counter on the landing
 Added an animated, reactive hero stat to the apex landing: a large room-count that
 **ticks up the instant anyone, anywhere, creates a room** — driven by a new reactive
