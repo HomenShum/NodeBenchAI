@@ -923,6 +923,16 @@ async function runInteractiveChecks() {
       const buttonsAndLinks = [...document.querySelectorAll("button, a")]
         .map((node) => node.textContent?.replace(/\s+/g, " ").trim() ?? "")
         .filter(Boolean);
+      const isVisible = (node) => {
+        const style = getComputedStyle(node);
+        return style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          node.getClientRects().length > 0;
+      };
+      const visibleButtonsAndLinks = [...document.querySelectorAll("button, a")]
+        .filter(isVisible)
+        .map((node) => node.textContent?.replace(/\s+/g, " ").trim() ?? "")
+        .filter(Boolean);
       const rowTexts = [...document.querySelectorAll(".row-text")]
         .map((node) => node.textContent?.trim() ?? "")
         .filter(Boolean);
@@ -932,13 +942,22 @@ async function runInteractiveChecks() {
       const answerTexts = [...document.querySelectorAll(".ans")]
         .map((node) => node.textContent?.replace(/\s+/g, " ").trim() ?? "")
         .filter(Boolean);
+      const firstFlowSteps = [...document.querySelectorAll("[data-first-time-flow] [data-flow-step]")]
+        .map((node) => ({
+          step: node.getAttribute("data-flow-step") ?? "",
+          text: node.textContent?.replace(/\s+/g, " ").trim() ?? "",
+        }))
+        .filter((item) => item.step);
       const normalizeQuestion = (text) => text.trim().replace(/[?.!]+$/, "").toLowerCase();
       const askQuestions = rowTexts
         .filter((text) => /^\/ask\b/i.test(text))
         .map((text) => normalizeQuestion(text.replace(/^\/ask\b/i, "")))
         .filter(Boolean);
+      const composerPlaceholder = document.querySelector("#ci")?.getAttribute("placeholder") ?? "";
+      const visibleActionText = `${visibleButtonsAndLinks.join(" | ")} ${composerPlaceholder}`;
+      const firstFlowStepOrder = firstFlowSteps.map((item) => item.step).join("|");
       return {
-        composerPlaceholder: document.querySelector("#ci")?.getAttribute("placeholder") ?? "",
+        composerPlaceholder,
         hasAskParentRow: rowTexts.some((text) => /^\/ask\b/i.test(text)),
         hasNestedAnswer: askQuestions.some((question) =>
           answerQuestions.some((answerQuestion) => normalizeQuestion(answerQuestion) === question),
@@ -958,6 +977,16 @@ async function runInteractiveChecks() {
           /semantic cache/i.test(text) &&
           /No private notes used|public layer only/i.test(text),
         ),
+        firstFlowSteps,
+        visibleButtonsAndLinks: visibleButtonsAndLinks.slice(0, 16),
+        firstFlowStepOrder,
+        hasOrderedFirstFlow: firstFlowStepOrder === "join|chat|ask|private-note|wiki",
+        hasVisibleFirstFlowAffordances:
+          /ORBITAL|room code/i.test(visibleActionText) &&
+          /\bChat\b/i.test(visibleActionText) &&
+          /\/ask|Ask the first question/i.test(visibleActionText) &&
+          /private notes|\bnotes\b|🔒/i.test(visibleActionText) &&
+          /open wiki|view in wiki/i.test(visibleActionText),
         hasFaqSuggestion: buttonsAndLinks.some((text) => /suggest for faq/i.test(text)),
         hasHostFaqPromotion: buttonsAndLinks.some((text) => /promote to faq/i.test(text)),
         hasWikiContinuation: buttonsAndLinks.some((text) => /open wiki|view in wiki/i.test(text)),
@@ -972,6 +1001,7 @@ async function runInteractiveChecks() {
       data.hasPublicTraceBoundary &&
       data.hasSharedAnswerCostSummary &&
       data.hasTraceHonestySteps &&
+      (data.hasOrderedFirstFlow || data.hasVisibleFirstFlowAffordances) &&
       data.hasFaqSuggestion &&
       data.hasHostFaqPromotion &&
       data.hasWikiContinuation &&
