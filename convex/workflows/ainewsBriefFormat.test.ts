@@ -12,6 +12,7 @@ import {
   buildTopSourcesLine,
   buildTopStoryLead,
   briefFooterCap,
+  assessDigestQuality,
 } from "./ainewsBriefFormat";
 
 /**
@@ -337,5 +338,85 @@ describe("end-to-end Post 1 shape (integration of the scaffolding)", () => {
     expect(post.endsWith("[1/3] #AIhardware #OpenModels")).toBe(true);
     expect(post.length).toBeLessThanOrEqual(1450);
     expect(post).not.toContain("|");
+  });
+});
+
+describe("assessDigestQuality — free-model publish gate", () => {
+  it("passes a rich digest (the one a paid model reliably produces)", () => {
+    const q = assessDigestQuality(FULL_DIGEST);
+    expect(q.publishable).toBe(true);
+    expect(q.signalCount).toBe(4);
+    expect(q.denseSignalCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("REJECTS a thin digest a weak free model might emit (too few signals)", () => {
+    // Realistic failure: a small free model summarizes the whole feed into 2 vague bullets.
+    const thin: BriefDigest = {
+      narrativeThesis: "Some AI things happened.",
+      signals: [
+        { title: "AI is advancing", summary: "Models got better." },
+        { title: "Funding continues", summary: "Startups raised money." },
+      ],
+    };
+    const q = assessDigestQuality(thin);
+    expect(q.publishable).toBe(false);
+    expect(q.reason).toContain("usable signals");
+  });
+
+  it("REJECTS a digest with no numbers or sources (AINews density signal missing)", () => {
+    // 3 signals but none carry a hard number or a source URL -> not an AINews brief.
+    const numberless: BriefDigest = {
+      narrativeThesis: "A vague day in AI.",
+      signals: [
+        { title: "Model A is interesting" },
+        { title: "Model B is also interesting" },
+        { title: "Model C exists too" },
+      ],
+    };
+    const q = assessDigestQuality(numberless);
+    expect(q.publishable).toBe(false);
+    expect(q.reason).toContain("number or source");
+    expect(q.denseSignalCount).toBe(0);
+  });
+
+  it("REJECTS a digest with no narrative thesis (no dek)", () => {
+    const noThesis: BriefDigest = {
+      narrativeThesis: "   ",
+      signals: [
+        { title: "A", hardNumbers: "1B params" },
+        { title: "B", url: "https://x.com/a" },
+        { title: "C", hardNumbers: "59% SWE-Bench" },
+      ],
+    };
+    const q = assessDigestQuality(noThesis);
+    expect(q.publishable).toBe(false);
+    expect(q.reason).toContain("narrative thesis");
+  });
+
+  it("ignores blank-title signals when counting (no inflated pass)", () => {
+    const padded: BriefDigest = {
+      narrativeThesis: "Real thesis.",
+      signals: [
+        { title: "Real signal one", hardNumbers: "550B" },
+        { title: "Real signal two", url: "https://x.com/a" },
+        { title: "   " }, // padding — must not count toward the minimum
+      ],
+    };
+    const q = assessDigestQuality(padded);
+    expect(q.signalCount).toBe(2);
+    expect(q.publishable).toBe(false); // only 2 usable signals
+  });
+
+  it("honors custom thresholds", () => {
+    const twoStrong: BriefDigest = {
+      narrativeThesis: "Thesis.",
+      signals: [
+        { title: "One", hardNumbers: "1B" },
+        { title: "Two", url: "https://x.com/b" },
+      ],
+    };
+    // Default (min 3) rejects; a looser bar (min 2) accepts the same digest.
+    expect(assessDigestQuality(twoStrong).publishable).toBe(false);
+    expect(assessDigestQuality(twoStrong, { minSignals: 2, minDenseSignals: 2 }).publishable).toBe(true);
   });
 });
