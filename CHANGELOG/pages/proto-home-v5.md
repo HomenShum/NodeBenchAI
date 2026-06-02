@@ -12,6 +12,9 @@ events start here"). The features (`/ask`, wiki handoff, no-account) move into t
 sub-headline where they belong: "Drop a code, chat live, hit /ask for sourced answers —
 and walk away with a wiki of everything that happened. No account, no app." Updated `<title>`,
 meta description, and all OG/Twitter card tags to match so shared links carry the new hook.
+Also regenerated the OG share card (`public/og-scratchnode.svg` → `og-scratchnode.png`,
+1200×630) with the new headline via a new reusable rasterizer `scripts/ui/renderOgImage.mjs`
+(Playwright + brand fonts), so Slack/Discord/X/iMessage link previews match the site.
 
 **Commit**: `this commit`. **Author**: Homen Shum + Claude.
 
