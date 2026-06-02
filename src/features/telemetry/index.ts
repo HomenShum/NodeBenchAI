@@ -36,6 +36,10 @@ export type {
 export { LiveDataBanner } from "./LiveDataBanner";
 export type { LiveDataBannerProps } from "./LiveDataBanner";
 
+// LLM Router observability (LLM Router roadmap #3)
+export { LlmRoutingPanel } from "./LlmRoutingPanel";
+export type { LlmRoutingPanelProps } from "./LlmRoutingPanel";
+
 // Phase 3-6: Flywheel visuals
 export { JudgeHeatmap, createDemoJudgeHeatmapData } from "./JudgeHeatmap";
 export type { JudgeHeatmapData, JudgeHeatmapProps, JudgeCell } from "./JudgeHeatmap";

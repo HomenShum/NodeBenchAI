@@ -31,6 +31,7 @@ import { internal } from "./_generated/api";
 import { action, query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { enforceRateLimit } from "./scratchnodeRateLimit";
 import { routeLLM, askAnswerSignals } from "../shared/llm/router";
+import { aggregateAskRouting } from "../shared/llm/askRoutingTelemetry";
 import { rerankWithGemini, condenseQuery, type TriCandidate } from "../shared/search/triSearch";
 
 class ConvexError<T extends Record<string, unknown>> extends Error {
@@ -977,6 +978,48 @@ export const getAskTelemetry = query({
       avgProviderLatencyMs: providerLatencyCount > 0 ? Math.round(providerLatencySum / providerLatencyCount) : null,
       liveSearchCount,
     };
+  },
+});
+
+/**
+ * LLM ROUTING observability (LLM Router roadmap #3) — a GLOBAL, read-only
+ * aggregate over recent `/ask` answers showing the `shared/llm/router.ts`
+ * `routeLLM("ask_answer", …)` decision in production: how often the cheap
+ * Haiku floor served the turn vs. how often it escalated to Sonnet, the avg
+ * estimated cost per answer, and the provider/agentMode mix.
+ *
+ * Unlike `getAskTelemetry` (per-event, host-facing), this is operator-facing
+ * and spans ALL events — it answers "is the router actually working?" for the
+ * `/?surface=telemetry` dashboard, which has no single-event context.
+ *
+ * Honesty (.claude/rules/agentic_reliability.md):
+ *   - BOUND: capped scan (≤1000 newest rows via `.take(cap)`); `capped` flag
+ *     surfaced when the window is full. No global time index exists on
+ *     liveEventAnswers, so this is a bounded table scan — the `.take()` is the
+ *     hard cap, never an unbounded read.
+ *   - HONEST_SCORES: every rate is computed from real rows. `escalationRate`
+ *     and `avgCostCents` are null (UI shows "no data yet") when there's no
+ *     denominator — never a fabricated 0% or $0.
+ *   - DETERMINISTIC: pure function of the rows. Floor vs. escalated is decided
+ *     by the same `modelId.includes("haiku")` convention used by
+ *     `estimateAnthropicCostCents` above and the router's Haiku floor.
+ *   - No private data: liveEventAnswers are public; never touches userNotes.
+ *
+ * NOTE: routed answers are those that actually reached a model — agentMode
+ * `provider` or `provider_fallback`. `cache` and `deterministic` answers never
+ * invoked routeLLM, so they're excluded from the routing (floor/escalated)
+ * denominator but still counted in the agentMode mix for completeness.
+ */
+export const getAskRoutingTelemetry = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit }) => {
+    const cap = Math.min(Math.max(limit ?? 1000, 1), 1000); // BOUND
+    // No global time index on liveEventAnswers, so this is a bounded table
+    // scan — `.take(cap)` is the hard cap, never an unbounded read. The pure
+    // aggregator (shared/llm/askRoutingTelemetry.ts) does the rest, so the math
+    // is scenario-tested directly without a DB.
+    const rows = await ctx.db.query("liveEventAnswers").order("desc").take(cap);
+    return aggregateAskRouting(rows, rows.length >= cap);
   },
 });
 

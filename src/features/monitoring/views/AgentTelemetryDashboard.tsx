@@ -44,6 +44,7 @@ import { PipelineRollupPanel } from "@/features/monitoring/components/PipelineRo
 import { JudgeHeatmap, createDemoJudgeHeatmapData } from "@/features/telemetry/JudgeHeatmap";
 import { CostWaterfall } from "@/features/telemetry/CostWaterfall";
 import { FailureClusters, createDemoFailureClusters } from "@/features/telemetry/FailureClusters";
+import { LlmRoutingPanel } from "@/features/telemetry/LlmRoutingPanel";
 import {
   useLiveEvalScorecard,
   useLiveTraceAggregates,
@@ -668,6 +669,9 @@ function AgentTelemetryDashboardInner() {
             </div>
           </SurfaceCard>
         </SurfaceSection>
+
+        {/* LLM Routing — live router observability from real /ask answers */}
+        <LlmRoutingPanel />
 
         {/* Error log */}
         <SurfaceSection
