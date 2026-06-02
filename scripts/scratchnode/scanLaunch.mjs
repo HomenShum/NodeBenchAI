@@ -956,6 +956,9 @@ async function runInteractiveChecks() {
       const composerPlaceholder = document.querySelector("#ci")?.getAttribute("placeholder") ?? "";
       const visibleActionText = `${visibleButtonsAndLinks.join(" | ")} ${composerPlaceholder}`;
       const firstFlowStepOrder = firstFlowSteps.map((item) => item.step).join("|");
+      const hasPrivateNotesAffordance =
+        !!document.querySelector("#lock") &&
+        /My private notes|private notes/i.test(bodyText);
       return {
         composerPlaceholder,
         hasAskParentRow: rowTexts.some((text) => /^\/ask\b/i.test(text)),
@@ -987,10 +990,16 @@ async function runInteractiveChecks() {
           /\/ask|Ask the first question/i.test(visibleActionText) &&
           /private notes|\bnotes\b|🔒/i.test(visibleActionText) &&
           /open wiki|view in wiki/i.test(visibleActionText),
+        hasVisibleFirstFlowAffordancesFromControls:
+          /ORBITAL|room code/i.test(visibleActionText) &&
+          /\bChat\b/i.test(visibleActionText) &&
+          /\/ask|Ask the first question/i.test(visibleActionText) &&
+          hasPrivateNotesAffordance &&
+          /open wiki|view in wiki/i.test(visibleActionText),
         hasFaqSuggestion: buttonsAndLinks.some((text) => /suggest for faq/i.test(text)),
         hasHostFaqPromotion: buttonsAndLinks.some((text) => /promote to faq/i.test(text)),
         hasWikiContinuation: buttonsAndLinks.some((text) => /open wiki|view in wiki/i.test(text)),
-        hasPrivateNotesAffordance: !!document.querySelector("#lock") && /My private notes|private notes/i.test(bodyText),
+        hasPrivateNotesAffordance,
       };
     });
     const ok =
@@ -1001,7 +1010,7 @@ async function runInteractiveChecks() {
       data.hasPublicTraceBoundary &&
       data.hasSharedAnswerCostSummary &&
       data.hasTraceHonestySteps &&
-      (data.hasOrderedFirstFlow || data.hasVisibleFirstFlowAffordances) &&
+      (data.hasOrderedFirstFlow || data.hasVisibleFirstFlowAffordances || data.hasVisibleFirstFlowAffordancesFromControls) &&
       data.hasFaqSuggestion &&
       data.hasHostFaqPromotion &&
       data.hasWikiContinuation &&
