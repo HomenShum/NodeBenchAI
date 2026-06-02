@@ -47,7 +47,30 @@
           "scripts/improvement-loop/scan.mjs"
         ]
       }
+    },
+    {
+      "cycleId": "C003",
+      "at": "2026-06-02T06:51:32.941Z",
+      "scan": {
+        "total": 3,
+        "autoSafe": 3,
+        "humanGated": 0
+      },
+      "selected": {
+        "id": "OPP-001",
+        "title": "Anchor used as a button (onclick, no href/role)",
+        "score": 1.275,
+        "file": "public/proto/home-v5.html:1937"
+      },
+      "outcome": "shipped",
+      "note": "Added detectAnchorButtons (a11y). Found 3 anchors-as-buttons (openWiki, startTour, snPublishWiki): onclick but no href/role -> not keyboard-focusable, screen-reader announces as link. Fixed with role=\"button\" tabindex=\"0\" + one global Enter/Space keydown delegate. Caught my own bug mid-cycle (inline onkeydown single-quotes broke a JS innerHTML string) and switched to the delegate. e2e 7/7. Post-fix scan clean.",
+      "shipped": {
+        "files": [
+          "public/proto/home-v5.html",
+          "scripts/improvement-loop/scan.mjs"
+        ]
+      }
     }
   ],
-  "updatedAt": "2026-06-02T02:34:38.978Z"
+  "updatedAt": "2026-06-02T06:51:32.941Z"
 }

@@ -216,6 +216,28 @@ function detectImagesWithoutAlt(surface, lines) {
   return out;
 }
 
+// Anchor used as a button: <a onclick=...> with no href and no role. Not keyboard-
+// focusable and announced as a link by screen readers. Auto-safe fix: role/tabindex/keydown.
+function detectAnchorButtons(surface, lines) {
+  const out = [];
+  const text = maskComments(lines.join('\n'));
+  const re = /<a\b([^>]*)>/g;
+  let m;
+  while ((m = re.exec(text))) {
+    const a = m[1];
+    if (!/\bonclick\s*=/.test(a)) continue;
+    if (/\bhref\s*=/.test(a)) continue;
+    if (/\brole\s*=/.test(a)) continue;
+    out.push(opp({
+      title: 'Anchor used as a button (onclick, no href/role) — not keyboard/SR accessible',
+      surface: surface.id, source: 'a11y-scan', file: surface.file + ':' + lineOf(text, m.index),
+      evidence: ('<a' + a + '>').slice(0, 140),
+      impact: 3, confidence: 0.85, effort: 2, safety: 'auto',
+    }));
+  }
+  return out;
+}
+
 /** Honesty-contract-adjacent zones — recorded so the agent knows changes there are human-gated. */
 function detectSafetyGatedZones(surface, lines) {
   const text = lines.join('\n');
@@ -240,6 +262,7 @@ function main() {
       ...detectButtonsWithoutType(surface, lines),
       ...detectUnsafeBlankLinks(surface, lines),
       ...detectImagesWithoutAlt(surface, lines),
+      ...detectAnchorButtons(surface, lines),
     );
     safetyZones[surface.id] = detectSafetyGatedZones(surface, lines);
   }
