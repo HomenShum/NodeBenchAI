@@ -3410,7 +3410,7 @@ var SHEET_RENDERERS = {
       '<h2 class="notes-list-title" id="sheet-title"><span class="lock">&#128274;</span>My notes</h2>' +
       '<button type="button" class="notes-new-btn" onclick="createNewNote()" aria-label="New note" title="New note (⌘N)">&#43;</button>' +
       '</div>' +
-      '<div class="notes-search"><span>&#128269;</span><input type="text" id="notes-search-input" placeholder="Search notes &amp; #tags..." oninput="filterNotesList(this.value)"><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close" style="background:transparent;border:0;color:var(--ink-faint);cursor:pointer;font-size:18px;padding:0 4px">&times;</button></div>' +
+      '<div class="notes-search"><span>&#128269;</span><input type="text" id="notes-search-input" aria-label="Search notes and tags" placeholder="Search notes &amp; #tags..." oninput="filterNotesList(this.value)"><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close" style="background:transparent;border:0;color:var(--ink-faint);cursor:pointer;font-size:18px;padding:0 4px">&times;</button></div>' +
       '</div>' +
       '<div class="notes-list-scroll" id="notes-list-scroll">' + renderNotesList() + '</div>' +
       '</div>' +
@@ -3994,7 +3994,7 @@ function renderNotesEditor() {
   h.push('<button type="button" class="toolbar-label" onclick="noteInsertText(\'#\')" title="Add tag" style="color:var(--accent)">#</button>');
   h.push('</div>');
   h.push('<div class="notes-edit-body">');
-  h.push('<input type="text" class="notes-edit-title" id="notes-edit-title" placeholder="Untitled" value="' + escapeHtml(note.title || '') + '" oninput="updateActiveNote(\'title\', this.value)" />');
+  h.push('<input type="text" class="notes-edit-title" id="notes-edit-title" aria-label="Note title" placeholder="Untitled" value="' + escapeHtml(note.title || '') + '" oninput="updateActiveNote(\'title\', this.value)" />');
   if (tagsHtml) h.push('<div class="notes-edit-tags">' + tagsHtml + '</div>');
   if (note.anchorType) {
     h.push('<div class="notes-backlinks"><div class="notes-backlinks-label">Private anchor</div><div class="notes-backlink-row">' +

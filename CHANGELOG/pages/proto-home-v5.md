@@ -16,3 +16,8 @@ Self-improvement loop cycle C002 added `type="button"` to the Memory Wall sticky
 The "Open wiki", "Take the tour", and "Publish wiki" controls were <a onclick> with no href/role — keyboard users could not focus/activate them and screen readers announced them as links. Added role="button" + tabindex="0" and a global Enter/Space keydown delegate for any a[role=button]. No behavior change for mouse users. e2e green.
 
 **Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
+## 2026-06-02 — a11y: accessible names on 2 inputs (loop C004)
+The notes-search and note-title inputs had only placeholders (not an accessible name for screen readers). Added aria-label to both. The other text inputs already had <label for> associations. e2e green.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.

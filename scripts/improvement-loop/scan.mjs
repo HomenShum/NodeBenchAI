@@ -238,6 +238,31 @@ function detectAnchorButtons(surface, lines) {
   return out;
 }
 
+// Form input with no accessible name: no aria-label/aria-labelledby AND no <label for=id>.
+// Placeholder is NOT an accessible name. Auto-safe fix: add aria-label matching purpose.
+function detectUnlabeledInputs(surface, lines) {
+  const out = [];
+  const text = maskComments(lines.join('\n'));
+  const labelFor = new Set([...text.matchAll(/<label\b[^>]*\bfor\s*=\s*"([^"]+)"/g)].map((m) => m[1]));
+  const re = /<input\b([^>]*)>/g;
+  let m;
+  while ((m = re.exec(text))) {
+    const a = m[1];
+    const typ = (a.match(/type\s*=\s*"([^"]*)"/) || [])[1] || 'text';
+    if (['hidden', 'submit', 'button', 'checkbox', 'radio'].includes(typ)) continue;
+    if (/\baria-label\s*=/.test(a) || /\baria-labelledby\s*=/.test(a)) continue;
+    const id = (a.match(/\bid\s*=\s*"([^"]+)"/) || [])[1];
+    if (id && labelFor.has(id)) continue;
+    out.push(opp({
+      title: 'Form input without an accessible name (no aria-label / <label for>)',
+      surface: surface.id, source: 'a11y-scan', file: surface.file + ':' + lineOf(text, m.index),
+      evidence: ('<input' + a + '>').slice(0, 140),
+      impact: 3, confidence: 0.8, effort: 1, safety: 'auto',
+    }));
+  }
+  return out;
+}
+
 /** Honesty-contract-adjacent zones — recorded so the agent knows changes there are human-gated. */
 function detectSafetyGatedZones(surface, lines) {
   const text = lines.join('\n');
@@ -263,6 +288,7 @@ function main() {
       ...detectUnsafeBlankLinks(surface, lines),
       ...detectImagesWithoutAlt(surface, lines),
       ...detectAnchorButtons(surface, lines),
+      ...detectUnlabeledInputs(surface, lines),
     );
     safetyZones[surface.id] = detectSafetyGatedZones(surface, lines);
   }

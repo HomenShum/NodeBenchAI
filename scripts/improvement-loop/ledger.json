@@ -70,7 +70,30 @@
           "scripts/improvement-loop/scan.mjs"
         ]
       }
+    },
+    {
+      "cycleId": "C004",
+      "at": "2026-06-02T07:40:17.585Z",
+      "scan": {
+        "total": 2,
+        "autoSafe": 2,
+        "humanGated": 0
+      },
+      "selected": {
+        "id": "OPP-001",
+        "title": "Form input without an accessible name",
+        "score": 2.4,
+        "file": "public/proto/home-v5.html (notes-search-input)"
+      },
+      "outcome": "shipped",
+      "note": "Added detectUnlabeledInputs (label-for aware). Initial aria-only check flagged 11 inputs; VALIDATED -> 9 have a <label for> (rejected as false positives), only 2 genuinely unlabeled (notes-search-input, notes-edit-title) -> added aria-label to both. INTEGRITY: explicitly did NOT add home-v2/v3/v4 to the loop (superseded dead prototypes with 380+ button-type hits = theater; confirmed dead via git grep — referenced only in old docs). e2e 7/7. Post-fix scan clean.",
+      "shipped": {
+        "files": [
+          "public/proto/home-v5.html",
+          "scripts/improvement-loop/scan.mjs"
+        ]
+      }
     }
   ],
-  "updatedAt": "2026-06-02T06:51:32.941Z"
+  "updatedAt": "2026-06-02T07:40:17.585Z"
 }
