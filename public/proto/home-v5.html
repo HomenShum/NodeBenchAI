@@ -2164,7 +2164,7 @@ function _landingJoin(ev) {
       if(!el){
         el=document.createElement('div');
         el.className='sn-note'; el.tabIndex=0; el.setAttribute('role','group'); el.dataset.id=item._id;
-        el.innerHTML='<button class="sn-del" title="Remove" aria-label="Remove sticky">&times;</button>'+
+        el.innerHTML='<button type="button" class="sn-del" title="Remove" aria-label="Remove sticky">&times;</button>'+
                      '<div class="sn-body"></div><div class="sn-meta">sticky</div>';
         board.appendChild(el); els.set(item._id, el); wireNote(el, item._id);
       }
@@ -3237,7 +3237,7 @@ function renderTourStep() {
     var r = target.getBoundingClientRect();
     var el = document.createElement('div');
     el.className = 'tip-popover';
-    el.innerHTML = step.text + '<br><button onclick="nextTour()">' + (_tourIdx === TOUR.length - 1 ? 'Got it' : 'Next →') + '</button> <button onclick="closeTour()" style="margin-left:6px;color:var(--ink-faint)">Skip</button>';
+    el.innerHTML = step.text + '<br><button type="button" onclick="nextTour()">' + (_tourIdx === TOUR.length - 1 ? 'Got it' : 'Next →') + '</button> <button type="button" onclick="closeTour()" style="margin-left:6px;color:var(--ink-faint)">Skip</button>';
     document.body.appendChild(el);
     var top = r.bottom + 10 + window.scrollY;
     var left = Math.max(8, Math.min(window.innerWidth - 260, r.left + window.scrollX));

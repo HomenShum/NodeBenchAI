@@ -5,7 +5,7 @@
     "consecutiveNoShipLimit": 3,
     "requireGreenVerification": true
   },
-  "consecutiveNoShip": 1,
+  "consecutiveNoShip": 0,
   "cycles": [
     {
       "cycleId": "C001",
@@ -24,7 +24,30 @@
       "backlogTop": [],
       "outcome": "clean_no_auto_opportunities",
       "note": "Bootstrap. Built loop substrate (scan+run-cycle+JSON ledger), ran scan -> 6 candidates, VALIDATED all -> false positives (XXX in URL-param doc comments; intentional 'Coming soon' L2 capture flag). REJECTED all (no theater), hardened 2 detectors. Convex ledger graduation queued (local codegen blocked by unrelated @mistralai dep error). ScratchNode surface clean post-polish."
+    },
+    {
+      "cycleId": "C002",
+      "at": "2026-06-02T02:34:38.978Z",
+      "scan": {
+        "total": 4,
+        "autoSafe": 3,
+        "humanGated": 0
+      },
+      "selected": {
+        "id": "OPP-001",
+        "title": "Button missing type=\"button\" (implicit-submit footgun)",
+        "score": 1.7,
+        "file": "public/proto/home-v5.html:2167"
+      },
+      "outcome": "shipped",
+      "note": "Expanded detectors (+button-type with form-context safety, +target=_blank/noopener, +img-alt) and added CSS/HTML comment-masking. Scan found 4 button candidates: 1 FALSE POSITIVE (button inside a CSS comment -> hardened detector to mask comments), 3 REAL (wall sticky-delete + 2 tour buttons). Validated all 3 (onclick handlers, not in <form>) and added type=\"button\". e2e 7/7 green (output-contract + honesty). Post-fix scan clean.",
+      "shipped": {
+        "files": [
+          "public/proto/home-v5.html",
+          "scripts/improvement-loop/scan.mjs"
+        ]
+      }
     }
   ],
-  "updatedAt": "2026-06-02T01:44:09.462Z"
+  "updatedAt": "2026-06-02T02:34:38.978Z"
 }
