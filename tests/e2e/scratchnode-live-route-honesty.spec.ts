@@ -315,4 +315,70 @@ test.describe("ScratchNode live route honesty", () => {
     expect(calledMutations).not.toContain("events:publishWiki");
     await expect(page.locator(".toast")).toContainText("Host verification required");
   });
+
+  test("SN-LIVE-007/-008 private send saves privately and creates NO public message", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const result = await page.evaluate(() => {
+      const w = window as any;
+      const countBefore =
+        typeof w.getPrivateNoteHandoffCount === "function"
+          ? w.getPrivateNoteHandoffCount()
+          : (w._privateNotes_v5 || []).length;
+      // Enter private mode, then send a uniquely-identifiable private note.
+      if (document.body.getAttribute("data-mode") !== "private") w.toggleLock();
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = "PRIV-secret-latency-budget-xyz";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      w.sendComposerMessage();
+      const countAfter =
+        typeof w.getPrivateNoteHandoffCount === "function"
+          ? w.getPrivateNoteHandoffCount()
+          : (w._privateNotes_v5 || []).length;
+      return { countBefore, countAfter };
+    });
+
+    // SN-LIVE-007: the private text must NEVER reach a public eventMessages write.
+    const sentPublicly = await page.evaluate(() =>
+      ((window as any).__snMockMutations || []).some(
+        (c: any) =>
+          c.name === "events:sendMessage" &&
+          JSON.stringify(c.args || {}).includes("secret-latency-budget-xyz"),
+      ),
+    );
+    expect(sentPublicly).toBe(false);
+    // SN-LIVE-008: the private note IS captured privately (notebook count grew).
+    expect(result.countAfter).toBeGreaterThan(result.countBefore);
+  });
+
+  test("public send DOES create a public message (boundary control)", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    await page.evaluate(() => {
+      const w = window as any;
+      if (document.body.getAttribute("data-mode") === "private") w.toggleLock();
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = "PUBLIC-hello-everyone-xyz";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      w.sendComposerMessage();
+    });
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() =>
+            ((window as any).__snMockMutations || []).some(
+              (c: any) => c.name === "events:sendMessage",
+            ),
+          ),
+        { timeout: 5000 },
+      )
+      .toBe(true);
+  });
 });

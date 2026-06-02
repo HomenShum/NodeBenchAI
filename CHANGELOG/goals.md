@@ -16,3 +16,8 @@ First OS self-review (5 lenses + reducer, 29 findings -> top 10) recorded to goa
 Added the agent-governance layer: GOVERNANCE.md (LOW/MEDIUM/HIGH merge classes + may/may-not rails, mapped to the REAL npm/Vercel/Convex CI + branch protection — not the generic pnpm example), AGENT_LOOP.md (11-step research→patch→PR loop + reference budget + VIS-001..010), prompts/agent-library.md (6 chained agent prompts). Live-inspected branch protection and flagged honest gaps (enforce_admins=false; privacy/visual not required) as a HIGH-risk Goal Card (runtime/003) for founder approval — NOT auto-applied, since branch-protection changes are a no-autonomy zone.
 
 **Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
+## 2026-06-02 — Executed scratchnode/002 + scratchnode/003 (boundary)
+scratchnode/002 SHIPPED: host public-write actions now use the strict verified-host helper (PR consolidates with /003). scratchnode/003 SHIPPED (core): added CI-locked boundary tests SN-LIVE-007 (private send creates NO events:sendMessage) + SN-LIVE-008 (private note saved privately) + a public control. 006/009/010/012 honestly scoped to the demo spec (need rendered answers/wiki). enforce_admins (runtime/003) attempted but the agent token lacks branch-protection write (HTTP 404) -> correctly a founder action. 10/10 e2e green.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.

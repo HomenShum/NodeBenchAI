@@ -5,7 +5,7 @@ covers config/join/send/staleness/host-CRUD — **none assert the actual data bo
 notes never leak into the public feed, the agent trace, or the published wiki). Add the missing
 scenario tests so a regression that leaks a private note is caught by CI, not by users.
 
-- **status:** proposed
+- **status:** shipped (SN-LIVE-007/-008 + public control); 006/009/010/012 queued for the demo/output-contract spec (need rendered answers + wiki the live mock does not produce)
 - **surface:** scratchnode
 - **severity:** P1 (the core safety contract is currently unverified by CI)
 - **auto-safe:** tests-only, no product code change → eligible for the loop's auto-safe path once approved.
