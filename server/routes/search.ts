@@ -66,8 +66,52 @@ import {
   shouldStreamAnswer,
   type RetrievalState,
 } from "../../convex/domains/agents/safety/lowConfidenceGuard.js";
+import { routeLLM, type RouteSignals, type TaskClass } from "../../shared/llm/router.js";
 
 const SEARCH_SOURCE = "search_api";
+
+// ── LLM model routing for the search pipeline ────────────────────────────────
+// Every Gemini call in this route used to hardcode `gemini-3.1-flash-lite-preview`.
+// We now derive cheap, deterministic signals from local context and ask the shared
+// router which model to use. The FLOOR of the classify/extract/synthesize pools is
+// that same flash-lite model, so for simple queries this is a behavior-preserving
+// no-op — only long, multi-entity, or analytical turns escalate to a heavier model.
+// See shared/llm/router.ts + docs/architecture/LLM_ROUTER.md.
+const SEARCH_ANALYTICAL_RE =
+  /\b(compare|comparison|versus|vs\.?|trade-?offs?|why|how should|strateg(y|ic)|implications?|pros and cons|risks?|diligence|teardown)\b/i;
+
+/**
+ * Derive deterministic routing signals from the raw query + the number of
+ * retrieved sources we are about to synthesize/extract over. Pure function — no
+ * Date/random — so routing is replay-safe (DETERMINISTIC, agentic_reliability.md).
+ */
+export function searchRouteSignals(
+  query: string,
+  sourceCount: number,
+  opts: { multiEntity?: boolean } = {},
+): RouteSignals {
+  const q = (query || "").trim();
+  const analytical = SEARCH_ANALYTICAL_RE.test(q);
+  return {
+    inputChars: q.length,
+    sourceCount: Number.isFinite(sourceCount) && sourceCount > 0 ? sourceCount : 0,
+    multiEntity: opts.multiEntity ?? false,
+    complexityHint: analytical ? "high" : q.length > 240 ? "medium" : "low",
+  };
+}
+
+/**
+ * Route a search-pipeline LLM call and return the chosen model id plus a short,
+ * trace-friendly reason string (`"<model> — <reason>"`). The reason is surfaced in
+ * the search trace's `detail` so escalations are observable.
+ */
+function routeSearchModel(
+  taskClass: TaskClass,
+  signals: RouteSignals,
+): { model: string; detail: string } {
+  const decision = routeLLM(taskClass, signals);
+  return { model: decision.model, detail: `${decision.model} — ${decision.reason}` };
+}
 const CONTROL_PLANE_VIEW_ID = "view:control-plane";
 const LENS_PERSONA_MAP: Record<string, string> = {
   founder: "FOUNDER_STRATEGY",
@@ -2389,8 +2433,14 @@ export function createSearchRouter(tools: McpTool[]) {
       const fullPrompt = sessionContext
         ? `${sessionContext}\n\nNow classify this query:\n${query}`
         : query;
+      // classify pool is single-candidate (flash-lite) — routing is a deterministic
+      // no-op here, but keeps the model id owned by the shared router.
+      const { model: classifyModel } = routeSearchModel(
+        "classify",
+        searchRouteSignals(query, 0),
+      );
       const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${classifyModel}:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2920,7 +2970,17 @@ Entity extraction rules:
 
           // Synthesize results into a structured packet
           checkBudget();
-          const synthTrace = traceStep("agent_synthesize", "gemini-3.1-flash-lite");
+          // Route the synthesize model from query complexity + the number of tool
+          // results we are folding into the answer. Floor is flash-lite (current
+          // behavior); long/analytical/many-source turns escalate. The model is
+          // surfaced in the trace below for observability. (The wire-level model
+          // for synthesizeResults itself lives in server/agentHarness.ts; this
+          // routes + labels the search-side decision.)
+          const synthRoute = routeSearchModel(
+            "synthesize",
+            searchRouteSignals(query, execution.stepResults.length),
+          );
+          const synthTrace = traceStep("agent_synthesize", synthRoute.model);
           const synthesized = await Promise.race([
             synthesizeResults(
               execution,
@@ -2936,7 +2996,7 @@ Entity extraction rules:
               else setTimeout(() => reject(new Error("Request budget exceeded")), remaining);
             }),
           ]);
-          synthTrace.ok(`${synthesized.confidence}% confidence`);
+          synthTrace.ok(`${synthesized.confidence}% confidence · ${synthRoute.detail}`);
 
           // ── Parallel enrichment: Monte Carlo + Why This Team credibility ──
           // Both run concurrently after synthesis to stay within Vercel timeout.
@@ -2992,8 +3052,15 @@ Entity extraction rules:
                   } catch { /* local context is best-effort */ }
                 }
 
+                // Credibility enrichment is a structured extraction over the
+                // synthesized result + local context — route as "extract" (floor
+                // flash-lite, escalates only on heavy local context).
+                const { model: credModel } = routeSearchModel(
+                  "extract",
+                  searchRouteSignals(query, 0),
+                );
                 const credResp = await fetch(
-                  `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
+                  `https://generativelanguage.googleapis.com/v1beta/models/${credModel}:generateContent?key=${process.env.GEMINI_API_KEY}`,
                   {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -3361,11 +3428,21 @@ Entity extraction rules:
           // Use Gemini to produce a comparative analysis
           let comparison: any = null;
           if (process.env.GEMINI_API_KEY) {
-            const extractTrace = traceStep("llm_extract", "gemini-3.1-flash-lite-preview");
+            // Multi-entity comparison — inherently multiEntity, so this branch is
+            // the most likely to escalate above the flash-lite floor.
+            const extractRoute = routeSearchModel(
+              "extract",
+              searchRouteSignals(
+                query,
+                entityResults.reduce((s, e) => s + (e.resultCount ?? 0), 0),
+                { multiEntity: true },
+              ),
+            );
+            const extractTrace = traceStep("llm_extract", extractRoute.model);
             try {
               const entityContext = entityResults.map(e => `## ${e.name}\n${e.answer ? e.answer.slice(0, 400) + "\n" : ""}${e.snippets.slice(0, 2).join("\n")}`).join("\n\n");
               const geminiResp = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/${extractRoute.model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
                 {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -3397,7 +3474,7 @@ Return ONLY valid JSON:
                   if (jsonMatch) comparison = JSON.parse(jsonMatch[0].replace(/,\s*([\]}])/g, "$1"));
                 }
               }
-              extractTrace.ok(`extracted ${comparison ? "ok" : "empty"}`);
+              extractTrace.ok(`extracted ${comparison ? "ok" : "empty"} · ${extractRoute.detail}`);
             } catch { extractTrace.error("gemini comparison failed"); }
           }
 
@@ -3513,10 +3590,15 @@ Return ONLY valid JSON:
           let geminiExtracted: any = null;
           const hasSearchData = linkupAnswer.length > 20 || allSnippets.length > 0;
           if (hasSearchData && process.env.GEMINI_API_KEY) {
-            const extractTrace = traceStep("llm_extract", "gemini-3.1-flash-lite-preview");
+            // Single-entity structured extraction over the gathered snippets.
+            const extractRoute = routeSearchModel(
+              "extract",
+              searchRouteSignals(query, allSnippets.length),
+            );
+            const extractTrace = traceStep("llm_extract", extractRoute.model);
             try {
               const geminiResp = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/${extractRoute.model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
                 {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -3566,7 +3648,7 @@ Return ONLY valid JSON:
                   }
                 }
               }
-              extractTrace.ok(`extracted ${geminiExtracted ? "ok" : "empty"}`);
+              extractTrace.ok(`extracted ${geminiExtracted ? "ok" : "empty"} · ${extractRoute.detail}`);
             } catch { extractTrace.error("gemini extraction failed"); }
           }
 
@@ -3736,10 +3818,15 @@ Return ONLY valid JSON:
           // If we have web data, use Gemini to extract structured analysis
           let genGemini: any = null;
           if (genWebSnippets.length >= 2 && process.env.GEMINI_API_KEY) {
-            const ext = traceStep("llm_extract", "gemini-3.1-flash-lite-preview");
+            // Founder-direction extraction over gathered web snippets.
+            const extRoute = routeSearchModel(
+              "extract",
+              searchRouteSignals(query, genWebSnippets.length),
+            );
+            const ext = traceStep("llm_extract", extRoute.model);
             try {
               const resp = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/${extRoute.model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
                 {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -3773,7 +3860,7 @@ RULES: Only include facts grounded in the web data. If data is thin, return fewe
                   if (m) genGemini = JSON.parse(m[0].replace(/,\s*([\]}])/g, "$1"));
                 }
               }
-              ext.ok(genGemini ? "ok" : "empty");
+              ext.ok(`${genGemini ? "ok" : "empty"} · ${extRoute.detail}`);
             } catch { ext.error("extraction failed"); }
           }
 
