@@ -1029,6 +1029,9 @@ async function runInteractiveChecks() {
         "openNotes",
         "openMenu",
         "closeMenu",
+        "openNodeBenchPrivateHandoff",
+        "buildNodeBenchEventPrivateUrl",
+        "buildNodeBenchSignInUrl",
         "toggleLock",
         "openModePicker",
         "openCaptureLevelPicker",
@@ -1092,21 +1095,50 @@ async function runInteractiveChecks() {
         typeof globalThis.openMenu === "function" &&
         typeof globalThis.closeMenu === "function";
       const attendeeMenuRole = document.body.getAttribute("data-role") ?? "";
-      const visibleMenuText = () => [...document.querySelectorAll("#menu-sheet button, #menu-sheet h4")]
+      const visibleMenuItems = () => [...document.querySelectorAll("#menu-sheet button, #menu-sheet h4")]
         .filter((node) => {
           const style = getComputedStyle(node);
           return style.display !== "none" &&
             style.visibility !== "hidden" &&
             node.getClientRects().length > 0;
         })
-        .map((node) => node.textContent?.replace(/\s+/g, " ").trim() ?? "")
-        .filter(Boolean)
-        .join(" | ");
+        .map((node) => ({
+          text: node.textContent?.replace(/\s+/g, " ").trim() ?? "",
+          onclick: node.getAttribute("onclick") ?? "",
+        }))
+        .filter((item) => item.text);
+      const checkNodeBenchHandoffUrl = (urlText) => {
+        try {
+          const url = new URL(urlText);
+          return url.origin === "https://nodebenchai.com" &&
+            url.pathname === "/events/ai-infra-summit-2026/private" &&
+            url.searchParams.get("source") === "scratchnode" &&
+            url.searchParams.get("room") === "ORBITAL" &&
+            url.searchParams.get("continuation") === "private-notes" &&
+            url.searchParams.get("publicArtifact") === "event-wiki" &&
+            url.searchParams.get("return") === "https://scratchnode.live/e/ai-infra-summit-2026";
+        } catch {
+          return false;
+        }
+      };
+      const checkNodeBenchSignInUrl = (urlText, expectedReturn) => {
+        try {
+          const url = new URL(urlText);
+          return url.origin === "https://nodebenchai.com" &&
+            url.pathname === "/sign-in" &&
+            url.searchParams.get("intent") === "save-private-notes" &&
+            url.searchParams.get("return") === expectedReturn;
+        } catch {
+          return false;
+        }
+      };
+      let attendeeMenuItems = [];
       let attendeeMenuText = "";
       if (menuControllerReady) {
         globalThis.openMenu();
         await sleep(100);
-        attendeeMenuText = visibleMenuText();
+        attendeeMenuItems = visibleMenuItems();
+        attendeeMenuText = attendeeMenuItems.map((item) => item.text).join(" | ");
         globalThis.closeMenu();
         await sleep(50);
       }
@@ -1114,6 +1146,18 @@ async function runInteractiveChecks() {
       const attendeeMenuHasShare = /Share/i.test(attendeeMenuText);
       const attendeeMenuHasNodeBench = /Continue in NodeBench/i.test(attendeeMenuText);
       const attendeeMenuHidesHostConsole = !/Host console/i.test(attendeeMenuText);
+      const attendeeMenuNodeBenchItem = attendeeMenuItems.find((item) => /Continue in NodeBench/i.test(item.text));
+      const attendeeMenuNodeBenchCallsHandoff =
+        !!attendeeMenuNodeBenchItem &&
+        /openNodeBenchPrivateHandoff\(\)/i.test(attendeeMenuNodeBenchItem.onclick);
+      const nodeBenchHandoffUrl = typeof globalThis.buildNodeBenchEventPrivateUrl === "function"
+        ? globalThis.buildNodeBenchEventPrivateUrl()
+        : "";
+      const nodeBenchSignInUrl = typeof globalThis.buildNodeBenchSignInUrl === "function"
+        ? globalThis.buildNodeBenchSignInUrl(nodeBenchHandoffUrl)
+        : "";
+      const nodeBenchHandoffUrlOk = checkNodeBenchHandoffUrl(nodeBenchHandoffUrl);
+      const nodeBenchSignInUrlOk = checkNodeBenchSignInUrl(nodeBenchSignInUrl, nodeBenchHandoffUrl);
 
       return {
         functions,
@@ -1138,14 +1182,20 @@ async function runInteractiveChecks() {
         menuControllerReady,
         attendeeMenuRole,
         attendeeMenuText: attendeeMenuText.slice(0, 180),
+        attendeeMenuNodeBenchItem,
         attendeeMenuHasWiki,
         attendeeMenuHasShare,
         attendeeMenuHasNodeBench,
         attendeeMenuHidesHostConsole,
+        attendeeMenuNodeBenchCallsHandoff,
+        nodeBenchHandoffUrl,
+        nodeBenchSignInUrl,
+        nodeBenchHandoffUrlOk,
+        nodeBenchSignInUrlOk,
       };
     });
     const ok =
-      data.functions.length >= 9 &&
+      data.functions.length >= 12 &&
       /Wiki/i.test(data.wikiTitle) &&
       /People/i.test(data.peopleTitle) &&
       /Share/i.test(data.shareTitle) &&
@@ -1163,7 +1213,10 @@ async function runInteractiveChecks() {
       data.attendeeMenuHasWiki &&
       data.attendeeMenuHasShare &&
       data.attendeeMenuHasNodeBench &&
-      data.attendeeMenuHidesHostConsole;
+      data.attendeeMenuHidesHostConsole &&
+      data.attendeeMenuNodeBenchCallsHandoff &&
+      data.nodeBenchHandoffUrlOk &&
+      data.nodeBenchSignInUrlOk;
     return {
       ok,
       detail: JSON.stringify(data),
