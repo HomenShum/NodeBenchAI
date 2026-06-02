@@ -29,11 +29,14 @@
  *   - ESCALATE-UP (default → floor, climb on complexity) is ALWAYS quality-safe
  *     and is what V1 ships (e.g. ask_answer floors at Haiku, climbs to Sonnet on
  *     hard/analytical/multi-entity questions). No eval gate needed to go up.
- *   - DEMOTE-DOWN (default → strong, drop to cheaper on light turns) is the cost
- *     lever for over-provisioned paths (e.g. persona router pinning Opus). It is
- *     intentionally eval-GATED — only demote a task class to a cheaper model once
- *     that model's measured agreement with the target stays above threshold. That
- *     gate (fed by agentRunJudge / dogfood scores) is the next layer; not in V1.
+ *   - DEMOTE-DOWN (default → strong, drop to cheaper on clearly-light turns) is
+ *     the cost lever for over-provisioned paths (e.g. a persona router pinning
+ *     Opus for every turn). It is intentionally eval-GATED — only demote to a
+ *     cheaper model that is CLEARED for the task class (a static conservative
+ *     allowlist now; the live agentRunJudge/dogfood rolling-agreement feed plugs
+ *     in via RouteOptions.clearance). Pools opt in with `mode: "demote"`. A pool
+ *     with no cleared cheaper model stays on the target — quality never drops
+ *     un-cleared. agent_reason is the first demote pool (no live caller yet).
  *
  * Reliability (.claude/rules/agentic_reliability.md):
  *   - DETERMINISTIC: routeLLM is a pure function of (taskClass, signals, env).
@@ -47,6 +50,18 @@
 
 export type RouteProvider = "anthropic" | "google" | "openai" | "openrouter";
 export type RouteTier = "light" | "balanced" | "heavy";
+
+/**
+ * Routing direction for a pool:
+ *  - "escalate" (default): default to the cheap FLOOR, climb on complexity.
+ *    Always quality-safe — going up never lowers quality.
+ *  - "demote": default to the quality TARGET (heaviest), drop to a cheaper
+ *    candidate on clearly-light turns — but ONLY to models that are eval-CLEARED
+ *    for this task class. Fail-safe: nothing cleared → stay on target. This is
+ *    the cost lever for over-provisioned paths (e.g. a persona router that pins
+ *    Opus for every turn regardless of difficulty).
+ */
+export type RouteMode = "escalate" | "demote";
 
 export type TaskClass =
   | "ask_answer" // event /ask synthesis — Haiku floor, escalate to Sonnet on hard Qs
@@ -68,6 +83,8 @@ export interface RouteCandidate {
 export interface TaskPool {
   /** Ordered lightest -> heaviest. candidates[0] is the cost floor. */
   candidates: RouteCandidate[];
+  /** Routing direction. Defaults to "escalate". See RouteMode. */
+  mode?: RouteMode;
 }
 
 export interface RouteSignals {
@@ -92,8 +109,10 @@ export interface RouteDecision {
   tier: RouteTier;
   /** 0..1 complexity score that drove the decision. */
   score: number;
-  /** Did we route above the pool floor? */
+  /** Did we route above the pool floor (escalate mode)? */
   escalated: boolean;
+  /** Did we route BELOW the quality target (demote mode, eval-cleared)? */
+  demoted: boolean;
   reason: string;
 }
 
@@ -101,6 +120,39 @@ export interface RouteDecision {
 // HEAVY_THRESHOLD. Tuned conservatively: only genuinely hard turns escalate.
 export const ESCALATE_THRESHOLD = 0.5;
 export const HEAVY_THRESHOLD = 0.8;
+
+// In demote-mode pools, only drop below the quality target on clearly-light
+// turns — conservative, so only obviously-trivial work is demoted.
+export const DEMOTE_THRESHOLD = 0.25;
+
+/**
+ * Static, CONSERVATIVE demote clearance: which cheaper models are known
+ * quality-safe to demote to for a given task class, keyed "taskClass::model".
+ * This is the SAFE default until the live eval feed (agentRunJudge / dogfood
+ * rolling agreement) is wired via RouteOptions.clearance. Only pairs we are
+ * confident hold quality on LIGHT turns belong here — when in doubt, omit it and
+ * the router stays on the target model.
+ */
+export const DEMOTE_CLEARANCE: Record<string, boolean> = {
+  // A capable mid model handles trivially-light agent turns; the heavy target
+  // (Opus) is reserved for genuinely hard reasoning.
+  "agent_reason::claude-sonnet-4-6": true,
+};
+
+export interface RouteOptions {
+  /**
+   * Live eval-clearance hook. Returns whether demoting to `model` is quality-safe
+   * for `taskClass` RIGHT NOW — e.g. backed by agentRunJudge rolling agreement
+   * against the target. When provided it OVERRIDES the static DEMOTE_CLEARANCE
+   * table. This is the seam the eval-feedback layer plugs into.
+   */
+  clearance?: (taskClass: TaskClass, model: string) => boolean;
+}
+
+function isDemoteCleared(taskClass: TaskClass, model: string, opts: RouteOptions): boolean {
+  if (opts.clearance) return opts.clearance(taskClass, model);
+  return DEMOTE_CLEARANCE[`${taskClass}::${model}`] === true;
+}
 
 /** Pure env read (no Date/random). Lets ops pin or retune without a deploy. */
 function envModel(name: string, fallback: string): string {
@@ -153,6 +205,10 @@ export function getPools(): Record<TaskClass, TaskPool> {
       ],
     },
     agent_reason: {
+      // DEMOTE pool: the default IS the quality target (Opus); only clearly-light
+      // turns drop to the eval-cleared mid model (Sonnet). Models the over-
+      // provisioned persona/agent path (pins the top model for every turn).
+      mode: "demote",
       candidates: [
         { model: "claude-sonnet-4-6", provider: "anthropic", tier: "balanced", relCost: 1 },
         { model: "claude-opus-4-7", provider: "anthropic", tier: "heavy", relCost: 5 },
@@ -189,9 +245,10 @@ export function computeComplexityScore(signals: RouteSignals = {}): number {
 function decide(
   taskClass: TaskClass,
   c: RouteCandidate,
-  floor: RouteCandidate,
   score: number,
   reason: string,
+  escalated: boolean,
+  demoted: boolean,
 ): RouteDecision {
   return {
     taskClass,
@@ -199,7 +256,8 @@ function decide(
     provider: c.provider,
     tier: c.tier,
     score,
-    escalated: c.model !== floor.model || c.tier !== floor.tier,
+    escalated,
+    demoted,
     reason,
   };
 }
@@ -213,29 +271,58 @@ function decide(
  *     score >= ESCALATE_THRESHOLD -> next tier up from floor (if any)
  *     otherwise                  -> floor
  */
-export function routeLLM(taskClass: TaskClass, signals: RouteSignals = {}): RouteDecision {
+export function routeLLM(
+  taskClass: TaskClass,
+  signals: RouteSignals = {},
+  opts: RouteOptions = {},
+): RouteDecision {
   const pool = getPools()[taskClass];
   const candidates = pool.candidates;
   const floor = candidates[0];
   const heaviest = candidates[candidates.length - 1];
+  const mode: RouteMode = pool.mode ?? "escalate";
 
+  // forceTarget always lands on the quality target (heaviest), regardless of mode.
   if (signals.forceTarget) {
-    return decide(taskClass, heaviest, floor, 1, "forced quality target (high-stakes / caller override)");
+    const escalated = mode === "escalate" && heaviest.model !== floor.model;
+    return decide(taskClass, heaviest, 1, "forced quality target (high-stakes / caller override)", escalated, false);
   }
 
   const score = computeComplexityScore(signals);
+
+  if (mode === "demote") {
+    // Default IS the quality target (heaviest). Only on clearly-light turns drop
+    // to the cheapest demote-CLEARED candidate below the target. Fail-safe:
+    // nothing cleared → stay on target (never sacrifice quality un-cleared).
+    let chosen = heaviest;
+    if (score < DEMOTE_THRESHOLD) {
+      for (const c of candidates) {
+        if (c.model === heaviest.model) break; // reached the target — stop
+        if (isDemoteCleared(taskClass, c.model, opts)) {
+          chosen = c;
+          break;
+        }
+      }
+    }
+    const demoted = chosen.model !== heaviest.model;
+    const reason = demoted
+      ? `demoted to ${chosen.tier} (complexity ${score.toFixed(2)}, eval-cleared)`
+      : `target ${heaviest.tier} (complexity ${score.toFixed(2)})`;
+    return decide(taskClass, chosen, score, reason, false, demoted);
+  }
+
+  // escalate mode (default): climb from the floor on complexity.
   let chosen = floor;
   if (score >= HEAVY_THRESHOLD) {
     chosen = heaviest;
   } else if (score >= ESCALATE_THRESHOLD && candidates.length > 1) {
     chosen = candidates[1];
   }
-
-  const reason =
-    chosen.model === floor.model && chosen.tier === floor.tier
-      ? `floor ${floor.tier} (complexity ${score.toFixed(2)})`
-      : `escalated to ${chosen.tier} (complexity ${score.toFixed(2)})`;
-  return decide(taskClass, chosen, floor, score, reason);
+  const escalated = chosen.model !== floor.model || chosen.tier !== floor.tier;
+  const reason = escalated
+    ? `escalated to ${chosen.tier} (complexity ${score.toFixed(2)})`
+    : `floor ${floor.tier} (complexity ${score.toFixed(2)})`;
+  return decide(taskClass, chosen, score, reason, escalated, false);
 }
 
 // ── Per-task-class signal helpers ────────────────────────────────────────────

@@ -15,6 +15,7 @@ import {
   getPools,
   ESCALATE_THRESHOLD,
   HEAVY_THRESHOLD,
+  DEMOTE_THRESHOLD,
 } from "./router";
 
 const FLOOR = "claude-haiku-4-5-20251001";
@@ -128,5 +129,80 @@ describe("LLM router — ops env override", () => {
     process.env.SCRATCHNODE_ASK_MODEL_LIGHT = "claude-haiku-pinned";
     const r = routeLLM("ask_answer", askAnswerSignals("hi", 1));
     expect(r.model).toBe("claude-haiku-pinned");
+  });
+});
+
+const SONNET = "claude-sonnet-4-6";
+const OPUS = "claude-opus-4-7";
+
+describe("LLM router — eval-gated DEMOTE-DOWN (the cost lever)", () => {
+  /**
+   * Persona: an over-provisioned agent path (e.g. persona router pins Opus for
+   * every turn). Goal: keep Opus for hard reasoning, but stop paying for it on
+   * trivial turns. agent_reason is a demote pool: target=Opus, demote→Sonnet.
+   */
+  it("demotes a trivially-light agent turn to the eval-cleared mid model", () => {
+    const r = routeLLM("agent_reason", { inputChars: 30, sourceCount: 0 });
+    expect(r.model).toBe(SONNET); // Sonnet is statically cleared for agent_reason
+    expect(r.demoted).toBe(true);
+    expect(r.escalated).toBe(false);
+    expect(r.score).toBeLessThan(DEMOTE_THRESHOLD);
+  });
+
+  it("STAYS on the quality target (Opus) for a hard agent turn", () => {
+    const r = routeLLM("agent_reason", { complexityHint: "high", inputChars: 700, multiEntity: true });
+    expect(r.model).toBe(OPUS);
+    expect(r.demoted).toBe(false);
+    expect(r.escalated).toBe(false); // demote pools never "escalate" — target IS the default
+  });
+
+  it("forceTarget pins Opus even on a trivial turn", () => {
+    const r = routeLLM("agent_reason", { inputChars: 5, forceTarget: true });
+    expect(r.model).toBe(OPUS);
+    expect(r.demoted).toBe(false);
+  });
+
+  /**
+   * The eval gate is FAIL-SAFE: if the cheaper model is NOT cleared, a light
+   * turn stays on the quality target. This is the "never sacrifice quality
+   * un-cleared" guarantee — the whole point of "maintain quality".
+   */
+  it("fail-safe: an un-cleared cheaper model is NOT demoted to (stays on target)", () => {
+    const r = routeLLM("agent_reason", { inputChars: 30 }, { clearance: () => false });
+    expect(r.model).toBe(OPUS); // nothing cleared → stay on Opus despite the light turn
+    expect(r.demoted).toBe(false);
+  });
+
+  it("a live clearance hook OVERRIDES the static table (both directions)", () => {
+    // Live feed says NO → stay on target even though the static table cleared Sonnet.
+    const blocked = routeLLM("agent_reason", { inputChars: 30 }, { clearance: () => false });
+    expect(blocked.model).toBe(OPUS);
+    // Live feed says YES → demote.
+    const allowed = routeLLM("agent_reason", { inputChars: 30 }, { clearance: () => true });
+    expect(allowed.model).toBe(SONNET);
+    expect(allowed.demoted).toBe(true);
+  });
+
+  it("is deterministic in demote mode — same turn routes identically", () => {
+    const sig = { inputChars: 40, sourceCount: 1 };
+    expect(routeLLM("agent_reason", sig)).toEqual(routeLLM("agent_reason", sig));
+  });
+
+  it("only demotes BELOW the demote threshold (boundary)", () => {
+    // medium complexity (0.25) is NOT < DEMOTE_THRESHOLD(0.25) → stays target.
+    const atThreshold = routeLLM("agent_reason", { complexityHint: "medium" });
+    expect(atThreshold.model).toBe(OPUS);
+    // clearly-light → demote.
+    const below = routeLLM("agent_reason", { inputChars: 50 });
+    expect(below.model).toBe(SONNET);
+  });
+
+  it("escalate pools are unaffected — they never report demoted", () => {
+    const r = routeLLM("ask_answer", askAnswerSignals("What time is the keynote?", 1));
+    expect(r.demoted).toBe(false);
+    expect(r.escalated).toBe(false);
+    // and an escalate pool's mode default holds
+    expect(getPools().ask_answer.mode ?? "escalate").toBe("escalate");
+    expect(getPools().agent_reason.mode).toBe("demote");
   });
 });

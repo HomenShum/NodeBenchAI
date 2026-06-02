@@ -39,7 +39,7 @@ Convex agents) and layered on top of this core later.
 | Direction | When | Quality safety |
 |---|---|---|
 | **Escalate-up** (floor → climb on complexity) | default path is already cheap (e.g. `/ask` floors at Haiku) | always safe — going up never lowers quality. **V1 ships this.** |
-| **Demote-down** (strong default → drop to cheaper on light turns) | path over-provisions (e.g. persona router pinning Opus for every banker turn) | **eval-GATED** — only demote once the cheaper model's measured agreement with the target stays above threshold (fed by `agentRunJudge` / dogfood scores). *Next layer.* |
+| **Demote-down** (strong default → drop to cheaper on light turns) | path over-provisions (e.g. persona router pinning Opus for every banker turn) | **eval-GATED** — only demote once the cheaper model's measured agreement with the target stays above threshold (fed by `agentRunJudge` / dogfood scores). **Mechanism shipped** via `mode: "demote"` + `isDemoteCleared` (static clearance now; live feed = roadmap #4). |
 
 ## Reliability invariants (`.claude/rules/agentic_reliability.md`)
 
@@ -72,12 +72,19 @@ UI) and stores `modelId` + `estimatedCostCents` on `liveEventAnswers`, so
 escalations and their cost are auditable per answer. `getAskTelemetry`
 aggregates them.
 
-## Roadmap (next PRs)
+## Roadmap
 
-1. Wire `classify` / `extract` / `synthesize` in `server/routes/search.ts`.
-2. Cache-sticky wrapper for `agent_reason` (FastAgent + Convex agents) — cache
+1. ✅ Wire `classify` / `extract` / `synthesize` in `server/routes/search.ts`.
+2. ✅ **Demote-down mechanism** — `mode: "demote"` pools default to the quality
+   target and drop to a cheaper candidate on clearly-light turns, gated by
+   `isDemoteCleared` (a conservative static `DEMOTE_CLEARANCE` table + a
+   pluggable `RouteOptions.clearance` hook). Fail-safe: nothing cleared → stay
+   on target. `agent_reason` is the first demote pool. *No live caller yet.*
+3. Cache-sticky wrapper for `agent_reason` (FastAgent + Convex agents) — cache
    the route per conversation, reuse on tool-result turns, switch only when the
-   expected win beats the cache-eviction cost.
-3. Eval-gated **demote-down**: per `(taskClass, model)` rolling agreement from
-   `agentRunJudge` / dogfood scores; demote only above threshold.
-4. Routing dashboard: cost + escalation rate per task class.
+   expected win beats the cache-eviction cost. **This wires the first live
+   demote caller.**
+4. Live eval feed: implement `RouteOptions.clearance` from `agentRunJudge` /
+   dogfood per-`(taskClass, model)` rolling agreement, replacing the static
+   `DEMOTE_CLEARANCE` table.
+5. Routing dashboard: cost + escalation/demote rate per task class.
