@@ -11,3 +11,8 @@ Created the loop substrate (`scan.mjs` deterministic opportunity detectors + sco
 Added 3 detectors (button-without-type w/ form-context safety gating, target=_blank missing rel=noopener, img missing alt) and CSS/HTML comment-masking so example markup in comments is not flagged. The cycle found 1 false positive (rejected -> hardened) and 3 real button fixes (shipped). Demonstrates the loop converging: post-fix scan is clean.
 
 **Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
+## 2026-06-02 — Cycle C003: anchor-as-button a11y detector + fix
+Added detectAnchorButtons (flags <a onclick> with no href/role). Found + fixed 3 real instances (openWiki, startTour, snPublishWiki) by adding role="button" tabindex="0" + a global Enter/Space keydown delegate. Mid-cycle I caught a self-introduced bug (inline onkeydown single-quotes broke a JS innerHTML string) and corrected it before shipping — the validate-before-ship discipline in action. Post-fix scan clean.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.

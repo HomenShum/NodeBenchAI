@@ -1934,7 +1934,7 @@ function _landingJoin(ev) {
   <button type="button" class="la-toggle" id="la-toggle" data-on="false" onclick="toggleLiveAssist()" aria-pressed="false" aria-label="Toggle Live Assist private cues" title="Private cues — only you see these">
     <span class="icon">💡</span><span>Cues</span>
   </button>
-  <a class="ev-link" onclick="openWiki()">Open wiki →</a>
+  <a class="ev-link" role="button" tabindex="0" onclick="openWiki()">Open wiki →</a>
 </div>
 
 <main class="m">
@@ -1943,7 +1943,7 @@ function _landingJoin(ev) {
   <div class="welcome" role="status" aria-live="polite">
     <span class="welcome-emoji" aria-hidden="true">&#128075;</span>
     <span class="welcome-text">
-      <strong>New to ScratchNode?</strong> This is the sidecar room: chat publicly, <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:0 4px;border-radius:3px">/ask</code> for sourced answers, or lock the composer for private notes. <a onclick="startTour()">Take the 20-second tour&nbsp;&rarr;</a>
+      <strong>New to ScratchNode?</strong> This is the sidecar room: chat publicly, <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:0 4px;border-radius:3px">/ask</code> for sourced answers, or lock the composer for private notes. <a role="button" tabindex="0" onclick="startTour()">Take the 20-second tour&nbsp;&rarr;</a>
     </span>
     <button class="welcome-close" type="button" onclick="dismissWelcome()" aria-label="Dismiss">&times;</button>
   </div>
@@ -3427,7 +3427,7 @@ var SHEET_RENDERERS = {
       return '<div class="sheet-head"><h2 id="sheet-title">' + escapeHtml(EVENT_TITLE) + ' &middot; Wiki</h2><span class="badge">live Convex</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
         '<div class="wiki-shell"><aside class="wiki-toc" aria-label="Table of contents"><div class="wiki-toc-label">Source</div><a class="wiki-toc-link active">Published snapshot</a></aside>' +
         '<article class="wiki-article" id="wiki-article">' + window._sn_published_wiki_body + '</article>' +
-        '<aside class="wiki-onpage" aria-label="Actions"><div class="wiki-onpage-label">Actions</div><a onclick="window.snPublishWiki && window.snPublishWiki()">Republish</a></aside></div>';
+        '<aside class="wiki-onpage" aria-label="Actions"><div class="wiki-onpage-label">Actions</div><a role="button" tabindex="0" onclick="window.snPublishWiki && window.snPublishWiki()">Republish</a></aside></div>';
     }
     if (window._sn_live && window._sn_live.eventId) {
       return '<div class="sheet-head"><h2 id="sheet-title">' + escapeHtml(EVENT_TITLE) + ' &middot; Wiki</h2><span class="badge">not published</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
@@ -8994,5 +8994,6 @@ window._laCueAction       = _laCueAction;
   } catch (e) { /* no-op */ }
 })();
 </script>
+<script>document.addEventListener("keydown",function(e){if((e.key==="Enter"||e.key===" ")&&e.target&&e.target.matches&&e.target.matches("a[role=\"button\"]")){e.preventDefault();e.target.click();}});</script>
 </body>
 </html>

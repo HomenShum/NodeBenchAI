@@ -11,3 +11,8 @@ Centralized lightweight motion tokens and added a visual polish pass across the 
 Self-improvement loop cycle C002 added `type="button"` to the Memory Wall sticky-delete button and the two onboarding-tour buttons (Next/Skip) — they had onclick handlers but no explicit type (implicit-submit footgun). Validated as not inside a <form>; no behavior change. e2e honesty + output-contract green.
 
 **Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
+## 2026-06-02 — a11y: anchors-as-buttons keyboard/SR accessible (loop C003)
+The "Open wiki", "Take the tour", and "Publish wiki" controls were <a onclick> with no href/role — keyboard users could not focus/activate them and screen readers announced them as links. Added role="button" + tabindex="0" and a global Enter/Space keydown delegate for any a[role=button]. No behavior change for mouse users. e2e green.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
