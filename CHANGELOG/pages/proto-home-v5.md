@@ -23,7 +23,12 @@ on one clock.
 
 The counter now shows a big "rooms created" with `● N active now · N live right now`
 chips. 14/14 honesty suite green; tsc clean; chrome-fix + chips verified in preview.
-Deferred to a follow-up: Create-first form hierarchy.
+
+**Hierarchy flip (founder call):** the original complaint was that a visitor couldn't
+just land and spin up a room — so **Create room is now the primary CTA** (filled accent,
+top of the form stack, "Create room →"), with **Join immediately available but secondary**
+(outline accent) below an "or join an existing room" divider. The prod artifact reads as
+one coherent landing, not a merge of two designs.
 
 **Commit**: `this commit`. **Author**: Homen Shum + Claude (synthesizing Codex branch work).
 

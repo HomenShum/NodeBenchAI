@@ -1831,6 +1831,7 @@ body[data-page-mode="landing"] .welcome {
   box-shadow: 0 0 0 3px rgba(217,119,87,.18);
 }
 .landing-join input::placeholder { color: var(--ink-faint); }
+/* Join is now the SECONDARY action — outline accent. */
 .landing-join button {
   font-family: var(--ui);
   font-weight: 600;
@@ -1838,12 +1839,13 @@ body[data-page-mode="landing"] .welcome {
   padding: 12px 20px;
   border-radius: 8px;
   border: 1px solid var(--accent);
-  background: var(--accent);
-  color: #fff;
+  background: transparent;
+  color: var(--accent);
   cursor: pointer;
-  transition: background .15s ease;
+  white-space: nowrap;
+  transition: background .15s ease, color .15s ease;
 }
-.landing-join button:hover { background: #c46a4e; }
+.landing-join button:hover { background: var(--accent); color: #fff; }
 .landing-join button:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(217,119,87,.35);
@@ -1935,6 +1937,7 @@ body[data-page-mode="landing"] .welcome {
 .landing-create input::placeholder { color: var(--ink-faint); }
 /* Outline-accent so "Join" stays the single primary CTA; Create is clearly
    available but secondary in the visual hierarchy. */
+/* Create is now the PRIMARY action — filled accent. */
 .landing-create button {
   font-family: var(--ui);
   font-weight: 600;
@@ -1942,13 +1945,13 @@ body[data-page-mode="landing"] .welcome {
   padding: 12px 20px;
   border-radius: 8px;
   border: 1px solid var(--accent);
-  background: transparent;
-  color: var(--accent);
+  background: var(--accent);
+  color: #fff;
   cursor: pointer;
   white-space: nowrap;
   transition: background .15s ease, color .15s ease;
 }
-.landing-create button:hover { background: var(--accent); color: #fff; }
+.landing-create button:hover { background: #c46a4e; }
 .landing-create button:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(217,119,87,.35);
@@ -2095,7 +2098,7 @@ async function _landingCreate(ev) {
   }
   function fail(msg) {
     setStatus(msg, 'error');
-    if (btn) { btn.disabled = false; btn.textContent = 'Create room & enter →'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Create room →'; }
     if (typeof toast === 'function') { try { toast('Could not create room', msg); } catch (e) {} }
     return false;
   }
@@ -2318,19 +2321,22 @@ if (document.readyState === 'loading') {
     <span class="landing-logo">Scratch<span>Node</span></span>
     <h1>The room remembers everything.</h1>
     <p>Drop a code, chat live, hit <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:1px 6px;border-radius:3px">/ask</code> for sourced answers — and walk away with a wiki of everything that happened. No account, no app.</p>
-    <form class="landing-join" onsubmit="return _landingJoin(event)" aria-label="Join an event by room code">
-      <input type="text" placeholder="Enter room code (e.g. ORBITAL)" aria-label="Room code" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <button type="submit">Join &rarr;</button>
-    </form>
-    <div class="landing-or" aria-hidden="true"><span>or host your own</span></div>
+    <!-- Create is the PRIMARY action: the original complaint was that a visitor
+         couldn't just land and spin up a room. Join stays immediately available
+         but secondary (outline) below an "or join" divider. -->
     <form class="landing-create" onsubmit="return _landingCreate(event)" aria-label="Create a new room for your event">
       <input type="text" id="landing-create-name" placeholder="Name your event (e.g. Sarah&#39;s Birthday)" aria-label="Event name" maxlength="90" autocomplete="off" required>
       <div class="landing-create-sub">
         <input type="text" id="landing-create-code" placeholder="Custom code (optional)" aria-label="Custom room code (optional)" maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false">
-        <button type="submit" id="landing-create-btn">Create room &amp; enter &rarr;</button>
+        <button type="submit" id="landing-create-btn">Create room &rarr;</button>
       </div>
     </form>
     <p class="landing-create-status" id="landing-create-status" role="status" aria-live="polite"></p>
+    <div class="landing-or" aria-hidden="true"><span>or join an existing room</span></div>
+    <form class="landing-join" onsubmit="return _landingJoin(event)" aria-label="Join an event by room code">
+      <input type="text" placeholder="Enter room code (e.g. ORBITAL)" aria-label="Room code" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button type="submit">Join &rarr;</button>
+    </form>
     <div class="landing-cta-row">
       <a href="/demo_ver1" class="landing-secondary">See the demo &rarr;</a>
       <a href="/docs" class="landing-secondary">Read the docs &rarr;</a>
