@@ -124,9 +124,12 @@ button:active { transform: scale(.97); transition: transform .08s; }
   min-height: 36px; padding: 6px 14px; border-radius: var(--r-sm);
   background: transparent; border: 1px solid var(--line);
   color: var(--accent); font-family: var(--mono); font-size: 12px; font-weight: 700;
-  letter-spacing: .18em; cursor: pointer; transition: border-color .12s;
+  letter-spacing: .18em; cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out);
 }
 .h-code:hover { border-color: var(--accent); }
+/* Tactile "copied" confirmation — green flash + check, paired with the toast (text + colour, not colour alone). */
+.h-code.is-copied { color: var(--green); border-color: rgba(94,168,103,.5); background: rgba(94,168,103,.1); }
 .h-menu { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-sm); border: 1px solid var(--line); background: transparent; color: var(--ink-muted); }
 .h-menu:hover { color: var(--ink); border-color: var(--ink-faint); }
 @media (max-width: 540px) { .h-menu { width: 44px; height: 44px; } .h-code { min-height: 44px; } }
@@ -1178,6 +1181,15 @@ body[data-role="attendee"] .host-queue { display: none; }
 .nodebench-overlay .nb-close { margin-left: auto; background: none; border: 1px solid rgba(255,255,255,.1); color: #e8e6e3; padding: 6px 12px; border-radius: 6px; font-size: 12px; }
 .nodebench-overlay .nb-body { padding: 22px; max-width: 1100px; margin: 0 auto; width: 100%; }
 .nodebench-overlay .nb-section { margin-bottom: 24px; }
+/* Cinematic handoff: after the overlay slides in, its sections cascade up so the
+   "Now in NodeBench" moment feels composed rather than a hard cut. */
+@keyframes nbSectionIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+.nodebench-overlay[data-visible="true"] .nb-body > .nb-section { animation: nbSectionIn var(--motion-slow) var(--ease-out) both; }
+.nodebench-overlay[data-visible="true"] .nb-body > .nb-section:nth-child(1) { animation-delay: .1s; }
+.nodebench-overlay[data-visible="true"] .nb-body > .nb-section:nth-child(2) { animation-delay: .18s; }
+.nodebench-overlay[data-visible="true"] .nb-body > .nb-section:nth-child(3) { animation-delay: .26s; }
+.nodebench-overlay[data-visible="true"] .nb-body > .nb-section:nth-child(n+4) { animation-delay: .32s; }
+@media (prefers-reduced-motion: reduce) { .nodebench-overlay[data-visible="true"] .nb-body > .nb-section { animation: none; } }
 .nodebench-overlay .nb-section-head { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; color: rgba(255,255,255,.5); text-transform: uppercase; margin-bottom: 8px; }
 .nodebench-overlay .nb-card { padding: 14px; border-radius: 10px; background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.06); }
 .nodebench-overlay .nb-card + .nb-card { margin-top: 8px; }
@@ -2899,10 +2911,25 @@ function copyRoom() {
     return;
   }
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(function(){ toast('Copied join link', EVENT_ROOM_CODE + ' · paste in any chat.'); });
+    navigator.clipboard.writeText(text).then(function(){ toast('Copied join link', EVENT_ROOM_CODE + ' · paste in any chat.'); flashRoomCode(); });
   } else {
     toast('Room: ' + EVENT_ROOM_CODE, 'Share this URL with attendees.');
   }
+}
+// Brief inline "copied" confirmation on the room-code chip (check + green flash), then restore.
+// Pairs with the toast — text + colour, not colour alone.
+function flashRoomCode() {
+  var btn = document.getElementById('sn-room-code-btn');
+  if (!btn || btn.dataset.flashing === '1') return;
+  var original = btn.textContent;
+  btn.dataset.flashing = '1';
+  btn.classList.add('is-copied');
+  btn.textContent = '✓ Copied';
+  setTimeout(function() {
+    btn.classList.remove('is-copied');
+    btn.textContent = original;
+    delete btn.dataset.flashing;
+  }, 1300);
 }
 
 // ── Menu ──
