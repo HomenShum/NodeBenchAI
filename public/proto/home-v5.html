@@ -1703,6 +1703,66 @@ body[data-page-mode="landing"] .welcome {
   align-items: center;
   gap: 18px;
 }
+/* Live "big number" — real, reactive room counter. Gently floats; the count
+   animates up when the reactive Convex query pushes a new value. Motion-safe:
+   no flashing, subtle translate + small status-dot ring, all gated under
+   prefers-reduced-motion. */
+.landing-pulse {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 4px;
+  animation: landing-pulse-float 5.5s ease-in-out infinite;
+}
+/* A class rule beats the UA [hidden]{display:none}, so make the hide explicit —
+   otherwise the counter would flash a dishonest "0" before real data arrives. */
+.landing-pulse[hidden] { display: none; }
+.landing-pulse__big {
+  font-family: var(--ui);
+  font-weight: 800;
+  font-size: 64px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+  text-shadow: 0 0 26px rgba(217,119,87,.42), 0 0 60px rgba(217,119,87,.16);
+  font-variant-numeric: tabular-nums;
+}
+.landing-pulse__suffix { font-size: 40px; opacity: .8; }
+.landing-pulse__label {
+  font-family: var(--ui);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.landing-pulse__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+  font-family: var(--ui);
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+.landing-pulse__live #landing-pulse-live { color: var(--ink); font-weight: 600; }
+.landing-pulse__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 0 0 rgba(74,222,128,.55);
+  animation: landing-pulse-dot 2.4s ease-out infinite;
+}
+@keyframes landing-pulse-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes landing-pulse-dot {
+  0% { box-shadow: 0 0 0 0 rgba(74,222,128,.55); }
+  70% { box-shadow: 0 0 0 9px rgba(74,222,128,0); }
+  100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+}
 .landing-logo {
   font-family: var(--ui);
   font-weight: 800;
@@ -1893,6 +1953,8 @@ body[data-page-mode="landing"] .welcome {
   .landing-join button { width: 100%; }
   .landing-create-sub { flex-direction: column; }
   .landing-create button { width: 100%; }
+  .landing-pulse__big { font-size: 48px; }
+  .landing-pulse__suffix { font-size: 30px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .landing-join input,
@@ -1900,6 +1962,8 @@ body[data-page-mode="landing"] .welcome {
   .landing-create input,
   .landing-create button,
   .landing-secondary { transition: none; }
+  .landing-pulse,
+  .landing-pulse__dot { animation: none; }
 }
 
 </style>
@@ -2097,11 +2161,108 @@ async function _landingCreate(ev) {
     return fail((e && e.message) || 'Unexpected error creating the room.');
   }
 }
+
+/**
+ * _snInitLandingStats — the live "big number" on the apex landing.
+ *
+ * Subscribes read-only to events:getLandingStats via a lazily-loaded Convex
+ * client and animates the room counter up when the reactive query pushes a new
+ * value (Convex re-runs the query for every subscriber the instant a room is
+ * created — true live updates, no client polling).
+ *
+ * Bulletproof + honest:
+ *   - Runs ONLY in landing mode; never sets data-sn-live (apex stays "not live").
+ *   - Never throws to the page; any failure leaves the stat hidden.
+ *   - Hides entirely when roomsCreated < 1 — never a fabricated number on an
+ *     empty or offline backend (agentic_reliability HONEST_SCORES).
+ */
+function _snFmtStat(n) {
+  try { return Number(n).toLocaleString('en-US'); } catch (e) { return String(n); }
+}
+function _snInitLandingStats() {
+  try {
+    if (!document.body || document.body.dataset.pageMode !== 'landing') return;
+    var wrap = document.getElementById('landing-pulse');
+    var numEl = document.getElementById('landing-pulse-num');
+    var liveEl = document.getElementById('landing-pulse-live');
+    var sufEl = document.getElementById('landing-pulse-suffix');
+    if (!wrap || !numEl || !liveEl) return;
+    var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    var shownRooms = 0;
+    var raf = null;
+
+    function animateTo(target) {
+      if (raf) { cancelAnimationFrame(raf); raf = null; }
+      if (reduce || shownRooms === target) { numEl.textContent = _snFmtStat(target); shownRooms = target; return; }
+      var from = shownRooms;
+      var start = null;
+      var dur = 750;
+      function step(ts) {
+        if (start === null) start = ts;
+        var p = Math.min(1, (ts - start) / dur);
+        var eased = 1 - Math.pow(1 - p, 3);
+        numEl.textContent = _snFmtStat(Math.round(from + (target - from) * eased));
+        if (p < 1) { raf = requestAnimationFrame(step); }
+        else { raf = null; shownRooms = target; }
+      }
+      raf = requestAnimationFrame(step);
+    }
+
+    function render(stats) {
+      if (!stats || typeof stats.roomsCreated !== 'number') return;
+      var rooms = stats.roomsCreated;
+      if (rooms < 1) { wrap.hidden = true; return; }  // honest: hide empty, never fake
+      wrap.hidden = false;
+      if (sufEl) sufEl.textContent = stats.capped ? '+' : '';
+      liveEl.textContent = _snFmtStat(Math.max(0, stats.liveNow || 0));
+      animateTo(rooms);
+    }
+
+    function connect() {
+      fetch('/api/scratchnode-config', { cache: 'no-store' })
+        .then(function (r) { if (!r.ok) throw new Error('cfg'); return r.json(); })
+        .then(function (cfg) {
+          if (!cfg || !cfg.convexUrl) throw new Error('nourl');
+          return import('https://esm.sh/convex@1.29.0/browser').then(function (mod) {
+            var ConvexClient = mod.ConvexClient;
+            if (!ConvexClient) throw new Error('noclient');
+            var client = new ConvexClient(cfg.convexUrl);
+            window._sn_landing_stats = { client: client };
+            client.onUpdate('events:getLandingStats', {}, function (stats) {
+              try { render(stats); } catch (e) {}
+            });
+          });
+        })
+        .catch(function () { /* honest: backend unreachable -> stat stays hidden */ });
+    }
+
+    if (window.requestIdleCallback) { requestIdleCallback(connect, { timeout: 2500 }); }
+    else { setTimeout(connect, 450); }
+  } catch (e) { /* never break the landing */ }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _snInitLandingStats);
+} else {
+  _snInitLandingStats();
+}
 </script>
 
 <!-- Landing-mode hero — visible only when data-page-mode === "landing" -->
 <section class="landing" role="region" aria-label="ScratchNode landing">
   <div class="landing-hero">
+    <!-- Live "big number" — real, reactive room count. Hidden until the live
+         backend reports >=1 room (no fabricated number on an empty/offline
+         backend). Ticks up the instant anyone, anywhere, creates a room. -->
+    <div class="landing-pulse" id="landing-pulse" aria-live="polite" hidden>
+      <div class="landing-pulse__big">
+        <span id="landing-pulse-num">0</span><span class="landing-pulse__suffix" id="landing-pulse-suffix"></span>
+      </div>
+      <div class="landing-pulse__label">rooms spun up on ScratchNode</div>
+      <div class="landing-pulse__live">
+        <span class="landing-pulse__dot" aria-hidden="true"></span>
+        <span id="landing-pulse-live">0</span> live right now
+      </div>
+    </div>
     <span class="landing-logo">Scratch<span>Node</span></span>
     <h1>A disposable sidecar room for live event memory.</h1>
     <p>Bring your Luma, Slack, or Eventbrite crowd. Anyone with a room code can join, chat publicly, use <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:1px 6px;border-radius:3px">/ask</code> for sourced answers, and keep private notes that never enter the public room.</p>

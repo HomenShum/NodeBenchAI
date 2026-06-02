@@ -2,6 +2,29 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-02 — Live "big number" room counter on the landing
+Added an animated, reactive hero stat to the apex landing: a large room-count that
+**ticks up the instant anyone, anywhere, creates a room** — driven by a new reactive
+Convex query `events:getLandingStats` (bounded scan, returns `{ roomsCreated, liveNow,
+capped }`), not a client timer. A pulsing "● N live right now" sub-line shows open rooms.
+
+The counter gently floats with a soft accent glow; the number animates up via a cubic
+ease when the reactive value changes. Motion-safe: subtle translate + small status-dot
+ring (no flashing), all gated under `prefers-reduced-motion`. Mobile scales the digits down.
+
+Honesty (`agentic_reliability` HONEST_SCORES): every figure is a real row count — no
+fabricated marketing number. The stat is **hidden entirely** until the backend reports
+≥1 room (so an empty or offline backend never flashes a fake "0"), enforced by both the
+`render()` guard and a `.landing-pulse[hidden]{display:none}` rule (a class selector
+otherwise beats the UA `[hidden]` rule). The landing subscription is read-only and never
+sets `data-sn-live`, so the apex stays honestly "not live". Bulletproof: any config/client
+failure leaves the stat hidden and never throws to the page.
+
+Covered by 3 new cases in `scratchnode-live-route-honesty.spec.ts` (real value renders
+`1,342`, scan-cap renders `5,000+`, zero rooms stays hidden). 13/13 honesty suite green.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-02 — Add a self-serve "Create a room" front-door to the landing
 The apex landing only offered a "Join with a code" form — a first-time visitor had
 no way to actually create a room. `events:createEvent` existed in the backend and a
