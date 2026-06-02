@@ -2,6 +2,31 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-02 — Synthesize the best landing from two parallel agent builds
+Codex and Claude independently built the create-room front-door + the live counter.
+Instead of picking a winner, cherry-picked the strongest micro-decisions from each:
+
+**From Codex's branches:** index-backed presence counting — added `by_startedAt` +
+`by_status_startedAt` (liveEvents) and `by_lastSeen` (liveEventMembers) indexes so
+`events:getLandingStats` now reports a real **"active now"** (member sessions within the
+5-min presence TTL) alongside rooms created + live rooms, each index-scanned and bounded
+(10k events / 5k sessions, "N+" when capped); a 25s poll fallback for Convex browser
+clients without `onUpdate`; and the full landing-mode chrome hide (`.h` header, `.f`
+footer, menu/sheet/shortcut overlays) — fixes a real leak where room chrome rendered
+below the apex landing and you could scroll into it.
+
+**Kept from Claude:** the "The room remembers everything" headline + OG card, honest
+hide-on-zero (never a fake "0"), and the synced-easing invariant so displayed-live never
+exceeds displayed-total during the count-up — now `animatePair` is superseded by
+`animateTrio`, extending the invariant to a 3-number trio (rooms + live + active) eased
+on one clock.
+
+The counter now shows a big "rooms created" with `● N active now · N live right now`
+chips. 14/14 honesty suite green; tsc clean; chrome-fix + chips verified in preview.
+Deferred to a follow-up: Create-first form hierarchy.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude (synthesizing Codex branch work).
+
 ## 2026-06-02 — Fix counter count-up flashing "more live than total"
 Live-DOM Tier-B check on production caught the live counter momentarily rendering
 `6 live · 4 total` during first load — impossible in steady state (live rooms are a
@@ -12,6 +37,7 @@ to be trustworthy. Fix: `animatePair()` eases both numbers from the same prior v
 with identical easing, so total ≥ live at every frame (`Math.round` is monotonic, and
 `roomsCreated ≥ liveNow` always). Guarded by a new e2e case that samples both numbers
 14× across the animation and asserts `live ≤ total` at every frame. 14/14 suite green.
+[Superseded same day by `animateTrio` in the synthesis entry above.]
 
 **Commit**: `this commit`. **Author**: Homen Shum + Claude.
 

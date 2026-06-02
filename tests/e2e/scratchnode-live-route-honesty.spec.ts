@@ -115,7 +115,7 @@ async function fulfillScratchNodePage(
               setTimeout(() => cb([{ displayName: 'Mock Host' }, { displayName: 'Mock Guest' }]), 0);
             }
             if (name === 'events:getLandingStats') {
-              const s = window.__snLandingStats || { roomsCreated: 0, liveNow: 0, capped: false };
+              const s = window.__snLandingStats || { roomsCreated: 0, liveNow: 0, activeNow: 0, capped: false };
               setTimeout(() => cb(s), 0);
             }
           }
@@ -383,16 +383,17 @@ test.describe("ScratchNode live route honesty", () => {
   test("landing surfaces a live 'big number' room counter from real backend data", async ({ page }) => {
     await fulfillScratchNodePage(page);
     await page.addInitScript(() => {
-      (window as any).__snLandingStats = { roomsCreated: 1342, liveNow: 7, capped: false };
+      (window as any).__snLandingStats = { roomsCreated: 1342, liveNow: 7, activeNow: 18, capped: false };
     });
 
     await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#landing-pulse")).toBeVisible({ timeout: 6_000 });
-    // The big number is the EXACT reactive backend count — never a marketing figure.
+    // Every number is the EXACT reactive backend count — never a marketing figure.
     await expect
       .poll(() => page.locator("#landing-pulse-num").textContent(), { timeout: 6_000 })
       .toBe("1,342");
     await expect(page.locator("#landing-pulse-live")).toHaveText("7");
+    await expect(page.locator("#landing-pulse-active")).toHaveText("18");
     await expect(page.locator("#landing-pulse-suffix")).toHaveText("");
   });
 
@@ -428,17 +429,16 @@ test.describe("ScratchNode live route honesty", () => {
   test("landing counter never shows more 'live' than 'total' during the count-up", async ({ page }) => {
     await fulfillScratchNodePage(page);
     await page.addInitScript(() => {
-      // liveNow close to (but <=) total — the regression flashed "6 live · 4 total"
-      // because rooms animated from 0 while liveNow was set instantly.
-      (window as any).__snLandingStats = { roomsCreated: 8, liveNow: 6, capped: false };
+      // liveNow close to (but <=) total — live rooms are a subset of total, so the
+      // displayed live count must never exceed the displayed total at any frame.
+      (window as any).__snLandingStats = { roomsCreated: 8, liveNow: 6, activeNow: 40, capped: false };
     });
 
     await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#landing-pulse")).toBeVisible({ timeout: 6_000 });
 
-    // Sample both numbers repeatedly across the ~750ms count-up. Live rooms are a
-    // subset of total rooms, so the displayed live count must NEVER exceed the
-    // displayed total at any frame.
+    // Sample both numbers repeatedly across the ~750ms count-up. The displayed
+    // live count must NEVER exceed the displayed total at any frame.
     const parse = (s: string | null) => parseInt((s || "0").replace(/,/g, ""), 10);
     for (let i = 0; i < 14; i++) {
       const { rooms, live } = await page.evaluate(() => ({
@@ -454,5 +454,7 @@ test.describe("ScratchNode live route honesty", () => {
     // …and it settles on the exact real values.
     await expect.poll(() => page.locator("#landing-pulse-num").textContent()).toBe("8");
     await expect(page.locator("#landing-pulse-live")).toHaveText("6");
+    // activeNow is a different unit (sessions) and is allowed to exceed rooms.
+    await expect(page.locator("#landing-pulse-active")).toHaveText("40");
   });
 });
