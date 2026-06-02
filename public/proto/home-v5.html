@@ -2189,21 +2189,36 @@ function _snInitLandingStats() {
     if (!wrap || !numEl || !liveEl) return;
     var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     var shownRooms = 0;
+    var shownLive = 0;
     var raf = null;
 
-    function animateTo(target) {
+    // Animate rooms AND liveNow together with identical easing. Live rooms are
+    // always a subset of total rooms (liveNow <= roomsCreated), but if only the
+    // rooms count animated up from 0 while liveNow was set instantly, the first
+    // ~750ms could show "6 live · 4 total" — which reads as a broken/fake number
+    // on the one stat that must be trustworthy. Easing both from the same prior
+    // values keeps rooms >= live at every frame.
+    function animatePair(roomsTarget, liveTarget) {
       if (raf) { cancelAnimationFrame(raf); raf = null; }
-      if (reduce || shownRooms === target) { numEl.textContent = _snFmtStat(target); shownRooms = target; return; }
-      var from = shownRooms;
+      if (reduce || (shownRooms === roomsTarget && shownLive === liveTarget)) {
+        numEl.textContent = _snFmtStat(roomsTarget);
+        liveEl.textContent = _snFmtStat(liveTarget);
+        shownRooms = roomsTarget;
+        shownLive = liveTarget;
+        return;
+      }
+      var fromR = shownRooms;
+      var fromL = shownLive;
       var start = null;
       var dur = 750;
       function step(ts) {
         if (start === null) start = ts;
         var p = Math.min(1, (ts - start) / dur);
         var eased = 1 - Math.pow(1 - p, 3);
-        numEl.textContent = _snFmtStat(Math.round(from + (target - from) * eased));
+        numEl.textContent = _snFmtStat(Math.round(fromR + (roomsTarget - fromR) * eased));
+        liveEl.textContent = _snFmtStat(Math.round(fromL + (liveTarget - fromL) * eased));
         if (p < 1) { raf = requestAnimationFrame(step); }
-        else { raf = null; shownRooms = target; }
+        else { raf = null; shownRooms = roomsTarget; shownLive = liveTarget; }
       }
       raf = requestAnimationFrame(step);
     }
@@ -2214,8 +2229,7 @@ function _snInitLandingStats() {
       if (rooms < 1) { wrap.hidden = true; return; }  // honest: hide empty, never fake
       wrap.hidden = false;
       if (sufEl) sufEl.textContent = stats.capped ? '+' : '';
-      liveEl.textContent = _snFmtStat(Math.max(0, stats.liveNow || 0));
-      animateTo(rooms);
+      animatePair(rooms, Math.max(0, stats.liveNow || 0));
     }
 
     function connect() {
