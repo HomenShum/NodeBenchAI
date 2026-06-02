@@ -4,6 +4,25 @@ The agent brain for NodeBench's continuous improvement flywheel. Read this on ev
 (manual or scheduled). The deterministic substrate is `scripts/improvement-loop/`; this rule is
 how the agent drives it. Canonical design: `docs/architecture/SELF_IMPROVEMENT_LOOP.md`.
 
+## Operating model: bounded + goal-driven (NOT "never stop")
+
+This loop is governed by the Self-Directed Development OS in [`goals/README.md`](../../goals/README.md)
+and the hard gates in [`goals/HARD_GATES.md`](../../goals/HARD_GATES.md). The lesson is **not**
+"let the agent run forever" — it is: closed goal, reviewable definition of done, focused subagents,
+hard gates, batch feedback.
+
+```
+✅ goal-driven autonomy · subagent fan-out · batched queues · critic review · explicit DoD
+❌ unbounded "never stop" production agents · blind deploys · raw DB mutations · no-test vibe coding
+```
+
+- **Cadence:** daily small-loop (propose ONE bounded next step; only tiny CI-gated detector fixes
+  auto-ship, ≤3/day) + weekly self-review (propose issues/cuts/goals, never auto-add features).
+  Substantive work becomes a Goal Card (`goals/<surface>/NNN-slug.md`) the founder approves.
+- **Operating rule:** Human sets the *why* + boundary; agent explores the *how*; tests decide; docs preserve.
+- **Hard gates:** prod deploy, destructive migrations, auth, billing, public/private permission
+  rules, data deletion, legal/privacy copy, wiki publish, host/mod privileges, secrets → propose only.
+
 ## When to activate
 - A scheduled "improvement-loop" routine fires.
 - User says "run the loop", "improve forever", "self-drive", "find opportunities".
