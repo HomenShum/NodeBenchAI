@@ -977,6 +977,8 @@ async function runInteractiveChecks() {
         "openPeople",
         "openShare",
         "openNotes",
+        "openMenu",
+        "closeMenu",
         "toggleLock",
         "openModePicker",
         "openCaptureLevelPicker",
@@ -1036,6 +1038,33 @@ async function runInteractiveChecks() {
         wallEl?.getAttribute("data-on") === "false" &&
         wallEl?.getAttribute("aria-hidden") === "true";
 
+      const menuControllerReady =
+        typeof globalThis.openMenu === "function" &&
+        typeof globalThis.closeMenu === "function";
+      const attendeeMenuRole = document.body.getAttribute("data-role") ?? "";
+      const visibleMenuText = () => [...document.querySelectorAll("#menu-sheet button, #menu-sheet h4")]
+        .filter((node) => {
+          const style = getComputedStyle(node);
+          return style.display !== "none" &&
+            style.visibility !== "hidden" &&
+            node.getClientRects().length > 0;
+        })
+        .map((node) => node.textContent?.replace(/\s+/g, " ").trim() ?? "")
+        .filter(Boolean)
+        .join(" | ");
+      let attendeeMenuText = "";
+      if (menuControllerReady) {
+        globalThis.openMenu();
+        await sleep(100);
+        attendeeMenuText = visibleMenuText();
+        globalThis.closeMenu();
+        await sleep(50);
+      }
+      const attendeeMenuHasWiki = /Public wiki/i.test(attendeeMenuText);
+      const attendeeMenuHasShare = /Share/i.test(attendeeMenuText);
+      const attendeeMenuHasNodeBench = /Continue in NodeBench/i.test(attendeeMenuText);
+      const attendeeMenuHidesHostConsole = !/Host console/i.test(attendeeMenuText);
+
       return {
         functions,
         wikiTitle,
@@ -1056,10 +1085,17 @@ async function runInteractiveChecks() {
         wallTabVisible,
         wallShown,
         wallHidden,
+        menuControllerReady,
+        attendeeMenuRole,
+        attendeeMenuText: attendeeMenuText.slice(0, 180),
+        attendeeMenuHasWiki,
+        attendeeMenuHasShare,
+        attendeeMenuHasNodeBench,
+        attendeeMenuHidesHostConsole,
       };
     });
     const ok =
-      data.functions.length >= 7 &&
+      data.functions.length >= 9 &&
       /Wiki/i.test(data.wikiTitle) &&
       /People/i.test(data.peopleTitle) &&
       /Share/i.test(data.shareTitle) &&
@@ -1071,7 +1107,13 @@ async function runInteractiveChecks() {
       data.wallControllerReady &&
       data.wallTabVisible &&
       data.wallShown &&
-      data.wallHidden;
+      data.wallHidden &&
+      data.menuControllerReady &&
+      data.attendeeMenuRole === "attendee" &&
+      data.attendeeMenuHasWiki &&
+      data.attendeeMenuHasShare &&
+      data.attendeeMenuHasNodeBench &&
+      data.attendeeMenuHidesHostConsole;
     return {
       ok,
       detail: JSON.stringify(data),
