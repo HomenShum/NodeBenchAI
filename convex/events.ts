@@ -818,36 +818,56 @@ export const getEventBySlug = query({
   },
 });
 
-// BOUND (agentic_reliability): cap the landing-stats scan. The count is a full
-// table walk (no count aggregate in Convex); 5000 keeps it cheap even on a
-// hot landing while staying far above current room volume. When the cap is hit
-// the UI honestly renders "N+" rather than silently undercounting.
-const MAX_LANDING_STATS_SCAN = 5000;
+// BOUND (agentic_reliability): cap every landing-stats scan. There is no count
+// aggregate in Convex, so each metric is an index-ordered scan capped with a +1
+// sentinel — if we hit the cap the UI honestly renders "N+" rather than silently
+// undercounting. Limits sit far above current volume.
+const MAX_LANDING_EVENT_SCAN = 10000;
+const MAX_LANDING_SESSION_SCAN = 5000;
 
 /**
- * Live landing stats — powers the animated "big number" on the apex landing.
+ * Live landing stats — powers the animated counter on the apex landing.
  *
- * Convex queries are REACTIVE: every subscribed landing visitor's counter ticks
- * up the instant anyone creates a room — no polling, no client timers.
+ * Convex queries are REACTIVE: every subscribed landing visitor's numbers tick
+ * the instant a room is created, opens/ends, or someone joins/leaves — no client
+ * timers (the client also keeps a 25s poll fallback for older Convex browsers).
  *
- * Honesty (agentic_reliability HONEST_SCORES): every number is a real row count.
- * No hardcoded floor, no inflation. `roomsCreated` counts every room ever made
- * (ended rooms keep their row); `liveNow` counts rooms still open (status=live).
- * When the backend is unreachable the landing HIDES the stat entirely rather
- * than render a fabricated number (the client enforces the hide).
+ * Three real metrics (synthesis of the two parallel implementations — Codex
+ * contributed the index-backed presence counting; this keeps the reactive +
+ * honest-hide framing):
+ *   - roomsCreated: every room ever made (ended rooms keep their row) — by_startedAt
+ *   - liveNow:      rooms still open (status=live)                     — by_status_startedAt
+ *   - activeNow:    member sessions seen within the presence TTL       — by_lastSeen
+ *
+ * Honesty (agentic_reliability HONEST_SCORES): every number is a real row count —
+ * no hardcoded floor, no inflation. `capped`/`activeCapped` are surfaced so the UI
+ * shows "N+" instead of a wrong number. When the backend is unreachable the client
+ * HIDES the counter rather than render a fabricated number.
  */
 export const getLandingStats = query({
   args: {},
   handler: async (ctx) => {
-    const rows = await ctx.db.query("liveEvents").take(MAX_LANDING_STATS_SCAN);
-    let liveNow = 0;
-    for (const row of rows) {
-      if (row.status === "live") liveNow += 1;
-    }
+    const cutoff = Date.now() - PRESENCE_TTL_MS;
+    const rooms = await ctx.db
+      .query("liveEvents")
+      .withIndex("by_startedAt")
+      .order("desc")
+      .take(MAX_LANDING_EVENT_SCAN + 1);
+    const liveRows = await ctx.db
+      .query("liveEvents")
+      .withIndex("by_status_startedAt", (q) => q.eq("status", "live"))
+      .order("desc")
+      .take(MAX_LANDING_EVENT_SCAN + 1);
+    const activeRows = await ctx.db
+      .query("liveEventMembers")
+      .withIndex("by_lastSeen", (q) => q.gte("lastSeenAt", cutoff))
+      .take(MAX_LANDING_SESSION_SCAN + 1);
     return {
-      roomsCreated: rows.length,
-      liveNow,
-      capped: rows.length >= MAX_LANDING_STATS_SCAN,
+      roomsCreated: Math.min(rooms.length, MAX_LANDING_EVENT_SCAN),
+      liveNow: Math.min(liveRows.length, MAX_LANDING_EVENT_SCAN),
+      activeNow: Math.min(activeRows.length, MAX_LANDING_SESSION_SCAN),
+      capped: rooms.length > MAX_LANDING_EVENT_SCAN,
+      activeCapped: activeRows.length > MAX_LANDING_SESSION_SCAN,
     };
   },
 });

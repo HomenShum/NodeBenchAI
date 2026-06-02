@@ -34,7 +34,12 @@ export const liveEvents = defineTable({
   endedAt: v.optional(v.number()),
 })
   .index("by_slug", ["slug"])
-  .index("by_roomCode", ["roomCode"]);
+  .index("by_roomCode", ["roomCode"])
+  // Landing live-stats (events:getLandingStats): index-ordered scans for the
+  // total room count and the "live rooms right now" count, so the apex counter
+  // never full-scans the table. Additive — Convex builds them on deploy.
+  .index("by_startedAt", ["startedAt"])
+  .index("by_status_startedAt", ["status", "startedAt"]);
 
 // ------------------------------------------------------------------
 // liveEventMembers — anonymous presence per event
@@ -54,7 +59,10 @@ export const liveEventMembers = defineTable({
 })
   .index("by_event_session", ["eventId", "sessionId"])
   .index("by_session_joined", ["sessionId", "joinedAt"])
-  .index("by_event_lastSeen", ["eventId", "lastSeenAt"]);
+  .index("by_event_lastSeen", ["eventId", "lastSeenAt"])
+  // Global presence index — powers "active now" on the landing counter
+  // (events:getLandingStats counts members with lastSeenAt within the TTL).
+  .index("by_lastSeen", ["lastSeenAt"]);
 
 // ------------------------------------------------------------------
 // liveEventMessages — public chat feed for an event
