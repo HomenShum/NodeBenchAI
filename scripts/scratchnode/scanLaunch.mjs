@@ -932,16 +932,20 @@ async function runInteractiveChecks() {
       const answerTexts = [...document.querySelectorAll(".ans")]
         .map((node) => node.textContent?.replace(/\s+/g, " ").trim() ?? "")
         .filter(Boolean);
+      const normalizeQuestion = (text) => text.trim().replace(/[?.!]+$/, "").toLowerCase();
       const askQuestions = rowTexts
         .filter((text) => /^\/ask\b/i.test(text))
-        .map((text) => text.replace(/^\/ask\b/i, "").trim().replace(/[?.!]+$/, "").toLowerCase())
+        .map((text) => normalizeQuestion(text.replace(/^\/ask\b/i, "")))
         .filter(Boolean);
       return {
         composerPlaceholder: document.querySelector("#ci")?.getAttribute("placeholder") ?? "",
         hasAskParentRow: rowTexts.some((text) => /^\/ask\b/i.test(text)),
         hasNestedAnswer: askQuestions.some((question) =>
-          answerQuestions.some((answerQuestion) => answerQuestion.replace(/[?.!]+$/, "").toLowerCase() === question),
+          answerQuestions.some((answerQuestion) => normalizeQuestion(answerQuestion) === question),
         ),
+        allAgentAnswersHaveAskParents:
+          answerQuestions.length > 0 &&
+          answerQuestions.every((answerQuestion) => askQuestions.includes(normalizeQuestion(answerQuestion))),
         hasPublicTraceBoundary: answerTexts.some((text) => /no private notes|private notes excluded/i.test(text)),
         hasSharedAnswerCostSummary: answerTexts.some((text) =>
           /Answered from event wiki/i.test(text) &&
@@ -963,6 +967,7 @@ async function runInteractiveChecks() {
       /\/ask/i.test(data.composerPlaceholder) &&
       data.hasAskParentRow &&
       data.hasNestedAnswer &&
+      data.allAgentAnswersHaveAskParents &&
       data.hasPublicTraceBoundary &&
       data.hasSharedAnswerCostSummary &&
       data.hasTraceHonestySteps &&
