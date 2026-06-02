@@ -1,0 +1,2 @@
+# Ephemeral per-scan output — regenerated every cycle. The durable audit trail is ledger.json.
+backlog.latest.json
