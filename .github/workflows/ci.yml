@@ -86,6 +86,7 @@ jobs:
           src/features/workspace/data/eventWorkspaceMemory.test.ts
           convex/__tests__/scratchnode.events.test.ts
           server/searchRoute.test.ts
+          convex/workflows/ainewsBriefFormat.test.ts
 
   scratchnode-launch-gates:
     name: ScratchNode launch gates

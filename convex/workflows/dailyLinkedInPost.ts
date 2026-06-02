@@ -31,6 +31,16 @@ import {
   type SignalForecastMatch,
   type FindingForecastMatch,
 } from "../domains/forecasting/signalMatcher";
+import {
+  buildBriefHeadline,
+  buildBriefDek,
+  buildProvenanceLine,
+  buildTopSourcesLine,
+  buildTopStoryLead,
+  briefFooterCap,
+  storyKey,
+  shortenForHeadline,
+} from "./ainewsBriefFormat";
 
 type LinkedInCompetingExplanation = {
   title: string;
@@ -193,32 +203,43 @@ function formatDigestForLinkedIn(
   const domain = extractDomain(digest.leadStory?.title || signals[0]?.title || "tech");
   const totalPosts = (findings.length > 0 || actions.length > 0) ? 3 : 2;
 
-  function capPost(text: string): string {
-    if (text.length <= maxPerPost) return text;
-    return text.slice(0, maxPerPost - 3).trimEnd() + "...";
-  }
-
   const explanations = (digest.competingExplanations ?? []) as LinkedInCompetingExplanation[];
-  const framing = digest.narrativeFraming;
 
   // ── Post 1: WHAT'S HAPPENING ──
   // Factual lead. Data. Key developments. Competing explanations as prose.
   const p1: string[] = [];
+  const shownSignalCount = Math.min(signals.length, 4);
 
-  // Hook: use narrative framing if DRANE data is available
-  if (framing) {
-    p1.push(truncateAtSentenceBoundary(
-      `While ${framing.dominantStory} dominates ${framing.attentionShare} of social feeds this week, ${framing.underReportedAngle}.`,
-      280
-    ));
-  } else {
-    const leadHook = digest.leadStory?.whyItMatters
-      || digest.narrativeThesis
-      || signals[0]?.summary
-      || `Key developments in ${domain} today that aren't getting enough attention.`;
-    p1.push(truncateAtSentenceBoundary(leadHook, 220));
-  }
+  // AINews-style brief header: bracketed top-3 headline + one-line "so what" dek.
+  p1.push(buildBriefHeadline(digest));
   p1.push("");
+  const dek = buildBriefDek(digest);
+  if (dek) {
+    p1.push(dek);
+    p1.push("");
+  }
+
+  // Provenance line -- "scanned N stories across M sources" (honest, real counts).
+  p1.push(buildProvenanceLine(digest, shownSignalCount));
+  const topSourcesLine = buildTopSourcesLine(digest);
+  if (topSourcesLine) p1.push(topSourcesLine);
+  p1.push("");
+
+  // Top-story prose lead -- only when leadStory is distinct from the top signal,
+  // so the numbered list below never repeats it.
+  const leadTitleKey = digest.leadStory?.title
+    ? storyKey(shortenForHeadline(digest.leadStory.title))
+    : null;
+  const topSignalKey = signals[0]?.title
+    ? storyKey(shortenForHeadline(signals[0].title))
+    : null;
+  if (leadTitleKey && leadTitleKey !== topSignalKey) {
+    const lead = buildTopStoryLead(digest);
+    if (lead.lines.length > 0) {
+      p1.push(...lead.lines);
+      p1.push("");
+    }
+  }
 
   // Build signal→forecast Δ badge lookup (max 2 badges per post)
   const signalMatchMap = new Map<number, SignalForecastMatch>();
@@ -274,8 +295,7 @@ function formatDigestForLinkedIn(
   }
   p1.push("");
   p1.push(`Which of these are you tracking?`);
-  p1.push("");
-  p1.push(`[1/${totalPosts}] ${specificTags}`);
+  const footer1 = `[1/${totalPosts}] ${specificTags}`;
 
   // ── Post 2: WHAT IT MEANS ──
   // Fact-checks with evidence grades, context, signal vs noise.
@@ -346,8 +366,7 @@ function formatDigestForLinkedIn(
   p2.push(`I built a system that fact-checks and scores evidence automatically. Above is what it found today.`);
   p2.push("");
   p2.push(`What's one claim you've seen this week that you'd want fact-checked?`);
-  p2.push("");
-  p2.push(`[2/${totalPosts}] ${specificTags}`);
+  const footer2 = `[2/${totalPosts}] ${specificTags}`;
 
   // ── Post 3: PRACTICAL GUIDE ──
   // Specific actions. Skills to learn. Forecast cards. Falsification criteria.
@@ -441,12 +460,11 @@ function formatDigestForLinkedIn(
   p3.push(`This runs daily. I'll keep publishing what it finds. If you spot a claim worth checking, drop it below.`);
   p3.push("");
   p3.push(`What are you building or investigating this week?`);
-  p3.push("");
-  p3.push(`[3/3] ${specificTags}`);
+  const footer3 = `[3/3] ${specificTags}`;
 
   const posts = totalPosts === 3
-    ? [capPost(p1.join("\n")), capPost(p2.join("\n")), capPost(p3.join("\n"))]
-    : [capPost(p1.join("\n")), capPost(p2.join("\n"))];
+    ? [briefFooterCap(p1, footer1, maxPerPost), briefFooterCap(p2, footer2, maxPerPost), briefFooterCap(p3, footer3, maxPerPost)]
+    : [briefFooterCap(p1, footer1, maxPerPost), briefFooterCap(p2, footer2, maxPerPost)];
   for (let i = 0; i < posts.length; i++) {
     console.log(`[formatDigestForLinkedIn] Post ${i + 1}/${posts.length}: ${posts[i].length} chars`);
   }
@@ -1839,7 +1857,6 @@ function formatDigestForPersona(
   const tags = personaTags();
   const domain = extractDomain(digest.leadStory?.title || signals[0]?.title || "tech");
   const explanations = (digest.competingExplanations ?? []) as LinkedInCompetingExplanation[];
-  const framing = digest.narrativeFraming;
 
   function capPost(text: string): string {
     if (text.length <= maxPerPost) return text;
@@ -1848,6 +1865,21 @@ function formatDigestForPersona(
 
   // ── Post 1: WHAT'S HAPPENING (persona-specific lens) ──
   const p1: string[] = [];
+
+  // AINews-style brief header + provenance, shared across persona lenses.
+  const briefLabel =
+    personaId === "VC_INVESTOR" ? "Deal Flow Brief"
+      : personaId === "TECH_BUILDER" ? "Tech Radar"
+      : "Daily Brief";
+  p1.push(buildBriefHeadline(digest, briefLabel));
+  p1.push("");
+  p1.push(buildProvenanceLine(digest, Math.min(signals.length, 4)));
+  {
+    const ts = buildTopSourcesLine(digest);
+    if (ts) p1.push(ts);
+  }
+  p1.push("");
+  const footer1 = `[1/${totalPosts}] ${tags}`;
 
   if (personaId === "VC_INVESTOR") {
     const hook = digest.leadStory?.whyItMatters || digest.narrativeThesis || signals[0]?.summary
@@ -1879,8 +1911,7 @@ function formatDigestForPersona(
     }
     p1.push("");
     p1.push("Which of these are you tracking for your portfolio?");
-    p1.push("");
-    p1.push(`[1/${totalPosts}] ${tags}`);
+    // [1/N] footer is appended via briefFooterCap during assembly.
   } else if (personaId === "TECH_BUILDER") {
     const hook = digest.leadStory?.whyItMatters || digest.narrativeThesis || signals[0]?.summary
       || `Technical developments in ${domain} worth evaluating today.`;
@@ -1910,8 +1941,7 @@ function formatDigestForPersona(
     }
     p1.push("");
     p1.push("Which of these have you evaluated?");
-    p1.push("");
-    p1.push(`[1/${totalPosts}] ${tags}`);
+    // [1/N] footer is appended via briefFooterCap during assembly.
   } else {
     // GENERAL
     const hook = digest.leadStory?.whyItMatters || digest.narrativeThesis || signals[0]?.summary
@@ -1943,8 +1973,7 @@ function formatDigestForPersona(
     }
     p1.push("");
     p1.push("Which of these are you tracking?");
-    p1.push("");
-    p1.push(`[1/${totalPosts}] ${tags}`);
+    // [1/N] footer is appended via briefFooterCap during assembly.
   }
 
   // ── Post 2: WHAT IT MEANS (verification, context, signal vs noise) ──
@@ -2068,8 +2097,8 @@ function formatDigestForPersona(
   p3.push(`[3/3] ${tags}`);
 
   const posts = totalPosts === 3
-    ? [capPost(p1.join("\n")), capPost(p2.join("\n")), capPost(p3.join("\n"))]
-    : [capPost(p1.join("\n")), capPost(p2.join("\n"))];
+    ? [briefFooterCap(p1, footer1, maxPerPost), capPost(p2.join("\n")), capPost(p3.join("\n"))]
+    : [briefFooterCap(p1, footer1, maxPerPost), capPost(p2.join("\n"))];
   for (let i = 0; i < posts.length; i++) {
     console.log(`[formatDigestForPersona] ${personaId} Post ${i + 1}/${posts.length}: ${posts[i].length} chars`);
   }
