@@ -118,6 +118,10 @@ async function fulfillScratchNodePage(
               const s = window.__snLandingStats || { roomsCreated: 0, liveNow: 0, activeNow: 0, capped: false };
               setTimeout(() => cb(s), 0);
             }
+            if (name === 'events:listPublicRooms') {
+              const rooms = window.__snPublicRooms || [];
+              setTimeout(() => cb({ rooms, activeWindowMs: 1800000 }), 0);
+            }
           }
         }
       `,
@@ -347,6 +351,27 @@ test.describe("ScratchNode live route honesty", () => {
     await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("/e/launch-room");
   });
 
+  test("landing create can opt a room into public discovery", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await page.fill("#landing-create-name", "Open Demo Office Hours");
+    await page.check("#landing-create-public");
+    await page.click("#landing-create-btn");
+
+    await expect
+      .poll(
+        () => page.evaluate(() => JSON.parse(localStorage.getItem("__snCreatedEventArgs") || "{}")),
+        { timeout: 5_000 },
+      )
+      .toMatchObject({
+        title: "Open Demo Office Hours",
+        status: "live",
+        publicDiscoverable: true,
+        joinPolicy: "open",
+      });
+  });
+
   test("landing create rejects a too-short name without calling the backend", async ({ page }) => {
     await fulfillScratchNodePage(page);
 
@@ -378,6 +403,36 @@ test.describe("ScratchNode live route honesty", () => {
       await page.evaluate(() => localStorage.getItem("sn_host_owner_key_v2")),
     ).toBeNull();
     await expect(page.locator("#landing-create-btn")).toBeEnabled();
+  });
+
+  test("landing renders discoverable public rooms from real backend data", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.addInitScript(() => {
+      (window as any).__snLandingStats = { roomsCreated: 12, liveNow: 2, capped: false };
+      (window as any).__snPublicRooms = [
+        {
+          eventId: "liveEvents:open",
+          slug: "open-office-hours",
+          name: "Open Office Hours",
+          roomCode: "OFFICE",
+          startedAt: 1770000000000,
+          lastActivityAt: 1770000001000,
+          activeSessions: 6,
+          activeSessionsCapped: false,
+          joinPolicy: "open",
+        },
+      ];
+    });
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#landing-public")).toHaveAttribute("data-visible", "true", {
+      timeout: 6_000,
+    });
+    await expect(page.locator(".landing-room-title")).toHaveText("Open Office Hours");
+    await expect(page.locator(".landing-room-meta")).toContainText("6 active");
+    await expect(page.locator(".landing-room-meta")).toContainText("OFFICE");
+    await expect(page.locator(".landing-room-join")).toHaveText("Request to join");
+    await expect(page.locator(".landing-room-join")).toHaveAttribute("href", "/e/open-office-hours");
   });
 
   test("landing surfaces a live 'big number' room counter from real backend data", async ({ page }) => {
