@@ -33,7 +33,7 @@ If the change would touch any of these, it is **human-gated** — queue it, do N
 - Anything you cannot verify locally before shipping.
 
 ### 4. IMPLEMENT
-- Fresh branch off `origin/main` (`git checkout -b loop/<slug> origin/main`).
+- Fresh branch off `origin/main` (`git checkout -b chore/loop-<slug> origin/main`). Use a Conventional-Commits type prefix (feat/fix/chore/docs) so the repo branch-name CI check passes — never `loop/...`.
 - Smallest change that makes the failure mode impossible, not just hidden.
 - Match surrounding code style. Reduced-motion guard on any new animation.
 
