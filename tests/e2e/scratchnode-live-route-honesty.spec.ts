@@ -290,4 +290,89 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(page.locator("#sn-manage-event-output")).toContainText("Session ended");
     await expect(page.locator("#ev-mode-label")).toContainText("ended");
   });
+
+  test("landing 'Create a room' creates a live room and enters it as host", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-page-mode", "landing");
+    // Apex must stay honestly "not live" until the host lands in the room.
+    await expect(page.locator("body")).not.toHaveAttribute("data-sn-live", "true");
+    await expect(page.locator("#landing-create-btn")).toBeVisible();
+
+    await page.fill("#landing-create-name", "Sarah's Birthday");
+    await page.fill("#landing-create-code", "BIRTHDAY");
+    await page.click("#landing-create-btn");
+
+    await expect
+      .poll(
+        () => page.evaluate(() => JSON.parse(localStorage.getItem("__snCreatedEventArgs") || "{}")),
+        { timeout: 5_000 },
+      )
+      .toMatchObject({
+        title: "Sarah's Birthday",
+        roomCode: "BIRTHDAY",
+        status: "live",
+      });
+    await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("/e/launch-room");
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("sn_host_owner_key_v2")), {
+        timeout: 5_000,
+      })
+      .toContain("hk1:");
+  });
+
+  test("landing create works with no custom code (auto-generated room code)", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await page.fill("#landing-create-name", "Friday Demo Night");
+    await page.click("#landing-create-btn");
+
+    await expect
+      .poll(
+        () => page.evaluate(() => JSON.parse(localStorage.getItem("__snCreatedEventArgs") || "{}")),
+        { timeout: 5_000 },
+      )
+      .toMatchObject({ title: "Friday Demo Night", status: "live" });
+    // roomCode omitted (undefined) so the server auto-generates one.
+    const sentRoomCode = await page.evaluate(
+      () => JSON.parse(localStorage.getItem("__snCreatedEventArgs") || "{}").roomCode ?? null,
+    );
+    expect(sentRoomCode).toBeNull();
+    await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("/e/launch-room");
+  });
+
+  test("landing create rejects a too-short name without calling the backend", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await page.fill("#landing-create-name", "ab");
+    await page.click("#landing-create-btn");
+
+    await expect(page.locator("#landing-create-status")).toContainText("at least 3 characters");
+    // No createEvent call should have fired — the page never left the landing.
+    await expect(page.locator("body")).toHaveAttribute("data-page-mode", "landing");
+    expect(
+      await page.evaluate(() => localStorage.getItem("__snCreatedEventArgs")),
+    ).toBeNull();
+    expect(page.url()).toBe("https://scratchnode.live/");
+  });
+
+  test("landing create fails honestly when the backend config is unavailable", async ({ page }) => {
+    await fulfillScratchNodePage(page, { configStatus: 500 });
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await page.fill("#landing-create-name", "Conference Sidecar");
+    await page.click("#landing-create-btn");
+
+    await expect(page.locator("#landing-create-status")).toHaveAttribute("data-state", "error");
+    await expect(page.locator("#landing-create-status")).toContainText("Could not load room config");
+    // Honest failure: no navigation, no host token persisted.
+    expect(page.url()).toBe("https://scratchnode.live/");
+    expect(
+      await page.evaluate(() => localStorage.getItem("sn_host_owner_key_v2")),
+    ).toBeNull();
+    await expect(page.locator("#landing-create-btn")).toBeEnabled();
+  });
 });
