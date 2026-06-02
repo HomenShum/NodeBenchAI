@@ -959,6 +959,7 @@ async function runInteractiveChecks() {
           /No private notes used|public layer only/i.test(text),
         ),
         hasFaqSuggestion: buttonsAndLinks.some((text) => /suggest for faq/i.test(text)),
+        hasHostFaqPromotion: buttonsAndLinks.some((text) => /promote to faq/i.test(text)),
         hasWikiContinuation: buttonsAndLinks.some((text) => /open wiki|view in wiki/i.test(text)),
         hasPrivateNotesAffordance: !!document.querySelector("#lock") && /My private notes|private notes/i.test(bodyText),
       };
@@ -972,6 +973,7 @@ async function runInteractiveChecks() {
       data.hasSharedAnswerCostSummary &&
       data.hasTraceHonestySteps &&
       data.hasFaqSuggestion &&
+      data.hasHostFaqPromotion &&
       data.hasWikiContinuation &&
       data.hasPrivateNotesAffordance;
     return {
