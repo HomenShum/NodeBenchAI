@@ -424,4 +424,35 @@ test.describe("ScratchNode live route honesty", () => {
     // The landing still works — Join + Create remain available.
     await expect(page.locator("#landing-create-btn")).toBeVisible();
   });
+
+  test("landing counter never shows more 'live' than 'total' during the count-up", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.addInitScript(() => {
+      // liveNow close to (but <=) total — the regression flashed "6 live · 4 total"
+      // because rooms animated from 0 while liveNow was set instantly.
+      (window as any).__snLandingStats = { roomsCreated: 8, liveNow: 6, capped: false };
+    });
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#landing-pulse")).toBeVisible({ timeout: 6_000 });
+
+    // Sample both numbers repeatedly across the ~750ms count-up. Live rooms are a
+    // subset of total rooms, so the displayed live count must NEVER exceed the
+    // displayed total at any frame.
+    const parse = (s: string | null) => parseInt((s || "0").replace(/,/g, ""), 10);
+    for (let i = 0; i < 14; i++) {
+      const { rooms, live } = await page.evaluate(() => ({
+        rooms: document.getElementById("landing-pulse-num")?.textContent ?? "0",
+        live: document.getElementById("landing-pulse-live")?.textContent ?? "0",
+      }));
+      expect(parse(live), `live(${live}) must never exceed total(${rooms})`).toBeLessThanOrEqual(
+        parse(rooms),
+      );
+      await page.waitForTimeout(70);
+    }
+
+    // …and it settles on the exact real values.
+    await expect.poll(() => page.locator("#landing-pulse-num").textContent()).toBe("8");
+    await expect(page.locator("#landing-pulse-live")).toHaveText("6");
+  });
 });

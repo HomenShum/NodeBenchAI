@@ -2,6 +2,19 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-02 — Fix counter count-up flashing "more live than total"
+Live-DOM Tier-B check on production caught the live counter momentarily rendering
+`6 live · 4 total` during first load — impossible in steady state (live rooms are a
+subset of total). Root cause: the **total** animated up from 0 over 750ms while
+**liveNow** was set instantly, so mid-count-up the animating total was briefly less
+than the instant live count — reading as a broken/fake number on the one stat that has
+to be trustworthy. Fix: `animatePair()` eases both numbers from the same prior values
+with identical easing, so total ≥ live at every frame (`Math.round` is monotonic, and
+`roomsCreated ≥ liveNow` always). Guarded by a new e2e case that samples both numbers
+14× across the animation and asserts `live ≤ total` at every frame. 14/14 suite green.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-02 — Rewrite the landing headline for a viral hook
 Replaced the feature-describing hero line "A disposable sidecar room for live event
 memory" (jargon: "disposable", "sidecar"; no emotional/temporal hook — nobody screenshots
