@@ -124,3 +124,12 @@ goals/
 Prior art: this OS distills the public "ultracode/dynamic-workflows" demos (Anthropic dynamic
 workflows; the one-day MOBA build) into a *bounded* practice. See
 [`docs/architecture/SELF_IMPROVEMENT_LOOP.md`](../docs/architecture/SELF_IMPROVEMENT_LOOP.md).
+
+## Governance + the full agent loop
+
+The loop is **agent-governed with protected rails**:
+- [`GOVERNANCE.md`](GOVERNANCE.md) — risk classes (LOW auto-merge · MEDIUM auto-merge+cancelable · HIGH human-only), the may/may-not rails, and the mapping to this repo's real CI (`Typecheck`/`Runtime smoke`/`Build`/`Tier B`) + branch protection (incl. honest gaps).
+- [`AGENT_LOOP.md`](AGENT_LOOP.md) — the 11-step loop (research → visual compare → closed goal → patch → QA → PR → merge-gate → housekeep), reference budget, and visual-QA criteria (VIS-001..010).
+- [`prompts/agent-library.md`](prompts/agent-library.md) — Goal Synthesizer · Reference Scout · Vision Critic · Scope Reducer · Implementation · Housekeeper.
+
+**Governance sentence:** the agent self-directs research, visual comparison, patch planning, implementation, and PR creation; merges to `main` are automated only through protected PRs, required checks, visual artifacts, and risk-class gates. Branch-protection / permission / schema / secret changes are HIGH-risk → founder-approved (never autonomous).
