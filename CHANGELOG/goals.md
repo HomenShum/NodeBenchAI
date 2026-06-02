@@ -11,3 +11,8 @@ Codified the bounded, goal-driven operating system for ScratchNode + NodeBench: 
 First OS self-review (5 lenses + reducer, 29 findings -> top 10) recorded to goals/reviews/2026-06-02-weekly.md. Queued 3 grounded Goal Cards: scratchnode/002 (host public-write consistency — reviewer claimed P0, analyst-verified to P1 since backend requireHost already gates; hard-gate, human-approve), scratchnode/003 (privacy-boundary honesty tests, tests-only/auto-safe), nodebench/002 (loop liveSignal + Convex honesty). Demo oracle green; no features added.
 
 **Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
+## 2026-06-02 — Governance rails + full agent loop
+Added the agent-governance layer: GOVERNANCE.md (LOW/MEDIUM/HIGH merge classes + may/may-not rails, mapped to the REAL npm/Vercel/Convex CI + branch protection — not the generic pnpm example), AGENT_LOOP.md (11-step research→patch→PR loop + reference budget + VIS-001..010), prompts/agent-library.md (6 chained agent prompts). Live-inspected branch protection and flagged honest gaps (enforce_admins=false; privacy/visual not required) as a HIGH-risk Goal Card (runtime/003) for founder approval — NOT auto-applied, since branch-protection changes are a no-autonomy zone.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
