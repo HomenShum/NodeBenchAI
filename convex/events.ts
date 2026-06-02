@@ -818,6 +818,40 @@ export const getEventBySlug = query({
   },
 });
 
+// BOUND (agentic_reliability): cap the landing-stats scan. The count is a full
+// table walk (no count aggregate in Convex); 5000 keeps it cheap even on a
+// hot landing while staying far above current room volume. When the cap is hit
+// the UI honestly renders "N+" rather than silently undercounting.
+const MAX_LANDING_STATS_SCAN = 5000;
+
+/**
+ * Live landing stats — powers the animated "big number" on the apex landing.
+ *
+ * Convex queries are REACTIVE: every subscribed landing visitor's counter ticks
+ * up the instant anyone creates a room — no polling, no client timers.
+ *
+ * Honesty (agentic_reliability HONEST_SCORES): every number is a real row count.
+ * No hardcoded floor, no inflation. `roomsCreated` counts every room ever made
+ * (ended rooms keep their row); `liveNow` counts rooms still open (status=live).
+ * When the backend is unreachable the landing HIDES the stat entirely rather
+ * than render a fabricated number (the client enforces the hide).
+ */
+export const getLandingStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("liveEvents").take(MAX_LANDING_STATS_SCAN);
+    let liveNow = 0;
+    for (const row of rows) {
+      if (row.status === "live") liveNow += 1;
+    }
+    return {
+      roomsCreated: rows.length,
+      liveNow,
+      capped: rows.length >= MAX_LANDING_STATS_SCAN,
+    };
+  },
+});
+
 /**
  * Realtime message stream. The Convex client re-runs this on every change.
  * Ordered ascending by createdAt so the latest is last (matches UI append order).
