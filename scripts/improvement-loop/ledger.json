@@ -1,0 +1,30 @@
+{
+  "loop": "scratchnode-self-improvement",
+  "createdNote": "Continuous self-improvement loop ledger. Append-only. See docs/architecture/SELF_IMPROVEMENT_LOOP.md",
+  "killCriteria": {
+    "consecutiveNoShipLimit": 3,
+    "requireGreenVerification": true
+  },
+  "consecutiveNoShip": 1,
+  "cycles": [
+    {
+      "cycleId": "C001",
+      "at": "2026-06-02T01:44:09.462Z",
+      "scan": {
+        "total": 0,
+        "autoSafe": 0,
+        "humanGated": 0
+      },
+      "safetyZones": {
+        "scratchnode-room": [
+          "honesty contract (live send/render, no-mock-on-fail)"
+        ]
+      },
+      "selected": null,
+      "backlogTop": [],
+      "outcome": "clean_no_auto_opportunities",
+      "note": "Bootstrap. Built loop substrate (scan+run-cycle+JSON ledger), ran scan -> 6 candidates, VALIDATED all -> false positives (XXX in URL-param doc comments; intentional 'Coming soon' L2 capture flag). REJECTED all (no theater), hardened 2 detectors. Convex ledger graduation queued (local codegen blocked by unrelated @mistralai dep error). ScratchNode surface clean post-polish."
+    }
+  ],
+  "updatedAt": "2026-06-02T01:44:09.462Z"
+}

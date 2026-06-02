@@ -1,0 +1,48 @@
+// convex/improvementLoop.ts -------------------------------------------------
+// Live-backend ledger for the continuous Self-Improvement Loop.
+//
+// Pattern: append-only telemetry. The deterministic substrate
+// (scripts/improvement-loop/run-cycle.mjs) writes one row per cycle; the
+// product can read recent cycles for in-app observability.
+//
+// Reliability (.claude/rules/agentic_reliability.md):
+//   BOUND        — recentCycles is capped at 50.
+//   HONEST       — recordCycle returns the true insert result; no faked ok.
+//   input bounds — note is clamped to MAX_NOTE chars.
+//
+// See: docs/architecture/SELF_IMPROVEMENT_LOOP.md
+import { mutation, query } from "./_generated/server";
+import { v } from "convex/values";
+
+const MAX_NOTE = 2000;
+const MAX_RECENT = 50;
+
+export const recordCycle = mutation({
+  args: {
+    cycleId: v.string(),
+    at: v.string(),
+    selected: v.union(v.string(), v.null()),
+    selectedScore: v.number(),
+    totalOpportunities: v.number(),
+    autoSafe: v.number(),
+    humanGated: v.number(),
+    outcome: v.string(),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const note = (args.note ?? "").slice(0, MAX_NOTE);
+    const id = await ctx.db.insert("improvementLoopCycles", { ...args, note });
+    return { ok: true, id };
+  },
+});
+
+export const recentCycles = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 20, 1), MAX_RECENT); // BOUND
+    return await ctx.db
+      .query("improvementLoopCycles")
+      .order("desc")
+      .take(limit);
+  },
+});
