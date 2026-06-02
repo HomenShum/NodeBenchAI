@@ -164,6 +164,14 @@ button:active { transform: scale(.97); transition: transform .08s; }
 /* ─── Main (single column) ─── */
 .m { max-width: 720px; margin: 0 auto; padding: 24px calc(20px + var(--safe-right)) calc(80px + var(--safe-bot)) calc(20px + var(--safe-left)); }
 @media (min-width: 900px) { .m { max-width: 760px; } }
+/* Cohesive first-paint entrance — the event room "settles" up instead of popping
+   into final position. TRANSFORM-ONLY (no opacity) so content is NEVER hidden:
+   if the animation is throttled (background tab) or unsupported, the content is
+   fully visible, merely offset a few px. The feed's per-row feedRowIn plays on
+   top for a composed, layered reveal. Landing mode has its own entrance. */
+@keyframes pageEnter { from { transform: translateY(10px); } to { transform: none; } }
+body:not([data-page-mode="landing"]) main.m { animation: pageEnter var(--motion-slow) var(--ease-out) both; }
+@media (prefers-reduced-motion: reduce) { main.m { animation: none; } }
 
 /* ─── Hero (small, scannable) ─── */
 .hero { margin-bottom: 20px; }
