@@ -179,6 +179,18 @@ body:not([data-page-mode="landing"]) main.m { animation: pageEnter var(--motion-
 .hero-meta { font-size: 13px; color: var(--ink-muted); }
 .hero-meta b { color: var(--ink); font-weight: 600; }
 
+/* First-time flow rail: the room loop in one glance before interaction. */
+.first-flow {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 9px;
+  margin: -8px 0 16px; padding: 0 0 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-muted); font-size: 11px; line-height: 1.35;
+}
+.first-flow__item { display: inline-flex; align-items: baseline; gap: 5px; min-height: 24px; }
+.first-flow__item b { color: var(--ink); font-size: 12px; font-weight: 700; }
+.first-flow__item small { color: var(--ink-faint); font-size: 10px; }
+.first-flow__sep { color: var(--ink-faint); font-family: var(--mono); font-size: 10px; }
+
 /* ─── Composer (gravitational center) ─── */
 .c {
   position: sticky; top: 64px; z-index: 40;
@@ -1688,6 +1700,10 @@ body[data-page-mode="landing"] #sheet-scrim,
 body[data-page-mode="landing"] .welcome {
   display: none !important;
 }
+body[data-page-mode="landing"] .menu-sheet:not([data-open="true"]),
+body[data-page-mode="landing"] .menu-scrim:not([data-open="true"]) {
+  display: none !important;
+}
 
 /* Landing layout — minimal, centered, glass-card hero. */
 .landing {
@@ -2517,6 +2533,18 @@ if (document.readyState === 'loading') {
     <h1><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h1>
     <p class="hero-meta" id="sn-event-hero-meta">Disposable event brain · <b id="sn-hero-joined-count">0</b> joined · public wiki later</p>
   </section>
+
+  <nav class="first-flow" data-first-time-flow aria-label="First-time attendee flow">
+    <span class="first-flow__item" data-flow-step="join"><b>Join</b><small>room code</small></span>
+    <span class="first-flow__sep" aria-hidden="true">&rarr;</span>
+    <span class="first-flow__item" data-flow-step="chat"><b>Chat</b><small>public room</small></span>
+    <span class="first-flow__sep" aria-hidden="true">&rarr;</span>
+    <span class="first-flow__item" data-flow-step="ask"><b>/ask</b><small>sourced answer</small></span>
+    <span class="first-flow__sep" aria-hidden="true">&rarr;</span>
+    <span class="first-flow__item" data-flow-step="private-note"><b>Lock</b><small>private note</small></span>
+    <span class="first-flow__sep" aria-hidden="true">&rarr;</span>
+    <span class="first-flow__item" data-flow-step="wiki"><b>Wiki</b><small>after event</small></span>
+  </nav>
 
   <!-- Identity row -->
   <div class="id-row" id="id-row">
@@ -8802,9 +8830,10 @@ window._laCueAction       = _laCueAction;
             '<div class="meta">auto-generated • ' + _hhmm() + '</div>' +
             '<p>"Healthcare voice agents need sub-350ms round-trip. Orbital Labs is the eval-infra reference. MCP auth Q3 2026 shipping with OAuth 2.1 scopes."</p>' +
           '</div>' +
-          '<div class="daily-brief-delta">' +
+          '<div class="daily-brief-delta" data-delta-source="event-artifact" data-private-notes="workspace-only">' +
             '<div class="head">🌟 daily brief — delta</div>' +
-            '<div class="title">3 new entities since yesterday</div>' +
+            '<div class="title">What changed: 3 event-derived entities since yesterday</div>' +
+            '<div class="body"><p><strong>Why it matters:</strong> the next Daily Brief can explain which event signals changed the workspace graph and why they deserve follow-up.</p><p>Privacy: public Daily Brief deltas cite the event wiki and public sources. Private notes stay workspace-only and require the private NodeBench context.</p></div>' +
             '<div class="body">From the AI Infra Summit event:<ul><li>OrbitMed (founder: Sarah Kim) — new entity</li><li>Orbital Labs (founder: Alex Chen) — signal: Series A closed, 230+ benchmarks</li><li>Northbay Health CIO Marcus Reed — new contact</li></ul></div>' +
           '</div>' +
         '</div>';
