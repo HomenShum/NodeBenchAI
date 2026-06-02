@@ -114,6 +114,10 @@ async function fulfillScratchNodePage(
             if (name === 'events:getMembers') {
               setTimeout(() => cb([{ displayName: 'Mock Host' }, { displayName: 'Mock Guest' }]), 0);
             }
+            if (name === 'events:getLandingStats') {
+              const s = window.__snLandingStats || { roomsCreated: 0, liveNow: 0, capped: false };
+              setTimeout(() => cb(s), 0);
+            }
           }
         }
       `,
@@ -374,5 +378,50 @@ test.describe("ScratchNode live route honesty", () => {
       await page.evaluate(() => localStorage.getItem("sn_host_owner_key_v2")),
     ).toBeNull();
     await expect(page.locator("#landing-create-btn")).toBeEnabled();
+  });
+
+  test("landing surfaces a live 'big number' room counter from real backend data", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.addInitScript(() => {
+      (window as any).__snLandingStats = { roomsCreated: 1342, liveNow: 7, capped: false };
+    });
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#landing-pulse")).toBeVisible({ timeout: 6_000 });
+    // The big number is the EXACT reactive backend count — never a marketing figure.
+    await expect
+      .poll(() => page.locator("#landing-pulse-num").textContent(), { timeout: 6_000 })
+      .toBe("1,342");
+    await expect(page.locator("#landing-pulse-live")).toHaveText("7");
+    await expect(page.locator("#landing-pulse-suffix")).toHaveText("");
+  });
+
+  test("landing big-number renders a '+' suffix when the scan cap is hit", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.addInitScript(() => {
+      (window as any).__snLandingStats = { roomsCreated: 5000, liveNow: 23, capped: true };
+    });
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#landing-pulse")).toBeVisible({ timeout: 6_000 });
+    await expect
+      .poll(() => page.locator("#landing-pulse-num").textContent(), { timeout: 6_000 })
+      .toBe("5,000");
+    await expect(page.locator("#landing-pulse-suffix")).toHaveText("+");
+  });
+
+  test("landing big-number stays hidden (never fabricated) when zero rooms exist", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.addInitScript(() => {
+      (window as any).__snLandingStats = { roomsCreated: 0, liveNow: 0, capped: false };
+    });
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    // Give the reactive subscription time to deliver the zero value, then assert
+    // the counter is NOT shown — an empty backend never produces a fake number.
+    await page.waitForTimeout(1_500);
+    await expect(page.locator("#landing-pulse")).toBeHidden();
+    // The landing still works — Join + Create remain available.
+    await expect(page.locator("#landing-create-btn")).toBeVisible();
   });
 });
