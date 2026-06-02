@@ -943,6 +943,17 @@ async function runInteractiveChecks() {
           answerQuestions.some((answerQuestion) => answerQuestion.replace(/[?.!]+$/, "").toLowerCase() === question),
         ),
         hasPublicTraceBoundary: answerTexts.some((text) => /no private notes|private notes excluded/i.test(text)),
+        hasSharedAnswerCostSummary: answerTexts.some((text) =>
+          /Answered from event wiki/i.test(text) &&
+          /\d+\s+similar questions/i.test(text) &&
+          /\d+\s+sources reused/i.test(text) &&
+          /0\s+new searches/i.test(text),
+        ),
+        hasTraceHonestySteps: answerTexts.some((text) =>
+          /event wiki cache/i.test(text) &&
+          /semantic cache/i.test(text) &&
+          /No private notes used|public layer only/i.test(text),
+        ),
         hasFaqSuggestion: buttonsAndLinks.some((text) => /suggest for faq/i.test(text)),
         hasWikiContinuation: buttonsAndLinks.some((text) => /open wiki|view in wiki/i.test(text)),
         hasPrivateNotesAffordance: !!document.querySelector("#lock") && /My private notes|private notes/i.test(bodyText),
@@ -953,6 +964,8 @@ async function runInteractiveChecks() {
       data.hasAskParentRow &&
       data.hasNestedAnswer &&
       data.hasPublicTraceBoundary &&
+      data.hasSharedAnswerCostSummary &&
+      data.hasTraceHonestySteps &&
       data.hasFaqSuggestion &&
       data.hasWikiContinuation &&
       data.hasPrivateNotesAffordance;
