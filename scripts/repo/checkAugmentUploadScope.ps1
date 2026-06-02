@@ -110,6 +110,36 @@ if (Test-Path -LiteralPath $augmentIgnorePath) {
   $patterns = @(Get-Content -LiteralPath $augmentIgnorePath)
 }
 
+$criticalIgnoreProbePaths = @(
+  ".git/config",
+  "node_modules/example.js",
+  ".tmp/workspace-housekeeping-loop.json",
+  ".tmp/local-history-map-reduce.json",
+  ".tmp/augment-upload-scope.json",
+  ".tmp/workspace-footprint.json",
+  ".tmp/workspace-housekeeping-verification.json",
+  ".tmp/workspace-housekeeping-self-test.json",
+  ".worktrees/example/file.txt",
+  ".claude/worktrees/example/file.txt",
+  ".claude/projects/example.json",
+  ".overstory/example.json",
+  ".serena/example.json",
+  "test-results/example.json",
+  "playwright-report/index.html",
+  "scripts/eval-harness/results/example.json"
+)
+
+$criticalIgnoreProbes = @(
+  $criticalIgnoreProbePaths | ForEach-Object {
+    [pscustomobject]@{
+      path = $_
+      augmentIgnored = Test-AugmentIgnored $_ $patterns
+    }
+  }
+)
+$criticalIgnoreProbeFailures = @($criticalIgnoreProbes | Where-Object { -not $_.augmentIgnored })
+$criticalIgnoreProbesPassed = $criticalIgnoreProbeFailures.Count -eq 0
+
 $includedTracked = New-Object System.Collections.Generic.List[string]
 $excludedTracked = New-Object System.Collections.Generic.List[string]
 foreach ($file in $trackedFiles) {
@@ -131,13 +161,15 @@ foreach ($file in $untrackedFiles) {
 }
 
 $candidateFiles = $includedTracked.Count + $includedUntracked.Count
-$passed = $candidateFiles -le $Threshold
+$candidateCountPassed = $candidateFiles -le $Threshold
+$passed = $candidateCountPassed -and $criticalIgnoreProbesPassed
 
 $report = [pscustomobject]@{
   generatedAt = (Get-Date).ToUniversalTime().ToString("o")
   repo = $repoRoot
   threshold = $Threshold
   passed = $passed
+  candidateCountPassed = $candidateCountPassed
   candidateFiles = $candidateFiles
   trackedFiles = $trackedFiles.Count
   trackedIncluded = $includedTracked.Count
@@ -145,19 +177,26 @@ $report = [pscustomobject]@{
   untrackedFiles = $untrackedFiles.Count
   untrackedIncluded = $includedUntracked.Count
   untrackedExcludedByAugmentignore = $excludedUntracked.Count
+  criticalIgnoreProbesPassed = $criticalIgnoreProbesPassed
+  criticalIgnoreProbeFailures = $criticalIgnoreProbeFailures.Count
   augmentIgnorePath = if (Test-Path -LiteralPath $augmentIgnorePath) { $augmentIgnorePath } else { $null }
   samples = [pscustomobject]@{
     trackedExcludedByAugmentignore = @($excludedTracked | Select-Object -First $SampleLimit)
     untrackedIncluded = @($includedUntracked | Select-Object -First $SampleLimit)
     untrackedExcludedByAugmentignore = @($excludedUntracked | Select-Object -First $SampleLimit)
   }
+  criticalIgnoreProbes = $criticalIgnoreProbes
 }
 
 $outPath = Join-Path $repoRoot $Out
 New-Item -ItemType Directory -Path (Split-Path -Parent $outPath) -Force | Out-Null
 $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $outPath -Encoding utf8
-$report | Select-Object generatedAt, repo, threshold, passed, candidateFiles, trackedFiles, trackedIncluded, trackedExcludedByAugmentignore, untrackedFiles, untrackedIncluded, untrackedExcludedByAugmentignore, augmentIgnorePath | ConvertTo-Json -Depth 4
+$report | Select-Object generatedAt, repo, threshold, passed, candidateCountPassed, candidateFiles, trackedFiles, trackedIncluded, trackedExcludedByAugmentignore, untrackedFiles, untrackedIncluded, untrackedExcludedByAugmentignore, criticalIgnoreProbesPassed, criticalIgnoreProbeFailures, augmentIgnorePath | ConvertTo-Json -Depth 4
 
-if (-not $passed) {
+if (-not $candidateCountPassed) {
   throw "Augment upload candidate count $candidateFiles exceeds threshold $Threshold. Review .augmentignore and local history before opening this workspace in Augment."
+}
+
+if (-not $criticalIgnoreProbesPassed) {
+  throw "Critical Augment ignore probes failed. Review .augmentignore coverage for generated reports, local history, and worktrees."
 }

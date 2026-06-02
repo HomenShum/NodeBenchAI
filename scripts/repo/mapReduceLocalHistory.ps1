@@ -102,6 +102,31 @@ function Test-WorktreeDirty([string]$Path) {
   return $status.Count -gt 0
 }
 
+function Test-CleanupLocked([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) { return $false }
+  $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+  if (-not $item) { return $true }
+
+  $files = if ($item.PSIsContainer) {
+    @(Get-ChildItem -LiteralPath $Path -File -Recurse -Force -ErrorAction SilentlyContinue)
+  } else {
+    @($item)
+  }
+
+  foreach ($file in $files) {
+    $stream = $null
+    try {
+      $stream = [System.IO.File]::Open($file.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+    } catch {
+      return $true
+    } finally {
+      if ($stream) { $stream.Close() }
+    }
+  }
+
+  return $false
+}
+
 $buckets = [ordered]@{
   safe = [System.Collections.Generic.List[object]]::new()
   caution = [System.Collections.Generic.List[object]]::new()
@@ -118,13 +143,20 @@ $tmpKeep = [System.Collections.Generic.HashSet[string]]::new([System.StringCompa
   "workspace-housekeeping-loop.json",
   "workspace-housekeeping-verification.json",
   "workspace-housekeeping-self-test.json"
+  "scratchnode-launch-goal-loop.json",
+  "scratchnode-launch-scan.json"
 ) | ForEach-Object { $tmpKeep.Add($_) | Out-Null }
 
 $tmpPath = Join-Path $repoRoot ".tmp"
 if (Test-Path -LiteralPath $tmpPath) {
   foreach ($child in Get-ChildItem -LiteralPath $tmpPath -Force -ErrorAction SilentlyContinue) {
     if (-not $tmpKeep.Contains($child.Name)) {
-      Add-Entry $buckets (New-Entry "safe" (Join-Path ".tmp" $child.Name) "generated .tmp child")
+      $relativeChild = Join-Path ".tmp" $child.Name
+      if (Test-CleanupLocked $child.FullName) {
+        Add-Entry $buckets (New-Entry "keep" $relativeChild "locked generated .tmp child" @{ locked = $true })
+      } else {
+        Add-Entry $buckets (New-Entry "safe" $relativeChild "generated .tmp child")
+      }
     }
   }
 }
@@ -203,14 +235,22 @@ foreach ($wt in Get-Worktrees) {
   }
 }
 
-$actions = [ordered]@{ safeCleanupApplied = [bool]$ApplySafe; cleanWorktreePruneApplied = [bool]$ApplyCleanWorktrees; removedSafe = @(); prunedWorktrees = @() }
+$actions = [ordered]@{ safeCleanupApplied = [bool]$ApplySafe; cleanWorktreePruneApplied = [bool]$ApplyCleanWorktrees; removedSafe = @(); skippedSafe = @(); prunedWorktrees = @() }
 
 if ($ApplySafe) {
   foreach ($entry in @($buckets.safe)) {
     $target = Assert-InRepo $entry.absolutePath
     if (Test-Path -LiteralPath $target) {
-      Remove-Item -LiteralPath $target -Recurse -Force
-      $actions.removedSafe += $entry.path
+      try {
+        Remove-Item -LiteralPath $target -Recurse -Force
+        $actions.removedSafe += $entry.path
+      } catch {
+        $actions.skippedSafe += [pscustomobject]@{
+          path = $entry.path
+          reason = "cleanup failed; preserving generated path"
+          error = $_.Exception.Message
+        }
+      }
     }
   }
 }

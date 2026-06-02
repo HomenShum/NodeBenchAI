@@ -62,12 +62,14 @@ Invoke-JsonScript $historyScript | Out-Null
 $initialHistory = Read-JsonFile ".tmp/local-history-map-reduce.json"
 $safeBefore = [int]$initialHistory.summary.safe.entries
 $removedSafe = @()
+$skippedSafe = @()
 $prunedWorktrees = @()
 
 if ($safeBefore -gt 0) {
   Invoke-JsonScript $historyScript @("-ApplySafe") | Out-Null
   $safeCleanupHistory = Read-JsonFile ".tmp/local-history-map-reduce.json"
   $removedSafe = @($safeCleanupHistory.actions.removedSafe)
+  $skippedSafe = @($safeCleanupHistory.actions.skippedSafe)
 }
 
 if ($ApplyCleanWorktrees) {
@@ -118,6 +120,8 @@ $report = [ordered]@{
     safeCleanupApplied = ($safeBefore -gt 0)
     removedSafeCount = $removedSafe.Count
     removedSafe = $removedSafe
+    skippedSafeCount = $skippedSafe.Count
+    skippedSafe = $skippedSafe
     cleanWorktreePruneApplied = [bool]$ApplyCleanWorktrees
     prunedWorktreeCount = $prunedWorktrees.Count
     prunedWorktrees = $prunedWorktrees
