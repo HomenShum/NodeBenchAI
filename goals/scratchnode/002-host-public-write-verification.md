@@ -5,7 +5,7 @@ falls back to `sessionId` (6377-6383), while the other 5 host mutations use the 
 `_snRequireVerifiedHostOwnerKey()` (6233) that returns null + a "Host verification required" toast.
 Make the two public-write actions consistent with the rest, and add a regression test.
 
-- **status:** proposed
+- **status:** shipped
 - **surface:** scratchnode
 - **severity:** **P1** (NOT P0). **Verified:** the backend `requireHost` (`convex/events.ts:439`,
   called at 2626 + 2642) already rejects a bare `sessionId` server-side → **no public write occurs**.

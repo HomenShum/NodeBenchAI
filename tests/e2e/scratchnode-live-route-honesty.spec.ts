@@ -290,4 +290,29 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(page.locator("#sn-manage-event-output")).toContainText("Session ended");
     await expect(page.locator("#ev-mode-label")).toContainText("ended");
   });
+
+  test("guest cannot trigger host-only public-write mutations (promoteFaq / publishWiki)", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    // Guest session: no sn_host_owner_key_v2 was set, so _sn_live.hostVerified is false.
+    // The two PUBLIC-write actions must early-return via _snRequireVerifiedHostOwnerKey,
+    // NOT fall back to sessionId (the C002/scratchnode-002 boundary fix). Backend requireHost
+    // would also reject, but the frontend must not even attempt the mutation.
+    await page.evaluate(() => {
+      const w = window as any;
+      if (typeof w.snPromoteFaq === "function") w.snPromoteFaq("liveEventAnswers:1");
+      if (typeof w.snPublishWiki === "function") w.snPublishWiki();
+    });
+
+    const calledMutations = await page.evaluate(() =>
+      ((window as any).__snMockMutations || []).map((c: any) => c.name),
+    );
+    expect(calledMutations).not.toContain("events:promoteAnswerToFaq");
+    expect(calledMutations).not.toContain("events:publishWiki");
+    await expect(page.locator(".toast")).toContainText("Host verification required");
+  });
 });
