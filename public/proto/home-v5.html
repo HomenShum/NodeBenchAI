@@ -1805,15 +1805,100 @@ body[data-page-mode="landing"] .welcome {
   margin-left: 14px;
   color: var(--ink-faint);
 }
+/* "or host your own" divider between Join and Create. */
+.landing-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+  font-family: var(--ui);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.landing-or::before,
+.landing-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+/* Create-a-room form — name (required) + optional custom code + submit. */
+.landing-create {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+}
+.landing-create-sub {
+  display: flex;
+  gap: 8px;
+}
+.landing-create input {
+  font-family: var(--ui);
+  font-size: 15px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color .15s ease;
+}
+.landing-create #landing-create-code { flex: 1; min-width: 0; }
+.landing-create input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(217,119,87,.18);
+}
+.landing-create input::placeholder { color: var(--ink-faint); }
+/* Outline-accent so "Join" stays the single primary CTA; Create is clearly
+   available but secondary in the visual hierarchy. */
+.landing-create button {
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 15px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s ease, color .15s ease;
+}
+.landing-create button:hover { background: var(--accent); color: #fff; }
+.landing-create button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(217,119,87,.35);
+}
+.landing-create button:disabled { opacity: .65; cursor: progress; }
+.landing-create-status {
+  display: none;
+  font-family: var(--ui);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+  max-width: 420px;
+  color: var(--ink-muted);
+}
+.landing-create-status[data-state="busy"] { color: var(--accent); }
+.landing-create-status[data-state="error"] { color: #d98b7a; }
 @media (max-width: 600px) {
   .landing-hero h1 { font-size: 22px; }
   .landing-hero p { font-size: 14px; }
   .landing-join { flex-direction: column; }
   .landing-join button { width: 100%; }
+  .landing-create-sub { flex-direction: column; }
+  .landing-create button { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .landing-join input,
   .landing-join button,
+  .landing-create input,
+  .landing-create button,
   .landing-secondary { transition: none; }
 }
 
@@ -1888,6 +1973,130 @@ function _landingJoin(ev) {
   location.href = '/e/' + encodeURIComponent(code);
   return false;
 }
+
+/**
+ * _landingCreate — handler for the landing-mode "Create a room" form.
+ *
+ * WHY this exists on the landing (not just the in-room host console):
+ *   The live-backend module below (PHASE 1 LIVE BACKEND) bails early on the
+ *   apex landing (`if (!slugMatch) return`), so its `client` / sessionId /
+ *   `snCreateEventFromHostSheet` are NEVER wired here. A first-time visitor
+ *   therefore had no front-door to create a room — only a "Join" form. This
+ *   handler is a self-contained, lazily-bootstrapped create path: it spins up
+ *   a Convex client on click (same /api/scratchnode-config + esm.sh paths the
+ *   room module + e2e mocks use), calls events:createEvent, persists the
+ *   issued host token, and navigates the new host into /e/<slug>.
+ *
+ * Honesty contract (.claude/rules/agentic_reliability HONEST_STATUS, and the
+ * scratchnode-live-route-honesty e2e): every failure surfaces a real inline
+ * error and re-enables the button — we NEVER fake success or navigate on a
+ * failed create. `data-sn-live` is left untouched (only the in-room module
+ * may set it), so the apex stays honestly "not live" until the host lands in
+ * their room.
+ */
+async function _landingCreate(ev) {
+  try { ev.preventDefault(); } catch (e) {}
+  var nameEl = document.getElementById('landing-create-name');
+  var codeEl = document.getElementById('landing-create-code');
+  var btn = document.getElementById('landing-create-btn');
+  var statusEl = document.getElementById('landing-create-status');
+  var title = String((nameEl && nameEl.value) || '').trim();
+  var roomCode = String((codeEl && codeEl.value) || '').trim();
+
+  function setStatus(msg, state) {
+    if (!statusEl) return;
+    statusEl.textContent = msg || '';
+    statusEl.style.display = msg ? 'block' : 'none';
+    if (state) statusEl.setAttribute('data-state', state);
+    else statusEl.removeAttribute('data-state');
+  }
+  function fail(msg) {
+    setStatus(msg, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Create room & enter →'; }
+    if (typeof toast === 'function') { try { toast('Could not create room', msg); } catch (e) {} }
+    return false;
+  }
+
+  if (title.length < 3) {
+    if (nameEl) { try { nameEl.focus(); } catch (e) {} }
+    return fail('Give your event a name (at least 3 characters).');
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating your room…'; }
+  setStatus('Spinning up your live room…', 'busy');
+
+  // Stable anonymous session id — shared with the in-room module so the host
+  // is recognized as a member the moment they land in /e/<slug>.
+  var sessionId;
+  try {
+    sessionId = localStorage.getItem('sn_session_id');
+    if (!sessionId) {
+      sessionId = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('sn_session_id', sessionId);
+    }
+  } catch (e) {
+    sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+  }
+
+  try {
+    var r = await fetch('/api/scratchnode-config', { cache: 'no-store' });
+    if (!r.ok) return fail('Could not load room config (HTTP ' + r.status + '). Refresh and try again.');
+    var cfg = await r.json();
+    if (!cfg || !cfg.convexUrl) return fail('Live backend is not configured right now. Try again shortly.');
+
+    var ConvexClient;
+    try {
+      var mod = await import('https://esm.sh/convex@1.29.0/browser');
+      ConvexClient = mod.ConvexClient;
+    } catch (e) {
+      return fail('Could not load the realtime client. Refresh and try again.');
+    }
+    if (!ConvexClient) return fail('Could not load the realtime client. Refresh and try again.');
+
+    var client = new ConvexClient(cfg.convexUrl);
+    var displayName = (window._userName && String(window._userName).trim()) || 'Host';
+    var res;
+    try {
+      res = await client.mutation('events:createEvent', {
+        title: title,
+        sessionId: sessionId,
+        displayName: displayName,
+        roomCode: roomCode || undefined,
+        status: 'live',
+      });
+    } catch (e) {
+      try { client.close && client.close(); } catch (_) {}
+      var errCode = (e && e.data && e.data.code) || '';
+      if (errCode === 'room_code_taken') {
+        return fail('That room code is taken — pick another, or leave it blank for an auto code.');
+      }
+      if (errCode === 'invalid_room_code') {
+        return fail('Room code must be 2-24 letters, numbers, or dashes.');
+      }
+      if (errCode === 'rate_limited' || /rate.?limit/i.test(String((e && e.message) || ''))) {
+        return fail('You’ve created several rooms recently. Wait a minute, then try again.');
+      }
+      return fail((e && e.message) || 'Create failed. Try again.');
+    }
+
+    if (!res || !res.eventId || !res.ownerKey || !(res.slug || res.roomCode)) {
+      try { client.close && client.close(); } catch (_) {}
+      return fail('The server did not return a usable room. Try again.');
+    }
+
+    // Persist the issued host token so the room boot marks this device as host
+    // (getHostStatus reads sn_host_owner_key_v2). Same key the host console uses.
+    try { localStorage.setItem('sn_host_owner_key_v2', res.ownerKey); } catch (e) {}
+    try { client.close && client.close(); } catch (_) {}
+    setStatus('Room ' + (res.roomCode || res.slug) + ' is live — opening…', 'busy');
+    location.href = '/e/' + encodeURIComponent(res.slug || res.roomCode);
+    return false;
+  } catch (e) {
+    return fail((e && e.message) || 'Unexpected error creating the room.');
+  }
+}
 </script>
 
 <!-- Landing-mode hero — visible only when data-page-mode === "landing" -->
@@ -1900,6 +2109,15 @@ function _landingJoin(ev) {
       <input type="text" placeholder="Enter room code (e.g. ORBITAL)" aria-label="Room code" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false">
       <button type="submit">Join &rarr;</button>
     </form>
+    <div class="landing-or" aria-hidden="true"><span>or host your own</span></div>
+    <form class="landing-create" onsubmit="return _landingCreate(event)" aria-label="Create a new room for your event">
+      <input type="text" id="landing-create-name" placeholder="Name your event (e.g. Sarah&#39;s Birthday)" aria-label="Event name" maxlength="90" autocomplete="off" required>
+      <div class="landing-create-sub">
+        <input type="text" id="landing-create-code" placeholder="Custom code (optional)" aria-label="Custom room code (optional)" maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button type="submit" id="landing-create-btn">Create room &amp; enter &rarr;</button>
+      </div>
+    </form>
+    <p class="landing-create-status" id="landing-create-status" role="status" aria-live="polite"></p>
     <div class="landing-cta-row">
       <a href="/demo_ver1" class="landing-secondary">See the demo &rarr;</a>
       <a href="/docs" class="landing-secondary">Read the docs &rarr;</a>
