@@ -32,6 +32,13 @@ export const liveEvents = defineTable({
   ),
   startedAt: v.number(),
   endedAt: v.optional(v.number()),
+  // Tolerated drift field: a parallel agent (Codex live-metrics) deployed a
+  // schema variant to prod that stamped `lastActivityAt` onto liveEvents rows
+  // before this branch added its indexes. Declaring it optional lets the
+  // schema validate the existing prod data so `npx convex deploy` succeeds
+  // (it was failing with "extra field `lastActivityAt` not in the validator").
+  // No current code writes it; keep until the row is rewritten or pruned.
+  lastActivityAt: v.optional(v.number()),
 })
   .index("by_slug", ["slug"])
   .index("by_roomCode", ["roomCode"])
