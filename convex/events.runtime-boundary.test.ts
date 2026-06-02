@@ -93,6 +93,39 @@ describe("scratchnode public runtime boundaries", () => {
     expect(getMyEvents).toContain("hosted");
   });
 
+  it("keeps landing stats and public room discovery bounded and activity-based", () => {
+    const getLandingStats = functionBlock("getLandingStats", "query");
+    const listPublicRooms = functionBlock("listPublicRooms", "query");
+    const createEvent = functionBlock("createEvent");
+
+    expect(eventsSchemaSource).toContain("publicDiscoverable");
+    expect(eventsSchemaSource).toContain("joinPolicy");
+    expect(eventsSchemaSource).toContain("lastActivityAt");
+    expect(eventsSchemaSource).toContain("by_public_status_startedAt");
+
+    expect(getLandingStats).toContain("MAX_LANDING_STATS_SCAN");
+    expect(getLandingStats).toContain("PUBLIC_ROOM_ACTIVE_WINDOW_MS");
+    expect(getLandingStats).toContain("getEventActivityAt");
+
+    expect(listPublicRooms).toContain("MAX_PUBLIC_ROOM_CARDS");
+    expect(listPublicRooms).toContain("MAX_PUBLIC_ROOM_CANDIDATES");
+    expect(listPublicRooms).toContain('q.eq("publicDiscoverable", true)');
+    expect(listPublicRooms).toContain("activeSessionsCapped");
+
+    expect(createEvent).toContain("publicDiscoverable: args.publicDiscoverable === true");
+    expect(createEvent).toContain('joinPolicy: args.joinPolicy || "open"');
+  });
+
+  it("does not let passive heartbeats keep public room listings warm", () => {
+    const joinEvent = functionBlock("joinEvent");
+    const sendMessage = functionBlock("sendMessage");
+    const heartbeat = functionBlock("heartbeat");
+
+    expect(joinEvent).toContain("lastActivityAt: now");
+    expect(sendMessage).toContain("lastActivityAt: now");
+    expect(heartbeat).not.toContain("lastActivityAt");
+  });
+
   it("keeps host claim idempotent for the same owner key before rejecting claimed rooms", () => {
     const claimHost = functionBlock("claimHost");
     const ownerLookup = claimHost.indexOf('withIndex("by_event_owner"');

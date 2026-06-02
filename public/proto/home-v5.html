@@ -1681,6 +1681,10 @@ body[data-page-mode="landing"] main.m,
 body[data-page-mode="landing"] .h-code,
 body[data-page-mode="landing"] .h-live,
 body[data-page-mode="landing"] #live-assist-rail,
+body[data-page-mode="landing"] #live-assist-sheet,
+body[data-page-mode="landing"] #live-assist-scrim,
+body[data-page-mode="landing"] #sheet,
+body[data-page-mode="landing"] #sheet-scrim,
 body[data-page-mode="landing"] .welcome {
   display: none !important;
 }
@@ -1897,6 +1901,23 @@ body[data-page-mode="landing"] .welcome {
   display: flex;
   gap: 8px;
 }
+.landing-discovery-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+  font-family: var(--ui);
+  font-size: 12px;
+  color: var(--ink-muted);
+  text-align: left;
+  cursor: pointer;
+}
+.landing-discovery-toggle input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
 .landing-create input {
   font-family: var(--ui);
   font-size: 15px;
@@ -1914,6 +1935,14 @@ body[data-page-mode="landing"] .welcome {
   box-shadow: 0 0 0 3px rgba(217,119,87,.18);
 }
 .landing-create input::placeholder { color: var(--ink-faint); }
+.landing-create .landing-discovery-toggle input {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
 /* Outline-accent so "Join" stays the single primary CTA; Create is clearly
    available but secondary in the visual hierarchy. */
 .landing-create button {
@@ -1946,6 +1975,79 @@ body[data-page-mode="landing"] .welcome {
 }
 .landing-create-status[data-state="busy"] { color: var(--accent); }
 .landing-create-status[data-state="error"] { color: #d98b7a; }
+.landing-public {
+  display: none;
+  width: 100%;
+  max-width: 560px;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 2px;
+}
+.landing-public[data-visible="true"] { display: flex; }
+.landing-public-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--ui);
+}
+.landing-public-head b {
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.landing-public-head span {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.landing-public-list {
+  display: grid;
+  gap: 8px;
+}
+.landing-room-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  background: rgba(255,255,255,.045);
+  text-align: left;
+}
+.landing-room-title {
+  font-family: var(--ui);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.landing-room-meta {
+  margin-top: 3px;
+  font-family: var(--ui);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.landing-room-join {
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid rgba(217,119,87,.65);
+  border-radius: 7px;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+.landing-room-join:hover,
+.landing-room-join:focus-visible {
+  background: var(--accent);
+  color: #fff;
+  outline: none;
+}
 @media (max-width: 600px) {
   .landing-hero h1 { font-size: 22px; }
   .landing-hero p { font-size: 14px; }
@@ -1953,6 +2055,8 @@ body[data-page-mode="landing"] .welcome {
   .landing-join button { width: 100%; }
   .landing-create-sub { flex-direction: column; }
   .landing-create button { width: 100%; }
+  .landing-room-card { grid-template-columns: 1fr; }
+  .landing-room-join { text-align: center; }
   .landing-pulse__big { font-size: 48px; }
   .landing-pulse__suffix { font-size: 30px; }
 }
@@ -1961,6 +2065,7 @@ body[data-page-mode="landing"] .welcome {
   .landing-join button,
   .landing-create input,
   .landing-create button,
+  .landing-room-join,
   .landing-secondary { transition: none; }
   .landing-pulse,
   .landing-pulse__dot { animation: none; }
@@ -2062,10 +2167,12 @@ async function _landingCreate(ev) {
   try { ev.preventDefault(); } catch (e) {}
   var nameEl = document.getElementById('landing-create-name');
   var codeEl = document.getElementById('landing-create-code');
+  var discoverEl = document.getElementById('landing-create-public');
   var btn = document.getElementById('landing-create-btn');
   var statusEl = document.getElementById('landing-create-status');
   var title = String((nameEl && nameEl.value) || '').trim();
   var roomCode = String((codeEl && codeEl.value) || '').trim();
+  var publicDiscoverable = !!(discoverEl && discoverEl.checked);
 
   function setStatus(msg, state) {
     if (!statusEl) return;
@@ -2129,6 +2236,8 @@ async function _landingCreate(ev) {
         displayName: displayName,
         roomCode: roomCode || undefined,
         status: 'live',
+        publicDiscoverable: publicDiscoverable,
+        joinPolicy: 'open',
       });
     } catch (e) {
       try { client.close && client.close(); } catch (_) {}
@@ -2189,21 +2298,30 @@ function _snInitLandingStats() {
     if (!wrap || !numEl || !liveEl) return;
     var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     var shownRooms = 0;
+    var shownLive = 0;
     var raf = null;
 
-    function animateTo(target) {
+    function animatePair(roomsTarget, liveTarget) {
       if (raf) { cancelAnimationFrame(raf); raf = null; }
-      if (reduce || shownRooms === target) { numEl.textContent = _snFmtStat(target); shownRooms = target; return; }
-      var from = shownRooms;
+      if (reduce || (shownRooms === roomsTarget && shownLive === liveTarget)) {
+        numEl.textContent = _snFmtStat(roomsTarget);
+        liveEl.textContent = _snFmtStat(liveTarget);
+        shownRooms = roomsTarget;
+        shownLive = liveTarget;
+        return;
+      }
+      var fromR = shownRooms;
+      var fromL = shownLive;
       var start = null;
       var dur = 750;
       function step(ts) {
         if (start === null) start = ts;
         var p = Math.min(1, (ts - start) / dur);
         var eased = 1 - Math.pow(1 - p, 3);
-        numEl.textContent = _snFmtStat(Math.round(from + (target - from) * eased));
+        numEl.textContent = _snFmtStat(Math.round(fromR + (roomsTarget - fromR) * eased));
+        liveEl.textContent = _snFmtStat(Math.round(fromL + (liveTarget - fromL) * eased));
         if (p < 1) { raf = requestAnimationFrame(step); }
-        else { raf = null; shownRooms = target; }
+        else { raf = null; shownRooms = roomsTarget; shownLive = liveTarget; }
       }
       raf = requestAnimationFrame(step);
     }
@@ -2214,8 +2332,54 @@ function _snInitLandingStats() {
       if (rooms < 1) { wrap.hidden = true; return; }  // honest: hide empty, never fake
       wrap.hidden = false;
       if (sufEl) sufEl.textContent = stats.capped ? '+' : '';
-      liveEl.textContent = _snFmtStat(Math.max(0, stats.liveNow || 0));
-      animateTo(rooms);
+      animatePair(rooms, Math.max(0, stats.liveNow || 0));
+    }
+
+    function roomUrl(room) {
+      var slug = room && (room.slug || room.roomCode);
+      return '/e/' + encodeURIComponent(String(slug || '').toLowerCase());
+    }
+
+    function renderPublicRooms(payload) {
+      var section = document.getElementById('landing-public');
+      var list = document.getElementById('landing-public-list');
+      var countEl = document.getElementById('landing-public-count');
+      if (!section || !list) return;
+      var rooms = payload && Array.isArray(payload.rooms) ? payload.rooms : [];
+      list.innerHTML = '';
+      if (!rooms.length) {
+        section.removeAttribute('data-visible');
+        if (countEl) countEl.textContent = '';
+        return;
+      }
+      section.setAttribute('data-visible', 'true');
+      if (countEl) countEl.textContent = rooms.length === 1 ? '1 open' : rooms.length + ' open';
+      rooms.slice(0, 4).forEach(function(room) {
+        var card = document.createElement('article');
+        card.className = 'landing-room-card';
+
+        var copy = document.createElement('div');
+        var title = document.createElement('div');
+        title.className = 'landing-room-title';
+        title.textContent = String(room.name || 'Untitled room');
+        var meta = document.createElement('div');
+        meta.className = 'landing-room-meta';
+        var active = Number(room.activeSessions || 0);
+        var activeText = active > 0
+          ? active.toLocaleString('en-US') + (room.activeSessionsCapped ? '+' : '') + ' active'
+          : 'Open for guests';
+        meta.textContent = activeText + ' · code ' + String(room.roomCode || '').toUpperCase();
+        copy.appendChild(title);
+        copy.appendChild(meta);
+
+        var join = document.createElement('a');
+        join.className = 'landing-room-join';
+        join.href = roomUrl(room);
+        join.textContent = 'Request to join';
+        card.appendChild(copy);
+        card.appendChild(join);
+        list.appendChild(card);
+      });
     }
 
     function connect() {
@@ -2230,6 +2394,9 @@ function _snInitLandingStats() {
             window._sn_landing_stats = { client: client };
             client.onUpdate('events:getLandingStats', {}, function (stats) {
               try { render(stats); } catch (e) {}
+            });
+            client.onUpdate('events:listPublicRooms', { limit: 4 }, function (rooms) {
+              try { renderPublicRooms(rooms); } catch (e) {}
             });
           });
         })
@@ -2277,6 +2444,10 @@ if (document.readyState === 'loading') {
         <input type="text" id="landing-create-code" placeholder="Custom code (optional)" aria-label="Custom room code (optional)" maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false">
         <button type="submit" id="landing-create-btn">Create room &amp; enter &rarr;</button>
       </div>
+      <label class="landing-discovery-toggle">
+        <input type="checkbox" id="landing-create-public">
+        <span>List this as an open public room</span>
+      </label>
     </form>
     <p class="landing-create-status" id="landing-create-status" role="status" aria-live="polite"></p>
     <div class="landing-cta-row">
@@ -2284,6 +2455,13 @@ if (document.readyState === 'loading') {
       <a href="/docs" class="landing-secondary">Read the docs &rarr;</a>
     </div>
   </div>
+  <section class="landing-public" id="landing-public" aria-label="Open public rooms">
+    <div class="landing-public-head">
+      <b>Open public rooms</b>
+      <span id="landing-public-count"></span>
+    </div>
+    <div class="landing-public-list" id="landing-public-list"></div>
+  </section>
   <div class="landing-trust" aria-label="Privacy posture">
     <span>No-account join.</span>
     <span>Public answers stay sourced.</span>

@@ -30,11 +30,19 @@ export const liveEvents = defineTable({
     v.literal("live"),
     v.literal("ended"),
   ),
+  publicDiscoverable: v.optional(v.boolean()),          // opt-in listing on the apex landing
+  joinPolicy: v.optional(v.union(
+    v.literal("open"),
+    v.literal("request"),
+  )),
   startedAt: v.number(),
+  lastActivityAt: v.optional(v.number()),               // create/join/message activity; heartbeat does not keep listings warm
   endedAt: v.optional(v.number()),
 })
   .index("by_slug", ["slug"])
-  .index("by_roomCode", ["roomCode"]);
+  .index("by_roomCode", ["roomCode"])
+  .index("by_status_startedAt", ["status", "startedAt"])
+  .index("by_public_status_startedAt", ["publicDiscoverable", "status", "startedAt"]);
 
 // ------------------------------------------------------------------
 // liveEventMembers — anonymous presence per event
