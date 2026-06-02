@@ -27,6 +27,9 @@ import {
   getFreeModels,
   type ApprovedModel
 } from "./mcp_tools/models";
+// Quality gate: decides whether a cheap/free model's digest is good enough to
+// publish, or whether to fall through to a more expensive trusted model.
+import { assessDigestQuality } from "../../workflows/ainewsBriefFormat";
 
 // Import coordinator agent for full tool access
 import { createCoordinatorAgent } from "./core/coordinatorAgent";
@@ -2268,28 +2271,35 @@ export const generateDigestWithFactChecks = internalAction({
       console.warn("[digestAgent] Failed to fetch funding rounds:", e instanceof Error ? e.message : String(e));
     }
 
-    // 3. Generate digest (with model fallback)
-    // Strategy: try ALL free models first, then paid models
-    const allFreeModels = getFreeModels();
-    const paidFallbacks: ApprovedModel[] = [FALLBACK_MODEL, "gemini-3.1-flash-lite-preview" as ApprovedModel, "claude-haiku-4.5" as ApprovedModel];
+    // 3. Generate digest (free-first, with a quality gate + paid safety net)
+    // Strategy: try the TOP FREE models FIRST (cost = $0), but only publish a
+    // free model's output if it clears the AINews quality bar (assessDigestQuality).
+    // Otherwise fall through to the trusted PAID models. An explicitly requested
+    // model is honored first; the paid tail is the guaranteed safety net.
+    const explicitlyRequested = typeof args.model === "string" && args.model.trim().length > 0;
+    const MAX_FREE_CANDIDATES = 3; // top N free models — avoid trying all ~16
+    const freeCandidates = getFreeModels().slice(0, MAX_FREE_CANDIDATES);
+    const paidTail: string[] = [model, FALLBACK_MODEL, "gemini-3.1-flash-lite-preview", "claude-haiku-4.5"];
 
-    // Build chain: requested model first, then remaining free models, then paid
-    const modelsToTry: string[] = [model];
-    for (const fm of allFreeModels) {
-      if (!modelsToTry.includes(fm)) modelsToTry.push(fm);
-    }
-    for (const pm of paidFallbacks) {
-      if (!modelsToTry.includes(pm)) modelsToTry.push(pm);
-    }
+    const modelsToTry: string[] = [];
+    const pushUnique = (m: string) => { if (m && !modelsToTry.includes(m)) modelsToTry.push(m); };
+    if (explicitlyRequested) pushUnique(model);      // honor an explicit request first
+    for (const fm of freeCandidates) pushUnique(fm);  // then the top free models (quality-gated)
+    for (const pm of paidTail) pushUnique(pm);        // then the paid trusted tail
     console.log(`[digestAgent] Fallback chain (${modelsToTry.length} models): ${modelsToTry.join(" -> ")}`);
 
-    let result: { digest: AgentDigestOutput | null; rawText: string; usage: { inputTokens: number; outputTokens: number; model: string }; error?: string; cache?: { hit: boolean; id: any } } | null = null;
+    type DigestResult = { digest: AgentDigestOutput | null; rawText: string; usage: { inputTokens: number; outputTokens: number; model: string }; error?: string; cache?: { hit: boolean; id: any } };
+    let result: DigestResult | null = null;
+    let firstParsed: DigestResult | null = null; // best-effort: a parsed-but-below-bar digest
     let lastError = "";
     const MAX_RETRIES_PER_MODEL = 2;
     const BASE_DELAY_MS = 2000; // 2s, 4s exponential backoff
 
     for (const tryModel of modelsToTry) {
       let succeeded = false;
+      // Only the free models WE selected for cost savings must clear the quality bar.
+      // Membership test (not isFreeModel) so an unknown model name can never throw here.
+      const gated = (freeCandidates as readonly string[]).includes(tryModel);
 
       for (let attempt = 0; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
         if (attempt > 0) {
@@ -2297,11 +2307,11 @@ export const generateDigestWithFactChecks = internalAction({
           console.log(`[digestAgent] Retry ${attempt}/${MAX_RETRIES_PER_MODEL} for ${tryModel} after ${delayMs}ms...`);
           await new Promise((resolve) => setTimeout(resolve, delayMs));
         } else {
-          console.log(`[digestAgent] Trying model=${tryModel} for digest generation...`);
+          console.log(`[digestAgent] Trying model=${tryModel}${gated ? " (free, quality-gated)" : " (paid)"} for digest generation...`);
         }
 
         try {
-          result = await ctx.runAction(internal.domains.agents.digestAgent.generateAgentDigest, {
+          const candidate: DigestResult = await ctx.runAction(internal.domains.agents.digestAgent.generateAgentDigest, {
             feedItems,
             persona,
             model: tryModel,
@@ -2309,14 +2319,27 @@ export const generateDigestWithFactChecks = internalAction({
             useCache: false,
           });
 
-          if (result && result.digest && !result.error) {
-            if (tryModel !== model) {
-              console.log(`[digestAgent] Primary model ${model} failed, succeeded with fallback ${tryModel} (attempt ${attempt + 1})`);
+          if (candidate && candidate.digest && !candidate.error) {
+            if (!firstParsed) firstParsed = candidate; // remember the first thing that parsed
+            // Free models must clear the publishable quality bar; paid models are trusted.
+            if (gated) {
+              const quality = assessDigestQuality(candidate.digest);
+              if (!quality.publishable) {
+                lastError = `free model ${tryModel} below quality bar: ${quality.reason}`;
+                console.warn(`[digestAgent] ${lastError} -- falling through`);
+                result = null;
+                break; // quality won't improve on retry; move to next model
+              }
+              console.log(`[digestAgent] Free model ${tryModel} cleared quality bar (${quality.signalCount} signals, ${quality.denseSignalCount} with number/source)`);
             }
+            if (tryModel !== model) {
+              console.log(`[digestAgent] Succeeded with ${tryModel} (attempt ${attempt + 1})`);
+            }
+            result = candidate;
             succeeded = true;
             break;
           } else {
-            lastError = result?.error || "No digest returned";
+            lastError = candidate?.error || "No digest returned";
             console.warn(`[digestAgent] Model ${tryModel} attempt ${attempt + 1} returned error: ${lastError}`);
             result = null;
           }
@@ -2328,7 +2351,15 @@ export const generateDigestWithFactChecks = internalAction({
       }
 
       if (succeeded) break;
-      console.warn(`[digestAgent] Model ${tryModel} exhausted ${MAX_RETRIES_PER_MODEL + 1} attempts, moving to next model`);
+      console.warn(`[digestAgent] Model ${tryModel} did not yield a publishable digest, moving to next model`);
+    }
+
+    // Best-effort: if nothing cleared the bar but something parsed, publish the
+    // best parsed digest rather than nothing (HONEST: post real output; the
+    // quality shortfall is logged, not hidden).
+    if ((!result || !result.digest) && firstParsed?.digest) {
+      console.warn(`[digestAgent] No model met the quality bar; publishing best-effort digest from ${firstParsed.usage.model}`);
+      result = firstParsed;
     }
 
     if (!result || !result.digest) {

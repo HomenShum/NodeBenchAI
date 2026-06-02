@@ -233,3 +233,58 @@ export function briefFooterCap(bodyLines: string[], footer: string, max = 1450):
   }
   return body + footerBlock;
 }
+
+/** Thresholds for whether a digest can produce a publishable AINews-style brief. */
+export interface DigestQualityThresholds {
+  /** Minimum signals needed to build the top-3 headline + bullet list. */
+  minSignals: number;
+  /** Minimum signals carrying a hard number OR a source URL (the AINews density signal). */
+  minDenseSignals: number;
+}
+
+export const DEFAULT_DIGEST_QUALITY: DigestQualityThresholds = {
+  minSignals: 3,
+  minDenseSignals: 2,
+};
+
+export interface DigestQualityResult {
+  publishable: boolean;
+  reason: string;
+  signalCount: number;
+  denseSignalCount: number;
+}
+
+/**
+ * Quality gate: would this digest produce a publishable AINews-style brief?
+ *
+ * Used to decide whether a CHEAP/FREE model's output is good enough to publish,
+ * or whether to fall through to a more expensive trusted model. The AINews format
+ * leans on (a) enough distinct stories for the top-3 headline + bullets and
+ * (b) number/source density in the bullets — so those are exactly what we check.
+ *
+ * HONEST_SCORES: every count is measured from the digest, never assumed. This is
+ * a structural check only — it does not judge factual accuracy (the fact-check
+ * layer owns that).
+ */
+export function assessDigestQuality(
+  d: BriefDigest,
+  thresholds: DigestQualityThresholds = DEFAULT_DIGEST_QUALITY,
+): DigestQualityResult {
+  const signals = (d.signals ?? []).filter((s) => Boolean(s && s.title && s.title.trim()));
+  const signalCount = signals.length;
+  const denseSignalCount = signals.filter(
+    (s) => Boolean((s.hardNumbers && s.hardNumbers.trim()) || (s.url && s.url.trim())),
+  ).length;
+  const hasThesis = Boolean(d.narrativeThesis && d.narrativeThesis.trim());
+
+  if (signalCount < thresholds.minSignals) {
+    return { publishable: false, reason: `only ${signalCount} usable signals (need ${thresholds.minSignals})`, signalCount, denseSignalCount };
+  }
+  if (denseSignalCount < thresholds.minDenseSignals) {
+    return { publishable: false, reason: `only ${denseSignalCount} signals carry a number or source (need ${thresholds.minDenseSignals})`, signalCount, denseSignalCount };
+  }
+  if (!hasThesis) {
+    return { publishable: false, reason: "missing narrative thesis (no dek)", signalCount, denseSignalCount };
+  }
+  return { publishable: true, reason: "ok", signalCount, denseSignalCount };
+}
