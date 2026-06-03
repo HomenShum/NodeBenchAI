@@ -714,6 +714,12 @@ test.describe("ScratchNode live route honesty", () => {
         ),
       )
       .toBe(1);
+    const wikiButton = answerCard.locator("button").filter({ hasText: /View in wiki/i }).last();
+    await expect(wikiButton).toHaveCount(1);
+    await wikiButton.evaluate((button: HTMLButtonElement) => button.click());
+    await expect(page.locator("#sheet-title")).toContainText("AI Infra Summit");
+    await expect(page.locator("#sheet-content")).toContainText("Wiki not published yet");
+    await expect(page.locator("#sheet-content")).not.toContainText(publicPrompt);
 
     const publicAskState = await page.evaluate(() => {
       const win = window as any;
