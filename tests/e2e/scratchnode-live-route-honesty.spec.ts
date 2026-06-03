@@ -1479,6 +1479,12 @@ test.describe("ScratchNode live route honesty", () => {
     expect(state.noteText).toContain("Why it matters: Deepen this after the event in NodeBench");
     expect(state.noteText).toContain("Next step: Ask for the concrete decision");
     expect(state.noteText).toContain("Evidence to capture: quote, speaker/company");
+    expect(state.noteText).toContain(
+      "NodeBench packet: people, companies, topics, anchors, source refs, and open questions.",
+    );
+    expect(state.noteText).toContain(
+      "Deeper follow-up: turn this cue into one owner-scoped research task, not a public room answer.",
+    );
     expect(state.noteText).toContain("Event topic: MCP auth - Panel Room A");
     expect(state.noteText).toContain("Context: @Orbital Labs, @Alex Chen, [[tenant RBAC]]");
     expect(state.noteText).toContain("Cue source: route-test");

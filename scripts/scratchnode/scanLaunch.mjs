@@ -822,6 +822,12 @@ function scanPublicRepoReadiness() {
       /Cue source: '\s*\+\s*source/i.test(homeHtml) &&
       /Cue skill: '\s*\+\s*skill/i.test(homeHtml) &&
       /Cue trace: '\s*\+\s*traceRef/i.test(homeHtml) &&
+      /NodeBench packet: people, companies, topics, anchors, source refs, and open questions\./i.test(
+        homeHtml,
+      ) &&
+      /Deeper follow-up: turn this cue into one owner-scoped research task, not a public room answer\./i.test(
+        homeHtml,
+      ) &&
       /Visibility: private follow-up note; not public chat or public \/ask\./i.test(homeHtml) &&
       /Live Assist save cue writes an actual private note without public writes/i.test(
         routeHonestySpec,
@@ -845,6 +851,12 @@ function scanPublicRepoReadiness() {
       /Cue source: route-test/i.test(routeHonestySpec) &&
       /Cue skill: follow-up-depth/i.test(routeHonestySpec) &&
       /Cue trace: trace_\$\{cueId\}/i.test(routeHonestySpec) &&
+      /NodeBench packet: people, companies, topics, anchors, source refs, and open questions\./i.test(
+        routeHonestySpec,
+      ) &&
+      /Deeper follow-up: turn this cue into one owner-scoped research task, not a public room answer\./i.test(
+        routeHonestySpec,
+      ) &&
       /publicSendCalls\)\.toEqual\(\[\]\)/i.test(routeHonestySpec),
     name: "event-log route spec covers structured private follow-up cues",
     plane: "event-log-evidence",

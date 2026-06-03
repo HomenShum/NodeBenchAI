@@ -110,6 +110,8 @@ Keep entries short and honest. Newest on top within each section.
 
 ## Recently shipped (this ScratchNode session)
 
+- **Codex** - deeper Live Assist follow-up packet (`public/proto/home-v5.html#live-assist-followup`, `tests/e2e/scratchnode-live-route-honesty.spec.ts#follow-up-depth`, `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): private follow-up notes now include a NodeBench research packet for people, companies, topics, anchors, source refs, and open questions plus an owner-scoped research-task boundary; route test and launch scanner require it without public chat or public `/ask` writes.
+
 - **Codex** - tagged public-row anchor proof (`tests/e2e/scratchnode-live-route-honesty.spec.ts#tag-anchor` + `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): route test proves a private note anchored from a public @person/#company event-log row preserves the full public anchor preview, renders only the owner-visible marker, and keeps private person/company follow-up text out of public rows, public `/ask`, and serialized answers; launch scanner now requires the proof before passing.
 
 - **Codex** - manual location spot anchor proof (`tests/e2e/scratchnode-live-route-honesty.spec.ts#manual-location-spots` + `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): route test proves a private note anchored from a public Booth 12 location moment preserves context, stays out of public chat and public `/ask`, and renders only the owner-visible marker; launch scanner now requires the proof before passing.
