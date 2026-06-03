@@ -2,6 +2,19 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-03 — Re-add the wiki reader's "Continue in NodeBench" CTA (route now real)
+The public `/wiki/<slug>` reader shipped WITHOUT a "Continue in NodeBench" CTA because
+its receiving route (`nodebenchai.com/events/<slug>/wiki`) 404'd at the time. PR-D built
+that route (and the coordination ledger now lists it as the canonical NodeBench public
+receiver), so the CTA is safe to add — it can no longer dead-end. `_snRenderWiki` re-adds
+a ghost `Continue in NodeBench ↗` CTA in the footer pointing at
+`nodebenchai.com/events/<eventSlug>/wiki?source=scratchnode&room=<code>&publicArtifact=event-wiki`.
+Frontend-only (Vercel), independent of the Convex deploy incident. The wiki e2e flips from
+asserting the CTA's *absence* to asserting it targets the real route with attribution.
+3/3 wiki spec green.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-03 — In-room "invite more → richer wiki" memory nudge
 The viral framing ("the room becomes the memory") only appeared at create-time and in
 the publish recap — never *during* the live event, where the audit flagged it absent.
