@@ -50,6 +50,16 @@ describe("ScratchnodeWikiBridge", () => {
     );
   });
 
+  it("prefers the published wiki room code over a stale query room when building the return link", () => {
+    useQueryMock.mockReturnValue(WIKI);
+    render(<ScratchnodeWikiBridge slug="rooftop-launch" roomCode="WRONGROOM" />);
+
+    expect(screen.getAllByText(/Open in ScratchNode/)[0]).toHaveAttribute(
+      "href",
+      "https://scratchnode.live/e/rooftop",
+    );
+  });
+
   it("shows an honest empty state for an unpublished/unknown room (never a fake recap)", () => {
     useQueryMock.mockReturnValue(null);
     render(<ScratchnodeWikiBridge slug="not-published" />);

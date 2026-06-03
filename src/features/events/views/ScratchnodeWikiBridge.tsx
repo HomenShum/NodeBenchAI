@@ -77,9 +77,10 @@ export function ScratchnodeWikiBridge({ slug, roomCode }: Props) {
   );
 
   const publicWikiUrl = `${SCRATCHNODE_ORIGIN}/wiki/${encodeURIComponent(slug)}`;
-  const roomUrl = `${SCRATCHNODE_ORIGIN}/e/${encodeURIComponent(
-    String(roomCode || wiki?.roomCode || slug).toLowerCase(),
-  )}`;
+  // Once the published wiki loads, prefer the server-returned room code over the
+  // inbound query param so a stale/tampered `?room=` cannot misdirect the return link.
+  const roomJoinTarget = String(wiki?.roomCode || roomCode || slug).toLowerCase();
+  const roomUrl = `${SCRATCHNODE_ORIGIN}/e/${encodeURIComponent(roomJoinTarget)}`;
 
   return (
     <div
