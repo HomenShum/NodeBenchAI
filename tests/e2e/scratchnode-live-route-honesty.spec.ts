@@ -695,6 +695,7 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(answerCard).toContainText("private notes excluded");
     await expect(answerCard).toContainText("Suggest for FAQ");
     await expect(answerCard).toContainText("View in wiki");
+    await expect(answerCard.getByRole("button", { name: "Promote to FAQ" })).toHaveCount(0);
     await answerCard.getByRole("button", { name: "Suggest for FAQ" }).click();
     await expect
       .poll(() =>
