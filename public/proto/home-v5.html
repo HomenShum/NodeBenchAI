@@ -969,7 +969,7 @@ body[data-new-user="true"] .h-menu::after {
 .notes-backlink-row:hover { background: rgba(167,139,250,.08); }
 
 /* Keyboard shortcuts overlay */
-.kbd-overlay { display: none; position: fixed; inset: 0; z-index: 130; background: rgba(0,0,0,.6); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 20px; }
+.kbd-overlay { display: none; position: fixed; inset: 0; z-index: 130; background: rgba(0,0,0,.6); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 20px; }
 .kbd-overlay[data-open="true"] { display: flex; animation: fadeIn .15s ease-out; }
 .kbd-dialog { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; width: 420px; max-width: 92vw; padding: 22px 24px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
 .kbd-dialog h2 { margin: 0 0 14px; font-size: 14px; font-weight: 700; color: var(--ink); }
@@ -1181,7 +1181,7 @@ body[data-role="attendee"] .host-queue { display: none; }
 }
 .nodebench-overlay .nb-header {
   position: sticky; top: 0; z-index: 1;
-  padding: 14px 20px; background: rgba(14,16,24,.94); backdrop-filter: blur(20px);
+  padding: 14px 20px; background: rgba(14,16,24,.94); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(255,255,255,.06);
   display: flex; align-items: center; gap: 12px;
 }
@@ -1230,7 +1230,7 @@ body[data-role="attendee"] .host-queue { display: none; }
   z-index: 90;
   padding: 6px 12px;
   border-radius: 100px;
-  background: rgba(21,20,19,.92); backdrop-filter: blur(10px);
+  background: rgba(21,20,19,.92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   border: 1px solid var(--accent);
   font-family: var(--mono); font-size: 10px; color: var(--accent);
   letter-spacing: .08em;
@@ -1727,6 +1727,7 @@ body[data-page-mode="wiki"] { overflow-y: auto; }
   display: flex; align-items: center; gap: 12px;
   padding: 12px 20px;
   background: color-mix(in srgb, var(--paper) 86%, transparent);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
