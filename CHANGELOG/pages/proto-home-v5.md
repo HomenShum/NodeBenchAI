@@ -35,6 +35,23 @@ Cherry-picked clean onto `origin/main` (only the hero region rebased: kept main'
 
 **Commit**: `this commit`. **Author**: Homen Shum + Claude.
 
+## 2026-06-03 — Host public-write hardening: FAQ-promote + wiki-publish require a verified host (scratchnode/002)
+`snPromoteFaq` and `snPublishWiki` were the last two host-only PUBLIC-write actions still
+reading the host key via the weak `_snReadHostOwnerKey()` (which falls back through
+localStorage to a bare `sessionId`). Every other host action already used
+`_snRequireVerifiedHostOwnerKey()`. The backend `requireHost` always rejected a bare
+sessionId, so this was never an exploit — but the frontend would still ATTEMPT the mutation
+and surface a confusing raw-backend-error toast to a non-host. Both now call
+`_snRequireVerifiedHostOwnerKey('sn-manage-event-output')` and early-return with a clear
+"Host verification required" toast when the session is not a verified host — the failure
+mode is made impossible, not hidden. CI-locked by 3 new honesty tests
+(guest-cannot-write, SN-LIVE-007/008 private-stays-private, public-send control); the
+existing publish-wiki recap test now establishes the realistic verified-host precondition.
+Permission-consistency only — send/render path and the public/private boundary untouched.
+e2e: output-contract green; honesty 27/27.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-03 — Re-add the wiki reader's "Continue in NodeBench" CTA (route now real)
 The public `/wiki/<slug>` reader shipped WITHOUT a "Continue in NodeBench" CTA because
 its receiving route (`nodebenchai.com/events/<slug>/wiki`) 404'd at the time. PR-D built
