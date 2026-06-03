@@ -2009,7 +2009,13 @@ async function runInteractiveChecks() {
     "https://nodebenchai.com/events/not-published/wiki?source=scratchnode&room=ORBITAL",
     async (page) => {
       await page.waitForSelector("body", { timeout: 15_000 });
-      await page.waitForTimeout(1200);
+      await page.waitForFunction(
+        () =>
+          !!document.querySelector('[data-testid="scratchnode-wiki-bridge-empty"]') ||
+          !!document.querySelector('[data-testid="scratchnode-wiki-bridge-body"]'),
+        null,
+        { timeout: 12_000 },
+      ).catch(() => undefined);
       const data = await page.evaluate(() => {
         const text = (document.body.textContent ?? "").replace(/\s+/g, " ").trim();
         const scratchnodeLinks = [...document.querySelectorAll("a")]
