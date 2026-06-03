@@ -20,10 +20,11 @@
  */
 
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Link } from "react-router-dom";
 import { api } from "../../../../convex/_generated/api";
 import { useScratchnodeSessionId } from "../hooks/useScratchnodeSessionId";
+import { getAnonymousProductSessionId } from "../../product/lib/productIdentity";
 
 type JoinedEvent = {
   eventId: string;
@@ -310,6 +311,8 @@ function EventRow({
         </div>
       </div>
 
+      <ImportRecapButton eventSlug={event.eventSlug} />
+
       {expanded ? (
         <NotesExpander
           eventId={event.eventId}
@@ -404,6 +407,147 @@ function NotesExpander({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/**
+ * ImportRecapButton — slice 1 of the ScratchNode event → NodeBench WORKSPACE
+ * import (roadmap #3). Imports the PUBLISHED public wiki recap as an editable
+ * NodeBench document.
+ *
+ * Honesty contract:
+ *   - Only renders an action when a PUBLISHED wiki actually exists for the slug
+ *     (getScratchnodeImportStatus.published). A joined-but-unpublished room
+ *     shows nothing — never a fake "import" affordance.
+ *   - Imports under a FRESH NodeBench-origin product anon identity
+ *     (getAnonymousProductSessionId), NOT the cross-domain sn_session_id. On
+ *     later sign-in, the existing bootstrap merge path re-owns the document.
+ *   - Real pending / done / error states. The link to the created document is
+ *     only shown once the importer returns a real documentId.
+ *
+ * `(api as any)` mirrors the rest of this surface: convex/domains/product/
+ * scratchnodeImport.ts may not be in _generated/api.d.ts on this branch yet —
+ * CI codegen adds it on deploy.
+ */
+function ImportRecapButton({ eventSlug }: { eventSlug: string }) {
+  // Resolve the product anon session once per row. getAnonymousProductSessionId
+  // is idempotent (reads existing or persists a fresh one), so this is the same
+  // identity the rest of NodeBench (Reports, Inbox, Workspace) uses.
+  const [productSessionId] = useState<string | null>(() => {
+    try {
+      return getAnonymousProductSessionId();
+    } catch {
+      return null;
+    }
+  });
+  const [phase, setPhase] = useState<"idle" | "importing" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const status = useQuery(
+    (api as any).domains.product.scratchnodeImport.getScratchnodeImportStatus,
+    productSessionId ? { slug: eventSlug, anonymousSessionId: productSessionId } : "skip",
+  ) as
+    | {
+        published: boolean;
+        imported: boolean;
+        documentId: string | null;
+        entitySlug: string | null;
+        latestWikiVersion?: number;
+        upToDate?: boolean;
+      }
+    | undefined;
+
+  const runImport = useMutation(
+    (api as any).domains.product.scratchnodeImport.importPublishedWiki,
+  );
+
+  // Honest gate: render nothing until we KNOW a published wiki exists. No
+  // session, still loading, or no published wiki → no affordance.
+  if (!productSessionId || status === undefined || !status.published) {
+    return null;
+  }
+
+  const importedEntitySlug = status.entitySlug;
+  const alreadyUpToDate = status.imported && status.upToDate === true;
+
+  const handleImport = async () => {
+    setPhase("importing");
+    setErrorMessage(null);
+    try {
+      const result = await runImport({ slug: eventSlug, anonymousSessionId: productSessionId });
+      if (!result?.ok) {
+        setPhase("error");
+        setErrorMessage("This recap is no longer published.");
+        return;
+      }
+      setPhase("idle");
+    } catch (err) {
+      setPhase("error");
+      setErrorMessage(err instanceof Error ? err.message : "Import failed. Try again.");
+    }
+  };
+
+  return (
+    <div
+      data-testid={`scratchnode-import-recap-${eventSlug}`}
+      className="rd-row"
+      style={{
+        marginTop: 12,
+        paddingTop: 12,
+        borderTop: "1px dashed var(--rd-line-faint)",
+        gap: 10,
+        alignItems: "center",
+        flexWrap: "wrap",
+      }}
+    >
+      {status.imported && importedEntitySlug ? (
+        <>
+          <span className="rd-soft" style={{ fontSize: 12 }}>
+            {alreadyUpToDate
+              ? "Recap imported into NodeBench."
+              : "A newer published recap is available."}
+          </span>
+          <Link
+            data-testid={`scratchnode-import-open-${eventSlug}`}
+            to={`/entity/${encodeURIComponent(importedEntitySlug)}`}
+            className="rd-btn rd-btn--quiet rd-btn--sm"
+          >
+            Open recap →
+          </Link>
+          {!alreadyUpToDate ? (
+            <button
+              type="button"
+              data-testid={`scratchnode-import-refresh-${eventSlug}`}
+              onClick={handleImport}
+              disabled={phase === "importing"}
+              className="rd-btn rd-btn--quiet rd-btn--sm"
+            >
+              {phase === "importing" ? "Updating…" : "Update recap"}
+            </button>
+          ) : null}
+        </>
+      ) : (
+        <button
+          type="button"
+          data-testid={`scratchnode-import-button-${eventSlug}`}
+          onClick={handleImport}
+          disabled={phase === "importing"}
+          className="rd-btn rd-btn--primary rd-btn--sm"
+        >
+          {phase === "importing" ? "Importing…" : "Import this recap into NodeBench"}
+        </button>
+      )}
+      {phase === "error" ? (
+        <span
+          data-testid={`scratchnode-import-error-${eventSlug}`}
+          role="alert"
+          className="rd-soft"
+          style={{ fontSize: 12, color: "var(--rd-danger, #d96c5e)" }}
+        >
+          {errorMessage}
+        </span>
+      ) : null}
     </div>
   );
 }

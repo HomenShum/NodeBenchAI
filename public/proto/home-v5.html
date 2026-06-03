@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#151413">
-<title>ScratchNode — sidecar event rooms with memory</title>
-<meta name="description" content="Join a disposable sidecar room with a code. Chat publicly, /ask for sourced answers, keep private anchored notes, and leave with a public wiki. No account needed.">
+<title>ScratchNode — the room remembers everything</title>
+<meta name="description" content="The room remembers everything. Drop a code, chat live, /ask for sourced answers, and walk away with a wiki of the whole event. No account, no app.">
 <link rel="canonical" href="https://scratchnode.live/">
 
 <!--
@@ -16,8 +16,8 @@
   pre-render or an OG image function, both of which are post-launch work.
 -->
 <meta property="og:site_name" content="ScratchNode">
-<meta property="og:title" content="ScratchNode — sidecar event rooms with memory">
-<meta property="og:description" content="Join with a room code. Public chat, sourced /ask answers, private notes, and a wiki handoff. No account needed.">
+<meta property="og:title" content="ScratchNode — the room remembers everything">
+<meta property="og:description" content="Drop a code, chat live, /ask for sourced answers, and leave with a wiki of everything that happened. No account, no app.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://scratchnode.live/">
 <meta property="og:image" content="https://scratchnode.live/og-scratchnode.png">
@@ -28,8 +28,8 @@
 <!-- Twitter card -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@scratchnode">
-<meta name="twitter:title" content="ScratchNode — sidecar event rooms with memory">
-<meta name="twitter:description" content="A disposable event brain: public chat, sourced /ask, private notes, and a wiki handoff. No account needed.">
+<meta name="twitter:title" content="ScratchNode — the room remembers everything">
+<meta name="twitter:description" content="The live event room that remembers: public chat, sourced /ask, private notes, and a wiki handoff. No account, no app.">
 <meta name="twitter:image" content="https://scratchnode.live/og-scratchnode.png">
 <meta name="twitter:image:alt" content="ScratchNode — live event knowledge room">
 
@@ -663,6 +663,20 @@ body[data-new-user="true"] .welcome { display: flex; }
 .welcome-text a:hover { text-decoration: underline; }
 .welcome-close { background: none; border: 0; color: var(--ink-faint); font-size: 18px; line-height: 1; padding: 4px; min-width: 32px; }
 .welcome-close:hover { color: var(--ink); }
+
+/* In-room memory nudge — reinforces "the room becomes the wiki, invite more"
+   using the REAL live presence count. Shown once per browser, dismissible. */
+.sn-mem-nudge { display: none; align-items: center; gap: 10px; margin: 0 0 10px; padding: 9px 12px; border: 1px solid rgba(217,119,87,.28); border-radius: 8px; background: rgba(217,119,87,.07); font-size: 13px; color: var(--ink-muted); }
+.sn-mem-nudge[data-show="true"] { display: flex; animation: snMemNudgeIn var(--sn-dur-slow, .4s) var(--sn-ease-out, ease) both; }
+.sn-mem-nudge__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green, #5ea867); flex-shrink: 0; }
+.sn-mem-nudge__text { flex: 1; line-height: 1.4; }
+.sn-mem-nudge__text b { color: var(--ink); }
+.sn-mem-nudge__invite { flex-shrink: 0; font-family: var(--ui); font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 7px; cursor: pointer; border: 1px solid rgba(217,119,87,.4); background: rgba(217,119,87,.12); color: var(--accent); }
+.sn-mem-nudge__invite:hover { background: var(--accent); color: #fff; }
+.sn-mem-nudge__close { flex-shrink: 0; background: none; border: 0; color: var(--ink-faint); font-size: 16px; line-height: 1; padding: 4px; min-width: 28px; cursor: pointer; }
+.sn-mem-nudge__close:hover { color: var(--ink); }
+@keyframes snMemNudgeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .sn-mem-nudge[data-show="true"] { animation: none; } }
 
 /* ─── Identity row ─── */
 .id-row { display: flex; align-items: center; gap: 8px; padding: 6px 0 14px; font-size: 12px; color: var(--ink-faint); }
@@ -1674,15 +1688,94 @@ body[data-event-mode="sensitive"] .c-helpline::before {
 .landing { display: none; }
 body[data-page-mode="landing"] .landing { display: flex; }
 
-/* When in landing mode, hide the event-room shell entirely so the
-   apex does NOT read as "the demo is running on the live site". */
-body[data-page-mode="landing"] .event-strip,
-body[data-page-mode="landing"] main.m,
-body[data-page-mode="landing"] .h-code,
-body[data-page-mode="landing"] .h-live,
-body[data-page-mode="landing"] #live-assist-rail,
-body[data-page-mode="landing"] .welcome {
+/* When in landing mode, hide the event-room shell ENTIRELY so the apex does
+   not read as "the demo is running on the live site" and you can't scroll into
+   stray room chrome. The header (.h) and footer (.f) render AFTER the landing
+   in the DOM, so without this they leak below the fold — plus the room-context
+   menu/sheet/shortcut overlays must never open from the apex. (Cherry-picked
+   from Codex's create-room branch, which caught this leak.) */
+/* Both the apex landing AND the public /wiki/<slug> reader are full-page
+   takeovers that must hide the room shell entirely — :is() shares one rule. */
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .event-strip,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .h,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .f,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) main.m,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .h-code,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .h-live,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .menu-scrim,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .menu-sheet,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .sheet-scrim,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .sheet,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .kbd-overlay,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .live-assist-scrim,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) #live-assist-rail,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) #live-assist-sheet,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) #live-assist-scrim,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) #sheet,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) #sheet-scrim,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .welcome {
   display: none !important;
+}
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .menu-sheet:not([data-open="true"]),
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .menu-scrim:not([data-open="true"]) {
+  display: none !important;
+}
+
+/* ── Public /wiki/<slug> reader — the shareable "room remembers everything"
+   artifact. Hidden unless data-page-mode === "wiki". ─────────────────────── */
+.sn-wiki { display: none; }
+body[data-page-mode="wiki"] .sn-wiki { display: block; }
+body[data-page-mode="wiki"] { overflow-y: auto; }
+.sn-wiki__bar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 20px;
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.sn-wiki__brand { font-family: var(--ui); font-weight: 700; font-size: 15px; color: var(--ink); letter-spacing: -.01em; text-decoration: none; }
+.sn-wiki__brand b { color: var(--accent); }
+.sn-wiki__bar-spacer { flex: 1; }
+/* CTA + ghost buttons render the same anywhere in the wiki (bar, footer,
+   empty/error states) — not just in the top bar. */
+.sn-wiki__bar button, .sn-wiki a.sn-wiki__cta {
+  display: inline-block;
+  font-family: var(--ui); font-size: 13px; font-weight: 600;
+  padding: 7px 13px; border-radius: 8px; cursor: pointer; text-decoration: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent);
+  transition: background var(--motion-fast, .15s) ease, transform var(--motion-fast, .15s) ease;
+}
+.sn-wiki__bar button:hover, .sn-wiki a.sn-wiki__cta:hover { background: var(--accent); color: #fff; }
+.sn-wiki .sn-wiki__ghost { background: transparent; color: var(--ink-muted); border-color: var(--line); }
+.sn-wiki .sn-wiki__ghost:hover { background: rgba(255,255,255,.04); color: var(--ink); border-color: var(--ink-faint); }
+.sn-wiki__main { max-width: 760px; margin: 0 auto; padding: 30px 22px 64px; }
+.sn-wiki__kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.sn-wiki__kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green, #5ea867); display: inline-block; }
+.sn-wiki__title { font-family: var(--ui); font-size: 30px; font-weight: 800; line-height: 1.12; letter-spacing: -.02em; color: var(--ink); margin: 0 0 6px; }
+.sn-wiki__meta { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); margin-bottom: 24px; }
+.sn-wiki__article { color: var(--ink); font-family: var(--ui); font-size: 15px; line-height: 1.62; }
+.sn-wiki__article h1, .sn-wiki__article h2, .sn-wiki__article h3 { font-weight: 700; line-height: 1.25; margin: 26px 0 8px; color: var(--ink); }
+.sn-wiki__article h1 { font-size: 22px; } .sn-wiki__article h2 { font-size: 18px; } .sn-wiki__article h3 { font-size: 15px; }
+.sn-wiki__article p { margin: 0 0 12px; }
+.sn-wiki__article ul, .sn-wiki__article ol { margin: 0 0 12px; padding-left: 22px; }
+.sn-wiki__article li { margin: 0 0 5px; }
+.sn-wiki__article a { color: var(--accent); }
+.sn-wiki__article code { font-family: var(--mono); font-size: 12px; background: rgba(255,255,255,.05); padding: 1px 5px; border-radius: 4px; }
+.sn-wiki__state { padding: 60px 22px; text-align: center; color: var(--ink-muted); font-family: var(--ui); }
+.sn-wiki__state h2 { font-size: 18px; color: var(--ink); margin: 0 0 8px; font-weight: 700; }
+.sn-wiki__skeleton { height: 16px; border-radius: 6px; background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.08), rgba(255,255,255,.04)); background-size: 200% 100%; animation: snWikiSheen 1.4s linear infinite; margin: 0 0 12px; }
+.sn-wiki__skeleton.w70 { width: 70%; } .sn-wiki__skeleton.w90 { width: 90%; } .sn-wiki__skeleton.w50 { width: 50%; }
+@keyframes snWikiSheen { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.sn-wiki__foot { margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.sn-wiki__foot-tag { font-family: var(--ui); font-size: 13px; color: var(--ink-muted); flex: 1; min-width: 200px; }
+.sn-wiki__foot-tag b { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .sn-wiki__skeleton { animation: none; } }
+@media (max-width: 600px) {
+  .sn-wiki__title { font-size: 24px; }
+  .sn-wiki__bar { padding: 10px 14px; gap: 8px; }
+  .sn-wiki__bar .sn-wiki__hide-sm { display: none; }
 }
 
 /* Landing layout — minimal, centered, glass-card hero. */
@@ -1702,6 +1795,73 @@ body[data-page-mode="landing"] .welcome {
   flex-direction: column;
   align-items: center;
   gap: 18px;
+}
+/* Live "big number" — real, reactive room counter. Gently floats; the count
+   animates up when the reactive Convex query pushes a new value. Motion-safe:
+   no flashing, subtle translate + small status-dot ring, all gated under
+   prefers-reduced-motion. */
+.landing-pulse {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 4px;
+  animation: landing-pulse-float 5.5s ease-in-out infinite;
+}
+/* A class rule beats the UA [hidden]{display:none}, so make the hide explicit —
+   otherwise the counter would flash a dishonest "0" before real data arrives. */
+.landing-pulse[hidden] { display: none; }
+.landing-pulse__big {
+  font-family: var(--ui);
+  font-weight: 800;
+  font-size: 64px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+  text-shadow: 0 0 26px rgba(217,119,87,.42), 0 0 60px rgba(217,119,87,.16);
+  font-variant-numeric: tabular-nums;
+}
+.landing-pulse__suffix { font-size: 40px; opacity: .8; }
+.landing-pulse__label {
+  font-family: var(--ui);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.landing-pulse__chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.landing-pulse__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--ui);
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+.landing-pulse__chip strong { color: var(--ink); font-weight: 600; }
+.landing-pulse__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 0 0 rgba(74,222,128,.55);
+  animation: landing-pulse-dot 2.4s ease-out infinite;
+}
+@keyframes landing-pulse-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes landing-pulse-dot {
+  0% { box-shadow: 0 0 0 0 rgba(74,222,128,.55); }
+  70% { box-shadow: 0 0 0 9px rgba(74,222,128,0); }
+  100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
 }
 .landing-logo {
   font-family: var(--ui);
@@ -1752,6 +1912,7 @@ body[data-page-mode="landing"] .welcome {
   box-shadow: 0 0 0 3px rgba(217,119,87,.18);
 }
 .landing-join input::placeholder { color: var(--ink-faint); }
+/* Join is now the SECONDARY action — outline accent. */
 .landing-join button {
   font-family: var(--ui);
   font-weight: 600;
@@ -1759,12 +1920,13 @@ body[data-page-mode="landing"] .welcome {
   padding: 12px 20px;
   border-radius: 8px;
   border: 1px solid var(--accent);
-  background: var(--accent);
-  color: #fff;
+  background: transparent;
+  color: var(--accent);
   cursor: pointer;
-  transition: background .15s ease;
+  white-space: nowrap;
+  transition: background .15s ease, color .15s ease;
 }
-.landing-join button:hover { background: #c46a4e; }
+.landing-join button:hover { background: var(--accent); color: #fff; }
 .landing-join button:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(217,119,87,.35);
@@ -1805,16 +1967,404 @@ body[data-page-mode="landing"] .welcome {
   margin-left: 14px;
   color: var(--ink-faint);
 }
+/* "or host your own" divider between Join and Create. */
+.landing-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+  font-family: var(--ui);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.landing-or::before,
+.landing-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+/* Create-a-room form — name (required) + optional custom code + submit. */
+.landing-create {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+}
+.landing-create-sub {
+  display: flex;
+  gap: 8px;
+}
+.landing-discovery-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+  font-family: var(--ui);
+  font-size: 12px;
+  color: var(--ink-muted);
+  text-align: left;
+  cursor: pointer;
+}
+.landing-discovery-toggle input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
+.landing-create input {
+  font-family: var(--ui);
+  font-size: 15px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color .15s ease;
+}
+.landing-create #landing-create-code { flex: 1; min-width: 0; }
+.landing-create input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(217,119,87,.18);
+}
+.landing-create input::placeholder { color: var(--ink-faint); }
+.landing-create .landing-discovery-toggle input {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+/* Outline-accent so "Join" stays the single primary CTA; Create is clearly
+   available but secondary in the visual hierarchy. */
+/* Create is now the PRIMARY action — filled accent. */
+.landing-create button {
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 15px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s ease, color .15s ease;
+}
+.landing-create button:hover { background: #c46a4e; }
+.landing-create button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(217,119,87,.35);
+}
+.landing-create button:disabled { opacity: .65; cursor: progress; }
+.landing-create-status {
+  display: none;
+  font-family: var(--ui);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+  max-width: 420px;
+  color: var(--ink-muted);
+}
+.landing-create-status[data-state="busy"] { color: var(--accent); }
+.landing-create-status[data-state="error"] { color: #d98b7a; }
+
+/* ── Post-create "viral" share moment ───────────────────────────────────────
+   create → "your event is live, invite now" (link + QR + invite card + share)
+   → enter room. The shortest path from useful product to viral loop. */
+.share-moment {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 9, 8, 0.74);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overflow-y: auto;
+}
+.share-moment[data-open="true"] { display: flex; animation: share-fade .22s ease-out; }
+.share-moment__panel {
+  width: 100%;
+  max-width: 420px;
+  margin: auto;
+  background: var(--paper, #1c1b1a);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 26px 22px 22px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.55);
+  text-align: center;
+}
+.share-moment__spark { font-size: 22px; display: block; margin-bottom: 4px; }
+.share-moment__panel h2 {
+  font-family: var(--ui);
+  font-weight: 800;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 0;
+}
+.share-moment__sub {
+  font-family: var(--ui);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+  margin: 8px 0 18px;
+}
+/* The invite card — the screenshot-worthy "flyer" people send. */
+.invite-card {
+  position: relative;
+  border-radius: 16px;
+  padding: 20px 18px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(217,119,87,.22), rgba(217,119,87,0) 62%),
+    linear-gradient(160deg, #221d1b, #161413);
+  border: 1px solid rgba(217,119,87,.30);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.invite-card__brand {
+  font-family: var(--ui);
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--ink);
+}
+.invite-card__brand span { color: var(--accent); }
+.invite-card__name {
+  font-family: var(--ui);
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.invite-card__qr {
+  width: 152px;
+  height: 152px;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.invite-card__qr img { width: 100%; height: 100%; display: block; }
+.invite-card__code {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.invite-card__code b { color: var(--accent); letter-spacing: .04em; }
+.invite-card__tag {
+  font-family: var(--ui);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+/* Big room link + copy */
+.share-link { display: flex; gap: 8px; margin-top: 16px; }
+.share-link input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  color: var(--ink);
+  text-overflow: ellipsis;
+}
+.share-link button {
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 11px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s ease, border-color .15s ease;
+}
+.share-link button:hover { background: #c46a4e; }
+.share-link button[data-copied="true"] { background: #4ca06f; border-color: #4ca06f; }
+/* Share actions */
+.share-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.share-btn {
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  transition: border-color .15s ease, background .15s ease;
+}
+.share-btn:hover { border-color: var(--ink-faint); background: rgba(255,255,255,.06); }
+.share-btn--primary, .share-btn--wide { grid-column: 1 / -1; }
+.share-btn--primary { border-color: var(--accent); color: var(--accent); }
+.share-btn--primary:hover { background: rgba(217,119,87,.10); }
+.share-btn[data-copied="true"] { border-color: #4ca06f; color: #7fe0a8; }
+/* Enter room */
+.share-enter {
+  width: 100%;
+  margin-top: 18px;
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 15px;
+  padding: 13px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease;
+}
+.share-enter:hover { color: var(--ink); border-color: var(--ink-faint); }
+@keyframes share-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .share-moment[data-open="true"] { animation: none; }
+  .share-link button, .share-btn, .share-enter { transition: none; }
+}
+
+.landing-public {
+  display: none;
+  width: 100%;
+  max-width: 560px;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 2px;
+}
+.landing-public[data-visible="true"] { display: flex; }
+.landing-public-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--ui);
+}
+.landing-public-head b {
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.landing-public-head span {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.landing-public-list {
+  display: grid;
+  gap: 8px;
+}
+.landing-room-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  background: rgba(255,255,255,.045);
+  text-align: left;
+}
+.landing-room-title {
+  font-family: var(--ui);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.landing-room-meta {
+  margin-top: 3px;
+  font-family: var(--ui);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.landing-room-join {
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid rgba(217,119,87,.65);
+  border-radius: 7px;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+.landing-room-join:hover,
+.landing-room-join:focus-visible {
+  background: var(--accent);
+  color: #fff;
+  outline: none;
+}
+.landing-room-join { cursor: pointer; background: transparent; }
+/* Flyer feel for request-to-join rooms + the "● N inside" presence cue. */
+.landing-room-card[data-policy="request"] {
+  border-color: rgba(217,119,87,.28);
+  background: linear-gradient(180deg, rgba(217,119,87,.05), rgba(255,255,255,.02));
+}
+.landing-room-meta b { color: var(--ink); font-weight: 700; }
+.landing-room-meta .dot-inside {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  margin-right: 5px;
+  box-shadow: 0 0 0 0 rgba(74,222,128,.55);
+  animation: landing-pulse-dot 2.4s ease-out infinite;
+}
+.landing-room-join[data-state="pending"] { opacity: .7; pointer-events: none; }
+.landing-room-join[data-state="requested"] {
+  color: #7fe0a8;
+  border-color: rgba(74,222,128,.5);
+  background: rgba(74,222,128,.08);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .landing-room-meta .dot-inside { animation: none; } }
 @media (max-width: 600px) {
   .landing-hero h1 { font-size: 22px; }
   .landing-hero p { font-size: 14px; }
   .landing-join { flex-direction: column; }
   .landing-join button { width: 100%; }
+  .landing-create-sub { flex-direction: column; }
+  .landing-create button { width: 100%; }
+  .landing-room-card { grid-template-columns: 1fr; }
+  .landing-room-join { text-align: center; }
+  .landing-pulse__big { font-size: 48px; }
+  .landing-pulse__suffix { font-size: 30px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .landing-join input,
   .landing-join button,
+  .landing-create input,
+  .landing-create button,
+  .landing-room-join,
   .landing-secondary { transition: none; }
+  .landing-pulse,
+  .landing-pulse__dot { animation: none; }
 }
 
 </style>
@@ -1845,12 +2395,17 @@ body[data-page-mode="landing"] .welcome {
     var demoVerMatch = path.match(/^\/demo_ver(\d+)\/?$/);
     var isLandingPath = (path === '/' || path === '/index.html');
     var isEventPath   = /^\/e\/[a-z0-9][a-z0-9-]{0,60}\/?$/i.test(path);
+    // /wiki/<slug> — the PUBLIC, no-account read of a published event wiki (the
+    // shareable artifact). Renders the wiki-reader surface, never the room shell.
+    var isWikiPath    = /^\/wiki\/[a-z0-9][a-z0-9-]{0,60}\/?$/i.test(path);
     // STRICT GATE: only /demo_ver{N} triggers demo mode. `?demo=1` no longer
     // counts — stale bookmarks pointing at /e/:slug?demo=1 must NOT autoplay
     // demo content over a real event.
     var pageMode;
     if (demoVerMatch) {
       pageMode = 'demo';
+    } else if (isWikiPath) {
+      pageMode = 'wiki';
     } else if (isEventPath) {
       pageMode = 'event';
     } else if (isLandingPath) {
@@ -1888,14 +2443,738 @@ function _landingJoin(ev) {
   location.href = '/e/' + encodeURIComponent(code);
   return false;
 }
+
+/**
+ * _landingCreate — handler for the landing-mode "Create a room" form.
+ *
+ * WHY this exists on the landing (not just the in-room host console):
+ *   The live-backend module below (PHASE 1 LIVE BACKEND) bails early on the
+ *   apex landing (`if (!slugMatch) return`), so its `client` / sessionId /
+ *   `snCreateEventFromHostSheet` are NEVER wired here. A first-time visitor
+ *   therefore had no front-door to create a room — only a "Join" form. This
+ *   handler is a self-contained, lazily-bootstrapped create path: it spins up
+ *   a Convex client on click (same /api/scratchnode-config + esm.sh paths the
+ *   room module + e2e mocks use), calls events:createEvent, persists the
+ *   issued host token, and navigates the new host into /e/<slug>.
+ *
+ * Honesty contract (.claude/rules/agentic_reliability HONEST_STATUS, and the
+ * scratchnode-live-route-honesty e2e): every failure surfaces a real inline
+ * error and re-enables the button — we NEVER fake success or navigate on a
+ * failed create. `data-sn-live` is left untouched (only the in-room module
+ * may set it), so the apex stays honestly "not live" until the host lands in
+ * their room.
+ */
+async function _landingCreate(ev) {
+  try { ev.preventDefault(); } catch (e) {}
+  var nameEl = document.getElementById('landing-create-name');
+  var codeEl = document.getElementById('landing-create-code');
+  var discoverEl = document.getElementById('landing-create-public');
+  var btn = document.getElementById('landing-create-btn');
+  var statusEl = document.getElementById('landing-create-status');
+  var title = String((nameEl && nameEl.value) || '').trim();
+  var roomCode = String((codeEl && codeEl.value) || '').trim();
+  var publicDiscoverable = !!(discoverEl && discoverEl.checked);
+
+  function setStatus(msg, state) {
+    if (!statusEl) return;
+    statusEl.textContent = msg || '';
+    statusEl.style.display = msg ? 'block' : 'none';
+    if (state) statusEl.setAttribute('data-state', state);
+    else statusEl.removeAttribute('data-state');
+  }
+  function fail(msg) {
+    setStatus(msg, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Create room →'; }
+    if (typeof toast === 'function') { try { toast('Could not create room', msg); } catch (e) {} }
+    return false;
+  }
+
+  if (title.length < 3) {
+    if (nameEl) { try { nameEl.focus(); } catch (e) {} }
+    return fail('Give your event a name (at least 3 characters).');
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating your room…'; }
+  setStatus('Spinning up your live room…', 'busy');
+
+  // Stable anonymous session id — shared with the in-room module so the host
+  // is recognized as a member the moment they land in /e/<slug>.
+  var sessionId;
+  try {
+    sessionId = localStorage.getItem('sn_session_id');
+    if (!sessionId) {
+      sessionId = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('sn_session_id', sessionId);
+    }
+  } catch (e) {
+    sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+  }
+
+  try {
+    var r = await fetch('/api/scratchnode-config', { cache: 'no-store' });
+    if (!r.ok) return fail('Could not load room config (HTTP ' + r.status + '). Refresh and try again.');
+    var cfg = await r.json();
+    if (!cfg || !cfg.convexUrl) return fail('Live backend is not configured right now. Try again shortly.');
+
+    var ConvexClient;
+    try {
+      var mod = await import('https://esm.sh/convex@1.29.0/browser');
+      ConvexClient = mod.ConvexClient;
+    } catch (e) {
+      return fail('Could not load the realtime client. Refresh and try again.');
+    }
+    if (!ConvexClient) return fail('Could not load the realtime client. Refresh and try again.');
+
+    var client = new ConvexClient(cfg.convexUrl);
+    var displayName = (window._userName && String(window._userName).trim()) || 'Host';
+    var res;
+    try {
+      res = await client.mutation('events:createEvent', {
+        title: title,
+        sessionId: sessionId,
+        displayName: displayName,
+        roomCode: roomCode || undefined,
+        status: 'live',
+        publicDiscoverable: publicDiscoverable,
+        joinPolicy: 'open',
+      });
+    } catch (e) {
+      try { client.close && client.close(); } catch (_) {}
+      var errCode = (e && e.data && e.data.code) || '';
+      if (errCode === 'room_code_taken') {
+        return fail('That room code is taken — pick another, or leave it blank for an auto code.');
+      }
+      if (errCode === 'invalid_room_code') {
+        return fail('Room code must be 2-24 letters, numbers, or dashes.');
+      }
+      if (errCode === 'rate_limited' || /rate.?limit/i.test(String((e && e.message) || ''))) {
+        return fail('You’ve created several rooms recently. Wait a minute, then try again.');
+      }
+      return fail((e && e.message) || 'Create failed. Try again.');
+    }
+
+    if (!res || !res.eventId || !res.ownerKey || !(res.slug || res.roomCode)) {
+      try { client.close && client.close(); } catch (_) {}
+      return fail('The server did not return a usable room. Try again.');
+    }
+
+    // Persist the issued host token so the room boot marks this device as host
+    // (getHostStatus reads sn_host_owner_key_v2). Same key the host console uses.
+    try { localStorage.setItem('sn_host_owner_key_v2', res.ownerKey); } catch (e) {}
+    try { client.close && client.close(); } catch (_) {}
+    setStatus('', '');
+    // Viral loop: don't drop the host straight into the room — give them the
+    // "your event is live, invite people now" moment first (link + QR + invite
+    // card + share). "Enter your room →" carries them in.
+    _showShareMoment({
+      slug: res.slug || String(res.roomCode || '').toLowerCase(),
+      roomCode: res.roomCode || res.slug,
+      name: title,
+    });
+    return false;
+  } catch (e) {
+    return fail((e && e.message) || 'Unexpected error creating the room.');
+  }
+}
+
+// ── Post-create share moment ──────────────────────────────────────────────
+// The viral loop: create -> "your event is live, invite now" (link + QR +
+// invite card + share) -> enter room. QR via the same provider the in-room
+// share sheet uses; falls back gracefully (copy) when navigator.share is absent.
+var _shareMomentState = { slug: '', roomCode: '', name: '', url: '' };
+
+function _shareInviteText() {
+  var s = _shareMomentState;
+  return 'Join me at ' + (s.name || 'my event') + ' on ScratchNode — chat live, /ask for sourced answers, and we will have a shared wiki of the whole thing afterward. ' + s.url;
+}
+
+function _showShareMoment(opts) {
+  try {
+    var slug = String((opts && opts.slug) || '');
+    var roomCode = String((opts && opts.roomCode) || slug || '').toUpperCase();
+    var name = String((opts && opts.name) || 'Your event').trim() || 'Your event';
+    var base = (typeof PUBLIC_BASE_URL === 'string' && PUBLIC_BASE_URL)
+      ? PUBLIC_BASE_URL : (location.origin || 'https://scratchnode.live');
+    var navSlug = slug || roomCode.toLowerCase();
+    var url = base.replace(/\/+$/, '') + '/e/' + encodeURIComponent(navSlug);
+    _shareMomentState = { slug: navSlug, roomCode: roomCode, name: name, url: url };
+
+    var set = function (id, fn) { var el = document.getElementById(id); if (el) fn(el); };
+    set('invite-card-name', function (el) { el.textContent = name; });
+    set('invite-card-code', function (el) { el.textContent = roomCode; });
+    set('share-link-input', function (el) { el.value = url; });
+    set('invite-card-qr', function (el) {
+      el.onerror = function () { var w = el.parentNode; if (w && w.style) w.style.display = 'none'; };
+      el.src = 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=0&data=' + encodeURIComponent(url);
+    });
+    var invite = _shareInviteText();
+    set('share-btn-text', function (el) { el.href = 'sms:?&body=' + encodeURIComponent(invite); });
+    set('share-btn-email', function (el) {
+      el.href = 'mailto:?subject=' + encodeURIComponent('Join ' + name + ' on ScratchNode') + '&body=' + encodeURIComponent(invite);
+    });
+    set('share-btn-native', function (el) { if (navigator.share) el.hidden = false; });
+
+    var moment = document.getElementById('share-moment');
+    if (moment) {
+      moment.setAttribute('data-open', 'true');
+      try { var c = document.getElementById('share-link-copy'); if (c) c.focus(); } catch (e) {}
+    } else {
+      _shareEnterRoom(navSlug);
+    }
+  } catch (e) {
+    _shareEnterRoom(opts && opts.slug);
+  }
+}
+
+function _shareFlash(btn, label) {
+  if (!btn) return;
+  if (!btn.getAttribute('data-orig')) btn.setAttribute('data-orig', btn.textContent);
+  btn.textContent = label;
+  btn.setAttribute('data-copied', 'true');
+  setTimeout(function () {
+    var orig = btn.getAttribute('data-orig');
+    if (orig) btn.textContent = orig;
+    btn.removeAttribute('data-copied');
+  }, 1600);
+}
+function _shareCopyFallback(text) {
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  } catch (e) {}
+}
+function _shareCopy(text, btn, label) {
+  var done = function () {
+    _shareFlash(btn, label || 'Copied!');
+    if (typeof toast === 'function') { try { toast('Copied', label || 'Copied to clipboard.'); } catch (e) {} }
+  };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { _shareCopyFallback(text); done(); });
+      return;
+    }
+  } catch (e) {}
+  _shareCopyFallback(text); done();
+}
+function _shareCopyLink() { _shareCopy(_shareMomentState.url, document.getElementById('share-link-copy'), 'Copied!'); }
+function _shareCopyInvite() { _shareCopy(_shareInviteText(), document.getElementById('share-invite-copy'), 'Invite copied!'); }
+function _shareNative() {
+  var s = _shareMomentState;
+  if (navigator.share) {
+    navigator.share({ title: s.name + ' · ScratchNode', text: _shareInviteText(), url: s.url }).catch(function () {});
+  } else {
+    _shareCopyLink();
+  }
+}
+function _shareEnterRoom(slugOverride) {
+  var slug = slugOverride || _shareMomentState.slug || String(_shareMomentState.roomCode || '').toLowerCase();
+  if (!slug) return;
+  location.href = '/e/' + encodeURIComponent(slug);
+}
+// Escape closes the share moment by carrying the host forward into their room.
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  var moment = document.getElementById('share-moment');
+  if (moment && moment.getAttribute('data-open') === 'true') { _shareEnterRoom(); }
+});
+window._showShareMoment = _showShareMoment;
+
+// ── End-event recap moment: "Your wiki is live. Share the memory." ──────────
+// Shown after a host PUBLISHES the wiki, so they actually learn the public
+// /wiki/<slug> address exists and can circulate it. This is the activation of
+// the after-event loop. HONEST: only ever the real published URL, and only
+// triggered on a confirmed publish (never speculatively). Reuses the share-moment
+// + invite-card styling.
+var _wikiMomentState = { url: '', slug: '', name: '' };
+function _snShowWikiLiveMoment(slug, name) {
+  try {
+    slug = String(slug || '').toLowerCase();
+    if (!slug) return;
+    name = String(name || 'Your event').trim() || 'Your event';
+    var base = (typeof PUBLIC_BASE_URL === 'string' && PUBLIC_BASE_URL)
+      ? PUBLIC_BASE_URL : (location.origin || 'https://scratchnode.live');
+    var url = base.replace(/\/+$/, '') + '/wiki/' + encodeURIComponent(slug);
+    _wikiMomentState = { url: url, slug: slug, name: name };
+    var set = function (id, fn) { var el = document.getElementById(id); if (el) fn(el); };
+    set('wiki-live-name', function (el) { el.textContent = name; });
+    set('wiki-live-slug', function (el) { el.textContent = slug; });
+    set('wiki-live-input', function (el) { el.value = url; });
+    set('wiki-live-qr', function (el) {
+      el.onerror = function () { var w = el.parentNode; if (w && w.style) w.style.display = 'none'; };
+      el.src = 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=0&data=' + encodeURIComponent(url);
+    });
+    set('wiki-live-native', function (el) { if (navigator.share) el.hidden = false; });
+    var m = document.getElementById('wiki-live-moment');
+    if (m) {
+      m.setAttribute('data-open', 'true');
+      try { var c = document.getElementById('wiki-live-copy'); if (c) c.focus(); } catch (e) {}
+    }
+  } catch (e) { /* never break the host console */ }
+}
+function _snWikiMomentCopy() { _shareCopy(_wikiMomentState.url, document.getElementById('wiki-live-copy'), 'Link copied!'); }
+function _snWikiMomentNative() {
+  if (navigator.share) {
+    navigator.share({ title: _wikiMomentState.name + ' — wiki · ScratchNode', text: _wikiMomentState.name + ' — the room remembers everything.', url: _wikiMomentState.url }).catch(function () {});
+  } else { _snWikiMomentCopy(); }
+}
+function _snWikiMomentOpen() { if (_wikiMomentState.url) window.open(_wikiMomentState.url, '_blank', 'noopener'); }
+function _snWikiMomentClose() { var m = document.getElementById('wiki-live-moment'); if (m) m.setAttribute('data-open', 'false'); }
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  var m = document.getElementById('wiki-live-moment');
+  if (m && m.getAttribute('data-open') === 'true') { _snWikiMomentClose(); }
+});
+window._snShowWikiLiveMoment = _snShowWikiLiveMoment;
+
+/**
+ * _snInitLandingStats — the live "big number" on the apex landing.
+ *
+ * Subscribes read-only to events:getLandingStats via a lazily-loaded Convex
+ * client and animates the room counter up when the reactive query pushes a new
+ * value (Convex re-runs the query for every subscriber the instant a room is
+ * created — true live updates, no client polling).
+ *
+ * Bulletproof + honest:
+ *   - Runs ONLY in landing mode; never sets data-sn-live (apex stays "not live").
+ *   - Never throws to the page; any failure leaves the stat hidden.
+ *   - Hides entirely when roomsCreated < 1 — never a fabricated number on an
+ *     empty or offline backend (agentic_reliability HONEST_SCORES).
+ */
+function _snFmtStat(n) {
+  try { return Number(n).toLocaleString('en-US'); } catch (e) { return String(n); }
+}
+function _snInitLandingStats() {
+  try {
+    if (!document.body || document.body.dataset.pageMode !== 'landing') return;
+    var wrap = document.getElementById('landing-pulse');
+    var numEl = document.getElementById('landing-pulse-num');
+    var liveEl = document.getElementById('landing-pulse-live');
+    var activeEl = document.getElementById('landing-pulse-active');
+    var sufEl = document.getElementById('landing-pulse-suffix');
+    if (!wrap || !numEl || !liveEl) return;
+    var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    var shownRooms = 0, shownLive = 0, shownActive = 0;
+    var raf = null;
+
+    // Ease all three numbers from their prior values on ONE clock. rooms/live
+    // share a subset invariant (liveNow <= roomsCreated), so identical easing
+    // keeps displayed-live <= displayed-rooms at every frame (never a "6 live ·
+    // 4 total" flash). activeNow is a different unit (sessions) and may exceed
+    // rooms — that's fine, it just rides the same clock.
+    function animateTrio(roomsT, liveT, activeT) {
+      if (raf) { cancelAnimationFrame(raf); raf = null; }
+      if (reduce || (shownRooms === roomsT && shownLive === liveT && shownActive === activeT)) {
+        numEl.textContent = _snFmtStat(roomsT);
+        liveEl.textContent = _snFmtStat(liveT);
+        if (activeEl) activeEl.textContent = _snFmtStat(activeT);
+        shownRooms = roomsT; shownLive = liveT; shownActive = activeT;
+        return;
+      }
+      var fR = shownRooms, fL = shownLive, fA = shownActive, start = null, dur = 750;
+      function step(ts) {
+        if (start === null) start = ts;
+        var p = Math.min(1, (ts - start) / dur);
+        var e = 1 - Math.pow(1 - p, 3);
+        numEl.textContent = _snFmtStat(Math.round(fR + (roomsT - fR) * e));
+        liveEl.textContent = _snFmtStat(Math.round(fL + (liveT - fL) * e));
+        if (activeEl) activeEl.textContent = _snFmtStat(Math.round(fA + (activeT - fA) * e));
+        if (p < 1) { raf = requestAnimationFrame(step); }
+        else { raf = null; shownRooms = roomsT; shownLive = liveT; shownActive = activeT; }
+      }
+      raf = requestAnimationFrame(step);
+    }
+
+    function render(stats) {
+      if (!stats || typeof stats.roomsCreated !== 'number') return;
+      var rooms = stats.roomsCreated;
+      if (rooms < 1) { wrap.hidden = true; return; }  // honest: hide empty, never fake
+      wrap.hidden = false;
+      if (sufEl) sufEl.textContent = stats.capped ? '+' : '';
+      animateTrio(rooms, Math.max(0, stats.liveNow || 0), Math.max(0, stats.activeNow || 0));
+    }
+
+    function subscribe(client) {
+      // Reactive first — ticks the instant the backend changes. Fall back to a
+      // 25s poll for older Convex browser clients that lack onUpdate.
+      if (client.onUpdate) {
+        try {
+          client.onUpdate('events:getLandingStats', {}, function (stats) { try { render(stats); } catch (e) {} });
+          client.onUpdate('events:listPublicRooms', { limit: 4 }, function (rooms) { try { renderPublicRooms(rooms); } catch (e) {} });
+          return;
+        } catch (e) { /* fall through to polling */ }
+      }
+      var poll = function () {
+        client.query('events:getLandingStats', {})
+          .then(function (stats) { try { render(stats); } catch (e) {} })
+          .catch(function () {});
+        client.query('events:listPublicRooms', { limit: 4 })
+          .then(function (rooms) { try { renderPublicRooms(rooms); } catch (e) {} })
+          .catch(function () {});
+      };
+      poll();
+      window._sn_landing_stats.pollTimer = setInterval(poll, 25000);
+    }
+
+    function roomUrl(room) {
+      var slug = room && (room.slug || room.roomCode);
+      return '/e/' + encodeURIComponent(String(slug || '').toLowerCase());
+    }
+
+    function renderPublicRooms(payload) {
+      var section = document.getElementById('landing-public');
+      var list = document.getElementById('landing-public-list');
+      var countEl = document.getElementById('landing-public-count');
+      if (!section || !list) return;
+      var rooms = payload && Array.isArray(payload.rooms) ? payload.rooms : [];
+      list.innerHTML = '';
+      if (!rooms.length) {
+        section.removeAttribute('data-visible');
+        if (countEl) countEl.textContent = '';
+        return;
+      }
+      section.setAttribute('data-visible', 'true');
+      if (countEl) countEl.textContent = rooms.length === 1 ? '1 open' : rooms.length + ' open';
+      rooms.slice(0, 4).forEach(function(room) {
+        var card = document.createElement('article');
+        card.className = 'landing-room-card';
+
+        var copy = document.createElement('div');
+        var title = document.createElement('div');
+        title.className = 'landing-room-title';
+        title.textContent = String(room.name || 'Untitled room');
+        var meta = document.createElement('div');
+        meta.className = 'landing-room-meta';
+        var active = Number(room.activeSessions || 0);
+        var codeText = ' code ' + String(room.roomCode || '').toUpperCase();
+        if (active > 0) {
+          // "● N inside" — live presence cue ("friends are inside").
+          var dot = document.createElement('span');
+          dot.className = 'dot-inside';
+          dot.setAttribute('aria-hidden', 'true');
+          var strong = document.createElement('b');
+          strong.textContent = active.toLocaleString('en-US') + (room.activeSessionsCapped ? '+' : '');
+          meta.appendChild(dot);
+          meta.appendChild(strong);
+          meta.appendChild(document.createTextNode(' inside ·' + codeText));
+        } else {
+          meta.textContent = 'Open for guests ·' + codeText;
+        }
+        copy.appendChild(title);
+        copy.appendChild(meta);
+
+        // Open rooms navigate straight in; request rooms file a one-tap request
+        // against the live door-policy backend (events:requestJoinEvent).
+        var isRequest = room.joinPolicy === 'request';
+        card.setAttribute('data-policy', isRequest ? 'request' : 'open');
+        var join;
+        if (isRequest) {
+          join = document.createElement('button');
+          join.type = 'button';
+          join.textContent = 'Request to join';
+          (function (slug, btn) {
+            btn.onclick = function () { _landingRequestJoin(slug, btn); return false; };
+          })(room.slug, join);
+        } else {
+          join = document.createElement('a');
+          join.href = roomUrl(room);
+          join.textContent = 'Join now';
+        }
+        join.className = 'landing-room-join';
+        card.appendChild(copy);
+        card.appendChild(join);
+        list.appendChild(card);
+      });
+    }
+
+    // --- One-tap "Request to join" from the public directory -----------------
+    // Files a request against the live door-policy backend (events:requestJoinEvent)
+    // using the SAME sn_session_id the room will use, so a host approval carries
+    // through the joinEvent door gate when the guest lands in /e/<slug>. Honest:
+    // a config/backend failure resets the button and never fakes entry.
+    function _landingSessionId() {
+      var sid;
+      try {
+        sid = localStorage.getItem('sn_session_id');
+        if (!sid) {
+          sid = (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+          localStorage.setItem('sn_session_id', sid);
+        }
+      } catch (e) {
+        sid = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+      }
+      return sid;
+    }
+
+    function _landingGoToRoom(slug) {
+      location.href = '/e/' + encodeURIComponent(String(slug || '').toLowerCase());
+    }
+
+    function _landingRequestJoin(slug, btn) {
+      var stats = window._sn_landing_stats;
+      var client = stats && stats.client;
+      // No live client yet: just navigate; the room's own door handles the gate.
+      if (!client || !client.mutation) { _landingGoToRoom(slug); return; }
+      var sessionId = _landingSessionId();
+      var displayName = (window._userName && String(window._userName).trim()) || 'Guest';
+      btn.setAttribute('data-state', 'pending');
+      btn.textContent = 'Requesting…';
+      client.mutation('events:requestJoinEvent', { slug: slug, sessionId: sessionId, displayName: displayName })
+        .then(function (res) {
+          var status = res && res.status;
+          if (status === 'open' || status === 'already_member' || status === 'approved') {
+            btn.textContent = 'Opening…';
+            _landingGoToRoom((res && res.slug) || slug);
+            return;
+          }
+          // pending — host must approve. Honest waiting state + watch for the decision.
+          btn.setAttribute('data-state', 'requested');
+          btn.textContent = 'Requested ✓';
+          _landingWatchRequest(slug, sessionId, btn);
+        })
+        .catch(function (e) {
+          btn.removeAttribute('data-state');
+          btn.textContent = 'Request to join';
+          if (typeof toast === 'function') {
+            try { toast('Could not send request', (e && e.message) || 'Please try again.'); } catch (_) {}
+          }
+        });
+    }
+
+    function _landingWatchRequest(slug, sessionId, btn) {
+      var stats = window._sn_landing_stats;
+      var client = stats && stats.client;
+      if (!client) return;
+      var done = false, unsub = null, timer = null;
+      var finish = function () {
+        if (typeof unsub === 'function') { try { unsub(); } catch (_) {} }
+        if (timer) { clearInterval(timer); timer = null; }
+      };
+      var apply = function (st) {
+        if (done || !st) return;
+        if (st.isMember || st.status === 'approved') {
+          done = true; finish();
+          btn.textContent = 'Approved — opening…';
+          _landingGoToRoom(st.slug || slug);
+        } else if (st.status === 'denied') {
+          done = true; finish();
+          btn.setAttribute('data-state', 'pending');
+          btn.textContent = 'Request declined';
+        }
+      };
+      if (client.onUpdate) {
+        try {
+          unsub = client.onUpdate('events:getMyJoinRequest', { slug: slug, sessionId: sessionId }, function (st) { try { apply(st); } catch (_) {} });
+          return;
+        } catch (e) { /* fall through to poll */ }
+      }
+      timer = setInterval(function () {
+        client.query('events:getMyJoinRequest', { slug: slug, sessionId: sessionId })
+          .then(function (st) { try { apply(st); } catch (_) {} })
+          .catch(function () {});
+      }, 4000);
+    }
+
+    function connect() {
+      fetch('/api/scratchnode-config', { cache: 'no-store' })
+        .then(function (r) { if (!r.ok) throw new Error('cfg'); return r.json(); })
+        .then(function (cfg) {
+          if (!cfg || !cfg.convexUrl) throw new Error('nourl');
+          return import('https://esm.sh/convex@1.29.0/browser').then(function (mod) {
+            var ConvexClient = mod.ConvexClient;
+            if (!ConvexClient) throw new Error('noclient');
+            var client = new ConvexClient(cfg.convexUrl);
+            window._sn_landing_stats = { client: client };
+            subscribe(client);
+          });
+        })
+        .catch(function () { /* honest: backend unreachable -> stat stays hidden */ });
+    }
+
+    if (window.requestIdleCallback) { requestIdleCallback(connect, { timeout: 2500 }); }
+    else { setTimeout(connect, 450); }
+  } catch (e) { /* never break the landing */ }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _snInitLandingStats);
+} else {
+  _snInitLandingStats();
+}
+</script>
+
+<!-- Public /wiki/<slug> reader — visible only when data-page-mode === "wiki".
+     The shareable, no-account artifact: "the room remembers everything." -->
+<section class="sn-wiki" id="sn-wiki" aria-label="Event wiki">
+  <div class="sn-wiki__bar">
+    <a class="sn-wiki__brand" href="/">Scratch<b>Node</b></a>
+    <span class="sn-wiki__bar-spacer"></span>
+    <button type="button" class="sn-wiki__ghost sn-wiki__hide-sm" id="sn-wiki-share" onclick="_snWikiShare()">Share</button>
+    <a class="sn-wiki__cta" href="/">Create your own room &rarr;</a>
+  </div>
+  <div class="sn-wiki__main" id="sn-wiki-main">
+    <!-- Honest loading skeleton; replaced by real content, empty state, or error. -->
+    <div class="sn-wiki__state" id="sn-wiki-loading" aria-busy="true" aria-live="polite">
+      <div class="sn-wiki__skeleton w50"></div>
+      <div class="sn-wiki__skeleton w90"></div>
+      <div class="sn-wiki__skeleton w70"></div>
+      <div class="sn-wiki__skeleton w90"></div>
+    </div>
+  </div>
+</section>
+<script>
+/* ── Public wiki reader bootstrap ──────────────────────────────────────────
+   Runs only in wiki mode (/wiki/<slug>). Reads the slug, bootstraps a Convex
+   client (same /api/scratchnode-config + esm.sh paths the room uses), calls the
+   PUBLIC events:getPublishedWikiBySlug, and renders the published wiki HTML.
+   HONEST: a not-published / nonexistent / errored read shows a REAL state, never
+   a fabricated wiki. `data-sn-live` is never set — this is a read-only artifact. */
+function _snInitWikiReader() {
+  try {
+    if (document.body.dataset.pageMode !== 'wiki') return;
+    var m = (location.pathname || '').match(/^\/wiki\/([a-z0-9][a-z0-9-]{0,60})\/?$/i);
+    var slug = m ? m[1] : '';
+    var mainEl = document.getElementById('sn-wiki-main');
+    if (!slug || !mainEl) { _snWikiState('This wiki link looks wrong.', 'Double-check the address, or create your own room.'); return; }
+    window._sn_wiki = { slug: slug };
+
+    fetch('/api/scratchnode-config', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('cfg'); return r.json(); })
+      .then(function (cfg) {
+        if (!cfg || !cfg.convexUrl) throw new Error('nourl');
+        return import('https://esm.sh/convex@1.29.0/browser').then(function (mod) {
+          var ConvexClient = mod.ConvexClient;
+          if (!ConvexClient) throw new Error('noclient');
+          var client = new ConvexClient(cfg.convexUrl);
+          window._sn_wiki.client = client;
+          // Reactive: if the host re-publishes while a reader is on the page, update.
+          if (client.onUpdate) {
+            client.onUpdate('events:getPublishedWikiBySlug', { slug: slug }, function (wiki) {
+              try { _snRenderWiki(wiki); } catch (e) {}
+            });
+          } else {
+            client.query('events:getPublishedWikiBySlug', { slug: slug })
+              .then(function (wiki) { try { _snRenderWiki(wiki); } catch (e) {} })
+              .catch(function () { _snWikiState("Couldn't load this wiki.", 'The room may be offline. Try again in a moment.'); });
+          }
+        });
+      })
+      .catch(function () { _snWikiState("Couldn't load this wiki.", 'The room backend is unreachable right now.'); });
+  } catch (e) { /* never break the page */ }
+}
+
+function _snWikiState(head, sub) {
+  var mainEl = document.getElementById('sn-wiki-main');
+  if (!mainEl) return;
+  var wrap = document.createElement('div'); wrap.className = 'sn-wiki__state';
+  var t = document.createElement('h2'); t.textContent = head; wrap.appendChild(t);
+  if (sub) { var p = document.createElement('p'); p.textContent = sub; wrap.appendChild(p); }
+  var a = document.createElement('a'); a.className = 'sn-wiki__cta'; a.href = '/';
+  a.textContent = 'Create your own room →';
+  a.style.display = 'inline-block'; a.style.marginTop = '14px';
+  wrap.appendChild(a);
+  mainEl.innerHTML = ''; mainEl.appendChild(wrap);
+}
+
+function _snRenderWiki(wiki) {
+  var mainEl = document.getElementById('sn-wiki-main');
+  if (!mainEl) return;
+  if (!wiki || !wiki.bodyHtml) {
+    // HONEST: no published wiki yet — never fabricate one.
+    _snWikiState('This room hasn’t published its wiki yet.', 'When the host publishes, the recap shows up here.');
+    return;
+  }
+  window._sn_wiki.data = wiki;
+  try { document.title = (wiki.eventName || 'Event') + ' — wiki · ScratchNode'; } catch (e) {}
+  var when = '';
+  try { if (wiki.publishedAt) when = new Date(wiki.publishedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) {}
+  mainEl.innerHTML =
+    '<div class="sn-wiki__kicker"><span class="dot" aria-hidden="true"></span>Event wiki' + (typeof wiki.version === 'number' ? ' · v' + wiki.version : '') + '</div>' +
+    '<h1 class="sn-wiki__title"></h1>' +
+    '<div class="sn-wiki__meta"></div>' +
+    '<div class="sn-wiki__article" id="sn-wiki-article"></div>' +
+    '<div class="sn-wiki__foot">' +
+      '<div class="sn-wiki__foot-tag"><b>The room remembers everything.</b> This recap was built live with ScratchNode.</div>' +
+      '<a class="sn-wiki__cta" href="/">Create your own room &rarr;</a>' +
+    '</div>';
+  mainEl.querySelector('.sn-wiki__title').textContent = wiki.title || (wiki.eventName ? wiki.eventName + ' — wiki' : 'Event wiki');
+  mainEl.querySelector('.sn-wiki__meta').textContent =
+    (wiki.eventName || '') +
+    (wiki.roomCode ? ' · code ' + String(wiki.roomCode).toUpperCase() : '') +
+    (when ? ' · published ' + when : '');
+  // bodyHtml is server-built + public-safe (private notes excluded at publish time).
+  mainEl.querySelector('#sn-wiki-article').innerHTML = wiki.bodyHtml;
+  // NOTE: a "Continue in NodeBench" bridge CTA is intentionally NOT here yet — the
+  // nodebenchai.com/events/<slug>/wiki receiving route doesn't exist (the /events
+  // router rejects trailing segments), so a CTA would 404. It ships WITH its real
+  // receiving route so the link can never dead-end. See PR-D.
+}
+
+function _snWikiShare() {
+  var slug = (window._sn_wiki && window._sn_wiki.slug) || '';
+  var base = (typeof PUBLIC_BASE_URL === 'string' && PUBLIC_BASE_URL) ? PUBLIC_BASE_URL : (location.origin || 'https://scratchnode.live');
+  var url = base + '/wiki/' + slug;
+  var title = (window._sn_wiki && window._sn_wiki.data && window._sn_wiki.data.eventName) || 'ScratchNode';
+  var text = title + ' — the room remembers everything.\n' + url;
+  if (navigator.share) { navigator.share({ title: title + ' · ScratchNode wiki', text: text, url: url }).catch(function(){}); return; }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function(){ _snWikiToast('Wiki link copied', 'Paste it anywhere — no account needed.'); }).catch(function(){ _snWikiToast("Couldn't copy", url); });
+  } else { _snWikiToast('Share this wiki', url); }
+}
+function _snWikiToast(a, b) { try { if (typeof toast === 'function') toast(a, b); } catch (e) {} }
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _snInitWikiReader);
+} else {
+  _snInitWikiReader();
+}
 </script>
 
 <!-- Landing-mode hero — visible only when data-page-mode === "landing" -->
 <section class="landing" role="region" aria-label="ScratchNode landing">
   <div class="landing-hero">
+    <!-- Live "big number" — real, reactive room count. Hidden until the live
+         backend reports >=1 room (no fabricated number on an empty/offline
+         backend). Ticks up the instant anyone, anywhere, creates a room. -->
+    <div class="landing-pulse" id="landing-pulse" aria-live="polite" hidden>
+      <div class="landing-pulse__big">
+        <span id="landing-pulse-num">0</span><span class="landing-pulse__suffix" id="landing-pulse-suffix"></span>
+      </div>
+      <div class="landing-pulse__label">rooms spun up on ScratchNode</div>
+      <div class="landing-pulse__chips">
+        <span class="landing-pulse__chip">
+          <span class="landing-pulse__dot landing-pulse__dot--active" aria-hidden="true"></span>
+          <strong id="landing-pulse-active">0</strong> active now
+        </span>
+        <span class="landing-pulse__chip">
+          <span class="landing-pulse__dot" aria-hidden="true"></span>
+          <strong id="landing-pulse-live">0</strong> live right now
+        </span>
+      </div>
+    </div>
     <span class="landing-logo">Scratch<span>Node</span></span>
-    <h1>A disposable sidecar room for live event memory.</h1>
-    <p>Bring your Luma, Slack, or Eventbrite crowd. Anyone with a room code can join, chat publicly, use <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:1px 6px;border-radius:3px">/ask</code> for sourced answers, and keep private notes that never enter the public room.</p>
+    <h1>The room remembers everything.</h1>
+    <p>Drop a code, chat live, hit <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:1px 6px;border-radius:3px">/ask</code> for sourced answers — and walk away with a wiki of everything that happened. No account, no app.</p>
+    <!-- Create is the PRIMARY action: the original complaint was that a visitor
+         couldn't just land and spin up a room. Join stays immediately available
+         but secondary (outline) below an "or join" divider. -->
+    <form class="landing-create" onsubmit="return _landingCreate(event)" aria-label="Create a new room for your event">
+      <input type="text" id="landing-create-name" placeholder="Name your event (e.g. Sarah&#39;s Birthday)" aria-label="Event name" maxlength="90" autocomplete="off" required>
+      <div class="landing-create-sub">
+        <input type="text" id="landing-create-code" placeholder="Custom code (optional)" aria-label="Custom room code (optional)" maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button type="submit" id="landing-create-btn">Create room &rarr;</button>
+      </div>
+      <label class="landing-discovery-toggle">
+        <input type="checkbox" id="landing-create-public">
+        <span>List this as an open public room</span>
+      </label>
+    </form>
+    <p class="landing-create-status" id="landing-create-status" role="status" aria-live="polite"></p>
+    <div class="landing-or" aria-hidden="true"><span>or join an existing room</span></div>
     <form class="landing-join" onsubmit="return _landingJoin(event)" aria-label="Join an event by room code">
       <input type="text" placeholder="Enter room code (e.g. ORBITAL)" aria-label="Room code" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false">
       <button type="submit">Join &rarr;</button>
@@ -1905,12 +3184,80 @@ function _landingJoin(ev) {
       <a href="/docs" class="landing-secondary">Read the docs &rarr;</a>
     </div>
   </div>
+  <section class="landing-public" id="landing-public" aria-label="Open public rooms">
+    <div class="landing-public-head">
+      <b>Open public rooms</b>
+      <span id="landing-public-count"></span>
+    </div>
+    <div class="landing-public-list" id="landing-public-list"></div>
+  </section>
   <div class="landing-trust" aria-label="Privacy posture">
     <span>No-account join.</span>
     <span>Public answers stay sourced.</span>
     <span>Private notes stay private.</span>
   </div>
 </section>
+
+<!-- Post-create share moment — "Your event is live. Invite people now." -->
+<div class="share-moment" id="share-moment" role="dialog" aria-modal="true" aria-labelledby="share-moment-title">
+  <div class="share-moment__panel">
+    <span class="share-moment__spark" aria-hidden="true">&#10022;</span>
+    <h2 id="share-moment-title">Your event is live.</h2>
+    <p class="share-moment__sub">Invite people now &mdash; the room becomes your shared memory for the night.</p>
+
+    <div class="invite-card" id="invite-card">
+      <div class="invite-card__brand">Scratch<span>Node</span></div>
+      <div class="invite-card__name" id="invite-card-name">Your event</div>
+      <div class="invite-card__qr"><img id="invite-card-qr" alt="Scan to join the room" width="140" height="140"></div>
+      <div class="invite-card__code">scratchnode.live/e/<b id="invite-card-code">code</b></div>
+      <div class="invite-card__tag">the room remembers everything</div>
+    </div>
+
+    <div class="share-link">
+      <input type="text" id="share-link-input" readonly aria-label="Room link" onfocus="this.select()">
+      <button type="button" id="share-link-copy" onclick="_shareCopyLink()">Copy</button>
+    </div>
+
+    <div class="share-actions">
+      <button type="button" class="share-btn share-btn--primary" id="share-btn-native" onclick="_shareNative()" hidden>Share&hellip;</button>
+      <a class="share-btn" id="share-btn-text" href="#" role="button">Text</a>
+      <a class="share-btn" id="share-btn-email" href="#" role="button">Email</a>
+      <button type="button" class="share-btn share-btn--wide" id="share-invite-copy" onclick="_shareCopyInvite()">Copy invite text</button>
+    </div>
+
+    <button type="button" class="share-enter" id="share-enter-btn" onclick="_shareEnterRoom()">Enter your room &rarr;</button>
+  </div>
+</div>
+
+<!-- End-event recap moment — shown after the host publishes the wiki, so they
+     learn the public /wiki/<slug> address and can share the memory. -->
+<div class="share-moment" id="wiki-live-moment" role="dialog" aria-modal="true" aria-labelledby="wiki-live-title">
+  <div class="share-moment__panel">
+    <span class="share-moment__spark" aria-hidden="true">&#10022;</span>
+    <h2 id="wiki-live-title">Your wiki is live.</h2>
+    <p class="share-moment__sub">Anyone can read the recap &mdash; no account, no app. Share the memory.</p>
+
+    <div class="invite-card" id="wiki-live-card">
+      <div class="invite-card__brand">Scratch<span>Node</span></div>
+      <div class="invite-card__name" id="wiki-live-name">Your event</div>
+      <div class="invite-card__qr"><img id="wiki-live-qr" alt="Scan to read the wiki" width="140" height="140"></div>
+      <div class="invite-card__code">scratchnode.live/wiki/<b id="wiki-live-slug">slug</b></div>
+      <div class="invite-card__tag">the room remembers everything</div>
+    </div>
+
+    <div class="share-link">
+      <input type="text" id="wiki-live-input" readonly aria-label="Wiki link" onfocus="this.select()">
+      <button type="button" id="wiki-live-copy" onclick="_snWikiMomentCopy()">Copy</button>
+    </div>
+
+    <div class="share-actions">
+      <button type="button" class="share-btn share-btn--primary" id="wiki-live-native" onclick="_snWikiMomentNative()" hidden>Share&hellip;</button>
+      <button type="button" class="share-btn share-btn--wide" onclick="_snWikiMomentOpen()">Open the wiki &rarr;</button>
+    </div>
+
+    <button type="button" class="share-enter" id="wiki-live-done" onclick="_snWikiMomentClose()">Done</button>
+  </div>
+</div>
 
 <a class="skip-link" href="#feed">Skip to chat</a>
 
@@ -1954,6 +3301,15 @@ function _landingJoin(ev) {
       <strong>New to ScratchNode?</strong> This is the sidecar room: chat publicly, <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:0 4px;border-radius:3px">/ask</code> for sourced answers, or lock the composer for private notes. <a onclick="startTour()">Take the 20-second tour&nbsp;&rarr;</a>
     </span>
     <button class="welcome-close" type="button" onclick="dismissWelcome()" aria-label="Dismiss">&times;</button>
+  </div>
+
+  <!-- In-room memory nudge — revealed once (real live count) to reinforce that
+       the room becomes the wiki and nudge a one-tap invite. -->
+  <div class="sn-mem-nudge" id="sn-mem-nudge" role="status" aria-live="polite">
+    <span class="sn-mem-nudge__dot" aria-hidden="true"></span>
+    <span class="sn-mem-nudge__text"><b id="sn-mem-nudge-count">0</b> in the room. The more people here, the richer this room&rsquo;s wiki &mdash; invite a few.</span>
+    <button type="button" class="sn-mem-nudge__invite" onclick="_snMemNudgeInvite()">Invite &rarr;</button>
+    <button type="button" class="sn-mem-nudge__close" onclick="_snDismissMemNudge()" aria-label="Dismiss">&times;</button>
   </div>
 
   <section class="hero">
@@ -2076,7 +3432,7 @@ function _landingJoin(ev) {
         <button type="button" class="primary attendee-only" onclick="toast('Suggested for FAQ','The host will review and add it to the wiki.')">★ Suggest for FAQ</button>
         <button type="button" class="primary host-only" onclick="toast('Promoted to FAQ','Now part of the durable wiki.')">★ Promote to FAQ</button>
         <button type="button" onclick="openWiki()">View in wiki →</button>
-        <button type="button" onclick="toast('Shared','Answer link copied.')">Share</button>
+        <button type="button" onclick="_snShareAnswer('', 'What is the MCP auth timeline?')">Share</button>
         <button type="button" onclick="ask('Follow-up on MCP auth timeline')">Follow-up</button>
       </div>
     </article>
@@ -2513,6 +3869,41 @@ function refreshEventUrl() {
   EVENT_URL = PUBLIC_BASE_URL + '/e/' + encodeURIComponent(EVENT_SLUG);
 }
 
+function getPublicWikiUrl() {
+  refreshEventUrl();
+  return EVENT_URL + '/wiki';
+}
+
+function copyTextOrToast(text, successTitle, successDetail) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).then(function() {
+      toast(successTitle || 'Copied', successDetail || text);
+      haptic && haptic();
+      return true;
+    }).catch(function() {
+      toast('Copy unavailable', text);
+      return false;
+    });
+  }
+  toast('Copy unavailable', text);
+  return Promise.resolve(false);
+}
+
+function answerAnchorId(answerId) {
+  return 'answer-' + encodeURIComponent(String(answerId || '').trim() || 'current');
+}
+
+function shareAnswerLink(answerId) {
+  refreshEventUrl();
+  var id = String(answerId || '').trim();
+  var url = EVENT_URL + (id ? '#' + answerAnchorId(id) : '');
+  return copyTextOrToast(url, 'Answer link copied', url);
+}
+
+function copyPublicWikiUrl() {
+  return copyTextOrToast(getPublicWikiUrl(), 'Wiki link copied', 'Share the public event wiki.');
+}
+
 function setScratchNodeLiveEventContext(event) {
   if (!event) return;
   EVENT_SLUG = event.slug || EVENT_SLUG;
@@ -2552,8 +3943,16 @@ function buildNodeBenchEventPrivateUrl() {
     var room = getRoomContext();
     roomCode = (room && room.roomCode) || roomCode;
   } catch (e) {}
+  // INTERIM (honesty): the cross-domain `/events/<slug>/private` receiving route
+  // + its handoff token don't exist yet (that's the gated cross-domain bridge
+  // follow-up). Pointing here previously produced a hard 404. Until the real
+  // tokenized private route ships, target the ALREADY-SHIPPED `/scratchnode-events`
+  // surface — an honest landing (it resolves session / shows a sign-in prompt),
+  // never a 404. The event context rides along so the real private route can
+  // consume it once built.
   return WORKSPACE_BASE_URL +
-    '/events/' + encodeURIComponent(EVENT_SLUG) + '/private?source=scratchnode' +
+    '/scratchnode-events?source=scratchnode' +
+    '&event=' + encodeURIComponent(EVENT_SLUG) +
     '&room=' + encodeURIComponent(roomCode) +
     '&continuation=' + encodeURIComponent('private-notes') +
     '&noteCount=' + encodeURIComponent(String(getPrivateNoteHandoffCount())) +
@@ -2569,7 +3968,10 @@ function buildNodeBenchSignInUrl(targetUrl) {
 function openNodeBenchPrivateHandoff() {
   closeMenu();
   closeSheet();
-  window.location.assign(buildNodeBenchSignInUrl(buildNodeBenchEventPrivateUrl()));
+  // Navigate straight to the shipped `/scratchnode-events` surface — it resolves
+  // session / shows its own sign-in prompt. (Previously wrapped a dead
+  // `/events/<slug>/private` target in `/sign-in?return=…`, which 404'd.)
+  window.location.assign(buildNodeBenchEventPrivateUrl());
 }
 
 // ── Debug-gate flag for prototype helpers ──
@@ -2826,7 +4228,7 @@ function streamAgentAnswer(intent, identity, time) {
       '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">Answered from event wiki</span><span class="sep">·</span><span><b>' + sim + '</b> similar</span><span class="sep">·</span><span><b>' + reused + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>0</b> new searches</span><span class="sep">·</span><span class="priv">' + privBadge + '</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace →</button>' +
       '<div class="ans-how"><div class="step"><span class="c">✓</span><span>Checked event wiki cache · sourceBundle fresh</span></div><div class="step"><span class="c">✓</span><span>Matched ' + sim + ' similar questions in semantic cache</span></div><div class="step"><span class="c">✓</span><span>Reused ' + reused + ' sources from event corpus</span></div><div class="step"><span class="c">✓</span><span>0 new searches · Linkup skipped</span></div><div class="step"><span class="c">✓</span><span>' + traceLastStep + '</span></div></div>' +
-      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="toast(\'Suggested for FAQ\',\'The host will review and add it to the wiki.\')">★ Suggest for FAQ</button><button type="button" class="primary host-only" onclick="toast(\'Promoted to FAQ\',\'Now in the wiki.\')">★ Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki →</button> <button type="button" onclick="toast(\'Shared\',\'Link copied.\')">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
+      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="toast(\'Suggested for FAQ\',\'The host will review and add it to the wiki.\')">★ Suggest for FAQ</button><button type="button" class="primary host-only" onclick="toast(\'Promoted to FAQ\',\'Now in the wiki.\')">★ Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki →</button> <button type="button" onclick="shareAnswerLink(\'demo-answer\')">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
     ans.querySelector('.ans-q').textContent = intent.clean;
     feed.appendChild(ans);
     try { if (typeof ans.scrollIntoView === 'function') ans.scrollIntoView({ behavior: 'smooth', block: 'end' }); } catch (e) {}
@@ -2913,6 +4315,34 @@ function copyRoom() {
   }
 }
 
+// ── Share an /ask answer — the "answer IS the distribution" lever ──
+// HONEST_STATUS: copies a REAL link (the room URL) + the answer's question so a
+// recipient lands in the room that holds the answer. Never claims "copied" unless
+// the clipboard write actually resolved; the native share sheet is its own feedback.
+function _snShareAnswer(answerId, explicitQuestion) {
+  var url = (typeof EVENT_URL !== 'undefined' && EVENT_URL) ? EVENT_URL : location.href.split('#')[0];
+  var shareUrl = answerId ? (url + '#' + answerAnchorId(answerId)) : url;
+  url = shareUrl;
+  var title = (typeof EVENT_TITLE !== 'undefined' && EVENT_TITLE) ? EVENT_TITLE : 'ScratchNode';
+  var q = explicitQuestion ||
+    (window._sn_answer_q_by_id && answerId && window._sn_answer_q_by_id[answerId]) || '';
+  var text = (q ? '"' + q + '" — answered live in ' + title + ' on ScratchNode'
+                : 'Answered live in ' + title + ' on ScratchNode') + '\n' + shareUrl;
+  if (navigator.share) {
+    navigator.share({ title: title + ' · ScratchNode', text: text, url: url }).catch(function(){});
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){
+      toast('Answer link copied', 'Paste it anywhere — it opens the room.');
+    }).catch(function(){
+      toast("Couldn't copy", url);
+    });
+  } else {
+    toast('Share this answer', url);
+  }
+}
+
 // ── Menu ──
 // Track the element that opened each overlay so we can return focus on close
 // (a11y best practice: keyboard users shouldn't be dumped at the top of <body>).
@@ -2932,7 +4362,7 @@ function closeMenu() {
 }
 function openWiki()    { closeMenu(); openSheet('wiki'); }
 function openPeople()  { closeMenu(); openSheet('people'); }
-function openShare()   { closeMenu(); openSheet('share'); }
+function openShare()   { closeMenu(); if (typeof _snWikiMomentClose === 'function') _snWikiMomentClose(); openSheet('share'); }
 function openNotes()   { closeMenu(); openSheet('notes'); }
 function openEvents()  { openMyEvents(); }
 // Host and sign-in stay on ScratchNode. "Open in NodeBench" is a separate
@@ -3222,6 +4652,40 @@ function dismissWelcome() {
   try { localStorage.setItem('sn_v5_seen', '1'); } catch(e){}
 }
 
+// ── In-room memory nudge ────────────────────────────────────────────────────
+// Reveal ONCE (after a short beat so it doesn't crowd the join moment) to
+// reinforce that the room becomes the wiki + offer a one-tap invite. HONESTY:
+// the count is the REAL live member count from events:getMembers — never shown
+// until there is real presence (>=1), never fabricated. Dismiss is sticky.
+var _snMemNudgeArmed = false;
+function _snMaybeShowMemNudge(count) {
+  try {
+    if (_snMemNudgeArmed) return;                                   // once per load
+    if (!(count >= 1)) return;                                      // real presence only
+    if (localStorage.getItem('sn_mem_nudge_off') === '1') return;   // previously dismissed
+    _snMemNudgeArmed = true;
+    var reduce = false;
+    try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    setTimeout(function () {
+      var el = document.getElementById('sn-mem-nudge');
+      var cEl = document.getElementById('sn-mem-nudge-count');
+      // Re-read the freshest real count at reveal time (presence may have grown).
+      var live = (window._sn_live_members && window._sn_live_members.length) || count;
+      if (cEl) cEl.textContent = String(live);
+      if (el) el.setAttribute('data-show', 'true');
+    }, reduce ? 0 : 4000);
+  } catch (e) { /* never break the room */ }
+}
+function _snDismissMemNudge() {
+  try { localStorage.setItem('sn_mem_nudge_off', '1'); } catch (e) {}
+  var el = document.getElementById('sn-mem-nudge');
+  if (el) el.setAttribute('data-show', 'false');
+}
+function _snMemNudgeInvite() {
+  try { if (typeof openShare === 'function') openShare(); } catch (e) {}
+  _snDismissMemNudge();
+}
+
 // 3-step inline tour (mini overlay positioned near each target)
 var TOUR = [
   { target: '#ci',     text: '<b>This is your input.</b> Type to chat with the room, or start with <code style="font-family:var(--mono);color:var(--accent)">/ask</code> to get a sourced agent answer.' },
@@ -3394,6 +4858,9 @@ var SHEET_RENDERERS = {
 
   share: function() {
     var url = EVENT_URL;
+    var wikiLink = window._sn_published_wiki_body
+      ? '<div class="sheet-section"><h3>Public wiki is live</h3><p class="sheet-sub">Share the post-event artifact: public Q&amp;A, sources, and what changed. Private notes stay out.</p><div class="share-url-box"><code>' + getPublicWikiUrl() + '</code><button type="button" onclick="copyPublicWikiUrl()">Copy wiki</button></div></div>'
+      : '';
     return '<div class="sheet-head"><h2 id="sheet-title">Share ' + escapeHtml(EVENT_TITLE) + '</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
       '<div class="share-url-box"><code>' + url + '</code><button type="button" onclick="copyShareUrl()">Copy</button></div>' +
       '<div class="share-grid">' +
@@ -3402,6 +4869,7 @@ var SHEET_RENDERERS = {
       '<button type="button" class="share-tile" onclick="shareTo(\'email\')"><span class="icon">&#9993;</span><span>Email</span></button>' +
       '<button type="button" class="share-tile" onclick="shareTo(\'native\')"><span class="icon">&#10548;</span><span>More&hellip;</span></button>' +
       '</div>' +
+      wikiLink +
       '<div class="sheet-section"><h3>Or scan to join on mobile</h3>' +
       '<div style="display:flex;justify-content:center;padding:16px;background:#fff;border-radius:var(--r-sm)"><img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&amp;margin=4&amp;data=' + encodeURIComponent(url + '#room=' + EVENT_ROOM_CODE) + '" alt="QR code" width="140" height="140" loading="lazy" /></div></div>' +
       '<div style="margin-top:12px;font-size:11px;color:var(--ink-faint);text-align:center;font-family:var(--mono)">Live room code ' + escapeHtml(EVENT_ROOM_CODE) + ' &middot; realtime chat backed by Convex</div>';
@@ -3433,9 +4901,9 @@ var SHEET_RENDERERS = {
   wiki: function() {
     if (window._sn_published_wiki_body) {
       return '<div class="sheet-head"><h2 id="sheet-title">' + escapeHtml(EVENT_TITLE) + ' &middot; Wiki</h2><span class="badge">live Convex</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
-        '<div class="wiki-shell"><aside class="wiki-toc" aria-label="Table of contents"><div class="wiki-toc-label">Source</div><a class="wiki-toc-link active">Published snapshot</a></aside>' +
+        '<div class="wiki-shell"><aside class="wiki-toc" aria-label="Table of contents"><div class="wiki-toc-label">Source</div><a class="wiki-toc-link active">Published snapshot</a><a class="wiki-toc-link" href="' + getPublicWikiUrl() + '" target="_blank" rel="noopener">Open public URL</a></aside>' +
         '<article class="wiki-article" id="wiki-article">' + window._sn_published_wiki_body + '</article>' +
-        '<aside class="wiki-onpage" aria-label="Actions"><div class="wiki-onpage-label">Actions</div><a onclick="window.snPublishWiki && window.snPublishWiki()">Republish</a></aside></div>';
+        '<aside class="wiki-onpage" aria-label="Actions"><div class="wiki-onpage-label">Actions</div><a href="' + getPublicWikiUrl() + '" target="_blank" rel="noopener">Open public wiki</a><a onclick="copyPublicWikiUrl()">Copy public link</a><a onclick="window.snPublishWiki && window.snPublishWiki()">Republish</a></aside></div>';
     }
     if (window._sn_live && window._sn_live.eventId) {
       return '<div class="sheet-head"><h2 id="sheet-title">' + escapeHtml(EVENT_TITLE) + ' &middot; Wiki</h2><span class="badge">not published</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
@@ -4153,9 +5621,7 @@ function refreshNotesBadge() {
 // ── Share platform handlers ──
 function copyShareUrl() {
   refreshEventUrl();
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(EVENT_URL).then(function() { toast('Copied', EVENT_URL); haptic(); });
-  }
+  return copyTextOrToast(EVENT_URL, 'Copied join link', EVENT_URL);
 }
 function shareTo(p) {
   refreshEventUrl();
@@ -4432,7 +5898,7 @@ if (_DEBUG_HELPERS_ON) window.simAsk = function(name, question, answerText, sour
       '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">Answered from event wiki</span><span class="sep">·</span><span><b>' + sim + '</b> similar</span><span class="sep">·</span><span><b>' + reused + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>0</b> new searches</span><span class="sep">·</span><span class="priv">🔒 no private notes</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
       '<div class="ans-how"><div class="step"><span class="c">&check;</span><span>Checked event wiki cache · sourceBundle fresh</span></div><div class="step"><span class="c">&check;</span><span>Matched ' + sim + ' similar questions in semantic cache</span></div><div class="step"><span class="c">&check;</span><span>Reused ' + reused + ' sources from event corpus</span></div><div class="step"><span class="c">&check;</span><span>0 new searches · Linkup skipped</span></div><div class="step"><span class="c">&check;</span><span>No private notes used · public layer only</span></div></div>' +
-      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="toast(\'Suggested for FAQ\',\'The host will review and add it to the wiki.\'); haptic();">★ Suggest for FAQ</button><button type="button" class="primary host-only" onclick="toast(\'Promoted to FAQ\',\'Now in the wiki.\'); haptic();">★ Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="toast(\'Shared\',\'Link copied.\'); haptic();">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
+      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="toast(\'Suggested for FAQ\',\'The host will review and add it to the wiki.\'); haptic();">★ Suggest for FAQ</button><button type="button" class="primary host-only" onclick="toast(\'Promoted to FAQ\',\'Now in the wiki.\'); haptic();">★ Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="shareAnswerLink(\'demo-answer\')">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
     ans.querySelector('.ans-q').textContent = question;
     ans.querySelector('.ans-body').textContent = answerText;
     feed.appendChild(ans);
@@ -5931,6 +7397,7 @@ window._laCueAction       = _laCueAction;
     seenAnswerIds.add(answer._id);
     const article = document.createElement('article');
     article.className = 'ans';
+    article.id = answerAnchorId(answer._id);
     article.setAttribute('data-answer-id', answer._id);
     const sourceCount = (answer.sources || []).length || (answer.sourceIds || []).length || 0;
     const sourceChips = (answer.sources || []).slice(0, 5).map((source) =>
@@ -5977,7 +7444,7 @@ window._laCueAction       = _laCueAction;
       '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">' + agentLabel + '</span><span class="sep">·</span><span><b>' + sourceCount + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>' + liveSearches + '</b> live searches</span><span class="sep">·</span><span>' + costLabel + '</span><span class="sep">·</span><span>' + qualityLabel + '</span><span class="sep">·</span><span class="priv">private notes excluded</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
       '<div class="ans-how">' + trace + traceBoundary + '</div>' +
-      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="window.snSuggestFaq && window.snSuggestFaq(\'' + answer._id + '\')">Suggest for FAQ</button><button type="button" class="primary host-only" onclick="window.snPromoteFaq && window.snPromoteFaq(\'' + answer._id + '\')">Promote to FAQ</button> <button type="button" class="sn-pin" onclick="window.snWall && window.snWall.pinAnswer(\'' + answer._id + '\')">&#128204; Pin to wall</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
+      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="window.snSuggestFaq && window.snSuggestFaq(\'' + answer._id + '\')">Suggest for FAQ</button><button type="button" class="primary host-only" onclick="window.snPromoteFaq && window.snPromoteFaq(\'' + answer._id + '\')">Promote to FAQ</button> <button type="button" class="sn-pin" onclick="window.snWall && window.snWall.pinAnswer(\'' + answer._id + '\')">&#128204; Pin to wall</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="window._snShareAnswer(\'' + answer._id + '\')">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
     article.querySelector('.ans-q').textContent = answer.question || '';
     article.querySelector('.ans-body').innerHTML = snEscape(answer.body || '').replace(/\n/g, '<br>');
     feedEl.appendChild(article);
@@ -5993,9 +7460,11 @@ window._laCueAction       = _laCueAction;
   });
   client.onUpdate('events:getAnswers', { eventId, limit: 100 }, (rows) => {
     if (!Array.isArray(rows)) return;
-    // Cache answer bodies so the Memory Wall can dereference answer pins.
+    // Cache answer bodies so the Memory Wall can dereference answer pins, and
+    // questions so the per-answer Share link can carry the real question text.
     window._sn_answers_by_id = window._sn_answers_by_id || {};
-    for (const a of rows) { if (a && a._id) window._sn_answers_by_id[a._id] = a.body || ''; }
+    window._sn_answer_q_by_id = window._sn_answer_q_by_id || {};
+    for (const a of rows) { if (a && a._id) { window._sn_answers_by_id[a._id] = a.body || ''; window._sn_answer_q_by_id[a._id] = a.question || ''; } }
     if (window.snWall && window.snWall._refresh) window.snWall._refresh();
     for (const answer of rows) renderAnswer(answer);
     const faqCount = rows.filter((answer) => answer && answer.faqStatus && answer.faqStatus !== 'none').length;
@@ -6014,6 +7483,7 @@ window._laCueAction       = _laCueAction;
     if (heroCount) heroCount.textContent = count;
     const menuPeopleSub = document.getElementById('menu-people-sub');
     if (menuPeopleSub) menuPeopleSub.textContent = count + ' live member' + (rows.length === 1 ? '' : 's');
+    if (typeof _snMaybeShowMemNudge === 'function') _snMaybeShowMemNudge(rows.length);
   });
 
   // Memory Wall (Phase 8): connect the spatial lane to the live event stream.
@@ -6591,11 +8061,22 @@ window._laCueAction       = _laCueAction;
     const ownerKey = _snReadHostOwnerKey();
     client.mutation('events:publishWiki', { eventId, ownerKey })
       .then((res) => {
-        toast('Wiki published', 'Version ' + res.version + ' is now live.');
+        window._sn_public_wiki_url = getPublicWikiUrl();
+        toast('Wiki published', 'Version ' + res.version + ' is live at the public wiki URL.');
+        // Activation of the after-event loop: surface the public /wiki/<slug>
+        // address so the host can actually share the memory (not just a toast).
+        try {
+          if (typeof _snShowWikiLiveMoment === 'function') {
+            _snShowWikiLiveMoment(EVENT_SLUG, typeof EVENT_TITLE !== 'undefined' ? EVENT_TITLE : '');
+          }
+        } catch (e) {}
         return client.query('events:getPublishedWiki', { eventId });
       })
       .then((wiki) => {
-        if (wiki) window._sn_published_wiki_body = wiki.bodyHtml;
+        if (wiki) {
+          window._sn_published_wiki_body = wiki.bodyHtml;
+          window._sn_public_wiki_url = getPublicWikiUrl();
+        }
       })
       .catch((e) => toast('Wiki publish blocked', e.message || String(e)));
   };
@@ -6622,7 +8103,10 @@ window._laCueAction       = _laCueAction;
 
   client.query('events:getPublishedWiki', { eventId })
     .then((wiki) => {
-      if (wiki) window._sn_published_wiki_body = wiki.bodyHtml;
+      if (wiki) {
+        window._sn_published_wiki_body = wiki.bodyHtml;
+        window._sn_public_wiki_url = getPublicWikiUrl();
+      }
     })
     .catch(() => {});
 
@@ -7680,6 +9164,7 @@ window._laCueAction       = _laCueAction;
           '<button type="button" class="primary attendee-only" onclick="window.demo&&window.demo._suggestFaq&&window.demo._suggestFaq(\'' + ansId + '\')">★ Suggest for FAQ</button>' +
           '<button type="button" class="primary host-only" onclick="window.demo&&window.demo._promoteFaq&&window.demo._promoteFaq(\'' + ansId + '\')">★ Promote to FAQ</button>' +
           '<button type="button" onclick="openWiki()">View in wiki &rarr;</button>' +
+          '<button type="button" onclick="window._snShareAnswer(\'' + ansId + '\')">Share</button>' +
         '</div>';
       ans.querySelector('.ans-q').textContent = args.question || '';
       ans.querySelector('.ans-body').textContent = args.body || '';
@@ -8922,8 +10407,8 @@ window._laCueAction       = _laCueAction;
     add('SN-LIVE-013', 'share URL uses scratchnode.live-compatible public event URL', /\/e\//.test(EVENT_URL) && !/scratchnode\.com/i.test(EVENT_URL), EVENT_URL);
     fromDemo('DEMO-014', 'SN-LIVE-014', 'guest can sign in and preserve notes');
     var handoffUrl = buildNodeBenchEventPrivateUrl();
-    add('SN-LIVE-015', 'NodeBench handoff carries event + private-note continuation context',
-      /nodebenchai\.com/.test(handoffUrl) && /\/events\//.test(handoffUrl) && /continuation=private-notes/.test(handoffUrl) && /publicArtifact=event-wiki/.test(handoffUrl),
+    add('SN-LIVE-015', 'NodeBench handoff targets a SHIPPED route (no 404) + carries event continuation context',
+      /nodebenchai\.com/.test(handoffUrl) && /\/scratchnode-events/.test(handoffUrl) && !/\/events\/[^/]+\/private/.test(handoffUrl) && /continuation=private-notes/.test(handoffUrl) && /publicArtifact=event-wiki/.test(handoffUrl),
       handoffUrl);
     var passed = results.filter(function(r) { return r.pass; }).length;
     var failed = results.length - passed;

@@ -6,10 +6,15 @@
  *
  * Public API surface (called from public/proto/home-v5.html):
  *   - getEventBySlug({ slug })
+ *   - getLandingStats()                            // bounded landing social proof
+ *   - listPublicRooms({ limit? })                  // opt-in, recently active public directory
  *   - getMessages({ eventId, limit? })            // realtime subscription
  *   - getMembers({ eventId })                     // realtime subscription
  *   - getMyEvents({ sessionId, ownerKey, limit? }) // lightweight account/event state
  *   - createEvent({ title, sessionId, displayName, ... }) // creates live room + host token
+ *   - requestJoinEvent({ slug, sessionId, displayName, note? }) // request-mode door queue
+ *   - getJoinRequests({ eventId, ownerKey, limit? }) // host door queue
+ *   - approveJoinRequest / denyJoinRequest({ eventId, ownerKey, requestId }) // host gate
  *   - joinEvent({ slug, sessionId, displayName }) // returns { eventId, ... }
  *   - sendMessage({ eventId, sessionId, displayName, text, kind, replyToMessageId? })
  *   - heartbeat({ eventId, sessionId })
@@ -28,7 +33,7 @@
 
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { action, query, mutation, internalMutation, internalQuery } from "./_generated/server";
+import { action, query, mutation, internalMutation, internalQuery, internalAction } from "./_generated/server";
 import { enforceRateLimit } from "./scratchnodeRateLimit";
 import { routeLLM, askAnswerSignals } from "../shared/llm/router";
 import { rerankWithGemini, condenseQuery, type TriCandidate } from "../shared/search/triSearch";
@@ -73,6 +78,13 @@ const ASK_RATE_LIMIT_PER_MIN = 12;
 const ASK_RATE_WINDOW_MS = 60_000;
 const MAX_ANSWER_LIMIT = 100;
 const MAX_MY_EVENTS_LIMIT = 50;
+const MAX_PUBLIC_ROOM_CARDS = 8;
+const MAX_PUBLIC_ROOM_CANDIDATES = 40;
+const MAX_PUBLIC_ROOM_ACTIVE_MEMBERS = 50;
+const MAX_JOIN_NOTE = 280;
+const MAX_JOIN_REQUESTS_PER_WINDOW = 8;
+const JOIN_REQUEST_RATE_WINDOW_MS = 10 * 60_000;
+const PUBLIC_ROOM_ACTIVE_WINDOW_MS = 30 * 60 * 1000;
 const MAX_WIKI_ANSWERS = 20;
 // Phase 4 raised this from 80 -> 120 to fit HMAC-signed host tokens
 // (hk1:<eventIdShort>:<nonce>:<issuedAt>:<hmacShort> ~ 80-90 chars).
@@ -101,6 +113,10 @@ const isLikelyValidEmail = (value: string | undefined): value is string => {
   if (trimmed.length > MAX_EMAIL_LEN) return false;
   return EMAIL_REGEX.test(trimmed);
 };
+
+function getEventActivityAt(event: { startedAt: number; lastActivityAt?: number }): number {
+  return event.lastActivityAt ?? event.startedAt;
+}
 
 const DEMO_SOURCES = [
   {
@@ -174,6 +190,20 @@ const normalizeRequestedRoomCode = (value: string | undefined): string | null =>
   const raw = (value || "").trim().toUpperCase().replace(/[^A-Z0-9-]+/g, "");
   if (!raw) return null;
   return raw.slice(0, 24);
+};
+
+const clamp01 = (value: unknown): number => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(1, n));
+};
+
+const sanitizeBouncerFlags = (flags: unknown): string[] => {
+  if (!Array.isArray(flags)) return [];
+  return flags
+    .map((flag) => String(flag || "").replace(/\s+/g, " ").trim().slice(0, 36))
+    .filter(Boolean)
+    .slice(0, 6);
 };
 
 const tokenize = (value: string) =>
@@ -738,6 +768,137 @@ async function generateProviderAnswer(args: {
   }
 }
 
+function deterministicBouncerAdvisory(args: {
+  eventName: string;
+  displayName: string;
+  note?: string;
+}) {
+  const note = (args.note || "").toLowerCase();
+  const name = (args.displayName || "").toLowerCase();
+  const flags: string[] = [];
+  let risk = 0.12;
+  if (!note) {
+    flags.push("no_note");
+    risk += 0.12;
+  }
+  if (/\b(spam|airdrop|crypto|token|casino|betting|guaranteed|free money)\b/i.test(note)) {
+    flags.push("spam_language");
+    risk += 0.45;
+  }
+  if (/(https?:\/\/|www\.)/i.test(note)) {
+    flags.push("link_in_note");
+    risk += 0.2;
+  }
+  if (/\b(admin|moderator|host|support)\b/i.test(name) && !/\b(invited|speaker|organizer)\b/i.test(note)) {
+    flags.push("impersonation_check");
+    risk += 0.25;
+  }
+  const riskScore = clamp01(risk);
+  const recommendation = riskScore >= 0.72 ? "deny" : riskScore >= 0.32 ? "hold" : "approve";
+  return {
+    recommendation: recommendation as "approve" | "hold" | "deny",
+    riskScore,
+    flags,
+    hostSummary:
+      recommendation === "approve"
+        ? `${args.displayName} looks low-risk from the request text. Approve if you recognize the context.`
+        : recommendation === "deny"
+          ? `${args.displayName} has obvious spam or impersonation signals. Review before admitting.`
+          : `${args.displayName} needs host review; the request has limited or mixed context.`,
+    guestMessage:
+      "Your request is in the host's queue. You will enter automatically after approval.",
+  };
+}
+
+async function generateBouncerAdvisory(args: {
+  eventName: string;
+  displayName: string;
+  note?: string;
+  model: string;
+}) {
+  const fallback = deterministicBouncerAdvisory(args);
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return {
+      ...fallback,
+      flags: [...fallback.flags, "llm_unavailable"].slice(0, 6),
+      hostSummary: `${fallback.hostSummary} Provider unavailable, so this is deterministic screening only.`,
+      provider: "deterministic" as const,
+      model: "heuristic-bouncer",
+    };
+  }
+
+  const system = [
+    "You are ScratchNode's advisory door bouncer for a live event room.",
+    "You do not admit or reject anyone; a human host makes the decision.",
+    "Do not infer protected traits, identity, or intent beyond the supplied request text.",
+    "Recommend deny only for obvious spam, abuse, security risk, or impersonation.",
+    "If uncertain, recommend hold.",
+    "Return only compact JSON with recommendation, riskScore, flags, hostSummary, guestMessage.",
+  ].join(" ");
+  const user = [
+    `Event: ${args.eventName}`,
+    `Requested display name: ${args.displayName}`,
+    `Guest note: ${args.note || "(none)"}`,
+    "",
+    'JSON schema: {"recommendation":"approve|hold|deny","riskScore":0..1,"flags":["short_snake_case"],"hostSummary":"one sentence for the host","guestMessage":"one short neutral sentence for the guest"}',
+  ].join("\n");
+  const startedAt = Date.now();
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), Math.min(ANTHROPIC_TIMEOUT_MS, 10_000));
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: args.model,
+        max_tokens: 260,
+        temperature: 0,
+        system,
+        messages: [{ role: "user", content: user }],
+      }),
+      signal: ac.signal,
+    });
+    if (!response.ok) throw new Error(`Anthropic HTTP ${response.status}`);
+    const data: any = await response.json();
+    const text = Array.isArray(data.content)
+      ? data.content.map((part: any) => part?.type === "text" ? part.text : "").join("").trim()
+      : "";
+    const jsonText = (text.match(/\{[\s\S]*\}/) || [text])[0];
+    const parsed = JSON.parse(jsonText);
+    const rawRecommendation = String(parsed.recommendation || "").toLowerCase();
+    const recommendation =
+      rawRecommendation === "approve" || rawRecommendation === "deny" || rawRecommendation === "hold"
+        ? rawRecommendation
+        : fallback.recommendation;
+    return {
+      recommendation: recommendation as "approve" | "hold" | "deny",
+      riskScore: clamp01(parsed.riskScore),
+      flags: sanitizeBouncerFlags(parsed.flags),
+      hostSummary: String(parsed.hostSummary || fallback.hostSummary).replace(/\s+/g, " ").trim().slice(0, 260),
+      guestMessage: String(parsed.guestMessage || fallback.guestMessage).replace(/\s+/g, " ").trim().slice(0, 180),
+      provider: "anthropic" as const,
+      model: args.model,
+      elapsedMs: Date.now() - startedAt,
+    };
+  } catch (err: any) {
+    return {
+      ...fallback,
+      flags: [...fallback.flags, ac.signal.aborted ? "llm_timeout" : "llm_error"].slice(0, 6),
+      hostSummary: `${fallback.hostSummary} LLM advisory failed: ${String(err?.message || err).slice(0, 80)}.`,
+      provider: "deterministic" as const,
+      model: "heuristic-bouncer",
+      elapsedMs: Date.now() - startedAt,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function buildAnswerPayload(ctx: any, answerId: any) {
   const answer = await ctx.db.get(answerId);
   if (!answer) return null;
@@ -799,22 +960,150 @@ function isRoomCodeShape(s: string): boolean {
   return /^[A-Z0-9][A-Z0-9-]{1,23}$/.test(s);
 }
 
+async function resolveEventBySlugOrRoomCode(ctx: any, slug: string) {
+  const event = await ctx.db
+    .query("liveEvents")
+    .withIndex("by_slug", (q: any) => q.eq("slug", slug))
+    .first();
+  if (event) return event;
+  const roomCode = slug.trim().toUpperCase();
+  if (!isRoomCodeShape(roomCode)) return null;
+  return await ctx.db
+    .query("liveEvents")
+    .withIndex("by_roomCode", (q: any) => q.eq("roomCode", roomCode))
+    .first();
+}
+
 export const getEventBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
     if (!slug || slug.length > 120) return null;
-    const event = await ctx.db
+    return await resolveEventBySlugOrRoomCode(ctx, slug);
+  },
+});
+
+// BOUND (agentic_reliability): cap every landing-stats scan. There is no count
+// aggregate in Convex, so each metric is an index-ordered scan capped with a +1
+// sentinel — if we hit the cap the UI honestly renders "N+" rather than silently
+// undercounting. Limits sit far above current volume.
+const MAX_LANDING_EVENT_SCAN = 10000;
+const MAX_LANDING_SESSION_SCAN = 5000;
+
+/**
+ * Live landing stats — powers the animated counter on the apex landing.
+ *
+ * Convex queries are REACTIVE: every subscribed landing visitor's numbers tick
+ * the instant a room is created, opens/ends, or someone joins/leaves — no client
+ * timers (the client also keeps a 25s poll fallback for older Convex browsers).
+ *
+ * Three real metrics (synthesis of the two parallel implementations — Codex
+ * contributed the index-backed presence counting; this keeps the reactive +
+ * honest-hide framing):
+ *   - roomsCreated: every room ever made (ended rooms keep their row) — by_startedAt
+ *   - liveNow:      open rooms with recent create/join/chat activity
+ *   - activeNow:    member sessions seen within the presence TTL       — by_lastSeen
+ *
+ * Honesty (agentic_reliability HONEST_SCORES): every number is a real row count —
+ * no hardcoded floor, no inflation. `capped`/`activeCapped` are surfaced so the UI
+ * shows "N+" instead of a wrong number. When the backend is unreachable the client
+ * HIDES the counter rather than render a fabricated number.
+ */
+export const getLandingStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - PRESENCE_TTL_MS;
+    const rooms = await ctx.db
       .query("liveEvents")
-      .withIndex("by_slug", (q) => q.eq("slug", slug))
-      .first();
-    if (event) return event;
-    // Fallback: treat the path segment as a room code.
-    const roomCode = slug.trim().toUpperCase();
-    if (!isRoomCodeShape(roomCode)) return null;
-    return await ctx.db
+      .withIndex("by_startedAt")
+      .order("desc")
+      .take(MAX_LANDING_EVENT_SCAN + 1);
+    const liveRows = await ctx.db
       .query("liveEvents")
-      .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
-      .first();
+      .withIndex("by_status_startedAt", (q) => q.eq("status", "live"))
+      .order("desc")
+      .take(MAX_LANDING_EVENT_SCAN + 1);
+    const activeRows = await ctx.db
+      .query("liveEventMembers")
+      .withIndex("by_lastSeen", (q) => q.gte("lastSeenAt", cutoff))
+      .take(MAX_LANDING_SESSION_SCAN + 1);
+    const activeCutoff = Date.now() - PUBLIC_ROOM_ACTIVE_WINDOW_MS;
+    let liveNow = 0;
+    for (const row of liveRows) {
+      if (row.status === "live" && getEventActivityAt(row) >= activeCutoff) liveNow += 1;
+    }
+    return {
+      roomsCreated: Math.min(rooms.length, MAX_LANDING_EVENT_SCAN),
+      liveNow,
+      activeNow: Math.min(activeRows.length, MAX_LANDING_SESSION_SCAN),
+      capped: rooms.length > MAX_LANDING_EVENT_SCAN,
+      activeCapped: activeRows.length > MAX_LANDING_SESSION_SCAN,
+    };
+  },
+});
+
+/**
+ * Public room directory for the apex landing.
+ *
+ * Cost and privacy rules:
+ * - Opt-in only (`publicDiscoverable === true`); old/code-only/test rooms stay hidden.
+ * - Recently active only; an idle tab heartbeat does not refresh lastActivityAt.
+ * - Bounded candidate scan and bounded per-card presence count.
+ */
+export const listPublicRooms = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { limit }) => {
+    const safeLimit = Math.min(Math.max(limit ?? 4, 1), MAX_PUBLIC_ROOM_CARDS);
+    const activeCutoff = Date.now() - PUBLIC_ROOM_ACTIVE_WINDOW_MS;
+    const presenceCutoff = Date.now() - PRESENCE_TTL_MS;
+    const rows = await ctx.db
+      .query("liveEvents")
+      .withIndex("by_public_status_startedAt", (q) =>
+        q.eq("publicDiscoverable", true).eq("status", "live"),
+      )
+      .order("desc")
+      .take(MAX_PUBLIC_ROOM_CANDIDATES);
+
+    const rooms: Array<{
+      eventId: string;
+      slug: string;
+      name: string;
+      roomCode: string;
+      startedAt: number;
+      lastActivityAt: number;
+      activeSessions: number;
+      activeSessionsCapped: boolean;
+      joinPolicy: "open" | "request";
+    }> = [];
+
+    for (const event of rows) {
+      const lastActivityAt = getEventActivityAt(event);
+      if (lastActivityAt < activeCutoff) continue;
+      const members = await ctx.db
+        .query("liveEventMembers")
+        .withIndex("by_event_lastSeen", (q) =>
+          q.eq("eventId", event._id).gte("lastSeenAt", presenceCutoff),
+        )
+        .take(MAX_PUBLIC_ROOM_ACTIVE_MEMBERS + 1);
+      rooms.push({
+        eventId: String(event._id),
+        slug: event.slug,
+        name: event.name,
+        roomCode: event.roomCode,
+        startedAt: event.startedAt,
+        lastActivityAt,
+        activeSessions: Math.min(members.length, MAX_PUBLIC_ROOM_ACTIVE_MEMBERS),
+        activeSessionsCapped: members.length > MAX_PUBLIC_ROOM_ACTIVE_MEMBERS,
+        joinPolicy: event.joinPolicy ?? "open",
+      });
+      if (rooms.length >= safeLimit) break;
+    }
+
+    return {
+      rooms,
+      activeWindowMs: PUBLIC_ROOM_ACTIVE_WINDOW_MS,
+    };
   },
 });
 
@@ -1065,6 +1354,188 @@ export const getPublishedWiki = query({
       .order("desc")
       .take(1);
     return rows[0] ?? null;
+  },
+});
+
+/**
+ * getPublishedWikiBySlug — the PUBLIC, no-account read for the shareable wiki
+ * artifact at scratchnode.live/wiki/<slug>. This is the viral payoff of "the room
+ * remembers everything": anyone with the link can read the published event wiki
+ * without joining or authenticating.
+ *
+ * Honesty / privacy contract:
+ *   - Resolves by slug OR room code (same resolver the room uses).
+ *   - Returns ONLY the latest *published* version — drafts and unpublished events
+ *     return null (no fabricated/empty wiki).
+ *   - bodyHtml is already public-safe: `buildWikiHtml` (publishWiki) is built from
+ *     public sources + promoted /ask answers only — private notes are excluded at
+ *     publish time, so there is nothing private to leak here.
+ *   - Exposes only public-safe fields: never the host ownerKey or internal source ids.
+ * Bounded: single-row index scan.
+ */
+export const getPublishedWikiBySlug = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const cleanSlug = String(slug || "").trim().toLowerCase();
+    if (!cleanSlug || cleanSlug.length > 120) return null;
+    const event = await resolveEventBySlugOrRoomCode(ctx, cleanSlug);
+    if (!event) return null;
+    const rows = await ctx.db
+      .query("liveEventWikiVersions")
+      .withIndex("by_event_status", (q) => q.eq("eventId", event._id).eq("status", "published"))
+      .order("desc")
+      .take(1);
+    const wiki = rows[0];
+    if (!wiki) return null;
+    const sourceAnswerIds = Array.isArray(wiki.sourceAnswerIds) ? wiki.sourceAnswerIds : [];
+    const sourceIds = Array.isArray(wiki.sourceIds) ? wiki.sourceIds : [];
+    const publishedAt = wiki.publishedAt ?? wiki.createdAt ?? null;
+    return {
+      eventName: event.name,
+      eventSlug: event.slug,
+      roomCode: event.roomCode,
+      eventStatus: event.status,
+      title: wiki.title,
+      bodyHtml: wiki.bodyHtml,
+      version: wiki.version,
+      publishedAt,
+      event: {
+        eventId: event._id,
+        slug: event.slug,
+        name: event.name,
+        roomCode: event.roomCode,
+        status: event.status,
+      },
+      wiki: {
+        wikiId: wiki._id,
+        version: wiki.version,
+        title: wiki.title,
+        bodyHtml: wiki.bodyHtml,
+        sourceAnswerCount: sourceAnswerIds.length,
+        sourceCount: sourceIds.length,
+        publishedAt,
+      },
+    };
+  },
+});
+
+/**
+ * getPublishedWikiStructuredBySlug — the STRUCTURED public read for the
+ * NodeBench WORKSPACE importer (roadmap #3, slice 1).
+ *
+ * Why this exists: `getPublishedWikiBySlug` returns rendered `bodyHtml`, which
+ * is great for a read-only SSR page but lossy for the importer — we'd have to
+ * re-parse HTML back into blocks. This query returns the SAME published
+ * snapshot as structured Q&A + sources so the importer can build editable
+ * document blocks directly, with no HTML round-trip.
+ *
+ * Privacy / honesty contract (identical guarantees to getPublishedWikiBySlug):
+ *   - PUBLISHED-only. Drafts / unpublished events / unknown slug -> null
+ *     (no fabricated/empty recap). The published wiki version is the privacy
+ *     boundary: `publishWiki` builds it from PUBLIC promoted /ask answers +
+ *     public sources only — private notes (userNotes) are excluded at publish
+ *     time, so there is nothing private to leak here.
+ *   - We dereference ONLY the answer/source ids that the published snapshot
+ *     already committed to (`wiki.sourceAnswerIds` / `wiki.sourceIds`). We do
+ *     NOT scan liveEventAnswers/liveEventSources at large, and we NEVER touch
+ *     userNotes / liveEventNoteAnchors (private).
+ *   - Exposes only public-safe fields — never host ownerKey or internal ids
+ *     beyond the answer/source ids needed for idempotent re-import provenance.
+ *
+ * BOUND (agentic_reliability): answers capped at MAX_WIKI_ANSWERS (20),
+ * sources capped at 20 — mirrors `buildWikiHtml` so the structured read can
+ * never be heavier than the HTML read it parallels.
+ */
+const MAX_STRUCTURED_WIKI_SOURCES = 20;
+
+export type StructuredPublishedWiki = {
+  eventId: string;
+  slug: string;
+  eventName: string;
+  roomCode: string;
+  eventStatus: string;
+  wikiVersion: number;
+  publishedAt: number | null;
+  answers: Array<{ question: string; body: string }>;
+  sources: Array<{ title: string; uri: string; excerpt: string }>;
+};
+
+/**
+ * Shared reader for the structured published wiki. Works with any ctx exposing
+ * `db` (query OR mutation), because every operation is a read. The public query
+ * below and the WORKSPACE importer (convex/domains/product/scratchnodeImport.ts)
+ * BOTH go through this so the privacy + BOUND contract can never drift between
+ * the read path and the write path.
+ *
+ * Returns null for: unknown slug, no published version. NEVER reads userNotes /
+ * liveEventNoteAnchors (private). Only dereferences ids the published snapshot
+ * already committed to.
+ */
+export async function loadStructuredPublishedWiki(
+  ctx: { db: any },
+  slug: string,
+): Promise<StructuredPublishedWiki | null> {
+  const cleanSlug = String(slug || "").trim().toLowerCase();
+  if (!cleanSlug || cleanSlug.length > 120) return null;
+  const event = await resolveEventBySlugOrRoomCode(ctx, cleanSlug);
+  if (!event) return null;
+  const rows = await ctx.db
+    .query("liveEventWikiVersions")
+    .withIndex("by_event_status", (q: any) =>
+      q.eq("eventId", event._id).eq("status", "published"),
+    )
+    .order("desc")
+    .take(1);
+  const wiki = rows[0];
+  if (!wiki) return null;
+
+  const answerIds = (Array.isArray(wiki.sourceAnswerIds) ? wiki.sourceAnswerIds : []).slice(
+    0,
+    MAX_WIKI_ANSWERS,
+  );
+  const sourceIdList = (Array.isArray(wiki.sourceIds) ? wiki.sourceIds : []).slice(
+    0,
+    MAX_STRUCTURED_WIKI_SOURCES,
+  );
+
+  const answers: Array<{ question: string; body: string }> = [];
+  for (const answerId of answerIds) {
+    const answer = await ctx.db.get(answerId);
+    if (!answer) continue; // BOUND_READ-safe: skip dangling ids, never fabricate
+    answers.push({
+      question: String(answer.question || "").slice(0, 1000),
+      body: String(answer.body || "").slice(0, MAX_ANSWER_BODY),
+    });
+  }
+
+  const sources: Array<{ title: string; uri: string; excerpt: string }> = [];
+  for (const sourceId of sourceIdList) {
+    const source = await ctx.db.get(sourceId);
+    if (!source) continue;
+    sources.push({
+      title: String(source.title || "").slice(0, 200),
+      uri: String(source.uri || "").slice(0, 500),
+      excerpt: String(source.excerpt || "").slice(0, 500),
+    });
+  }
+
+  return {
+    eventId: String(event._id),
+    slug: event.slug,
+    eventName: event.name,
+    roomCode: event.roomCode,
+    eventStatus: event.status,
+    wikiVersion: wiki.version,
+    publishedAt: wiki.publishedAt ?? wiki.createdAt ?? null,
+    answers,
+    sources,
+  };
+}
+
+export const getPublishedWikiStructuredBySlug = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    return await loadStructuredPublishedWiki(ctx, slug);
   },
 });
 
@@ -1360,6 +1831,8 @@ export const createEvent = mutation({
     roomCode: v.optional(v.string()),
     agendaText: v.optional(v.string()),
     status: v.optional(v.union(v.literal("draft"), v.literal("live"))),
+    publicDiscoverable: v.optional(v.boolean()),
+    joinPolicy: v.optional(v.union(v.literal("open"), v.literal("request"))),
   },
   handler: async (ctx, args) => {
     // Fail before writing if production host-token env is missing.
@@ -1471,7 +1944,10 @@ export const createEvent = mutation({
       name: title,
       roomCode,
       status,
+      publicDiscoverable: args.publicDiscoverable === true,
+      joinPolicy: args.joinPolicy || "open",
       startedAt: now,
+      lastActivityAt: now,
     });
 
     const safeName = (args.displayName || "Host").slice(0, MAX_DISPLAY_NAME).trim() || "Host";
@@ -1518,6 +1994,8 @@ export const createEvent = mutation({
       name: title,
       roomCode,
       status,
+      publicDiscoverable: args.publicDiscoverable === true,
+      joinPolicy: args.joinPolicy || "open",
       ownerKey,
       hostId,
       sourceId,
@@ -1532,8 +2010,10 @@ export const updateEvent = mutation({
     title: v.optional(v.string()),
     roomCode: v.optional(v.string()),
     status: v.optional(v.union(v.literal("draft"), v.literal("live"))),
+    publicDiscoverable: v.optional(v.boolean()),
+    joinPolicy: v.optional(v.union(v.literal("open"), v.literal("request"))),
   },
-  handler: async (ctx, { eventId, ownerKey, title, roomCode, status }) => {
+  handler: async (ctx, { eventId, ownerKey, title, roomCode, status, publicDiscoverable, joinPolicy }) => {
     await requireHost(ctx, eventId, ownerKey);
     const event = await ctx.db.get(eventId);
     if (!event) {
@@ -1560,8 +2040,16 @@ export const updateEvent = mutation({
     if (status !== undefined) {
       patch.status = status;
       if (status === "live" && event.status === "draft") {
-        patch.startedAt = Date.now();
+        const now = Date.now();
+        patch.startedAt = now;
+        patch.lastActivityAt = now;
       }
+    }
+    if (publicDiscoverable !== undefined) {
+      patch.publicDiscoverable = publicDiscoverable;
+    }
+    if (joinPolicy !== undefined) {
+      patch.joinPolicy = joinPolicy;
     }
     if (roomCode !== undefined) {
       const nextRoomCode = normalizeRequestedRoomCode(roomCode);
@@ -1597,6 +2085,8 @@ export const updateEvent = mutation({
       name: updated?.name ?? event.name,
       roomCode: updated?.roomCode ?? event.roomCode,
       status: updated?.status ?? event.status,
+      publicDiscoverable: updated?.publicDiscoverable ?? event.publicDiscoverable ?? false,
+      joinPolicy: updated?.joinPolicy ?? event.joinPolicy ?? "open",
     };
   },
 });
@@ -1752,6 +2242,29 @@ export const joinEvent = mutation({
       )
       .first();
 
+    // ── DOOR POLICY GATE (deterministic) ────────────────────────────────────
+    // A request-mode room only admits a session that is ALREADY a member (the
+    // host + previously-approved guests) or that holds an APPROVED join request.
+    // The LLM never decides here — it only annotates the request row; the host's
+    // approval is the only thing that flips a request to "approved". Open rooms
+    // (joinPolicy "open" or unset — the default) are unaffected, so this is fully
+    // backward-compatible.
+    if (!existing && (event.joinPolicy ?? "open") === "request") {
+      const request = await ctx.db
+        .query("liveEventJoinRequests")
+        .withIndex("by_event_session", (q) =>
+          q.eq("eventId", event._id).eq("sessionId", sessionId),
+        )
+        .first();
+      if (!request || request.status !== "approved") {
+        throw new ConvexError({
+          code: "join_requires_approval",
+          message: "This room is request-to-join — ask the host to let you in.",
+          requestStatus: request?.status ?? "none",
+        });
+      }
+    }
+
     if (existing) {
       await ctx.db.patch(existing._id, { lastSeenAt: now, displayName: safeName });
     } else {
@@ -1763,6 +2276,7 @@ export const joinEvent = mutation({
         lastSeenAt: now,
       });
     }
+    await ctx.db.patch(event._id, { lastActivityAt: now });
 
     return {
       eventId: event._id,
@@ -1770,7 +2284,347 @@ export const joinEvent = mutation({
       name: event.name,
       roomCode: event.roomCode,
       status: event.status,
+      publicDiscoverable: event.publicDiscoverable ?? false,
+      joinPolicy: event.joinPolicy ?? "open",
     };
+  },
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  DOOR POLICY — request-to-join rooms
+//
+//  The deterministic gate (in joinEvent above) admits only members + APPROVED
+//  requests. These functions run the request lifecycle. The LLM is a smart door
+//  ASSISTANT — it summarizes, scores, and recommends — but it is never the
+//  bouncer: the host's decision is the only thing that flips a request to
+//  approved/denied. References: club door + guest list, Luma/Eventbrite
+//  approval, Discord screening, Twitch AutoMod (hold-for-review, not silent
+//  punishment), Slack explicit-invite boundaries.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Note + rate-limit constants are shared with the public-rooms feature
+// (MAX_JOIN_NOTE / MAX_JOIN_REQUESTS_PER_WINDOW / JOIN_REQUEST_RATE_WINDOW_MS,
+// declared near the top of this file). Reuse them so the directory and the door
+// policy stay in lockstep.
+const MAX_DOOR_QUEUE = 200; // BOUND: host door-queue scan cap
+
+async function resolveLiveEvent(ctx: any, slug: string): Promise<any | null> {
+  if (!slug || slug.length > 120) return null;
+  return await resolveEventBySlugOrRoomCode(ctx, slug);
+}
+
+// Guest files a request to enter a request-mode room. Idempotent per session:
+// approved short-circuits, pending/denied/expired re-open to a fresh pending.
+// Schedules the advisory bouncer; never blocks the guest on it.
+export const requestJoinEvent = mutation({
+  args: {
+    slug: v.string(),
+    sessionId: v.string(),
+    displayName: v.string(),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, { slug, sessionId, displayName, note }) => {
+    if (!sessionId || sessionId.length < 8 || sessionId.length > 64) {
+      throw new ConvexError({ code: "invalid_session", message: "sessionId must be a 8-64 char UUID-like string." });
+    }
+    const safeName = (displayName || "Anonymous Guest").slice(0, MAX_DISPLAY_NAME).trim() || "Anonymous Guest";
+    const safeNote = (note || "").replace(/\s+/g, " ").trim().slice(0, MAX_JOIN_NOTE);
+
+    await enforceRateLimit(ctx, {
+      key: `joinreq:${sessionId}`,
+      limit: MAX_JOIN_REQUESTS_PER_WINDOW,
+      windowMs: JOIN_REQUEST_RATE_WINDOW_MS,
+    });
+
+    const event = await resolveLiveEvent(ctx, slug);
+    if (!event) throw new ConvexError({ code: "event_not_found", message: "No such event." });
+    if (event.status === "ended") throw new ConvexError({ code: "event_ended", message: "This event has ended." });
+
+    // Already a member (host or previously admitted)? No request needed.
+    const member = await ctx.db
+      .query("liveEventMembers")
+      .withIndex("by_event_session", (q) => q.eq("eventId", event._id).eq("sessionId", sessionId))
+      .first();
+    if (member) {
+      return { ok: true as const, status: "already_member" as const, eventId: event._id, slug: event.slug };
+    }
+    // Open room? No gate — they can just join.
+    if ((event.joinPolicy ?? "open") !== "request") {
+      return { ok: true as const, status: "open" as const, eventId: event._id, slug: event.slug };
+    }
+
+    const now = Date.now();
+    const existingReq = await ctx.db
+      .query("liveEventJoinRequests")
+      .withIndex("by_event_session", (q) => q.eq("eventId", event._id).eq("sessionId", sessionId))
+      .first();
+
+    let requestId: any;
+    if (existingReq) {
+      if (existingReq.status === "approved") {
+        return { ok: true as const, status: "approved" as const, requestId: existingReq._id, eventId: event._id, slug: event.slug };
+      }
+      // pending / denied / expired → re-open to pending with the latest input and
+      // a cleared decision so the host sees a fresh ask.
+      await ctx.db.patch(existingReq._id, {
+        displayName: safeName,
+        note: safeNote || existingReq.note,
+        status: "pending",
+        hostDecisionBy: undefined,
+        decidedAt: undefined,
+        updatedAt: now,
+      });
+      requestId = existingReq._id;
+    } else {
+      requestId = await ctx.db.insert("liveEventJoinRequests", {
+        eventId: event._id,
+        sessionId,
+        displayName: safeName,
+        note: safeNote || undefined,
+        status: "pending",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    // ADVISORY bouncer — annotates the request out-of-band. Never gates the join.
+    await ctx.scheduler.runAfter(0, internal.events._annotateJoinRequest, { requestId });
+
+    return { ok: true as const, status: "pending" as const, requestId, eventId: event._id, slug: event.slug };
+  },
+});
+
+// Guest poll — reactive. The client watches this; when status flips to
+// "approved" it calls joinEvent (which the deterministic gate now lets through).
+export const getMyJoinRequest = query({
+  args: { slug: v.string(), sessionId: v.string() },
+  handler: async (ctx, { slug, sessionId }) => {
+    if (!sessionId || sessionId.length < 8) return null;
+    const event = await resolveLiveEvent(ctx, slug);
+    if (!event) return null;
+    const request = await ctx.db
+      .query("liveEventJoinRequests")
+      .withIndex("by_event_session", (q) => q.eq("eventId", event._id).eq("sessionId", sessionId))
+      .first();
+    const member = await ctx.db
+      .query("liveEventMembers")
+      .withIndex("by_event_session", (q) => q.eq("eventId", event._id).eq("sessionId", sessionId))
+      .first();
+    return {
+      eventId: event._id,
+      slug: event.slug,
+      joinPolicy: event.joinPolicy ?? "open",
+      isMember: !!member,
+      status: request?.status ?? "none",
+      // Advisory friendly line if the bouncer wrote one; else the client shows a
+      // static status message.
+      guestMessage: request?.llmGuestMessage ?? null,
+    };
+  },
+});
+
+function serializeJoinRequestForHost(r: any) {
+  return {
+    requestId: String(r._id),
+    displayName: r.displayName,
+    note: r.note ?? null,
+    status: r.status,
+    // ADVISORY ONLY — the host decides; these never auto-act.
+    llmRecommendation: r.llmRecommendation ?? null,
+    llmRiskScore: typeof r.llmRiskScore === "number" ? r.llmRiskScore : null,
+    llmFlags: r.llmFlags ?? [],
+    llmHostSummary: r.llmHostSummary ?? null,
+    createdAt: r.createdAt,
+  };
+}
+
+// Host door queue — host-only. requireHost throws for non-hosts, so the queue
+// (and the guests' notes) never leak. Pending newest-first, BOUNDED.
+export const getJoinRequests = query({
+  args: { eventId: v.id("liveEvents"), ownerKey: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { eventId, ownerKey, limit }) => {
+    await requireHost(ctx, eventId, ownerKey);
+    const cap = Math.min(Math.max(limit ?? 50, 1), MAX_DOOR_QUEUE);
+    const pendingRows = await ctx.db
+      .query("liveEventJoinRequests")
+      .withIndex("by_event_status", (q) => q.eq("eventId", eventId).eq("status", "pending"))
+      .order("desc")
+      .take(cap);
+    return {
+      pending: pendingRows.map(serializeJoinRequestForHost),
+      pendingCount: pendingRows.length,
+      pendingCapped: pendingRows.length >= cap,
+    };
+  },
+});
+
+async function decideJoinRequest(
+  ctx: any,
+  eventId: any,
+  requestId: any,
+  ownerKey: string,
+  decision: "approved" | "denied",
+) {
+  await requireHost(ctx, eventId, ownerKey);
+  const request = await ctx.db.get(requestId);
+  if (!request || request.eventId !== eventId) {
+    throw new ConvexError({ code: "request_not_found", message: "Join request not found for this room." });
+  }
+  const now = Date.now();
+  await ctx.db.patch(requestId, {
+    status: decision,
+    hostDecisionBy: stableHash(ownerKey), // non-reversible short audit id
+    decidedAt: now,
+    updatedAt: now,
+  });
+  return { ok: true as const, requestId: String(requestId), status: decision };
+}
+
+export const approveJoinRequest = mutation({
+  args: { eventId: v.id("liveEvents"), requestId: v.id("liveEventJoinRequests"), ownerKey: v.string() },
+  handler: async (ctx, { eventId, requestId, ownerKey }) =>
+    decideJoinRequest(ctx, eventId, requestId, ownerKey, "approved"),
+});
+
+export const denyJoinRequest = mutation({
+  args: { eventId: v.id("liveEvents"), requestId: v.id("liveEventJoinRequests"), ownerKey: v.string() },
+  handler: async (ctx, { eventId, requestId, ownerKey }) =>
+    decideJoinRequest(ctx, eventId, requestId, ownerKey, "denied"),
+});
+
+// ─── Advisory LLM bouncer (never authoritative) ────────────────────────────
+
+const JOIN_BOUNCER_SYSTEM = [
+  "You are a door assistant for a live event chat room, helping the HOST triage join requests.",
+  "You are ADVISORY ONLY: you never admit or reject anyone — the host decides. You cannot see protected traits and must never infer or mention them (race, ethnicity, religion, gender, sexual orientation, nationality, immigration status, disability, age, health).",
+  "Recommend 'approve' for anyone who looks like a normal attendee. Use 'hold' (needs host eyes) for thin or ambiguous requests. Reserve 'deny' for OBVIOUS spam, scams, bot/advertising patterns, or abuse — never for a merely-uncertain or borderline person.",
+  "riskScore is 0..1 (0 = clearly fine, 1 = clearly spam/abuse). hostSummary is ONE neutral sentence for the host. guestMessage is a short, kind waiting line for the requester.",
+  'Output STRICT JSON only: {"recommendation":"approve|hold|deny","riskScore":0.0,"flags":[],"hostSummary":"...","guestMessage":"..."}',
+].join(" ");
+
+async function runJoinBouncer(input: { eventName: string; displayName: string; note: string }): Promise<
+  | { recommendation: "approve" | "hold" | "deny"; riskScore: number; flags: string[]; hostSummary: string; guestMessage: string }
+  | null
+> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null; // honest: no fabricated assessment when the model is unavailable
+  const model = process.env.SCRATCHNODE_BOUNCER_MODEL || "claude-haiku-4-5-20251001";
+  const user = [
+    `Event: ${input.eventName}`,
+    `Requester display name: ${input.displayName}`,
+    `Requester note: ${input.note || "(none)"}`,
+    "",
+    "Return the strict JSON described in the system prompt.",
+  ].join("\n");
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ANTHROPIC_TIMEOUT_MS);
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model,
+        max_tokens: 300,
+        temperature: 0,
+        system: JOIN_BOUNCER_SYSTEM,
+        messages: [{ role: "user", content: user }],
+      }),
+      signal: ac.signal,
+    });
+    if (!response.ok) return null;
+    const data: any = await response.json();
+    const text = Array.isArray(data.content)
+      ? data.content.map((p: any) => (p?.type === "text" ? p.text : "")).join("").trim()
+      : "";
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    const parsed = JSON.parse(match[0]);
+    const rec = parsed.recommendation;
+    if (rec !== "approve" && rec !== "hold" && rec !== "deny") return null;
+    const score = Number(parsed.riskScore);
+    return {
+      recommendation: rec,
+      riskScore: Number.isFinite(score) ? Math.max(0, Math.min(1, score)) : 0,
+      flags: Array.isArray(parsed.flags) ? parsed.flags.map((f: any) => String(f).slice(0, 40)).slice(0, 8) : [],
+      hostSummary: String(parsed.hostSummary || "").slice(0, 500),
+      guestMessage: String(parsed.guestMessage || "").slice(0, 280),
+    };
+  } catch {
+    return null; // timeout / network / parse → no annotation (host still decides)
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export const _loadJoinRequestForLlm = internalQuery({
+  args: { requestId: v.id("liveEventJoinRequests") },
+  handler: async (ctx, { requestId }) => {
+    const request = await ctx.db.get(requestId);
+    if (!request) return null;
+    const event = await ctx.db.get(request.eventId);
+    return {
+      status: request.status,
+      displayName: request.displayName,
+      note: request.note ?? "",
+      eventName: event?.name ?? "this event",
+    };
+  },
+});
+
+export const _recordJoinRequestLlm = internalMutation({
+  args: {
+    requestId: v.id("liveEventJoinRequests"),
+    recommendation: v.union(v.literal("approve"), v.literal("hold"), v.literal("deny")),
+    riskScore: v.number(),
+    flags: v.array(v.string()),
+    hostSummary: v.string(),
+    guestMessage: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const request = await ctx.db.get(args.requestId);
+    if (!request) return;
+    // Never clobber a host decision: only annotate while still pending.
+    if (request.status !== "pending") return;
+    await ctx.db.patch(args.requestId, {
+      llmRecommendation: args.recommendation,
+      llmRiskScore: Math.max(0, Math.min(1, args.riskScore)),
+      llmFlags: args.flags.slice(0, 8),
+      llmHostSummary: args.hostSummary.slice(0, 500),
+      llmGuestMessage: args.guestMessage.slice(0, 280),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const _annotateJoinRequest = internalAction({
+  args: { requestId: v.id("liveEventJoinRequests") },
+  handler: async (ctx, { requestId }) => {
+    try {
+      const data = await ctx.runQuery(internal.events._loadJoinRequestForLlm, { requestId });
+      if (!data || data.status !== "pending") return;
+      const route = routeLLM("judge", {
+        inputChars: `${data.eventName} ${data.displayName} ${data.note}`.length,
+        complexityHint: "low",
+      });
+      const model = process.env.SCRATCHNODE_BOUNCER_MODEL ||
+        (route.provider === "anthropic" ? route.model : process.env.SCRATCHNODE_ASK_MODEL_LIGHT || "claude-haiku-4-5-20251001");
+      const result = await generateBouncerAdvisory({
+        eventName: data.eventName,
+        displayName: data.displayName,
+        note: data.note,
+        model,
+      });
+      await ctx.runMutation(internal.events._recordJoinRequestLlm, {
+        requestId,
+        recommendation: result.recommendation,
+        riskScore: result.riskScore,
+        flags: result.flags,
+        hostSummary: result.hostSummary,
+        guestMessage: result.guestMessage,
+      });
+    } catch {
+      // ADVISORY — never throw. A failed bouncer just leaves the request raw.
+    }
   },
 });
 
@@ -1872,6 +2726,7 @@ export const sendMessage = mutation({
 
     // Bump presence as a side effect of sending (saves a heartbeat round trip).
     await ctx.db.patch(member._id, { lastSeenAt: now });
+    await ctx.db.patch(args.eventId, { lastActivityAt: now });
 
     return { messageId, createdAt: now };
   },
@@ -2851,7 +3706,10 @@ export const ensureDemoEvent = mutation({
       name: "AI Infra Summit",
       roomCode: "ORBITAL",
       status: "live",
+      publicDiscoverable: false,
+      joinPolicy: "open",
       startedAt: Date.now(),
+      lastActivityAt: Date.now(),
     });
     const sourcesInserted = await ensureDemoSourcesForEvent(ctx, id);
     return { eventId: id, created: true, sourcesInserted };

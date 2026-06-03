@@ -50,6 +50,9 @@
     },
     "api/voice.js": {
       "maxDuration": 60
+    },
+    "api/scratchnode-wiki.js": {
+      "maxDuration": 10
     }
   },
   "redirects": [
@@ -129,7 +132,27 @@
       "destination": "/proto/home-v5.html"
     },
     {
+      "source": "/e/:slug/wiki",
+      "has": [
+        {
+          "type": "host",
+          "value": "scratchnode.live"
+        }
+      ],
+      "destination": "/api/scratchnode-wiki?slug=:slug"
+    },
+    {
       "source": "/e/:slug*",
+      "has": [
+        {
+          "type": "host",
+          "value": "scratchnode.live"
+        }
+      ],
+      "destination": "/proto/home-v5.html"
+    },
+    {
+      "source": "/wiki/:slug*",
       "has": [
         {
           "type": "host",

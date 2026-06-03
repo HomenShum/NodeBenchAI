@@ -1,5 +1,16 @@
 # NodeBench Agent Workflow
 
+## Agent coordination (Codex ↔ Claude) — read FIRST
+
+`AGENT_COORDINATION.md` (repo root) is the live ledger of **who is editing what right now**
+and **what backend contracts are ready to call**. Before editing a hot file
+(`public/proto/home-v5.html`, `convex/events.ts`, `convex/schema/eventsSchema.ts`): scan
+**Active claims**, **claim your region** before you start, and **hand off** new backend
+contracts there. **Never** `convex deploy`/`deploy:prod` out-of-band to the shared prod
+deployment — it pushes un-reviewed schema/functions and breaks the other agent's next
+deploy (this caused a Convex schema-validation incident this session). Declare new
+shared-table fields `v.optional(...)` and announce them in the ledger instead.
+
 ## Prod-parity and UI kit workflow
 
 Use this rule before any UI, design-system, route-parity, or newly uploaded UI kit task.
