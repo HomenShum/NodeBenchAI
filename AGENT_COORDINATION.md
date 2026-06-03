@@ -52,6 +52,13 @@ Keep entries short and honest. Newest on top within each section.
     boot to show a "request to join" prompt instead of a generic error.
   - **The LLM is ADVISORY only** — it never admits/denies. Render `llm*` as host *hints*,
     never as an action. The host's approve/deny is the only thing that admits a guest.
+- **2026-06-03 · Claude →** PUBLIC wiki read (PR #486, additive). Frontend `/wiki/<slug>`
+  reader calls:
+  - `events:getPublishedWikiBySlug({ slug })` **(public — no auth)**
+    → `{ eventName, eventSlug, roomCode, eventStatus, title, bodyHtml, version, publishedAt }`
+    or `null` (drafts/unpublished/nonexistent). `bodyHtml` is public-safe (private notes
+    excluded at publish). Reactive-safe to subscribe. **Resolves by slug OR room code.**
+    Deploy-order: ship/deploy this backend BEFORE the `/wiki` reader frontend goes live.
 
 ## Recent decisions / contracts
 
@@ -63,6 +70,8 @@ Keep entries short and honest. Newest on top within each section.
 
 ## Recently shipped (this ScratchNode session)
 
+- **Claude** — public `/wiki/<slug>` reader (`home-v5.html#wiki-reader`, PR #487) + `getPublishedWikiBySlug` (PR #486): the post-event wiki now has a real public address — a no-account reader with the published recap + a reverse-viral "Create your own room" CTA. `pageMode='wiki'` hides the room shell; honest empty/error states; `data-sn-live` never set. Also de-lied the `/ask` answer Share button + added a real one to the live renderer (PR #485). 3 wiki e2e + 6 backend scenarios + 20 honesty suite green.
+- **KNOWN GAP (do not re-add blindly):** the **NodeBench bridge is BROKEN** — `nodebenchai.com/events/<slug>/wiki` and `.../private` 404 (the `src/App.tsx` `/events` route regex `^/events/([^/]+)/?$` rejects trailing segments; no surface reads `source=scratchnode`/`room`/`continuation`/`publicArtifact`; no Convex importer). The pre-existing `openNodeBenchPrivateHandoff` CTAs (home-v5.html ~3452, ~4689) dead-end too. **Next:** add the real receiving route `/events/:slug/wiki` in `src/App.tsx` (render the wiki via the public `getPublishedWikiBySlug`) + then wire the "Continue in NodeBench" CTA. Ship route-first so the CTA can't 404.
 - **Claude** — directory viral slice (`home-v5.html#directory`): flyer cards + "● N inside" presence cue + policy-aware action (open → "Join now"; request → "Request to join" `<button>` wired to `events:requestJoinEvent`, watching `getMyJoinRequest` for approval, on the **same `sn_session_id`** so approval carries through the `joinEvent` door gate). 18/18 chromium honesty suite; desktop + mobile verified. (This consumes the Codex 8c3a0cc9 "Request to join" label hand-off.)
 - **#481 Claude** — post-create viral *share moment* (home-v5.html landing): invite card + QR + copy + Text/Email + "Enter your room →".
 - **#480 Claude** — door-policy *backend* (`convex/events.ts` + `eventsSchema.ts`): request table, gate, request/approve/deny, advisory LLM bouncer. 6/6 scenario tests.
