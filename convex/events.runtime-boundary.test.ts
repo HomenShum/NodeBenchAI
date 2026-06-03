@@ -104,6 +104,29 @@ describe("scratchnode public runtime boundaries", () => {
     expect(executableSendMessage).not.toContain("userNotes");
   });
 
+  it("keeps attendee check-ins as no-LLM membership event-log moments", () => {
+    const joinEvent = functionBlock("joinEvent");
+    const executableJoinEvent = joinEvent
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/[^\n\r]*/g, "");
+
+    expect(joinEvent).toContain('export const joinEvent = mutation({');
+    expect(joinEvent).toContain("liveEventMembers");
+    expect(joinEvent).toContain("by_event_session");
+    expect(joinEvent).toContain('ctx.db.insert("liveEventMembers"');
+    expect(joinEvent).toContain("lastSeenAt: now");
+    expect(joinEvent).toContain("lastActivityAt: now");
+    expect(joinEvent).toContain("liveEventJoinRequests");
+    expect(joinEvent).toContain('request.status !== "approved"');
+
+    expect(executableJoinEvent).not.toContain("askAgent");
+    expect(executableJoinEvent).not.toContain("composeAnswer");
+    expect(executableJoinEvent).not.toContain("liveEventMessages");
+    expect(executableJoinEvent).not.toContain("liveEventAnswers");
+    expect(executableJoinEvent).not.toContain("liveEventWikiVersions");
+    expect(executableJoinEvent).not.toContain("userNotes");
+  });
+
   it("keeps ScratchNode account event state as bounded joined and hosted lists", () => {
     const getMyEvents = functionBlock("getMyEvents", "query");
 

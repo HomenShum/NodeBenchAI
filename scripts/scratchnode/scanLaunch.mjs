@@ -602,6 +602,25 @@ function scanBackendContracts() {
       blocker: true,
     },
     {
+      name: "attendee check-ins stay no-LLM membership event-log moments",
+      ok:
+        /export const joinEvent = mutation/i.test(events) &&
+        /ctx\.db\.insert\("liveEventMembers"[\s\S]{0,220}lastSeenAt:\s*now/i.test(events) &&
+        /ctx\.db\.patch\(event\._id,\s*\{\s*lastActivityAt:\s*now\s*\}\)/i.test(events) &&
+        /liveEventJoinRequests[\s\S]{0,360}request\.status !== "approved"/i.test(events) &&
+        /keeps attendee check-ins as no-LLM membership event-log moments/i.test(
+          eventsRuntimeBoundarySpec,
+        ) &&
+        /expect\(executableJoinEvent\)\.not\.toContain\("askAgent"\)/i.test(
+          eventsRuntimeBoundarySpec,
+        ) &&
+        /expect\(executableJoinEvent\)\.not\.toContain\("liveEventMessages"\)/i.test(
+          eventsRuntimeBoundarySpec,
+        ),
+      path: files.eventsRuntimeBoundarySpec,
+      blocker: true,
+    },
+    {
       name: "host-only wiki promotion/publish gate exists",
       ok: /(?:const|function)\s+requireHost/i.test(events) && /promoteAnswerToFaq/i.test(events) && /publishWiki/i.test(events),
       path: files.events,
