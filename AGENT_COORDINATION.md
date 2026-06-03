@@ -34,16 +34,12 @@ Keep entries short and honest. Newest on top within each section.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- **Claude · `home-v5.html#mobile-chrome` (`:root` type tokens, `.h`/`.h-logo`/`.h-code`/`.h-menu`, `.event-strip`, `.hero`/`.hero-meta`, `.welcome`, `.c-helpline` + composer placeholder, `.empty*`, `.menu-sheet` item gating, `.f` footer + keyboard-offset CSS/JS) · mobile visual reset: add type scale + accent/mono discipline, cut first-viewport chrome (FAQ/L0/mode leaks, dup hero, giant CTA), keyboard-open footer fix · branch `codex/scratchnode-public-rooms`. NOT touching the Share-sheet/wiki internals (Codex's `#wiki-share`), `convex/`, or `data-sn-live`.**
-
-- _(Released: Codex packaged `codex/scratchnode-public-wiki-loop` for PR review; no active edit lock remains.)_
-
-- **Codex · `home-v5.html#wiki-share`, `convex/events.ts#wiki-public-read`, `vercel.json#scratchnode-wiki-route`, `tests/e2e/scratchnode-live-route-honesty.spec.ts#wiki-route` · build published-only public wiki payoff + honest answer share · branch `codex/scratchnode-public-wiki-loop`.**
+- _(No ScratchNode hot-file claims are active after PR #494 / the v5 mobile-reset merge. Claim a region before editing.)_
 
 ## Hand-offs (built + ready for the other agent to call)
 
-- **2026-06-03 - Codex -> Claude/Codex next builder** - Public wiki payoff ready on
-  branch `codex/scratchnode-public-wiki-loop`:
+- **2026-06-03 - Codex -> Claude/Codex next builder** - Public wiki payoff shipped
+  in PR #490 and verified live on `scratchnode.live`:
   - Convex public read: `events:getPublishedWikiBySlug({ slug })` returns only the
     latest `status: "published"` wiki snapshot for a slug or room code:
     `{ event: { eventId, slug, name, roomCode, status }, wiki: { wikiId, version, title, bodyHtml, sourceAnswerCount, sourceCount, publishedAt } }`.
@@ -58,27 +54,18 @@ Keep entries short and honest. Newest on top within each section.
     `npx playwright test tests/e2e/scratchnode-live-route-honesty.spec.ts --project=chromium --workers=1`,
     `npx tsc --noEmit --pretty false`, `npm run build`.
 
-- **2026-06-03 · Codex → Claude/Codex next builder** — Viral journey audit after #483:
-  - **Not end-to-end yet.** Entry/create, landing big number, post-create share moment,
-    public directory, open-room join, and request-card plumbing are live on
-    `scratchnode.live`. The back half is still incomplete.
-  - **Highest-leverage next slice:** public post-event wiki payoff. Build a public
-    route only for host-published wiki versions, with private notes excluded. Current
-    `scratchnode.live/e/:slug/wiki` still rewrites to the SPA shell; docs still mark
-    SEO wiki + OG + sitemap as future work.
-  - **Fast honesty fix:** answer-card `Share` buttons currently toast "Link copied"
-    without copying or generating a URL. Either copy a real event/answer deep link or
-    change the UI text until the route exists.
-  - **NodeBench bridge gap:** ScratchNode builds
-    `nodebenchai.com/sign-in?return=/events/:slug/private?...`, but live NodeBench has
-    no matching `/sign-in` or `/events/:slug/private` consumer. Existing real route is
-    `/scratchnode-events`; `/events/:eventId` is a corpus placeholder. Do not claim
-    ScratchNode to NodeBench continuation is live until the returned context renders in
-    NodeBench with the event, public wiki artifact, and private-note continuation.
-  - **Bouncer self-serve gap:** backend supports `joinPolicy: "request"` and the
-    directory can request approval, but the landing create form still hardcodes
-    `joinPolicy: "open"`. Add a host-facing create/control toggle before calling this
-    request-room flow self-serve.
+- **2026-06-03 - Codex verification after #494** - Current ScratchNode viral loop
+  status:
+  - Live: self-serve create, landing stats, post-create share, public directory,
+    request-to-join, answer deep links, public wiki share route, NodeBench public
+    wiki bridge, and published-event import into NodeBench (#472-#494).
+  - Canonical public artifact URL: `https://scratchnode.live/e/:slug/wiki`.
+  - Canonical data contract: `events:getPublishedWikiBySlug({ slug })`.
+  - Canonical NodeBench public receiver: `https://nodebenchai.com/events/:slug/wiki`.
+  - Still separate security work: private-note token bridge and `/events/:slug/private`
+    consumption. Until that lands, keep `/scratchnode-events` as the honest fallback.
+  - Domain note: `nodebenchai.com` is live; `nodebench.ai` had no DNS record during
+    the 2026-06-03 verification pass.
 
 - **2026-06-02 · Claude →** Door-policy **backend is LIVE on prod** (#480). Frontend can wire:
   - `events:requestJoinEvent({ slug, sessionId, displayName, note? })`
@@ -112,6 +99,20 @@ Keep entries short and honest. Newest on top within each section.
 
 ## Recently shipped (this ScratchNode session)
 
+- **Codex** - public photo evidence boundary (`public/proto/home-v5.html#photo-evidence`, `tests/e2e/scratchnode-live-route-honesty.spec.ts#photo-evidence`, `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): typed public `photo:`/screenshot/image markers render as event-log chips, while private photo follow-ups stay in owner-only notes with no public chat, public `/ask`, or agent-action writes; launch scanner now requires the proof.
+
+- **#494 Claude** - published ScratchNode event recap import into the NodeBench
+  workspace. Public-only, idempotent, anon-keyed import path for the published wiki
+  artifact.
+- **#493 Claude** - in-room invite-more memory nudge backed by real live count.
+- **#492 Claude** - honest "Continue in NodeBench" CTAs now target shipped routes
+  instead of dead tokenless `/private` URLs.
+- **#490 Codex** - public wiki SSR route `scratchnode.live/e/:slug/wiki` via
+  `api/scratchnode-wiki.js`, with privacy-safe unpublished 404 shell.
+- **#489 Claude** - real NodeBench public receiver route
+  `nodebenchai.com/events/:slug/wiki`; verified with Playwright on 2026-06-03
+  rendering the ScratchNode -> NodeBench empty state for an unpublished wiki.
+
 - **Codex** - attendee join no-LLM route proof (`tests/e2e/scratchnode-live-route-honesty.spec.ts#join-boundary` + `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): route test proves entering a room calls `events:joinEvent` as a membership/check-in event without public chat rows, agent answers, private notes, wiki publication, or `/ask` actions; launch scanner now requires the proof before passing.
 
 - **Codex** - deeper Live Assist follow-up packet (`public/proto/home-v5.html#live-assist-followup`, `tests/e2e/scratchnode-live-route-honesty.spec.ts#follow-up-depth`, `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): private follow-up notes now include a NodeBench research packet for people, companies, topics, anchors, source refs, and open questions plus an owner-scoped research-task boundary; route test and launch scanner require it without public chat or public `/ask` writes.
@@ -121,9 +122,11 @@ Keep entries short and honest. Newest on top within each section.
 - **Codex** - manual location spot anchor proof (`tests/e2e/scratchnode-live-route-honesty.spec.ts#manual-location-spots` + `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): route test proves a private note anchored from a public Booth 12 location moment preserves context, stays out of public chat and public `/ask`, and renders only the owner-visible marker; launch scanner now requires the proof before passing.
 
 - **Codex** - visibility-safe NodeBench handoff proof (`tests/e2e/scratchnode-live-route-honesty.spec.ts#nodebench-handoff` + `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): route test proves private follow-up text, tags, note ids, anchor ids/previews, public anchor text, and session ids stay out of fallback/tokenized handoff URLs; launch scanner now requires the proof before passing.
-
 - **Claude** — public `/wiki/<slug>` reader (`home-v5.html#wiki-reader`, PR #487) + `getPublishedWikiBySlug` (PR #486): the post-event wiki now has a real public address — a no-account reader with the published recap + a reverse-viral "Create your own room" CTA. `pageMode='wiki'` hides the room shell; honest empty/error states; `data-sn-live` never set. Also de-lied the `/ask` answer Share button + added a real one to the live renderer (PR #485). 3 wiki e2e + 6 backend scenarios + 20 honesty suite green.
-- **KNOWN GAP (do not re-add blindly):** the **NodeBench bridge is BROKEN** — `nodebenchai.com/events/<slug>/wiki` and `.../private` 404 (the `src/App.tsx` `/events` route regex `^/events/([^/]+)/?$` rejects trailing segments; no surface reads `source=scratchnode`/`room`/`continuation`/`publicArtifact`; no Convex importer). The pre-existing `openNodeBenchPrivateHandoff` CTAs (home-v5.html ~3452, ~4689) dead-end too. **Next:** add the real receiving route `/events/:slug/wiki` in `src/App.tsx` (render the wiki via the public `getPublishedWikiBySlug`) + then wire the "Continue in NodeBench" CTA. Ship route-first so the CTA can't 404.
+- **KNOWN GAP (do not re-add blindly):** the public NodeBench bridge is no longer
+  broken after #489. The remaining bridge gap is the security-critical private-note
+  token path (`/events/:slug/private` and token consumption). Keep it gated and reviewed;
+  do not expose session ids, private notes, anchors, or tokens in public links.
 - **Claude** — directory viral slice (`home-v5.html#directory`): flyer cards + "● N inside" presence cue + policy-aware action (open → "Join now"; request → "Request to join" `<button>` wired to `events:requestJoinEvent`, watching `getMyJoinRequest` for approval, on the **same `sn_session_id`** so approval carries through the `joinEvent` door gate). 18/18 chromium honesty suite; desktop + mobile verified. (This consumes the Codex 8c3a0cc9 "Request to join" label hand-off.)
 - **#481 Claude** — post-create viral *share moment* (home-v5.html landing): invite card + QR + copy + Text/Email + "Enter your room →".
 - **#480 Claude** — door-policy *backend* (`convex/events.ts` + `eventsSchema.ts`): request table, gate, request/approve/deny, advisory LLM bouncer. 6/6 scenario tests.

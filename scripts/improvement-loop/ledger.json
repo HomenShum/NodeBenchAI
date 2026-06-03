@@ -23,7 +23,9 @@
       "selected": null,
       "backlogTop": [],
       "outcome": "clean_no_auto_opportunities",
-      "note": "Bootstrap. Built loop substrate (scan+run-cycle+JSON ledger), ran scan -> 6 candidates, VALIDATED all -> false positives (XXX in URL-param doc comments; intentional 'Coming soon' L2 capture flag). REJECTED all (no theater), hardened 2 detectors. Convex ledger graduation queued (local codegen blocked by unrelated @mistralai dep error). ScratchNode surface clean post-polish."
+      "note": "Bootstrap. Built loop substrate (scan+run-cycle+JSON ledger), ran scan -> 6 candidates, VALIDATED all -> false positives (XXX in URL-param doc comments; intentional 'Coming soon' L2 capture flag). REJECTED all (no theater), hardened 2 detectors. Convex ledger graduation queued (local codegen blocked by unrelated @mistralai dep error). ScratchNode surface clean post-polish.",
+      "liveSignal": null,
+      "liveVerified": false
     },
     {
       "cycleId": "C002",
@@ -46,7 +48,9 @@
           "public/proto/home-v5.html",
           "scripts/improvement-loop/scan.mjs"
         ]
-      }
+      },
+      "liveSignal": null,
+      "liveVerified": false
     }
   ],
   "updatedAt": "2026-06-02T02:34:38.978Z"

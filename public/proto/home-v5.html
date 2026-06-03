@@ -704,6 +704,20 @@ body[data-new-user="true"] .welcome { display: flex; }
 .welcome-close { background: none; border: 0; color: var(--ink-faint); font-size: 18px; line-height: 1; padding: 4px; min-width: 32px; }
 .welcome-close:hover { color: var(--ink); }
 
+/* In-room memory nudge — reinforces "the room becomes the wiki, invite more"
+   using the REAL live presence count. Shown once per browser, dismissible. */
+.sn-mem-nudge { display: none; align-items: center; gap: 10px; margin: 0 0 10px; padding: 9px 12px; border: 1px solid rgba(217,119,87,.28); border-radius: 8px; background: rgba(217,119,87,.07); font-size: 13px; color: var(--ink-muted); }
+.sn-mem-nudge[data-show="true"] { display: flex; animation: snMemNudgeIn var(--sn-dur-slow, .4s) var(--sn-ease-out, ease) both; }
+.sn-mem-nudge__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green, #5ea867); flex-shrink: 0; }
+.sn-mem-nudge__text { flex: 1; line-height: 1.4; }
+.sn-mem-nudge__text b { color: var(--ink); }
+.sn-mem-nudge__invite { flex-shrink: 0; font-family: var(--ui); font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 7px; cursor: pointer; border: 1px solid rgba(217,119,87,.4); background: rgba(217,119,87,.12); color: var(--accent); }
+.sn-mem-nudge__invite:hover { background: var(--accent); color: #fff; }
+.sn-mem-nudge__close { flex-shrink: 0; background: none; border: 0; color: var(--ink-faint); font-size: 16px; line-height: 1; padding: 4px; min-width: 28px; cursor: pointer; }
+.sn-mem-nudge__close:hover { color: var(--ink); }
+@keyframes snMemNudgeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .sn-mem-nudge[data-show="true"] { animation: none; } }
+
 /* ─── Identity row ─── */
 .id-row { display: flex; align-items: center; gap: 8px; padding: 6px 0 14px; font-size: 12px; color: var(--ink-faint); }
 .id-avatar { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #b85f44); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
@@ -3374,6 +3388,15 @@ if (document.readyState === 'loading') {
     <button class="welcome-close" type="button" onclick="dismissWelcome()" aria-label="Dismiss">&times;</button>
   </div>
 
+  <!-- In-room memory nudge — revealed once (real live count) to reinforce that
+       the room becomes the wiki and nudge a one-tap invite. -->
+  <div class="sn-mem-nudge" id="sn-mem-nudge" role="status" aria-live="polite">
+    <span class="sn-mem-nudge__dot" aria-hidden="true"></span>
+    <span class="sn-mem-nudge__text"><b id="sn-mem-nudge-count">0</b> in the room. The more people here, the richer this room&rsquo;s wiki &mdash; invite a few.</span>
+    <button type="button" class="sn-mem-nudge__invite" onclick="_snMemNudgeInvite()">Invite &rarr;</button>
+    <button type="button" class="sn-mem-nudge__close" onclick="_snDismissMemNudge()" aria-label="Dismiss">&times;</button>
+  </div>
+
   <section class="hero">
     <h2><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h2>
     <p class="hero-meta" id="sn-event-hero-meta">Live event log &middot; public wiki when it ends</p>
@@ -4809,6 +4832,40 @@ function startVoice() {
 function dismissWelcome() {
   document.body.removeAttribute('data-new-user');
   try { localStorage.setItem('sn_v5_seen', '1'); } catch(e){}
+}
+
+// ── In-room memory nudge ────────────────────────────────────────────────────
+// Reveal ONCE (after a short beat so it doesn't crowd the join moment) to
+// reinforce that the room becomes the wiki + offer a one-tap invite. HONESTY:
+// the count is the REAL live member count from events:getMembers — never shown
+// until there is real presence (>=1), never fabricated. Dismiss is sticky.
+var _snMemNudgeArmed = false;
+function _snMaybeShowMemNudge(count) {
+  try {
+    if (_snMemNudgeArmed) return;                                   // once per load
+    if (!(count >= 1)) return;                                      // real presence only
+    if (localStorage.getItem('sn_mem_nudge_off') === '1') return;   // previously dismissed
+    _snMemNudgeArmed = true;
+    var reduce = false;
+    try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    setTimeout(function () {
+      var el = document.getElementById('sn-mem-nudge');
+      var cEl = document.getElementById('sn-mem-nudge-count');
+      // Re-read the freshest real count at reveal time (presence may have grown).
+      var live = (window._sn_live_members && window._sn_live_members.length) || count;
+      if (cEl) cEl.textContent = String(live);
+      if (el) el.setAttribute('data-show', 'true');
+    }, reduce ? 0 : 4000);
+  } catch (e) { /* never break the room */ }
+}
+function _snDismissMemNudge() {
+  try { localStorage.setItem('sn_mem_nudge_off', '1'); } catch (e) {}
+  var el = document.getElementById('sn-mem-nudge');
+  if (el) el.setAttribute('data-show', 'false');
+}
+function _snMemNudgeInvite() {
+  try { if (typeof openShare === 'function') openShare(); } catch (e) {}
+  _snDismissMemNudge();
 }
 
 // 3-step inline tour (mini overlay positioned near each target)
@@ -7724,6 +7781,7 @@ window._laCueAction       = _laCueAction;
     if (heroCount) heroCount.textContent = count;
     const menuPeopleSub = document.getElementById('menu-people-sub');
     if (menuPeopleSub) menuPeopleSub.textContent = count + ' live member' + (rows.length === 1 ? '' : 's');
+    if (typeof _snMaybeShowMemNudge === 'function') _snMaybeShowMemNudge(rows.length);
   });
 
   // Memory Wall (Phase 8): connect the spatial lane to the live event stream.

@@ -45,6 +45,25 @@ placeholders untouched, Chat/notes/Open wiki/room-code affordances preserved).
 
 **Commit**: `this commit`. **Author**: Homen Shum + Claude.
 
+## 2026-06-03 — In-room "invite more → richer wiki" memory nudge
+The viral framing ("the room becomes the memory") only appeared at create-time and in
+the publish recap — never *during* the live event, where the audit flagged it absent.
+Added a small, dismissible in-room nudge that reveals once (after a 4s beat so it doesn't
+crowd the join moment) reinforcing the memory framing and offering a one-tap **Invite**
+(opens the existing in-room share sheet).
+
+HONESTY: the count is the **real** `events:getMembers` live member count — the nudge
+never renders until there is real presence (≥1), and the figure read at reveal time is
+the freshest real `_sn_live_members.length`, never fabricated. Dismiss is sticky
+(`localStorage sn_mem_nudge_off`), it shows at most once per load, and it's motion-safe
+(subtle fade gated under `prefers-reduced-motion`, terracotta glass DNA).
+
+Covered by a new honesty case (reveals with the real count `2`, Invite visible, sticky
+dismiss flips `data-show=false` + sets the flag). 26/26 chromium honesty + output-contract
+green; screenshot-verified.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-03 — Honesty: stop the 4 "Continue in NodeBench" CTAs from 404'ing
 A scoping audit caught a live HONEST_STATUS lie: **four** in-room CTAs ("Continue in
 NodeBench", "Open in NodeBench", "Open NodeBench event notebook", "Continue this event
