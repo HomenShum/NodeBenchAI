@@ -1099,6 +1099,8 @@ async function runInteractiveChecks() {
         "pushLiveAssistCue",
         "openModePicker",
         "openCaptureLevelPicker",
+        "setEventMode",
+        "setCaptureLevel",
       ].filter((name) => typeof globalThis[name] === "function");
 
       globalThis.openWiki();
@@ -1192,6 +1194,109 @@ async function runInteractiveChecks() {
           document.body.getAttribute("data-la-open") === "false" &&
           rail?.getAttribute("data-open") !== "true" &&
           sheet?.getAttribute("data-open") !== "true";
+      }
+
+      const eventModeControllerReady =
+        typeof globalThis.openModePicker === "function" &&
+        typeof globalThis.setEventMode === "function";
+      let eventModeCycleOk = false;
+      let eventModeResetOk = false;
+      if (eventModeControllerReady) {
+        const modeLabel = () => document.querySelector("#ev-mode-label")?.textContent?.trim() ?? "";
+        const composerPlaceholder = () => document.querySelector("#ci")?.getAttribute("placeholder") ?? "";
+        const bodyMode = () => document.body.getAttribute("data-event-mode") ?? "";
+
+        globalThis.setEventMode("event");
+        await sleep(50);
+        const initialEventOk =
+          bodyMode() === "event" &&
+          /Event/i.test(modeLabel()) &&
+          /\/ask/i.test(composerPlaceholder());
+
+        globalThis.openModePicker();
+        await sleep(50);
+        const workModeOk =
+          bodyMode() === "work" &&
+          /Work/i.test(modeLabel()) &&
+          /Visible to meeting room/i.test(composerPlaceholder());
+
+        globalThis.openModePicker();
+        await sleep(50);
+        const sensitiveModeOk =
+          bodyMode() === "sensitive" &&
+          /Sensitive/i.test(modeLabel()) &&
+          /Manual capture only/i.test(composerPlaceholder());
+
+        globalThis.openModePicker();
+        await sleep(50);
+        eventModeCycleOk =
+          initialEventOk &&
+          workModeOk &&
+          sensitiveModeOk &&
+          bodyMode() === "event" &&
+          /Event/i.test(modeLabel()) &&
+          /\/ask/i.test(composerPlaceholder());
+
+        globalThis.setEventMode("event");
+        await sleep(50);
+        eventModeResetOk = bodyMode() === "event" && /\/ask/i.test(composerPlaceholder());
+      }
+
+      const captureLevelControllerReady =
+        typeof globalThis.openCaptureLevelPicker === "function" &&
+        typeof globalThis.setCaptureLevel === "function" &&
+        typeof globalThis.toggleLiveAssist === "function";
+      let capturePickerOpened = false;
+      let captureLevelOneOk = false;
+      let captureLevelTwoBlocked = false;
+      let captureLevelResetOk = false;
+      if (captureLevelControllerReady) {
+        const rail = document.querySelector("#live-assist-rail");
+        const sheet = document.querySelector("#live-assist-sheet");
+        const capLabel = () => document.querySelector("#ev-cap-label")?.textContent?.trim() ?? "";
+        const capLevel = () => document.body.getAttribute("data-capture-level") ?? "";
+        const capButtons = (level) => [...document.querySelectorAll(`.la-cap-row button[data-cap-level="${level}"]`)];
+        const capPressed = (level, expected) =>
+          capButtons(level).length >= 2 &&
+          capButtons(level).every((button) => button.getAttribute("aria-pressed") === expected);
+
+        globalThis.setCaptureLevel(0);
+        globalThis.toggleLiveAssist(false);
+        await sleep(75);
+        globalThis.openCaptureLevelPicker();
+        await sleep(150);
+        capturePickerOpened =
+          ((rail?.getAttribute("data-open") === "true" && rail?.getAttribute("aria-hidden") === "false") ||
+            (sheet?.getAttribute("data-open") === "true" && sheet?.getAttribute("aria-hidden") === "false")) &&
+          document.body.getAttribute("data-la-open") === "true" &&
+          capButtons(0).length >= 2 &&
+          capButtons(1).length >= 2 &&
+          capButtons(2).length >= 2;
+
+        globalThis.setCaptureLevel(1);
+        await sleep(50);
+        captureLevelOneOk =
+          capLevel() === "1" &&
+          /L1\s+User-side/i.test(capLabel()) &&
+          capPressed("1", "true") &&
+          capPressed("0", "false") &&
+          capPressed("2", "false");
+
+        globalThis.setCaptureLevel(2);
+        await sleep(50);
+        captureLevelTwoBlocked =
+          capLevel() === "1" &&
+          /L1\s+User-side/i.test(capLabel()) &&
+          capPressed("2", "false");
+
+        globalThis.setCaptureLevel(0);
+        globalThis.toggleLiveAssist(false);
+        await sleep(75);
+        captureLevelResetOk =
+          capLevel() === "0" &&
+          /L0\s+Manual/i.test(capLabel()) &&
+          capPressed("0", "true") &&
+          document.body.getAttribute("data-la-open") === "false";
       }
 
       const lock = document.querySelector("#lock");
@@ -1313,6 +1418,14 @@ async function runInteractiveChecks() {
         liveAssistCueRendered,
         liveAssistCueLeakedToFeed,
         liveAssistClosedAfter,
+        eventModeControllerReady,
+        eventModeCycleOk,
+        eventModeResetOk,
+        captureLevelControllerReady,
+        capturePickerOpened,
+        captureLevelOneOk,
+        captureLevelTwoBlocked,
+        captureLevelResetOk,
         beforePrivate,
         afterPrivate,
         wallControllerReady,
@@ -1353,6 +1466,14 @@ async function runInteractiveChecks() {
       data.liveAssistCueRendered &&
       !data.liveAssistCueLeakedToFeed &&
       data.liveAssistClosedAfter &&
+      data.eventModeControllerReady &&
+      data.eventModeCycleOk &&
+      data.eventModeResetOk &&
+      data.captureLevelControllerReady &&
+      data.capturePickerOpened &&
+      data.captureLevelOneOk &&
+      data.captureLevelTwoBlocked &&
+      data.captureLevelResetOk &&
       data.beforePrivate !== data.afterPrivate &&
       data.wallControllerReady &&
       data.wallTabVisible &&
