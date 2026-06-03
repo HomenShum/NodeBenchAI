@@ -8214,6 +8214,7 @@ window._laCueAction       = _laCueAction;
 
   // ─── Presence heartbeat — every 30s ─────────────────────────────────
   setInterval(() => {
+    if (document.hidden) return;
     client.mutation('events:heartbeat', { eventId, sessionId }).catch(() => {});
   }, 30_000);
 
