@@ -953,7 +953,9 @@ test.describe("ScratchNode live route honesty", () => {
       publicPrompt,
     );
 
-    await page.evaluate(() => (window as any).openWiki());
+    const publishedWikiButton = answerCard.locator("button").filter({ hasText: /View in wiki/i }).last();
+    await expect(publishedWikiButton).toHaveCount(1);
+    await publishedWikiButton.evaluate((button: HTMLButtonElement) => button.click());
     await expect(page.locator("#sheet-title")).toContainText("AI Infra Summit");
     await expect(page.locator("#sheet-content")).toContainText(publicPrompt);
     await expect(page.locator("#sheet-content")).toContainText("Mock sourced answer for " + publicPrompt);
