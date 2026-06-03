@@ -3141,7 +3141,7 @@ if (document.readyState === 'loading') {
         <button type="button" class="primary attendee-only" onclick="toast('Suggested for FAQ','The host will review and add it to the wiki.')">★ Suggest for FAQ</button>
         <button type="button" class="primary host-only" onclick="toast('Promoted to FAQ','Now part of the durable wiki.')">★ Promote to FAQ</button>
         <button type="button" onclick="openWiki()">View in wiki →</button>
-        <button type="button" onclick="toast('Shared','Answer link copied.')">Share</button>
+        <button type="button" onclick="_snShareAnswer('', 'What is the MCP auth timeline?')">Share</button>
         <button type="button" onclick="ask('Follow-up on MCP auth timeline')">Follow-up</button>
       </div>
     </article>
@@ -3975,6 +3975,32 @@ function copyRoom() {
     navigator.clipboard.writeText(text).then(function(){ toast('Copied join link', EVENT_ROOM_CODE + ' · paste in any chat.'); });
   } else {
     toast('Room: ' + EVENT_ROOM_CODE, 'Share this URL with attendees.');
+  }
+}
+
+// ── Share an /ask answer — the "answer IS the distribution" lever ──
+// HONEST_STATUS: copies a REAL link (the room URL) + the answer's question so a
+// recipient lands in the room that holds the answer. Never claims "copied" unless
+// the clipboard write actually resolved; the native share sheet is its own feedback.
+function _snShareAnswer(answerId, explicitQuestion) {
+  var url = (typeof EVENT_URL !== 'undefined' && EVENT_URL) ? EVENT_URL : location.href.split('#')[0];
+  var title = (typeof EVENT_TITLE !== 'undefined' && EVENT_TITLE) ? EVENT_TITLE : 'ScratchNode';
+  var q = explicitQuestion ||
+    (window._sn_answer_q_by_id && answerId && window._sn_answer_q_by_id[answerId]) || '';
+  var text = (q ? '"' + q + '" — answered live in ' + title + ' on ScratchNode'
+                : 'Answered live in ' + title + ' on ScratchNode') + '\n' + url;
+  if (navigator.share) {
+    navigator.share({ title: title + ' · ScratchNode', text: text, url: url }).catch(function(){});
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){
+      toast('Answer link copied', 'Paste it anywhere — it opens the room.');
+    }).catch(function(){
+      toast("Couldn't copy", url);
+    });
+  } else {
+    toast('Share this answer', url);
   }
 }
 
@@ -7042,7 +7068,7 @@ window._laCueAction       = _laCueAction;
       '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">' + agentLabel + '</span><span class="sep">·</span><span><b>' + sourceCount + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>' + liveSearches + '</b> live searches</span><span class="sep">·</span><span>' + costLabel + '</span><span class="sep">·</span><span>' + qualityLabel + '</span><span class="sep">·</span><span class="priv">private notes excluded</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
       '<div class="ans-how">' + trace + traceBoundary + '</div>' +
-      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="window.snSuggestFaq && window.snSuggestFaq(\'' + answer._id + '\')">Suggest for FAQ</button><button type="button" class="primary host-only" onclick="window.snPromoteFaq && window.snPromoteFaq(\'' + answer._id + '\')">Promote to FAQ</button> <button type="button" class="sn-pin" onclick="window.snWall && window.snWall.pinAnswer(\'' + answer._id + '\')">&#128204; Pin to wall</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
+      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="window.snSuggestFaq && window.snSuggestFaq(\'' + answer._id + '\')">Suggest for FAQ</button><button type="button" class="primary host-only" onclick="window.snPromoteFaq && window.snPromoteFaq(\'' + answer._id + '\')">Promote to FAQ</button> <button type="button" class="sn-pin" onclick="window.snWall && window.snWall.pinAnswer(\'' + answer._id + '\')">&#128204; Pin to wall</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="window._snShareAnswer(\'' + answer._id + '\')">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
     article.querySelector('.ans-q').textContent = answer.question || '';
     article.querySelector('.ans-body').innerHTML = snEscape(answer.body || '').replace(/\n/g, '<br>');
     feedEl.appendChild(article);
@@ -7058,9 +7084,11 @@ window._laCueAction       = _laCueAction;
   });
   client.onUpdate('events:getAnswers', { eventId, limit: 100 }, (rows) => {
     if (!Array.isArray(rows)) return;
-    // Cache answer bodies so the Memory Wall can dereference answer pins.
+    // Cache answer bodies so the Memory Wall can dereference answer pins, and
+    // questions so the per-answer Share link can carry the real question text.
     window._sn_answers_by_id = window._sn_answers_by_id || {};
-    for (const a of rows) { if (a && a._id) window._sn_answers_by_id[a._id] = a.body || ''; }
+    window._sn_answer_q_by_id = window._sn_answer_q_by_id || {};
+    for (const a of rows) { if (a && a._id) { window._sn_answers_by_id[a._id] = a.body || ''; window._sn_answer_q_by_id[a._id] = a.question || ''; } }
     if (window.snWall && window.snWall._refresh) window.snWall._refresh();
     for (const answer of rows) renderAnswer(answer);
     const faqCount = rows.filter((answer) => answer && answer.faqStatus && answer.faqStatus !== 'none').length;
@@ -8745,6 +8773,7 @@ window._laCueAction       = _laCueAction;
           '<button type="button" class="primary attendee-only" onclick="window.demo&&window.demo._suggestFaq&&window.demo._suggestFaq(\'' + ansId + '\')">★ Suggest for FAQ</button>' +
           '<button type="button" class="primary host-only" onclick="window.demo&&window.demo._promoteFaq&&window.demo._promoteFaq(\'' + ansId + '\')">★ Promote to FAQ</button>' +
           '<button type="button" onclick="openWiki()">View in wiki &rarr;</button>' +
+          '<button type="button" onclick="window._snShareAnswer(\'' + ansId + '\')">Share</button>' +
         '</div>';
       ans.querySelector('.ans-q').textContent = args.question || '';
       ans.querySelector('.ans-body').textContent = args.body || '';
