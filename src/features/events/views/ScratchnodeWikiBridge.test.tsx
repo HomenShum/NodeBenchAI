@@ -61,6 +61,16 @@ describe("ScratchnodeWikiBridge", () => {
     expect(screen.queryByTestId("scratchnode-wiki-bridge-body")).toBeNull();
   });
 
+  it("uses the explicit room code for the ScratchNode return link when no wiki is published yet", () => {
+    useQueryMock.mockReturnValue(null);
+    render(<ScratchnodeWikiBridge slug="not-published" roomCode="ORBITAL" />);
+
+    expect(screen.getByText("Open in ScratchNode →")).toHaveAttribute(
+      "href",
+      "https://scratchnode.live/e/orbital",
+    );
+  });
+
   it("shows a loading state while the query resolves (no premature empty/error)", () => {
     useQueryMock.mockReturnValue(undefined);
     render(<ScratchnodeWikiBridge slug="rooftop-launch" />);

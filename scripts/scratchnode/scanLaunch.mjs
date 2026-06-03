@@ -1824,6 +1824,60 @@ async function runInteractiveChecks() {
     };
   });
 
+  // Stable runtime proof for the ScratchNode -> NodeBench public wiki bridge:
+  // an unpublished slug must still resolve to the dedicated bridge surface with
+  // an honest empty state and a room-specific return link, never a 404 or
+  // cockpit fallback. Published rendering stays covered by the component test.
+  await pageCheck(
+    "nodebench scratchnode wiki bridge empty-state contract",
+    "https://nodebenchai.com/events/not-published/wiki?source=scratchnode&room=ORBITAL",
+    async (page) => {
+      await page.waitForSelector("body", { timeout: 15_000 });
+      await page.waitForTimeout(1200);
+      const data = await page.evaluate(() => {
+        const text = (document.body.textContent ?? "").replace(/\s+/g, " ").trim();
+        const scratchnodeLinks = [...document.querySelectorAll("a")]
+          .map((link) => ({
+            text: link.textContent?.replace(/\s+/g, " ").trim() ?? "",
+            href: link.href,
+          }))
+          .filter((link) => /scratchnode\.live/i.test(link.href));
+        return {
+          title: document.title,
+          hasRoot: !!document.querySelector("#root"),
+          hasBridgeShell: !!document.querySelector('[data-testid="scratchnode-wiki-bridge"]'),
+          hasEmptyState: !!document.querySelector('[data-testid="scratchnode-wiki-bridge-empty"]'),
+          hasRecapBody: !!document.querySelector('[data-testid="scratchnode-wiki-bridge-body"]'),
+          hasHonestEmptyCopy: /has(?:n['\u2019]t| not) published its wiki yet/i.test(text),
+          hasFake404: /404|not found|page not found/i.test(text),
+          scratchnodeLinks,
+        };
+      });
+      const ok =
+        /NodeBench/i.test(data.title) &&
+        data.hasRoot &&
+        data.hasBridgeShell &&
+        data.hasEmptyState &&
+        !data.hasRecapBody &&
+        data.hasHonestEmptyCopy &&
+        !data.hasFake404 &&
+        data.scratchnodeLinks.some((link) => link.href === "https://scratchnode.live/e/orbital");
+      return {
+        ok,
+        detail: JSON.stringify({
+          title: data.title,
+          hasRoot: data.hasRoot,
+          hasBridgeShell: data.hasBridgeShell,
+          hasEmptyState: data.hasEmptyState,
+          hasRecapBody: data.hasRecapBody,
+          hasHonestEmptyCopy: data.hasHonestEmptyCopy,
+          hasFake404: data.hasFake404,
+          scratchnodeLinks: data.scratchnodeLinks.slice(0, 3),
+        }),
+      };
+    },
+  );
+
   await browser.close();
 }
 
