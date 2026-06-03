@@ -3578,6 +3578,41 @@ function refreshEventUrl() {
   EVENT_URL = PUBLIC_BASE_URL + '/e/' + encodeURIComponent(EVENT_SLUG);
 }
 
+function getPublicWikiUrl() {
+  refreshEventUrl();
+  return EVENT_URL + '/wiki';
+}
+
+function copyTextOrToast(text, successTitle, successDetail) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).then(function() {
+      toast(successTitle || 'Copied', successDetail || text);
+      haptic && haptic();
+      return true;
+    }).catch(function() {
+      toast('Copy unavailable', text);
+      return false;
+    });
+  }
+  toast('Copy unavailable', text);
+  return Promise.resolve(false);
+}
+
+function answerAnchorId(answerId) {
+  return 'answer-' + encodeURIComponent(String(answerId || '').trim() || 'current');
+}
+
+function shareAnswerLink(answerId) {
+  refreshEventUrl();
+  var id = String(answerId || '').trim();
+  var url = EVENT_URL + (id ? '#' + answerAnchorId(id) : '');
+  return copyTextOrToast(url, 'Answer link copied', url);
+}
+
+function copyPublicWikiUrl() {
+  return copyTextOrToast(getPublicWikiUrl(), 'Wiki link copied', 'Share the public event wiki.');
+}
+
 function setScratchNodeLiveEventContext(event) {
   if (!event) return;
   EVENT_SLUG = event.slug || EVENT_SLUG;
@@ -3891,7 +3926,7 @@ function streamAgentAnswer(intent, identity, time) {
       '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">Answered from event wiki</span><span class="sep">·</span><span><b>' + sim + '</b> similar</span><span class="sep">·</span><span><b>' + reused + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>0</b> new searches</span><span class="sep">·</span><span class="priv">' + privBadge + '</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace →</button>' +
       '<div class="ans-how"><div class="step"><span class="c">✓</span><span>Checked event wiki cache · sourceBundle fresh</span></div><div class="step"><span class="c">✓</span><span>Matched ' + sim + ' similar questions in semantic cache</span></div><div class="step"><span class="c">✓</span><span>Reused ' + reused + ' sources from event corpus</span></div><div class="step"><span class="c">✓</span><span>0 new searches · Linkup skipped</span></div><div class="step"><span class="c">✓</span><span>' + traceLastStep + '</span></div></div>' +
-      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="toast(\'Suggested for FAQ\',\'The host will review and add it to the wiki.\')">★ Suggest for FAQ</button><button type="button" class="primary host-only" onclick="toast(\'Promoted to FAQ\',\'Now in the wiki.\')">★ Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki →</button> <button type="button" onclick="toast(\'Shared\',\'Link copied.\')">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
+      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="toast(\'Suggested for FAQ\',\'The host will review and add it to the wiki.\')">★ Suggest for FAQ</button><button type="button" class="primary host-only" onclick="toast(\'Promoted to FAQ\',\'Now in the wiki.\')">★ Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki →</button> <button type="button" onclick="shareAnswerLink(\'demo-answer\')">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
     ans.querySelector('.ans-q').textContent = intent.clean;
     feed.appendChild(ans);
     try { if (typeof ans.scrollIntoView === 'function') ans.scrollIntoView({ behavior: 'smooth', block: 'end' }); } catch (e) {}
@@ -3984,11 +4019,13 @@ function copyRoom() {
 // the clipboard write actually resolved; the native share sheet is its own feedback.
 function _snShareAnswer(answerId, explicitQuestion) {
   var url = (typeof EVENT_URL !== 'undefined' && EVENT_URL) ? EVENT_URL : location.href.split('#')[0];
+  var shareUrl = answerId ? (url + '#' + answerAnchorId(answerId)) : url;
+  url = shareUrl;
   var title = (typeof EVENT_TITLE !== 'undefined' && EVENT_TITLE) ? EVENT_TITLE : 'ScratchNode';
   var q = explicitQuestion ||
     (window._sn_answer_q_by_id && answerId && window._sn_answer_q_by_id[answerId]) || '';
   var text = (q ? '"' + q + '" — answered live in ' + title + ' on ScratchNode'
-                : 'Answered live in ' + title + ' on ScratchNode') + '\n' + url;
+                : 'Answered live in ' + title + ' on ScratchNode') + '\n' + shareUrl;
   if (navigator.share) {
     navigator.share({ title: title + ' · ScratchNode', text: text, url: url }).catch(function(){});
     return;
@@ -4485,6 +4522,9 @@ var SHEET_RENDERERS = {
 
   share: function() {
     var url = EVENT_URL;
+    var wikiLink = window._sn_published_wiki_body
+      ? '<div class="sheet-section"><h3>Public wiki is live</h3><p class="sheet-sub">Share the post-event artifact: public Q&amp;A, sources, and what changed. Private notes stay out.</p><div class="share-url-box"><code>' + getPublicWikiUrl() + '</code><button type="button" onclick="copyPublicWikiUrl()">Copy wiki</button></div></div>'
+      : '';
     return '<div class="sheet-head"><h2 id="sheet-title">Share ' + escapeHtml(EVENT_TITLE) + '</h2><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
       '<div class="share-url-box"><code>' + url + '</code><button type="button" onclick="copyShareUrl()">Copy</button></div>' +
       '<div class="share-grid">' +
@@ -4493,6 +4533,7 @@ var SHEET_RENDERERS = {
       '<button type="button" class="share-tile" onclick="shareTo(\'email\')"><span class="icon">&#9993;</span><span>Email</span></button>' +
       '<button type="button" class="share-tile" onclick="shareTo(\'native\')"><span class="icon">&#10548;</span><span>More&hellip;</span></button>' +
       '</div>' +
+      wikiLink +
       '<div class="sheet-section"><h3>Or scan to join on mobile</h3>' +
       '<div style="display:flex;justify-content:center;padding:16px;background:#fff;border-radius:var(--r-sm)"><img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&amp;margin=4&amp;data=' + encodeURIComponent(url + '#room=' + EVENT_ROOM_CODE) + '" alt="QR code" width="140" height="140" loading="lazy" /></div></div>' +
       '<div style="margin-top:12px;font-size:11px;color:var(--ink-faint);text-align:center;font-family:var(--mono)">Live room code ' + escapeHtml(EVENT_ROOM_CODE) + ' &middot; realtime chat backed by Convex</div>';
@@ -4524,9 +4565,9 @@ var SHEET_RENDERERS = {
   wiki: function() {
     if (window._sn_published_wiki_body) {
       return '<div class="sheet-head"><h2 id="sheet-title">' + escapeHtml(EVENT_TITLE) + ' &middot; Wiki</h2><span class="badge">live Convex</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
-        '<div class="wiki-shell"><aside class="wiki-toc" aria-label="Table of contents"><div class="wiki-toc-label">Source</div><a class="wiki-toc-link active">Published snapshot</a></aside>' +
+        '<div class="wiki-shell"><aside class="wiki-toc" aria-label="Table of contents"><div class="wiki-toc-label">Source</div><a class="wiki-toc-link active">Published snapshot</a><a class="wiki-toc-link" href="' + getPublicWikiUrl() + '" target="_blank" rel="noopener">Open public URL</a></aside>' +
         '<article class="wiki-article" id="wiki-article">' + window._sn_published_wiki_body + '</article>' +
-        '<aside class="wiki-onpage" aria-label="Actions"><div class="wiki-onpage-label">Actions</div><a onclick="window.snPublishWiki && window.snPublishWiki()">Republish</a></aside></div>';
+        '<aside class="wiki-onpage" aria-label="Actions"><div class="wiki-onpage-label">Actions</div><a href="' + getPublicWikiUrl() + '" target="_blank" rel="noopener">Open public wiki</a><a onclick="copyPublicWikiUrl()">Copy public link</a><a onclick="window.snPublishWiki && window.snPublishWiki()">Republish</a></aside></div>';
     }
     if (window._sn_live && window._sn_live.eventId) {
       return '<div class="sheet-head"><h2 id="sheet-title">' + escapeHtml(EVENT_TITLE) + ' &middot; Wiki</h2><span class="badge">not published</span><button type="button" class="sheet-close" onclick="closeSheet()" aria-label="Close">&times;</button></div>' +
@@ -5244,9 +5285,7 @@ function refreshNotesBadge() {
 // ── Share platform handlers ──
 function copyShareUrl() {
   refreshEventUrl();
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(EVENT_URL).then(function() { toast('Copied', EVENT_URL); haptic(); });
-  }
+  return copyTextOrToast(EVENT_URL, 'Copied join link', EVENT_URL);
 }
 function shareTo(p) {
   refreshEventUrl();
@@ -5523,7 +5562,7 @@ if (_DEBUG_HELPERS_ON) window.simAsk = function(name, question, answerText, sour
       '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">Answered from event wiki</span><span class="sep">·</span><span><b>' + sim + '</b> similar</span><span class="sep">·</span><span><b>' + reused + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>0</b> new searches</span><span class="sep">·</span><span class="priv">🔒 no private notes</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
       '<div class="ans-how"><div class="step"><span class="c">&check;</span><span>Checked event wiki cache · sourceBundle fresh</span></div><div class="step"><span class="c">&check;</span><span>Matched ' + sim + ' similar questions in semantic cache</span></div><div class="step"><span class="c">&check;</span><span>Reused ' + reused + ' sources from event corpus</span></div><div class="step"><span class="c">&check;</span><span>0 new searches · Linkup skipped</span></div><div class="step"><span class="c">&check;</span><span>No private notes used · public layer only</span></div></div>' +
-      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="toast(\'Suggested for FAQ\',\'The host will review and add it to the wiki.\'); haptic();">★ Suggest for FAQ</button><button type="button" class="primary host-only" onclick="toast(\'Promoted to FAQ\',\'Now in the wiki.\'); haptic();">★ Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="toast(\'Shared\',\'Link copied.\'); haptic();">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
+      '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="toast(\'Suggested for FAQ\',\'The host will review and add it to the wiki.\'); haptic();">★ Suggest for FAQ</button><button type="button" class="primary host-only" onclick="toast(\'Promoted to FAQ\',\'Now in the wiki.\'); haptic();">★ Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="shareAnswerLink(\'demo-answer\')">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
     ans.querySelector('.ans-q').textContent = question;
     ans.querySelector('.ans-body').textContent = answerText;
     feed.appendChild(ans);
@@ -7022,6 +7061,7 @@ window._laCueAction       = _laCueAction;
     seenAnswerIds.add(answer._id);
     const article = document.createElement('article');
     article.className = 'ans';
+    article.id = answerAnchorId(answer._id);
     article.setAttribute('data-answer-id', answer._id);
     const sourceCount = (answer.sources || []).length || (answer.sourceIds || []).length || 0;
     const sourceChips = (answer.sources || []).slice(0, 5).map((source) =>
@@ -7684,11 +7724,15 @@ window._laCueAction       = _laCueAction;
     const ownerKey = _snReadHostOwnerKey();
     client.mutation('events:publishWiki', { eventId, ownerKey })
       .then((res) => {
-        toast('Wiki published', 'Version ' + res.version + ' is now live.');
+        window._sn_public_wiki_url = getPublicWikiUrl();
+        toast('Wiki published', 'Version ' + res.version + ' is live at the public wiki URL.');
         return client.query('events:getPublishedWiki', { eventId });
       })
       .then((wiki) => {
-        if (wiki) window._sn_published_wiki_body = wiki.bodyHtml;
+        if (wiki) {
+          window._sn_published_wiki_body = wiki.bodyHtml;
+          window._sn_public_wiki_url = getPublicWikiUrl();
+        }
       })
       .catch((e) => toast('Wiki publish blocked', e.message || String(e)));
   };
@@ -7715,7 +7759,10 @@ window._laCueAction       = _laCueAction;
 
   client.query('events:getPublishedWiki', { eventId })
     .then((wiki) => {
-      if (wiki) window._sn_published_wiki_body = wiki.bodyHtml;
+      if (wiki) {
+        window._sn_published_wiki_body = wiki.bodyHtml;
+        window._sn_public_wiki_url = getPublicWikiUrl();
+      }
     })
     .catch(() => {});
 
