@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
+import { pathToFileURL } from "node:url";
 
 const repoRoot = process.cwd();
 const args = new Set(process.argv.slice(2));
@@ -261,6 +262,44 @@ function buildDevelopmentBacklog({ actionableAttention, launchRelevantBlockers, 
   ];
 }
 
+export function selectDevelopmentCandidate(developmentBacklog, context = {}) {
+  const candidate = developmentBacklog[0] ?? null;
+  if (!candidate) return null;
+
+  const launchRelevantBlockerCount = context.launchRelevantBlockers?.length ?? 0;
+  const actionableAttentionCount = context.actionableAttention?.length ?? 0;
+  const safeLocalGoalCount = context.goalQueue?.filter(
+    (goal) => (goal.status === "queued" || goal.status === "proposed" || goal.status === "active") && goal.mode === "safe-local-development",
+  ).length ?? 0;
+
+  let selectionReason = "Selected the first ranked backlog item.";
+  if (candidate.id.startsWith("blocker-")) {
+    selectionReason = `Launch blockers present (${launchRelevantBlockerCount}); fix-first work outranks new development slices.`;
+  } else if (candidate.id.startsWith("attention-")) {
+    selectionReason = `Actionable housekeeping items present (${actionableAttentionCount}); reliability cleanup outranks new development slices.`;
+  } else if (candidate.id.startsWith("drift-")) {
+    selectionReason = "Git drift is present; classify existing changes before starting a new autonomous slice.";
+  } else if (candidate.id.startsWith("goal-")) {
+    selectionReason = `Selected the highest-priority safe-local goal card from the queue (${safeLocalGoalCount} eligible).`;
+  } else if (candidate.id === "dev-goal-loop-instrumentation") {
+    selectionReason = "All gates are green and no safe-local goal cards are eligible, so the loop defaults to automation instrumentation.";
+  }
+
+  return {
+    id: candidate.id,
+    title: candidate.title,
+    mode: candidate.mode,
+    surface: candidate.surface,
+    area: candidate.area,
+    priority: candidate.priority,
+    sourcePath: candidate.sourcePath ?? null,
+    suggestedVerification: candidate.suggestedVerification ?? [],
+    why: candidate.why,
+    maxSlice: candidate.maxSlice,
+    selectionReason,
+  };
+}
+
 async function main() {
   const commands = [];
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
@@ -295,6 +334,11 @@ async function main() {
     goalCards: goalQueue,
     gitStatus,
     launchReport,
+  });
+  const developmentCandidate = selectDevelopmentCandidate(developmentBacklog, {
+    actionableAttention,
+    launchRelevantBlockers,
+    goalQueue,
   });
 
   const criteria = [
@@ -371,13 +415,15 @@ async function main() {
       gitBranchStatus,
       commandFailureCount: commands.filter((command) => command.exitCode !== 0).length,
       commandExitCodes: Object.fromEntries(commands.map((command) => [command.command, command.exitCode])),
-      nextDevelopmentCandidate: developmentBacklog[0]?.id ?? null,
+      nextDevelopmentCandidate: developmentCandidate?.id ?? null,
+      nextDevelopmentCandidateReason: developmentCandidate?.selectionReason ?? null,
     },
     commands,
     reports: {
       housekeeping: housekeepingReport,
       launch: launchReport,
     },
+    developmentCandidate,
     knownCautionEntries: knownCautions,
     actionableAttentionItems: actionableAttention,
     launchRelevantBlockers,
@@ -406,7 +452,9 @@ async function main() {
   if (!passed) process.exitCode = 1;
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.stack || error.message : String(error));
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.stack || error.message : String(error));
+    process.exitCode = 1;
+  });
+}

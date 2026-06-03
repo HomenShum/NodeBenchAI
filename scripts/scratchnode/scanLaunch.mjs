@@ -173,7 +173,13 @@ function scanStaticContracts() {
   });
 
   const goalLoop = readText(files.goalLoop);
-  const goalLoopEvidenceFields = ["gitBranchStatus", "commandFailureCount", "commandExitCodes"];
+  const goalLoopEvidenceFields = [
+    "gitBranchStatus",
+    "commandFailureCount",
+    "commandExitCodes",
+    "developmentCandidate",
+    "nextDevelopmentCandidateReason",
+  ];
   const missingGoalLoopEvidenceFields = goalLoopEvidenceFields.filter((field) => !goalLoop.includes(field));
   const goalLoopEvidenceOk = missingGoalLoopEvidenceFields.length === 0;
   addStaticCheck({
