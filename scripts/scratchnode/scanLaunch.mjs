@@ -748,6 +748,7 @@ function scanPublicRepoReadiness() {
     ok:
       /function buildLiveAssistFollowUpNote\s*\(/i.test(homeHtml) &&
       /function saveLiveAssistPrivateNote\s*\(/i.test(homeHtml) &&
+      /window\.saveLiveAssistPrivateNote\s*=\s*saveLiveAssistPrivateNote/i.test(homeHtml) &&
       /saveLiveAssistPrivateNote\('Cue: '\s*\+\s*cue\.text,\s*'cue'\)/i.test(homeHtml) &&
       /Visibility: private follow-up note; not public chat or public \/ask\./i.test(homeHtml) &&
       /Live Assist save cue writes an actual private note without public writes/i.test(
@@ -771,6 +772,21 @@ function scanPublicRepoReadiness() {
       /Follow-up: \$\{cueText\}/i.test(routeHonestySpec) &&
       /publicSendCalls\)\.toEqual\(\[\]\)/i.test(routeHonestySpec),
     name: "event-log route spec covers structured private follow-up cues",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
+  });
+  addCheck({
+    ok:
+      /Live Assist voice transcript saves as a private note without public writes/i.test(routeHonestySpec) &&
+      /laStartVoice/i.test(routeHonestySpec) &&
+      /laUpdateVoice/i.test(routeHonestySpec) &&
+      /saveLiveAssistPrivateNote/i.test(routeHonestySpec) &&
+      /voiceInLiveAssist/i.test(routeHonestySpec) &&
+      /voiceInFeed/i.test(routeHonestySpec) &&
+      /recentVoiceNotes/i.test(routeHonestySpec) &&
+      /expect\(savedState\.actions\)\.toEqual\(\[\]\)/i.test(routeHonestySpec) &&
+      /expect\(savedState\.publicSendCalls\)\.toEqual\(\[\]\)/i.test(routeHonestySpec),
+    name: "event-log route spec covers voice transcript private-note boundary",
     plane: "event-log-evidence",
     detail: files.routeHonestySpec,
   });

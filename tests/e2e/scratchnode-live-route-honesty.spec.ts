@@ -991,6 +991,93 @@ test.describe("ScratchNode live route honesty", () => {
     expect(state.publicSendCalls).toEqual([]);
   });
 
+  test("Live Assist voice transcript saves as a private note without public writes", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    const transcript = "Voice note: ask Alex for the source behind sub-350ms clinical latency";
+    const captureState = await page.evaluate((text) => {
+      const win = window as any;
+      win.toggleLiveAssist?.(true);
+      win.laStartVoice?.();
+      win.laUpdateVoice?.("transcribing", "");
+      win.laUpdateVoice?.("transcribed", text);
+      return {
+        voiceInLiveAssist: !!document.querySelector(
+          "#live-assist-rail .la-card.voice, #live-assist-sheet .la-card.voice",
+        ),
+        voiceInFeed: !!document.querySelector("#feed .voice-capture"),
+        noteCount: win.getPrivateNoteHandoffCount?.(),
+        actions: win.__snMockActions || [],
+        publicSendCalls: (win.__snMockMutations || []).filter(
+          (call: any) =>
+            call.name === "events:sendMessage" &&
+            String(call.args?.text || "").includes(text),
+        ),
+      };
+    }, transcript);
+
+    expect(captureState.voiceInLiveAssist).toBe(true);
+    expect(captureState.voiceInFeed).toBe(false);
+    expect(captureState.noteCount).toBe(initialNoteCount);
+    expect(captureState.actions).toEqual([]);
+    expect(captureState.publicSendCalls).toEqual([]);
+    await expect(page.locator("#live-assist-rail")).toContainText(transcript);
+    await expect(page.locator("#feed .voice-capture")).toHaveCount(0);
+
+    await page.evaluate((text) => {
+      const win = window as any;
+      win.saveLiveAssistPrivateNote?.(text, "voice");
+      win.laUpdateVoice?.("saved", text);
+    }, transcript);
+
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+    await expect(page.locator(".row-text", { hasText: transcript })).toHaveCount(0);
+    await expect(page.locator(".ans", { hasText: transcript })).toHaveCount(0);
+
+    const savedState = await page.evaluate((text) => {
+      const win = window as any;
+      const note = (win._notes_v5 || []).find((entry: any) =>
+        String(entry.title + "\n" + entry.body).includes(text),
+      );
+      const noteText = String((note?.title || "") + "\n" + (note?.body || ""))
+        .replace(/<br\s*\/?>/gi, "\n");
+      return {
+        noteText,
+        noteCount: win.getPrivateNoteHandoffCount?.(),
+        voiceState: win._live_assist?.voice?.state,
+        recentVoiceNotes: (win._live_assist?.recentNotes || [])
+          .filter((entry: any) => entry.source === "voice")
+          .map((entry: any) => entry.text),
+        actions: win.__snMockActions || [],
+        publicSendCalls: (win.__snMockMutations || []).filter(
+          (call: any) =>
+            call.name === "events:sendMessage" &&
+            String(call.args?.text || "").includes(text),
+        ),
+      };
+    }, transcript);
+
+    expect(savedState.noteCount).toBe(initialNoteCount + 1);
+    expect(savedState.noteText).toContain(transcript);
+    expect(savedState.voiceState).toBe("saved");
+    expect(savedState.recentVoiceNotes.join("\n")).toContain(transcript);
+    expect(savedState.actions).toEqual([]);
+    expect(savedState.publicSendCalls).toEqual([]);
+  });
+
   test("private /ask stays out of the public feed and increases the NodeBench handoff note count", async ({
     page,
   }) => {
