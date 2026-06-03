@@ -763,6 +763,21 @@ function scanPublicRepoReadiness() {
   });
   addCheck({
     ok:
+      /attendee room join stays a no-LLM membership event without public projections/i.test(
+        routeHonestySpec,
+      ) &&
+      /events:joinEvent/i.test(routeHonestySpec) &&
+      /expect\(joinState\.messageCalls\)\.toEqual\(\[\]\)/i.test(routeHonestySpec) &&
+      /expect\(joinState\.noteCalls\)\.toEqual\(\[\]\)/i.test(routeHonestySpec) &&
+      /expect\(joinState\.wikiCalls\)\.toEqual\(\[\]\)/i.test(routeHonestySpec) &&
+      /expect\(joinState\.askActions\)\.toEqual\(\[\]\)/i.test(routeHonestySpec) &&
+      /expect\(joinState\.publishedWiki\)\.toBeNull\(\)/i.test(routeHonestySpec),
+    name: "event-log route spec covers attendee join no-LLM boundary",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
+  });
+  addCheck({
+    ok:
       /normal public replies stay chat-only event-log moments/i.test(routeHonestySpec) &&
       /replyToMessageId:\s*room\.replyingToMid\s*\|\|\s*undefined/i.test(homeHtml) &&
       /data-reply-to-message-id/i.test(homeHtml) &&

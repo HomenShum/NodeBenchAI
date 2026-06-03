@@ -399,6 +399,59 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(page.locator("#ci")).toHaveValue("this must not be local-only");
   });
 
+  test("attendee room join stays a no-LLM membership event without public projections", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+    await expect(page.locator(".row, .ans")).toHaveCount(0);
+
+    const joinState = await page.evaluate(() => {
+      const win = window as any;
+      return {
+        joinCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:joinEvent",
+        ),
+        messageCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:sendMessage",
+        ),
+        noteCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "notes:createNote",
+        ),
+        wikiCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:publishWiki",
+        ),
+        askActions: (win.__snMockActions || []).filter(
+          (call: any) => call.name === "events:askAgent",
+        ),
+        messages: win.__snMockMessages || [],
+        answers: win.__snMockAnswers || [],
+        notes: win.__snMockNotes || [],
+        publishedWiki: win.__snMockPublishedWiki,
+      };
+    });
+
+    expect(joinState.joinCalls).toEqual([
+      expect.objectContaining({
+        args: expect.objectContaining({
+          slug: "orbital",
+          displayName: expect.any(String),
+          sessionId: expect.any(String),
+        }),
+      }),
+    ]);
+    expect(joinState.messageCalls).toEqual([]);
+    expect(joinState.noteCalls).toEqual([]);
+    expect(joinState.wikiCalls).toEqual([]);
+    expect(joinState.askActions).toEqual([]);
+    expect(joinState.messages).toEqual([]);
+    expect(joinState.answers).toEqual([]);
+    expect(joinState.notes).toEqual([]);
+    expect(joinState.publishedWiki).toBeNull();
+  });
+
   test("/ask answer Share copies a REAL link (no fake 'Shared' toast)", async ({ page }) => {
     expect(HOME_V5_HTML).not.toContain("toast('Shared'");
     expect(HOME_V5_HTML).toContain("function _snShareAnswer");
