@@ -508,6 +508,77 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(page.locator("#sn-nodebench-private-handoff")).toBeVisible();
   });
 
+  test("public /ask after a private note still excludes private note text", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    const privateText = "private note: portfolio company diligence thread";
+    await page.locator("#lock").click();
+    await expect(page.locator("body")).toHaveAttribute("data-mode", "private");
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, privateText);
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+
+    await page.locator("#lock").click();
+    await expect(page.locator("body")).toHaveAttribute("data-mode", "public");
+
+    const publicPrompt = "what are the public follow-ups from the MCP panel?";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = `/ask ${text}`;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, publicPrompt);
+
+    await expect(page.locator(".row-text", { hasText: publicPrompt })).toHaveCount(1);
+    const answerCard = page.locator(".ans").filter({ hasText: publicPrompt }).first();
+    await expect(answerCard).toContainText("Mock sourced answer for " + publicPrompt);
+    await expect(answerCard).toContainText("private notes excluded");
+    await expect(answerCard).not.toContainText(privateText);
+
+    const publicAskState = await page.evaluate((privateNoteText) => {
+      const win = window as any;
+      return {
+        noteCount: win.getPrivateNoteHandoffCount?.(),
+        actions: win.__snMockActions || [],
+        serializedAnswers: JSON.stringify(win.__snMockAnswers || []),
+        publicAskCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:sendMessage" && call.args?.kind === "ask",
+        ),
+        privateSendCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:sendMessage" && call.args?.text === privateNoteText,
+        ),
+      };
+    }, privateText);
+
+    expect(publicAskState.noteCount).toBe(initialNoteCount + 1);
+    expect(publicAskState.publicAskCalls).toHaveLength(1);
+    expect(publicAskState.privateSendCalls).toEqual([]);
+    expect(publicAskState.actions).toEqual([
+      expect.objectContaining({
+        name: "events:askAgent",
+        args: expect.objectContaining({
+          question: publicPrompt,
+        }),
+      }),
+    ]);
+    expect(publicAskState.serializedAnswers).not.toContain(privateText);
+  });
+
   test("public /ask keeps the parent ask visible and shows FAQ/wiki actions with a public-only trace", async ({
     page,
   }) => {
