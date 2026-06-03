@@ -27,7 +27,19 @@
  */
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { ConvexError } from "convex/values";
+
+// This Convex version does not export `ConvexError` from "convex/values" (CI tsc
+// catches it even though some local resolutions don't), so mirror the local class
+// convex/events.ts defines — a thrown error still carries a typed `data.code`.
+class ConvexError<T extends Record<string, unknown>> extends Error {
+  data: T;
+  constructor(data: T) {
+    super(String(data.message ?? JSON.stringify(data)));
+    this.name = "ConvexError";
+    this.data = data;
+    (this as Record<PropertyKey, unknown>)[Symbol.for("ConvexError")] = true;
+  }
+}
 
 const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes — short by design
 const TOKEN_MAX_USES = 10; // tolerate retries / React strict-mode double-call, still bounded
