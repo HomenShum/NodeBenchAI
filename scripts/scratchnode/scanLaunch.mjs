@@ -1098,6 +1098,20 @@ async function runInteractiveChecks() {
       const shareHasPublicEventUrl = /https:\/\/scratchnode\.live\/e\/ai-infra-summit-2026/i.test(shareUrl || shareText);
       const shareHasCopyAction = /copy/i.test(shareCopyButtonText);
       const shareHasRoomCode = /Live room code\s+ORBITAL|code\s+ORBITAL|ORBITAL/i.test(shareText);
+      const shareQrImage = [...document.querySelectorAll("#sheet-content img")]
+        .map((img) => ({
+          alt: img.getAttribute("alt") ?? "",
+          src: img.getAttribute("src") ?? "",
+        }))
+        .find((img) => /qr/i.test(img.alt) || /create-qr-code/i.test(img.src));
+      const shareHasMobileQrPrompt = /scan to join on mobile/i.test(shareText);
+      const shareQrTargetsRoom =
+        !!shareQrImage &&
+        /create-qr-code/i.test(shareQrImage.src) &&
+        /scratchnode\.live%2Fe%2Fai-infra-summit-2026/i.test(shareQrImage.src) &&
+        /room%3DORBITAL/i.test(shareQrImage.src);
+      const shareHasSocialActions = ["Post on X", "LinkedIn", "Email", "More"]
+        .every((label) => new RegExp(label, "i").test(shareText));
       close();
 
       globalThis.openNotes();
@@ -1212,6 +1226,10 @@ async function runInteractiveChecks() {
         shareHasPublicEventUrl,
         shareHasCopyAction,
         shareHasRoomCode,
+        shareHasMobileQrPrompt,
+        shareQrImage,
+        shareQrTargetsRoom,
+        shareHasSocialActions,
         notesText: notesText.slice(0, 160),
         beforePrivate,
         afterPrivate,
@@ -1242,6 +1260,9 @@ async function runInteractiveChecks() {
       data.shareHasPublicEventUrl &&
       data.shareHasCopyAction &&
       data.shareHasRoomCode &&
+      data.shareHasMobileQrPrompt &&
+      data.shareQrTargetsRoom &&
+      data.shareHasSocialActions &&
       /private|notes/i.test(data.notesText) &&
       data.beforePrivate !== data.afterPrivate &&
       data.wallControllerReady &&
