@@ -304,6 +304,50 @@ export const liveEventNoteAnchors = defineTable({
   .index("by_owner_event", ["ownerKey", "eventId"])
   .index("by_note", ["noteId"]);
 
+// liveEventHandoffTokens — the OPAQUE STATEFUL TOKEN behind the cross-domain
+// ScratchNode→NodeBench private-notes handoff. A guest's private notes are
+// owner-keyed by their `sn_session_id`, which is origin-partitioned and so
+// unreadable on nodebenchai.com. Rather than ship that session id across the
+// origin boundary (a permanent credential leaking into URLs / referer / logs),
+// the ScratchNode side MINTS a random opaque token after verifying membership;
+// only that token travels in the URL.
+//
+// SECURITY shape (the roadmap's #1 risk is leaking a permanent credential):
+//   - `token` is a CSPRNG value (crypto.getRandomValues); it is the ONLY thing
+//     in the URL and is NOT derivable from the session id.
+//   - We DO NOT store the raw session id. Instead mint takes a READ-ONLY
+//     SNAPSHOT of the member's private notes for THIS event (membership already
+//     proven) into `notesSnapshot`. So even a full dump of this table yields no
+//     session id and no cross-event access — only this event's notes, briefly.
+//   - `boundSessionHash = SHA-256(sessionId)` is audit/dedup only (one-way).
+//   - Event-scoped (`eventId`/`scope`), short TTL (`expiresAt`), few-use
+//     (`usedCount`/`maxUses`). consume is fail-closed on every check.
+//   - BOUND: janitor sweeps expired rows via by_expiresAt.
+export const liveEventHandoffTokens = defineTable({
+  token: v.string(),                    // opaque CSPRNG id — the only value in the URL
+  eventId: v.id("liveEvents"),
+  eventSlug: v.string(),
+  eventName: v.string(),
+  scope: v.literal("private_notes_read"),
+  notesSnapshot: v.array(
+    v.object({
+      title: v.string(),
+      bodyHtml: v.string(),
+      pinned: v.boolean(),
+      updatedAt: v.number(),
+    }),
+  ),
+  noteCount: v.number(),
+  boundSessionHash: v.string(),         // SHA-256(sessionId) — one-way, audit/dedup only
+  createdAt: v.number(),
+  expiresAt: v.number(),
+  usedCount: v.number(),
+  maxUses: v.number(),
+})
+  .index("by_token", ["token"])
+  .index("by_expiresAt", ["expiresAt"])
+  .index("by_event_session", ["eventId", "boundSessionHash"]);
+
 // scratchnodeRateLimits — DB-backed fixed-window rate-limit counters for the
 // public ScratchNode mutations (join / send / hostclaim / signin). WHY A TABLE
 // AND NOT AN IN-MEMORY MAP: Convex mutations run in V8 isolates that do NOT

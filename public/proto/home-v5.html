@@ -4005,13 +4005,39 @@ function buildNodeBenchSignInUrl(targetUrl) {
   return WORKSPACE_BASE_URL + '/sign-in?return=' + encodeURIComponent(target) + '&intent=save-private-notes';
 }
 
+// The REAL cross-domain private-notes route, carrying ONLY an opaque token.
+function buildNodeBenchPrivateTokenUrl(token) {
+  return WORKSPACE_BASE_URL + '/events/' + encodeURIComponent(EVENT_SLUG) +
+    '/private?token=' + encodeURIComponent(String(token || ''));
+}
+
 function openNodeBenchPrivateHandoff() {
   closeMenu();
   closeSheet();
-  // Navigate straight to the shipped `/scratchnode-events` surface — it resolves
-  // session / shows its own sign-in prompt. (Previously wrapped a dead
-  // `/events/<slug>/private` target in `/sign-in?return=…`, which 404'd.)
-  window.location.assign(buildNodeBenchEventPrivateUrl());
+  // Mint an OPAQUE handoff token (membership-checked server-side; carries a
+  // read-only snapshot of THIS member's notes — never the session id) and go to
+  // the real `/events/<slug>/private?token=…` route. If we can't mint (no live
+  // client, not a member, backend error), fall back HONESTLY to the shipped
+  // `/scratchnode-events` surface — never a 404 and never a forged/empty token.
+  var live = window._sn_live;
+  var sessionId = (live && live.sessionId) || (function () {
+    try { return localStorage.getItem('sn_session_id'); } catch (e) { return null; }
+  })();
+  if (!live || !live.client || !live.client.mutation || !sessionId) {
+    window.location.assign(buildNodeBenchEventPrivateUrl());
+    return;
+  }
+  live.client.mutation('eventHandoff:mintEventHandoffToken', { slug: EVENT_SLUG, sessionId: sessionId })
+    .then(function (res) {
+      if (res && res.ok && res.token) {
+        window.location.assign(buildNodeBenchPrivateTokenUrl(res.token));
+      } else {
+        window.location.assign(buildNodeBenchEventPrivateUrl());
+      }
+    })
+    .catch(function () {
+      window.location.assign(buildNodeBenchEventPrivateUrl());
+    });
 }
 
 // ── Debug-gate flag for prototype helpers ──
@@ -10480,9 +10506,13 @@ window._laCueAction       = _laCueAction;
     add('SN-LIVE-013', 'share URL uses scratchnode.live-compatible public event URL', /\/e\//.test(EVENT_URL) && !/scratchnode\.com/i.test(EVENT_URL), EVENT_URL);
     fromDemo('DEMO-014', 'SN-LIVE-014', 'guest can sign in and preserve notes');
     var handoffUrl = buildNodeBenchEventPrivateUrl();
-    add('SN-LIVE-015', 'NodeBench handoff targets a SHIPPED route (no 404) + carries event continuation context',
+    add('SN-LIVE-015', 'NodeBench handoff FALLBACK targets a SHIPPED route (no 404) + carries continuation context',
       /nodebenchai\.com/.test(handoffUrl) && /\/scratchnode-events/.test(handoffUrl) && !/\/events\/[^/]+\/private/.test(handoffUrl) && /continuation=private-notes/.test(handoffUrl) && /publicArtifact=event-wiki/.test(handoffUrl),
       handoffUrl);
+    var tokenUrl = buildNodeBenchPrivateTokenUrl('TESTTOKEN123');
+    add('SN-LIVE-015b', 'NodeBench private handoff carries ONLY an opaque token to the real /events/<slug>/private route',
+      /nodebenchai\.com\/events\/[^/]+\/private\?token=TESTTOKEN123$/.test(tokenUrl) && !/sn_session_id|sessionId=/.test(tokenUrl),
+      tokenUrl);
     var passed = results.filter(function(r) { return r.pass; }).length;
     var failed = results.length - passed;
     return { passed: passed, failed: failed, total: results.length, results: results, demo: demoSummary };
