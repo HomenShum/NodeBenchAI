@@ -1586,6 +1586,32 @@ test.describe("ScratchNode live route honesty", () => {
       .toMatchObject({ eventId: "liveEvents:1" });
     await expect(page.locator("#sn-manage-event-output")).toContainText("Session ended");
     await expect(page.locator("#ev-mode-label")).toContainText("ended");
+
+    const hostWorkflowState = await page.evaluate(() => {
+      const win = window as any;
+      return {
+        actions: win.__snMockActions || [],
+        hostMutations: (win.__snMockMutations || [])
+          .filter((call: any) =>
+            [
+              "events:updateEvent",
+              "events:upsertEventSource",
+              "events:deleteEventSource",
+              "events:endEvent",
+            ].includes(call.name),
+          )
+          .map((call: any) => call.name),
+      };
+    });
+    expect(hostWorkflowState.actions).toEqual([]);
+    expect(hostWorkflowState.hostMutations).toEqual(
+      expect.arrayContaining([
+        "events:updateEvent",
+        "events:upsertEventSource",
+        "events:deleteEventSource",
+        "events:endEvent",
+      ]),
+    );
   });
 
   test("landing 'Create a room' creates a live room and enters it as host", async ({ page }) => {

@@ -796,6 +796,19 @@ function scanPublicRepoReadiness() {
   });
   addCheck({
     ok:
+      /verified host can manage room metadata, public sources, and end session/i.test(routeHonestySpec) &&
+      /events:updateEvent/i.test(routeHonestySpec) &&
+      /events:upsertEventSource/i.test(routeHonestySpec) &&
+      /events:deleteEventSource/i.test(routeHonestySpec) &&
+      /events:endEvent/i.test(routeHonestySpec) &&
+      /hostWorkflowState\.actions/i.test(routeHonestySpec) &&
+      /expect\(hostWorkflowState\.actions\)\.toEqual\(\[\]\)/i.test(routeHonestySpec),
+    name: "event-log route spec keeps host source management no-LLM by default",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
+  });
+  addCheck({
+    ok:
       /NodeBench handoff has a tokenized private route and an honest shipped fallback/i.test(routeHonestySpec) &&
       /buildNodeBenchTokenizedPrivateUrl/i.test(routeHonestySpec) &&
       /publicArtifact=event-wiki/i.test(routeHonestySpec),
