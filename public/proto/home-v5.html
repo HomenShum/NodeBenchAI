@@ -3003,6 +3003,7 @@ function _snInitLandingStats() {
         } catch (e) { /* fall through to poll */ }
       }
       timer = setInterval(function () {
+        if (document.hidden) return;
         client.query('events:getMyJoinRequest', { slug: slug, sessionId: sessionId })
           .then(function (st) { try { apply(st); } catch (_) {} })
           .catch(function () {});
