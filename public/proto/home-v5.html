@@ -1680,29 +1680,88 @@ body[data-page-mode="landing"] .landing { display: flex; }
    in the DOM, so without this they leak below the fold — plus the room-context
    menu/sheet/shortcut overlays must never open from the apex. (Cherry-picked
    from Codex's create-room branch, which caught this leak.) */
-body[data-page-mode="landing"] .event-strip,
-body[data-page-mode="landing"] .h,
-body[data-page-mode="landing"] .f,
-body[data-page-mode="landing"] main.m,
-body[data-page-mode="landing"] .h-code,
-body[data-page-mode="landing"] .h-live,
-body[data-page-mode="landing"] .menu-scrim,
-body[data-page-mode="landing"] .menu-sheet,
-body[data-page-mode="landing"] .sheet-scrim,
-body[data-page-mode="landing"] .sheet,
-body[data-page-mode="landing"] .kbd-overlay,
-body[data-page-mode="landing"] .live-assist-scrim,
-body[data-page-mode="landing"] #live-assist-rail,
-body[data-page-mode="landing"] #live-assist-sheet,
-body[data-page-mode="landing"] #live-assist-scrim,
-body[data-page-mode="landing"] #sheet,
-body[data-page-mode="landing"] #sheet-scrim,
-body[data-page-mode="landing"] .welcome {
+/* Both the apex landing AND the public /wiki/<slug> reader are full-page
+   takeovers that must hide the room shell entirely — :is() shares one rule. */
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .event-strip,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .h,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .f,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) main.m,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .h-code,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .h-live,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .menu-scrim,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .menu-sheet,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .sheet-scrim,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .sheet,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .kbd-overlay,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .live-assist-scrim,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) #live-assist-rail,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) #live-assist-sheet,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) #live-assist-scrim,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) #sheet,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) #sheet-scrim,
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .welcome {
   display: none !important;
 }
-body[data-page-mode="landing"] .menu-sheet:not([data-open="true"]),
-body[data-page-mode="landing"] .menu-scrim:not([data-open="true"]) {
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .menu-sheet:not([data-open="true"]),
+:is(body[data-page-mode="landing"], body[data-page-mode="wiki"]) .menu-scrim:not([data-open="true"]) {
   display: none !important;
+}
+
+/* ── Public /wiki/<slug> reader — the shareable "room remembers everything"
+   artifact. Hidden unless data-page-mode === "wiki". ─────────────────────── */
+.sn-wiki { display: none; }
+body[data-page-mode="wiki"] .sn-wiki { display: block; }
+body[data-page-mode="wiki"] { overflow-y: auto; }
+.sn-wiki__bar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 20px;
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.sn-wiki__brand { font-family: var(--ui); font-weight: 700; font-size: 15px; color: var(--ink); letter-spacing: -.01em; text-decoration: none; }
+.sn-wiki__brand b { color: var(--accent); }
+.sn-wiki__bar-spacer { flex: 1; }
+/* CTA + ghost buttons render the same anywhere in the wiki (bar, footer,
+   empty/error states) — not just in the top bar. */
+.sn-wiki__bar button, .sn-wiki a.sn-wiki__cta {
+  display: inline-block;
+  font-family: var(--ui); font-size: 13px; font-weight: 600;
+  padding: 7px 13px; border-radius: 8px; cursor: pointer; text-decoration: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent);
+  transition: background var(--motion-fast, .15s) ease, transform var(--motion-fast, .15s) ease;
+}
+.sn-wiki__bar button:hover, .sn-wiki a.sn-wiki__cta:hover { background: var(--accent); color: #fff; }
+.sn-wiki .sn-wiki__ghost { background: transparent; color: var(--ink-muted); border-color: var(--line); }
+.sn-wiki .sn-wiki__ghost:hover { background: rgba(255,255,255,.04); color: var(--ink); border-color: var(--ink-faint); }
+.sn-wiki__main { max-width: 760px; margin: 0 auto; padding: 30px 22px 64px; }
+.sn-wiki__kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.sn-wiki__kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green, #5ea867); display: inline-block; }
+.sn-wiki__title { font-family: var(--ui); font-size: 30px; font-weight: 800; line-height: 1.12; letter-spacing: -.02em; color: var(--ink); margin: 0 0 6px; }
+.sn-wiki__meta { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); margin-bottom: 24px; }
+.sn-wiki__article { color: var(--ink); font-family: var(--ui); font-size: 15px; line-height: 1.62; }
+.sn-wiki__article h1, .sn-wiki__article h2, .sn-wiki__article h3 { font-weight: 700; line-height: 1.25; margin: 26px 0 8px; color: var(--ink); }
+.sn-wiki__article h1 { font-size: 22px; } .sn-wiki__article h2 { font-size: 18px; } .sn-wiki__article h3 { font-size: 15px; }
+.sn-wiki__article p { margin: 0 0 12px; }
+.sn-wiki__article ul, .sn-wiki__article ol { margin: 0 0 12px; padding-left: 22px; }
+.sn-wiki__article li { margin: 0 0 5px; }
+.sn-wiki__article a { color: var(--accent); }
+.sn-wiki__article code { font-family: var(--mono); font-size: 12px; background: rgba(255,255,255,.05); padding: 1px 5px; border-radius: 4px; }
+.sn-wiki__state { padding: 60px 22px; text-align: center; color: var(--ink-muted); font-family: var(--ui); }
+.sn-wiki__state h2 { font-size: 18px; color: var(--ink); margin: 0 0 8px; font-weight: 700; }
+.sn-wiki__skeleton { height: 16px; border-radius: 6px; background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.08), rgba(255,255,255,.04)); background-size: 200% 100%; animation: snWikiSheen 1.4s linear infinite; margin: 0 0 12px; }
+.sn-wiki__skeleton.w70 { width: 70%; } .sn-wiki__skeleton.w90 { width: 90%; } .sn-wiki__skeleton.w50 { width: 50%; }
+@keyframes snWikiSheen { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.sn-wiki__foot { margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.sn-wiki__foot-tag { font-family: var(--ui); font-size: 13px; color: var(--ink-muted); flex: 1; min-width: 200px; }
+.sn-wiki__foot-tag b { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .sn-wiki__skeleton { animation: none; } }
+@media (max-width: 600px) {
+  .sn-wiki__title { font-size: 24px; }
+  .sn-wiki__bar { padding: 10px 14px; gap: 8px; }
+  .sn-wiki__bar .sn-wiki__hide-sm { display: none; }
 }
 
 /* Landing layout — minimal, centered, glass-card hero. */
@@ -2322,12 +2381,17 @@ body[data-page-mode="landing"] .menu-scrim:not([data-open="true"]) {
     var demoVerMatch = path.match(/^\/demo_ver(\d+)\/?$/);
     var isLandingPath = (path === '/' || path === '/index.html');
     var isEventPath   = /^\/e\/[a-z0-9][a-z0-9-]{0,60}\/?$/i.test(path);
+    // /wiki/<slug> — the PUBLIC, no-account read of a published event wiki (the
+    // shareable artifact). Renders the wiki-reader surface, never the room shell.
+    var isWikiPath    = /^\/wiki\/[a-z0-9][a-z0-9-]{0,60}\/?$/i.test(path);
     // STRICT GATE: only /demo_ver{N} triggers demo mode. `?demo=1` no longer
     // counts — stale bookmarks pointing at /e/:slug?demo=1 must NOT autoplay
     // demo content over a real event.
     var pageMode;
     if (demoVerMatch) {
       pageMode = 'demo';
+    } else if (isWikiPath) {
+      pageMode = 'wiki';
     } else if (isEventPath) {
       pageMode = 'event';
     } else if (isLandingPath) {
@@ -2879,6 +2943,135 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', _snInitLandingStats);
 } else {
   _snInitLandingStats();
+}
+</script>
+
+<!-- Public /wiki/<slug> reader — visible only when data-page-mode === "wiki".
+     The shareable, no-account artifact: "the room remembers everything." -->
+<section class="sn-wiki" id="sn-wiki" aria-label="Event wiki">
+  <div class="sn-wiki__bar">
+    <a class="sn-wiki__brand" href="/">Scratch<b>Node</b></a>
+    <span class="sn-wiki__bar-spacer"></span>
+    <button type="button" class="sn-wiki__ghost sn-wiki__hide-sm" id="sn-wiki-share" onclick="_snWikiShare()">Share</button>
+    <a class="sn-wiki__cta" href="/">Create your own room &rarr;</a>
+  </div>
+  <div class="sn-wiki__main" id="sn-wiki-main">
+    <!-- Honest loading skeleton; replaced by real content, empty state, or error. -->
+    <div class="sn-wiki__state" id="sn-wiki-loading" aria-busy="true" aria-live="polite">
+      <div class="sn-wiki__skeleton w50"></div>
+      <div class="sn-wiki__skeleton w90"></div>
+      <div class="sn-wiki__skeleton w70"></div>
+      <div class="sn-wiki__skeleton w90"></div>
+    </div>
+  </div>
+</section>
+<script>
+/* ── Public wiki reader bootstrap ──────────────────────────────────────────
+   Runs only in wiki mode (/wiki/<slug>). Reads the slug, bootstraps a Convex
+   client (same /api/scratchnode-config + esm.sh paths the room uses), calls the
+   PUBLIC events:getPublishedWikiBySlug, and renders the published wiki HTML.
+   HONEST: a not-published / nonexistent / errored read shows a REAL state, never
+   a fabricated wiki. `data-sn-live` is never set — this is a read-only artifact. */
+function _snInitWikiReader() {
+  try {
+    if (document.body.dataset.pageMode !== 'wiki') return;
+    var m = (location.pathname || '').match(/^\/wiki\/([a-z0-9][a-z0-9-]{0,60})\/?$/i);
+    var slug = m ? m[1] : '';
+    var mainEl = document.getElementById('sn-wiki-main');
+    if (!slug || !mainEl) { _snWikiState('This wiki link looks wrong.', 'Double-check the address, or create your own room.'); return; }
+    window._sn_wiki = { slug: slug };
+
+    fetch('/api/scratchnode-config', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('cfg'); return r.json(); })
+      .then(function (cfg) {
+        if (!cfg || !cfg.convexUrl) throw new Error('nourl');
+        return import('https://esm.sh/convex@1.29.0/browser').then(function (mod) {
+          var ConvexClient = mod.ConvexClient;
+          if (!ConvexClient) throw new Error('noclient');
+          var client = new ConvexClient(cfg.convexUrl);
+          window._sn_wiki.client = client;
+          // Reactive: if the host re-publishes while a reader is on the page, update.
+          if (client.onUpdate) {
+            client.onUpdate('events:getPublishedWikiBySlug', { slug: slug }, function (wiki) {
+              try { _snRenderWiki(wiki); } catch (e) {}
+            });
+          } else {
+            client.query('events:getPublishedWikiBySlug', { slug: slug })
+              .then(function (wiki) { try { _snRenderWiki(wiki); } catch (e) {} })
+              .catch(function () { _snWikiState("Couldn't load this wiki.", 'The room may be offline. Try again in a moment.'); });
+          }
+        });
+      })
+      .catch(function () { _snWikiState("Couldn't load this wiki.", 'The room backend is unreachable right now.'); });
+  } catch (e) { /* never break the page */ }
+}
+
+function _snWikiState(head, sub) {
+  var mainEl = document.getElementById('sn-wiki-main');
+  if (!mainEl) return;
+  var wrap = document.createElement('div'); wrap.className = 'sn-wiki__state';
+  var t = document.createElement('h2'); t.textContent = head; wrap.appendChild(t);
+  if (sub) { var p = document.createElement('p'); p.textContent = sub; wrap.appendChild(p); }
+  var a = document.createElement('a'); a.className = 'sn-wiki__cta'; a.href = '/';
+  a.textContent = 'Create your own room →';
+  a.style.display = 'inline-block'; a.style.marginTop = '14px';
+  wrap.appendChild(a);
+  mainEl.innerHTML = ''; mainEl.appendChild(wrap);
+}
+
+function _snRenderWiki(wiki) {
+  var mainEl = document.getElementById('sn-wiki-main');
+  if (!mainEl) return;
+  if (!wiki || !wiki.bodyHtml) {
+    // HONEST: no published wiki yet — never fabricate one.
+    _snWikiState('This room hasn’t published its wiki yet.', 'When the host publishes, the recap shows up here.');
+    return;
+  }
+  window._sn_wiki.data = wiki;
+  try { document.title = (wiki.eventName || 'Event') + ' — wiki · ScratchNode'; } catch (e) {}
+  var when = '';
+  try { if (wiki.publishedAt) when = new Date(wiki.publishedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) {}
+  mainEl.innerHTML =
+    '<div class="sn-wiki__kicker"><span class="dot" aria-hidden="true"></span>Event wiki' + (typeof wiki.version === 'number' ? ' · v' + wiki.version : '') + '</div>' +
+    '<h1 class="sn-wiki__title"></h1>' +
+    '<div class="sn-wiki__meta"></div>' +
+    '<div class="sn-wiki__article" id="sn-wiki-article"></div>' +
+    '<div class="sn-wiki__foot">' +
+      '<div class="sn-wiki__foot-tag"><b>The room remembers everything.</b> This recap was built live with ScratchNode.</div>' +
+      '<a class="sn-wiki__cta" href="/">Create your own room &rarr;</a>' +
+      '<a class="sn-wiki__cta sn-wiki__ghost" id="sn-wiki-nb" href="#">Continue in NodeBench &nearr;</a>' +
+    '</div>';
+  mainEl.querySelector('.sn-wiki__title').textContent = wiki.title || (wiki.eventName ? wiki.eventName + ' — wiki' : 'Event wiki');
+  mainEl.querySelector('.sn-wiki__meta').textContent =
+    (wiki.eventName || '') +
+    (wiki.roomCode ? ' · code ' + String(wiki.roomCode).toUpperCase() : '') +
+    (when ? ' · published ' + when : '');
+  // bodyHtml is server-built + public-safe (private notes excluded at publish time).
+  mainEl.querySelector('#sn-wiki-article').innerHTML = wiki.bodyHtml;
+  var nb = document.getElementById('sn-wiki-nb');
+  if (nb) {
+    nb.href = 'https://nodebenchai.com/events/' + encodeURIComponent(wiki.eventSlug || window._sn_wiki.slug) +
+      '/wiki?source=scratchnode&room=' + encodeURIComponent(wiki.roomCode || '') + '&publicArtifact=event-wiki';
+  }
+}
+
+function _snWikiShare() {
+  var slug = (window._sn_wiki && window._sn_wiki.slug) || '';
+  var base = (typeof PUBLIC_BASE_URL === 'string' && PUBLIC_BASE_URL) ? PUBLIC_BASE_URL : (location.origin || 'https://scratchnode.live');
+  var url = base + '/wiki/' + slug;
+  var title = (window._sn_wiki && window._sn_wiki.data && window._sn_wiki.data.eventName) || 'ScratchNode';
+  var text = title + ' — the room remembers everything.\n' + url;
+  if (navigator.share) { navigator.share({ title: title + ' · ScratchNode wiki', text: text, url: url }).catch(function(){}); return; }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function(){ _snWikiToast('Wiki link copied', 'Paste it anywhere — no account needed.'); }).catch(function(){ _snWikiToast("Couldn't copy", url); });
+  } else { _snWikiToast('Share this wiki', url); }
+}
+function _snWikiToast(a, b) { try { if (typeof toast === 'function') toast(a, b); } catch (e) {} }
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _snInitWikiReader);
+} else {
+  _snInitWikiReader();
 }
 </script>
 
