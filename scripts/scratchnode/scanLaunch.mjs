@@ -1101,6 +1101,8 @@ async function runInteractiveChecks() {
         "openCaptureLevelPicker",
         "setEventMode",
         "setCaptureLevel",
+        "copyRoom",
+        "copyShareUrl",
       ].filter((name) => typeof globalThis[name] === "function");
 
       globalThis.openWiki();
@@ -1138,7 +1140,48 @@ async function runInteractiveChecks() {
         /room%3DORBITAL/i.test(shareQrImage.src);
       const shareHasSocialActions = ["Post on X", "LinkedIn", "Email", "More"]
         .every((label) => new RegExp(label, "i").test(shareText));
+      const copiedTexts = [];
+      let copyStubReady = false;
+      try {
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: {
+            writeText(text) {
+              copiedTexts.push(String(text));
+              globalThis.__scratchNodeLaunchCopiedTexts = copiedTexts.slice();
+              return Promise.resolve();
+            },
+          },
+        });
+        Object.defineProperty(navigator, "share", {
+          configurable: true,
+          value: undefined,
+        });
+        copyStubReady = true;
+      } catch {
+        copyStubReady = false;
+      }
+      const shareCopyButton = document.querySelector(".share-url-box button");
+      if (copyStubReady && shareCopyButton instanceof HTMLButtonElement) {
+        shareCopyButton.click();
+        await sleep(100);
+      }
+      const shareCopyWritesEventUrl = copiedTexts.some((text) =>
+        text === shareUrl &&
+        /https:\/\/scratchnode\.live\/e\/ai-infra-summit-2026/i.test(text),
+      );
       close();
+
+      const roomCodeButton = document.querySelector("#sn-room-code-btn");
+      if (copyStubReady && roomCodeButton instanceof HTMLButtonElement) {
+        roomCodeButton.click();
+        await sleep(100);
+      }
+      const roomCodeCopyWritesJoinContext = copiedTexts.some((text) =>
+        /Join\s+AI Infra Summit\s+on ScratchNode/i.test(text) &&
+        /Code:\s*ORBITAL/i.test(text) &&
+        /https:\/\/scratchnode\.live\/e\/ai-infra-summit-2026/i.test(text),
+      );
 
       globalThis.openNotes();
       await sleep(250);
@@ -1410,6 +1453,9 @@ async function runInteractiveChecks() {
         shareQrImage,
         shareQrTargetsRoom,
         shareHasSocialActions,
+        copyStubReady,
+        shareCopyWritesEventUrl,
+        roomCodeCopyWritesJoinContext,
         notesText: notesText.slice(0, 160),
         liveAssistControllerReady,
         liveAssistClosedBefore,
@@ -1458,6 +1504,9 @@ async function runInteractiveChecks() {
       data.shareHasMobileQrPrompt &&
       data.shareQrTargetsRoom &&
       data.shareHasSocialActions &&
+      data.copyStubReady &&
+      data.shareCopyWritesEventUrl &&
+      data.roomCodeCopyWritesJoinContext &&
       /private|notes/i.test(data.notesText) &&
       data.liveAssistControllerReady &&
       data.liveAssistClosedBefore &&
