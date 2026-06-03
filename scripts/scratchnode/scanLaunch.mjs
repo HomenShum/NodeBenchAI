@@ -744,6 +744,23 @@ function scanPublicRepoReadiness() {
     plane: "event-log-evidence",
     detail: files.routeHonestySpec,
   });
+  addCheck({
+    ok:
+      /NodeBench handoff keeps private follow-up text, tags, and anchors out of visibility-safe URLs/i.test(
+        routeHonestySpec,
+      ) &&
+      /expect\(urls\.fallbackKeys\)\.toEqual\(\[\s*"continuation",\s*"event",\s*"noteCount",\s*"publicArtifact",\s*"return",\s*"room",\s*"source",\s*\]\)/i.test(
+        routeHonestySpec,
+      ) &&
+      /expect\(urls\.tokenizedKeys\)\.toEqual\(\[\s*"room",\s*"source",\s*"token"\s*\]\)/i.test(
+        routeHonestySpec,
+      ) &&
+      /expect\(urls\.fallback\)\.not\.toContain\(urls\.sessionId\)/i.test(routeHonestySpec) &&
+      /expect\(urls\.tokenized\)\.not\.toContain\(urls\.anchorId\)/i.test(routeHonestySpec),
+    name: "event-log route spec proves visibility-safe NodeBench handoff URLs",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
+  });
 }
 
 function scanGoalAutomationReadiness() {

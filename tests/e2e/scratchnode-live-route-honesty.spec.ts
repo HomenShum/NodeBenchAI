@@ -1682,4 +1682,101 @@ test.describe("ScratchNode live route honesty", () => {
     expect(urls.tokenized).toContain("token=qa-sentinel-token-0000000000");
     expect(urls.tokenized).not.toContain(urls.sessionId);
   });
+
+  test("NodeBench handoff keeps private follow-up text, tags, and anchors out of visibility-safe URLs", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const publicText = "Public anchor for the private follow-up handoff";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, publicText);
+
+    const publicRow = page.locator(".row", { hasText: publicText }).first();
+    const messageId = await publicRow.getAttribute("data-mid");
+    expect(messageId).toMatch(/^liveEventMessages:/);
+
+    await page.evaluate((mid) => {
+      (window as any).noteOnMessage?.(mid);
+    }, messageId);
+    await expect(page.locator("body")).toHaveAttribute("data-mode", "private");
+
+    const privateText =
+      "@Sarah Kim #MedLayer follow up from Investor Lounge on healthcare pilots";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, privateText);
+
+    const urls = await page.evaluate(({ privateText, publicText }) => {
+      const win = window as any;
+      const note = (win._notes_v5 || []).find((entry: any) =>
+        String(entry.title + "\n" + entry.body).includes(privateText),
+      );
+      const fallback = win.buildNodeBenchEventPrivateUrl();
+      const tokenized = win.buildNodeBenchTokenizedPrivateUrl("qa-sentinel-token-1111111111");
+      const signIn = win.buildNodeBenchSignInUrl(fallback);
+      return {
+        fallback,
+        fallbackKeys: Array.from(new URL(fallback).searchParams.keys()).sort(),
+        tokenized,
+        tokenizedKeys: Array.from(new URL(tokenized).searchParams.keys()).sort(),
+        signIn,
+        signInKeys: Array.from(new URL(signIn).searchParams.keys()).sort(),
+        sessionId: win._sn_live?.sessionId || localStorage.getItem("sn_session_id") || "",
+        noteId: note?.id || "",
+        anchorId: note?.anchorId || "",
+        anchorPreview: note?.anchorPreview || "",
+        privateText,
+        publicText,
+      };
+    }, { privateText, publicText });
+
+    expect(urls.fallbackKeys).toEqual([
+      "continuation",
+      "event",
+      "noteCount",
+      "publicArtifact",
+      "return",
+      "room",
+      "source",
+    ]);
+    expect(urls.tokenizedKeys).toEqual(["room", "source", "token"]);
+    expect(urls.signInKeys).toEqual(["intent", "return"]);
+
+    expect(urls.fallback).toContain("continuation=private-notes");
+    expect(urls.fallback).toContain("publicArtifact=event-wiki");
+    expect(urls.signIn).toContain("intent=save-private-notes");
+
+    expect(urls.fallback).not.toContain(urls.privateText);
+    expect(urls.fallback).not.toContain(encodeURIComponent(urls.privateText));
+    expect(urls.fallback).not.toContain("Sarah%20Kim");
+    expect(urls.fallback).not.toContain("MedLayer");
+    expect(urls.fallback).not.toContain("Investor%20Lounge");
+    expect(urls.fallback).not.toContain("healthcare%20pilots");
+    expect(urls.fallback).not.toContain(urls.noteId);
+    expect(urls.fallback).not.toContain(urls.anchorId);
+    expect(urls.fallback).not.toContain(urls.anchorPreview);
+    expect(urls.fallback).not.toContain(urls.publicText);
+    expect(urls.fallback).not.toContain(encodeURIComponent(urls.publicText));
+    expect(urls.fallback).not.toContain(urls.sessionId);
+
+    expect(urls.tokenized).not.toContain(urls.privateText);
+    expect(urls.tokenized).not.toContain(encodeURIComponent(urls.privateText));
+    expect(urls.tokenized).not.toContain("MedLayer");
+    expect(urls.tokenized).not.toContain(urls.noteId);
+    expect(urls.tokenized).not.toContain(urls.anchorId);
+    expect(urls.tokenized).not.toContain(urls.anchorPreview);
+    expect(urls.tokenized).not.toContain(urls.publicText);
+    expect(urls.tokenized).not.toContain(encodeURIComponent(urls.publicText));
+    expect(urls.tokenized).not.toContain(urls.sessionId);
+  });
 });
