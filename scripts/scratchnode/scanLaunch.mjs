@@ -26,8 +26,10 @@ const files = {
   goalRunbook: "docs/runbooks/GOAL_MODE_RELEASE_AUTOPILOT.md",
   goalQueue: "goals/README.md",
   scratchnodeGoal: "goals/scratchnode/001-first-time-user-clarity.md",
+  scratchnodeEventLogGoal: "goals/scratchnode/004-event-log-followups.md",
   nodebenchGoal: "goals/nodebench/001-event-handoff.md",
   runtimeGoal: "goals/runtime/001-public-private-boundary.md",
+  routeHonestySpec: "tests/e2e/scratchnode-live-route-honesty.spec.ts",
   demoQa: "qa/run_demo_full.md",
   readme: "README.md",
   license: "LICENSE",
@@ -629,8 +631,10 @@ function scanPublicRepoReadiness() {
     files.goalRunbook,
     files.goalQueue,
     files.scratchnodeGoal,
+    files.scratchnodeEventLogGoal,
     files.nodebenchGoal,
     files.runtimeGoal,
+    files.routeHonestySpec,
     files.demoQa,
     files.license,
     files.security,
@@ -642,6 +646,7 @@ function scanPublicRepoReadiness() {
   const exportScript = readText(files.exportScript);
   const splitRunbook = readText(files.splitRunbook);
   const readme = readText(files.readme);
+  const routeHonestySpec = readText(files.routeHonestySpec);
 
   addCheck({
     ok: /Explicit Exclusions/i.test(splitRunbook) && /convex\//i.test(splitRunbook),
@@ -689,6 +694,55 @@ function scanPublicRepoReadiness() {
     plane: "public-repo",
     detail: files.readme,
     optional: true,
+  });
+  addCheck({
+    ok:
+      /normal public chat stays human and never invokes the agent/i.test(routeHonestySpec) &&
+      /kind:\s*"chat"/i.test(routeHonestySpec) &&
+      /events:sendMessage/i.test(routeHonestySpec),
+    name: "event-log route spec covers public timeline moments",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
+  });
+  addCheck({
+    ok:
+      /typed people and company tags stay public-row context while private tagged follow-ups stay private/i.test(
+        routeHonestySpec,
+      ) &&
+      /data-event-log-tag/i.test(routeHonestySpec) &&
+      /privateSendCalls/i.test(routeHonestySpec),
+    name: "event-log route spec covers tag visibility boundaries",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
+  });
+  addCheck({
+    ok:
+      /private notes anchored from public messages preserve context without public leakage/i.test(routeHonestySpec) &&
+      /anchorType:\s*"message"/i.test(routeHonestySpec) &&
+      /private-note-marker/i.test(routeHonestySpec),
+    name: "event-log route spec covers private note anchors",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
+  });
+  addCheck({
+    ok:
+      /verified host publishes promoted public answers into the wiki without leaking private notes/i.test(
+        routeHonestySpec,
+      ) &&
+      /__snMockPublishedWiki/i.test(routeHonestySpec) &&
+      /not\.toContain\(privateNoteText\)/i.test(routeHonestySpec),
+    name: "event-log route spec covers public wiki projection boundary",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
+  });
+  addCheck({
+    ok:
+      /NodeBench handoff has a tokenized private route and an honest shipped fallback/i.test(routeHonestySpec) &&
+      /buildNodeBenchTokenizedPrivateUrl/i.test(routeHonestySpec) &&
+      /publicArtifact=event-wiki/i.test(routeHonestySpec),
+    name: "event-log route spec covers NodeBench handoff separation",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
   });
 }
 
