@@ -783,6 +783,16 @@ function scanPublicRepoReadiness() {
       /expect\(urls\.tokenizedKeys\)\.toEqual\(\[\s*"room",\s*"source",\s*"token"\s*\]\)/i.test(
         routeHonestySpec,
       ) &&
+      /expect\(urls\.fallbackParams\)\.toMatchObject\(\{[\s\S]*publicArtifact:\s*"event-wiki"[\s\S]*return:\s*"https:\/\/scratchnode\.live\/e\/ai-infra-summit-2026"/i.test(
+        routeHonestySpec,
+      ) &&
+      /expect\(urls\.tokenizedParams\)\.toEqual\(\{[\s\S]*token:\s*"qa-sentinel-token-1111111111"/i.test(
+        routeHonestySpec,
+      ) &&
+      /expect\(urls\.fallback\)\.not\.toContain\(urls\.publicCompany\)/i.test(routeHonestySpec) &&
+      /expect\(urls\.tokenized\)\.not\.toContain\(encodeURIComponent\(urls\.publicTopic\)\)/i.test(
+        routeHonestySpec,
+      ) &&
       /expect\(urls\.fallback\)\.not\.toContain\(urls\.sessionId\)/i.test(routeHonestySpec) &&
       /expect\(urls\.tokenized\)\.not\.toContain\(urls\.anchorId\)/i.test(routeHonestySpec),
     name: "event-log route spec proves visibility-safe NodeBench handoff URLs",

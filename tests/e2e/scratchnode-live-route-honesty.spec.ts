@@ -1708,7 +1708,9 @@ test.describe("ScratchNode live route honesty", () => {
     await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
     await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
 
-    const publicText = "Public anchor for the private follow-up handoff";
+    const publicCompany = "Northstar Grid";
+    const publicTopic = "edge-routing latency";
+    const publicText = `Public anchor for ${publicCompany} ${publicTopic} private follow-up handoff`;
     await page.evaluate((text) => {
       const input = document.getElementById("ci") as HTMLInputElement;
       input.value = text;
@@ -1725,8 +1727,11 @@ test.describe("ScratchNode live route honesty", () => {
     }, messageId);
     await expect(page.locator("body")).toHaveAttribute("data-mode", "private");
 
-    const privateText =
-      "@Sarah Kim #MedLayer follow up from Investor Lounge on healthcare pilots";
+    const privatePerson = "Sarah Kim";
+    const privateCompany = "MedLayer";
+    const privateLocation = "Investor Lounge";
+    const privateTopic = "healthcare pilots";
+    const privateText = `@${privatePerson} #${privateCompany} follow up from ${privateLocation} on ${privateTopic}`;
     await page.evaluate((text) => {
       const input = document.getElementById("ci") as HTMLInputElement;
       input.value = text;
@@ -1734,29 +1739,61 @@ test.describe("ScratchNode live route honesty", () => {
       (window as any).sendComposerMessage();
     }, privateText);
 
-    const urls = await page.evaluate(({ privateText, publicText }) => {
-      const win = window as any;
-      const note = (win._notes_v5 || []).find((entry: any) =>
-        String(entry.title + "\n" + entry.body).includes(privateText),
-      );
-      const fallback = win.buildNodeBenchEventPrivateUrl();
-      const tokenized = win.buildNodeBenchTokenizedPrivateUrl("qa-sentinel-token-1111111111");
-      const signIn = win.buildNodeBenchSignInUrl(fallback);
-      return {
-        fallback,
-        fallbackKeys: Array.from(new URL(fallback).searchParams.keys()).sort(),
-        tokenized,
-        tokenizedKeys: Array.from(new URL(tokenized).searchParams.keys()).sort(),
-        signIn,
-        signInKeys: Array.from(new URL(signIn).searchParams.keys()).sort(),
-        sessionId: win._sn_live?.sessionId || localStorage.getItem("sn_session_id") || "",
-        noteId: note?.id || "",
-        anchorId: note?.anchorId || "",
-        anchorPreview: note?.anchorPreview || "",
+    const urls = await page.evaluate(
+      ({
         privateText,
         publicText,
-      };
-    }, { privateText, publicText });
+        privatePerson,
+        privateCompany,
+        privateLocation,
+        privateTopic,
+        publicCompany,
+        publicTopic,
+      }) => {
+        const win = window as any;
+        const note = (win._notes_v5 || []).find((entry: any) =>
+          String(entry.title + "\n" + entry.body).includes(privateText),
+        );
+        const fallback = win.buildNodeBenchEventPrivateUrl();
+        const tokenized = win.buildNodeBenchTokenizedPrivateUrl("qa-sentinel-token-1111111111");
+        const signIn = win.buildNodeBenchSignInUrl(fallback);
+        const fallbackUrl = new URL(fallback);
+        const tokenizedUrl = new URL(tokenized);
+        const signInUrl = new URL(signIn);
+        return {
+          fallback,
+          fallbackKeys: Array.from(fallbackUrl.searchParams.keys()).sort(),
+          fallbackParams: Object.fromEntries(fallbackUrl.searchParams.entries()),
+          tokenized,
+          tokenizedKeys: Array.from(tokenizedUrl.searchParams.keys()).sort(),
+          tokenizedParams: Object.fromEntries(tokenizedUrl.searchParams.entries()),
+          signIn,
+          signInKeys: Array.from(signInUrl.searchParams.keys()).sort(),
+          sessionId: win._sn_live?.sessionId || localStorage.getItem("sn_session_id") || "",
+          noteId: note?.id || "",
+          anchorId: note?.anchorId || "",
+          anchorPreview: note?.anchorPreview || "",
+          privateText,
+          publicText,
+          privatePerson,
+          privateCompany,
+          privateLocation,
+          privateTopic,
+          publicCompany,
+          publicTopic,
+        };
+      },
+      {
+        privateText,
+        publicText,
+        privatePerson,
+        privateCompany,
+        privateLocation,
+        privateTopic,
+        publicCompany,
+        publicTopic,
+      },
+    );
 
     expect(urls.fallbackKeys).toEqual([
       "continuation",
@@ -1769,6 +1806,21 @@ test.describe("ScratchNode live route honesty", () => {
     ]);
     expect(urls.tokenizedKeys).toEqual(["room", "source", "token"]);
     expect(urls.signInKeys).toEqual(["intent", "return"]);
+    expect(urls.fallbackParams).toMatchObject({
+      continuation: "private-notes",
+      event: "ai-infra-summit-2026",
+      publicArtifact: "event-wiki",
+      return: "https://scratchnode.live/e/ai-infra-summit-2026",
+      room: "ORBITAL",
+      source: "scratchnode",
+    });
+    expect(urls.fallbackParams.noteCount).toMatch(/^\d+$/);
+    expect(Number(urls.fallbackParams.noteCount)).toBeGreaterThan(0);
+    expect(urls.tokenizedParams).toEqual({
+      room: "ORBITAL",
+      source: "scratchnode",
+      token: "qa-sentinel-token-1111111111",
+    });
 
     expect(urls.fallback).toContain("continuation=private-notes");
     expect(urls.fallback).toContain("publicArtifact=event-wiki");
@@ -1776,25 +1828,32 @@ test.describe("ScratchNode live route honesty", () => {
 
     expect(urls.fallback).not.toContain(urls.privateText);
     expect(urls.fallback).not.toContain(encodeURIComponent(urls.privateText));
-    expect(urls.fallback).not.toContain("Sarah%20Kim");
-    expect(urls.fallback).not.toContain("MedLayer");
-    expect(urls.fallback).not.toContain("Investor%20Lounge");
-    expect(urls.fallback).not.toContain("healthcare%20pilots");
+    expect(urls.fallback).not.toContain(encodeURIComponent(urls.privatePerson));
+    expect(urls.fallback).not.toContain(urls.privateCompany);
+    expect(urls.fallback).not.toContain(encodeURIComponent(urls.privateLocation));
+    expect(urls.fallback).not.toContain(encodeURIComponent(urls.privateTopic));
     expect(urls.fallback).not.toContain(urls.noteId);
     expect(urls.fallback).not.toContain(urls.anchorId);
     expect(urls.fallback).not.toContain(urls.anchorPreview);
     expect(urls.fallback).not.toContain(urls.publicText);
     expect(urls.fallback).not.toContain(encodeURIComponent(urls.publicText));
+    expect(urls.fallback).not.toContain(urls.publicCompany);
+    expect(urls.fallback).not.toContain(encodeURIComponent(urls.publicTopic));
     expect(urls.fallback).not.toContain(urls.sessionId);
 
     expect(urls.tokenized).not.toContain(urls.privateText);
     expect(urls.tokenized).not.toContain(encodeURIComponent(urls.privateText));
-    expect(urls.tokenized).not.toContain("MedLayer");
+    expect(urls.tokenized).not.toContain(encodeURIComponent(urls.privatePerson));
+    expect(urls.tokenized).not.toContain(urls.privateCompany);
+    expect(urls.tokenized).not.toContain(encodeURIComponent(urls.privateLocation));
+    expect(urls.tokenized).not.toContain(encodeURIComponent(urls.privateTopic));
     expect(urls.tokenized).not.toContain(urls.noteId);
     expect(urls.tokenized).not.toContain(urls.anchorId);
     expect(urls.tokenized).not.toContain(urls.anchorPreview);
     expect(urls.tokenized).not.toContain(urls.publicText);
     expect(urls.tokenized).not.toContain(encodeURIComponent(urls.publicText));
+    expect(urls.tokenized).not.toContain(urls.publicCompany);
+    expect(urls.tokenized).not.toContain(encodeURIComponent(urls.publicTopic));
     expect(urls.tokenized).not.toContain(urls.sessionId);
   });
 });
