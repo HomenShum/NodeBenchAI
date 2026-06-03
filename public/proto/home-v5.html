@@ -6668,7 +6668,7 @@ window._live_assist._refreshTimer = null;
 function _startLiveCueAutoRefresh() {
   if (window._live_assist._refreshTimer) return;
   window._live_assist._refreshTimer = setInterval(function() {
-    if (!window._live_assist || !window._live_assist.on) return;
+    if (document.hidden || !window._live_assist || !window._live_assist.on) return;
 
     var since = Date.now() - 30000;
     var cuePromise = _resolveLiveCueSource(since);
