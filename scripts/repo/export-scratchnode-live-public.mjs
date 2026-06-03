@@ -127,9 +127,9 @@ function writeGeneratedFiles(copiedEntries) {
 function buildReadme() {
   return `# ScratchNode Live
 
-**Live rooms that remember.**
+**Open-source event log assistant for live rooms.**
 
-ScratchNode is a public event-room prototype where people join with a code, chat normally, use \`/ask\` for sourced answers, and leave behind a public wiki. Private notes stay private and can sync into NodeBench later.
+ScratchNode is an open-source event log assistant and memory layer for live events. People join with a code, chat normally, use \`/ask\` for sourced answers, and leave behind a public event wiki. Private notes stay private and can sync into NodeBench later.
 
 - No app required.
 - No account required for public room join.
@@ -162,7 +162,7 @@ npm run dev
 
 ## Status
 
-This is a sanitized public frontend split. The Convex backend, NodeBench workspace, MCP services, internal evals, and deploy orchestration remain in the private \`nodebench-ai\` monorepo.
+This is a sanitized public frontend split and architecture reference. The Convex backend, NodeBench workspace, MCP services, internal evals, and deploy orchestration remain in the private \`nodebench-ai\` monorepo.
 
 See [docs/prototype-vs-production.md](docs/prototype-vs-production.md).
 
@@ -260,7 +260,7 @@ function buildPackageJson() {
     version: "0.1.0",
     private: true,
     type: "module",
-    description: "Live event rooms that turn public chat and /ask answers into a wiki while private notes stay private.",
+    description: "Open-source event log assistant and memory layer for live events.",
     scripts: {
       dev: "vercel dev",
       verify: "npm run verify:static",
@@ -460,6 +460,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const required = [
+  "README.md",
   "public/proto/home-v5.html",
   "public/proto/docs.html",
   "api/scratchnode-config.js",
@@ -492,6 +493,16 @@ if (presentForbidden.length) {
 }
 
 const contract = JSON.parse(fs.readFileSync(path.join(root, "contracts/scratchnode-live-api.json"), "utf8"));
+const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
+const positioningText = readme + "\\n" + JSON.stringify(contract);
+if (!/open-source event log assistant/i.test(positioningText) || !/memory layer for live events/i.test(positioningText)) {
+  console.error("Public export positioning must say open-source event log assistant and memory layer for live events.");
+  process.exit(1);
+}
+if (/\\bproduction[-\\s]+(?:ready|grade)\\b/i.test(readme)) {
+  console.error("Public README must not claim final production status.");
+  process.exit(1);
+}
 const eventLog = contract.eventLogProjections || {};
 const publicLog = eventLog.publicEventLogJson || {};
 const privateProjection = eventLog.ownerPrivateNoteProjection || {};

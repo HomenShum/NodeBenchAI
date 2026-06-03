@@ -185,9 +185,9 @@ users:mergeGuestSession
 
 Use this framing:
 
-> ScratchNode Live is a public event-room prototype where people join with a code, chat normally, use `/ask` for sourced answers, and leave behind a public event wiki. Private notes stay private and can sync into NodeBench later.
+> ScratchNode Live is an open-source event log assistant and memory layer for live events. People join with a code, chat normally, use `/ask` for sourced answers, and leave behind a public event wiki. Private notes stay private and can sync into NodeBench later.
 
-Do not claim the public split is the full NodeBench backend. Do not claim every URL contract is fully implemented just because the Vercel catch-all returns `200`.
+Do not claim the public split is the full NodeBench backend. Do not claim every URL contract is fully implemented just because the Vercel catch-all returns `200`. Do not describe the public export as a final production system.
 
 ## Release Verification
 

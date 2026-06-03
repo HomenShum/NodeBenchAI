@@ -668,6 +668,22 @@ function scanPublicRepoReadiness() {
     detail: "publicEventLogJson + ownerPrivateNoteProjection",
   });
   addCheck({
+    ok:
+      /open-source event log assistant/i.test(exportScript) &&
+      /memory layer for live events/i.test(exportScript) &&
+      /open-source event log assistant/i.test(splitRunbook) &&
+      /memory layer for live events/i.test(splitRunbook),
+    name: "public export uses event-log assistant positioning",
+    plane: "public-repo",
+    detail: "open-source event log assistant + memory layer for live events",
+  });
+  addCheck({
+    ok: !/\bproduction[-\s]+(?:ready|grade)\b/i.test(`${exportScript}\n${splitRunbook}`),
+    name: "public export avoids final-production claims",
+    plane: "public-repo",
+    detail: "no final-production status claim in public export/runbook wording",
+  });
+  addCheck({
     ok: /ScratchNode|NodeBench/i.test(readme),
     name: "root README names product context",
     plane: "public-repo",
