@@ -37,6 +37,8 @@ async function fulfillScratchNodePage(
             window.__snMockActions = [];
             window.__snMockPromotedAnswerIds = [];
             window.__snMockPublishedWiki = null;
+            window.__snWikiPublished = false;
+            window.__snPublishWikiArgs = null;
             window.__snMockSubscriptions = {};
           }
           close() { window.__snMockClosed = true; }
@@ -130,6 +132,9 @@ async function fulfillScratchNodePage(
               return Promise.resolve({ ok: true, answerId: args.answerId });
             }
             if (name === 'events:publishWiki') {
+              window.__snWikiPublished = true;
+              window.__snPublishWikiArgs = args;
+              localStorage.setItem('__snWikiPublishArgs', JSON.stringify(args));
               const promotedIds = Array.isArray(window.__snMockPromotedAnswerIds)
                 ? window.__snMockPromotedAnswerIds
                 : [];
@@ -147,11 +152,18 @@ async function fulfillScratchNodePage(
                   '</section>'
                 ).join('') +
                 '<div class="wiki-callout"><span class="icon">&#128274;</span><div><strong>Privacy:</strong> Your private notes never enter the wiki. Only public chat, /ask answers, and host-uploaded sources are compacted into this page.</div></div>';
+              const finalBodyHtml = promotedAnswers.length
+                ? bodyHtml
+                : '<h1>AI Infra Summit Wiki</h1><p>Published public memory.</p>';
               window.__snMockPublishedWiki = {
                 eventId: args.eventId,
                 version: 1,
                 title: 'AI Infra Summit · Wiki',
-                bodyHtml,
+                bodyHtml: finalBodyHtml,
+                sourceAnswerIds: promotedAnswers.map((answer) => answer._id),
+                sourceIds: ['liveEventSources:1'],
+                createdAt: 1770000000000,
+                publishedAt: 1770000001000,
                 sections: promotedAnswers.map((answer, index) => ({
                   id: 'faq-' + (index + 1),
                   title: answer.question,
@@ -161,6 +173,19 @@ async function fulfillScratchNodePage(
                 generatedAt: 1770000002000 + promotedAnswers.length,
               };
               return Promise.resolve({ ok: true, eventId: args.eventId, version: 1, status: 'published' });
+            }
+            if (name === 'events:requestJoinEvent') {
+              window.__snRequestJoinArgs = args;
+              localStorage.setItem('__snRequestJoinArgs', JSON.stringify(args));
+              const mode = window.__snRequestJoinMode || 'pending';
+              const terminal = (mode === 'open' || mode === 'already_member' || mode === 'approved');
+              return Promise.resolve({
+                ok: true,
+                status: terminal ? mode : 'pending',
+                eventId: 'liveEvents:req',
+                slug: args.slug,
+                requestId: 'liveEventJoinRequests:1',
+              });
             }
             return Promise.resolve({});
           }
@@ -212,18 +237,38 @@ async function fulfillScratchNodePage(
               setTimeout(() => cb(window.__snMockMessages.slice()), 0);
             }
             if (name === 'events:getAnswers') {
-              setTimeout(() => cb(window.__snMockAnswers.slice()), 0);
+              const answers = [
+                ...((window.__snAnswers || [])),
+                ...((window.__snMockAnswers || [])),
+              ];
+              setTimeout(() => cb(answers), 0);
             }
             if (name === 'events:getMembers') {
               setTimeout(() => cb([{ displayName: 'Mock Host' }, { displayName: 'Mock Guest' }]), 0);
             }
             if (name === 'events:getLandingStats') {
-              const s = window.__snLandingStats || { roomsCreated: 0, liveNow: 0, capped: false };
+              const s = window.__snLandingStats || { roomsCreated: 0, liveNow: 0, activeNow: 0, capped: false };
               setTimeout(() => cb(s), 0);
             }
             if (name === 'events:listPublicRooms') {
               const rooms = window.__snPublicRooms || [];
               setTimeout(() => cb({ rooms, activeWindowMs: 1800000 }), 0);
+            }
+            if (name === 'events:getMyJoinRequest') {
+              const tick = () => {
+                const status = window.__snJoinRequestStatus || 'pending';
+                cb({
+                  eventId: 'liveEvents:req',
+                  slug: _args && _args.slug,
+                  joinPolicy: 'request',
+                  isMember: status === 'approved',
+                  status,
+                  guestMessage: null,
+                });
+              };
+              setTimeout(tick, 0);
+              const iv = setInterval(tick, 50);
+              return () => clearInterval(iv);
             }
           }
         }
@@ -298,6 +343,29 @@ test.describe("ScratchNode live route honesty", () => {
       })
       .toBe(0);
     await expect(page.locator("#ci")).toHaveValue("this must not be local-only");
+  });
+
+  test("/ask answer Share copies a REAL link (no fake 'Shared' toast)", async ({ page }) => {
+    expect(HOME_V5_HTML).not.toContain("toast('Shared'");
+    expect(HOME_V5_HTML).toContain("function _snShareAnswer");
+
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const written = await page.evaluate(() => {
+      Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+      let captured = "";
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText: (t: string) => { captured = t; return Promise.resolve(); } },
+        configurable: true,
+      });
+      (window as any)._snShareAnswer("", "What is the MCP auth timeline?");
+      return captured;
+    });
+    expect(written).toContain("What is the MCP auth timeline?");
+    expect(written).toContain("/e/");
+    expect(written).toContain("ScratchNode");
   });
 
   test("normal public chat stays human and never invokes the agent", async ({ page }) => {
@@ -995,6 +1063,72 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(page.locator("#sheet-content")).not.toContainText("318 joined");
   });
 
+  test("published wiki exposes a real public wiki URL in the share sheet", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "sn_host_owner_key_v2",
+        "hk1:liveEvents:1:nonce:1770000000000:abcdefabcdefabcdefabcdefabcdef12",
+      );
+    });
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+    await expect
+      .poll(() => page.evaluate(() => typeof (window as any).snPublishWiki), { timeout: 5_000 })
+      .toBe("function");
+
+    await page.evaluate(() => (window as any).snPublishWiki());
+    await expect
+      .poll(() => page.evaluate(() => (window as any)._sn_published_wiki_body || ""), {
+        timeout: 5_000,
+      })
+      .toContain("Published public memory");
+
+    await page.evaluate(() => (window as any).openShare());
+    await expect(page.locator("#sheet-content")).toContainText("Public wiki is live");
+    await expect(page.locator("#sheet-content code").filter({ hasText: "/wiki" })).toContainText(
+      "/e/ai-infra-summit-2026/wiki",
+    );
+
+    await page.getByRole("button", { name: "Copy wiki" }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
+      "/e/ai-infra-summit-2026/wiki",
+    );
+  });
+
+  test("answer share copies an addressable answer URL instead of only showing a toast", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.addInitScript(() => {
+      (window as any).__snAnswers = [
+        {
+          _id: "liveEventAnswers:share1",
+          question: "What did we decide?",
+          body: "We agreed to ship the public wiki loop.",
+          sourceIds: ["liveEventSources:1"],
+          sources: [{ title: "Agenda", uri: "doc://agenda", excerpt: "Public agenda source." }],
+          createdAt: 1770000000000,
+          agentMode: "deterministic",
+          cacheHit: false,
+        },
+      ];
+    });
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+    const answer = page.locator('[data-answer-id="liveEventAnswers:share1"]');
+    await expect(answer).toContainText("We agreed to ship the public wiki loop.");
+
+    await answer.getByRole("button", { name: "Share" }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
+      "/e/ai-infra-summit-2026#answer-liveEventAnswers%3Ashare1",
+    );
+  });
+
   test("host create event uses live mutation and navigates to the created room", async ({ page }) => {
     await fulfillScratchNodePage(page);
 
@@ -1102,12 +1236,18 @@ test.describe("ScratchNode live route honesty", () => {
         roomCode: "BIRTHDAY",
         status: "live",
       });
-    await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("/e/launch-room");
+    await expect(page.locator("#share-moment")).toHaveAttribute("data-open", "true");
+    await expect(page.locator("#invite-card-code")).toHaveText("BIRTHDAY");
+    await expect(page.locator("#share-link-input")).toHaveValue(/\/e\/launch-room$/);
+    await expect(page.locator("#invite-card-qr")).toHaveAttribute("src", /create-qr-code/);
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem("sn_host_owner_key_v2")), {
         timeout: 5_000,
       })
       .toContain("hk1:");
+    expect(page.url()).toBe("https://scratchnode.live/");
+    await page.click("#share-enter-btn");
+    await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("/e/launch-room");
   });
 
   test("landing create works with no custom code (auto-generated room code)", async ({ page }) => {
@@ -1128,7 +1268,35 @@ test.describe("ScratchNode live route honesty", () => {
       () => JSON.parse(localStorage.getItem("__snCreatedEventArgs") || "{}").roomCode ?? null,
     );
     expect(sentRoomCode).toBeNull();
+    await expect(page.locator("#share-moment")).toHaveAttribute("data-open", "true");
+    await expect(page.locator("#invite-card-code")).toHaveText("LAUNCH");
+    await page.click("#share-enter-btn");
     await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("/e/launch-room");
+  });
+
+  test("share moment: copy link + invite text + share buttons are wired", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await page.fill("#landing-create-name", "Launch Party");
+    await page.fill("#landing-create-code", "LAUNCH");
+    await page.click("#landing-create-btn");
+    await expect(page.locator("#share-moment")).toHaveAttribute("data-open", "true");
+
+    await expect(page.locator("#share-moment .share-moment__sub")).toContainText("shared memory");
+    await expect(page.locator("#share-moment .invite-card__tag")).toContainText("remembers everything");
+
+    await page.click("#share-link-copy");
+    await expect(page.locator("#share-link-copy")).toHaveAttribute("data-copied", "true");
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("/e/launch-room");
+
+    await page.click("#share-invite-copy");
+    const invite = await page.evaluate(() => navigator.clipboard.readText());
+    expect(invite).toContain("Launch Party");
+    expect(invite).toContain("/e/launch-room");
+
+    await expect(page.locator("#share-btn-text")).toHaveAttribute("href", /^sms:.*launch-room/);
+    await expect(page.locator("#share-btn-email")).toHaveAttribute("href", /^mailto:.*launch-room/);
   });
 
   test("landing create can opt a room into public discovery", async ({ page }) => {
@@ -1209,16 +1377,61 @@ test.describe("ScratchNode live route honesty", () => {
       timeout: 6_000,
     });
     await expect(page.locator(".landing-room-title")).toHaveText("Open Office Hours");
-    await expect(page.locator(".landing-room-meta")).toContainText("6 active");
+    await expect(page.locator(".landing-room-meta")).toContainText("6 inside");
     await expect(page.locator(".landing-room-meta")).toContainText("OFFICE");
-    await expect(page.locator(".landing-room-join")).toHaveText("Request to join");
+    await expect(page.locator(".landing-room-meta .dot-inside")).toBeVisible();
+    await expect(page.locator(".landing-room-join")).toHaveText("Join now");
     await expect(page.locator(".landing-room-join")).toHaveAttribute("href", "/e/open-office-hours");
+  });
+
+  test("request-policy room files a one-tap join request against the live door backend", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.addInitScript(() => {
+      (window as any).__snLandingStats = { roomsCreated: 12, liveNow: 2, capped: false };
+      (window as any).__snRequestJoinMode = "pending";
+      (window as any).__snJoinRequestStatus = "pending";
+      (window as any).__snPublicRooms = [
+        {
+          eventId: "liveEvents:req",
+          slug: "rooftop-launch",
+          name: "Rooftop Launch Party",
+          roomCode: "ROOFTOP",
+          startedAt: 1770000000000,
+          lastActivityAt: 1770000001000,
+          activeSessions: 9,
+          activeSessionsCapped: false,
+          joinPolicy: "request",
+        },
+      ];
+    });
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#landing-public")).toHaveAttribute("data-visible", "true", {
+      timeout: 6_000,
+    });
+    const join = page.locator(".landing-room-join");
+    await expect(join).toHaveText("Request to join");
+    await expect(join).toHaveJSProperty("tagName", "BUTTON");
+
+    await join.click();
+    await expect(join).toHaveText("Requested ✓", { timeout: 6_000 });
+    await expect(join).toHaveAttribute("data-state", "requested");
+    expect(page.url()).toBe("https://scratchnode.live/");
+    const reqArgs = await page.evaluate(() => (window as any).__snRequestJoinArgs);
+    expect(reqArgs.slug).toBe("rooftop-launch");
+    expect(typeof reqArgs.sessionId).toBe("string");
+    expect(reqArgs.sessionId.length).toBeGreaterThanOrEqual(8);
+
+    await page.evaluate(() => {
+      (window as any).__snJoinRequestStatus = "approved";
+    });
+    await page.waitForURL("https://scratchnode.live/e/rooftop-launch", { timeout: 6_000 });
   });
 
   test("landing surfaces a live 'big number' room counter from real backend data", async ({ page }) => {
     await fulfillScratchNodePage(page);
     await page.addInitScript(() => {
-      (window as any).__snLandingStats = { roomsCreated: 1342, liveNow: 7, capped: false };
+      (window as any).__snLandingStats = { roomsCreated: 1342, liveNow: 7, activeNow: 18, capped: false };
     });
 
     await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
@@ -1228,6 +1441,7 @@ test.describe("ScratchNode live route honesty", () => {
       .poll(() => page.locator("#landing-pulse-num").textContent(), { timeout: 6_000 })
       .toBe("1,342");
     await expect(page.locator("#landing-pulse-live")).toHaveText("7");
+    await expect(page.locator("#landing-pulse-active")).toHaveText("18");
     await expect(page.locator("#landing-pulse-suffix")).toHaveText("");
   });
 
@@ -1258,5 +1472,53 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(page.locator("#landing-pulse")).toBeHidden();
     // The landing still works — Join + Create remain available.
     await expect(page.locator("#landing-create-btn")).toBeVisible();
+  });
+
+  test("landing counter never shows more 'live' than 'total' during the count-up", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.addInitScript(() => {
+      (window as any).__snLandingStats = { roomsCreated: 8, liveNow: 6, activeNow: 40, capped: false };
+    });
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#landing-pulse")).toBeVisible({ timeout: 6_000 });
+
+    const parse = (s: string | null) => parseInt((s || "0").replace(/,/g, ""), 10);
+    for (let i = 0; i < 14; i++) {
+      const { rooms, live } = await page.evaluate(() => ({
+        rooms: document.getElementById("landing-pulse-num")?.textContent ?? "0",
+        live: document.getElementById("landing-pulse-live")?.textContent ?? "0",
+      }));
+      expect(parse(live), `live(${live}) must never exceed total(${rooms})`).toBeLessThanOrEqual(
+        parse(rooms),
+      );
+      await page.waitForTimeout(70);
+    }
+
+    await expect.poll(() => page.locator("#landing-pulse-num").textContent()).toBe("8");
+    await expect(page.locator("#landing-pulse-live")).toHaveText("6");
+    await expect(page.locator("#landing-pulse-active")).toHaveText("40");
+  });
+
+  test("publishing the wiki surfaces an end-event recap moment with the public /wiki link", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    await page.evaluate(() => (window as any).snPublishWiki());
+
+    const moment = page.locator("#wiki-live-moment");
+    await expect(moment).toHaveAttribute("data-open", "true", { timeout: 6_000 });
+    const link = await page.locator("#wiki-live-input").inputValue();
+    expect(link).toMatch(/\/wiki\/[a-z0-9-]+$/i);
+    await expect(moment).toContainText("Your wiki is live");
+    await expect(moment).toContainText("the room remembers everything");
+    const published = await page.evaluate(() => (window as any).__snPublishWikiArgs);
+    expect(published).toBeTruthy();
+
+    await page.evaluate(() => (window as any)._snWikiMomentClose());
+    await expect(moment).toHaveAttribute("data-open", "false");
   });
 });

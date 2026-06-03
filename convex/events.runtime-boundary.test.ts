@@ -103,7 +103,8 @@ describe("scratchnode public runtime boundaries", () => {
     expect(eventsSchemaSource).toContain("lastActivityAt");
     expect(eventsSchemaSource).toContain("by_public_status_startedAt");
 
-    expect(getLandingStats).toContain("MAX_LANDING_STATS_SCAN");
+    expect(getLandingStats).toContain("MAX_LANDING_EVENT_SCAN");
+    expect(getLandingStats).toContain("MAX_LANDING_SESSION_SCAN");
     expect(getLandingStats).toContain("PUBLIC_ROOM_ACTIVE_WINDOW_MS");
     expect(getLandingStats).toContain("getEventActivityAt");
 

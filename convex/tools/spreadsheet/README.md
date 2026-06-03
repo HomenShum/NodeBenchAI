@@ -52,6 +52,40 @@ bulkUpdateSpreadsheet: {
 
 ## Operation Types
 
+### Database-backed row delta
+
+For spreadsheet-native state transitions, agents should use `applyRowDelta` on
+the Convex-backed spreadsheet surface.
+
+```typescript
+{
+  sheetId: "abc123",
+  row: 0,
+  expectedUpdatedAt: 1770000000000, // optional optimistic version check
+  source: "agent.spreadsheet.workflow",
+  operations: [
+    { op: "insert", index: 1, value: 1 },
+    { op: "set", index: 3, value: null },
+    { op: "delete", index: 4 }
+  ]
+}
+```
+
+Rules:
+- `insert(index, value)` adds a cell and shifts later cells right.
+- `delete(index)` removes a cell and shifts later cells left.
+- `set(index, value)` updates a cell without shifting.
+- `null` is an explicit blank cell value. It is not missing data and it is not
+  deletion.
+- Operations apply in order.
+- `expectedUpdatedAt` rejects stale writes with `VersionConflict`.
+- Every successful row delta writes a `spreadsheetEvents` audit row with
+  `before`, `after`, `operations`, `previousVersion`, and `nextVersion`.
+
+Use `applyRowDelta` when the agent is reconciling a current row with provider
+changes or spreadsheet-style deltas. Use `setCell` or `setRange` for direct
+cell/range writes.
+
 ### 1. Update Column (Scalar)
 Set all rows in a column to the same value.
 
@@ -269,4 +303,3 @@ await ctx.runAction(
 4. **Batch Operations**: Support multiple files in one call
 5. **Real-time Sync**: Add Convex subscriptions for multi-user editing
 6. **Column Filtering**: Optimize column-based queries with indexes
-

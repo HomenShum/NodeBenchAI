@@ -127,15 +127,15 @@ test.describe("live-smoke — Tier B hydrated-DOM verification", () => {
     const response = await page.goto(BASE_URL + "/workspace/w/acme-ai?tab=brief");
     expect(response?.status()).toBe(200);
     // Chromeless shell — no cockpit rails, no top nav, no bottom tabbar.
-    // Assert the workspace mounted and kept the no-fixture-fallback contract.
-    await expect(page.getByRole("heading", { name: /Workspace draft/i })).toBeVisible({
+    // Assert the standalone workspace mounted on the requested live artifact.
+    await expect(page.locator('[data-agent-contact="standalone-workspace-runtime"]')).toBeVisible({
       timeout: 15_000,
     });
-    // Brand-aware: the product lock docs say "Workspace" should appear in the
-    // chromeless header; this also proves the route didn't fall through to
-    // the cockpit layout.
-    await expect(page.getByText(/Workspace/i).first()).toBeVisible();
-    await expect(page.getByText(/No fixture fallback/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^acme-ai$/i })).toBeVisible();
+    await expect(page.getByRole("tablist", { name: /Workspace tabs/i })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Brief", selected: true })).toBeVisible();
+    await expect(page.getByText(/Detail pending - report shell active/i)).toBeVisible();
+    await expect(page.getByText(/Live artifact/i).first()).toBeVisible();
   });
 
   test("console has no uncaught errors during landing load", async ({ page }) => {

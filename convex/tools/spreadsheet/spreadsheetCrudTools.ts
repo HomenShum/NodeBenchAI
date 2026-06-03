@@ -6,6 +6,7 @@ import { api, internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 
 const sheetIdSchema = z.string().min(1);
+const cellValueSchema = z.union([z.string(), z.number(), z.null()]);
 
 export const createSpreadsheet = createTool({
   description: `Create a new spreadsheet (sheet) owned by the current user.`,
@@ -40,12 +41,12 @@ export const listSpreadsheets = createTool({
 });
 
 export const setCell = createTool({
-  description: `Set a single cell value (0-based row/col).`,
+  description: `Set a single cell value (0-based row/col). Use null for an explicit blank cell, not for deletion.`,
   args: z.object({
     sheetId: sheetIdSchema.describe("Spreadsheet ID"),
     row: z.number().min(0),
     col: z.number().min(0),
-    value: z.string(),
+    value: cellValueSchema,
     type: z.string().optional().describe('Optional cell type, e.g. "text", "number", "formula"'),
     comment: z.string().optional(),
   }),
@@ -68,15 +69,15 @@ export const setCell = createTool({
 });
 
 export const setRange = createTool({
-  description: `Set a rectangular range. Provide either a constant value or a 2D values array.`,
+  description: `Set a rectangular range. Provide either a constant value or a 2D values array. Null values persist as explicit blank cells.`,
   args: z.object({
     sheetId: sheetIdSchema,
     startRow: z.number().min(0),
     endRow: z.number().min(0),
     startCol: z.number().min(0),
     endCol: z.number().min(0),
-    value: z.string().optional(),
-    values: z.array(z.array(z.string())).optional(),
+    value: cellValueSchema.optional(),
+    values: z.array(z.array(cellValueSchema)).optional(),
   }),
   handler: async (ctx, args): Promise<string> => {
     const res = await ctx.runMutation(api.domains.integrations.spreadsheets.applyOperations, {
@@ -114,11 +115,11 @@ export const clearCell = createTool({
 });
 
 export const insertRow = createTool({
-  description: `Insert an empty row (or with optional values) at the given row index, shifting existing rows down.`,
+  description: `Insert an empty row (or with optional values) at the given row index, shifting existing rows down. Null values persist as explicit blank cells.`,
   args: z.object({
     sheetId: sheetIdSchema,
     atRow: z.number().min(0),
-    values: z.array(z.string()).optional(),
+    values: z.array(cellValueSchema).optional(),
   }),
   handler: async (ctx, args): Promise<string> => {
     const res = await ctx.runMutation(api.domains.integrations.spreadsheets.insertRow, {
@@ -142,6 +143,61 @@ export const deleteRow = createTool({
       row: args.row,
     });
     return `Deleted row ${args.row} on ${args.sheetId}. DeletedCells=${res.deletedCells} Shifted=${res.shiftedCells}.`;
+  },
+});
+
+export const applyRowDelta = createTool({
+  description: `Apply an ordered row delta to a spreadsheet row.
+
+Use this for spreadsheet-native transformations where cell positions matter:
+- insert(index, value) adds a cell and shifts later cells right
+- delete(index) removes a cell and shifts later cells left
+- set(index, value) changes one cell without shifting
+
+Important: null is an explicit blank cell value. It is not the same as a missing operation and it is not deletion.`,
+  args: z.object({
+    sheetId: sheetIdSchema.describe("Spreadsheet ID"),
+    row: z.number().min(0).describe("0-based row index"),
+    operations: z.array(
+      z.discriminatedUnion("op", [
+        z.object({
+          op: z.literal("insert"),
+          index: z.number().min(0),
+          value: cellValueSchema,
+        }),
+        z.object({
+          op: z.literal("delete"),
+          index: z.number().min(0),
+        }),
+        z.object({
+          op: z.literal("set"),
+          index: z.number().min(0),
+          value: cellValueSchema,
+        }),
+      ]),
+    ).min(1),
+    expectedUpdatedAt: z.number().optional().describe("Optional optimistic version from the sheet updatedAt field"),
+    source: z.string().optional().describe("Source system or workflow label for audit logging"),
+    threadId: z.string().optional(),
+    runId: z.string().optional(),
+  }),
+  handler: async (ctx, args): Promise<string> => {
+    const res = await ctx.runMutation(api.domains.integrations.spreadsheets.applyRowDelta, {
+      sheetId: args.sheetId,
+      row: args.row,
+      operations: args.operations,
+      expectedUpdatedAt: args.expectedUpdatedAt,
+      source: args.source,
+      threadId: args.threadId,
+      runId: args.runId,
+    });
+    return [
+      `Applied ${res.applied} row-delta operations to row ${args.row} on ${args.sheetId}.`,
+      `Before: ${JSON.stringify(res.before)}`,
+      `After: ${JSON.stringify(res.after)}`,
+      `Version: ${res.previousVersion} -> ${res.nextVersion}`,
+      `Audit event: ${res.eventId}`,
+    ].join("\n");
   },
 });
 
@@ -185,8 +241,8 @@ export const spreadsheetCrudTools = {
   setCell,
   clearCell,
   setRange,
+  applyRowDelta,
   insertRow,
   deleteRow,
   getSpreadsheet,
 };
-

@@ -37,6 +37,7 @@ import {
   liveEventWikiVersions,
   liveEventNoteAnchors,
   liveEventWallItems,
+  liveEventJoinRequests,
   scratchnodeRateLimits,
 } from "./schema/eventsSchema";
 
@@ -4902,6 +4903,7 @@ export default defineSchema({
   liveEventWikiVersions,
   liveEventNoteAnchors,
   liveEventWallItems,
+  liveEventJoinRequests,
   scratchnodeRateLimits,
   // Step 8: persistent user identity + magic-link sign-in tokens.
   // Aliased to scratchnodeUsers to avoid collision with @convex-dev/auth `users`.
@@ -4965,6 +4967,7 @@ export default defineSchema({
       v.literal("apply_formula"),
       v.literal("add_sheet"),
       v.literal("rename_sheet"),
+      v.literal("row_delta"),
     ),
     targetRange: v.optional(v.string()), // A1 notation (e.g., "A1:B5")
     payload: v.any(), // Operation-specific data (before/after)

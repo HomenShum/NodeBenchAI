@@ -2,6 +2,188 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-03 — End-event recap moment: "Your wiki is live. Share the memory."
+Closes the activation gap in the *after-event* loop. The host could publish the wiki
+(`/wiki/<slug>` reader shipped earlier the same day), but publishing only fired a
+toast — the host never learned the **public address existed**, so the artifact that
+pulls people in after the event never circulated.
+
+Now a successful `events:publishWiki` opens a recap moment (reusing the post-create
+share-moment + invite-card styling): **"Your wiki is live."** + a screenshot-worthy
+invite card (brand · event name · QR · `scratchnode.live/wiki/<slug>` · "the room
+remembers everything"), a copy-able link, native **Share** when available, and
+**Open the wiki →**. `_snShowWikiLiveMoment(slug, name)` is called only from the
+*confirmed* publish path — HONESTY: it only ever shows the real published URL, never a
+speculative one, and it's a read-only moment (`data-sn-live` untouched). Escape / Done
+closes it. The native share + clipboard reuse the existing `_shareCopy` plumbing.
+
+Covered by a new honesty case (publish → recap moment opens with a real
+`/wiki/<slug>` URL, the backend mutation actually ran, Done closes it) plus a scope
+fix to the create-moment test (both moments now share `.share-moment*`/`.invite-card*`
+classes, so its selectors are scoped to `#share-moment`). 21/21 chromium honesty +
+output-contract green; recap moment screenshot-verified.
+
+Still deferred (route-first): the wiki reader's "Continue in NodeBench" CTA, which
+ships once the `/events/:slug/wiki` receiving route is live.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
+## 2026-06-03 — Public `/wiki/<slug>` reader: give the "room remembers everything" a real address
+The viral audit found ScratchNode's core promise was a dead end: `publishWiki`
+wrote the recap into a DB table with **no public URL**, so the artifact that should
+pull new people in *after* an event was unreachable. This ships the reader.
+
+- **A new `wiki` page-mode.** `/wiki/<slug>` (vercel rewrite to the static file +
+  a `pageMode='wiki'` branch in the detector) renders a clean, no-account reader —
+  the room shell is hidden via the same `:is(landing, wiki)` chrome-hide rule, and
+  `data-sn-live` is **never** set (a read-only artifact never claims "live").
+- **Real content, honest states.** A bootstrap subscribes to the public
+  `events:getPublishedWikiBySlug` and renders the server-built, public-safe
+  `bodyHtml` (private notes already excluded at publish). Unpublished →
+  "This room hasn't published its wiki yet"; backend down → "Couldn't load this
+  wiki." — never a blank screen or a fabricated recap. Loading shows a skeleton.
+- **Reverse-viral.** Every state carries a **"Create your own room →"** CTA — a
+  reader becomes a host. A bar **Share** button copies the wiki link.
+- **No dead-end bridge (honesty).** A "Continue in NodeBench" CTA is *intentionally
+  withheld* here: an audit found the `nodebenchai.com/events/<slug>/wiki` receiving
+  route doesn't exist (the `/events` router rejects trailing segments, so it 404s).
+  Shipping a CTA onto a 404 would violate HONEST_STATUS — it ships **with** its real
+  receiving route instead (next change), so the link can never dead-end.
+
+Covered by `scratchnode-public-wiki.spec.ts` (3 cases: a no-account visitor reads a
+published wiki with the reverse-viral CTA, the room shell hidden, `data-sn-live`
+unset, and **no** dead-end NodeBench CTA present;
+unpublished → honest empty state with no article body; config failure → honest
+error). Desktop + mobile (375px) screenshot-verified. The 23-case honesty +
+output-contract + demo-gate suites stay green (landing/event/demo unaffected by the
+`:is()` chrome-hide change). Backend (`getPublishedWikiBySlug`) shipped first in PR #486.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
+## 2026-06-03 — Make /ask answers actually shareable (honesty fix + the missing lever)
+An audit of the full viral journey found the /ask answer "Share" button was a lie:
+`onclick="toast('Shared','Answer link copied.')"` claimed it copied a link while
+copying **nothing** (HONEST_STATUS violation) — and worse, the **live** answer
+renderer had no Share affordance at all, so real `/ask` answers (the single most
+screenshot-worthy unit in the room — "the output is the distribution") couldn't be
+shared.
+
+Fix: a real `_snShareAnswer(answerId, explicitQuestion)` helper that copies a
+genuine link — the room URL + the answer's question (`"<Q>" — answered live in
+<event> on ScratchNode\n<url>`) — via the native share sheet when available, else
+a real clipboard write that only toasts "Answer link copied" **after the write
+resolves** (and an honest "Couldn't copy" with the raw URL on failure). Wired into:
+the live answer renderer (which previously had Suggest/Promote/Pin/View-in-wiki but
+no Share), the autoplay demo renderer (parity), and the static demo card (de-lied).
+The live renderer now also caches each answer's question (`_sn_answer_q_by_id`) so
+the Share link carries the real question text.
+
+Covered by a new honesty case: asserts the lying `toast('Shared'` handler is gone
+from the shipped file and that `_snShareAnswer` writes a real room link + the
+question to the clipboard (forced clipboard path, captured write). 19→20 chromium
+honesty suite green; output-contract demo path green.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
+## 2026-06-03 — Directory viral slice: flyer cards, "● N inside" presence, one-tap request-to-join
+Closed the last gap in the viral loop on the *discovery* side. The public-rooms
+directory used to render every room as a list row with a single hardcoded
+"Request to join" link that just navigated to `/e/<slug>` — it ignored the room's
+actual `joinPolicy` and never touched the door-policy backend. Three changes:
+
+- **Flyer feel + live presence.** Each card now leads with a **"● N inside"**
+  presence cue — a pulsing green dot + the real `activeSessions` count ("friends
+  are inside"), then `· code XXXX`. Rooms with zero presence read "Open for guests".
+  Request-policy cards get a subtle terracotta wash so the two policies are
+  visually distinct. Reduced-motion disables the dot pulse.
+- **Policy-aware action.** **Open** rooms → a `Join now` `<a>` that navigates
+  straight in. **Request** rooms → a real `Request to join` `<button>` wired to
+  the live `events:requestJoinEvent` mutation.
+- **One-tap request, honest waiting.** The button files the request using the
+  **same `sn_session_id`** the room will use — so a host approval carries through
+  the `joinEvent` door gate when the guest lands in `/e/<slug>`. It then shows an
+  honest **"Requested ✓"** state (never a fake entry) and watches
+  `events:getMyJoinRequest` reactively: on **approved** it carries the guest into
+  the room; on **denied** it says "Request declined". A missing live client falls
+  back to a plain navigate (the room's own door handles the gate); any backend
+  error resets the button and surfaces a toast.
+
+Covered by an updated directory case (open room → "Join now" + "● 6 inside") and a
+new request-policy case in `scratchnode-live-route-honesty.spec.ts` (button files
+a real request with a ≥8-char sessionId, shows "Requested ✓" with no navigation,
+then a host approval carries the guest into `/e/<slug>`). 18/18 chromium honesty
+suite green; desktop + mobile (375px) flyer cards screenshot-verified.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
+## 2026-06-02 — Post-create "viral" share moment
+The shortest path from useful product to viral loop: after a host creates a room,
+they no longer drop straight into it — they land on a **"Your event is live. Invite
+people now."** moment first. It carries a screenshot-worthy **invite card** (brand +
+event name + QR + `scratchnode.live/e/<CODE>` + "the room remembers everything"), a big
+room link with one-tap **Copy**, **Text** / **Email** deep links, **Copy invite text**,
+the native **Share** sheet when available, and an **"Enter your room →"** CTA. The reason
+to share is baked into the copy and the invite text: *the room becomes your shared memory
+for the night.*
+
+Implementation: `_showShareMoment({slug, roomCode, name})` is called from `_landingCreate`
+on success instead of an immediate navigate; QR via the same provider the in-room share
+sheet uses (graceful `onerror` hide); clipboard with `execCommand` fallback; Escape carries
+the host forward into the room. Glass DNA + terracotta accent, reduced-motion safe, mobile
+full-width. The apex stays honestly `data-sn-live=null` until the host enters.
+
+Covered by updated + new cases in `scratchnode-live-route-honesty.spec.ts` (create →
+share moment → "Enter your room →" navigates; auto-code variant; copy-link + copy-invite +
+Text/Email deep links wired). 17/17 honesty suite green; desktop + mobile verified.
+Deferred (overlaps the in-flight door-policy frontend): public-room *flyer* cards, a
+"friends are inside" presence cue, and one-tap request-to-join from discovery.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
+## 2026-06-02 — Synthesize the best landing from two parallel agent builds
+Codex and Claude independently built the create-room front-door + the live counter.
+Instead of picking a winner, cherry-picked the strongest micro-decisions from each:
+
+**From Codex's branches:** index-backed presence counting — added `by_startedAt` +
+`by_status_startedAt` (liveEvents) and `by_lastSeen` (liveEventMembers) indexes so
+`events:getLandingStats` now reports a real **"active now"** (member sessions within the
+5-min presence TTL) alongside rooms created + live rooms, each index-scanned and bounded
+(10k events / 5k sessions, "N+" when capped); a 25s poll fallback for Convex browser
+clients without `onUpdate`; and the full landing-mode chrome hide (`.h` header, `.f`
+footer, menu/sheet/shortcut overlays) — fixes a real leak where room chrome rendered
+below the apex landing and you could scroll into it.
+
+**Kept from Claude:** the "The room remembers everything" headline + OG card, honest
+hide-on-zero (never a fake "0"), and the synced-easing invariant so displayed-live never
+exceeds displayed-total during the count-up — now `animatePair` is superseded by
+`animateTrio`, extending the invariant to a 3-number trio (rooms + live + active) eased
+on one clock.
+
+The counter now shows a big "rooms created" with `● N active now · N live right now`
+chips. 14/14 honesty suite green; tsc clean; chrome-fix + chips verified in preview.
+
+**Hierarchy flip (founder call):** the original complaint was that a visitor couldn't
+just land and spin up a room — so **Create room is now the primary CTA** (filled accent,
+top of the form stack, "Create room →"), with **Join immediately available but secondary**
+(outline accent) below an "or join an existing room" divider. The prod artifact reads as
+one coherent landing, not a merge of two designs.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude (synthesizing Codex branch work).
+
+## 2026-06-02 — Fix counter count-up flashing "more live than total"
+Live-DOM Tier-B check on production caught the live counter momentarily rendering
+`6 live · 4 total` during first load — impossible in steady state (live rooms are a
+subset of total). Root cause: the **total** animated up from 0 over 750ms while
+**liveNow** was set instantly, so mid-count-up the animating total was briefly less
+than the instant live count — reading as a broken/fake number on the one stat that has
+to be trustworthy. Fix: `animatePair()` eases both numbers from the same prior values
+with identical easing, so total ≥ live at every frame (`Math.round` is monotonic, and
+`roomsCreated ≥ liveNow` always). Guarded by a new e2e case that samples both numbers
+14× across the animation and asserts `live ≤ total` at every frame. 14/14 suite green.
+[Superseded same day by `animateTrio` in the synthesis entry above.]
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-02 — Rewrite the landing headline for a viral hook
 Replaced the feature-describing hero line "A disposable sidecar room for live event
 memory" (jargon: "disposable", "sidecar"; no emotional/temporal hook — nobody screenshots

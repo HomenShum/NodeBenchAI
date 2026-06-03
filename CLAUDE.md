@@ -1,5 +1,16 @@
 # NodeBench AI — Claude Code Project Instructions
 
+## Agent coordination (read FIRST when other agents may be active)
+
+`AGENT_COORDINATION.md` (repo root) is the live ledger of **who is editing what right now**
+and **what backend contracts are ready to call**. Before editing a hot file
+(`public/proto/home-v5.html`, `convex/events.ts`, `convex/schema/eventsSchema.ts`, the
+ScratchNode e2e specs): scan its **Active claims**, **claim your region** before you start,
+**hand off** new backend contracts there, and **never** `convex deploy`/`deploy:prod`
+out-of-band to shared prod (declare new shared-table fields `v.optional` and announce them
+instead). This prevents the cross-agent collisions — schema drift, file-churn — that caused
+a real prod incident during the ScratchNode session.
+
 ## Deploy & merge workflow (P0 — read before merging anything)
 
 The repo's branch protection now enforces:

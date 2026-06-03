@@ -36,11 +36,17 @@ export const liveEvents = defineTable({
     v.literal("request"),
   )),
   startedAt: v.number(),
-  lastActivityAt: v.optional(v.number()),               // create/join/message activity; heartbeat does not keep listings warm
+  // create/join/message activity; heartbeat does not keep listings warm.
+  // Also validates existing prod rows from the earlier live-metrics drift.
+  lastActivityAt: v.optional(v.number()),
   endedAt: v.optional(v.number()),
 })
   .index("by_slug", ["slug"])
   .index("by_roomCode", ["roomCode"])
+  // Landing live-stats (events:getLandingStats): index-ordered scans for the
+  // total room count and the "live rooms right now" count, so the apex counter
+  // never full-scans the table. Additive — Convex builds them on deploy.
+  .index("by_startedAt", ["startedAt"])
   .index("by_status_startedAt", ["status", "startedAt"])
   .index("by_public_status_startedAt", ["publicDiscoverable", "status", "startedAt"]);
 
@@ -62,7 +68,10 @@ export const liveEventMembers = defineTable({
 })
   .index("by_event_session", ["eventId", "sessionId"])
   .index("by_session_joined", ["sessionId", "joinedAt"])
-  .index("by_event_lastSeen", ["eventId", "lastSeenAt"]);
+  .index("by_event_lastSeen", ["eventId", "lastSeenAt"])
+  // Global presence index — powers "active now" on the landing counter
+  // (events:getLandingStats counts members with lastSeenAt within the TTL).
+  .index("by_lastSeen", ["lastSeenAt"]);
 
 // ------------------------------------------------------------------
 // liveEventMessages — public chat feed for an event
@@ -376,3 +385,46 @@ export const liveEventWallItems = defineTable({
   .index("by_event_updated", ["eventId", "updatedAt"])
   .index("by_event_message", ["eventId", "refMessageId"])  // pin-dedup for messages
   .index("by_event_answer", ["eventId", "refAnswerId"]);   // pin-dedup for answers
+
+// ------------------------------------------------------------------
+// liveEventJoinRequests — the door policy for request-to-join rooms.
+//
+// When liveEvents.joinPolicy === "request", a non-member must file a request
+// here and a HOST must approve it before joinEvent will admit them. The gate in
+// joinEvent is DETERMINISTIC; the LLM bouncer only ANNOTATES a request
+// (recommendation / risk / summary) and never changes `status`. The host's
+// decision is authoritative and audited. References: club door + guest list,
+// Luma/Eventbrite approval, Discord screening, Twitch AutoMod (hold-for-review,
+// not silent punishment).
+// ------------------------------------------------------------------
+export const liveEventJoinRequests = defineTable({
+  eventId: v.id("liveEvents"),
+  sessionId: v.string(),                                 // browser session asking to join
+  displayName: v.string(),                               // snapshot at request time
+  note: v.optional(v.string()),                          // optional "why I want in" from the guest
+  status: v.union(
+    v.literal("pending"),
+    v.literal("approved"),
+    v.literal("denied"),
+    v.literal("expired"),
+  ),
+  // LLM ADVISORY ONLY — written async by the bouncer action, never authoritative.
+  // The deterministic gate + the host's decision are the only things that admit
+  // a guest. The model never judges protected traits and never auto-denies.
+  llmRecommendation: v.optional(v.union(
+    v.literal("approve"),
+    v.literal("hold"),
+    v.literal("deny"),
+  )),
+  llmRiskScore: v.optional(v.number()),                  // 0..1, advisory
+  llmFlags: v.optional(v.array(v.string())),
+  llmHostSummary: v.optional(v.string()),
+  llmGuestMessage: v.optional(v.string()),
+  // Host audit trail
+  hostDecisionBy: v.optional(v.string()),                // short id of the host ownerKey that decided
+  decidedAt: v.optional(v.number()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index("by_event_session", ["eventId", "sessionId"])             // gate lookup + 1-per-session dedup
+  .index("by_event_status", ["eventId", "status", "createdAt"]);   // host door queue, newest-first
