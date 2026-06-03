@@ -304,6 +304,11 @@ body[data-mode="private"] .c-hint::before { content: "🔒 Private — saves to 
 .row-name[data-role="you"] { color: var(--accent); }
 .row-name[data-role="mod"] { color: var(--green); }
 .row-text { font-size: 14px; color: var(--ink-muted); line-height: 1.5; word-wrap: break-word; }
+.sn-location-spot {
+  display: inline-flex; align-items: center; gap: 4px; width: fit-content; margin-top: 4px;
+  padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(217,119,87,.28);
+  background: rgba(217,119,87,.10); color: var(--accent); font-family: var(--mono); font-size: 10px;
+}
 /* Grouped consecutive messages from the same author (Discord-style compaction) */
 .row--grouped { margin-top: -3px; padding-top: 1px; }
 .row--grouped .row-avatar { visibility: hidden; }
@@ -4145,6 +4150,37 @@ function _hhmm() {
   var m = String(n.getMinutes()).padStart(2, '0');
   return (h > 12 ? h - 12 : (h || 12)) + ':' + m + (h >= 12 ? 'p' : 'a');
 }
+
+// Manual event-log spots: typed by attendees/hosts, never inferred from GPS.
+// This keeps location context lightweight for live events without geofencing.
+var MANUAL_LOCATION_SPOTS = [
+  { label: 'Booth 12', pattern: /\bbooth\s*12\b/i },
+  { label: 'Lobby', pattern: /\blobby\b/i },
+  { label: 'Panel Room A', pattern: /\bpanel\s+room\s+a\b/i },
+  { label: 'Investor Lounge', pattern: /\binvestor\s+lounge\b/i },
+  { label: 'Afterparty', pattern: /\bafterparty\b/i }
+];
+function detectManualLocationSpot(text) {
+  var value = String(text || '');
+  for (var i = 0; i < MANUAL_LOCATION_SPOTS.length; i++) {
+    if (MANUAL_LOCATION_SPOTS[i].pattern.test(value)) return MANUAL_LOCATION_SPOTS[i].label;
+  }
+  return '';
+}
+function renderManualLocationSpot(row, text) {
+  if (!row) return '';
+  var spot = detectManualLocationSpot(text);
+  if (!spot) return '';
+  row.setAttribute('data-location-spot', spot);
+  var body = row.querySelector('.row-body');
+  if (!body || body.querySelector('.sn-location-spot')) return spot;
+  var chip = document.createElement('span');
+  chip.className = 'sn-location-spot';
+  chip.setAttribute('data-location-spot', spot);
+  chip.textContent = 'at ' + spot;
+  body.appendChild(chip);
+  return spot;
+}
 function _clearComposer() {
   var input = document.getElementById('ci');
   input.value = '';
@@ -4221,6 +4257,7 @@ function _appendChatRow(intent, identity, room, time) {
   row.setAttribute('data-mid', mid);
   row.innerHTML = '<span class="row-time">' + time + '</span><div class="row-body"><span class="row-name" data-role="you">' + identity.displayName + '</span> <span class="row-text"></span></div>';
   row.querySelector('.row-text').textContent = (intent.isAsk ? '/ask ' : '') + intent.clean;
+  renderManualLocationSpot(row, intent.clean);
   // Reply context — if user is replying, insert a row-replying badge BEFORE the name
   if (room.replyingToMid) {
     var parent = document.querySelector('[data-mid="' + room.replyingToMid + '"]');
@@ -7421,6 +7458,7 @@ window._laCueAction       = _laCueAction;
     row.querySelector('.row-time').textContent = fmtTime(msg.createdAt);
     row.querySelector('.row-name').textContent = msg.displayName || 'Anonymous';
     row.querySelector('.row-text').textContent = (msg.kind === 'ask' ? '/ask ' : '') + msg.text;
+    renderManualLocationSpot(row, msg.text);
     feedEl.appendChild(row);
     row.scrollIntoView({ behavior: 'smooth', block: 'end' });
   };

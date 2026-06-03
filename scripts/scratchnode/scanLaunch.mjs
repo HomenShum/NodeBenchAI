@@ -391,6 +391,42 @@ function scanHomeV5() {
     });
   }
 
+  const uncommentedHtml = maskComments(html);
+  const usesBrowserGeolocation =
+    /\bnavigator\.geolocation\b/i.test(uncommentedHtml) ||
+    /\b(?:getCurrentPosition|watchPosition)\s*\(/i.test(uncommentedHtml);
+  const hasManualLocationSpotContract =
+    /var\s+MANUAL_LOCATION_SPOTS\s*=\s*\[/i.test(html) &&
+    /Booth 12/i.test(html) &&
+    /Lobby/i.test(html) &&
+    /Panel Room A/i.test(html) &&
+    /Investor Lounge/i.test(html) &&
+    /Afterparty/i.test(html) &&
+    /function\s+detectManualLocationSpot\s*\(/i.test(html) &&
+    /function\s+renderManualLocationSpot\s*\(/i.test(html) &&
+    /data-location-spot/i.test(html) &&
+    /renderManualLocationSpot\(row,\s*intent\.clean\)/i.test(html) &&
+    /renderManualLocationSpot\(row,\s*msg\.text\)/i.test(html);
+  addCheck({
+    ok: hasManualLocationSpotContract && !usesBrowserGeolocation,
+    name: "manual location spots are typed event-log chips, not GPS",
+    plane: "event-log",
+    detail: usesBrowserGeolocation
+      ? "browser geolocation API detected"
+      : "Booth/Lobby/Panel/Investor/Afterparty typed spot fixtures, no geolocation",
+  });
+  if (!hasManualLocationSpotContract || usesBrowserGeolocation) {
+    addFinding({
+      severity: "blocker",
+      safety: "human-gated",
+      plane: "event-log",
+      title: "Manual location spot event-log contract is missing or unsafe",
+      path,
+      recommendation:
+        "Render only explicitly typed venue spots as public event-log chips and keep GPS/geolocation APIs out of ScratchNode Live.",
+    });
+  }
+
   const hasPrivateAskBranchContract =
     /function\s+parseComposerIntent\s*\(/i.test(html) &&
     /\/ask private[\s\S]{0,140}private notebook save[\s\S]{0,120}no public agent call/i.test(html) &&

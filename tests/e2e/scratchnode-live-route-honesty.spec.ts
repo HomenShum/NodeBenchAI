@@ -476,6 +476,73 @@ test.describe("ScratchNode live route honesty", () => {
     expect(privateNoteState.sendCalls).toEqual([]);
   });
 
+  test("manual location spots render as public event-log chips without private leakage", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const publicText = "Meet at Booth 12 before the MCP auth panel";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, publicText);
+
+    const publicRow = page.locator('.row[data-location-spot="Booth 12"]', {
+      hasText: publicText,
+    });
+    await expect(publicRow.locator(".row-text")).toContainText(publicText);
+    await expect(publicRow.locator(".sn-location-spot")).toHaveText("at Booth 12");
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    await page.evaluate(() => {
+      if (document.body.getAttribute("data-mode") !== "private") {
+        (window as any).toggleLock?.();
+      }
+    });
+    await expect(page.locator("body")).toHaveAttribute("data-mode", "private");
+
+    const privateText = "private follow-up from Investor Lounge: ask Priya for the sponsor list";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, privateText);
+
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+    await expect(page.locator(".row-text", { hasText: privateText })).toHaveCount(0);
+    await expect(page.locator('.row[data-location-spot="Investor Lounge"]')).toHaveCount(0);
+
+    const state = await page.evaluate((text) => {
+      const win = window as any;
+      return {
+        hasGeolocationApi:
+          /navigator\.geolocation|getCurrentPosition|watchPosition/.test(
+            document.documentElement.innerHTML,
+          ),
+        publicSendCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:sendMessage" && call.args?.text === text,
+        ),
+      };
+    }, publicText);
+
+    expect(state.hasGeolocationApi).toBe(false);
+    expect(state.publicSendCalls).toHaveLength(1);
+    expect(state.publicSendCalls[0].args.kind).toBe("chat");
+  });
+
   test("private notes anchored from public messages preserve context without public leakage", async ({
     page,
   }) => {
