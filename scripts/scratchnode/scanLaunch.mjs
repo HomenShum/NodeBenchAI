@@ -902,6 +902,26 @@ function scanPublicRepoReadiness() {
   });
   addCheck({
     ok:
+      /function\s+detectPublicPhotoEvidence\s*\(/i.test(homeHtml) &&
+      /function\s+renderPublicPhotoEvidence\s*\(/i.test(homeHtml) &&
+      /data-event-log-media["']?,\s*["']photo/i.test(homeHtml) &&
+      /className\s*=\s*["']sn-photo-evidence["']/i.test(homeHtml) &&
+      /public photo evidence markers stay event-log only while private photo follow-ups stay private/i.test(
+        routeHonestySpec,
+      ) &&
+      /photo: Booth 12 latency board for #Orbital/i.test(routeHonestySpec) &&
+      /sn-photo-evidence\[data-event-log-media="photo"\]/i.test(routeHonestySpec) &&
+      /privateText\s*=\s*"photo: private sponsor board follow-up for MedLayer buyers"/i.test(
+        routeHonestySpec,
+      ) &&
+      /expect\(state\.privateSendCalls\)\.toEqual\(\[\]\)/i.test(routeHonestySpec) &&
+      /expect\(state\.actions\)\.toEqual\(\[\]\)/i.test(routeHonestySpec),
+    name: "event-log route spec covers public photo evidence boundary",
+    plane: "event-log-evidence",
+    detail: `${files.homeV5} + ${files.routeHonestySpec}`,
+  });
+  addCheck({
+    ok:
       /private notes anchored from public messages preserve context without public leakage/i.test(routeHonestySpec) &&
       /anchorType:\s*"message"/i.test(routeHonestySpec) &&
       /private-note-marker/i.test(routeHonestySpec),

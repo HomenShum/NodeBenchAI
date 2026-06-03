@@ -1636,6 +1636,90 @@ test.describe("ScratchNode live route honesty", () => {
     expect(savedState.publicSendCalls).toEqual([]);
   });
 
+  test("public photo evidence markers stay event-log only while private photo follow-ups stay private", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const publicText = "photo: Booth 12 latency board for #Orbital";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, publicText);
+
+    const publicRow = page.locator('.row[data-event-log-media="photo"]', {
+      hasText: publicText,
+    });
+    await expect(publicRow.locator(".row-text")).toContainText(publicText);
+    await expect(publicRow.locator('.sn-photo-evidence[data-event-log-media="photo"]')).toHaveText(
+      "photo evidence",
+    );
+    await expect(publicRow.locator('.hashtag[data-event-log-tag="orbital"]')).toHaveText(
+      "#Orbital",
+    );
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    await page.evaluate(() => {
+      if (document.body.getAttribute("data-mode") !== "private") {
+        (window as any).toggleLock?.();
+      }
+    });
+    await expect(page.locator("body")).toHaveAttribute("data-mode", "private");
+
+    const privateText = "photo: private sponsor board follow-up for MedLayer buyers";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, privateText);
+
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+    await expect(page.locator(".row-text", { hasText: privateText })).toHaveCount(0);
+    await expect(page.locator(".ans", { hasText: privateText })).toHaveCount(0);
+    await expect(page.locator('.row[data-event-log-media="photo"]', { hasText: privateText })).toHaveCount(0);
+
+    const state = await page.evaluate(({ privateText, publicText }) => {
+      const win = window as any;
+      const note = (win._notes_v5 || []).find((entry: any) =>
+        String(entry.title + "\n" + entry.body).includes(privateText),
+      );
+      return {
+        noteText: String((note?.title || "") + "\n" + (note?.body || "")).replace(
+          /<br\s*\/?>/gi,
+          "\n",
+        ),
+        photoRows: document.querySelectorAll('.row[data-event-log-media="photo"]').length,
+        privateSendCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:sendMessage" && call.args?.text === privateText,
+        ),
+        publicSendCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:sendMessage" && call.args?.text === publicText,
+        ),
+        actions: win.__snMockActions || [],
+      };
+    }, { privateText, publicText });
+
+    expect(state.noteText).toContain(privateText);
+    expect(state.photoRows).toBe(1);
+    expect(state.privateSendCalls).toEqual([]);
+    expect(state.publicSendCalls).toHaveLength(1);
+    expect(state.publicSendCalls[0].args.kind).toBe("chat");
+    expect(state.actions).toEqual([]);
+  });
+
   test("private /ask stays out of the public feed and increases the NodeBench handoff note count", async ({
     page,
   }) => {

@@ -4259,6 +4259,27 @@ function renderManualLocationSpot(row, text) {
   body.appendChild(chip);
   return spot;
 }
+// Public photo evidence is a typed event-log marker, not an upload pipeline.
+// Real file/media handling belongs behind owner/workspace policy; this chip only
+// marks explicitly named public evidence such as "photo: booth placard".
+function detectPublicPhotoEvidence(text) {
+  var value = String(text || '');
+  return /\b(photo|screenshot|image|pic)\s*:/i.test(value);
+}
+function renderPublicPhotoEvidence(row, text) {
+  if (!row || !detectPublicPhotoEvidence(text)) return false;
+  row.setAttribute('data-event-log-media', 'photo');
+  var body = row.querySelector('.row-body');
+  if (!body || body.querySelector('.sn-photo-evidence')) return true;
+  var chip = document.createElement('span');
+  chip.className = 'sn-photo-evidence';
+  chip.setAttribute('data-event-log-media', 'photo');
+  chip.textContent = 'photo evidence';
+  body.appendChild(chip);
+  return true;
+}
+window.detectPublicPhotoEvidence = detectPublicPhotoEvidence;
+window.renderPublicPhotoEvidence = renderPublicPhotoEvidence;
 function _clearComposer() {
   var input = document.getElementById('ci');
   input.value = '';
@@ -7686,6 +7707,7 @@ window._laCueAction       = _laCueAction;
       }
     }
     renderManualLocationSpot(row, msg.text);
+    if (window.renderPublicPhotoEvidence) window.renderPublicPhotoEvidence(row, msg.text);
     feedEl.appendChild(row);
     row.scrollIntoView({ behavior: 'smooth', block: 'end' });
   };
