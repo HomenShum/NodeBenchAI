@@ -6960,12 +6960,33 @@ function buildLiveAssistFollowUpNote(cue) {
   lines.push('Visibility: private follow-up note; not public chat or public /ask.');
   return lines.join('\n');
 }
+function saveLiveAssistPrivateNote(text, source) {
+  var room = typeof getRoomContext === 'function' ? getRoomContext() : null;
+  var intent = {
+    clean: text,
+    isAsk: false,
+    kind: 'note',
+    visibility: 'private',
+    eventMode: document.body.getAttribute('data-event-mode') || 'event',
+    timestamp: Date.now(),
+    anchor: typeof buildPrivateNoteAnchor === 'function' ? buildPrivateNoteAnchor(room) : null
+  };
+  if (typeof window.savePrivateNote === 'function') {
+    window.savePrivateNote(intent);
+  } else if (typeof savePrivateNote === 'function') {
+    savePrivateNote(intent);
+  }
+  if (typeof laRecordNote === 'function') {
+    try { laRecordNote(text, source || 'cue'); } catch (e) {}
+  }
+  return intent;
+}
 function _laCueAction(action, cueId) {
   var cue = (window._live_assist.cues || []).find(function(c) { return c.id === cueId; });
   if (!cue) return;
   if (action === 'save') {
+    saveLiveAssistPrivateNote('Cue: ' + cue.text, 'cue');
     if (typeof toast === 'function') { try { toast('🔒 Cue saved as private note', cue.text); } catch (e) {} }
-    laRecordNote(cue.text, 'cue');
   } else if (action === 'ask-private') {
     var input = document.getElementById('ci');
     if (input) {
@@ -6974,24 +6995,7 @@ function _laCueAction(action, cueId) {
     }
   } else if (action === 'followup') {
     var followUpText = buildLiveAssistFollowUpNote(cue);
-    var room = typeof getRoomContext === 'function' ? getRoomContext() : null;
-    var intent = {
-      clean: followUpText,
-      isAsk: false,
-      kind: 'note',
-      visibility: 'private',
-      eventMode: document.body.getAttribute('data-event-mode') || 'event',
-      timestamp: Date.now(),
-      anchor: typeof buildPrivateNoteAnchor === 'function' ? buildPrivateNoteAnchor(room) : null
-    };
-    if (typeof window.savePrivateNote === 'function') {
-      window.savePrivateNote(intent);
-    } else if (typeof savePrivateNote === 'function') {
-      savePrivateNote(intent);
-    }
-    if (typeof laRecordNote === 'function') {
-      try { laRecordNote(followUpText, 'follow-up'); } catch (e) {}
-    }
+    saveLiveAssistPrivateNote(followUpText, 'follow-up');
     if (typeof toast === 'function') { try { toast('Follow-up queued privately', cue.text); } catch (e) {} }
   }
 }

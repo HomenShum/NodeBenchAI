@@ -768,6 +768,65 @@ test.describe("ScratchNode live route honesty", () => {
     expect(sensitiveState.noteTexts.join("\n")).toContain(sensitivePrompt);
   });
 
+  test("Live Assist save cue writes an actual private note without public writes", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    const cueText = "Ask Alex for the latency source after the MCP panel";
+    const cueId = await page.evaluate((text) => {
+      const win = window as any;
+      win.toggleLiveAssist?.(true);
+      return win.pushLiveAssistCue?.(text, { source: "route-test", skill: "cue-save" });
+    }, cueText);
+
+    await expect(page.locator("#live-assist-rail")).toContainText(cueText);
+    await page.evaluate((id) => {
+      (window as any)._laCueAction?.("save", id);
+    }, cueId);
+
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+    await expect(page.locator(".row-text", { hasText: cueText })).toHaveCount(0);
+    await expect(page.locator(".ans", { hasText: cueText })).toHaveCount(0);
+
+    const state = await page.evaluate((text) => {
+      const win = window as any;
+      const note = (win._notes_v5 || []).find((entry: any) =>
+        String(entry.title + "\n" + entry.body).includes(text),
+      );
+      const noteText = String((note?.title || "") + "\n" + (note?.body || ""))
+        .replace(/<br\s*\/?>/gi, "\n");
+      return {
+        noteText,
+        noteCount: win.getPrivateNoteHandoffCount?.(),
+        recentNotes: (win._live_assist?.recentNotes || []).map((entry: any) => entry.text),
+        actions: win.__snMockActions || [],
+        publicSendCalls: (win.__snMockMutations || []).filter(
+          (call: any) =>
+            call.name === "events:sendMessage" &&
+            String(call.args?.text || "").includes(text),
+        ),
+      };
+    }, cueText);
+
+    expect(state.noteCount).toBe(initialNoteCount + 1);
+    expect(state.noteText).toContain(`Cue: ${cueText}`);
+    expect(state.recentNotes.join("\n")).toContain(`Cue: ${cueText}`);
+    expect(state.actions).toEqual([]);
+    expect(state.publicSendCalls).toEqual([]);
+  });
+
   test("Live Assist follow-up cues require explicit action before private note creation", async ({
     page,
   }) => {

@@ -747,7 +747,14 @@ function scanPublicRepoReadiness() {
   addCheck({
     ok:
       /function buildLiveAssistFollowUpNote\s*\(/i.test(homeHtml) &&
+      /function saveLiveAssistPrivateNote\s*\(/i.test(homeHtml) &&
+      /saveLiveAssistPrivateNote\('Cue: '\s*\+\s*cue\.text,\s*'cue'\)/i.test(homeHtml) &&
       /Visibility: private follow-up note; not public chat or public \/ask\./i.test(homeHtml) &&
+      /Live Assist save cue writes an actual private note without public writes/i.test(
+        routeHonestySpec,
+      ) &&
+      /_laCueAction\?\.\("save",\s*id\)/i.test(routeHonestySpec) &&
+      /Cue: \$\{cueText\}/i.test(routeHonestySpec) &&
       /Live Assist follow-up cues require explicit action before private note creation/i.test(
         routeHonestySpec,
       ) &&
