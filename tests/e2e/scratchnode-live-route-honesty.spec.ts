@@ -322,12 +322,21 @@ test.describe("ScratchNode live route honesty", () => {
         roomCode: "BIRTHDAY",
         status: "live",
       });
-    await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("/e/launch-room");
+    // Viral loop: the host lands on the "your event is live, invite now" moment
+    // (NOT dropped straight into the room) with a shareable invite card.
+    await expect(page.locator("#share-moment")).toHaveAttribute("data-open", "true");
+    await expect(page.locator("#invite-card-code")).toHaveText("BIRTHDAY");
+    await expect(page.locator("#share-link-input")).toHaveValue(/\/e\/launch-room$/);
+    await expect(page.locator("#invite-card-qr")).toHaveAttribute("src", /create-qr-code/);
+    // Host token persisted before navigation.
     await expect
-      .poll(() => page.evaluate(() => localStorage.getItem("sn_host_owner_key_v2")), {
-        timeout: 5_000,
-      })
+      .poll(() => page.evaluate(() => localStorage.getItem("sn_host_owner_key_v2")), { timeout: 5_000 })
       .toContain("hk1:");
+    // Still on the landing — apex stays honestly "not live" until they enter.
+    expect(page.url()).toBe("https://scratchnode.live/");
+    // "Enter your room →" carries the host into their live room.
+    await page.click("#share-enter-btn");
+    await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("/e/launch-room");
   });
 
   test("landing create works with no custom code (auto-generated room code)", async ({ page }) => {
@@ -348,7 +357,41 @@ test.describe("ScratchNode live route honesty", () => {
       () => JSON.parse(localStorage.getItem("__snCreatedEventArgs") || "{}").roomCode ?? null,
     );
     expect(sentRoomCode).toBeNull();
+    // Share moment appears with the auto-generated code; "Enter your room →" navigates.
+    await expect(page.locator("#share-moment")).toHaveAttribute("data-open", "true");
+    await expect(page.locator("#invite-card-code")).toHaveText("LAUNCH");
+    await page.click("#share-enter-btn");
     await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("/e/launch-room");
+  });
+
+  test("share moment: copy link + invite text + share buttons are wired", async ({ page }) => {
+    // Persona: host who just created a room and wants to invite friends.
+    await fulfillScratchNodePage(page);
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await page.fill("#landing-create-name", "Launch Party");
+    await page.fill("#landing-create-code", "LAUNCH");
+    await page.click("#landing-create-btn");
+    await expect(page.locator("#share-moment")).toHaveAttribute("data-open", "true");
+
+    // The reason-to-share copy + the screenshot-worthy invite card.
+    await expect(page.locator(".share-moment__sub")).toContainText("shared memory");
+    await expect(page.locator(".invite-card__tag")).toContainText("remembers everything");
+
+    // Copy link writes the room URL to the clipboard + flashes confirmation.
+    await page.click("#share-link-copy");
+    await expect(page.locator("#share-link-copy")).toHaveAttribute("data-copied", "true");
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("/e/launch-room");
+
+    // Copy invite text carries the reason to share + the link.
+    await page.click("#share-invite-copy");
+    const invite = await page.evaluate(() => navigator.clipboard.readText());
+    expect(invite).toContain("Launch Party");
+    expect(invite).toContain("/e/launch-room");
+
+    // Text + Email deep links carry the invite + URL.
+    await expect(page.locator("#share-btn-text")).toHaveAttribute("href", /^sms:.*launch-room/);
+    await expect(page.locator("#share-btn-email")).toHaveAttribute("href", /^mailto:.*launch-room/);
   });
 
   test("landing create can opt a room into public discovery", async ({ page }) => {

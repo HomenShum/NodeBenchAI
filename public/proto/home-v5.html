@@ -2001,6 +2001,178 @@ body[data-page-mode="landing"] .menu-scrim:not([data-open="true"]) {
 }
 .landing-create-status[data-state="busy"] { color: var(--accent); }
 .landing-create-status[data-state="error"] { color: #d98b7a; }
+
+/* ── Post-create "viral" share moment ───────────────────────────────────────
+   create → "your event is live, invite now" (link + QR + invite card + share)
+   → enter room. The shortest path from useful product to viral loop. */
+.share-moment {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 9, 8, 0.74);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overflow-y: auto;
+}
+.share-moment[data-open="true"] { display: flex; animation: share-fade .22s ease-out; }
+.share-moment__panel {
+  width: 100%;
+  max-width: 420px;
+  margin: auto;
+  background: var(--paper, #1c1b1a);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 26px 22px 22px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.55);
+  text-align: center;
+}
+.share-moment__spark { font-size: 22px; display: block; margin-bottom: 4px; }
+.share-moment__panel h2 {
+  font-family: var(--ui);
+  font-weight: 800;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 0;
+}
+.share-moment__sub {
+  font-family: var(--ui);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+  margin: 8px 0 18px;
+}
+/* The invite card — the screenshot-worthy "flyer" people send. */
+.invite-card {
+  position: relative;
+  border-radius: 16px;
+  padding: 20px 18px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(217,119,87,.22), rgba(217,119,87,0) 62%),
+    linear-gradient(160deg, #221d1b, #161413);
+  border: 1px solid rgba(217,119,87,.30);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.invite-card__brand {
+  font-family: var(--ui);
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--ink);
+}
+.invite-card__brand span { color: var(--accent); }
+.invite-card__name {
+  font-family: var(--ui);
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.invite-card__qr {
+  width: 152px;
+  height: 152px;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.invite-card__qr img { width: 100%; height: 100%; display: block; }
+.invite-card__code {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.invite-card__code b { color: var(--accent); letter-spacing: .04em; }
+.invite-card__tag {
+  font-family: var(--ui);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+/* Big room link + copy */
+.share-link { display: flex; gap: 8px; margin-top: 16px; }
+.share-link input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  color: var(--ink);
+  text-overflow: ellipsis;
+}
+.share-link button {
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 11px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s ease, border-color .15s ease;
+}
+.share-link button:hover { background: #c46a4e; }
+.share-link button[data-copied="true"] { background: #4ca06f; border-color: #4ca06f; }
+/* Share actions */
+.share-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.share-btn {
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  transition: border-color .15s ease, background .15s ease;
+}
+.share-btn:hover { border-color: var(--ink-faint); background: rgba(255,255,255,.06); }
+.share-btn--primary, .share-btn--wide { grid-column: 1 / -1; }
+.share-btn--primary { border-color: var(--accent); color: var(--accent); }
+.share-btn--primary:hover { background: rgba(217,119,87,.10); }
+.share-btn[data-copied="true"] { border-color: #4ca06f; color: #7fe0a8; }
+/* Enter room */
+.share-enter {
+  width: 100%;
+  margin-top: 18px;
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 15px;
+  padding: 13px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease;
+}
+.share-enter:hover { color: var(--ink); border-color: var(--ink-faint); }
+@keyframes share-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .share-moment[data-open="true"] { animation: none; }
+  .share-link button, .share-btn, .share-enter { transition: none; }
+}
+
 .landing-public {
   display: none;
   width: 100%;
@@ -2289,13 +2461,124 @@ async function _landingCreate(ev) {
     // (getHostStatus reads sn_host_owner_key_v2). Same key the host console uses.
     try { localStorage.setItem('sn_host_owner_key_v2', res.ownerKey); } catch (e) {}
     try { client.close && client.close(); } catch (_) {}
-    setStatus('Room ' + (res.roomCode || res.slug) + ' is live — opening…', 'busy');
-    location.href = '/e/' + encodeURIComponent(res.slug || res.roomCode);
+    setStatus('', '');
+    // Viral loop: don't drop the host straight into the room — give them the
+    // "your event is live, invite people now" moment first (link + QR + invite
+    // card + share). "Enter your room →" carries them in.
+    _showShareMoment({
+      slug: res.slug || String(res.roomCode || '').toLowerCase(),
+      roomCode: res.roomCode || res.slug,
+      name: title,
+    });
     return false;
   } catch (e) {
     return fail((e && e.message) || 'Unexpected error creating the room.');
   }
 }
+
+// ── Post-create share moment ──────────────────────────────────────────────
+// The viral loop: create -> "your event is live, invite now" (link + QR +
+// invite card + share) -> enter room. QR via the same provider the in-room
+// share sheet uses; falls back gracefully (copy) when navigator.share is absent.
+var _shareMomentState = { slug: '', roomCode: '', name: '', url: '' };
+
+function _shareInviteText() {
+  var s = _shareMomentState;
+  return 'Join me at ' + (s.name || 'my event') + ' on ScratchNode — chat live, /ask for sourced answers, and we will have a shared wiki of the whole thing afterward. ' + s.url;
+}
+
+function _showShareMoment(opts) {
+  try {
+    var slug = String((opts && opts.slug) || '');
+    var roomCode = String((opts && opts.roomCode) || slug || '').toUpperCase();
+    var name = String((opts && opts.name) || 'Your event').trim() || 'Your event';
+    var base = (typeof PUBLIC_BASE_URL === 'string' && PUBLIC_BASE_URL)
+      ? PUBLIC_BASE_URL : (location.origin || 'https://scratchnode.live');
+    var navSlug = slug || roomCode.toLowerCase();
+    var url = base.replace(/\/+$/, '') + '/e/' + encodeURIComponent(navSlug);
+    _shareMomentState = { slug: navSlug, roomCode: roomCode, name: name, url: url };
+
+    var set = function (id, fn) { var el = document.getElementById(id); if (el) fn(el); };
+    set('invite-card-name', function (el) { el.textContent = name; });
+    set('invite-card-code', function (el) { el.textContent = roomCode; });
+    set('share-link-input', function (el) { el.value = url; });
+    set('invite-card-qr', function (el) {
+      el.onerror = function () { var w = el.parentNode; if (w && w.style) w.style.display = 'none'; };
+      el.src = 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=0&data=' + encodeURIComponent(url);
+    });
+    var invite = _shareInviteText();
+    set('share-btn-text', function (el) { el.href = 'sms:?&body=' + encodeURIComponent(invite); });
+    set('share-btn-email', function (el) {
+      el.href = 'mailto:?subject=' + encodeURIComponent('Join ' + name + ' on ScratchNode') + '&body=' + encodeURIComponent(invite);
+    });
+    set('share-btn-native', function (el) { if (navigator.share) el.hidden = false; });
+
+    var moment = document.getElementById('share-moment');
+    if (moment) {
+      moment.setAttribute('data-open', 'true');
+      try { var c = document.getElementById('share-link-copy'); if (c) c.focus(); } catch (e) {}
+    } else {
+      _shareEnterRoom(navSlug);
+    }
+  } catch (e) {
+    _shareEnterRoom(opts && opts.slug);
+  }
+}
+
+function _shareFlash(btn, label) {
+  if (!btn) return;
+  if (!btn.getAttribute('data-orig')) btn.setAttribute('data-orig', btn.textContent);
+  btn.textContent = label;
+  btn.setAttribute('data-copied', 'true');
+  setTimeout(function () {
+    var orig = btn.getAttribute('data-orig');
+    if (orig) btn.textContent = orig;
+    btn.removeAttribute('data-copied');
+  }, 1600);
+}
+function _shareCopyFallback(text) {
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  } catch (e) {}
+}
+function _shareCopy(text, btn, label) {
+  var done = function () {
+    _shareFlash(btn, label || 'Copied!');
+    if (typeof toast === 'function') { try { toast('Copied', label || 'Copied to clipboard.'); } catch (e) {} }
+  };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { _shareCopyFallback(text); done(); });
+      return;
+    }
+  } catch (e) {}
+  _shareCopyFallback(text); done();
+}
+function _shareCopyLink() { _shareCopy(_shareMomentState.url, document.getElementById('share-link-copy'), 'Copied!'); }
+function _shareCopyInvite() { _shareCopy(_shareInviteText(), document.getElementById('share-invite-copy'), 'Invite copied!'); }
+function _shareNative() {
+  var s = _shareMomentState;
+  if (navigator.share) {
+    navigator.share({ title: s.name + ' · ScratchNode', text: _shareInviteText(), url: s.url }).catch(function () {});
+  } else {
+    _shareCopyLink();
+  }
+}
+function _shareEnterRoom(slugOverride) {
+  var slug = slugOverride || _shareMomentState.slug || String(_shareMomentState.roomCode || '').toLowerCase();
+  if (!slug) return;
+  location.href = '/e/' + encodeURIComponent(slug);
+}
+// Escape closes the share moment by carrying the host forward into their room.
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  var moment = document.getElementById('share-moment');
+  if (moment && moment.getAttribute('data-open') === 'true') { _shareEnterRoom(); }
+});
+window._showShareMoment = _showShareMoment;
 
 /**
  * _snInitLandingStats — the live "big number" on the apex landing.
@@ -2523,6 +2806,37 @@ if (document.readyState === 'loading') {
     <span>Private notes stay private.</span>
   </div>
 </section>
+
+<!-- Post-create share moment — "Your event is live. Invite people now." -->
+<div class="share-moment" id="share-moment" role="dialog" aria-modal="true" aria-labelledby="share-moment-title">
+  <div class="share-moment__panel">
+    <span class="share-moment__spark" aria-hidden="true">&#10022;</span>
+    <h2 id="share-moment-title">Your event is live.</h2>
+    <p class="share-moment__sub">Invite people now &mdash; the room becomes your shared memory for the night.</p>
+
+    <div class="invite-card" id="invite-card">
+      <div class="invite-card__brand">Scratch<span>Node</span></div>
+      <div class="invite-card__name" id="invite-card-name">Your event</div>
+      <div class="invite-card__qr"><img id="invite-card-qr" alt="Scan to join the room" width="140" height="140"></div>
+      <div class="invite-card__code">scratchnode.live/e/<b id="invite-card-code">code</b></div>
+      <div class="invite-card__tag">the room remembers everything</div>
+    </div>
+
+    <div class="share-link">
+      <input type="text" id="share-link-input" readonly aria-label="Room link" onfocus="this.select()">
+      <button type="button" id="share-link-copy" onclick="_shareCopyLink()">Copy</button>
+    </div>
+
+    <div class="share-actions">
+      <button type="button" class="share-btn share-btn--primary" id="share-btn-native" onclick="_shareNative()" hidden>Share&hellip;</button>
+      <a class="share-btn" id="share-btn-text" href="#" role="button">Text</a>
+      <a class="share-btn" id="share-btn-email" href="#" role="button">Email</a>
+      <button type="button" class="share-btn share-btn--wide" id="share-invite-copy" onclick="_shareCopyInvite()">Copy invite text</button>
+    </div>
+
+    <button type="button" class="share-enter" id="share-enter-btn" onclick="_shareEnterRoom()">Enter your room &rarr;</button>
+  </div>
+</div>
 
 <a class="skip-link" href="#feed">Skip to chat</a>
 

@@ -2,6 +2,30 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-02 — Post-create "viral" share moment
+The shortest path from useful product to viral loop: after a host creates a room,
+they no longer drop straight into it — they land on a **"Your event is live. Invite
+people now."** moment first. It carries a screenshot-worthy **invite card** (brand +
+event name + QR + `scratchnode.live/e/<CODE>` + "the room remembers everything"), a big
+room link with one-tap **Copy**, **Text** / **Email** deep links, **Copy invite text**,
+the native **Share** sheet when available, and an **"Enter your room →"** CTA. The reason
+to share is baked into the copy and the invite text: *the room becomes your shared memory
+for the night.*
+
+Implementation: `_showShareMoment({slug, roomCode, name})` is called from `_landingCreate`
+on success instead of an immediate navigate; QR via the same provider the in-room share
+sheet uses (graceful `onerror` hide); clipboard with `execCommand` fallback; Escape carries
+the host forward into the room. Glass DNA + terracotta accent, reduced-motion safe, mobile
+full-width. The apex stays honestly `data-sn-live=null` until the host enters.
+
+Covered by updated + new cases in `scratchnode-live-route-honesty.spec.ts` (create →
+share moment → "Enter your room →" navigates; auto-code variant; copy-link + copy-invite +
+Text/Email deep links wired). 17/17 honesty suite green; desktop + mobile verified.
+Deferred (overlaps the in-flight door-policy frontend): public-room *flyer* cards, a
+"friends are inside" presence cue, and one-tap request-to-join from discovery.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-02 — Synthesize the best landing from two parallel agent builds
 Codex and Claude independently built the create-room front-door + the live counter.
 Instead of picking a winner, cherry-picked the strongest micro-decisions from each:
