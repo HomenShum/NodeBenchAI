@@ -1358,6 +1358,48 @@ export const getPublishedWiki = query({
 });
 
 /**
+ * getPublishedWikiBySlug — the PUBLIC, no-account read for the shareable wiki
+ * artifact at scratchnode.live/wiki/<slug>. This is the viral payoff of "the room
+ * remembers everything": anyone with the link can read the published event wiki
+ * without joining or authenticating.
+ *
+ * Honesty / privacy contract:
+ *   - Resolves by slug OR room code (same resolver the room uses).
+ *   - Returns ONLY the latest *published* version — drafts and unpublished events
+ *     return null (no fabricated/empty wiki).
+ *   - bodyHtml is already public-safe: `buildWikiHtml` (publishWiki) is built from
+ *     public sources + promoted /ask answers only — private notes are excluded at
+ *     publish time, so there is nothing private to leak here.
+ *   - Exposes only public-safe fields: never the host ownerKey or internal source ids.
+ * Bounded: single-row index scan.
+ */
+export const getPublishedWikiBySlug = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    if (!slug || slug.length > 120) return null;
+    const event = await resolveEventBySlugOrRoomCode(ctx, slug);
+    if (!event) return null;
+    const rows = await ctx.db
+      .query("liveEventWikiVersions")
+      .withIndex("by_event_status", (q) => q.eq("eventId", event._id).eq("status", "published"))
+      .order("desc")
+      .take(1);
+    const wiki = rows[0];
+    if (!wiki) return null;
+    return {
+      eventName: event.name,
+      eventSlug: event.slug,
+      roomCode: event.roomCode,
+      eventStatus: event.status,
+      title: wiki.title,
+      bodyHtml: wiki.bodyHtml,
+      version: wiki.version,
+      publishedAt: wiki.publishedAt ?? wiki.createdAt ?? null,
+    };
+  },
+});
+
+/**
  * Shared /ask context loader — the SINGLE source of truth for question
  * integrity, semantic-cache lookup, source corpus, and the asker's prior turns.
  *
