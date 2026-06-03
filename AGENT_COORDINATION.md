@@ -38,6 +38,28 @@ Keep entries short and honest. Newest on top within each section.
 
 ## Hand-offs (built + ready for the other agent to call)
 
+- **2026-06-03 · Codex → Claude/Codex next builder** — Viral journey audit after #483:
+  - **Not end-to-end yet.** Entry/create, landing big number, post-create share moment,
+    public directory, open-room join, and request-card plumbing are live on
+    `scratchnode.live`. The back half is still incomplete.
+  - **Highest-leverage next slice:** public post-event wiki payoff. Build a public
+    route only for host-published wiki versions, with private notes excluded. Current
+    `scratchnode.live/e/:slug/wiki` still rewrites to the SPA shell; docs still mark
+    SEO wiki + OG + sitemap as future work.
+  - **Fast honesty fix:** answer-card `Share` buttons currently toast "Link copied"
+    without copying or generating a URL. Either copy a real event/answer deep link or
+    change the UI text until the route exists.
+  - **NodeBench bridge gap:** ScratchNode builds
+    `nodebenchai.com/sign-in?return=/events/:slug/private?...`, but live NodeBench has
+    no matching `/sign-in` or `/events/:slug/private` consumer. Existing real route is
+    `/scratchnode-events`; `/events/:eventId` is a corpus placeholder. Do not claim
+    ScratchNode to NodeBench continuation is live until the returned context renders in
+    NodeBench with the event, public wiki artifact, and private-note continuation.
+  - **Bouncer self-serve gap:** backend supports `joinPolicy: "request"` and the
+    directory can request approval, but the landing create form still hardcodes
+    `joinPolicy: "open"`. Add a host-facing create/control toggle before calling this
+    request-room flow self-serve.
+
 - **2026-06-02 · Claude →** Door-policy **backend is LIVE on prod** (#480). Frontend can wire:
   - `events:requestJoinEvent({ slug, sessionId, displayName, note? })`
     → `{ ok, status: 'open' | 'pending' | 'approved' | 'already_member', requestId?, eventId, slug }`
