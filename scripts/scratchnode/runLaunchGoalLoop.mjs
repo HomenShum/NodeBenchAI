@@ -369,6 +369,8 @@ async function main() {
       queuedGoalCount: goalQueue.filter((goal) => goal.status === "queued" || goal.status === "proposed").length,
       gitDriftClean: gitStatus.length === 0,
       gitBranchStatus,
+      commandFailureCount: commands.filter((command) => command.exitCode !== 0).length,
+      commandExitCodes: Object.fromEntries(commands.map((command) => [command.command, command.exitCode])),
       nextDevelopmentCandidate: developmentBacklog[0]?.id ?? null,
     },
     commands,
