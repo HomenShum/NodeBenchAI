@@ -32,6 +32,9 @@ async function fulfillScratchNodePage(
           constructor(url) {
             window.__snMockClientUrl = url;
             window.__snMockMutations = [];
+            window.__snMockMessages = [];
+            window.__snMockAnswers = [];
+            window.__snMockSubscriptions = {};
           }
           close() { window.__snMockClosed = true; }
           mutation(name, args) {
@@ -56,7 +59,21 @@ async function fulfillScratchNodePage(
                 err.data = { code: 'network_down' };
                 return Promise.reject(err);
               }
-              return Promise.resolve({ messageId: 'liveEventMessages:1' });
+              const messageId = 'liveEventMessages:' + (window.__snMockMessages.length + 1);
+              const nextMessage = {
+                _id: messageId,
+                eventId: args.eventId,
+                displayName: args.displayName,
+                text: args.text,
+                kind: args.kind,
+                createdAt: 1770000000000 + window.__snMockMessages.length,
+              };
+              window.__snMockMessages.push(nextMessage);
+              const notifyMessages = window.__snMockSubscriptions['events:getMessages'];
+              if (typeof notifyMessages === 'function') {
+                notifyMessages(window.__snMockMessages.slice());
+              }
+              return Promise.resolve({ messageId });
             }
             if (name === 'events:createEvent') {
               window.__snCreatedEventArgs = args;
@@ -109,8 +126,46 @@ async function fulfillScratchNodePage(
             }
             return Promise.resolve([]);
           }
-          action() { return Promise.resolve(null); }
+          action(name, args) {
+            if (name === 'events:askAgent') {
+              const answerId = 'liveEventAnswers:' + (window.__snMockAnswers.length + 1);
+              const nextAnswer = {
+                _id: answerId,
+                question: args.question,
+                body: 'Mock sourced answer for ' + args.question,
+                questionMessageId: args.questionMessageId,
+                sourceCount: 2,
+                sources: [
+                  { title: 'Event wiki cache', uri: 'doc://event/wiki', excerpt: 'Public event context' },
+                  { title: 'Speaker notes', uri: 'doc://event/sources', excerpt: 'Host-uploaded public source' },
+                ],
+                externalSearches: 0,
+                cacheHit: false,
+                estimatedCostCents: 0.0123,
+                evaluation: { score: 97 },
+                trace: [
+                  { step: 'semantic_cache_lookup', status: 'ok', detail: 'public cache hit path' },
+                  { step: 'public_private_boundary', status: 'ok', detail: 'private notes excluded from retrieval, cache, and answer' },
+                ],
+                createdAt: 1770000001000 + window.__snMockAnswers.length,
+              };
+              window.__snMockAnswers.push(nextAnswer);
+              const notifyAnswers = window.__snMockSubscriptions['events:getAnswers'];
+              if (typeof notifyAnswers === 'function') {
+                notifyAnswers(window.__snMockAnswers.slice());
+              }
+              return Promise.resolve(nextAnswer);
+            }
+            return Promise.resolve(null);
+          }
           onUpdate(name, _args, cb) {
+            window.__snMockSubscriptions[name] = cb;
+            if (name === 'events:getMessages') {
+              setTimeout(() => cb(window.__snMockMessages.slice()), 0);
+            }
+            if (name === 'events:getAnswers') {
+              setTimeout(() => cb(window.__snMockAnswers.slice()), 0);
+            }
             if (name === 'events:getMembers') {
               setTimeout(() => cb([{ displayName: 'Mock Host' }, { displayName: 'Mock Guest' }]), 0);
             }
@@ -242,6 +297,58 @@ test.describe("ScratchNode live route honesty", () => {
     expect(privateState.handoffUrl).toContain(`noteCount=${initialNoteCount + 1}`);
     expect(privateState.handoffUrl).toContain("publicArtifact=event-wiki");
     expect(privateState.sendCalls).toBe(0);
+  });
+
+  test("public /ask keeps the parent ask visible and shows FAQ/wiki actions with a public-only trace", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const publicPrompt = "what changed in the MCP auth timeline?";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = `/ask ${text}`;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, publicPrompt);
+
+    await expect(page.locator(".row-text", { hasText: publicPrompt })).toHaveCount(1);
+    const answerCard = page.locator(".ans").filter({ hasText: publicPrompt }).first();
+    await expect(answerCard).toContainText("Mock sourced answer for " + publicPrompt);
+    await expect(answerCard).toContainText("private notes excluded");
+    await expect(answerCard).toContainText("Suggest for FAQ");
+    await expect(answerCard).toContainText("View in wiki");
+
+    const publicAskState = await page.evaluate(() => {
+      const win = window as any;
+      return {
+        noteCount: win.getPrivateNoteHandoffCount?.() ?? 0,
+        sendCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:sendMessage" && call.args?.kind === "ask",
+        ).length,
+        answers: (win.__snMockAnswers || []).map((answer: any) => ({
+          question: answer.question,
+          questionMessageId: answer.questionMessageId,
+          trace: answer.trace,
+        })),
+      };
+    });
+
+    expect(publicAskState.noteCount).toBe(0);
+    expect(publicAskState.sendCalls).toBe(1);
+    expect(publicAskState.answers).toHaveLength(1);
+    expect(publicAskState.answers[0].question).toBe(publicPrompt);
+    expect(publicAskState.answers[0].questionMessageId).toBe("liveEventMessages:1");
+    expect(publicAskState.answers[0].trace).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          detail: expect.stringContaining("private notes excluded"),
+        }),
+      ]),
+    );
   });
 
   test("live wiki and people sheets do not show stale static launch counts", async ({ page }) => {
