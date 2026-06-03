@@ -706,6 +706,20 @@ function scanPublicRepoReadiness() {
   });
   addCheck({
     ok:
+      /manual location spots render as public event-log chips without private leakage/i.test(routeHonestySpec) &&
+      /Booth 12/i.test(routeHonestySpec) &&
+      /Lobby/i.test(routeHonestySpec) &&
+      /Panel Room A/i.test(routeHonestySpec) &&
+      /Investor Lounge/i.test(routeHonestySpec) &&
+      /Afterparty/i.test(routeHonestySpec) &&
+      /data-location-spot/i.test(routeHonestySpec) &&
+      /navigator\.geolocation|getCurrentPosition|watchPosition/i.test(routeHonestySpec),
+    name: "event-log route spec covers manual location spot fixtures",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
+  });
+  addCheck({
+    ok:
       /typed people and company tags stay public-row context while private tagged follow-ups stay private/i.test(
         routeHonestySpec,
       ) &&
