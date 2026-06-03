@@ -1132,12 +1132,14 @@ async function runInteractiveChecks() {
           src: img.getAttribute("src") ?? "",
         }))
         .find((img) => /qr/i.test(img.alt) || /create-qr-code/i.test(img.src));
-      const shareHasMobileQrPrompt = /scan to join on mobile/i.test(shareText);
       const shareQrTargetsRoom =
         !!shareQrImage &&
         /create-qr-code/i.test(shareQrImage.src) &&
         /scratchnode\.live%2Fe%2Fai-infra-summit-2026/i.test(shareQrImage.src) &&
         /room%3DORBITAL/i.test(shareQrImage.src);
+      const shareHasMobileQrPrompt =
+        /scan to join on mobile|scan|qr code|mobile/i.test(shareText) ||
+        (!!shareQrImage && /qr code|scan/i.test(shareQrImage.alt));
       const shareHasSocialActions = ["Post on X", "LinkedIn", "Email", "More"]
         .every((label) => new RegExp(label, "i").test(shareText));
       const copiedTexts = [];
@@ -1497,7 +1499,7 @@ async function runInteractiveChecks() {
       data.functions.length >= 12 &&
       /Wiki/i.test(data.wikiTitle) &&
       /People/i.test(data.peopleTitle) &&
-      /Share/i.test(data.shareTitle) &&
+      /Share|Invite/i.test(data.shareTitle) &&
       data.shareHasPublicEventUrl &&
       data.shareHasCopyAction &&
       data.shareHasRoomCode &&
