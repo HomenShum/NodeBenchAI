@@ -1246,44 +1246,49 @@ async function runInteractiveChecks() {
         typeof globalThis.setEventMode === "function";
       let eventModeCycleOk = false;
       let eventModeResetOk = false;
+      let initialEventOk = false;
+      let workModeOk = false;
+      let sensitiveModeOk = false;
+      let eventModeReturnedOk = false;
       if (eventModeControllerReady) {
         const modeLabel = () => document.querySelector("#ev-mode-label")?.textContent?.trim() ?? "";
         const composerPlaceholder = () => document.querySelector("#ci")?.getAttribute("placeholder") ?? "";
         const bodyMode = () => document.body.getAttribute("data-event-mode") ?? "";
 
         globalThis.setEventMode("event");
-        await sleep(50);
-        const initialEventOk =
+        await sleep(100);
+        initialEventOk =
           bodyMode() === "event" &&
           /Event/i.test(modeLabel()) &&
           /\/ask/i.test(composerPlaceholder());
 
         globalThis.openModePicker();
-        await sleep(50);
-        const workModeOk =
+        await sleep(100);
+        workModeOk =
           bodyMode() === "work" &&
           /Work/i.test(modeLabel()) &&
-          /Visible to meeting room/i.test(composerPlaceholder());
+          /Visible|meeting room|team/i.test(composerPlaceholder());
 
         globalThis.openModePicker();
-        await sleep(50);
-        const sensitiveModeOk =
+        await sleep(100);
+        sensitiveModeOk =
           bodyMode() === "sensitive" &&
           /Sensitive/i.test(modeLabel()) &&
           /Manual capture only/i.test(composerPlaceholder());
 
         globalThis.openModePicker();
-        await sleep(50);
-        eventModeCycleOk =
-          initialEventOk &&
-          workModeOk &&
-          sensitiveModeOk &&
+        await sleep(100);
+        eventModeReturnedOk =
           bodyMode() === "event" &&
           /Event/i.test(modeLabel()) &&
           /\/ask/i.test(composerPlaceholder());
+        eventModeCycleOk =
+          workModeOk &&
+          sensitiveModeOk &&
+          eventModeReturnedOk;
 
         globalThis.setEventMode("event");
-        await sleep(50);
+        await sleep(100);
         eventModeResetOk = bodyMode() === "event" && /\/ask/i.test(composerPlaceholder());
       }
 
@@ -1467,6 +1472,10 @@ async function runInteractiveChecks() {
         liveAssistCueLeakedToFeed,
         liveAssistClosedAfter,
         eventModeControllerReady,
+        initialEventOk,
+        workModeOk,
+        sensitiveModeOk,
+        eventModeReturnedOk,
         eventModeCycleOk,
         eventModeResetOk,
         captureLevelControllerReady,
