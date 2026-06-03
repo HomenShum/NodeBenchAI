@@ -29,6 +29,7 @@ const files = {
   scratchnodeEventLogGoal: "goals/scratchnode/004-event-log-followups.md",
   nodebenchGoal: "goals/nodebench/001-event-handoff.md",
   runtimeGoal: "goals/runtime/001-public-private-boundary.md",
+  eventsRuntimeBoundarySpec: "convex/events.runtime-boundary.test.ts",
   routeHonestySpec: "tests/e2e/scratchnode-live-route-honesty.spec.ts",
   scratchnodeWikiBridgeSpec: "src/features/events/views/ScratchnodeWikiBridge.test.tsx",
   demoQa: "qa/run_demo_full.md",
@@ -540,6 +541,7 @@ function scanBackendContracts() {
   const events = readText(files.events);
   const notes = readText(files.notes);
   const users = readText(files.users);
+  const eventsRuntimeBoundarySpec = readText(files.eventsRuntimeBoundarySpec);
 
   const contracts = [
     {
@@ -581,6 +583,22 @@ function scanBackendContracts() {
       name: "normal sendMessage path is separate from askAgent",
       ok: /export const sendMessage = mutation/i.test(events) && /export const askAgent = action/i.test(events),
       path: files.events,
+      blocker: true,
+    },
+    {
+      name: "host announcements stay host-gated no-LLM event-log messages",
+      ok:
+        /kind:\s*v\.union\([\s\S]*v\.literal\("system"\)/i.test(events) &&
+        /args\.kind === "system"[\s\S]{0,360}requireHost\(ctx,\s*args\.eventId,\s*args\.ownerKey\)/i.test(events) &&
+        /ctx\.db\.insert\("liveEventMessages"[\s\S]{0,260}kind:\s*args\.kind/i.test(events) &&
+        /keeps host announcements as host-gated no-LLM event-log messages/i.test(
+          eventsRuntimeBoundarySpec,
+        ) &&
+        /expect\(executableSendMessage\)\.not\.toContain\("askAgent"\)/i.test(eventsRuntimeBoundarySpec) &&
+        /expect\(executableSendMessage\)\.not\.toContain\("liveEventWikiVersions"\)/i.test(
+          eventsRuntimeBoundarySpec,
+        ),
+      path: files.eventsRuntimeBoundarySpec,
       blocker: true,
     },
     {

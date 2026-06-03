@@ -83,6 +83,27 @@ describe("scratchnode public runtime boundaries", () => {
     expect(sendMessage).not.toContain("anchorType");
   });
 
+  it("keeps host announcements as host-gated no-LLM event-log messages", () => {
+    const sendMessage = functionBlock("sendMessage");
+    const executableSendMessage = sendMessage
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/[^\n\r]*/g, "");
+
+    expect(sendMessage).toContain('v.literal("system")');
+    expect(sendMessage).toContain('args.kind === "system"');
+    expect(sendMessage).toContain("Host ownership is required for system messages.");
+    expect(sendMessage).toContain("requireHost(ctx, args.eventId, args.ownerKey)");
+    expect(sendMessage).toContain('ctx.db.insert("liveEventMessages"');
+    expect(sendMessage).toContain("kind: args.kind");
+    expect(sendMessage).toContain("lastActivityAt: now");
+
+    expect(executableSendMessage).not.toContain("askAgent");
+    expect(executableSendMessage).not.toContain("composeAnswer");
+    expect(executableSendMessage).not.toContain("liveEventAnswers");
+    expect(executableSendMessage).not.toContain("liveEventWikiVersions");
+    expect(executableSendMessage).not.toContain("userNotes");
+  });
+
   it("keeps ScratchNode account event state as bounded joined and hosted lists", () => {
     const getMyEvents = functionBlock("getMyEvents", "query");
 
