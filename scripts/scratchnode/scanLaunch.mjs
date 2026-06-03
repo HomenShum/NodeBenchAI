@@ -386,6 +386,29 @@ function scanHomeV5() {
     });
   }
 
+  const hasPrivateAskBranchContract =
+    /function\s+parseComposerIntent\s*\(/i.test(html) &&
+    /\/ask private[\s\S]{0,140}private notebook save[\s\S]{0,120}no public agent call/i.test(html) &&
+    /private note or private \/ask[\s\S]{0,140}never touches public feed or public agent/i.test(html) &&
+    /LIVE-006[\s\S]{0,180}private saves privately and does not invoke public agent/i.test(html);
+  addCheck({
+    ok: hasPrivateAskBranchContract,
+    name: "home-v5 private /ask stays on private branch",
+    plane: "privacy",
+    detail: "/ask private -> private notebook save, no public feed, no public agent",
+  });
+  if (!hasPrivateAskBranchContract) {
+    addFinding({
+      severity: "blocker",
+      safety: "human-gated",
+      plane: "privacy",
+      title: "Private /ask branch contract is missing or incomplete",
+      path,
+      recommendation:
+        "Ensure /ask private is parsed as a private notebook save and never reaches public chat, public /ask, or the public agent runtime.",
+    });
+  }
+
   const hasRoomWallArtifactContract =
     /class=["']sn-pin["'][\s\S]{0,220}snWall\s*&&\s*window\.snWall\.pinAnswer/i.test(html) &&
     /window\.snSuggestFaq\s*&&\s*window\.snSuggestFaq/i.test(html) &&
