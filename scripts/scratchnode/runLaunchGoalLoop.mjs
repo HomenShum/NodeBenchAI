@@ -266,6 +266,7 @@ async function main() {
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
   commands.push(await run("npm", ["run", "scratchnode:launch:interactive"]));
   commands.push(await run("git", ["status", "--short"]));
+  commands.push(await run("git", ["status", "--short", "--branch"]));
   commands.push(
     await run("git", [
       "check-ignore",
@@ -282,6 +283,7 @@ async function main() {
   const housekeepingReport = readJson(reportPaths.housekeeping);
   const launchReport = readJson(reportPaths.launch);
   const gitStatus = commands.find((command) => command.command === "git status --short")?.stdout.trim() ?? "";
+  const gitBranchStatus = commands.find((command) => command.command === "git status --short --branch")?.stdout.trim() ?? "";
   const ignoreCheck = commands.find((command) => command.command.startsWith("git check-ignore"));
   const actionableAttention = actionableAttentionItems(housekeepingReport);
   const launchRelevantBlockers = housekeepingReport?.operatorSummary?.launchRelevantBlockers ?? [];
@@ -366,6 +368,7 @@ async function main() {
       launchRelevantBlockerCount: launchRelevantBlockers.length,
       queuedGoalCount: goalQueue.filter((goal) => goal.status === "queued" || goal.status === "proposed").length,
       gitDriftClean: gitStatus.length === 0,
+      gitBranchStatus,
       nextDevelopmentCandidate: developmentBacklog[0]?.id ?? null,
     },
     commands,
@@ -379,6 +382,7 @@ async function main() {
     goalQueue,
     developmentBacklog,
     gitStatus,
+    gitBranchStatus,
   };
 
   mkdirSync(dirname(outPath), { recursive: true });
