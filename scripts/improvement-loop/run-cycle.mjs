@@ -73,7 +73,9 @@ function pushConvex(record) {
     cwd: REPO, encoding: 'utf8', timeout: 60000, shell: process.platform === 'win32',
   });
   if (r.status === 0) return { ok: true };
-  return { ok: false, error: (r.stderr || r.stdout || 'convex run failed').trim().slice(0, 300) };
+  const errText = (r.stderr || r.stdout || 'convex run failed').trim();
+  if (/could not find|not a function|no such|404/i.test(errText)) return { ok: false, reason: 'endpoint-not-deployed' };
+  return { ok: false, error: errText.slice(0, 300) };
 }
 
 function main() {
@@ -102,6 +104,7 @@ function main() {
     selected: selected && { id: selected.id, title: selected.title, score: selected.score, file: selected.file, evidence: selected.evidence },
     backlogTop: b.opportunities.filter((o) => !o.queued).slice(0, 5).map((o) => ({ id: o.id, score: o.score, title: o.title, file: o.file })),
     outcome,
+    liveSignal: null, // HONEST_STATUS: set by the agent ONLY after live-DOM verify; null = not verified
     note: NOTE,
   };
 
@@ -126,7 +129,7 @@ function main() {
     console.log(`[cycle ${cycleId}] CLEAN — no auto-safe opportunities within effort budget ${EFFORT_BUDGET}.`);
     if (record.strategySignal) console.log(`[cycle ${cycleId}] ${record.strategySignal}`);
   }
-  if (record.convex) console.log(`[cycle ${cycleId}] convex ledger: ${record.convex.ok ? 'recorded' : 'degraded (' + record.convex.error + ')'}`);
+  if (record.convex) console.log(`[cycle ${cycleId}] convex ledger: ${record.convex.ok ? 'recorded' : 'degraded (' + (record.convex.reason || record.convex.error) + ')'}`);
   console.log(`[cycle ${cycleId}] ledger → ${LEDGER}`);
 }
 
