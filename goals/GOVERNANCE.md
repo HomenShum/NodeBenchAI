@@ -60,3 +60,26 @@ HIGH-risk no-autonomy zone, they are **proposed for founder approval** — see
 ## The governance sentence (operating rule, restated)
 Human sets the *why* + boundary and approves HIGH-risk merges. Agent self-directs the *how* inside a
 closed Goal Card. CI + evals + visual artifacts + GitHub rulesets decide what reaches `main`.
+
+## Operational lessons (from real loop runs — append-only)
+
+### 2026-06-03 — Open PRs go DIRTY while the loop keeps shipping; land or rebase within a day
+**What happened.** While the daily small-loop shipped ~10 changes to `public/proto/home-v5.html`,
+two reviewable PRs left open against it — #469 (host public-write verification) and the type-scale
+work (#499) — both went `DIRTY`/`CONFLICTING`. Squash-merges rewrote the base they branched from,
+so each intervening ship widened the gap. #469 could not be cleanly rebased and had to be **rebuilt
+fresh on current `main` as #500**; the type-scale work had to be re-landed via a clean cherry-pick.
+Recovery cost more than the original change.
+
+**Rule.** A PR that touches a hot file (`home-v5.html`, `convex/events.ts`, the honesty spec, the
+ScratchNode e2e specs) must be **landed or rebased within one working day**. If it is human-gated and
+can't land same-day, rebase it onto `main` daily (`git fetch && git merge origin/main` → re-run the
+oracle `home-v5-output-contract` + `scratchnode-live-route-honesty`) until it does — or **close it and
+re-cut from `main`** when the gate clears. Never let a reviewable PR sit behind multiple loop ships;
+the rebase cost grows superlinearly with each squash-merge.
+
+**Mechanic (≥2 PRs on the same hot file).** **Serialize.** `strict: true` branch protection makes the
+"behind main" ping-pong explicit: land one, then immediately `git merge origin/main` into the next,
+re-verify the oracle, push, let it merge. Update the loser the moment the winner lands — do not leave
+both armed-but-behind. (Both #499 and #500 went `BEHIND` the instant #496 merged; each needed a same-pass
+`merge origin/main` + oracle re-run + push to clear it.)
