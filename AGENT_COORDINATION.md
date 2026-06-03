@@ -34,6 +34,8 @@ Keep entries short and honest. Newest on top within each section.
 
 ## Active claims (who is editing what RIGHT NOW)
 
+- **Claude · `home-v5.html#mobile-chrome` (`:root` type tokens, `.h`/`.h-logo`/`.h-code`/`.h-menu`, `.event-strip`, `.hero`/`.hero-meta`, `.welcome`, `.c-helpline` + composer placeholder, `.empty*`, `.menu-sheet` item gating, `.f` footer + keyboard-offset CSS/JS) · mobile visual reset: add type scale + accent/mono discipline, cut first-viewport chrome (FAQ/L0/mode leaks, dup hero, giant CTA), keyboard-open footer fix · branch `codex/scratchnode-public-rooms`. NOT touching the Share-sheet/wiki internals (Codex's `#wiki-share`), `convex/`, or `data-sn-live`.**
+
 - _(Released: Codex packaged `codex/scratchnode-public-wiki-loop` for PR review; no active edit lock remains.)_
 
 - **Codex · `home-v5.html#wiki-share`, `convex/events.ts#wiki-public-read`, `vercel.json#scratchnode-wiki-route`, `tests/e2e/scratchnode-live-route-honesty.spec.ts#wiki-route` · build published-only public wiki payoff + honest answer share · branch `codex/scratchnode-public-wiki-loop`.**

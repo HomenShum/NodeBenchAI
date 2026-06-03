@@ -2,6 +2,49 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-03 — Mobile visual reset: type scale + accent/mono discipline, cut first-viewport chrome
+The mobile room read as a prototype because two systems were missing, not because of any
+single bad component. **Root cause:** (1) `:root` had color/radius/motion tokens but **no
+type scale** — every component hardcoded its own size, so nothing ranked; (2) `--accent`
+and `--mono` had no discipline — accent was sprayed on logo/code/CTA/links, mono was on the
+whole event strip + "LIVE"/"Set name"/helpline (human-readable prose, not machine IDs);
+(3) the first viewport re-explained the room 4× and leaked host/debug labels.
+
+Changes (presentational + copy only — send/render path, dedup, `data-sn-live` untouched):
+- **Type scale** added to `:root` (`--fs-display/title/base/sub/label/mono`); one
+  `--fs-display` per screen. Hero 26px→22px; empty-state title becomes the one 18px display
+  element. **Mono reserved for machine IDs only** (room code + `/ask`) — de-mono'd the event
+  strip, "LIVE ROOM" divider, menu section headers, "Set name", "what is this?".
+- **Wordmark bug fixed:** "Scratch Node" rendered spaced because `.h-logo` is `flex; gap:6px`
+  and the markup split "Scratch" / `<span>Node</span>` into two flex items — the gap meant for
+  [dot · wordmark] split the wordmark. Wrapped it in `.h-logo-word` → renders "ScratchNode".
+- **Room code** is now a quiet muted mono chip (was a heavy accent-bordered button); menu is
+  a borderless icon. **Accent reserved for the one primary action** (send).
+- **Event strip:** removed `· 0 FAQ`; gated `●Event` mode + `L0 Manual` capture (host/debug
+  controls that leaked) to `data-role="host"` (elements stay in DOM — JS still reads them).
+- **De-duped:** dropped the hero's joined-count (lives once, in the strip) and "Disposable
+  event brain" → "Live event log · public wiki when it ends" (static + JS rewrite both).
+  Welcome onboarding banner quieted (no accent card) and hidden on mobile.
+- **Composer:** placeholder "Public chat… or /ask for a sourced answer" → "Message or /ask…"
+  (fixes the clipped-placeholder polish bug — the rendered text came from JS at the mode-driven
+  default, not the static markup). Helpline collapsed from 2 lines to one. Privacy state shows
+  text "Public" / "Private 🔒" instead of an ambiguous open-lock 🔓 glyph next to "public".
+- **Empty state:** removed the giant "Ask the first question →" accent CTA (the composer IS the
+  CTA — no duplicate); copy now teaches all three actions (message · `/ask` · private note).
+- **Keyboard-open fix:** a `visualViewport` listener sets `--keyboard-offset`; the fixed mobile
+  composer pins above the keyboard and the footer + welcome collapse while typing
+  (`data-input-focused`) — kills the "footer leaking behind the keyboard" issue.
+- **Menu:** "Continue in NodeBench" gated to named users (was showing to anonymous guests under
+  the hidden "Your notes" header); "Keyboard shortcuts" hidden on the mobile sheet.
+
+Verified: before/after + keyboard-open + menu screenshots at 390px; DOM read-backs (wordmark
+"ScratchNode", placeholder, privacy text, gated menu items); `--keyboard-offset` lifts composer
++ hides footer; **static launch scan PASS (0 blockers/warnings)**; no console errors. Live-mode
+scanner placeholder/affordance asserts confirmed by reading (`/ask` present, work/sensitive
+placeholders untouched, Chat/notes/Open wiki/room-code affordances preserved).
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-03 — Honesty: stop the 4 "Continue in NodeBench" CTAs from 404'ing
 A scoping audit caught a live HONEST_STATUS lie: **four** in-room CTAs ("Continue in
 NodeBench", "Open in NodeBench", "Open NodeBench event notebook", "Continue this event
