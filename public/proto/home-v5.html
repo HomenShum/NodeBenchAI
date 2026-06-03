@@ -8058,14 +8058,16 @@ window._laCueAction       = _laCueAction;
   };
 
   window.snPromoteFaq = function(answerId) {
-    const ownerKey = _snReadHostOwnerKey();
+    const ownerKey = _snRequireVerifiedHostOwnerKey('sn-manage-event-output');
+    if (!ownerKey) return;
     client.mutation('events:promoteAnswerToFaq', { eventId, answerId, ownerKey })
       .then(() => toast('Promoted to FAQ', 'This answer is ready for the event wiki.'))
       .catch((e) => toast('Promotion blocked', e.message || String(e)));
   };
 
   window.snPublishWiki = function() {
-    const ownerKey = _snReadHostOwnerKey();
+    const ownerKey = _snRequireVerifiedHostOwnerKey('sn-manage-event-output');
+    if (!ownerKey) return;
     client.mutation('events:publishWiki', { eventId, ownerKey })
       .then((res) => {
         window._sn_public_wiki_url = getPublicWikiUrl();
