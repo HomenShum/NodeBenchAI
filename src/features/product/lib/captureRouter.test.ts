@@ -35,6 +35,30 @@ describe("inferCaptureRoute", () => {
     );
   });
 
+  it("routes manual location-spot notes into the active event session without extra event keywords", () => {
+    const route = inferCaptureRoute({
+      text: "Investor Lounge follow-up: ask Priya for the sponsor list after the panel.",
+      mode: "note",
+    });
+
+    expect(route.intent).toBe("create_followup");
+    expect(route.target).toBe("active_event_session");
+    expect(route.gate).toBe("auto_route");
+    expect(route.followUps.some((item) => item.text.includes("Investor Lounge follow-up"))).toBe(true);
+    expect(route.ack).toContain("Saved to active event session");
+  });
+
+  it("treats afterparty location notes as event captures instead of unassigned notes", () => {
+    const route = inferCaptureRoute({
+      text: "Afterparty notes: founder intros moved to the rooftop bar.",
+      mode: "note",
+    });
+
+    expect(route.intent).toBe("capture_field_note");
+    expect(route.target).toBe("active_event_session");
+    expect(route.needsConfirmation).toBe(false);
+  });
+
   it("keeps uncertain low-signal captures in review", () => {
     const route = inferCaptureRoute({
       text: "interesting thing from last week",

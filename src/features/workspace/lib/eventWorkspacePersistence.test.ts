@@ -80,6 +80,28 @@ describe("eventWorkspacePersistence", () => {
     expect(args.capture.extractedClaimIds.length).toBe(args.claims.length);
   });
 
+  it("persists manual location-spot captures into the event workspace follow-up lane", () => {
+    const input = "Investor Lounge follow-up: ask Priya for the sponsor list after the panel.";
+    const route = inferCaptureRoute({
+      text: input,
+      mode: "note",
+    });
+    const args = buildLiveCaptureArgs({
+      workspaceId: "ai-infra-summit-2026",
+      input,
+      now: 1777068715905,
+      route,
+    });
+
+    expect(shouldPersistRouteToEventWorkspace(route)).toBe(true);
+    expect(args.capture.status).toBe("attached");
+    expect(args.followUps.some((followUp) => followUp.action.includes("Investor Lounge follow-up"))).toBe(true);
+    expect(args.evidence[0]).toMatchObject({
+      layer: "private_capture",
+      visibility: "private",
+    });
+  });
+
   it("maps live Convex rows back into the workspace memory view model", () => {
     const mapped = mapLiveSnapshotToMemory({
       entities: [

@@ -78,6 +78,7 @@ const FIELD_NOTE_MARKERS = /\b(met|talked|spoke|coffee|demo day|conference|booth
 const FOLLOW_UP_MARKERS = /\b(follow up|follow-up|todo|remind|task|next step|ask them|email|intro|reply|schedule)\b/i;
 const APPEND_MARKERS = /\b(add|attach|save|append|put this|log this)\b.*\b(report|brief|dossier|workspace|notebook)\b/i;
 const EVENT_MARKERS = /\b(demo day|conference|event|booth|lecture|whiteboard|pitch|summit|meetup)\b/i;
+const LOCATION_SPOT_MARKERS = /\b(booth\s*\d+|lobby|panel\s+room\s+[a-z0-9]+|investor\s+lounge|afterparty)\b/i;
 const INBOX_MARKERS = /\b(recruiter|email|inbox|newsletter|invite|application|offer|rejected|job spec)\b/i;
 const REPORT_MARKERS = /\b(report|brief|dossier|market map|prd|memo|company|startup|competitor|vendor|paper|repo)\b/i;
 const COMPANY_SUFFIX = /\b(Inc|Labs|AI|Systems|Technologies|Tech|Health|Bio|Robotics|Capital|Ventures|Partners|Bank|University|Labs)\b/;
@@ -168,7 +169,7 @@ function inferIntent(
   if (mode === "ask" && EXPLORE_REQUEST_MARKERS.test(text) && (EVENT_MARKERS.test(text) || REPORT_MARKERS.test(text))) {
     return "expand_entity";
   }
-  if (FIELD_NOTE_MARKERS.test(text) || hasFiles) return "capture_field_note";
+  if (FIELD_NOTE_MARKERS.test(text) || LOCATION_SPOT_MARKERS.test(text) || hasFiles) return "capture_field_note";
   if (QUESTION_START.test(text) || text.includes("?")) {
     return REPORT_MARKERS.test(text) ? "expand_entity" : "ask_question";
   }
@@ -183,11 +184,11 @@ function inferTarget(
 ): CaptureTarget {
   const context = activeContextLabel?.trim() ?? "";
   const looksLikeEventContext =
-    EVENT_MARKERS.test(context) || /\b(demo|conference|event|summit|meetup)\b/i.test(context);
+    EVENT_MARKERS.test(context) || LOCATION_SPOT_MARKERS.test(context) || /\b(demo|conference|event|summit|meetup)\b/i.test(context);
   const looksLikeEventCapture =
-    /\b(?:met|talked to|spoke with)\s+[A-Z][A-Za-z.-]*(?:\s+[A-Z][A-Za-z.-]*)?\s+from\s+[A-Z]/i.test(text);
+    /\b(?:met|talked to|spoke with)\s+[A-Z][A-Za-z.-]*(?:\s+(?!from\b)[A-Z][A-Za-z.-]*)?\s+from\s+[A-Z]/i.test(text);
 
-  if (EVENT_MARKERS.test(text) || looksLikeEventContext || looksLikeEventCapture) {
+  if (EVENT_MARKERS.test(text) || LOCATION_SPOT_MARKERS.test(text) || looksLikeEventContext || looksLikeEventCapture) {
     return "active_event_session";
   }
   if (INBOX_MARKERS.test(text)) return "inbox_item";
@@ -216,6 +217,7 @@ function scoreRoute(args: {
   if (args.followUps.length > 0) score += 0.08;
   if (args.target !== "unassigned_buffer") score += 0.08;
   if (args.target === "active_event_session" && args.entities.length >= 2) score += 0.04;
+  if (args.target === "active_event_session" && LOCATION_SPOT_MARKERS.test(args.text)) score += 0.32;
   if (args.intent === "ask_question" || args.intent === "expand_entity") score += 0.04;
   if (args.text.length > 240) score += 0.04;
   return Math.min(0.96, Number(score.toFixed(2)));
