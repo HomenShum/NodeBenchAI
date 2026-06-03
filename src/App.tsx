@@ -71,6 +71,15 @@ const EventCorpusExplorer = lazy(() =>
     default: m.EventCorpusExplorer,
   })),
 );
+// /events/:slug/wiki — the ScratchNode -> NodeBench bridge receiving surface.
+// Renders a published ScratchNode wiki (public getPublishedWikiBySlug) inside
+// NodeBench with a conversion frame. Mounted ABOVE /events/:eventId so the
+// trailing /wiki segment is captured before the single-segment matcher.
+const ScratchnodeWikiBridge = lazy(() =>
+  import("@/features/events/views/ScratchnodeWikiBridge").then((m) => ({
+    default: m.ScratchnodeWikiBridge,
+  })),
+);
 // My Wiki — Phase 1 routes. See docs/architecture/ME_AGENT_DESIGN.md
 const WikiLandingRoute = lazy(() => import("@/features/me/components/wiki/WikiLandingRoute"));
 const WikiPageDetailRoute = lazy(() => import("@/features/me/components/wiki/WikiPageDetailRoute"));
@@ -462,6 +471,30 @@ function App() {
   // See viewRegistry.ts "event-corpus" entry — that entry exists so Cmd-K
   // and other discovery surfaces know about the route, but the actual
   // rendering happens here.
+  // /events/:slug/wiki — ScratchNode → NodeBench bridge. MUST come before the
+  // single-segment /events/:eventId matcher below (which rejects trailing
+  // segments and would otherwise let this 404 — the original broken-bridge bug).
+  const eventWikiRouteMatch = location.pathname.match(/^\/events\/([^/]+)\/wiki\/?$/);
+  if (eventWikiRouteMatch) {
+    const slug = decodeURIComponent(eventWikiRouteMatch[1] ?? "");
+    const params = new URLSearchParams(location.search);
+    return (
+      <ThemeProvider>
+        <ErrorBoundary title="Event recap failed to load">
+          <Suspense fallback={<ViewSkeleton />}>
+            <div key={`event-wiki-${slug}`} className="route-fade-in">
+              <ScratchnodeWikiBridge
+                slug={slug}
+                source={params.get("source")}
+                roomCode={params.get("room")}
+              />
+            </div>
+          </Suspense>
+        </ErrorBoundary>
+      </ThemeProvider>
+    );
+  }
+
   const eventsRouteMatch = location.pathname.match(/^\/events\/([^/]+)\/?$/);
   if (eventsRouteMatch) {
     const eventId = decodeURIComponent(eventsRouteMatch[1] ?? "");

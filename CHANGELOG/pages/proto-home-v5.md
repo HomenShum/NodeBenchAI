@@ -2,6 +2,29 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-03 — Honesty: stop the 4 "Continue in NodeBench" CTAs from 404'ing
+A scoping audit caught a live HONEST_STATUS lie: **four** in-room CTAs ("Continue in
+NodeBench", "Open in NodeBench", "Open NodeBench event notebook", "Continue this event
+in NodeBench") all funnel through `openNodeBenchPrivateHandoff` →
+`buildNodeBenchEventPrivateUrl`, which built `nodebenchai.com/events/<slug>/private` —
+a route that **does not exist** (the `/events` matcher rejects trailing segments), wrapped
+in `/sign-in?return=<that dead route>`. Every one of them 404'd in production.
+
+Interim honest fix (one function repoints all four): `buildNodeBenchEventPrivateUrl` now
+targets the **already-shipped** `/scratchnode-events` surface — an honest landing that
+resolves the session or shows its own sign-in prompt, never a 404 — and
+`openNodeBenchPrivateHandoff` navigates straight there (no dead `/sign-in` wrapper). The
+event context (`event`, `room`, `continuation=private-notes`, `publicArtifact=event-wiki`,
+`return`) still rides along so the *real* tokenized private route can consume it once the
+cross-domain handoff-token bridge ships. The in-page QA check `SN-LIVE-015` was updated to
+assert the shipped target (and that the dead `/events/<slug>/private` shape is gone).
+
+Covered by a new honesty case (the handoff URL targets `/scratchnode-events`, never
+`/events/<slug>/private`, and still carries continuation context). 24/24 chromium honesty
++ output-contract green.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-03 — End-event recap moment: "Your wiki is live. Share the memory."
 Closes the activation gap in the *after-event* loop. The host could publish the wiki
 (`/wiki/<slug>` reader shipped earlier the same day), but publishing only fired a

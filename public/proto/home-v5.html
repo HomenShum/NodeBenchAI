@@ -3958,8 +3958,16 @@ function buildNodeBenchEventPrivateUrl() {
     var room = getRoomContext();
     roomCode = (room && room.roomCode) || roomCode;
   } catch (e) {}
+  // INTERIM (honesty): the cross-domain `/events/<slug>/private` receiving route
+  // + its handoff token don't exist yet (that's the gated cross-domain bridge
+  // follow-up). Pointing here previously produced a hard 404. Until the real
+  // tokenized private route ships, target the ALREADY-SHIPPED `/scratchnode-events`
+  // surface — an honest landing (it resolves session / shows a sign-in prompt),
+  // never a 404. The event context rides along so the real private route can
+  // consume it once built.
   return WORKSPACE_BASE_URL +
-    '/events/' + encodeURIComponent(EVENT_SLUG) + '/private?source=scratchnode' +
+    '/scratchnode-events?source=scratchnode' +
+    '&event=' + encodeURIComponent(EVENT_SLUG) +
     '&room=' + encodeURIComponent(roomCode) +
     '&continuation=' + encodeURIComponent('private-notes') +
     '&noteCount=' + encodeURIComponent(String(getPrivateNoteHandoffCount())) +
@@ -3975,7 +3983,10 @@ function buildNodeBenchSignInUrl(targetUrl) {
 function openNodeBenchPrivateHandoff() {
   closeMenu();
   closeSheet();
-  window.location.assign(buildNodeBenchSignInUrl(buildNodeBenchEventPrivateUrl()));
+  // Navigate straight to the shipped `/scratchnode-events` surface — it resolves
+  // session / shows its own sign-in prompt. (Previously wrapped a dead
+  // `/events/<slug>/private` target in `/sign-in?return=…`, which 404'd.)
+  window.location.assign(buildNodeBenchEventPrivateUrl());
 }
 
 // ── Debug-gate flag for prototype helpers ──
@@ -10392,8 +10403,8 @@ window._laCueAction       = _laCueAction;
     add('SN-LIVE-013', 'share URL uses scratchnode.live-compatible public event URL', /\/e\//.test(EVENT_URL) && !/scratchnode\.com/i.test(EVENT_URL), EVENT_URL);
     fromDemo('DEMO-014', 'SN-LIVE-014', 'guest can sign in and preserve notes');
     var handoffUrl = buildNodeBenchEventPrivateUrl();
-    add('SN-LIVE-015', 'NodeBench handoff carries event + private-note continuation context',
-      /nodebenchai\.com/.test(handoffUrl) && /\/events\//.test(handoffUrl) && /continuation=private-notes/.test(handoffUrl) && /publicArtifact=event-wiki/.test(handoffUrl),
+    add('SN-LIVE-015', 'NodeBench handoff targets a SHIPPED route (no 404) + carries event continuation context',
+      /nodebenchai\.com/.test(handoffUrl) && /\/scratchnode-events/.test(handoffUrl) && !/\/events\/[^/]+\/private/.test(handoffUrl) && /continuation=private-notes/.test(handoffUrl) && /publicArtifact=event-wiki/.test(handoffUrl),
       handoffUrl);
     var passed = results.filter(function(r) { return r.pass; }).length;
     var failed = results.length - passed;
