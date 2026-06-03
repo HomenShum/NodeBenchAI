@@ -437,6 +437,63 @@ test.describe("ScratchNode live route honesty", () => {
     expect(hostPromotionState.publishCalls).toEqual([]);
   });
 
+  test("verified host can publish a wiki snapshot without sending private note text", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    const ownerKey = "hk1:liveEvents:1:nonce:1770000000000:abcdefabcdefabcdefabcdefabcdef12";
+    await page.addInitScript((key) => {
+      localStorage.setItem("sn_host_owner_key_v2", key);
+    }, ownerKey);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+    await expect.poll(() => page.evaluate(() => document.body.getAttribute("data-role")), { timeout: 5_000 }).toBe("host");
+
+    const privateNoteText = "private board note: acquisition diligence call with Priya";
+    const initialNoteCount = await page.evaluate(() => (window as any).getPrivateNoteHandoffCount?.() ?? 0);
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = `/ask private ${text}`;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, privateNoteText);
+    await expect
+      .poll(() => page.evaluate(() => (window as any).getPrivateNoteHandoffCount?.() ?? 0), { timeout: 5_000 })
+      .toBeGreaterThanOrEqual(initialNoteCount + 1);
+
+    await page.evaluate(() => (window as any).openSheet("host"));
+    await page.getByRole("button", { name: "Publish wiki snapshot" }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            ((window as any).__snMockMutations || []).filter((call: any) => call.name === "events:publishWiki")
+              .length,
+        ),
+      )
+      .toBe(1);
+
+    const publishState = await page.evaluate(() => {
+      const win = window as any;
+      return {
+        publishCalls: (win.__snMockMutations || []).filter((call: any) => call.name === "events:publishWiki"),
+        answerCalls: (win.__snMockMutations || []).filter((call: any) =>
+          ["events:suggestAnswerForFaq", "events:promoteAnswerToFaq"].includes(call.name),
+        ),
+      };
+    });
+
+    expect(publishState.publishCalls).toEqual([
+      expect.objectContaining({
+        args: expect.objectContaining({
+          eventId: "liveEvents:1",
+          ownerKey,
+        }),
+      }),
+    ]);
+    expect(JSON.stringify(publishState.publishCalls[0].args)).not.toContain(privateNoteText);
+    expect(publishState.answerCalls).toEqual([]);
+  });
+
   test("live wiki and people sheets do not show stale static launch counts", async ({ page }) => {
     await fulfillScratchNodePage(page);
 
