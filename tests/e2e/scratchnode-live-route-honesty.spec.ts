@@ -377,6 +377,66 @@ test.describe("ScratchNode live route honesty", () => {
     expect(publicAskState.hostOnlyCalls).toEqual([]);
   });
 
+  test("verified host can promote a public ask answer without publishing the wiki", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    const ownerKey = "hk1:liveEvents:1:nonce:1770000000000:abcdefabcdefabcdefabcdefabcdef12";
+    await page.addInitScript((key) => {
+      localStorage.setItem("sn_host_owner_key_v2", key);
+    }, ownerKey);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+    await expect.poll(() => page.evaluate(() => document.body.getAttribute("data-role")), { timeout: 5_000 }).toBe("host");
+
+    const hostPrompt = "which source should become the host FAQ?";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = `/ask ${text}`;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, hostPrompt);
+
+    const answerCard = page.locator(".ans").filter({ hasText: hostPrompt }).first();
+    await expect(answerCard).toContainText("Mock sourced answer for " + hostPrompt);
+    await expect(answerCard).toContainText("Promote to FAQ");
+    await answerCard.getByRole("button", { name: "Promote to FAQ" }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            ((window as any).__snMockMutations || []).filter(
+              (call: any) => call.name === "events:promoteAnswerToFaq",
+            ).length,
+        ),
+      )
+      .toBe(1);
+
+    const hostPromotionState = await page.evaluate(() => {
+      const win = window as any;
+      return {
+        promotionCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:promoteAnswerToFaq",
+        ),
+        attendeeOnlyCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:suggestAnswerForFaq",
+        ),
+        publishCalls: (win.__snMockMutations || []).filter((call: any) => call.name === "events:publishWiki"),
+      };
+    });
+
+    expect(hostPromotionState.promotionCalls).toEqual([
+      expect.objectContaining({
+        args: expect.objectContaining({
+          answerId: "liveEventAnswers:1",
+          eventId: "liveEvents:1",
+          ownerKey,
+        }),
+      }),
+    ]);
+    expect(hostPromotionState.attendeeOnlyCalls).toEqual([]);
+    expect(hostPromotionState.publishCalls).toEqual([]);
+  });
+
   test("live wiki and people sheets do not show stale static launch counts", async ({ page }) => {
     await fulfillScratchNodePage(page);
 
