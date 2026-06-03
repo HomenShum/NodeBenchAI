@@ -145,7 +145,7 @@ The script:
 Exported `contracts/scratchnode-live-api.json` must keep two projections explicit:
 
 - `publicEventLogJson`: public event metadata, public chat, public `/ask` answers, host-promoted wiki sections, public sources, and typed manual location spots. It excludes private notes, owner keys, session ids, handoff tokens, and NodeBench workspace artifacts.
-- `ownerPrivateNoteProjection`: owner-only private notes, anchors, follow-ups, and NodeBench handoff context. It excludes public wiki JSON, public `/ask` cache, public answer traces, and other attendees' notes.
+- `ownerPrivateNoteProjection`: owner-only private notes, anchors, follow-ups, voice transcripts, and NodeBench handoff context. It excludes public wiki JSON, public `/ask` cache, public answer traces, and other attendees' notes.
 
 ## Backend Compatibility Rule
 

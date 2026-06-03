@@ -721,6 +721,7 @@ function scanPublicRepoReadiness() {
       /owner private notes/i.test(exportScript) &&
       /private note anchors/i.test(exportScript) &&
       /private follow-ups/i.test(exportScript) &&
+      /owner voice transcripts/i.test(exportScript) &&
       /NodeBench handoff context/i.test(exportScript) &&
       /public \/ask cache/i.test(exportScript) &&
       /other attendees' notes/i.test(exportScript),
