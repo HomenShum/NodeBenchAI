@@ -1096,6 +1096,7 @@ async function runInteractiveChecks() {
         "buildNodeBenchEventPrivateUrl",
         "buildNodeBenchSignInUrl",
         "toggleLock",
+        "pushLiveAssistCue",
         "openModePicker",
         "openCaptureLevelPicker",
       ].filter((name) => typeof globalThis[name] === "function");
@@ -1141,6 +1142,57 @@ async function runInteractiveChecks() {
       await sleep(250);
       const notesText = readSheetText();
       close();
+
+      const liveAssistControllerReady =
+        typeof globalThis.toggleLiveAssist === "function" &&
+        typeof globalThis.pushLiveAssistCue === "function";
+      let liveAssistClosedBefore = false;
+      let liveAssistOpened = false;
+      let liveAssistToggleOn = false;
+      let liveAssistCueRendered = false;
+      let liveAssistCueLeakedToFeed = false;
+      let liveAssistClosedAfter = false;
+      if (liveAssistControllerReady) {
+        const cueText = "Launch scan private cue - do not publish";
+        const rail = document.querySelector("#live-assist-rail");
+        const sheet = document.querySelector("#live-assist-sheet");
+        const toggle = document.querySelector("#la-toggle");
+        const feedText = () => document.querySelector("#feed")?.textContent ?? "";
+        const surfaceText = () => [
+          rail?.textContent ?? "",
+          sheet?.textContent ?? "",
+        ].join(" ");
+
+        globalThis.toggleLiveAssist(false);
+        await sleep(75);
+        liveAssistClosedBefore =
+          toggle?.getAttribute("data-on") === "false" &&
+          document.body.getAttribute("data-la-open") === "false" &&
+          rail?.getAttribute("data-open") !== "true" &&
+          sheet?.getAttribute("data-open") !== "true";
+
+        globalThis.pushLiveAssistCue(cueText, { source: "launch-scan", skill: "launch-scan" });
+        globalThis.toggleLiveAssist(true);
+        await sleep(150);
+        liveAssistOpened =
+          (rail?.getAttribute("data-open") === "true" && rail?.getAttribute("aria-hidden") === "false") ||
+          (sheet?.getAttribute("data-open") === "true" && sheet?.getAttribute("aria-hidden") === "false");
+        liveAssistToggleOn =
+          toggle?.getAttribute("data-on") === "true" &&
+          toggle?.getAttribute("aria-pressed") === "true" &&
+          document.body.getAttribute("data-la-open") === "true";
+        liveAssistCueRendered = surfaceText().includes(cueText);
+        liveAssistCueLeakedToFeed = feedText().includes(cueText);
+
+        globalThis.toggleLiveAssist(false);
+        await sleep(75);
+        liveAssistClosedAfter =
+          toggle?.getAttribute("data-on") === "false" &&
+          toggle?.getAttribute("aria-pressed") === "false" &&
+          document.body.getAttribute("data-la-open") === "false" &&
+          rail?.getAttribute("data-open") !== "true" &&
+          sheet?.getAttribute("data-open") !== "true";
+      }
 
       const lock = document.querySelector("#lock");
       const beforePrivate = lock?.getAttribute("data-on");
@@ -1254,6 +1306,13 @@ async function runInteractiveChecks() {
         shareQrTargetsRoom,
         shareHasSocialActions,
         notesText: notesText.slice(0, 160),
+        liveAssistControllerReady,
+        liveAssistClosedBefore,
+        liveAssistOpened,
+        liveAssistToggleOn,
+        liveAssistCueRendered,
+        liveAssistCueLeakedToFeed,
+        liveAssistClosedAfter,
         beforePrivate,
         afterPrivate,
         wallControllerReady,
@@ -1287,6 +1346,13 @@ async function runInteractiveChecks() {
       data.shareQrTargetsRoom &&
       data.shareHasSocialActions &&
       /private|notes/i.test(data.notesText) &&
+      data.liveAssistControllerReady &&
+      data.liveAssistClosedBefore &&
+      data.liveAssistOpened &&
+      data.liveAssistToggleOn &&
+      data.liveAssistCueRendered &&
+      !data.liveAssistCueLeakedToFeed &&
+      data.liveAssistClosedAfter &&
       data.beforePrivate !== data.afterPrivate &&
       data.wallControllerReady &&
       data.wallTabVisible &&
