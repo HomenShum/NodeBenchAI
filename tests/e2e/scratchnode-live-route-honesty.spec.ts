@@ -34,6 +34,8 @@ async function fulfillScratchNodePage(
             window.__snMockMutations = [];
             window.__snMockMessages = [];
             window.__snMockAnswers = [];
+            window.__snMockPromotedAnswerIds = [];
+            window.__snMockPublishedWiki = null;
             window.__snMockSubscriptions = {};
           }
           close() { window.__snMockClosed = true; }
@@ -115,11 +117,55 @@ async function fulfillScratchNodePage(
               localStorage.setItem('__snEndedEventArgs', JSON.stringify(args));
               return Promise.resolve({ ok: true, eventId: args.eventId, status: 'ended' });
             }
+            if (name === 'events:suggestAnswerForFaq') {
+              return Promise.resolve({ ok: true, answerId: args.answerId });
+            }
+            if (name === 'events:promoteAnswerToFaq') {
+              const promoted = Array.isArray(window.__snMockPromotedAnswerIds)
+                ? window.__snMockPromotedAnswerIds
+                : [];
+              if (!promoted.includes(args.answerId)) promoted.push(args.answerId);
+              window.__snMockPromotedAnswerIds = promoted;
+              return Promise.resolve({ ok: true, answerId: args.answerId });
+            }
+            if (name === 'events:publishWiki') {
+              const promotedIds = Array.isArray(window.__snMockPromotedAnswerIds)
+                ? window.__snMockPromotedAnswerIds
+                : [];
+              const promotedAnswers = (window.__snMockAnswers || []).filter((answer) =>
+                promotedIds.includes(answer._id),
+              );
+              const bodyHtml =
+                '<div class="wiki-search"><span>&#128269;</span><input type="text" placeholder="Search this wiki..." aria-label="Search wiki"><kbd>&#8984;K</kbd></div>' +
+                '<h1>AI Infra Summit &middot; Wiki</h1>' +
+                promotedAnswers.map((answer, index) =>
+                  '<section id="faq-' + (index + 1) + '">' +
+                    '<h2>' + answer.question + '</h2>' +
+                    '<p>' + answer.body + '</p>' +
+                    '<div class="wiki-src-chips"><span>' + answer.sourceCount + ' sources</span></div>' +
+                  '</section>'
+                ).join('') +
+                '<div class="wiki-callout"><span class="icon">&#128274;</span><div><strong>Privacy:</strong> Your private notes never enter the wiki. Only public chat, /ask answers, and host-uploaded sources are compacted into this page.</div></div>';
+              window.__snMockPublishedWiki = {
+                eventId: args.eventId,
+                version: 1,
+                title: 'AI Infra Summit · Wiki',
+                bodyHtml,
+                sections: promotedAnswers.map((answer, index) => ({
+                  id: 'faq-' + (index + 1),
+                  title: answer.question,
+                  body: answer.body,
+                  sourceCount: answer.sourceCount,
+                })),
+                generatedAt: 1770000002000 + promotedAnswers.length,
+              };
+              return Promise.resolve({ ok: true, eventId: args.eventId, version: 1, status: 'published' });
+            }
             return Promise.resolve({});
           }
           query(name) {
             if (name === 'events:getMyEvents') return Promise.resolve({ joined: [], hosted: [] });
-            if (name === 'events:getPublishedWiki') return Promise.resolve(null);
+            if (name === 'events:getPublishedWiki') return Promise.resolve(window.__snMockPublishedWiki);
             if (name === 'events:getHostStatus') {
               const token = localStorage.getItem('sn_host_owner_key_v2');
               return Promise.resolve(token ? { isHost: true, role: 'owner', displayName: 'Mock Host' } : { isHost: false });
@@ -510,6 +556,88 @@ test.describe("ScratchNode live route honesty", () => {
     ]);
     expect(JSON.stringify(publishState.publishCalls[0].args)).not.toContain(privateNoteText);
     expect(publishState.answerCalls).toEqual([]);
+  });
+
+  test("verified host publishes promoted public answers into the wiki without leaking private notes", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+    const ownerKey = "hk1:liveEvents:1:nonce:1770000000000:abcdefabcdefabcdefabcdefabcdef12";
+    await page.addInitScript((key) => {
+      localStorage.setItem("sn_host_owner_key_v2", key);
+    }, ownerKey);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+    await expect.poll(() => page.evaluate(() => document.body.getAttribute("data-role")), { timeout: 5_000 }).toBe("host");
+
+    const publicPrompt = "what changed in the MCP auth timeline?";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = `/ask ${text}`;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, publicPrompt);
+
+    const answerCard = page.locator(".ans").filter({ hasText: publicPrompt }).first();
+    await expect(answerCard).toContainText("Mock sourced answer for " + publicPrompt);
+    await answerCard.getByRole("button", { name: "Promote to FAQ" }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            ((window as any).__snMockMutations || []).filter(
+              (call: any) => call.name === "events:promoteAnswerToFaq",
+            ).length,
+        ),
+      )
+      .toBe(1);
+
+    const privateNoteText = "private board note: acquisition diligence call with Priya";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = `/ask private ${text}`;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, privateNoteText);
+    await expect
+      .poll(() => page.evaluate(() => (window as any).getPrivateNoteHandoffCount?.() ?? 0), { timeout: 5_000 })
+      .toBeGreaterThan(0);
+
+    await page.evaluate(() => (window as any).openSheet("host"));
+    await page.getByRole("button", { name: "Publish wiki snapshot" }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            ((window as any).__snMockMutations || []).filter((call: any) => call.name === "events:publishWiki")
+              .length,
+        ),
+      )
+      .toBe(1);
+    await expect.poll(() => page.evaluate(() => (window as any)._sn_published_wiki_body ?? ""), { timeout: 5_000 }).toContain(
+      publicPrompt,
+    );
+
+    await page.evaluate(() => (window as any).openWiki());
+    await expect(page.locator("#sheet-title")).toContainText("AI Infra Summit");
+    await expect(page.locator("#sheet-content")).toContainText(publicPrompt);
+    await expect(page.locator("#sheet-content")).toContainText("Mock sourced answer for " + publicPrompt);
+    await expect(page.locator("#sheet-content")).not.toContainText(privateNoteText);
+    await expect(page.locator("#sheet-content")).toContainText("Your private notes never enter the wiki");
+
+    const publishedWiki = await page.evaluate(() => (window as any).__snMockPublishedWiki);
+    expect(publishedWiki).toMatchObject({
+      eventId: "liveEvents:1",
+      version: 1,
+    });
+    expect(publishedWiki.sections).toEqual([
+      expect.objectContaining({
+        title: publicPrompt,
+        body: "Mock sourced answer for " + publicPrompt,
+      }),
+    ]);
+    expect(JSON.stringify(publishedWiki)).not.toContain(privateNoteText);
   });
 
   test("live wiki and people sheets do not show stale static launch counts", async ({ page }) => {
