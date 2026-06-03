@@ -53,7 +53,7 @@ async function seedWiki(
       eventId,
       version: opts.version,
       status: opts.status,
-      title: `${opts.slug ?? "Event"} Wiki`,
+      title: "Event Wiki",
       bodyHtml: opts.bodyHtml,
       sourceAnswerIds: [],
       sourceIds: [],
