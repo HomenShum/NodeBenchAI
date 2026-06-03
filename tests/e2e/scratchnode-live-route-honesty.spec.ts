@@ -482,6 +482,7 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(page.locator("#pn-inline")).toHaveAttribute("data-count", String(initialNoteCount + 1));
     await expect(page.locator(".row-text", { hasText: privatePrompt })).toHaveCount(0);
     await expect(page.locator(".ans", { hasText: privatePrompt })).toHaveCount(0);
+    await expect(page.locator("#pn-inline")).toContainText("private note(s) saved this event");
 
     const privateState = await page.evaluate((text) => {
       const win = window as any;
@@ -499,6 +500,12 @@ test.describe("ScratchNode live route honesty", () => {
     expect(privateState.handoffUrl).toContain(`noteCount=${initialNoteCount + 1}`);
     expect(privateState.handoffUrl).toContain("publicArtifact=event-wiki");
     expect(privateState.sendCalls).toBe(0);
+
+    await page.evaluate(() => (window as any).openNotes?.());
+    await expect(page.locator("#sheet-title")).toContainText("My notes");
+    await expect(page.locator("#sheet-content")).toContainText(privatePrompt);
+    await expect(page.locator("#sheet-content")).toContainText("Open NodeBench event notebook");
+    await expect(page.locator("#sn-nodebench-private-handoff")).toBeVisible();
   });
 
   test("public /ask keeps the parent ask visible and shows FAQ/wiki actions with a public-only trace", async ({
