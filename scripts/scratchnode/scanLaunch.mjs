@@ -30,6 +30,7 @@ const files = {
   nodebenchGoal: "goals/nodebench/001-event-handoff.md",
   runtimeGoal: "goals/runtime/001-public-private-boundary.md",
   routeHonestySpec: "tests/e2e/scratchnode-live-route-honesty.spec.ts",
+  scratchnodeWikiBridgeSpec: "src/features/events/views/ScratchnodeWikiBridge.test.tsx",
   demoQa: "qa/run_demo_full.md",
   readme: "README.md",
   license: "LICENSE",
@@ -635,6 +636,7 @@ function scanPublicRepoReadiness() {
     files.nodebenchGoal,
     files.runtimeGoal,
     files.routeHonestySpec,
+    files.scratchnodeWikiBridgeSpec,
     files.demoQa,
     files.license,
     files.security,
@@ -648,6 +650,7 @@ function scanPublicRepoReadiness() {
   const readme = readText(files.readme);
   const homeHtml = readText(files.homeV5);
   const routeHonestySpec = readText(files.routeHonestySpec);
+  const scratchnodeWikiBridgeSpec = readText(files.scratchnodeWikiBridgeSpec);
 
   addCheck({
     ok: /Explicit Exclusions/i.test(splitRunbook) && /convex\//i.test(splitRunbook),
@@ -872,6 +875,22 @@ function scanPublicRepoReadiness() {
     name: "event-log route spec proves visibility-safe NodeBench handoff URLs",
     plane: "event-log-evidence",
     detail: files.routeHonestySpec,
+  });
+  addCheck({
+    ok:
+      /keeps public wiki bridge links visibility-safe and free of private handoff params/i.test(
+        scratchnodeWikiBridgeSpec,
+      ) &&
+      /https:\/\/scratchnode\.live\/wiki\/rooftop-launch/i.test(scratchnodeWikiBridgeSpec) &&
+      /https:\/\/scratchnode\.live\/e\/rooftop/i.test(scratchnodeWikiBridgeSpec) &&
+      /not\.toContain\("token="\)/i.test(scratchnodeWikiBridgeSpec) &&
+      /not\.toContain\("session="\)/i.test(scratchnodeWikiBridgeSpec) &&
+      /not\.toContain\("continuation="\)/i.test(scratchnodeWikiBridgeSpec) &&
+      /not\.toContain\("publicArtifact="\)/i.test(scratchnodeWikiBridgeSpec) &&
+      /not\.toContain\("noteCount="\)/i.test(scratchnodeWikiBridgeSpec),
+    name: "NodeBench public wiki bridge links stay visibility-safe",
+    plane: "event-log-evidence",
+    detail: files.scratchnodeWikiBridgeSpec,
   });
 }
 

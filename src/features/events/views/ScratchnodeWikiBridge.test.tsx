@@ -2,10 +2,10 @@
  * Scenario tests for the ScratchNode -> NodeBench bridge receiving surface.
  * Persona: a guest who clicked "Continue in NodeBench" from a ScratchNode wiki.
  * Verifies the route renders the public recap, frames the conversion, stays
- * honest on unpublished/loading, and SANITIZES the wiki body (XSS defense).
+ * honest on unpublished/loading, and sanitizes the wiki body (XSS defense).
  */
-import { render, screen, cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 
 const useQueryMock = vi.fn();
 vi.mock("convex/react", () => ({
@@ -36,15 +36,13 @@ describe("ScratchnodeWikiBridge", () => {
     render(<ScratchnodeWikiBridge slug="rooftop-launch" source="scratchnode" roomCode="ROOFTOP" />);
 
     expect(screen.getByTestId("scratchnode-wiki-bridge-body")).toHaveTextContent("PUBLIC_RECAP_BODY");
-    // Conversion CTA points into the NodeBench app (a real, working route).
     const cta = screen.getByTestId("scratchnode-wiki-bridge-cta-nodebench");
     expect(cta).toHaveAttribute("href", "/");
-    // Reverse paths back to ScratchNode are present and well-formed.
     expect(screen.getByText("View the public wiki")).toHaveAttribute(
       "href",
       "https://scratchnode.live/wiki/rooftop-launch",
     );
-    expect(screen.getByText("Open in ScratchNode →")).toHaveAttribute(
+    expect(screen.getByText(/Open in ScratchNode/)).toHaveAttribute(
       "href",
       "https://scratchnode.live/e/rooftop",
     );
@@ -60,14 +58,13 @@ describe("ScratchnodeWikiBridge", () => {
     );
   });
 
-  it("shows an honest empty state for an unpublished/unknown room (never a fake recap)", () => {
+  it("shows an honest empty state for an unpublished or unknown room", () => {
     useQueryMock.mockReturnValue(null);
     render(<ScratchnodeWikiBridge slug="not-published" />);
 
     expect(screen.getByTestId("scratchnode-wiki-bridge-empty")).toHaveTextContent(
-      "hasn’t published its wiki yet",
+      /hasn.t published its wiki yet/i,
     );
-    // No recap body is fabricated.
     expect(screen.queryByTestId("scratchnode-wiki-bridge-body")).toBeNull();
   });
 
@@ -75,13 +72,13 @@ describe("ScratchnodeWikiBridge", () => {
     useQueryMock.mockReturnValue(null);
     render(<ScratchnodeWikiBridge slug="not-published" roomCode="ORBITAL" />);
 
-    expect(screen.getByText("Open in ScratchNode →")).toHaveAttribute(
+    expect(screen.getByText(/Open in ScratchNode/)).toHaveAttribute(
       "href",
       "https://scratchnode.live/e/orbital",
     );
   });
 
-  it("shows a loading state while the query resolves (no premature empty/error)", () => {
+  it("shows a loading state while the query resolves", () => {
     useQueryMock.mockReturnValue(undefined);
     render(<ScratchnodeWikiBridge slug="rooftop-launch" />);
 
@@ -89,7 +86,7 @@ describe("ScratchnodeWikiBridge", () => {
     expect(screen.queryByTestId("scratchnode-wiki-bridge-empty")).toBeNull();
   });
 
-  it("SANITIZES the wiki body — script/handlers are stripped before render (XSS defense)", () => {
+  it("sanitizes the wiki body before render", () => {
     useQueryMock.mockReturnValue({
       ...WIKI,
       bodyHtml:
@@ -99,9 +96,35 @@ describe("ScratchnodeWikiBridge", () => {
 
     const body = screen.getByTestId("scratchnode-wiki-bridge-body");
     expect(body).toHaveTextContent("KEEP_THIS");
-    // The dangerous bits never reach the DOM.
     expect(container.querySelector("script")).toBeNull();
     expect(body.innerHTML).not.toContain("onerror");
     expect(body.innerHTML).not.toContain("window.__xss");
+  });
+
+  it("keeps public wiki bridge links visibility-safe and free of private handoff params", () => {
+    useQueryMock.mockReturnValue(WIKI);
+    render(
+      <ScratchnodeWikiBridge
+        slug="rooftop-launch"
+        source="scratchnode"
+        roomCode="ORBITAL"
+      />,
+    );
+
+    const publicWikiHref = screen.getByText("View the public wiki").getAttribute("href");
+    const roomHref = screen.getByText(/Open in ScratchNode/).getAttribute("href");
+
+    expect(publicWikiHref).toBe("https://scratchnode.live/wiki/rooftop-launch");
+    expect(roomHref).toBe("https://scratchnode.live/e/rooftop");
+
+    for (const href of [publicWikiHref, roomHref]) {
+      expect(href).not.toContain("token=");
+      expect(href).not.toContain("session=");
+      expect(href).not.toContain("source=");
+      expect(href).not.toContain("room=");
+      expect(href).not.toContain("continuation=");
+      expect(href).not.toContain("publicArtifact=");
+      expect(href).not.toContain("noteCount=");
+    }
   });
 });
