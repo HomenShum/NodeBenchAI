@@ -755,6 +755,11 @@ function scanPublicRepoReadiness() {
       ) &&
       /_laCueAction\?\.\("save",\s*id\)/i.test(routeHonestySpec) &&
       /Cue: \$\{cueText\}/i.test(routeHonestySpec) &&
+      /Live Assist ask privately cue drafts first, then sends only to private notes/i.test(
+        routeHonestySpec,
+      ) &&
+      /expect\(draftState\.draft\)\.toBe\(`\/ask private \$\{cueText\}`\)/i.test(routeHonestySpec) &&
+      /expect\(draftState\.inputEvents\)\.toBeGreaterThan\(0\)/i.test(routeHonestySpec) &&
       /Live Assist follow-up cues require explicit action before private note creation/i.test(
         routeHonestySpec,
       ) &&

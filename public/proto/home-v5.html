@@ -6991,6 +6991,8 @@ function _laCueAction(action, cueId) {
     var input = document.getElementById('ci');
     if (input) {
       input.value = '/ask private ' + cue.text;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      try { input.setSelectionRange(input.value.length, input.value.length); } catch (e) {}
       input.focus();
     }
   } else if (action === 'followup') {
