@@ -1072,6 +1072,8 @@ test.describe("ScratchNode live route honesty", () => {
     expect(state.noteText).toContain("Evidence to capture: quote, speaker/company");
     expect(state.noteText).toContain("Event topic: MCP auth - Panel Room A");
     expect(state.noteText).toContain("Context: @Orbital Labs, @Alex Chen, [[tenant RBAC]]");
+    expect(state.noteText).toContain("Cue source: route-test");
+    expect(state.noteText).toContain("Cue skill: follow-up-depth");
     expect(state.noteText).toContain("Visibility: private follow-up note; not public chat or public /ask.");
     expect(state.recentNotes.join("\n")).toContain(`Follow-up: ${cueText}`);
     expect(state.actions).toEqual([]);

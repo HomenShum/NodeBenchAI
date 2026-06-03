@@ -804,6 +804,9 @@ function scanPublicRepoReadiness() {
       /function saveLiveAssistPrivateNote\s*\(/i.test(homeHtml) &&
       /window\.saveLiveAssistPrivateNote\s*=\s*saveLiveAssistPrivateNote/i.test(homeHtml) &&
       /saveLiveAssistPrivateNote\('Cue: '\s*\+\s*cue\.text,\s*'cue'\)/i.test(homeHtml) &&
+      /skill:\s*opts\.skill\s*\|\|\s*'meeting-live-cue'/i.test(homeHtml) &&
+      /Cue source: '\s*\+\s*source/i.test(homeHtml) &&
+      /Cue skill: '\s*\+\s*skill/i.test(homeHtml) &&
       /Visibility: private follow-up note; not public chat or public \/ask\./i.test(homeHtml) &&
       /Live Assist save cue writes an actual private note without public writes/i.test(
         routeHonestySpec,
@@ -824,6 +827,8 @@ function scanPublicRepoReadiness() {
       ) &&
       /_laCueAction\?\.\("followup",\s*id\)/i.test(routeHonestySpec) &&
       /Follow-up: \$\{cueText\}/i.test(routeHonestySpec) &&
+      /Cue source: route-test/i.test(routeHonestySpec) &&
+      /Cue skill: follow-up-depth/i.test(routeHonestySpec) &&
       /publicSendCalls\)\.toEqual\(\[\]\)/i.test(routeHonestySpec),
     name: "event-log route spec covers structured private follow-up cues",
     plane: "event-log-evidence",
