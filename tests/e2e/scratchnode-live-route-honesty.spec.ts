@@ -407,6 +407,53 @@ test.describe("ScratchNode live route honesty", () => {
     expect(privateNoteState.sendCalls).toEqual([]);
   });
 
+  test("sensitive event mode forces /ask into private notes without agent calls", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    await page.evaluate(() => (window as any).setEventMode?.("sensitive"));
+    await expect(page.locator("body")).toHaveAttribute("data-event-mode", "sensitive");
+
+    const sensitivePrompt = "summarize the private vendor pricing concern";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = `/ask ${text}`;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, sensitivePrompt);
+
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+    await expect(page.locator(".row-text", { hasText: sensitivePrompt })).toHaveCount(0);
+    await expect(page.locator(".ans", { hasText: sensitivePrompt })).toHaveCount(0);
+
+    const sensitiveState = await page.evaluate((text) => {
+      const win = window as any;
+      return {
+        noteCount: win.getPrivateNoteHandoffCount?.(),
+        actions: win.__snMockActions || [],
+        sendCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:sendMessage" && call.args?.text === text,
+        ),
+        noteTexts: (win._notes_v5 || []).map((note: any) => note.title + "\n" + note.body),
+      };
+    }, sensitivePrompt);
+
+    expect(sensitiveState.noteCount).toBe(initialNoteCount + 1);
+    expect(sensitiveState.actions).toEqual([]);
+    expect(sensitiveState.sendCalls).toEqual([]);
+    expect(sensitiveState.noteTexts.join("\n")).toContain(sensitivePrompt);
+  });
+
   test("private /ask stays out of the public feed and increases the NodeBench handoff note count", async ({
     page,
   }) => {

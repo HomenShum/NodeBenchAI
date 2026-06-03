@@ -6373,8 +6373,8 @@ window._laCueAction       = _laCueAction;
     if (!input) return;
     const intent = window.parseComposerIntent && window.parseComposerIntent(input.value);
     if (!intent) { input.focus(); return; }
-    // Private notes stay 100% prototype-side and never touch Convex — pass through.
-    if (intent.visibility === 'private') { return _preInitSend.call(this); }
+    // Private and sensitive sends stay prototype-side and never touch Convex.
+    if (intent.visibility === 'private' || intent.eventMode === 'sensitive') { return _preInitSend.call(this); }
     window._sn_pendingSends.push(input.value);
     input.value = '';
     if ('ontouchstart' in window || window.innerWidth <= 720) input.blur();
@@ -6614,9 +6614,10 @@ window._laCueAction       = _laCueAction;
     if (!intent) { input.focus(); return; }
     const submittedValue = input.value;
 
-    // Private mode stays out of liveEventMessages. The savePrivateNote wrapper
-    // below mirrors it into userNotes with ownerKey validation.
-    if (intent.visibility === 'private') {
+    // Private and sensitive modes stay out of liveEventMessages. The
+    // savePrivateNote wrapper below mirrors private notes into userNotes with
+    // ownerKey validation; sensitive mode is manual-only and makes no agent call.
+    if (intent.visibility === 'private' || intent.eventMode === 'sensitive') {
       return _origSend.call(this);
     }
 
