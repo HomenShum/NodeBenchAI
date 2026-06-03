@@ -2,6 +2,31 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-03 — Make /ask answers actually shareable (honesty fix + the missing lever)
+An audit of the full viral journey found the /ask answer "Share" button was a lie:
+`onclick="toast('Shared','Answer link copied.')"` claimed it copied a link while
+copying **nothing** (HONEST_STATUS violation) — and worse, the **live** answer
+renderer had no Share affordance at all, so real `/ask` answers (the single most
+screenshot-worthy unit in the room — "the output is the distribution") couldn't be
+shared.
+
+Fix: a real `_snShareAnswer(answerId, explicitQuestion)` helper that copies a
+genuine link — the room URL + the answer's question (`"<Q>" — answered live in
+<event> on ScratchNode\n<url>`) — via the native share sheet when available, else
+a real clipboard write that only toasts "Answer link copied" **after the write
+resolves** (and an honest "Couldn't copy" with the raw URL on failure). Wired into:
+the live answer renderer (which previously had Suggest/Promote/Pin/View-in-wiki but
+no Share), the autoplay demo renderer (parity), and the static demo card (de-lied).
+The live renderer now also caches each answer's question (`_sn_answer_q_by_id`) so
+the Share link carries the real question text.
+
+Covered by a new honesty case: asserts the lying `toast('Shared'` handler is gone
+from the shipped file and that `_snShareAnswer` writes a real room link + the
+question to the clipboard (forced clipboard path, captured write). 19→20 chromium
+honesty suite green; output-contract demo path green.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-03 — Directory viral slice: flyer cards, "● N inside" presence, one-tap request-to-join
 Closed the last gap in the viral loop on the *discovery* side. The public-rooms
 directory used to render every room as a list row with a single hardcoded

@@ -226,6 +226,35 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(page.locator("#ci")).toHaveValue("this must not be local-only");
   });
 
+  test("/ask answer Share copies a REAL link (no fake 'Shared' toast)", async ({ page }) => {
+    // The old lying handler (toasted "Answer link copied" while copying nothing)
+    // must be gone from the shipped file, and the honest helper must exist.
+    expect(HOME_V5_HTML).not.toContain("toast('Shared'");
+    expect(HOME_V5_HTML).toContain("function _snShareAnswer");
+
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    // Force the clipboard path and capture what actually gets written — proving the
+    // Share button copies a real room link + the question, not a fake success toast.
+    const written = await page.evaluate(() => {
+      // navigator.share lives on the prototype in Chromium — shadow it with an
+      // own undefined property so the helper takes the testable clipboard path.
+      Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+      let captured = "";
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText: (t: string) => { captured = t; return Promise.resolve(); } },
+        configurable: true,
+      });
+      (window as any)._snShareAnswer("", "What is the MCP auth timeline?");
+      return captured;
+    });
+    expect(written).toContain("What is the MCP auth timeline?");
+    expect(written).toContain("/e/"); // a real room URL, not an empty string
+    expect(written).toContain("ScratchNode");
+  });
+
   test("live wiki and people sheets do not show stale static launch counts", async ({ page }) => {
     await fulfillScratchNodePage(page);
 
