@@ -799,7 +799,13 @@ function scanPublicRepoReadiness() {
       /typed people and company tags stay public-row context while private tagged follow-ups stay private/i.test(
         routeHonestySpec,
       ) &&
+      /private notes anchored from people and company tags keep public ask context clean/i.test(
+        routeHonestySpec,
+      ) &&
       /data-event-log-tag/i.test(routeHonestySpec) &&
+      /anchorPreview:\s*publicText/i.test(routeHonestySpec) &&
+      /serializedAnswers[\s\S]{0,120}\.not\.toContain\("Sarah Kim"\)/i.test(routeHonestySpec) &&
+      /serializedAnswers[\s\S]{0,120}\.not\.toContain\("MedLayer"\)/i.test(routeHonestySpec) &&
       /privateSendCalls/i.test(routeHonestySpec),
     name: "event-log route spec covers tag visibility boundaries",
     plane: "event-log-evidence",

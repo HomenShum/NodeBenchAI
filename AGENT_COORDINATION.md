@@ -110,6 +110,8 @@ Keep entries short and honest. Newest on top within each section.
 
 ## Recently shipped (this ScratchNode session)
 
+- **Codex** - tagged public-row anchor proof (`tests/e2e/scratchnode-live-route-honesty.spec.ts#tag-anchor` + `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): route test proves a private note anchored from a public @person/#company event-log row preserves the full public anchor preview, renders only the owner-visible marker, and keeps private person/company follow-up text out of public rows, public `/ask`, and serialized answers; launch scanner now requires the proof before passing.
+
 - **Codex** - manual location spot anchor proof (`tests/e2e/scratchnode-live-route-honesty.spec.ts#manual-location-spots` + `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): route test proves a private note anchored from a public Booth 12 location moment preserves context, stays out of public chat and public `/ask`, and renders only the owner-visible marker; launch scanner now requires the proof before passing.
 
 - **Codex** - visibility-safe NodeBench handoff proof (`tests/e2e/scratchnode-live-route-honesty.spec.ts#nodebench-handoff` + `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): route test proves private follow-up text, tags, note ids, anchor ids/previews, public anchor text, and session ids stay out of fallback/tokenized handoff URLs; launch scanner now requires the proof before passing.
