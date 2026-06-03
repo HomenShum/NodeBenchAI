@@ -72,6 +72,28 @@ describe("ScratchnodePrivateBridge", () => {
     expect(document.body.innerHTML).not.toContain("opaque-token-abcdefghijklmno");
   });
 
+  it("prefers the redeemed room code over a stale query room when building the ScratchNode return link", async () => {
+    consumeMock.mockResolvedValue(RESULT);
+    render(
+      <ScratchnodePrivateBridge
+        slug="rooftop-launch"
+        token="opaque-token-abcdefghijklmno"
+        roomCode="WRONGROOM"
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("scratchnode-private-bridge-note-body")).toHaveTextContent(
+        "PRIVATE_NOTE_BODY",
+      ),
+    );
+
+    expect(screen.getByText(/Back to ScratchNode/i)).toHaveAttribute(
+      "href",
+      "https://scratchnode.live/e/rooftop",
+    );
+  });
+
   it("shows a loading state while redeeming (no premature empty/error)", () => {
     // Never resolves — stays in the redeeming phase.
     consumeMock.mockReturnValue(new Promise(() => {}));

@@ -175,8 +175,10 @@ export function ScratchnodePrivateBridge({ slug, token, roomCode }: Props) {
     // consume identity is stable; token drives the single redemption.
   }, [token, consume]);
 
+  // Once the token redeems, trust the backend-bound room code over the inbound
+  // query param so a stale/tampered `?room=` cannot misdirect the return link.
   const roomUrl = `${SCRATCHNODE_ORIGIN}/e/${encodeURIComponent(
-    String(roomCode || result?.roomCode || slug).toLowerCase(),
+    String(result?.roomCode || roomCode || slug).toLowerCase(),
   )}`;
 
   return (
