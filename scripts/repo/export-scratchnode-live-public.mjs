@@ -361,6 +361,8 @@ These are product safety rules, not preferences.
 5. Public traces show "No private notes used."
 6. Demo automation runs only on \`/demo_ver*\`.
 7. Missing live rooms show an honest missing-room state, not mock chat.
+8. Public event-log JSON contains public room moments only.
+9. Owner-only private note projections are separate from public event-log JSON.
 `;
 }
 
@@ -382,6 +384,8 @@ This repo should stay focused on the public live room. Backend runtime changes h
 
 function buildApiContract() {
   return {
+    surface: "open-source event log assistant",
+    framing: "memory layer for live events",
     convexFunctions: [
       "events:getEventBySlug",
       "events:joinEvent",
@@ -411,6 +415,41 @@ function buildApiContract() {
       "public ask traces say no private notes used",
       "private note markers are owner-only",
     ],
+    eventLogProjections: {
+      publicEventLogJson: {
+        visibility: "public",
+        includes: [
+          "event metadata",
+          "public chat messages",
+          "public /ask questions and answers",
+          "host-promoted FAQ/wiki sections",
+          "public source references",
+          "typed manual location spots",
+        ],
+        excludes: [
+          "private notes",
+          "owner keys",
+          "session ids",
+          "handoff tokens",
+          "NodeBench workspace artifacts",
+        ],
+      },
+      ownerPrivateNoteProjection: {
+        visibility: "owner-only",
+        includes: [
+          "owner private notes",
+          "private note anchors",
+          "private follow-ups",
+          "NodeBench handoff context",
+        ],
+        excludes: [
+          "public wiki JSON",
+          "public /ask cache",
+          "public answer traces",
+          "other attendees' notes",
+        ],
+      },
+    },
   };
 }
 
@@ -449,6 +488,21 @@ const forbidden = [
 const presentForbidden = forbidden.filter((relativePath) => fs.existsSync(path.join(root, relativePath)));
 if (presentForbidden.length) {
   console.error("Forbidden paths present:\\n" + presentForbidden.map((entry) => " - " + entry).join("\\n"));
+  process.exit(1);
+}
+
+const contract = JSON.parse(fs.readFileSync(path.join(root, "contracts/scratchnode-live-api.json"), "utf8"));
+const eventLog = contract.eventLogProjections || {};
+const publicLog = eventLog.publicEventLogJson || {};
+const privateProjection = eventLog.ownerPrivateNoteProjection || {};
+const requiredPublicExclusions = ["private notes", "owner keys", "session ids", "handoff tokens"];
+const missingPublicExclusions = requiredPublicExclusions.filter((entry) => !(publicLog.excludes || []).includes(entry));
+if (publicLog.visibility !== "public" || missingPublicExclusions.length) {
+  console.error("Public event-log projection contract is incomplete.");
+  process.exit(1);
+}
+if (privateProjection.visibility !== "owner-only" || !(privateProjection.excludes || []).includes("public wiki JSON")) {
+  console.error("Owner-only private note projection contract is incomplete.");
   process.exit(1);
 }
 

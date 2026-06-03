@@ -138,8 +138,14 @@ The script:
 - generates public repo metadata,
 - creates a minimal ScratchNode-only `vercel.json`,
 - writes the public Convex API/string-call contract,
+- writes event-log projection evidence that separates public event-log JSON from owner-only private note projection,
 - scans the output for forbidden files and sensitive strings,
 - exits non-zero on export safety failures.
+
+Exported `contracts/scratchnode-live-api.json` must keep two projections explicit:
+
+- `publicEventLogJson`: public event metadata, public chat, public `/ask` answers, host-promoted wiki sections, public sources, and typed manual location spots. It excludes private notes, owner keys, session ids, handoff tokens, and NodeBench workspace artifacts.
+- `ownerPrivateNoteProjection`: owner-only private notes, anchors, follow-ups, and NodeBench handoff context. It excludes public wiki JSON, public `/ask` cache, public answer traces, and other attendees' notes.
 
 ## Backend Compatibility Rule
 
@@ -203,4 +209,3 @@ After deployment:
 5. Open scratchnode.live/demo_ver1. Demo automation may run there only.
 6. Open scratchnode.live/api/scratchnode-config. It returns only public config.
 ```
-

@@ -630,6 +630,18 @@ function scanPublicRepoReadiness() {
     detail: files.exportScript,
   });
   addCheck({
+    ok:
+      /eventLogProjections/i.test(exportScript) &&
+      /publicEventLogJson/i.test(exportScript) &&
+      /ownerPrivateNoteProjection/i.test(exportScript) &&
+      /private notes/i.test(exportScript) &&
+      /handoff tokens/i.test(exportScript) &&
+      /public wiki JSON/i.test(exportScript),
+    name: "public export declares event-log and private projection boundaries",
+    plane: "public-repo",
+    detail: "publicEventLogJson + ownerPrivateNoteProjection",
+  });
+  addCheck({
     ok: /ScratchNode|NodeBench/i.test(readme),
     name: "root README names product context",
     plane: "public-repo",
