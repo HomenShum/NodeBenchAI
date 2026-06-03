@@ -377,9 +377,11 @@ test.describe("ScratchNode live route honesty", () => {
 
     const privateNoteState = await page.evaluate((text) => {
       const win = window as any;
+      const handoffUrl = win.buildNodeBenchEventPrivateUrl?.();
       return {
         noteCount: win.getPrivateNoteHandoffCount?.(),
-        handoffUrl: win.buildNodeBenchEventPrivateUrl?.(),
+        handoffUrl,
+        signInUrl: win.buildNodeBenchSignInUrl?.(handoffUrl),
         actions: win.__snMockActions || [],
         sendCalls: (win.__snMockMutations || []).filter(
           (call: any) => call.name === "events:sendMessage" && call.args?.text === text,
@@ -390,6 +392,17 @@ test.describe("ScratchNode live route honesty", () => {
     expect(privateNoteState.noteCount).toBe(initialNoteCount + 1);
     expect(privateNoteState.handoffUrl).toContain(`noteCount=${initialNoteCount + 1}`);
     expect(privateNoteState.handoffUrl).toContain("continuation=private-notes");
+    const handoffUrl = new URL(privateNoteState.handoffUrl);
+    expect(handoffUrl.origin).toBe("https://nodebenchai.com");
+    expect(handoffUrl.pathname).toMatch(/^\/events\/.+\/private$/);
+    expect(handoffUrl.searchParams.get("source")).toBe("scratchnode");
+    expect(handoffUrl.searchParams.get("publicArtifact")).toBe("event-wiki");
+    expect(handoffUrl.searchParams.get("return")).toBe("https://scratchnode.live/e/ai-infra-summit-2026");
+    const signInUrl = new URL(privateNoteState.signInUrl);
+    expect(signInUrl.origin).toBe("https://nodebenchai.com");
+    expect(signInUrl.pathname).toBe("/sign-in");
+    expect(signInUrl.searchParams.get("intent")).toBe("save-private-notes");
+    expect(signInUrl.searchParams.get("return")).toBe(privateNoteState.handoffUrl);
     expect(privateNoteState.actions).toEqual([]);
     expect(privateNoteState.sendCalls).toEqual([]);
   });
