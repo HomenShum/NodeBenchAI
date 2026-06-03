@@ -76,6 +76,7 @@ const QUESTION_START = /^(ask|who|what|when|where|why|how|which|compare|research
 const EXPLORE_REQUEST_MARKERS = /\b(need|create|build|produce|turn this into|cluster|compare|rank|verify|diligence|research|explore|workspace|map|brief|sources|cards|notebook)\b/i;
 const FIELD_NOTE_MARKERS = /\b(met|talked|spoke|coffee|demo day|conference|booth|voice memo|recorded|handwritten|whiteboard|screenshot|photo|notes?|lecture|pitch|customer call)\b/i;
 const FOLLOW_UP_MARKERS = /\b(follow up|follow-up|todo|remind|task|next step|ask them|email|intro|reply|schedule)\b/i;
+const DEEPER_FOLLOW_UP_MARKERS = /\b(go deeper|deep dive|deeper follow-up|deeper follow up|deepen|research next|follow through)\b/i;
 const APPEND_MARKERS = /\b(add|attach|save|append|put this|log this)\b.*\b(report|brief|dossier|workspace|notebook)\b/i;
 const EVENT_MARKERS = /\b(demo day|conference|event|booth|lecture|whiteboard|pitch|summit|meetup)\b/i;
 const LOCATION_SPOT_MARKERS = /\b(booth\s*\d+|lobby|panel\s+room\s+[a-z0-9]+|investor\s+lounge|afterparty)\b/i;
@@ -162,7 +163,7 @@ function inferIntent(
   hasFiles: boolean,
 ): CaptureIntent {
   if (mode === "task") return "create_followup";
-  if (FOLLOW_UP_MARKERS.test(text)) return "create_followup";
+  if (FOLLOW_UP_MARKERS.test(text) || DEEPER_FOLLOW_UP_MARKERS.test(text)) return "create_followup";
   if (APPEND_MARKERS.test(text)) return "append_to_report";
   if (mode === "note") return "capture_field_note";
   if (/^\s*ask\b/i.test(text)) return "ask_question";
@@ -255,6 +256,11 @@ function extractEntities(
   const metMatch = text.match(/\b(?:met|talked to|spoke with|coffee with)\s+([A-Z][A-Za-z.-]*(?:\s+(?!from\b)[A-Z][A-Za-z.-]*)?)/i);
   if (metMatch) add(metMatch[1], "person", 0.82);
 
+  const deeperFollowUpPersonMatch = text.match(
+    /\b(?:go deeper on|deep dive on|deepen|research next|follow through with)\s+([A-Z][A-Za-z.-]*(?:\s+(?!from\b|at\b|with\b|and\b)[A-Z][A-Za-z.-]*)?)/i,
+  );
+  if (deeperFollowUpPersonMatch) add(deeperFollowUpPersonMatch[1], "person", 0.78);
+
   const capitalized = text.match(/\b[A-Z][A-Za-z0-9&-]*(?:\s+[A-Z][A-Za-z0-9&-]*){0,3}\b/g) ?? [];
   for (const phrase of capitalized) {
     const first = phrase.split(/\s+/)[0];
@@ -312,10 +318,17 @@ function extractFollowUps(
 ): CaptureFollowUp[] {
   const followUps: CaptureFollowUp[] = [];
   const normalized = text.toLowerCase();
-  if (FOLLOW_UP_MARKERS.test(text) || intent === "create_followup") {
+  const wantsDeeperFollowUp = DEEPER_FOLLOW_UP_MARKERS.test(text);
+  if (FOLLOW_UP_MARKERS.test(text) || wantsDeeperFollowUp || intent === "create_followup") {
     followUps.push({
       text: text.replace(/^[-*]\s*/, "").slice(0, 160),
       priority: normalized.includes("urgent") || normalized.includes("tomorrow") ? "high" : "medium",
+    });
+  }
+  if (wantsDeeperFollowUp && target === "active_event_session") {
+    followUps.push({
+      text: "Deepen event follow-up across people, companies, topics, and anchors",
+      priority: "high",
     });
   }
   if (normalized.includes("design partner") || normalized.includes("pilot")) {

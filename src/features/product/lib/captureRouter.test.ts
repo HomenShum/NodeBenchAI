@@ -48,6 +48,28 @@ describe("inferCaptureRoute", () => {
     expect(route.ack).toContain("Saved to active event session");
   });
 
+  it("routes deeper self-directed event follow-ups with location anchors", () => {
+    const route = inferCaptureRoute({
+      text: "Go deeper on Priya from Helio Labs at Panel Room A and prep next questions for the sponsor intro.",
+      mode: "task",
+    });
+
+    expect(route.intent).toBe("create_followup");
+    expect(route.target).toBe("active_event_session");
+    expect(route.gate).toBe("auto_route");
+    expect(route.entities.map((entity) => entity.name)).toEqual(
+      expect.arrayContaining(["Priya", "Helio Labs"]),
+    );
+    expect(route.followUps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          text: "Deepen event follow-up across people, companies, topics, and anchors",
+          priority: "high",
+        }),
+      ]),
+    );
+  });
+
   it("treats afterparty location notes as event captures instead of unassigned notes", () => {
     const route = inferCaptureRoute({
       text: "Afterparty notes: founder intros moved to the rooftop bar.",
