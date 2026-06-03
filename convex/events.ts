@@ -1420,6 +1420,126 @@ export const getPublishedWikiBySlug = query({
 });
 
 /**
+ * getPublishedWikiStructuredBySlug — the STRUCTURED public read for the
+ * NodeBench WORKSPACE importer (roadmap #3, slice 1).
+ *
+ * Why this exists: `getPublishedWikiBySlug` returns rendered `bodyHtml`, which
+ * is great for a read-only SSR page but lossy for the importer — we'd have to
+ * re-parse HTML back into blocks. This query returns the SAME published
+ * snapshot as structured Q&A + sources so the importer can build editable
+ * document blocks directly, with no HTML round-trip.
+ *
+ * Privacy / honesty contract (identical guarantees to getPublishedWikiBySlug):
+ *   - PUBLISHED-only. Drafts / unpublished events / unknown slug -> null
+ *     (no fabricated/empty recap). The published wiki version is the privacy
+ *     boundary: `publishWiki` builds it from PUBLIC promoted /ask answers +
+ *     public sources only — private notes (userNotes) are excluded at publish
+ *     time, so there is nothing private to leak here.
+ *   - We dereference ONLY the answer/source ids that the published snapshot
+ *     already committed to (`wiki.sourceAnswerIds` / `wiki.sourceIds`). We do
+ *     NOT scan liveEventAnswers/liveEventSources at large, and we NEVER touch
+ *     userNotes / liveEventNoteAnchors (private).
+ *   - Exposes only public-safe fields — never host ownerKey or internal ids
+ *     beyond the answer/source ids needed for idempotent re-import provenance.
+ *
+ * BOUND (agentic_reliability): answers capped at MAX_WIKI_ANSWERS (20),
+ * sources capped at 20 — mirrors `buildWikiHtml` so the structured read can
+ * never be heavier than the HTML read it parallels.
+ */
+const MAX_STRUCTURED_WIKI_SOURCES = 20;
+
+export type StructuredPublishedWiki = {
+  eventId: string;
+  slug: string;
+  eventName: string;
+  roomCode: string;
+  eventStatus: string;
+  wikiVersion: number;
+  publishedAt: number | null;
+  answers: Array<{ question: string; body: string }>;
+  sources: Array<{ title: string; uri: string; excerpt: string }>;
+};
+
+/**
+ * Shared reader for the structured published wiki. Works with any ctx exposing
+ * `db` (query OR mutation), because every operation is a read. The public query
+ * below and the WORKSPACE importer (convex/domains/product/scratchnodeImport.ts)
+ * BOTH go through this so the privacy + BOUND contract can never drift between
+ * the read path and the write path.
+ *
+ * Returns null for: unknown slug, no published version. NEVER reads userNotes /
+ * liveEventNoteAnchors (private). Only dereferences ids the published snapshot
+ * already committed to.
+ */
+export async function loadStructuredPublishedWiki(
+  ctx: { db: any },
+  slug: string,
+): Promise<StructuredPublishedWiki | null> {
+  const cleanSlug = String(slug || "").trim().toLowerCase();
+  if (!cleanSlug || cleanSlug.length > 120) return null;
+  const event = await resolveEventBySlugOrRoomCode(ctx, cleanSlug);
+  if (!event) return null;
+  const rows = await ctx.db
+    .query("liveEventWikiVersions")
+    .withIndex("by_event_status", (q: any) =>
+      q.eq("eventId", event._id).eq("status", "published"),
+    )
+    .order("desc")
+    .take(1);
+  const wiki = rows[0];
+  if (!wiki) return null;
+
+  const answerIds = (Array.isArray(wiki.sourceAnswerIds) ? wiki.sourceAnswerIds : []).slice(
+    0,
+    MAX_WIKI_ANSWERS,
+  );
+  const sourceIdList = (Array.isArray(wiki.sourceIds) ? wiki.sourceIds : []).slice(
+    0,
+    MAX_STRUCTURED_WIKI_SOURCES,
+  );
+
+  const answers: Array<{ question: string; body: string }> = [];
+  for (const answerId of answerIds) {
+    const answer = await ctx.db.get(answerId);
+    if (!answer) continue; // BOUND_READ-safe: skip dangling ids, never fabricate
+    answers.push({
+      question: String(answer.question || "").slice(0, 1000),
+      body: String(answer.body || "").slice(0, MAX_ANSWER_BODY),
+    });
+  }
+
+  const sources: Array<{ title: string; uri: string; excerpt: string }> = [];
+  for (const sourceId of sourceIdList) {
+    const source = await ctx.db.get(sourceId);
+    if (!source) continue;
+    sources.push({
+      title: String(source.title || "").slice(0, 200),
+      uri: String(source.uri || "").slice(0, 500),
+      excerpt: String(source.excerpt || "").slice(0, 500),
+    });
+  }
+
+  return {
+    eventId: String(event._id),
+    slug: event.slug,
+    eventName: event.name,
+    roomCode: event.roomCode,
+    eventStatus: event.status,
+    wikiVersion: wiki.version,
+    publishedAt: wiki.publishedAt ?? wiki.createdAt ?? null,
+    answers,
+    sources,
+  };
+}
+
+export const getPublishedWikiStructuredBySlug = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    return await loadStructuredPublishedWiki(ctx, slug);
+  },
+});
+
+/**
  * Shared /ask context loader — the SINGLE source of truth for question
  * integrity, semantic-cache lookup, source corpus, and the asker's prior turns.
  *
