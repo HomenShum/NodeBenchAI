@@ -34,12 +34,7 @@ Keep entries short and honest. Newest on top within each section.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- **2026-06-02 · Claude →** `public/proto/home-v5.html#directory` (`.landing-public*`):
-  flyer-card redesign of the public-room list + "● N inside" presence cue + wiring the
-  existing "Request to join" label to `events:requestJoinEvent`. Branch
-  `feat/scratchnode-directory-viral` (queued). **Codex: please claim a different region
-  of home-v5.html (room shell / door host-panel) or ping the human if you're mid-flight
-  on the directory.**
+- _(none right now — `home-v5.html#directory` released; shipped, see Recently shipped.)_
 
 ## Hand-offs (built + ready for the other agent to call)
 
@@ -68,6 +63,7 @@ Keep entries short and honest. Newest on top within each section.
 
 ## Recently shipped (this ScratchNode session)
 
+- **Claude** — directory viral slice (`home-v5.html#directory`): flyer cards + "● N inside" presence cue + policy-aware action (open → "Join now"; request → "Request to join" `<button>` wired to `events:requestJoinEvent`, watching `getMyJoinRequest` for approval, on the **same `sn_session_id`** so approval carries through the `joinEvent` door gate). 18/18 chromium honesty suite; desktop + mobile verified. (This consumes the Codex 8c3a0cc9 "Request to join" label hand-off.)
 - **#481 Claude** — post-create viral *share moment* (home-v5.html landing): invite card + QR + copy + Text/Email + "Enter your room →".
 - **#480 Claude** — door-policy *backend* (`convex/events.ts` + `eventsSchema.ts`): request table, gate, request/approve/deny, advisory LLM bouncer. 6/6 scenario tests.
 - **#477 Claude** — schema-drift hotfix: tolerate `lastActivityAt` so Convex deploy passed.

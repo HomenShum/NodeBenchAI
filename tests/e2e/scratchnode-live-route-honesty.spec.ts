@@ -98,6 +98,19 @@ async function fulfillScratchNodePage(
               localStorage.setItem('__snEndedEventArgs', JSON.stringify(args));
               return Promise.resolve({ ok: true, eventId: args.eventId, status: 'ended' });
             }
+            if (name === 'events:requestJoinEvent') {
+              window.__snRequestJoinArgs = args;
+              localStorage.setItem('__snRequestJoinArgs', JSON.stringify(args));
+              const mode = window.__snRequestJoinMode || 'pending';
+              const terminal = (mode === 'open' || mode === 'already_member' || mode === 'approved');
+              return Promise.resolve({
+                ok: true,
+                status: terminal ? mode : 'pending',
+                eventId: 'liveEvents:req',
+                slug: args.slug,
+                requestId: 'liveEventJoinRequests:1',
+              });
+            }
             return Promise.resolve({});
           }
           query(name) {
@@ -121,6 +134,22 @@ async function fulfillScratchNodePage(
             if (name === 'events:listPublicRooms') {
               const rooms = window.__snPublicRooms || [];
               setTimeout(() => cb({ rooms, activeWindowMs: 1800000 }), 0);
+            }
+            if (name === 'events:getMyJoinRequest') {
+              const tick = () => {
+                const status = window.__snJoinRequestStatus || 'pending';
+                cb({
+                  eventId: 'liveEvents:req',
+                  slug: _args && _args.slug,
+                  joinPolicy: 'request',
+                  isMember: status === 'approved',
+                  status,
+                  guestMessage: null,
+                });
+              };
+              setTimeout(tick, 0);
+              const iv = setInterval(tick, 50);
+              return () => clearInterval(iv);
             }
           }
         }
@@ -472,10 +501,61 @@ test.describe("ScratchNode live route honesty", () => {
       timeout: 6_000,
     });
     await expect(page.locator(".landing-room-title")).toHaveText("Open Office Hours");
-    await expect(page.locator(".landing-room-meta")).toContainText("6 active");
+    // "● N inside" presence cue (live dot + count), not a bare "active" label.
+    await expect(page.locator(".landing-room-meta")).toContainText("6 inside");
     await expect(page.locator(".landing-room-meta")).toContainText("OFFICE");
-    await expect(page.locator(".landing-room-join")).toHaveText("Request to join");
+    await expect(page.locator(".landing-room-meta .dot-inside")).toBeVisible();
+    // Open-policy room → one-tap navigate (<a>), no approval needed.
+    await expect(page.locator(".landing-room-join")).toHaveText("Join now");
     await expect(page.locator(".landing-room-join")).toHaveAttribute("href", "/e/open-office-hours");
+  });
+
+  test("request-policy room files a one-tap join request against the live door backend", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.addInitScript(() => {
+      (window as any).__snLandingStats = { roomsCreated: 12, liveNow: 2, capped: false };
+      (window as any).__snRequestJoinMode = "pending";
+      (window as any).__snJoinRequestStatus = "pending";
+      (window as any).__snPublicRooms = [
+        {
+          eventId: "liveEvents:req",
+          slug: "rooftop-launch",
+          name: "Rooftop Launch Party",
+          roomCode: "ROOFTOP",
+          startedAt: 1770000000000,
+          lastActivityAt: 1770000001000,
+          activeSessions: 9,
+          activeSessionsCapped: false,
+          joinPolicy: "request",
+        },
+      ];
+    });
+
+    await page.goto("https://scratchnode.live/", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#landing-public")).toHaveAttribute("data-visible", "true", {
+      timeout: 6_000,
+    });
+    const join = page.locator(".landing-room-join");
+    // Request-policy room → a real <button> wired to the backend, not a navigate <a>.
+    await expect(join).toHaveText("Request to join");
+    await expect(join).toHaveJSProperty("tagName", "BUTTON");
+
+    await join.click();
+    // Honest pending state — never a fake entry; the real door request was filed.
+    await expect(join).toHaveText("Requested ✓", { timeout: 6_000 });
+    await expect(join).toHaveAttribute("data-state", "requested");
+    expect(page.url()).toBe("https://scratchnode.live/");
+    const reqArgs = await page.evaluate(() => (window as any).__snRequestJoinArgs);
+    expect(reqArgs.slug).toBe("rooftop-launch");
+    expect(typeof reqArgs.sessionId).toBe("string");
+    expect(reqArgs.sessionId.length).toBeGreaterThanOrEqual(8);
+
+    // Host approves → the guest is carried into the room on the SAME sn_session_id,
+    // so the joinEvent door gate lets them through.
+    await page.evaluate(() => {
+      (window as any).__snJoinRequestStatus = "approved";
+    });
+    await page.waitForURL("https://scratchnode.live/e/rooftop-launch", { timeout: 6_000 });
   });
 
   test("landing surfaces a live 'big number' room counter from real backend data", async ({ page }) => {
