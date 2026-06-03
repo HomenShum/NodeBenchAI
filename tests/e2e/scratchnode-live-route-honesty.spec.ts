@@ -796,4 +796,25 @@ test.describe("ScratchNode live route honesty", () => {
     expect(url).toContain("continuation=private-notes");
     expect(url).toContain("publicArtifact=event-wiki");
   });
+
+  test("in-room memory nudge reveals once with the REAL live count and dismisses stickily", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" }); // reveal at 0ms (skip the 4s beat)
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const nudge = page.locator("#sn-mem-nudge");
+    await expect(nudge).toHaveAttribute("data-show", "true", { timeout: 6_000 });
+    // HONESTY: the count is the REAL getMembers count (2 mock members), not fabricated.
+    await expect(page.locator("#sn-mem-nudge-count")).toHaveText("2");
+    await expect(nudge).toContainText("the richer this room");
+    await expect(nudge.locator(".sn-mem-nudge__invite")).toBeVisible();
+
+    // Dismiss is sticky (localStorage flag) and hides the nudge.
+    await page.click(".sn-mem-nudge__close");
+    await expect(nudge).toHaveAttribute("data-show", "false");
+    expect(await page.evaluate(() => localStorage.getItem("sn_mem_nudge_off"))).toBe("1");
+  });
 });
