@@ -4969,6 +4969,11 @@ export default defineSchema({
       v.literal("apply_formula"),
       v.literal("add_sheet"),
       v.literal("rename_sheet"),
+      // Forward-ported from PR #498 (spreadsheets applyRowDelta) to unblock prod:
+      // an out-of-band write to shared prod created a spreadsheetEvents doc with
+      // operation "row_delta" before #498's schema addition merged, so every
+      // `convex deploy` failed schema validation. Additive/expand — non-destructive.
+      v.literal("row_delta"),
     ),
     targetRange: v.optional(v.string()), // A1 notation (e.g., "A1:B5")
     payload: v.any(), // Operation-specific data (before/after)
