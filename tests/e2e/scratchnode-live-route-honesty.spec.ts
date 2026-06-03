@@ -1389,6 +1389,9 @@ test.describe("ScratchNode live route honesty", () => {
     await page.evaluate(() => (window as any).openNotes?.());
     await expect(page.locator("#sheet-title")).toContainText("My notes");
     await expect(page.locator("#sheet-content")).toContainText(privatePrompt);
+    await expect(page.locator("#sheet-content")).toContainText(
+      "deeper research, reports, and follow-ups across people, companies, topics, and anchors",
+    );
     await expect(page.locator("#sheet-content")).toContainText("Open NodeBench event notebook");
     await expect(page.locator("#sn-nodebench-private-handoff")).toBeVisible();
   });

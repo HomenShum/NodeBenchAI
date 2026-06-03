@@ -348,12 +348,13 @@ function scanHomeV5() {
     /WORKSPACE_BASE_URL[\s\S]{0,220}['"]\/events\/['"][\s\S]{0,220}['"]\/private['"]/.test(html) &&
     /\?token=['"]?\s*\+\s*encodeURIComponent\(token\)/.test(html) &&
     /scratchnodeHandoff:mintEventHandoffToken/.test(html) &&
-    /function\s+openNodeBenchPrivateHandoff\s*\(/.test(html);
+    /function\s+openNodeBenchPrivateHandoff\s*\(/.test(html) &&
+    /deeper research, reports, and follow-ups across people, companies, topics, and anchors/i.test(html);
   addCheck({
     ok: hasPrivateHandoffContract,
     name: "ScratchNode private handoff targets NodeBench event artifact",
     plane: "nodebench-handoff",
-    detail: "tokenized /events/:slug/private success path plus /scratchnode-events honest fallback",
+    detail: "tokenized /events/:slug/private success path plus /scratchnode-events honest fallback and deeper follow-up copy",
   });
   if (!hasPrivateHandoffContract) {
     addFinding({
