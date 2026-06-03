@@ -768,6 +768,72 @@ test.describe("ScratchNode live route honesty", () => {
     expect(sensitiveState.noteTexts.join("\n")).toContain(sensitivePrompt);
   });
 
+  test("Live Assist follow-up cues become structured private notes without public writes", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    const cueText = "Clarify scoped tool grant vs tenant RBAC";
+    const cueId = await page.evaluate((text) => {
+      const win = window as any;
+      win.toggleLiveAssist?.(true);
+      win.setLiveAssistTopic?.("MCP auth", "Panel Room A");
+      win.setLiveAssistContext?.(["@Orbital Labs", "@Alex Chen", "[[tenant RBAC]]"]);
+      return win.pushLiveAssistCue?.(text, { source: "route-test", skill: "follow-up-depth" });
+    }, cueText);
+
+    await expect(page.locator("#live-assist-rail")).toContainText(cueText);
+    await page.evaluate((id) => {
+      (window as any)._laCueAction?.("followup", id);
+    }, cueId);
+
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+    await expect(page.locator(".row-text", { hasText: cueText })).toHaveCount(0);
+    await expect(page.locator(".ans", { hasText: cueText })).toHaveCount(0);
+
+    const state = await page.evaluate((text) => {
+      const win = window as any;
+      const note = (win._notes_v5 || []).find((entry: any) =>
+        String(entry.title + "\n" + entry.body).includes(text),
+      );
+      const noteText = String((note?.title || "") + "\n" + (note?.body || ""))
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/&amp;/g, "&");
+      return {
+        noteText,
+        recentNotes: (win._live_assist?.recentNotes || []).map((entry: any) => entry.text),
+        actions: win.__snMockActions || [],
+        publicSendCalls: (win.__snMockMutations || []).filter(
+          (call: any) =>
+            call.name === "events:sendMessage" &&
+            String(call.args?.text || "").includes(text),
+        ),
+      };
+    }, cueText);
+
+    expect(state.noteText).toContain(`Follow-up: ${cueText}`);
+    expect(state.noteText).toContain("Why it matters: Deepen this after the event in NodeBench");
+    expect(state.noteText).toContain("Next step: Ask for the concrete decision");
+    expect(state.noteText).toContain("Evidence to capture: quote, speaker/company");
+    expect(state.noteText).toContain("Event topic: MCP auth - Panel Room A");
+    expect(state.noteText).toContain("Context: @Orbital Labs, @Alex Chen, [[tenant RBAC]]");
+    expect(state.noteText).toContain("Visibility: private follow-up note; not public chat or public /ask.");
+    expect(state.recentNotes.join("\n")).toContain(`Follow-up: ${cueText}`);
+    expect(state.actions).toEqual([]);
+    expect(state.publicSendCalls).toEqual([]);
+  });
+
   test("private /ask stays out of the public feed and increases the NodeBench handoff note count", async ({
     page,
   }) => {

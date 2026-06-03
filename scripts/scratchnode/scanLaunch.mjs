@@ -646,6 +646,7 @@ function scanPublicRepoReadiness() {
   const exportScript = readText(files.exportScript);
   const splitRunbook = readText(files.splitRunbook);
   const readme = readText(files.readme);
+  const homeHtml = readText(files.homeV5);
   const routeHonestySpec = readText(files.routeHonestySpec);
 
   addCheck({
@@ -740,6 +741,20 @@ function scanPublicRepoReadiness() {
       /data-event-log-tag/i.test(routeHonestySpec) &&
       /privateSendCalls/i.test(routeHonestySpec),
     name: "event-log route spec covers tag visibility boundaries",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
+  });
+  addCheck({
+    ok:
+      /function buildLiveAssistFollowUpNote\s*\(/i.test(homeHtml) &&
+      /Visibility: private follow-up note; not public chat or public \/ask\./i.test(homeHtml) &&
+      /Live Assist follow-up cues become structured private notes without public writes/i.test(
+        routeHonestySpec,
+      ) &&
+      /_laCueAction\?\.\("followup",\s*id\)/i.test(routeHonestySpec) &&
+      /Follow-up: \$\{cueText\}/i.test(routeHonestySpec) &&
+      /publicSendCalls\)\.toEqual\(\[\]\)/i.test(routeHonestySpec),
+    name: "event-log route spec covers structured private follow-up cues",
     plane: "event-log-evidence",
     detail: files.routeHonestySpec,
   });

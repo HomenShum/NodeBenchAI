@@ -6940,6 +6940,26 @@ function _laEscape(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+function buildLiveAssistFollowUpNote(cue) {
+  var text = cue && cue.text ? String(cue.text) : 'Follow up on this event cue';
+  var topic = window._live_assist && window._live_assist.currentTopic
+    ? window._live_assist.currentTopic
+    : null;
+  var context = window._live_assist && Array.isArray(window._live_assist.context)
+    ? window._live_assist.context.slice(0, 4)
+    : [];
+  var lines = [
+    'Follow-up: ' + text,
+    '',
+    'Why it matters: Deepen this after the event in NodeBench with the public wiki plus your private notes.',
+    'Next step: Ask for the concrete decision, metric, owner, or source behind this cue.',
+    'Evidence to capture: quote, speaker/company, promised artifact, and deadline.'
+  ];
+  if (topic && topic.text) lines.push('Event topic: ' + topic.text + (topic.meta ? ' - ' + topic.meta : ''));
+  if (context.length) lines.push('Context: ' + context.join(', '));
+  lines.push('Visibility: private follow-up note; not public chat or public /ask.');
+  return lines.join('\n');
+}
 function _laCueAction(action, cueId) {
   var cue = (window._live_assist.cues || []).find(function(c) { return c.id === cueId; });
   if (!cue) return;
@@ -6953,7 +6973,26 @@ function _laCueAction(action, cueId) {
       input.focus();
     }
   } else if (action === 'followup') {
-    if (typeof toast === 'function') { try { toast('Follow-up queued', cue.text); } catch (e) {} }
+    var followUpText = buildLiveAssistFollowUpNote(cue);
+    var room = typeof getRoomContext === 'function' ? getRoomContext() : null;
+    var intent = {
+      clean: followUpText,
+      isAsk: false,
+      kind: 'note',
+      visibility: 'private',
+      eventMode: document.body.getAttribute('data-event-mode') || 'event',
+      timestamp: Date.now(),
+      anchor: typeof buildPrivateNoteAnchor === 'function' ? buildPrivateNoteAnchor(room) : null
+    };
+    if (typeof window.savePrivateNote === 'function') {
+      window.savePrivateNote(intent);
+    } else if (typeof savePrivateNote === 'function') {
+      savePrivateNote(intent);
+    }
+    if (typeof laRecordNote === 'function') {
+      try { laRecordNote(followUpText, 'follow-up'); } catch (e) {}
+    }
+    if (typeof toast === 'function') { try { toast('Follow-up queued privately', cue.text); } catch (e) {} }
   }
 }
 
