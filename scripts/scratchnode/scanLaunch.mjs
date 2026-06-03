@@ -172,6 +172,30 @@ function scanStaticContracts() {
     detail: files.boundaryGoal,
   });
 
+  const goalLoop = readText(files.goalLoop);
+  const goalLoopEvidenceFields = ["gitBranchStatus", "commandFailureCount", "commandExitCodes"];
+  const missingGoalLoopEvidenceFields = goalLoopEvidenceFields.filter((field) => !goalLoop.includes(field));
+  const goalLoopEvidenceOk = missingGoalLoopEvidenceFields.length === 0;
+  addStaticCheck({
+    ok: goalLoopEvidenceOk,
+    name: "goal loop reports branch and command evidence",
+    plane: "goal-automation",
+    detail: goalLoopEvidenceOk
+      ? goalLoopEvidenceFields.join(",")
+      : `missing fields=${missingGoalLoopEvidenceFields.join(",")}`,
+  });
+  if (!goalLoopEvidenceOk) {
+    addFinding({
+      severity: "blocker",
+      safety: "auto",
+      plane: "goal-automation",
+      title: "Goal loop report evidence is incomplete",
+      path: files.goalLoop,
+      detail: `missing fields=${missingGoalLoopEvidenceFields.join(",")}`,
+      recommendation: "Restore branch-status and command-exit summary fields so clean-worktree reports keep actionable evidence.",
+    });
+  }
+
   const routeHonestySpec = readText(files.routeHonestySpec);
   const missingBoundaryGateIds = requiredBoundaryGateIds.filter((gateId) => !routeHonestySpec.includes(gateId));
   const missingBoundaryEvidence = requiredBoundaryEvidence
