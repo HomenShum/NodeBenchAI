@@ -863,6 +863,17 @@ function scanPublicRepoReadiness() {
   });
   addCheck({
     ok:
+      /private notes anchored from public answers preserve context without public leakage/i.test(routeHonestySpec) &&
+      /targetKind:\s*"answer"/i.test(routeHonestySpec) &&
+      /targetAnswerId:\s*answerId/i.test(routeHonestySpec) &&
+      /sn-anchor-pin/i.test(routeHonestySpec) &&
+      /serializedAnswers\)\.not\.toContain\(privateText\)/i.test(routeHonestySpec),
+    name: "event-log route spec covers private note answer anchors",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
+  });
+  addCheck({
+    ok:
       /verified host publishes promoted public answers into the wiki without leaking private notes/i.test(
         routeHonestySpec,
       ) &&

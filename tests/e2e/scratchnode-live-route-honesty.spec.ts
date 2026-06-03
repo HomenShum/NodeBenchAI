@@ -34,6 +34,8 @@ async function fulfillScratchNodePage(
             window.__snMockMutations = [];
             window.__snMockMessages = [];
             window.__snMockAnswers = [];
+            window.__snMockNotes = [];
+            window.__snMockAnchors = [];
             window.__snMockActions = [];
             window.__snMockPromotedAnswerIds = [];
             window.__snMockPublishedWiki = null;
@@ -189,6 +191,50 @@ async function fulfillScratchNodePage(
                 requestId: 'liveEventJoinRequests:1',
               });
             }
+            if (name === 'notes:createNote') {
+              const noteId = 'notes:' + (window.__snMockNotes.length + 1);
+              const note = {
+                _id: noteId,
+                eventId: args.eventId,
+                ownerKey: args.ownerKey,
+                title: args.title || 'Untitled',
+                bodyHtml: args.bodyHtml || '',
+                tags: args.tags || [],
+                isAsk: !!args.isAsk,
+                pinned: !!args.pinned,
+                anchorType: args.anchorType,
+                anchorId: args.anchorId,
+                anchorLabel: args.anchorLabel,
+                anchorPreview: args.anchorPreview,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+              };
+              window.__snMockNotes.push(note);
+              const notifyNotes = window.__snMockSubscriptions['notes:listMyNotes'];
+              if (typeof notifyNotes === 'function') {
+                notifyNotes(window.__snMockNotes.slice());
+              }
+              return Promise.resolve({ ok: true, noteId });
+            }
+            if (name === 'notes:createNoteAnchor') {
+              const anchorId = 'noteAnchors:' + (window.__snMockAnchors.length + 1);
+              const anchor = {
+                _id: anchorId,
+                ownerKey: args.ownerKey,
+                eventId: args.eventId,
+                noteId: args.noteId,
+                targetKind: args.targetKind,
+                targetMessageId: args.targetMessageId,
+                targetAnswerId: args.targetAnswerId,
+                createdAt: Date.now(),
+              };
+              window.__snMockAnchors.push(anchor);
+              const notifyAnchors = window.__snMockSubscriptions['notes:listMyAnchors'];
+              if (typeof notifyAnchors === 'function') {
+                notifyAnchors({ anchors: window.__snMockAnchors.slice() });
+              }
+              return Promise.resolve({ ok: true, anchorId });
+            }
             return Promise.resolve({});
           }
           query(name) {
@@ -271,6 +317,12 @@ async function fulfillScratchNodePage(
               setTimeout(tick, 0);
               const iv = setInterval(tick, 50);
               return () => clearInterval(iv);
+            }
+            if (name === 'notes:listMyNotes') {
+              setTimeout(() => cb(window.__snMockNotes.slice()), 0);
+            }
+            if (name === 'notes:listMyAnchors') {
+              setTimeout(() => cb({ anchors: window.__snMockAnchors.slice() }), 0);
             }
           }
         }
@@ -806,6 +858,125 @@ test.describe("ScratchNode live route honesty", () => {
     expect(anchorState.privateSendCalls).toEqual([]);
     expect(anchorState.publicSendCalls).toHaveLength(1);
     expect(anchorState.markerCount).toBe(1);
+  });
+
+  test("private notes anchored from public answers preserve context without public leakage", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    const publicPrompt = "which MCP auth answer should get a private follow-up?";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = `/ask ${text}`;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, publicPrompt);
+
+    const answerCard = page.locator(".ans").filter({ hasText: publicPrompt }).first();
+    await expect(answerCard).toContainText("Mock sourced answer for " + publicPrompt);
+    await expect(answerCard).toContainText("private notes excluded");
+    const answerId = await answerCard.getAttribute("data-answer-id");
+    expect(answerId).toBe("liveEventAnswers:1");
+    if (!answerId) throw new Error("Expected answer id");
+
+    await page.evaluate((id) => {
+      (window as any).snAnchorTo?.("answer", id);
+      (window as any).toggleLock?.();
+    }, answerId);
+    await expect(page.locator("body")).toHaveAttribute("data-mode", "private");
+
+    const privateText = "private answer follow-up: ask Alex for the source provenance risk";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, privateText);
+
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+    await expect(page.locator(".row-text", { hasText: privateText })).toHaveCount(0);
+    await expect(page.locator(".ans", { hasText: privateText })).toHaveCount(0);
+    await expect(answerCard.locator(".sn-anchor-pin")).toHaveAttribute(
+      "aria-label",
+      "Open anchored private note",
+    );
+
+    const anchorState = await page.evaluate(
+      ({ answerId, privateText, publicPrompt }) => {
+        const win = window as any;
+        const note = (win._notes_v5 || []).find((entry: any) =>
+          String(entry.title + "\n" + entry.body).includes(privateText),
+        );
+        return {
+          note,
+          pendingAnchor: win._sn_pending_anchor,
+          anchorCalls: (win.__snMockMutations || []).filter(
+            (call: any) => call.name === "notes:createNoteAnchor",
+          ),
+          publicAskCalls: (win.__snMockMutations || []).filter(
+            (call: any) =>
+              call.name === "events:sendMessage" &&
+              call.args?.text === publicPrompt &&
+              call.args?.kind === "ask",
+          ),
+          privateSendCalls: (win.__snMockMutations || []).filter(
+            (call: any) =>
+              call.name === "events:sendMessage" &&
+              call.args?.text === privateText,
+          ),
+          actions: win.__snMockActions || [],
+          serializedAnswers: JSON.stringify(win.__snMockAnswers || []),
+          markerCount: document.querySelectorAll(
+            `.ans[data-answer-id="${answerId}"] .sn-anchor-pin`,
+          ).length,
+          targetAnchors: Array.from(win._sn_anchors_by_target?.keys?.() || []),
+        };
+      },
+      { answerId, privateText, publicPrompt },
+    );
+
+    expect(anchorState.note).toEqual(
+      expect.objectContaining({
+        id: "notes:1",
+      }),
+    );
+    expect(anchorState.pendingAnchor).toBeNull();
+    expect(anchorState.anchorCalls).toEqual([
+      expect.objectContaining({
+        args: expect.objectContaining({
+          eventId: "liveEvents:1",
+          noteId: "notes:1",
+          targetKind: "answer",
+          targetAnswerId: answerId,
+        }),
+      }),
+    ]);
+    expect(anchorState.anchorCalls[0].args.targetMessageId).toBeUndefined();
+    expect(anchorState.publicAskCalls).toHaveLength(1);
+    expect(anchorState.privateSendCalls).toEqual([]);
+    expect(anchorState.actions).toEqual([
+      expect.objectContaining({
+        name: "events:askAgent",
+        args: expect.objectContaining({
+          question: publicPrompt,
+        }),
+      }),
+    ]);
+    expect(anchorState.serializedAnswers).not.toContain(privateText);
+    expect(anchorState.markerCount).toBe(1);
+    expect(anchorState.targetAnchors).toContain(`answer:${answerId}`);
   });
 
   test("sensitive event mode forces /ask into private notes without agent calls", async ({ page }) => {
