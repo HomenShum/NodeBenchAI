@@ -346,6 +346,54 @@ test.describe("ScratchNode live route honesty", () => {
     expect(chatState.askCalls).toEqual([]);
   });
 
+  test("locked composer saves a private note without public chat or agent calls", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    await page.locator("#lock").click();
+    await expect(page.locator("body")).toHaveAttribute("data-mode", "private");
+
+    const noteText = "private note: ask Priya for the clinical triage deck";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, noteText);
+
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+    await expect(page.locator(".row-text", { hasText: noteText })).toHaveCount(0);
+    await expect(page.locator(".ans", { hasText: noteText })).toHaveCount(0);
+
+    const privateNoteState = await page.evaluate((text) => {
+      const win = window as any;
+      return {
+        noteCount: win.getPrivateNoteHandoffCount?.(),
+        handoffUrl: win.buildNodeBenchEventPrivateUrl?.(),
+        actions: win.__snMockActions || [],
+        sendCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:sendMessage" && call.args?.text === text,
+        ),
+      };
+    }, noteText);
+
+    expect(privateNoteState.noteCount).toBe(initialNoteCount + 1);
+    expect(privateNoteState.handoffUrl).toContain(`noteCount=${initialNoteCount + 1}`);
+    expect(privateNoteState.handoffUrl).toContain("continuation=private-notes");
+    expect(privateNoteState.actions).toEqual([]);
+    expect(privateNoteState.sendCalls).toEqual([]);
+  });
+
   test("private /ask stays out of the public feed and increases the NodeBench handoff note count", async ({
     page,
   }) => {
