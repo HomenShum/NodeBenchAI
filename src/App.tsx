@@ -80,6 +80,16 @@ const ScratchnodeWikiBridge = lazy(() =>
     default: m.ScratchnodeWikiBridge,
   })),
 );
+// /events/:slug/private — the ScratchNode -> NodeBench PRIVATE-NOTES bridge
+// (roadmap item #4). Redeems an opaque, event-scoped, read-only handoff token
+// from `?token=` and renders the bound session's private notes inside NodeBench.
+// Mounted ABOVE /events/:eventId (same reason as /wiki) so the trailing
+// /private segment is captured before the single-segment matcher.
+const ScratchnodePrivateBridge = lazy(() =>
+  import("@/features/events/views/ScratchnodePrivateBridge").then((m) => ({
+    default: m.ScratchnodePrivateBridge,
+  })),
+);
 // My Wiki — Phase 1 routes. See docs/architecture/ME_AGENT_DESIGN.md
 const WikiLandingRoute = lazy(() => import("@/features/me/components/wiki/WikiLandingRoute"));
 const WikiPageDetailRoute = lazy(() => import("@/features/me/components/wiki/WikiPageDetailRoute"));
@@ -486,6 +496,32 @@ function App() {
               <ScratchnodeWikiBridge
                 slug={slug}
                 source={params.get("source")}
+                roomCode={params.get("room")}
+              />
+            </div>
+          </Suspense>
+        </ErrorBoundary>
+      </ThemeProvider>
+    );
+  }
+
+  // /events/:slug/private — ScratchNode → NodeBench PRIVATE-NOTES bridge
+  // (roadmap #4). Redeems the opaque `?token=` handoff token and renders the
+  // bound session's private notes read-only. MUST also come before the
+  // single-segment /events/:eventId matcher (same trailing-segment reason as
+  // /wiki). The token is read here and passed down — never logged.
+  const eventPrivateRouteMatch = location.pathname.match(/^\/events\/([^/]+)\/private\/?$/);
+  if (eventPrivateRouteMatch) {
+    const slug = decodeURIComponent(eventPrivateRouteMatch[1] ?? "");
+    const params = new URLSearchParams(location.search);
+    return (
+      <ThemeProvider>
+        <ErrorBoundary title="Your private notes failed to load">
+          <Suspense fallback={<ViewSkeleton />}>
+            <div key={`event-private-${slug}`} className="route-fade-in">
+              <ScratchnodePrivateBridge
+                slug={slug}
+                token={params.get("token")}
                 roomCode={params.get("room")}
               />
             </div>

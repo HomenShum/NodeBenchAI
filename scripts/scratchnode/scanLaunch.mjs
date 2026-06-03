@@ -340,12 +340,16 @@ function scanHomeV5() {
     /event=['"]?\s*\+\s*encodeURIComponent\(EVENT_SLUG\)/.test(html) &&
     /continuation=['"]?\s*\+\s*encodeURIComponent\(['"]private-notes['"]\)/.test(html) &&
     /publicArtifact=['"]?\s*\+\s*encodeURIComponent\(['"]event-wiki['"]\)/.test(html) &&
+    /function\s+buildNodeBenchTokenizedPrivateUrl\s*\(\s*token\s*\)/.test(html) &&
+    /WORKSPACE_BASE_URL[\s\S]{0,220}['"]\/events\/['"][\s\S]{0,220}['"]\/private['"]/.test(html) &&
+    /\?token=['"]?\s*\+\s*encodeURIComponent\(token\)/.test(html) &&
+    /scratchnodeHandoff:mintEventHandoffToken/.test(html) &&
     /function\s+openNodeBenchPrivateHandoff\s*\(/.test(html);
   addCheck({
     ok: hasPrivateHandoffContract,
     name: "ScratchNode private handoff targets NodeBench event artifact",
     plane: "nodebench-handoff",
-    detail: "WORKSPACE_BASE_URL /scratchnode-events with event context, continuation=private-notes, and publicArtifact=event-wiki",
+    detail: "tokenized /events/:slug/private success path plus /scratchnode-events honest fallback",
   });
   if (!hasPrivateHandoffContract) {
     addFinding({
@@ -355,7 +359,7 @@ function scanHomeV5() {
       title: "NodeBench private handoff URL contract is missing or incomplete",
       path,
       recommendation:
-        "Ensure ScratchNode uses the shipped WORKSPACE_BASE_URL /scratchnode-events receiver and includes event, continuation=private-notes, and publicArtifact=event-wiki.",
+        "Ensure ScratchNode mints a handoff token before navigating to /events/:eventSlug/private and falls back to /scratchnode-events with event context when minting is unavailable.",
     });
   }
 

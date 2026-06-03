@@ -428,3 +428,59 @@ export const liveEventJoinRequests = defineTable({
 })
   .index("by_event_session", ["eventId", "sessionId"])             // gate lookup + 1-per-session dedup
   .index("by_event_status", ["eventId", "status", "createdAt"]);   // host door queue, newest-first
+
+// ------------------------------------------------------------------
+// liveEventHandoffTokens — the cross-domain ScratchNode → NodeBench
+// PRIVATE-NOTES bridge (roadmap item #4, the security-critical capstone).
+//
+// THE PROBLEM this solves
+//   A guest's private notes on scratchnode.live are owner-keyed by
+//   `sn_session_id` in localStorage, which is ORIGIN-PARTITIONED — so
+//   nodebenchai.com physically cannot read it. To "continue your private
+//   notes in NodeBench" cross-domain, we need a credential that travels in
+//   the URL. Putting the raw session id (a permanent owner key) in a URL
+//   would leak a forever-credential into referers / history / logs — the
+//   roadmap's #1 risk. Instead we mint a SERVER-ONLY, OPAQUE, STATEFUL token.
+//
+// SECURITY MODEL — opaque stateful token (founder decision, locked)
+//   - The opaque token is a 32-byte CSPRNG value (crypto.getRandomValues),
+//     base64url-encoded. The `sn_session_id` is NOT recoverable from it.
+//   - We store only SHA-256(token) (`tokenHash`) — never the raw token — so
+//     a DB read can never replay a live token. Verify re-hashes the presented
+//     token and looks it up by hash (constant-work index lookup).
+//   - Event-scoped, READ-ONLY, scope='private_notes_read', short TTL (~10min),
+//     low maxUses. Fail-closed on unknown/expired/used/wrong-scope.
+//
+// THE BINDING — why we DO store the raw owner key here (and ONLY here)
+//   To resolve the bound session's private notes server-side, consume must
+//   query userNotes.by_owner_event with the EXACT ownerKey (=== sn_session_id
+//   for anonymous guests). A hash of the session id CANNOT drive that indexed
+//   read. So `boundOwnerKey` holds the raw session id — but it lives ONLY in
+//   this server-only table row, is NEVER returned to any client (mint returns
+//   {token,expiresAt}; consume returns only the notes), and is NEVER logged.
+//   This IS the "server-side reference" the design contemplates. We ALSO keep
+//   `boundOwnerKeyHash` (SHA-256) for audit/forensics without exposing the key
+//   in logs. The hard invariant — the session id never enters a URL, query
+//   param, referer, or log — is fully preserved; the raw value is sealed in a
+//   short-lived, single-purpose, server-only row.
+//
+// Reliability (per .claude/rules/agentic_reliability.md):
+//   - BOUND: consume reads ≤200 notes; janitor sweeps expired rows ≤500/run.
+//   - HONEST_STATUS: consume throws typed ConvexError on every failure path —
+//     no fake success, no notes returned on a denied token.
+//   - DETERMINISTIC: tokenHash/boundOwnerKeyHash are SHA-256; windowed TTL.
+//   - BOUND_READ: token + scope lengths are capped at the mutation layer.
+// ------------------------------------------------------------------
+export const liveEventHandoffTokens = defineTable({
+  tokenHash: v.string(),                                 // SHA-256(opaque token) — raw token NEVER stored
+  eventId: v.id("liveEvents"),                           // the token grants access to THIS event only
+  boundOwnerKey: v.string(),                             // raw sn_session_id — server-only, never returned/logged
+  boundOwnerKeyHash: v.string(),                         // SHA-256(boundOwnerKey) — audit without exposing the key
+  scope: v.literal("private_notes_read"),                // READ-ONLY, single scope — never write, never cross-event
+  createdAt: v.number(),
+  expiresAt: v.number(),                                 // createdAt + TTL (~10min); janitor sweep key
+  usedCount: v.number(),                                 // incremented on each consume
+  maxUses: v.number(),                                   // low cap (e.g. 5) — single-or-few-use
+})
+  .index("by_token_hash", ["tokenHash"])                 // verify: O(1) lookup by presented-token hash
+  .index("by_expiresAt", ["expiresAt"]);                 // janitor: range-sweep expired rows, BOUNDed

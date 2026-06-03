@@ -1523,20 +1523,30 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(moment).toHaveAttribute("data-open", "false");
   });
 
-  test("NodeBench handoff CTAs target a SHIPPED route, never the dead /events/<slug>/private (no 404)", async ({
+  test("NodeBench handoff has a tokenized private route and an honest shipped fallback", async ({
     page,
   }) => {
     await fulfillScratchNodePage(page);
     await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
     await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
 
-    // The handoff URL must point at the EXISTING /scratchnode-events surface, not
-    // the route that 404s. Carries event context for the future tokenized route.
-    const url = await page.evaluate(() => (window as any).buildNodeBenchEventPrivateUrl());
-    expect(url).toContain("nodebenchai.com");
-    expect(url).toContain("/scratchnode-events");
-    expect(url).not.toMatch(/\/events\/[^/]+\/private/);
-    expect(url).toContain("continuation=private-notes");
-    expect(url).toContain("publicArtifact=event-wiki");
+    const urls = await page.evaluate(() => {
+      const win = window as any;
+      const fallback = win.buildNodeBenchEventPrivateUrl();
+      const tokenized = win.buildNodeBenchTokenizedPrivateUrl("qa-sentinel-token-0000000000");
+      const sessionId = win._sn_live?.sessionId || localStorage.getItem("sn_session_id") || "";
+      return { fallback, tokenized, sessionId };
+    });
+
+    expect(urls.fallback).toContain("nodebenchai.com");
+    expect(urls.fallback).toContain("/scratchnode-events");
+    expect(urls.fallback).not.toMatch(/\/events\/[^/]+\/private/);
+    expect(urls.fallback).toContain("continuation=private-notes");
+    expect(urls.fallback).toContain("publicArtifact=event-wiki");
+
+    expect(urls.tokenized).toContain("nodebenchai.com");
+    expect(urls.tokenized).toMatch(/\/events\/[^/]+\/private\?/);
+    expect(urls.tokenized).toContain("token=qa-sentinel-token-0000000000");
+    expect(urls.tokenized).not.toContain(urls.sessionId);
   });
 });

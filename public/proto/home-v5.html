@@ -3952,19 +3952,23 @@ function getPrivateNoteHandoffCount() {
   }
 }
 
-function buildNodeBenchEventPrivateUrl() {
+function _privateHandoffRoomCode() {
   var roomCode = EVENT_ROOM_CODE;
   try {
     var room = getRoomContext();
     roomCode = (room && room.roomCode) || roomCode;
   } catch (e) {}
-  // INTERIM (honesty): the cross-domain `/events/<slug>/private` receiving route
-  // + its handoff token don't exist yet (that's the gated cross-domain bridge
-  // follow-up). Pointing here previously produced a hard 404. Until the real
-  // tokenized private route ships, target the ALREADY-SHIPPED `/scratchnode-events`
-  // surface — an honest landing (it resolves session / shows a sign-in prompt),
-  // never a 404. The event context rides along so the real private route can
-  // consume it once built.
+  return roomCode;
+}
+
+// FALLBACK (honesty): when we CANNOT mint a handoff token — no live client, the
+// guest isn't a member, or the mint call fails — we MUST NOT dead-end on a
+// tokenless `/events/<slug>/private` (it would render a "missing token" state)
+// and we MUST NOT put the sn_session_id in the URL. Instead fall back to the
+// ALREADY-SHIPPED `/scratchnode-events` landing, which resolves session /
+// shows a sign-in prompt. The event context rides along; NO session id, NO token.
+function buildNodeBenchEventPrivateUrl() {
+  var roomCode = _privateHandoffRoomCode();
   return WORKSPACE_BASE_URL +
     '/scratchnode-events?source=scratchnode' +
     '&event=' + encodeURIComponent(EVENT_SLUG) +
@@ -3975,18 +3979,66 @@ function buildNodeBenchEventPrivateUrl() {
     '&return=' + encodeURIComponent(EVENT_URL);
 }
 
+// REAL tokenized handoff URL. Only the OPAQUE token travels — never the
+// sn_session_id. Built only AFTER a successful mintEventHandoffToken.
+function buildNodeBenchTokenizedPrivateUrl(token) {
+  var roomCode = _privateHandoffRoomCode();
+  return WORKSPACE_BASE_URL +
+    '/events/' + encodeURIComponent(EVENT_SLUG) + '/private' +
+    '?token=' + encodeURIComponent(token) +
+    '&source=scratchnode' +
+    '&room=' + encodeURIComponent(roomCode);
+}
+
 function buildNodeBenchSignInUrl(targetUrl) {
   var target = targetUrl || buildNodeBenchEventPrivateUrl();
   return WORKSPACE_BASE_URL + '/sign-in?return=' + encodeURIComponent(target) + '&intent=save-private-notes';
 }
 
+// Mint an opaque, event-scoped, READ-ONLY handoff token via the live Convex
+// client, then navigate cross-domain to the REAL tokenized `/events/<slug>/private`
+// route. SECURITY: only the opaque token is ever placed in the URL — the
+// sn_session_id (a permanent owner key) NEVER leaves this origin. If minting is
+// impossible (no live client / not a member / mint error), fall back to the
+// honest `/scratchnode-events` landing — never a 404, never a tokenless dead-end.
 function openNodeBenchPrivateHandoff() {
   closeMenu();
   closeSheet();
-  // Navigate straight to the shipped `/scratchnode-events` surface — it resolves
-  // session / shows its own sign-in prompt. (Previously wrapped a dead
-  // `/events/<slug>/private` target in `/sign-in?return=…`, which 404'd.)
-  window.location.assign(buildNodeBenchEventPrivateUrl());
+
+  var live = window._sn_live;
+  var canMint = !!(live && live.client && live.slug && live.sessionId);
+  if (!canMint) {
+    // No live room session to prove membership with — honest fallback.
+    window.location.assign(buildNodeBenchEventPrivateUrl());
+    return;
+  }
+
+  if (typeof toast === 'function') {
+    toast('Bringing your notes to NodeBench…', 'Creating a secure one-time link.');
+  }
+
+  return Promise.resolve()
+    .then(function () {
+      return live.client.mutation('scratchnodeHandoff:mintEventHandoffToken', {
+        slug: live.slug,
+        sessionId: live.sessionId,
+      });
+    })
+    .then(function (res) {
+      var token = res && res.token;
+      if (!token) throw new Error('no_token');
+      // Navigate to the REAL tokenized route. Only the opaque token travels.
+      window.location.assign(buildNodeBenchTokenizedPrivateUrl(token));
+    })
+    .catch(function (e) {
+      // Fail honest: mint denied (not a member / rate limited / backend down).
+      // Never expose the session id; never 404. Land on /scratchnode-events.
+      console.debug('[scratchnode] handoff mint failed, honest fallback:', (e && e.message) || e);
+      if (typeof toast === 'function') {
+        toast('Opening NodeBench', 'Sign in there to keep your private notes.');
+      }
+      window.location.assign(buildNodeBenchEventPrivateUrl());
+    });
 }
 
 // ── Debug-gate flag for prototype helpers ──
@@ -10402,10 +10454,27 @@ window._laCueAction       = _laCueAction;
     fromDemo('DEMO-013', 'SN-LIVE-012', 'published wiki excludes private notes');
     add('SN-LIVE-013', 'share URL uses scratchnode.live-compatible public event URL', /\/e\//.test(EVENT_URL) && !/scratchnode\.com/i.test(EVENT_URL), EVENT_URL);
     fromDemo('DEMO-014', 'SN-LIVE-014', 'guest can sign in and preserve notes');
-    var handoffUrl = buildNodeBenchEventPrivateUrl();
-    add('SN-LIVE-015', 'NodeBench handoff targets a SHIPPED route (no 404) + carries event continuation context',
-      /nodebenchai\.com/.test(handoffUrl) && /\/scratchnode-events/.test(handoffUrl) && !/\/events\/[^/]+\/private/.test(handoffUrl) && /continuation=private-notes/.test(handoffUrl) && /publicArtifact=event-wiki/.test(handoffUrl),
-      handoffUrl);
+    // SN-LIVE-015 — the REAL tokenized private-notes handoff (roadmap #4).
+    // The tokenized URL is the success path; /scratchnode-events is the honest
+    // fallback. Use a SENTINEL token (NOT a real session) so the QA never mints.
+    var SAMPLE_TOKEN = 'qa-sentinel-token-0000000000';
+    var tokenizedUrl = buildNodeBenchTokenizedPrivateUrl(SAMPLE_TOKEN);
+    var fallbackUrl = buildNodeBenchEventPrivateUrl();
+    var sid = '';
+    try { sid = (window._sn_live && window._sn_live.sessionId) || localStorage.getItem('sn_session_id') || ''; } catch (e) {}
+    // INVARIANT: the session id must NEVER appear in EITHER URL. Only the opaque
+    // token (or the tokenless honest fallback) may travel cross-domain.
+    var sessionLeaks = !!sid && (tokenizedUrl.indexOf(sid) !== -1 || fallbackUrl.indexOf(sid) !== -1);
+    add('SN-LIVE-015', 'Private-notes handoff: tokenized real route + honest fallback + NO session-id leak',
+      // (a) tokenized URL hits the REAL receiving route with the opaque token
+      /nodebenchai\.com/.test(tokenizedUrl) && /\/events\/[^/]+\/private\?/.test(tokenizedUrl) && /token=qa-sentinel-token-0000000000/.test(tokenizedUrl) &&
+      // (b) fallback stays the honest shipped /scratchnode-events landing (no 404, no tokenless dead-end)
+      /\/scratchnode-events/.test(fallbackUrl) && /continuation=private-notes/.test(fallbackUrl) && /publicArtifact=event-wiki/.test(fallbackUrl) &&
+      // (c) openNodeBenchPrivateHandoff MINTS before navigating (no raw session id in the URL path)
+      /mintEventHandoffToken/.test(String(openNodeBenchPrivateHandoff)) &&
+      // (d) HARD INVARIANT — session id leaks into neither URL
+      !sessionLeaks,
+      'tokenized=' + tokenizedUrl + ' | fallback=' + fallbackUrl + ' | sessionLeaks=' + sessionLeaks);
     var passed = results.filter(function(r) { return r.pass; }).length;
     var failed = results.length - passed;
     return { passed: passed, failed: failed, total: results.length, results: results, demo: demoSummary };

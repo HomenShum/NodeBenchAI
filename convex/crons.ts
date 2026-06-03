@@ -1082,4 +1082,15 @@ crons.interval(
   {},
 );
 
+// Evict expired cross-domain handoff tokens (BOUND). Tokens carry a ~10min TTL;
+// sweep every 10 min via the by_expiresAt index so a leaked-from-history token
+// row never lingers past its window. Defense-in-depth: consume already fails
+// closed on expiry — this just bounds the table.
+crons.interval(
+  "scratchnode handoff-token janitor",
+  { minutes: 10 },
+  internal.scratchnodeHandoff._evictExpiredHandoffTokens,
+  {},
+);
+
 export default crons;
