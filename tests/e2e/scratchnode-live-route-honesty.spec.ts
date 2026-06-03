@@ -757,8 +757,16 @@ test.describe("ScratchNode live route honesty", () => {
     page,
   }) => {
     await fulfillScratchNodePage(page);
+    // A verified host is the realistic precondition for publishing (scratchnode/002
+    // boundary fix: snPublishWiki now early-returns for non-verified sessions).
+    await page.addInitScript(() => {
+      localStorage.setItem("sn_host_owner_key_v2", "hk1:liveEvents:1:nonce:1770000000000:abcdefabcdefabcdefabcdefabcdef12");
+    });
     await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
     await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+    await expect
+      .poll(() => page.evaluate(() => (window as any)._sn_live?.hostVerified === true), { timeout: 5_000 })
+      .toBe(true);
 
     // Host publishes the wiki (the real success path) — should open the recap
     // moment so they learn the public address, not just a toast.
@@ -816,5 +824,96 @@ test.describe("ScratchNode live route honesty", () => {
     await page.click(".sn-mem-nudge__close");
     await expect(nudge).toHaveAttribute("data-show", "false");
     expect(await page.evaluate(() => localStorage.getItem("sn_mem_nudge_off"))).toBe("1");
+  });
+
+  test("guest cannot trigger host-only public-write mutations (promoteFaq / publishWiki)", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    // Guest session: no sn_host_owner_key_v2 was set, so _sn_live.hostVerified is false.
+    // The two PUBLIC-write actions must early-return via _snRequireVerifiedHostOwnerKey,
+    // NOT fall back to sessionId (the scratchnode/002 boundary fix). Backend requireHost
+    // would also reject, but the frontend must not even attempt the mutation.
+    await page.evaluate(() => {
+      const w = window as any;
+      if (typeof w.snPromoteFaq === "function") w.snPromoteFaq("liveEventAnswers:1");
+      if (typeof w.snPublishWiki === "function") w.snPublishWiki();
+    });
+
+    const calledMutations = await page.evaluate(() =>
+      ((window as any).__snMockMutations || []).map((c: any) => c.name),
+    );
+    expect(calledMutations).not.toContain("events:promoteAnswerToFaq");
+    expect(calledMutations).not.toContain("events:publishWiki");
+    await expect(page.locator(".toast")).toContainText("Host verification required");
+  });
+
+  test("SN-LIVE-007/-008 private send saves privately and creates NO public message", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const result = await page.evaluate(() => {
+      const w = window as any;
+      const countBefore =
+        typeof w.getPrivateNoteHandoffCount === "function"
+          ? w.getPrivateNoteHandoffCount()
+          : (w._privateNotes_v5 || []).length;
+      // Enter private mode, then send a uniquely-identifiable private note.
+      if (document.body.getAttribute("data-mode") !== "private") w.toggleLock();
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = "PRIV-secret-latency-budget-xyz";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      w.sendComposerMessage();
+      const countAfter =
+        typeof w.getPrivateNoteHandoffCount === "function"
+          ? w.getPrivateNoteHandoffCount()
+          : (w._privateNotes_v5 || []).length;
+      return { countBefore, countAfter };
+    });
+
+    // SN-LIVE-007: the private text must NEVER reach a public eventMessages write.
+    const sentPublicly = await page.evaluate(() =>
+      ((window as any).__snMockMutations || []).some(
+        (c: any) =>
+          c.name === "events:sendMessage" &&
+          JSON.stringify(c.args || {}).includes("secret-latency-budget-xyz"),
+      ),
+    );
+    expect(sentPublicly).toBe(false);
+    // SN-LIVE-008: the private note IS captured privately (notebook count grew).
+    expect(result.countAfter).toBeGreaterThan(result.countBefore);
+  });
+
+  test("public send DOES create a public message (boundary control)", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    await page.evaluate(() => {
+      const w = window as any;
+      if (document.body.getAttribute("data-mode") === "private") w.toggleLock();
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = "PUBLIC-hello-everyone-xyz";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      w.sendComposerMessage();
+    });
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() =>
+            ((window as any).__snMockMutations || []).some(
+              (c: any) => c.name === "events:sendMessage",
+            ),
+          ),
+        { timeout: 5000 },
+      )
+      .toBe(true);
   });
 });
