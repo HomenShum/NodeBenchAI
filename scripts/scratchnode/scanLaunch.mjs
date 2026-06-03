@@ -316,7 +316,7 @@ function scanHomeV5() {
     });
   }
 
-  for (const match of html.matchAll(/["']\/scratchnode-events(?:[?#][^"']*)?["']/gi)) {
+  for (const match of html.matchAll(/\b(?:href|action)\s*=\s*["']\/scratchnode-events(?:[?#][^"']*)?["']/gi)) {
     addFinding({
       severity: "blocker",
       safety: "manual",
@@ -336,7 +336,8 @@ function scanHomeV5() {
 
   const hasPrivateHandoffContract =
     /function\s+buildNodeBenchEventPrivateUrl\s*\(/.test(html) &&
-    /WORKSPACE_BASE_URL[\s\S]{0,240}['"]\/events\/['"][\s\S]{0,240}['"]\/private\?source=scratchnode['"]/.test(html) &&
+    /WORKSPACE_BASE_URL[\s\S]{0,360}['"]\/scratchnode-events\?source=scratchnode['"]/.test(html) &&
+    /event=['"]?\s*\+\s*encodeURIComponent\(EVENT_SLUG\)/.test(html) &&
     /continuation=['"]?\s*\+\s*encodeURIComponent\(['"]private-notes['"]\)/.test(html) &&
     /publicArtifact=['"]?\s*\+\s*encodeURIComponent\(['"]event-wiki['"]\)/.test(html) &&
     /function\s+openNodeBenchPrivateHandoff\s*\(/.test(html);
@@ -344,7 +345,7 @@ function scanHomeV5() {
     ok: hasPrivateHandoffContract,
     name: "ScratchNode private handoff targets NodeBench event artifact",
     plane: "nodebench-handoff",
-    detail: "WORKSPACE_BASE_URL /events/:id with continuation=private-notes and publicArtifact=event-wiki",
+    detail: "WORKSPACE_BASE_URL /scratchnode-events with event context, continuation=private-notes, and publicArtifact=event-wiki",
   });
   if (!hasPrivateHandoffContract) {
     addFinding({
@@ -354,7 +355,7 @@ function scanHomeV5() {
       title: "NodeBench private handoff URL contract is missing or incomplete",
       path,
       recommendation:
-        "Ensure ScratchNode uses WORKSPACE_BASE_URL /events/:eventId and includes continuation=private-notes plus publicArtifact=event-wiki.",
+        "Ensure ScratchNode uses the shipped WORKSPACE_BASE_URL /scratchnode-events receiver and includes event, continuation=private-notes, and publicArtifact=event-wiki.",
     });
   }
 
@@ -1408,8 +1409,9 @@ async function runInteractiveChecks() {
         try {
           const url = new URL(urlText);
           return url.origin === "https://nodebenchai.com" &&
-            url.pathname === "/events/ai-infra-summit-2026/private" &&
+            url.pathname === "/scratchnode-events" &&
             url.searchParams.get("source") === "scratchnode" &&
+            url.searchParams.get("event") === "ai-infra-summit-2026" &&
             url.searchParams.get("room") === "ORBITAL" &&
             url.searchParams.get("continuation") === "private-notes" &&
             url.searchParams.get("publicArtifact") === "event-wiki" &&

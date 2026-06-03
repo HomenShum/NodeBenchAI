@@ -61,7 +61,7 @@ https://scratchnode.live/sign-in
 NodeBench private continuation URLs:
 
 ```text
-https://nodebenchai.com/events/:eventSlug/private?source=scratchnode&room=:roomCode&continuation=private-notes&noteCount=:count&publicArtifact=event-wiki&return=:scratchnodeEventUrl
+https://nodebenchai.com/scratchnode-events?source=scratchnode&event=:eventSlug&room=:roomCode&continuation=private-notes&noteCount=:count&publicArtifact=event-wiki&return=:scratchnodeEventUrl
 https://nodebenchai.com/sign-in?return=:nodebenchPrivateEventUrl&intent=save-private-notes
 ```
 
@@ -69,6 +69,11 @@ The handoff URL carries continuation intent and counts, not the anonymous
 `ownerKey` itself. The `ownerKey` remains a server-validated note-operation key;
 future cross-domain import should use a one-time exchange token rather than
 placing session secrets in URLs.
+
+The current shipped receiver is `/scratchnode-events`. The tokenized
+`/events/:eventSlug/private` route is intentionally not linked from
+ScratchNode until the receiving route and token exchange exist, because the
+dead route previously produced a 404.
 
 ScratchNode sign-in owns event participation state. NodeBench sign-in is only
 for the explicit "Open in NodeBench" private-workspace continuation.
