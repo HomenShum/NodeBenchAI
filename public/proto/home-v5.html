@@ -7521,6 +7521,23 @@ window._laCueAction       = _laCueAction;
     row.querySelector('.row-time').textContent = fmtTime(msg.createdAt);
     row.querySelector('.row-name').textContent = msg.displayName || 'Anonymous';
     row.querySelector('.row-text').textContent = (msg.kind === 'ask' ? '/ask ' : '') + msg.text;
+    if (msg.replyToMessageId) {
+      row.setAttribute('data-reply-to-message-id', msg.replyToMessageId);
+      const parent = document.querySelector('[data-mid="' + msg.replyToMessageId + '"]');
+      if (parent) {
+        const parentName = parent.querySelector('.row-name') ? parent.querySelector('.row-name').textContent : '';
+        const parentText = parent.querySelector('.row-text') ? parent.querySelector('.row-text').textContent : '';
+        const quote = parentText.length > 50 ? parentText.slice(0, 50) + '...' : parentText;
+        const rb = document.createElement('div');
+        rb.className = 'row-replying';
+        rb.innerHTML = 'replying to <span class="name"></span> <span class="quote"></span>';
+        rb.querySelector('.name').textContent = parentName || 'someone';
+        rb.querySelector('.quote').textContent = '"' + quote + '"';
+        const body = row.querySelector('.row-body');
+        const nameEl = body && body.querySelector('.row-name');
+        if (body && nameEl) body.insertBefore(rb, nameEl);
+      }
+    }
     renderManualLocationSpot(row, msg.text);
     feedEl.appendChild(row);
     row.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -7656,12 +7673,14 @@ window._laCueAction       = _laCueAction;
     // Public chat or /ask — send to Convex. The agent answer for /ask is Phase 2;
     // for now the message just shows up in the feed.
     const liveName = (window._userName && String(window._userName).trim()) || 'Anonymous Guest';
+    const room = getRoomContext();
     const messagePayload = {
       eventId,
       sessionId,
       displayName: liveName,
       text: intent.clean,
       kind: intent.kind === 'agent_ask' ? 'ask' : 'chat',
+      replyToMessageId: room.replyingToMid || undefined,
     };
     const postMessage = () => client.mutation('events:sendMessage', messagePayload);
     const runAskIfNeeded = (res) => {
@@ -7718,6 +7737,7 @@ window._laCueAction       = _laCueAction;
 
     // Clear composer; Convex subscription will render the new row when it lands.
     input.value = '';
+    if (room.replyingToMid && typeof cancelReply === 'function') cancelReply();
     if ('ontouchstart' in window || window.innerWidth <= 720) input.blur();
   };
   // Make sure both global aliases stay in sync (existing onclick handlers).

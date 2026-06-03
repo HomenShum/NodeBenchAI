@@ -68,9 +68,11 @@ async function fulfillScratchNodePage(
               const nextMessage = {
                 _id: messageId,
                 eventId: args.eventId,
+                sessionId: args.sessionId,
                 displayName: args.displayName,
                 text: args.text,
                 kind: args.kind,
+                replyToMessageId: args.replyToMessageId,
                 createdAt: 1770000000000 + window.__snMockMessages.length,
               };
               window.__snMockMessages.push(nextMessage);
@@ -412,6 +414,91 @@ test.describe("ScratchNode live route honesty", () => {
       }),
     ]);
     expect(chatState.askCalls).toEqual([]);
+  });
+
+  test("normal public replies stay chat-only event-log moments", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    const parentText = "Public parent message for reply context";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, parentText);
+
+    const parentRow = page.locator(".row", { hasText: parentText }).first();
+    await expect(parentRow.locator(".row-text")).toContainText(parentText);
+    const parentMessageId = await parentRow.getAttribute("data-mid");
+    expect(parentMessageId).toMatch(/^liveEventMessages:/);
+    if (!parentMessageId) throw new Error("Expected parent message id");
+
+    const replyText = "Replying publicly with the source owner";
+    await page.evaluate(
+      ({ parentMessageId, replyText }) => {
+        const win = window as any;
+        const input = document.getElementById("ci") as HTMLInputElement;
+        win.replyTo?.(parentMessageId);
+        input.value = replyText;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        win.sendComposerMessage?.();
+      },
+      { parentMessageId, replyText },
+    );
+
+    const replyRow = page.locator(`.row[data-reply-to-message-id="${parentMessageId}"]`, {
+      hasText: replyText,
+    });
+    await expect(replyRow.locator(".row-text")).toContainText(replyText);
+    await expect(replyRow.locator(".row-replying")).toContainText(parentText);
+    await expect(page.locator("#reply-ctx")).toHaveAttribute("data-open", "false");
+    await expect(page.locator(".ans", { hasText: replyText })).toHaveCount(0);
+
+    const replyState = await page.evaluate(
+      ({ parentMessageId, replyText }) => {
+        const win = window as any;
+        return {
+          noteCount: win.getPrivateNoteHandoffCount?.(),
+          actions: win.__snMockActions || [],
+          replySendCalls: (win.__snMockMutations || []).filter(
+            (call: any) =>
+              call.name === "events:sendMessage" &&
+              call.args?.text === replyText &&
+              call.args?.kind === "chat",
+          ),
+          privateNoteCalls: (win.__snMockMutations || []).filter(
+            (call: any) => call.name === "notes:createNote",
+          ),
+          askCalls: (win.__snMockMutations || []).filter(
+            (call: any) => call.name === "events:sendMessage" && call.args?.kind === "ask",
+          ),
+        };
+      },
+      { parentMessageId, replyText },
+    );
+
+    expect(replyState.noteCount).toBe(initialNoteCount);
+    expect(replyState.actions).toEqual([]);
+    expect(replyState.replySendCalls).toEqual([
+      expect.objectContaining({
+        args: expect.objectContaining({
+          text: replyText,
+          kind: "chat",
+          replyToMessageId: parentMessageId,
+        }),
+      }),
+    ]);
+    expect(replyState.privateNoteCalls).toEqual([]);
+    expect(replyState.askCalls).toEqual([]);
   });
 
   test("typed people and company tags stay public-row context while private tagged follow-ups stay private", async ({

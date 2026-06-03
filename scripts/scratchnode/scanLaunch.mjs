@@ -721,6 +721,20 @@ function scanPublicRepoReadiness() {
   });
   addCheck({
     ok:
+      /normal public replies stay chat-only event-log moments/i.test(routeHonestySpec) &&
+      /replyToMessageId:\s*room\.replyingToMid\s*\|\|\s*undefined/i.test(homeHtml) &&
+      /data-reply-to-message-id/i.test(homeHtml) &&
+      /row-replying/i.test(homeHtml) &&
+      /replySendCalls/i.test(routeHonestySpec) &&
+      /expect\(replyState\.actions\)\.toEqual\(\[\]\)/i.test(routeHonestySpec) &&
+      /expect\(replyState\.privateNoteCalls\)\.toEqual\(\[\]\)/i.test(routeHonestySpec) &&
+      /expect\(replyState\.askCalls\)\.toEqual\(\[\]\)/i.test(routeHonestySpec),
+    name: "event-log route spec covers public reply no-LLM boundary",
+    plane: "event-log-evidence",
+    detail: files.routeHonestySpec,
+  });
+  addCheck({
+    ok:
       /manual location spots render as public event-log chips without private leakage/i.test(routeHonestySpec) &&
       /Booth 12/i.test(routeHonestySpec) &&
       /Lobby/i.test(routeHonestySpec) &&
