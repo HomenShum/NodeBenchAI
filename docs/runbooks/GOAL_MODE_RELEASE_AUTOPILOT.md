@@ -52,6 +52,14 @@ codex --sandbox workspace-write --ask-for-approval on-request
 
 In Codex Desktop, emulate the same contract by treating the goal text as the active acceptance checklist and continuing the local fix, verify, and evidence loop until every gate is satisfied.
 
+## Self-Directed Loop Pattern
+
+Use a batched issue queue instead of chasing one warning at a time. Classify every pass into blockers, actionable attention, known-safe cautions, and exactly one next development candidate.
+
+Run specialist passes in a stable order so the loop stays comparable across turns: housekeeping, product workflow, backend or handoff contracts, privacy and reliability, performance and accessibility, and automation evidence.
+
+Track cost/effort accounting before taking a slice. Prefer a small detector, targeted test, or local product fix that can be verified and committed in the same turn; defer work that would need deploys, live writes, or broad refactors.
+
 ## Goal Template
 
 ```text

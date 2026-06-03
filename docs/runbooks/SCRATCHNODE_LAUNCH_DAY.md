@@ -33,6 +33,16 @@
 
 ## Pre-flight checklist (run 60 min before launch)
 
+### 0. Continuous goal-loop gate
+
+Before manual launch checks, run the local autonomous launch goal loop:
+
+```bash
+npm run scratchnode:launch:goal
+```
+
+Expect `ScratchNode launch goal loop: PASS`. If it fails, inspect `.tmp/scratchnode-launch-goal-loop.json` before continuing; do not deploy or publish from this loop.
+
 ### 1. PR #423 has merged + deployed
 
 ```bash
