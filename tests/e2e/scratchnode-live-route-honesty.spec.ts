@@ -197,6 +197,53 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(page.locator("#ci")).toHaveValue("this must not be local-only");
   });
 
+  test("private /ask stays out of the public feed and increases the NodeBench handoff note count", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    const privatePrompt = "what follow-up should I save for after the summit?";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = `/ask private ${text}`;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, privatePrompt);
+
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+    await expect(page.locator("#pn-inline")).toHaveAttribute("data-count", String(initialNoteCount + 1));
+    await expect(page.locator(".row-text", { hasText: privatePrompt })).toHaveCount(0);
+    await expect(page.locator(".ans", { hasText: privatePrompt })).toHaveCount(0);
+
+    const privateState = await page.evaluate((text) => {
+      const win = window as any;
+      return {
+        noteCount: win.getPrivateNoteHandoffCount?.(),
+        handoffUrl: win.buildNodeBenchEventPrivateUrl?.(),
+        sendCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:sendMessage" && call.args?.text === text,
+        ).length,
+      };
+    }, privatePrompt);
+
+    expect(privateState.noteCount).toBe(initialNoteCount + 1);
+    expect(privateState.handoffUrl).toContain("continuation=private-notes");
+    expect(privateState.handoffUrl).toContain(`noteCount=${initialNoteCount + 1}`);
+    expect(privateState.handoffUrl).toContain("publicArtifact=event-wiki");
+    expect(privateState.sendCalls).toBe(0);
+  });
+
   test("live wiki and people sheets do not show stale static launch counts", async ({ page }) => {
     await fulfillScratchNodePage(page);
 
