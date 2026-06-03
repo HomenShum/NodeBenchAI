@@ -321,6 +321,17 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(answerCard).toContainText("private notes excluded");
     await expect(answerCard).toContainText("Suggest for FAQ");
     await expect(answerCard).toContainText("View in wiki");
+    await answerCard.getByRole("button", { name: "Suggest for FAQ" }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            ((window as any).__snMockMutations || []).filter(
+              (call: any) => call.name === "events:suggestAnswerForFaq",
+            ).length,
+        ),
+      )
+      .toBe(1);
 
     const publicAskState = await page.evaluate(() => {
       const win = window as any;
@@ -334,6 +345,12 @@ test.describe("ScratchNode live route honesty", () => {
           questionMessageId: answer.questionMessageId,
           trace: answer.trace,
         })),
+        faqSuggestionCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:suggestAnswerForFaq",
+        ),
+        hostOnlyCalls: (win.__snMockMutations || []).filter((call: any) =>
+          ["events:promoteAnswerToFaq", "events:publishWiki"].includes(call.name),
+        ),
       };
     });
 
@@ -349,6 +366,15 @@ test.describe("ScratchNode live route honesty", () => {
         }),
       ]),
     );
+    expect(publicAskState.faqSuggestionCalls).toEqual([
+      expect.objectContaining({
+        args: expect.objectContaining({
+          answerId: "liveEventAnswers:1",
+          eventId: "liveEvents:1",
+        }),
+      }),
+    ]);
+    expect(publicAskState.hostOnlyCalls).toEqual([]);
   });
 
   test("live wiki and people sheets do not show stale static launch counts", async ({ page }) => {
