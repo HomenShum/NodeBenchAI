@@ -2,6 +2,37 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-03 — Directory viral slice: flyer cards, "● N inside" presence, one-tap request-to-join
+Closed the last gap in the viral loop on the *discovery* side. The public-rooms
+directory used to render every room as a list row with a single hardcoded
+"Request to join" link that just navigated to `/e/<slug>` — it ignored the room's
+actual `joinPolicy` and never touched the door-policy backend. Three changes:
+
+- **Flyer feel + live presence.** Each card now leads with a **"● N inside"**
+  presence cue — a pulsing green dot + the real `activeSessions` count ("friends
+  are inside"), then `· code XXXX`. Rooms with zero presence read "Open for guests".
+  Request-policy cards get a subtle terracotta wash so the two policies are
+  visually distinct. Reduced-motion disables the dot pulse.
+- **Policy-aware action.** **Open** rooms → a `Join now` `<a>` that navigates
+  straight in. **Request** rooms → a real `Request to join` `<button>` wired to
+  the live `events:requestJoinEvent` mutation.
+- **One-tap request, honest waiting.** The button files the request using the
+  **same `sn_session_id`** the room will use — so a host approval carries through
+  the `joinEvent` door gate when the guest lands in `/e/<slug>`. It then shows an
+  honest **"Requested ✓"** state (never a fake entry) and watches
+  `events:getMyJoinRequest` reactively: on **approved** it carries the guest into
+  the room; on **denied** it says "Request declined". A missing live client falls
+  back to a plain navigate (the room's own door handles the gate); any backend
+  error resets the button and surfaces a toast.
+
+Covered by an updated directory case (open room → "Join now" + "● 6 inside") and a
+new request-policy case in `scratchnode-live-route-honesty.spec.ts` (button files
+a real request with a ≥8-char sessionId, shows "Requested ✓" with no navigation,
+then a host approval carries the guest into `/e/<slug>`). 18/18 chromium honesty
+suite green; desktop + mobile (375px) flyer cards screenshot-verified.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-02 — Post-create "viral" share moment
 The shortest path from useful product to viral loop: after a host creates a room,
 they no longer drop straight into it — they land on a **"Your event is live. Invite

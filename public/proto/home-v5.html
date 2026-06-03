@@ -2246,6 +2246,31 @@ body[data-page-mode="landing"] .menu-scrim:not([data-open="true"]) {
   color: #fff;
   outline: none;
 }
+.landing-room-join { cursor: pointer; background: transparent; }
+/* Flyer feel for request-to-join rooms + the "● N inside" presence cue. */
+.landing-room-card[data-policy="request"] {
+  border-color: rgba(217,119,87,.28);
+  background: linear-gradient(180deg, rgba(217,119,87,.05), rgba(255,255,255,.02));
+}
+.landing-room-meta b { color: var(--ink); font-weight: 700; }
+.landing-room-meta .dot-inside {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  margin-right: 5px;
+  box-shadow: 0 0 0 0 rgba(74,222,128,.55);
+  animation: landing-pulse-dot 2.4s ease-out infinite;
+}
+.landing-room-join[data-state="pending"] { opacity: .7; pointer-events: none; }
+.landing-room-join[data-state="requested"] {
+  color: #7fe0a8;
+  border-color: rgba(74,222,128,.5);
+  background: rgba(74,222,128,.08);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .landing-room-meta .dot-inside { animation: none; } }
 @media (max-width: 600px) {
   .landing-hero h1 { font-size: 22px; }
   .landing-hero p { font-size: 14px; }
@@ -2699,21 +2724,135 @@ function _snInitLandingStats() {
         var meta = document.createElement('div');
         meta.className = 'landing-room-meta';
         var active = Number(room.activeSessions || 0);
-        var activeText = active > 0
-          ? active.toLocaleString('en-US') + (room.activeSessionsCapped ? '+' : '') + ' active'
-          : 'Open for guests';
-        meta.textContent = activeText + ' · code ' + String(room.roomCode || '').toUpperCase();
+        var codeText = ' code ' + String(room.roomCode || '').toUpperCase();
+        if (active > 0) {
+          // "● N inside" — live presence cue ("friends are inside").
+          var dot = document.createElement('span');
+          dot.className = 'dot-inside';
+          dot.setAttribute('aria-hidden', 'true');
+          var strong = document.createElement('b');
+          strong.textContent = active.toLocaleString('en-US') + (room.activeSessionsCapped ? '+' : '');
+          meta.appendChild(dot);
+          meta.appendChild(strong);
+          meta.appendChild(document.createTextNode(' inside ·' + codeText));
+        } else {
+          meta.textContent = 'Open for guests ·' + codeText;
+        }
         copy.appendChild(title);
         copy.appendChild(meta);
 
-        var join = document.createElement('a');
+        // Open rooms navigate straight in; request rooms file a one-tap request
+        // against the live door-policy backend (events:requestJoinEvent).
+        var isRequest = room.joinPolicy === 'request';
+        card.setAttribute('data-policy', isRequest ? 'request' : 'open');
+        var join;
+        if (isRequest) {
+          join = document.createElement('button');
+          join.type = 'button';
+          join.textContent = 'Request to join';
+          (function (slug, btn) {
+            btn.onclick = function () { _landingRequestJoin(slug, btn); return false; };
+          })(room.slug, join);
+        } else {
+          join = document.createElement('a');
+          join.href = roomUrl(room);
+          join.textContent = 'Join now';
+        }
         join.className = 'landing-room-join';
-        join.href = roomUrl(room);
-        join.textContent = 'Request to join';
         card.appendChild(copy);
         card.appendChild(join);
         list.appendChild(card);
       });
+    }
+
+    // --- One-tap "Request to join" from the public directory -----------------
+    // Files a request against the live door-policy backend (events:requestJoinEvent)
+    // using the SAME sn_session_id the room will use, so a host approval carries
+    // through the joinEvent door gate when the guest lands in /e/<slug>. Honest:
+    // a config/backend failure resets the button and never fakes entry.
+    function _landingSessionId() {
+      var sid;
+      try {
+        sid = localStorage.getItem('sn_session_id');
+        if (!sid) {
+          sid = (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+          localStorage.setItem('sn_session_id', sid);
+        }
+      } catch (e) {
+        sid = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+      }
+      return sid;
+    }
+
+    function _landingGoToRoom(slug) {
+      location.href = '/e/' + encodeURIComponent(String(slug || '').toLowerCase());
+    }
+
+    function _landingRequestJoin(slug, btn) {
+      var stats = window._sn_landing_stats;
+      var client = stats && stats.client;
+      // No live client yet: just navigate; the room's own door handles the gate.
+      if (!client || !client.mutation) { _landingGoToRoom(slug); return; }
+      var sessionId = _landingSessionId();
+      var displayName = (window._userName && String(window._userName).trim()) || 'Guest';
+      btn.setAttribute('data-state', 'pending');
+      btn.textContent = 'Requesting…';
+      client.mutation('events:requestJoinEvent', { slug: slug, sessionId: sessionId, displayName: displayName })
+        .then(function (res) {
+          var status = res && res.status;
+          if (status === 'open' || status === 'already_member' || status === 'approved') {
+            btn.textContent = 'Opening…';
+            _landingGoToRoom((res && res.slug) || slug);
+            return;
+          }
+          // pending — host must approve. Honest waiting state + watch for the decision.
+          btn.setAttribute('data-state', 'requested');
+          btn.textContent = 'Requested ✓';
+          _landingWatchRequest(slug, sessionId, btn);
+        })
+        .catch(function (e) {
+          btn.removeAttribute('data-state');
+          btn.textContent = 'Request to join';
+          if (typeof toast === 'function') {
+            try { toast('Could not send request', (e && e.message) || 'Please try again.'); } catch (_) {}
+          }
+        });
+    }
+
+    function _landingWatchRequest(slug, sessionId, btn) {
+      var stats = window._sn_landing_stats;
+      var client = stats && stats.client;
+      if (!client) return;
+      var done = false, unsub = null, timer = null;
+      var finish = function () {
+        if (typeof unsub === 'function') { try { unsub(); } catch (_) {} }
+        if (timer) { clearInterval(timer); timer = null; }
+      };
+      var apply = function (st) {
+        if (done || !st) return;
+        if (st.isMember || st.status === 'approved') {
+          done = true; finish();
+          btn.textContent = 'Approved — opening…';
+          _landingGoToRoom(st.slug || slug);
+        } else if (st.status === 'denied') {
+          done = true; finish();
+          btn.setAttribute('data-state', 'pending');
+          btn.textContent = 'Request declined';
+        }
+      };
+      if (client.onUpdate) {
+        try {
+          unsub = client.onUpdate('events:getMyJoinRequest', { slug: slug, sessionId: sessionId }, function (st) { try { apply(st); } catch (_) {} });
+          return;
+        } catch (e) { /* fall through to poll */ }
+      }
+      timer = setInterval(function () {
+        client.query('events:getMyJoinRequest', { slug: slug, sessionId: sessionId })
+          .then(function (st) { try { apply(st); } catch (_) {} })
+          .catch(function () {});
+      }, 4000);
     }
 
     function connect() {
