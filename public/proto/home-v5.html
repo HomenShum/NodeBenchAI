@@ -54,6 +54,18 @@
   --purple: #a78bfa;
   --ui: "Manrope", system-ui, -apple-system, sans-serif;
   --mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  /* ─── Type scale (one ladder, so the eye can rank) ───
+     Discipline: ONE --fs-display per screen. --mono is reserved for machine
+     identifiers ONLY (room code + the /ask token), never human-readable prose.
+     --accent (solid terracotta) marks the SINGLE primary action on a screen;
+     everything else uses --accent-ghost or a neutral border. */
+  --fs-display: 22px;   /* the one large element: empty-state title / hero */
+  --fs-title: 15px;     /* event title, menu row, answer heads */
+  --fs-base: 14px;      /* chat + body */
+  --fs-sub: 12px;       /* metadata, helper, status */
+  --fs-label: 11px;     /* tracked caps section headers */
+  --fs-mono: 11px;      /* room code + /ask token only */
+  --accent-ghost: rgba(217,119,87,.10);
   --r: 12px;
   --r-sm: 8px;
   --motion-fast: 120ms;
@@ -114,22 +126,25 @@ button:active { transform: scale(.97); transition: transform .08s; }
 .h-logo { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; }
 .h-logo-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px rgba(217,119,87,.7); animation: logoBreathe 3.4s ease-in-out infinite; }
 @keyframes logoBreathe { 0%,100% { transform: scale(1); box-shadow: 0 0 10px rgba(217,119,87,.62); } 50% { transform: scale(1.28); box-shadow: 0 0 18px rgba(217,119,87,.92); } }
-.h-logo span { color: var(--accent); }
+.h-logo-word { display: inline-flex; } /* keeps "ScratchNode" as one word — the .h-logo gap must not split it */
+.h-logo-word > span { color: var(--accent); }
 .h-live { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 100px; background: rgba(94,168,103,.1); border: 1px solid rgba(94,168,103,.25); font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--green); letter-spacing: .1em; }
 .h-live::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px rgba(94,168,103,.7); animation: livePulse 2s infinite; }
 @keyframes livePulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .42; transform: scale(.75); } }
 @media (prefers-reduced-motion: reduce) { body::before, .h-logo-dot, .h-live::before { animation: none; } }
 .h-spacer { flex: 1; }
+/* Room code = quiet machine-id chip (mono is allowed here — it IS an identifier).
+   NOT accent: accent is reserved for the one primary action on screen. */
 .h-code {
-  min-height: 36px; padding: 6px 14px; border-radius: var(--r-sm);
-  background: transparent; border: 1px solid var(--line);
-  color: var(--accent); font-family: var(--mono); font-size: 12px; font-weight: 700;
-  letter-spacing: .18em; cursor: pointer; transition: border-color .12s;
+  min-height: 30px; padding: 4px 11px; border-radius: 100px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--line);
+  color: var(--ink-muted); font-family: var(--mono); font-size: var(--fs-mono); font-weight: 600;
+  letter-spacing: .14em; cursor: pointer; transition: border-color .12s, color .12s;
 }
-.h-code:hover { border-color: var(--accent); }
-.h-menu { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-sm); border: 1px solid var(--line); background: transparent; color: var(--ink-muted); }
-.h-menu:hover { color: var(--ink); border-color: var(--ink-faint); }
-@media (max-width: 540px) { .h-menu { width: 44px; height: 44px; } .h-code { min-height: 44px; } }
+.h-code:hover { border-color: var(--ink-faint); color: var(--ink); }
+.h-menu { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-sm); border: 0; background: transparent; color: var(--ink-faint); }
+.h-menu:hover { color: var(--ink); background: rgba(255,255,255,.05); }
+@media (max-width: 540px) { .h-menu { width: 44px; height: 44px; } .h-code { min-height: 36px; } }
 
 /* ─── Event identity strip (persistent after scroll) ─── */
 .event-strip {
@@ -139,26 +154,35 @@ button:active { transform: scale(.97); transition: transform .08s; }
   background: linear-gradient(180deg, rgba(21,20,19,.86), rgba(21,20,19,.5));
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--line);
-  font-family: var(--mono); font-size: 10px; color: var(--ink-muted);
-  letter-spacing: .04em;
+  font-family: var(--ui); font-size: var(--fs-sub); color: var(--ink-muted);
+  letter-spacing: 0;
   overflow-x: auto; white-space: nowrap;
   scrollbar-width: none;
 }
 .event-strip::-webkit-scrollbar { display: none; }
-.event-strip b { color: var(--ink); font-weight: 700; font-family: var(--ui); font-size: 11px; letter-spacing: 0; }
+.event-strip b { color: var(--ink); font-weight: 700; font-family: var(--ui); font-size: var(--fs-sub); letter-spacing: 0; }
 .event-strip .dot { color: var(--ink-faint); }
+/* Host/debug controls (event mode, capture level, FAQ count) are NOT for public
+   attendees — they leaked into the public strip. Gate them to the host role.
+   Elements stay in the DOM (JS reads ev-faq-count / ev-cap-label / ev-mode-label). */
+.event-strip .ev-mode,
+.event-strip .ev-cap,
+.event-strip .ev-host-only { display: none; }
+body[data-role="host"] .event-strip .ev-mode,
+body[data-role="host"] .event-strip .ev-cap { display: inline-flex; }
+body[data-role="host"] .event-strip .ev-host-only { display: inline; }
 .event-strip .ev-link {
   margin-left: auto;
-  color: var(--accent); border: 1px solid rgba(217,119,87,.3);
-  padding: 2px 8px; border-radius: 100px;
+  color: var(--ink-muted); border: 1px solid var(--line);
+  padding: 3px 10px; border-radius: 100px;
   text-decoration: none; cursor: pointer;
   flex-shrink: 0;
 }
-.event-strip .ev-link:hover { background: rgba(217,119,87,.08); }
+.event-strip .ev-link:hover { color: var(--ink); border-color: var(--ink-faint); }
 @media (max-width: 540px) {
-  .event-strip { padding: 5px 14px; font-size: 9px; gap: 8px; }
-  .event-strip b { font-size: 10px; }
-  .event-strip .ev-link { font-size: 9px; }
+  .event-strip { padding: 6px 14px; font-size: var(--fs-sub); gap: 8px; }
+  .event-strip b { font-size: var(--fs-sub); }
+  .event-strip .ev-link { font-size: var(--fs-label); }
 }
 
 /* ─── Main (single column) ─── */
@@ -174,9 +198,9 @@ body:not([data-page-mode="landing"]) main.m { animation: pageEnter var(--motion-
 @media (prefers-reduced-motion: reduce) { main.m { animation: none; } }
 
 /* ─── Hero (small, scannable) ─── */
-.hero { margin-bottom: 20px; }
-.hero h1 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 4px; }
-.hero-meta { font-size: 13px; color: var(--ink-muted); }
+.hero { margin-bottom: 18px; }
+.hero :is(h1, h2) { font-size: var(--fs-display); font-weight: 800; letter-spacing: -.02em; margin: 0 0 4px; }
+.hero-meta { font-size: var(--fs-sub); color: var(--ink-muted); }
 .hero-meta b { color: var(--ink); font-weight: 600; }
 
 /* ─── Composer (gravitational center) ─── */
@@ -242,6 +266,7 @@ body[data-mode="private"] .c-mode .dot { animation: privateDot 1.8s ease-in-out 
   border: 1px solid var(--line);
 }
 .c-helpline .pill.ask { color: var(--accent); border-color: rgba(217,119,87,.3); background: rgba(217,119,87,.06); }
+.c-helpline .privacy-state { margin-left: auto; font-size: var(--fs-label); font-weight: 600; color: var(--ink-muted); }
 body[data-mode="private"] .c-helpline .privacy-state { color: var(--purple); }
 
 /* Role-gated host-only actions on agent cards */
@@ -272,7 +297,7 @@ body[data-mode="private"] .c-hint::before { content: "🔒 Private — saves to 
 
 /* ─── Feed ─── */
 .feed { display: flex; flex-direction: column; gap: 4px; }
-.feed-divider { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; font-family: var(--mono); font-size: 10px; color: var(--ink-faint); letter-spacing: .12em; text-transform: uppercase; }
+.feed-divider { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; font-family: var(--ui); font-size: var(--fs-label); font-weight: 600; color: var(--ink-faint); letter-spacing: .12em; text-transform: uppercase; }
 .feed-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 
 /* Chat row (minimal, dense) */
@@ -621,7 +646,7 @@ body[data-mode="private"] .private-notes-inline[data-count]:not([data-count="0"]
 .menu-sheet button { min-height: 44px; }
 .menu-sheet[data-open="true"] { transform: translateY(0); }
 .menu-sheet-handle { width: 32px; height: 3px; border-radius: 2px; background: var(--line); margin: 0 auto 14px; }
-.menu-sheet h4 { margin: 0 0 8px; font-size: 11px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .12em; font-family: var(--mono); }
+.menu-sheet h4 { margin: 0 0 8px; font-size: var(--fs-label); font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .12em; font-family: var(--ui); }
 .menu-sheet button {
   display: block; width: 100%; text-align: left;
   padding: 10px 12px; margin: 2px 0;
@@ -644,18 +669,23 @@ body[data-signed-in="true"] .menu-sheet [data-hide-for="signed-in"] { display: n
 .menu-sheet h4[data-show-for]:not([data-show-for="all"]) { display: none; }
 body[data-role="host"] .menu-sheet h4[data-show-for="host"] { display: block; }
 body[data-named="true"] .menu-sheet h4[data-show-for="named"] { display: block; }
+/* Keyboard shortcuts is a desktop affordance — hide it from the mobile sheet. */
+@media (max-width: 540px) { .menu-sheet .menu-desktop-only { display: none; } }
 .menu-scrim { position: fixed; inset: 0; z-index: 105; background: rgba(0,0,0,.5); display: none; }
 .menu-scrim[data-open="true"] { display: block; }
 
 /* ─── First-visit welcome banner ─── */
 .welcome {
-  display: none; align-items: center; gap: 10px; padding: 10px 14px;
+  display: none; align-items: center; gap: 10px; padding: 9px 12px;
   margin: 0 0 12px;
-  background: linear-gradient(135deg, rgba(217,119,87,.1), rgba(217,119,87,.02));
-  border: 1px solid rgba(217,119,87,.25); border-radius: var(--r-sm);
-  font-size: 12px; color: var(--ink-muted);
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  font-size: var(--fs-sub); color: var(--ink-muted);
 }
 body[data-new-user="true"] .welcome { display: flex; }
+/* Mobile: the empty-state copy + composer already carry the how-to. The banner
+   is redundant chrome on a small first viewport — hide it. */
+@media (max-width: 540px) { body[data-new-user="true"] .welcome { display: none; } }
 .welcome-emoji { font-size: 16px; }
 .welcome-text { flex: 1; line-height: 1.4; }
 .welcome-text strong { color: var(--ink); }
@@ -683,7 +713,7 @@ body[data-new-user="true"] .welcome { display: flex; }
 .id-avatar { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #b85f44); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
 .id-text { flex: 1; }
 .id-text b { color: var(--ink); font-weight: 600; }
-.id-set { background: transparent; border: 0; color: var(--accent); font-size: 11px; cursor: pointer; padding: 4px 6px; border-radius: 4px; font-family: var(--mono); }
+.id-set { background: transparent; border: 0; color: var(--accent); font-size: var(--fs-sub); cursor: pointer; padding: 4px 6px; border-radius: 4px; font-family: var(--ui); }
 .id-set:hover { background: rgba(217,119,87,.08); }
 
 /* ─── Empty state (when feed has zero rows) ─── */
@@ -695,8 +725,9 @@ body[data-feed-empty="true"] .empty { display: flex; }
 body[data-feed-empty="true"] #feed > .row,
 body[data-feed-empty="true"] #feed > .ans { display: none; }
 .empty-icon { font-size: 28px; opacity: .6; margin-bottom: 4px; }
-.empty-title { font-size: 14px; color: var(--ink); font-weight: 600; }
-.empty-body { font-size: 12px; color: var(--ink-muted); max-width: 280px; line-height: 1.5; } /* AA contrast — instructional empty-state copy must be readable */
+.empty-title { font-size: 18px; color: var(--ink); font-weight: 700; letter-spacing: -.01em; } /* the one display element when the feed is empty */
+.empty-body { font-size: var(--fs-sub); color: var(--ink-muted); max-width: 280px; line-height: 1.5; } /* AA contrast — instructional empty-state copy must be readable */
+.empty-body b { color: var(--accent); font-family: var(--mono); font-weight: 600; } /* /ask token */
 
 /* ─── Attention pulses for first-visit ─── */
 body[data-new-user="true"] #lock,
@@ -736,13 +767,12 @@ body[data-new-user="true"] .h-menu::after {
 
 /* ─── "What is this" inline link ─── */
 .about-link {
-  display: inline-flex; align-items: center; gap: 4px;
-  margin-left: 6px; padding: 2px 7px; border-radius: 100px;
-  background: rgba(255,255,255,.04); border: 1px solid var(--line);
-  color: var(--ink-faint); font-size: 10px; font-family: var(--mono); letter-spacing: .04em;
-  text-transform: uppercase; cursor: pointer; transition: all .12s;
+  display: inline; margin-left: 7px; padding: 0;
+  background: none; border: 0;
+  color: var(--ink-faint); font-size: var(--fs-sub); font-family: var(--ui); letter-spacing: 0;
+  text-transform: none; cursor: pointer; transition: color .12s;
 }
-.about-link:hover { color: var(--ink); border-color: var(--ink-faint); }
+.about-link:hover { color: var(--ink); text-decoration: underline; }
 
 /* ─── UNIVERSAL FEATURE SHEET (slides up — name, about, share, notes, wiki, people, signin, host, shortcuts) ─── */
 .sheet-scrim { position: fixed; inset: 0; z-index: 115; background: rgba(0,0,0,.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: none; }
@@ -988,9 +1018,7 @@ body[data-new-user="true"] .h-menu::after {
 .about-card h4 { margin: 0 0 4px; font-size: 13px; color: var(--accent); font-weight: 700; }
 .about-card p { margin: 0; font-size: 12px; color: var(--ink-muted); line-height: 1.55; }
 
-/* Empty state CTA */
-.empty-cta { margin-top: 14px; padding: 10px 18px; min-height: 44px; background: var(--accent); color: #fff; border: 0; border-radius: var(--r-sm); font-family: var(--ui); font-size: 13px; font-weight: 600; cursor: pointer; }
-.empty-cta:hover { filter: brightness(1.08); }
+/* Empty-state CTA removed — the composer IS the call to action (no duplicate button). */
 
 /* Footer (tiny) */
 .f { padding: 24px 20px calc(32px + var(--safe-bot)); text-align: center; font-size: 11px; color: var(--ink-faint); }
@@ -1005,13 +1033,21 @@ body[data-new-user="true"] .h-menu::after {
   /* Mobile: pin the composer to the bottom (Slack/Discord/iMessage convention — thumb reach,
      newest message sits right above where you type). Desktop keeps the sticky top command bar. */
   .c {
-    position: fixed; top: auto; bottom: 0; left: 0; right: 0; z-index: 45;
+    position: fixed; top: auto; left: 0; right: 0; z-index: 45;
+    /* Pin above the on-screen keyboard — --keyboard-offset is set from
+       visualViewport when the input is focused (see keyboard-aware script). */
+    bottom: var(--keyboard-offset, 0px);
     margin: 0;
     padding: 8px calc(14px + var(--safe-right)) calc(8px + var(--safe-bot)) calc(14px + var(--safe-left));
     border-top: 1px solid var(--line);
     background: var(--bg);
     box-shadow: 0 -8px 24px -12px rgba(0,0,0,.55);
+    transition: bottom .18s var(--ease-out);
   }
+  @media (prefers-reduced-motion: reduce) { .c { transition: none; } }
+  /* While typing: collapse non-essential chrome so input + feed stay visible above the keyboard. */
+  body[data-input-focused="true"] .f,
+  body[data-input-focused="true"] .welcome { display: none; }
   .row { grid-template-columns: 32px 1fr; column-gap: 8px; padding: 5px 4px 6px; }
   .row-avatar { width: 32px; height: 32px; font-size: 12px; }
   .row-time { font-size: 9px; }
@@ -1022,7 +1058,7 @@ body[data-new-user="true"] .h-menu::after {
   .c-mode { padding: 0; width: 26px; min-width: 26px; height: 26px; justify-content: center; gap: 0; }
   .c-mode #c-mode-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   .c-mode .dot { width: 7px; height: 7px; }
-  .feed-divider { font-size: 9px; }
+  .feed-divider { font-size: var(--fs-label); }
 }
 
 /* Landscape (short height) — hide hero, compact composer */
@@ -3269,7 +3305,7 @@ if (document.readyState === 'loading') {
 <a class="skip-link" href="#feed">Skip to chat</a>
 
 <header class="h">
-  <div class="h-logo"><span class="h-logo-dot"></span>Scratch<span>Node</span></div>
+  <div class="h-logo"><span class="h-logo-dot"></span><span class="h-logo-word">Scratch<span>Node</span></span></div>
   <span class="h-live">LIVE</span>
   <div class="h-spacer"></div>
   <button class="h-code" id="sn-room-code-btn" type="button" onclick="copyRoom()" aria-label="Room code — click to copy join link">ORBITAL</button>
@@ -3285,8 +3321,8 @@ if (document.readyState === 'loading') {
   <span>MCP Auth breakout</span>
   <span class="dot">·</span>
   <span><b style="color:var(--ink)" id="ev-joined-count">0</b> joined</span>
-  <span class="dot">·</span>
-  <span><b style="color:var(--ink)" id="ev-faq-count">0</b> FAQ</span>
+  <span class="dot ev-host-only">·</span>
+  <span class="ev-host-only"><b style="color:var(--ink)" id="ev-faq-count">0</b> FAQ</span>
   <button type="button" class="ev-mode" id="ev-mode-btn" onclick="openModePicker()" aria-label="Event mode" title="Switch event mode">
     <span class="icon">●</span><span id="ev-mode-label">Event</span>
   </button>
@@ -3305,7 +3341,7 @@ if (document.readyState === 'loading') {
   <div class="welcome" role="status" aria-live="polite">
     <span class="welcome-emoji" aria-hidden="true">&#128075;</span>
     <span class="welcome-text">
-      <strong>New to ScratchNode?</strong> This is the sidecar room: chat publicly, <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:0 4px;border-radius:3px">/ask</code> for sourced answers, or lock the composer for private notes. <a onclick="startTour()">Take the 20-second tour&nbsp;&rarr;</a>
+      <strong>Message normally.</strong> Start with <code style="font-family:var(--mono);background:rgba(217,119,87,.12);color:var(--accent);padding:0 4px;border-radius:3px">/ask</code> for sourced answers &middot; &#128274; saves privately. <a onclick="startTour()">Tour&nbsp;&rarr;</a>
     </span>
     <button class="welcome-close" type="button" onclick="dismissWelcome()" aria-label="Dismiss">&times;</button>
   </div>
@@ -3321,7 +3357,7 @@ if (document.readyState === 'loading') {
 
   <section class="hero">
     <h1><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h1>
-    <p class="hero-meta" id="sn-event-hero-meta">Disposable event brain · <b id="sn-hero-joined-count">0</b> joined · public wiki later</p>
+    <p class="hero-meta" id="sn-event-hero-meta">Live event log &middot; public wiki when it ends</p>
   </section>
 
   <!-- Identity row -->
@@ -3352,7 +3388,7 @@ if (document.readyState === 'loading') {
     <div class="c-box" role="group" style="position:relative">
     <!-- Mention picker dropdown (appears when typing @) -->
     <div class="mention-picker" id="mention-picker" data-open="false" role="listbox" aria-label="Mention someone"></div>
-      <input id="ci" class="c-input" type="text" placeholder="Public chat… or /ask for a sourced answer" aria-label="Message or ask the agent" autocapitalize="sentences" autocomplete="off" autocorrect="on" spellcheck="true" inputmode="text" enterkeyhint="send" />
+      <input id="ci" class="c-input" type="text" placeholder="Message or /ask…" aria-label="Message or ask the agent" autocapitalize="sentences" autocomplete="off" autocorrect="on" spellcheck="true" inputmode="text" enterkeyhint="send" />
       <span class="c-mode" id="c-mode" aria-live="polite" title="Current sending mode"><span class="dot"></span><span id="c-mode-label">Public room</span></span>
       <button class="c-tool voice" type="button" id="voice" onclick="startVoice()" aria-label="Dictate /ask" title="Dictate your question">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
@@ -3366,11 +3402,9 @@ if (document.readyState === 'loading') {
     </div>
     <!-- Persistent helpline — answers Q3: "Am I chatting or asking the agent?" -->
     <div class="c-helpline">
-      <span class="pill">Chat</span>
-      <span>public by default · disposable room memory.</span>
       <span class="pill ask">/ask</span>
-      <span>public sources only.</span>
-      <span class="privacy-state" style="margin-left:auto;font-family:var(--mono);font-size:10px" id="c-privacy-state">🔓 public</span>
+      <span>sourced answers, public to the room.</span>
+      <span class="privacy-state" id="c-privacy-state">Public</span>
     </div>
     <div class="c-hint" id="hint" style="display:none"><kbd>/ask</kbd> agent · <kbd>@name</kbd> mention · <kbd>↑</kbd> send</div>
   </div>
@@ -3390,8 +3424,7 @@ if (document.readyState === 'loading') {
   <div class="empty">
     <div class="empty-icon">&#128172;</div>
     <div class="empty-title">No messages yet</div>
-    <div class="empty-body">Be the first to ask a question. Type below or tap the &#127908; to dictate.</div>
-    <button class="empty-cta" type="button" onclick="document.getElementById('ci').focus(); haptic();">Ask the first question &rarr;</button>
+    <div class="empty-body">Send a message, ask with <b>/ask</b> for a sourced answer, or &#128274; save a private note.</div>
   </div>
 
   <section class="feed" id="feed" role="log" aria-label="Room chat" aria-live="polite" aria-relevant="additions" tabindex="-1">
@@ -3747,7 +3780,7 @@ if (document.readyState === 'loading') {
   <!-- Notes appear once user has set a name (matches the privacy/identity contract) -->
   <h4 style="margin-top:14px" data-show-for="named">Your notes</h4>
   <button type="button" data-show-for="named" onclick="openNotes()">My private notes<span class="sub">🔒 only you can see</span></button>
-  <button type="button" onclick="openNodeBenchPrivateHandoff()">Continue in NodeBench<span class="sub">Private notebook + public event artifact</span></button>
+  <button type="button" data-show-for="named" onclick="openNodeBenchPrivateHandoff()">Continue in NodeBench<span class="sub">Private notebook + public event artifact</span></button>
   <!-- Host console hidden until data-role="host" on body -->
   <h4 style="margin-top:14px" data-show-for="host">For hosts</h4>
   <button type="button" data-show-for="host" onclick="openHost()">Host console<span class="sub">Moderation · /ask queue · Publish wiki</span></button>
@@ -3756,7 +3789,7 @@ if (document.readyState === 'loading') {
   <button type="button" onclick="openMyEvents()">My events<span class="sub" id="menu-events-sub">Joined and hosted rooms across devices</span></button>
   <button type="button" data-show-for="signed-in" onclick="snSignOut()">Sign out<span class="sub">Return to anonymous mode</span></button>
   <button type="button" data-show-for="named" onclick="setIdentity()">Change name<span class="sub" id="menu-name-sub">—</span></button>
-  <button type="button" onclick="openShortcuts()">Keyboard shortcuts<span class="sub">Press ? anywhere</span></button>
+  <button type="button" class="menu-desktop-only" onclick="openShortcuts()">Keyboard shortcuts<span class="sub">Press ? anywhere</span></button>
   <h4 style="margin-top:14px" data-show-for="all">More</h4>
   <button type="button" onclick="closeMenu(); showAbout();">About ScratchNode<span class="sub">Open source · MIT</span></button>
 </aside>
@@ -3927,7 +3960,7 @@ function setScratchNodeLiveEventContext(event) {
   var heroTitle = document.getElementById('sn-event-title-hero');
   if (heroTitle) heroTitle.textContent = EVENT_TITLE;
   var heroMeta = document.getElementById('sn-event-hero-meta');
-  if (heroMeta) heroMeta.innerHTML = 'Disposable event brain · <b id="sn-hero-joined-count">0</b> joined · code ' + escapeHtml(EVENT_ROOM_CODE);
+  if (heroMeta) heroMeta.textContent = 'Live event log · public wiki when it ends';
   var peopleSub = document.getElementById('menu-people-sub');
   if (peopleSub) peopleSub.textContent = 'Live members';
   var mode = document.getElementById('ev-mode-label');
@@ -4024,14 +4057,14 @@ function toggleLock() {
   document.body.setAttribute('data-mode', goingPrivate ? 'private' : 'public');
   var input = document.getElementById('ci');
   input.placeholder = goingPrivate
-    ? 'Private note… saves only to your notebook'
-    : 'Public chat… or /ask for a sourced answer';
+    ? 'Save a private note…'
+    : 'Message or /ask…';
   // Sync the mode badge next to the lock
   var modeLabel = document.getElementById('c-mode-label');
   if (modeLabel) modeLabel.textContent = goingPrivate ? 'Private note' : 'Public room';
   // Sync the helpline privacy state
   var privacyState = document.getElementById('c-privacy-state');
-  if (privacyState) privacyState.textContent = goingPrivate ? '🔒 private — saves to your notebook' : '🔓 public — everyone in the room sees this';
+  if (privacyState) privacyState.textContent = goingPrivate ? 'Private 🔒' : 'Public';
   haptic(8);
   input.focus();
 }
@@ -6973,15 +7006,48 @@ function _updateComposerPlaceholder() {
   } else if (eventMode === 'work' && bodyMode === 'public') {
     placeholder = 'Visible to meeting room';
   } else if (eventMode === 'event' && bodyMode === 'private') {
-    placeholder = 'Save a private note (only you can see this)';
+    placeholder = 'Save a private note…';
   } else {
     // event + public (default)
-    placeholder = 'Chat with the room. /ask for sourced answers. 🔒 for private.';
+    placeholder = 'Message or /ask…';
   }
   ci.setAttribute('placeholder', placeholder);
 }
 // Re-run on resize so mode-driven placeholder updates stay in sync after layout changes.
 if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', _updateComposerPlaceholder);
+
+// ─── Keyboard-aware composer (mobile) ───────────────────────────────
+// When the on-screen keyboard opens, the visual viewport shrinks while the
+// layout viewport (window.innerHeight) does not. We measure that delta and
+// pin the fixed composer above the keyboard via --keyboard-offset, and flag
+// data-input-focused so the footer + welcome banner collapse while typing.
+// This kills the "footer leaking behind the keyboard" issue on phones.
+(function () {
+  try {
+    var ci = document.getElementById('ci');
+    var root = document.documentElement;
+    var vv = window.visualViewport || null;
+    function syncKeyboard() {
+      if (!vv) return;
+      var offset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      root.style.setProperty('--keyboard-offset', offset + 'px');
+    }
+    if (vv) {
+      vv.addEventListener('resize', syncKeyboard);
+      vv.addEventListener('scroll', syncKeyboard);
+    }
+    if (ci) {
+      ci.addEventListener('focus', function () {
+        document.body.setAttribute('data-input-focused', 'true');
+        syncKeyboard();
+      });
+      ci.addEventListener('blur', function () {
+        document.body.removeAttribute('data-input-focused');
+        root.style.setProperty('--keyboard-offset', '0px');
+      });
+    }
+  } catch (e) { /* visualViewport unsupported — composer stays pinned to bottom */ }
+})();
 
 // Observe data-mode changes so placeholder updates on lock toggle
 (function() {
