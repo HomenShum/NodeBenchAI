@@ -3,6 +3,45 @@
 Append-only lane for the conversion bridge from the disposable ScratchNode live-event
 room into the NodeBench app. Newest entries on top.
 
+## 2026-06-03 — Cross-domain PRIVATE-notes bridge: opaque stateful handoff token
+The last broken leg of the transition. A guest's private notes are owner-keyed by
+their `sn_session_id`, which is origin-partitioned — nodebenchai.com can't read it —
+and the notes layer has no auth check, so that session id IS the credential. Shipping
+it across the origin boundary would leak a permanent credential into the URL/referer/
+logs (the roadmap's #1 risk). This builds the real handoff with an **opaque stateful
+token** (founder-chosen).
+
+- **`convex/eventHandoff.ts`** — `mintEventHandoffToken({ slug, sessionId })`
+  membership-gates the caller (`liveEventMembers` by_event_session), then snapshots
+  THAT member's private notes for THIS event into a token row and returns ONLY a CSPRNG
+  opaque token. **The raw session id is never stored** — a full table dump yields no
+  credential and no cross-event access, just that event's notes, briefly.
+  `consumeEventHandoffToken({ token })` is fail-closed on every check (unknown/expired/
+  used-up/scope) and returns only the read-only snapshot. New `liveEventHandoffTokens`
+  table: event-scoped, short TTL (10 min), few-use, `boundSessionHash = SHA-256` (one-way).
+- **`/events/:slug/private`** route (`src/App.tsx`, above the single-segment matcher) →
+  `ScratchnodePrivateBridge` consumes the `?token=`, renders the notes read-only
+  (DOMPurify-sanitized) with honest invalid/expired/empty states + a "sign in to keep
+  these" CTA, and **never displays or logs the token**.
+- **`public/proto/home-v5.html`** — `openNodeBenchPrivateHandoff` now MINTS a token via
+  the live client and navigates to `/events/<slug>/private?token=…` (only the opaque
+  token travels). Honest fallback to the shipped `/scratchnode-events` surface if minting
+  fails (no client / not a member / error) — never a 404, never a forged link. Completes
+  the interim retarget from the earlier honesty fix.
+
+Covered by 8 ADVERSARIAL convex-test scenarios (`scratchnode.handoffToken.test.ts`:
+non-member can't mint, token never stores/exposes the session id, expired/used-up/forged
+all fail closed, cross-event isolation, idempotent reuse) + 5 component tests
+(`ScratchnodePrivateBridge.test.tsx`: valid→notes, expired→honest, missing token, empty,
+sanitization, token-never-rendered) + an in-page QA check (`SN-LIVE-015b`: only an opaque
+token reaches the real route, no session id). 13/13 new + full tsc + build clean.
+
+**Deploy:** HELD until the open Convex-deploy incident (see `AGENT_COORDINATION.md`) is
+resolved — it adds functions to the shared deployment Codex's out-of-band deploy is
+currently clobbering.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-03 — Slice 1: import a published event recap into the WORKSPACE
 
 Lets a visitor import a published ScratchNode event wiki as ONE editable
