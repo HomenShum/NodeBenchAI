@@ -1376,8 +1376,9 @@ export const getPublishedWiki = query({
 export const getPublishedWikiBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
-    if (!slug || slug.length > 120) return null;
-    const event = await resolveEventBySlugOrRoomCode(ctx, slug);
+    const cleanSlug = String(slug || "").trim().toLowerCase();
+    if (!cleanSlug || cleanSlug.length > 120) return null;
+    const event = await resolveEventBySlugOrRoomCode(ctx, cleanSlug);
     if (!event) return null;
     const rows = await ctx.db
       .query("liveEventWikiVersions")
@@ -1386,6 +1387,9 @@ export const getPublishedWikiBySlug = query({
       .take(1);
     const wiki = rows[0];
     if (!wiki) return null;
+    const sourceAnswerIds = Array.isArray(wiki.sourceAnswerIds) ? wiki.sourceAnswerIds : [];
+    const sourceIds = Array.isArray(wiki.sourceIds) ? wiki.sourceIds : [];
+    const publishedAt = wiki.publishedAt ?? wiki.createdAt ?? null;
     return {
       eventName: event.name,
       eventSlug: event.slug,
@@ -1394,7 +1398,23 @@ export const getPublishedWikiBySlug = query({
       title: wiki.title,
       bodyHtml: wiki.bodyHtml,
       version: wiki.version,
-      publishedAt: wiki.publishedAt ?? wiki.createdAt ?? null,
+      publishedAt,
+      event: {
+        eventId: event._id,
+        slug: event.slug,
+        name: event.name,
+        roomCode: event.roomCode,
+        status: event.status,
+      },
+      wiki: {
+        wikiId: wiki._id,
+        version: wiki.version,
+        title: wiki.title,
+        bodyHtml: wiki.bodyHtml,
+        sourceAnswerCount: sourceAnswerIds.length,
+        sourceCount: sourceIds.length,
+        publishedAt,
+      },
     };
   },
 });
