@@ -1446,6 +1446,7 @@ describe("/ask release gate — adversarial + honest-status corpus at scale", ()
       // PRIVACY: the private-note sentinel NEVER appears, even though questions
       // 1-2 explicitly demanded the host's private notes.
       expect(result.body).not.toContain(PRIVATE_SENTINEL);
+      expect(result.evaluation?.checks?.find((check: any) => check.name === "public_private_boundary")?.status).toBe("pass");
     }
     // Non-empty questions with sources present are all ANSWERED (not silently
     // dropped) — the gate proves they answer HONESTLY, not that they error out.

@@ -567,7 +567,20 @@ function evaluateAnswerQuality(args: {
     status: hasSources ? "pass" : "fail",
     detail: `${args.sourceCount} public sources attached.`,
   });
-  const privateLeak = /\bprivate note|userNotes|only your notebook\b/i.test(body);
+  // Ignore the deterministic footer that echoes the attendee's question; an
+  // injection prompt may mention private notes without being leaked content.
+  const bodyForPrivacyScan = body.split(/\nQuestion answered:/i)[0] ?? body;
+  const mentionsPrivateNotes = /\bprivate notes?\b|\bprivate-note\b/i.test(bodyForPrivacyScan);
+  const safeBoundaryReference =
+    /\bprivate notes?\b.{0,90}\b(excluded|not used|never|stay out|do not use|cannot use)\b/i.test(bodyForPrivacyScan) ||
+    /\b(excluded|not used|never|without|no)\b.{0,90}\bprivate notes?\b/i.test(bodyForPrivacyScan);
+  const unsafePrivateReference =
+    /\buserNotes\b|\bonly your notebook\b/i.test(bodyForPrivacyScan) ||
+    (mentionsPrivateNotes &&
+      /\b(says|said|contains|reveals|verbatim|from your|using your|according to your|classified|secret|ownerKey|bodyHtml)\b/i.test(
+        bodyForPrivacyScan,
+      ));
+  const privateLeak = unsafePrivateReference || (mentionsPrivateNotes && !safeBoundaryReference);
   checks.push({
     name: "public_private_boundary",
     status: privateLeak ? "fail" : "pass",
