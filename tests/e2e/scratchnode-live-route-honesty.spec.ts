@@ -564,6 +564,24 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(publicRow.locator(".row-text")).toContainText(publicText);
     await expect(publicRow.locator(".sn-location-spot")).toHaveText("at Booth 12");
 
+    const publicSpotCases = [
+      { spot: "Lobby", text: "Lobby meetup before the founder demos" },
+      { spot: "Panel Room A", text: "Panel Room A recap notes for the public event log" },
+      { spot: "Afterparty", text: "Afterparty logistics moved to the rooftop" },
+    ];
+    for (const { spot, text } of publicSpotCases) {
+      await page.evaluate((message) => {
+        const input = document.getElementById("ci") as HTMLInputElement;
+        input.value = message;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        (window as any).sendComposerMessage();
+      }, text);
+
+      const row = page.locator(`.row[data-location-spot="${spot}"]`, { hasText: text });
+      await expect(row.locator(".row-text")).toContainText(text);
+      await expect(row.locator(".sn-location-spot")).toHaveText(`at ${spot}`);
+    }
+
     const initialNoteCount = await page.evaluate(() => {
       const win = window as any;
       win.ensureNotesStore?.();
