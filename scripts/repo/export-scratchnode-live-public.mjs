@@ -439,6 +439,7 @@ function buildApiContract() {
         includes: [
           "owner private notes",
           "private note anchors",
+          "manual location spot anchors",
           "private follow-ups",
           "owner voice transcripts",
           "NodeBench handoff context",
@@ -513,7 +514,7 @@ if (publicLog.visibility !== "public" || missingPublicExclusions.length) {
   console.error("Public event-log projection contract is incomplete.");
   process.exit(1);
 }
-const requiredPrivateIncludes = ["owner private notes", "private note anchors", "private follow-ups", "owner voice transcripts", "NodeBench handoff context"];
+const requiredPrivateIncludes = ["owner private notes", "private note anchors", "manual location spot anchors", "private follow-ups", "owner voice transcripts", "NodeBench handoff context"];
 const requiredPrivateExclusions = ["public wiki JSON", "public /ask cache", "public answer traces", "other attendees' notes"];
 const missingPrivateIncludes = requiredPrivateIncludes.filter((entry) => !(privateProjection.includes || []).includes(entry));
 const missingPrivateExclusions = requiredPrivateExclusions.filter((entry) => !(privateProjection.excludes || []).includes(entry));

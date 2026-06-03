@@ -720,6 +720,7 @@ function scanPublicRepoReadiness() {
       /requiredPrivateExclusions/i.test(exportScript) &&
       /owner private notes/i.test(exportScript) &&
       /private note anchors/i.test(exportScript) &&
+      /manual location spot anchors/i.test(exportScript) &&
       /private follow-ups/i.test(exportScript) &&
       /owner voice transcripts/i.test(exportScript) &&
       /NodeBench handoff context/i.test(exportScript) &&

@@ -77,6 +77,7 @@ describe("scratchnode public export", () => {
         includes: expect.arrayContaining([
           "owner private notes",
           "private note anchors",
+          "manual location spot anchors",
           "private follow-ups",
           "NodeBench handoff context",
         ]),
