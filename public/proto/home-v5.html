@@ -2669,6 +2669,53 @@ document.addEventListener('keydown', function (e) {
 });
 window._showShareMoment = _showShareMoment;
 
+// ── End-event recap moment: "Your wiki is live. Share the memory." ──────────
+// Shown after a host PUBLISHES the wiki, so they actually learn the public
+// /wiki/<slug> address exists and can circulate it. This is the activation of
+// the after-event loop. HONEST: only ever the real published URL, and only
+// triggered on a confirmed publish (never speculatively). Reuses the share-moment
+// + invite-card styling.
+var _wikiMomentState = { url: '', slug: '', name: '' };
+function _snShowWikiLiveMoment(slug, name) {
+  try {
+    slug = String(slug || '').toLowerCase();
+    if (!slug) return;
+    name = String(name || 'Your event').trim() || 'Your event';
+    var base = (typeof PUBLIC_BASE_URL === 'string' && PUBLIC_BASE_URL)
+      ? PUBLIC_BASE_URL : (location.origin || 'https://scratchnode.live');
+    var url = base.replace(/\/+$/, '') + '/wiki/' + encodeURIComponent(slug);
+    _wikiMomentState = { url: url, slug: slug, name: name };
+    var set = function (id, fn) { var el = document.getElementById(id); if (el) fn(el); };
+    set('wiki-live-name', function (el) { el.textContent = name; });
+    set('wiki-live-slug', function (el) { el.textContent = slug; });
+    set('wiki-live-input', function (el) { el.value = url; });
+    set('wiki-live-qr', function (el) {
+      el.onerror = function () { var w = el.parentNode; if (w && w.style) w.style.display = 'none'; };
+      el.src = 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=0&data=' + encodeURIComponent(url);
+    });
+    set('wiki-live-native', function (el) { if (navigator.share) el.hidden = false; });
+    var m = document.getElementById('wiki-live-moment');
+    if (m) {
+      m.setAttribute('data-open', 'true');
+      try { var c = document.getElementById('wiki-live-copy'); if (c) c.focus(); } catch (e) {}
+    }
+  } catch (e) { /* never break the host console */ }
+}
+function _snWikiMomentCopy() { _shareCopy(_wikiMomentState.url, document.getElementById('wiki-live-copy'), 'Link copied!'); }
+function _snWikiMomentNative() {
+  if (navigator.share) {
+    navigator.share({ title: _wikiMomentState.name + ' — wiki · ScratchNode', text: _wikiMomentState.name + ' — the room remembers everything.', url: _wikiMomentState.url }).catch(function () {});
+  } else { _snWikiMomentCopy(); }
+}
+function _snWikiMomentOpen() { if (_wikiMomentState.url) window.open(_wikiMomentState.url, '_blank', 'noopener'); }
+function _snWikiMomentClose() { var m = document.getElementById('wiki-live-moment'); if (m) m.setAttribute('data-open', 'false'); }
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  var m = document.getElementById('wiki-live-moment');
+  if (m && m.getAttribute('data-open') === 'true') { _snWikiMomentClose(); }
+});
+window._snShowWikiLiveMoment = _snShowWikiLiveMoment;
+
 /**
  * _snInitLandingStats — the live "big number" on the apex landing.
  *
@@ -3165,6 +3212,36 @@ if (document.readyState === 'loading') {
     </div>
 
     <button type="button" class="share-enter" id="share-enter-btn" onclick="_shareEnterRoom()">Enter your room &rarr;</button>
+  </div>
+</div>
+
+<!-- End-event recap moment — shown after the host publishes the wiki, so they
+     learn the public /wiki/<slug> address and can share the memory. -->
+<div class="share-moment" id="wiki-live-moment" role="dialog" aria-modal="true" aria-labelledby="wiki-live-title">
+  <div class="share-moment__panel">
+    <span class="share-moment__spark" aria-hidden="true">&#10022;</span>
+    <h2 id="wiki-live-title">Your wiki is live.</h2>
+    <p class="share-moment__sub">Anyone can read the recap &mdash; no account, no app. Share the memory.</p>
+
+    <div class="invite-card" id="wiki-live-card">
+      <div class="invite-card__brand">Scratch<span>Node</span></div>
+      <div class="invite-card__name" id="wiki-live-name">Your event</div>
+      <div class="invite-card__qr"><img id="wiki-live-qr" alt="Scan to read the wiki" width="140" height="140"></div>
+      <div class="invite-card__code">scratchnode.live/wiki/<b id="wiki-live-slug">slug</b></div>
+      <div class="invite-card__tag">the room remembers everything</div>
+    </div>
+
+    <div class="share-link">
+      <input type="text" id="wiki-live-input" readonly aria-label="Wiki link" onfocus="this.select()">
+      <button type="button" id="wiki-live-copy" onclick="_snWikiMomentCopy()">Copy</button>
+    </div>
+
+    <div class="share-actions">
+      <button type="button" class="share-btn share-btn--primary" id="wiki-live-native" onclick="_snWikiMomentNative()" hidden>Share&hellip;</button>
+      <button type="button" class="share-btn share-btn--wide" onclick="_snWikiMomentOpen()">Open the wiki &rarr;</button>
+    </div>
+
+    <button type="button" class="share-enter" id="wiki-live-done" onclick="_snWikiMomentClose()">Done</button>
   </div>
 </div>
 
@@ -7876,6 +7953,13 @@ window._laCueAction       = _laCueAction;
     client.mutation('events:publishWiki', { eventId, ownerKey })
       .then((res) => {
         toast('Wiki published', 'Version ' + res.version + ' is now live.');
+        // Activation of the after-event loop: surface the public /wiki/<slug>
+        // address so the host can actually share the memory (not just a toast).
+        try {
+          if (typeof _snShowWikiLiveMoment === 'function') {
+            _snShowWikiLiveMoment(EVENT_SLUG, typeof EVENT_TITLE !== 'undefined' ? EVENT_TITLE : '');
+          }
+        } catch (e) {}
         return client.query('events:getPublishedWiki', { eventId });
       })
       .then((wiki) => {

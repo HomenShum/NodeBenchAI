@@ -2,6 +2,32 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-03 — End-event recap moment: "Your wiki is live. Share the memory."
+Closes the activation gap in the *after-event* loop. The host could publish the wiki
+(`/wiki/<slug>` reader shipped earlier the same day), but publishing only fired a
+toast — the host never learned the **public address existed**, so the artifact that
+pulls people in after the event never circulated.
+
+Now a successful `events:publishWiki` opens a recap moment (reusing the post-create
+share-moment + invite-card styling): **"Your wiki is live."** + a screenshot-worthy
+invite card (brand · event name · QR · `scratchnode.live/wiki/<slug>` · "the room
+remembers everything"), a copy-able link, native **Share** when available, and
+**Open the wiki →**. `_snShowWikiLiveMoment(slug, name)` is called only from the
+*confirmed* publish path — HONESTY: it only ever shows the real published URL, never a
+speculative one, and it's a read-only moment (`data-sn-live` untouched). Escape / Done
+closes it. The native share + clipboard reuse the existing `_shareCopy` plumbing.
+
+Covered by a new honesty case (publish → recap moment opens with a real
+`/wiki/<slug>` URL, the backend mutation actually ran, Done closes it) plus a scope
+fix to the create-moment test (both moments now share `.share-moment*`/`.invite-card*`
+classes, so its selectors are scoped to `#share-moment`). 21/21 chromium honesty +
+output-contract green; recap moment screenshot-verified.
+
+Still deferred (route-first): the wiki reader's "Continue in NodeBench" CTA, which
+ships once the `/events/:slug/wiki` receiving route is live.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-03 — Public `/wiki/<slug>` reader: give the "room remembers everything" a real address
 The viral audit found ScratchNode's core promise was a dead end: `publishWiki`
 wrote the recap into a DB table with **no public URL**, so the artifact that should

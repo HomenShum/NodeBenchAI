@@ -111,6 +111,10 @@ async function fulfillScratchNodePage(
                 requestId: 'liveEventJoinRequests:1',
               });
             }
+            if (name === 'events:publishWiki') {
+              window.__snPublishWikiArgs = args;
+              return Promise.resolve({ ok: true, wikiId: 'liveEventWikiVersions:1', version: 3 });
+            }
             return Promise.resolve({});
           }
           query(name) {
@@ -432,9 +436,10 @@ test.describe("ScratchNode live route honesty", () => {
     await page.click("#landing-create-btn");
     await expect(page.locator("#share-moment")).toHaveAttribute("data-open", "true");
 
-    // The reason-to-share copy + the screenshot-worthy invite card.
-    await expect(page.locator(".share-moment__sub")).toContainText("shared memory");
-    await expect(page.locator(".invite-card__tag")).toContainText("remembers everything");
+    // The reason-to-share copy + the screenshot-worthy invite card. Scoped to
+    // #share-moment — the wiki-live recap moment reuses the same classes.
+    await expect(page.locator("#share-moment .share-moment__sub")).toContainText("shared memory");
+    await expect(page.locator("#share-moment .invite-card__tag")).toContainText("remembers everything");
 
     // Copy link writes the room URL to the clipboard + flashes confirmation.
     await page.click("#share-link-copy");
@@ -663,5 +668,32 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(page.locator("#landing-pulse-live")).toHaveText("6");
     // activeNow is a different unit (sessions) and is allowed to exceed rooms.
     await expect(page.locator("#landing-pulse-active")).toHaveText("40");
+  });
+
+  test("publishing the wiki surfaces an end-event recap moment with the public /wiki link", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    // Host publishes the wiki (the real success path) — should open the recap
+    // moment so they learn the public address, not just a toast.
+    await page.evaluate(() => (window as any).snPublishWiki());
+
+    const moment = page.locator("#wiki-live-moment");
+    await expect(moment).toHaveAttribute("data-open", "true", { timeout: 6_000 });
+    // HONESTY: the moment shows the REAL public /wiki/<slug> URL (never fabricated).
+    const link = await page.locator("#wiki-live-input").inputValue();
+    expect(link).toMatch(/\/wiki\/[a-z0-9-]+$/i);
+    await expect(moment).toContainText("Your wiki is live");
+    await expect(moment).toContainText("the room remembers everything");
+    // It was a confirmed publish — the backend mutation actually ran.
+    const published = await page.evaluate(() => (window as any).__snPublishWikiArgs);
+    expect(published).toBeTruthy();
+
+    // The recap is honest about state — the apex/room never falsely flips to a fake value.
+    await page.evaluate(() => (window as any)._snWikiMomentClose());
+    await expect(moment).toHaveAttribute("data-open", "false");
   });
 });
