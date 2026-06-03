@@ -748,7 +748,11 @@ function scanPublicRepoReadiness() {
     ok:
       /function buildLiveAssistFollowUpNote\s*\(/i.test(homeHtml) &&
       /Visibility: private follow-up note; not public chat or public \/ask\./i.test(homeHtml) &&
-      /Live Assist follow-up cues become structured private notes without public writes/i.test(
+      /Live Assist follow-up cues require explicit action before private note creation/i.test(
+        routeHonestySpec,
+      ) &&
+      /expect\(beforeAction\.noteCount\)\.toBe\(initialNoteCount\)/i.test(routeHonestySpec) &&
+      /expect\(beforeAction\.noteTexts\.join\("\\n"\)\)\.not\.toContain\(cueText\)/i.test(
         routeHonestySpec,
       ) &&
       /_laCueAction\?\.\("followup",\s*id\)/i.test(routeHonestySpec) &&

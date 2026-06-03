@@ -768,7 +768,7 @@ test.describe("ScratchNode live route honesty", () => {
     expect(sensitiveState.noteTexts.join("\n")).toContain(sensitivePrompt);
   });
 
-  test("Live Assist follow-up cues become structured private notes without public writes", async ({
+  test("Live Assist follow-up cues require explicit action before private note creation", async ({
     page,
   }) => {
     await fulfillScratchNodePage(page);
@@ -792,6 +792,27 @@ test.describe("ScratchNode live route honesty", () => {
     }, cueText);
 
     await expect(page.locator("#live-assist-rail")).toContainText(cueText);
+    const beforeAction = await page.evaluate((text) => {
+      const win = window as any;
+      return {
+        noteCount: win.getPrivateNoteHandoffCount?.(),
+        noteTexts: (win._notes_v5 || []).map((note: any) => note.title + "\n" + note.body),
+        recentNotes: (win._live_assist?.recentNotes || []).map((entry: any) => entry.text),
+        actions: win.__snMockActions || [],
+        publicSendCalls: (win.__snMockMutations || []).filter(
+          (call: any) =>
+            call.name === "events:sendMessage" &&
+            String(call.args?.text || "").includes(text),
+        ),
+      };
+    }, cueText);
+
+    expect(beforeAction.noteCount).toBe(initialNoteCount);
+    expect(beforeAction.noteTexts.join("\n")).not.toContain(cueText);
+    expect(beforeAction.recentNotes.join("\n")).not.toContain(cueText);
+    expect(beforeAction.actions).toEqual([]);
+    expect(beforeAction.publicSendCalls).toEqual([]);
+
     await page.evaluate((id) => {
       (window as any)._laCueAction?.("followup", id);
     }, cueId);
