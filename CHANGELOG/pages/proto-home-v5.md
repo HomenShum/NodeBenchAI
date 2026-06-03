@@ -16,14 +16,17 @@ pull new people in *after* an event was unreachable. This ships the reader.
   `bodyHtml` (private notes already excluded at publish). Unpublished →
   "This room hasn't published its wiki yet"; backend down → "Couldn't load this
   wiki." — never a blank screen or a fabricated recap. Loading shows a skeleton.
-- **Reverse-viral + the real bridge.** Every state carries a **"Create your own
-  room →"** CTA (a reader becomes a host), and the published view carries a real
-  **"Continue in NodeBench ↗"** link to `nodebenchai.com/events/<slug>/wiki` with
-  `source=scratchnode&publicArtifact=event-wiki` carryover — the actual conversion
-  bridge, not the demo-only overlay. A bar **Share** button copies the wiki link.
+- **Reverse-viral.** Every state carries a **"Create your own room →"** CTA — a
+  reader becomes a host. A bar **Share** button copies the wiki link.
+- **No dead-end bridge (honesty).** A "Continue in NodeBench" CTA is *intentionally
+  withheld* here: an audit found the `nodebenchai.com/events/<slug>/wiki` receiving
+  route doesn't exist (the `/events` router rejects trailing segments, so it 404s).
+  Shipping a CTA onto a 404 would violate HONEST_STATUS — it ships **with** its real
+  receiving route instead (next change), so the link can never dead-end.
 
 Covered by `scratchnode-public-wiki.spec.ts` (3 cases: a no-account visitor reads a
-published wiki with both CTAs + the room shell hidden + `data-sn-live` unset;
+published wiki with the reverse-viral CTA, the room shell hidden, `data-sn-live`
+unset, and **no** dead-end NodeBench CTA present;
 unpublished → honest empty state with no article body; config failure → honest
 error). Desktop + mobile (375px) screenshot-verified. The 23-case honesty +
 output-contract + demo-gate suites stay green (landing/event/demo unaffected by the

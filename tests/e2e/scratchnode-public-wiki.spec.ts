@@ -66,7 +66,7 @@ async function mount(page: import("@playwright/test").Page, opts: { configStatus
 }
 
 test.describe("ScratchNode public /wiki/<slug> reader", () => {
-  test("a no-account visitor reads a published wiki, with reverse-viral + NodeBench CTAs", async ({
+  test("a no-account visitor reads a published wiki, with a reverse-viral CTA", async ({
     page,
   }) => {
     await mount(page);
@@ -94,11 +94,9 @@ test.describe("ScratchNode public /wiki/<slug> reader", () => {
     const createCta = page.locator('.sn-wiki__foot a.sn-wiki__cta', { hasText: "Create your own room" });
     await expect(createCta).toHaveAttribute("href", "/");
 
-    // The real NodeBench bridge carries continuation context to nodebenchai.com.
-    const nbHref = await page.locator("#sn-wiki-nb").getAttribute("href");
-    expect(nbHref).toContain("nodebenchai.com");
-    expect(nbHref).toContain("source=scratchnode");
-    expect(nbHref).toContain("publicArtifact=event-wiki");
+    // HONESTY: no "Continue in NodeBench" CTA here — its receiving route doesn't
+    // exist yet (it would 404), so it ships WITH that route, not before it.
+    await expect(page.locator("#sn-wiki-nb")).toHaveCount(0);
 
     // The room shell must be hidden in wiki mode.
     await expect(page.locator("main.m")).toBeHidden();

@@ -3039,7 +3039,6 @@ function _snRenderWiki(wiki) {
     '<div class="sn-wiki__foot">' +
       '<div class="sn-wiki__foot-tag"><b>The room remembers everything.</b> This recap was built live with ScratchNode.</div>' +
       '<a class="sn-wiki__cta" href="/">Create your own room &rarr;</a>' +
-      '<a class="sn-wiki__cta sn-wiki__ghost" id="sn-wiki-nb" href="#">Continue in NodeBench &nearr;</a>' +
     '</div>';
   mainEl.querySelector('.sn-wiki__title').textContent = wiki.title || (wiki.eventName ? wiki.eventName + ' — wiki' : 'Event wiki');
   mainEl.querySelector('.sn-wiki__meta').textContent =
@@ -3048,11 +3047,10 @@ function _snRenderWiki(wiki) {
     (when ? ' · published ' + when : '');
   // bodyHtml is server-built + public-safe (private notes excluded at publish time).
   mainEl.querySelector('#sn-wiki-article').innerHTML = wiki.bodyHtml;
-  var nb = document.getElementById('sn-wiki-nb');
-  if (nb) {
-    nb.href = 'https://nodebenchai.com/events/' + encodeURIComponent(wiki.eventSlug || window._sn_wiki.slug) +
-      '/wiki?source=scratchnode&room=' + encodeURIComponent(wiki.roomCode || '') + '&publicArtifact=event-wiki';
-  }
+  // NOTE: a "Continue in NodeBench" bridge CTA is intentionally NOT here yet — the
+  // nodebenchai.com/events/<slug>/wiki receiving route doesn't exist (the /events
+  // router rejects trailing segments), so a CTA would 404. It ships WITH its real
+  // receiving route so the link can never dead-end. See PR-D.
 }
 
 function _snWikiShare() {
