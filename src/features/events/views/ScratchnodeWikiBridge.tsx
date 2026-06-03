@@ -20,6 +20,11 @@
  *
  * Prior art: pattern mirrors src/features/redesign/surfaces/ScratchnodeEventsSurface.tsx
  * (the existing read-only ScratchNode handoff surface).
+ *
+ * Ownership: this is the NodeBench-owned bridge/conversion surface, not the
+ * ScratchNode-owned public wiki SSR reader in `api/scratchnode-wiki.js`. The
+ * two may read the same public wiki query, but this route must not duplicate
+ * ScratchNode publishing/SSR ownership or accept private tokens.
  */
 
 import { useMemo } from "react";

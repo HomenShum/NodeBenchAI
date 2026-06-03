@@ -1,6 +1,12 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api.js";
 
+// Ownership: this is the ScratchNode-owned public wiki SSR route for
+// scratchnode.live. It serves public, host-published wiki HTML/JSON from Convex
+// and must not mint or accept NodeBench private handoff tokens.
+// The NodeBench-owned receiver is ScratchnodeWikiBridge at
+// nodebenchai.com/events/:slug/wiki.
+
 let convexClient = null;
 
 function getConvexClient() {

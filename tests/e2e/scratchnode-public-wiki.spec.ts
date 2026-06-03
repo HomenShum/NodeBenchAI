@@ -94,8 +94,8 @@ test.describe("ScratchNode public /wiki/<slug> reader", () => {
     const createCta = page.locator('.sn-wiki__foot a.sn-wiki__cta', { hasText: "Create your own room" });
     await expect(createCta).toHaveAttribute("href", "/");
 
-    // HONESTY: no "Continue in NodeBench" CTA here — its receiving route doesn't
-    // exist yet (it would 404), so it ships WITH that route, not before it.
+    // HONESTY: no "Continue in NodeBench" CTA here until the queued ScratchNode
+    // public reader change targets the NodeBench bridge with visibility-safe params.
     await expect(page.locator("#sn-wiki-nb")).toHaveCount(0);
 
     // The room shell must be hidden in wiki mode.

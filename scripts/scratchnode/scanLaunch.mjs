@@ -16,6 +16,7 @@ const files = {
   docsHtml: "public/proto/docs.html",
   vercel: "vercel.json",
   scratchnodeConfig: "api/scratchnode-config.js",
+  scratchnodeWikiServerless: "api/scratchnode-wiki.js",
   events: "convex/events.ts",
   notes: "convex/notes.ts",
   users: "convex/users.ts",
@@ -31,6 +32,7 @@ const files = {
   runtimeGoal: "goals/runtime/001-public-private-boundary.md",
   eventsRuntimeBoundarySpec: "convex/events.runtime-boundary.test.ts",
   routeHonestySpec: "tests/e2e/scratchnode-live-route-honesty.spec.ts",
+  scratchnodePublicWikiSpec: "tests/e2e/scratchnode-public-wiki.spec.ts",
   scratchnodeWikiBridgeSpec: "src/features/events/views/ScratchnodeWikiBridge.test.tsx",
   demoQa: "qa/run_demo_full.md",
   readme: "README.md",
@@ -673,7 +675,9 @@ function scanPublicRepoReadiness() {
     files.scratchnodeEventLogGoal,
     files.nodebenchGoal,
     files.runtimeGoal,
+    files.scratchnodeWikiServerless,
     files.routeHonestySpec,
+    files.scratchnodePublicWikiSpec,
     files.scratchnodeWikiBridgeSpec,
     files.demoQa,
     files.license,
@@ -688,6 +692,9 @@ function scanPublicRepoReadiness() {
   const readme = readText(files.readme);
   const homeHtml = readText(files.homeV5);
   const routeHonestySpec = readText(files.routeHonestySpec);
+  const scratchnodeWikiServerless = readText(files.scratchnodeWikiServerless);
+  const scratchnodePublicWikiSpec = readText(files.scratchnodePublicWikiSpec);
+  const scratchnodeWikiBridge = readText("src/features/events/views/ScratchnodeWikiBridge.tsx");
   const scratchnodeWikiBridgeSpec = readText(files.scratchnodeWikiBridgeSpec);
 
   addCheck({
@@ -988,6 +995,21 @@ function scanPublicRepoReadiness() {
     name: "NodeBench public wiki bridge links stay visibility-safe",
     plane: "event-log-evidence",
     detail: files.scratchnodeWikiBridgeSpec,
+  });
+  addCheck({
+    ok:
+      /ScratchNode-owned public wiki SSR route/i.test(scratchnodeWikiServerless) &&
+      /must not mint or accept NodeBench private handoff tokens/i.test(scratchnodeWikiServerless) &&
+      /NodeBench-owned receiver/i.test(scratchnodeWikiServerless) &&
+      /api\.events\.getPublishedWikiBySlug/i.test(scratchnodeWikiServerless) &&
+      /Private notes are excluded/i.test(scratchnodeWikiServerless) &&
+      /NodeBench-owned bridge\/conversion surface/i.test(scratchnodeWikiBridge) &&
+      /not the[\s\S]{0,120}ScratchNode-owned public wiki SSR reader/i.test(scratchnodeWikiBridge) &&
+      /must not duplicate[\s\S]{0,120}ScratchNode publishing\/SSR ownership/i.test(scratchnodeWikiBridge) &&
+      /no "Continue in NodeBench" CTA here/i.test(scratchnodePublicWikiSpec),
+    name: "ScratchNode and NodeBench wiki readers have explicit ownership split",
+    plane: "event-log-evidence",
+    detail: `${files.scratchnodeWikiServerless} + src/features/events/views/ScratchnodeWikiBridge.tsx`,
   });
 }
 
