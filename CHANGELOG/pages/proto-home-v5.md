@@ -2,6 +2,39 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-03 — Mobile visual reset: type scale + accent/mono discipline, cut first-viewport chrome
+The mobile room read as a prototype because two systems were missing, not any single bad
+component. **Root cause:** (1) `:root` had color/radius/motion tokens but **no type scale** —
+every component hardcoded its size, so nothing ranked; (2) `--accent`/`--mono` had no discipline
+(accent sprayed on logo/code/CTA/links; mono on human prose, not just machine IDs); (3) the first
+viewport re-explained the room 4x and leaked host/debug labels. Plus a flex-gap bug split the
+"ScratchNode" wordmark into "Scratch Node".
+
+Presentational + copy only — send/render path, dedup, and `data-sn-live` untouched:
+- **Type scale** in `:root` (`--fs-display/title/base/sub/label/mono`); one `--fs-display` per
+  screen; hero -> 22px; empty-state title is the one 18px display element. **Mono reserved for
+  machine IDs only** (room code + `/ask`) — de-mono'd the strip, "LIVE ROOM" divider, menu headers.
+- **Wordmark** wrapped in `.h-logo-word` so the `flex; gap` stops splitting it -> renders "ScratchNode".
+- **Room code** is a quiet muted mono chip (was a heavy accent button); menu is a borderless icon;
+  **accent reserved for the one primary action** (send).
+- **Event strip:** removed "0 FAQ"; gated event-mode + L0 capture (host/debug controls) to
+  `data-role="host"`; de-mono'd to `--ui`.
+- **De-duped:** dropped the hero joined-count (lives once, in the strip); "Disposable event brain"
+  -> "Live event log - public wiki when it ends". Welcome banner quieted + hidden on mobile.
+- **Composer:** placeholder -> "Message or /ask..." (fixes the clipped placeholder); helpline
+  2 lines -> 1; privacy shows "Public" / "Private" text instead of an ambiguous open-lock glyph.
+- **Empty state:** removed the giant "Ask the first question" accent CTA (the composer IS the CTA);
+  composer-first copy teaches message / `/ask` / private note.
+- **Keyboard-open fix:** `visualViewport` `--keyboard-offset` pins the fixed composer above the
+  keyboard; footer + welcome collapse while typing (`data-input-focused`) -> no footer behind keyboard.
+- **Menu:** "Continue in NodeBench" gated to named users; "Keyboard shortcuts" hidden on mobile.
+
+Verified: 51/51 chromium e2e (`scratchnode-live-route-honesty` incl. `home-v5-output-contract` +
+`scratchnode-public-wiki`); static launch scan PASS; before/after + keyboard + menu screenshots at 390px.
+Cherry-picked clean onto `origin/main` (only the hero region rebased: kept main's `<h1>` tag + my copy/scale).
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-03 — Re-add the wiki reader's "Continue in NodeBench" CTA (route now real)
 The public `/wiki/<slug>` reader shipped WITHOUT a "Continue in NodeBench" CTA because
 its receiving route (`nodebenchai.com/events/<slug>/wiki`) 404'd at the time. PR-D built
