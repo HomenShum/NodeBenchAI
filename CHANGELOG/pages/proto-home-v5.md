@@ -2,6 +2,38 @@
 
 Append-only lane for the ScratchNode live-event prototype and production static surface.
 
+## 2026-06-03 — Public `/wiki/<slug>` reader: give the "room remembers everything" a real address
+The viral audit found ScratchNode's core promise was a dead end: `publishWiki`
+wrote the recap into a DB table with **no public URL**, so the artifact that should
+pull new people in *after* an event was unreachable. This ships the reader.
+
+- **A new `wiki` page-mode.** `/wiki/<slug>` (vercel rewrite to the static file +
+  a `pageMode='wiki'` branch in the detector) renders a clean, no-account reader —
+  the room shell is hidden via the same `:is(landing, wiki)` chrome-hide rule, and
+  `data-sn-live` is **never** set (a read-only artifact never claims "live").
+- **Real content, honest states.** A bootstrap subscribes to the public
+  `events:getPublishedWikiBySlug` and renders the server-built, public-safe
+  `bodyHtml` (private notes already excluded at publish). Unpublished →
+  "This room hasn't published its wiki yet"; backend down → "Couldn't load this
+  wiki." — never a blank screen or a fabricated recap. Loading shows a skeleton.
+- **Reverse-viral.** Every state carries a **"Create your own room →"** CTA — a
+  reader becomes a host. A bar **Share** button copies the wiki link.
+- **No dead-end bridge (honesty).** A "Continue in NodeBench" CTA is *intentionally
+  withheld* here: an audit found the `nodebenchai.com/events/<slug>/wiki` receiving
+  route doesn't exist (the `/events` router rejects trailing segments, so it 404s).
+  Shipping a CTA onto a 404 would violate HONEST_STATUS — it ships **with** its real
+  receiving route instead (next change), so the link can never dead-end.
+
+Covered by `scratchnode-public-wiki.spec.ts` (3 cases: a no-account visitor reads a
+published wiki with the reverse-viral CTA, the room shell hidden, `data-sn-live`
+unset, and **no** dead-end NodeBench CTA present;
+unpublished → honest empty state with no article body; config failure → honest
+error). Desktop + mobile (375px) screenshot-verified. The 23-case honesty +
+output-contract + demo-gate suites stay green (landing/event/demo unaffected by the
+`:is()` chrome-hide change). Backend (`getPublishedWikiBySlug`) shipped first in PR #486.
+
+**Commit**: `this commit`. **Author**: Homen Shum + Claude.
+
 ## 2026-06-03 — Make /ask answers actually shareable (honesty fix + the missing lever)
 An audit of the full viral journey found the /ask answer "Share" button was a lie:
 `onclick="toast('Shared','Answer link copied.')"` claimed it copied a link while

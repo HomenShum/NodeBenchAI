@@ -139,6 +139,16 @@
       "destination": "/proto/home-v5.html"
     },
     {
+      "source": "/wiki/:slug*",
+      "has": [
+        {
+          "type": "host",
+          "value": "scratchnode.live"
+        }
+      ],
+      "destination": "/proto/home-v5.html"
+    },
+    {
       "source": "/docs",
       "has": [
         {
