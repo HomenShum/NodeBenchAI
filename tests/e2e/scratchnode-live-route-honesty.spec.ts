@@ -332,6 +332,14 @@ test.describe("ScratchNode live route honesty", () => {
         ),
       )
       .toBe(1);
+    await answerCard.getByRole("button", { name: /Pin to wall/i }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => ((window as any).__snMockMutations || []).filter((call: any) => call.name === "wall:pinToWall").length,
+        ),
+      )
+      .toBe(1);
 
     const publicAskState = await page.evaluate(() => {
       const win = window as any;
@@ -348,6 +356,7 @@ test.describe("ScratchNode live route honesty", () => {
         faqSuggestionCalls: (win.__snMockMutations || []).filter(
           (call: any) => call.name === "events:suggestAnswerForFaq",
         ),
+        wallPinCalls: (win.__snMockMutations || []).filter((call: any) => call.name === "wall:pinToWall"),
         hostOnlyCalls: (win.__snMockMutations || []).filter((call: any) =>
           ["events:promoteAnswerToFaq", "events:publishWiki"].includes(call.name),
         ),
@@ -371,6 +380,15 @@ test.describe("ScratchNode live route honesty", () => {
         args: expect.objectContaining({
           answerId: "liveEventAnswers:1",
           eventId: "liveEvents:1",
+        }),
+      }),
+    ]);
+    expect(publicAskState.wallPinCalls).toEqual([
+      expect.objectContaining({
+        args: expect.objectContaining({
+          eventId: "liveEvents:1",
+          refAnswerId: "liveEventAnswers:1",
+          refType: "answer",
         }),
       }),
     ]);
