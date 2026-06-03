@@ -784,6 +784,11 @@ function scanPublicRepoReadiness() {
       /Investor Lounge/i.test(routeHonestySpec) &&
       /Afterparty/i.test(routeHonestySpec) &&
       /data-location-spot/i.test(routeHonestySpec) &&
+      /private notes anchored from manual location spots preserve context without public leakage/i.test(
+        routeHonestySpec,
+      ) &&
+      /locationMarkerCount/i.test(routeHonestySpec) &&
+      /anchorPreview:\s*publicText/i.test(routeHonestySpec) &&
       /navigator\.geolocation|getCurrentPosition|watchPosition/i.test(routeHonestySpec),
     name: "event-log route spec covers manual location spot fixtures",
     plane: "event-log-evidence",

@@ -766,6 +766,106 @@ test.describe("ScratchNode live route honesty", () => {
     expect(state.publicSendCalls[0].args.kind).toBe("chat");
   });
 
+  test("private notes anchored from manual location spots preserve context without public leakage", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    const publicText = "Meet at Booth 12 before the MCP auth panel";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, publicText);
+
+    const publicRow = page.locator('.row[data-location-spot="Booth 12"]', {
+      hasText: publicText,
+    });
+    await expect(publicRow.locator(".row-text")).toContainText(publicText);
+    await expect(publicRow.locator(".sn-location-spot")).toHaveText("at Booth 12");
+    const messageId = await publicRow.getAttribute("data-mid");
+    expect(messageId).toMatch(/^liveEventMessages:/);
+
+    await page.evaluate((mid) => {
+      (window as any).noteOnMessage?.(mid);
+    }, messageId);
+    await expect(page.locator("body")).toHaveAttribute("data-mode", "private");
+    await expect(page.locator("#reply-ctx")).toHaveAttribute("data-open", "true");
+    await expect(page.locator("#reply-ctx-quote")).toContainText(publicText);
+
+    const privateText = "private booth follow-up: ask Sarah which sponsor owns Booth 12";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, privateText);
+
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+    await expect(page.locator("#reply-ctx")).toHaveAttribute("data-open", "false");
+    await expect(page.locator(".row-text", { hasText: privateText })).toHaveCount(0);
+    await expect(page.locator(".ans", { hasText: privateText })).toHaveCount(0);
+    await expect(publicRow.locator(".private-note-marker")).toHaveAttribute(
+      "aria-label",
+      "1 private note anchored here",
+    );
+
+    const anchorState = await page.evaluate(
+      ({ privateText, publicText, messageId }) => {
+        const win = window as any;
+        const note = (win._notes_v5 || []).find((entry: any) =>
+          String(entry.title + "\n" + entry.body).includes(privateText),
+        );
+        return {
+          note,
+          actions: win.__snMockActions || [],
+          privateSendCalls: (win.__snMockMutations || []).filter(
+            (call: any) =>
+              call.name === "events:sendMessage" && call.args?.text === privateText,
+          ),
+          publicSendCalls: (win.__snMockMutations || []).filter(
+            (call: any) =>
+              call.name === "events:sendMessage" &&
+              call.args?.text === publicText &&
+              call.args?.kind === "chat",
+          ),
+          markerCount: document.querySelectorAll(
+            `.row[data-mid="${messageId}"] .private-note-marker`,
+          ).length,
+          locationMarkerCount: document.querySelectorAll(
+            `.row[data-location-spot="Booth 12"] .private-note-marker`,
+          ).length,
+        };
+      },
+      { privateText, publicText, messageId },
+    );
+
+    expect(anchorState.note).toEqual(
+      expect.objectContaining({
+        anchorType: "message",
+        anchorId: messageId,
+        anchorPreview: publicText,
+      }),
+    );
+    expect(anchorState.actions).toEqual([]);
+    expect(anchorState.privateSendCalls).toEqual([]);
+    expect(anchorState.publicSendCalls).toHaveLength(1);
+    expect(anchorState.markerCount).toBe(1);
+    expect(anchorState.locationMarkerCount).toBe(1);
+  });
+
   test("private notes anchored from public messages preserve context without public leakage", async ({
     page,
   }) => {

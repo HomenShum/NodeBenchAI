@@ -110,6 +110,8 @@ Keep entries short and honest. Newest on top within each section.
 
 ## Recently shipped (this ScratchNode session)
 
+- **Codex** - manual location spot anchor proof (`tests/e2e/scratchnode-live-route-honesty.spec.ts#manual-location-spots` + `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): route test proves a private note anchored from a public Booth 12 location moment preserves context, stays out of public chat and public `/ask`, and renders only the owner-visible marker; launch scanner now requires the proof before passing.
+
 - **Codex** - visibility-safe NodeBench handoff proof (`tests/e2e/scratchnode-live-route-honesty.spec.ts#nodebench-handoff` + `scripts/scratchnode/scanLaunch.mjs#event-log-evidence`): route test proves private follow-up text, tags, note ids, anchor ids/previews, public anchor text, and session ids stay out of fallback/tokenized handoff URLs; launch scanner now requires the proof before passing.
 
 - **Claude** — public `/wiki/<slug>` reader (`home-v5.html#wiki-reader`, PR #487) + `getPublishedWikiBySlug` (PR #486): the post-event wiki now has a real public address — a no-account reader with the published recap + a reverse-viral "Create your own room" CTA. `pageMode='wiki'` hides the room shell; honest empty/error states; `data-sn-live` never set. Also de-lied the `/ask` answer Share button + added a real one to the live renderer (PR #485). 3 wiki e2e + 6 backend scenarios + 20 honesty suite green.
