@@ -80,6 +80,15 @@ const ScratchnodeWikiBridge = lazy(() =>
     default: m.ScratchnodeWikiBridge,
   })),
 );
+// /events/:slug/private — the cross-domain private-notes handoff receiving
+// surface. Consumes an opaque `?token=` (minted on scratchnode.live after a
+// membership check) and renders the read-only notes snapshot. Mounted ABOVE
+// /events/:eventId so the trailing /private segment is captured first.
+const ScratchnodePrivateBridge = lazy(() =>
+  import("@/features/events/views/ScratchnodePrivateBridge").then((m) => ({
+    default: m.ScratchnodePrivateBridge,
+  })),
+);
 // My Wiki — Phase 1 routes. See docs/architecture/ME_AGENT_DESIGN.md
 const WikiLandingRoute = lazy(() => import("@/features/me/components/wiki/WikiLandingRoute"));
 const WikiPageDetailRoute = lazy(() => import("@/features/me/components/wiki/WikiPageDetailRoute"));
@@ -488,6 +497,25 @@ function App() {
                 source={params.get("source")}
                 roomCode={params.get("room")}
               />
+            </div>
+          </Suspense>
+        </ErrorBoundary>
+      </ThemeProvider>
+    );
+  }
+
+  // /events/:slug/private — ScratchNode → NodeBench private-notes handoff. Also
+  // ABOVE the single-segment matcher so the trailing /private is captured first.
+  const eventPrivateRouteMatch = location.pathname.match(/^\/events\/([^/]+)\/private\/?$/);
+  if (eventPrivateRouteMatch) {
+    const slug = decodeURIComponent(eventPrivateRouteMatch[1] ?? "");
+    const params = new URLSearchParams(location.search);
+    return (
+      <ThemeProvider>
+        <ErrorBoundary title="Private notes failed to load">
+          <Suspense fallback={<ViewSkeleton />}>
+            <div key={`event-private-${slug}`} className="route-fade-in">
+              <ScratchnodePrivateBridge slug={slug} token={params.get("token")} />
             </div>
           </Suspense>
         </ErrorBoundary>

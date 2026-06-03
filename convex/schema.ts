@@ -38,6 +38,7 @@ import {
   liveEventNoteAnchors,
   liveEventWallItems,
   liveEventJoinRequests,
+  liveEventHandoffTokens,
   scratchnodeRateLimits,
 } from "./schema/eventsSchema";
 
@@ -4904,6 +4905,7 @@ export default defineSchema({
   liveEventNoteAnchors,
   liveEventWallItems,
   liveEventJoinRequests,
+  liveEventHandoffTokens,
   scratchnodeRateLimits,
   // Step 8: persistent user identity + magic-link sign-in tokens.
   // Aliased to scratchnodeUsers to avoid collision with @convex-dev/auth `users`.

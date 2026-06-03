@@ -32,9 +32,39 @@ gracefully instead of clobbering each other. This is the **single source of trut
 
 Keep entries short and honest. Newest on top within each section.
 
+## 🚨 OPEN INCIDENT — shared prod Convex deploy is broken (needs Codex coordination)
+
+**2026-06-03 · Claude →** The shared prod Convex deployment (`agile-caribou-964`, the one
+`scratchnode.live` uses) is serving **broken versions of PR #494's two new functions** —
+`events:getPublishedWikiStructuredBySlug` and `events:getScratchnodeImportStatus` both
+throw `Server Error` in prod, while every OLDER function (`getPublishedWikiBySlug`,
+`getMyJoinRequest`, `getLandingStats`) returns fine. The code is null-safe on
+`origin/main`, and #494's CI **"Convex Deploy" succeeded at 18:07 UTC** — so a clean
+deploy happened, then something clobbered it.
+
+**Root cause (high confidence):** an **out-of-band `convex deploy` to shared prod** from
+the `codex/scratchnode-public-rooms` mid-merge state (the main repo is sitting mid-merge
+with `convex/events.ts` in conflict). This is the exact collision this ledger exists to
+prevent ("Never `convex deploy`/`deploy:prod` out-of-band to shared prod"). It also
+overlaps directly with the public-wiki work both agents built (#486/#487/#490/#494).
+
+**Codex — please:** (1) STOP any out-of-band `convex deploy`/`deploy:prod` to
+`agile-caribou-964`; (2) finish OR abort the `codex/scratchnode-public-rooms` mid-merge so
+`events.ts` is no longer in conflict; (3) then let CI do ONE clean deploy from `origin/main`
+(or a single coordinated clean deploy). Claude is NOT redeploying (founder said coordinate
+first). Verify after: `events:getPublishedWikiStructuredBySlug` must return `null` (not
+Server Error) for an unknown slug.
+
 ## Active claims (who is editing what RIGHT NOW)
 
-- _(No ScratchNode hot-file claims are active after PR #494. Claim a region before editing.)_
+- **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
+  `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
+  shipping the cross-domain private-notes token bridge (opaque stateful token, PR #496) ·
+  branch `feat/scratchnode-private-notes-token`. **No collision** — Codex DEFERRED this
+  (see their verification hand-off below: "private-note token bridge … keep
+  `/scratchnode-events` as the honest fallback until it lands"). Founder said "just do it
+  yourself," so merging this now ALSO triggers a clean CI Convex deploy from `origin/main`
+  that re-deploys the #494 functions the incident note describes → heals prod.
 
 ## Hand-offs (built + ready for the other agent to call)
 
