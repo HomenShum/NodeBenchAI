@@ -94,9 +94,14 @@ test.describe("ScratchNode public /wiki/<slug> reader", () => {
     const createCta = page.locator('.sn-wiki__foot a.sn-wiki__cta', { hasText: "Create your own room" });
     await expect(createCta).toHaveAttribute("href", "/");
 
-    // HONESTY: no "Continue in NodeBench" CTA here — its receiving route doesn't
-    // exist yet (it would 404), so it ships WITH that route, not before it.
-    await expect(page.locator("#sn-wiki-nb")).toHaveCount(0);
+    // The "Continue in NodeBench" CTA now points at the REAL receiving route
+    // (PR-D's /events/<slug>/wiki) — no longer a 404 — carrying source attribution.
+    const nbCta = page.locator("#sn-wiki-nb");
+    await expect(nbCta).toHaveText(/Continue in NodeBench/);
+    const nbHref = await nbCta.getAttribute("href");
+    expect(nbHref).toContain("nodebenchai.com/events/rooftop-launch/wiki");
+    expect(nbHref).toContain("source=scratchnode");
+    expect(nbHref).toContain("publicArtifact=event-wiki");
 
     // The room shell must be hidden in wiki mode.
     await expect(page.locator("main.m")).toBeHidden();
