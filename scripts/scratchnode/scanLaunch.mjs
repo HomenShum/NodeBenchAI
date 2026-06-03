@@ -674,6 +674,20 @@ function scanPublicRepoReadiness() {
   });
   addCheck({
     ok:
+      /requiredPrivateIncludes/i.test(exportScript) &&
+      /requiredPrivateExclusions/i.test(exportScript) &&
+      /owner private notes/i.test(exportScript) &&
+      /private note anchors/i.test(exportScript) &&
+      /private follow-ups/i.test(exportScript) &&
+      /NodeBench handoff context/i.test(exportScript) &&
+      /public \/ask cache/i.test(exportScript) &&
+      /other attendees' notes/i.test(exportScript),
+    name: "public export verifier enforces owner-only private projection",
+    plane: "public-repo",
+    detail: "requiredPrivateIncludes + requiredPrivateExclusions",
+  });
+  addCheck({
+    ok:
       /open-source event log assistant/i.test(exportScript) &&
       /memory layer for live events/i.test(exportScript) &&
       /open-source event log assistant/i.test(splitRunbook) &&
