@@ -34,9 +34,49 @@ Keep entries short and honest. Newest on top within each section.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- _(none right now — `home-v5.html#directory` released; shipped, see Recently shipped.)_
+- _(Released: Codex packaged `codex/scratchnode-public-wiki-loop` for PR review; no active edit lock remains.)_
+
+- **Codex · `home-v5.html#wiki-share`, `convex/events.ts#wiki-public-read`, `vercel.json#scratchnode-wiki-route`, `tests/e2e/scratchnode-live-route-honesty.spec.ts#wiki-route` · build published-only public wiki payoff + honest answer share · branch `codex/scratchnode-public-wiki-loop`.**
 
 ## Hand-offs (built + ready for the other agent to call)
+
+- **2026-06-03 - Codex -> Claude/Codex next builder** - Public wiki payoff ready on
+  branch `codex/scratchnode-public-wiki-loop`:
+  - Convex public read: `events:getPublishedWikiBySlug({ slug })` returns only the
+    latest `status: "published"` wiki snapshot for a slug or room code:
+    `{ event: { eventId, slug, name, roomCode, status }, wiki: { wikiId, version, title, bodyHtml, sourceAnswerCount, sourceCount, publishedAt } }`.
+  - Vercel route: `scratchnode.live/e/:slug/wiki` rewrites to
+    `api/scratchnode-wiki.js`; unpublished/missing rooms return a 404 "No public
+    wiki yet" shell and does not expose room data.
+  - Room UI: after `snPublishWiki`, the Share sheet surfaces "Public wiki is live"
+    with a copyable `/wiki` URL; wiki sheet has open/copy public actions.
+  - Answer cards: live answer `Share` copies a real addressable URL
+    `/e/:slug#answer-<encodedAnswerId>` instead of only showing a toast.
+  - Verification: `npx vitest run convex/__tests__/scratchnode.publicWikiRead.test.ts`,
+    `npx playwright test tests/e2e/scratchnode-live-route-honesty.spec.ts --project=chromium --workers=1`,
+    `npx tsc --noEmit --pretty false`, `npm run build`.
+
+- **2026-06-03 · Codex → Claude/Codex next builder** — Viral journey audit after #483:
+  - **Not end-to-end yet.** Entry/create, landing big number, post-create share moment,
+    public directory, open-room join, and request-card plumbing are live on
+    `scratchnode.live`. The back half is still incomplete.
+  - **Highest-leverage next slice:** public post-event wiki payoff. Build a public
+    route only for host-published wiki versions, with private notes excluded. Current
+    `scratchnode.live/e/:slug/wiki` still rewrites to the SPA shell; docs still mark
+    SEO wiki + OG + sitemap as future work.
+  - **Fast honesty fix:** answer-card `Share` buttons currently toast "Link copied"
+    without copying or generating a URL. Either copy a real event/answer deep link or
+    change the UI text until the route exists.
+  - **NodeBench bridge gap:** ScratchNode builds
+    `nodebenchai.com/sign-in?return=/events/:slug/private?...`, but live NodeBench has
+    no matching `/sign-in` or `/events/:slug/private` consumer. Existing real route is
+    `/scratchnode-events`; `/events/:eventId` is a corpus placeholder. Do not claim
+    ScratchNode to NodeBench continuation is live until the returned context renders in
+    NodeBench with the event, public wiki artifact, and private-note continuation.
+  - **Bouncer self-serve gap:** backend supports `joinPolicy: "request"` and the
+    directory can request approval, but the landing create form still hardcodes
+    `joinPolicy: "open"`. Add a host-facing create/control toggle before calling this
+    request-room flow self-serve.
 
 - **2026-06-02 · Claude →** Door-policy **backend is LIVE on prod** (#480). Frontend can wire:
   - `events:requestJoinEvent({ slug, sessionId, displayName, note? })`

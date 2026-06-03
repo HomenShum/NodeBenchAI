@@ -98,6 +98,12 @@ async function fulfillScratchNodePage(
               localStorage.setItem('__snEndedEventArgs', JSON.stringify(args));
               return Promise.resolve({ ok: true, eventId: args.eventId, status: 'ended' });
             }
+            if (name === 'events:publishWiki') {
+              window.__snWikiPublished = true;
+              window.__snPublishWikiArgs = args;
+              localStorage.setItem('__snWikiPublishArgs', JSON.stringify(args));
+              return Promise.resolve({ ok: true, version: 1, wikiId: 'liveEventWikiVersions:1' });
+            }
             if (name === 'events:requestJoinEvent') {
               window.__snRequestJoinArgs = args;
               localStorage.setItem('__snRequestJoinArgs', JSON.stringify(args));
@@ -111,15 +117,22 @@ async function fulfillScratchNodePage(
                 requestId: 'liveEventJoinRequests:1',
               });
             }
-            if (name === 'events:publishWiki') {
-              window.__snPublishWikiArgs = args;
-              return Promise.resolve({ ok: true, wikiId: 'liveEventWikiVersions:1', version: 3 });
-            }
             return Promise.resolve({});
           }
           query(name) {
             if (name === 'events:getMyEvents') return Promise.resolve({ joined: [], hosted: [] });
-            if (name === 'events:getPublishedWiki') return Promise.resolve(null);
+            if (name === 'events:getPublishedWiki') {
+              if (!window.__snWikiPublished) return Promise.resolve(null);
+              return Promise.resolve({
+                version: 1,
+                title: 'AI Infra Summit Wiki',
+                bodyHtml: '<h1>AI Infra Summit Wiki</h1><p>Published public memory.</p>',
+                sourceAnswerIds: ['liveEventAnswers:share1'],
+                sourceIds: ['liveEventSources:1'],
+                createdAt: 1770000000000,
+                publishedAt: 1770000001000,
+              });
+            }
             if (name === 'events:getHostStatus') {
               const token = localStorage.getItem('sn_host_owner_key_v2');
               return Promise.resolve(token ? { isHost: true, role: 'owner', displayName: 'Mock Host' } : { isHost: false });
@@ -138,6 +151,10 @@ async function fulfillScratchNodePage(
             if (name === 'events:listPublicRooms') {
               const rooms = window.__snPublicRooms || [];
               setTimeout(() => cb({ rooms, activeWindowMs: 1800000 }), 0);
+            }
+            if (name === 'events:getAnswers') {
+              const answers = window.__snAnswers || [];
+              setTimeout(() => cb(answers), 0);
             }
             if (name === 'events:getMyJoinRequest') {
               const tick = () => {
@@ -275,6 +292,72 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(page.locator("#sheet-title")).toContainText("People in the room");
     await expect(page.locator("#sheet-content")).toContainText("Mock Host");
     await expect(page.locator("#sheet-content")).not.toContainText("318 joined");
+  });
+
+  test("published wiki exposes a real public wiki URL in the share sheet", async ({ page }) => {
+    await fulfillScratchNodePage(page);
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "sn_host_owner_key_v2",
+        "hk1:liveEvents:1:nonce:1770000000000:abcdefabcdefabcdefabcdefabcdef12",
+      );
+    });
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+    await expect
+      .poll(() => page.evaluate(() => typeof (window as any).snPublishWiki), { timeout: 5_000 })
+      .toBe("function");
+
+    await page.evaluate(() => (window as any).snPublishWiki());
+    await expect
+      .poll(() => page.evaluate(() => (window as any)._sn_published_wiki_body || ""), {
+        timeout: 5_000,
+      })
+      .toContain("Published public memory");
+
+    await page.evaluate(() => (window as any).openShare());
+    await expect(page.locator("#sheet-content")).toContainText("Public wiki is live");
+    await expect(page.locator("#sheet-content code").filter({ hasText: "/wiki" })).toContainText(
+      "/e/ai-infra-summit-2026/wiki",
+    );
+
+    await page.getByRole("button", { name: "Copy wiki" }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
+      "/e/ai-infra-summit-2026/wiki",
+    );
+  });
+
+  test("answer share copies an addressable answer URL instead of only showing a toast", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.addInitScript(() => {
+      (window as any).__snAnswers = [
+        {
+          _id: "liveEventAnswers:share1",
+          question: "What did we decide?",
+          body: "We agreed to ship the public wiki loop.",
+          sourceIds: ["liveEventSources:1"],
+          sources: [{ title: "Agenda", uri: "doc://agenda", excerpt: "Public agenda source." }],
+          createdAt: 1770000000000,
+          agentMode: "deterministic",
+          cacheHit: false,
+        },
+      ];
+    });
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+    const answer = page.locator('[data-answer-id="liveEventAnswers:share1"]');
+    await expect(answer).toContainText("We agreed to ship the public wiki loop.");
+
+    await answer.getByRole("button", { name: "Share" }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
+      "/e/ai-infra-summit-2026#answer-liveEventAnswers%3Ashare1",
+    );
   });
 
   test("host create event uses live mutation and navigates to the created room", async ({ page }) => {
@@ -695,5 +778,22 @@ test.describe("ScratchNode live route honesty", () => {
     // The recap is honest about state — the apex/room never falsely flips to a fake value.
     await page.evaluate(() => (window as any)._snWikiMomentClose());
     await expect(moment).toHaveAttribute("data-open", "false");
+  });
+
+  test("NodeBench handoff CTAs target a SHIPPED route, never the dead /events/<slug>/private (no 404)", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    // The handoff URL must point at the EXISTING /scratchnode-events surface, not
+    // the route that 404s. Carries event context for the future tokenized route.
+    const url = await page.evaluate(() => (window as any).buildNodeBenchEventPrivateUrl());
+    expect(url).toContain("nodebenchai.com");
+    expect(url).toContain("/scratchnode-events");
+    expect(url).not.toMatch(/\/events\/[^/]+\/private/);
+    expect(url).toContain("continuation=private-notes");
+    expect(url).toContain("publicArtifact=event-wiki");
   });
 });
