@@ -427,6 +427,32 @@ function scanHomeV5() {
     });
   }
 
+  const hasPeopleCompanyTagContract =
+    /var\s+ROOM_MEMBERS\s*=\s*\[/i.test(html) &&
+    /function\s+renderMentions\s*\(/i.test(html) &&
+    /function\s+renderEventLogTags\s*\(/i.test(html) &&
+    /data-member/i.test(html) &&
+    /data-event-log-tag/i.test(html) &&
+    /renderEventLogTags\(safe\)/i.test(html) &&
+    /textEl\.innerHTML\s*=\s*renderMentions\(raw\)/i.test(html);
+  addCheck({
+    ok: hasPeopleCompanyTagContract,
+    name: "people and company tags project as typed public event-log context",
+    plane: "event-log",
+    detail: "@mentions + #tags render from public row decoration",
+  });
+  if (!hasPeopleCompanyTagContract) {
+    addFinding({
+      severity: "blocker",
+      safety: "human-gated",
+      plane: "event-log",
+      title: "People/company event-log tag contract is missing or incomplete",
+      path,
+      recommendation:
+        "Ensure public chat row decoration renders typed @mentions and #company/topic tags without deriving them from private notes.",
+    });
+  }
+
   const hasPrivateAskBranchContract =
     /function\s+parseComposerIntent\s*\(/i.test(html) &&
     /\/ask private[\s\S]{0,140}private notebook save[\s\S]{0,120}no public agent call/i.test(html) &&

@@ -414,6 +414,72 @@ test.describe("ScratchNode live route honesty", () => {
     expect(chatState.askCalls).toEqual([]);
   });
 
+  test("typed people and company tags stay public-row context while private tagged follow-ups stay private", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const publicText = "@Alex Chen says #Orbital needs the VoiceLayer follow-up";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, publicText);
+
+    const publicRow = page.locator(".row", { hasText: "VoiceLayer follow-up" }).first();
+    await expect(publicRow.locator('.mention[data-member="Alex Chen"]')).toHaveText("@Alex Chen");
+    await expect(publicRow.locator('.hashtag[data-event-log-tag="orbital"]')).toHaveText(
+      "#Orbital",
+    );
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    await page.locator("#lock").click();
+    await expect(page.locator("body")).toHaveAttribute("data-mode", "private");
+
+    const privateText = "@Sarah Kim #MedLayer private follow-up on healthcare pilots";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, privateText);
+
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+    await expect(page.locator(".row-text", { hasText: privateText })).toHaveCount(0);
+    await expect(page.locator('.row .mention[data-member="Sarah Kim"]')).toHaveCount(0);
+    await expect(page.locator('.row .hashtag[data-event-log-tag="medlayer"]')).toHaveCount(0);
+    await expect(page.locator(".ans", { hasText: "healthcare pilots" })).toHaveCount(0);
+
+    const state = await page.evaluate(({ publicText, privateText }) => {
+      const win = window as any;
+      return {
+        actions: win.__snMockActions || [],
+        publicSendCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:sendMessage" && call.args?.text === publicText,
+        ),
+        privateSendCalls: (win.__snMockMutations || []).filter(
+          (call: any) => call.name === "events:sendMessage" && call.args?.text === privateText,
+        ),
+      };
+    }, { publicText, privateText });
+
+    expect(state.actions).toEqual([]);
+    expect(state.publicSendCalls).toHaveLength(1);
+    expect(state.publicSendCalls[0].args.kind).toBe("chat");
+    expect(state.privateSendCalls).toEqual([]);
+  });
+
   test("locked composer saves a private note without public chat or agent calls", async ({ page }) => {
     await fulfillScratchNodePage(page);
 

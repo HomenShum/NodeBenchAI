@@ -390,6 +390,11 @@ button.mention { /* reset native button chrome when rendered as a real button */
 .mention:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-color: rgba(217,119,87,.5); }
 .mention:active { transform: scale(.96); }
 .mention.is-you { background: rgba(217,119,87,.15); color: var(--accent); }
+.hashtag {
+  display: inline-block; padding: 1px 7px; border-radius: 100px;
+  background: rgba(217,119,87,.11); color: var(--accent); border: 1px solid rgba(217,119,87,.22);
+  font-size: 13px; font-weight: 600; text-decoration: none; vertical-align: baseline;
+}
 
 /* — @mention picker dropdown (above composer when typing @) — */
 .mention-picker {
@@ -6118,6 +6123,15 @@ var ROOM_MEMBERS = [
   { name: 'ScratchNode', role: 'agent', color: '#d97757', initial: '🤖' }
 ];
 
+// Render company/topic tags as event-log chips. They are typed by the user,
+// public-only when sent as public chat, and never inferred from private notes.
+function renderEventLogTags(safeHtml) {
+  return safeHtml.replace(/(^|[\s(])#([A-Za-z][A-Za-z0-9_-]{1,40})\b/g, function(_, prefix, tag) {
+    var canonical = tag.toLowerCase();
+    return prefix + '<span class="hashtag" data-event-log-tag="' + canonical + '" aria-label="Event tag ' + tag + '">#' + tag + '</span>';
+  });
+}
+
 // Render @mentions as accessible buttons (keyboard-focusable, aria-labeled).
 // Click delegation handled by document-level listener — no inline onclick.
 function renderMentions(text) {
@@ -6131,7 +6145,7 @@ function renderMentions(text) {
       '<button type="button" class="mention' + youClass + '" data-member="' + safeName + '" aria-label="Mention ' + safeName + ' — open profile">@' + m.name + '</button>'
     );
   });
-  return safe;
+  return renderEventLogTags(safe);
 }
 // Delegated click + keyboard handler for any .mention button (works for
 // dynamically-injected mentions, agent-card mentions, and notes-editor mentions).
