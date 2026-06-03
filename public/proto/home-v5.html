@@ -2836,6 +2836,7 @@ function _snInitLandingStats() {
         } catch (e) { /* fall through to polling */ }
       }
       var poll = function () {
+        if (document.hidden) return;
         client.query('events:getLandingStats', {})
           .then(function (stats) { try { render(stats); } catch (e) {} })
           .catch(function () {});
