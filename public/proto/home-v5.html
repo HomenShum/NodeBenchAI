@@ -175,7 +175,7 @@ body:not([data-page-mode="landing"]) main.m { animation: pageEnter var(--motion-
 
 /* ─── Hero (small, scannable) ─── */
 .hero { margin-bottom: 20px; }
-.hero h1 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 4px; }
+.hero :is(h1, h2) { font-size: 26px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 4px; }
 .hero-meta { font-size: 13px; color: var(--ink-muted); }
 .hero-meta b { color: var(--ink); font-weight: 600; }
 
@@ -834,7 +834,7 @@ body[data-new-user="true"] .h-menu::after {
 .wiki-search input { flex: 1; background: transparent; border: 0; outline: none; color: var(--ink); font-size: 12px; font-family: var(--ui); }
 .wiki-search kbd { font-family: var(--mono); font-size: 10px; padding: 1px 5px; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 3px; color: var(--ink-faint); }
 .wiki-article { min-width: 0; max-width: 640px; font-size: 14px; color: var(--ink); line-height: 1.65; }
-.wiki-article h1 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 4px; color: var(--ink); }
+.wiki-article h1, .wiki-article .wiki-title { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 4px; color: var(--ink); }
 .wiki-article > .lead { font-size: 14px; color: var(--ink-muted); margin: 0 0 24px; line-height: 1.55; }
 .wiki-article h2 { font-size: 18px; font-weight: 700; letter-spacing: -.01em; margin: 32px 0 10px; color: var(--ink); padding-top: 16px; border-top: 1px solid var(--line); position: relative; scroll-margin-top: 16px; }
 .wiki-article h2:first-of-type { padding-top: 0; border-top: 0; margin-top: 0; }
@@ -997,7 +997,7 @@ body[data-new-user="true"] .h-menu::after {
 @media (max-width: 540px) {
   .h { padding: calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left)); }
   .m { padding: 16px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
-  .hero h1 { font-size: 22px; }
+  .hero :is(h1, h2) { font-size: 22px; }
   /* Mobile: pin the composer to the bottom (Slack/Discord/iMessage convention — thumb reach,
      newest message sits right above where you type). Desktop keeps the sticky top command bar. */
   .c {
@@ -3122,7 +3122,7 @@ function _snRenderWiki(wiki) {
   try { if (wiki.publishedAt) when = new Date(wiki.publishedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) {}
   mainEl.innerHTML =
     '<div class="sn-wiki__kicker"><span class="dot" aria-hidden="true"></span>Event wiki' + (typeof wiki.version === 'number' ? ' · v' + wiki.version : '') + '</div>' +
-    '<h1 class="sn-wiki__title"></h1>' +
+    '<h2 class="sn-wiki__title"></h2>' +
     '<div class="sn-wiki__meta"></div>' +
     '<div class="sn-wiki__article" id="sn-wiki-article"></div>' +
     '<div class="sn-wiki__foot">' +
@@ -3339,7 +3339,7 @@ if (document.readyState === 'loading') {
   </div>
 
   <section class="hero">
-    <h1><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h1>
+    <h2><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h2>
     <p class="hero-meta" id="sn-event-hero-meta">Disposable event brain · <b id="sn-hero-joined-count">0</b> joined · public wiki later</p>
   </section>
 
@@ -5008,7 +5008,7 @@ var SHEET_RENDERERS = {
     // ── Center: article ──
     h.push('<article class="wiki-article" id="wiki-article">');
     h.push('<div class="wiki-search"><span>&#128269;</span><input type="text" placeholder="Search this wiki..." aria-label="Search wiki" oninput="filterWikiTOC(this.value)"><kbd>&#8984;K</kbd></div>');
-    h.push('<h1>AI Infra Summit &middot; Wiki</h1>');
+    h.push('<h2 class="wiki-title">AI Infra Summit &middot; Wiki</h2>');
     h.push('<p class="lead">Published v1 — regenerated each round from public panel transcripts, /ask conversations, and verified sources. 318 attendees, 47 questions answered, 38 sources cited.</p>');
 
     h.push('<h2 id="overview">Overview <a class="anchor" href="#overview">#</a></h2>');
