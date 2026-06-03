@@ -3122,6 +3122,7 @@ function _snRenderWiki(wiki) {
   try { document.title = (wiki.eventName || 'Event') + ' — wiki · ScratchNode'; } catch (e) {}
   var when = '';
   try { if (wiki.publishedAt) when = new Date(wiki.publishedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) {}
+  var nodeBenchWikiUrl = buildNodeBenchPublicWikiUrl(wiki);
   mainEl.innerHTML =
     '<div class="sn-wiki__kicker"><span class="dot" aria-hidden="true"></span>Event wiki' + (typeof wiki.version === 'number' ? ' · v' + wiki.version : '') + '</div>' +
     '<h2 class="sn-wiki__title"></h2>' +
@@ -3129,6 +3130,7 @@ function _snRenderWiki(wiki) {
     '<div class="sn-wiki__article" id="sn-wiki-article"></div>' +
     '<div class="sn-wiki__foot">' +
       '<div class="sn-wiki__foot-tag"><b>The room remembers everything.</b> This recap was built live with ScratchNode.</div>' +
+      '<a class="sn-wiki__cta" id="sn-wiki-nb" href="' + escapeHtml(nodeBenchWikiUrl) + '">Continue in NodeBench &rarr;</a>' +
       '<a class="sn-wiki__cta" href="/">Create your own room &rarr;</a>' +
     '</div>';
   mainEl.querySelector('.sn-wiki__title').textContent = wiki.title || (wiki.eventName ? wiki.eventName + ' — wiki' : 'Event wiki');
@@ -3138,10 +3140,6 @@ function _snRenderWiki(wiki) {
     (when ? ' · published ' + when : '');
   // bodyHtml is server-built + public-safe (private notes excluded at publish time).
   mainEl.querySelector('#sn-wiki-article').innerHTML = wiki.bodyHtml;
-  // NOTE: a "Continue in NodeBench" bridge CTA is intentionally NOT here yet — the
-  // nodebenchai.com/events/<slug>/wiki receiving route doesn't exist (the /events
-  // router rejects trailing segments), so a CTA would 404. It ships WITH its real
-  // receiving route so the link can never dead-end. See PR-D.
 }
 
 function _snWikiShare() {
@@ -3900,6 +3898,22 @@ function refreshEventUrl() {
 function getPublicWikiUrl() {
   refreshEventUrl();
   return EVENT_URL + '/wiki';
+}
+
+function buildNodeBenchPublicWikiUrl(wiki) {
+  var slug = '';
+  var roomCode = '';
+  try {
+    slug = (wiki && (wiki.eventSlug || wiki.slug)) || (window._sn_wiki && window._sn_wiki.slug) || EVENT_SLUG;
+    roomCode = (wiki && wiki.roomCode) || EVENT_ROOM_CODE;
+  } catch (e) {
+    slug = EVENT_SLUG;
+    roomCode = EVENT_ROOM_CODE;
+  }
+  return WORKSPACE_BASE_URL +
+    '/events/' + encodeURIComponent(slug) + '/wiki' +
+    '?source=scratchnode' +
+    '&room=' + encodeURIComponent(roomCode || '');
 }
 
 function copyTextOrToast(text, successTitle, successDetail) {

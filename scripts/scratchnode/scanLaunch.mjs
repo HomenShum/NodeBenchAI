@@ -1006,7 +1006,18 @@ function scanPublicRepoReadiness() {
       /NodeBench-owned bridge\/conversion surface/i.test(scratchnodeWikiBridge) &&
       /not the[\s\S]{0,120}ScratchNode-owned public wiki SSR reader/i.test(scratchnodeWikiBridge) &&
       /must not duplicate[\s\S]{0,120}ScratchNode publishing\/SSR ownership/i.test(scratchnodeWikiBridge) &&
-      /no "Continue in NodeBench" CTA here/i.test(scratchnodePublicWikiSpec),
+      /function\s+buildNodeBenchPublicWikiUrl\s*\(\s*wiki\s*\)/i.test(homeHtml) &&
+      /id=["']sn-wiki-nb["']/i.test(homeHtml) &&
+      /\/events\/' \+ encodeURIComponent\(slug\) \+ '\/wiki'/i.test(homeHtml) &&
+      /\?source=scratchnode/i.test(homeHtml) &&
+      /https:\/\/nodebenchai\.com\/events\/rooftop-launch\/wiki\?source=scratchnode&room=ROOFTOP/i.test(
+        scratchnodePublicWikiSpec,
+      ) &&
+      /expect\(nodeBenchHref\)\.not\.toContain\("token="\)/i.test(scratchnodePublicWikiSpec) &&
+      /expect\(nodeBenchHref\)\.not\.toContain\("session="\)/i.test(scratchnodePublicWikiSpec) &&
+      /expect\(nodeBenchHref\)\.not\.toContain\("continuation="\)/i.test(scratchnodePublicWikiSpec) &&
+      /expect\(nodeBenchHref\)\.not\.toContain\("publicArtifact="\)/i.test(scratchnodePublicWikiSpec) &&
+      /expect\(nodeBenchHref\)\.not\.toContain\("noteCount="\)/i.test(scratchnodePublicWikiSpec),
     name: "ScratchNode and NodeBench wiki readers have explicit ownership split",
     plane: "event-log-evidence",
     detail: `${files.scratchnodeWikiServerless} + src/features/events/views/ScratchnodeWikiBridge.tsx`,

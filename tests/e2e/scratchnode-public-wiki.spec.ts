@@ -94,9 +94,17 @@ test.describe("ScratchNode public /wiki/<slug> reader", () => {
     const createCta = page.locator('.sn-wiki__foot a.sn-wiki__cta', { hasText: "Create your own room" });
     await expect(createCta).toHaveAttribute("href", "/");
 
-    // HONESTY: no "Continue in NodeBench" CTA here until the queued ScratchNode
-    // public reader change targets the NodeBench bridge with visibility-safe params.
-    await expect(page.locator("#sn-wiki-nb")).toHaveCount(0);
+    const nodeBenchCta = page.locator("#sn-wiki-nb");
+    await expect(nodeBenchCta).toHaveAttribute(
+      "href",
+      "https://nodebenchai.com/events/rooftop-launch/wiki?source=scratchnode&room=ROOFTOP",
+    );
+    const nodeBenchHref = await nodeBenchCta.getAttribute("href");
+    expect(nodeBenchHref).not.toContain("token=");
+    expect(nodeBenchHref).not.toContain("session=");
+    expect(nodeBenchHref).not.toContain("continuation=");
+    expect(nodeBenchHref).not.toContain("publicArtifact=");
+    expect(nodeBenchHref).not.toContain("noteCount=");
 
     // The room shell must be hidden in wiki mode.
     await expect(page.locator("main.m")).toBeHidden();
