@@ -32,8 +32,22 @@ async function fulfillScratchNodePage(
           constructor(url) {
             window.__snMockClientUrl = url;
             window.__snMockMutations = [];
+            window.__snMockState = window.__snMockState || { messages: [], answers: [], userNotes: [] };
+            window.__snMockSubscribers = window.__snMockSubscribers || {};
           }
           close() { window.__snMockClosed = true; }
+          _emit(name) {
+            const subscribers = window.__snMockSubscribers[name] || [];
+            const state = window.__snMockState || { messages: [], answers: [], userNotes: [] };
+            const payload =
+              name === 'events:getMessages' ? state.messages :
+              name === 'events:getAnswers' ? (window.__snAnswers || state.answers) :
+              name === 'notes:listMyNotes' ? state.userNotes :
+              [];
+            for (const cb of subscribers) {
+              setTimeout(() => cb(payload), 0);
+            }
+          }
           mutation(name, args) {
             window.__snMockMutations.push({ name, args });
             if (name === 'events:joinEvent') {
@@ -56,7 +70,18 @@ async function fulfillScratchNodePage(
                 err.data = { code: 'network_down' };
                 return Promise.reject(err);
               }
-              return Promise.resolve({ messageId: 'liveEventMessages:1' });
+              const messageId = 'liveEventMessages:' + (window.__snMockState.messages.length + 1);
+              window.__snMockState.messages.push({
+                _id: messageId,
+                eventId: args.eventId,
+                sessionId: args.sessionId,
+                displayName: args.displayName,
+                text: args.text,
+                kind: args.kind,
+                createdAt: 1770000000000 + window.__snMockState.messages.length,
+              });
+              this._emit('events:getMessages');
+              return Promise.resolve({ messageId });
             }
             if (name === 'events:createEvent') {
               window.__snCreatedEventArgs = args;
@@ -104,6 +129,38 @@ async function fulfillScratchNodePage(
               localStorage.setItem('__snWikiPublishArgs', JSON.stringify(args));
               return Promise.resolve({ ok: true, version: 1, wikiId: 'liveEventWikiVersions:1' });
             }
+            if (name === 'events:suggestAnswerForFaq') {
+              window.__snSuggestFaqArgs = args;
+              const answer = window.__snMockState.answers.find((row) => row._id === args.answerId);
+              if (answer) answer.faqStatus = 'suggested';
+              this._emit('events:getAnswers');
+              return Promise.resolve({ ok: true, answerId: args.answerId, status: 'suggested' });
+            }
+            if (name === 'events:promoteAnswerToFaq') {
+              window.__snPromoteFaqArgs = args;
+              const answer = window.__snMockState.answers.find((row) => row._id === args.answerId);
+              if (answer) answer.faqStatus = 'promoted';
+              this._emit('events:getAnswers');
+              return Promise.resolve({ ok: true, answerId: args.answerId, status: 'promoted' });
+            }
+            if (name === 'notes:createNote') {
+              const noteId = 'userNotes:' + (window.__snMockState.userNotes.length + 1);
+              const note = {
+                _id: noteId,
+                ownerKey: args.ownerKey,
+                eventId: args.eventId,
+                title: args.title,
+                bodyHtml: args.bodyHtml,
+                tags: args.tags || [],
+                isAsk: !!args.isAsk,
+                pinned: !!args.pinned,
+                createdAt: 1770000000000 + window.__snMockState.userNotes.length,
+                updatedAt: 1770000000000 + window.__snMockState.userNotes.length,
+              };
+              window.__snMockState.userNotes.push(note);
+              this._emit('notes:listMyNotes');
+              return Promise.resolve({ ok: true, noteId });
+            }
             if (name === 'events:requestJoinEvent') {
               window.__snRequestJoinArgs = args;
               localStorage.setItem('__snRequestJoinArgs', JSON.stringify(args));
@@ -123,10 +180,13 @@ async function fulfillScratchNodePage(
             if (name === 'events:getMyEvents') return Promise.resolve({ joined: [], hosted: [] });
             if (name === 'events:getPublishedWiki') {
               if (!window.__snWikiPublished) return Promise.resolve(null);
+              const publicAnswers = (window.__snMockState && window.__snMockState.answers || [])
+                .map((answer) => '<section><h2>' + answer.question + '</h2><p>' + answer.body + '</p></section>')
+                .join('');
               return Promise.resolve({
                 version: 1,
                 title: 'AI Infra Summit Wiki',
-                bodyHtml: '<h1>AI Infra Summit Wiki</h1><p>Published public memory.</p>',
+                bodyHtml: '<h1>AI Infra Summit Wiki</h1><p>Published public memory.</p>' + publicAnswers + '<p>Private notes stay out of the public wiki.</p>',
                 sourceAnswerIds: ['liveEventAnswers:share1'],
                 sourceIds: ['liveEventSources:1'],
                 createdAt: 1770000000000,
@@ -139,22 +199,58 @@ async function fulfillScratchNodePage(
             }
             return Promise.resolve([]);
           }
-          action() { return Promise.resolve(null); }
+          action(name, args) {
+            if (name === 'events:askAgent') {
+              const answerId = 'liveEventAnswers:' + (window.__snMockState.answers.length + 1);
+              const answer = {
+                _id: answerId,
+                eventId: args.eventId,
+                questionMessageId: args.questionMessageId,
+                question: args.question,
+                body: 'Mock sourced answer for: ' + args.question,
+                sources: [{ title: 'Public agenda', uri: 'https://example.test/agenda', excerpt: 'public source only' }],
+                sourceIds: ['liveEventSources:1'],
+                externalSearches: 0,
+                estimatedCostCents: 0,
+                agentMode: 'deterministic',
+                cacheHit: false,
+                faqStatus: 'none',
+                createdAt: 1770000001000 + window.__snMockState.answers.length,
+                trace: [
+                  { status: 'ok', step: 'context_resolved', detail: 'public event corpus only' },
+                  { status: 'ok', step: 'public_private_boundary', detail: 'private notes excluded from retrieval, cache, and answer' },
+                ],
+              };
+              window.__snMockState.answers.push(answer);
+              this._emit('events:getAnswers');
+              return Promise.resolve(answer);
+            }
+            return Promise.resolve(null);
+          }
           onUpdate(name, _args, cb) {
+            window.__snMockSubscribers[name] = window.__snMockSubscribers[name] || [];
+            window.__snMockSubscribers[name].push(cb);
+            const unsubscribe = () => {
+              const subscribers = window.__snMockSubscribers[name] || [];
+              window.__snMockSubscribers[name] = subscribers.filter((entry) => entry !== cb);
+            };
+            if (name === 'events:getMessages' || name === 'events:getAnswers' || name === 'notes:listMyNotes') {
+              this._emit(name);
+              return unsubscribe;
+            }
             if (name === 'events:getMembers') {
               setTimeout(() => cb([{ displayName: 'Mock Host' }, { displayName: 'Mock Guest' }]), 0);
+              return unsubscribe;
             }
             if (name === 'events:getLandingStats') {
               const s = window.__snLandingStats || { roomsCreated: 0, liveNow: 0, activeNow: 0, capped: false };
               setTimeout(() => cb(s), 0);
+              return unsubscribe;
             }
             if (name === 'events:listPublicRooms') {
               const rooms = window.__snPublicRooms || [];
               setTimeout(() => cb({ rooms, activeWindowMs: 1800000 }), 0);
-            }
-            if (name === 'events:getAnswers') {
-              const answers = window.__snAnswers || [];
-              setTimeout(() => cb(answers), 0);
+              return unsubscribe;
             }
             if (name === 'events:getMyJoinRequest') {
               const tick = () => {
@@ -170,8 +266,12 @@ async function fulfillScratchNodePage(
               };
               setTimeout(tick, 0);
               const iv = setInterval(tick, 50);
-              return () => clearInterval(iv);
+              return () => {
+                clearInterval(iv);
+                unsubscribe();
+              };
             }
+            return unsubscribe;
           }
         }
       `,
@@ -851,9 +951,47 @@ test.describe("ScratchNode live route honesty", () => {
     await expect(page.locator(".toast")).toContainText("Host verification required");
   });
 
-  test("SN-LIVE-007/-008 private send saves privately and creates NO public message", async ({
+  test("SN-LIVE-006 public /ask trace excludes private-note text and private refs", async ({
     page,
   }) => {
+    // Gate SN-LIVE-006: answer trace has no private-note text and stays public-only.
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    await page.evaluate(() => {
+      const w = window as any;
+      if (document.body.getAttribute("data-mode") !== "private") w.toggleLock();
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = "private-note-secret";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      w.sendComposerMessage();
+      if (document.body.getAttribute("data-mode") === "private") w.toggleLock();
+    });
+    await expect
+      .poll(() => page.evaluate(() => ((window as any).__snMockState.userNotes || []).length), {
+        timeout: 5_000,
+      })
+      .toBeGreaterThan(0);
+
+    await page.fill("#ci", "/ask what changed after the keynote?");
+    await page.keyboard.press("Enter");
+
+    const answer = page.locator(".ans").last();
+    await expect(answer).toContainText("Mock sourced answer for: what changed after the keynote?");
+    await answer.locator(".ans-show").click();
+    await expect(answer.locator(".ans-how")).toContainText("private notes excluded");
+
+    const state = await page.evaluate(() => (window as any).__snMockState);
+    expect(state.answers).toHaveLength(1);
+    expect(JSON.stringify(state.answers[0].trace)).not.toContain("private-note-secret");
+    expect(JSON.stringify(state.answers[0])).not.toMatch(/userNotes|private_note/i);
+  });
+
+  test("SN-LIVE-007 private send saves to notes, not events:sendMessage or liveEventMessages", async ({
+    page,
+  }) => {
+    // Gate SN-LIVE-007: private send recorded as a private note, not public feed.
     await fulfillScratchNodePage(page);
     await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
     await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
@@ -886,8 +1024,152 @@ test.describe("ScratchNode live route honesty", () => {
       ),
     );
     expect(sentPublicly).toBe(false);
-    // SN-LIVE-008: the private note IS captured privately (notebook count grew).
     expect(result.countAfter).toBeGreaterThan(result.countBefore);
+
+    const state = await page.evaluate(() => (window as any).__snMockState);
+    expect(state.userNotes).toHaveLength(1);
+    expect(state.userNotes[0].bodyHtml).toContain("PRIV-secret-latency-budget-xyz");
+    expect(state.messages).toHaveLength(0);
+    const mutationNames = await page.evaluate(() =>
+      ((window as any).__snMockMutations || []).map((call: any) => call.name),
+    );
+    expect(mutationNames.filter((name: string) => name === "notes:createNote")).toHaveLength(1);
+    expect(mutationNames.filter((name: string) => name === "events:sendMessage")).toHaveLength(0);
+  });
+
+  test("SN-LIVE-008 private send appears in the notebook mock without leaking to public rows", async ({
+    page,
+  }) => {
+    // Gate SN-LIVE-008: private send is present in userNotes/notebook state.
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    await page.evaluate(() => {
+      const w = window as any;
+      if (document.body.getAttribute("data-mode") !== "private") w.toggleLock();
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = "Capture the off-record follow-up";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      w.sendComposerMessage();
+    });
+
+    await expect
+      .poll(() => page.evaluate(() => ((window as any).__snMockState.userNotes || []).length), {
+        timeout: 5_000,
+      })
+      .toBe(1);
+    await page.evaluate(() => (window as any).openSheet("notes"));
+    await expect(page.locator("#sheet-title")).toContainText("notes");
+    await expect(page.locator("#sheet-content")).toContainText("Capture the off-record follow-up");
+    await expect(page.locator(".row-text", { hasText: "Capture the off-record follow-up" })).toHaveCount(0);
+    const state = await page.evaluate(() => (window as any).__snMockState);
+    expect(JSON.stringify(state.messages)).not.toContain("Capture the off-record follow-up");
+  });
+
+  test("SN-LIVE-009 attendee sees Suggest for FAQ and records events:suggestAnswerForFaq", async ({
+    page,
+  }) => {
+    // Gate SN-LIVE-009: attendee can suggest a public answer for FAQ review.
+    await fulfillScratchNodePage(page);
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    await page.fill("#ci", "/ask what should we write down?");
+    await page.keyboard.press("Enter");
+
+    const answer = page.locator(".ans").last();
+    await expect(answer).toContainText("Mock sourced answer for: what should we write down?");
+    await expect(answer.locator(".ans-actions .attendee-only")).toBeVisible();
+    await expect(answer.locator(".ans-actions .host-only")).toBeHidden();
+    await answer.locator(".ans-actions .attendee-only").click();
+
+    const state = await page.evaluate(() => ({
+      suggestArgs: (window as any).__snSuggestFaqArgs,
+      answers: (window as any).__snMockState.answers,
+    }));
+    expect(state.suggestArgs.answerId).toBe("liveEventAnswers:1");
+    expect(state.answers[0].faqStatus).toBe("suggested");
+  });
+
+  test("SN-LIVE-010 host sees Promote to FAQ and records events:promoteAnswerToFaq", async ({
+    page,
+  }) => {
+    // Gate SN-LIVE-010: verified host can promote the answer into the public wiki set.
+    await fulfillScratchNodePage(page);
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "sn_host_owner_key_v2",
+        "hk1:liveEvents:1:nonce:1770000000000:abcdefabcdefabcdefabcdefabcdef12",
+      );
+    });
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+    await expect
+      .poll(() => page.evaluate(() => (window as any)._sn_live?.hostVerified === true), {
+        timeout: 5_000,
+      })
+      .toBe(true);
+
+    await page.fill("#ci", "/ask which public FAQ survives the event?");
+    await page.keyboard.press("Enter");
+
+    const answer = page.locator(".ans").last();
+    await expect(answer).toContainText("Mock sourced answer for: which public FAQ survives the event?");
+    await expect(answer.locator(".ans-actions .host-only")).toBeVisible();
+    await answer.locator(".ans-actions .host-only").click();
+
+    const state = await page.evaluate(() => ({
+      promoteArgs: (window as any).__snPromoteFaqArgs,
+      answers: (window as any).__snMockState.answers,
+    }));
+    expect(state.promoteArgs.answerId).toBe("liveEventAnswers:1");
+    expect(state.answers[0].faqStatus).toBe("promoted");
+  });
+
+  test("SN-LIVE-012 published wiki excludes private-note text", async ({
+    page,
+  }) => {
+    // Gate SN-LIVE-012: public wiki body excludes private note content.
+    await fulfillScratchNodePage(page);
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "sn_host_owner_key_v2",
+        "hk1:liveEvents:1:nonce:1770000000000:abcdefabcdefabcdefabcdefabcdef12",
+      );
+    });
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+    await expect
+      .poll(() => page.evaluate(() => (window as any)._sn_live?.hostVerified === true), {
+        timeout: 5_000,
+      })
+      .toBe(true);
+
+    await page.fill("#ci", "/ask what belongs in the public recap?");
+    await page.keyboard.press("Enter");
+    await page.evaluate(() => {
+      const w = window as any;
+      if (document.body.getAttribute("data-mode") !== "private") w.toggleLock();
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = "private-note-secret";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      w.sendComposerMessage();
+      if (document.body.getAttribute("data-mode") === "private") w.toggleLock();
+    });
+
+    const answer = page.locator(".ans").last();
+    await answer.locator(".ans-actions .host-only").click();
+    await page.evaluate(() => (window as any).snPublishWiki());
+    await expect
+      .poll(() => page.evaluate(() => (window as any)._sn_published_wiki_body || ""), {
+        timeout: 5_000,
+      })
+      .toContain("Mock sourced answer for: what belongs in the public recap?");
+
+    const publishedWikiBody = await page.evaluate(() => (window as any)._sn_published_wiki_body || "");
+    expect(publishedWikiBody).not.toContain("private-note-secret");
+    expect(publishedWikiBody).toContain("Private notes stay out of the public wiki");
   });
 
   test("public send DOES create a public message (boundary control)", async ({ page }) => {
