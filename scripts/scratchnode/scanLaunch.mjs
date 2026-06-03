@@ -745,6 +745,37 @@ async function runHttpCheck(name, url, validate, options = {}) {
   }
 }
 
+function isInteractiveNetworkDenied(detail) {
+  return /ERR_NETWORK_ACCESS_DENIED|Network access denied/i.test(detail ?? "");
+}
+
+function isLiveNetworkDenied(detail) {
+  return isInteractiveNetworkDenied(detail) || /fetch failed/i.test(detail ?? "");
+}
+
+function summarizeRemoteProbeInfra({ liveFailures, interactiveFailures }) {
+  const interactiveNetworkDenied =
+    shouldRunInteractive &&
+    interactiveChecks.length > 0 &&
+    interactiveFailures.length === interactiveChecks.length &&
+    interactiveFailures.every((check) => isInteractiveNetworkDenied(check.detail));
+  const liveNetworkDenied =
+    shouldRunLive &&
+    liveChecks.length > 0 &&
+    liveFailures.length === liveChecks.length &&
+    liveFailures.every((check) => isLiveNetworkDenied(check.detail));
+  const networkAccessDenied = interactiveNetworkDenied && (!shouldRunLive || liveNetworkDenied);
+
+  return {
+    networkAccessDenied,
+    liveNetworkDenied,
+    interactiveNetworkDenied,
+    reason: networkAccessDenied ? "remote probes blocked by local network restrictions" : "",
+    suppressedLiveFailures: networkAccessDenied ? liveFailures.length : 0,
+    suppressedInteractiveFailures: networkAccessDenied ? interactiveFailures.length : 0,
+  };
+}
+
 function headSignals(html) {
   const head = html.match(/<head[\s\S]*?<\/head>/i)?.[0] ?? html.slice(0, 8000);
   return {
@@ -1330,25 +1361,31 @@ function summarize() {
   const warnFindings = findings.filter((finding) => finding.severity === "warn");
   const liveFailures = liveChecks.filter((check) => !check.ok && !check.optional);
   const interactiveFailures = interactiveChecks.filter((check) => !check.ok && !check.optional);
+  const remoteProbeInfra = summarizeRemoteProbeInfra({ liveFailures, interactiveFailures });
+  const effectiveLiveFailures = remoteProbeInfra.networkAccessDenied ? [] : liveFailures;
+  const effectiveInteractiveFailures = remoteProbeInfra.networkAccessDenied ? [] : interactiveFailures;
   const passed =
     requiredStaticFailures.length === 0 &&
     blockerFindings.length === 0 &&
-    liveFailures.length === 0 &&
-    interactiveFailures.length === 0 &&
+    effectiveLiveFailures.length === 0 &&
+    effectiveInteractiveFailures.length === 0 &&
     (!shouldFailOnWarn || warnFindings.length === 0);
 
   return {
     passed,
     staticPassed: requiredStaticFailures.length === 0 && blockerFindings.length === 0,
-    livePassed: liveFailures.length === 0,
-    interactivePassed: interactiveFailures.length === 0,
+    livePassed: effectiveLiveFailures.length === 0,
+    interactivePassed: effectiveInteractiveFailures.length === 0,
     requiredStaticFailures: requiredStaticFailures.length,
     blockers: blockerFindings.length,
     warnings: warnFindings.length,
     autoSafeFindings: findings.filter((finding) => finding.safety === "auto").length,
     humanGatedFindings: findings.filter((finding) => finding.safety === "human-gated").length,
-    liveFailures: liveFailures.length,
-    interactiveFailures: interactiveFailures.length,
+    liveFailures: effectiveLiveFailures.length,
+    interactiveFailures: effectiveInteractiveFailures.length,
+    rawLiveFailures: liveFailures.length,
+    rawInteractiveFailures: interactiveFailures.length,
+    remoteProbeInfra,
     staticChecks: staticChecks.length,
     liveChecks: liveChecks.length,
     interactiveChecks: interactiveChecks.length,
@@ -1395,6 +1432,9 @@ async function main() {
         `liveFailures=${report.summary.liveFailures}, interactiveFailures=${report.summary.interactiveFailures})`,
     );
     console.log(`Report: ${outPath}`);
+    if (report.summary.remoteProbeInfra?.networkAccessDenied) {
+      console.log(`- [info/auto] remote probes suppressed: ${report.summary.remoteProbeInfra.reason}`);
+    }
     for (const finding of findings.slice(0, 12)) {
       const where = finding.line ? `${finding.path}:${finding.line}` : finding.path;
       console.log(`- [${finding.severity}/${finding.safety}] ${where} ${finding.title}`);

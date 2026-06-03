@@ -115,6 +115,25 @@ function buildCriterion(name, ok, detail) {
   };
 }
 
+function formatLaunchSummaryDetail(launchReport) {
+  const summary = launchReport?.summary;
+  if (!summary) return "missing launch report";
+  const detail = [
+    `blockers=${summary.blockers}`,
+    `warnings=${summary.warnings}`,
+    `liveFailures=${summary.liveFailures}`,
+    `interactiveFailures=${summary.interactiveFailures}`,
+  ];
+  if (summary.remoteProbeInfra?.networkAccessDenied) {
+    detail.push(
+      `rawLiveFailures=${summary.rawLiveFailures}`,
+      `rawInteractiveFailures=${summary.rawInteractiveFailures}`,
+      `remoteProbeInfra=${summary.remoteProbeInfra.reason}`,
+    );
+  }
+  return detail.join(", ");
+}
+
 function parseFrontmatter(text) {
   const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
   if (!match) return {};
@@ -367,9 +386,7 @@ async function main() {
     buildCriterion(
       "ScratchNode static/live/interactive launch scan passes",
       commands[1]?.exitCode === 0 && launchReport?.summary?.passed === true,
-      launchReport?.summary
-        ? `blockers=${launchReport.summary.blockers}, warnings=${launchReport.summary.warnings}, liveFailures=${launchReport.summary.liveFailures}, interactiveFailures=${launchReport.summary.interactiveFailures}`
-        : "missing launch report",
+      formatLaunchSummaryDetail(launchReport),
     ),
     buildCriterion(
       "Augment upload scope stays under threshold",
