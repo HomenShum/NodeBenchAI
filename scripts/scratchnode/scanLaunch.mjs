@@ -1250,46 +1250,59 @@ async function runInteractiveChecks() {
       let workModeOk = false;
       let sensitiveModeOk = false;
       let eventModeReturnedOk = false;
+      const eventModeSteps = [];
       if (eventModeControllerReady) {
         const modeLabel = () => document.querySelector("#ev-mode-label")?.textContent?.trim() ?? "";
         const composerPlaceholder = () => document.querySelector("#ci")?.getAttribute("placeholder") ?? "";
         const bodyMode = () => document.body.getAttribute("data-event-mode") ?? "";
+        const modeSnapshot = (step) => {
+          const snapshot = {
+            step,
+            bodyMode: bodyMode(),
+            label: modeLabel(),
+            placeholder: composerPlaceholder(),
+          };
+          eventModeSteps.push(snapshot);
+          return snapshot;
+        };
+        const waitForMode = async (expectedMode, labelPattern, placeholderPattern) => {
+          for (let attempt = 0; attempt < 8; attempt += 1) {
+            const snapshot = modeSnapshot(`${expectedMode}:wait-${attempt}`);
+            if (
+              snapshot.bodyMode === expectedMode &&
+              labelPattern.test(snapshot.label) &&
+              placeholderPattern.test(snapshot.placeholder)
+            ) {
+              return true;
+            }
+            await sleep(75);
+          }
+          return false;
+        };
+        const cyclePickerToMode = async (expectedMode, labelPattern, placeholderPattern) => {
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            globalThis.openModePicker();
+            modeSnapshot(`${expectedMode}:picker-${attempt}`);
+            if (await waitForMode(expectedMode, labelPattern, placeholderPattern)) return true;
+          }
+          return false;
+        };
 
         globalThis.setEventMode("event");
-        await sleep(100);
-        initialEventOk =
-          bodyMode() === "event" &&
-          /Event/i.test(modeLabel()) &&
-          /\/ask/i.test(composerPlaceholder());
+        initialEventOk = await waitForMode("event", /Event/i, /\/ask/i);
 
-        globalThis.openModePicker();
-        await sleep(100);
-        workModeOk =
-          bodyMode() === "work" &&
-          /Work/i.test(modeLabel()) &&
-          /Visible|meeting room|team/i.test(composerPlaceholder());
+        workModeOk = await cyclePickerToMode("work", /Work/i, /Visible|meeting room|team/i);
 
-        globalThis.openModePicker();
-        await sleep(100);
-        sensitiveModeOk =
-          bodyMode() === "sensitive" &&
-          /Sensitive/i.test(modeLabel()) &&
-          /Manual capture only/i.test(composerPlaceholder());
+        sensitiveModeOk = await cyclePickerToMode("sensitive", /Sensitive/i, /Manual capture only/i);
 
-        globalThis.openModePicker();
-        await sleep(100);
-        eventModeReturnedOk =
-          bodyMode() === "event" &&
-          /Event/i.test(modeLabel()) &&
-          /\/ask/i.test(composerPlaceholder());
+        eventModeReturnedOk = await cyclePickerToMode("event", /Event/i, /\/ask/i);
         eventModeCycleOk =
           workModeOk &&
           sensitiveModeOk &&
           eventModeReturnedOk;
 
         globalThis.setEventMode("event");
-        await sleep(100);
-        eventModeResetOk = bodyMode() === "event" && /\/ask/i.test(composerPlaceholder());
+        eventModeResetOk = await waitForMode("event", /Event/i, /\/ask/i);
       }
 
       const captureLevelControllerReady =
@@ -1478,6 +1491,7 @@ async function runInteractiveChecks() {
         eventModeReturnedOk,
         eventModeCycleOk,
         eventModeResetOk,
+        eventModeSteps,
         captureLevelControllerReady,
         capturePickerOpened,
         captureLevelOneOk,
