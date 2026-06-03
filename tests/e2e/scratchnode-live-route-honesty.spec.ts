@@ -407,6 +407,100 @@ test.describe("ScratchNode live route honesty", () => {
     expect(privateNoteState.sendCalls).toEqual([]);
   });
 
+  test("private notes anchored from public messages preserve context without public leakage", async ({
+    page,
+  }) => {
+    await fulfillScratchNodePage(page);
+
+    await page.goto("https://scratchnode.live/e/orbital", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toHaveAttribute("data-sn-live", "true");
+
+    const initialNoteCount = await page.evaluate(() => {
+      const win = window as any;
+      win.ensureNotesStore?.();
+      return win.getPrivateNoteHandoffCount?.() ?? 0;
+    });
+
+    const publicText = "public chat anchor source for private note test";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, publicText);
+
+    const publicRow = page.locator(".row", { hasText: publicText }).first();
+    await expect(publicRow.locator(".row-text")).toContainText(publicText);
+    const messageId = await publicRow.getAttribute("data-mid");
+    expect(messageId).toMatch(/^liveEventMessages:/);
+
+    await page.evaluate((mid) => {
+      (window as any).noteOnMessage?.(mid);
+    }, messageId);
+    await expect(page.locator("body")).toHaveAttribute("data-mode", "private");
+    await expect(page.locator("#reply-ctx")).toHaveAttribute("data-open", "true");
+    await expect(page.locator("#reply-ctx-quote")).toContainText(publicText);
+
+    const privateText = "private anchored note: ask Alex about the auth timeline";
+    await page.evaluate((text) => {
+      const input = document.getElementById("ci") as HTMLInputElement;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      (window as any).sendComposerMessage();
+    }, privateText);
+
+    await expect
+      .poll(() => page.locator("#pn-inline-count").textContent(), { timeout: 5_000 })
+      .toBe(String(initialNoteCount + 1));
+    await expect(page.locator("#reply-ctx")).toHaveAttribute("data-open", "false");
+    await expect(page.locator(".row-text", { hasText: privateText })).toHaveCount(0);
+    await expect(page.locator(".ans", { hasText: privateText })).toHaveCount(0);
+    await expect(publicRow.locator(".private-note-marker")).toHaveAttribute(
+      "aria-label",
+      "1 private note anchored here",
+    );
+
+    const anchorState = await page.evaluate(
+      ({ privateText, messageId, publicText }) => {
+        const win = window as any;
+        const note = (win._notes_v5 || []).find((entry: any) =>
+          String(entry.title + "\n" + entry.body).includes(privateText),
+        );
+        return {
+          note,
+          actions: win.__snMockActions || [],
+          privateSendCalls: (win.__snMockMutations || []).filter(
+            (call: any) =>
+              call.name === "events:sendMessage" &&
+              call.args?.text === privateText,
+          ),
+          publicSendCalls: (win.__snMockMutations || []).filter(
+            (call: any) =>
+              call.name === "events:sendMessage" &&
+              call.args?.text === publicText &&
+              call.args?.kind === "chat",
+          ),
+          markerCount: document.querySelectorAll(
+            `.row[data-mid="${messageId}"] .private-note-marker`,
+          ).length,
+        };
+      },
+      { privateText, messageId, publicText },
+    );
+
+    expect(anchorState.note).toEqual(
+      expect.objectContaining({
+        anchorType: "message",
+        anchorId: messageId,
+        anchorPreview: publicText,
+      }),
+    );
+    expect(anchorState.actions).toEqual([]);
+    expect(anchorState.privateSendCalls).toEqual([]);
+    expect(anchorState.publicSendCalls).toHaveLength(1);
+    expect(anchorState.markerCount).toBe(1);
+  });
+
   test("sensitive event mode forces /ask into private notes without agent calls", async ({ page }) => {
     await fulfillScratchNodePage(page);
 
