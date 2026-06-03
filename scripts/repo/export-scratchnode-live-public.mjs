@@ -512,7 +512,11 @@ if (publicLog.visibility !== "public" || missingPublicExclusions.length) {
   console.error("Public event-log projection contract is incomplete.");
   process.exit(1);
 }
-if (privateProjection.visibility !== "owner-only" || !(privateProjection.excludes || []).includes("public wiki JSON")) {
+const requiredPrivateIncludes = ["owner private notes", "private note anchors", "private follow-ups", "NodeBench handoff context"];
+const requiredPrivateExclusions = ["public wiki JSON", "public /ask cache", "public answer traces", "other attendees' notes"];
+const missingPrivateIncludes = requiredPrivateIncludes.filter((entry) => !(privateProjection.includes || []).includes(entry));
+const missingPrivateExclusions = requiredPrivateExclusions.filter((entry) => !(privateProjection.excludes || []).includes(entry));
+if (privateProjection.visibility !== "owner-only" || missingPrivateIncludes.length || missingPrivateExclusions.length) {
   console.error("Owner-only private note projection contract is incomplete.");
   process.exit(1);
 }
