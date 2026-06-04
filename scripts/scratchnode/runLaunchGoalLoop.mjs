@@ -695,6 +695,27 @@ export function summarizeDevelopmentCandidateEvidence(developmentCandidate) {
   };
 }
 
+export function summarizeKnownCautionEvidence(knownCautions) {
+  const cautionEntries = Array.isArray(knownCautions) ? knownCautions.filter(Boolean) : [];
+  const cautionPathReasons = cautionEntries.map((entry) => ({
+    path: entry?.path ?? "unknown",
+    reason: entry?.reason ?? "",
+  }));
+  const pathsMatchingReason = (pattern) =>
+    cautionPathReasons
+      .filter((entry) => pattern.test(entry.reason))
+      .map((entry) => entry.path)
+      .filter(Boolean)
+      .sort();
+
+  return {
+    knownCautionPaths: cautionPathReasons.map((entry) => entry.path).filter(Boolean).sort(),
+    knownCautionPathReasons: cautionPathReasons,
+    invalidRegisteredWorktreePaths: pathsMatchingReason(/invalid registered worktree/i),
+    explicitPruneCautionWorktreePaths: pathsMatchingReason(/explicit prune only/i),
+  };
+}
+
 export function summarizeVerificationEntryPointEvidence(verificationCommands, packageJson) {
   const commands = Array.isArray(verificationCommands)
     ? verificationCommands.map((command) => String(command ?? "").trim()).filter(Boolean)
@@ -885,6 +906,7 @@ async function main() {
   const reportSchemaEvidence = summarizeReportSchemaEvidence(reportSchemaVersion);
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);
+  const knownCautionEvidence = summarizeKnownCautionEvidence(knownCautions);
   const candidateVerificationEvidence = summarizeVerificationEntryPointEvidence(
     developmentCandidate?.suggestedVerification,
     packageJson,
@@ -941,6 +963,7 @@ async function main() {
       ...backlogEvidence,
       ...goalQueueEvidence,
       knownCautionCount: knownCautions.length,
+      ...knownCautionEvidence,
       actionableAttentionCount: actionableAttention.length,
       launchRelevantBlockerCount: launchRelevantBlockers.length,
       queuedGoalCount: goalQueue.filter((goal) => isOpenGoalStatus(goal.status)).length,

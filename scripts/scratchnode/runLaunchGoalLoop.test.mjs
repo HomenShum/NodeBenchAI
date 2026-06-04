@@ -15,6 +15,7 @@ import {
   summarizeGoalEvidence,
   summarizeGoalQueueEvidence,
   summarizeHousekeepingReportEvidence,
+  summarizeKnownCautionEvidence,
   summarizeLaunchReportEvidence,
   summarizeNotificationEvidence,
   summarizeReportMetadataEvidence,
@@ -647,6 +648,37 @@ describe("summarizeDevelopmentCandidateEvidence", () => {
       nextDevelopmentCandidateWhy: "Keep future loops honest.",
       nextDevelopmentCandidateMaxSlice: "Tighten one detector.",
       nextDevelopmentCandidateReason: "All gates are green.",
+    });
+  });
+});
+
+describe("summarizeKnownCautionEvidence", () => {
+  it("surfaces caution paths and reasons for invalid worktree reporting", () => {
+    const summary = summarizeKnownCautionEvidence([
+      {
+        path: ".worktrees/p0-row-delta",
+        reason: "invalid registered worktree; inspect git metadata first",
+      },
+      {
+        path: ".worktrees/keep-clean",
+        reason: "clean registered worktree; explicit prune only",
+      },
+    ]);
+
+    expect(summary).toEqual({
+      knownCautionPaths: [".worktrees/keep-clean", ".worktrees/p0-row-delta"],
+      knownCautionPathReasons: [
+        {
+          path: ".worktrees/p0-row-delta",
+          reason: "invalid registered worktree; inspect git metadata first",
+        },
+        {
+          path: ".worktrees/keep-clean",
+          reason: "clean registered worktree; explicit prune only",
+        },
+      ],
+      invalidRegisteredWorktreePaths: [".worktrees/p0-row-delta"],
+      explicitPruneCautionWorktreePaths: [".worktrees/keep-clean"],
     });
   });
 });
