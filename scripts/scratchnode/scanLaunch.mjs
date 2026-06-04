@@ -342,6 +342,8 @@ function scanStaticContracts() {
     "workflowDevelopmentCadence",
     "workflowRepeatedFailureRule",
     "workflowSafetyBoundary",
+    "gitStatus",
+    "gitStatusEntryCount",
     "nextDevelopmentCandidateTitle",
     "nextDevelopmentCandidateMode",
     "nextDevelopmentCandidatePriority",

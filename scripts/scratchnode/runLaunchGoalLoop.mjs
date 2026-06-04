@@ -656,6 +656,18 @@ export function summarizeGitHeadEvidence(gitHeadSummary) {
   };
 }
 
+export function summarizeGitStatusEvidence(gitStatus) {
+  const lines = String(gitStatus ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return {
+    gitStatus: lines.join("\n"),
+    gitStatusEntryCount: lines.length,
+  };
+}
+
 export function summarizeCriteriaEvidence(criteria) {
   const passedCriterionNames = criteria.filter((criterion) => criterion.ok).map((criterion) => criterion.name);
   const failedCriterionDetails = criteria
@@ -1000,6 +1012,7 @@ async function main() {
   const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
   const housekeepingEvidence = summarizeHousekeepingReportEvidence(housekeepingReport);
   const launchReportEvidence = summarizeLaunchReportEvidence(launchReport);
+  const gitStatusEvidence = summarizeGitStatusEvidence(gitStatus);
   const gitHeadEvidence = summarizeGitHeadEvidence(gitHeadSummary);
   const criteriaEvidence = summarizeCriteriaEvidence(criteria);
   const notificationEvidence = summarizeNotificationEvidence(criteria);
@@ -1070,6 +1083,7 @@ async function main() {
       launchRelevantBlockerCount: launchRelevantBlockers.length,
       queuedGoalCount: goalQueue.filter((goal) => isOpenGoalStatus(goal.status)).length,
       gitDriftClean: gitStatus.length === 0,
+      ...gitStatusEvidence,
       gitBranchStatus,
       ...gitBranchEvidence,
       ...gitHeadEvidence,

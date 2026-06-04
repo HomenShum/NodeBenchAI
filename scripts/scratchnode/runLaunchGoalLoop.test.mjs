@@ -12,6 +12,7 @@ import {
   summarizeDevelopmentCandidateEvidence,
   summarizeGitBranchEvidence,
   summarizeGitHeadEvidence,
+  summarizeGitStatusEvidence,
   summarizeGoalEvidence,
   summarizeGoalQueueEvidence,
   summarizeHousekeepingReportEvidence,
@@ -544,6 +545,22 @@ describe("summarizeGitHeadEvidence", () => {
       gitHeadSummary: null,
       gitHeadShortSha: null,
       gitHeadSubject: null,
+    });
+  });
+});
+
+describe("summarizeGitStatusEvidence", () => {
+  it("keeps drift entries normalized in summary form", () => {
+    expect(summarizeGitStatusEvidence(" M scripts/example.js \n?? notes/todo.md\n\n")).toEqual({
+      gitStatus: "M scripts/example.js\n?? notes/todo.md",
+      gitStatusEntryCount: 2,
+    });
+  });
+
+  it("keeps clean worktrees explicit", () => {
+    expect(summarizeGitStatusEvidence("")).toEqual({
+      gitStatus: "",
+      gitStatusEntryCount: 0,
     });
   });
 });
