@@ -78,15 +78,31 @@ function buildCriterion(name, ok, detail = "") {
   return { name, ok: !!ok, detail };
 }
 
-function knownCautionEntries(housekeepingReport) {
+export function knownCautionEntries(housekeepingReport, localHistoryReport = null) {
   const entries = (housekeepingReport?.cautionEntries ?? []).filter((entry) =>
     /clean registered worktree; explicit prune only/i.test(entry.reason ?? ""),
   );
+  const invalidKeepEntries = Array.isArray(localHistoryReport?.buckets?.keep)
+    ? localHistoryReport.buckets.keep.filter((entry) =>
+        /invalid registered worktree/i.test(entry.reason ?? ""),
+      )
+    : [];
+  for (const entry of invalidKeepEntries) {
+    entries.push({
+      path: entry.path ?? entry.absolutePath ?? "git worktree metadata",
+      reason: entry.reason ?? "invalid registered worktree",
+      branch: entry.branch ?? null,
+      dirty: entry.dirty ?? null,
+      locked: entry.locked ?? null,
+      exists: entry.exists ?? null,
+      gitUsable: entry.gitUsable ?? null,
+    });
+  }
   const invalidRegistered = Number(housekeepingReport?.summary?.invalidRegistered ?? 0);
-  if (invalidRegistered > 0) {
+  if (invalidRegistered > invalidKeepEntries.length) {
     entries.push({
       path: "git worktree metadata",
-      reason: `invalid registered worktrees present: ${invalidRegistered}; keep-classified by local-history map/reduce`,
+      reason: `invalid registered worktrees present: ${invalidRegistered}; explicit keep-entry details unavailable from local-history map/reduce`,
     });
   }
   return entries;
@@ -799,6 +815,7 @@ async function main() {
 
   const housekeepingReport = readJson(reportPaths.housekeeping);
   const launchReport = readJson(reportPaths.launch);
+  const localHistoryReport = readJson(reportPaths.localHistory);
   const packageJson = readJson("package.json");
   const gitStatus = commands.find((command) => command.command === "git status --short")?.stdout.trim() ?? "";
   const gitBranchStatus = commands.find((command) => command.command === "git status --short --branch")?.stdout.trim() ?? "";
@@ -808,7 +825,7 @@ async function main() {
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
   const actionableAttention = actionableAttentionItems(housekeepingReport);
   const launchRelevantBlockers = housekeepingReport?.operatorSummary?.launchRelevantBlockers ?? [];
-  const knownCautions = knownCautionEntries(housekeepingReport);
+  const knownCautions = knownCautionEntries(housekeepingReport, localHistoryReport);
   const goalQueue = readGoalQueue();
   const developmentBacklog = buildDevelopmentBacklog({
     actionableAttention,

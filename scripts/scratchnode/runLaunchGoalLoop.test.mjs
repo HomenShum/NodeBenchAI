@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyGoalCardMode,
   isOpenGoalStatus,
+  knownCautionEntries,
   normalizeGoalStatus,
   selectDevelopmentCandidate,
   summarizeCommandEvidence,
@@ -144,6 +145,62 @@ describe("selectDevelopmentCandidate", () => {
     expect(candidate?.selectionReason).toBe(
       "Tracked upstream is ahead of the local branch; sync before starting a new autonomous slice.",
     );
+  });
+});
+
+describe("knownCautionEntries", () => {
+  it("surfaces explicit invalid worktree keep entries from local-history output", () => {
+    const cautions = knownCautionEntries(
+      {
+        cautionEntries: [],
+        summary: {
+          invalidRegistered: 1,
+        },
+      },
+      {
+        buckets: {
+          keep: [
+            {
+              path: ".worktrees/p0-row-delta",
+              reason: "invalid registered worktree; inspect git metadata first",
+              branch: "refs/heads/fix/spreadsheet-operation-validate",
+              dirty: false,
+              locked: false,
+              exists: true,
+              gitUsable: false,
+            },
+          ],
+        },
+      },
+    );
+
+    expect(cautions).toEqual([
+      {
+        path: ".worktrees/p0-row-delta",
+        reason: "invalid registered worktree; inspect git metadata first",
+        branch: "refs/heads/fix/spreadsheet-operation-validate",
+        dirty: false,
+        locked: false,
+        exists: true,
+        gitUsable: false,
+      },
+    ]);
+  });
+
+  it("keeps the generic fallback when local-history details are unavailable", () => {
+    const cautions = knownCautionEntries({
+      cautionEntries: [],
+      summary: {
+        invalidRegistered: 2,
+      },
+    });
+
+    expect(cautions).toEqual([
+      {
+        path: "git worktree metadata",
+        reason: "invalid registered worktrees present: 2; explicit keep-entry details unavailable from local-history map/reduce",
+      },
+    ]);
   });
 });
 
