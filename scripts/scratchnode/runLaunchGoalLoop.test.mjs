@@ -208,11 +208,14 @@ describe("knownCautionEntries", () => {
 
 describe("summarizeCommandEvidence", () => {
   it("summarizes command exits, failures, and timing", () => {
-    const summary = summarizeCommandEvidence([
-      { command: "fast", exitCode: 0, durationMs: 12 },
-      { command: "slow", exitCode: 1, durationMs: 39, stdout: "stdout context", stderr: "stderr context" },
-      { command: "invalid-duration", exitCode: 0, durationMs: "not-a-number" },
-    ]);
+    const summary = summarizeCommandEvidence(
+      [
+        { command: "fast", exitCode: 0, durationMs: 12 },
+        { command: "slow", exitCode: 1, durationMs: 39, stdout: "stdout context", stderr: "stderr context" },
+        { command: "invalid-duration", exitCode: 0, durationMs: "not-a-number" },
+      ],
+      { slowCommandWarningThresholdMs: 30 },
+    );
 
     expect(summary).toEqual({
       commandCount: 3,
@@ -230,6 +233,16 @@ describe("summarizeCommandEvidence", () => {
         "invalid-duration": 0,
       },
       commandDurationTotalMs: 51,
+      slowCommandWarningThresholdMs: 30,
+      slowCommandCount: 1,
+      slowCommandNames: ["slow"],
+      slowCommandSummaries: [
+        {
+          command: "slow",
+          exitCode: 1,
+          durationMs: 39,
+        },
+      ],
       failedCommandSummaries: [
         {
           command: "slow",

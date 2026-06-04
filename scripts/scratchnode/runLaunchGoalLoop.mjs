@@ -366,7 +366,11 @@ export function selectDevelopmentCandidate(developmentBacklog, context = {}) {
   };
 }
 
-export function summarizeCommandEvidence(commands) {
+export function summarizeCommandEvidence(commands, options = {}) {
+  const slowCommandWarningThresholdMs = Math.max(
+    0,
+    Number(options.slowCommandWarningThresholdMs) || 90_000,
+  );
   const commandDurations = commands.map((command) => ({
     command: command.command,
     exitCode: command.exitCode,
@@ -379,6 +383,9 @@ export function summarizeCommandEvidence(commands) {
     if (!slowest || command.durationMs > slowest.durationMs) return command;
     return slowest;
   }, null);
+  const slowCommandSummaries = commandTimings.filter(
+    (command) => command.durationMs >= slowCommandWarningThresholdMs,
+  );
   const tailText = (value, maxLength = 600) => {
     const text = String(value ?? "").trim();
     return text.length > maxLength ? text.slice(-maxLength) : text;
@@ -392,6 +399,10 @@ export function summarizeCommandEvidence(commands) {
     commandExitCodes: Object.fromEntries(commands.map((command) => [command.command, command.exitCode])),
     commandDurationMsByName: Object.fromEntries(commandTimings.map((command) => [command.command, command.durationMs])),
     commandDurationTotalMs: commandTimings.reduce((total, command) => total + command.durationMs, 0),
+    slowCommandWarningThresholdMs,
+    slowCommandCount: slowCommandSummaries.length,
+    slowCommandNames: slowCommandSummaries.map((command) => command.command),
+    slowCommandSummaries,
     failedCommandSummaries: commandDurations
       .filter((command) => command.exitCode !== 0)
       .map((command) => ({
