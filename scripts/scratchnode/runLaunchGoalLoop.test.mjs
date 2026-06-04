@@ -597,30 +597,40 @@ describe("summarizeGoalQueueEvidence", () => {
   it("summarizes goal queue count, statuses, modes, priorities, and open eligible ids", () => {
     const summary = summarizeGoalQueueEvidence([
       { id: "goal-1", status: "queued", mode: "human-gated", priority: "P1" },
-      { id: "goal-2", status: "queued", mode: "safe-local-development", priority: "P2" },
+      { id: "goal-2", status: "proposed", mode: "safe-local-development", priority: "P2" },
       { id: "goal-3", status: "done after local verification", mode: "human-gated", priority: "P1" },
-      { id: "goal-4" },
+      { id: "goal-4", status: "shipping", mode: "human-gated", priority: "P2" },
+      { id: "goal-5", status: "shipped", mode: "human-gated", priority: "P2" },
+      { id: "goal-6" },
     ]);
 
     expect(summary).toEqual({
-      goalQueueCount: 4,
+      goalQueueCount: 6,
       goalQueueStatusCounts: {
         done: 1,
-        queued: 2,
+        proposed: 1,
+        queued: 1,
+        shipped: 1,
+        shipping: 1,
         unknown: 1,
       },
       goalQueueModeCounts: {
-        "human-gated": 2,
+        "human-gated": 4,
         "safe-local-development": 1,
         unknown: 1,
       },
       goalQueuePriorityCounts: {
         P1: 2,
-        P2: 1,
+        P2: 3,
         unknown: 1,
       },
       openGoalQueueCount: 2,
       openGoalQueueIds: ["goal-1", "goal-2"],
+      proposedGoalQueueIds: ["goal-2"],
+      queuedGoalQueueIds: ["goal-1"],
+      shippingGoalQueueIds: ["goal-4"],
+      shippedGoalQueueIds: ["goal-5"],
+      doneGoalQueueIds: ["goal-3"],
       safeLocalGoalCount: 1,
       safeLocalGoalIds: ["goal-2"],
       humanGatedGoalCount: 1,

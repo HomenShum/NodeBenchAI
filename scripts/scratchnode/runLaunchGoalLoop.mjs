@@ -699,12 +699,22 @@ export function summarizeGoalQueueEvidence(goalQueue) {
   const openGoals = goalQueue.filter((goal) => isOpenGoalStatus(goal.status));
   const eligibleSafeLocalGoals = openGoals.filter((goal) => goal.mode === "safe-local-development");
   const openHumanGatedGoals = openGoals.filter((goal) => goal.mode === "human-gated");
+  const idsByStatus = (status) =>
+    goalQueue
+      .filter((goal) => normalizeGoalStatus(goal.status) === status)
+      .map((goal) => goal.id)
+      .filter(Boolean);
 
   return {
     goalQueueCount: goalQueue.length,
     goalQueueStatusCounts: countBy(goalQueue, (goal) => normalizeGoalStatus(goal.status)),
     goalQueueModeCounts: countBy(goalQueue, (goal) => goal.mode),
     goalQueuePriorityCounts: countBy(goalQueue, (goal) => goal.priority),
+    proposedGoalQueueIds: idsByStatus("proposed"),
+    queuedGoalQueueIds: idsByStatus("queued"),
+    shippingGoalQueueIds: idsByStatus("shipping"),
+    shippedGoalQueueIds: idsByStatus("shipped"),
+    doneGoalQueueIds: idsByStatus("done"),
     openGoalQueueCount: openGoals.length,
     openGoalQueueIds: openGoals.map((goal) => goal.id).filter(Boolean),
     safeLocalGoalCount: eligibleSafeLocalGoals.length,
