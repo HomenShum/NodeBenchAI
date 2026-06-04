@@ -293,7 +293,11 @@ function scanStaticContracts() {
     "nextDevelopmentCandidateMode",
     "nextDevelopmentCandidatePriority",
     "nextDevelopmentCandidateSurface",
+    "nextDevelopmentCandidateArea",
+    "nextDevelopmentCandidateSourcePath",
     "nextDevelopmentCandidateSuggestedVerification",
+    "nextDevelopmentCandidateWhy",
+    "nextDevelopmentCandidateMaxSlice",
     "nextDevelopmentCandidateReason",
   ];
   const missingGoalLoopEvidenceFields = goalLoopEvidenceFields.filter((field) => !goalLoop.includes(field));

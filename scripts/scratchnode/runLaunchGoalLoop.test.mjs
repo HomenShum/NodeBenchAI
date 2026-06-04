@@ -555,7 +555,11 @@ describe("summarizeDevelopmentCandidateEvidence", () => {
       mode: "safe-local-development",
       priority: "P1",
       surface: "automation",
+      area: "self-improvement loop",
+      sourcePath: "automation",
       suggestedVerification: ["npm run scratchnode:launch:goal", "git diff --check"],
+      why: "Keep future loops honest.",
+      maxSlice: "Tighten one detector.",
       selectionReason: "All gates are green.",
     });
 
@@ -565,7 +569,11 @@ describe("summarizeDevelopmentCandidateEvidence", () => {
       nextDevelopmentCandidateMode: "safe-local-development",
       nextDevelopmentCandidatePriority: "P1",
       nextDevelopmentCandidateSurface: "automation",
+      nextDevelopmentCandidateArea: "self-improvement loop",
+      nextDevelopmentCandidateSourcePath: "automation",
       nextDevelopmentCandidateSuggestedVerification: ["npm run scratchnode:launch:goal", "git diff --check"],
+      nextDevelopmentCandidateWhy: "Keep future loops honest.",
+      nextDevelopmentCandidateMaxSlice: "Tighten one detector.",
       nextDevelopmentCandidateReason: "All gates are green.",
     });
   });

@@ -662,7 +662,11 @@ export function summarizeDevelopmentCandidateEvidence(developmentCandidate) {
     nextDevelopmentCandidateMode: developmentCandidate?.mode ?? null,
     nextDevelopmentCandidatePriority: developmentCandidate?.priority ?? null,
     nextDevelopmentCandidateSurface: developmentCandidate?.surface ?? null,
+    nextDevelopmentCandidateArea: developmentCandidate?.area ?? null,
+    nextDevelopmentCandidateSourcePath: developmentCandidate?.sourcePath ?? null,
     nextDevelopmentCandidateSuggestedVerification: developmentCandidate?.suggestedVerification ?? [],
+    nextDevelopmentCandidateWhy: developmentCandidate?.why ?? null,
+    nextDevelopmentCandidateMaxSlice: developmentCandidate?.maxSlice ?? null,
     nextDevelopmentCandidateReason: developmentCandidate?.selectionReason ?? null,
   };
 }
