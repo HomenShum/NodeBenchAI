@@ -339,25 +339,46 @@ export function selectDevelopmentCandidate(developmentBacklog, context = {}) {
 
   let selectionReason = "Selected the first ranked backlog item.";
   let selectionType = "backlog-default";
+  let actionability = "safe-local-slice";
+  let actionabilityReason = "Selected backlog item should be implemented as one locally verified slice.";
   if (candidate.id.startsWith("blocker-")) {
     selectionType = "launch-blocker";
     selectionReason = `Launch blockers present (${launchRelevantBlockerCount}); fix-first work outranks new development slices.`;
+    actionability = "local-fix-required";
+    actionabilityReason = "A launch blocker is present; the next pass should fix the blocker before new development.";
   } else if (candidate.id.startsWith("attention-")) {
     selectionType = "actionable-attention";
     selectionReason = `Actionable housekeeping items present (${actionableAttentionCount}); reliability cleanup outranks new development slices.`;
+    actionability = "local-fix-required";
+    actionabilityReason = "Actionable housekeeping attention is present; the next pass should clear that local reliability issue.";
   } else if (candidate.id.startsWith("drift-")) {
     selectionType = "git-drift";
     selectionReason = "Git drift is present; classify existing changes before starting a new autonomous slice.";
+    actionability = "local-fix-required";
+    actionabilityReason = "Git drift is present; classify or resolve it before starting new work.";
   } else if (candidate.id.startsWith("sync-")) {
     selectionType = "tracked-upstream-sync";
     selectionReason = "Tracked upstream is ahead of the local branch; sync before starting a new autonomous slice.";
+    actionability = "human-coordinated-sync";
+    actionabilityReason = "The tracked branch is behind upstream; sync requires a coordinated branch update before local slices continue.";
   } else if (candidate.id.startsWith("goal-")) {
     selectionType = "safe-local-goal";
     selectionReason = `Selected the highest-priority safe-local goal card from the queue (${safeLocalGoalCount} eligible).`;
+    actionability = "safe-local-slice";
+    actionabilityReason = "A safe-local goal card is eligible; implement one narrow verified slice.";
   } else if (candidate.id === "dev-goal-loop-instrumentation") {
     selectionType = "automation-fallback";
     selectionReason = "All gates are green and no safe-local goal cards are eligible, so the loop defaults to automation instrumentation.";
+    actionability = "opportunistic-automation";
+    actionabilityReason =
+      "Only the automation fallback is available; commit a slice only when a bounded instrumentation gap is found.";
   }
+
+  const quietPassEligible =
+    selectionType === "automation-fallback" &&
+    safeLocalGoalCount === 0 &&
+    actionableAttentionCount === 0 &&
+    launchRelevantBlockerCount === 0;
 
   return {
     id: candidate.id,
@@ -374,6 +395,10 @@ export function selectDevelopmentCandidate(developmentBacklog, context = {}) {
     eligibleSafeLocalGoalCount: safeLocalGoalCount,
     openGoalQueueCount,
     selectionReason,
+    actionability,
+    actionRequired: !quietPassEligible,
+    quietPassEligible,
+    actionabilityReason,
   };
 }
 
@@ -719,6 +744,10 @@ export function summarizeDevelopmentCandidateEvidence(developmentCandidate) {
     ),
     nextDevelopmentCandidateOpenGoalQueueCount: evidenceNumber(developmentCandidate?.openGoalQueueCount),
     nextDevelopmentCandidateReason: developmentCandidate?.selectionReason ?? null,
+    nextDevelopmentCandidateActionability: developmentCandidate?.actionability ?? null,
+    nextDevelopmentCandidateActionRequired: developmentCandidate?.actionRequired === true,
+    nextDevelopmentCandidateQuietPassEligible: developmentCandidate?.quietPassEligible === true,
+    nextDevelopmentCandidateActionabilityReason: developmentCandidate?.actionabilityReason ?? null,
   };
 }
 

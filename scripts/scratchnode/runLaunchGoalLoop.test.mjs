@@ -98,6 +98,12 @@ describe("selectDevelopmentCandidate", () => {
     expect(candidate?.selectionType).toBe("automation-fallback");
     expect(candidate?.eligibleSafeLocalGoalCount).toBe(0);
     expect(candidate?.openGoalQueueCount).toBe(1);
+    expect(candidate?.actionability).toBe("opportunistic-automation");
+    expect(candidate?.actionRequired).toBe(false);
+    expect(candidate?.quietPassEligible).toBe(true);
+    expect(candidate?.actionabilityReason).toBe(
+      "Only the automation fallback is available; commit a slice only when a bounded instrumentation gap is found.",
+    );
   });
 
   it("counts normalized proposed safe-local cards in goal-card selection reasons", () => {
@@ -129,6 +135,10 @@ describe("selectDevelopmentCandidate", () => {
     expect(candidate?.selectionType).toBe("safe-local-goal");
     expect(candidate?.eligibleSafeLocalGoalCount).toBe(1);
     expect(candidate?.openGoalQueueCount).toBe(1);
+    expect(candidate?.actionability).toBe("safe-local-slice");
+    expect(candidate?.actionRequired).toBe(true);
+    expect(candidate?.quietPassEligible).toBe(false);
+    expect(candidate?.actionabilityReason).toBe("A safe-local goal card is eligible; implement one narrow verified slice.");
   });
 
   it("prioritizes tracked-upstream sync ahead of new development slices", () => {
@@ -156,6 +166,12 @@ describe("selectDevelopmentCandidate", () => {
     expect(candidate?.selectionType).toBe("tracked-upstream-sync");
     expect(candidate?.eligibleSafeLocalGoalCount).toBe(0);
     expect(candidate?.openGoalQueueCount).toBe(0);
+    expect(candidate?.actionability).toBe("human-coordinated-sync");
+    expect(candidate?.actionRequired).toBe(true);
+    expect(candidate?.quietPassEligible).toBe(false);
+    expect(candidate?.actionabilityReason).toBe(
+      "The tracked branch is behind upstream; sync requires a coordinated branch update before local slices continue.",
+    );
   });
 });
 
@@ -660,6 +676,10 @@ describe("summarizeDevelopmentCandidateEvidence", () => {
       eligibleSafeLocalGoalCount: 0,
       openGoalQueueCount: 4,
       selectionReason: "All gates are green.",
+      actionability: "opportunistic-automation",
+      actionRequired: false,
+      quietPassEligible: true,
+      actionabilityReason: "Only the automation fallback is available.",
     });
 
     expect(summary).toEqual({
@@ -677,6 +697,10 @@ describe("summarizeDevelopmentCandidateEvidence", () => {
       nextDevelopmentCandidateEligibleSafeLocalGoalCount: 0,
       nextDevelopmentCandidateOpenGoalQueueCount: 4,
       nextDevelopmentCandidateReason: "All gates are green.",
+      nextDevelopmentCandidateActionability: "opportunistic-automation",
+      nextDevelopmentCandidateActionRequired: false,
+      nextDevelopmentCandidateQuietPassEligible: true,
+      nextDevelopmentCandidateActionabilityReason: "Only the automation fallback is available.",
     });
   });
 });
