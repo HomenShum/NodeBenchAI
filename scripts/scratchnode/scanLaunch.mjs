@@ -192,6 +192,7 @@ function scanStaticContracts() {
     "commandFailureCount",
     "commandExitCodes",
     "commandDurationTotalMs",
+    "failedCommandSummaries",
     "slowestCommand",
     "sourceReportCount",
     "sourceReportMaxAgeSeconds",

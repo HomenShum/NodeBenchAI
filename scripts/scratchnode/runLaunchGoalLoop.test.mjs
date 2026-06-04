@@ -116,7 +116,7 @@ describe("summarizeCommandEvidence", () => {
   it("summarizes command exits, failures, and timing", () => {
     const summary = summarizeCommandEvidence([
       { command: "fast", exitCode: 0, durationMs: 12 },
-      { command: "slow", exitCode: 1, durationMs: 39 },
+      { command: "slow", exitCode: 1, durationMs: 39, stdout: "stdout context", stderr: "stderr context" },
       { command: "invalid-duration", exitCode: 0, durationMs: "not-a-number" },
     ]);
 
@@ -128,6 +128,15 @@ describe("summarizeCommandEvidence", () => {
         "invalid-duration": 0,
       },
       commandDurationTotalMs: 51,
+      failedCommandSummaries: [
+        {
+          command: "slow",
+          exitCode: 1,
+          durationMs: 39,
+          stdoutTail: "stdout context",
+          stderrTail: "stderr context",
+        },
+      ],
       slowestCommand: {
         command: "slow",
         exitCode: 1,

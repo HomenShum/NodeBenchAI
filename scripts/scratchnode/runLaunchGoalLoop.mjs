@@ -336,16 +336,32 @@ export function summarizeCommandEvidence(commands) {
     command: command.command,
     exitCode: command.exitCode,
     durationMs: Math.max(0, Number(command.durationMs) || 0),
+    stdout: String(command.stdout ?? ""),
+    stderr: String(command.stderr ?? ""),
   }));
-  const slowestCommand = commandDurations.reduce((slowest, command) => {
+  const commandTimings = commandDurations.map(({ command, exitCode, durationMs }) => ({ command, exitCode, durationMs }));
+  const slowestCommand = commandTimings.reduce((slowest, command) => {
     if (!slowest || command.durationMs > slowest.durationMs) return command;
     return slowest;
   }, null);
+  const tailText = (value, maxLength = 600) => {
+    const text = String(value ?? "").trim();
+    return text.length > maxLength ? text.slice(-maxLength) : text;
+  };
 
   return {
-    commandFailureCount: commands.filter((command) => command.exitCode !== 0).length,
+    commandFailureCount: commandDurations.filter((command) => command.exitCode !== 0).length,
     commandExitCodes: Object.fromEntries(commands.map((command) => [command.command, command.exitCode])),
-    commandDurationTotalMs: commandDurations.reduce((total, command) => total + command.durationMs, 0),
+    commandDurationTotalMs: commandTimings.reduce((total, command) => total + command.durationMs, 0),
+    failedCommandSummaries: commandDurations
+      .filter((command) => command.exitCode !== 0)
+      .map((command) => ({
+        command: command.command,
+        exitCode: command.exitCode,
+        durationMs: command.durationMs,
+        stdoutTail: tailText(command.stdout),
+        stderrTail: tailText(command.stderr),
+      })),
     slowestCommand,
   };
 }
