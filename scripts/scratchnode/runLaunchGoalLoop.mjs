@@ -580,6 +580,13 @@ export function summarizeReportSchemaEvidence(schemaVersion) {
   };
 }
 
+export function summarizeReportMetadataEvidence({ generatedAt, reportPath }) {
+  return {
+    reportGeneratedAt: String(generatedAt ?? "").trim() || null,
+    reportPath: String(reportPath ?? "").trim() || null,
+  };
+}
+
 function countBy(items, getKey) {
   const counts = new Map();
   for (const item of items) {
@@ -770,9 +777,14 @@ async function main() {
       "The loop may edit local source, tests, scripts, and docs, but is read-only against production: it navigates, opens modals, copies safe controls, and inspects reports without sending chat, creating events, publishing wikis, deploying, pushing, or mutating live user data.",
   };
   const workflowEvidence = summarizeWorkflowModelEvidence(workflowModel);
+  const generatedAt = new Date().toISOString();
+  const reportMetadataEvidence = summarizeReportMetadataEvidence({
+    generatedAt,
+    reportPath: outPath,
+  });
   const report = {
     schemaVersion: reportSchemaVersion,
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     repo: repoRoot,
     goal: {
       id: "scratchnode-nodebench-development-goal-cron",
@@ -803,6 +815,7 @@ async function main() {
       ...gitBranchEvidence,
       ...gitHeadEvidence,
       ...reportSchemaEvidence,
+      ...reportMetadataEvidence,
       ...commandEvidence,
       ...sourceReportEvidence,
       ...housekeepingEvidence,

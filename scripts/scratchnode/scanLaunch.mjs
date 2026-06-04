@@ -176,6 +176,8 @@ function scanStaticContracts() {
   const goalLoopEvidenceFields = [
     "schemaVersion",
     "reportSchemaVersion",
+    "reportGeneratedAt",
+    "reportPath",
     "gitBranchStatus",
     "gitBranchName",
     "gitUpstreamName",

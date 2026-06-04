@@ -15,6 +15,7 @@ import {
   summarizeHousekeepingReportEvidence,
   summarizeLaunchReportEvidence,
   summarizeNotificationEvidence,
+  summarizeReportMetadataEvidence,
   summarizeReportSchemaEvidence,
   summarizeSourceReportEvidence,
   summarizeTmpIgnoreEvidence,
@@ -435,6 +436,20 @@ describe("summarizeReportSchemaEvidence", () => {
     });
     expect(summarizeReportSchemaEvidence("")).toEqual({
       reportSchemaVersion: null,
+    });
+  });
+});
+
+describe("summarizeReportMetadataEvidence", () => {
+  it("keeps report timestamp and path explicit", () => {
+    expect(
+      summarizeReportMetadataEvidence({
+        generatedAt: " 2026-06-04T03:08:00.000Z ",
+        reportPath: " .tmp/scratchnode-launch-goal-loop.json ",
+      }),
+    ).toEqual({
+      reportGeneratedAt: "2026-06-04T03:08:00.000Z",
+      reportPath: ".tmp/scratchnode-launch-goal-loop.json",
     });
   });
 });
