@@ -384,6 +384,46 @@ export function summarizeSourceReportEvidence(housekeepingReport) {
   };
 }
 
+function normalizeEvidencePath(value) {
+  return String(value ?? "").replaceAll("\\", "/").trim();
+}
+
+export function summarizeTmpIgnoreEvidence(ignoreCheck, expectedPaths = []) {
+  const lines = String(ignoreCheck?.stdout ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const entries = lines.map((line) => {
+    const tabIndex = line.lastIndexOf("\t");
+    if (tabIndex >= 0) {
+      return {
+        ruleSource: line.slice(0, tabIndex).trim(),
+        path: line.slice(tabIndex + 1).trim(),
+      };
+    }
+
+    const parts = line.split(/\s+/);
+    return {
+      ruleSource: "",
+      path: parts.at(-1) ?? "",
+    };
+  });
+  const ignoredPaths = entries.map((entry) => entry.path).filter(Boolean).sort();
+  const normalizedIgnoredPaths = new Set(ignoredPaths.map(normalizeEvidencePath));
+  const expectedReportPaths = expectedPaths.map((path) => String(path ?? "").trim()).filter(Boolean);
+
+  return {
+    tmpIgnoreProbePassed: ignoreCheck?.exitCode === 0,
+    tmpIgnoreProbeExpectedCount: expectedReportPaths.length,
+    tmpIgnoreProbeCount: ignoredPaths.length,
+    tmpIgnoreProbeMissingPaths: expectedReportPaths
+      .filter((path) => !normalizedIgnoredPaths.has(normalizeEvidencePath(path)))
+      .sort(),
+    tmpIgnoredReportPaths: ignoredPaths,
+    tmpIgnoreRuleSources: [...new Set(entries.map((entry) => entry.ruleSource).filter(Boolean))].sort(),
+  };
+}
+
 export function summarizeGitBranchEvidence(gitBranchStatus) {
   const firstLine = String(gitBranchStatus ?? "").split(/\r?\n/)[0]?.trim() ?? "";
   const match = firstLine.match(/^##\s+([^\s\[]+)(?:\s+\[([^\]]+)\])?/);
@@ -481,6 +521,7 @@ async function main() {
   const gitStatus = commands.find((command) => command.command === "git status --short")?.stdout.trim() ?? "";
   const gitBranchStatus = commands.find((command) => command.command === "git status --short --branch")?.stdout.trim() ?? "";
   const ignoreCheck = commands.find((command) => command.command.startsWith("git check-ignore"));
+  const tmpIgnoreEvidence = summarizeTmpIgnoreEvidence(ignoreCheck, Object.values(reportPaths));
   const actionableAttention = actionableAttentionItems(housekeepingReport);
   const launchRelevantBlockers = housekeepingReport?.operatorSummary?.launchRelevantBlockers ?? [];
   const knownCautions = knownCautionEntries(housekeepingReport);
@@ -521,7 +562,11 @@ async function main() {
       housekeepingReport?.summary?.sourceReportsMatch === true && housekeepingReport?.summary?.sourceReportsFresh === true,
     ),
     buildCriterion("git drift is clean after the loop", gitStatus.length === 0, gitStatus),
-    buildCriterion(".tmp loop reports are ignored", ignoreCheck?.exitCode === 0, ignoreCheck?.stdout.trim()),
+    buildCriterion(
+      ".tmp loop reports are ignored",
+      tmpIgnoreEvidence.tmpIgnoreProbePassed && tmpIgnoreEvidence.tmpIgnoreProbeMissingPaths.length === 0,
+      ignoreCheck?.stdout.trim(),
+    ),
     buildCriterion("no launch-relevant blockers remain", launchRelevantBlockers.length === 0, launchRelevantBlockers.join("; ")),
     buildCriterion("no actionable attention items remain", actionableAttention.length === 0, actionableAttention.join("; ")),
   ];
@@ -586,6 +631,7 @@ async function main() {
       ...gitBranchEvidence,
       ...commandEvidence,
       ...sourceReportEvidence,
+      ...tmpIgnoreEvidence,
       nextDevelopmentCandidate: developmentCandidate?.id ?? null,
       nextDevelopmentCandidateReason: developmentCandidate?.selectionReason ?? null,
     },

@@ -11,6 +11,7 @@ import {
   summarizeGitBranchEvidence,
   summarizeGoalQueueEvidence,
   summarizeSourceReportEvidence,
+  summarizeTmpIgnoreEvidence,
 } from "./runLaunchGoalLoop.mjs";
 
 describe("classifyGoalCardMode", () => {
@@ -161,6 +162,33 @@ describe("summarizeSourceReportEvidence", () => {
       sourceReportMaxAgeSeconds: 8.25,
       staleSourceReportCount: 2,
       staleSourceReportPaths: [".tmp/augment-upload-scope.json", ".tmp/local-history-map-reduce.json"],
+    });
+  });
+});
+
+describe("summarizeTmpIgnoreEvidence", () => {
+  it("summarizes ignored report paths and missing expected probes", () => {
+    const summary = summarizeTmpIgnoreEvidence(
+      {
+        exitCode: 0,
+        stdout:
+          ".gitignore:186:*.tmp\t.tmp/workspace-housekeeping-verification.json\n" +
+          ".gitignore:186:*.tmp\t.tmp/scratchnode-launch-scan.json\n",
+      },
+      [
+        ".tmp/workspace-housekeeping-verification.json",
+        ".tmp/scratchnode-launch-scan.json",
+        ".tmp/scratchnode-launch-goal-loop.json",
+      ],
+    );
+
+    expect(summary).toEqual({
+      tmpIgnoreProbePassed: true,
+      tmpIgnoreProbeExpectedCount: 3,
+      tmpIgnoreProbeCount: 2,
+      tmpIgnoreProbeMissingPaths: [".tmp/scratchnode-launch-goal-loop.json"],
+      tmpIgnoredReportPaths: [".tmp/scratchnode-launch-scan.json", ".tmp/workspace-housekeeping-verification.json"],
+      tmpIgnoreRuleSources: [".gitignore:186:*.tmp"],
     });
   });
 });
