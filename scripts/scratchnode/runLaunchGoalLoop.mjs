@@ -384,6 +384,21 @@ export function summarizeGitBranchEvidence(gitBranchStatus) {
   };
 }
 
+export function summarizeCriteriaEvidence(criteria) {
+  const failedCriterionDetails = criteria
+    .filter((criterion) => !criterion.ok)
+    .map((criterion) => ({
+      name: criterion.name,
+      detail: criterion.detail ?? "",
+    }));
+
+  return {
+    criterionCount: criteria.length,
+    failedCriterionCount: failedCriterionDetails.length,
+    failedCriterionDetails,
+  };
+}
+
 async function main() {
   const commands = [];
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
@@ -459,6 +474,7 @@ async function main() {
   const commandEvidence = summarizeCommandEvidence(commands);
   const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
+  const criteriaEvidence = summarizeCriteriaEvidence(criteria);
   const report = {
     generatedAt: new Date().toISOString(),
     repo: repoRoot,
@@ -496,6 +512,7 @@ async function main() {
       passed,
       notifyRecommended: !passed,
       failures: criteria.filter((criterion) => !criterion.ok).map((criterion) => criterion.name),
+      ...criteriaEvidence,
       knownCautionCount: knownCautions.length,
       actionableAttentionCount: actionableAttention.length,
       launchRelevantBlockerCount: launchRelevantBlockers.length,

@@ -4,6 +4,7 @@ import {
   classifyGoalCardMode,
   selectDevelopmentCandidate,
   summarizeCommandEvidence,
+  summarizeCriteriaEvidence,
   summarizeGitBranchEvidence,
   summarizeSourceReportEvidence,
 } from "./runLaunchGoalLoop.mjs";
@@ -141,6 +142,25 @@ describe("summarizeGitBranchEvidence", () => {
       gitTrackingKnown: false,
       gitAheadCount: 0,
       gitBehindCount: 0,
+    });
+  });
+});
+
+describe("summarizeCriteriaEvidence", () => {
+  it("keeps failed criterion names and details in summary form", () => {
+    const summary = summarizeCriteriaEvidence([
+      { name: "housekeeping command passes", ok: true, detail: "ok" },
+      { name: "git drift is clean after the loop", ok: false, detail: "M scripts/example.js" },
+      { name: "no actionable attention items remain", ok: false },
+    ]);
+
+    expect(summary).toEqual({
+      criterionCount: 3,
+      failedCriterionCount: 2,
+      failedCriterionDetails: [
+        { name: "git drift is clean after the loop", detail: "M scripts/example.js" },
+        { name: "no actionable attention items remain", detail: "" },
+      ],
     });
   });
 });
