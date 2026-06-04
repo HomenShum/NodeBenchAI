@@ -248,6 +248,8 @@ describe("summarizeHousekeepingReportEvidence", () => {
       summary: {
         candidateFiles: 6198,
         threshold: "250000",
+        criticalIgnoreProbesPassed: true,
+        untrackedIncluded: "7",
         finalSafe: 1,
         finalCaution: 2,
         finalKeep: 3,
@@ -270,6 +272,8 @@ describe("summarizeHousekeepingReportEvidence", () => {
       augmentReportPassed: true,
       augmentCandidateFileCount: 6198,
       augmentThreshold: 250000,
+      housekeepingCriticalIgnoreProbesPassed: true,
+      housekeepingUntrackedIncludedCount: 7,
       safeLocalHistoryCleanupCount: 1,
       cautionWorktreeCount: 2,
       keptWorktreeCount: 3,

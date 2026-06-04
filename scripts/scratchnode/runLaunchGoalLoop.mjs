@@ -457,6 +457,8 @@ export function summarizeHousekeepingReportEvidence(housekeepingReport) {
     augmentReportPassed: housekeepingReport?.augmentReportPassed === true,
     augmentCandidateFileCount: evidenceNumber(summary.candidateFiles),
     augmentThreshold: evidenceNumber(summary.threshold),
+    housekeepingCriticalIgnoreProbesPassed: summary.criticalIgnoreProbesPassed === true,
+    housekeepingUntrackedIncludedCount: evidenceNumber(summary.untrackedIncluded),
     safeLocalHistoryCleanupCount: evidenceNumber(summary.finalSafe),
     cautionWorktreeCount: evidenceNumber(summary.finalCaution),
     keptWorktreeCount: evidenceNumber(summary.finalKeep),

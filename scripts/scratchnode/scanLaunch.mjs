@@ -235,6 +235,8 @@ function scanStaticContracts() {
     "augmentReportPassed",
     "augmentCandidateFileCount",
     "augmentThreshold",
+    "housekeepingCriticalIgnoreProbesPassed",
+    "housekeepingUntrackedIncludedCount",
     "safeLocalHistoryCleanupCount",
     "cautionWorktreeCount",
     "keptWorktreeCount",
