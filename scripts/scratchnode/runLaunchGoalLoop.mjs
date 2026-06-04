@@ -716,6 +716,24 @@ export function summarizeKnownCautionEvidence(knownCautions) {
   };
 }
 
+export function summarizeKnownCautionSuppressionEvidence({ housekeepingReport, knownCautions, actionableAttention }) {
+  const attentionItems = Array.isArray(housekeepingReport?.operatorSummary?.attentionItems)
+    ? housekeepingReport.operatorSummary.attentionItems.filter(Boolean)
+    : [];
+  const knownCautionCount = Array.isArray(knownCautions) ? knownCautions.filter(Boolean).length : 0;
+  const actionableAttentionCount = Array.isArray(actionableAttention) ? actionableAttention.filter(Boolean).length : 0;
+  const suppressedAttentionCount = Math.max(0, attentionItems.length - actionableAttentionCount);
+
+  return {
+    knownCautionSuppressesHousekeepingNotify:
+      housekeepingReport?.operatorSummary?.notifyRecommended === true &&
+      knownCautionCount > 0 &&
+      actionableAttentionCount === 0 &&
+      suppressedAttentionCount > 0,
+    knownCautionSuppressedAttentionCount: suppressedAttentionCount,
+  };
+}
+
 export function summarizeVerificationEntryPointEvidence(verificationCommands, packageJson) {
   const commands = Array.isArray(verificationCommands)
     ? verificationCommands.map((command) => String(command ?? "").trim()).filter(Boolean)
@@ -907,6 +925,11 @@ async function main() {
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);
   const knownCautionEvidence = summarizeKnownCautionEvidence(knownCautions);
+  const knownCautionSuppressionEvidence = summarizeKnownCautionSuppressionEvidence({
+    housekeepingReport,
+    knownCautions,
+    actionableAttention,
+  });
   const candidateVerificationEvidence = summarizeVerificationEntryPointEvidence(
     developmentCandidate?.suggestedVerification,
     packageJson,
@@ -964,6 +987,7 @@ async function main() {
       ...goalQueueEvidence,
       knownCautionCount: knownCautions.length,
       ...knownCautionEvidence,
+      ...knownCautionSuppressionEvidence,
       actionableAttentionCount: actionableAttention.length,
       launchRelevantBlockerCount: launchRelevantBlockers.length,
       queuedGoalCount: goalQueue.filter((goal) => isOpenGoalStatus(goal.status)).length,

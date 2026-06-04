@@ -16,6 +16,7 @@ import {
   summarizeGoalQueueEvidence,
   summarizeHousekeepingReportEvidence,
   summarizeKnownCautionEvidence,
+  summarizeKnownCautionSuppressionEvidence,
   summarizeLaunchReportEvidence,
   summarizeNotificationEvidence,
   summarizeReportMetadataEvidence,
@@ -679,6 +680,42 @@ describe("summarizeKnownCautionEvidence", () => {
       ],
       invalidRegisteredWorktreePaths: [".worktrees/p0-row-delta"],
       explicitPruneCautionWorktreePaths: [".worktrees/keep-clean"],
+    });
+  });
+});
+
+describe("summarizeKnownCautionSuppressionEvidence", () => {
+  it("explains when a housekeeping notification is suppressed by known cautions", () => {
+    expect(
+      summarizeKnownCautionSuppressionEvidence({
+        housekeepingReport: {
+          operatorSummary: {
+            notifyRecommended: true,
+            attentionItems: ["caution worktrees present: 1"],
+          },
+        },
+        knownCautions: [{ path: ".worktrees/keep-clean" }],
+        actionableAttention: [],
+      }),
+    ).toEqual({
+      knownCautionSuppressesHousekeepingNotify: true,
+      knownCautionSuppressedAttentionCount: 1,
+    });
+
+    expect(
+      summarizeKnownCautionSuppressionEvidence({
+        housekeepingReport: {
+          operatorSummary: {
+            notifyRecommended: true,
+            attentionItems: ["caution worktrees present: 1", "non-housekeeping drift is present"],
+          },
+        },
+        knownCautions: [{ path: ".worktrees/keep-clean" }],
+        actionableAttention: ["non-housekeeping drift is present"],
+      }),
+    ).toEqual({
+      knownCautionSuppressesHousekeepingNotify: false,
+      knownCautionSuppressedAttentionCount: 1,
     });
   });
 });
