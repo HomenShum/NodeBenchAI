@@ -4,6 +4,10 @@
 import { internalMutation, internalQuery } from "../_generated/server";
 import { v } from "convex/values";
 import { Doc } from "../_generated/dataModel";
+import {
+  SPREADSHEET_OPERATION_TYPES,
+  isSpreadsheetOperationType,
+} from "./spreadsheetOperationTypes";
 
 /**
  * Get a spreadsheet by ID
@@ -49,9 +53,21 @@ export const storeSpreadsheetEvent = internalMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
 
-    // Determine the primary operation type from the first operation
-    const firstOp = args.operations[0];
-    const operationType = firstOp?.type || "unknown";
+    // Determine the primary operation type from the first operation, then HARD-VALIDATE it
+    // against the schema union before it can be inserted. Previously this fell back to
+    // "unknown" — a value NOT in spreadsheetEvents.operation — so any op missing a `.type`
+    // would have written a document that fails `convex deploy` schema validation and aborts
+    // ALL prod deploys (the 2026-06-03 row_delta incident class). Reject out-of-union values
+    // at the boundary so a bad value can never reach the table.
+    const firstOp = Array.isArray(args.operations) ? args.operations[0] : undefined;
+    const operationType = firstOp?.type;
+    if (!isSpreadsheetOperationType(operationType)) {
+      throw new Error(
+        `[storeSpreadsheetEvent] operation type ${JSON.stringify(operationType)} is not a known ` +
+          `spreadsheetEvents.operation (${SPREADSHEET_OPERATION_TYPES.join(", ")}). Refusing to ` +
+          `insert an out-of-schema value — it would break the production Convex deploy.`,
+      );
+    }
 
     // Build the event payload
     const eventData: any = {
