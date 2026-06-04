@@ -345,6 +345,38 @@ function scanStaticContracts() {
     });
   }
 
+  const housekeepingRunbook = readText(files.housekeepingRunbook);
+  const timeoutRunbookEvidence = [
+    { label: "scratchnode:launch:goal", pattern: /scratchnode:launch:goal/ },
+    { label: "240 second timeout", pattern: /240 second/i },
+    { label: "slow command summaries", pattern: /slowCommandSummaries/ },
+    { label: "housekeeping check isolation", pattern: /repo:housekeeping:check/ },
+  ];
+  const missingTimeoutRunbookEvidence = timeoutRunbookEvidence
+    .filter((item) => !item.pattern.test(housekeepingRunbook))
+    .map((item) => item.label);
+  const timeoutRunbookOk = missingTimeoutRunbookEvidence.length === 0;
+  addStaticCheck({
+    ok: timeoutRunbookOk,
+    name: "housekeeping runbook documents goal-loop timeout budget",
+    plane: "goal-automation",
+    detail: timeoutRunbookOk
+      ? timeoutRunbookEvidence.map((item) => item.label).join(",")
+      : `missing evidence=${missingTimeoutRunbookEvidence.join(",")}`,
+  });
+  if (!timeoutRunbookOk) {
+    addFinding({
+      severity: "blocker",
+      safety: "auto",
+      plane: "goal-automation",
+      title: "Housekeeping runbook is missing goal-loop timeout guidance",
+      path: files.housekeepingRunbook,
+      detail: `missing evidence=${missingTimeoutRunbookEvidence.join(",")}`,
+      recommendation:
+        "Restore the operator note that healthy launch-goal runs can exceed short shell timeouts and should use the slow-command report fields for diagnosis.",
+    });
+  }
+
   const routeHonestySpec = readText(files.routeHonestySpec);
   const missingBoundaryGateIds = requiredBoundaryGateIds.filter((gateId) => !routeHonestySpec.includes(gateId));
   const missingBoundaryEvidence = requiredBoundaryEvidence
