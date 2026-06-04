@@ -530,7 +530,7 @@ describe("summarizeHousekeepingReportEvidence", () => {
 });
 
 describe("summarizeLaunchReportEvidence", () => {
-  it("summarizes launch pass flags, check counts, and failures", () => {
+  it("summarizes launch pass flags, check counts, and actionable vs raw failures", () => {
     const summary = summarizeLaunchReportEvidence({
       summary: {
         passed: true,
@@ -577,8 +577,18 @@ describe("summarizeLaunchReportEvidence", () => {
       launchStaticCheckNames: ["home-v5 contains share modal", "goal loop reports branch and command evidence"],
       launchLiveCheckNames: ["scratchnode.live apex raw HTML", "optional remote probe"],
       launchInteractiveCheckNames: ["scratchnode apex interactive landing"],
-      launchFailedCheckNames: ["goal loop reports branch and command evidence", "scratchnode.live apex raw HTML"],
+      launchFailedCheckNames: ["goal loop reports branch and command evidence"],
       launchFailedCheckDetails: [
+        {
+          name: "goal loop reports branch and command evidence",
+          url: null,
+          detail: "field missing",
+          durationMs: null,
+        },
+      ],
+      launchRawFailedCheckCount: 2,
+      launchRawFailedCheckNames: ["goal loop reports branch and command evidence", "scratchnode.live apex raw HTML"],
+      launchRawFailedCheckDetails: [
         {
           name: "goal loop reports branch and command evidence",
           url: null,
@@ -592,6 +602,8 @@ describe("summarizeLaunchReportEvidence", () => {
           durationMs: 1234,
         },
       ],
+      launchSuppressedRemoteProbeFailureCount: 1,
+      launchSuppressedRemoteProbeFailureNames: ["scratchnode.live apex raw HTML"],
     });
   });
 });

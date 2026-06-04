@@ -662,9 +662,17 @@ export function summarizeLaunchReportEvidence(launchReport) {
   const staticChecks = Array.isArray(launchReport?.staticChecks) ? launchReport.staticChecks : [];
   const liveChecks = Array.isArray(launchReport?.liveChecks) ? launchReport.liveChecks : [];
   const interactiveChecks = Array.isArray(launchReport?.interactiveChecks) ? launchReport.interactiveChecks : [];
-  const failedChecks = [...staticChecks, ...liveChecks, ...interactiveChecks].filter(
-    (check) => check?.ok !== true && check?.optional !== true,
-  );
+  const failedStaticChecks = staticChecks.filter((check) => check?.ok !== true && check?.optional !== true);
+  const failedLiveChecks = liveChecks.filter((check) => check?.ok !== true && check?.optional !== true);
+  const failedInteractiveChecks = interactiveChecks.filter((check) => check?.ok !== true && check?.optional !== true);
+  const rawFailedChecks = [...failedStaticChecks, ...failedLiveChecks, ...failedInteractiveChecks];
+  const remoteProbeSuppressed = summary.remoteProbeInfra?.networkAccessDenied === true;
+  const effectiveFailedChecks = remoteProbeSuppressed
+    ? [...failedStaticChecks]
+    : [...failedStaticChecks, ...failedLiveChecks, ...failedInteractiveChecks];
+  const suppressedRemoteProbeFailures = remoteProbeSuppressed
+    ? [...failedLiveChecks, ...failedInteractiveChecks]
+    : [];
   const checkNames = (checks) => checks.map((check) => check?.name).filter(Boolean);
   const checkDetails = (checks) =>
     checks.map((check) => ({
@@ -687,12 +695,17 @@ export function summarizeLaunchReportEvidence(launchReport) {
     launchWarningCount: evidenceNumber(summary.warnings),
     launchLiveFailureCount: evidenceNumber(summary.liveFailures),
     launchInteractiveFailureCount: evidenceNumber(summary.interactiveFailures),
-    launchRemoteProbeNetworkAccessDenied: summary.remoteProbeInfra?.networkAccessDenied === true,
+    launchRemoteProbeNetworkAccessDenied: remoteProbeSuppressed,
     launchStaticCheckNames: checkNames(staticChecks),
     launchLiveCheckNames: checkNames(liveChecks),
     launchInteractiveCheckNames: checkNames(interactiveChecks),
-    launchFailedCheckNames: checkNames(failedChecks),
-    launchFailedCheckDetails: checkDetails(failedChecks),
+    launchFailedCheckNames: checkNames(effectiveFailedChecks),
+    launchFailedCheckDetails: checkDetails(effectiveFailedChecks),
+    launchRawFailedCheckCount: rawFailedChecks.length,
+    launchRawFailedCheckNames: checkNames(rawFailedChecks),
+    launchRawFailedCheckDetails: checkDetails(rawFailedChecks),
+    launchSuppressedRemoteProbeFailureCount: suppressedRemoteProbeFailures.length,
+    launchSuppressedRemoteProbeFailureNames: checkNames(suppressedRemoteProbeFailures),
   };
 }
 
