@@ -282,6 +282,15 @@ describe("summarizeLaunchReportEvidence", () => {
           networkAccessDenied: true,
         },
       },
+      staticChecks: [
+        { ok: true, name: "home-v5 contains share modal" },
+        { ok: false, name: "goal loop reports branch and command evidence" },
+      ],
+      liveChecks: [
+        { ok: false, name: "scratchnode.live apex raw HTML" },
+        { ok: false, optional: true, name: "optional remote probe" },
+      ],
+      interactiveChecks: [{ ok: true, name: "scratchnode apex interactive landing" }],
     });
 
     expect(summary).toEqual({
@@ -298,6 +307,10 @@ describe("summarizeLaunchReportEvidence", () => {
       launchLiveFailureCount: 1,
       launchInteractiveFailureCount: 0,
       launchRemoteProbeNetworkAccessDenied: true,
+      launchStaticCheckNames: ["home-v5 contains share modal", "goal loop reports branch and command evidence"],
+      launchLiveCheckNames: ["scratchnode.live apex raw HTML", "optional remote probe"],
+      launchInteractiveCheckNames: ["scratchnode apex interactive landing"],
+      launchFailedCheckNames: ["goal loop reports branch and command evidence", "scratchnode.live apex raw HTML"],
     });
   });
 });

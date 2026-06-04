@@ -453,6 +453,14 @@ export function summarizeHousekeepingReportEvidence(housekeepingReport) {
 
 export function summarizeLaunchReportEvidence(launchReport) {
   const summary = launchReport?.summary ?? {};
+  const staticChecks = Array.isArray(launchReport?.staticChecks) ? launchReport.staticChecks : [];
+  const liveChecks = Array.isArray(launchReport?.liveChecks) ? launchReport.liveChecks : [];
+  const interactiveChecks = Array.isArray(launchReport?.interactiveChecks) ? launchReport.interactiveChecks : [];
+  const failedChecks = [...staticChecks, ...liveChecks, ...interactiveChecks].filter(
+    (check) => check?.ok !== true && check?.optional !== true,
+  );
+  const checkNames = (checks) => checks.map((check) => check?.name).filter(Boolean);
+
   return {
     launchPassed: summary.passed === true,
     launchStaticPassed: summary.staticPassed === true,
@@ -467,6 +475,10 @@ export function summarizeLaunchReportEvidence(launchReport) {
     launchLiveFailureCount: evidenceNumber(summary.liveFailures),
     launchInteractiveFailureCount: evidenceNumber(summary.interactiveFailures),
     launchRemoteProbeNetworkAccessDenied: summary.remoteProbeInfra?.networkAccessDenied === true,
+    launchStaticCheckNames: checkNames(staticChecks),
+    launchLiveCheckNames: checkNames(liveChecks),
+    launchInteractiveCheckNames: checkNames(interactiveChecks),
+    launchFailedCheckNames: checkNames(failedChecks),
   };
 }
 
