@@ -936,6 +936,12 @@ describe("summarizeKnownCautionEvidence", () => {
       ],
       invalidRegisteredWorktreePaths: [".worktrees/p0-row-delta"],
       explicitPruneCautionWorktreePaths: [".worktrees/keep-clean"],
+      explicitPruneCautionWorktreePathReasons: [
+        {
+          path: ".worktrees/keep-clean",
+          reason: "clean registered worktree; explicit prune only",
+        },
+      ],
     });
   });
 });

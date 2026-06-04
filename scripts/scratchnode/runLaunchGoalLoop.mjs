@@ -890,9 +890,9 @@ export function summarizeKnownCautionEvidence(knownCautions) {
     path: entry?.path ?? "unknown",
     reason: entry?.reason ?? "",
   }));
+  const entriesMatchingReason = (pattern) => cautionPathReasons.filter((entry) => pattern.test(entry.reason));
   const pathsMatchingReason = (pattern) =>
-    cautionPathReasons
-      .filter((entry) => pattern.test(entry.reason))
+    entriesMatchingReason(pattern)
       .map((entry) => entry.path)
       .filter(Boolean)
       .sort();
@@ -902,6 +902,7 @@ export function summarizeKnownCautionEvidence(knownCautions) {
     knownCautionPathReasons: cautionPathReasons,
     invalidRegisteredWorktreePaths: pathsMatchingReason(/invalid registered worktree/i),
     explicitPruneCautionWorktreePaths: pathsMatchingReason(/explicit prune only/i),
+    explicitPruneCautionWorktreePathReasons: entriesMatchingReason(/explicit prune only/i),
   };
 }
 
