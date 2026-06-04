@@ -25,6 +25,12 @@ npm run repo:housekeeping
 npm run repo:housekeeping:verify
 ```
 
+Goal-loop consumers:
+
+`npm run scratchnode:launch:goal` runs this housekeeping check, the ScratchNode launch probes, and git evidence collection. A healthy pass can take a little over 100 seconds when housekeeping scans the full workspace, so heartbeat and automation wrappers should allow at least a 240 second command timeout before treating the run as hung.
+
+If the goal loop is slow but passes, inspect `summary.slowCommandSummaries`, `summary.slowestCommand`, and `summary.commandDurationMsByName` in `.tmp/scratchnode-launch-goal-loop.json`. `npm run repo:housekeeping:check` is the usual slow command; if it exceeds the budget, isolate with the component commands above before changing product code.
+
 Optional bounded diagnostic:
 
 ```powershell
