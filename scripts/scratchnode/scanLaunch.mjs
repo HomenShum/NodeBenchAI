@@ -321,6 +321,9 @@ function scanStaticContracts() {
     "nextDevelopmentCandidateVerificationUnsupportedCommands",
     "nextDevelopmentCandidateWhy",
     "nextDevelopmentCandidateMaxSlice",
+    "nextDevelopmentCandidateSelectionType",
+    "nextDevelopmentCandidateEligibleSafeLocalGoalCount",
+    "nextDevelopmentCandidateOpenGoalQueueCount",
     "nextDevelopmentCandidateReason",
   ];
   const missingGoalLoopEvidenceFields = goalLoopEvidenceFields.filter((field) => !goalLoop.includes(field));

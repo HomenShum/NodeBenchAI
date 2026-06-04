@@ -95,6 +95,9 @@ describe("selectDevelopmentCandidate", () => {
     expect(candidate?.selectionReason).toBe(
       "All gates are green and no safe-local goal cards are eligible, so the loop defaults to automation instrumentation.",
     );
+    expect(candidate?.selectionType).toBe("automation-fallback");
+    expect(candidate?.eligibleSafeLocalGoalCount).toBe(0);
+    expect(candidate?.openGoalQueueCount).toBe(1);
   });
 
   it("counts normalized proposed safe-local cards in goal-card selection reasons", () => {
@@ -123,6 +126,9 @@ describe("selectDevelopmentCandidate", () => {
     );
 
     expect(candidate?.selectionReason).toBe("Selected the highest-priority safe-local goal card from the queue (1 eligible).");
+    expect(candidate?.selectionType).toBe("safe-local-goal");
+    expect(candidate?.eligibleSafeLocalGoalCount).toBe(1);
+    expect(candidate?.openGoalQueueCount).toBe(1);
   });
 
   it("prioritizes tracked-upstream sync ahead of new development slices", () => {
@@ -147,6 +153,9 @@ describe("selectDevelopmentCandidate", () => {
     expect(candidate?.selectionReason).toBe(
       "Tracked upstream is ahead of the local branch; sync before starting a new autonomous slice.",
     );
+    expect(candidate?.selectionType).toBe("tracked-upstream-sync");
+    expect(candidate?.eligibleSafeLocalGoalCount).toBe(0);
+    expect(candidate?.openGoalQueueCount).toBe(0);
   });
 });
 
@@ -647,6 +656,9 @@ describe("summarizeDevelopmentCandidateEvidence", () => {
       suggestedVerification: ["npm run scratchnode:launch:goal", "git diff --check"],
       why: "Keep future loops honest.",
       maxSlice: "Tighten one detector.",
+      selectionType: "automation-fallback",
+      eligibleSafeLocalGoalCount: 0,
+      openGoalQueueCount: 4,
       selectionReason: "All gates are green.",
     });
 
@@ -661,6 +673,9 @@ describe("summarizeDevelopmentCandidateEvidence", () => {
       nextDevelopmentCandidateSuggestedVerification: ["npm run scratchnode:launch:goal", "git diff --check"],
       nextDevelopmentCandidateWhy: "Keep future loops honest.",
       nextDevelopmentCandidateMaxSlice: "Tighten one detector.",
+      nextDevelopmentCandidateSelectionType: "automation-fallback",
+      nextDevelopmentCandidateEligibleSafeLocalGoalCount: 0,
+      nextDevelopmentCandidateOpenGoalQueueCount: 4,
       nextDevelopmentCandidateReason: "All gates are green.",
     });
   });

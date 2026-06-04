@@ -332,22 +332,30 @@ export function selectDevelopmentCandidate(developmentBacklog, context = {}) {
 
   const launchRelevantBlockerCount = context.launchRelevantBlockers?.length ?? 0;
   const actionableAttentionCount = context.actionableAttention?.length ?? 0;
+  const openGoalQueueCount = context.goalQueue?.filter((goal) => isOpenGoalStatus(goal.status)).length ?? 0;
   const safeLocalGoalCount = context.goalQueue?.filter(
     (goal) => isOpenGoalStatus(goal.status) && goal.mode === "safe-local-development",
   ).length ?? 0;
 
   let selectionReason = "Selected the first ranked backlog item.";
+  let selectionType = "backlog-default";
   if (candidate.id.startsWith("blocker-")) {
+    selectionType = "launch-blocker";
     selectionReason = `Launch blockers present (${launchRelevantBlockerCount}); fix-first work outranks new development slices.`;
   } else if (candidate.id.startsWith("attention-")) {
+    selectionType = "actionable-attention";
     selectionReason = `Actionable housekeeping items present (${actionableAttentionCount}); reliability cleanup outranks new development slices.`;
   } else if (candidate.id.startsWith("drift-")) {
+    selectionType = "git-drift";
     selectionReason = "Git drift is present; classify existing changes before starting a new autonomous slice.";
   } else if (candidate.id.startsWith("sync-")) {
+    selectionType = "tracked-upstream-sync";
     selectionReason = "Tracked upstream is ahead of the local branch; sync before starting a new autonomous slice.";
   } else if (candidate.id.startsWith("goal-")) {
+    selectionType = "safe-local-goal";
     selectionReason = `Selected the highest-priority safe-local goal card from the queue (${safeLocalGoalCount} eligible).`;
   } else if (candidate.id === "dev-goal-loop-instrumentation") {
+    selectionType = "automation-fallback";
     selectionReason = "All gates are green and no safe-local goal cards are eligible, so the loop defaults to automation instrumentation.";
   }
 
@@ -362,6 +370,9 @@ export function selectDevelopmentCandidate(developmentBacklog, context = {}) {
     suggestedVerification: candidate.suggestedVerification ?? [],
     why: candidate.why,
     maxSlice: candidate.maxSlice,
+    selectionType,
+    eligibleSafeLocalGoalCount: safeLocalGoalCount,
+    openGoalQueueCount,
     selectionReason,
   };
 }
@@ -702,6 +713,11 @@ export function summarizeDevelopmentCandidateEvidence(developmentCandidate) {
     nextDevelopmentCandidateSuggestedVerification: developmentCandidate?.suggestedVerification ?? [],
     nextDevelopmentCandidateWhy: developmentCandidate?.why ?? null,
     nextDevelopmentCandidateMaxSlice: developmentCandidate?.maxSlice ?? null,
+    nextDevelopmentCandidateSelectionType: developmentCandidate?.selectionType ?? null,
+    nextDevelopmentCandidateEligibleSafeLocalGoalCount: evidenceNumber(
+      developmentCandidate?.eligibleSafeLocalGoalCount,
+    ),
+    nextDevelopmentCandidateOpenGoalQueueCount: evidenceNumber(developmentCandidate?.openGoalQueueCount),
     nextDevelopmentCandidateReason: developmentCandidate?.selectionReason ?? null,
   };
 }
