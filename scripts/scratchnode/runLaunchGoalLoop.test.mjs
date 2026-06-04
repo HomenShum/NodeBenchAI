@@ -234,6 +234,8 @@ describe("summarizeHousekeepingReportEvidence", () => {
       operatorSummary: {
         notifyRecommended: false,
       },
+      failures: ["protectedPathsClean must be true"],
+      warnings: ["caution worktree preserved"],
       summary: {
         candidateFiles: 6198,
         threshold: "250000",
@@ -252,6 +254,10 @@ describe("summarizeHousekeepingReportEvidence", () => {
     expect(summary).toEqual({
       housekeepingPassed: true,
       housekeepingNotifyRecommended: false,
+      housekeepingFailureCount: 1,
+      housekeepingFailures: ["protectedPathsClean must be true"],
+      housekeepingWarningCount: 1,
+      housekeepingWarnings: ["caution worktree preserved"],
       augmentReportPassed: true,
       augmentCandidateFileCount: 6198,
       augmentThreshold: 250000,

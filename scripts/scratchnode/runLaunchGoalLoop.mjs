@@ -436,9 +436,15 @@ function evidenceNumber(value) {
 
 export function summarizeHousekeepingReportEvidence(housekeepingReport) {
   const summary = housekeepingReport?.summary ?? {};
+  const failures = Array.isArray(housekeepingReport?.failures) ? housekeepingReport.failures.filter(Boolean) : [];
+  const warnings = Array.isArray(housekeepingReport?.warnings) ? housekeepingReport.warnings.filter(Boolean) : [];
   return {
     housekeepingPassed: housekeepingReport?.passed === true,
     housekeepingNotifyRecommended: housekeepingReport?.operatorSummary?.notifyRecommended === true,
+    housekeepingFailureCount: failures.length,
+    housekeepingFailures: failures,
+    housekeepingWarningCount: warnings.length,
+    housekeepingWarnings: warnings,
     augmentReportPassed: housekeepingReport?.augmentReportPassed === true,
     augmentCandidateFileCount: evidenceNumber(summary.candidateFiles),
     augmentThreshold: evidenceNumber(summary.threshold),
