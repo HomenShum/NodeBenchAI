@@ -611,9 +611,12 @@ import type * as domains_founder_sharedContextOps from "../domains/founder/share
 import type * as domains_governance_provenanceExplainer from "../domains/governance/provenanceExplainer.js";
 import type * as domains_governance_quarantine from "../domains/governance/quarantine.js";
 import type * as domains_governance_trustPolicy from "../domains/governance/trustPolicy.js";
+import type * as domains_graph_applyGraphPatch from "../domains/graph/applyGraphPatch.js";
 import type * as domains_graph_autoExtractMentions from "../domains/graph/autoExtractMentions.js";
 import type * as domains_graph_backlinkQueries from "../domains/graph/backlinkQueries.js";
+import type * as domains_graph_expandEntity from "../domains/graph/expandEntity.js";
 import type * as domains_graph_expansionQueries from "../domains/graph/expansionQueries.js";
+import type * as domains_graph_index from "../domains/graph/index.js";
 import type * as domains_groundTruth_auditLog from "../domains/groundTruth/auditLog.js";
 import type * as domains_groundTruth_versions from "../domains/groundTruth/versions.js";
 import type * as domains_hitl_adjudicationWorkflow from "../domains/hitl/adjudicationWorkflow.js";
@@ -977,6 +980,7 @@ import type * as domains_product_pipelineRetryDispatcher from "../domains/produc
 import type * as domains_product_publicShares from "../domains/product/publicShares.js";
 import type * as domains_product_pulseReports from "../domains/product/pulseReports.js";
 import type * as domains_product_reports from "../domains/product/reports.js";
+import type * as domains_product_scratchnodeImport from "../domains/product/scratchnodeImport.js";
 import type * as domains_product_sessionArtifacts from "../domains/product/sessionArtifacts.js";
 import type * as domains_product_shares from "../domains/product/shares.js";
 import type * as domains_product_shell from "../domains/product/shell.js";
@@ -1217,6 +1221,7 @@ import type * as domains_search_fusion_reranker from "../domains/search/fusion/r
 import type * as domains_search_fusion_types from "../domains/search/fusion/types.js";
 import type * as domains_search_hashtagDossiers from "../domains/search/hashtagDossiers.js";
 import type * as domains_search_index from "../domains/search/index.js";
+import type * as domains_search_linkupClient from "../domains/search/linkupClient.js";
 import type * as domains_search_quotaManager from "../domains/search/quotaManager.js";
 import type * as domains_search_rag from "../domains/search/rag.js";
 import type * as domains_search_ragEnhanced from "../domains/search/ragEnhanced.js";
@@ -1331,6 +1336,7 @@ import type * as domains_verification_verificationAuditTrail from "../domains/ve
 import type * as domains_verification_verificationWorkflow from "../domains/verification/verificationWorkflow.js";
 import type * as domains_world_operations from "../domains/world/operations.js";
 import type * as email from "../email.js";
+import type * as eventHandoff from "../eventHandoff.js";
 import type * as events from "../events.js";
 import type * as feed from "../feed.js";
 import type * as globalResearch_artifacts from "../globalResearch/artifacts.js";
@@ -1499,7 +1505,9 @@ import type * as tools_wrappers_coreAgentTools from "../tools/wrappers/coreAgent
 import type * as tools_wrappers_evidenceTools from "../tools/wrappers/evidenceTools.js";
 import type * as tools_wrappers_resourceLinkTools from "../tools/wrappers/resourceLinkTools.js";
 import type * as users from "../users.js";
+import type * as wall from "../wall.js";
 import type * as workflows_agentProjectIdeaPost from "../workflows/agentProjectIdeaPost.js";
+import type * as workflows_ainewsBriefFormat from "../workflows/ainewsBriefFormat.js";
 import type * as workflows_dailyLinkedInPost from "../workflows/dailyLinkedInPost.js";
 import type * as workflows_dailyLinkedInPostMutations from "../workflows/dailyLinkedInPostMutations.js";
 import type * as workflows_dailyMorningBrief from "../workflows/dailyMorningBrief.js";
@@ -2129,9 +2137,12 @@ declare const fullApi: ApiFromModules<{
   "domains/governance/provenanceExplainer": typeof domains_governance_provenanceExplainer;
   "domains/governance/quarantine": typeof domains_governance_quarantine;
   "domains/governance/trustPolicy": typeof domains_governance_trustPolicy;
+  "domains/graph/applyGraphPatch": typeof domains_graph_applyGraphPatch;
   "domains/graph/autoExtractMentions": typeof domains_graph_autoExtractMentions;
   "domains/graph/backlinkQueries": typeof domains_graph_backlinkQueries;
+  "domains/graph/expandEntity": typeof domains_graph_expandEntity;
   "domains/graph/expansionQueries": typeof domains_graph_expansionQueries;
+  "domains/graph/index": typeof domains_graph_index;
   "domains/groundTruth/auditLog": typeof domains_groundTruth_auditLog;
   "domains/groundTruth/versions": typeof domains_groundTruth_versions;
   "domains/hitl/adjudicationWorkflow": typeof domains_hitl_adjudicationWorkflow;
@@ -2495,6 +2506,7 @@ declare const fullApi: ApiFromModules<{
   "domains/product/publicShares": typeof domains_product_publicShares;
   "domains/product/pulseReports": typeof domains_product_pulseReports;
   "domains/product/reports": typeof domains_product_reports;
+  "domains/product/scratchnodeImport": typeof domains_product_scratchnodeImport;
   "domains/product/sessionArtifacts": typeof domains_product_sessionArtifacts;
   "domains/product/shares": typeof domains_product_shares;
   "domains/product/shell": typeof domains_product_shell;
@@ -2735,6 +2747,7 @@ declare const fullApi: ApiFromModules<{
   "domains/search/fusion/types": typeof domains_search_fusion_types;
   "domains/search/hashtagDossiers": typeof domains_search_hashtagDossiers;
   "domains/search/index": typeof domains_search_index;
+  "domains/search/linkupClient": typeof domains_search_linkupClient;
   "domains/search/quotaManager": typeof domains_search_quotaManager;
   "domains/search/rag": typeof domains_search_rag;
   "domains/search/ragEnhanced": typeof domains_search_ragEnhanced;
@@ -2849,6 +2862,7 @@ declare const fullApi: ApiFromModules<{
   "domains/verification/verificationWorkflow": typeof domains_verification_verificationWorkflow;
   "domains/world/operations": typeof domains_world_operations;
   email: typeof email;
+  eventHandoff: typeof eventHandoff;
   events: typeof events;
   feed: typeof feed;
   "globalResearch/artifacts": typeof globalResearch_artifacts;
@@ -3017,7 +3031,9 @@ declare const fullApi: ApiFromModules<{
   "tools/wrappers/evidenceTools": typeof tools_wrappers_evidenceTools;
   "tools/wrappers/resourceLinkTools": typeof tools_wrappers_resourceLinkTools;
   users: typeof users;
+  wall: typeof wall;
   "workflows/agentProjectIdeaPost": typeof workflows_agentProjectIdeaPost;
+  "workflows/ainewsBriefFormat": typeof workflows_ainewsBriefFormat;
   "workflows/dailyLinkedInPost": typeof workflows_dailyLinkedInPost;
   "workflows/dailyLinkedInPostMutations": typeof workflows_dailyLinkedInPostMutations;
   "workflows/dailyMorningBrief": typeof workflows_dailyMorningBrief;

@@ -140,6 +140,38 @@ function walkMarkdownFiles(relativeDir) {
   return files.sort();
 }
 
+export function classifyGoalCardMode(text) {
+  const autoSafeLine = text.match(/^- \*\*auto-safe:\*\*\s*([^\r\n]+)/im)?.[1]?.trim() ?? "";
+  const isHardGate = /HARD GATE|approval REQUIRED|human approves the merge|founder approval REQUIRED/i.test(text);
+  const isTestsOnly = /tests-only/i.test(autoSafeLine) || /tests-only/i.test(text);
+
+  if (isHardGate && isTestsOnly) {
+    return {
+      mode: "human-gated",
+      eligibilityReason: "Auto-safe guidance is present, but hard-gate approval language still requires human review.",
+    };
+  }
+
+  if (isHardGate) {
+    return {
+      mode: "human-gated",
+      eligibilityReason: "Hard-gate approval language requires a human-reviewed slice.",
+    };
+  }
+
+  if (isTestsOnly) {
+    return {
+      mode: "safe-local-development",
+      eligibilityReason: "Explicit auto-safe/tests-only guidance allows a narrow local slice.",
+    };
+  }
+
+  return {
+    mode: "human-gated",
+    eligibilityReason: "No auto-safe marker found; defaulting this goal card to human-gated.",
+  };
+}
+
 function parseGoalCard(absolutePath) {
   const text = readFileSync(absolutePath, "utf8").replace(/^\uFEFF/, "");
   const heading = text.match(/^#\s+Goal:\s*(.+)$/m)?.[1]?.trim() ?? text.match(/^#\s+(.+)$/m)?.[1]?.trim();
@@ -149,9 +181,7 @@ function parseGoalCard(absolutePath) {
   const status = text.match(/^- \*\*status:\*\*\s*([^\r\n]+)/im)?.[1]?.trim().toLowerCase() ?? "queued";
   const surface = text.match(/^- \*\*surface:\*\*\s*([^\r\n]+)/im)?.[1]?.trim() ?? "unknown";
   const severity = text.match(/^- \*\*(?:severity|priority):\*\*\s*([Pp]\d)/im)?.[1]?.toUpperCase() ?? "P2";
-  const isHardGate = /HARD GATE|approval REQUIRED|human approves the merge|founder approval REQUIRED/i.test(text);
-  const isTestsOnly = /tests-only/i.test(text);
-  const mode = isHardGate || !isTestsOnly ? "human-gated" : "safe-local-development";
+  const { mode, eligibilityReason } = classifyGoalCardMode(text);
   return {
     id,
     title: heading,
@@ -159,6 +189,7 @@ function parseGoalCard(absolutePath) {
     priority: severity,
     status,
     mode,
+    eligibilityReason,
     path: relativePath,
   };
 }
@@ -370,6 +401,8 @@ async function main() {
   ];
 
   const passed = criteria.every((criterion) => criterion.ok);
+  const safeLocalGoalCount = goalQueue.filter((goal) => goal.mode === "safe-local-development").length;
+  const humanGatedGoalCount = goalQueue.filter((goal) => goal.mode === "human-gated").length;
   const report = {
     generatedAt: new Date().toISOString(),
     repo: repoRoot,
@@ -411,6 +444,8 @@ async function main() {
       actionableAttentionCount: actionableAttention.length,
       launchRelevantBlockerCount: launchRelevantBlockers.length,
       queuedGoalCount: goalQueue.filter((goal) => goal.status === "queued" || goal.status === "proposed").length,
+      safeLocalGoalCount,
+      humanGatedGoalCount,
       gitDriftClean: gitStatus.length === 0,
       gitBranchStatus,
       commandFailureCount: commands.filter((command) => command.exitCode !== 0).length,
