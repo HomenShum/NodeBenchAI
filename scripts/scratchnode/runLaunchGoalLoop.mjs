@@ -416,6 +416,15 @@ export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
   };
 }
 
+export function summarizeGoalQueueEvidence(goalQueue) {
+  return {
+    goalQueueCount: goalQueue.length,
+    goalQueueStatusCounts: countBy(goalQueue, (goal) => goal.status),
+    goalQueueModeCounts: countBy(goalQueue, (goal) => goal.mode),
+    goalQueuePriorityCounts: countBy(goalQueue, (goal) => goal.priority),
+  };
+}
+
 async function main() {
   const commands = [];
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
@@ -493,6 +502,7 @@ async function main() {
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
   const criteriaEvidence = summarizeCriteriaEvidence(criteria);
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
+  const goalQueueEvidence = summarizeGoalQueueEvidence(goalQueue);
   const report = {
     generatedAt: new Date().toISOString(),
     repo: repoRoot,
@@ -532,6 +542,7 @@ async function main() {
       failures: criteria.filter((criterion) => !criterion.ok).map((criterion) => criterion.name),
       ...criteriaEvidence,
       ...backlogEvidence,
+      ...goalQueueEvidence,
       knownCautionCount: knownCautions.length,
       actionableAttentionCount: actionableAttention.length,
       launchRelevantBlockerCount: launchRelevantBlockers.length,

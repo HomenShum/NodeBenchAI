@@ -7,6 +7,7 @@ import {
   summarizeCriteriaEvidence,
   summarizeDevelopmentBacklogEvidence,
   summarizeGitBranchEvidence,
+  summarizeGoalQueueEvidence,
   summarizeSourceReportEvidence,
 } from "./runLaunchGoalLoop.mjs";
 
@@ -185,6 +186,36 @@ describe("summarizeDevelopmentBacklogEvidence", () => {
       developmentBacklogPriorityCounts: {
         P0: 1,
         P1: 2,
+        unknown: 1,
+      },
+    });
+  });
+});
+
+describe("summarizeGoalQueueEvidence", () => {
+  it("summarizes goal queue count, statuses, modes, and priorities", () => {
+    const summary = summarizeGoalQueueEvidence([
+      { id: "goal-1", status: "queued", mode: "human-gated", priority: "P1" },
+      { id: "goal-2", status: "queued", mode: "safe-local-development", priority: "P2" },
+      { id: "goal-3", status: "done", mode: "human-gated", priority: "P1" },
+      { id: "goal-4" },
+    ]);
+
+    expect(summary).toEqual({
+      goalQueueCount: 4,
+      goalQueueStatusCounts: {
+        done: 1,
+        queued: 2,
+        unknown: 1,
+      },
+      goalQueueModeCounts: {
+        "human-gated": 2,
+        "safe-local-development": 1,
+        unknown: 1,
+      },
+      goalQueuePriorityCounts: {
+        P1: 2,
+        P2: 1,
         unknown: 1,
       },
     });
