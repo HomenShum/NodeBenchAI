@@ -350,6 +350,24 @@ export function summarizeCommandEvidence(commands) {
   };
 }
 
+export function summarizeSourceReportEvidence(housekeepingReport) {
+  const sourceReports = Object.values(housekeepingReport?.sourceReports ?? {}).filter(Boolean);
+  const staleSourceReportPaths = sourceReports
+    .filter((report) => report.fresh === false || report.repoMatches === false)
+    .map((report) => report.path ?? "unknown")
+    .sort();
+
+  return {
+    sourceReportCount: sourceReports.length,
+    sourceReportMaxAgeSeconds: sourceReports.reduce((maxAge, report) => {
+      const ageSeconds = Number(report.ageSeconds);
+      return Number.isFinite(ageSeconds) && ageSeconds > maxAge ? ageSeconds : maxAge;
+    }, 0),
+    staleSourceReportCount: staleSourceReportPaths.length,
+    staleSourceReportPaths,
+  };
+}
+
 async function main() {
   const commands = [];
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
@@ -423,6 +441,7 @@ async function main() {
   const safeLocalGoalCount = goalQueue.filter((goal) => goal.mode === "safe-local-development").length;
   const humanGatedGoalCount = goalQueue.filter((goal) => goal.mode === "human-gated").length;
   const commandEvidence = summarizeCommandEvidence(commands);
+  const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
   const report = {
     generatedAt: new Date().toISOString(),
     repo: repoRoot,
@@ -469,6 +488,7 @@ async function main() {
       gitDriftClean: gitStatus.length === 0,
       gitBranchStatus,
       ...commandEvidence,
+      ...sourceReportEvidence,
       nextDevelopmentCandidate: developmentCandidate?.id ?? null,
       nextDevelopmentCandidateReason: developmentCandidate?.selectionReason ?? null,
     },

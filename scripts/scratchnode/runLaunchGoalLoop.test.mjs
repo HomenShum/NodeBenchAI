@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyGoalCardMode, selectDevelopmentCandidate, summarizeCommandEvidence } from "./runLaunchGoalLoop.mjs";
+import {
+  classifyGoalCardMode,
+  selectDevelopmentCandidate,
+  summarizeCommandEvidence,
+  summarizeSourceReportEvidence,
+} from "./runLaunchGoalLoop.mjs";
 
 describe("classifyGoalCardMode", () => {
   it("marks tests-only cards as safe local when no hard gate is present", () => {
@@ -94,6 +99,25 @@ describe("summarizeCommandEvidence", () => {
         exitCode: 1,
         durationMs: 39,
       },
+    });
+  });
+});
+
+describe("summarizeSourceReportEvidence", () => {
+  it("summarizes source report freshness and stale paths", () => {
+    const summary = summarizeSourceReportEvidence({
+      sourceReports: {
+        loop: { path: ".tmp/workspace-housekeeping-loop.json", ageSeconds: 2.5, fresh: true, repoMatches: true },
+        history: { path: ".tmp/local-history-map-reduce.json", ageSeconds: "8.25", fresh: false, repoMatches: true },
+        augment: { path: ".tmp/augment-upload-scope.json", ageSeconds: 3, fresh: true, repoMatches: false },
+      },
+    });
+
+    expect(summary).toEqual({
+      sourceReportCount: 3,
+      sourceReportMaxAgeSeconds: 8.25,
+      staleSourceReportCount: 2,
+      staleSourceReportPaths: [".tmp/augment-upload-scope.json", ".tmp/local-history-map-reduce.json"],
     });
   });
 });
