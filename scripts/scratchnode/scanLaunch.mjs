@@ -2,6 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
+import { pathToFileURL } from "node:url";
 
 const repoRoot = process.cwd();
 const args = new Set(process.argv.slice(2));
@@ -45,11 +46,53 @@ const requiredBoundaryEvidence = [
   { label: "FAQ promotion mutation", pattern: /events:promoteAnswerToFaq/ },
   { label: "published wiki body assertion", pattern: /_sn_published_wiki_body/ },
 ];
+const expectedAutomationScripts = {
+  "repo:augment:check": "scripts/repo/checkAugmentUploadScope.ps1",
+  "repo:housekeeping:verify": "scripts/repo/verifyWorkspaceHousekeeping.ps1",
+  "repo:housekeeping:check": "npm run repo:augment:check && npm run repo:housekeeping:verify && git diff --cached --check",
+  "scratchnode:launch:scan": "scripts/scratchnode/scanLaunch.mjs",
+  "scratchnode:launch:interactive": "scripts/scratchnode/scanLaunch.mjs --live --interactive",
+  "scratchnode:launch:goal": "scripts/scratchnode/runLaunchGoalLoop.mjs",
+};
 
 function readText(relativePath) {
   const absolutePath = resolve(repoRoot, relativePath);
   if (!existsSync(absolutePath)) return "";
   return readFileSync(absolutePath, "utf8");
+}
+
+function normalizeWhitespace(text) {
+  return String(text ?? "").replace(/\s+/g, " ").trim();
+}
+
+export function summarizePackageScriptContractEvidence(packageJsonText, expectedScripts = expectedAutomationScripts) {
+  let packageJson = null;
+  try {
+    packageJson = JSON.parse(String(packageJsonText ?? "").replace(/^\uFEFF/, ""));
+  } catch {
+    packageJson = null;
+  }
+
+  const scripts =
+    packageJson && typeof packageJson === "object" && packageJson.scripts && typeof packageJson.scripts === "object"
+      ? packageJson.scripts
+      : {};
+
+  return Object.entries(expectedScripts).map(([scriptName, expectedTarget]) => {
+    const actualCommand = typeof scripts[scriptName] === "string" ? scripts[scriptName] : null;
+    const expectedNormalized = normalizeWhitespace(expectedTarget);
+    const actualNormalized = normalizeWhitespace(actualCommand);
+    const ok = !!actualCommand && actualNormalized.includes(expectedNormalized);
+    return {
+      scriptName,
+      ok,
+      detail: ok
+        ? expectedTarget
+        : actualCommand
+          ? `expected target=${expectedTarget}; actual=${actualCommand}`
+          : `missing script; expected target=${expectedTarget}`,
+    };
+  });
 }
 
 function addStaticCheck({ ok, name, plane = "static", detail = "", optional = false }) {
@@ -112,29 +155,23 @@ function scanStaticContracts() {
   }
 
   const packageJson = readText("package.json");
-  for (const scriptName of [
-    "repo:augment:check",
-    "repo:housekeeping:verify",
-    "repo:housekeeping:check",
-    "scratchnode:launch:scan",
-    "scratchnode:launch:interactive",
-    "scratchnode:launch:goal",
-  ]) {
-    const ok = packageJson.includes(`"${scriptName}"`);
+  for (const scriptEvidence of summarizePackageScriptContractEvidence(packageJson)) {
+    const { scriptName, ok, detail } = scriptEvidence;
     addStaticCheck({
       ok,
       name: `package exposes ${scriptName}`,
       plane: "goal-automation",
-      detail: scriptName,
+      detail,
     });
     if (!ok) {
       addFinding({
         severity: "blocker",
         safety: "auto",
         plane: "goal-automation",
-        title: `package.json is missing ${scriptName}`,
+        title: `package.json automation contract is missing or repointed for ${scriptName}`,
         path: "package.json",
-        recommendation: "Restore the missing automation script entry.",
+        detail,
+        recommendation: "Restore the automation script entry so it points at the expected local verification target.",
       });
     }
   }
@@ -640,7 +677,9 @@ async function main() {
   if (!report.summary.passed) process.exitCode = 1;
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.stack || error.message : String(error));
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.stack || error.message : String(error));
+    process.exitCode = 1;
+  });
+}
