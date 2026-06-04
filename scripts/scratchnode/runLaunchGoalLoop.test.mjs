@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   classifyGoalCardMode,
+  normalizeGoalStatus,
   selectDevelopmentCandidate,
   summarizeCommandEvidence,
   summarizeCriteriaEvidence,
@@ -197,7 +198,7 @@ describe("summarizeGoalQueueEvidence", () => {
     const summary = summarizeGoalQueueEvidence([
       { id: "goal-1", status: "queued", mode: "human-gated", priority: "P1" },
       { id: "goal-2", status: "queued", mode: "safe-local-development", priority: "P2" },
-      { id: "goal-3", status: "done", mode: "human-gated", priority: "P1" },
+      { id: "goal-3", status: "done after local verification", mode: "human-gated", priority: "P1" },
       { id: "goal-4" },
     ]);
 
@@ -219,5 +220,14 @@ describe("summarizeGoalQueueEvidence", () => {
         unknown: 1,
       },
     });
+  });
+});
+
+describe("normalizeGoalStatus", () => {
+  it("collapses long status text into stable buckets", () => {
+    expect(normalizeGoalStatus("proposed (awaiting founder action)")).toBe("proposed");
+    expect(normalizeGoalStatus("shipping - PR #500 after founder approval")).toBe("shipping");
+    expect(normalizeGoalStatus("shipped (verified locally; deploy deferred)")).toBe("shipped");
+    expect(normalizeGoalStatus("needs triage")).toBe("other");
   });
 });

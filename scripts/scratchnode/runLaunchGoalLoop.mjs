@@ -416,10 +416,22 @@ export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
   };
 }
 
+export function normalizeGoalStatus(status) {
+  const value = String(status ?? "").trim().toLowerCase();
+  if (!value) return "unknown";
+  if (value.startsWith("shipping")) return "shipping";
+  if (value.startsWith("shipped")) return "shipped";
+  if (value.startsWith("proposed")) return "proposed";
+  if (value.startsWith("queued")) return "queued";
+  if (value.startsWith("active")) return "active";
+  if (value.startsWith("done") || value.startsWith("complete")) return "done";
+  return "other";
+}
+
 export function summarizeGoalQueueEvidence(goalQueue) {
   return {
     goalQueueCount: goalQueue.length,
-    goalQueueStatusCounts: countBy(goalQueue, (goal) => goal.status),
+    goalQueueStatusCounts: countBy(goalQueue, (goal) => normalizeGoalStatus(goal.status)),
     goalQueueModeCounts: countBy(goalQueue, (goal) => goal.mode),
     goalQueuePriorityCounts: countBy(goalQueue, (goal) => goal.priority),
   };
