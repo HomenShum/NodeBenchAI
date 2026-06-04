@@ -391,6 +391,7 @@ export function summarizeCommandEvidence(commands) {
 
 export function summarizeSourceReportEvidence(housekeepingReport) {
   const sourceReports = Object.values(housekeepingReport?.sourceReports ?? {}).filter(Boolean);
+  const summary = housekeepingReport?.summary ?? {};
   const sourceReportEntries = sourceReports
     .map((report) => ({
       path: report.path ?? "unknown",
@@ -421,6 +422,8 @@ export function summarizeSourceReportEvidence(housekeepingReport) {
       (maxAge, report) => (report.ageSeconds > maxAge ? report.ageSeconds : maxAge),
       0,
     ),
+    sourceReportFreshnessThresholdSeconds: evidenceNumber(summary.maxSourceReportAgeSeconds),
+    sourceReportFutureSkewThresholdSeconds: evidenceNumber(summary.maxFutureReportSkewSeconds),
     staleSourceReportCount: staleSourceReportPaths.length,
     staleSourceReportPaths,
   };

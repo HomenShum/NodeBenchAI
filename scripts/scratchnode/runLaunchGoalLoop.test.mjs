@@ -196,6 +196,10 @@ describe("summarizeSourceReportEvidence", () => {
         history: { path: ".tmp/local-history-map-reduce.json", ageSeconds: "8.25", fresh: false, repoMatches: true },
         augment: { path: ".tmp/augment-upload-scope.json", ageSeconds: 3, fresh: true, repoMatches: false },
       },
+      summary: {
+        maxSourceReportAgeSeconds: 600,
+        maxFutureReportSkewSeconds: 30,
+      },
     });
 
     expect(summary).toEqual({
@@ -214,6 +218,8 @@ describe("summarizeSourceReportEvidence", () => {
         ".tmp/workspace-housekeeping-loop.json": 2.5,
       },
       sourceReportMaxAgeSeconds: 8.25,
+      sourceReportFreshnessThresholdSeconds: 600,
+      sourceReportFutureSkewThresholdSeconds: 30,
       staleSourceReportCount: 2,
       staleSourceReportPaths: [".tmp/augment-upload-scope.json", ".tmp/local-history-map-reduce.json"],
     });

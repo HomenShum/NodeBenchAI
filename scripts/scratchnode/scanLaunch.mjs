@@ -223,6 +223,8 @@ function scanStaticContracts() {
     "sourceReportRepoMismatchPaths",
     "sourceReportAgeSecondsByPath",
     "sourceReportMaxAgeSeconds",
+    "sourceReportFreshnessThresholdSeconds",
+    "sourceReportFutureSkewThresholdSeconds",
     "staleSourceReportCount",
     "housekeepingPassed",
     "housekeepingNotifyRecommended",
