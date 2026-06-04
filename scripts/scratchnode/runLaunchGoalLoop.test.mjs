@@ -10,6 +10,7 @@ import {
   summarizeDevelopmentBacklogEvidence,
   summarizeGitBranchEvidence,
   summarizeGoalQueueEvidence,
+  summarizeHousekeepingReportEvidence,
   summarizeLaunchReportEvidence,
   summarizeSourceReportEvidence,
   summarizeTmpIgnoreEvidence,
@@ -163,6 +164,48 @@ describe("summarizeSourceReportEvidence", () => {
       sourceReportMaxAgeSeconds: 8.25,
       staleSourceReportCount: 2,
       staleSourceReportPaths: [".tmp/augment-upload-scope.json", ".tmp/local-history-map-reduce.json"],
+    });
+  });
+});
+
+describe("summarizeHousekeepingReportEvidence", () => {
+  it("summarizes housekeeping and Augment counts", () => {
+    const summary = summarizeHousekeepingReportEvidence({
+      passed: true,
+      augmentReportPassed: true,
+      operatorSummary: {
+        notifyRecommended: false,
+      },
+      summary: {
+        candidateFiles: 6198,
+        threshold: "250000",
+        finalSafe: 1,
+        finalCaution: 2,
+        finalKeep: 3,
+        protectedPathsClean: true,
+        removedSafeCount: 4,
+        prunedWorktreeCount: 5,
+        invalidRegistered: 6,
+        stagedDiffCheckPassed: true,
+        housekeepingOnlyDrift: false,
+      },
+    });
+
+    expect(summary).toEqual({
+      housekeepingPassed: true,
+      housekeepingNotifyRecommended: false,
+      augmentReportPassed: true,
+      augmentCandidateFileCount: 6198,
+      augmentThreshold: 250000,
+      safeLocalHistoryCleanupCount: 1,
+      cautionWorktreeCount: 2,
+      keptWorktreeCount: 3,
+      protectedPathsClean: true,
+      removedSafePathCount: 4,
+      prunedWorktreeCount: 5,
+      invalidRegisteredWorktreeCount: 6,
+      housekeepingStagedDiffCheckPassed: true,
+      housekeepingOnlyDrift: false,
     });
   });
 });

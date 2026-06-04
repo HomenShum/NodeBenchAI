@@ -389,6 +389,26 @@ function evidenceNumber(value) {
   return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
+export function summarizeHousekeepingReportEvidence(housekeepingReport) {
+  const summary = housekeepingReport?.summary ?? {};
+  return {
+    housekeepingPassed: housekeepingReport?.passed === true,
+    housekeepingNotifyRecommended: housekeepingReport?.operatorSummary?.notifyRecommended === true,
+    augmentReportPassed: housekeepingReport?.augmentReportPassed === true,
+    augmentCandidateFileCount: evidenceNumber(summary.candidateFiles),
+    augmentThreshold: evidenceNumber(summary.threshold),
+    safeLocalHistoryCleanupCount: evidenceNumber(summary.finalSafe),
+    cautionWorktreeCount: evidenceNumber(summary.finalCaution),
+    keptWorktreeCount: evidenceNumber(summary.finalKeep),
+    protectedPathsClean: summary.protectedPathsClean === true,
+    removedSafePathCount: evidenceNumber(summary.removedSafeCount),
+    prunedWorktreeCount: evidenceNumber(summary.prunedWorktreeCount),
+    invalidRegisteredWorktreeCount: evidenceNumber(summary.invalidRegistered),
+    housekeepingStagedDiffCheckPassed: summary.stagedDiffCheckPassed === true,
+    housekeepingOnlyDrift: summary.housekeepingOnlyDrift === true,
+  };
+}
+
 export function summarizeLaunchReportEvidence(launchReport) {
   const summary = launchReport?.summary ?? {};
   return {
@@ -609,6 +629,7 @@ async function main() {
   const passed = criteria.every((criterion) => criterion.ok);
   const commandEvidence = summarizeCommandEvidence(commands);
   const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
+  const housekeepingEvidence = summarizeHousekeepingReportEvidence(housekeepingReport);
   const launchReportEvidence = summarizeLaunchReportEvidence(launchReport);
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
   const criteriaEvidence = summarizeCriteriaEvidence(criteria);
@@ -663,6 +684,7 @@ async function main() {
       ...gitBranchEvidence,
       ...commandEvidence,
       ...sourceReportEvidence,
+      ...housekeepingEvidence,
       ...launchReportEvidence,
       ...tmpIgnoreEvidence,
       nextDevelopmentCandidate: developmentCandidate?.id ?? null,
