@@ -211,7 +211,7 @@ function priorityRank(priority) {
 
 function goalCardsToBacklog(goalCards) {
   return goalCards
-    .filter((goal) => (goal.status === "queued" || goal.status === "proposed" || goal.status === "active") && goal.mode === "safe-local-development")
+    .filter((goal) => isOpenGoalStatus(goal.status) && goal.mode === "safe-local-development")
     .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || a.path.localeCompare(b.path))
     .map((goal) => ({
       id: `goal-${goal.id}`,
@@ -300,7 +300,7 @@ export function selectDevelopmentCandidate(developmentBacklog, context = {}) {
   const launchRelevantBlockerCount = context.launchRelevantBlockers?.length ?? 0;
   const actionableAttentionCount = context.actionableAttention?.length ?? 0;
   const safeLocalGoalCount = context.goalQueue?.filter(
-    (goal) => (goal.status === "queued" || goal.status === "proposed" || goal.status === "active") && goal.mode === "safe-local-development",
+    (goal) => isOpenGoalStatus(goal.status) && goal.mode === "safe-local-development",
   ).length ?? 0;
 
   let selectionReason = "Selected the first ranked backlog item.";
@@ -426,6 +426,10 @@ export function normalizeGoalStatus(status) {
   if (value.startsWith("active")) return "active";
   if (value.startsWith("done") || value.startsWith("complete")) return "done";
   return "other";
+}
+
+export function isOpenGoalStatus(status) {
+  return ["active", "proposed", "queued"].includes(normalizeGoalStatus(status));
 }
 
 export function summarizeGoalQueueEvidence(goalQueue) {
@@ -558,7 +562,7 @@ async function main() {
       knownCautionCount: knownCautions.length,
       actionableAttentionCount: actionableAttention.length,
       launchRelevantBlockerCount: launchRelevantBlockers.length,
-      queuedGoalCount: goalQueue.filter((goal) => goal.status === "queued" || goal.status === "proposed").length,
+      queuedGoalCount: goalQueue.filter((goal) => isOpenGoalStatus(goal.status)).length,
       safeLocalGoalCount,
       humanGatedGoalCount,
       gitDriftClean: gitStatus.length === 0,

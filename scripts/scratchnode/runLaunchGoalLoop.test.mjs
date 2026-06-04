@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   classifyGoalCardMode,
+  isOpenGoalStatus,
   normalizeGoalStatus,
   selectDevelopmentCandidate,
   summarizeCommandEvidence,
@@ -80,6 +81,34 @@ describe("selectDevelopmentCandidate", () => {
     expect(candidate?.selectionReason).toBe(
       "All gates are green and no safe-local goal cards are eligible, so the loop defaults to automation instrumentation.",
     );
+  });
+
+  it("counts normalized proposed safe-local cards in goal-card selection reasons", () => {
+    const candidate = selectDevelopmentCandidate(
+      [
+        {
+          id: "goal-runtime-001",
+          title: "Runtime goal",
+          mode: "safe-local-development",
+          surface: "runtime",
+          area: "goal queue",
+          priority: "P1",
+        },
+      ],
+      {
+        actionableAttention: [],
+        launchRelevantBlockers: [],
+        goalQueue: [
+          {
+            id: "runtime-001",
+            status: "proposed (awaiting founder action)",
+            mode: "safe-local-development",
+          },
+        ],
+      },
+    );
+
+    expect(candidate?.selectionReason).toBe("Selected the highest-priority safe-local goal card from the queue (1 eligible).");
   });
 });
 
@@ -229,5 +258,15 @@ describe("normalizeGoalStatus", () => {
     expect(normalizeGoalStatus("shipping - PR #500 after founder approval")).toBe("shipping");
     expect(normalizeGoalStatus("shipped (verified locally; deploy deferred)")).toBe("shipped");
     expect(normalizeGoalStatus("needs triage")).toBe("other");
+  });
+});
+
+describe("isOpenGoalStatus", () => {
+  it("treats proposed, queued, and active buckets as open", () => {
+    expect(isOpenGoalStatus("proposed (awaiting founder action)")).toBe(true);
+    expect(isOpenGoalStatus("queued")).toBe(true);
+    expect(isOpenGoalStatus("active: in progress")).toBe(true);
+    expect(isOpenGoalStatus("shipping - PR open")).toBe(false);
+    expect(isOpenGoalStatus("shipped after merge")).toBe(false);
   });
 });
