@@ -178,6 +178,8 @@ function scanStaticContracts() {
     "commandFailureCount",
     "commandExitCodes",
     "developmentCandidate",
+    "safeLocalGoalCount",
+    "humanGatedGoalCount",
     "nextDevelopmentCandidateReason",
   ];
   const missingGoalLoopEvidenceFields = goalLoopEvidenceFields.filter((field) => !goalLoop.includes(field));
@@ -198,7 +200,8 @@ function scanStaticContracts() {
       title: "Goal loop report evidence is incomplete",
       path: files.goalLoop,
       detail: `missing fields=${missingGoalLoopEvidenceFields.join(",")}`,
-      recommendation: "Restore branch-status and command-exit summary fields so clean-worktree reports keep actionable evidence.",
+      recommendation:
+        "Restore branch-status, command-exit, and goal-card eligibility summary fields so clean-worktree reports keep actionable evidence.",
     });
   }
 
