@@ -532,6 +532,36 @@ export function summarizeSourceReportEvidence(housekeepingReport) {
   };
 }
 
+export function summarizeRequiredReportLoadEvidence(requiredReports) {
+  const reportEntries = Object.entries(requiredReports ?? {})
+    .map(([name, report]) => ({
+      name,
+      loaded: !!report && typeof report === "object" && !Array.isArray(report),
+      parseError:
+        report && typeof report === "object" && !Array.isArray(report) && typeof report.parseError === "string"
+          ? report.parseError
+          : null,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const failedEntries = reportEntries.filter((entry) => !entry.loaded || entry.parseError);
+
+  return {
+    requiredReportCount: reportEntries.length,
+    requiredReportNames: reportEntries.map((entry) => entry.name),
+    requiredReportLoadedCount: reportEntries.filter((entry) => entry.loaded && !entry.parseError).length,
+    requiredReportMissingNames: reportEntries.filter((entry) => !entry.loaded).map((entry) => entry.name),
+    requiredReportParseErrors: failedEntries
+      .filter((entry) => entry.parseError)
+      .map((entry) => ({
+        name: entry.name,
+        parseError: entry.parseError,
+      })),
+    requiredReportLoadFailures: failedEntries.map((entry) =>
+      entry.parseError ? `${entry.name}: ${entry.parseError}` : `${entry.name}: missing`,
+    ),
+  };
+}
+
 function evidenceNumber(value) {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : 0;
@@ -1024,8 +1054,19 @@ async function main() {
     developmentCandidate?.suggestedVerification,
     packageJson,
   );
+  const requiredReportLoadEvidence = summarizeRequiredReportLoadEvidence({
+    housekeeping: housekeepingReport,
+    launch: launchReport,
+    localHistory: localHistoryReport,
+    packageJson,
+  });
 
   const criteria = [
+    buildCriterion(
+      "required source reports load cleanly",
+      requiredReportLoadEvidence.requiredReportLoadFailures.length === 0,
+      requiredReportLoadEvidence.requiredReportLoadFailures.join("; "),
+    ),
     buildCriterion(
       "housekeeping command passes",
       commands[0]?.exitCode === 0 && housekeepingReport?.passed === true,
@@ -1164,6 +1205,7 @@ async function main() {
       ...reportSchemaEvidence,
       ...reportMetadataEvidence,
       ...goalEvidence,
+      ...requiredReportLoadEvidence,
       ...commandEvidence,
       ...sourceReportEvidence,
       ...housekeepingEvidence,

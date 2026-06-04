@@ -20,6 +20,7 @@ import {
   summarizeKnownCautionSuppressionEvidence,
   summarizeLaunchReportEvidence,
   summarizeNotificationEvidence,
+  summarizeRequiredReportLoadEvidence,
   summarizeReportMetadataEvidence,
   summarizeReportSchemaEvidence,
   summarizeSourceReportEvidence,
@@ -388,6 +389,34 @@ describe("summarizeSourceReportEvidence", () => {
       sourceReportFutureSkewThresholdSeconds: 30,
       staleSourceReportCount: 2,
       staleSourceReportPaths: [".tmp/augment-upload-scope.json", ".tmp/local-history-map-reduce.json"],
+    });
+  });
+});
+
+describe("summarizeRequiredReportLoadEvidence", () => {
+  it("surfaces missing and malformed required reports explicitly", () => {
+    const summary = summarizeRequiredReportLoadEvidence({
+      housekeeping: { passed: true },
+      launch: { parseError: "Unexpected token } in JSON at position 12" },
+      localHistory: null,
+      packageJson: { scripts: {} },
+    });
+
+    expect(summary).toEqual({
+      requiredReportCount: 4,
+      requiredReportNames: ["housekeeping", "launch", "localHistory", "packageJson"],
+      requiredReportLoadedCount: 2,
+      requiredReportMissingNames: ["localHistory"],
+      requiredReportParseErrors: [
+        {
+          name: "launch",
+          parseError: "Unexpected token } in JSON at position 12",
+        },
+      ],
+      requiredReportLoadFailures: [
+        "launch: Unexpected token } in JSON at position 12",
+        "localHistory: missing",
+      ],
     });
   });
 });
