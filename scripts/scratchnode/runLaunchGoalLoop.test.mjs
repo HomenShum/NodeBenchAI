@@ -133,6 +133,11 @@ describe("summarizeCommandEvidence", () => {
         slow: 1,
         "invalid-duration": 0,
       },
+      commandDurationMsByName: {
+        fast: 12,
+        slow: 39,
+        "invalid-duration": 0,
+      },
       commandDurationTotalMs: 51,
       failedCommandSummaries: [
         {

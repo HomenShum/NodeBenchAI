@@ -355,6 +355,7 @@ export function summarizeCommandEvidence(commands) {
     commandFailureCount: commandDurations.filter((command) => command.exitCode !== 0).length,
     commandNames: commands.map((command) => command.command),
     commandExitCodes: Object.fromEntries(commands.map((command) => [command.command, command.exitCode])),
+    commandDurationMsByName: Object.fromEntries(commandTimings.map((command) => [command.command, command.durationMs])),
     commandDurationTotalMs: commandTimings.reduce((total, command) => total + command.durationMs, 0),
     failedCommandSummaries: commandDurations
       .filter((command) => command.exitCode !== 0)
