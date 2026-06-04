@@ -322,10 +322,10 @@ describe("summarizeLaunchReportEvidence", () => {
       },
       staticChecks: [
         { ok: true, name: "home-v5 contains share modal" },
-        { ok: false, name: "goal loop reports branch and command evidence" },
+        { ok: false, name: "goal loop reports branch and command evidence", detail: "field missing" },
       ],
       liveChecks: [
-        { ok: false, name: "scratchnode.live apex raw HTML" },
+        { ok: false, name: "scratchnode.live apex raw HTML", url: "https://scratchnode.live", durationMs: 1234 },
         { ok: false, optional: true, name: "optional remote probe" },
       ],
       interactiveChecks: [{ ok: true, name: "scratchnode apex interactive landing" }],
@@ -349,6 +349,20 @@ describe("summarizeLaunchReportEvidence", () => {
       launchLiveCheckNames: ["scratchnode.live apex raw HTML", "optional remote probe"],
       launchInteractiveCheckNames: ["scratchnode apex interactive landing"],
       launchFailedCheckNames: ["goal loop reports branch and command evidence", "scratchnode.live apex raw HTML"],
+      launchFailedCheckDetails: [
+        {
+          name: "goal loop reports branch and command evidence",
+          url: null,
+          detail: "field missing",
+          durationMs: null,
+        },
+        {
+          name: "scratchnode.live apex raw HTML",
+          url: "https://scratchnode.live",
+          detail: "",
+          durationMs: 1234,
+        },
+      ],
     });
   });
 });

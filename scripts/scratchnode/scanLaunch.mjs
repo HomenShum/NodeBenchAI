@@ -272,6 +272,7 @@ function scanStaticContracts() {
     "launchLiveCheckNames",
     "launchInteractiveCheckNames",
     "launchFailedCheckNames",
+    "launchFailedCheckDetails",
     "tmpIgnoreProbePassed",
     "tmpIgnoreProbeExpectedCount",
     "tmpIgnoreProbeCount",

@@ -489,6 +489,13 @@ export function summarizeLaunchReportEvidence(launchReport) {
     (check) => check?.ok !== true && check?.optional !== true,
   );
   const checkNames = (checks) => checks.map((check) => check?.name).filter(Boolean);
+  const checkDetails = (checks) =>
+    checks.map((check) => ({
+      name: check?.name ?? "",
+      url: check?.url ?? null,
+      detail: check?.detail ?? "",
+      durationMs: typeof check?.durationMs === "number" ? check.durationMs : null,
+    }));
 
   return {
     launchPassed: summary.passed === true,
@@ -508,6 +515,7 @@ export function summarizeLaunchReportEvidence(launchReport) {
     launchLiveCheckNames: checkNames(liveChecks),
     launchInteractiveCheckNames: checkNames(interactiveChecks),
     launchFailedCheckNames: checkNames(failedChecks),
+    launchFailedCheckDetails: checkDetails(failedChecks),
   };
 }
 
