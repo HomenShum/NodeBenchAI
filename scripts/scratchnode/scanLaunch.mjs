@@ -312,6 +312,7 @@ function scanStaticContracts() {
     "nextDevelopmentCandidateArea",
     "nextDevelopmentCandidateSourcePath",
     "nextDevelopmentCandidateSuggestedVerification",
+    "nextDevelopmentCandidateHasSuggestedVerification",
     "nextDevelopmentCandidateVerificationCommandCount",
     "nextDevelopmentCandidateVerificationScriptCount",
     "nextDevelopmentCandidateVerificationScriptRefs",

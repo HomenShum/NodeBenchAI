@@ -773,11 +773,12 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
   }
 
   return {
+    nextDevelopmentCandidateHasSuggestedVerification: commands.length > 0,
     nextDevelopmentCandidateVerificationCommandCount: commands.length,
     nextDevelopmentCandidateVerificationScriptCount: referencedScripts.length,
     nextDevelopmentCandidateVerificationScriptRefs: referencedScripts,
     nextDevelopmentCandidateVerificationEntryPointsValid:
-      missingScripts.length === 0 && unsupportedCommands.length === 0,
+      commands.length > 0 && missingScripts.length === 0 && unsupportedCommands.length === 0,
     nextDevelopmentCandidateVerificationMissingScripts: missingScripts,
     nextDevelopmentCandidateVerificationUnsupportedCommands: unsupportedCommands,
   };
@@ -890,6 +891,10 @@ async function main() {
     launchRelevantBlockers,
     goalQueue,
   });
+  const candidateVerificationEvidence = summarizeVerificationEntryPointEvidence(
+    developmentCandidate?.suggestedVerification,
+    packageJson,
+  );
 
   const criteria = [
     buildCriterion(
@@ -922,6 +927,27 @@ async function main() {
     ),
     buildCriterion("no launch-relevant blockers remain", launchRelevantBlockers.length === 0, launchRelevantBlockers.join("; ")),
     buildCriterion("no actionable attention items remain", actionableAttention.length === 0, actionableAttention.join("; ")),
+    buildCriterion(
+      "development candidate verification entrypoints stay valid",
+      developmentCandidate == null || candidateVerificationEvidence.nextDevelopmentCandidateVerificationEntryPointsValid === true,
+      developmentCandidate == null
+        ? ""
+        : candidateVerificationEvidence.nextDevelopmentCandidateVerificationEntryPointsValid
+          ? `commands=${candidateVerificationEvidence.nextDevelopmentCandidateVerificationCommandCount}`
+          : [
+              candidateVerificationEvidence.nextDevelopmentCandidateHasSuggestedVerification
+                ? null
+                : "missing suggested verification",
+              candidateVerificationEvidence.nextDevelopmentCandidateVerificationMissingScripts.length > 0
+                ? `missing scripts=${candidateVerificationEvidence.nextDevelopmentCandidateVerificationMissingScripts.join(",")}`
+                : null,
+              candidateVerificationEvidence.nextDevelopmentCandidateVerificationUnsupportedCommands.length > 0
+                ? `unsupported commands=${candidateVerificationEvidence.nextDevelopmentCandidateVerificationUnsupportedCommands.join(",")}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join("; "),
+    ),
   ];
 
   const passed = criteria.every((criterion) => criterion.ok);
@@ -941,10 +967,6 @@ async function main() {
     knownCautions,
     actionableAttention,
   });
-  const candidateVerificationEvidence = summarizeVerificationEntryPointEvidence(
-    developmentCandidate?.suggestedVerification,
-    packageJson,
-  );
   const goalQueueEvidence = summarizeGoalQueueEvidence(goalQueue);
   const workflowModel = {
     issueQueue:

@@ -746,6 +746,7 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     );
 
     expect(summary).toEqual({
+      nextDevelopmentCandidateHasSuggestedVerification: true,
       nextDevelopmentCandidateVerificationCommandCount: 3,
       nextDevelopmentCandidateVerificationScriptCount: 2,
       nextDevelopmentCandidateVerificationScriptRefs: ["scratchnode:launch:goal", "repo:augment:check"],
@@ -766,12 +767,31 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     );
 
     expect(summary).toEqual({
+      nextDevelopmentCandidateHasSuggestedVerification: true,
       nextDevelopmentCandidateVerificationCommandCount: 2,
       nextDevelopmentCandidateVerificationScriptCount: 1,
       nextDevelopmentCandidateVerificationScriptRefs: ["missing:script"],
       nextDevelopmentCandidateVerificationEntryPointsValid: false,
       nextDevelopmentCandidateVerificationMissingScripts: ["missing:script"],
       nextDevelopmentCandidateVerificationUnsupportedCommands: ["echo custom verifier"],
+    });
+  });
+
+  it("fails closed when a development candidate has no verification commands", () => {
+    const summary = summarizeVerificationEntryPointEvidence([], {
+      scripts: {
+        "scratchnode:launch:goal": "node scripts/scratchnode/runLaunchGoalLoop.mjs",
+      },
+    });
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidateHasSuggestedVerification: false,
+      nextDevelopmentCandidateVerificationCommandCount: 0,
+      nextDevelopmentCandidateVerificationScriptCount: 0,
+      nextDevelopmentCandidateVerificationScriptRefs: [],
+      nextDevelopmentCandidateVerificationEntryPointsValid: false,
+      nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationUnsupportedCommands: [],
     });
   });
 });
