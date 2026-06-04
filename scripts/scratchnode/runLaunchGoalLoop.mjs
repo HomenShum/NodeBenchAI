@@ -10,6 +10,10 @@ const args = new Set(process.argv.slice(2));
 const shouldPrintJson = args.has("--json");
 const outPath = resolve(repoRoot, ".tmp/scratchnode-launch-goal-loop.json");
 const reportSchemaVersion = "scratchnode-launch-goal-loop/v1";
+const defaultCommandTimeoutMs = Math.max(
+  1_000,
+  Number.parseInt(process.env.SCRATCHNODE_GOAL_COMMAND_TIMEOUT_MS ?? "", 10) || 240_000,
+);
 
 const reportPaths = {
   housekeeping: ".tmp/workspace-housekeeping-verification.json",
@@ -37,16 +41,34 @@ function readJson(relativePath) {
 
 function run(command, commandArgs, options = {}) {
   const started = performance.now();
+  const timeoutMs = Math.max(1_000, Number(options.timeoutMs) || defaultCommandTimeoutMs);
   return new Promise((resolveRun) => {
     const child = spawn(command, commandArgs, {
       cwd: repoRoot,
       env: process.env,
       shell: process.platform === "win32",
       windowsHide: true,
-      ...options,
+      ...Object.fromEntries(Object.entries(options).filter(([key]) => key !== "timeoutMs")),
     });
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    let timedOut = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      resolveRun(result);
+    };
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      stderr = tail(`${stderr}\nTimed out after ${timeoutMs}ms`.trim());
+      child.kill();
+      const hardKillTimer = setTimeout(() => {
+        child.kill("SIGKILL");
+      }, 5_000);
+      if (typeof hardKillTimer.unref === "function") hardKillTimer.unref();
+    }, timeoutMs);
     child.stdout?.on("data", (chunk) => {
       stdout += chunk.toString();
     });
@@ -54,21 +76,26 @@ function run(command, commandArgs, options = {}) {
       stderr += chunk.toString();
     });
     child.on("error", (error) => {
-      resolveRun({
+      finish({
         command: [command, ...commandArgs].join(" "),
         exitCode: 1,
         durationMs: Math.round(performance.now() - started),
         stdout: tail(stdout),
         stderr: tail(`${stderr}\n${error.message}`.trim()),
+        timedOut,
+        timeoutMs,
       });
     });
-    child.on("close", (exitCode) => {
-      resolveRun({
+    child.on("close", (exitCode, signal) => {
+      finish({
         command: [command, ...commandArgs].join(" "),
-        exitCode: exitCode ?? 1,
+        exitCode: timedOut ? 124 : exitCode ?? 1,
         durationMs: Math.round(performance.now() - started),
         stdout: tail(stdout),
         stderr: tail(stderr),
+        timedOut,
+        timeoutMs,
+        signal: signal ?? null,
       });
     });
   });
@@ -407,12 +434,19 @@ export function summarizeCommandEvidence(commands, options = {}) {
     0,
     Number(options.slowCommandWarningThresholdMs) || 90_000,
   );
+  const commandTimeoutMs = Math.max(
+    1_000,
+    Number(options.commandTimeoutMs) || defaultCommandTimeoutMs,
+  );
   const commandDurations = commands.map((command) => ({
     command: command.command,
     exitCode: command.exitCode,
     durationMs: Math.max(0, Number(command.durationMs) || 0),
     stdout: String(command.stdout ?? ""),
     stderr: String(command.stderr ?? ""),
+    timedOut: command.timedOut === true,
+    timeoutMs: Math.max(1_000, Number(command.timeoutMs) || commandTimeoutMs),
+    signal: command.signal ?? null,
   }));
   const commandTimings = commandDurations.map(({ command, exitCode, durationMs }) => ({ command, exitCode, durationMs }));
   const slowestCommand = commandTimings.reduce((slowest, command) => {
@@ -435,6 +469,9 @@ export function summarizeCommandEvidence(commands, options = {}) {
     commandExitCodes: Object.fromEntries(commands.map((command) => [command.command, command.exitCode])),
     commandDurationMsByName: Object.fromEntries(commandTimings.map((command) => [command.command, command.durationMs])),
     commandDurationTotalMs: commandTimings.reduce((total, command) => total + command.durationMs, 0),
+    commandTimeoutMs,
+    timedOutCommandCount: commandDurations.filter((command) => command.timedOut).length,
+    timedOutCommandNames: commandDurations.filter((command) => command.timedOut).map((command) => command.command),
     slowCommandWarningThresholdMs,
     slowCommandCount: slowCommandSummaries.length,
     slowCommandNames: slowCommandSummaries.map((command) => command.command),
@@ -445,6 +482,9 @@ export function summarizeCommandEvidence(commands, options = {}) {
         command: command.command,
         exitCode: command.exitCode,
         durationMs: command.durationMs,
+        timedOut: command.timedOut,
+        timeoutMs: command.timeoutMs,
+        signal: command.signal,
         stdoutTail: tailText(command.stdout),
         stderrTail: tailText(command.stderr),
       })),
@@ -1008,7 +1048,9 @@ async function main() {
   ];
 
   const passed = criteria.every((criterion) => criterion.ok);
-  const commandEvidence = summarizeCommandEvidence(commands);
+  const commandEvidence = summarizeCommandEvidence(commands, {
+    commandTimeoutMs: defaultCommandTimeoutMs,
+  });
   const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
   const housekeepingEvidence = summarizeHousekeepingReportEvidence(housekeepingReport);
   const launchReportEvidence = summarizeLaunchReportEvidence(launchReport);

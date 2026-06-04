@@ -259,6 +259,9 @@ describe("summarizeCommandEvidence", () => {
         "invalid-duration": 0,
       },
       commandDurationTotalMs: 51,
+      commandTimeoutMs: 240000,
+      timedOutCommandCount: 0,
+      timedOutCommandNames: [],
       slowCommandWarningThresholdMs: 30,
       slowCommandCount: 1,
       slowCommandNames: ["slow"],
@@ -274,6 +277,9 @@ describe("summarizeCommandEvidence", () => {
           command: "slow",
           exitCode: 1,
           durationMs: 39,
+          timedOut: false,
+          timeoutMs: 240000,
+          signal: null,
           stdoutTail: "stdout context",
           stderrTail: "stderr context",
         },
@@ -282,6 +288,67 @@ describe("summarizeCommandEvidence", () => {
         command: "slow",
         exitCode: 1,
         durationMs: 39,
+      },
+    });
+  });
+
+  it("reports timed-out commands explicitly", () => {
+    const summary = summarizeCommandEvidence(
+      [
+        {
+          command: "hung-check",
+          exitCode: 124,
+          durationMs: 240001,
+          timedOut: true,
+          timeoutMs: 240000,
+          signal: "SIGTERM",
+          stderr: "Timed out after 240000ms",
+        },
+      ],
+      { commandTimeoutMs: 240000 },
+    );
+
+    expect(summary).toEqual({
+      commandCount: 1,
+      commandSuccessCount: 0,
+      commandFailureCount: 1,
+      commandNames: ["hung-check"],
+      commandExitCodes: {
+        "hung-check": 124,
+      },
+      commandDurationMsByName: {
+        "hung-check": 240001,
+      },
+      commandDurationTotalMs: 240001,
+      commandTimeoutMs: 240000,
+      timedOutCommandCount: 1,
+      timedOutCommandNames: ["hung-check"],
+      slowCommandWarningThresholdMs: 90000,
+      slowCommandCount: 1,
+      slowCommandNames: ["hung-check"],
+      slowCommandSummaries: [
+        {
+          command: "hung-check",
+          exitCode: 124,
+          durationMs: 240001,
+        },
+      ],
+      failedCommandSummaries: [
+        {
+          command: "hung-check",
+          exitCode: 124,
+          durationMs: 240001,
+          timedOut: true,
+          timeoutMs: 240000,
+          signal: "SIGTERM",
+          stdoutTail: "",
+          stderrTail: "Timed out after 240000ms",
+        },
+      ],
+      slowestCommand: {
+        command: "hung-check",
+        exitCode: 124,
+        durationMs: 240001,
       },
     });
   });
