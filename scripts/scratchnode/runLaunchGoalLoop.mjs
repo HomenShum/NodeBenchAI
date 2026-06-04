@@ -368,17 +368,36 @@ export function summarizeCommandEvidence(commands) {
 
 export function summarizeSourceReportEvidence(housekeepingReport) {
   const sourceReports = Object.values(housekeepingReport?.sourceReports ?? {}).filter(Boolean);
-  const staleSourceReportPaths = sourceReports
+  const sourceReportEntries = sourceReports
+    .map((report) => ({
+      path: report.path ?? "unknown",
+      ageSeconds: evidenceNumber(report.ageSeconds),
+      fresh: report.fresh === true,
+      repoMatches: report.repoMatches === true,
+    }))
+    .sort((left, right) => left.path.localeCompare(right.path));
+  const staleSourceReportPaths = sourceReportEntries
     .filter((report) => report.fresh === false || report.repoMatches === false)
-    .map((report) => report.path ?? "unknown")
+    .map((report) => report.path)
+    .sort();
+  const sourceReportRepoMismatchPaths = sourceReportEntries
+    .filter((report) => !report.repoMatches)
+    .map((report) => report.path)
     .sort();
 
   return {
     sourceReportCount: sourceReports.length,
-    sourceReportMaxAgeSeconds: sourceReports.reduce((maxAge, report) => {
-      const ageSeconds = Number(report.ageSeconds);
-      return Number.isFinite(ageSeconds) && ageSeconds > maxAge ? ageSeconds : maxAge;
-    }, 0),
+    sourceReportPaths: sourceReportEntries.map((report) => report.path),
+    sourceReportFreshCount: sourceReportEntries.filter((report) => report.fresh).length,
+    sourceReportRepoMatchCount: sourceReportEntries.filter((report) => report.repoMatches).length,
+    sourceReportRepoMismatchPaths,
+    sourceReportAgeSecondsByPath: Object.fromEntries(
+      sourceReportEntries.map((report) => [report.path, report.ageSeconds]),
+    ),
+    sourceReportMaxAgeSeconds: sourceReportEntries.reduce(
+      (maxAge, report) => (report.ageSeconds > maxAge ? report.ageSeconds : maxAge),
+      0,
+    ),
     staleSourceReportCount: staleSourceReportPaths.length,
     staleSourceReportPaths,
   };

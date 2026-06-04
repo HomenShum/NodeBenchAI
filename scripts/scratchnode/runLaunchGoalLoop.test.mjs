@@ -161,6 +161,19 @@ describe("summarizeSourceReportEvidence", () => {
 
     expect(summary).toEqual({
       sourceReportCount: 3,
+      sourceReportPaths: [
+        ".tmp/augment-upload-scope.json",
+        ".tmp/local-history-map-reduce.json",
+        ".tmp/workspace-housekeeping-loop.json",
+      ],
+      sourceReportFreshCount: 2,
+      sourceReportRepoMatchCount: 2,
+      sourceReportRepoMismatchPaths: [".tmp/augment-upload-scope.json"],
+      sourceReportAgeSecondsByPath: {
+        ".tmp/augment-upload-scope.json": 3,
+        ".tmp/local-history-map-reduce.json": 8.25,
+        ".tmp/workspace-housekeeping-loop.json": 2.5,
+      },
       sourceReportMaxAgeSeconds: 8.25,
       staleSourceReportCount: 2,
       staleSourceReportPaths: [".tmp/augment-upload-scope.json", ".tmp/local-history-map-reduce.json"],
