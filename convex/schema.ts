@@ -4969,6 +4969,14 @@ export default defineSchema({
       v.literal("apply_formula"),
       v.literal("add_sheet"),
       v.literal("rename_sheet"),
+      // Additive expand to unblock prod: a shared-prod spreadsheetEvents doc carries
+      // operation "row_delta" (written out-of-band from the unmerged applyRowDelta
+      // feature, commit 8e58a265), so `convex deploy --typecheck=enable` fails
+      // schema-vs-data validation and aborts EVERY production deploy. Adding the
+      // literal makes the stray doc valid without mutating prod data (backfill-safe,
+      // reversible). Follow-up: constrain storeSpreadsheetEvent's v.any() seam
+      // (audit P1-2) so the class can't recur, then land/retire the feature.
+      v.literal("row_delta"),
     ),
     targetRange: v.optional(v.string()), // A1 notation (e.g., "A1:B5")
     payload: v.any(), // Operation-specific data (before/after)
