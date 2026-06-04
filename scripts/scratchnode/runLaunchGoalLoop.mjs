@@ -399,6 +399,23 @@ export function summarizeCriteriaEvidence(criteria) {
   };
 }
 
+function countBy(items, getKey) {
+  const counts = new Map();
+  for (const item of items) {
+    const key = getKey(item) || "unknown";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return Object.fromEntries([...counts.entries()].sort(([left], [right]) => left.localeCompare(right)));
+}
+
+export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
+  return {
+    developmentBacklogCount: developmentBacklog.length,
+    developmentBacklogModeCounts: countBy(developmentBacklog, (item) => item.mode),
+    developmentBacklogPriorityCounts: countBy(developmentBacklog, (item) => item.priority),
+  };
+}
+
 async function main() {
   const commands = [];
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
@@ -475,6 +492,7 @@ async function main() {
   const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
   const criteriaEvidence = summarizeCriteriaEvidence(criteria);
+  const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const report = {
     generatedAt: new Date().toISOString(),
     repo: repoRoot,
@@ -513,6 +531,7 @@ async function main() {
       notifyRecommended: !passed,
       failures: criteria.filter((criterion) => !criterion.ok).map((criterion) => criterion.name),
       ...criteriaEvidence,
+      ...backlogEvidence,
       knownCautionCount: knownCautions.length,
       actionableAttentionCount: actionableAttention.length,
       launchRelevantBlockerCount: launchRelevantBlockers.length,

@@ -5,6 +5,7 @@ import {
   selectDevelopmentCandidate,
   summarizeCommandEvidence,
   summarizeCriteriaEvidence,
+  summarizeDevelopmentBacklogEvidence,
   summarizeGitBranchEvidence,
   summarizeSourceReportEvidence,
 } from "./runLaunchGoalLoop.mjs";
@@ -161,6 +162,31 @@ describe("summarizeCriteriaEvidence", () => {
         { name: "git drift is clean after the loop", detail: "M scripts/example.js" },
         { name: "no actionable attention items remain", detail: "" },
       ],
+    });
+  });
+});
+
+describe("summarizeDevelopmentBacklogEvidence", () => {
+  it("summarizes backlog count, modes, and priorities", () => {
+    const summary = summarizeDevelopmentBacklogEvidence([
+      { id: "blocker-1", mode: "fix-first", priority: "P0" },
+      { id: "attention-2", mode: "fix-first", priority: "P1" },
+      { id: "goal-3", mode: "safe-local-development", priority: "P1" },
+      { id: "drift-4" },
+    ]);
+
+    expect(summary).toEqual({
+      developmentBacklogCount: 4,
+      developmentBacklogModeCounts: {
+        "fix-first": 2,
+        "safe-local-development": 1,
+        unknown: 1,
+      },
+      developmentBacklogPriorityCounts: {
+        P0: 1,
+        P1: 2,
+        unknown: 1,
+      },
     });
   });
 });
