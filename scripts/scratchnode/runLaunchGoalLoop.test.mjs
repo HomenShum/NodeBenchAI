@@ -11,6 +11,7 @@ import {
   summarizeDevelopmentCandidateEvidence,
   summarizeGitBranchEvidence,
   summarizeGitHeadEvidence,
+  summarizeGoalEvidence,
   summarizeGoalQueueEvidence,
   summarizeHousekeepingReportEvidence,
   summarizeLaunchReportEvidence,
@@ -450,6 +451,21 @@ describe("summarizeReportMetadataEvidence", () => {
     ).toEqual({
       reportGeneratedAt: "2026-06-04T03:08:00.000Z",
       reportPath: ".tmp/scratchnode-launch-goal-loop.json",
+    });
+  });
+});
+
+describe("summarizeGoalEvidence", () => {
+  it("summarizes goal id and source refs", () => {
+    expect(
+      summarizeGoalEvidence({
+        id: "scratchnode-nodebench-development-goal-cron",
+        sourceRefs: ["docs/runbooks/SCRATCHNODE_LAUNCH_DAY.md", "", null],
+      }),
+    ).toEqual({
+      goalId: "scratchnode-nodebench-development-goal-cron",
+      goalSourceRefCount: 1,
+      goalSourceRefs: ["docs/runbooks/SCRATCHNODE_LAUNCH_DAY.md"],
     });
   });
 });

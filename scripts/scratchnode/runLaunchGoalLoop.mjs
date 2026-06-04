@@ -587,6 +587,15 @@ export function summarizeReportMetadataEvidence({ generatedAt, reportPath }) {
   };
 }
 
+export function summarizeGoalEvidence(goal) {
+  const sourceRefs = Array.isArray(goal?.sourceRefs) ? goal.sourceRefs.filter(Boolean) : [];
+  return {
+    goalId: goal?.id ?? null,
+    goalSourceRefCount: sourceRefs.length,
+    goalSourceRefs: sourceRefs,
+  };
+}
+
 function countBy(items, getKey) {
   const counts = new Map();
   for (const item of items) {
@@ -777,6 +786,19 @@ async function main() {
       "The loop may edit local source, tests, scripts, and docs, but is read-only against production: it navigates, opens modals, copies safe controls, and inspects reports without sending chat, creating events, publishing wikis, deploying, pushing, or mutating live user data.",
   };
   const workflowEvidence = summarizeWorkflowModelEvidence(workflowModel);
+  const goal = {
+    id: "scratchnode-nodebench-development-goal-cron",
+    objective: "Keep ScratchNode and NodeBench continuously improving in small verified slices while preserving production safety.",
+    stopCondition:
+      "The loop is clean when housekeeping, Augment scope, ScratchNode static/live/interactive checks, NodeBench handoff checks, tmp-ignore probes, and git drift all pass with no launch-relevant blockers; a development slice is done only when it is locally verified and either committed or explicitly reported.",
+    sourceRefs: [
+      "docs/runbooks/GOAL_MODE_RELEASE_AUTOPILOT.md",
+      "docs/runbooks/SCRATCHNODE_LAUNCH_DAY.md",
+      "docs/runbooks/WORKSPACE_HOUSEKEEPING.md",
+    ],
+    successCriteria: criteria,
+  };
+  const goalEvidence = summarizeGoalEvidence(goal);
   const generatedAt = new Date().toISOString();
   const reportMetadataEvidence = summarizeReportMetadataEvidence({
     generatedAt,
@@ -786,18 +808,7 @@ async function main() {
     schemaVersion: reportSchemaVersion,
     generatedAt,
     repo: repoRoot,
-    goal: {
-      id: "scratchnode-nodebench-development-goal-cron",
-      objective: "Keep ScratchNode and NodeBench continuously improving in small verified slices while preserving production safety.",
-      stopCondition:
-        "The loop is clean when housekeeping, Augment scope, ScratchNode static/live/interactive checks, NodeBench handoff checks, tmp-ignore probes, and git drift all pass with no launch-relevant blockers; a development slice is done only when it is locally verified and either committed or explicitly reported.",
-      sourceRefs: [
-        "docs/runbooks/GOAL_MODE_RELEASE_AUTOPILOT.md",
-        "docs/runbooks/SCRATCHNODE_LAUNCH_DAY.md",
-        "docs/runbooks/WORKSPACE_HOUSEKEEPING.md",
-      ],
-      successCriteria: criteria,
-    },
+    goal,
     workflowModel,
     summary: {
       passed,
@@ -816,6 +827,7 @@ async function main() {
       ...gitHeadEvidence,
       ...reportSchemaEvidence,
       ...reportMetadataEvidence,
+      ...goalEvidence,
       ...commandEvidence,
       ...sourceReportEvidence,
       ...housekeepingEvidence,
