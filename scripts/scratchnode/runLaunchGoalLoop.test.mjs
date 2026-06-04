@@ -21,6 +21,7 @@ import {
   summarizeLaunchReportEvidence,
   summarizeNotificationEvidence,
   summarizeRequiredReportLoadEvidence,
+  summarizeRequiredReportStructureEvidence,
   summarizeReportMetadataEvidence,
   summarizeReportSchemaEvidence,
   summarizeSourceReportEvidence,
@@ -727,6 +728,43 @@ describe("summarizeReportMetadataEvidence", () => {
     ).toEqual({
       reportGeneratedAt: "2026-06-04T03:08:00.000Z",
       reportPath: ".tmp/scratchnode-launch-goal-loop.json",
+    });
+  });
+});
+
+describe("summarizeRequiredReportStructureEvidence", () => {
+  it("proves the nested housekeeping and launch summary structures are present", () => {
+    expect(
+      summarizeRequiredReportStructureEvidence({
+        housekeepingReport: {
+          operatorSummary: { status: "OK" },
+          summary: { candidateFiles: 10 },
+        },
+        launchReport: {
+          summary: { passed: true },
+        },
+      }),
+    ).toEqual({
+      requiredReportStructureCount: 3,
+      requiredReportStructureReadyCount: 3,
+      requiredReportStructureNames: ["housekeeping.operatorSummary", "housekeeping.summary", "launch.summary"],
+      requiredReportStructureFailures: [],
+    });
+  });
+
+  it("fails closed when a required nested report structure is missing", () => {
+    expect(
+      summarizeRequiredReportStructureEvidence({
+        housekeepingReport: {
+          summary: { candidateFiles: 10 },
+        },
+        launchReport: null,
+      }),
+    ).toEqual({
+      requiredReportStructureCount: 3,
+      requiredReportStructureReadyCount: 1,
+      requiredReportStructureNames: ["housekeeping.operatorSummary", "housekeeping.summary", "launch.summary"],
+      requiredReportStructureFailures: ["housekeeping.operatorSummary: missing", "launch.summary: missing"],
     });
   });
 });

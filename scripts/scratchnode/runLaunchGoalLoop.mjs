@@ -562,6 +562,31 @@ export function summarizeRequiredReportLoadEvidence(requiredReports) {
   };
 }
 
+export function summarizeRequiredReportStructureEvidence({ housekeepingReport, launchReport }) {
+  const checks = [
+    {
+      name: "housekeeping.operatorSummary",
+      ok: !!housekeepingReport?.operatorSummary && typeof housekeepingReport.operatorSummary === "object",
+    },
+    {
+      name: "housekeeping.summary",
+      ok: !!housekeepingReport?.summary && typeof housekeepingReport.summary === "object",
+    },
+    {
+      name: "launch.summary",
+      ok: !!launchReport?.summary && typeof launchReport.summary === "object",
+    },
+  ];
+  const failedChecks = checks.filter((check) => !check.ok);
+
+  return {
+    requiredReportStructureCount: checks.length,
+    requiredReportStructureReadyCount: checks.filter((check) => check.ok).length,
+    requiredReportStructureNames: checks.map((check) => check.name),
+    requiredReportStructureFailures: failedChecks.map((check) => `${check.name}: missing`),
+  };
+}
+
 function evidenceNumber(value) {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : 0;
@@ -1064,12 +1089,21 @@ async function main() {
     localHistory: localHistoryReport,
     packageJson,
   });
+  const requiredReportStructureEvidence = summarizeRequiredReportStructureEvidence({
+    housekeepingReport,
+    launchReport,
+  });
 
   const criteria = [
     buildCriterion(
       "required source reports load cleanly",
       requiredReportLoadEvidence.requiredReportLoadFailures.length === 0,
       requiredReportLoadEvidence.requiredReportLoadFailures.join("; "),
+    ),
+    buildCriterion(
+      "required report structures stay available",
+      requiredReportStructureEvidence.requiredReportStructureFailures.length === 0,
+      requiredReportStructureEvidence.requiredReportStructureFailures.join("; "),
     ),
     buildCriterion(
       "housekeeping command passes",
@@ -1210,6 +1244,7 @@ async function main() {
       ...reportMetadataEvidence,
       ...goalEvidence,
       ...requiredReportLoadEvidence,
+      ...requiredReportStructureEvidence,
       ...commandEvidence,
       ...sourceReportEvidence,
       ...housekeepingEvidence,
