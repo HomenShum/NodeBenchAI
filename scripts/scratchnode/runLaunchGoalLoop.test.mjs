@@ -322,6 +322,8 @@ describe("summarizeCriteriaEvidence", () => {
 
     expect(summary).toEqual({
       criterionCount: 3,
+      passedCriterionCount: 1,
+      passedCriterionNames: ["housekeeping command passes"],
       failedCriterionCount: 2,
       failedCriterionDetails: [
         { name: "git drift is clean after the loop", detail: "M scripts/example.js" },

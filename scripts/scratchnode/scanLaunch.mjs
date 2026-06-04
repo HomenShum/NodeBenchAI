@@ -180,6 +180,8 @@ function scanStaticContracts() {
     "gitAheadCount",
     "gitBehindCount",
     "criterionCount",
+    "passedCriterionCount",
+    "passedCriterionNames",
     "failedCriterionCount",
     "failedCriterionDetails",
     "developmentBacklogCount",

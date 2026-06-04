@@ -504,6 +504,7 @@ export function summarizeGitBranchEvidence(gitBranchStatus) {
 }
 
 export function summarizeCriteriaEvidence(criteria) {
+  const passedCriterionNames = criteria.filter((criterion) => criterion.ok).map((criterion) => criterion.name);
   const failedCriterionDetails = criteria
     .filter((criterion) => !criterion.ok)
     .map((criterion) => ({
@@ -513,6 +514,8 @@ export function summarizeCriteriaEvidence(criteria) {
 
   return {
     criterionCount: criteria.length,
+    passedCriterionCount: passedCriterionNames.length,
+    passedCriterionNames,
     failedCriterionCount: failedCriterionDetails.length,
     failedCriterionDetails,
   };
