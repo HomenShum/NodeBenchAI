@@ -176,6 +176,39 @@ describe("selectDevelopmentCandidate", () => {
       "The tracked branch is behind upstream; sync requires a coordinated branch update before local slices continue.",
     );
   });
+
+  it("blocks autonomous slices when HEAD is detached", () => {
+    const candidate = selectDevelopmentCandidate(
+      [
+        {
+          id: "head-1",
+          title: "Detached HEAD must be attached to a branch before new autonomous development",
+          mode: "human-gated",
+          surface: "repo",
+          area: "branch attachment",
+          priority: "P1",
+        },
+      ],
+      {
+        actionableAttention: [],
+        launchRelevantBlockers: [],
+        goalQueue: [],
+      },
+    );
+
+    expect(candidate?.selectionReason).toBe(
+      "HEAD is detached; attach to a branch before starting a new autonomous slice.",
+    );
+    expect(candidate?.selectionType).toBe("detached-head");
+    expect(candidate?.eligibleSafeLocalGoalCount).toBe(0);
+    expect(candidate?.openGoalQueueCount).toBe(0);
+    expect(candidate?.actionability).toBe("human-coordinated-branch-attach");
+    expect(candidate?.actionRequired).toBe(true);
+    expect(candidate?.quietPassEligible).toBe(false);
+    expect(candidate?.actionabilityReason).toBe(
+      "Detached HEAD is present; attach to the intended branch before local slices continue.",
+    );
+  });
 });
 
 describe("knownCautionEntries", () => {
@@ -598,6 +631,8 @@ describe("summarizeGitBranchEvidence", () => {
       gitTrackingKnown: true,
       gitAheadCount: 9,
       gitBehindCount: 2,
+      gitDetachedHead: false,
+      gitDetachedHeadDetail: null,
       gitBranchBehindUpstream: true,
       gitBranchSyncDetail: "Behind origin/main by 2 commits.",
     });
@@ -610,6 +645,8 @@ describe("summarizeGitBranchEvidence", () => {
       gitTrackingKnown: false,
       gitAheadCount: 0,
       gitBehindCount: 0,
+      gitDetachedHead: false,
+      gitDetachedHeadDetail: null,
       gitBranchBehindUpstream: false,
       gitBranchSyncDetail: "No tracked upstream configured.",
     });
@@ -622,8 +659,24 @@ describe("summarizeGitBranchEvidence", () => {
       gitTrackingKnown: true,
       gitAheadCount: 3,
       gitBehindCount: 0,
+      gitDetachedHead: false,
+      gitDetachedHeadDetail: null,
       gitBranchBehindUpstream: false,
       gitBranchSyncDetail: "Not behind origin/main.",
+    });
+  });
+
+  it("surfaces detached HEAD state explicitly", () => {
+    expect(summarizeGitBranchEvidence("## HEAD (detached at c4c9d969)\n")).toEqual({
+      gitBranchName: "HEAD",
+      gitUpstreamName: null,
+      gitTrackingKnown: false,
+      gitAheadCount: 0,
+      gitBehindCount: 0,
+      gitDetachedHead: true,
+      gitDetachedHeadDetail: "detached at c4c9d969",
+      gitBranchBehindUpstream: false,
+      gitBranchSyncDetail: "Detached HEAD: detached at c4c9d969.",
     });
   });
 });

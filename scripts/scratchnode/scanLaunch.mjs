@@ -223,6 +223,8 @@ function scanStaticContracts() {
     "gitUpstreamName",
     "gitAheadCount",
     "gitBehindCount",
+    "gitDetachedHead",
+    "gitDetachedHeadDetail",
     "gitBranchBehindUpstream",
     "gitBranchSyncDetail",
     "gitHeadSummary",

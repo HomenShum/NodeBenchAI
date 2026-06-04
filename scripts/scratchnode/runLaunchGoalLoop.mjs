@@ -302,6 +302,20 @@ function buildDevelopmentBacklog({ actionableAttention, launchRelevantBlockers, 
     });
   }
 
+  if (gitBranchEvidence?.gitDetachedHead === true) {
+    backlog.push({
+      id: `head-${backlog.length + 1}`,
+      surface: "repo",
+      area: "branch attachment",
+      priority: "P1",
+      mode: "human-gated",
+      title: "Detached HEAD must be attached to a branch before new autonomous development",
+      why: "Autonomous commits from a detached HEAD are hard to recover and do not safely advance the tracked branch.",
+      maxSlice: "Attach HEAD to the intended branch in a coordinated step, then rerun the goal loop.",
+      suggestedVerification: ["git status --short --branch", "npm run scratchnode:launch:goal"],
+    });
+  }
+
   if (gitStatus) {
     backlog.push({
       id: `drift-${backlog.length + 1}`,
@@ -383,6 +397,11 @@ export function selectDevelopmentCandidate(developmentBacklog, context = {}) {
     selectionReason = "Git drift is present; classify existing changes before starting a new autonomous slice.";
     actionability = "local-fix-required";
     actionabilityReason = "Git drift is present; classify or resolve it before starting new work.";
+  } else if (candidate.id.startsWith("head-")) {
+    selectionType = "detached-head";
+    selectionReason = "HEAD is detached; attach to a branch before starting a new autonomous slice.";
+    actionability = "human-coordinated-branch-attach";
+    actionabilityReason = "Detached HEAD is present; attach to the intended branch before local slices continue.";
   } else if (candidate.id.startsWith("sync-")) {
     selectionType = "tracked-upstream-sync";
     selectionReason = "Tracked upstream is ahead of the local branch; sync before starting a new autonomous slice.";
@@ -725,6 +744,9 @@ export function summarizeGitBranchEvidence(gitBranchStatus) {
   const trackingSummary = match?.[2] ?? "";
   const gitBehindCount = Number(trackingSummary.match(/behind\s+(\d+)/)?.[1] ?? 0);
   const gitAheadCount = Number(trackingSummary.match(/ahead\s+(\d+)/)?.[1] ?? 0);
+  const detachedMatch = firstLine.match(/^##\s+HEAD\s+\(([^)]+)\)/i);
+  const gitDetachedHead = Boolean(detachedMatch) || /^##\s+HEAD\b/i.test(firstLine);
+  const gitDetachedHeadDetail = gitDetachedHead ? detachedMatch?.[1]?.trim() ?? "HEAD is detached" : null;
 
   return {
     gitBranchName: branchName || null,
@@ -732,12 +754,16 @@ export function summarizeGitBranchEvidence(gitBranchStatus) {
     gitTrackingKnown: Boolean(upstreamName),
     gitAheadCount,
     gitBehindCount,
+    gitDetachedHead,
+    gitDetachedHeadDetail,
     gitBranchBehindUpstream: Boolean(upstreamName) && gitBehindCount > 0,
-    gitBranchSyncDetail: !upstreamName
-      ? "No tracked upstream configured."
-      : gitBehindCount > 0
-        ? `Behind ${upstreamName} by ${gitBehindCount} commit${gitBehindCount === 1 ? "" : "s"}.`
-        : `Not behind ${upstreamName}.`,
+    gitBranchSyncDetail: gitDetachedHead
+      ? `Detached HEAD: ${gitDetachedHeadDetail}.`
+      : !upstreamName
+        ? "No tracked upstream configured."
+        : gitBehindCount > 0
+          ? `Behind ${upstreamName} by ${gitBehindCount} commit${gitBehindCount === 1 ? "" : "s"}.`
+          : `Not behind ${upstreamName}.`,
   };
 }
 
@@ -1127,7 +1153,11 @@ async function main() {
       housekeepingReport?.summary?.sourceReportsMatch === true && housekeepingReport?.summary?.sourceReportsFresh === true,
     ),
     buildCriterion("git drift is clean after the loop", gitStatus.length === 0, gitStatus),
-    buildCriterion("git branch is not behind upstream", gitBranchEvidence.gitBranchBehindUpstream !== true, gitBranchEvidence.gitBranchSyncDetail),
+    buildCriterion(
+      "git branch is attached and not behind upstream",
+      gitBranchEvidence.gitDetachedHead !== true && gitBranchEvidence.gitBranchBehindUpstream !== true,
+      gitBranchEvidence.gitBranchSyncDetail,
+    ),
     buildCriterion(
       ".tmp loop reports are ignored",
       tmpIgnoreEvidence.tmpIgnoreProbePassed && tmpIgnoreEvidence.tmpIgnoreProbeMissingPaths.length === 0,
