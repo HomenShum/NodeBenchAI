@@ -331,6 +331,25 @@ export function selectDevelopmentCandidate(developmentBacklog, context = {}) {
   };
 }
 
+export function summarizeCommandEvidence(commands) {
+  const commandDurations = commands.map((command) => ({
+    command: command.command,
+    exitCode: command.exitCode,
+    durationMs: Math.max(0, Number(command.durationMs) || 0),
+  }));
+  const slowestCommand = commandDurations.reduce((slowest, command) => {
+    if (!slowest || command.durationMs > slowest.durationMs) return command;
+    return slowest;
+  }, null);
+
+  return {
+    commandFailureCount: commands.filter((command) => command.exitCode !== 0).length,
+    commandExitCodes: Object.fromEntries(commands.map((command) => [command.command, command.exitCode])),
+    commandDurationTotalMs: commandDurations.reduce((total, command) => total + command.durationMs, 0),
+    slowestCommand,
+  };
+}
+
 async function main() {
   const commands = [];
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
@@ -403,6 +422,7 @@ async function main() {
   const passed = criteria.every((criterion) => criterion.ok);
   const safeLocalGoalCount = goalQueue.filter((goal) => goal.mode === "safe-local-development").length;
   const humanGatedGoalCount = goalQueue.filter((goal) => goal.mode === "human-gated").length;
+  const commandEvidence = summarizeCommandEvidence(commands);
   const report = {
     generatedAt: new Date().toISOString(),
     repo: repoRoot,
@@ -448,8 +468,7 @@ async function main() {
       humanGatedGoalCount,
       gitDriftClean: gitStatus.length === 0,
       gitBranchStatus,
-      commandFailureCount: commands.filter((command) => command.exitCode !== 0).length,
-      commandExitCodes: Object.fromEntries(commands.map((command) => [command.command, command.exitCode])),
+      ...commandEvidence,
       nextDevelopmentCandidate: developmentCandidate?.id ?? null,
       nextDevelopmentCandidateReason: developmentCandidate?.selectionReason ?? null,
     },

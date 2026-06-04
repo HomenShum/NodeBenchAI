@@ -177,6 +177,8 @@ function scanStaticContracts() {
     "gitBranchStatus",
     "commandFailureCount",
     "commandExitCodes",
+    "commandDurationTotalMs",
+    "slowestCommand",
     "developmentCandidate",
     "safeLocalGoalCount",
     "humanGatedGoalCount",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyGoalCardMode, selectDevelopmentCandidate } from "./runLaunchGoalLoop.mjs";
+import { classifyGoalCardMode, selectDevelopmentCandidate, summarizeCommandEvidence } from "./runLaunchGoalLoop.mjs";
 
 describe("classifyGoalCardMode", () => {
   it("marks tests-only cards as safe local when no hard gate is present", () => {
@@ -70,5 +70,30 @@ describe("selectDevelopmentCandidate", () => {
     expect(candidate?.selectionReason).toBe(
       "All gates are green and no safe-local goal cards are eligible, so the loop defaults to automation instrumentation.",
     );
+  });
+});
+
+describe("summarizeCommandEvidence", () => {
+  it("summarizes command exits, failures, and timing", () => {
+    const summary = summarizeCommandEvidence([
+      { command: "fast", exitCode: 0, durationMs: 12 },
+      { command: "slow", exitCode: 1, durationMs: 39 },
+      { command: "invalid-duration", exitCode: 0, durationMs: "not-a-number" },
+    ]);
+
+    expect(summary).toEqual({
+      commandFailureCount: 1,
+      commandExitCodes: {
+        fast: 0,
+        slow: 1,
+        "invalid-duration": 0,
+      },
+      commandDurationTotalMs: 51,
+      slowestCommand: {
+        command: "slow",
+        exitCode: 1,
+        durationMs: 39,
+      },
+    });
   });
 });
