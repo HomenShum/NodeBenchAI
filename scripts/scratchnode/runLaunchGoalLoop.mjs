@@ -525,6 +525,17 @@ export function summarizeCriteriaEvidence(criteria) {
   };
 }
 
+export function summarizeNotificationEvidence(criteria) {
+  const failures = criteria.filter((criterion) => !criterion.ok).map((criterion) => criterion.name);
+  return {
+    notifyRecommended: failures.length > 0,
+    notifyRecommendationReason:
+      failures.length > 0
+        ? `Launch goal failures (${failures.length}): ${failures.join("; ")}`
+        : "All launch goal criteria passed; no notification needed.",
+  };
+}
+
 function countBy(items, getKey) {
   const counts = new Map();
   for (const item of items) {
@@ -686,6 +697,7 @@ async function main() {
   const launchReportEvidence = summarizeLaunchReportEvidence(launchReport);
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
   const criteriaEvidence = summarizeCriteriaEvidence(criteria);
+  const notificationEvidence = summarizeNotificationEvidence(criteria);
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);
   const goalQueueEvidence = summarizeGoalQueueEvidence(goalQueue);
@@ -726,7 +738,7 @@ async function main() {
     workflowModel,
     summary: {
       passed,
-      notifyRecommended: !passed,
+      ...notificationEvidence,
       failures: criteria.filter((criterion) => !criterion.ok).map((criterion) => criterion.name),
       ...criteriaEvidence,
       ...backlogEvidence,

@@ -179,6 +179,7 @@ function scanStaticContracts() {
     "gitUpstreamName",
     "gitAheadCount",
     "gitBehindCount",
+    "notifyRecommendationReason",
     "criterionCount",
     "passedCriterionCount",
     "passedCriterionNames",

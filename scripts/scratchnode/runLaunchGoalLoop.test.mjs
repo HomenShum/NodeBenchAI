@@ -13,6 +13,7 @@ import {
   summarizeGoalQueueEvidence,
   summarizeHousekeepingReportEvidence,
   summarizeLaunchReportEvidence,
+  summarizeNotificationEvidence,
   summarizeSourceReportEvidence,
   summarizeTmpIgnoreEvidence,
   summarizeWorkflowModelEvidence,
@@ -339,6 +340,30 @@ describe("summarizeCriteriaEvidence", () => {
         { name: "git drift is clean after the loop", detail: "M scripts/example.js" },
         { name: "no actionable attention items remain", detail: "" },
       ],
+    });
+  });
+});
+
+describe("summarizeNotificationEvidence", () => {
+  it("explains why notification is or is not recommended", () => {
+    expect(
+      summarizeNotificationEvidence([
+        { name: "housekeeping command passes", ok: true },
+        { name: "git drift is clean after the loop", ok: true },
+      ]),
+    ).toEqual({
+      notifyRecommended: false,
+      notifyRecommendationReason: "All launch goal criteria passed; no notification needed.",
+    });
+
+    expect(
+      summarizeNotificationEvidence([
+        { name: "housekeeping command passes", ok: false },
+        { name: "git drift is clean after the loop", ok: false },
+      ]),
+    ).toEqual({
+      notifyRecommended: true,
+      notifyRecommendationReason: "Launch goal failures (2): housekeeping command passes; git drift is clean after the loop",
     });
   });
 });
