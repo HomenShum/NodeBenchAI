@@ -232,6 +232,8 @@ describe("summarizeHousekeepingReportEvidence", () => {
       passed: true,
       augmentReportPassed: true,
       operatorSummary: {
+        status: "WARN",
+        message: "Housekeeping verified with attention items: 1 warning(s).",
         notifyRecommended: false,
       },
       failures: ["protectedPathsClean must be true"],
@@ -266,6 +268,8 @@ describe("summarizeHousekeepingReportEvidence", () => {
 
     expect(summary).toEqual({
       housekeepingPassed: true,
+      housekeepingOperatorStatus: "WARN",
+      housekeepingOperatorMessage: "Housekeeping verified with attention items: 1 warning(s).",
       housekeepingNotifyRecommended: false,
       housekeepingFailureCount: 1,
       housekeepingFailures: ["protectedPathsClean must be true"],

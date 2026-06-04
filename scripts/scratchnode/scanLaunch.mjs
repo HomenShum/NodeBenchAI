@@ -227,6 +227,8 @@ function scanStaticContracts() {
     "sourceReportFutureSkewThresholdSeconds",
     "staleSourceReportCount",
     "housekeepingPassed",
+    "housekeepingOperatorStatus",
+    "housekeepingOperatorMessage",
     "housekeepingNotifyRecommended",
     "housekeepingFailureCount",
     "housekeepingFailures",

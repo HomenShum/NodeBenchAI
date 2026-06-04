@@ -449,6 +449,8 @@ export function summarizeHousekeepingReportEvidence(housekeepingReport) {
 
   return {
     housekeepingPassed: housekeepingReport?.passed === true,
+    housekeepingOperatorStatus: housekeepingReport?.operatorSummary?.status ?? "UNKNOWN",
+    housekeepingOperatorMessage: housekeepingReport?.operatorSummary?.message ?? "",
     housekeepingNotifyRecommended: housekeepingReport?.operatorSummary?.notifyRecommended === true,
     housekeepingFailureCount: failures.length,
     housekeepingFailures: failures,
