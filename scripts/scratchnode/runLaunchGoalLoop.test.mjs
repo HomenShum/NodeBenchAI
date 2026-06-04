@@ -124,7 +124,10 @@ describe("summarizeCommandEvidence", () => {
     ]);
 
     expect(summary).toEqual({
+      commandCount: 3,
+      commandSuccessCount: 2,
       commandFailureCount: 1,
+      commandNames: ["fast", "slow", "invalid-duration"],
       commandExitCodes: {
         fast: 0,
         slow: 1,
