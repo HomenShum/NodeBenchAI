@@ -4,6 +4,7 @@ import {
   classifyGoalCardMode,
   selectDevelopmentCandidate,
   summarizeCommandEvidence,
+  summarizeGitBranchEvidence,
   summarizeSourceReportEvidence,
 } from "./runLaunchGoalLoop.mjs";
 
@@ -118,6 +119,28 @@ describe("summarizeSourceReportEvidence", () => {
       sourceReportMaxAgeSeconds: 8.25,
       staleSourceReportCount: 2,
       staleSourceReportPaths: [".tmp/augment-upload-scope.json", ".tmp/local-history-map-reduce.json"],
+    });
+  });
+});
+
+describe("summarizeGitBranchEvidence", () => {
+  it("parses branch tracking counts from git status", () => {
+    expect(summarizeGitBranchEvidence("## main...origin/main [ahead 9, behind 2]\n")).toEqual({
+      gitBranchName: "main",
+      gitUpstreamName: "origin/main",
+      gitTrackingKnown: true,
+      gitAheadCount: 9,
+      gitBehindCount: 2,
+    });
+  });
+
+  it("handles branches without upstream tracking", () => {
+    expect(summarizeGitBranchEvidence("## codex/local-work\n")).toEqual({
+      gitBranchName: "codex/local-work",
+      gitUpstreamName: null,
+      gitTrackingKnown: false,
+      gitAheadCount: 0,
+      gitBehindCount: 0,
     });
   });
 });

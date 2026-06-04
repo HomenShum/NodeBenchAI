@@ -175,6 +175,10 @@ function scanStaticContracts() {
   const goalLoop = readText(files.goalLoop);
   const goalLoopEvidenceFields = [
     "gitBranchStatus",
+    "gitBranchName",
+    "gitUpstreamName",
+    "gitAheadCount",
+    "gitBehindCount",
     "commandFailureCount",
     "commandExitCodes",
     "commandDurationTotalMs",

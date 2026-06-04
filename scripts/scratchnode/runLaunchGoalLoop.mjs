@@ -368,6 +368,22 @@ export function summarizeSourceReportEvidence(housekeepingReport) {
   };
 }
 
+export function summarizeGitBranchEvidence(gitBranchStatus) {
+  const firstLine = String(gitBranchStatus ?? "").split(/\r?\n/)[0]?.trim() ?? "";
+  const match = firstLine.match(/^##\s+([^\s\[]+)(?:\s+\[([^\]]+)\])?/);
+  const branchAndUpstream = match?.[1] ?? "";
+  const [branchName = null, upstreamName = null] = branchAndUpstream.split("...");
+  const trackingSummary = match?.[2] ?? "";
+
+  return {
+    gitBranchName: branchName || null,
+    gitUpstreamName: upstreamName || null,
+    gitTrackingKnown: Boolean(upstreamName),
+    gitAheadCount: Number(trackingSummary.match(/ahead\s+(\d+)/)?.[1] ?? 0),
+    gitBehindCount: Number(trackingSummary.match(/behind\s+(\d+)/)?.[1] ?? 0),
+  };
+}
+
 async function main() {
   const commands = [];
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
@@ -442,6 +458,7 @@ async function main() {
   const humanGatedGoalCount = goalQueue.filter((goal) => goal.mode === "human-gated").length;
   const commandEvidence = summarizeCommandEvidence(commands);
   const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
+  const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
   const report = {
     generatedAt: new Date().toISOString(),
     repo: repoRoot,
@@ -487,6 +504,7 @@ async function main() {
       humanGatedGoalCount,
       gitDriftClean: gitStatus.length === 0,
       gitBranchStatus,
+      ...gitBranchEvidence,
       ...commandEvidence,
       ...sourceReportEvidence,
       nextDevelopmentCandidate: developmentCandidate?.id ?? null,
