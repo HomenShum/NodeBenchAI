@@ -248,6 +248,7 @@ function scanStaticContracts() {
     "explicitPruneCautionWorktreePaths",
     "knownCautionSuppressesHousekeepingNotify",
     "knownCautionSuppressedAttentionCount",
+    "knownCautionSuppressedAttentionItems",
     "proposedGoalQueueIds",
     "queuedGoalQueueIds",
     "shippingGoalQueueIds",

@@ -859,8 +859,11 @@ export function summarizeKnownCautionSuppressionEvidence({ housekeepingReport, k
     ? housekeepingReport.operatorSummary.attentionItems.filter(Boolean)
     : [];
   const knownCautionCount = Array.isArray(knownCautions) ? knownCautions.filter(Boolean).length : 0;
-  const actionableAttentionCount = Array.isArray(actionableAttention) ? actionableAttention.filter(Boolean).length : 0;
-  const suppressedAttentionCount = Math.max(0, attentionItems.length - actionableAttentionCount);
+  const actionableAttentionItems = Array.isArray(actionableAttention) ? actionableAttention.filter(Boolean) : [];
+  const actionableAttentionCount = actionableAttentionItems.length;
+  const actionableAttentionSet = new Set(actionableAttentionItems);
+  const suppressedAttentionItems = attentionItems.filter((item) => !actionableAttentionSet.has(item));
+  const suppressedAttentionCount = suppressedAttentionItems.length;
 
   return {
     knownCautionSuppressesHousekeepingNotify:
@@ -869,6 +872,7 @@ export function summarizeKnownCautionSuppressionEvidence({ housekeepingReport, k
       actionableAttentionCount === 0 &&
       suppressedAttentionCount > 0,
     knownCautionSuppressedAttentionCount: suppressedAttentionCount,
+    knownCautionSuppressedAttentionItems: suppressedAttentionItems,
   };
 }
 

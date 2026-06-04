@@ -865,6 +865,7 @@ describe("summarizeKnownCautionSuppressionEvidence", () => {
     ).toEqual({
       knownCautionSuppressesHousekeepingNotify: true,
       knownCautionSuppressedAttentionCount: 1,
+      knownCautionSuppressedAttentionItems: ["caution worktrees present: 1"],
     });
 
     expect(
@@ -881,6 +882,7 @@ describe("summarizeKnownCautionSuppressionEvidence", () => {
     ).toEqual({
       knownCautionSuppressesHousekeepingNotify: false,
       knownCautionSuppressedAttentionCount: 1,
+      knownCautionSuppressedAttentionItems: ["caution worktrees present: 1"],
     });
   });
 });
