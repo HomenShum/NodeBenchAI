@@ -185,10 +185,13 @@ function scanStaticContracts() {
     "developmentBacklogCount",
     "developmentBacklogModeCounts",
     "developmentBacklogPriorityCounts",
+    "developmentBacklogIds",
     "goalQueueCount",
     "goalQueueStatusCounts",
     "goalQueueModeCounts",
     "goalQueuePriorityCounts",
+    "openGoalQueueCount",
+    "openGoalQueueIds",
     "commandFailureCount",
     "commandExitCodes",
     "commandDurationTotalMs",
@@ -205,7 +208,9 @@ function scanStaticContracts() {
     "tmpIgnoreRuleSources",
     "developmentCandidate",
     "safeLocalGoalCount",
+    "safeLocalGoalIds",
     "humanGatedGoalCount",
+    "humanGatedGoalIds",
     "nextDevelopmentCandidateReason",
   ];
   const missingGoalLoopEvidenceFields = goalLoopEvidenceFields.filter((field) => !goalLoop.includes(field));

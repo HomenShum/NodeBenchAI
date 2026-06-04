@@ -469,6 +469,7 @@ export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
     developmentBacklogCount: developmentBacklog.length,
     developmentBacklogModeCounts: countBy(developmentBacklog, (item) => item.mode),
     developmentBacklogPriorityCounts: countBy(developmentBacklog, (item) => item.priority),
+    developmentBacklogIds: developmentBacklog.map((item) => item.id).filter(Boolean),
   };
 }
 
@@ -489,11 +490,21 @@ export function isOpenGoalStatus(status) {
 }
 
 export function summarizeGoalQueueEvidence(goalQueue) {
+  const openGoals = goalQueue.filter((goal) => isOpenGoalStatus(goal.status));
+  const eligibleSafeLocalGoals = openGoals.filter((goal) => goal.mode === "safe-local-development");
+  const openHumanGatedGoals = openGoals.filter((goal) => goal.mode === "human-gated");
+
   return {
     goalQueueCount: goalQueue.length,
     goalQueueStatusCounts: countBy(goalQueue, (goal) => normalizeGoalStatus(goal.status)),
     goalQueueModeCounts: countBy(goalQueue, (goal) => goal.mode),
     goalQueuePriorityCounts: countBy(goalQueue, (goal) => goal.priority),
+    openGoalQueueCount: openGoals.length,
+    openGoalQueueIds: openGoals.map((goal) => goal.id).filter(Boolean),
+    safeLocalGoalCount: eligibleSafeLocalGoals.length,
+    safeLocalGoalIds: eligibleSafeLocalGoals.map((goal) => goal.id).filter(Boolean),
+    humanGatedGoalCount: openHumanGatedGoals.length,
+    humanGatedGoalIds: openHumanGatedGoals.map((goal) => goal.id).filter(Boolean),
   };
 }
 
@@ -572,8 +583,6 @@ async function main() {
   ];
 
   const passed = criteria.every((criterion) => criterion.ok);
-  const safeLocalGoalCount = goalQueue.filter((goal) => goal.mode === "safe-local-development").length;
-  const humanGatedGoalCount = goalQueue.filter((goal) => goal.mode === "human-gated").length;
   const commandEvidence = summarizeCommandEvidence(commands);
   const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
@@ -624,8 +633,6 @@ async function main() {
       actionableAttentionCount: actionableAttention.length,
       launchRelevantBlockerCount: launchRelevantBlockers.length,
       queuedGoalCount: goalQueue.filter((goal) => isOpenGoalStatus(goal.status)).length,
-      safeLocalGoalCount,
-      humanGatedGoalCount,
       gitDriftClean: gitStatus.length === 0,
       gitBranchStatus,
       ...gitBranchEvidence,

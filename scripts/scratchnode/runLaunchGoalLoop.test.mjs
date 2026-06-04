@@ -235,7 +235,7 @@ describe("summarizeCriteriaEvidence", () => {
 });
 
 describe("summarizeDevelopmentBacklogEvidence", () => {
-  it("summarizes backlog count, modes, and priorities", () => {
+  it("summarizes backlog count, modes, priorities, and ids", () => {
     const summary = summarizeDevelopmentBacklogEvidence([
       { id: "blocker-1", mode: "fix-first", priority: "P0" },
       { id: "attention-2", mode: "fix-first", priority: "P1" },
@@ -255,12 +255,13 @@ describe("summarizeDevelopmentBacklogEvidence", () => {
         P1: 2,
         unknown: 1,
       },
+      developmentBacklogIds: ["blocker-1", "attention-2", "goal-3", "drift-4"],
     });
   });
 });
 
 describe("summarizeGoalQueueEvidence", () => {
-  it("summarizes goal queue count, statuses, modes, and priorities", () => {
+  it("summarizes goal queue count, statuses, modes, priorities, and open eligible ids", () => {
     const summary = summarizeGoalQueueEvidence([
       { id: "goal-1", status: "queued", mode: "human-gated", priority: "P1" },
       { id: "goal-2", status: "queued", mode: "safe-local-development", priority: "P2" },
@@ -285,6 +286,12 @@ describe("summarizeGoalQueueEvidence", () => {
         P2: 1,
         unknown: 1,
       },
+      openGoalQueueCount: 2,
+      openGoalQueueIds: ["goal-1", "goal-2"],
+      safeLocalGoalCount: 1,
+      safeLocalGoalIds: ["goal-2"],
+      humanGatedGoalCount: 1,
+      humanGatedGoalIds: ["goal-1"],
     });
   });
 });
