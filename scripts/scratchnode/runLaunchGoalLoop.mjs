@@ -463,6 +463,8 @@ export function summarizeHousekeepingReportEvidence(housekeepingReport) {
     cautionWorktreeCount: evidenceNumber(summary.finalCaution),
     keptWorktreeCount: evidenceNumber(summary.finalKeep),
     protectedPathsClean: summary.protectedPathsClean === true,
+    protectedPathCount: evidenceNumber(summary.protectedPathCount),
+    dirtyProtectedPathCount: evidenceNumber(summary.dirtyProtectedPathCount),
     removedSafePathCount: evidenceNumber(summary.removedSafeCount),
     prunedWorktreeCount: evidenceNumber(summary.prunedWorktreeCount),
     invalidRegisteredWorktreeCount: evidenceNumber(summary.invalidRegistered),

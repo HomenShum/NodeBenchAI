@@ -241,6 +241,8 @@ function scanStaticContracts() {
     "cautionWorktreeCount",
     "keptWorktreeCount",
     "protectedPathsClean",
+    "protectedPathCount",
+    "dirtyProtectedPathCount",
     "removedSafePathCount",
     "prunedWorktreeCount",
     "invalidRegisteredWorktreeCount",
