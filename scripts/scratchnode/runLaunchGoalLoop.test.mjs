@@ -19,6 +19,7 @@ import {
   summarizeReportMetadataEvidence,
   summarizeReportSchemaEvidence,
   summarizeSourceReportEvidence,
+  summarizeVerificationEntryPointEvidence,
   summarizeTmpIgnoreEvidence,
   summarizeWorkflowModelEvidence,
 } from "./runLaunchGoalLoop.mjs";
@@ -589,6 +590,49 @@ describe("summarizeDevelopmentCandidateEvidence", () => {
       nextDevelopmentCandidateWhy: "Keep future loops honest.",
       nextDevelopmentCandidateMaxSlice: "Tighten one detector.",
       nextDevelopmentCandidateReason: "All gates are green.",
+    });
+  });
+});
+
+describe("summarizeVerificationEntryPointEvidence", () => {
+  it("validates npm-run verification scripts against package.json", () => {
+    const summary = summarizeVerificationEntryPointEvidence(
+      ["npm run scratchnode:launch:goal", "npm run repo:augment:check", "git diff --check"],
+      {
+        scripts: {
+          "scratchnode:launch:goal": "node scripts/scratchnode/runLaunchGoalLoop.mjs",
+          "repo:augment:check": "powershell -File scripts/repo/checkAugmentUploadScope.ps1",
+        },
+      },
+    );
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidateVerificationCommandCount: 3,
+      nextDevelopmentCandidateVerificationScriptCount: 2,
+      nextDevelopmentCandidateVerificationScriptRefs: ["scratchnode:launch:goal", "repo:augment:check"],
+      nextDevelopmentCandidateVerificationEntryPointsValid: true,
+      nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationUnsupportedCommands: [],
+    });
+  });
+
+  it("flags missing npm-run scripts and unsupported command formats", () => {
+    const summary = summarizeVerificationEntryPointEvidence(
+      ["npm run missing:script", "echo custom verifier"],
+      {
+        scripts: {
+          "scratchnode:launch:goal": "node scripts/scratchnode/runLaunchGoalLoop.mjs",
+        },
+      },
+    );
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidateVerificationCommandCount: 2,
+      nextDevelopmentCandidateVerificationScriptCount: 1,
+      nextDevelopmentCandidateVerificationScriptRefs: ["missing:script"],
+      nextDevelopmentCandidateVerificationEntryPointsValid: false,
+      nextDevelopmentCandidateVerificationMissingScripts: ["missing:script"],
+      nextDevelopmentCandidateVerificationUnsupportedCommands: ["echo custom verifier"],
     });
   });
 });

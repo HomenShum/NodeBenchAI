@@ -679,6 +679,44 @@ export function summarizeDevelopmentCandidateEvidence(developmentCandidate) {
   };
 }
 
+export function summarizeVerificationEntryPointEvidence(verificationCommands, packageJson) {
+  const commands = Array.isArray(verificationCommands)
+    ? verificationCommands.map((command) => String(command ?? "").trim()).filter(Boolean)
+    : [];
+  const packageScripts =
+    packageJson && typeof packageJson === "object" && packageJson.scripts && typeof packageJson.scripts === "object"
+      ? packageJson.scripts
+      : {};
+  const referencedScripts = [];
+  const missingScripts = [];
+  const unsupportedCommands = [];
+
+  for (const command of commands) {
+    const npmRunMatch = command.match(/^npm run ([^\s&|;]+)/i);
+    if (npmRunMatch) {
+      const scriptName = npmRunMatch[1];
+      referencedScripts.push(scriptName);
+      if (!Object.prototype.hasOwnProperty.call(packageScripts, scriptName)) {
+        missingScripts.push(scriptName);
+      }
+      continue;
+    }
+
+    if (/^(git|node|npx|powershell|pwsh)\b/i.test(command)) continue;
+    unsupportedCommands.push(command);
+  }
+
+  return {
+    nextDevelopmentCandidateVerificationCommandCount: commands.length,
+    nextDevelopmentCandidateVerificationScriptCount: referencedScripts.length,
+    nextDevelopmentCandidateVerificationScriptRefs: referencedScripts,
+    nextDevelopmentCandidateVerificationEntryPointsValid:
+      missingScripts.length === 0 && unsupportedCommands.length === 0,
+    nextDevelopmentCandidateVerificationMissingScripts: missingScripts,
+    nextDevelopmentCandidateVerificationUnsupportedCommands: unsupportedCommands,
+  };
+}
+
 export function normalizeGoalStatus(status) {
   const value = String(status ?? "").trim().toLowerCase();
   if (!value) return "unknown";
@@ -761,6 +799,7 @@ async function main() {
 
   const housekeepingReport = readJson(reportPaths.housekeeping);
   const launchReport = readJson(reportPaths.launch);
+  const packageJson = readJson("package.json");
   const gitStatus = commands.find((command) => command.command === "git status --short")?.stdout.trim() ?? "";
   const gitBranchStatus = commands.find((command) => command.command === "git status --short --branch")?.stdout.trim() ?? "";
   const gitHeadSummary = commands.find((command) => command.command === "git show -s --oneline HEAD")?.stdout.trim() ?? "";
@@ -829,6 +868,10 @@ async function main() {
   const reportSchemaEvidence = summarizeReportSchemaEvidence(reportSchemaVersion);
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);
+  const candidateVerificationEvidence = summarizeVerificationEntryPointEvidence(
+    developmentCandidate?.suggestedVerification,
+    packageJson,
+  );
   const goalQueueEvidence = summarizeGoalQueueEvidence(goalQueue);
   const workflowModel = {
     issueQueue:
@@ -897,6 +940,7 @@ async function main() {
       ...launchReportEvidence,
       ...tmpIgnoreEvidence,
       ...candidateEvidence,
+      ...candidateVerificationEvidence,
       ...workflowEvidence,
     },
     commands,
