@@ -10,6 +10,7 @@ import {
   summarizeDevelopmentBacklogEvidence,
   summarizeGitBranchEvidence,
   summarizeGoalQueueEvidence,
+  summarizeLaunchReportEvidence,
   summarizeSourceReportEvidence,
   summarizeTmpIgnoreEvidence,
 } from "./runLaunchGoalLoop.mjs";
@@ -162,6 +163,46 @@ describe("summarizeSourceReportEvidence", () => {
       sourceReportMaxAgeSeconds: 8.25,
       staleSourceReportCount: 2,
       staleSourceReportPaths: [".tmp/augment-upload-scope.json", ".tmp/local-history-map-reduce.json"],
+    });
+  });
+});
+
+describe("summarizeLaunchReportEvidence", () => {
+  it("summarizes launch pass flags, check counts, and failures", () => {
+    const summary = summarizeLaunchReportEvidence({
+      summary: {
+        passed: true,
+        staticPassed: true,
+        livePassed: false,
+        interactivePassed: true,
+        staticChecks: 24,
+        liveChecks: "5",
+        interactiveChecks: 3,
+        requiredStaticFailures: 0,
+        blockers: 1,
+        warnings: 2,
+        liveFailures: 1,
+        interactiveFailures: 0,
+        remoteProbeInfra: {
+          networkAccessDenied: true,
+        },
+      },
+    });
+
+    expect(summary).toEqual({
+      launchPassed: true,
+      launchStaticPassed: true,
+      launchLivePassed: false,
+      launchInteractivePassed: true,
+      launchStaticCheckCount: 24,
+      launchLiveCheckCount: 5,
+      launchInteractiveCheckCount: 3,
+      launchRequiredStaticFailureCount: 0,
+      launchBlockerCount: 1,
+      launchWarningCount: 2,
+      launchLiveFailureCount: 1,
+      launchInteractiveFailureCount: 0,
+      launchRemoteProbeNetworkAccessDenied: true,
     });
   });
 });

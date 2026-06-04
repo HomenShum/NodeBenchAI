@@ -384,6 +384,30 @@ export function summarizeSourceReportEvidence(housekeepingReport) {
   };
 }
 
+function evidenceNumber(value) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+export function summarizeLaunchReportEvidence(launchReport) {
+  const summary = launchReport?.summary ?? {};
+  return {
+    launchPassed: summary.passed === true,
+    launchStaticPassed: summary.staticPassed === true,
+    launchLivePassed: summary.livePassed === true,
+    launchInteractivePassed: summary.interactivePassed === true,
+    launchStaticCheckCount: evidenceNumber(summary.staticChecks),
+    launchLiveCheckCount: evidenceNumber(summary.liveChecks),
+    launchInteractiveCheckCount: evidenceNumber(summary.interactiveChecks),
+    launchRequiredStaticFailureCount: evidenceNumber(summary.requiredStaticFailures),
+    launchBlockerCount: evidenceNumber(summary.blockers),
+    launchWarningCount: evidenceNumber(summary.warnings),
+    launchLiveFailureCount: evidenceNumber(summary.liveFailures),
+    launchInteractiveFailureCount: evidenceNumber(summary.interactiveFailures),
+    launchRemoteProbeNetworkAccessDenied: summary.remoteProbeInfra?.networkAccessDenied === true,
+  };
+}
+
 function normalizeEvidencePath(value) {
   return String(value ?? "").replaceAll("\\", "/").trim();
 }
@@ -585,6 +609,7 @@ async function main() {
   const passed = criteria.every((criterion) => criterion.ok);
   const commandEvidence = summarizeCommandEvidence(commands);
   const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
+  const launchReportEvidence = summarizeLaunchReportEvidence(launchReport);
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
   const criteriaEvidence = summarizeCriteriaEvidence(criteria);
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
@@ -638,6 +663,7 @@ async function main() {
       ...gitBranchEvidence,
       ...commandEvidence,
       ...sourceReportEvidence,
+      ...launchReportEvidence,
       ...tmpIgnoreEvidence,
       nextDevelopmentCandidate: developmentCandidate?.id ?? null,
       nextDevelopmentCandidateReason: developmentCandidate?.selectionReason ?? null,
