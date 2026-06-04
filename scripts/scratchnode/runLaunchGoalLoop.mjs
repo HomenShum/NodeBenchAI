@@ -436,8 +436,17 @@ function evidenceNumber(value) {
 
 export function summarizeHousekeepingReportEvidence(housekeepingReport) {
   const summary = housekeepingReport?.summary ?? {};
+  const drift = housekeepingReport?.drift ?? {};
   const failures = Array.isArray(housekeepingReport?.failures) ? housekeepingReport.failures.filter(Boolean) : [];
   const warnings = Array.isArray(housekeepingReport?.warnings) ? housekeepingReport.warnings.filter(Boolean) : [];
+  const nonHousekeepingDriftPaths = [
+    ...(Array.isArray(drift.nonHousekeepingStagedPaths) ? drift.nonHousekeepingStagedPaths : []),
+    ...(Array.isArray(drift.nonHousekeepingUnstagedPaths) ? drift.nonHousekeepingUnstagedPaths : []),
+    ...(Array.isArray(drift.nonHousekeepingUntrackedPaths) ? drift.nonHousekeepingUntrackedPaths : []),
+  ]
+    .filter((entry) => typeof entry === "string" && entry.length > 0)
+    .sort();
+
   return {
     housekeepingPassed: housekeepingReport?.passed === true,
     housekeepingNotifyRecommended: housekeepingReport?.operatorSummary?.notifyRecommended === true,
@@ -457,6 +466,11 @@ export function summarizeHousekeepingReportEvidence(housekeepingReport) {
     invalidRegisteredWorktreeCount: evidenceNumber(summary.invalidRegistered),
     housekeepingStagedDiffCheckPassed: summary.stagedDiffCheckPassed === true,
     housekeepingOnlyDrift: summary.housekeepingOnlyDrift === true,
+    housekeepingDriftStagedCount: evidenceNumber(drift.stagedCount),
+    housekeepingDriftUnstagedCount: evidenceNumber(drift.unstagedCount),
+    housekeepingDriftUntrackedCount: evidenceNumber(drift.untrackedCount),
+    housekeepingDriftHousekeepingOnly: drift.housekeepingOnly === true,
+    housekeepingNonHousekeepingDriftPaths: nonHousekeepingDriftPaths,
   };
 }
 

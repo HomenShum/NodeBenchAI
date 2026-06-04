@@ -236,6 +236,15 @@ describe("summarizeHousekeepingReportEvidence", () => {
       },
       failures: ["protectedPathsClean must be true"],
       warnings: ["caution worktree preserved"],
+      drift: {
+        stagedCount: "1",
+        unstagedCount: 2,
+        untrackedCount: 3,
+        housekeepingOnly: false,
+        nonHousekeepingStagedPaths: ["scripts/edit-a.mjs"],
+        nonHousekeepingUnstagedPaths: ["src/edit-b.ts"],
+        nonHousekeepingUntrackedPaths: ["notes/edit-c.md"],
+      },
       summary: {
         candidateFiles: 6198,
         threshold: "250000",
@@ -270,6 +279,11 @@ describe("summarizeHousekeepingReportEvidence", () => {
       invalidRegisteredWorktreeCount: 6,
       housekeepingStagedDiffCheckPassed: true,
       housekeepingOnlyDrift: false,
+      housekeepingDriftStagedCount: 1,
+      housekeepingDriftUnstagedCount: 2,
+      housekeepingDriftUntrackedCount: 3,
+      housekeepingDriftHousekeepingOnly: false,
+      housekeepingNonHousekeepingDriftPaths: ["notes/edit-c.md", "scripts/edit-a.mjs", "src/edit-b.ts"],
     });
   });
 });
