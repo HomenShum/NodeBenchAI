@@ -10,6 +10,7 @@ import {
   summarizeDevelopmentBacklogEvidence,
   summarizeDevelopmentCandidateEvidence,
   summarizeGitBranchEvidence,
+  summarizeGitHeadEvidence,
   summarizeGoalQueueEvidence,
   summarizeHousekeepingReportEvidence,
   summarizeLaunchReportEvidence,
@@ -319,6 +320,24 @@ describe("summarizeGitBranchEvidence", () => {
       gitTrackingKnown: false,
       gitAheadCount: 0,
       gitBehindCount: 0,
+    });
+  });
+});
+
+describe("summarizeGitHeadEvidence", () => {
+  it("parses the current HEAD summary into sha and subject fields", () => {
+    expect(summarizeGitHeadEvidence("01fc7a01 summarize launch notification evidence\n")).toEqual({
+      gitHeadSummary: "01fc7a01 summarize launch notification evidence",
+      gitHeadShortSha: "01fc7a01",
+      gitHeadSubject: "summarize launch notification evidence",
+    });
+  });
+
+  it("keeps empty git output explicit", () => {
+    expect(summarizeGitHeadEvidence("")).toEqual({
+      gitHeadSummary: null,
+      gitHeadShortSha: null,
+      gitHeadSubject: null,
     });
   });
 });

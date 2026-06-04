@@ -507,6 +507,16 @@ export function summarizeGitBranchEvidence(gitBranchStatus) {
   };
 }
 
+export function summarizeGitHeadEvidence(gitHeadSummary) {
+  const firstLine = String(gitHeadSummary ?? "").split(/\r?\n/)[0]?.trim() ?? "";
+  const match = firstLine.match(/^([0-9a-f]+)\s+(.+)$/i);
+  return {
+    gitHeadSummary: firstLine || null,
+    gitHeadShortSha: match?.[1] ?? null,
+    gitHeadSubject: match?.[2] ?? null,
+  };
+}
+
 export function summarizeCriteriaEvidence(criteria) {
   const passedCriterionNames = criteria.filter((criterion) => criterion.ok).map((criterion) => criterion.name);
   const failedCriterionDetails = criteria
@@ -622,6 +632,7 @@ async function main() {
   commands.push(await run("npm", ["run", "scratchnode:launch:interactive"]));
   commands.push(await run("git", ["status", "--short"]));
   commands.push(await run("git", ["status", "--short", "--branch"]));
+  commands.push(await run("git", ["show", "-s", "--oneline", "HEAD"]));
   commands.push(
     await run("git", [
       "check-ignore",
@@ -639,6 +650,7 @@ async function main() {
   const launchReport = readJson(reportPaths.launch);
   const gitStatus = commands.find((command) => command.command === "git status --short")?.stdout.trim() ?? "";
   const gitBranchStatus = commands.find((command) => command.command === "git status --short --branch")?.stdout.trim() ?? "";
+  const gitHeadSummary = commands.find((command) => command.command === "git show -s --oneline HEAD")?.stdout.trim() ?? "";
   const ignoreCheck = commands.find((command) => command.command.startsWith("git check-ignore"));
   const tmpIgnoreEvidence = summarizeTmpIgnoreEvidence(ignoreCheck, Object.values(reportPaths));
   const actionableAttention = actionableAttentionItems(housekeepingReport);
@@ -696,6 +708,7 @@ async function main() {
   const housekeepingEvidence = summarizeHousekeepingReportEvidence(housekeepingReport);
   const launchReportEvidence = summarizeLaunchReportEvidence(launchReport);
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
+  const gitHeadEvidence = summarizeGitHeadEvidence(gitHeadSummary);
   const criteriaEvidence = summarizeCriteriaEvidence(criteria);
   const notificationEvidence = summarizeNotificationEvidence(criteria);
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
@@ -750,6 +763,7 @@ async function main() {
       gitDriftClean: gitStatus.length === 0,
       gitBranchStatus,
       ...gitBranchEvidence,
+      ...gitHeadEvidence,
       ...commandEvidence,
       ...sourceReportEvidence,
       ...housekeepingEvidence,
