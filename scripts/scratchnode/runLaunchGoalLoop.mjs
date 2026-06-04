@@ -590,6 +590,21 @@ export function summarizeGoalQueueEvidence(goalQueue) {
   };
 }
 
+export function summarizeWorkflowModelEvidence(workflowModel) {
+  const specialistPasses = Array.isArray(workflowModel?.specialistPasses)
+    ? workflowModel.specialistPasses.filter(Boolean)
+    : [];
+
+  return {
+    workflowIssueQueueModel: workflowModel?.issueQueue ?? null,
+    workflowSpecialistPassCount: specialistPasses.length,
+    workflowSpecialistPasses: specialistPasses,
+    workflowDevelopmentCadence: workflowModel?.developmentCadence ?? null,
+    workflowRepeatedFailureRule: workflowModel?.repeatedFailureRule ?? null,
+    workflowSafetyBoundary: workflowModel?.safetyBoundary ?? null,
+  };
+}
+
 async function main() {
   const commands = [];
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
@@ -674,6 +689,25 @@ async function main() {
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);
   const goalQueueEvidence = summarizeGoalQueueEvidence(goalQueue);
+  const workflowModel = {
+    issueQueue:
+      "Batch findings into blockers, attention items, known-safe cautions, and one focused development candidate per loop.",
+    specialistPasses: [
+      "housekeeping",
+      "ScratchNode product workflow",
+      "NodeBench handoff and workspace direction",
+      "privacy and agent reliability",
+      "performance/accessibility",
+      "public repo positioning",
+    ],
+    developmentCadence:
+      "If gates are red, fix the smallest blocker first. If gates are green, pick one safe-local-development backlog item, make a narrow improvement, verify it, and commit or report the residual risk.",
+    repeatedFailureRule:
+      "After three repeated failures on the same gate, change strategy by instrumenting, isolating, rolling back the risky slice, or reducing scope.",
+    safetyBoundary:
+      "The loop may edit local source, tests, scripts, and docs, but is read-only against production: it navigates, opens modals, copies safe controls, and inspects reports without sending chat, creating events, publishing wikis, deploying, pushing, or mutating live user data.",
+  };
+  const workflowEvidence = summarizeWorkflowModelEvidence(workflowModel);
   const report = {
     generatedAt: new Date().toISOString(),
     repo: repoRoot,
@@ -689,24 +723,7 @@ async function main() {
       ],
       successCriteria: criteria,
     },
-    workflowModel: {
-      issueQueue:
-        "Batch findings into blockers, attention items, known-safe cautions, and one focused development candidate per loop.",
-      specialistPasses: [
-        "housekeeping",
-        "ScratchNode product workflow",
-        "NodeBench handoff and workspace direction",
-        "privacy and agent reliability",
-        "performance/accessibility",
-        "public repo positioning",
-      ],
-      developmentCadence:
-        "If gates are red, fix the smallest blocker first. If gates are green, pick one safe-local-development backlog item, make a narrow improvement, verify it, and commit or report the residual risk.",
-      repeatedFailureRule:
-        "After three repeated failures on the same gate, change strategy by instrumenting, isolating, rolling back the risky slice, or reducing scope.",
-      safetyBoundary:
-        "The loop may edit local source, tests, scripts, and docs, but is read-only against production: it navigates, opens modals, copies safe controls, and inspects reports without sending chat, creating events, publishing wikis, deploying, pushing, or mutating live user data.",
-    },
+    workflowModel,
     summary: {
       passed,
       notifyRecommended: !passed,
@@ -727,6 +744,7 @@ async function main() {
       ...launchReportEvidence,
       ...tmpIgnoreEvidence,
       ...candidateEvidence,
+      ...workflowEvidence,
     },
     commands,
     reports: {

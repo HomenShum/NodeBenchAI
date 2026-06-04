@@ -15,6 +15,7 @@ import {
   summarizeLaunchReportEvidence,
   summarizeSourceReportEvidence,
   summarizeTmpIgnoreEvidence,
+  summarizeWorkflowModelEvidence,
 } from "./runLaunchGoalLoop.mjs";
 
 describe("classifyGoalCardMode", () => {
@@ -424,6 +425,27 @@ describe("summarizeGoalQueueEvidence", () => {
       safeLocalGoalIds: ["goal-2"],
       humanGatedGoalCount: 1,
       humanGatedGoalIds: ["goal-1"],
+    });
+  });
+});
+
+describe("summarizeWorkflowModelEvidence", () => {
+  it("summarizes workflow cadence and safety model details", () => {
+    const summary = summarizeWorkflowModelEvidence({
+      issueQueue: "Batch findings into one focused development candidate.",
+      specialistPasses: ["housekeeping", "privacy", "", null],
+      developmentCadence: "Fix red gates first; otherwise ship one safe-local slice.",
+      repeatedFailureRule: "Change strategy after three repeated failures.",
+      safetyBoundary: "Local source edits only; no deploys.",
+    });
+
+    expect(summary).toEqual({
+      workflowIssueQueueModel: "Batch findings into one focused development candidate.",
+      workflowSpecialistPassCount: 2,
+      workflowSpecialistPasses: ["housekeeping", "privacy"],
+      workflowDevelopmentCadence: "Fix red gates first; otherwise ship one safe-local slice.",
+      workflowRepeatedFailureRule: "Change strategy after three repeated failures.",
+      workflowSafetyBoundary: "Local source edits only; no deploys.",
     });
   });
 });
