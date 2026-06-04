@@ -900,6 +900,27 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     });
   });
 
+  it("fails closed on mutating git verification commands", () => {
+    const summary = summarizeVerificationEntryPointEvidence(
+      ["git status --short", "git push origin main"],
+      {
+        scripts: {
+          "scratchnode:launch:goal": "node scripts/scratchnode/runLaunchGoalLoop.mjs",
+        },
+      },
+    );
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidateHasSuggestedVerification: true,
+      nextDevelopmentCandidateVerificationCommandCount: 2,
+      nextDevelopmentCandidateVerificationScriptCount: 0,
+      nextDevelopmentCandidateVerificationScriptRefs: [],
+      nextDevelopmentCandidateVerificationEntryPointsValid: false,
+      nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationUnsupportedCommands: ["git push origin main"],
+    });
+  });
+
   it("fails closed when a development candidate has no verification commands", () => {
     const summary = summarizeVerificationEntryPointEvidence([], {
       scripts: {

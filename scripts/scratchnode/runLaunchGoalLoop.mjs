@@ -842,6 +842,32 @@ export function summarizeKnownCautionSuppressionEvidence({ housekeepingReport, k
   };
 }
 
+function isSafeGitVerificationCommand(command) {
+  const normalized = String(command ?? "").trim().toLowerCase();
+  if (!normalized.startsWith("git ")) return false;
+  const mutatingPatterns = [
+    /^git\s+push\b/,
+    /^git\s+pull\b/,
+    /^git\s+fetch\b/,
+    /^git\s+commit\b/,
+    /^git\s+merge\b/,
+    /^git\s+rebase\b/,
+    /^git\s+reset\b/,
+    /^git\s+restore\b/,
+    /^git\s+checkout\b/,
+    /^git\s+switch\b/,
+    /^git\s+clean\b/,
+    /^git\s+stash\b/,
+    /^git\s+cherry-pick\b/,
+    /^git\s+revert\b/,
+    /^git\s+apply\b/,
+    /^git\s+am\b/,
+    /^git\s+rm\b/,
+    /^git\s+mv\b/,
+  ];
+  return !mutatingPatterns.some((pattern) => pattern.test(normalized));
+}
+
 export function summarizeVerificationEntryPointEvidence(verificationCommands, packageJson) {
   const commands = Array.isArray(verificationCommands)
     ? verificationCommands.map((command) => String(command ?? "").trim()).filter(Boolean)
@@ -865,7 +891,13 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
       continue;
     }
 
-    if (/^(git|node|npx|powershell|pwsh)\b/i.test(command)) continue;
+    if (/^git\b/i.test(command)) {
+      if (isSafeGitVerificationCommand(command)) continue;
+      unsupportedCommands.push(command);
+      continue;
+    }
+
+    if (/^(node|npx|powershell|pwsh)\b/i.test(command)) continue;
     unsupportedCommands.push(command);
   }
 
