@@ -8,6 +8,7 @@ import {
   summarizeCommandEvidence,
   summarizeCriteriaEvidence,
   summarizeDevelopmentBacklogEvidence,
+  summarizeDevelopmentCandidateEvidence,
   summarizeGitBranchEvidence,
   summarizeGoalQueueEvidence,
   summarizeHousekeepingReportEvidence,
@@ -363,6 +364,30 @@ describe("summarizeDevelopmentBacklogEvidence", () => {
         unknown: 1,
       },
       developmentBacklogIds: ["blocker-1", "attention-2", "goal-3", "drift-4"],
+    });
+  });
+});
+
+describe("summarizeDevelopmentCandidateEvidence", () => {
+  it("summarizes the selected development candidate", () => {
+    const summary = summarizeDevelopmentCandidateEvidence({
+      id: "dev-goal-loop-instrumentation",
+      title: "Improve loop instrumentation and evidence quality",
+      mode: "safe-local-development",
+      priority: "P1",
+      surface: "automation",
+      suggestedVerification: ["npm run scratchnode:launch:goal", "git diff --check"],
+      selectionReason: "All gates are green.",
+    });
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidate: "dev-goal-loop-instrumentation",
+      nextDevelopmentCandidateTitle: "Improve loop instrumentation and evidence quality",
+      nextDevelopmentCandidateMode: "safe-local-development",
+      nextDevelopmentCandidatePriority: "P1",
+      nextDevelopmentCandidateSurface: "automation",
+      nextDevelopmentCandidateSuggestedVerification: ["npm run scratchnode:launch:goal", "git diff --check"],
+      nextDevelopmentCandidateReason: "All gates are green.",
     });
   });
 });

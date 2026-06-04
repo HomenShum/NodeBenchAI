@@ -543,6 +543,18 @@ export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
   };
 }
 
+export function summarizeDevelopmentCandidateEvidence(developmentCandidate) {
+  return {
+    nextDevelopmentCandidate: developmentCandidate?.id ?? null,
+    nextDevelopmentCandidateTitle: developmentCandidate?.title ?? null,
+    nextDevelopmentCandidateMode: developmentCandidate?.mode ?? null,
+    nextDevelopmentCandidatePriority: developmentCandidate?.priority ?? null,
+    nextDevelopmentCandidateSurface: developmentCandidate?.surface ?? null,
+    nextDevelopmentCandidateSuggestedVerification: developmentCandidate?.suggestedVerification ?? [],
+    nextDevelopmentCandidateReason: developmentCandidate?.selectionReason ?? null,
+  };
+}
+
 export function normalizeGoalStatus(status) {
   const value = String(status ?? "").trim().toLowerCase();
   if (!value) return "unknown";
@@ -660,6 +672,7 @@ async function main() {
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
   const criteriaEvidence = summarizeCriteriaEvidence(criteria);
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
+  const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);
   const goalQueueEvidence = summarizeGoalQueueEvidence(goalQueue);
   const report = {
     generatedAt: new Date().toISOString(),
@@ -713,8 +726,7 @@ async function main() {
       ...housekeepingEvidence,
       ...launchReportEvidence,
       ...tmpIgnoreEvidence,
-      nextDevelopmentCandidate: developmentCandidate?.id ?? null,
-      nextDevelopmentCandidateReason: developmentCandidate?.selectionReason ?? null,
+      ...candidateEvidence,
     },
     commands,
     reports: {
