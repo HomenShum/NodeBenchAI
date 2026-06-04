@@ -174,11 +174,15 @@ function scanStaticContracts() {
 
   const goalLoop = readText(files.goalLoop);
   const goalLoopEvidenceFields = [
+    "schemaVersion",
+    "reportSchemaVersion",
     "gitBranchStatus",
     "gitBranchName",
     "gitUpstreamName",
     "gitAheadCount",
     "gitBehindCount",
+    "gitBranchBehindUpstream",
+    "gitBranchSyncDetail",
     "gitHeadSummary",
     "gitHeadShortSha",
     "gitHeadSubject",

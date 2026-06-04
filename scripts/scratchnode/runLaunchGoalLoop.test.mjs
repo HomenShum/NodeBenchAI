@@ -15,6 +15,7 @@ import {
   summarizeHousekeepingReportEvidence,
   summarizeLaunchReportEvidence,
   summarizeNotificationEvidence,
+  summarizeReportSchemaEvidence,
   summarizeSourceReportEvidence,
   summarizeTmpIgnoreEvidence,
   summarizeWorkflowModelEvidence,
@@ -116,6 +117,30 @@ describe("selectDevelopmentCandidate", () => {
     );
 
     expect(candidate?.selectionReason).toBe("Selected the highest-priority safe-local goal card from the queue (1 eligible).");
+  });
+
+  it("prioritizes tracked-upstream sync ahead of new development slices", () => {
+    const candidate = selectDevelopmentCandidate(
+      [
+        {
+          id: "sync-1",
+          title: "Local branch is behind origin/main by 2 commits",
+          mode: "fix-first",
+          surface: "repo",
+          area: "branch sync",
+          priority: "P1",
+        },
+      ],
+      {
+        actionableAttention: [],
+        launchRelevantBlockers: [],
+        goalQueue: [],
+      },
+    );
+
+    expect(candidate?.selectionReason).toBe(
+      "Tracked upstream is ahead of the local branch; sync before starting a new autonomous slice.",
+    );
   });
 });
 
@@ -310,6 +335,8 @@ describe("summarizeGitBranchEvidence", () => {
       gitTrackingKnown: true,
       gitAheadCount: 9,
       gitBehindCount: 2,
+      gitBranchBehindUpstream: true,
+      gitBranchSyncDetail: "Behind origin/main by 2 commits.",
     });
   });
 
@@ -320,6 +347,20 @@ describe("summarizeGitBranchEvidence", () => {
       gitTrackingKnown: false,
       gitAheadCount: 0,
       gitBehindCount: 0,
+      gitBranchBehindUpstream: false,
+      gitBranchSyncDetail: "No tracked upstream configured.",
+    });
+  });
+
+  it("marks tracked branches that are not behind as in sync", () => {
+    expect(summarizeGitBranchEvidence("## main...origin/main [ahead 3]\n")).toEqual({
+      gitBranchName: "main",
+      gitUpstreamName: "origin/main",
+      gitTrackingKnown: true,
+      gitAheadCount: 3,
+      gitBehindCount: 0,
+      gitBranchBehindUpstream: false,
+      gitBranchSyncDetail: "Not behind origin/main.",
     });
   });
 });
@@ -383,6 +424,17 @@ describe("summarizeNotificationEvidence", () => {
     ).toEqual({
       notifyRecommended: true,
       notifyRecommendationReason: "Launch goal failures (2): housekeeping command passes; git drift is clean after the loop",
+    });
+  });
+});
+
+describe("summarizeReportSchemaEvidence", () => {
+  it("keeps the report schema version explicit and normalized", () => {
+    expect(summarizeReportSchemaEvidence(" scratchnode-launch-goal-loop/v1 ")).toEqual({
+      reportSchemaVersion: "scratchnode-launch-goal-loop/v1",
+    });
+    expect(summarizeReportSchemaEvidence("")).toEqual({
+      reportSchemaVersion: null,
     });
   });
 });

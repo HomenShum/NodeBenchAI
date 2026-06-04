@@ -9,6 +9,7 @@ const repoRoot = process.cwd();
 const args = new Set(process.argv.slice(2));
 const shouldPrintJson = args.has("--json");
 const outPath = resolve(repoRoot, ".tmp/scratchnode-launch-goal-loop.json");
+const reportSchemaVersion = "scratchnode-launch-goal-loop/v1";
 
 const reportPaths = {
   housekeeping: ".tmp/workspace-housekeeping-verification.json",
@@ -227,7 +228,7 @@ function goalCardsToBacklog(goalCards) {
     }));
 }
 
-function buildDevelopmentBacklog({ actionableAttention, launchRelevantBlockers, goalCards, gitStatus, launchReport }) {
+function buildDevelopmentBacklog({ actionableAttention, launchRelevantBlockers, goalCards, gitStatus, gitBranchEvidence, launchReport }) {
   const backlog = [];
 
   for (const blocker of launchRelevantBlockers) {
@@ -272,6 +273,22 @@ function buildDevelopmentBacklog({ actionableAttention, launchRelevantBlockers, 
     });
   }
 
+  if ((gitBranchEvidence?.gitBehindCount ?? 0) > 0) {
+    const behindCount = gitBranchEvidence.gitBehindCount;
+    const upstreamName = gitBranchEvidence.gitUpstreamName ?? "tracked upstream";
+    backlog.push({
+      id: `sync-${backlog.length + 1}`,
+      surface: "repo",
+      area: "branch sync",
+      priority: "P1",
+      mode: "fix-first",
+      title: `Local branch is behind ${upstreamName} by ${behindCount} commit${behindCount === 1 ? "" : "s"}`,
+      why: "Autonomous development should not continue from a stale tracked branch because the next slice may target outdated code.",
+      maxSlice: "Inspect upstream drift, rebase or merge in a coordinated human-reviewed step, then rerun the goal loop.",
+      suggestedVerification: ["git status --short --branch", "npm run scratchnode:launch:goal"],
+    });
+  }
+
   if (backlog.length > 0) return backlog;
 
   const queuedGoalBacklog = goalCardsToBacklog(goalCards);
@@ -310,6 +327,8 @@ export function selectDevelopmentCandidate(developmentBacklog, context = {}) {
     selectionReason = `Actionable housekeeping items present (${actionableAttentionCount}); reliability cleanup outranks new development slices.`;
   } else if (candidate.id.startsWith("drift-")) {
     selectionReason = "Git drift is present; classify existing changes before starting a new autonomous slice.";
+  } else if (candidate.id.startsWith("sync-")) {
+    selectionReason = "Tracked upstream is ahead of the local branch; sync before starting a new autonomous slice.";
   } else if (candidate.id.startsWith("goal-")) {
     selectionReason = `Selected the highest-priority safe-local goal card from the queue (${safeLocalGoalCount} eligible).`;
   } else if (candidate.id === "dev-goal-loop-instrumentation") {
@@ -497,13 +516,21 @@ export function summarizeGitBranchEvidence(gitBranchStatus) {
   const branchAndUpstream = match?.[1] ?? "";
   const [branchName = null, upstreamName = null] = branchAndUpstream.split("...");
   const trackingSummary = match?.[2] ?? "";
+  const gitBehindCount = Number(trackingSummary.match(/behind\s+(\d+)/)?.[1] ?? 0);
+  const gitAheadCount = Number(trackingSummary.match(/ahead\s+(\d+)/)?.[1] ?? 0);
 
   return {
     gitBranchName: branchName || null,
     gitUpstreamName: upstreamName || null,
     gitTrackingKnown: Boolean(upstreamName),
-    gitAheadCount: Number(trackingSummary.match(/ahead\s+(\d+)/)?.[1] ?? 0),
-    gitBehindCount: Number(trackingSummary.match(/behind\s+(\d+)/)?.[1] ?? 0),
+    gitAheadCount,
+    gitBehindCount,
+    gitBranchBehindUpstream: Boolean(upstreamName) && gitBehindCount > 0,
+    gitBranchSyncDetail: !upstreamName
+      ? "No tracked upstream configured."
+      : gitBehindCount > 0
+        ? `Behind ${upstreamName} by ${gitBehindCount} commit${gitBehindCount === 1 ? "" : "s"}.`
+        : `Not behind ${upstreamName}.`,
   };
 }
 
@@ -543,6 +570,13 @@ export function summarizeNotificationEvidence(criteria) {
       failures.length > 0
         ? `Launch goal failures (${failures.length}): ${failures.join("; ")}`
         : "All launch goal criteria passed; no notification needed.",
+  };
+}
+
+export function summarizeReportSchemaEvidence(schemaVersion) {
+  const normalized = String(schemaVersion ?? "").trim();
+  return {
+    reportSchemaVersion: normalized || null,
   };
 }
 
@@ -653,6 +687,7 @@ async function main() {
   const gitHeadSummary = commands.find((command) => command.command === "git show -s --oneline HEAD")?.stdout.trim() ?? "";
   const ignoreCheck = commands.find((command) => command.command.startsWith("git check-ignore"));
   const tmpIgnoreEvidence = summarizeTmpIgnoreEvidence(ignoreCheck, Object.values(reportPaths));
+  const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
   const actionableAttention = actionableAttentionItems(housekeepingReport);
   const launchRelevantBlockers = housekeepingReport?.operatorSummary?.launchRelevantBlockers ?? [];
   const knownCautions = knownCautionEntries(housekeepingReport);
@@ -662,6 +697,7 @@ async function main() {
     launchRelevantBlockers,
     goalCards: goalQueue,
     gitStatus,
+    gitBranchEvidence,
     launchReport,
   });
   const developmentCandidate = selectDevelopmentCandidate(developmentBacklog, {
@@ -693,6 +729,7 @@ async function main() {
       housekeepingReport?.summary?.sourceReportsMatch === true && housekeepingReport?.summary?.sourceReportsFresh === true,
     ),
     buildCriterion("git drift is clean after the loop", gitStatus.length === 0, gitStatus),
+    buildCriterion("git branch is not behind upstream", gitBranchEvidence.gitBranchBehindUpstream !== true, gitBranchEvidence.gitBranchSyncDetail),
     buildCriterion(
       ".tmp loop reports are ignored",
       tmpIgnoreEvidence.tmpIgnoreProbePassed && tmpIgnoreEvidence.tmpIgnoreProbeMissingPaths.length === 0,
@@ -707,10 +744,10 @@ async function main() {
   const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
   const housekeepingEvidence = summarizeHousekeepingReportEvidence(housekeepingReport);
   const launchReportEvidence = summarizeLaunchReportEvidence(launchReport);
-  const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
   const gitHeadEvidence = summarizeGitHeadEvidence(gitHeadSummary);
   const criteriaEvidence = summarizeCriteriaEvidence(criteria);
   const notificationEvidence = summarizeNotificationEvidence(criteria);
+  const reportSchemaEvidence = summarizeReportSchemaEvidence(reportSchemaVersion);
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);
   const goalQueueEvidence = summarizeGoalQueueEvidence(goalQueue);
@@ -734,6 +771,7 @@ async function main() {
   };
   const workflowEvidence = summarizeWorkflowModelEvidence(workflowModel);
   const report = {
+    schemaVersion: reportSchemaVersion,
     generatedAt: new Date().toISOString(),
     repo: repoRoot,
     goal: {
@@ -764,6 +802,7 @@ async function main() {
       gitBranchStatus,
       ...gitBranchEvidence,
       ...gitHeadEvidence,
+      ...reportSchemaEvidence,
       ...commandEvidence,
       ...sourceReportEvidence,
       ...housekeepingEvidence,
