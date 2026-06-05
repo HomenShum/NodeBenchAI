@@ -21,6 +21,7 @@ import {
   summarizeKnownCautionSuppressionEvidence,
   summarizeLaunchReportEvidence,
   summarizeNotificationEvidence,
+  summarizePreviousGoalLoopEvidence,
   summarizeRequiredReportLoadEvidence,
   summarizeRequiredReportStructureEvidence,
   summarizeReportMetadataEvidence,
@@ -1461,6 +1462,8 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionLockedPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionMissingPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionGitInaccessiblePaths");
+    expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopRepeatedFailureNames");
+    expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopSameCandidate");
   });
 });
 
@@ -1481,6 +1484,57 @@ describe("summarizeWorkflowModelEvidence", () => {
       workflowDevelopmentCadence: "Fix red gates first; otherwise ship one safe-local slice.",
       workflowRepeatedFailureRule: "Change strategy after three repeated failures.",
       workflowSafetyBoundary: "Local source edits only; no deploys.",
+    });
+  });
+});
+
+describe("summarizePreviousGoalLoopEvidence", () => {
+  it("summarizes prior report failures and repeated candidate context", () => {
+    const summary = summarizePreviousGoalLoopEvidence(
+      {
+        generatedAt: "2026-06-05T15:00:00.000Z",
+        summary: {
+          passed: false,
+          notifyRecommended: true,
+          failures: ["git drift is clean after the loop", "no actionable attention items remain"],
+          nextDevelopmentCandidate: "attention-1",
+        },
+      },
+      {
+        currentFailures: ["git drift is clean after the loop"],
+        currentCandidateId: "attention-1",
+        currentCandidateMode: "fix-first",
+      },
+    );
+
+    expect(summary).toEqual({
+      previousGoalLoopReportLoaded: true,
+      previousGoalLoopGeneratedAt: "2026-06-05T15:00:00.000Z",
+      previousGoalLoopPassed: false,
+      previousGoalLoopNotifyRecommended: true,
+      previousGoalLoopFailureCount: 2,
+      previousGoalLoopFailureNames: ["git drift is clean after the loop", "no actionable attention items remain"],
+      previousGoalLoopNextDevelopmentCandidate: "attention-1",
+      previousGoalLoopRepeatedFailureCount: 1,
+      previousGoalLoopRepeatedFailureNames: ["git drift is clean after the loop"],
+      previousGoalLoopSameCandidate: true,
+      previousGoalLoopSameCandidateMode: "fix-first",
+    });
+  });
+
+  it("returns stable empty evidence when no prior report exists", () => {
+    expect(summarizePreviousGoalLoopEvidence(null)).toEqual({
+      previousGoalLoopReportLoaded: false,
+      previousGoalLoopGeneratedAt: null,
+      previousGoalLoopPassed: false,
+      previousGoalLoopNotifyRecommended: false,
+      previousGoalLoopFailureCount: 0,
+      previousGoalLoopFailureNames: [],
+      previousGoalLoopNextDevelopmentCandidate: null,
+      previousGoalLoopRepeatedFailureCount: 0,
+      previousGoalLoopRepeatedFailureNames: [],
+      previousGoalLoopSameCandidate: false,
+      previousGoalLoopSameCandidateMode: null,
     });
   });
 });

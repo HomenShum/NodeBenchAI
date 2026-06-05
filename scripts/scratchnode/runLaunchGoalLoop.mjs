@@ -185,6 +185,17 @@ export const goalLoopEvidenceFieldNames = [
   "workflowDevelopmentCadence",
   "workflowRepeatedFailureRule",
   "workflowSafetyBoundary",
+  "previousGoalLoopReportLoaded",
+  "previousGoalLoopGeneratedAt",
+  "previousGoalLoopPassed",
+  "previousGoalLoopNotifyRecommended",
+  "previousGoalLoopFailureCount",
+  "previousGoalLoopFailureNames",
+  "previousGoalLoopNextDevelopmentCandidate",
+  "previousGoalLoopRepeatedFailureCount",
+  "previousGoalLoopRepeatedFailureNames",
+  "previousGoalLoopSameCandidate",
+  "previousGoalLoopSameCandidateMode",
   "gitStatus",
   "gitStatusEntryCount",
   "nextDevelopmentCandidateTitle",
@@ -1401,7 +1412,50 @@ export function summarizeWorkflowModelEvidence(workflowModel) {
   };
 }
 
+export function summarizePreviousGoalLoopEvidence(previousGoalLoopReport, currentContext = {}) {
+  const previousSummary =
+    previousGoalLoopReport && typeof previousGoalLoopReport === "object" && !Array.isArray(previousGoalLoopReport)
+      ? previousGoalLoopReport.summary ?? null
+      : null;
+  const previousFailures = Array.isArray(previousSummary?.failures) ? previousSummary.failures.filter(Boolean) : [];
+  const currentFailures = Array.isArray(currentContext.currentFailures) ? currentContext.currentFailures.filter(Boolean) : [];
+  const repeatedFailureNames = previousFailures.filter((failure) => currentFailures.includes(failure)).sort();
+  const previousCandidateId =
+    typeof previousSummary?.nextDevelopmentCandidate === "string" && previousSummary.nextDevelopmentCandidate.trim()
+      ? previousSummary.nextDevelopmentCandidate.trim()
+      : null;
+  const currentCandidateId =
+    typeof currentContext.currentCandidateId === "string" && currentContext.currentCandidateId.trim()
+      ? currentContext.currentCandidateId.trim()
+      : null;
+  const currentCandidateMode =
+    typeof currentContext.currentCandidateMode === "string" && currentContext.currentCandidateMode.trim()
+      ? currentContext.currentCandidateMode.trim()
+      : null;
+
+  return {
+    previousGoalLoopReportLoaded: previousSummary !== null,
+    previousGoalLoopGeneratedAt:
+      typeof previousGoalLoopReport?.generatedAt === "string" && previousGoalLoopReport.generatedAt.trim()
+        ? previousGoalLoopReport.generatedAt
+        : null,
+    previousGoalLoopPassed: previousSummary?.passed === true,
+    previousGoalLoopNotifyRecommended: previousSummary?.notifyRecommended === true,
+    previousGoalLoopFailureCount: previousFailures.length,
+    previousGoalLoopFailureNames: previousFailures,
+    previousGoalLoopNextDevelopmentCandidate: previousCandidateId,
+    previousGoalLoopRepeatedFailureCount: repeatedFailureNames.length,
+    previousGoalLoopRepeatedFailureNames: repeatedFailureNames,
+    previousGoalLoopSameCandidate: previousCandidateId !== null && currentCandidateId !== null && previousCandidateId === currentCandidateId,
+    previousGoalLoopSameCandidateMode:
+      previousCandidateId !== null && currentCandidateId !== null && previousCandidateId === currentCandidateId
+        ? currentCandidateMode
+        : null,
+  };
+}
+
 async function main() {
+  const previousGoalLoopReport = readJson(reportPaths.goalLoop);
   const commands = [];
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
   commands.push(await run("npm", ["run", "scratchnode:launch:interactive"]));
@@ -1571,6 +1625,11 @@ async function main() {
     knownCautions,
     actionableAttention,
   });
+  const previousGoalLoopEvidence = summarizePreviousGoalLoopEvidence(previousGoalLoopReport, {
+    currentFailures: criteria.filter((criterion) => !criterion.ok).map((criterion) => criterion.name),
+    currentCandidateId: developmentCandidate?.id ?? null,
+    currentCandidateMode: developmentCandidate?.mode ?? null,
+  });
   const goalQueueEvidence = summarizeGoalQueueEvidence(goalQueue);
   const workflowModel = {
     issueQueue:
@@ -1647,6 +1706,7 @@ async function main() {
       ...candidateSourcePathEvidence,
       ...candidateVerificationEvidence,
       ...workflowEvidence,
+      ...previousGoalLoopEvidence,
     },
     commands,
     reports: {
