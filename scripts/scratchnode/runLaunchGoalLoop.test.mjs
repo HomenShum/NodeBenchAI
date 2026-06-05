@@ -1015,8 +1015,14 @@ describe("summarizeVerificationEntryPointEvidence", () => {
       nextDevelopmentCandidateVerificationCommandCount: 3,
       nextDevelopmentCandidateVerificationScriptCount: 2,
       nextDevelopmentCandidateVerificationScriptRefs: ["scratchnode:launch:goal", "repo:augment:check"],
+      nextDevelopmentCandidateVerificationTargetPathCount: 2,
+      nextDevelopmentCandidateVerificationTargetPaths: [
+        "scripts/scratchnode/runLaunchGoalLoop.mjs",
+        "scripts/repo/checkAugmentUploadScope.ps1",
+      ],
       nextDevelopmentCandidateVerificationEntryPointsValid: true,
       nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationMissingTargetPaths: [],
       nextDevelopmentCandidateVerificationUnsupportedCommands: [],
     });
   });
@@ -1036,9 +1042,33 @@ describe("summarizeVerificationEntryPointEvidence", () => {
       nextDevelopmentCandidateVerificationCommandCount: 2,
       nextDevelopmentCandidateVerificationScriptCount: 1,
       nextDevelopmentCandidateVerificationScriptRefs: ["missing:script"],
+      nextDevelopmentCandidateVerificationTargetPathCount: 0,
+      nextDevelopmentCandidateVerificationTargetPaths: [],
       nextDevelopmentCandidateVerificationEntryPointsValid: false,
       nextDevelopmentCandidateVerificationMissingScripts: ["missing:script"],
+      nextDevelopmentCandidateVerificationMissingTargetPaths: [],
       nextDevelopmentCandidateVerificationUnsupportedCommands: ["echo custom verifier"],
+    });
+  });
+
+  it("fails closed when an npm-run verification script points at a missing local file target", () => {
+    const summary = summarizeVerificationEntryPointEvidence(["npm run scratchnode:launch:goal"], {
+      scripts: {
+        "scratchnode:launch:goal": "node scripts/scratchnode/does-not-exist.mjs",
+      },
+    });
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidateHasSuggestedVerification: true,
+      nextDevelopmentCandidateVerificationCommandCount: 1,
+      nextDevelopmentCandidateVerificationScriptCount: 1,
+      nextDevelopmentCandidateVerificationScriptRefs: ["scratchnode:launch:goal"],
+      nextDevelopmentCandidateVerificationTargetPathCount: 1,
+      nextDevelopmentCandidateVerificationTargetPaths: ["scripts/scratchnode/does-not-exist.mjs"],
+      nextDevelopmentCandidateVerificationEntryPointsValid: false,
+      nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationMissingTargetPaths: ["scripts/scratchnode/does-not-exist.mjs"],
+      nextDevelopmentCandidateVerificationUnsupportedCommands: [],
     });
   });
 
@@ -1062,8 +1092,11 @@ describe("summarizeVerificationEntryPointEvidence", () => {
       nextDevelopmentCandidateVerificationCommandCount: 4,
       nextDevelopmentCandidateVerificationScriptCount: 0,
       nextDevelopmentCandidateVerificationScriptRefs: [],
+      nextDevelopmentCandidateVerificationTargetPathCount: 0,
+      nextDevelopmentCandidateVerificationTargetPaths: [],
       nextDevelopmentCandidateVerificationEntryPointsValid: false,
       nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationMissingTargetPaths: [],
       nextDevelopmentCandidateVerificationUnsupportedCommands: [
         'node --eval "console.log(1)"',
         'powershell -Command "Write-Host hi"',
@@ -1088,8 +1121,11 @@ describe("summarizeVerificationEntryPointEvidence", () => {
       nextDevelopmentCandidateVerificationCommandCount: 2,
       nextDevelopmentCandidateVerificationScriptCount: 0,
       nextDevelopmentCandidateVerificationScriptRefs: [],
+      nextDevelopmentCandidateVerificationTargetPathCount: 0,
+      nextDevelopmentCandidateVerificationTargetPaths: [],
       nextDevelopmentCandidateVerificationEntryPointsValid: false,
       nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationMissingTargetPaths: [],
       nextDevelopmentCandidateVerificationUnsupportedCommands: ["git push origin main"],
     });
   });
@@ -1106,8 +1142,11 @@ describe("summarizeVerificationEntryPointEvidence", () => {
       nextDevelopmentCandidateVerificationCommandCount: 0,
       nextDevelopmentCandidateVerificationScriptCount: 0,
       nextDevelopmentCandidateVerificationScriptRefs: [],
+      nextDevelopmentCandidateVerificationTargetPathCount: 0,
+      nextDevelopmentCandidateVerificationTargetPaths: [],
       nextDevelopmentCandidateVerificationEntryPointsValid: false,
       nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationMissingTargetPaths: [],
       nextDevelopmentCandidateVerificationUnsupportedCommands: [],
     });
   });
@@ -1199,6 +1238,8 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateActionabilityReason");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateHasSourcePath");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateSourcePathExists");
+    expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationTargetPaths");
+    expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationMissingTargetPaths");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodes");
   });
 });

@@ -192,6 +192,9 @@ export const goalLoopEvidenceFieldNames = [
   "nextDevelopmentCandidateVerificationCommandCount",
   "nextDevelopmentCandidateVerificationScriptCount",
   "nextDevelopmentCandidateVerificationScriptRefs",
+  "nextDevelopmentCandidateVerificationTargetPathCount",
+  "nextDevelopmentCandidateVerificationTargetPaths",
+  "nextDevelopmentCandidateVerificationMissingTargetPaths",
   "nextDevelopmentCandidateHasSourcePath",
   "nextDevelopmentCandidateSourcePathExists",
   "nextDevelopmentCandidateSourcePathResolved",
@@ -1184,6 +1187,18 @@ function hasInlineShellEvaluation(command) {
   return false;
 }
 
+function extractLocalScriptTargets(scriptCommand) {
+  const text = String(scriptCommand ?? "");
+  const pattern = /(^|[\s"'`])((?:\.{0,2}[\\/])?(?:[\w.-]+[\\/])+[\w.-]+\.(?:mjs|cjs|js|ts|mts|cts|ps1|sh))(?=$|[\s"'`])/gi;
+  const targets = [];
+  for (const match of text.matchAll(pattern)) {
+    const target = String(match[2] ?? "").trim();
+    if (!target) continue;
+    targets.push(target.replace(/[\\/]+/g, "/"));
+  }
+  return Array.from(new Set(targets));
+}
+
 export function summarizeVerificationEntryPointEvidence(verificationCommands, packageJson) {
   const commands = Array.isArray(verificationCommands)
     ? verificationCommands.map((command) => String(command ?? "").trim()).filter(Boolean)
@@ -1193,7 +1208,9 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
       ? packageJson.scripts
       : {};
   const referencedScripts = [];
+  const referencedTargetPaths = [];
   const missingScripts = [];
+  const missingTargetPaths = [];
   const unsupportedCommands = [];
 
   for (const command of commands) {
@@ -1201,8 +1218,17 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
     if (npmRunMatch) {
       const scriptName = npmRunMatch[1];
       referencedScripts.push(scriptName);
-      if (!Object.prototype.hasOwnProperty.call(packageScripts, scriptName)) {
+      const scriptCommand = packageScripts[scriptName];
+      if (typeof scriptCommand !== "string") {
         missingScripts.push(scriptName);
+      } else {
+        const localTargets = extractLocalScriptTargets(scriptCommand);
+        for (const targetPath of localTargets) {
+          referencedTargetPaths.push(targetPath);
+          if (!existsSync(resolve(repoRoot, targetPath))) {
+            missingTargetPaths.push(targetPath);
+          }
+        }
       }
       continue;
     }
@@ -1228,9 +1254,15 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
     nextDevelopmentCandidateVerificationCommandCount: commands.length,
     nextDevelopmentCandidateVerificationScriptCount: referencedScripts.length,
     nextDevelopmentCandidateVerificationScriptRefs: referencedScripts,
+    nextDevelopmentCandidateVerificationTargetPathCount: referencedTargetPaths.length,
+    nextDevelopmentCandidateVerificationTargetPaths: referencedTargetPaths,
     nextDevelopmentCandidateVerificationEntryPointsValid:
-      commands.length > 0 && missingScripts.length === 0 && unsupportedCommands.length === 0,
+      commands.length > 0 &&
+      missingScripts.length === 0 &&
+      missingTargetPaths.length === 0 &&
+      unsupportedCommands.length === 0,
     nextDevelopmentCandidateVerificationMissingScripts: missingScripts,
+    nextDevelopmentCandidateVerificationMissingTargetPaths: missingTargetPaths,
     nextDevelopmentCandidateVerificationUnsupportedCommands: unsupportedCommands,
   };
 }
@@ -1426,6 +1458,9 @@ async function main() {
                 : "missing suggested verification",
               candidateVerificationEvidence.nextDevelopmentCandidateVerificationMissingScripts.length > 0
                 ? `missing scripts=${candidateVerificationEvidence.nextDevelopmentCandidateVerificationMissingScripts.join(",")}`
+                : null,
+              candidateVerificationEvidence.nextDevelopmentCandidateVerificationMissingTargetPaths.length > 0
+                ? `missing target paths=${candidateVerificationEvidence.nextDevelopmentCandidateVerificationMissingTargetPaths.join(",")}`
                 : null,
               candidateVerificationEvidence.nextDevelopmentCandidateVerificationUnsupportedCommands.length > 0
                 ? `unsupported commands=${candidateVerificationEvidence.nextDevelopmentCandidateVerificationUnsupportedCommands.join(",")}`
