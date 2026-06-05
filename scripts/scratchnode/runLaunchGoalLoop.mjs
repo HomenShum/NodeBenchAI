@@ -70,6 +70,10 @@ export const goalLoopEvidenceFieldNames = [
   "goalQueuePriorityCounts",
   "knownCautionPaths",
   "knownCautionPathReasons",
+  "knownCautionDirtyPaths",
+  "knownCautionLockedPaths",
+  "knownCautionMissingPaths",
+  "knownCautionGitInaccessiblePaths",
   "invalidRegisteredWorktreePaths",
   "explicitPruneCautionWorktreePaths",
   "explicitPruneCautionWorktreePathReasons",
@@ -1122,6 +1126,26 @@ export function summarizeKnownCautionEvidence(knownCautions) {
   return {
     knownCautionPaths: cautionPathReasons.map((entry) => entry.path).filter(Boolean).sort(),
     knownCautionPathReasons: cautionPathReasons,
+    knownCautionDirtyPaths: cautionEntries
+      .filter((entry) => entry?.dirty === true)
+      .map((entry) => entry.path)
+      .filter(Boolean)
+      .sort(),
+    knownCautionLockedPaths: cautionEntries
+      .filter((entry) => entry?.locked === true)
+      .map((entry) => entry.path)
+      .filter(Boolean)
+      .sort(),
+    knownCautionMissingPaths: cautionEntries
+      .filter((entry) => entry?.exists === false)
+      .map((entry) => entry.path)
+      .filter(Boolean)
+      .sort(),
+    knownCautionGitInaccessiblePaths: cautionEntries
+      .filter((entry) => entry?.gitUsable === false)
+      .map((entry) => entry.path)
+      .filter(Boolean)
+      .sort(),
     invalidRegisteredWorktreePaths: pathsMatchingReason(/invalid registered worktree/i),
     explicitPruneCautionWorktreePaths: pathsMatchingReason(/explicit prune only/i),
     explicitPruneCautionWorktreePathReasons: entriesMatchingReason(/explicit prune only/i),

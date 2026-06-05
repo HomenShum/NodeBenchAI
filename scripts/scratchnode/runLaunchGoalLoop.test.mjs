@@ -929,10 +929,14 @@ describe("summarizeKnownCautionEvidence", () => {
       {
         path: ".worktrees/p0-row-delta",
         reason: "invalid registered worktree; inspect git metadata first",
+        dirty: true,
+        gitUsable: false,
       },
       {
         path: ".worktrees/keep-clean",
         reason: "clean registered worktree; explicit prune only",
+        locked: true,
+        exists: false,
       },
     ]);
 
@@ -948,6 +952,10 @@ describe("summarizeKnownCautionEvidence", () => {
           reason: "clean registered worktree; explicit prune only",
         },
       ],
+      knownCautionDirtyPaths: [".worktrees/p0-row-delta"],
+      knownCautionLockedPaths: [".worktrees/keep-clean"],
+      knownCautionMissingPaths: [".worktrees/keep-clean"],
+      knownCautionGitInaccessiblePaths: [".worktrees/p0-row-delta"],
       invalidRegisteredWorktreePaths: [".worktrees/p0-row-delta"],
       explicitPruneCautionWorktreePaths: [".worktrees/keep-clean"],
       explicitPruneCautionWorktreePathReasons: [
@@ -1344,6 +1352,10 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationTargetPaths");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationMissingTargetPaths");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodes");
+    expect(goalLoopEvidenceFieldNames).toContain("knownCautionDirtyPaths");
+    expect(goalLoopEvidenceFieldNames).toContain("knownCautionLockedPaths");
+    expect(goalLoopEvidenceFieldNames).toContain("knownCautionMissingPaths");
+    expect(goalLoopEvidenceFieldNames).toContain("knownCautionGitInaccessiblePaths");
   });
 });
 
