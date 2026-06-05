@@ -285,6 +285,12 @@ describe("summarizeCommandEvidence", () => {
       commandSuccessCount: 2,
       commandFailureCount: 1,
       commandNames: ["fast", "slow", "invalid-duration"],
+      commandOccurrenceCounts: {
+        fast: 1,
+        "invalid-duration": 1,
+        slow: 1,
+      },
+      duplicateCommandNames: [],
       commandExitCodes: {
         fast: 0,
         slow: 1,
@@ -350,6 +356,10 @@ describe("summarizeCommandEvidence", () => {
       commandSuccessCount: 0,
       commandFailureCount: 1,
       commandNames: ["hung-check"],
+      commandOccurrenceCounts: {
+        "hung-check": 1,
+      },
+      duplicateCommandNames: [],
       commandExitCodes: {
         "hung-check": 124,
       },
@@ -387,6 +397,24 @@ describe("summarizeCommandEvidence", () => {
         exitCode: 124,
         durationMs: 240001,
       },
+    });
+  });
+
+  it("flags duplicate command invocations so keyed evidence stays auditable", () => {
+    const summary = summarizeCommandEvidence([
+      { command: "npm run scratchnode:launch:goal", exitCode: 0, durationMs: 10 },
+      { command: "npm run scratchnode:launch:goal", exitCode: 1, durationMs: 15 },
+      { command: "git diff --check", exitCode: 0, durationMs: 5 },
+    ]);
+
+    expect(summary.commandOccurrenceCounts).toEqual({
+      "git diff --check": 1,
+      "npm run scratchnode:launch:goal": 2,
+    });
+    expect(summary.duplicateCommandNames).toEqual(["npm run scratchnode:launch:goal"]);
+    expect(summary.commandExitCodes).toEqual({
+      "npm run scratchnode:launch:goal": 1,
+      "git diff --check": 0,
     });
   });
 });
@@ -1351,6 +1379,8 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationResolvedScriptRefs");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationTargetPaths");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationMissingTargetPaths");
+    expect(goalLoopEvidenceFieldNames).toContain("commandOccurrenceCounts");
+    expect(goalLoopEvidenceFieldNames).toContain("duplicateCommandNames");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodes");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionDirtyPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionLockedPaths");
