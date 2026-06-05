@@ -28,6 +28,7 @@ import {
   summarizeVerificationEntryPointEvidence,
   summarizeTmpIgnoreEvidence,
   summarizeWorkflowModelEvidence,
+  goalLoopEvidenceFieldNames,
 } from "./runLaunchGoalLoop.mjs";
 
 describe("classifyGoalCardMode", () => {
@@ -1040,6 +1041,37 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     });
   });
 
+  it("fails closed on inline shell evaluation and chained verification commands", () => {
+    const summary = summarizeVerificationEntryPointEvidence(
+      [
+        'node --eval "console.log(1)"',
+        'powershell -Command "Write-Host hi"',
+        "npx vitest run && git diff --check",
+        "pwsh -c Get-Date",
+      ],
+      {
+        scripts: {
+          "scratchnode:launch:goal": "node scripts/scratchnode/runLaunchGoalLoop.mjs",
+        },
+      },
+    );
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidateHasSuggestedVerification: true,
+      nextDevelopmentCandidateVerificationCommandCount: 4,
+      nextDevelopmentCandidateVerificationScriptCount: 0,
+      nextDevelopmentCandidateVerificationScriptRefs: [],
+      nextDevelopmentCandidateVerificationEntryPointsValid: false,
+      nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationUnsupportedCommands: [
+        'node --eval "console.log(1)"',
+        'powershell -Command "Write-Host hi"',
+        "npx vitest run && git diff --check",
+        "pwsh -c Get-Date",
+      ],
+    });
+  });
+
   it("fails closed on mutating git verification commands", () => {
     const summary = summarizeVerificationEntryPointEvidence(
       ["git status --short", "git push origin main"],
@@ -1123,6 +1155,14 @@ describe("summarizeGoalQueueEvidence", () => {
       humanGatedGoalCount: 1,
       humanGatedGoalIds: ["goal-1"],
     });
+  });
+});
+
+describe("goalLoopEvidenceFieldNames", () => {
+  it("keeps the launch-scan evidence contract centralized", () => {
+    expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidate");
+    expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateActionabilityReason");
+    expect(goalLoopEvidenceFieldNames).toContain("commandExitCodes");
   });
 });
 
