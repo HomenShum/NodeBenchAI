@@ -297,6 +297,11 @@ describe("summarizeCommandEvidence", () => {
         slow: 1,
         "invalid-duration": 0,
       },
+      commandExitCodeHistory: {
+        fast: [0],
+        "invalid-duration": [0],
+        slow: [1],
+      },
       commandDurationMsByName: {
         fast: 12,
         slow: 39,
@@ -364,6 +369,9 @@ describe("summarizeCommandEvidence", () => {
       commandExitCodes: {
         "hung-check": 124,
       },
+      commandExitCodeHistory: {
+        "hung-check": [124],
+      },
       commandDurationMsByName: {
         "hung-check": 240001,
       },
@@ -416,6 +424,10 @@ describe("summarizeCommandEvidence", () => {
     expect(summary.commandExitCodes).toEqual({
       "npm run scratchnode:launch:goal": 1,
       "git diff --check": 0,
+    });
+    expect(summary.commandExitCodeHistory).toEqual({
+      "git diff --check": [0],
+      "npm run scratchnode:launch:goal": [0, 1],
     });
   });
 });
@@ -1458,6 +1470,7 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("commandOccurrenceCounts");
     expect(goalLoopEvidenceFieldNames).toContain("duplicateCommandNames");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodes");
+    expect(goalLoopEvidenceFieldNames).toContain("commandExitCodeHistory");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionDirtyPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionLockedPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionMissingPaths");
