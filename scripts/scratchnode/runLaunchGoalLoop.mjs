@@ -192,6 +192,9 @@ export const goalLoopEvidenceFieldNames = [
   "nextDevelopmentCandidateVerificationCommandCount",
   "nextDevelopmentCandidateVerificationScriptCount",
   "nextDevelopmentCandidateVerificationScriptRefs",
+  "nextDevelopmentCandidateHasSourcePath",
+  "nextDevelopmentCandidateSourcePathExists",
+  "nextDevelopmentCandidateSourcePathResolved",
   "nextDevelopmentCandidateVerificationEntryPointsValid",
   "nextDevelopmentCandidateVerificationMissingScripts",
   "nextDevelopmentCandidateVerificationUnsupportedCommands",
@@ -1080,6 +1083,24 @@ export function summarizeDevelopmentCandidateEvidence(developmentCandidate) {
   };
 }
 
+export function summarizeDevelopmentCandidateSourcePathEvidence(developmentCandidate) {
+  const sourcePath = String(developmentCandidate?.sourcePath ?? "").trim();
+  if (!sourcePath) {
+    return {
+      nextDevelopmentCandidateHasSourcePath: false,
+      nextDevelopmentCandidateSourcePathExists: true,
+      nextDevelopmentCandidateSourcePathResolved: null,
+    };
+  }
+
+  const absolutePath = resolve(repoRoot, sourcePath);
+  return {
+    nextDevelopmentCandidateHasSourcePath: true,
+    nextDevelopmentCandidateSourcePathExists: existsSync(absolutePath),
+    nextDevelopmentCandidateSourcePathResolved: absolutePath,
+  };
+}
+
 export function summarizeKnownCautionEvidence(knownCautions) {
   const cautionEntries = Array.isArray(knownCautions) ? knownCautions.filter(Boolean) : [];
   const cautionPathReasons = cautionEntries.map((entry) => ({
@@ -1321,6 +1342,7 @@ async function main() {
     launchRelevantBlockers,
     goalQueue,
   });
+  const candidateSourcePathEvidence = summarizeDevelopmentCandidateSourcePathEvidence(developmentCandidate);
   const candidateVerificationEvidence = summarizeVerificationEntryPointEvidence(
     developmentCandidate?.suggestedVerification,
     packageJson,
@@ -1383,12 +1405,22 @@ async function main() {
     buildCriterion("no actionable attention items remain", actionableAttention.length === 0, actionableAttention.join("; ")),
     buildCriterion(
       "development candidate verification entrypoints stay valid",
-      developmentCandidate == null || candidateVerificationEvidence.nextDevelopmentCandidateVerificationEntryPointsValid === true,
+      developmentCandidate == null ||
+        (candidateSourcePathEvidence.nextDevelopmentCandidateSourcePathExists === true &&
+          candidateVerificationEvidence.nextDevelopmentCandidateVerificationEntryPointsValid === true),
       developmentCandidate == null
         ? ""
-        : candidateVerificationEvidence.nextDevelopmentCandidateVerificationEntryPointsValid
-          ? `commands=${candidateVerificationEvidence.nextDevelopmentCandidateVerificationCommandCount}`
+        : candidateSourcePathEvidence.nextDevelopmentCandidateSourcePathExists === true &&
+            candidateVerificationEvidence.nextDevelopmentCandidateVerificationEntryPointsValid
+          ? `commands=${candidateVerificationEvidence.nextDevelopmentCandidateVerificationCommandCount}` +
+            (candidateSourcePathEvidence.nextDevelopmentCandidateHasSourcePath
+              ? `; sourcePath=${developmentCandidate.sourcePath}`
+              : "; sourcePath=not-declared")
           : [
+              candidateSourcePathEvidence.nextDevelopmentCandidateHasSourcePath === false ||
+              candidateSourcePathEvidence.nextDevelopmentCandidateSourcePathExists
+                ? null
+                : `missing sourcePath=${developmentCandidate.sourcePath ?? "(none)"}`,
               candidateVerificationEvidence.nextDevelopmentCandidateHasSuggestedVerification
                 ? null
                 : "missing suggested verification",
@@ -1497,6 +1529,7 @@ async function main() {
       ...launchReportEvidence,
       ...tmpIgnoreEvidence,
       ...candidateEvidence,
+      ...candidateSourcePathEvidence,
       ...candidateVerificationEvidence,
       ...workflowEvidence,
     },

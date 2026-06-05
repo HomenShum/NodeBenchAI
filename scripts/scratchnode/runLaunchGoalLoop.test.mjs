@@ -10,6 +10,7 @@ import {
   summarizeCriteriaEvidence,
   summarizeDevelopmentBacklogEvidence,
   summarizeDevelopmentCandidateEvidence,
+  summarizeDevelopmentCandidateSourcePathEvidence,
   summarizeGitBranchEvidence,
   summarizeGitHeadEvidence,
   summarizeGitStatusEvidence,
@@ -1112,6 +1113,40 @@ describe("summarizeVerificationEntryPointEvidence", () => {
   });
 });
 
+describe("summarizeDevelopmentCandidateSourcePathEvidence", () => {
+  it("resolves an existing candidate source path inside the repo", () => {
+    const summary = summarizeDevelopmentCandidateSourcePathEvidence({
+      sourcePath: "scripts/scratchnode/runLaunchGoalLoop.mjs",
+    });
+
+    expect(summary.nextDevelopmentCandidateHasSourcePath).toBe(true);
+    expect(summary.nextDevelopmentCandidateSourcePathExists).toBe(true);
+    expect(summary.nextDevelopmentCandidateSourcePathResolved).toMatch(/scripts[\\/]+scratchnode[\\/]+runLaunchGoalLoop\.mjs$/);
+  });
+
+  it("fails closed when the candidate source path is missing", () => {
+    expect(
+      summarizeDevelopmentCandidateSourcePathEvidence({
+        sourcePath: "scripts/scratchnode/does-not-exist.mjs",
+      }),
+    ).toEqual({
+      nextDevelopmentCandidateHasSourcePath: true,
+      nextDevelopmentCandidateSourcePathExists: false,
+      nextDevelopmentCandidateSourcePathResolved: expect.stringMatching(
+        /scripts[\\/]+scratchnode[\\/]+does-not-exist\.mjs$/,
+      ),
+    });
+  });
+
+  it("fails closed when the candidate does not declare a source path", () => {
+    expect(summarizeDevelopmentCandidateSourcePathEvidence({})).toEqual({
+      nextDevelopmentCandidateHasSourcePath: false,
+      nextDevelopmentCandidateSourcePathExists: true,
+      nextDevelopmentCandidateSourcePathResolved: null,
+    });
+  });
+});
+
 describe("summarizeGoalQueueEvidence", () => {
   it("summarizes goal queue count, statuses, modes, priorities, and open eligible ids", () => {
     const summary = summarizeGoalQueueEvidence([
@@ -1162,6 +1197,8 @@ describe("goalLoopEvidenceFieldNames", () => {
   it("keeps the launch-scan evidence contract centralized", () => {
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidate");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateActionabilityReason");
+    expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateHasSourcePath");
+    expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateSourcePathExists");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodes");
   });
 });
