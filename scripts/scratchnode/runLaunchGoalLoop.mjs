@@ -1087,10 +1087,19 @@ export function summarizeReportMetadataEvidence({ generatedAt, reportPath }) {
 
 export function summarizeGoalEvidence(goal) {
   const sourceRefs = Array.isArray(goal?.sourceRefs) ? goal.sourceRefs.filter(Boolean) : [];
+  const successCriteria = Array.isArray(goal?.successCriteria) ? goal.successCriteria.filter(Boolean) : [];
+  const successCriterionNames = successCriteria
+    .map((criterion) => String(criterion?.name ?? "").trim())
+    .filter(Boolean);
+  const passedSuccessCriteriaCount = successCriteria.filter((criterion) => criterion?.ok === true).length;
   return {
     goalId: goal?.id ?? null,
     goalSourceRefCount: sourceRefs.length,
     goalSourceRefs: sourceRefs,
+    goalSuccessCriteriaCount: successCriteria.length,
+    goalSuccessCriteriaPassedCount: passedSuccessCriteriaCount,
+    goalSuccessCriteriaFailedCount: successCriteria.length - passedSuccessCriteriaCount,
+    goalSuccessCriteriaNames: successCriterionNames,
   };
 }
 

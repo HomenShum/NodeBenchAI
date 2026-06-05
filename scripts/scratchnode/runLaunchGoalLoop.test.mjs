@@ -878,16 +878,26 @@ describe("summarizeRequiredReportStructureEvidence", () => {
 });
 
 describe("summarizeGoalEvidence", () => {
-  it("summarizes goal id and source refs", () => {
+  it("summarizes goal id, source refs, and success criteria", () => {
     expect(
       summarizeGoalEvidence({
         id: "scratchnode-nodebench-development-goal-cron",
         sourceRefs: ["docs/runbooks/SCRATCHNODE_LAUNCH_DAY.md", "", null],
+        successCriteria: [
+          { name: "criterion one", ok: true },
+          { name: "criterion two", ok: false },
+          { name: "", ok: true },
+          null,
+        ],
       }),
     ).toEqual({
       goalId: "scratchnode-nodebench-development-goal-cron",
       goalSourceRefCount: 1,
       goalSourceRefs: ["docs/runbooks/SCRATCHNODE_LAUNCH_DAY.md"],
+      goalSuccessCriteriaCount: 3,
+      goalSuccessCriteriaPassedCount: 2,
+      goalSuccessCriteriaFailedCount: 1,
+      goalSuccessCriteriaNames: ["criterion one", "criterion two"],
     });
   });
 });
