@@ -196,6 +196,8 @@ export const goalLoopEvidenceFieldNames = [
   "nextDevelopmentCandidateSuggestedVerification",
   "nextDevelopmentCandidateHasSuggestedVerification",
   "nextDevelopmentCandidateVerificationCommandCount",
+  "nextDevelopmentCandidateVerificationCommandOccurrenceCounts",
+  "nextDevelopmentCandidateVerificationDuplicateCommands",
   "nextDevelopmentCandidateVerificationScriptCount",
   "nextDevelopmentCandidateVerificationScriptRefs",
   "nextDevelopmentCandidateVerificationResolvedScriptCount",
@@ -1250,6 +1252,11 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
   const commands = Array.isArray(verificationCommands)
     ? verificationCommands.map((command) => String(command ?? "").trim()).filter(Boolean)
     : [];
+  const commandOccurrenceCounts = countBy(commands, (command) => command);
+  const duplicateCommands = Object.entries(commandOccurrenceCounts)
+    .filter(([, count]) => count > 1)
+    .map(([command]) => command)
+    .sort((a, b) => a.localeCompare(b));
   const packageScripts =
     packageJson && typeof packageJson === "object" && packageJson.scripts && typeof packageJson.scripts === "object"
       ? packageJson.scripts
@@ -1314,6 +1321,8 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
   return {
     nextDevelopmentCandidateHasSuggestedVerification: commands.length > 0,
     nextDevelopmentCandidateVerificationCommandCount: commands.length,
+    nextDevelopmentCandidateVerificationCommandOccurrenceCounts: commandOccurrenceCounts,
+    nextDevelopmentCandidateVerificationDuplicateCommands: duplicateCommands,
     nextDevelopmentCandidateVerificationScriptCount: referencedScripts.length,
     nextDevelopmentCandidateVerificationScriptRefs: Array.from(new Set(referencedScripts)),
     nextDevelopmentCandidateVerificationResolvedScriptCount: resolvedScriptRefs.length,
@@ -1322,6 +1331,7 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
     nextDevelopmentCandidateVerificationTargetPaths: Array.from(new Set(referencedTargetPaths)),
     nextDevelopmentCandidateVerificationEntryPointsValid:
       commands.length > 0 &&
+      duplicateCommands.length === 0 &&
       missingScripts.length === 0 &&
       missingTargetPaths.length === 0 &&
       unsupportedCommands.length === 0,
@@ -1509,6 +1519,9 @@ async function main() {
         : candidateSourcePathEvidence.nextDevelopmentCandidateSourcePathExists === true &&
             candidateVerificationEvidence.nextDevelopmentCandidateVerificationEntryPointsValid
           ? `commands=${candidateVerificationEvidence.nextDevelopmentCandidateVerificationCommandCount}` +
+            `; distinctCommands=${Object.keys(
+              candidateVerificationEvidence.nextDevelopmentCandidateVerificationCommandOccurrenceCounts,
+            ).length}` +
             (candidateSourcePathEvidence.nextDevelopmentCandidateHasSourcePath
               ? `; sourcePath=${developmentCandidate.sourcePath}`
               : "; sourcePath=not-declared")
@@ -1520,6 +1533,9 @@ async function main() {
               candidateVerificationEvidence.nextDevelopmentCandidateHasSuggestedVerification
                 ? null
                 : "missing suggested verification",
+              candidateVerificationEvidence.nextDevelopmentCandidateVerificationDuplicateCommands.length > 0
+                ? `duplicate commands=${candidateVerificationEvidence.nextDevelopmentCandidateVerificationDuplicateCommands.join(",")}`
+                : null,
               candidateVerificationEvidence.nextDevelopmentCandidateVerificationMissingScripts.length > 0
                 ? `missing scripts=${candidateVerificationEvidence.nextDevelopmentCandidateVerificationMissingScripts.join(",")}`
                 : null,

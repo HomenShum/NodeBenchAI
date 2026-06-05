@@ -1049,6 +1049,12 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     expect(summary).toEqual({
       nextDevelopmentCandidateHasSuggestedVerification: true,
       nextDevelopmentCandidateVerificationCommandCount: 3,
+      nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {
+        "git diff --check": 1,
+        "npm run repo:augment:check": 1,
+        "npm run scratchnode:launch:goal": 1,
+      },
+      nextDevelopmentCandidateVerificationDuplicateCommands: [],
       nextDevelopmentCandidateVerificationScriptCount: 2,
       nextDevelopmentCandidateVerificationScriptRefs: ["scratchnode:launch:goal", "repo:augment:check"],
       nextDevelopmentCandidateVerificationResolvedScriptCount: 2,
@@ -1078,6 +1084,11 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     expect(summary).toEqual({
       nextDevelopmentCandidateHasSuggestedVerification: true,
       nextDevelopmentCandidateVerificationCommandCount: 2,
+      nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {
+        "echo custom verifier": 1,
+        "npm run missing:script": 1,
+      },
+      nextDevelopmentCandidateVerificationDuplicateCommands: [],
       nextDevelopmentCandidateVerificationScriptCount: 1,
       nextDevelopmentCandidateVerificationScriptRefs: ["missing:script"],
       nextDevelopmentCandidateVerificationResolvedScriptCount: 1,
@@ -1101,6 +1112,10 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     expect(summary).toEqual({
       nextDevelopmentCandidateHasSuggestedVerification: true,
       nextDevelopmentCandidateVerificationCommandCount: 1,
+      nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {
+        "npm run scratchnode:launch:goal": 1,
+      },
+      nextDevelopmentCandidateVerificationDuplicateCommands: [],
       nextDevelopmentCandidateVerificationScriptCount: 1,
       nextDevelopmentCandidateVerificationScriptRefs: ["scratchnode:launch:goal"],
       nextDevelopmentCandidateVerificationResolvedScriptCount: 1,
@@ -1127,6 +1142,11 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     expect(summary).toEqual({
       nextDevelopmentCandidateHasSuggestedVerification: true,
       nextDevelopmentCandidateVerificationCommandCount: 2,
+      nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {
+        "node scripts/scratchnode/runLaunchGoalLoop.mjs": 1,
+        "powershell -File scripts/repo/does-not-exist.ps1": 1,
+      },
+      nextDevelopmentCandidateVerificationDuplicateCommands: [],
       nextDevelopmentCandidateVerificationScriptCount: 0,
       nextDevelopmentCandidateVerificationScriptRefs: [],
       nextDevelopmentCandidateVerificationResolvedScriptCount: 0,
@@ -1161,6 +1181,13 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     expect(summary).toEqual({
       nextDevelopmentCandidateHasSuggestedVerification: true,
       nextDevelopmentCandidateVerificationCommandCount: 4,
+      nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {
+        'node --eval "console.log(1)"': 1,
+        "npx vitest run && git diff --check": 1,
+        'powershell -Command "Write-Host hi"': 1,
+        "pwsh -c Get-Date": 1,
+      },
+      nextDevelopmentCandidateVerificationDuplicateCommands: [],
       nextDevelopmentCandidateVerificationScriptCount: 0,
       nextDevelopmentCandidateVerificationScriptRefs: [],
       nextDevelopmentCandidateVerificationResolvedScriptCount: 0,
@@ -1192,6 +1219,11 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     expect(summary).toEqual({
       nextDevelopmentCandidateHasSuggestedVerification: true,
       nextDevelopmentCandidateVerificationCommandCount: 2,
+      nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {
+        "git push origin main": 1,
+        "git status --short": 1,
+      },
+      nextDevelopmentCandidateVerificationDuplicateCommands: [],
       nextDevelopmentCandidateVerificationScriptCount: 0,
       nextDevelopmentCandidateVerificationScriptRefs: [],
       nextDevelopmentCandidateVerificationResolvedScriptCount: 0,
@@ -1215,6 +1247,8 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     expect(summary).toEqual({
       nextDevelopmentCandidateHasSuggestedVerification: false,
       nextDevelopmentCandidateVerificationCommandCount: 0,
+      nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {},
+      nextDevelopmentCandidateVerificationDuplicateCommands: [],
       nextDevelopmentCandidateVerificationScriptCount: 0,
       nextDevelopmentCandidateVerificationScriptRefs: [],
       nextDevelopmentCandidateVerificationResolvedScriptCount: 0,
@@ -1241,6 +1275,10 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     expect(summary).toEqual({
       nextDevelopmentCandidateHasSuggestedVerification: true,
       nextDevelopmentCandidateVerificationCommandCount: 1,
+      nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {
+        "npm run repo:housekeeping:check": 1,
+      },
+      nextDevelopmentCandidateVerificationDuplicateCommands: [],
       nextDevelopmentCandidateVerificationScriptCount: 1,
       nextDevelopmentCandidateVerificationScriptRefs: ["repo:housekeeping:check"],
       nextDevelopmentCandidateVerificationResolvedScriptCount: 3,
@@ -1272,6 +1310,10 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     expect(summary).toEqual({
       nextDevelopmentCandidateHasSuggestedVerification: true,
       nextDevelopmentCandidateVerificationCommandCount: 1,
+      nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {
+        "npm run repo:housekeeping:check": 1,
+      },
+      nextDevelopmentCandidateVerificationDuplicateCommands: [],
       nextDevelopmentCandidateVerificationScriptCount: 1,
       nextDevelopmentCandidateVerificationScriptRefs: ["repo:housekeeping:check"],
       nextDevelopmentCandidateVerificationResolvedScriptCount: 3,
@@ -1284,6 +1326,37 @@ describe("summarizeVerificationEntryPointEvidence", () => {
       nextDevelopmentCandidateVerificationTargetPaths: ["scripts/repo/checkAugmentUploadScope.ps1"],
       nextDevelopmentCandidateVerificationEntryPointsValid: false,
       nextDevelopmentCandidateVerificationMissingScripts: ["repo:housekeeping:verify"],
+      nextDevelopmentCandidateVerificationMissingTargetPaths: [],
+      nextDevelopmentCandidateVerificationUnsupportedCommands: [],
+    });
+  });
+
+  it("fails closed when suggested verification repeats the same command", () => {
+    const summary = summarizeVerificationEntryPointEvidence(
+      ["npm run scratchnode:launch:goal", "npm run scratchnode:launch:goal", "git diff --check"],
+      {
+        scripts: {
+          "scratchnode:launch:goal": "node scripts/scratchnode/runLaunchGoalLoop.mjs",
+        },
+      },
+    );
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidateHasSuggestedVerification: true,
+      nextDevelopmentCandidateVerificationCommandCount: 3,
+      nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {
+        "git diff --check": 1,
+        "npm run scratchnode:launch:goal": 2,
+      },
+      nextDevelopmentCandidateVerificationDuplicateCommands: ["npm run scratchnode:launch:goal"],
+      nextDevelopmentCandidateVerificationScriptCount: 2,
+      nextDevelopmentCandidateVerificationScriptRefs: ["scratchnode:launch:goal"],
+      nextDevelopmentCandidateVerificationResolvedScriptCount: 1,
+      nextDevelopmentCandidateVerificationResolvedScriptRefs: ["scratchnode:launch:goal"],
+      nextDevelopmentCandidateVerificationTargetPathCount: 1,
+      nextDevelopmentCandidateVerificationTargetPaths: ["scripts/scratchnode/runLaunchGoalLoop.mjs"],
+      nextDevelopmentCandidateVerificationEntryPointsValid: false,
+      nextDevelopmentCandidateVerificationMissingScripts: [],
       nextDevelopmentCandidateVerificationMissingTargetPaths: [],
       nextDevelopmentCandidateVerificationUnsupportedCommands: [],
     });
@@ -1376,6 +1449,8 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateActionabilityReason");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateHasSourcePath");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateSourcePathExists");
+    expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationCommandOccurrenceCounts");
+    expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationDuplicateCommands");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationResolvedScriptRefs");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationTargetPaths");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationMissingTargetPaths");
