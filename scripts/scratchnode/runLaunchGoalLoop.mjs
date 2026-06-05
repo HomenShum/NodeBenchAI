@@ -98,6 +98,9 @@ export const goalLoopEvidenceFieldNames = [
   "commandDurationMsByName",
   "commandDurationTotalMs",
   "commandTimeoutMs",
+  "minimumInvokerTimeoutMs",
+  "recommendedInvokerTimeoutMs",
+  "recommendedInvokerTimeoutSeconds",
   "timedOutCommandCount",
   "timedOutCommandNames",
   "slowCommandWarningThresholdMs",
@@ -706,6 +709,11 @@ export function summarizeCommandEvidence(commands, options = {}) {
   const slowCommandSummaries = commandTimings.filter(
     (command) => command.durationMs >= slowCommandWarningThresholdMs,
   );
+  const minimumInvokerTimeoutMs = commandTimeoutMs;
+  const recommendedInvokerTimeoutMs = Math.max(
+    minimumInvokerTimeoutMs,
+    commandTimings.reduce((maxDuration, command) => Math.max(maxDuration, command.durationMs), 0) + 30_000,
+  );
   const tailText = (value, maxLength = 600) => {
     const text = String(value ?? "").trim();
     return text.length > maxLength ? text.slice(-maxLength) : text;
@@ -723,6 +731,9 @@ export function summarizeCommandEvidence(commands, options = {}) {
     commandDurationMsByName: Object.fromEntries(commandTimings.map((command) => [command.command, command.durationMs])),
     commandDurationTotalMs: commandTimings.reduce((total, command) => total + command.durationMs, 0),
     commandTimeoutMs,
+    minimumInvokerTimeoutMs,
+    recommendedInvokerTimeoutMs,
+    recommendedInvokerTimeoutSeconds: Math.ceil(recommendedInvokerTimeoutMs / 1_000),
     timedOutCommandCount: commandDurations.filter((command) => command.timedOut).length,
     timedOutCommandNames: commandDurations.filter((command) => command.timedOut).map((command) => command.command),
     slowCommandWarningThresholdMs,

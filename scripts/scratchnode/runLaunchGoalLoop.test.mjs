@@ -309,6 +309,9 @@ describe("summarizeCommandEvidence", () => {
       },
       commandDurationTotalMs: 51,
       commandTimeoutMs: 240000,
+      minimumInvokerTimeoutMs: 240000,
+      recommendedInvokerTimeoutMs: 240000,
+      recommendedInvokerTimeoutSeconds: 240,
       timedOutCommandCount: 0,
       timedOutCommandNames: [],
       slowCommandWarningThresholdMs: 30,
@@ -377,6 +380,9 @@ describe("summarizeCommandEvidence", () => {
       },
       commandDurationTotalMs: 240001,
       commandTimeoutMs: 240000,
+      minimumInvokerTimeoutMs: 240000,
+      recommendedInvokerTimeoutMs: 270001,
+      recommendedInvokerTimeoutSeconds: 271,
       timedOutCommandCount: 1,
       timedOutCommandNames: ["hung-check"],
       slowCommandWarningThresholdMs: 90000,
@@ -429,6 +435,18 @@ describe("summarizeCommandEvidence", () => {
       "git diff --check": [0],
       "npm run scratchnode:launch:goal": [0, 1],
     });
+  });
+
+  it("surfaces explicit outer timeout guidance for automation wrappers", () => {
+    const summary = summarizeCommandEvidence([
+      { command: "npm run repo:housekeeping:check", exitCode: 0, durationMs: 115219 },
+      { command: "npm run scratchnode:launch:interactive", exitCode: 0, durationMs: 2433 },
+    ]);
+
+    expect(summary.commandTimeoutMs).toBe(240000);
+    expect(summary.minimumInvokerTimeoutMs).toBe(240000);
+    expect(summary.recommendedInvokerTimeoutMs).toBe(240000);
+    expect(summary.recommendedInvokerTimeoutSeconds).toBe(240);
   });
 });
 
