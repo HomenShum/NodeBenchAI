@@ -1228,6 +1228,14 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
   const missingTargetPaths = [];
   const unsupportedCommands = [];
   const visitedScripts = new Set();
+  const recordLocalTargets = (commandText) => {
+    for (const targetPath of extractLocalScriptTargets(commandText)) {
+      referencedTargetPaths.push(targetPath);
+      if (!existsSync(resolve(repoRoot, targetPath))) {
+        missingTargetPaths.push(targetPath);
+      }
+    }
+  };
 
   const visitScript = (scriptName) => {
     if (!scriptName || visitedScripts.has(scriptName)) return;
@@ -1238,13 +1246,7 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
       missingScripts.push(scriptName);
       return;
     }
-    const localTargets = extractLocalScriptTargets(scriptCommand);
-    for (const targetPath of localTargets) {
-      referencedTargetPaths.push(targetPath);
-      if (!existsSync(resolve(repoRoot, targetPath))) {
-        missingTargetPaths.push(targetPath);
-      }
-    }
+    recordLocalTargets(scriptCommand);
     for (const nestedScriptName of extractNestedNpmRunRefs(scriptCommand)) {
       visitScript(nestedScriptName);
     }
@@ -1270,6 +1272,7 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
         unsupportedCommands.push(command);
         continue;
       }
+      recordLocalTargets(command);
       continue;
     }
     unsupportedCommands.push(command);

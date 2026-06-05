@@ -1078,6 +1078,35 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     });
   });
 
+  it("fails closed when a direct verifier command points at a missing local file target", () => {
+    const summary = summarizeVerificationEntryPointEvidence(
+      ["powershell -File scripts/repo/does-not-exist.ps1", "node scripts/scratchnode/runLaunchGoalLoop.mjs"],
+      {
+        scripts: {
+          "scratchnode:launch:goal": "node scripts/scratchnode/runLaunchGoalLoop.mjs",
+        },
+      },
+    );
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidateHasSuggestedVerification: true,
+      nextDevelopmentCandidateVerificationCommandCount: 2,
+      nextDevelopmentCandidateVerificationScriptCount: 0,
+      nextDevelopmentCandidateVerificationScriptRefs: [],
+      nextDevelopmentCandidateVerificationResolvedScriptCount: 0,
+      nextDevelopmentCandidateVerificationResolvedScriptRefs: [],
+      nextDevelopmentCandidateVerificationTargetPathCount: 2,
+      nextDevelopmentCandidateVerificationTargetPaths: [
+        "scripts/repo/does-not-exist.ps1",
+        "scripts/scratchnode/runLaunchGoalLoop.mjs",
+      ],
+      nextDevelopmentCandidateVerificationEntryPointsValid: false,
+      nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationMissingTargetPaths: ["scripts/repo/does-not-exist.ps1"],
+      nextDevelopmentCandidateVerificationUnsupportedCommands: [],
+    });
+  });
+
   it("fails closed on inline shell evaluation and chained verification commands", () => {
     const summary = summarizeVerificationEntryPointEvidence(
       [
