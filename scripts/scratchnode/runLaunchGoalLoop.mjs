@@ -192,6 +192,8 @@ export const goalLoopEvidenceFieldNames = [
   "previousGoalLoopFailureCount",
   "previousGoalLoopFailureNames",
   "previousGoalLoopNextDevelopmentCandidate",
+  "previousGoalLoopHeadShortSha",
+  "previousGoalLoopHeadChanged",
   "previousGoalLoopRepeatedFailureCount",
   "previousGoalLoopRepeatedFailureNames",
   "previousGoalLoopSameCandidate",
@@ -1037,14 +1039,20 @@ export function summarizeCriteriaEvidence(criteria) {
   };
 }
 
-export function summarizeNotificationEvidence(criteria) {
+export function summarizeNotificationEvidence(criteria, context = {}) {
   const failures = criteria.filter((criterion) => !criterion.ok).map((criterion) => criterion.name);
+  const previousHeadShortSha = String(context.previousHeadShortSha ?? "").trim();
+  const currentHeadShortSha = String(context.currentHeadShortSha ?? "").trim();
+  const currentHeadChanged =
+    context.currentHeadChanged === true && previousHeadShortSha.length > 0 && currentHeadShortSha.length > 0;
   return {
-    notifyRecommended: failures.length > 0,
+    notifyRecommended: failures.length > 0 || currentHeadChanged,
     notifyRecommendationReason:
       failures.length > 0
         ? `Launch goal failures (${failures.length}): ${failures.join("; ")}`
-        : "All launch goal criteria passed; no notification needed.",
+        : currentHeadChanged
+          ? `Goal loop passed and HEAD changed since the previous report (${previousHeadShortSha} -> ${currentHeadShortSha}); report the verified local slice.`
+          : "All launch goal criteria passed; no notification needed.",
   };
 }
 
@@ -1432,6 +1440,14 @@ export function summarizePreviousGoalLoopEvidence(previousGoalLoopReport, curren
     typeof currentContext.currentCandidateMode === "string" && currentContext.currentCandidateMode.trim()
       ? currentContext.currentCandidateMode.trim()
       : null;
+  const previousHeadShortSha =
+    typeof previousSummary?.gitHeadShortSha === "string" && previousSummary.gitHeadShortSha.trim()
+      ? previousSummary.gitHeadShortSha.trim()
+      : null;
+  const currentHeadShortSha =
+    typeof currentContext.currentHeadShortSha === "string" && currentContext.currentHeadShortSha.trim()
+      ? currentContext.currentHeadShortSha.trim()
+      : null;
 
   return {
     previousGoalLoopReportLoaded: previousSummary !== null,
@@ -1444,6 +1460,9 @@ export function summarizePreviousGoalLoopEvidence(previousGoalLoopReport, curren
     previousGoalLoopFailureCount: previousFailures.length,
     previousGoalLoopFailureNames: previousFailures,
     previousGoalLoopNextDevelopmentCandidate: previousCandidateId,
+    previousGoalLoopHeadShortSha: previousHeadShortSha,
+    previousGoalLoopHeadChanged:
+      previousHeadShortSha !== null && currentHeadShortSha !== null && previousHeadShortSha !== currentHeadShortSha,
     previousGoalLoopRepeatedFailureCount: repeatedFailureNames.length,
     previousGoalLoopRepeatedFailureNames: repeatedFailureNames,
     previousGoalLoopSameCandidate: previousCandidateId !== null && currentCandidateId !== null && previousCandidateId === currentCandidateId,
@@ -1614,8 +1633,18 @@ async function main() {
   const launchReportEvidence = summarizeLaunchReportEvidence(launchReport);
   const gitStatusEvidence = summarizeGitStatusEvidence(gitStatus);
   const gitHeadEvidence = summarizeGitHeadEvidence(gitHeadSummary);
+  const previousGoalLoopEvidence = summarizePreviousGoalLoopEvidence(previousGoalLoopReport, {
+    currentFailures: criteria.filter((criterion) => !criterion.ok).map((criterion) => criterion.name),
+    currentCandidateId: developmentCandidate?.id ?? null,
+    currentCandidateMode: developmentCandidate?.mode ?? null,
+    currentHeadShortSha: gitHeadEvidence.gitHeadShortSha,
+  });
   const criteriaEvidence = summarizeCriteriaEvidence(criteria);
-  const notificationEvidence = summarizeNotificationEvidence(criteria);
+  const notificationEvidence = summarizeNotificationEvidence(criteria, {
+    previousHeadShortSha: previousGoalLoopEvidence.previousGoalLoopHeadShortSha,
+    currentHeadShortSha: gitHeadEvidence.gitHeadShortSha,
+    currentHeadChanged: previousGoalLoopEvidence.previousGoalLoopHeadChanged,
+  });
   const reportSchemaEvidence = summarizeReportSchemaEvidence(reportSchemaVersion);
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);
@@ -1624,11 +1653,6 @@ async function main() {
     housekeepingReport,
     knownCautions,
     actionableAttention,
-  });
-  const previousGoalLoopEvidence = summarizePreviousGoalLoopEvidence(previousGoalLoopReport, {
-    currentFailures: criteria.filter((criterion) => !criterion.ok).map((criterion) => criterion.name),
-    currentCandidateId: developmentCandidate?.id ?? null,
-    currentCandidateMode: developmentCandidate?.mode ?? null,
   });
   const goalQueueEvidence = summarizeGoalQueueEvidence(goalQueue);
   const workflowModel = {

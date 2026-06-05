@@ -1462,6 +1462,8 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionLockedPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionMissingPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionGitInaccessiblePaths");
+    expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopHeadShortSha");
+    expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopHeadChanged");
     expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopRepeatedFailureNames");
     expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopSameCandidate");
   });
@@ -1498,12 +1500,14 @@ describe("summarizePreviousGoalLoopEvidence", () => {
           notifyRecommended: true,
           failures: ["git drift is clean after the loop", "no actionable attention items remain"],
           nextDevelopmentCandidate: "attention-1",
+          gitHeadShortSha: "abc12345",
         },
       },
       {
         currentFailures: ["git drift is clean after the loop"],
         currentCandidateId: "attention-1",
         currentCandidateMode: "fix-first",
+        currentHeadShortSha: "def67890",
       },
     );
 
@@ -1515,6 +1519,8 @@ describe("summarizePreviousGoalLoopEvidence", () => {
       previousGoalLoopFailureCount: 2,
       previousGoalLoopFailureNames: ["git drift is clean after the loop", "no actionable attention items remain"],
       previousGoalLoopNextDevelopmentCandidate: "attention-1",
+      previousGoalLoopHeadShortSha: "abc12345",
+      previousGoalLoopHeadChanged: true,
       previousGoalLoopRepeatedFailureCount: 1,
       previousGoalLoopRepeatedFailureNames: ["git drift is clean after the loop"],
       previousGoalLoopSameCandidate: true,
@@ -1531,10 +1537,54 @@ describe("summarizePreviousGoalLoopEvidence", () => {
       previousGoalLoopFailureCount: 0,
       previousGoalLoopFailureNames: [],
       previousGoalLoopNextDevelopmentCandidate: null,
+      previousGoalLoopHeadShortSha: null,
+      previousGoalLoopHeadChanged: false,
       previousGoalLoopRepeatedFailureCount: 0,
       previousGoalLoopRepeatedFailureNames: [],
       previousGoalLoopSameCandidate: false,
       previousGoalLoopSameCandidateMode: null,
+    });
+  });
+});
+
+describe("summarizeNotificationEvidence", () => {
+  it("recommends notification when failures are present", () => {
+    expect(summarizeNotificationEvidence([{ name: "git drift", ok: false }])).toEqual({
+      notifyRecommended: true,
+      notifyRecommendationReason: "Launch goal failures (1): git drift",
+    });
+  });
+
+  it("recommends notification on a clean pass when HEAD changed since the previous report", () => {
+    expect(
+      summarizeNotificationEvidence(
+        [{ name: "git drift", ok: true }],
+        {
+          previousHeadShortSha: "abc12345",
+          currentHeadShortSha: "def67890",
+          currentHeadChanged: true,
+        },
+      ),
+    ).toEqual({
+      notifyRecommended: true,
+      notifyRecommendationReason:
+        "Goal loop passed and HEAD changed since the previous report (abc12345 -> def67890); report the verified local slice.",
+    });
+  });
+
+  it("stays quiet on a clean pass when HEAD is unchanged", () => {
+    expect(
+      summarizeNotificationEvidence(
+        [{ name: "git drift", ok: true }],
+        {
+          previousHeadShortSha: "abc12345",
+          currentHeadShortSha: "abc12345",
+          currentHeadChanged: false,
+        },
+      ),
+    ).toEqual({
+      notifyRecommended: false,
+      notifyRecommendationReason: "All launch goal criteria passed; no notification needed.",
     });
   });
 });
