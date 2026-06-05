@@ -928,7 +928,7 @@ describe("summarizeDevelopmentCandidateEvidence", () => {
       surface: "automation",
       area: "self-improvement loop",
       sourcePath: "scripts/scratchnode/runLaunchGoalLoop.mjs",
-      suggestedVerification: ["npm run scratchnode:launch:goal", "git diff --check"],
+      suggestedVerification: ["npm run scratchnode:launch:goal", "git diff --cached --check", "git diff --check"],
       why: "Keep future loops honest.",
       maxSlice: "Tighten one detector.",
       selectionType: "automation-fallback",
@@ -949,7 +949,11 @@ describe("summarizeDevelopmentCandidateEvidence", () => {
       nextDevelopmentCandidateSurface: "automation",
       nextDevelopmentCandidateArea: "self-improvement loop",
       nextDevelopmentCandidateSourcePath: "scripts/scratchnode/runLaunchGoalLoop.mjs",
-      nextDevelopmentCandidateSuggestedVerification: ["npm run scratchnode:launch:goal", "git diff --check"],
+      nextDevelopmentCandidateSuggestedVerification: [
+        "npm run scratchnode:launch:goal",
+        "git diff --cached --check",
+        "git diff --check",
+      ],
       nextDevelopmentCandidateWhy: "Keep future loops honest.",
       nextDevelopmentCandidateMaxSlice: "Tighten one detector.",
       nextDevelopmentCandidateSelectionType: "automation-fallback",
@@ -1050,7 +1054,12 @@ describe("summarizeKnownCautionSuppressionEvidence", () => {
 describe("summarizeVerificationEntryPointEvidence", () => {
   it("validates npm-run verification scripts against package.json", () => {
     const summary = summarizeVerificationEntryPointEvidence(
-      ["npm run scratchnode:launch:goal", "npm run repo:augment:check", "git diff --check"],
+      [
+        "npm run scratchnode:launch:goal",
+        "npm run repo:augment:check",
+        "git diff --cached --check",
+        "git diff --check",
+      ],
       {
         scripts: {
           "scratchnode:launch:goal": "node scripts/scratchnode/runLaunchGoalLoop.mjs",
@@ -1061,8 +1070,9 @@ describe("summarizeVerificationEntryPointEvidence", () => {
 
     expect(summary).toEqual({
       nextDevelopmentCandidateHasSuggestedVerification: true,
-      nextDevelopmentCandidateVerificationCommandCount: 3,
+      nextDevelopmentCandidateVerificationCommandCount: 4,
       nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {
+        "git diff --cached --check": 1,
         "git diff --check": 1,
         "npm run repo:augment:check": 1,
         "npm run scratchnode:launch:goal": 1,

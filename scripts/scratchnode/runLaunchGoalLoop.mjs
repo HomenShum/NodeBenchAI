@@ -574,7 +574,12 @@ function buildDevelopmentBacklog({ actionableAttention, launchRelevantBlockers, 
       title: "Improve loop instrumentation and evidence quality",
       why: "The loop should keep proving its own entrypoints, report freshness, and candidate ranking against the repo as it exists now.",
       maxSlice: "Restore or tighten one detector, script entrypoint, or report field that makes future autonomous work safer.",
-      suggestedVerification: ["npm run scratchnode:launch:goal", "npm run repo:augment:check", "git diff --check"],
+      suggestedVerification: [
+        "npm run scratchnode:launch:goal",
+        "npm run repo:augment:check",
+        "git diff --cached --check",
+        "git diff --check",
+      ],
       sourcePath: "scripts/scratchnode/runLaunchGoalLoop.mjs",
     },
   ];
