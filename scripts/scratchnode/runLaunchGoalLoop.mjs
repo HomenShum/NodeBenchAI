@@ -548,7 +548,7 @@ function buildDevelopmentBacklog({ actionableAttention, launchRelevantBlockers, 
       why: "The loop should keep proving its own entrypoints, report freshness, and candidate ranking against the repo as it exists now.",
       maxSlice: "Restore or tighten one detector, script entrypoint, or report field that makes future autonomous work safer.",
       suggestedVerification: ["npm run scratchnode:launch:goal", "npm run repo:augment:check", "git diff --check"],
-      sourcePath: launchReport?.summary?.passed ? "automation" : "automation-blocker",
+      sourcePath: "scripts/scratchnode/runLaunchGoalLoop.mjs",
     },
   ];
 }
