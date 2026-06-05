@@ -1015,6 +1015,8 @@ describe("summarizeVerificationEntryPointEvidence", () => {
       nextDevelopmentCandidateVerificationCommandCount: 3,
       nextDevelopmentCandidateVerificationScriptCount: 2,
       nextDevelopmentCandidateVerificationScriptRefs: ["scratchnode:launch:goal", "repo:augment:check"],
+      nextDevelopmentCandidateVerificationResolvedScriptCount: 2,
+      nextDevelopmentCandidateVerificationResolvedScriptRefs: ["scratchnode:launch:goal", "repo:augment:check"],
       nextDevelopmentCandidateVerificationTargetPathCount: 2,
       nextDevelopmentCandidateVerificationTargetPaths: [
         "scripts/scratchnode/runLaunchGoalLoop.mjs",
@@ -1042,6 +1044,8 @@ describe("summarizeVerificationEntryPointEvidence", () => {
       nextDevelopmentCandidateVerificationCommandCount: 2,
       nextDevelopmentCandidateVerificationScriptCount: 1,
       nextDevelopmentCandidateVerificationScriptRefs: ["missing:script"],
+      nextDevelopmentCandidateVerificationResolvedScriptCount: 1,
+      nextDevelopmentCandidateVerificationResolvedScriptRefs: ["missing:script"],
       nextDevelopmentCandidateVerificationTargetPathCount: 0,
       nextDevelopmentCandidateVerificationTargetPaths: [],
       nextDevelopmentCandidateVerificationEntryPointsValid: false,
@@ -1063,6 +1067,8 @@ describe("summarizeVerificationEntryPointEvidence", () => {
       nextDevelopmentCandidateVerificationCommandCount: 1,
       nextDevelopmentCandidateVerificationScriptCount: 1,
       nextDevelopmentCandidateVerificationScriptRefs: ["scratchnode:launch:goal"],
+      nextDevelopmentCandidateVerificationResolvedScriptCount: 1,
+      nextDevelopmentCandidateVerificationResolvedScriptRefs: ["scratchnode:launch:goal"],
       nextDevelopmentCandidateVerificationTargetPathCount: 1,
       nextDevelopmentCandidateVerificationTargetPaths: ["scripts/scratchnode/does-not-exist.mjs"],
       nextDevelopmentCandidateVerificationEntryPointsValid: false,
@@ -1092,6 +1098,8 @@ describe("summarizeVerificationEntryPointEvidence", () => {
       nextDevelopmentCandidateVerificationCommandCount: 4,
       nextDevelopmentCandidateVerificationScriptCount: 0,
       nextDevelopmentCandidateVerificationScriptRefs: [],
+      nextDevelopmentCandidateVerificationResolvedScriptCount: 0,
+      nextDevelopmentCandidateVerificationResolvedScriptRefs: [],
       nextDevelopmentCandidateVerificationTargetPathCount: 0,
       nextDevelopmentCandidateVerificationTargetPaths: [],
       nextDevelopmentCandidateVerificationEntryPointsValid: false,
@@ -1121,6 +1129,8 @@ describe("summarizeVerificationEntryPointEvidence", () => {
       nextDevelopmentCandidateVerificationCommandCount: 2,
       nextDevelopmentCandidateVerificationScriptCount: 0,
       nextDevelopmentCandidateVerificationScriptRefs: [],
+      nextDevelopmentCandidateVerificationResolvedScriptCount: 0,
+      nextDevelopmentCandidateVerificationResolvedScriptRefs: [],
       nextDevelopmentCandidateVerificationTargetPathCount: 0,
       nextDevelopmentCandidateVerificationTargetPaths: [],
       nextDevelopmentCandidateVerificationEntryPointsValid: false,
@@ -1142,10 +1152,73 @@ describe("summarizeVerificationEntryPointEvidence", () => {
       nextDevelopmentCandidateVerificationCommandCount: 0,
       nextDevelopmentCandidateVerificationScriptCount: 0,
       nextDevelopmentCandidateVerificationScriptRefs: [],
+      nextDevelopmentCandidateVerificationResolvedScriptCount: 0,
+      nextDevelopmentCandidateVerificationResolvedScriptRefs: [],
       nextDevelopmentCandidateVerificationTargetPathCount: 0,
       nextDevelopmentCandidateVerificationTargetPaths: [],
       nextDevelopmentCandidateVerificationEntryPointsValid: false,
       nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationMissingTargetPaths: [],
+      nextDevelopmentCandidateVerificationUnsupportedCommands: [],
+    });
+  });
+
+  it("resolves nested npm-run verification scripts and their file targets", () => {
+    const summary = summarizeVerificationEntryPointEvidence(["npm run repo:housekeeping:check"], {
+      scripts: {
+        "repo:housekeeping:check":
+          "npm run repo:augment:check && npm run repo:housekeeping:verify && git diff --cached --check",
+        "repo:augment:check": "powershell -File scripts/repo/checkAugmentUploadScope.ps1",
+        "repo:housekeeping:verify": "powershell -File scripts/repo/verifyWorkspaceHousekeeping.ps1",
+      },
+    });
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidateHasSuggestedVerification: true,
+      nextDevelopmentCandidateVerificationCommandCount: 1,
+      nextDevelopmentCandidateVerificationScriptCount: 1,
+      nextDevelopmentCandidateVerificationScriptRefs: ["repo:housekeeping:check"],
+      nextDevelopmentCandidateVerificationResolvedScriptCount: 3,
+      nextDevelopmentCandidateVerificationResolvedScriptRefs: [
+        "repo:housekeeping:check",
+        "repo:augment:check",
+        "repo:housekeeping:verify",
+      ],
+      nextDevelopmentCandidateVerificationTargetPathCount: 2,
+      nextDevelopmentCandidateVerificationTargetPaths: [
+        "scripts/repo/checkAugmentUploadScope.ps1",
+        "scripts/repo/verifyWorkspaceHousekeeping.ps1",
+      ],
+      nextDevelopmentCandidateVerificationEntryPointsValid: true,
+      nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationMissingTargetPaths: [],
+      nextDevelopmentCandidateVerificationUnsupportedCommands: [],
+    });
+  });
+
+  it("fails closed when a nested npm-run verifier is missing", () => {
+    const summary = summarizeVerificationEntryPointEvidence(["npm run repo:housekeeping:check"], {
+      scripts: {
+        "repo:housekeeping:check": "npm run repo:augment:check && npm run repo:housekeeping:verify",
+        "repo:augment:check": "powershell -File scripts/repo/checkAugmentUploadScope.ps1",
+      },
+    });
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidateHasSuggestedVerification: true,
+      nextDevelopmentCandidateVerificationCommandCount: 1,
+      nextDevelopmentCandidateVerificationScriptCount: 1,
+      nextDevelopmentCandidateVerificationScriptRefs: ["repo:housekeeping:check"],
+      nextDevelopmentCandidateVerificationResolvedScriptCount: 3,
+      nextDevelopmentCandidateVerificationResolvedScriptRefs: [
+        "repo:housekeeping:check",
+        "repo:augment:check",
+        "repo:housekeeping:verify",
+      ],
+      nextDevelopmentCandidateVerificationTargetPathCount: 1,
+      nextDevelopmentCandidateVerificationTargetPaths: ["scripts/repo/checkAugmentUploadScope.ps1"],
+      nextDevelopmentCandidateVerificationEntryPointsValid: false,
+      nextDevelopmentCandidateVerificationMissingScripts: ["repo:housekeeping:verify"],
       nextDevelopmentCandidateVerificationMissingTargetPaths: [],
       nextDevelopmentCandidateVerificationUnsupportedCommands: [],
     });
@@ -1238,6 +1311,7 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateActionabilityReason");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateHasSourcePath");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateSourcePathExists");
+    expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationResolvedScriptRefs");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationTargetPaths");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationMissingTargetPaths");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodes");

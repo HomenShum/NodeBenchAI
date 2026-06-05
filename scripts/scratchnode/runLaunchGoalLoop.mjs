@@ -192,6 +192,8 @@ export const goalLoopEvidenceFieldNames = [
   "nextDevelopmentCandidateVerificationCommandCount",
   "nextDevelopmentCandidateVerificationScriptCount",
   "nextDevelopmentCandidateVerificationScriptRefs",
+  "nextDevelopmentCandidateVerificationResolvedScriptCount",
+  "nextDevelopmentCandidateVerificationResolvedScriptRefs",
   "nextDevelopmentCandidateVerificationTargetPathCount",
   "nextDevelopmentCandidateVerificationTargetPaths",
   "nextDevelopmentCandidateVerificationMissingTargetPaths",
@@ -1199,6 +1201,18 @@ function extractLocalScriptTargets(scriptCommand) {
   return Array.from(new Set(targets));
 }
 
+function extractNestedNpmRunRefs(scriptCommand) {
+  const text = String(scriptCommand ?? "");
+  const refs = [];
+  const pattern = /(?:^|&&|\|\||;)\s*npm run ([^\s&|;]+)/gi;
+  for (const match of text.matchAll(pattern)) {
+    const scriptName = String(match[1] ?? "").trim();
+    if (!scriptName) continue;
+    refs.push(scriptName);
+  }
+  return Array.from(new Set(refs));
+}
+
 export function summarizeVerificationEntryPointEvidence(verificationCommands, packageJson) {
   const commands = Array.isArray(verificationCommands)
     ? verificationCommands.map((command) => String(command ?? "").trim()).filter(Boolean)
@@ -1208,28 +1222,40 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
       ? packageJson.scripts
       : {};
   const referencedScripts = [];
+  const resolvedScriptRefs = [];
   const referencedTargetPaths = [];
   const missingScripts = [];
   const missingTargetPaths = [];
   const unsupportedCommands = [];
+  const visitedScripts = new Set();
+
+  const visitScript = (scriptName) => {
+    if (!scriptName || visitedScripts.has(scriptName)) return;
+    visitedScripts.add(scriptName);
+    resolvedScriptRefs.push(scriptName);
+    const scriptCommand = packageScripts[scriptName];
+    if (typeof scriptCommand !== "string") {
+      missingScripts.push(scriptName);
+      return;
+    }
+    const localTargets = extractLocalScriptTargets(scriptCommand);
+    for (const targetPath of localTargets) {
+      referencedTargetPaths.push(targetPath);
+      if (!existsSync(resolve(repoRoot, targetPath))) {
+        missingTargetPaths.push(targetPath);
+      }
+    }
+    for (const nestedScriptName of extractNestedNpmRunRefs(scriptCommand)) {
+      visitScript(nestedScriptName);
+    }
+  };
 
   for (const command of commands) {
     const npmRunMatch = command.match(/^npm run ([^\s&|;]+)/i);
     if (npmRunMatch) {
       const scriptName = npmRunMatch[1];
       referencedScripts.push(scriptName);
-      const scriptCommand = packageScripts[scriptName];
-      if (typeof scriptCommand !== "string") {
-        missingScripts.push(scriptName);
-      } else {
-        const localTargets = extractLocalScriptTargets(scriptCommand);
-        for (const targetPath of localTargets) {
-          referencedTargetPaths.push(targetPath);
-          if (!existsSync(resolve(repoRoot, targetPath))) {
-            missingTargetPaths.push(targetPath);
-          }
-        }
-      }
+      visitScript(scriptName);
       continue;
     }
 
@@ -1253,16 +1279,18 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
     nextDevelopmentCandidateHasSuggestedVerification: commands.length > 0,
     nextDevelopmentCandidateVerificationCommandCount: commands.length,
     nextDevelopmentCandidateVerificationScriptCount: referencedScripts.length,
-    nextDevelopmentCandidateVerificationScriptRefs: referencedScripts,
-    nextDevelopmentCandidateVerificationTargetPathCount: referencedTargetPaths.length,
-    nextDevelopmentCandidateVerificationTargetPaths: referencedTargetPaths,
+    nextDevelopmentCandidateVerificationScriptRefs: Array.from(new Set(referencedScripts)),
+    nextDevelopmentCandidateVerificationResolvedScriptCount: resolvedScriptRefs.length,
+    nextDevelopmentCandidateVerificationResolvedScriptRefs: resolvedScriptRefs,
+    nextDevelopmentCandidateVerificationTargetPathCount: Array.from(new Set(referencedTargetPaths)).length,
+    nextDevelopmentCandidateVerificationTargetPaths: Array.from(new Set(referencedTargetPaths)),
     nextDevelopmentCandidateVerificationEntryPointsValid:
       commands.length > 0 &&
       missingScripts.length === 0 &&
       missingTargetPaths.length === 0 &&
       unsupportedCommands.length === 0,
-    nextDevelopmentCandidateVerificationMissingScripts: missingScripts,
-    nextDevelopmentCandidateVerificationMissingTargetPaths: missingTargetPaths,
+    nextDevelopmentCandidateVerificationMissingScripts: Array.from(new Set(missingScripts)),
+    nextDevelopmentCandidateVerificationMissingTargetPaths: Array.from(new Set(missingTargetPaths)),
     nextDevelopmentCandidateVerificationUnsupportedCommands: unsupportedCommands,
   };
 }
