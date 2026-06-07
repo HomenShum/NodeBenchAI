@@ -95,6 +95,7 @@ export const goalLoopEvidenceFieldNames = [
   "duplicateCommandNames",
   "commandExitCodes",
   "commandExitCodeHistory",
+  "commandResultRows",
   "commandDurationMsByName",
   "commandDurationTotalMs",
   "commandTimeoutMs",
@@ -702,6 +703,19 @@ export function summarizeCommandEvidence(commands, options = {}) {
         commandDurations.filter((command) => command.command === commandName).map((command) => command.exitCode),
       ]),
   );
+  const commandOccurrenceIndexes = new Map();
+  const commandResultRows = commandDurations.map((command, index) => {
+    const occurrenceIndex = (commandOccurrenceIndexes.get(command.command) ?? 0) + 1;
+    commandOccurrenceIndexes.set(command.command, occurrenceIndex);
+    return {
+      index,
+      command: command.command,
+      occurrenceIndex,
+      exitCode: command.exitCode,
+      durationMs: command.durationMs,
+      timedOut: command.timedOut,
+    };
+  });
   const slowestCommand = commandTimings.reduce((slowest, command) => {
     if (!slowest || command.durationMs > slowest.durationMs) return command;
     return slowest;
@@ -728,6 +742,7 @@ export function summarizeCommandEvidence(commands, options = {}) {
     duplicateCommandNames,
     commandExitCodes: Object.fromEntries(commands.map((command) => [command.command, command.exitCode])),
     commandExitCodeHistory,
+    commandResultRows,
     commandDurationMsByName: Object.fromEntries(commandTimings.map((command) => [command.command, command.durationMs])),
     commandDurationTotalMs: commandTimings.reduce((total, command) => total + command.durationMs, 0),
     commandTimeoutMs,

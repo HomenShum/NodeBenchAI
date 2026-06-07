@@ -302,6 +302,32 @@ describe("summarizeCommandEvidence", () => {
         "invalid-duration": [0],
         slow: [1],
       },
+      commandResultRows: [
+        {
+          index: 0,
+          command: "fast",
+          occurrenceIndex: 1,
+          exitCode: 0,
+          durationMs: 12,
+          timedOut: false,
+        },
+        {
+          index: 1,
+          command: "slow",
+          occurrenceIndex: 1,
+          exitCode: 1,
+          durationMs: 39,
+          timedOut: false,
+        },
+        {
+          index: 2,
+          command: "invalid-duration",
+          occurrenceIndex: 1,
+          exitCode: 0,
+          durationMs: 0,
+          timedOut: false,
+        },
+      ],
       commandDurationMsByName: {
         fast: 12,
         slow: 39,
@@ -375,6 +401,16 @@ describe("summarizeCommandEvidence", () => {
       commandExitCodeHistory: {
         "hung-check": [124],
       },
+      commandResultRows: [
+        {
+          index: 0,
+          command: "hung-check",
+          occurrenceIndex: 1,
+          exitCode: 124,
+          durationMs: 240001,
+          timedOut: true,
+        },
+      ],
       commandDurationMsByName: {
         "hung-check": 240001,
       },
@@ -435,6 +471,32 @@ describe("summarizeCommandEvidence", () => {
       "git diff --check": [0],
       "npm run scratchnode:launch:goal": [0, 1],
     });
+    expect(summary.commandResultRows).toEqual([
+      {
+        index: 0,
+        command: "npm run scratchnode:launch:goal",
+        occurrenceIndex: 1,
+        exitCode: 0,
+        durationMs: 10,
+        timedOut: false,
+      },
+      {
+        index: 1,
+        command: "npm run scratchnode:launch:goal",
+        occurrenceIndex: 2,
+        exitCode: 1,
+        durationMs: 15,
+        timedOut: false,
+      },
+      {
+        index: 2,
+        command: "git diff --check",
+        occurrenceIndex: 1,
+        exitCode: 0,
+        durationMs: 5,
+        timedOut: false,
+      },
+    ]);
   });
 
   it("surfaces explicit outer timeout guidance for automation wrappers", () => {
@@ -1509,6 +1571,7 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("duplicateCommandNames");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodes");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodeHistory");
+    expect(goalLoopEvidenceFieldNames).toContain("commandResultRows");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionDirtyPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionLockedPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionMissingPaths");
