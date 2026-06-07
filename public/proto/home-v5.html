@@ -324,7 +324,7 @@ body[data-mode="private"] .c-hint::before { content: "🔒 Private — saves to 
 .row-body { grid-column: 2; min-width: 0; }
 .row-reactions { grid-column: 2; }
 .row-head { display: flex; align-items: baseline; gap: 7px; margin-bottom: 1px; line-height: 1.2; }
-.row-time { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); }
+.row-time { font-family: var(--mono); font-size: 10px; line-height: 1.35; color: var(--ink-faint); }
 .row-name { font-size: 13px; font-weight: 600; color: var(--ink); }
 .row-name[data-role="you"] { color: var(--accent); }
 .row-name[data-role="mod"] { color: var(--green); }
@@ -574,11 +574,14 @@ body[data-mode="private"] .private-notes-inline[data-count]:not([data-count="0"]
 .ans-reuse .miss { color: #fbbf24; }
 
 .ans-show {
-  margin-top: 6px; padding: 2px 0;
-  background: transparent; border: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 24px; margin-top: 6px; padding: 3px 6px;
+  background: rgba(255,255,255,.025); border: 1px solid transparent; border-radius: 999px;
   font-size: 10px; color: var(--ink-faint); font-family: var(--mono);
+  cursor: pointer; transition: color .12s ease, background .12s ease, border-color .12s ease;
 }
-.ans-show:hover { color: var(--accent); }
+.ans-show:hover { color: var(--accent); background: rgba(217,119,87,.08); border-color: rgba(217,119,87,.18); }
+.ans-show:focus-visible { outline: 2px solid rgba(217,119,87,.7); outline-offset: 2px; }
 .ans-show[aria-expanded="true"] + .ans-how { display: block; }
 .ans-how {
   display: none; margin-top: 6px; padding-top: 8px;
@@ -1050,9 +1053,10 @@ body[data-new-user="true"] .h-menu::after {
   body[data-input-focused="true"] .welcome { display: none; }
   .row { grid-template-columns: 32px 1fr; column-gap: 8px; padding: 5px 4px 6px; }
   .row-avatar { width: 32px; height: 32px; font-size: 12px; }
-  .row-time { font-size: 9px; }
+  .row-time { font-size: 10.5px; color: var(--ink-muted); }
   .ans { padding: 10px 12px; margin-left: 40px; margin-right: 0; max-width: calc(100% - 44px); }
   .ans-bot { left: -40px; width: 30px; height: 30px; font-size: 14px; }
+  .ans-show { min-height: 32px; padding: 6px 10px; font-size: 11px; background: rgba(255,255,255,.035); border-color: rgba(255,255,255,.07); }
   /* Compact the public/private badge to its colored dot on phones — frees composer input width.
      The helpline below the composer still shows the mode word; aria-live still announces changes. */
   .c-mode { padding: 0; width: 26px; min-width: 26px; height: 26px; justify-content: center; gap: 0; }
