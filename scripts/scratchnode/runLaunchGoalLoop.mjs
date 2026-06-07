@@ -1879,6 +1879,10 @@ async function main() {
         `(failures=${report.summary.failures.length}, knownCautions=${knownCautions.length})`,
     );
     console.log(`Report: ${outPath}`);
+    console.log(
+      `Recommended invoker timeout: >=${report.summary.recommendedInvokerTimeoutSeconds}s ` +
+        `(minimum ${Math.ceil(report.summary.minimumInvokerTimeoutMs / 1_000)}s)`,
+    );
     for (const failure of report.summary.failures) {
       console.log(`- ${failure}`);
     }
