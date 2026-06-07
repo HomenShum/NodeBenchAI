@@ -44,6 +44,8 @@ export const goalLoopEvidenceFieldNames = [
   "gitHeadSummary",
   "gitHeadShortSha",
   "gitHeadSubject",
+  "notifyDecision",
+  "notifyQuietPassEligible",
   "notifyRecommendationReason",
   "criterionCount",
   "passedCriterionCount",
@@ -1086,13 +1088,24 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
   const currentHeadShortSha = String(context.currentHeadShortSha ?? "").trim();
   const currentHeadChanged =
     context.currentHeadChanged === true && previousHeadShortSha.length > 0 && currentHeadShortSha.length > 0;
+  const quietPassEligible = context.developmentCandidate?.quietPassEligible === true;
+  const quietPassReasonParts = [
+    String(context.developmentCandidate?.selectionReason ?? "").trim(),
+    String(context.developmentCandidate?.actionabilityReason ?? "").trim(),
+  ].filter(Boolean);
+  const notifyDecision =
+    failures.length > 0 ? "notify" : currentHeadChanged ? "notify" : quietPassEligible ? "quiet-pass" : "no-notify";
   return {
+    notifyDecision,
+    notifyQuietPassEligible: quietPassEligible,
     notifyRecommended: failures.length > 0 || currentHeadChanged,
     notifyRecommendationReason:
       failures.length > 0
         ? `Launch goal failures (${failures.length}): ${failures.join("; ")}`
         : currentHeadChanged
           ? `Goal loop passed and HEAD changed since the previous report (${previousHeadShortSha} -> ${currentHeadShortSha}); report the verified local slice.`
+          : quietPassEligible
+            ? `Goal loop passed; quiet pass is eligible. ${quietPassReasonParts.join(" ")}`
           : "All launch goal criteria passed; no notification needed.",
   };
 }
@@ -1694,6 +1707,7 @@ async function main() {
     previousHeadShortSha: previousGoalLoopEvidence.previousGoalLoopHeadShortSha,
     currentHeadShortSha: gitHeadEvidence.gitHeadShortSha,
     currentHeadChanged: previousGoalLoopEvidence.previousGoalLoopHeadChanged,
+    developmentCandidate,
   });
   const reportSchemaEvidence = summarizeReportSchemaEvidence(reportSchemaVersion);
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
