@@ -144,7 +144,25 @@ button:active { transform: scale(.97); transition: transform .08s; }
 .h-code:hover { border-color: var(--ink-faint); color: var(--ink); }
 .h-menu { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-sm); border: 0; background: transparent; color: var(--ink-faint); }
 .h-menu:hover { color: var(--ink); background: rgba(255,255,255,.05); }
-@media (max-width: 540px) { .h-menu { width: 44px; height: 44px; } .h-code { min-height: 36px; } }
+@media (max-width: 540px) {
+  .h {
+    gap: 8px;
+    padding: calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left));
+  }
+  .h-logo { gap: 5px; font-size: 13px; }
+  .h-live {
+    padding: 2px 8px;
+    font-size: 9px;
+    letter-spacing: .08em;
+    background: rgba(94,168,103,.08);
+  }
+  .h-menu { width: 40px; height: 40px; }
+  .h-code {
+    min-height: 32px;
+    padding: 3px 9px;
+    letter-spacing: .1em;
+  }
+}
 
 /* ─── Event identity strip (persistent after scroll) ─── */
 .event-strip {
@@ -180,8 +198,15 @@ body[data-role="host"] .event-strip .ev-host-only { display: inline; }
 }
 .event-strip .ev-link:hover { color: var(--ink); border-color: var(--ink-faint); }
 @media (max-width: 540px) {
-  .event-strip { padding: 7px 14px; font-size: var(--fs-sub); gap: 6px; }
-  .event-strip b { font-size: var(--fs-sub); }
+  .event-strip {
+    padding: 5px 14px;
+    font-size: 11px;
+    gap: 4px;
+  }
+  .event-strip b {
+    font-size: 11px;
+    letter-spacing: -.01em;
+  }
   .event-strip .ev-link { font-size: var(--fs-label); }
   .event-strip b + .dot,
   .event-strip .ev-topic {
