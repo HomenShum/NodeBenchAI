@@ -62,6 +62,7 @@ coverage/
 .nyc_output/
 test-results/
 playwright-report/
+.validation/
 
 # Temporary files
 temp_*.txt

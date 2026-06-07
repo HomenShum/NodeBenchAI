@@ -190,6 +190,9 @@ body[data-role="host"] .event-strip .ev-host-only { display: inline; }
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  body[data-role="host"] .event-strip .ev-host-only,
+  body[data-role="host"] .event-strip .ev-mode,
+  body[data-role="host"] .event-strip .ev-cap,
   .event-strip .ev-mobile-hide,
   .event-strip .la-toggle,
   .event-strip .ev-link { display: none; }
@@ -3806,6 +3809,8 @@ if (document.readyState === 'loading') {
   <!-- Host console hidden until data-role="host" on body -->
   <h4 style="margin-top:14px" data-show-for="host">For hosts</h4>
   <button type="button" data-show-for="host" onclick="openHost()">Host console<span class="sub">Moderation · /ask queue · Publish wiki</span></button>
+  <button type="button" data-show-for="host" onclick="closeMenu(); openModePicker();">Event mode<span class="sub">Cycle event, work, or sensitive handling</span></button>
+  <button type="button" data-show-for="host" onclick="closeMenu(); openCaptureLevelPicker();">Capture level<span class="sub">Open private cues and capture controls</span></button>
   <h4 style="margin-top:14px" data-show-for="all">Account</h4>
   <button type="button" data-hide-for="signed-in" onclick="openSignIn()">Sign in<span class="sub">Magic link — get your own events</span></button>
   <button type="button" onclick="openMyEvents()">My events<span class="sub" id="menu-events-sub">Joined and hosted rooms across devices</span></button>
