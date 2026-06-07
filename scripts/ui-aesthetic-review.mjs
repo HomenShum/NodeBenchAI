@@ -16,6 +16,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const ROOT = process.cwd();
 const DEFAULT_URL = "https://scratchnode.live/e/ai-infra-summit-2026";
@@ -87,7 +88,12 @@ function runNode(relativePath, args, label) {
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${label} failed with exit code ${result.status}`);
+    const error = new Error(`${label} failed with exit code ${result.status}`);
+    error.exitCode = result.status;
+    error.stdout = result.stdout ?? "";
+    error.stderr = result.stderr ?? "";
+    error.label = label;
+    throw error;
   }
   return result.stdout ?? "";
 }
@@ -150,6 +156,81 @@ function writeSummary(summary, reportPath) {
   return reportPath;
 }
 
+export function classifyAestheticReviewFailure(error) {
+  const text = [
+    error?.message,
+    error?.stderr,
+    error?.stdout,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  if (/ERR_NETWORK_ACCESS_DENIED/i.test(text)) {
+    return {
+      code: "network_access_denied",
+      stage: "record",
+      detail: "Sandbox denied outbound navigation while loading the public ScratchNode room.",
+    };
+  }
+
+  if (/GEMINI_API_KEY/i.test(text)) {
+    return {
+      code: "missing_gemini_key",
+      stage: "judge-config",
+      detail: "Gemini judging was required, but no GEMINI_API_KEY was available.",
+    };
+  }
+
+  if (/Recorder did not produce .* video/i.test(text)) {
+    return {
+      code: "missing_video_output",
+      stage: "record",
+      detail: "The recorder completed without producing the expected video artifact.",
+    };
+  }
+
+  if (/judge failed with exit code/i.test(text)) {
+    return {
+      code: "judge_failed",
+      stage: "judge",
+      detail: "The Gemini judge process failed before returning a JSON verdict.",
+    };
+  }
+
+  if (/recorder failed with exit code/i.test(text)) {
+    return {
+      code: "record_failed",
+      stage: "record",
+      detail: "The capture step failed before producing a recordable video artifact.",
+    };
+  }
+
+  return {
+    code: "unexpected_failure",
+    stage: "wrapper",
+    detail: error?.message ?? String(error),
+  };
+}
+
+export function buildFailureSummary(baseSummary, error) {
+  const failure = classifyAestheticReviewFailure(error);
+  return {
+    ...baseSummary,
+    passed: false,
+    videos: Array.isArray(baseSummary?.videos) ? baseSummary.videos : [],
+    record: baseSummary?.record ?? null,
+    judges: Array.isArray(baseSummary?.judges) ? baseSummary.judges : [],
+    failure: {
+      ...failure,
+      label: error?.label ?? null,
+      exitCode: Number.isFinite(error?.exitCode) ? error.exitCode : null,
+      message: error?.message ?? String(error),
+    },
+    stderr: error?.stderr || null,
+    stdout: error?.stdout || null,
+  };
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.has("help")) {
@@ -164,22 +245,6 @@ async function main() {
   const outDir = path.resolve(ROOT, args.get("out") || DEFAULT_OUT);
   const reportPath = path.resolve(ROOT, args.get("report") || path.join(outDir, "aesthetic-review-summary.json"));
   const url = args.get("url") || DEFAULT_URL;
-
-  assertScriptExists(RECORDER);
-  assertScriptExists(JUDGE);
-
-  if (judgeMode === "require" && !hasGeminiKey()) {
-    throw new Error("GEMINI_API_KEY not found in env or .env.local; use --judge skip for capture-only smoke.");
-  }
-
-  let recordJson = null;
-  if (!videoArg) {
-    fs.mkdirSync(outDir, { recursive: true });
-    const recordOut = runNode(RECORDER, ["--url", url, "--out", outDir], "ScratchNode recorder");
-    recordJson = parseJsonObject(recordOut, "ScratchNode recorder");
-  }
-
-  const videos = videoCandidates({ videoArg, recordJson, surface });
   const summary = {
     passed: true,
     url: videoArg ? null : url,
@@ -188,37 +253,66 @@ async function main() {
     surface,
     judgeMode,
     model: judgeMode === "skip" ? null : model,
-    videos,
-    record: recordJson,
+    videos: [],
+    record: null,
     judges: [],
   };
 
-  const shouldJudge = judgeMode === "require" || (judgeMode === "auto" && hasGeminiKey());
-  if (!shouldJudge) {
-    summary.judgeSkipped = judgeMode === "skip" ? "requested" : "GEMINI_API_KEY not available";
+  try {
+    assertScriptExists(RECORDER);
+    assertScriptExists(JUDGE);
+
+    if (judgeMode === "require" && !hasGeminiKey()) {
+      throw new Error("GEMINI_API_KEY not found in env or .env.local; use --judge skip for capture-only smoke.");
+    }
+
+    let recordJson = null;
+    if (!videoArg) {
+      fs.mkdirSync(outDir, { recursive: true });
+      const recordOut = runNode(RECORDER, ["--url", url, "--out", outDir], "ScratchNode recorder");
+      recordJson = parseJsonObject(recordOut, "ScratchNode recorder");
+      summary.record = recordJson;
+    }
+
+    const videos = videoCandidates({ videoArg, recordJson, surface });
+    summary.videos = videos;
+
+    const shouldJudge = judgeMode === "require" || (judgeMode === "auto" && hasGeminiKey());
+    if (!shouldJudge) {
+      summary.judgeSkipped = judgeMode === "skip" ? "requested" : "GEMINI_API_KEY not available";
+      writeSummary(summary, reportPath);
+      console.log(JSON.stringify(summary, null, 2));
+      return;
+    }
+
+    for (const video of videos) {
+      const judgeOut = runNode(
+        JUDGE,
+        ["--video", video.path, "--surface", video.surface, "--model", model],
+        `ScratchNode ${video.surface} judge`,
+      );
+      const judgeJson = parseJsonObject(judgeOut, `ScratchNode ${video.surface} judge`);
+      const passed = passJudge(judgeJson);
+      summary.judges.push({ surface: video.surface, passed, ...judgeJson });
+      if (!passed) summary.passed = false;
+    }
+
     writeSummary(summary, reportPath);
     console.log(JSON.stringify(summary, null, 2));
-    return;
+    if (!summary.passed) process.exit(2);
+  } catch (error) {
+    const failureSummary = buildFailureSummary(summary, error);
+    writeSummary(failureSummary, reportPath);
+    console.log(JSON.stringify(failureSummary, null, 2));
+    throw error;
   }
-
-  for (const video of videos) {
-    const judgeOut = runNode(
-      JUDGE,
-      ["--video", video.path, "--surface", video.surface, "--model", model],
-      `ScratchNode ${video.surface} judge`,
-    );
-    const judgeJson = parseJsonObject(judgeOut, `ScratchNode ${video.surface} judge`);
-    const passed = passJudge(judgeJson);
-    summary.judges.push({ surface: video.surface, passed, ...judgeJson });
-    if (!passed) summary.passed = false;
-  }
-
-  writeSummary(summary, reportPath);
-  console.log(JSON.stringify(summary, null, 2));
-  if (!summary.passed) process.exit(2);
 }
 
-main().catch((error) => {
-  console.error(`AESTHETIC_REVIEW_FAILED: ${error?.message ?? error}`);
-  process.exit(1);
-});
+const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error(`AESTHETIC_REVIEW_FAILED: ${error?.message ?? error}`);
+    process.exit(1);
+  });
+}
