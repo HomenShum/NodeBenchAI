@@ -879,6 +879,8 @@ describe("summarizeNotificationEvidence", () => {
         { name: "git drift is clean after the loop", ok: true },
       ]),
     ).toEqual({
+      notifyDecision: "no-notify",
+      notifyQuietPassEligible: false,
       notifyRecommended: false,
       notifyRecommendationReason: "All launch goal criteria passed; no notification needed.",
     });
@@ -889,6 +891,8 @@ describe("summarizeNotificationEvidence", () => {
         { name: "git drift is clean after the loop", ok: false },
       ]),
     ).toEqual({
+      notifyDecision: "notify",
+      notifyQuietPassEligible: false,
       notifyRecommended: true,
       notifyRecommendationReason: "Launch goal failures (2): housekeeping command passes; git drift is clean after the loop",
     });
@@ -1572,6 +1576,8 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodes");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodeHistory");
     expect(goalLoopEvidenceFieldNames).toContain("commandResultRows");
+    expect(goalLoopEvidenceFieldNames).toContain("notifyDecision");
+    expect(goalLoopEvidenceFieldNames).toContain("notifyQuietPassEligible");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionDirtyPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionLockedPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionMissingPaths");
@@ -1664,6 +1670,8 @@ describe("summarizePreviousGoalLoopEvidence", () => {
 describe("summarizeNotificationEvidence", () => {
   it("recommends notification when failures are present", () => {
     expect(summarizeNotificationEvidence([{ name: "git drift", ok: false }])).toEqual({
+      notifyDecision: "notify",
+      notifyQuietPassEligible: false,
       notifyRecommended: true,
       notifyRecommendationReason: "Launch goal failures (1): git drift",
     });
@@ -1680,6 +1688,8 @@ describe("summarizeNotificationEvidence", () => {
         },
       ),
     ).toEqual({
+      notifyDecision: "notify",
+      notifyQuietPassEligible: false,
       notifyRecommended: true,
       notifyRecommendationReason:
         "Goal loop passed and HEAD changed since the previous report (abc12345 -> def67890); report the verified local slice.",
@@ -1697,8 +1707,31 @@ describe("summarizeNotificationEvidence", () => {
         },
       ),
     ).toEqual({
+      notifyDecision: "no-notify",
+      notifyQuietPassEligible: false,
       notifyRecommended: false,
       notifyRecommendationReason: "All launch goal criteria passed; no notification needed.",
+    });
+  });
+
+  it("marks quiet-pass eligibility for clean opportunistic fallback runs", () => {
+    expect(
+      summarizeNotificationEvidence(
+        [{ name: "git drift", ok: true }],
+        {
+          developmentCandidate: {
+            quietPassEligible: true,
+            selectionReason: "All gates are green.",
+            actionabilityReason: "Only the automation fallback is available.",
+          },
+        },
+      ),
+    ).toEqual({
+      notifyDecision: "quiet-pass",
+      notifyQuietPassEligible: true,
+      notifyRecommended: false,
+      notifyRecommendationReason:
+        "Goal loop passed; quiet pass is eligible. All gates are green. Only the automation fallback is available.",
     });
   });
 });
