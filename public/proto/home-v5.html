@@ -180,9 +180,19 @@ body[data-role="host"] .event-strip .ev-host-only { display: inline; }
 }
 .event-strip .ev-link:hover { color: var(--ink); border-color: var(--ink-faint); }
 @media (max-width: 540px) {
-  .event-strip { padding: 6px 14px; font-size: var(--fs-sub); gap: 8px; }
+  .event-strip { padding: 7px 14px; font-size: var(--fs-sub); gap: 6px; }
   .event-strip b { font-size: var(--fs-sub); }
   .event-strip .ev-link { font-size: var(--fs-label); }
+  .event-strip .ev-topic {
+    min-width: 0;
+    max-width: 42vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .event-strip .ev-mobile-hide,
+  .event-strip .la-toggle,
+  .event-strip .ev-link { display: none; }
 }
 
 /* ─── Main (single column) ─── */
@@ -561,17 +571,25 @@ body[data-mode="private"] .private-notes-inline[data-count]:not([data-count="0"]
 .ans-reuse {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   margin-top: 8px; padding: 5px 9px;
-  background: rgba(94,168,103,.05);
-  border: 1px solid rgba(94,168,103,.18);
+  background: rgba(94,168,103,.075);
+  border: 1px solid rgba(94,168,103,.26);
   border-radius: 100px;
   font-family: var(--mono); font-size: 10px;
-  color: var(--green);
+  color: #9fd3a4;
 }
-.ans-reuse .pin { color: var(--green); font-weight: 700; }
-.ans-reuse .sep { color: var(--ink-faint); }
-.ans-reuse .priv { color: var(--purple); }
-.ans-reuse .pulled { color: var(--accent); }
-.ans-reuse .miss { color: #fbbf24; }
+.ans-reuse b { color: var(--ink); font-weight: 800; }
+.ans-reuse .pin,
+.ans-reuse .pulled,
+.ans-reuse .priv,
+.ans-reuse .miss {
+  padding: 1px 6px; border-radius: 999px; font-weight: 700;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.055);
+}
+.ans-reuse .pin { color: #b9e7bd; background: rgba(94,168,103,.12); border-color: rgba(94,168,103,.26); }
+.ans-reuse .sep { color: rgba(230,224,217,.42); }
+.ans-reuse .priv { color: #d9c7ff; background: rgba(167,139,250,.11); border-color: rgba(167,139,250,.24); }
+.ans-reuse .pulled { color: #f1aa86; background: rgba(217,119,87,.12); border-color: rgba(217,119,87,.25); }
+.ans-reuse .miss { color: #ffd982; background: rgba(251,191,36,.12); border-color: rgba(251,191,36,.25); }
 
 .ans-show {
   display: inline-flex; align-items: center; justify-content: center;
@@ -3322,9 +3340,9 @@ if (document.readyState === 'loading') {
 <div class="event-strip" role="region" aria-label="Event identity">
   <b id="sn-event-title-strip">AI Infra Summit</b>
   <span class="dot">·</span>
-  <span>MCP Auth breakout</span>
-  <span class="dot">·</span>
-  <span><b style="color:var(--ink)" id="ev-joined-count">0</b> joined</span>
+  <span class="ev-topic">MCP Auth breakout</span>
+  <span class="dot ev-mobile-hide">·</span>
+  <span class="ev-attendance ev-mobile-hide"><b style="color:var(--ink)" id="ev-joined-count">0</b> joined</span>
   <span class="dot ev-host-only">·</span>
   <span class="ev-host-only"><b style="color:var(--ink)" id="ev-faq-count">0</b> FAQ</span>
   <button type="button" class="ev-mode" id="ev-mode-btn" onclick="openModePicker()" aria-label="Event mode" title="Switch event mode">
