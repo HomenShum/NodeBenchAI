@@ -72,6 +72,8 @@ export const goalLoopEvidenceFieldNames = [
   "goalQueuePriorityCounts",
   "knownCautionPaths",
   "knownCautionPathReasons",
+  "knownCautionSourceReports",
+  "knownCautionRecommendedActions",
   "knownCautionDirtyPaths",
   "knownCautionLockedPaths",
   "knownCautionMissingPaths",
@@ -339,6 +341,8 @@ export function knownCautionEntries(housekeepingReport, localHistoryReport = nul
     entries.push({
       path: entry.path ?? entry.absolutePath ?? "git worktree metadata",
       reason: entry.reason ?? "invalid registered worktree",
+      sourceReport: reportPaths.localHistory,
+      recommendedAction: "Inspect git worktree metadata before any prune or removal.",
       branch: entry.branch ?? null,
       dirty: entry.dirty ?? null,
       locked: entry.locked ?? null,
@@ -351,9 +355,21 @@ export function knownCautionEntries(housekeepingReport, localHistoryReport = nul
     entries.push({
       path: "git worktree metadata",
       reason: `invalid registered worktrees present: ${invalidRegistered}; explicit keep-entry details unavailable from local-history map/reduce`,
+      sourceReport: reportPaths.housekeeping,
+      recommendedAction: "Inspect git worktree metadata before any prune or removal.",
     });
   }
-  return entries;
+  return entries.map((entry) => ({
+    ...entry,
+    sourceReport:
+      String(entry?.sourceReport ?? "").trim() ||
+      (String(entry?.reason ?? "").match(/explicit prune only/i) ? reportPaths.housekeeping : reportPaths.localHistory),
+    recommendedAction:
+      String(entry?.recommendedAction ?? "").trim() ||
+      (String(entry?.reason ?? "").match(/explicit prune only/i)
+        ? "Prune only when explicitly requested after confirming the worktree is still safe to remove."
+        : "Inspect git worktree metadata before any prune or removal."),
+  }));
 }
 
 function actionableAttentionItems(housekeepingReport) {
@@ -1232,6 +1248,13 @@ export function summarizeKnownCautionEvidence(knownCautions) {
     path: entry?.path ?? "unknown",
     reason: entry?.reason ?? "",
   }));
+  const cautionSourceReports = cautionEntries
+    .map((entry) => String(entry?.sourceReport ?? "").trim())
+    .filter(Boolean)
+    .sort();
+  const cautionRecommendedActions = cautionEntries
+    .map((entry) => String(entry?.recommendedAction ?? "").trim())
+    .filter(Boolean);
   const entriesMatchingReason = (pattern) => cautionPathReasons.filter((entry) => pattern.test(entry.reason));
   const pathsMatchingReason = (pattern) =>
     entriesMatchingReason(pattern)
@@ -1242,6 +1265,8 @@ export function summarizeKnownCautionEvidence(knownCautions) {
   return {
     knownCautionPaths: cautionPathReasons.map((entry) => entry.path).filter(Boolean).sort(),
     knownCautionPathReasons: cautionPathReasons,
+    knownCautionSourceReports: Array.from(new Set(cautionSourceReports)),
+    knownCautionRecommendedActions: Array.from(new Set(cautionRecommendedActions)),
     knownCautionDirtyPaths: cautionEntries
       .filter((entry) => entry?.dirty === true)
       .map((entry) => entry.path)

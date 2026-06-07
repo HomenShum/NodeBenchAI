@@ -244,6 +244,8 @@ describe("knownCautionEntries", () => {
       {
         path: ".worktrees/p0-row-delta",
         reason: "invalid registered worktree; inspect git metadata first",
+        sourceReport: ".tmp/local-history-map-reduce.json",
+        recommendedAction: "Inspect git worktree metadata before any prune or removal.",
         branch: "refs/heads/fix/spreadsheet-operation-validate",
         dirty: false,
         locked: false,
@@ -265,6 +267,8 @@ describe("knownCautionEntries", () => {
       {
         path: "git worktree metadata",
         reason: "invalid registered worktrees present: 2; explicit keep-entry details unavailable from local-history map/reduce",
+        sourceReport: ".tmp/workspace-housekeeping-verification.json",
+        recommendedAction: "Inspect git worktree metadata before any prune or removal.",
       },
     ]);
   });
@@ -1068,12 +1072,16 @@ describe("summarizeKnownCautionEvidence", () => {
       {
         path: ".worktrees/p0-row-delta",
         reason: "invalid registered worktree; inspect git metadata first",
+        sourceReport: ".tmp/local-history-map-reduce.json",
+        recommendedAction: "Inspect git worktree metadata before any prune or removal.",
         dirty: true,
         gitUsable: false,
       },
       {
         path: ".worktrees/keep-clean",
         reason: "clean registered worktree; explicit prune only",
+        sourceReport: ".tmp/workspace-housekeeping-verification.json",
+        recommendedAction: "Prune only when explicitly requested after confirming the worktree is still safe to remove.",
         locked: true,
         exists: false,
       },
@@ -1090,6 +1098,14 @@ describe("summarizeKnownCautionEvidence", () => {
           path: ".worktrees/keep-clean",
           reason: "clean registered worktree; explicit prune only",
         },
+      ],
+      knownCautionSourceReports: [
+        ".tmp/local-history-map-reduce.json",
+        ".tmp/workspace-housekeeping-verification.json",
+      ],
+      knownCautionRecommendedActions: [
+        "Inspect git worktree metadata before any prune or removal.",
+        "Prune only when explicitly requested after confirming the worktree is still safe to remove.",
       ],
       knownCautionDirtyPaths: [".worktrees/p0-row-delta"],
       knownCautionLockedPaths: [".worktrees/keep-clean"],
@@ -1578,6 +1594,8 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("commandResultRows");
     expect(goalLoopEvidenceFieldNames).toContain("notifyDecision");
     expect(goalLoopEvidenceFieldNames).toContain("notifyQuietPassEligible");
+    expect(goalLoopEvidenceFieldNames).toContain("knownCautionSourceReports");
+    expect(goalLoopEvidenceFieldNames).toContain("knownCautionRecommendedActions");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionDirtyPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionLockedPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionMissingPaths");
