@@ -1744,6 +1744,28 @@ describe("summarizeNotificationEvidence", () => {
     });
   });
 
+  it("recommends notification when known caution entries remain on an otherwise clean pass", () => {
+    expect(
+      summarizeNotificationEvidence(
+        [{ name: "git drift", ok: true }],
+        {
+          knownCautionEntries: [
+            {
+              path: ".worktrees/p0-row-delta",
+              reason: "invalid registered worktree; inspect git metadata first",
+            },
+          ],
+        },
+      ),
+    ).toEqual({
+      notifyDecision: "notify",
+      notifyQuietPassEligible: false,
+      notifyRecommended: true,
+      notifyRecommendationReason:
+        "Goal loop passed with 1 known caution entry that still need operator visibility: .worktrees/p0-row-delta (invalid registered worktree; inspect git metadata first)",
+    });
+  });
+
   it("marks quiet-pass eligibility for clean opportunistic fallback runs", () => {
     expect(
       summarizeNotificationEvidence(

@@ -1090,25 +1090,46 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
   const currentHeadShortSha = String(context.currentHeadShortSha ?? "").trim();
   const currentHeadChanged =
     context.currentHeadChanged === true && previousHeadShortSha.length > 0 && currentHeadShortSha.length > 0;
+  const knownCautionEntries = Array.isArray(context.knownCautionEntries) ? context.knownCautionEntries.filter(Boolean) : [];
+  const knownCautionCount = knownCautionEntries.length;
+  const knownCautionLabels = knownCautionEntries
+    .map((entry) => {
+      if (typeof entry === "string") return entry.trim();
+      const path = String(entry?.path ?? "").trim();
+      const reason = String(entry?.reason ?? "").trim();
+      if (path && reason) return `${path} (${reason})`;
+      return path || reason;
+    })
+    .filter(Boolean);
   const quietPassEligible = context.developmentCandidate?.quietPassEligible === true;
   const quietPassReasonParts = [
     String(context.developmentCandidate?.selectionReason ?? "").trim(),
     String(context.developmentCandidate?.actionabilityReason ?? "").trim(),
   ].filter(Boolean);
   const notifyDecision =
-    failures.length > 0 ? "notify" : currentHeadChanged ? "notify" : quietPassEligible ? "quiet-pass" : "no-notify";
+    failures.length > 0
+      ? "notify"
+      : currentHeadChanged
+        ? "notify"
+        : knownCautionCount > 0
+          ? "notify"
+          : quietPassEligible
+            ? "quiet-pass"
+            : "no-notify";
   return {
     notifyDecision,
     notifyQuietPassEligible: quietPassEligible,
-    notifyRecommended: failures.length > 0 || currentHeadChanged,
+    notifyRecommended: failures.length > 0 || currentHeadChanged || knownCautionCount > 0,
     notifyRecommendationReason:
       failures.length > 0
         ? `Launch goal failures (${failures.length}): ${failures.join("; ")}`
         : currentHeadChanged
           ? `Goal loop passed and HEAD changed since the previous report (${previousHeadShortSha} -> ${currentHeadShortSha}); report the verified local slice.`
+          : knownCautionCount > 0
+            ? `Goal loop passed with ${knownCautionCount} known caution entr${knownCautionCount === 1 ? "y" : "ies"} that still need operator visibility: ${knownCautionLabels.join("; ")}`
           : quietPassEligible
             ? `Goal loop passed; quiet pass is eligible. ${quietPassReasonParts.join(" ")}`
-          : "All launch goal criteria passed; no notification needed.",
+            : "All launch goal criteria passed; no notification needed.",
   };
 }
 
@@ -1718,6 +1739,7 @@ async function main() {
     currentHeadShortSha: gitHeadEvidence.gitHeadShortSha,
     currentHeadChanged: previousGoalLoopEvidence.previousGoalLoopHeadChanged,
     developmentCandidate,
+    knownCautionEntries: knownCautions,
   });
   const reportSchemaEvidence = summarizeReportSchemaEvidence(reportSchemaVersion);
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
