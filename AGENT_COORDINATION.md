@@ -57,6 +57,8 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
+- **2026-06-07 · Codex →** `public/proto/home-v5.html#mobile-header-strip` · tighten the mobile first viewport by reducing duplicate event-strip metadata while keeping room code, LIVE, and event identity visible · local main
+
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
   shipping the cross-domain private-notes token bridge (opaque stateful token, PR #496) ·

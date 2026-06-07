@@ -183,12 +183,9 @@ body[data-role="host"] .event-strip .ev-host-only { display: inline; }
   .event-strip { padding: 7px 14px; font-size: var(--fs-sub); gap: 6px; }
   .event-strip b { font-size: var(--fs-sub); }
   .event-strip .ev-link { font-size: var(--fs-label); }
+  .event-strip b + .dot,
   .event-strip .ev-topic {
-    min-width: 0;
-    max-width: 42vw;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: none;
   }
   body[data-role="host"] .event-strip .ev-host-only,
   body[data-role="host"] .event-strip .ev-mode,
