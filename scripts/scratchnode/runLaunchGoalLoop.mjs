@@ -1369,13 +1369,81 @@ function extractLocalScriptTargets(scriptCommand) {
 function extractNestedNpmRunRefs(scriptCommand) {
   const text = String(scriptCommand ?? "");
   const refs = [];
-  const pattern = /(?:^|&&|\|\||;)\s*npm run ([^\s&|;]+)/gi;
+  const pattern =
+    /(?:^|&&|\|\||;)\s*npm(?:\s+--prefix(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s"'`]+)))?\s+run\s+([^\s&|;]+)/gi;
   for (const match of text.matchAll(pattern)) {
-    const scriptName = String(match[1] ?? "").trim();
+    const scriptName = String(match[4] ?? "").trim();
     if (!scriptName) continue;
-    refs.push(scriptName);
+    const prefixPath = String(match[1] ?? match[2] ?? match[3] ?? "")
+      .trim()
+      .replace(/[\\/]+/g, "/");
+    refs.push({
+      scriptName,
+      prefixPath: prefixPath || null,
+    });
   }
-  return Array.from(new Set(refs));
+  const seen = new Set();
+  return refs.filter((ref) => {
+    const key = `${ref.prefixPath ?? ""}::${ref.scriptName}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function parseNpmRunCommand(command) {
+  const text = String(command ?? "").trim();
+  const match = text.match(
+    /^npm(?:\s+--prefix(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s"'`]+)))?\s+run\s+([^\s&|;]+)/i,
+  );
+  if (!match) return null;
+  const prefixPath = String(match[1] ?? match[2] ?? match[3] ?? "")
+    .trim()
+    .replace(/[\\/]+/g, "/");
+  const scriptName = String(match[4] ?? "").trim();
+  if (!scriptName) return null;
+  return {
+    scriptName,
+    prefixPath: prefixPath || null,
+  };
+}
+
+function relativizeToRepo(absolutePath) {
+  const normalizedAbsolutePath = resolve(absolutePath);
+  const normalizedRepoRoot = resolve(repoRoot);
+  if (normalizedAbsolutePath === normalizedRepoRoot) return ".";
+  if (normalizedAbsolutePath.startsWith(`${normalizedRepoRoot}\\`) || normalizedAbsolutePath.startsWith(`${normalizedRepoRoot}/`)) {
+    return normalizedAbsolutePath.slice(normalizedRepoRoot.length + 1).replace(/[\\/]+/g, "/");
+  }
+  return normalizedAbsolutePath.replace(/[\\/]+/g, "/");
+}
+
+function readPackageScriptsAt(packageRoot) {
+  const packageJsonPath = resolve(packageRoot, "package.json");
+  if (!existsSync(packageJsonPath)) {
+    return {
+      packageRoot,
+      packageJsonPath,
+      scripts: null,
+    };
+  }
+  try {
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8").replace(/^\uFEFF/, ""));
+    return {
+      packageRoot,
+      packageJsonPath,
+      scripts:
+        packageJson && typeof packageJson === "object" && packageJson.scripts && typeof packageJson.scripts === "object"
+          ? packageJson.scripts
+          : {},
+    };
+  } catch {
+    return {
+      packageRoot,
+      packageJsonPath,
+      scripts: null,
+    };
+  }
 }
 
 export function summarizeVerificationEntryPointEvidence(verificationCommands, packageJson) {
@@ -1398,36 +1466,70 @@ export function summarizeVerificationEntryPointEvidence(verificationCommands, pa
   const missingTargetPaths = [];
   const unsupportedCommands = [];
   const visitedScripts = new Set();
-  const recordLocalTargets = (commandText) => {
+  const recordLocalTargets = (commandText, baseDir = repoRoot) => {
     for (const targetPath of extractLocalScriptTargets(commandText)) {
-      referencedTargetPaths.push(targetPath);
-      if (!existsSync(resolve(repoRoot, targetPath))) {
-        missingTargetPaths.push(targetPath);
+      const absoluteTargetPath = resolve(baseDir, targetPath);
+      const relativeTargetPath = relativizeToRepo(absoluteTargetPath);
+      referencedTargetPaths.push(relativeTargetPath);
+      if (!existsSync(absoluteTargetPath)) {
+        missingTargetPaths.push(relativeTargetPath);
       }
     }
   };
 
-  const visitScript = (scriptName) => {
-    if (!scriptName || visitedScripts.has(scriptName)) return;
-    visitedScripts.add(scriptName);
-    resolvedScriptRefs.push(scriptName);
-    const scriptCommand = packageScripts[scriptName];
+  const buildScriptRef = (scriptName, packageRoot = repoRoot) => {
+    const relativePackageRoot = relativizeToRepo(packageRoot);
+    return relativePackageRoot === "." ? scriptName : `${relativePackageRoot}:${scriptName}`;
+  };
+
+  const visitScript = (scriptName, packageRoot = repoRoot, availableScripts = packageScripts) => {
+    const scriptRef = buildScriptRef(scriptName, packageRoot);
+    if (!scriptName || visitedScripts.has(scriptRef)) return;
+    visitedScripts.add(scriptRef);
+    resolvedScriptRefs.push(scriptRef);
+    const scriptCommand = availableScripts?.[scriptName];
     if (typeof scriptCommand !== "string") {
-      missingScripts.push(scriptName);
+      missingScripts.push(scriptRef);
       return;
     }
-    recordLocalTargets(scriptCommand);
-    for (const nestedScriptName of extractNestedNpmRunRefs(scriptCommand)) {
-      visitScript(nestedScriptName);
+    recordLocalTargets(scriptCommand, packageRoot);
+    for (const nestedRef of extractNestedNpmRunRefs(scriptCommand)) {
+      const nestedPackageRoot = nestedRef.prefixPath ? resolve(packageRoot, nestedRef.prefixPath) : packageRoot;
+      const nestedScriptsResult =
+        nestedPackageRoot === repoRoot && nestedRef.prefixPath == null
+          ? { scripts: packageScripts }
+          : readPackageScriptsAt(nestedPackageRoot);
+      if (nestedScriptsResult.scripts == null) {
+        missingScripts.push(buildScriptRef(nestedRef.scriptName, nestedPackageRoot));
+        const missingPackageJsonPath = relativizeToRepo(nestedScriptsResult.packageJsonPath);
+        referencedTargetPaths.push(missingPackageJsonPath);
+        missingTargetPaths.push(missingPackageJsonPath);
+        continue;
+      }
+      visitScript(nestedRef.scriptName, nestedPackageRoot, nestedScriptsResult.scripts);
     }
   };
 
   for (const command of commands) {
-    const npmRunMatch = command.match(/^npm run ([^\s&|;]+)/i);
-    if (npmRunMatch) {
-      const scriptName = npmRunMatch[1];
-      referencedScripts.push(scriptName);
-      visitScript(scriptName);
+    const npmRunRef = parseNpmRunCommand(command);
+    if (npmRunRef) {
+      const packageRoot = npmRunRef.prefixPath ? resolve(repoRoot, npmRunRef.prefixPath) : repoRoot;
+      const scriptRef = buildScriptRef(npmRunRef.scriptName, packageRoot);
+      referencedScripts.push(scriptRef);
+      if (npmRunRef.prefixPath == null) {
+        visitScript(npmRunRef.scriptName, repoRoot, packageScripts);
+        continue;
+      }
+      const prefixedScriptsResult = readPackageScriptsAt(packageRoot);
+      if (prefixedScriptsResult.scripts == null) {
+        resolvedScriptRefs.push(scriptRef);
+        missingScripts.push(scriptRef);
+        const missingPackageJsonPath = relativizeToRepo(prefixedScriptsResult.packageJsonPath);
+        referencedTargetPaths.push(missingPackageJsonPath);
+        missingTargetPaths.push(missingPackageJsonPath);
+        continue;
+      }
+      visitScript(npmRunRef.scriptName, packageRoot, prefixedScriptsResult.scripts);
       continue;
     }
 

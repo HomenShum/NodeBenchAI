@@ -1464,6 +1464,60 @@ describe("summarizeVerificationEntryPointEvidence", () => {
     });
   });
 
+  it("resolves prefixed npm-run verifiers against the nested package manifest", () => {
+    const summary = summarizeVerificationEntryPointEvidence(["npm --prefix packages/mcp-local run test:open-dataset"], {
+      scripts: {
+        "scratchnode:launch:goal": "node scripts/scratchnode/runLaunchGoalLoop.mjs",
+      },
+    });
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidateHasSuggestedVerification: true,
+      nextDevelopmentCandidateVerificationCommandCount: 1,
+      nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {
+        "npm --prefix packages/mcp-local run test:open-dataset": 1,
+      },
+      nextDevelopmentCandidateVerificationDuplicateCommands: [],
+      nextDevelopmentCandidateVerificationScriptCount: 1,
+      nextDevelopmentCandidateVerificationScriptRefs: ["packages/mcp-local:test:open-dataset"],
+      nextDevelopmentCandidateVerificationResolvedScriptCount: 1,
+      nextDevelopmentCandidateVerificationResolvedScriptRefs: ["packages/mcp-local:test:open-dataset"],
+      nextDevelopmentCandidateVerificationTargetPathCount: 1,
+      nextDevelopmentCandidateVerificationTargetPaths: ["packages/mcp-local/src/__tests__/openDatasetParallelEval.test.ts"],
+      nextDevelopmentCandidateVerificationEntryPointsValid: true,
+      nextDevelopmentCandidateVerificationMissingScripts: [],
+      nextDevelopmentCandidateVerificationMissingTargetPaths: [],
+      nextDevelopmentCandidateVerificationUnsupportedCommands: [],
+    });
+  });
+
+  it("fails closed when a prefixed npm-run verifier points at a missing package manifest", () => {
+    const summary = summarizeVerificationEntryPointEvidence(["npm --prefix packages/does-not-exist run test"], {
+      scripts: {
+        "scratchnode:launch:goal": "node scripts/scratchnode/runLaunchGoalLoop.mjs",
+      },
+    });
+
+    expect(summary).toEqual({
+      nextDevelopmentCandidateHasSuggestedVerification: true,
+      nextDevelopmentCandidateVerificationCommandCount: 1,
+      nextDevelopmentCandidateVerificationCommandOccurrenceCounts: {
+        "npm --prefix packages/does-not-exist run test": 1,
+      },
+      nextDevelopmentCandidateVerificationDuplicateCommands: [],
+      nextDevelopmentCandidateVerificationScriptCount: 1,
+      nextDevelopmentCandidateVerificationScriptRefs: ["packages/does-not-exist:test"],
+      nextDevelopmentCandidateVerificationResolvedScriptCount: 1,
+      nextDevelopmentCandidateVerificationResolvedScriptRefs: ["packages/does-not-exist:test"],
+      nextDevelopmentCandidateVerificationTargetPathCount: 1,
+      nextDevelopmentCandidateVerificationTargetPaths: ["packages/does-not-exist/package.json"],
+      nextDevelopmentCandidateVerificationEntryPointsValid: false,
+      nextDevelopmentCandidateVerificationMissingScripts: ["packages/does-not-exist:test"],
+      nextDevelopmentCandidateVerificationMissingTargetPaths: ["packages/does-not-exist/package.json"],
+      nextDevelopmentCandidateVerificationUnsupportedCommands: [],
+    });
+  });
+
   it("fails closed when suggested verification repeats the same command", () => {
     const summary = summarizeVerificationEntryPointEvidence(
       ["npm run scratchnode:launch:goal", "npm run scratchnode:launch:goal", "git diff --check"],
