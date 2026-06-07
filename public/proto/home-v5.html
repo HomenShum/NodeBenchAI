@@ -221,6 +221,196 @@ body[data-role="host"] .event-strip .ev-host-only { display: inline; }
 }
 
 /* ─── Main (single column) ─── */
+/* Event-room entry shell: covers the realtime cold-boot window so /e/:slug
+   eases into place instead of cutting from static markup to the live room. */
+.sn-room-entry {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: none;
+  align-items: stretch;
+  justify-content: center;
+  padding: calc(18px + var(--safe-top)) calc(16px + var(--safe-right)) calc(20px + var(--safe-bot)) calc(16px + var(--safe-left));
+  background:
+    linear-gradient(180deg, rgba(21,20,19,.88), rgba(21,20,19,.68) 24%, rgba(21,20,19,.42) 100%);
+  backdrop-filter: blur(16px) saturate(132%);
+  -webkit-backdrop-filter: blur(16px) saturate(132%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-med) var(--ease-out), visibility 0s linear var(--motion-med);
+}
+body[data-page-mode="event"]:not([data-sn-room-ready="true"]) .sn-room-entry {
+  display: flex;
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.sn-room-entry__panel {
+  width: min(100%, 760px);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.sn-room-entry__topline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-muted);
+}
+.sn-room-entry__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.sn-room-entry__brand-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(217,119,87,.65);
+}
+.sn-room-entry__brand b { color: var(--accent); }
+.sn-room-entry__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(94,168,103,.26);
+  background: rgba(94,168,103,.08);
+  color: var(--green);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+.sn-room-entry__live::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px rgba(94,168,103,.6);
+}
+.sn-room-entry__code {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .12em;
+}
+.sn-room-entry__card {
+  margin-top: 8px;
+  padding: 20px 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,.08);
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.05), rgba(255,255,255,.02)),
+    radial-gradient(circle at top left, rgba(217,119,87,.16), transparent 34%);
+  box-shadow: 0 24px 70px rgba(0,0,0,.28);
+}
+.sn-room-entry__eyebrow {
+  margin: 0 0 10px;
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+.sn-room-entry__title {
+  margin: 0;
+  font-size: clamp(30px, 7vw, 44px);
+  line-height: 1.02;
+  letter-spacing: -.04em;
+}
+.sn-room-entry__sub {
+  margin: 10px 0 0;
+  max-width: 28ch;
+  color: var(--ink-muted);
+  font-size: 15px;
+}
+.sn-room-entry__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.sn-room-entry__status::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(217,119,87,.38);
+  animation: roomEntryPulse 1.8s ease-out infinite;
+}
+.sn-room-entry__skeletons {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+.sn-room-entry__skeleton {
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.11), rgba(255,255,255,.04));
+  background-size: 180% 100%;
+  animation: roomEntrySheen 1.2s linear infinite;
+}
+.sn-room-entry__skeleton.w40 { width: 40%; }
+.sn-room-entry__skeleton.w58 { width: 58%; }
+.sn-room-entry__skeleton.w84 { width: 84%; }
+.sn-room-entry__foot {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+.sn-room-entry__foot strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+@keyframes roomEntrySheen { from { background-position: 180% 0; } to { background-position: -20% 0; } }
+@keyframes roomEntryPulse {
+  0% { box-shadow: 0 0 0 0 rgba(217,119,87,.34); }
+  70% { box-shadow: 0 0 0 10px rgba(217,119,87,0); }
+  100% { box-shadow: 0 0 0 0 rgba(217,119,87,0); }
+}
+@media (max-width: 540px) {
+  .sn-room-entry { padding: calc(14px + var(--safe-top)) calc(14px + var(--safe-right)) calc(18px + var(--safe-bot)) calc(14px + var(--safe-left)); }
+  .sn-room-entry__topline { gap: 8px; }
+  .sn-room-entry__brand { font-size: 13px; }
+  .sn-room-entry__code { min-height: 32px; padding: 0 10px; font-size: 11px; letter-spacing: .1em; }
+  .sn-room-entry__card { padding: 18px 16px; border-radius: 22px; }
+  .sn-room-entry__title { font-size: clamp(28px, 11vw, 40px); }
+  .sn-room-entry__sub { font-size: 14px; }
+  .sn-room-entry__foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sn-room-entry { transition: none; }
+  .sn-room-entry__status::before,
+  .sn-room-entry__skeleton { animation: none; }
+}
+
 .m { max-width: 720px; margin: 0 auto; padding: 24px calc(20px + var(--safe-right)) calc(80px + var(--safe-bot)) calc(20px + var(--safe-left)); }
 @media (min-width: 900px) { .m { max-width: 760px; } }
 /* Cohesive first-paint entrance — the event room "settles" up instead of popping
@@ -3350,6 +3540,31 @@ if (document.readyState === 'loading') {
 </div>
 
 <a class="skip-link" href="#feed">Skip to chat</a>
+
+<div class="sn-room-entry" id="sn-room-entry" aria-hidden="true">
+  <div class="sn-room-entry__panel">
+    <div class="sn-room-entry__topline">
+      <div class="sn-room-entry__brand"><span class="sn-room-entry__brand-dot"></span><span>Scratch<b>Node</b></span></div>
+      <span class="sn-room-entry__live">LIVE</span>
+      <span class="sn-room-entry__code" id="sn-room-entry-code">ORBITAL</span>
+    </div>
+    <div class="sn-room-entry__card">
+      <p class="sn-room-entry__eyebrow">Joining live room</p>
+      <h1 class="sn-room-entry__title" id="sn-room-entry-title">AI Infra Summit</h1>
+      <p class="sn-room-entry__sub" id="sn-room-entry-sub">Public chat, sourced answers, and private notes stay clearly separated.</p>
+      <div class="sn-room-entry__status">Connecting the public room and first live updates…</div>
+      <div class="sn-room-entry__skeletons" aria-hidden="true">
+        <div class="sn-room-entry__skeleton w84"></div>
+        <div class="sn-room-entry__skeleton w58"></div>
+        <div class="sn-room-entry__skeleton w40"></div>
+      </div>
+    </div>
+    <div class="sn-room-entry__foot">
+      <span><strong>Room code stays visible.</strong> The live room opens as soon as the first realtime payload settles.</span>
+      <span>No private notes used · public layer only.</span>
+    </div>
+  </div>
+</div>
 
 <header class="h">
   <div class="h-logo"><span class="h-logo-dot"></span><span class="h-logo-word">Scratch<span>Node</span></span></div>
@@ -7328,6 +7543,44 @@ window._laCueAction       = _laCueAction;
   if (pageMode === 'landing' || pageMode === 'demo') return; // belt-and-suspenders
   const slug = slugMatch[1];
   const feedEl = document.getElementById('feed');
+  const roomEntryCodeEl = document.getElementById('sn-room-entry-code');
+  const roomEntryTitleEl = document.getElementById('sn-room-entry-title');
+  const roomEntrySubEl = document.getElementById('sn-room-entry-sub');
+  let roomEntrySettled = false;
+  let roomEntryMinHoldDone = false;
+  let roomEntryPendingSettle = false;
+  const syncRoomEntry = (state) => {
+    if (!state) return;
+    if (roomEntryCodeEl) roomEntryCodeEl.textContent = state.roomCode || state.code || 'ORBITAL';
+    if (roomEntryTitleEl) roomEntryTitleEl.textContent = state.name || state.title || 'Live room';
+    if (roomEntrySubEl) {
+      roomEntrySubEl.textContent = state.subtitle
+        || ('Public chat, sourced answers, and private notes stay clearly separated.');
+    }
+  };
+  const finishRoomEntry = () => {
+    if (!document.body) return;
+    document.body.setAttribute('data-sn-room-ready', 'true');
+  };
+  const releaseRoomEntry = (state) => {
+    if (state) syncRoomEntry(state);
+    if (roomEntrySettled) return;
+    roomEntrySettled = true;
+    if (roomEntryMinHoldDone) {
+      finishRoomEntry();
+    } else {
+      roomEntryPendingSettle = true;
+    }
+  };
+  syncRoomEntry({
+    title: (typeof EVENT_TITLE === 'string' && EVENT_TITLE) ? EVENT_TITLE : 'AI Infra Summit',
+    roomCode: (typeof EVENT_ROOM_CODE === 'string' && EVENT_ROOM_CODE) ? EVENT_ROOM_CODE : 'ORBITAL'
+  });
+  if (document.body) document.body.removeAttribute('data-sn-room-ready');
+  window.setTimeout(() => {
+    roomEntryMinHoldDone = true;
+    if (roomEntryPendingSettle) finishRoomEntry();
+  }, 320);
 
   const clearPrototypeFeed = () => {
     if (!feedEl) return;
@@ -7335,6 +7588,7 @@ window._laCueAction       = _laCueAction;
   };
 
   const showLiveRoomError = (messageHtml) => {
+    releaseRoomEntry();
     clearPrototypeFeed();
     try {
       var input = document.getElementById('ci');
@@ -7462,6 +7716,12 @@ window._laCueAction       = _laCueAction;
   }
   const eventId = joined.eventId;
   setScratchNodeLiveEventContext(joined);
+  syncRoomEntry({
+    title: joined.name || 'Live room',
+    roomCode: joined.roomCode || 'ORBITAL',
+    subtitle: 'Public chat is live. /ask stays public, and private notes stay private.'
+  });
+  window.setTimeout(() => releaseRoomEntry(joined), 900);
   window._sn_live = { client, eventId, sessionId, slug, hostVerified: false };
   window._sn_my_events = {
     joined: [{ eventId, slug: joined.slug, name: joined.name, roomCode: joined.roomCode, status: joined.status, role: 'attendee' }],
@@ -7603,6 +7863,7 @@ window._laCueAction       = _laCueAction;
   client.onUpdate('events:getMessages', { eventId, limit: 200 }, (rows) => {
     if (!Array.isArray(rows)) return;
     for (const msg of rows) renderMessage(msg);
+    releaseRoomEntry(joined);
     _clearConnecting(); // subscription responded (even if empty) — no longer "connecting"
     if (typeof refreshEmptyState === 'function') refreshEmptyState();
   });
@@ -7618,6 +7879,7 @@ window._laCueAction       = _laCueAction;
     const faqCount = rows.filter((answer) => answer && answer.faqStatus && answer.faqStatus !== 'none').length;
     const faqEl = document.getElementById('ev-faq-count');
     if (faqEl) faqEl.textContent = String(faqCount);
+    releaseRoomEntry(joined);
     _clearConnecting();
     if (typeof refreshEmptyState === 'function') refreshEmptyState();
   });
@@ -7631,6 +7893,7 @@ window._laCueAction       = _laCueAction;
     if (heroCount) heroCount.textContent = count;
     const menuPeopleSub = document.getElementById('menu-people-sub');
     if (menuPeopleSub) menuPeopleSub.textContent = count + ' live member' + (rows.length === 1 ? '' : 's');
+    releaseRoomEntry(joined);
     if (typeof _snMaybeShowMemNudge === 'function') _snMaybeShowMemNudge(rows.length);
   });
 
