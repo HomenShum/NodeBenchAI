@@ -1582,6 +1582,8 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionLockedPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionMissingPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionGitInaccessiblePaths");
+    expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopSummaryAvailable");
+    expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopParseError");
     expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopHeadShortSha");
     expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopHeadChanged");
     expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopRepeatedFailureNames");
@@ -1633,6 +1635,8 @@ describe("summarizePreviousGoalLoopEvidence", () => {
 
     expect(summary).toEqual({
       previousGoalLoopReportLoaded: true,
+      previousGoalLoopSummaryAvailable: true,
+      previousGoalLoopParseError: null,
       previousGoalLoopGeneratedAt: "2026-06-05T15:00:00.000Z",
       previousGoalLoopPassed: false,
       previousGoalLoopNotifyRecommended: true,
@@ -1651,6 +1655,32 @@ describe("summarizePreviousGoalLoopEvidence", () => {
   it("returns stable empty evidence when no prior report exists", () => {
     expect(summarizePreviousGoalLoopEvidence(null)).toEqual({
       previousGoalLoopReportLoaded: false,
+      previousGoalLoopSummaryAvailable: false,
+      previousGoalLoopParseError: null,
+      previousGoalLoopGeneratedAt: null,
+      previousGoalLoopPassed: false,
+      previousGoalLoopNotifyRecommended: false,
+      previousGoalLoopFailureCount: 0,
+      previousGoalLoopFailureNames: [],
+      previousGoalLoopNextDevelopmentCandidate: null,
+      previousGoalLoopHeadShortSha: null,
+      previousGoalLoopHeadChanged: false,
+      previousGoalLoopRepeatedFailureCount: 0,
+      previousGoalLoopRepeatedFailureNames: [],
+      previousGoalLoopSameCandidate: false,
+      previousGoalLoopSameCandidateMode: null,
+    });
+  });
+
+  it("surfaces malformed prior goal-loop reports without pretending they were absent", () => {
+    expect(
+      summarizePreviousGoalLoopEvidence({
+        parseError: "Unexpected token } in JSON at position 12",
+      }),
+    ).toEqual({
+      previousGoalLoopReportLoaded: true,
+      previousGoalLoopSummaryAvailable: false,
+      previousGoalLoopParseError: "Unexpected token } in JSON at position 12",
       previousGoalLoopGeneratedAt: null,
       previousGoalLoopPassed: false,
       previousGoalLoopNotifyRecommended: false,

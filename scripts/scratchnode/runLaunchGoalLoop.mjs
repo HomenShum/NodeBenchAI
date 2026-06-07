@@ -193,6 +193,8 @@ export const goalLoopEvidenceFieldNames = [
   "workflowRepeatedFailureRule",
   "workflowSafetyBoundary",
   "previousGoalLoopReportLoaded",
+  "previousGoalLoopSummaryAvailable",
+  "previousGoalLoopParseError",
   "previousGoalLoopGeneratedAt",
   "previousGoalLoopPassed",
   "previousGoalLoopNotifyRecommended",
@@ -1484,9 +1486,15 @@ export function summarizeWorkflowModelEvidence(workflowModel) {
 }
 
 export function summarizePreviousGoalLoopEvidence(previousGoalLoopReport, currentContext = {}) {
-  const previousSummary =
+  const previousReportObject =
     previousGoalLoopReport && typeof previousGoalLoopReport === "object" && !Array.isArray(previousGoalLoopReport)
-      ? previousGoalLoopReport.summary ?? null
+      ? previousGoalLoopReport
+      : null;
+  const previousSummary =
+    previousReportObject !== null && previousReportObject.parseError == null ? previousReportObject.summary ?? null : null;
+  const previousParseError =
+    typeof previousReportObject?.parseError === "string" && previousReportObject.parseError.trim()
+      ? previousReportObject.parseError.trim()
       : null;
   const previousFailures = Array.isArray(previousSummary?.failures) ? previousSummary.failures.filter(Boolean) : [];
   const currentFailures = Array.isArray(currentContext.currentFailures) ? currentContext.currentFailures.filter(Boolean) : [];
@@ -1513,10 +1521,12 @@ export function summarizePreviousGoalLoopEvidence(previousGoalLoopReport, curren
       : null;
 
   return {
-    previousGoalLoopReportLoaded: previousSummary !== null,
+    previousGoalLoopReportLoaded: previousReportObject !== null,
+    previousGoalLoopSummaryAvailable: previousSummary !== null,
+    previousGoalLoopParseError: previousParseError,
     previousGoalLoopGeneratedAt:
-      typeof previousGoalLoopReport?.generatedAt === "string" && previousGoalLoopReport.generatedAt.trim()
-        ? previousGoalLoopReport.generatedAt
+      typeof previousReportObject?.generatedAt === "string" && previousReportObject.generatedAt.trim()
+        ? previousReportObject.generatedAt
         : null,
     previousGoalLoopPassed: previousSummary?.passed === true,
     previousGoalLoopNotifyRecommended: previousSummary?.notifyRecommended === true,
