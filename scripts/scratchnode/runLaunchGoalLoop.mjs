@@ -1849,6 +1849,15 @@ async function main() {
   const commandEvidence = summarizeCommandEvidence(commands, {
     commandTimeoutMs: defaultCommandTimeoutMs,
   });
+  const commandStatuses = commands.map((command, index) => ({
+    index,
+    command: command.command,
+    exitCode: command.exitCode,
+    durationMs: Math.max(0, Number(command.durationMs) || 0),
+    timedOut: command.timedOut === true,
+    timeoutMs: Math.max(1_000, Number(command.timeoutMs) || defaultCommandTimeoutMs),
+    signal: command.signal ?? null,
+  }));
   const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
   const housekeepingEvidence = summarizeHousekeepingReportEvidence(housekeepingReport);
   const launchReportEvidence = summarizeLaunchReportEvidence(launchReport);
@@ -1956,6 +1965,7 @@ async function main() {
       ...previousGoalLoopEvidence,
     },
     commands,
+    commandStatuses,
     reports: {
       housekeeping: housekeepingReport,
       launch: launchReport,
