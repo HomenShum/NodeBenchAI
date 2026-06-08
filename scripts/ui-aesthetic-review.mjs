@@ -88,8 +88,6 @@ function runNode(relativePath, args, label) {
     windowsHide: true,
   });
   if (result.status !== 0) {
-    if (result.stdout) process.stdout.write(result.stdout);
-    if (result.stderr) process.stderr.write(result.stderr);
     const error = new Error(`${label} failed with exit code ${result.status}`);
     error.exitCode = result.status;
     error.stdout = result.stdout ?? "";
@@ -409,6 +407,8 @@ const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURL
 
 if (isDirectRun) {
   main().catch((error) => {
+    if (error?.stdout) process.stdout.write(error.stdout);
+    if (error?.stderr) process.stderr.write(error.stderr);
     console.error(`AESTHETIC_REVIEW_FAILED: ${error?.message ?? error}`);
     process.exit(1);
   });
