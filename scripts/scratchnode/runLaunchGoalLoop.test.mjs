@@ -1241,6 +1241,7 @@ describe("summarizeKnownCautionEvidence", () => {
       {
         path: ".worktrees/p0-row-delta",
         reason: "invalid registered worktree; inspect git metadata first",
+        branch: "refs/heads/fix/spreadsheet-operation-validate",
         sourceReport: ".tmp/local-history-map-reduce.json",
         recommendedAction: "Inspect git worktree metadata before any prune or removal.",
         dirty: true,
@@ -1268,6 +1269,13 @@ describe("summarizeKnownCautionEvidence", () => {
           reason: "clean registered worktree; explicit prune only",
         },
       ],
+      knownCautionPathBranches: [
+        {
+          path: ".worktrees/p0-row-delta",
+          branch: "refs/heads/fix/spreadsheet-operation-validate",
+        },
+      ],
+      knownCautionBranches: ["refs/heads/fix/spreadsheet-operation-validate"],
       knownCautionSourceReports: [
         ".tmp/local-history-map-reduce.json",
         ".tmp/workspace-housekeeping-verification.json",
@@ -1817,6 +1825,8 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("commandResultRows");
     expect(goalLoopEvidenceFieldNames).toContain("notifyDecision");
     expect(goalLoopEvidenceFieldNames).toContain("notifyQuietPassEligible");
+    expect(goalLoopEvidenceFieldNames).toContain("knownCautionPathBranches");
+    expect(goalLoopEvidenceFieldNames).toContain("knownCautionBranches");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionSourceReports");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionRecommendedActions");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionDirtyPaths");

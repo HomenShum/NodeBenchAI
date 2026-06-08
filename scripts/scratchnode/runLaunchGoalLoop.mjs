@@ -73,6 +73,8 @@ export const goalLoopEvidenceFieldNames = [
   "goalQueuePriorityCounts",
   "knownCautionPaths",
   "knownCautionPathReasons",
+  "knownCautionPathBranches",
+  "knownCautionBranches",
   "knownCautionSourceReports",
   "knownCautionRecommendedActions",
   "knownCautionDirtyPaths",
@@ -1351,6 +1353,12 @@ export function summarizeKnownCautionEvidence(knownCautions) {
     path: entry?.path ?? "unknown",
     reason: entry?.reason ?? "",
   }));
+  const cautionPathBranches = cautionEntries
+    .map((entry) => ({
+      path: String(entry?.path ?? "").trim(),
+      branch: String(entry?.branch ?? "").trim(),
+    }))
+    .filter((entry) => entry.path && entry.branch);
   const cautionSourceReports = cautionEntries
     .map((entry) => String(entry?.sourceReport ?? "").trim())
     .filter(Boolean)
@@ -1368,6 +1376,8 @@ export function summarizeKnownCautionEvidence(knownCautions) {
   return {
     knownCautionPaths: cautionPathReasons.map((entry) => entry.path).filter(Boolean).sort(),
     knownCautionPathReasons: cautionPathReasons,
+    knownCautionPathBranches: cautionPathBranches.sort((a, b) => a.path.localeCompare(b.path)),
+    knownCautionBranches: Array.from(new Set(cautionPathBranches.map((entry) => entry.branch))).sort(),
     knownCautionSourceReports: Array.from(new Set(cautionSourceReports)),
     knownCautionRecommendedActions: Array.from(new Set(cautionRecommendedActions)),
     knownCautionDirtyPaths: cautionEntries
