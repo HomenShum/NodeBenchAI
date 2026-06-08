@@ -598,9 +598,13 @@ describe("summarizeVisualEvidence", () => {
       expect(summary.latestVisualArtifactKind).toBe("image");
       expect(summary.latestVisualArtifactModifiedAt).toBe("2099-01-01T00:00:00.000Z");
       expect(summary.latestVisualArtifactAgeSeconds).toBe(0);
+      expect(summary.latestVisualArtifactFreshnessThresholdSeconds).toBe(3600);
+      expect(summary.latestVisualArtifactStale).toBe(false);
       expect(summary.latestAestheticReviewReportPath).toBe(".tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json");
       expect(summary.latestAestheticReviewModifiedAt).toBe("2099-01-01T00:00:00.000Z");
       expect(summary.latestAestheticReviewAgeSeconds).toBe(0);
+      expect(summary.latestAestheticReviewFreshnessThresholdSeconds).toBe(3600);
+      expect(summary.latestAestheticReviewStale).toBe(false);
       expect(summary.latestAestheticReviewPassed).toBe(false);
       expect(summary.latestAestheticReviewJudgeCount).toBe(1);
       expect(summary.latestAestheticReviewFailureCode).toBe("network_access_denied");
@@ -639,6 +643,8 @@ describe("summarizeVisualEvidence", () => {
       expect(summary.latestAestheticReviewReportPath).toBeNull();
       expect(summary.latestAestheticReviewStatus).toBe("missing");
       expect(summary.latestAestheticReviewCoverageGap).toBe(true);
+      expect(summary.latestVisualArtifactStale).toBe(false);
+      expect(summary.latestAestheticReviewStale).toBe(false);
       expect(summary.latestAestheticReviewCoverageGapReason).toBe(
         "Visual artifact .validation/test-goal-loop-gap/latest-mobile.png exists, but .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json is missing.",
       );
@@ -688,7 +694,56 @@ describe("summarizeVisualEvidence", () => {
       expect(summary.latestAestheticReviewJudgeCount).toBe(0);
       expect(summary.latestAestheticReviewJudgeSkippedReason).toBe("artifact-only");
       expect(summary.latestAestheticReviewStatus).toBe("artifact_only");
+      expect(summary.latestVisualArtifactStale).toBe(false);
+      expect(summary.latestAestheticReviewStale).toBe(false);
       expect(summary.latestAestheticReviewCoverageGap).toBe(false);
+    } finally {
+      rmSync(validationDir, { recursive: true, force: true });
+      if (hadExistingReview && existingReviewText != null) {
+        writeFileSync(reviewPath, existingReviewText, "utf8");
+      } else if (existsSync(reviewPath)) {
+        unlinkSync(reviewPath);
+      }
+    }
+  });
+
+  it("flags stale aesthetic evidence when the freshest artifact is older than the freshness threshold", () => {
+    const validationDir = resolve(process.cwd(), ".validation", "test-goal-loop-stale");
+    const reviewDir = resolve(process.cwd(), ".tmp", "scratchnode-aesthetic-review");
+    const latestImagePath = resolve(validationDir, "latest-mobile.png");
+    const reviewPath = resolve(reviewDir, "aesthetic-review-summary.json");
+    const staleTime = new Date(Date.now() - 4_200_000);
+    const hadExistingReview = existsSync(reviewPath);
+    const existingReviewText = hadExistingReview ? readFileSync(reviewPath, "utf8") : null;
+
+    mkdirSync(validationDir, { recursive: true });
+    mkdirSync(reviewDir, { recursive: true });
+    writeFileSync(latestImagePath, "latest-image", "utf8");
+    writeFileSync(
+      reviewPath,
+      `${JSON.stringify({
+        passed: true,
+        judges: [{ surface: "mobile", passed: true }],
+      })}\n`,
+      "utf8",
+    );
+    utimesSync(latestImagePath, staleTime, staleTime);
+    utimesSync(reviewPath, staleTime, staleTime);
+
+    try {
+      const summary = summarizeVisualEvidence({
+        passed: true,
+        judges: [{ surface: "mobile", passed: true }],
+      });
+
+      expect(summary.latestVisualArtifactPath).toBe(".validation/test-goal-loop-stale/latest-mobile.png");
+      expect(summary.latestVisualArtifactStale).toBe(true);
+      expect(summary.latestAestheticReviewStale).toBe(true);
+      expect(summary.latestAestheticReviewStatus).toBe("passed");
+      expect(summary.latestAestheticReviewCoverageGap).toBe(true);
+      expect(summary.latestAestheticReviewCoverageGapReason).toMatch(
+        /^Latest visual artifact \.validation\/test-goal-loop-stale\/latest-mobile\.png is stale \(\d+(\.\d+)?s old; threshold 3600s\)\./,
+      );
     } finally {
       rmSync(validationDir, { recursive: true, force: true });
       if (hadExistingReview && existingReviewText != null) {

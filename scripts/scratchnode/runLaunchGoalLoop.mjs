@@ -14,6 +14,7 @@ const defaultCommandTimeoutMs = Math.max(
   1_000,
   Number.parseInt(process.env.SCRATCHNODE_GOAL_COMMAND_TIMEOUT_MS ?? "", 10) || 240_000,
 );
+const visualEvidenceFreshnessThresholdSeconds = 60 * 60;
 
 const reportPaths = {
   housekeeping: ".tmp/workspace-housekeeping-verification.json",
@@ -133,9 +134,13 @@ export const goalLoopEvidenceFieldNames = [
   "latestVisualArtifactKind",
   "latestVisualArtifactModifiedAt",
   "latestVisualArtifactAgeSeconds",
+  "latestVisualArtifactFreshnessThresholdSeconds",
+  "latestVisualArtifactStale",
   "latestAestheticReviewReportPath",
   "latestAestheticReviewModifiedAt",
   "latestAestheticReviewAgeSeconds",
+  "latestAestheticReviewFreshnessThresholdSeconds",
+  "latestAestheticReviewStale",
   "latestAestheticReviewPassed",
   "latestAestheticReviewJudgeCount",
   "latestAestheticReviewJudgeSkippedReason",
@@ -893,7 +898,19 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
       : null;
   const aestheticReviewPassed =
     aestheticReviewReport && typeof aestheticReviewReport.passed === "boolean" ? aestheticReviewReport.passed : null;
-  const hasCoverageGap = Boolean(latestArtifact && !aestheticReviewExists);
+  const latestArtifactStale =
+    latestArtifact != null && latestArtifact.ageSeconds > visualEvidenceFreshnessThresholdSeconds;
+  const latestAestheticReviewAgeSeconds = aestheticReviewStat
+    ? Math.max(0, Number(((Date.now() - aestheticReviewStat.mtimeMs) / 1000).toFixed(3)))
+    : null;
+  const latestAestheticReviewStale =
+    latestAestheticReviewAgeSeconds != null &&
+    latestAestheticReviewAgeSeconds > visualEvidenceFreshnessThresholdSeconds;
+  const hasCoverageGap = Boolean(
+    (latestArtifact && !aestheticReviewExists) ||
+      latestArtifactStale ||
+      (latestArtifact && aestheticReviewExists && latestAestheticReviewStale),
+  );
   const aestheticReviewStatus = !aestheticReviewExists
     ? "missing"
     : aestheticReviewPassed === true
@@ -910,11 +927,13 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
     latestVisualArtifactKind: latestArtifact?.kind ?? null,
     latestVisualArtifactModifiedAt: latestArtifact?.modifiedAt ?? null,
     latestVisualArtifactAgeSeconds: latestArtifact?.ageSeconds ?? null,
+    latestVisualArtifactFreshnessThresholdSeconds: visualEvidenceFreshnessThresholdSeconds,
+    latestVisualArtifactStale: latestArtifactStale,
     latestAestheticReviewReportPath: aestheticReviewExists ? reportPaths.aestheticReview : null,
     latestAestheticReviewModifiedAt: aestheticReviewStat ? aestheticReviewStat.mtime.toISOString() : null,
-    latestAestheticReviewAgeSeconds: aestheticReviewStat
-      ? Math.max(0, Number(((Date.now() - aestheticReviewStat.mtimeMs) / 1000).toFixed(3)))
-      : null,
+    latestAestheticReviewAgeSeconds,
+    latestAestheticReviewFreshnessThresholdSeconds: visualEvidenceFreshnessThresholdSeconds,
+    latestAestheticReviewStale: latestAestheticReviewStale,
     latestAestheticReviewPassed: aestheticReviewPassed,
     latestAestheticReviewJudgeCount: judges.length,
     latestAestheticReviewJudgeSkippedReason: aestheticReviewJudgeSkippedReason,
@@ -925,7 +944,13 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
     latestAestheticReviewStatus: aestheticReviewStatus,
     latestAestheticReviewCoverageGap: hasCoverageGap,
     latestAestheticReviewCoverageGapReason: hasCoverageGap
-      ? `Visual artifact ${latestArtifact.path} exists, but ${reportPaths.aestheticReview} is missing.`
+      ? !aestheticReviewExists && latestArtifact
+        ? `Visual artifact ${latestArtifact.path} exists, but ${reportPaths.aestheticReview} is missing.`
+        : latestArtifactStale && latestArtifact
+          ? `Latest visual artifact ${latestArtifact.path} is stale (${latestArtifact.ageSeconds}s old; threshold ${visualEvidenceFreshnessThresholdSeconds}s). Capture fresh visual evidence before treating the aesthetic state as current.`
+          : latestArtifact && latestAestheticReviewStale
+            ? `Aesthetic review summary ${reportPaths.aestheticReview} is stale (${latestAestheticReviewAgeSeconds}s old; threshold ${visualEvidenceFreshnessThresholdSeconds}s) relative to current visual artifacts. Refresh the review before treating the aesthetic state as current.`
+            : null
       : null,
   };
 }
