@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { summarizePackageScriptContractEvidence } from "./scanLaunch.mjs";
+import {
+  resolveInteractiveGotoTimeoutMs,
+  resolveInteractiveWaitUntil,
+  summarizePackageScriptContractEvidence,
+} from "./scanLaunch.mjs";
 
 describe("summarizePackageScriptContractEvidence", () => {
   it("passes when required automation scripts still point at the expected targets", () => {
@@ -56,5 +60,35 @@ describe("summarizePackageScriptContractEvidence", () => {
         detail: "missing script; expected target=scripts/scratchnode/runLaunchGoalLoop.mjs",
       },
     ]);
+  });
+});
+
+describe("resolveInteractiveGotoTimeoutMs", () => {
+  it("keeps the default navigation budget for ordinary interactive checks", () => {
+    expect(
+      resolveInteractiveGotoTimeoutMs("https://scratchnode.live/", {
+        defaultTimeoutMs: 20_000,
+        slowRouteTimeoutMs: 35_000,
+      }),
+    ).toBe(20_000);
+  });
+
+  it("allows the known cold-loading NodeBench handoff route more time", () => {
+    expect(
+      resolveInteractiveGotoTimeoutMs("https://nodebenchai.com/scratchnode-events", {
+        defaultTimeoutMs: 20_000,
+        slowRouteTimeoutMs: 35_000,
+      }),
+    ).toBe(35_000);
+  });
+});
+
+describe("resolveInteractiveWaitUntil", () => {
+  it("waits for DOMContentLoaded on ordinary interactive checks", () => {
+    expect(resolveInteractiveWaitUntil("https://scratchnode.live/")).toBe("domcontentloaded");
+  });
+
+  it("uses commit readiness for the known slow NodeBench handoff route", () => {
+    expect(resolveInteractiveWaitUntil("https://nodebenchai.com/scratchnode-events")).toBe("commit");
   });
 });

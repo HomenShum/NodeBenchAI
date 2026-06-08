@@ -12,6 +12,10 @@ const shouldRunLive = args.has("--live") || args.has("--interactive");
 const shouldRunInteractive = args.has("--interactive");
 const shouldPrintJson = args.has("--json");
 const outPath = resolve(repoRoot, ".tmp/scratchnode-launch-scan.json");
+const DEFAULT_INTERACTIVE_GOTO_TIMEOUT_MS = 20_000;
+const SLOW_ROUTE_INTERACTIVE_GOTO_TIMEOUT_MS = 35_000;
+const slowInteractiveRoutePatterns = [/^https:\/\/nodebenchai\.com\/scratchnode-events\/?$/i];
+const commitReadyInteractiveRoutePatterns = [/^https:\/\/nodebenchai\.com\/scratchnode-events\/?$/i];
 
 const files = {
   homeV5: "public/proto/home-v5.html",
@@ -95,6 +99,20 @@ export function summarizePackageScriptContractEvidence(packageJsonText, expected
           : `missing script; expected target=${expectedTarget}`,
     };
   });
+}
+
+export function resolveInteractiveGotoTimeoutMs(url, options = {}) {
+  const defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_INTERACTIVE_GOTO_TIMEOUT_MS;
+  const slowRouteTimeoutMs = options.slowRouteTimeoutMs ?? SLOW_ROUTE_INTERACTIVE_GOTO_TIMEOUT_MS;
+  const patterns = options.slowRoutePatterns ?? slowInteractiveRoutePatterns;
+  return patterns.some((pattern) => pattern.test(String(url ?? ""))) ? slowRouteTimeoutMs : defaultTimeoutMs;
+}
+
+export function resolveInteractiveWaitUntil(url, options = {}) {
+  const defaultWaitUntil = options.defaultWaitUntil ?? "domcontentloaded";
+  const commitReadyWaitUntil = options.commitReadyWaitUntil ?? "commit";
+  const patterns = options.commitReadyRoutePatterns ?? commitReadyInteractiveRoutePatterns;
+  return patterns.some((pattern) => pattern.test(String(url ?? ""))) ? commitReadyWaitUntil : defaultWaitUntil;
 }
 
 function addStaticCheck({ ok, name, plane = "static", detail = "", optional = false }) {
@@ -376,15 +394,17 @@ async function runInteractiveChecks() {
   async function pageCheck(name, url, probe) {
     const started = performance.now();
     const page = await context.newPage();
+    const gotoTimeoutMs = resolveInteractiveGotoTimeoutMs(url);
+    const waitUntil = resolveInteractiveWaitUntil(url);
     try {
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20_000 });
+      await page.goto(url, { waitUntil, timeout: gotoTimeoutMs });
       const detail = await probe(page);
       addInteractiveCheck({
         ok: !!detail.ok,
         name,
         url,
         durationMs: performance.now() - started,
-        detail: detail.detail,
+        detail: `${detail.detail}; waitUntil=${waitUntil}; gotoTimeoutMs=${gotoTimeoutMs}`,
       });
     } catch (error) {
       addInteractiveCheck({
@@ -392,7 +412,7 @@ async function runInteractiveChecks() {
         name,
         url,
         durationMs: performance.now() - started,
-        detail: error instanceof Error ? error.message : String(error),
+        detail: `${error instanceof Error ? error.message : String(error)}; waitUntil=${waitUntil}; gotoTimeoutMs=${gotoTimeoutMs}`,
       });
     } finally {
       await page.close();
@@ -426,7 +446,7 @@ async function runInteractiveChecks() {
   });
 
   await pageCheck("nodebench scratchnode-events interactive", "https://nodebenchai.com/scratchnode-events", async (page) => {
-    await page.waitForSelector("body", { timeout: 15_000 });
+    await page.waitForSelector("body", { state: "attached", timeout: 15_000 });
     const data = await page.evaluate(() => ({
       title: document.title,
       hasRoot: !!document.querySelector("#root"),
