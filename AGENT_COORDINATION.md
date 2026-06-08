@@ -57,6 +57,8 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
+- **2026-06-08 · Codex →** `public/proto/home-v5.html#mobile-hero-header-density` · reduce the mobile hero/header stack so the first viewport reaches live chat sooner while keeping room code, LIVE, and event identity visible · local main
+
 - **2026-06-08 · Codex →** `public/proto/home-v5.html#mobile-header-strip` · reduce first-viewport mobile room clutter while keeping room code, LIVE, and event identity visible; capture before/after screenshots and rerun launch/aesthetic checks · local main
 
 - **2026-06-07 · Codex →** `public/proto/home-v5.html#mobile-header-strip` · tighten the mobile first viewport by reducing duplicate event-strip metadata while keeping room code, LIVE, and event identity visible · local main

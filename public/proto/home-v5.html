@@ -1357,7 +1357,7 @@ body[data-new-user="true"] .h-menu::after {
   .m { padding: 16px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
   .hero { margin-bottom: 12px; }
   .hero h1 { font-size: 22px; }
-  .hero-meta { font-size: 12px; max-width: 28ch; }
+  .hero-meta { font-size: 11px; max-width: 24ch; line-height: 1.35; }
   .about-link { display: none; }
   /* Mobile: pin the composer to the bottom (Slack/Discord/iMessage convention — thumb reach,
      newest message sits right above where you type). Desktop keeps the sticky top command bar. */
@@ -1377,10 +1377,16 @@ body[data-new-user="true"] .h-menu::after {
   /* While typing: collapse non-essential chrome so input + feed stay visible above the keyboard. */
   body[data-input-focused="true"] .f,
   body[data-input-focused="true"] .welcome { display: none; }
-  .id-row { gap: 7px; padding: 2px 0 10px; }
+  .id-row { gap: 6px; padding: 0 0 8px; align-items: center; }
   .id-avatar { width: 22px; height: 22px; font-size: 10px; }
   .id-label { display: none; }
+  .id-text { min-width: 0; }
+  .id-text b { font-size: 13px; }
   .id-set { padding: 3px 0 3px 6px; font-size: 12px; }
+  .demo-join-card { margin: 6px 0 10px; padding: 10px 12px; gap: 4px; border-radius: 16px; }
+  .demo-join-card .title { font-size: 13px; }
+  .demo-join-card .sub { font-size: 11px; line-height: 1.35; }
+  .demo-join-card .code-line { font-size: 10px; letter-spacing: .08em; line-height: 1.35; }
   .row { grid-template-columns: 32px 1fr; column-gap: 8px; padding: 5px 4px 6px; }
   .row-avatar { width: 32px; height: 32px; font-size: 12px; }
   .row-time { font-size: 10.5px; color: var(--ink-muted); }
