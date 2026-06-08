@@ -148,7 +148,8 @@ $tmpKeep = [System.Collections.Generic.HashSet[string]]::new([System.StringCompa
   "workspace-housekeeping-verification.json",
   "workspace-housekeeping-self-test.json",
   "scratchnode-launch-goal-loop.json",
-  "scratchnode-launch-scan.json"
+  "scratchnode-launch-scan.json",
+  "scratchnode-aesthetic-review"
 ) | ForEach-Object { $tmpKeep.Add($_) | Out-Null }
 
 $tmpPath = Join-Path $repoRoot ".tmp"
