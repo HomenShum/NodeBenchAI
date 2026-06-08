@@ -651,6 +651,53 @@ describe("summarizeVisualEvidence", () => {
       }
     }
   });
+
+  it("surfaces artifact-only aesthetic review runs as explicit evidence-only status", () => {
+    const validationDir = resolve(process.cwd(), ".validation", "test-goal-loop-artifact-only");
+    const reviewDir = resolve(process.cwd(), ".tmp", "scratchnode-aesthetic-review");
+    const latestImagePath = resolve(validationDir, "latest-mobile.png");
+    const reviewPath = resolve(reviewDir, "aesthetic-review-summary.json");
+    const latestTime = new Date("2099-01-03T00:00:00.000Z");
+    const hadExistingReview = existsSync(reviewPath);
+    const existingReviewText = hadExistingReview ? readFileSync(reviewPath, "utf8") : null;
+
+    mkdirSync(validationDir, { recursive: true });
+    mkdirSync(reviewDir, { recursive: true });
+    writeFileSync(latestImagePath, "latest-image", "utf8");
+    writeFileSync(
+      reviewPath,
+      `${JSON.stringify({
+        passed: null,
+        judges: [],
+        judgeSkipped: "artifact-only",
+      })}\n`,
+      "utf8",
+    );
+    utimesSync(latestImagePath, latestTime, latestTime);
+    utimesSync(reviewPath, latestTime, latestTime);
+
+    try {
+      const summary = summarizeVisualEvidence({
+        passed: null,
+        judges: [],
+        judgeSkipped: "artifact-only",
+      });
+
+      expect(summary.latestVisualArtifactPath).toBe(".validation/test-goal-loop-artifact-only/latest-mobile.png");
+      expect(summary.latestAestheticReviewPassed).toBeNull();
+      expect(summary.latestAestheticReviewJudgeCount).toBe(0);
+      expect(summary.latestAestheticReviewJudgeSkippedReason).toBe("artifact-only");
+      expect(summary.latestAestheticReviewStatus).toBe("artifact_only");
+      expect(summary.latestAestheticReviewCoverageGap).toBe(false);
+    } finally {
+      rmSync(validationDir, { recursive: true, force: true });
+      if (hadExistingReview && existingReviewText != null) {
+        writeFileSync(reviewPath, existingReviewText, "utf8");
+      } else if (existsSync(reviewPath)) {
+        unlinkSync(reviewPath);
+      }
+    }
+  });
 });
 
 describe("summarizeRequiredReportLoadEvidence", () => {

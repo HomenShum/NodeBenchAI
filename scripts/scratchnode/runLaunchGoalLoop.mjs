@@ -136,6 +136,7 @@ export const goalLoopEvidenceFieldNames = [
   "latestAestheticReviewAgeSeconds",
   "latestAestheticReviewPassed",
   "latestAestheticReviewJudgeCount",
+  "latestAestheticReviewJudgeSkippedReason",
   "latestAestheticReviewFailureCode",
   "latestAestheticReviewStatus",
   "latestAestheticReviewCoverageGap",
@@ -884,6 +885,10 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
   const aestheticReviewExists = existsSync(aestheticReviewAbsolutePath);
   const aestheticReviewStat = aestheticReviewExists ? statSync(aestheticReviewAbsolutePath) : null;
   const judges = Array.isArray(aestheticReviewReport?.judges) ? aestheticReviewReport.judges : [];
+  const aestheticReviewJudgeSkippedReason =
+    typeof aestheticReviewReport?.judgeSkipped === "string" && aestheticReviewReport.judgeSkipped.trim()
+      ? aestheticReviewReport.judgeSkipped.trim()
+      : null;
   const aestheticReviewPassed =
     aestheticReviewReport && typeof aestheticReviewReport.passed === "boolean" ? aestheticReviewReport.passed : null;
   const hasCoverageGap = Boolean(latestArtifact && !aestheticReviewExists);
@@ -893,6 +898,8 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
       ? "passed"
       : aestheticReviewPassed === false
         ? "failed"
+        : aestheticReviewJudgeSkippedReason === "artifact-only"
+          ? "artifact_only"
         : "present_unknown";
 
   return {
@@ -908,6 +915,7 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
       : null,
     latestAestheticReviewPassed: aestheticReviewPassed,
     latestAestheticReviewJudgeCount: judges.length,
+    latestAestheticReviewJudgeSkippedReason: aestheticReviewJudgeSkippedReason,
     latestAestheticReviewFailureCode:
       typeof aestheticReviewReport?.failure?.code === "string" && aestheticReviewReport.failure.code.trim()
         ? aestheticReviewReport.failure.code.trim()
