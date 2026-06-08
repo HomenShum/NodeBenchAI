@@ -144,6 +144,8 @@ export const goalLoopEvidenceFieldNames = [
   "latestAestheticReviewPassed",
   "latestAestheticReviewJudgeCount",
   "latestAestheticReviewJudgeSkippedReason",
+  "latestAestheticReviewFallback",
+  "latestAestheticReviewFallbackDetail",
   "latestAestheticReviewFailureCode",
   "latestAestheticReviewStatus",
   "latestAestheticReviewCoverageGap",
@@ -896,6 +898,15 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
     typeof aestheticReviewReport?.judgeSkipped === "string" && aestheticReviewReport.judgeSkipped.trim()
       ? aestheticReviewReport.judgeSkipped.trim()
       : null;
+  const aestheticReviewFallbackReason =
+    typeof aestheticReviewReport?.fallback?.reason === "string" && aestheticReviewReport.fallback.reason.trim()
+      ? aestheticReviewReport.fallback.reason.trim()
+      : null;
+  const aestheticReviewFallbackDetail =
+    typeof aestheticReviewReport?.fallback?.detail === "string" && aestheticReviewReport.fallback.detail.trim()
+      ? aestheticReviewReport.fallback.detail.trim()
+      : null;
+  const usedArtifactFallback = aestheticReviewJudgeSkippedReason === "local-artifact-fallback";
   const aestheticReviewPassed =
     aestheticReviewReport && typeof aestheticReviewReport.passed === "boolean" ? aestheticReviewReport.passed : null;
   const latestArtifactStale =
@@ -909,7 +920,8 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
   const hasCoverageGap = Boolean(
     (latestArtifact && !aestheticReviewExists) ||
       latestArtifactStale ||
-      (latestArtifact && aestheticReviewExists && latestAestheticReviewStale),
+      (latestArtifact && aestheticReviewExists && latestAestheticReviewStale) ||
+      usedArtifactFallback,
   );
   const aestheticReviewStatus = !aestheticReviewExists
     ? "missing"
@@ -917,6 +929,8 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
       ? "passed"
       : aestheticReviewPassed === false
         ? "failed"
+        : usedArtifactFallback
+          ? "artifact_fallback"
         : aestheticReviewJudgeSkippedReason === "artifact-only"
           ? "artifact_only"
         : "present_unknown";
@@ -937,6 +951,11 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
     latestAestheticReviewPassed: aestheticReviewPassed,
     latestAestheticReviewJudgeCount: judges.length,
     latestAestheticReviewJudgeSkippedReason: aestheticReviewJudgeSkippedReason,
+    latestAestheticReviewFallback: aestheticReviewStatus === "artifact_fallback",
+    latestAestheticReviewFallbackDetail:
+      aestheticReviewStatus === "artifact_fallback"
+        ? aestheticReviewFallbackDetail || aestheticReviewFallbackReason || "Artifact fallback used."
+        : null,
     latestAestheticReviewFailureCode:
       typeof aestheticReviewReport?.failure?.code === "string" && aestheticReviewReport.failure.code.trim()
         ? aestheticReviewReport.failure.code.trim()
@@ -950,6 +969,8 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
           ? `Latest visual artifact ${latestArtifact.path} is stale (${latestArtifact.ageSeconds}s old; threshold ${visualEvidenceFreshnessThresholdSeconds}s). Capture fresh visual evidence before treating the aesthetic state as current.`
           : latestArtifact && latestAestheticReviewStale
             ? `Aesthetic review summary ${reportPaths.aestheticReview} is stale (${latestAestheticReviewAgeSeconds}s old; threshold ${visualEvidenceFreshnessThresholdSeconds}s) relative to current visual artifacts. Refresh the review before treating the aesthetic state as current.`
+            : aestheticReviewStatus === "artifact_fallback"
+              ? `Aesthetic review used artifact fallback instead of a live judged capture: ${aestheticReviewFallbackDetail || aestheticReviewFallbackReason || "fallback reason unavailable"}.`
             : null
       : null,
   };
