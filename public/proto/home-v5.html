@@ -1614,6 +1614,32 @@ body[data-role="attendee"] .host-queue { display: none; }
   display: flex; align-items: center; gap: 8px;
 }
 .demo-step-banner .ph-num { background: var(--accent); color: #fff; padding: 1px 6px; border-radius: 100px; font-weight: 700; }
+@media (max-width: 540px) {
+  .demo-step-banner {
+    top: calc(58px + var(--safe-top));
+    left: auto;
+    right: calc(14px + var(--safe-right));
+    transform: none;
+    max-width: min(52vw, 190px);
+    padding: 5px 9px;
+    gap: 6px;
+    border-color: rgba(217,119,87,.42);
+    background: rgba(21,20,19,.78);
+    box-shadow: 0 10px 28px rgba(0,0,0,.24);
+    font-size: 9px;
+    letter-spacing: .05em;
+  }
+  .demo-step-banner .ph-num {
+    padding: 1px 5px;
+    flex-shrink: 0;
+  }
+  .demo-step-banner .ph-label {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
 
 /* Demo-only owner-marker visibility: show the marker only when its data-owner matches body's data-actor-id */
 body:not([data-actor-id]) .private-marker { display: none !important; }
@@ -10372,6 +10398,23 @@ window._laCueAction       = _laCueAction;
 
   // ── demoStep wrapper: announces, logs, and runs the phase fn ──
   function demoStep(name, fn) {
+    function compactDemoPhaseLabel(phaseName) {
+      if (window.matchMedia && window.matchMedia('(max-width: 540px)').matches) {
+        var shortMap = {
+          '10+ person live public chat': 'live chat',
+          'Private note anchored to a public chat row': 'private note',
+          'Answer trace and source chips': 'answer trace',
+          'Host queue and FAQ promotion': 'faq queue',
+          'Published event wiki': 'wiki publish',
+          'Mention/backlink preview from public chat': 'mention preview',
+          'NodeBench handoff overlay': 'handoff',
+          'Sign in — notes preserved': 'save notes'
+        };
+        if (shortMap[phaseName]) return shortMap[phaseName];
+        return phaseName.replace(/\s*[—-]\s*.*/, '').replace(/\s+/g, ' ').trim();
+      }
+      return phaseName;
+    }
     // Update step banner
     var banner = document.querySelector('.demo-step-banner');
     if (!banner) {
@@ -10385,7 +10428,7 @@ window._laCueAction       = _laCueAction;
     var phNum = banner.querySelector('.ph-num');
     var phLabel = banner.querySelector('.ph-label');
     if (m && phNum) phNum.textContent = m[1];
-    if (phLabel) phLabel.textContent = name.replace(/^PHASE \d+\s*/, '');
+    if (phLabel) phLabel.textContent = compactDemoPhaseLabel(name.replace(/^PHASE \d+\s*/, ''));
     var startedAt = Date.now();
     return Promise.resolve()
       .then(function() { return fn(); })
