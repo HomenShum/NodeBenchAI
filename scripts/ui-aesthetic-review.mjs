@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = process.cwd();
 const DEFAULT_URL = "https://scratchnode.live/e/ai-infra-summit-2026";
 const DEFAULT_OUT = ".tmp/scratchnode-aesthetic-review";
+const DEFAULT_VALIDATION_DIR = ".validation";
 const RECORDER = "scripts/ui/recordScratchnodeChatDemo.mjs";
 const JUDGE = "scripts/ui/judgeScratchnodeChatVideo.mjs";
 
@@ -179,6 +180,25 @@ export function summarizeArtifacts(artifactPaths) {
   });
 }
 
+export function findRecentLocalArtifacts({
+  artifactsDir = resolveRepoPath(DEFAULT_VALIDATION_DIR),
+  limit = 4,
+} = {}) {
+  if (!fs.existsSync(artifactsDir)) return [];
+
+  return fs.readdirSync(artifactsDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(artifactsDir, entry.name))
+    .filter((artifactPath) => ["image", "video"].includes(classifyArtifactKind(artifactPath)))
+    .map((artifactPath) => ({
+      path: artifactPath,
+      mtimeMs: fs.statSync(artifactPath).mtimeMs,
+    }))
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)
+    .slice(0, limit)
+    .map((entry) => entry.path);
+}
+
 function passJudge(judgeJson) {
   const readiness = Number(judgeJson.readiness_score ?? 0);
   const verdict = String(judgeJson.verdict ?? "");
@@ -264,6 +284,14 @@ export function buildFailureSummary(baseSummary, error) {
     stderr: error?.stderr || null,
     stdout: error?.stdout || null,
   };
+}
+
+function canFallbackToArtifacts(summary, failure, artifactPaths) {
+  return !summary.videos.length
+    && !summary.artifacts.length
+    && !summary.record
+    && failure?.code === "network_access_denied"
+    && artifactPaths.length > 0;
 }
 
 async function main() {
@@ -353,6 +381,23 @@ async function main() {
     console.log(JSON.stringify(summary, null, 2));
     if (!summary.passed) process.exit(2);
   } catch (error) {
+    const failure = classifyAestheticReviewFailure(error);
+    const fallbackArtifacts = findRecentLocalArtifacts();
+    if (canFallbackToArtifacts(summary, failure, fallbackArtifacts)) {
+      summary.passed = null;
+      summary.url = null;
+      summary.artifacts = summarizeArtifacts(fallbackArtifacts);
+      summary.judgeSkipped = "local-artifact-fallback";
+      summary.fallback = {
+        reason: failure.code,
+        detail: failure.detail,
+        artifactsDir: path.resolve(ROOT, DEFAULT_VALIDATION_DIR),
+      };
+      writeSummary(summary, reportPath);
+      console.log(JSON.stringify(summary, null, 2));
+      return;
+    }
+
     const failureSummary = buildFailureSummary(summary, error);
     writeSummary(failureSummary, reportPath);
     console.log(JSON.stringify(failureSummary, null, 2));

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
   buildFailureSummary,
   classifyAestheticReviewFailure,
   classifyArtifactKind,
+  findRecentLocalArtifacts,
   summarizeArtifacts,
 } from "./ui-aesthetic-review.mjs";
 
@@ -104,6 +105,27 @@ describe("artifact-only evidence helpers", () => {
       });
       expect(summary[0].modifiedAt).toMatch(/T/);
       expect(summary[1].modifiedAt).toMatch(/T/);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("finds the most recent local visual artifacts deterministically", () => {
+    const tempDir = resolve(".tmp/test-ui-aesthetic-review-fallback");
+    mkdirSync(tempDir, { recursive: true });
+    const oldest = resolve(tempDir, "oldest.png");
+    const middle = resolve(tempDir, "middle.webm");
+    const newest = resolve(tempDir, "newest.jpg");
+    writeFileSync(oldest, "one");
+    writeFileSync(middle, "two");
+    writeFileSync(newest, "three");
+    utimesSync(oldest, new Date("2026-06-08T01:00:00.000Z"), new Date("2026-06-08T01:00:00.000Z"));
+    utimesSync(middle, new Date("2026-06-08T02:00:00.000Z"), new Date("2026-06-08T02:00:00.000Z"));
+    utimesSync(newest, new Date("2026-06-08T03:00:00.000Z"), new Date("2026-06-08T03:00:00.000Z"));
+
+    try {
+      const results = findRecentLocalArtifacts({ artifactsDir: tempDir, limit: 2 });
+      expect(results).toEqual([newest, middle]);
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
