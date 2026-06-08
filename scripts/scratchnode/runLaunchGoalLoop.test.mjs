@@ -604,6 +604,44 @@ describe("summarizeVisualEvidence", () => {
       expect(summary.latestAestheticReviewPassed).toBe(false);
       expect(summary.latestAestheticReviewJudgeCount).toBe(1);
       expect(summary.latestAestheticReviewFailureCode).toBe("network_access_denied");
+      expect(summary.latestAestheticReviewStatus).toBe("failed");
+      expect(summary.latestAestheticReviewCoverageGap).toBe(false);
+      expect(summary.latestAestheticReviewCoverageGapReason).toBeNull();
+    } finally {
+      rmSync(validationDir, { recursive: true, force: true });
+      if (hadExistingReview && existingReviewText != null) {
+        writeFileSync(reviewPath, existingReviewText, "utf8");
+      } else if (existsSync(reviewPath)) {
+        unlinkSync(reviewPath);
+      }
+    }
+  });
+
+  it("flags a coverage gap when fresh visual artifacts exist without an aesthetic review summary", () => {
+    const validationDir = resolve(process.cwd(), ".validation", "test-goal-loop-gap");
+    const latestImagePath = resolve(validationDir, "latest-mobile.png");
+    const latestTime = new Date("2099-01-02T00:00:00.000Z");
+    const reviewPath = resolve(process.cwd(), ".tmp", "scratchnode-aesthetic-review", "aesthetic-review-summary.json");
+    const hadExistingReview = existsSync(reviewPath);
+    const existingReviewText = hadExistingReview ? readFileSync(reviewPath, "utf8") : null;
+
+    mkdirSync(validationDir, { recursive: true });
+    writeFileSync(latestImagePath, "latest-image", "utf8");
+    utimesSync(latestImagePath, latestTime, latestTime);
+    if (existsSync(reviewPath)) {
+      unlinkSync(reviewPath);
+    }
+
+    try {
+      const summary = summarizeVisualEvidence(null);
+
+      expect(summary.latestVisualArtifactPath).toBe(".validation/test-goal-loop-gap/latest-mobile.png");
+      expect(summary.latestAestheticReviewReportPath).toBeNull();
+      expect(summary.latestAestheticReviewStatus).toBe("missing");
+      expect(summary.latestAestheticReviewCoverageGap).toBe(true);
+      expect(summary.latestAestheticReviewCoverageGapReason).toBe(
+        "Visual artifact .validation/test-goal-loop-gap/latest-mobile.png exists, but .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json is missing.",
+      );
     } finally {
       rmSync(validationDir, { recursive: true, force: true });
       if (hadExistingReview && existingReviewText != null) {
@@ -960,6 +998,29 @@ describe("summarizeNotificationEvidence", () => {
       notifyQuietPassEligible: false,
       notifyRecommended: true,
       notifyRecommendationReason: "Launch goal failures (2): housekeeping command passes; git drift is clean after the loop",
+    });
+  });
+
+  it("reports missing aesthetic-review coverage when visual artifacts exist", () => {
+    expect(
+      summarizeNotificationEvidence(
+        [
+          { name: "housekeeping command passes", ok: true },
+          { name: "git drift is clean after the loop", ok: true },
+        ],
+        {
+          visualEvidence: {
+            latestAestheticReviewCoverageGapReason:
+              "Visual artifact .validation/test-goal-loop-gap/latest-mobile.png exists, but .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json is missing.",
+          },
+        },
+      ),
+    ).toEqual({
+      notifyDecision: "notify",
+      notifyQuietPassEligible: false,
+      notifyRecommended: true,
+      notifyRecommendationReason:
+        "Goal loop passed, but visual evidence coverage is incomplete: Visual artifact .validation/test-goal-loop-gap/latest-mobile.png exists, but .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json is missing.",
     });
   });
 });

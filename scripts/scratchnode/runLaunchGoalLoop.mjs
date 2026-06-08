@@ -137,6 +137,9 @@ export const goalLoopEvidenceFieldNames = [
   "latestAestheticReviewPassed",
   "latestAestheticReviewJudgeCount",
   "latestAestheticReviewFailureCode",
+  "latestAestheticReviewStatus",
+  "latestAestheticReviewCoverageGap",
+  "latestAestheticReviewCoverageGapReason",
   "housekeepingPassed",
   "housekeepingOperatorStatus",
   "housekeepingOperatorMessage",
@@ -881,6 +884,16 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
   const aestheticReviewExists = existsSync(aestheticReviewAbsolutePath);
   const aestheticReviewStat = aestheticReviewExists ? statSync(aestheticReviewAbsolutePath) : null;
   const judges = Array.isArray(aestheticReviewReport?.judges) ? aestheticReviewReport.judges : [];
+  const aestheticReviewPassed =
+    aestheticReviewReport && typeof aestheticReviewReport.passed === "boolean" ? aestheticReviewReport.passed : null;
+  const hasCoverageGap = Boolean(latestArtifact && !aestheticReviewExists);
+  const aestheticReviewStatus = !aestheticReviewExists
+    ? "missing"
+    : aestheticReviewPassed === true
+      ? "passed"
+      : aestheticReviewPassed === false
+        ? "failed"
+        : "present_unknown";
 
   return {
     latestVisualArtifactCount: visualArtifacts.length,
@@ -893,13 +906,17 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
     latestAestheticReviewAgeSeconds: aestheticReviewStat
       ? Math.max(0, Number(((Date.now() - aestheticReviewStat.mtimeMs) / 1000).toFixed(3)))
       : null,
-    latestAestheticReviewPassed:
-      aestheticReviewReport && typeof aestheticReviewReport.passed === "boolean" ? aestheticReviewReport.passed : null,
+    latestAestheticReviewPassed: aestheticReviewPassed,
     latestAestheticReviewJudgeCount: judges.length,
     latestAestheticReviewFailureCode:
       typeof aestheticReviewReport?.failure?.code === "string" && aestheticReviewReport.failure.code.trim()
         ? aestheticReviewReport.failure.code.trim()
         : null,
+    latestAestheticReviewStatus: aestheticReviewStatus,
+    latestAestheticReviewCoverageGap: hasCoverageGap,
+    latestAestheticReviewCoverageGapReason: hasCoverageGap
+      ? `Visual artifact ${latestArtifact.path} exists, but ${reportPaths.aestheticReview} is missing.`
+      : null,
   };
 }
 
@@ -1190,6 +1207,8 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
     })
     .filter(Boolean);
   const quietPassEligible = context.developmentCandidate?.quietPassEligible === true;
+  const visualEvidenceGapReason = String(context.visualEvidence?.latestAestheticReviewCoverageGapReason ?? "").trim();
+  const visualEvidenceGap = visualEvidenceGapReason.length > 0;
   const quietPassReasonParts = [
     String(context.developmentCandidate?.selectionReason ?? "").trim(),
     String(context.developmentCandidate?.actionabilityReason ?? "").trim(),
@@ -1199,6 +1218,8 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
       ? "notify"
       : currentHeadChanged
         ? "notify"
+        : visualEvidenceGap
+          ? "notify"
         : knownCautionCount > 0
           ? "notify"
           : quietPassEligible
@@ -1207,12 +1228,14 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
   return {
     notifyDecision,
     notifyQuietPassEligible: quietPassEligible,
-    notifyRecommended: failures.length > 0 || currentHeadChanged || knownCautionCount > 0,
+    notifyRecommended: failures.length > 0 || currentHeadChanged || visualEvidenceGap || knownCautionCount > 0,
     notifyRecommendationReason:
       failures.length > 0
         ? `Launch goal failures (${failures.length}): ${failures.join("; ")}`
         : currentHeadChanged
           ? `Goal loop passed and HEAD changed since the previous report (${previousHeadShortSha} -> ${currentHeadShortSha}); report the verified local slice.`
+          : visualEvidenceGap
+            ? `Goal loop passed, but visual evidence coverage is incomplete: ${visualEvidenceGapReason}`
           : knownCautionCount > 0
             ? `Goal loop passed with ${knownCautionCount} known caution entr${knownCautionCount === 1 ? "y" : "ies"} that still need operator visibility: ${knownCautionLabels.join("; ")}`
           : quietPassEligible
@@ -1951,6 +1974,7 @@ async function main() {
     currentHeadChanged: previousGoalLoopEvidence.previousGoalLoopHeadChanged,
     developmentCandidate,
     knownCautionEntries: knownCautions,
+    visualEvidence,
   });
   const reportSchemaEvidence = summarizeReportSchemaEvidence(reportSchemaVersion);
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
