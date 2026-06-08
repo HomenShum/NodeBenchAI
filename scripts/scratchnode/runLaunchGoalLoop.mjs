@@ -22,6 +22,7 @@ const reportPaths = {
   housekeepingLoop: ".tmp/workspace-housekeeping-loop.json",
   localHistory: ".tmp/local-history-map-reduce.json",
   goalLoop: ".tmp/scratchnode-launch-goal-loop.json",
+  aestheticReview: ".tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json",
 };
 
 export const goalLoopEvidenceFieldNames = [
@@ -124,6 +125,18 @@ export const goalLoopEvidenceFieldNames = [
   "sourceReportFreshnessThresholdSeconds",
   "sourceReportFutureSkewThresholdSeconds",
   "staleSourceReportCount",
+  "staleSourceReportPaths",
+  "latestVisualArtifactCount",
+  "latestVisualArtifactPath",
+  "latestVisualArtifactKind",
+  "latestVisualArtifactModifiedAt",
+  "latestVisualArtifactAgeSeconds",
+  "latestAestheticReviewReportPath",
+  "latestAestheticReviewModifiedAt",
+  "latestAestheticReviewAgeSeconds",
+  "latestAestheticReviewPassed",
+  "latestAestheticReviewJudgeCount",
+  "latestAestheticReviewFailureCode",
   "housekeepingPassed",
   "housekeepingOperatorStatus",
   "housekeepingOperatorMessage",
@@ -828,6 +841,65 @@ export function summarizeSourceReportEvidence(housekeepingReport) {
     sourceReportFutureSkewThresholdSeconds: evidenceNumber(summary.maxFutureReportSkewSeconds),
     staleSourceReportCount: staleSourceReportPaths.length,
     staleSourceReportPaths,
+  };
+}
+
+function collectVisualArtifacts(relativeDir) {
+  const absoluteDir = resolve(repoRoot, relativeDir);
+  if (!existsSync(absoluteDir)) return [];
+  const supportedExtensions = new Set([".png", ".jpg", ".jpeg", ".webm", ".mp4"]);
+  const artifacts = [];
+  const walk = (currentDir) => {
+    for (const item of readdirSync(currentDir)) {
+      const itemPath = resolve(currentDir, item);
+      const stat = statSync(itemPath);
+      if (stat.isDirectory()) {
+        walk(itemPath);
+        continue;
+      }
+      const extensionIndex = itemPath.lastIndexOf(".");
+      const extension = extensionIndex >= 0 ? itemPath.slice(extensionIndex).toLowerCase() : "";
+      if (!supportedExtensions.has(extension)) continue;
+      artifacts.push({
+        path: itemPath.slice(repoRoot.length + 1).replace(/\\/g, "/"),
+        kind: extension === ".webm" || extension === ".mp4" ? "video" : "image",
+        modifiedAt: stat.mtime.toISOString(),
+        ageSeconds: Math.max(0, Number(((Date.now() - stat.mtimeMs) / 1000).toFixed(3))),
+        modifiedAtMs: stat.mtimeMs,
+      });
+    }
+  };
+  walk(absoluteDir);
+  return artifacts.sort((left, right) => right.modifiedAtMs - left.modifiedAtMs || left.path.localeCompare(right.path));
+}
+
+export function summarizeVisualEvidence(aestheticReviewReport) {
+  const visualArtifacts = [".validation", ".tmp/scratchnode-aesthetic-review"]
+    .flatMap((relativeDir) => collectVisualArtifacts(relativeDir));
+  const latestArtifact = visualArtifacts[0] ?? null;
+  const aestheticReviewAbsolutePath = resolve(repoRoot, reportPaths.aestheticReview);
+  const aestheticReviewExists = existsSync(aestheticReviewAbsolutePath);
+  const aestheticReviewStat = aestheticReviewExists ? statSync(aestheticReviewAbsolutePath) : null;
+  const judges = Array.isArray(aestheticReviewReport?.judges) ? aestheticReviewReport.judges : [];
+
+  return {
+    latestVisualArtifactCount: visualArtifacts.length,
+    latestVisualArtifactPath: latestArtifact?.path ?? null,
+    latestVisualArtifactKind: latestArtifact?.kind ?? null,
+    latestVisualArtifactModifiedAt: latestArtifact?.modifiedAt ?? null,
+    latestVisualArtifactAgeSeconds: latestArtifact?.ageSeconds ?? null,
+    latestAestheticReviewReportPath: aestheticReviewExists ? reportPaths.aestheticReview : null,
+    latestAestheticReviewModifiedAt: aestheticReviewStat ? aestheticReviewStat.mtime.toISOString() : null,
+    latestAestheticReviewAgeSeconds: aestheticReviewStat
+      ? Math.max(0, Number(((Date.now() - aestheticReviewStat.mtimeMs) / 1000).toFixed(3)))
+      : null,
+    latestAestheticReviewPassed:
+      aestheticReviewReport && typeof aestheticReviewReport.passed === "boolean" ? aestheticReviewReport.passed : null,
+    latestAestheticReviewJudgeCount: judges.length,
+    latestAestheticReviewFailureCode:
+      typeof aestheticReviewReport?.failure?.code === "string" && aestheticReviewReport.failure.code.trim()
+        ? aestheticReviewReport.failure.code.trim()
+        : null,
   };
 }
 
@@ -1712,12 +1784,14 @@ async function main() {
       reportPaths.housekeepingLoop,
       reportPaths.localHistory,
       reportPaths.goalLoop,
+      reportPaths.aestheticReview,
     ]),
   );
 
   const housekeepingReport = readJson(reportPaths.housekeeping);
   const launchReport = readJson(reportPaths.launch);
   const localHistoryReport = readJson(reportPaths.localHistory);
+  const aestheticReviewReport = readJson(reportPaths.aestheticReview);
   const packageJson = readJson("package.json");
   const gitStatus = commands.find((command) => command.command === "git status --short")?.stdout.trim() ?? "";
   const gitBranchStatus = commands.find((command) => command.command === "git status --short --branch")?.stdout.trim() ?? "";
@@ -1859,6 +1933,7 @@ async function main() {
     signal: command.signal ?? null,
   }));
   const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
+  const visualEvidence = summarizeVisualEvidence(aestheticReviewReport);
   const housekeepingEvidence = summarizeHousekeepingReportEvidence(housekeepingReport);
   const launchReportEvidence = summarizeLaunchReportEvidence(launchReport);
   const gitStatusEvidence = summarizeGitStatusEvidence(gitStatus);
@@ -1955,6 +2030,7 @@ async function main() {
       ...requiredReportStructureEvidence,
       ...commandEvidence,
       ...sourceReportEvidence,
+      ...visualEvidence,
       ...housekeepingEvidence,
       ...launchReportEvidence,
       ...tmpIgnoreEvidence,
@@ -1969,6 +2045,7 @@ async function main() {
     reports: {
       housekeeping: housekeepingReport,
       launch: launchReport,
+      aestheticReview: aestheticReviewReport,
     },
     developmentCandidate,
     knownCautionEntries: knownCautions,

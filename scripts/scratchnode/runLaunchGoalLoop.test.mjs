@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -27,6 +29,7 @@ import {
   summarizeReportMetadataEvidence,
   summarizeReportSchemaEvidence,
   summarizeSourceReportEvidence,
+  summarizeVisualEvidence,
   summarizeVerificationEntryPointEvidence,
   summarizeTmpIgnoreEvidence,
   summarizeWorkflowModelEvidence,
@@ -551,6 +554,64 @@ describe("summarizeSourceReportEvidence", () => {
       staleSourceReportCount: 2,
       staleSourceReportPaths: [".tmp/augment-upload-scope.json", ".tmp/local-history-map-reduce.json"],
     });
+  });
+});
+
+describe("summarizeVisualEvidence", () => {
+  it("surfaces the freshest local visual artifact and latest aesthetic review metadata", () => {
+    const validationDir = resolve(process.cwd(), ".validation", "test-goal-loop-visual");
+    const reviewDir = resolve(process.cwd(), ".tmp", "scratchnode-aesthetic-review");
+    const latestImagePath = resolve(validationDir, "latest-mobile.png");
+    const olderVideoPath = resolve(validationDir, "older-demo.webm");
+    const reviewPath = resolve(reviewDir, "aesthetic-review-summary.json");
+    const olderTime = new Date("2026-06-01T12:00:00.000Z");
+    const latestTime = new Date("2099-01-01T00:00:00.000Z");
+    const hadExistingReview = existsSync(reviewPath);
+    const existingReviewText = hadExistingReview ? readFileSync(reviewPath, "utf8") : null;
+
+    mkdirSync(validationDir, { recursive: true });
+    mkdirSync(reviewDir, { recursive: true });
+    writeFileSync(olderVideoPath, "older-video", "utf8");
+    writeFileSync(latestImagePath, "latest-image", "utf8");
+    writeFileSync(
+      reviewPath,
+      `${JSON.stringify({
+        passed: false,
+        judges: [{ surface: "mobile", passed: false }],
+        failure: { code: "network_access_denied" },
+      })}\n`,
+      "utf8",
+    );
+    utimesSync(olderVideoPath, olderTime, olderTime);
+    utimesSync(latestImagePath, latestTime, latestTime);
+    utimesSync(reviewPath, latestTime, latestTime);
+
+    try {
+      const summary = summarizeVisualEvidence({
+        passed: false,
+        judges: [{ surface: "mobile", passed: false }],
+        failure: { code: "network_access_denied" },
+      });
+
+      expect(summary.latestVisualArtifactCount).toBeGreaterThan(1);
+      expect(summary.latestVisualArtifactPath).toBe(".validation/test-goal-loop-visual/latest-mobile.png");
+      expect(summary.latestVisualArtifactKind).toBe("image");
+      expect(summary.latestVisualArtifactModifiedAt).toBe("2099-01-01T00:00:00.000Z");
+      expect(summary.latestVisualArtifactAgeSeconds).toBe(0);
+      expect(summary.latestAestheticReviewReportPath).toBe(".tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json");
+      expect(summary.latestAestheticReviewModifiedAt).toBe("2099-01-01T00:00:00.000Z");
+      expect(summary.latestAestheticReviewAgeSeconds).toBe(0);
+      expect(summary.latestAestheticReviewPassed).toBe(false);
+      expect(summary.latestAestheticReviewJudgeCount).toBe(1);
+      expect(summary.latestAestheticReviewFailureCode).toBe("network_access_denied");
+    } finally {
+      rmSync(validationDir, { recursive: true, force: true });
+      if (hadExistingReview && existingReviewText != null) {
+        writeFileSync(reviewPath, existingReviewText, "utf8");
+      } else if (existsSync(reviewPath)) {
+        unlinkSync(reviewPath);
+      }
+    }
   });
 });
 
