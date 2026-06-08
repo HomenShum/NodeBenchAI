@@ -1354,10 +1354,10 @@ body[data-new-user="true"] .h-menu::after {
 /* Mobile tweaks */
 @media (max-width: 540px) {
   .h { padding: calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left)); }
-  .m { padding: 14px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
-  .hero { margin-bottom: 8px; }
-  .hero h1 { font-size: 21px; line-height: 1.05; }
-  .hero-meta { margin: 0; font-size: 11px; max-width: 22ch; line-height: 1.32; }
+  .m { padding: 12px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
+  .hero { margin-bottom: 4px; }
+  .hero h1 { font-size: 19px; line-height: 1.02; letter-spacing: -.03em; }
+  .hero-meta { margin: 0; font-size: 10px; max-width: 24ch; line-height: 1.25; }
   .about-link { display: none; }
   /* Mobile: pin the composer to the bottom (Slack/Discord/iMessage convention — thumb reach,
      newest message sits right above where you type). Desktop keeps the sticky top command bar. */
@@ -1377,16 +1377,22 @@ body[data-new-user="true"] .h-menu::after {
   /* While typing: collapse non-essential chrome so input + feed stay visible above the keyboard. */
   body[data-input-focused="true"] .f,
   body[data-input-focused="true"] .welcome { display: none; }
-  .id-row { gap: 6px; padding: 0 0 6px; align-items: center; }
-  .id-avatar { width: 22px; height: 22px; font-size: 10px; }
+  .id-row { gap: 6px; padding: 0 0 4px; align-items: center; }
+  .id-avatar { width: 20px; height: 20px; font-size: 9px; }
   .id-label { display: none; }
   .id-text { min-width: 0; }
-  .id-text b { font-size: 13px; }
-  .id-set { padding: 2px 0 2px 6px; font-size: 12px; }
-  .demo-join-card { margin: 6px 0 10px; padding: 10px 12px; gap: 4px; border-radius: 16px; }
-  .demo-join-card .title { font-size: 13px; }
-  .demo-join-card .sub { font-size: 11px; line-height: 1.35; }
-  .demo-join-card .code-line { font-size: 10px; letter-spacing: .08em; line-height: 1.35; }
+  .id-text b { font-size: 12px; }
+  .id-set { padding: 1px 0 1px 6px; font-size: 11px; }
+  .demo-join-card {
+    margin: 4px 0 8px;
+    padding: 8px 10px;
+    gap: 3px;
+    border-radius: 14px;
+    background: rgba(217,119,87,.045);
+  }
+  .demo-join-card .title { font-size: 12px; }
+  .demo-join-card .sub { display: none; }
+  .demo-join-card .code-line { font-size: 9px; letter-spacing: .06em; line-height: 1.3; }
   .row { grid-template-columns: 32px 1fr; column-gap: 8px; padding: 5px 4px 6px; }
   .row-avatar { width: 32px; height: 32px; font-size: 12px; }
   .row-time { font-size: 10.5px; color: var(--ink-muted); }
@@ -1622,7 +1628,8 @@ body[data-role="attendee"] .host-queue { display: none; }
 .demo-step-banner .ph-num { background: var(--accent); color: #fff; padding: 1px 6px; border-radius: 100px; font-weight: 700; }
 @media (max-width: 540px) {
   .demo-step-banner {
-    top: calc(56px + var(--safe-top));
+    top: auto;
+    bottom: calc(102px + var(--safe-bot));
     left: auto;
     right: calc(14px + var(--safe-right));
     transform: none;
@@ -1630,11 +1637,11 @@ body[data-role="attendee"] .host-queue { display: none; }
     padding: 4px 8px;
     gap: 5px;
     border-color: rgba(217,119,87,.18);
-    background: rgba(21,20,19,.56);
-    box-shadow: 0 8px 22px rgba(0,0,0,.18);
+    background: rgba(21,20,19,.46);
+    box-shadow: 0 10px 24px rgba(0,0,0,.16);
     font-size: 9px;
     letter-spacing: .04em;
-    color: rgba(232,230,227,.82);
+    color: rgba(232,230,227,.72);
   }
   .demo-step-banner .ph-num {
     display: none;
