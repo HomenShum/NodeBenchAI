@@ -46,6 +46,7 @@ export const goalLoopEvidenceFieldNames = [
   "gitHeadSummary",
   "gitHeadShortSha",
   "gitHeadSubject",
+  "gitHeadCommittedAt",
   "notifyDecision",
   "notifyQuietPassEligible",
   "notifyRecommendationReason",
@@ -136,11 +137,15 @@ export const goalLoopEvidenceFieldNames = [
   "latestVisualArtifactAgeSeconds",
   "latestVisualArtifactFreshnessThresholdSeconds",
   "latestVisualArtifactStale",
+  "latestVisualArtifactPredatesHead",
+  "latestVisualArtifactPredatesHeadBySeconds",
   "latestAestheticReviewReportPath",
   "latestAestheticReviewModifiedAt",
   "latestAestheticReviewAgeSeconds",
   "latestAestheticReviewFreshnessThresholdSeconds",
   "latestAestheticReviewStale",
+  "latestAestheticReviewPredatesHead",
+  "latestAestheticReviewPredatesHeadBySeconds",
   "latestAestheticReviewPassed",
   "latestAestheticReviewJudgeCount",
   "latestAestheticReviewJudgeSkippedReason",
@@ -886,7 +891,7 @@ function collectVisualArtifacts(relativeDir) {
   return artifacts.sort((left, right) => right.modifiedAtMs - left.modifiedAtMs || left.path.localeCompare(right.path));
 }
 
-export function summarizeVisualEvidence(aestheticReviewReport) {
+export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
   const visualArtifacts = [".validation", ".tmp/scratchnode-aesthetic-review"]
     .flatMap((relativeDir) => collectVisualArtifacts(relativeDir));
   const latestArtifact = visualArtifacts[0] ?? null;
@@ -914,12 +919,32 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
   const latestAestheticReviewAgeSeconds = aestheticReviewStat
     ? Math.max(0, Number(((Date.now() - aestheticReviewStat.mtimeMs) / 1000).toFixed(3)))
     : null;
+  const currentHeadCommittedAtRaw =
+    typeof context.currentHeadCommittedAt === "string" && context.currentHeadCommittedAt.trim()
+      ? context.currentHeadCommittedAt.trim()
+      : null;
+  const currentHeadCommittedAtMs = currentHeadCommittedAtRaw ? Date.parse(currentHeadCommittedAtRaw) : Number.NaN;
+  const headCommitKnown = Number.isFinite(currentHeadCommittedAtMs);
+  const latestVisualArtifactPredatesHead =
+    headCommitKnown && latestArtifact != null ? latestArtifact.modifiedAtMs + 1000 < currentHeadCommittedAtMs : false;
+  const latestVisualArtifactPredatesHeadBySeconds =
+    latestVisualArtifactPredatesHead && latestArtifact != null
+      ? Math.max(0, Number(((currentHeadCommittedAtMs - latestArtifact.modifiedAtMs) / 1000).toFixed(3)))
+      : null;
   const latestAestheticReviewStale =
     latestAestheticReviewAgeSeconds != null &&
     latestAestheticReviewAgeSeconds > visualEvidenceFreshnessThresholdSeconds;
+  const latestAestheticReviewPredatesHead =
+    headCommitKnown && aestheticReviewStat ? aestheticReviewStat.mtimeMs + 1000 < currentHeadCommittedAtMs : false;
+  const latestAestheticReviewPredatesHeadBySeconds =
+    latestAestheticReviewPredatesHead && aestheticReviewStat
+      ? Math.max(0, Number(((currentHeadCommittedAtMs - aestheticReviewStat.mtimeMs) / 1000).toFixed(3)))
+      : null;
   const hasCoverageGap = Boolean(
     (latestArtifact && !aestheticReviewExists) ||
       latestArtifactStale ||
+      latestVisualArtifactPredatesHead ||
+      latestAestheticReviewPredatesHead ||
       (latestArtifact && aestheticReviewExists && latestAestheticReviewStale) ||
       usedArtifactFallback,
   );
@@ -943,11 +968,15 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
     latestVisualArtifactAgeSeconds: latestArtifact?.ageSeconds ?? null,
     latestVisualArtifactFreshnessThresholdSeconds: visualEvidenceFreshnessThresholdSeconds,
     latestVisualArtifactStale: latestArtifactStale,
+    latestVisualArtifactPredatesHead,
+    latestVisualArtifactPredatesHeadBySeconds,
     latestAestheticReviewReportPath: aestheticReviewExists ? reportPaths.aestheticReview : null,
     latestAestheticReviewModifiedAt: aestheticReviewStat ? aestheticReviewStat.mtime.toISOString() : null,
     latestAestheticReviewAgeSeconds,
     latestAestheticReviewFreshnessThresholdSeconds: visualEvidenceFreshnessThresholdSeconds,
     latestAestheticReviewStale: latestAestheticReviewStale,
+    latestAestheticReviewPredatesHead,
+    latestAestheticReviewPredatesHeadBySeconds,
     latestAestheticReviewPassed: aestheticReviewPassed,
     latestAestheticReviewJudgeCount: judges.length,
     latestAestheticReviewJudgeSkippedReason: aestheticReviewJudgeSkippedReason,
@@ -967,6 +996,10 @@ export function summarizeVisualEvidence(aestheticReviewReport) {
         ? `Visual artifact ${latestArtifact.path} exists, but ${reportPaths.aestheticReview} is missing.`
         : latestArtifactStale && latestArtifact
           ? `Latest visual artifact ${latestArtifact.path} is stale (${latestArtifact.ageSeconds}s old; threshold ${visualEvidenceFreshnessThresholdSeconds}s). Capture fresh visual evidence before treating the aesthetic state as current.`
+          : latestVisualArtifactPredatesHead && latestArtifact
+            ? `Latest visual artifact ${latestArtifact.path} predates HEAD commit ${context.currentHeadShortSha || "(unknown sha)"} by ${latestVisualArtifactPredatesHeadBySeconds}s. Capture fresh visual evidence for the current code before treating the aesthetic state as current.`
+            : latestAestheticReviewPredatesHead
+              ? `Aesthetic review summary ${reportPaths.aestheticReview} predates HEAD commit ${context.currentHeadShortSha || "(unknown sha)"} by ${latestAestheticReviewPredatesHeadBySeconds}s. Refresh the review before treating the aesthetic state as current.`
           : latestArtifact && latestAestheticReviewStale
             ? `Aesthetic review summary ${reportPaths.aestheticReview} is stale (${latestAestheticReviewAgeSeconds}s old; threshold ${visualEvidenceFreshnessThresholdSeconds}s) relative to current visual artifacts. Refresh the review before treating the aesthetic state as current.`
             : aestheticReviewStatus === "artifact_fallback"
@@ -1205,13 +1238,16 @@ export function summarizeGitBranchEvidence(gitBranchStatus) {
   };
 }
 
-export function summarizeGitHeadEvidence(gitHeadSummary) {
+export function summarizeGitHeadEvidence(gitHeadSummary, gitHeadCommittedAtRaw) {
   const firstLine = String(gitHeadSummary ?? "").split(/\r?\n/)[0]?.trim() ?? "";
   const match = firstLine.match(/^([0-9a-f]+)\s+(.+)$/i);
+  const committedAt =
+    typeof gitHeadCommittedAtRaw === "string" && gitHeadCommittedAtRaw.trim() ? gitHeadCommittedAtRaw.trim() : null;
   return {
     gitHeadSummary: firstLine || null,
     gitHeadShortSha: match?.[1] ?? null,
     gitHeadSubject: match?.[2] ?? null,
+    gitHeadCommittedAt: committedAt,
   };
 }
 
@@ -1861,6 +1897,7 @@ async function main() {
   commands.push(await run("git", ["status", "--short"]));
   commands.push(await run("git", ["status", "--short", "--branch"]));
   commands.push(await run("git", ["show", "-s", "--oneline", "HEAD"]));
+  commands.push(await run("git", ["show", "-s", "--format=%cI", "HEAD"]));
   commands.push(
     await run("git", [
       "check-ignore",
@@ -1883,6 +1920,7 @@ async function main() {
   const gitStatus = commands.find((command) => command.command === "git status --short")?.stdout.trim() ?? "";
   const gitBranchStatus = commands.find((command) => command.command === "git status --short --branch")?.stdout.trim() ?? "";
   const gitHeadSummary = commands.find((command) => command.command === "git show -s --oneline HEAD")?.stdout.trim() ?? "";
+  const gitHeadCommittedAt = commands.find((command) => command.command === "git show -s --format=%cI HEAD")?.stdout.trim() ?? "";
   const ignoreCheck = commands.find((command) => command.command.startsWith("git check-ignore"));
   const tmpIgnoreEvidence = summarizeTmpIgnoreEvidence(ignoreCheck, Object.values(reportPaths));
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
@@ -2020,11 +2058,14 @@ async function main() {
     signal: command.signal ?? null,
   }));
   const sourceReportEvidence = summarizeSourceReportEvidence(housekeepingReport);
-  const visualEvidence = summarizeVisualEvidence(aestheticReviewReport);
+  const gitHeadEvidence = summarizeGitHeadEvidence(gitHeadSummary, gitHeadCommittedAt);
+  const visualEvidence = summarizeVisualEvidence(aestheticReviewReport, {
+    currentHeadShortSha: gitHeadEvidence.gitHeadShortSha,
+    currentHeadCommittedAt: gitHeadEvidence.gitHeadCommittedAt,
+  });
   const housekeepingEvidence = summarizeHousekeepingReportEvidence(housekeepingReport);
   const launchReportEvidence = summarizeLaunchReportEvidence(launchReport);
   const gitStatusEvidence = summarizeGitStatusEvidence(gitStatus);
-  const gitHeadEvidence = summarizeGitHeadEvidence(gitHeadSummary);
   const previousGoalLoopEvidence = summarizePreviousGoalLoopEvidence(previousGoalLoopReport, {
     currentFailures: criteria.filter((criterion) => !criterion.ok).map((criterion) => criterion.name),
     currentCandidateId: developmentCandidate?.id ?? null,
