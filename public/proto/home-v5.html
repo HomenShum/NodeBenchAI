@@ -267,12 +267,25 @@ body[data-page-mode="event"]:not([data-sn-room-ready="true"]) .sn-room-entry {
   visibility: visible;
   transition-delay: 0s;
 }
+body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry {
+  display: flex;
+  opacity: 0;
+  visibility: visible;
+  transition-delay: 0s;
+}
 .sn-room-entry__panel {
   width: min(100%, 760px);
   min-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 18px;
+  transition: transform var(--motion-slow) var(--ease-out), opacity var(--motion-med) var(--ease-out), filter var(--motion-med) var(--ease-out);
+  will-change: transform, opacity, filter;
+}
+body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__panel {
+  transform: translateY(-14px) scale(.985);
+  opacity: .01;
+  filter: blur(6px);
 }
 .sn-room-entry__topline {
   display: flex;
@@ -7620,9 +7633,11 @@ window._laCueAction       = _laCueAction;
   const roomEntryCodeEl = document.getElementById('sn-room-entry-code');
   const roomEntryTitleEl = document.getElementById('sn-room-entry-title');
   const roomEntrySubEl = document.getElementById('sn-room-entry-sub');
+  const roomEntryExitDurationMs = 180;
   let roomEntrySettled = false;
   let roomEntryMinHoldDone = false;
   let roomEntryPendingSettle = false;
+  let roomEntryExitTimer = 0;
   const syncRoomEntry = (state) => {
     if (!state) return;
     if (roomEntryCodeEl) roomEntryCodeEl.textContent = state.roomCode || state.code || 'ORBITAL';
@@ -7634,7 +7649,14 @@ window._laCueAction       = _laCueAction;
   };
   const finishRoomEntry = () => {
     if (!document.body) return;
-    document.body.setAttribute('data-sn-room-ready', 'true');
+    document.body.setAttribute('data-sn-room-ready', 'settling');
+    if (roomEntryExitTimer) window.clearTimeout(roomEntryExitTimer);
+    roomEntryExitTimer = window.setTimeout(() => {
+      if (!document.body) return;
+      if (document.body.getAttribute('data-sn-room-ready') === 'settling') {
+        document.body.setAttribute('data-sn-room-ready', 'true');
+      }
+    }, roomEntryExitDurationMs);
   };
   const releaseRoomEntry = (state) => {
     if (state) syncRoomEntry(state);
