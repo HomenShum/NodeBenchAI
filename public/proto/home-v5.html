@@ -146,21 +146,41 @@ button:active { transform: scale(.97); transition: transform .08s; }
 .h-menu:hover { color: var(--ink); background: rgba(255,255,255,.05); }
 @media (max-width: 540px) {
   .h {
-    gap: 8px;
-    padding: calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left));
+    gap: 7px;
+    padding: calc(9px + var(--safe-top)) calc(14px + var(--safe-right)) 9px calc(14px + var(--safe-left));
   }
-  .h-logo { gap: 5px; font-size: 13px; }
+  .h-logo {
+    gap: 4px;
+    font-size: 12px;
+    letter-spacing: -.01em;
+  }
   .h-live {
-    padding: 2px 8px;
-    font-size: 9px;
-    letter-spacing: .08em;
-    background: rgba(94,168,103,.08);
+    gap: 5px;
+    min-height: 26px;
+    padding: 1px 7px;
+    font-size: 8px;
+    letter-spacing: .11em;
+    background: rgba(94,168,103,.07);
+    border-color: rgba(94,168,103,.18);
   }
-  .h-menu { width: 40px; height: 40px; }
+  .h-menu {
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(255,255,255,.06);
+    background: rgba(255,255,255,.02);
+    color: var(--ink-muted);
+  }
+  .h-menu svg {
+    width: 14px;
+    height: 14px;
+  }
   .h-code {
-    min-height: 32px;
-    padding: 3px 9px;
-    letter-spacing: .1em;
+    min-height: 28px;
+    padding: 2px 8px;
+    background: rgba(255,255,255,.025);
+    color: var(--ink);
+    font-size: 10px;
+    letter-spacing: .08em;
   }
 }
 
