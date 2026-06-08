@@ -31,6 +31,7 @@
     "scratchnode:launch:scan": "node scripts/scratchnode/scanLaunch.mjs",
     "scratchnode:launch:interactive": "node scripts/scratchnode/scanLaunch.mjs --live --interactive",
     "scratchnode:launch:goal": "node scripts/scratchnode/runLaunchGoalLoop.mjs",
+    "ui:aesthetic:review": "node scripts/ui-aesthetic-review.mjs",
     "notebook:daily": "node scripts/ops/dailySummary.mjs",
     "notebook:diagnose": "node scripts/ops/diagnose.mjs",
     "notebook:loadtest": "node scripts/loadtest/notebook-load.mjs --entity softbank --scenario all --clients 10 --duration 60",
