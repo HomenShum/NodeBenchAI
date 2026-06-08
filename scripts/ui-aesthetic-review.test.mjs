@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import {
   buildFailureSummary,
   classifyAestheticReviewFailure,
+  classifyArtifactKind,
+  summarizeArtifacts,
 } from "./ui-aesthetic-review.mjs";
 
 describe("classifyAestheticReviewFailure", () => {
@@ -67,5 +71,41 @@ describe("buildFailureSummary", () => {
       stderr: "RECORD_FAILED: page.goto: net::ERR_NETWORK_ACCESS_DENIED at https://scratchnode.live/e/ai-infra-summit-2026",
       stdout: null,
     });
+  });
+});
+
+describe("artifact-only evidence helpers", () => {
+  it("classifies common screenshot and video extensions", () => {
+    expect(classifyArtifactKind("demo.png")).toBe("image");
+    expect(classifyArtifactKind("clip.webm")).toBe("video");
+    expect(classifyArtifactKind("notes.txt")).toBe("file");
+  });
+
+  it("summarizes local artifact metadata for report-only runs", () => {
+    const tempDir = resolve(".tmp/test-ui-aesthetic-review-artifacts");
+    mkdirSync(tempDir, { recursive: true });
+    const imagePath = resolve(tempDir, "mobile-after.png");
+    const videoPath = resolve(tempDir, "mobile-demo.webm");
+    writeFileSync(imagePath, "png-bytes");
+    writeFileSync(videoPath, "webm-bytes");
+
+    try {
+      const summary = summarizeArtifacts([imagePath, videoPath]);
+      expect(summary).toHaveLength(2);
+      expect(summary[0]).toMatchObject({
+        path: imagePath,
+        kind: "image",
+        bytes: 9,
+      });
+      expect(summary[1]).toMatchObject({
+        path: videoPath,
+        kind: "video",
+        bytes: 10,
+      });
+      expect(summary[0].modifiedAt).toMatch(/T/);
+      expect(summary[1].modifiedAt).toMatch(/T/);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });

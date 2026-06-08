@@ -49,6 +49,7 @@ Options:
   --out <dir>          Output directory. Default: ${DEFAULT_OUT}
   --surface <name>     mobile, desktop, or both. Default: mobile
   --video <path>       Judge an existing .webm instead of recording.
+  --artifacts <paths>  Comma-separated local evidence paths to summarize without recording.
   --judge <mode>       require, auto, or skip. Default: require
   --model <name>       Gemini model passed to the judge. Default: gemini-2.5-flash
   --report <path>      JSON summary path. Default: <out>/aesthetic-review-summary.json
@@ -141,6 +142,40 @@ function videoCandidates({ videoArg, recordJson, surface }) {
       throw new Error(`Recorder did not produce ${name} video at ${videoPath || "(missing path)"}`);
     }
     return { surface: name, path: path.resolve(ROOT, videoPath) };
+  });
+}
+
+function evidenceArtifacts(pathsValue) {
+  const values = String(pathsValue || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (!values.length) return [];
+  return values.map((value) => {
+    const abs = path.resolve(ROOT, value);
+    if (!fs.existsSync(abs)) {
+      throw new Error(`--artifacts path does not exist: ${abs}`);
+    }
+    return abs;
+  });
+}
+
+export function classifyArtifactKind(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if ([".webm", ".mp4"].includes(ext)) return "video";
+  if ([".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(ext)) return "image";
+  return "file";
+}
+
+export function summarizeArtifacts(artifactPaths) {
+  return artifactPaths.map((artifactPath) => {
+    const stat = fs.statSync(artifactPath);
+    return {
+      path: artifactPath,
+      kind: classifyArtifactKind(artifactPath),
+      bytes: stat.size,
+      modifiedAt: stat.mtime.toISOString(),
+    };
   });
 }
 
@@ -242,6 +277,7 @@ async function main() {
   const judgeMode = normalizeJudgeMode(args.get("judge"));
   const model = args.get("model") || "gemini-2.5-flash";
   const videoArg = args.get("video") || "";
+  const artifactArg = args.get("artifacts") || "";
   const outDir = path.resolve(ROOT, args.get("out") || DEFAULT_OUT);
   const reportPath = path.resolve(ROOT, args.get("report") || path.join(outDir, "aesthetic-review-summary.json"));
   const url = args.get("url") || DEFAULT_URL;
@@ -254,6 +290,7 @@ async function main() {
     judgeMode,
     model: judgeMode === "skip" ? null : model,
     videos: [],
+    artifacts: [],
     record: null,
     judges: [],
   };
@@ -262,8 +299,23 @@ async function main() {
     assertScriptExists(RECORDER);
     assertScriptExists(JUDGE);
 
+    const artifactPaths = evidenceArtifacts(artifactArg);
+    if (artifactPaths.length && videoArg) {
+      throw new Error("Use either --video or --artifacts, not both.");
+    }
+
     if (judgeMode === "require" && !hasGeminiKey()) {
       throw new Error("GEMINI_API_KEY not found in env or .env.local; use --judge skip for capture-only smoke.");
+    }
+
+    if (artifactPaths.length) {
+      summary.passed = null;
+      summary.url = null;
+      summary.artifacts = summarizeArtifacts(artifactPaths);
+      summary.judgeSkipped = "artifact-only";
+      writeSummary(summary, reportPath);
+      console.log(JSON.stringify(summary, null, 2));
+      return;
     }
 
     let recordJson = null;
