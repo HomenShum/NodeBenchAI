@@ -1354,10 +1354,10 @@ body[data-new-user="true"] .h-menu::after {
 /* Mobile tweaks */
 @media (max-width: 540px) {
   .h { padding: calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left)); }
-  .m { padding: 16px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
-  .hero { margin-bottom: 12px; }
-  .hero h1 { font-size: 22px; }
-  .hero-meta { font-size: 11px; max-width: 24ch; line-height: 1.35; }
+  .m { padding: 14px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
+  .hero { margin-bottom: 8px; }
+  .hero h1 { font-size: 21px; line-height: 1.05; }
+  .hero-meta { margin: 0; font-size: 11px; max-width: 22ch; line-height: 1.32; }
   .about-link { display: none; }
   /* Mobile: pin the composer to the bottom (Slack/Discord/iMessage convention — thumb reach,
      newest message sits right above where you type). Desktop keeps the sticky top command bar. */
@@ -1377,12 +1377,12 @@ body[data-new-user="true"] .h-menu::after {
   /* While typing: collapse non-essential chrome so input + feed stay visible above the keyboard. */
   body[data-input-focused="true"] .f,
   body[data-input-focused="true"] .welcome { display: none; }
-  .id-row { gap: 6px; padding: 0 0 8px; align-items: center; }
+  .id-row { gap: 6px; padding: 0 0 6px; align-items: center; }
   .id-avatar { width: 22px; height: 22px; font-size: 10px; }
   .id-label { display: none; }
   .id-text { min-width: 0; }
   .id-text b { font-size: 13px; }
-  .id-set { padding: 3px 0 3px 6px; font-size: 12px; }
+  .id-set { padding: 2px 0 2px 6px; font-size: 12px; }
   .demo-join-card { margin: 6px 0 10px; padding: 10px 12px; gap: 4px; border-radius: 16px; }
   .demo-join-card .title { font-size: 13px; }
   .demo-join-card .sub { font-size: 11px; line-height: 1.35; }
@@ -1399,7 +1399,7 @@ body[data-new-user="true"] .h-menu::after {
   .c-mode #c-mode-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   .c-mode .dot { width: 7px; height: 7px; }
   .feed-divider { display: none; }
-  .sn-room-toggle { margin-bottom: 8px; }
+  .sn-room-toggle { margin-bottom: 6px; padding: 2px; background: rgba(255,255,255,.025); }
   .sn-rt-btn { padding: 6px 11px; font-size: 11px; }
 }
 
@@ -1622,22 +1622,22 @@ body[data-role="attendee"] .host-queue { display: none; }
 .demo-step-banner .ph-num { background: var(--accent); color: #fff; padding: 1px 6px; border-radius: 100px; font-weight: 700; }
 @media (max-width: 540px) {
   .demo-step-banner {
-    top: calc(58px + var(--safe-top));
+    top: calc(56px + var(--safe-top));
     left: auto;
     right: calc(14px + var(--safe-right));
     transform: none;
-    max-width: min(52vw, 190px);
-    padding: 5px 9px;
-    gap: 6px;
-    border-color: rgba(217,119,87,.42);
-    background: rgba(21,20,19,.78);
-    box-shadow: 0 10px 28px rgba(0,0,0,.24);
+    max-width: min(40vw, 150px);
+    padding: 4px 8px;
+    gap: 5px;
+    border-color: rgba(217,119,87,.18);
+    background: rgba(21,20,19,.56);
+    box-shadow: 0 8px 22px rgba(0,0,0,.18);
     font-size: 9px;
-    letter-spacing: .05em;
+    letter-spacing: .04em;
+    color: rgba(232,230,227,.82);
   }
   .demo-step-banner .ph-num {
-    padding: 1px 5px;
-    flex-shrink: 0;
+    display: none;
   }
   .demo-step-banner .ph-label {
     min-width: 0;
