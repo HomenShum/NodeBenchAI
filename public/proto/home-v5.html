@@ -166,9 +166,10 @@ button:active { transform: scale(.97); transition: transform .08s; }
   .h-menu {
     width: 34px;
     height: 34px;
-    border: 1px solid rgba(255,255,255,.06);
-    background: rgba(255,255,255,.02);
-    color: var(--ink-muted);
+    border: 1px solid rgba(255,255,255,.04);
+    background: rgba(255,255,255,.015);
+    color: rgba(232,230,227,.72);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
   }
   .h-menu svg {
     width: 14px;
@@ -176,11 +177,12 @@ button:active { transform: scale(.97); transition: transform .08s; }
   }
   .h-code {
     min-height: 28px;
-    padding: 2px 8px;
-    background: rgba(255,255,255,.025);
-    color: var(--ink);
+    padding: 2px 7px;
+    background: rgba(255,255,255,.018);
+    border-color: rgba(255,255,255,.08);
+    color: rgba(232,230,227,.78);
     font-size: 10px;
-    letter-spacing: .08em;
+    letter-spacing: .07em;
   }
 }
 
@@ -1066,6 +1068,9 @@ body[data-new-user="true"] .h-menu::after {
   100% { box-shadow: 0 0 0 0 rgba(217,119,87,0); }
 }
 @media (prefers-reduced-motion: reduce) { body[data-new-user="true"] #lock::after, body[data-new-user="true"] .h-menu::after { animation: none; } }
+@media (max-width: 540px) {
+  body[data-new-user="true"] .h-menu::after { display: none; }
+}
 
 /* ─── Tooltip popover on first interaction ─── */
 .tip-popover {
