@@ -202,6 +202,28 @@ body[data-role="host"] .event-strip .ev-host-only { display: inline; }
     padding: 5px 14px;
     font-size: 11px;
     gap: 4px;
+    opacity: 0;
+    transform: translateY(-8px);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-bottom-color: transparent;
+    pointer-events: none;
+    transition:
+      opacity var(--motion-fast) var(--ease-out),
+      transform var(--motion-fast) var(--ease-out),
+      max-height var(--motion-fast) var(--ease-out),
+      padding var(--motion-fast) var(--ease-out),
+      border-color var(--motion-fast) var(--ease-out);
+  }
+  body[data-sn-mobile-strip="scrolled"] .event-strip {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 44px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border-bottom-color: var(--line);
+    pointer-events: auto;
   }
   .event-strip b {
     font-size: 11px;
@@ -7279,6 +7301,21 @@ function _updateComposerPlaceholder() {
 }
 // Re-run on resize so mode-driven placeholder updates stay in sync after layout changes.
 if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', _updateComposerPlaceholder);
+
+function _syncMobileEventStripVisibility() {
+  if (typeof document === 'undefined' || !document || !document.body) return;
+  if (typeof window === 'undefined' || !window.matchMedia) return;
+  if (!window.matchMedia('(max-width: 540px)').matches) {
+    document.body.removeAttribute('data-sn-mobile-strip');
+    return;
+  }
+  document.body.setAttribute('data-sn-mobile-strip', window.scrollY > 88 ? 'scrolled' : 'top');
+}
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('scroll', _syncMobileEventStripVisibility, { passive: true });
+  window.addEventListener('resize', _syncMobileEventStripVisibility);
+  window.addEventListener('load', _syncMobileEventStripVisibility);
+}
 
 // ─── Keyboard-aware composer (mobile) ───────────────────────────────
 // When the on-screen keyboard opens, the visual viewport shrinks while the
