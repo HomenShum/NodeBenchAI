@@ -772,10 +772,31 @@ describe("summarizeVisualEvidence", () => {
 
       expect(staleSummary.latestVisualArtifactPredatesHead).toBe(true);
       expect(staleSummary.latestAestheticReviewPredatesHead).toBe(true);
+      expect(staleSummary.latestVisualEvidenceHeadFreshnessRequired).toBe(true);
       expect(staleSummary.latestAestheticReviewCoverageGap).toBe(true);
       expect(staleSummary.latestAestheticReviewCoverageGapReason).toContain(
         "Latest visual artifact .validation/test-goal-loop-artifact-head/latest-mobile.png predates HEAD commit abc1234",
       );
+
+      const nonVisualHeadSummary = summarizeVisualEvidence(
+        {
+          passed: null,
+          judges: [],
+          judgeSkipped: "artifact-only",
+        },
+        {
+          currentHeadCommittedAt,
+          currentHeadShortSha: "abc1234",
+          currentHeadVisualEvidenceRelevant: false,
+          visualArtifactDirs: [".validation/test-goal-loop-artifact-head"],
+        },
+      );
+
+      expect(nonVisualHeadSummary.latestVisualArtifactPredatesHead).toBe(true);
+      expect(nonVisualHeadSummary.latestAestheticReviewPredatesHead).toBe(true);
+      expect(nonVisualHeadSummary.latestVisualEvidenceHeadFreshnessRequired).toBe(false);
+      expect(nonVisualHeadSummary.latestAestheticReviewCoverageGap).toBe(false);
+      expect(nonVisualHeadSummary.latestAestheticReviewCoverageGapReason).toBeNull();
     } finally {
       rmSync(validationDir, { recursive: true, force: true });
       if (hadExistingReview && existingReviewText != null) {
@@ -1107,11 +1128,40 @@ describe("summarizeGitBranchEvidence", () => {
 
 describe("summarizeGitHeadEvidence", () => {
   it("parses the current HEAD summary into sha and subject fields", () => {
-    expect(summarizeGitHeadEvidence("01fc7a01 summarize launch notification evidence\n")).toEqual({
+    expect(
+      summarizeGitHeadEvidence(
+        "01fc7a01 summarize launch notification evidence\n",
+        "2026-06-09T02:00:00-07:00",
+        "scripts/scratchnode/runLaunchGoalLoop.mjs\nscripts/scratchnode/runLaunchGoalLoop.test.mjs\n",
+      ),
+    ).toEqual({
       gitHeadSummary: "01fc7a01 summarize launch notification evidence",
       gitHeadShortSha: "01fc7a01",
       gitHeadSubject: "summarize launch notification evidence",
+      gitHeadCommittedAt: "2026-06-09T02:00:00-07:00",
+      gitHeadChangedPathCount: 2,
+      gitHeadChangedPaths: ["scripts/scratchnode/runLaunchGoalLoop.mjs", "scripts/scratchnode/runLaunchGoalLoop.test.mjs"],
+      gitHeadVisualEvidenceRelevant: false,
+      gitHeadVisualEvidenceRelevantPaths: [],
+    });
+  });
+
+  it("marks UI and aesthetic-review paths as visual-evidence relevant", () => {
+    expect(
+      summarizeGitHeadEvidence(
+        "7adbc123 improve mobile header\n",
+        null,
+        "public/proto/home-v5.html\nscripts/ui-aesthetic-review.mjs\nREADME.md\n",
+      ),
+    ).toEqual({
+      gitHeadSummary: "7adbc123 improve mobile header",
+      gitHeadShortSha: "7adbc123",
+      gitHeadSubject: "improve mobile header",
       gitHeadCommittedAt: null,
+      gitHeadChangedPathCount: 3,
+      gitHeadChangedPaths: ["README.md", "public/proto/home-v5.html", "scripts/ui-aesthetic-review.mjs"],
+      gitHeadVisualEvidenceRelevant: true,
+      gitHeadVisualEvidenceRelevantPaths: ["public/proto/home-v5.html", "scripts/ui-aesthetic-review.mjs"],
     });
   });
 
@@ -1121,6 +1171,10 @@ describe("summarizeGitHeadEvidence", () => {
       gitHeadShortSha: null,
       gitHeadSubject: null,
       gitHeadCommittedAt: null,
+      gitHeadChangedPathCount: 0,
+      gitHeadChangedPaths: [],
+      gitHeadVisualEvidenceRelevant: true,
+      gitHeadVisualEvidenceRelevantPaths: [],
     });
   });
 });
@@ -2003,9 +2057,13 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("latestVisualArtifactPath");
     expect(goalLoopEvidenceFieldNames).toContain("latestVisualArtifactStale");
     expect(goalLoopEvidenceFieldNames).toContain("latestVisualArtifactPredatesHead");
+    expect(goalLoopEvidenceFieldNames).toContain("latestVisualEvidenceHeadFreshnessRequired");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewStatus");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGap");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGapReason");
+    expect(goalLoopEvidenceFieldNames).toContain("gitHeadChangedPaths");
+    expect(goalLoopEvidenceFieldNames).toContain("gitHeadVisualEvidenceRelevant");
+    expect(goalLoopEvidenceFieldNames).toContain("gitHeadVisualEvidenceRelevantPaths");
     expect(goalLoopEvidenceFieldNames).toContain("notifyDecision");
     expect(goalLoopEvidenceFieldNames).toContain("notifyTrigger");
     expect(goalLoopEvidenceFieldNames).toContain("notifyActiveTriggers");
