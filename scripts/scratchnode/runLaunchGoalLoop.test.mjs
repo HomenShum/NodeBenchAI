@@ -1992,6 +1992,12 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodes");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodeHistory");
     expect(goalLoopEvidenceFieldNames).toContain("commandResultRows");
+    expect(goalLoopEvidenceFieldNames).toContain("latestVisualArtifactPath");
+    expect(goalLoopEvidenceFieldNames).toContain("latestVisualArtifactStale");
+    expect(goalLoopEvidenceFieldNames).toContain("latestVisualArtifactPredatesHead");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewStatus");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGap");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGapReason");
     expect(goalLoopEvidenceFieldNames).toContain("notifyDecision");
     expect(goalLoopEvidenceFieldNames).toContain("notifyTrigger");
     expect(goalLoopEvidenceFieldNames).toContain("notifyKnownCautionOnly");
