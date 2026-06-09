@@ -1056,6 +1056,7 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
     latestAestheticReviewPredatesHead && aestheticReviewStat
       ? Math.max(0, Number(((currentHeadCommittedAtMs - aestheticReviewStat.mtimeMs) / 1000).toFixed(3)))
       : null;
+  const aestheticReviewArtifactOnly = aestheticReviewJudgeSkippedReason === "artifact-only";
   const hasCoverageGap =
     headFreshnessRequired &&
     Boolean(
@@ -1064,6 +1065,7 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
       latestVisualArtifactPredatesHead ||
       latestAestheticReviewPredatesHead ||
       (latestArtifact && aestheticReviewExists && latestAestheticReviewStale) ||
+      aestheticReviewArtifactOnly ||
       usedArtifactFallback,
     );
   const aestheticReviewStatus = !aestheticReviewExists
@@ -1072,9 +1074,9 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
       ? "passed"
       : aestheticReviewPassed === false
         ? "failed"
-        : usedArtifactFallback
-          ? "artifact_fallback"
-        : aestheticReviewJudgeSkippedReason === "artifact-only"
+      : usedArtifactFallback
+        ? "artifact_fallback"
+        : aestheticReviewArtifactOnly
           ? "artifact_only"
         : "present_unknown";
 
@@ -1123,10 +1125,12 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
           ? `Latest visual artifact ${latestArtifact.path} is stale (${latestArtifact.ageSeconds}s old; threshold ${visualEvidenceFreshnessThresholdSeconds}s). Capture fresh visual evidence before treating the aesthetic state as current.`
           : latestVisualArtifactPredatesHead && latestArtifact
             ? `Latest visual artifact ${latestArtifact.path} predates HEAD commit ${context.currentHeadShortSha || "(unknown sha)"} by ${latestVisualArtifactPredatesHeadBySeconds}s. Capture fresh visual evidence for the current code before treating the aesthetic state as current.`
-            : latestAestheticReviewPredatesHead
+          : latestAestheticReviewPredatesHead
               ? `Aesthetic review summary ${reportPaths.aestheticReview} predates HEAD commit ${context.currentHeadShortSha || "(unknown sha)"} by ${latestAestheticReviewPredatesHeadBySeconds}s. Refresh the review before treating the aesthetic state as current.`
           : latestArtifact && latestAestheticReviewStale
             ? `Aesthetic review summary ${reportPaths.aestheticReview} is stale (${latestAestheticReviewAgeSeconds}s old; threshold ${visualEvidenceFreshnessThresholdSeconds}s) relative to current visual artifacts. Refresh the review before treating the aesthetic state as current.`
+            : aestheticReviewArtifactOnly
+              ? `Aesthetic review summary ${reportPaths.aestheticReview} only summarizes local artifacts without a judged capture. Run ${"npm run ui:aesthetic:review"} against the current surface before treating the aesthetic state as current.`
             : aestheticReviewStatus === "artifact_fallback"
               ? `Aesthetic review used artifact fallback instead of a live judged capture: ${aestheticReviewFallbackDetail || aestheticReviewFallbackReason || "fallback reason unavailable"}.`
             : null
