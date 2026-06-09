@@ -592,7 +592,7 @@ describe("summarizeCommandEvidence", () => {
 });
 
 describe("summarizeTopLevelCommandEvidence", () => {
-  it("promotes command exit codes to a top-level report alias", () => {
+  it("promotes command evidence to top-level report aliases", () => {
     const commandEvidence = summarizeCommandEvidence([
       { command: "npm run repo:housekeeping:check", exitCode: 0, durationMs: 1000 },
       { command: "npm run scratchnode:launch:interactive", exitCode: 1, durationMs: 2000 },
@@ -603,8 +603,16 @@ describe("summarizeTopLevelCommandEvidence", () => {
         "npm run repo:housekeeping:check": 0,
         "npm run scratchnode:launch:interactive": 1,
       },
+      minimumInvokerTimeoutMs: 240000,
+      recommendedInvokerTimeoutMs: 240000,
+      recommendedInvokerTimeoutSeconds: 240,
     });
-    expect(summarizeTopLevelCommandEvidence(null)).toEqual({ commandExitCodes: {} });
+    expect(summarizeTopLevelCommandEvidence(null)).toEqual({
+      commandExitCodes: {},
+      minimumInvokerTimeoutMs: null,
+      recommendedInvokerTimeoutMs: null,
+      recommendedInvokerTimeoutSeconds: null,
+    });
   });
 });
 

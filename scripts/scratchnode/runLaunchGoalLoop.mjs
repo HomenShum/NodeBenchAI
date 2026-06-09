@@ -921,8 +921,22 @@ export function summarizeTopLevelCommandEvidence(commandEvidence) {
     !Array.isArray(commandEvidence.commandExitCodes)
       ? commandEvidence.commandExitCodes
       : {};
+  const minimumInvokerTimeoutMs = Number.isFinite(Number(commandEvidence?.minimumInvokerTimeoutMs))
+    ? Number(commandEvidence.minimumInvokerTimeoutMs)
+    : null;
+  const recommendedInvokerTimeoutMs = Number.isFinite(Number(commandEvidence?.recommendedInvokerTimeoutMs))
+    ? Number(commandEvidence.recommendedInvokerTimeoutMs)
+    : null;
+  const recommendedInvokerTimeoutSeconds = Number.isFinite(recommendedInvokerTimeoutMs)
+    ? Math.ceil(recommendedInvokerTimeoutMs / 1_000)
+    : null;
 
-  return { commandExitCodes };
+  return {
+    commandExitCodes,
+    minimumInvokerTimeoutMs,
+    recommendedInvokerTimeoutMs,
+    recommendedInvokerTimeoutSeconds,
+  };
 }
 
 export function summarizeSourceReportEvidence(housekeepingReport) {
