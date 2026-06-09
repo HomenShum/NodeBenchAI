@@ -983,7 +983,9 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
     Array.isArray(context.visualArtifactDirs) && context.visualArtifactDirs.length > 0
       ? context.visualArtifactDirs
       : [".validation", ".tmp/scratchnode-aesthetic-review"];
-  const visualArtifacts = visualArtifactDirs.flatMap((relativeDir) => collectVisualArtifacts(relativeDir));
+  const visualArtifacts = visualArtifactDirs
+    .flatMap((relativeDir) => collectVisualArtifacts(relativeDir))
+    .sort((left, right) => right.modifiedAtMs - left.modifiedAtMs || left.path.localeCompare(right.path));
   const latestArtifact = visualArtifacts[0] ?? null;
   const aestheticReviewAbsolutePath = resolve(repoRoot, reportPaths.aestheticReview);
   const aestheticReviewExists = existsSync(aestheticReviewAbsolutePath);

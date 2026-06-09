@@ -697,6 +697,40 @@ describe("summarizeVisualEvidence", () => {
     }
   });
 
+  it("sorts visual artifacts globally across configured evidence directories", () => {
+    const olderDir = resolve(process.cwd(), ".validation", "test-goal-loop-cross-dir-old");
+    const newerDir = resolve(process.cwd(), ".tmp", "test-goal-loop-cross-dir-new");
+    const olderImagePath = resolve(olderDir, "older-mobile.png");
+    const newerVideoPath = resolve(newerDir, "newer-review.webm");
+    const olderTime = new Date("2026-06-01T12:00:00.000Z");
+    const newerTime = new Date("2099-01-02T00:00:00.000Z");
+
+    mkdirSync(olderDir, { recursive: true });
+    mkdirSync(newerDir, { recursive: true });
+    writeFileSync(olderImagePath, "older-image", "utf8");
+    writeFileSync(newerVideoPath, "newer-video", "utf8");
+    utimesSync(olderImagePath, olderTime, olderTime);
+    utimesSync(newerVideoPath, newerTime, newerTime);
+
+    try {
+      const summary = summarizeVisualEvidence(null, {
+        visualArtifactDirs: [
+          ".validation/test-goal-loop-cross-dir-old",
+          ".tmp/test-goal-loop-cross-dir-new",
+        ],
+      });
+
+      expect(summary.latestVisualArtifactCount).toBe(2);
+      expect(summary.latestVisualArtifactPath).toBe(".tmp/test-goal-loop-cross-dir-new/newer-review.webm");
+      expect(summary.latestVisualArtifactKind).toBe("video");
+      expect(summary.latestVisualArtifactModifiedAt).toBe("2099-01-02T00:00:00.000Z");
+      expect(summary.latestVisualArtifactStale).toBe(false);
+    } finally {
+      rmSync(olderDir, { recursive: true, force: true });
+      rmSync(newerDir, { recursive: true, force: true });
+    }
+  });
+
   it("flags a coverage gap when fresh visual artifacts exist without an aesthetic review summary", () => {
     const validationDir = resolve(process.cwd(), ".validation", "test-goal-loop-gap");
     const latestImagePath = resolve(validationDir, "latest-mobile.png");
