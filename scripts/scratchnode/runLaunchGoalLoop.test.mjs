@@ -648,7 +648,15 @@ describe("summarizeVisualEvidence", () => {
       reviewPath,
       `${JSON.stringify({
         passed: false,
-        judges: [{ surface: "mobile", passed: false }],
+        judges: [
+          {
+            surface: "mobile",
+            passed: false,
+            readiness_score: 42,
+            verdict: "needs_work",
+            issues: ["Timestamp labels are too small.", "Trace details feel dense."],
+          },
+        ],
         failure: { code: "network_access_denied" },
       })}\n`,
       "utf8",
@@ -661,7 +669,15 @@ describe("summarizeVisualEvidence", () => {
       const summary = summarizeVisualEvidence(
         {
           passed: false,
-          judges: [{ surface: "mobile", passed: false }],
+          judges: [
+            {
+              surface: "mobile",
+              passed: false,
+              readiness_score: 42,
+              verdict: "needs_work",
+              issues: ["Timestamp labels are too small.", "Trace details feel dense."],
+            },
+          ],
           failure: { code: "network_access_denied" },
         },
         {
@@ -683,6 +699,14 @@ describe("summarizeVisualEvidence", () => {
       expect(summary.latestAestheticReviewStale).toBe(false);
       expect(summary.latestAestheticReviewPassed).toBe(false);
       expect(summary.latestAestheticReviewJudgeCount).toBe(1);
+      expect(summary.latestAestheticReviewReadinessScores).toEqual([42]);
+      expect(summary.latestAestheticReviewMinReadinessScore).toBe(42);
+      expect(summary.latestAestheticReviewVerdicts).toEqual(["needs_work"]);
+      expect(summary.latestAestheticReviewIssueCount).toBe(2);
+      expect(summary.latestAestheticReviewIssues).toEqual([
+        "Timestamp labels are too small.",
+        "Trace details feel dense.",
+      ]);
       expect(summary.latestAestheticReviewFailureCode).toBe("network_access_denied");
       expect(summary.latestAestheticReviewStatus).toBe("failed");
       expect(summary.latestAestheticReviewCoverageGap).toBe(false);
@@ -2367,6 +2391,11 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("latestVisualArtifactPredatesHead");
     expect(goalLoopEvidenceFieldNames).toContain("latestVisualEvidenceHeadFreshnessRequired");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewStatus");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewReadinessScores");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMinReadinessScore");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewVerdicts");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewIssueCount");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewIssues");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGap");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGapReason");
     expect(goalLoopEvidenceFieldNames).toContain("gitHeadChangedPaths");

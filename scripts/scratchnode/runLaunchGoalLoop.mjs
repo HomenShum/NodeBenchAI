@@ -220,6 +220,11 @@ export const goalLoopEvidenceFieldNames = [
   "latestAestheticReviewPredatesHeadBySeconds",
   "latestAestheticReviewPassed",
   "latestAestheticReviewJudgeCount",
+  "latestAestheticReviewReadinessScores",
+  "latestAestheticReviewMinReadinessScore",
+  "latestAestheticReviewVerdicts",
+  "latestAestheticReviewIssueCount",
+  "latestAestheticReviewIssues",
   "latestAestheticReviewJudgeSkippedReason",
   "latestAestheticReviewFallback",
   "latestAestheticReviewFallbackDetail",
@@ -1011,6 +1016,24 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
   const latestAestheticReviewAgeSeconds = aestheticReviewStat
     ? Math.max(0, Number(((Date.now() - aestheticReviewStat.mtimeMs) / 1000).toFixed(3)))
     : null;
+  const aestheticReviewReadinessScores = judges
+    .map((judge) => Number(judge?.readiness_score))
+    .filter((score) => Number.isFinite(score));
+  const aestheticReviewVerdicts = [
+    ...new Set(
+      judges
+        .map((judge) => (typeof judge?.verdict === "string" ? judge.verdict.trim() : ""))
+        .filter(Boolean),
+    ),
+  ].sort();
+  const aestheticReviewIssues = [
+    ...new Set(
+      judges
+        .flatMap((judge) => (Array.isArray(judge?.issues) ? judge.issues : []))
+        .map((issue) => (typeof issue === "string" ? issue.trim() : ""))
+        .filter(Boolean),
+    ),
+  ].sort();
   const currentHeadCommittedAtRaw =
     typeof context.currentHeadCommittedAt === "string" && context.currentHeadCommittedAt.trim()
       ? context.currentHeadCommittedAt.trim()
@@ -1075,6 +1098,12 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
     latestAestheticReviewPredatesHeadBySeconds,
     latestAestheticReviewPassed: aestheticReviewPassed,
     latestAestheticReviewJudgeCount: judges.length,
+    latestAestheticReviewReadinessScores: aestheticReviewReadinessScores,
+    latestAestheticReviewMinReadinessScore:
+      aestheticReviewReadinessScores.length > 0 ? Math.min(...aestheticReviewReadinessScores) : null,
+    latestAestheticReviewVerdicts: aestheticReviewVerdicts,
+    latestAestheticReviewIssueCount: aestheticReviewIssues.length,
+    latestAestheticReviewIssues: aestheticReviewIssues,
     latestAestheticReviewJudgeSkippedReason: aestheticReviewJudgeSkippedReason,
     latestAestheticReviewFallback: aestheticReviewStatus === "artifact_fallback",
     latestAestheticReviewFallbackDetail:
