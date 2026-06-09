@@ -851,6 +851,23 @@ describe("summarizeVisualEvidence", () => {
       expect(summary.latestAestheticReviewCoverageGapReason).toMatch(
         /^Latest visual artifact \.validation\/test-goal-loop-stale\/latest-mobile\.png is stale \(\d+(\.\d+)?s old; threshold 3600s\)\./,
       );
+
+      const nonVisualHeadSummary = summarizeVisualEvidence(
+        {
+          passed: true,
+          judges: [{ surface: "mobile", passed: true }],
+        },
+        {
+          currentHeadVisualEvidenceRelevant: false,
+          visualArtifactDirs: [".validation/test-goal-loop-stale"],
+        },
+      );
+
+      expect(nonVisualHeadSummary.latestVisualArtifactStale).toBe(true);
+      expect(nonVisualHeadSummary.latestAestheticReviewStale).toBe(true);
+      expect(nonVisualHeadSummary.latestVisualEvidenceHeadFreshnessRequired).toBe(false);
+      expect(nonVisualHeadSummary.latestAestheticReviewCoverageGap).toBe(false);
+      expect(nonVisualHeadSummary.latestAestheticReviewCoverageGapReason).toBeNull();
     } finally {
       rmSync(validationDir, { recursive: true, force: true });
       if (hadExistingReview && existingReviewText != null) {

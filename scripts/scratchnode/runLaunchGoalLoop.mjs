@@ -1006,14 +1006,16 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
     latestAestheticReviewPredatesHead && aestheticReviewStat
       ? Math.max(0, Number(((currentHeadCommittedAtMs - aestheticReviewStat.mtimeMs) / 1000).toFixed(3)))
       : null;
-  const hasCoverageGap = Boolean(
-    (latestArtifact && !aestheticReviewExists) ||
+  const hasCoverageGap =
+    headFreshnessRequired &&
+    Boolean(
+      (latestArtifact && !aestheticReviewExists) ||
       latestArtifactStale ||
-      (headFreshnessRequired && latestVisualArtifactPredatesHead) ||
-      (headFreshnessRequired && latestAestheticReviewPredatesHead) ||
+      latestVisualArtifactPredatesHead ||
+      latestAestheticReviewPredatesHead ||
       (latestArtifact && aestheticReviewExists && latestAestheticReviewStale) ||
       usedArtifactFallback,
-  );
+    );
   const aestheticReviewStatus = !aestheticReviewExists
     ? "missing"
     : aestheticReviewPassed === true
