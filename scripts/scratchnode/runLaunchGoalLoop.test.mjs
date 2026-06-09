@@ -1545,6 +1545,7 @@ describe("summarizeDevelopmentBacklogEvidence", () => {
         "npm run repo:augment:check",
         "npm run scratchnode:launch:goal",
       ],
+      developmentBacklogSuggestedVerificationDuplicateCommandCount: 1,
       developmentBacklogSuggestedVerificationDuplicateCommands: ["git diff --check"],
       developmentBacklogMissingSuggestedVerificationCount: 2,
       developmentBacklogMissingSuggestedVerificationIds: ["attention-2", "drift-4"],
