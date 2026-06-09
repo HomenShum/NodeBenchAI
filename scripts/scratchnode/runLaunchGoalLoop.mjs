@@ -51,6 +51,16 @@ const activeCodingGoalRequiredSections = [
   "Rollback plan",
 ];
 
+export const requiredTmpReportPaths = Object.freeze([
+  reportPaths.housekeeping,
+  reportPaths.launch,
+  reportPaths.augment,
+  reportPaths.housekeepingLoop,
+  reportPaths.localHistory,
+  reportPaths.goalLoop,
+  reportPaths.aestheticReview,
+]);
+
 export const goalLoopEvidenceFieldNames = [
   "schemaVersion",
   "reportSchemaVersion",
@@ -2022,13 +2032,7 @@ async function main() {
     await run("git", [
       "check-ignore",
       "-v",
-      reportPaths.housekeeping,
-      reportPaths.launch,
-      reportPaths.augment,
-      reportPaths.housekeepingLoop,
-      reportPaths.localHistory,
-      reportPaths.goalLoop,
-      reportPaths.aestheticReview,
+      ...requiredTmpReportPaths,
     ]),
   );
 
@@ -2043,7 +2047,7 @@ async function main() {
   const gitHeadCommittedAt = commands.find((command) => command.command === "git show -s --format=%cI HEAD")?.stdout.trim() ?? "";
   const gitHeadChangedPaths = commands.find((command) => command.command === "git show --name-only --pretty=format: HEAD")?.stdout ?? "";
   const ignoreCheck = commands.find((command) => command.command.startsWith("git check-ignore"));
-  const tmpIgnoreEvidence = summarizeTmpIgnoreEvidence(ignoreCheck, Object.values(reportPaths));
+  const tmpIgnoreEvidence = summarizeTmpIgnoreEvidence(ignoreCheck, requiredTmpReportPaths);
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
   const actionableAttention = actionableAttentionItems(housekeepingReport);
   const launchRelevantBlockers = housekeepingReport?.operatorSummary?.launchRelevantBlockers ?? [];

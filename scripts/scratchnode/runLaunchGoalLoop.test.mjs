@@ -35,6 +35,7 @@ import {
   summarizeTmpIgnoreEvidence,
   summarizeWorkflowModelEvidence,
   goalLoopEvidenceFieldNames,
+  requiredTmpReportPaths,
 } from "./runLaunchGoalLoop.mjs";
 
 describe("classifyGoalCardMode", () => {
@@ -1403,6 +1404,15 @@ Revert the slice.
       activeCodingGoalSections: ["Problem"],
       activeCodingGoalReady: false,
     });
+  });
+});
+
+describe("requiredTmpReportPaths", () => {
+  it("keeps optional operator scratch evidence out of the required tmp report probe", () => {
+    expect(requiredTmpReportPaths).toContain(".tmp/workspace-housekeeping-verification.json");
+    expect(requiredTmpReportPaths).toContain(".tmp/scratchnode-launch-goal-loop.json");
+    expect(requiredTmpReportPaths).toContain(".tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json");
+    expect(requiredTmpReportPaths).not.toContain(".tmp/active-coding-goal.md");
   });
 });
 
