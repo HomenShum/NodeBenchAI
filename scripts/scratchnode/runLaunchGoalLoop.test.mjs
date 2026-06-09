@@ -707,6 +707,85 @@ describe("summarizeVisualEvidence", () => {
     }
   });
 
+  it("treats artifact-only aesthetic evidence as current only when it does not predate HEAD", () => {
+    const validationDir = resolve(process.cwd(), ".validation", "test-goal-loop-artifact-head");
+    const reviewDir = resolve(process.cwd(), ".tmp", "scratchnode-aesthetic-review");
+    const latestImagePath = resolve(validationDir, "latest-mobile.png");
+    const reviewPath = resolve(reviewDir, "aesthetic-review-summary.json");
+    const currentHeadCommittedAt = "2099-01-04T00:00:00.000Z";
+    const afterHeadTime = new Date("2099-01-04T00:00:02.000Z");
+    const beforeHeadTime = new Date("2099-01-03T23:59:58.000Z");
+    const hadExistingReview = existsSync(reviewPath);
+    const existingReviewText = hadExistingReview ? readFileSync(reviewPath, "utf8") : null;
+
+    mkdirSync(validationDir, { recursive: true });
+    mkdirSync(reviewDir, { recursive: true });
+    writeFileSync(latestImagePath, "latest-image", "utf8");
+    writeFileSync(
+      reviewPath,
+      `${JSON.stringify({
+        passed: null,
+        judges: [],
+        judgeSkipped: "artifact-only",
+      })}\n`,
+      "utf8",
+    );
+
+    try {
+      utimesSync(latestImagePath, afterHeadTime, afterHeadTime);
+      utimesSync(reviewPath, afterHeadTime, afterHeadTime);
+
+      const currentSummary = summarizeVisualEvidence(
+        {
+          passed: null,
+          judges: [],
+          judgeSkipped: "artifact-only",
+        },
+        {
+          currentHeadCommittedAt,
+          currentHeadShortSha: "abc1234",
+          visualArtifactDirs: [".validation/test-goal-loop-artifact-head"],
+        },
+      );
+
+      expect(currentSummary.latestAestheticReviewStatus).toBe("artifact_only");
+      expect(currentSummary.latestVisualArtifactPredatesHead).toBe(false);
+      expect(currentSummary.latestAestheticReviewPredatesHead).toBe(false);
+      expect(currentSummary.latestAestheticReviewCoverageGap).toBe(false);
+      expect(currentSummary.latestAestheticReviewCoverageGapReason).toBeNull();
+
+      utimesSync(latestImagePath, beforeHeadTime, beforeHeadTime);
+      utimesSync(reviewPath, beforeHeadTime, beforeHeadTime);
+
+      const staleSummary = summarizeVisualEvidence(
+        {
+          passed: null,
+          judges: [],
+          judgeSkipped: "artifact-only",
+        },
+        {
+          currentHeadCommittedAt,
+          currentHeadShortSha: "abc1234",
+          visualArtifactDirs: [".validation/test-goal-loop-artifact-head"],
+        },
+      );
+
+      expect(staleSummary.latestVisualArtifactPredatesHead).toBe(true);
+      expect(staleSummary.latestAestheticReviewPredatesHead).toBe(true);
+      expect(staleSummary.latestAestheticReviewCoverageGap).toBe(true);
+      expect(staleSummary.latestAestheticReviewCoverageGapReason).toContain(
+        "Latest visual artifact .validation/test-goal-loop-artifact-head/latest-mobile.png predates HEAD commit abc1234",
+      );
+    } finally {
+      rmSync(validationDir, { recursive: true, force: true });
+      if (hadExistingReview && existingReviewText != null) {
+        writeFileSync(reviewPath, existingReviewText, "utf8");
+      } else if (existsSync(reviewPath)) {
+        unlinkSync(reviewPath);
+      }
+    }
+  });
+
   it("flags stale aesthetic evidence when the freshest artifact is older than the freshness threshold", () => {
     const validationDir = resolve(process.cwd(), ".validation", "test-goal-loop-stale");
     const reviewDir = resolve(process.cwd(), ".tmp", "scratchnode-aesthetic-review");
