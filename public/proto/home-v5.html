@@ -959,25 +959,31 @@ body[data-mode="private"] .private-notes-inline[data-count]:not([data-count="0"]
 
 /* Reuse / cost-summary line — "Ask once, answer many" surfaced visibly */
 .ans-reuse {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
-  margin-top: 8px; padding: 5px 9px;
-  background: rgba(94,168,103,.075);
-  border: 1px solid rgba(94,168,103,.26);
-  border-radius: 100px;
-  font-family: var(--mono); font-size: 10px;
-  color: #9fd3a4;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+  margin-top: 8px; padding: 8px 10px;
+  background: linear-gradient(180deg, rgba(94,168,103,.09), rgba(19,22,24,.86));
+  border: 1px solid rgba(94,168,103,.18);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+  font-family: var(--mono); font-size: 10px; line-height: 1.45;
+  color: rgba(230,224,217,.78);
 }
-.ans-reuse b { color: var(--ink); font-weight: 800; }
+.ans-reuse b { color: #fbf6f1; font-weight: 800; }
 .ans-reuse .pin,
+.ans-reuse .meta,
 .ans-reuse .pulled,
 .ans-reuse .priv,
 .ans-reuse .miss {
-  padding: 1px 6px; border-radius: 999px; font-weight: 700;
+  display: inline-flex; align-items: center;
+  min-height: 20px;
+  padding: 1px 7px; border-radius: 999px; font-weight: 700;
   background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.055);
 }
-.ans-reuse .pin { color: #b9e7bd; background: rgba(94,168,103,.12); border-color: rgba(94,168,103,.26); }
-.ans-reuse .sep { color: rgba(230,224,217,.42); }
-.ans-reuse .priv { color: #d9c7ff; background: rgba(167,139,250,.11); border-color: rgba(167,139,250,.24); }
+.ans-reuse .pin { color: #d5f2d8; background: rgba(94,168,103,.14); border-color: rgba(94,168,103,.24); }
+.ans-reuse .metric { color: rgba(240,236,231,.86); }
+.ans-reuse .meta { color: rgba(232,226,220,.72); background: rgba(255,255,255,.025); border-color: rgba(255,255,255,.05); }
+.ans-reuse .sep { display: none; }
+.ans-reuse .priv { color: #e0d3ff; background: rgba(167,139,250,.11); border-color: rgba(167,139,250,.22); }
 .ans-reuse .pulled { color: #f1aa86; background: rgba(217,119,87,.12); border-color: rgba(217,119,87,.25); }
 .ans-reuse .miss { color: #ffd982; background: rgba(251,191,36,.12); border-color: rgba(251,191,36,.25); }
 
@@ -4877,7 +4883,7 @@ function streamAgentAnswer(intent, identity, time) {
       '<div class="ans-q"></div>' +
       '<div class="ans-body">Based on the event corpus and 38 indexed sources, here\'s what I found. The current consensus from this session covers related aspects across multiple speakers. Cross-referenced with 3 sources from the event knowledge base.</div>' +
       '<div class="ans-sources"><span>event corpus</span><span>panel transcript</span><span>3 backlinks</span><span>3 of 3 verified</span></div>' +
-      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">Answered from event wiki</span><span class="sep">·</span><span><b>' + sim + '</b> similar</span><span class="sep">·</span><span><b>' + reused + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>0</b> new searches</span><span class="sep">·</span><span class="priv">' + privBadge + '</span></div>' +
+      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">Event wiki answer</span><span class="metric"><b>' + sim + '</b> similar</span><span class="metric"><b>' + reused + '</b> reused</span><span class="pulled"><b>0</b> new searches</span><span class="priv">' + privBadge + '</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace →</button>' +
       '<div class="ans-how"><div class="step"><span class="c">✓</span><span>Checked event wiki cache · sourceBundle fresh</span></div><div class="step"><span class="c">✓</span><span>Matched ' + sim + ' similar questions in semantic cache</span></div><div class="step"><span class="c">✓</span><span>Reused ' + reused + ' sources from event corpus</span></div><div class="step"><span class="c">✓</span><span>0 new searches · Linkup skipped</span></div><div class="step"><span class="c">✓</span><span>' + traceLastStep + '</span></div></div>' +
       '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="toast(\'Suggested for FAQ\',\'The host will review and add it to the wiki.\')">★ Suggest for FAQ</button><button type="button" class="primary host-only" onclick="toast(\'Promoted to FAQ\',\'Now in the wiki.\')">★ Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki →</button> <button type="button" onclick="shareAnswerLink(\'demo-answer\')">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
@@ -6547,7 +6553,7 @@ if (_DEBUG_HELPERS_ON) window.simAsk = function(name, question, answerText, sour
       '<div class="ans-q"></div>' +
       '<div class="ans-body"></div>' +
       '<div class="ans-sources">' + srcChips + '<span>3 of 3 verified</span></div>' +
-      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">Answered from event wiki</span><span class="sep">·</span><span><b>' + sim + '</b> similar</span><span class="sep">·</span><span><b>' + reused + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>0</b> new searches</span><span class="sep">·</span><span class="priv">🔒 no private notes</span></div>' +
+      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">Event wiki answer</span><span class="metric"><b>' + sim + '</b> similar</span><span class="metric"><b>' + reused + '</b> reused</span><span class="pulled"><b>0</b> new searches</span><span class="priv">🔒 no private notes</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
       '<div class="ans-how"><div class="step"><span class="c">&check;</span><span>Checked event wiki cache · sourceBundle fresh</span></div><div class="step"><span class="c">&check;</span><span>Matched ' + sim + ' similar questions in semantic cache</span></div><div class="step"><span class="c">&check;</span><span>Reused ' + reused + ' sources from event corpus</span></div><div class="step"><span class="c">&check;</span><span>0 new searches · Linkup skipped</span></div><div class="step"><span class="c">&check;</span><span>No private notes used · public layer only</span></div></div>' +
       '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="toast(\'Suggested for FAQ\',\'The host will review and add it to the wiki.\'); haptic();">★ Suggest for FAQ</button><button type="button" class="primary host-only" onclick="toast(\'Promoted to FAQ\',\'Now in the wiki.\'); haptic();">★ Promote to FAQ</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="shareAnswerLink(\'demo-answer\')">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
@@ -8213,7 +8219,7 @@ window._laCueAction       = _laCueAction;
       '<div class="ans-q"></div>' +
       '<div class="ans-body"></div>' +
       '<div class="ans-sources">' + (sourceChips || '<span>public event corpus</span>') + '<span>' + sourceCount + ' sources</span></div>' +
-      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">' + agentLabel + '</span><span class="sep">·</span><span><b>' + sourceCount + '</b> reused</span><span class="sep">·</span><span class="pulled"><b>' + liveSearches + '</b> live searches</span><span class="sep">·</span><span>' + costLabel + '</span><span class="sep">·</span><span>' + qualityLabel + '</span><span class="sep">·</span><span class="priv">private notes excluded</span></div>' +
+      '<div class="ans-reuse" aria-label="Reuse summary"><span class="pin">' + agentLabel + '</span><span class="metric"><b>' + sourceCount + '</b> reused</span><span class="pulled"><b>' + liveSearches + '</b> live searches</span><span class="meta">' + costLabel + '</span><span class="meta">' + qualityLabel + '</span><span class="priv">private notes excluded</span></div>' +
       '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
       '<div class="ans-how">' + trace + traceBoundary + '</div>' +
       '<div class="ans-actions"><button type="button" class="primary attendee-only" onclick="window.snSuggestFaq && window.snSuggestFaq(\'' + answer._id + '\')">Suggest for FAQ</button><button type="button" class="primary host-only" onclick="window.snPromoteFaq && window.snPromoteFaq(\'' + answer._id + '\')">Promote to FAQ</button> <button type="button" class="sn-pin" onclick="window.snWall && window.snWall.pinAnswer(\'' + answer._id + '\')">&#128204; Pin to wall</button> <button type="button" onclick="openWiki()">View in wiki &rarr;</button> <button type="button" onclick="window._snShareAnswer(\'' + answer._id + '\')">Share</button> <button type="button" onclick="document.getElementById(\'ci\').focus()">Follow-up</button></div>';
@@ -9925,14 +9931,10 @@ window._laCueAction       = _laCueAction;
         '<div class="ans-body"></div>' +
         '<div class="ans-sources">' + srcChips + '<span>' + sources.length + ' of ' + sources.length + ' verified</span></div>' +
         '<div class="ans-reuse" aria-label="Reuse summary">' +
-          '<span class="pin">Answered from event wiki</span>' +
-          '<span class="sep">·</span>' +
-          '<span><b>' + reuse.similar + '</b> similar</span>' +
-          '<span class="sep">·</span>' +
-          '<span><b>' + reuse.reused + '</b> reused</span>' +
-          '<span class="sep">·</span>' +
+          '<span class="pin">Event wiki answer</span>' +
+          '<span class="metric"><b>' + reuse.similar + '</b> similar</span>' +
+          '<span class="metric"><b>' + reuse.reused + '</b> reused</span>' +
           '<span class="pulled"><b>' + reuse.newSearches + '</b> new searches</span>' +
-          '<span class="sep">·</span>' +
           '<span class="priv">🔒 no private notes</span>' +
         '</div>' +
         '<button class="ans-show" type="button" aria-expanded="false" onclick="toggleHow(this)">Show trace &rarr;</button>' +
