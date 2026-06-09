@@ -2241,6 +2241,11 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationResolvedScriptRefs");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationTargetPaths");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateVerificationMissingTargetPaths");
+    expect(goalLoopEvidenceFieldNames).toContain("knownCautionCount");
+    expect(goalLoopEvidenceFieldNames).toContain("actionableAttentionCount");
+    expect(goalLoopEvidenceFieldNames).toContain("launchRelevantBlockerCount");
+    expect(goalLoopEvidenceFieldNames).toContain("queuedGoalCount");
+    expect(goalLoopEvidenceFieldNames).toContain("gitDriftClean");
     expect(goalLoopEvidenceFieldNames).toContain("commandOccurrenceCounts");
     expect(goalLoopEvidenceFieldNames).toContain("duplicateCommandNames");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodes");
