@@ -1062,6 +1062,11 @@ describe("summarizeTmpIgnoreEvidence", () => {
     expect(summary).toEqual({
       tmpIgnoreProbePassed: true,
       tmpIgnoreProbeExpectedCount: 3,
+      tmpIgnoreProbeExpectedPaths: [
+        ".tmp/scratchnode-launch-goal-loop.json",
+        ".tmp/scratchnode-launch-scan.json",
+        ".tmp/workspace-housekeeping-verification.json",
+      ],
       tmpIgnoreProbeCount: 2,
       tmpIgnoreProbeMissingPaths: [".tmp/scratchnode-launch-goal-loop.json"],
       tmpIgnoredReportPaths: [".tmp/scratchnode-launch-scan.json", ".tmp/workspace-housekeeping-verification.json"],

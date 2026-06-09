@@ -260,6 +260,7 @@ export const goalLoopEvidenceFieldNames = [
   "launchSuppressedRemoteProbeFailureNames",
   "tmpIgnoreProbePassed",
   "tmpIgnoreProbeExpectedCount",
+  "tmpIgnoreProbeExpectedPaths",
   "tmpIgnoreProbeCount",
   "tmpIgnoreProbeMissingPaths",
   "tmpIgnoredReportPaths",
@@ -1280,6 +1281,7 @@ export function summarizeTmpIgnoreEvidence(ignoreCheck, expectedPaths = []) {
   return {
     tmpIgnoreProbePassed: ignoreCheck?.exitCode === 0,
     tmpIgnoreProbeExpectedCount: expectedReportPaths.length,
+    tmpIgnoreProbeExpectedPaths: [...expectedReportPaths].sort(),
     tmpIgnoreProbeCount: ignoredPaths.length,
     tmpIgnoreProbeMissingPaths: expectedReportPaths
       .filter((path) => !normalizedIgnoredPaths.has(normalizeEvidencePath(path)))
