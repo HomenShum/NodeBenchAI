@@ -28,6 +28,7 @@ import {
   summarizeRequiredReportStructureEvidence,
   summarizeReportMetadataEvidence,
   summarizeReportSchemaEvidence,
+  summarizeActiveCodingGoalEvidence,
   summarizeSourceReportEvidence,
   summarizeVisualEvidence,
   summarizeVerificationEntryPointEvidence,
@@ -1328,6 +1329,83 @@ describe("summarizeReportMetadataEvidence", () => {
   });
 });
 
+describe("summarizeActiveCodingGoalEvidence", () => {
+  it("reports a complete closed goal card as ready", () => {
+    const summary = summarizeActiveCodingGoalEvidence(
+      `# Closed Goal
+
+## Problem
+One issue.
+
+## Why it matters
+Automation evidence quality.
+
+## Scope
+Allowed files:
+
+## Non-goals
+No extra work.
+
+## Definition of done
+Verified.
+
+## Risk class
+LOW
+
+## Rollback plan
+Revert the slice.
+`,
+      { path: ".tmp/active-coding-goal.md" },
+    );
+
+    expect(summary).toEqual({
+      activeCodingGoalPath: ".tmp/active-coding-goal.md",
+      activeCodingGoalExists: true,
+      activeCodingGoalHasClosedGoalHeading: true,
+      activeCodingGoalSectionCount: 7,
+      activeCodingGoalSections: [
+        "Problem",
+        "Why it matters",
+        "Scope",
+        "Non-goals",
+        "Definition of done",
+        "Risk class",
+        "Rollback plan",
+      ],
+      activeCodingGoalMissingSections: [],
+      activeCodingGoalReady: true,
+    });
+  });
+
+  it("reports missing and malformed goal cards without failing closed", () => {
+    expect(summarizeActiveCodingGoalEvidence(null)).toEqual({
+      activeCodingGoalPath: ".tmp/active-coding-goal.md",
+      activeCodingGoalExists: false,
+      activeCodingGoalHasClosedGoalHeading: false,
+      activeCodingGoalSectionCount: 0,
+      activeCodingGoalSections: [],
+      activeCodingGoalMissingSections: [
+        "Problem",
+        "Why it matters",
+        "Scope",
+        "Non-goals",
+        "Definition of done",
+        "Risk class",
+        "Rollback plan",
+      ],
+      activeCodingGoalReady: false,
+    });
+
+    expect(summarizeActiveCodingGoalEvidence("# Goal\n\n## Problem\nPartial.")).toMatchObject({
+      activeCodingGoalExists: true,
+      activeCodingGoalHasClosedGoalHeading: false,
+      activeCodingGoalSectionCount: 1,
+      activeCodingGoalSections: ["Problem"],
+      activeCodingGoalReady: false,
+    });
+  });
+});
+
 describe("summarizeRequiredReportStructureEvidence", () => {
   it("proves the nested housekeeping and launch summary structures are present", () => {
     expect(
@@ -2040,6 +2118,10 @@ describe("summarizeGoalQueueEvidence", () => {
 
 describe("goalLoopEvidenceFieldNames", () => {
   it("keeps the launch-scan evidence contract centralized", () => {
+    expect(goalLoopEvidenceFieldNames).toContain("activeCodingGoalPath");
+    expect(goalLoopEvidenceFieldNames).toContain("activeCodingGoalExists");
+    expect(goalLoopEvidenceFieldNames).toContain("activeCodingGoalReady");
+    expect(goalLoopEvidenceFieldNames).toContain("activeCodingGoalMissingSections");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidate");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateActionabilityReason");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateHasSourcePath");

@@ -39,11 +39,30 @@ const reportPaths = {
   aestheticReview: ".tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json",
 };
 
+const activeCodingGoalReportPath = ".tmp/active-coding-goal.md";
+
+const activeCodingGoalRequiredSections = [
+  "Problem",
+  "Why it matters",
+  "Scope",
+  "Non-goals",
+  "Definition of done",
+  "Risk class",
+  "Rollback plan",
+];
+
 export const goalLoopEvidenceFieldNames = [
   "schemaVersion",
   "reportSchemaVersion",
   "reportGeneratedAt",
   "reportPath",
+  "activeCodingGoalPath",
+  "activeCodingGoalExists",
+  "activeCodingGoalHasClosedGoalHeading",
+  "activeCodingGoalSectionCount",
+  "activeCodingGoalSections",
+  "activeCodingGoalMissingSections",
+  "activeCodingGoalReady",
   "goalId",
   "goalSourceRefCount",
   "goalSourceRefs",
@@ -313,6 +332,12 @@ function readJson(relativePath) {
   } catch (error) {
     return { parseError: error instanceof Error ? error.message : String(error) };
   }
+}
+
+function readText(relativePath) {
+  const absolutePath = resolve(repoRoot, relativePath);
+  if (!existsSync(absolutePath)) return null;
+  return readFileSync(absolutePath, "utf8").replace(/^\uFEFF/, "");
 }
 
 function run(command, commandArgs, options = {}) {
@@ -1415,6 +1440,34 @@ export function summarizeReportMetadataEvidence({ generatedAt, reportPath }) {
   };
 }
 
+export function summarizeActiveCodingGoalEvidence(activeGoalText, options = {}) {
+  const activeCodingGoalPath = String(options.path ?? activeCodingGoalReportPath).trim() || null;
+  const text = typeof activeGoalText === "string" ? activeGoalText : null;
+  const sections =
+    text === null
+      ? []
+      : [
+          ...new Set(
+            text
+              .split(/\r?\n/)
+              .map((line) => line.match(/^##\s+(.+?)\s*$/)?.[1]?.trim())
+              .filter(Boolean),
+          ),
+        ];
+  const hasClosedGoalHeading = text !== null && /^#\s+Closed Goal\s*$/im.test(text);
+  const missingSections = activeCodingGoalRequiredSections.filter((section) => !sections.includes(section));
+
+  return {
+    activeCodingGoalPath,
+    activeCodingGoalExists: text !== null,
+    activeCodingGoalHasClosedGoalHeading: hasClosedGoalHeading,
+    activeCodingGoalSectionCount: sections.length,
+    activeCodingGoalSections: sections,
+    activeCodingGoalMissingSections: missingSections,
+    activeCodingGoalReady: text !== null && hasClosedGoalHeading && missingSections.length === 0,
+  };
+}
+
 export function summarizeGoalEvidence(goal) {
   const sourceRefs = Array.isArray(goal?.sourceRefs) ? goal.sourceRefs.filter(Boolean) : [];
   const successCriteria = Array.isArray(goal?.successCriteria) ? goal.successCriteria.filter(Boolean) : [];
@@ -1956,6 +2009,7 @@ export function summarizePreviousGoalLoopEvidence(previousGoalLoopReport, curren
 
 async function main() {
   const previousGoalLoopReport = readJson(reportPaths.goalLoop);
+  const activeCodingGoalText = readText(activeCodingGoalReportPath);
   const commands = [];
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
   commands.push(await run("npm", ["run", "scratchnode:launch:interactive"]));
@@ -2150,6 +2204,9 @@ async function main() {
     visualEvidence,
   });
   const reportSchemaEvidence = summarizeReportSchemaEvidence(reportSchemaVersion);
+  const activeCodingGoalEvidence = summarizeActiveCodingGoalEvidence(activeCodingGoalText, {
+    path: activeCodingGoalReportPath,
+  });
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);
   const knownCautionEvidence = summarizeKnownCautionEvidence(knownCautions);
@@ -2207,6 +2264,7 @@ async function main() {
       ...notificationEvidence,
       failures: criteria.filter((criterion) => !criterion.ok).map((criterion) => criterion.name),
       ...criteriaEvidence,
+      ...activeCodingGoalEvidence,
       ...backlogEvidence,
       ...goalQueueEvidence,
       knownCautionCount: knownCautions.length,
