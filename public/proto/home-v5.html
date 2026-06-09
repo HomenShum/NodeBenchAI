@@ -294,6 +294,30 @@ body[data-role="host"] .event-strip .ev-host-only { display: inline; }
   pointer-events: none;
   transition: opacity var(--motion-med) var(--ease-out), visibility 0s linear var(--motion-med);
 }
+.sn-room-entry::before,
+.sn-room-entry::after {
+  content: "";
+  position: absolute;
+  inset: auto;
+  border-radius: 999px;
+  pointer-events: none;
+  filter: blur(12px);
+  opacity: .72;
+}
+.sn-room-entry::before {
+  width: 220px;
+  height: 220px;
+  left: clamp(-40px, 8vw, 56px);
+  bottom: 18vh;
+  background: radial-gradient(circle, rgba(94,168,103,.18), rgba(94,168,103,0));
+}
+.sn-room-entry::after {
+  width: 260px;
+  height: 260px;
+  right: clamp(-70px, 5vw, 24px);
+  top: 14vh;
+  background: radial-gradient(circle, rgba(217,119,87,.16), rgba(217,119,87,0));
+}
 body[data-page-mode="event"]:not([data-sn-room-ready="true"]) .sn-room-entry {
   display: flex;
   opacity: 1;
@@ -381,13 +405,26 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__pane
 }
 .sn-room-entry__card {
   margin-top: 8px;
-  padding: 20px 18px;
+  position: relative;
+  overflow: hidden;
+  padding: 22px 18px 18px;
   border-radius: 24px;
   border: 1px solid rgba(255,255,255,.08);
   background:
     linear-gradient(145deg, rgba(255,255,255,.05), rgba(255,255,255,.02)),
     radial-gradient(circle at top left, rgba(217,119,87,.16), transparent 34%);
   box-shadow: 0 24px 70px rgba(0,0,0,.28);
+}
+.sn-room-entry__card::after {
+  content: "";
+  position: absolute;
+  inset: auto -8% -32% auto;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.09), rgba(255,255,255,0));
+  opacity: .38;
+  pointer-events: none;
 }
 .sn-room-entry__eyebrow {
   margin: 0 0 10px;
@@ -412,10 +449,11 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__pane
 .sn-room-entry__status {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   margin-top: 18px;
   color: var(--ink);
   font-size: 13px;
+  font-weight: 600;
 }
 .sn-room-entry__status::before {
   content: '';
@@ -426,21 +464,82 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__pane
   box-shadow: 0 0 0 0 rgba(217,119,87,.38);
   animation: roomEntryPulse 1.8s ease-out infinite;
 }
+.sn-room-entry__status-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.05);
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
 .sn-room-entry__skeletons {
-  margin-top: 18px;
+  margin-top: 20px;
   display: grid;
+  gap: 12px;
+}
+.sn-room-entry__preview {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
   gap: 10px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.025);
+}
+.sn-room-entry__preview-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.08);
+  background:
+    radial-gradient(circle at 32% 30%, rgba(255,255,255,.14), rgba(255,255,255,0)),
+    rgba(255,255,255,.035);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+}
+.sn-room-entry__preview-lines {
+  display: grid;
+  gap: 8px;
 }
 .sn-room-entry__skeleton {
-  height: 14px;
+  height: 10px;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.11), rgba(255,255,255,.04));
   background-size: 180% 100%;
   animation: roomEntrySheen 1.2s linear infinite;
 }
+.sn-room-entry__skeleton.w24 { width: 24%; }
 .sn-room-entry__skeleton.w40 { width: 40%; }
 .sn-room-entry__skeleton.w58 { width: 58%; }
+.sn-room-entry__skeleton.w72 { width: 72%; }
 .sn-room-entry__skeleton.w84 { width: 84%; }
+.sn-room-entry__cue-row {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.sn-room-entry__cue {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.035);
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.sn-room-entry__cue strong {
+  color: var(--ink);
+  font-weight: 600;
+}
 .sn-room-entry__foot {
   margin-top: 14px;
   display: flex;
@@ -468,6 +567,9 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__pane
   .sn-room-entry__card { padding: 18px 16px; border-radius: 22px; }
   .sn-room-entry__title { font-size: clamp(28px, 11vw, 40px); }
   .sn-room-entry__sub { font-size: 14px; }
+  .sn-room-entry__status { flex-wrap: wrap; }
+  .sn-room-entry__preview { grid-template-columns: 24px minmax(0, 1fr); padding: 9px 10px; border-radius: 16px; }
+  .sn-room-entry__preview-badge { width: 24px; height: 24px; }
   .sn-room-entry__foot {
     flex-direction: column;
     align-items: flex-start;
@@ -475,6 +577,11 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__pane
 }
 @media (prefers-reduced-motion: reduce) {
   .sn-room-entry { transition: none; }
+  .sn-room-entry::before,
+  .sn-room-entry::after,
+  .sn-room-entry__card::after {
+    display: none;
+  }
   .sn-room-entry__status::before,
   .sn-room-entry__skeleton { animation: none; }
 }
@@ -3704,11 +3811,33 @@ if (document.readyState === 'loading') {
       <p class="sn-room-entry__eyebrow">Joining live room</p>
       <h1 class="sn-room-entry__title" id="sn-room-entry-title">AI Infra Summit</h1>
       <p class="sn-room-entry__sub" id="sn-room-entry-sub">Public chat, sourced answers, and private notes stay clearly separated.</p>
-      <div class="sn-room-entry__status">Connecting the public room and first live updates…</div>
+      <div class="sn-room-entry__status">Connecting the public room and first live updates… <span class="sn-room-entry__status-label">Public room only</span></div>
       <div class="sn-room-entry__skeletons" aria-hidden="true">
-        <div class="sn-room-entry__skeleton w84"></div>
-        <div class="sn-room-entry__skeleton w58"></div>
-        <div class="sn-room-entry__skeleton w40"></div>
+        <div class="sn-room-entry__preview">
+          <span class="sn-room-entry__preview-badge"></span>
+          <span class="sn-room-entry__preview-lines">
+            <span class="sn-room-entry__skeleton w72"></span>
+            <span class="sn-room-entry__skeleton w40"></span>
+          </span>
+        </div>
+        <div class="sn-room-entry__preview">
+          <span class="sn-room-entry__preview-badge"></span>
+          <span class="sn-room-entry__preview-lines">
+            <span class="sn-room-entry__skeleton w84"></span>
+            <span class="sn-room-entry__skeleton w58"></span>
+          </span>
+        </div>
+        <div class="sn-room-entry__preview">
+          <span class="sn-room-entry__preview-badge"></span>
+          <span class="sn-room-entry__preview-lines">
+            <span class="sn-room-entry__skeleton w58"></span>
+            <span class="sn-room-entry__skeleton w24"></span>
+          </span>
+        </div>
+      </div>
+      <div class="sn-room-entry__cue-row">
+        <span class="sn-room-entry__cue"><strong>Room code stays visible.</strong></span>
+        <span class="sn-room-entry__cue">No private notes used · public layer only.</span>
       </div>
     </div>
     <div class="sn-room-entry__foot">

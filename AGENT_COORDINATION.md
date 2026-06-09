@@ -135,6 +135,7 @@ Server Error) for an unknown slug.
 
 ## Recently shipped (this ScratchNode session)
 
+- **2026-06-08 Codex** - room-entry skeleton polish (`home-v5.html#room-entry-skeleton-polish`): refined the `/e/:slug` cold-boot shell with structured preview rows, compact public-only trust cues, and softer ambient depth so the event room feels intentional before live data settles. Visual evidence: `.validation/scratchnode-entry-shell-before.png` -> `.validation/scratchnode-entry-shell-after-2026-06-08-polish.png`.
 - **2026-06-08 Codex** - room-entry transition polish (`home-v5.html#room-entry-transition`): the event-room entry shell now exits through a short settling state instead of dropping away on a single timer flip, keeping room code, LIVE, and privacy cues visible while the live room appears underneath. Visual evidence: `.validation/scratchnode-entry-shell-before.png` -> `.validation/scratchnode-entry-shell-after-this-cycle.png`.
 - **2026-06-07 Codex** - answer reuse/live-search indicator contrast polish (`home-v5.html#answer-reuse-indicators`): stronger answer-card reuse summary tokens with no trace wording or public/private behavior changes. Local demo aesthetic review improved from 70 to 75.
 - **2026-06-07 Codex** - mobile chat metadata/trace-control polish (`home-v5.html#chat-metadata-trace-control`): slightly stronger mobile timestamps plus larger answer trace toggle hit area. No private/public behavior changes; verified with local read-only aesthetic review against `/e/ai-infra-summit-2026`.
