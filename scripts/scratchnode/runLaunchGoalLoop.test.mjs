@@ -1550,6 +1550,7 @@ describe("summarizeDevelopmentBacklogEvidence", () => {
       developmentBacklogSourcePaths: ["missing/backlog-source.md", "scripts/scratchnode/runLaunchGoalLoop.mjs"],
       developmentBacklogMissingSourcePathCount: 1,
       developmentBacklogMissingSourcePaths: [{ id: "goal-3", path: "missing/backlog-source.md" }],
+      developmentBacklogSourcePathReady: false,
       developmentBacklogSuggestedVerificationCommandCount: 4,
       developmentBacklogSuggestedVerificationUniqueCommandCount: 3,
       developmentBacklogSuggestedVerificationCommands: [
@@ -1581,6 +1582,24 @@ describe("summarizeDevelopmentBacklogEvidence", () => {
       developmentBacklogSuggestedVerificationDuplicateCommandCount: 0,
       developmentBacklogMissingSuggestedVerificationCount: 0,
       developmentBacklogSuggestedVerificationReady: true,
+    });
+  });
+
+  it("marks backlog source paths ready when every entry points at an existing file", () => {
+    expect(
+      summarizeDevelopmentBacklogEvidence([
+        {
+          id: "goal-1",
+          mode: "safe-local-development",
+          priority: "P1",
+          sourcePath: "scripts/scratchnode/runLaunchGoalLoop.mjs",
+          suggestedVerification: ["npm run scratchnode:launch:goal"],
+        },
+      ]),
+    ).toMatchObject({
+      developmentBacklogSourcePathCount: 1,
+      developmentBacklogMissingSourcePathCount: 0,
+      developmentBacklogSourcePathReady: true,
     });
   });
 });

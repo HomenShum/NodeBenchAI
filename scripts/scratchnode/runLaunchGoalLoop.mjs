@@ -123,6 +123,7 @@ export const goalLoopEvidenceFieldNames = [
   "developmentBacklogSourcePaths",
   "developmentBacklogMissingSourcePathCount",
   "developmentBacklogMissingSourcePaths",
+  "developmentBacklogSourcePathReady",
   "developmentBacklogSuggestedVerificationCommandCount",
   "developmentBacklogSuggestedVerificationUniqueCommandCount",
   "developmentBacklogSuggestedVerificationCommands",
@@ -1581,6 +1582,8 @@ export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
     developmentBacklogSourcePaths: sourcePaths,
     developmentBacklogMissingSourcePathCount: missingSourcePathEntries.length,
     developmentBacklogMissingSourcePaths: missingSourcePathEntries,
+    developmentBacklogSourcePathReady:
+      sourcePathEntries.length === developmentBacklog.length && missingSourcePathEntries.length === 0,
     developmentBacklogSuggestedVerificationCommandCount: suggestedVerificationCommandCount,
     developmentBacklogSuggestedVerificationUniqueCommandCount: suggestedVerificationCommands.length,
     developmentBacklogSuggestedVerificationCommands: suggestedVerificationCommands,
