@@ -1480,23 +1480,23 @@ body[data-new-user="true"] .h-menu::after {
   .h { padding: calc(8px + var(--safe-top)) calc(13px + var(--safe-right)) 8px calc(13px + var(--safe-left)); }
   .m { padding: 8px calc(13px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(13px + var(--safe-left)); }
   .hero {
-    margin-bottom: 2px;
+    margin-bottom: 0;
   }
   .hero-head {
     grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-    column-gap: 8px;
-    row-gap: 2px;
+    align-items: start;
+    column-gap: 7px;
+    row-gap: 1px;
   }
   .hero-copy {
-    gap: 1px;
+    gap: 0;
   }
   .hero h1 {
-    font-size: 15px;
-    line-height: .96;
+    font-size: 14px;
+    line-height: .94;
     letter-spacing: -.04em;
     margin-bottom: 0;
-    max-width: 12ch;
+    max-width: 15ch;
   }
   .hero-meta {
     display: none;
@@ -1521,27 +1521,36 @@ body[data-new-user="true"] .h-menu::after {
   body[data-input-focused="true"] .f,
   body[data-input-focused="true"] .welcome { display: none; }
   .id-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    justify-content: start;
-    gap: 2px;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    column-gap: 6px;
+    row-gap: 1px;
     padding: 0;
-    align-items: center;
   }
   .id-avatar { display: none; }
   .id-label { display: none; }
-  .id-text { min-width: 0; gap: 0; align-items: baseline; }
-  .id-text b { font-size: 9.5px; line-height: 1; color: rgba(232,230,227,.72); }
+  .id-text {
+    min-width: 0;
+    gap: 0;
+    align-items: baseline;
+    flex: 0 1 auto;
+  }
+  .id-text b {
+    font-size: 10px;
+    line-height: 1;
+    color: rgba(232,230,227,.72);
+  }
   .id-set {
     min-height: auto;
     padding: 0;
     border-radius: 999px;
     border: 0;
     background: transparent;
-    font-size: 8px;
+    font-size: 8.5px;
     line-height: 1;
     color: rgba(241,138,97,.68);
-    justify-self: start;
   }
   .id-set:hover { background: transparent; color: var(--accent); }
   .demo-join-card {
@@ -1570,14 +1579,14 @@ body[data-new-user="true"] .h-menu::after {
   .c-mode .dot { width: 7px; height: 7px; }
   .feed-divider { display: none; }
   .sn-room-toggle {
-    margin: 0 0 1px auto;
+    margin: 0 0 0 auto;
     padding: 1px;
     background: rgba(255,255,255,.012);
     border-color: rgba(255,255,255,.06);
-    align-self: end;
+    align-self: start;
   }
   .sn-rt-btn {
-    padding: 4px 8px;
+    padding: 4px 7px;
     font-size: 9px;
     letter-spacing: .01em;
   }
