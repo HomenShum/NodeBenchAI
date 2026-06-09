@@ -130,6 +130,7 @@ export const goalLoopEvidenceFieldNames = [
   "developmentBacklogSuggestedVerificationDuplicateCommands",
   "developmentBacklogMissingSuggestedVerificationCount",
   "developmentBacklogMissingSuggestedVerificationIds",
+  "developmentBacklogSuggestedVerificationReady",
   "goalQueueCount",
   "goalQueueStatusCounts",
   "goalQueueModeCounts",
@@ -1587,6 +1588,8 @@ export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
     developmentBacklogSuggestedVerificationDuplicateCommands: duplicateSuggestedVerificationCommands,
     developmentBacklogMissingSuggestedVerificationCount: missingSuggestedVerificationIds.length,
     developmentBacklogMissingSuggestedVerificationIds: missingSuggestedVerificationIds,
+    developmentBacklogSuggestedVerificationReady:
+      missingSuggestedVerificationIds.length === 0 && duplicateSuggestedVerificationCommands.length === 0,
   };
 }
 

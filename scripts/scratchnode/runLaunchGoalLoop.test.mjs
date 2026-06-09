@@ -1561,6 +1561,26 @@ describe("summarizeDevelopmentBacklogEvidence", () => {
       developmentBacklogSuggestedVerificationDuplicateCommands: ["git diff --check"],
       developmentBacklogMissingSuggestedVerificationCount: 2,
       developmentBacklogMissingSuggestedVerificationIds: ["attention-2", "drift-4"],
+      developmentBacklogSuggestedVerificationReady: false,
+    });
+  });
+
+  it("marks backlog suggested verification ready when entries have non-duplicated commands", () => {
+    expect(
+      summarizeDevelopmentBacklogEvidence([
+        {
+          id: "goal-1",
+          mode: "safe-local-development",
+          priority: "P1",
+          suggestedVerification: ["npm run scratchnode:launch:goal", "git diff --check"],
+        },
+      ]),
+    ).toMatchObject({
+      developmentBacklogSuggestedVerificationCommandCount: 2,
+      developmentBacklogSuggestedVerificationUniqueCommandCount: 2,
+      developmentBacklogSuggestedVerificationDuplicateCommandCount: 0,
+      developmentBacklogMissingSuggestedVerificationCount: 0,
+      developmentBacklogSuggestedVerificationReady: true,
     });
   });
 });
