@@ -147,6 +147,9 @@ export const goalLoopEvidenceFieldNames = [
   "knownCautionLockedPaths",
   "knownCautionMissingPaths",
   "knownCautionGitInaccessiblePaths",
+  "knownCautionStructuredCount",
+  "knownCautionMissingMetadataCount",
+  "knownCautionMissingMetadata",
   "invalidRegisteredWorktreePaths",
   "explicitPruneCautionWorktreePaths",
   "explicitPruneCautionWorktreePathReasons",
@@ -1661,6 +1664,18 @@ export function summarizeKnownCautionEvidence(knownCautions) {
   const cautionRecommendedActions = cautionEntries
     .map((entry) => String(entry?.recommendedAction ?? "").trim())
     .filter(Boolean);
+  const cautionMissingMetadata = cautionEntries
+    .map((entry) => ({
+      path: String(entry?.path ?? "").trim() || "(missing path)",
+      missingFields: [
+        String(entry?.path ?? "").trim() ? null : "path",
+        String(entry?.reason ?? "").trim() ? null : "reason",
+        String(entry?.sourceReport ?? "").trim() ? null : "sourceReport",
+        String(entry?.recommendedAction ?? "").trim() ? null : "recommendedAction",
+      ].filter(Boolean),
+    }))
+    .filter((entry) => entry.missingFields.length > 0)
+    .sort((left, right) => left.path.localeCompare(right.path));
   const entriesMatchingReason = (pattern) => cautionPathReasons.filter((entry) => pattern.test(entry.reason));
   const pathsMatchingReason = (pattern) =>
     entriesMatchingReason(pattern)
@@ -1695,6 +1710,9 @@ export function summarizeKnownCautionEvidence(knownCautions) {
       .map((entry) => entry.path)
       .filter(Boolean)
       .sort(),
+    knownCautionStructuredCount: cautionEntries.length - cautionMissingMetadata.length,
+    knownCautionMissingMetadataCount: cautionMissingMetadata.length,
+    knownCautionMissingMetadata: cautionMissingMetadata,
     invalidRegisteredWorktreePaths: pathsMatchingReason(/invalid registered worktree/i),
     explicitPruneCautionWorktreePaths: pathsMatchingReason(/explicit prune only/i),
     explicitPruneCautionWorktreePathReasons: entriesMatchingReason(/explicit prune only/i),
@@ -2156,6 +2174,7 @@ async function main() {
     developmentCandidate?.suggestedVerification,
     packageJson,
   );
+  const knownCautionEvidence = summarizeKnownCautionEvidence(knownCautions);
   const requiredReportLoadEvidence = summarizeRequiredReportLoadEvidence({
     housekeeping: housekeepingReport,
     launch: launchReport,
@@ -2212,6 +2231,17 @@ async function main() {
     ),
     buildCriterion("no launch-relevant blockers remain", launchRelevantBlockers.length === 0, launchRelevantBlockers.join("; ")),
     buildCriterion("no actionable attention items remain", actionableAttention.length === 0, actionableAttention.join("; ")),
+    buildCriterion(
+      "known caution entries stay structured when present",
+      knownCautionEvidence.knownCautionMissingMetadataCount === 0,
+      knownCautionEvidence.knownCautionMissingMetadataCount === 0
+        ? knownCautionEvidence.knownCautionCount > 0
+          ? `entries=${knownCautionEvidence.knownCautionCount}`
+          : ""
+        : knownCautionEvidence.knownCautionMissingMetadata
+            .map((entry) => `${entry.path}: missing ${entry.missingFields.join(",")}`)
+            .join("; "),
+    ),
     buildCriterion(
       "development candidate verification entrypoints stay valid",
       developmentCandidate == null ||
@@ -2298,7 +2328,6 @@ async function main() {
   });
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);
-  const knownCautionEvidence = summarizeKnownCautionEvidence(knownCautions);
   const knownCautionSuppressionEvidence = summarizeKnownCautionSuppressionEvidence({
     housekeepingReport,
     knownCautions,

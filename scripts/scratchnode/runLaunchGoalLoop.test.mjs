@@ -279,6 +279,63 @@ describe("knownCautionEntries", () => {
   });
 });
 
+describe("summarizeKnownCautionEvidence", () => {
+  it("records fully structured caution metadata without false gaps", () => {
+    expect(
+      summarizeKnownCautionEvidence([
+        {
+          path: ".worktrees/p0-row-delta",
+          reason: "invalid registered worktree; inspect git metadata first",
+          sourceReport: ".tmp/local-history-map-reduce.json",
+          recommendedAction: "Inspect git worktree metadata before any prune or removal.",
+          branch: "refs/heads/fix/spreadsheet-operation-validate",
+          dirty: false,
+          locked: false,
+          exists: true,
+          gitUsable: false,
+        },
+      ]),
+    ).toMatchObject({
+      knownCautionPaths: [".worktrees/p0-row-delta"],
+      knownCautionStructuredCount: 1,
+      knownCautionMissingMetadataCount: 0,
+      knownCautionMissingMetadata: [],
+      invalidRegisteredWorktreePaths: [".worktrees/p0-row-delta"],
+    });
+  });
+
+  it("surfaces which operator fields are missing from caution entries", () => {
+    expect(
+      summarizeKnownCautionEvidence([
+        {
+          path: ".worktrees/p0-row-delta",
+          reason: "",
+          sourceReport: "",
+          recommendedAction: "Inspect git worktree metadata before any prune or removal.",
+        },
+        {
+          reason: "invalid registered worktree; inspect git metadata first",
+          sourceReport: ".tmp/local-history-map-reduce.json",
+          recommendedAction: "",
+        },
+      ]),
+    ).toMatchObject({
+      knownCautionStructuredCount: 0,
+      knownCautionMissingMetadataCount: 2,
+      knownCautionMissingMetadata: [
+        {
+          path: ".worktrees/p0-row-delta",
+          missingFields: ["reason", "sourceReport"],
+        },
+        {
+          path: "(missing path)",
+          missingFields: ["path", "recommendedAction"],
+        },
+      ],
+    });
+  });
+});
+
 describe("summarizeCommandEvidence", () => {
   it("summarizes command exits, failures, and timing", () => {
     const summary = summarizeCommandEvidence(
@@ -601,11 +658,16 @@ describe("summarizeVisualEvidence", () => {
     utimesSync(reviewPath, latestTime, latestTime);
 
     try {
-      const summary = summarizeVisualEvidence({
-        passed: false,
-        judges: [{ surface: "mobile", passed: false }],
-        failure: { code: "network_access_denied" },
-      });
+      const summary = summarizeVisualEvidence(
+        {
+          passed: false,
+          judges: [{ surface: "mobile", passed: false }],
+          failure: { code: "network_access_denied" },
+        },
+        {
+          visualArtifactDirs: [".validation/test-goal-loop-visual"],
+        },
+      );
 
       expect(summary.latestVisualArtifactCount).toBeGreaterThan(1);
       expect(summary.latestVisualArtifactPath).toBe(".validation/test-goal-loop-visual/latest-mobile.png");
@@ -651,7 +713,9 @@ describe("summarizeVisualEvidence", () => {
     }
 
     try {
-      const summary = summarizeVisualEvidence(null);
+      const summary = summarizeVisualEvidence(null, {
+        visualArtifactDirs: [".validation/test-goal-loop-gap"],
+      });
 
       expect(summary.latestVisualArtifactPath).toBe(".validation/test-goal-loop-gap/latest-mobile.png");
       expect(summary.latestAestheticReviewReportPath).toBeNull();
@@ -697,11 +761,16 @@ describe("summarizeVisualEvidence", () => {
     utimesSync(reviewPath, latestTime, latestTime);
 
     try {
-      const summary = summarizeVisualEvidence({
-        passed: null,
-        judges: [],
-        judgeSkipped: "artifact-only",
-      });
+      const summary = summarizeVisualEvidence(
+        {
+          passed: null,
+          judges: [],
+          judgeSkipped: "artifact-only",
+        },
+        {
+          visualArtifactDirs: [".validation/test-goal-loop-artifact-only"],
+        },
+      );
 
       expect(summary.latestVisualArtifactPath).toBe(".validation/test-goal-loop-artifact-only/latest-mobile.png");
       expect(summary.latestAestheticReviewPassed).toBeNull();
@@ -726,9 +795,10 @@ describe("summarizeVisualEvidence", () => {
     const reviewDir = resolve(process.cwd(), ".tmp", "scratchnode-aesthetic-review");
     const latestImagePath = resolve(validationDir, "latest-mobile.png");
     const reviewPath = resolve(reviewDir, "aesthetic-review-summary.json");
-    const currentHeadCommittedAt = "2099-01-04T00:00:00.000Z";
-    const afterHeadTime = new Date("2099-01-04T00:00:02.000Z");
-    const beforeHeadTime = new Date("2099-01-03T23:59:58.000Z");
+    const headCommittedAtMs = Date.now() - 60_000;
+    const currentHeadCommittedAt = new Date(headCommittedAtMs).toISOString();
+    const afterHeadTime = new Date(headCommittedAtMs + 2_000);
+    const beforeHeadTime = new Date(headCommittedAtMs - 2_000);
     const hadExistingReview = existsSync(reviewPath);
     const existingReviewText = hadExistingReview ? readFileSync(reviewPath, "utf8") : null;
 
@@ -1676,7 +1746,7 @@ describe("summarizeKnownCautionEvidence", () => {
       },
     ]);
 
-    expect(summary).toEqual({
+    expect(summary).toMatchObject({
       knownCautionPaths: [".worktrees/keep-clean", ".worktrees/p0-row-delta"],
       knownCautionPathReasons: [
         {
@@ -1707,6 +1777,9 @@ describe("summarizeKnownCautionEvidence", () => {
       knownCautionLockedPaths: [".worktrees/keep-clean"],
       knownCautionMissingPaths: [".worktrees/keep-clean"],
       knownCautionGitInaccessiblePaths: [".worktrees/p0-row-delta"],
+      knownCautionStructuredCount: 2,
+      knownCautionMissingMetadataCount: 0,
+      knownCautionMissingMetadata: [],
       invalidRegisteredWorktreePaths: [".worktrees/p0-row-delta"],
       explicitPruneCautionWorktreePaths: [".worktrees/keep-clean"],
       explicitPruneCautionWorktreePathReasons: [
@@ -2279,6 +2352,9 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionLockedPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionMissingPaths");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionGitInaccessiblePaths");
+    expect(goalLoopEvidenceFieldNames).toContain("knownCautionStructuredCount");
+    expect(goalLoopEvidenceFieldNames).toContain("knownCautionMissingMetadataCount");
+    expect(goalLoopEvidenceFieldNames).toContain("knownCautionMissingMetadata");
     expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopSummaryAvailable");
     expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopParseError");
     expect(goalLoopEvidenceFieldNames).toContain("previousGoalLoopHeadShortSha");
