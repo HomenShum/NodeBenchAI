@@ -6736,6 +6736,14 @@ document.addEventListener('keydown', function(e) {
 // Curated avatar palette — every color is legible with a white initial AND as name text on the
 // dark surface (verified contrast); no orange/terracotta so the ScratchNode bot avatar stays unique.
 var AVATAR_PALETTE = ['#5b73c9','#8d62c4','#b566a0','#b5566e','#4a8fb0','#3f9488','#5a9450','#b07d2e'];
+function snAuthorGroupKey(value) {
+  value = String(value || '').trim();
+  if (!value) return '';
+  var h = 0;
+  for (var i = 0; i < value.length; i++) h = (h * 31 + value.charCodeAt(i)) >>> 0;
+  return 'ak_' + h.toString(36);
+}
+window.snAuthorGroupKey = snAuthorGroupKey;
 // Deterministic avatar color from an author name (Discord-style); honors explicit name colors/roles.
 function avatarColorFor(nameEl, nm) {
   var c = (nameEl && nameEl.style && nameEl.style.color) || '';
@@ -6779,11 +6787,19 @@ function decorateRow(row, opts) {
       bodyEl.insertBefore(head, bodyEl.firstChild);
       var styleAttr = nameEl.getAttribute('style') || '';
       if (styleAttr.indexOf('color') === -1 && !nameEl.getAttribute('data-role')) nameEl.style.color = col;
-      // Group consecutive messages from the same named author (skip generic "Anonymous" to avoid merging distinct guests)
+      // Group consecutive live rows by stable author key first. Fall back to display names for seeded/demo rows.
       var prev = row.previousElementSibling;
-      if (prev && prev.classList && prev.classList.contains('row') && nm && !/^anon/i.test(nm)) {
+      if (prev && prev.classList && prev.classList.contains('row')) {
         var prevName = prev.querySelector('.row-name');
-        if (prevName && (prevName.textContent || '').trim() === nm) row.classList.add('row--grouped');
+        var rowKey = row.getAttribute('data-author-key') || '';
+        var prevKey = prev.getAttribute('data-author-key') || '';
+        var sameAuthor = false;
+        if (rowKey && prevKey) {
+          sameAuthor = rowKey === prevKey;
+        } else if (prevName && nm && !/^anon/i.test(nm)) {
+          sameAuthor = (prevName.textContent || '').trim() === nm;
+        }
+        if (sameAuthor) row.classList.add('row--grouped');
       }
     }
   }
@@ -8136,6 +8152,8 @@ window._laCueAction       = _laCueAction;
     const row = document.createElement('div');
     row.className = 'row';
     row.setAttribute('data-mid', msg._id);
+    const authorGroupKey = (msg.sessionId && window.snAuthorGroupKey) ? window.snAuthorGroupKey(msg.sessionId) : '';
+    if (authorGroupKey) row.setAttribute('data-author-key', authorGroupKey);
     const isMe = msg.sessionId === sessionId;
     const nameAttr = isMe ? ' data-role="you"' : '';
     row.innerHTML = '<span class="row-time"></span><div class="row-body"><span class="row-name"' + nameAttr + '></span> <span class="row-text"></span></div>';
