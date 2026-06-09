@@ -598,9 +598,9 @@ body:not([data-page-mode="landing"]) main.m { animation: pageEnter var(--motion-
 @media (prefers-reduced-motion: reduce) { main.m { animation: none; } }
 
 /* ─── Hero (small, scannable) ─── */
-.hero { margin-bottom: 18px; }
+.hero { margin-bottom: 14px; }
 .hero :is(h1, h2) { font-size: var(--fs-display); font-weight: 800; letter-spacing: -.02em; margin: 0 0 4px; }
-.hero-meta { font-size: var(--fs-sub); color: var(--ink-muted); }
+.hero-meta { font-size: var(--fs-sub); color: var(--ink-muted); line-height: 1.3; }
 .hero-meta b { color: var(--ink); font-weight: 600; }
 
 /* ─── Composer (gravitational center) ─── */
@@ -1120,11 +1120,11 @@ body[data-new-user="true"] .welcome { display: flex; }
 @media (prefers-reduced-motion: reduce) { .sn-mem-nudge[data-show="true"] { animation: none; } }
 
 /* ─── Identity row ─── */
-.id-row { display: flex; align-items: center; gap: 8px; padding: 6px 0 14px; font-size: 12px; color: var(--ink-faint); }
+.id-row { display: flex; align-items: center; gap: 8px; padding: 4px 0 10px; font-size: 12px; color: var(--ink-faint); }
 .id-avatar { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #b85f44); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
-.id-text { flex: 1; }
+.id-text { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
 .id-label { color: var(--ink-faint); }
-.id-text b { color: var(--ink); font-weight: 600; }
+.id-text b { color: var(--ink); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .id-set { background: transparent; border: 0; color: var(--accent); font-size: var(--fs-sub); cursor: pointer; padding: 4px 6px; border-radius: 4px; font-family: var(--ui); }
 .id-set:hover { background: rgba(217,119,87,.08); }
 
@@ -1472,14 +1472,14 @@ body[data-new-user="true"] .h-menu::after {
 /* Mobile tweaks */
 @media (max-width: 540px) {
   .h { padding: calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left)); }
-  .m { padding: 12px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
-  .hero { margin-bottom: 0; }
-  .hero h1 { font-size: 17px; line-height: .98; letter-spacing: -.04em; }
+  .m { padding: 10px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
+  .hero { margin-bottom: 2px; }
+  .hero h1 { font-size: 16px; line-height: 1; letter-spacing: -.035em; margin-bottom: 2px; }
   .hero-meta {
     margin: 0;
-    font-size: 10px;
-    max-width: none;
-    line-height: 1.15;
+    font-size: 9.5px;
+    max-width: 22ch;
+    line-height: 1.1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1503,12 +1503,27 @@ body[data-new-user="true"] .h-menu::after {
   /* While typing: collapse non-essential chrome so input + feed stay visible above the keyboard. */
   body[data-input-focused="true"] .f,
   body[data-input-focused="true"] .welcome { display: none; }
-  .id-row { gap: 6px; padding: 1px 0 8px; align-items: center; }
+  .id-row {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 0 0 6px;
+    align-items: center;
+  }
   .id-avatar { width: 20px; height: 20px; font-size: 9px; }
   .id-label { display: none; }
-  .id-text { min-width: 0; }
-  .id-text b { font-size: 12px; line-height: 1.1; }
-  .id-set { padding: 0 0 0 4px; font-size: 10px; color: rgba(241,138,97,.88); }
+  .id-text { min-width: 0; gap: 0; }
+  .id-text b { font-size: 11.5px; line-height: 1.1; }
+  .id-set {
+    min-height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(241,138,97,.16);
+    background: rgba(241,138,97,.05);
+    font-size: 9.5px;
+    color: rgba(241,138,97,.88);
+  }
+  .id-set:hover { background: rgba(217,119,87,.1); }
   .demo-join-card {
     margin: 2px 0 6px;
     padding: 6px 10px;
@@ -1534,8 +1549,13 @@ body[data-new-user="true"] .h-menu::after {
   .c-mode #c-mode-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   .c-mode .dot { width: 7px; height: 7px; }
   .feed-divider { display: none; }
-  .sn-room-toggle { margin-bottom: 4px; padding: 2px; background: rgba(255,255,255,.02); }
-  .sn-rt-btn { padding: 5px 10px; font-size: 10px; }
+  .sn-room-toggle {
+    margin-bottom: 2px;
+    padding: 2px;
+    background: rgba(255,255,255,.015);
+    border-color: rgba(255,255,255,.06);
+  }
+  .sn-rt-btn { padding: 4px 9px; font-size: 9.5px; }
 }
 
 /* Landscape (short height) — hide hero, compact composer */
