@@ -597,6 +597,8 @@ body:not([data-page-mode="landing"]) main.m { animation: pageEnter var(--motion-
 
 /* ─── Hero (small, scannable) ─── */
 .hero { margin-bottom: 14px; }
+.hero-head { display: grid; gap: 8px; }
+.hero-copy { min-width: 0; display: grid; gap: 4px; }
 .hero :is(h1, h2) { font-size: var(--fs-display); font-weight: 800; letter-spacing: -.02em; margin: 0 0 4px; }
 .hero-meta { font-size: var(--fs-sub); color: var(--ink-muted); line-height: 1.3; }
 .hero-meta b { color: var(--ink); font-weight: 600; }
@@ -1478,8 +1480,15 @@ body[data-new-user="true"] .h-menu::after {
   .h { padding: calc(8px + var(--safe-top)) calc(13px + var(--safe-right)) 8px calc(13px + var(--safe-left)); }
   .m { padding: 8px calc(13px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(13px + var(--safe-left)); }
   .hero {
-    margin-bottom: 0;
-    display: grid;
+    margin-bottom: 2px;
+  }
+  .hero-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    column-gap: 8px;
+    row-gap: 2px;
+  }
+  .hero-copy {
     gap: 1px;
   }
   .hero h1 {
@@ -1513,10 +1522,10 @@ body[data-new-user="true"] .h-menu::after {
   body[data-input-focused="true"] .welcome { display: none; }
   .id-row {
     display: grid;
-    grid-template-columns: minmax(0, max-content) auto;
+    grid-template-columns: minmax(0, 1fr);
     justify-content: start;
     gap: 2px;
-    padding: 0 0 1px;
+    padding: 0;
     align-items: center;
   }
   .id-avatar { display: none; }
@@ -1561,13 +1570,14 @@ body[data-new-user="true"] .h-menu::after {
   .c-mode .dot { width: 7px; height: 7px; }
   .feed-divider { display: none; }
   .sn-room-toggle {
-    margin: 0 0 3px;
-    padding: 2px;
+    margin: 0 0 1px auto;
+    padding: 1px;
     background: rgba(255,255,255,.012);
     border-color: rgba(255,255,255,.06);
+    align-self: end;
   }
   .sn-rt-btn {
-    padding: 3px 8px;
+    padding: 4px 8px;
     font-size: 9px;
     letter-spacing: .01em;
   }
@@ -3942,20 +3952,31 @@ if (document.readyState === 'loading') {
   </div>
 
   <section class="hero">
-    <h1><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h1>
+    <div class="hero-head">
+      <div class="hero-copy">
+        <h1><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h1>
+
+        <!-- Identity row -->
+        <div class="id-row" id="id-row">
+          <span class="id-avatar" id="id-avatar">G</span>
+          <span class="id-text"><span class="id-label">Joined as </span><b id="id-name">Anonymous Guest</b></span>
+          <button type="button" class="id-notes" id="id-notes" data-count="0" onclick="openSheet('notes'); haptic();" aria-label="My private notes">
+            <span>🔒</span>
+            <span><b id="id-notes-count">0</b> notes</span>
+          </button>
+          <button class="id-set" type="button" onclick="setIdentity()" id="id-set">Set name</button>
+        </div>
+      </div>
+
+      <div class="sn-room-toggle" role="tablist" aria-label="Room view">
+        <button type="button" class="sn-rt-btn" data-rt="chat" data-active="true" role="tab" aria-selected="true"
+          onclick="window.snWall&&snWall.show('chat')">Chat</button>
+        <button type="button" class="sn-rt-btn" data-rt="wall" data-active="false" role="tab" aria-selected="false"
+          onclick="window.snWall&&snWall.show('wall')">Wall</button>
+      </div>
+    </div>
     <p class="hero-meta" id="sn-event-hero-meta">Live chat now &middot; public wiki later</p>
   </section>
-
-  <!-- Identity row -->
-  <div class="id-row" id="id-row">
-    <span class="id-avatar" id="id-avatar">G</span>
-    <span class="id-text"><span class="id-label">Joined as </span><b id="id-name">Anonymous Guest</b></span>
-    <button type="button" class="id-notes" id="id-notes" data-count="0" onclick="openSheet('notes'); haptic();" aria-label="My private notes">
-      <span>🔒</span>
-      <span><b id="id-notes-count">0</b> notes</span>
-    </button>
-    <button class="id-set" type="button" onclick="setIdentity()" id="id-set">Set name</button>
-  </div>
 
   <!-- COMPOSER — desktop: sticky command bar (top); mobile: pinned to the bottom (see .c rules).
        Position lives in the stylesheet (not inline) so the mobile media query can override it. -->
@@ -3996,13 +4017,6 @@ if (document.readyState === 'loading') {
   </div>
 
   <div class="feed-divider">Live room</div>
-
-  <div class="sn-room-toggle" role="tablist" aria-label="Room view">
-    <button type="button" class="sn-rt-btn" data-rt="chat" data-active="true" role="tab" aria-selected="true"
-      onclick="window.snWall&&snWall.show('chat')">Chat</button>
-    <button type="button" class="sn-rt-btn" data-rt="wall" data-active="false" role="tab" aria-selected="false"
-      onclick="window.snWall&&snWall.show('wall')">Wall</button>
-  </div>
 
   <!-- Empty state (only shows when feed is empty) -->
   <div class="empty">

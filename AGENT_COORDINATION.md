@@ -139,6 +139,8 @@ Server Error) for an unknown slug.
 
 ## Recently shipped (this ScratchNode session)
 
+- **2026-06-09 Codex** - mobile header density pass 7 (`home-v5.html#mobile-header-density-pass-7`): moved the Chat/Wall toggle into the mobile hero cluster so the room reaches live content with one fewer stacked pill row while preserving LIVE, room code, event title, and guest identity. Visual evidence: `.validation/scratchnode-mobile-header-after-pass-6-room.png` -> `.validation/scratchnode-mobile-header-after-pass-7-room.png`.
+
 - **2026-06-09 Codex** - mobile header density pass 5 (`home-v5.html#mobile-header-density-pass-5`): compressed the mobile title, identity, and room-toggle stack so live chat appears sooner while preserving LIVE, room code, event title, Set name, and composer clarity. Visual evidence: `.validation/scratchnode-mobile-header-before-pass-5.png` -> `.validation/scratchnode-mobile-header-after-pass-5.png`.
 
 - **2026-06-09 Codex** - mobile header density pass 4 (`home-v5.html#mobile-header-density-pass-4`): mobile event rooms now suppress the clipped hero meta line and flatten the anonymous identity row so LIVE, room code, event title, Set name, and the composer read faster in the first viewport. Visual evidence: `.validation/scratchnode-mobile-header-before-pass-4.png` -> `.validation/scratchnode-mobile-header-after-pass-4.png`.
