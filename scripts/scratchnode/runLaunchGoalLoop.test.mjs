@@ -1092,6 +1092,8 @@ describe("summarizeNotificationEvidence", () => {
       ]),
     ).toEqual({
       notifyDecision: "no-notify",
+      notifyTrigger: "none",
+      notifyKnownCautionOnly: false,
       notifyQuietPassEligible: false,
       notifyRecommended: false,
       notifyRecommendationReason: "All launch goal criteria passed; no notification needed.",
@@ -1104,6 +1106,8 @@ describe("summarizeNotificationEvidence", () => {
       ]),
     ).toEqual({
       notifyDecision: "notify",
+      notifyTrigger: "failures",
+      notifyKnownCautionOnly: false,
       notifyQuietPassEligible: false,
       notifyRecommended: true,
       notifyRecommendationReason: "Launch goal failures (2): housekeeping command passes; git drift is clean after the loop",
@@ -1126,10 +1130,34 @@ describe("summarizeNotificationEvidence", () => {
       ),
     ).toEqual({
       notifyDecision: "notify",
+      notifyTrigger: "visual-evidence-gap",
+      notifyKnownCautionOnly: false,
       notifyQuietPassEligible: false,
       notifyRecommended: true,
       notifyRecommendationReason:
         "Goal loop passed, but visual evidence coverage is incomplete: Visual artifact .validation/test-goal-loop-gap/latest-mobile.png exists, but .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json is missing.",
+    });
+  });
+
+  it("marks caution-only notifications explicitly", () => {
+    expect(
+      summarizeNotificationEvidence(
+        [
+          { name: "housekeeping command passes", ok: true },
+          { name: "git drift is clean after the loop", ok: true },
+        ],
+        {
+          knownCautionEntries: [{ path: ".worktrees/p0-row-delta", reason: "invalid registered worktree" }],
+        },
+      ),
+    ).toEqual({
+      notifyDecision: "notify",
+      notifyTrigger: "known-caution",
+      notifyKnownCautionOnly: true,
+      notifyQuietPassEligible: false,
+      notifyRecommended: true,
+      notifyRecommendationReason:
+        "Goal loop passed with 1 known caution entry that still needs operator visibility: .worktrees/p0-row-delta (invalid registered worktree)",
     });
   });
 });
@@ -1886,6 +1914,8 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodeHistory");
     expect(goalLoopEvidenceFieldNames).toContain("commandResultRows");
     expect(goalLoopEvidenceFieldNames).toContain("notifyDecision");
+    expect(goalLoopEvidenceFieldNames).toContain("notifyTrigger");
+    expect(goalLoopEvidenceFieldNames).toContain("notifyKnownCautionOnly");
     expect(goalLoopEvidenceFieldNames).toContain("notifyQuietPassEligible");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionPathBranches");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionBranches");
@@ -2014,6 +2044,8 @@ describe("summarizeNotificationEvidence", () => {
   it("recommends notification when failures are present", () => {
     expect(summarizeNotificationEvidence([{ name: "git drift", ok: false }])).toEqual({
       notifyDecision: "notify",
+      notifyTrigger: "failures",
+      notifyKnownCautionOnly: false,
       notifyQuietPassEligible: false,
       notifyRecommended: true,
       notifyRecommendationReason: "Launch goal failures (1): git drift",
@@ -2032,6 +2064,8 @@ describe("summarizeNotificationEvidence", () => {
       ),
     ).toEqual({
       notifyDecision: "notify",
+      notifyTrigger: "head-changed",
+      notifyKnownCautionOnly: false,
       notifyQuietPassEligible: false,
       notifyRecommended: true,
       notifyRecommendationReason:
@@ -2051,6 +2085,8 @@ describe("summarizeNotificationEvidence", () => {
       ),
     ).toEqual({
       notifyDecision: "no-notify",
+      notifyTrigger: "none",
+      notifyKnownCautionOnly: false,
       notifyQuietPassEligible: false,
       notifyRecommended: false,
       notifyRecommendationReason: "All launch goal criteria passed; no notification needed.",
@@ -2072,6 +2108,8 @@ describe("summarizeNotificationEvidence", () => {
       ),
     ).toEqual({
       notifyDecision: "notify",
+      notifyTrigger: "known-caution",
+      notifyKnownCautionOnly: true,
       notifyQuietPassEligible: false,
       notifyRecommended: true,
       notifyRecommendationReason:
@@ -2093,6 +2131,8 @@ describe("summarizeNotificationEvidence", () => {
       ),
     ).toEqual({
       notifyDecision: "quiet-pass",
+      notifyTrigger: "quiet-pass",
+      notifyKnownCautionOnly: false,
       notifyQuietPassEligible: true,
       notifyRecommended: false,
       notifyRecommendationReason:

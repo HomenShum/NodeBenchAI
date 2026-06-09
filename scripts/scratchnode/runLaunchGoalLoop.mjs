@@ -48,6 +48,8 @@ export const goalLoopEvidenceFieldNames = [
   "gitHeadSubject",
   "gitHeadCommittedAt",
   "notifyDecision",
+  "notifyTrigger",
+  "notifyKnownCautionOnly",
   "notifyQuietPassEligible",
   "notifyRecommendationReason",
   "criterionCount",
@@ -1308,20 +1310,29 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
     String(context.developmentCandidate?.selectionReason ?? "").trim(),
     String(context.developmentCandidate?.actionabilityReason ?? "").trim(),
   ].filter(Boolean);
-  const notifyDecision =
+  const notifyTrigger =
     failures.length > 0
-      ? "notify"
+      ? "failures"
       : currentHeadChanged
-        ? "notify"
+        ? "head-changed"
         : visualEvidenceGap
-          ? "notify"
-        : knownCautionCount > 0
-          ? "notify"
-          : quietPassEligible
-            ? "quiet-pass"
-            : "no-notify";
+          ? "visual-evidence-gap"
+          : knownCautionCount > 0
+            ? "known-caution"
+            : quietPassEligible
+              ? "quiet-pass"
+              : "none";
+  const notifyKnownCautionOnly =
+    notifyTrigger === "known-caution" &&
+    failures.length === 0 &&
+    currentHeadChanged === false &&
+    visualEvidenceGap === false;
+  const notifyDecision =
+    notifyTrigger === "quiet-pass" ? "quiet-pass" : notifyTrigger === "none" ? "no-notify" : "notify";
   return {
     notifyDecision,
+    notifyTrigger,
+    notifyKnownCautionOnly,
     notifyQuietPassEligible: quietPassEligible,
     notifyRecommended: failures.length > 0 || currentHeadChanged || visualEvidenceGap || knownCautionCount > 0,
     notifyRecommendationReason:
