@@ -914,6 +914,17 @@ export function summarizeCommandEvidence(commands, options = {}) {
   };
 }
 
+export function summarizeTopLevelCommandEvidence(commandEvidence) {
+  const commandExitCodes =
+    commandEvidence?.commandExitCodes &&
+    typeof commandEvidence.commandExitCodes === "object" &&
+    !Array.isArray(commandEvidence.commandExitCodes)
+      ? commandEvidence.commandExitCodes
+      : {};
+
+  return { commandExitCodes };
+}
+
 export function summarizeSourceReportEvidence(housekeepingReport) {
   const sourceReports = Object.values(housekeepingReport?.sourceReports ?? {}).filter(Boolean);
   const summary = housekeepingReport?.summary ?? {};
@@ -2406,6 +2417,7 @@ async function main() {
     generatedAt,
     reportPath: outPath,
   });
+  const topLevelCommandEvidence = summarizeTopLevelCommandEvidence(commandEvidence);
   const report = {
     schemaVersion: reportSchemaVersion,
     generatedAt,
@@ -2450,6 +2462,7 @@ async function main() {
     },
     commands,
     commandStatuses,
+    ...topLevelCommandEvidence,
     reports: {
       housekeeping: housekeepingReport,
       launch: launchReport,

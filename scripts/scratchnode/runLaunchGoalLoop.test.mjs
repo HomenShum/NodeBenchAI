@@ -30,6 +30,7 @@ import {
   summarizeReportSchemaEvidence,
   summarizeActiveCodingGoalEvidence,
   summarizeSourceReportEvidence,
+  summarizeTopLevelCommandEvidence,
   summarizeVisualEvidence,
   summarizeVerificationEntryPointEvidence,
   summarizeTmpIgnoreEvidence,
@@ -590,6 +591,23 @@ describe("summarizeCommandEvidence", () => {
   });
 });
 
+describe("summarizeTopLevelCommandEvidence", () => {
+  it("promotes command exit codes to a top-level report alias", () => {
+    const commandEvidence = summarizeCommandEvidence([
+      { command: "npm run repo:housekeeping:check", exitCode: 0, durationMs: 1000 },
+      { command: "npm run scratchnode:launch:interactive", exitCode: 1, durationMs: 2000 },
+    ]);
+
+    expect(summarizeTopLevelCommandEvidence(commandEvidence)).toEqual({
+      commandExitCodes: {
+        "npm run repo:housekeeping:check": 0,
+        "npm run scratchnode:launch:interactive": 1,
+      },
+    });
+    expect(summarizeTopLevelCommandEvidence(null)).toEqual({ commandExitCodes: {} });
+  });
+});
+
 describe("summarizeSourceReportEvidence", () => {
   it("summarizes source report freshness and stale paths", () => {
     const summary = summarizeSourceReportEvidence({
@@ -837,7 +855,8 @@ describe("summarizeVisualEvidence", () => {
       expect(summary.latestAestheticReviewStatus).toBe("artifact_only");
       expect(summary.latestVisualArtifactStale).toBe(false);
       expect(summary.latestAestheticReviewStale).toBe(false);
-      expect(summary.latestAestheticReviewCoverageGap).toBe(false);
+      expect(summary.latestAestheticReviewCoverageGap).toBe(true);
+      expect(summary.latestAestheticReviewCoverageGapReason).toMatch(/only summarizes local artifacts/);
     } finally {
       rmSync(validationDir, { recursive: true, force: true });
       if (hadExistingReview && existingReviewText != null) {
@@ -893,8 +912,8 @@ describe("summarizeVisualEvidence", () => {
       expect(currentSummary.latestAestheticReviewStatus).toBe("artifact_only");
       expect(currentSummary.latestVisualArtifactPredatesHead).toBe(false);
       expect(currentSummary.latestAestheticReviewPredatesHead).toBe(false);
-      expect(currentSummary.latestAestheticReviewCoverageGap).toBe(false);
-      expect(currentSummary.latestAestheticReviewCoverageGapReason).toBeNull();
+      expect(currentSummary.latestAestheticReviewCoverageGap).toBe(true);
+      expect(currentSummary.latestAestheticReviewCoverageGapReason).toMatch(/only summarizes local artifacts/);
 
       utimesSync(latestImagePath, beforeHeadTime, beforeHeadTime);
       utimesSync(reviewPath, beforeHeadTime, beforeHeadTime);
