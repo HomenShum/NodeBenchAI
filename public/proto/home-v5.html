@@ -1473,9 +1473,17 @@ body[data-new-user="true"] .h-menu::after {
 @media (max-width: 540px) {
   .h { padding: calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left)); }
   .m { padding: 12px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
-  .hero { margin-bottom: 2px; }
-  .hero h1 { font-size: 18px; line-height: 1; letter-spacing: -.035em; }
-  .hero-meta { margin: 0; font-size: 10px; max-width: 22ch; line-height: 1.2; }
+  .hero { margin-bottom: 0; }
+  .hero h1 { font-size: 17px; line-height: .98; letter-spacing: -.04em; }
+  .hero-meta {
+    margin: 0;
+    font-size: 10px;
+    max-width: none;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .about-link { display: none; }
   /* Mobile: pin the composer to the bottom (Slack/Discord/iMessage convention — thumb reach,
      newest message sits right above where you type). Desktop keeps the sticky top command bar. */
@@ -1495,12 +1503,12 @@ body[data-new-user="true"] .h-menu::after {
   /* While typing: collapse non-essential chrome so input + feed stay visible above the keyboard. */
   body[data-input-focused="true"] .f,
   body[data-input-focused="true"] .welcome { display: none; }
-  .id-row { gap: 6px; padding: 0 0 2px; align-items: center; }
+  .id-row { gap: 6px; padding: 1px 0 8px; align-items: center; }
   .id-avatar { width: 20px; height: 20px; font-size: 9px; }
   .id-label { display: none; }
   .id-text { min-width: 0; }
-  .id-text b { font-size: 12px; }
-  .id-set { padding: 1px 0 1px 4px; font-size: 10px; color: rgba(241,138,97,.88); }
+  .id-text b { font-size: 12px; line-height: 1.1; }
+  .id-set { padding: 0 0 0 4px; font-size: 10px; color: rgba(241,138,97,.88); }
   .demo-join-card {
     margin: 2px 0 6px;
     padding: 6px 10px;
@@ -3900,7 +3908,7 @@ if (document.readyState === 'loading') {
 
   <section class="hero">
     <h1><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h1>
-    <p class="hero-meta" id="sn-event-hero-meta">Live event log &middot; public wiki when it ends</p>
+    <p class="hero-meta" id="sn-event-hero-meta">Live chat now &middot; public wiki later</p>
   </section>
 
   <!-- Identity row -->
@@ -4503,7 +4511,7 @@ function setScratchNodeLiveEventContext(event) {
   var heroTitle = document.getElementById('sn-event-title-hero');
   if (heroTitle) heroTitle.textContent = EVENT_TITLE;
   var heroMeta = document.getElementById('sn-event-hero-meta');
-  if (heroMeta) heroMeta.textContent = 'Live event log · public wiki when it ends';
+  if (heroMeta) heroMeta.textContent = 'Live chat now · public wiki later';
   var peopleSub = document.getElementById('menu-people-sub');
   if (peopleSub) peopleSub.textContent = 'Live members';
   var mode = document.getElementById('ev-mode-label');
