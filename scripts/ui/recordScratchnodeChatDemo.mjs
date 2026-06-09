@@ -40,18 +40,54 @@ async function smoothScroll(page, totalPx, steps, perStepMs) {
   }
 }
 
+const roomReadyStates = [
+  { selector: "#feed .row", state: "populated_feed" },
+  { selector: "#feed .ans", state: "agent_answer" },
+  { selector: ".empty", state: "empty_feed" },
+  { selector: "#ci[placeholder*='Live room unavailable']", state: "unavailable_composer" },
+  { selector: ".c-box", state: "composer_shell" },
+  { selector: ".h-code", state: "room_header" },
+];
+
+async function firstVisibleSelector(page, candidates, timeoutMs) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    for (const candidate of candidates) {
+      const locator = page.locator(candidate.selector).first();
+      const count = await locator.count().catch(() => 0);
+      if (count < 1) continue;
+      const visible = await locator.isVisible().catch(() => false);
+      if (visible) return candidate;
+    }
+    await sleep(250);
+  }
+  return null;
+}
+
 async function waitForChat(page, label) {
-  // Feed must have rendered at least one decorated row (avatar = the redesign).
-  try {
-    await page.waitForSelector("#feed .row", { timeout: 25000 });
-  } catch {
-    throw new Error(`[${label}] #feed .row never appeared — room did not load at ${URL}`);
+  const ready = await firstVisibleSelector(page, roomReadyStates, 25000);
+  if (!ready) {
+    const selectors = roomReadyStates.map((candidate) => candidate.selector).join(", ");
+    throw new Error(`[${label}] no room-ready selector appeared (${selectors}) - room did not load at ${URL}`);
   }
   // Give decorateRow + Convex a beat to paint avatars/grouping.
   await sleep(2500);
+  const feedRows = await page.locator("#feed .row").count();
+  const answerCards = await page.locator("#feed .ans").count();
   const avatars = await page.locator("#feed .row-avatar").count();
   const ansBots = await page.locator("#feed .ans-bot").count();
-  return { avatars, ansBots };
+  const emptyFeed = await page.locator(".empty").first().isVisible().catch(() => false);
+  const unavailableComposer = (await page.locator("#ci[placeholder*='Live room unavailable']").count()) > 0;
+  return {
+    state: ready.state,
+    readySelector: ready.selector,
+    feedRows,
+    answerCards,
+    avatars,
+    ansBots,
+    emptyFeed,
+    unavailableComposer,
+  };
 }
 
 async function recordViewport({ browser, name, viewport, mobile }) {
@@ -67,7 +103,7 @@ async function recordViewport({ browser, name, viewport, mobile }) {
   page.on("console", (m) => {
     if (m.type() === "error") consoleErrors.push(m.text().slice(0, 200));
   });
-  let signal = { avatars: 0, ansBots: 0 };
+  let signal = { state: "unknown", avatars: 0, ansBots: 0 };
   let videoPath = null;
   try {
     await page.goto(URL, { waitUntil: "domcontentloaded", timeout: 30000 });
