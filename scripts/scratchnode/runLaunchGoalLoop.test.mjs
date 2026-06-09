@@ -1486,9 +1486,9 @@ describe("summarizeGoalEvidence", () => {
 describe("summarizeDevelopmentBacklogEvidence", () => {
   it("summarizes backlog count, modes, priorities, and ids", () => {
     const summary = summarizeDevelopmentBacklogEvidence([
-      { id: "blocker-1", mode: "fix-first", priority: "P0" },
+      { id: "blocker-1", mode: "fix-first", priority: "P0", sourcePath: "scripts/scratchnode/runLaunchGoalLoop.mjs" },
       { id: "attention-2", mode: "fix-first", priority: "P1" },
-      { id: "goal-3", mode: "safe-local-development", priority: "P1" },
+      { id: "goal-3", mode: "safe-local-development", priority: "P1", sourcePath: "missing/backlog-source.md" },
       { id: "drift-4" },
     ]);
 
@@ -1505,6 +1505,10 @@ describe("summarizeDevelopmentBacklogEvidence", () => {
         unknown: 1,
       },
       developmentBacklogIds: ["blocker-1", "attention-2", "goal-3", "drift-4"],
+      developmentBacklogSourcePathCount: 2,
+      developmentBacklogSourcePaths: ["missing/backlog-source.md", "scripts/scratchnode/runLaunchGoalLoop.mjs"],
+      developmentBacklogMissingSourcePathCount: 1,
+      developmentBacklogMissingSourcePaths: [{ id: "goal-3", path: "missing/backlog-source.md" }],
     });
   });
 });

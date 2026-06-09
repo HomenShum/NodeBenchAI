@@ -119,6 +119,10 @@ export const goalLoopEvidenceFieldNames = [
   "developmentBacklogModeCounts",
   "developmentBacklogPriorityCounts",
   "developmentBacklogIds",
+  "developmentBacklogSourcePathCount",
+  "developmentBacklogSourcePaths",
+  "developmentBacklogMissingSourcePathCount",
+  "developmentBacklogMissingSourcePaths",
   "goalQueueCount",
   "goalQueueStatusCounts",
   "goalQueueModeCounts",
@@ -1508,11 +1512,27 @@ function countBy(items, getKey) {
 }
 
 export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
+  const sourcePathEntries = developmentBacklog
+    .map((item) => ({
+      id: typeof item?.id === "string" && item.id.trim() ? item.id.trim() : null,
+      path: typeof item?.sourcePath === "string" && item.sourcePath.trim() ? normalizeEvidencePath(item.sourcePath) : null,
+    }))
+    .filter((entry) => entry.path !== null);
+  const sourcePaths = [...new Set(sourcePathEntries.map((entry) => entry.path))].sort();
+  const missingSourcePathEntries = sourcePathEntries
+    .filter((entry) => !existsSync(resolve(repoRoot, entry.path)))
+    .map((entry) => ({ id: entry.id, path: entry.path }))
+    .sort((left, right) => `${left.path}:${left.id ?? ""}`.localeCompare(`${right.path}:${right.id ?? ""}`));
+
   return {
     developmentBacklogCount: developmentBacklog.length,
     developmentBacklogModeCounts: countBy(developmentBacklog, (item) => item.mode),
     developmentBacklogPriorityCounts: countBy(developmentBacklog, (item) => item.priority),
     developmentBacklogIds: developmentBacklog.map((item) => item.id).filter(Boolean),
+    developmentBacklogSourcePathCount: sourcePaths.length,
+    developmentBacklogSourcePaths: sourcePaths,
+    developmentBacklogMissingSourcePathCount: missingSourcePathEntries.length,
+    developmentBacklogMissingSourcePaths: missingSourcePathEntries,
   };
 }
 
