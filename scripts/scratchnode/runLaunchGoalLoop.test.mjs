@@ -1539,6 +1539,11 @@ describe("summarizeDevelopmentBacklogEvidence", () => {
       developmentBacklogMissingSourcePathCount: 1,
       developmentBacklogMissingSourcePaths: [{ id: "goal-3", path: "missing/backlog-source.md" }],
       developmentBacklogSuggestedVerificationCommandCount: 3,
+      developmentBacklogSuggestedVerificationCommands: [
+        "git diff --check",
+        "npm run repo:augment:check",
+        "npm run scratchnode:launch:goal",
+      ],
       developmentBacklogMissingSuggestedVerificationCount: 2,
       developmentBacklogMissingSuggestedVerificationIds: ["attention-2", "drift-4"],
     });

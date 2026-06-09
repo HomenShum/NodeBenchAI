@@ -124,6 +124,7 @@ export const goalLoopEvidenceFieldNames = [
   "developmentBacklogMissingSourcePathCount",
   "developmentBacklogMissingSourcePaths",
   "developmentBacklogSuggestedVerificationCommandCount",
+  "developmentBacklogSuggestedVerificationCommands",
   "developmentBacklogMissingSuggestedVerificationCount",
   "developmentBacklogMissingSuggestedVerificationIds",
   "goalQueueCount",
@@ -1536,6 +1537,17 @@ export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
         : 0),
     0,
   );
+  const suggestedVerificationCommands = [
+    ...new Set(
+      developmentBacklog.flatMap((item) =>
+        Array.isArray(item?.suggestedVerification)
+          ? item.suggestedVerification
+              .map((command) => (typeof command === "string" ? command.trim() : ""))
+              .filter(Boolean)
+          : [],
+      ),
+    ),
+  ].sort();
   const missingSuggestedVerificationIds = developmentBacklog
     .filter(
       (item) =>
@@ -1556,6 +1568,7 @@ export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
     developmentBacklogMissingSourcePathCount: missingSourcePathEntries.length,
     developmentBacklogMissingSourcePaths: missingSourcePathEntries,
     developmentBacklogSuggestedVerificationCommandCount: suggestedVerificationCommandCount,
+    developmentBacklogSuggestedVerificationCommands: suggestedVerificationCommands,
     developmentBacklogMissingSuggestedVerificationCount: missingSuggestedVerificationIds.length,
     developmentBacklogMissingSuggestedVerificationIds: missingSuggestedVerificationIds,
   };
