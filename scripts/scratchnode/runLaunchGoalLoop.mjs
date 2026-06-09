@@ -62,7 +62,6 @@ export const requiredTmpReportPaths = Object.freeze([
 ]);
 
 export const goalLoopEvidenceFieldNames = [
-  "schemaVersion",
   "reportSchemaVersion",
   "reportGeneratedAt",
   "reportPath",
@@ -285,7 +284,6 @@ export const goalLoopEvidenceFieldNames = [
   "tmpIgnoredReportPaths",
   "tmpIgnoreRuleSources",
   "nextDevelopmentCandidate",
-  "developmentCandidate",
   "safeLocalGoalCount",
   "safeLocalGoalIds",
   "humanGatedGoalCount",

@@ -2228,6 +2228,9 @@ describe("summarizeGoalQueueEvidence", () => {
 
 describe("goalLoopEvidenceFieldNames", () => {
   it("keeps the launch-scan evidence contract centralized", () => {
+    expect(goalLoopEvidenceFieldNames).not.toContain("schemaVersion");
+    expect(goalLoopEvidenceFieldNames).not.toContain("developmentCandidate");
+    expect(goalLoopEvidenceFieldNames).toContain("reportSchemaVersion");
     expect(goalLoopEvidenceFieldNames).toContain("activeCodingGoalPath");
     expect(goalLoopEvidenceFieldNames).toContain("activeCodingGoalExists");
     expect(goalLoopEvidenceFieldNames).toContain("activeCodingGoalReady");
