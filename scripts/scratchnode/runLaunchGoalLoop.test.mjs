@@ -731,10 +731,15 @@ describe("summarizeVisualEvidence", () => {
     utimesSync(reviewPath, staleTime, staleTime);
 
     try {
-      const summary = summarizeVisualEvidence({
-        passed: true,
-        judges: [{ surface: "mobile", passed: true }],
-      });
+      const summary = summarizeVisualEvidence(
+        {
+          passed: true,
+          judges: [{ surface: "mobile", passed: true }],
+        },
+        {
+          visualArtifactDirs: [".validation/test-goal-loop-stale"],
+        },
+      );
 
       expect(summary.latestVisualArtifactPath).toBe(".validation/test-goal-loop-stale/latest-mobile.png");
       expect(summary.latestVisualArtifactStale).toBe(true);
@@ -1027,6 +1032,7 @@ describe("summarizeGitHeadEvidence", () => {
       gitHeadSummary: "01fc7a01 summarize launch notification evidence",
       gitHeadShortSha: "01fc7a01",
       gitHeadSubject: "summarize launch notification evidence",
+      gitHeadCommittedAt: null,
     });
   });
 
@@ -1035,6 +1041,7 @@ describe("summarizeGitHeadEvidence", () => {
       gitHeadSummary: null,
       gitHeadShortSha: null,
       gitHeadSubject: null,
+      gitHeadCommittedAt: null,
     });
   });
 });
@@ -2068,7 +2075,7 @@ describe("summarizeNotificationEvidence", () => {
       notifyQuietPassEligible: false,
       notifyRecommended: true,
       notifyRecommendationReason:
-        "Goal loop passed with 1 known caution entry that still need operator visibility: .worktrees/p0-row-delta (invalid registered worktree; inspect git metadata first)",
+        "Goal loop passed with 1 known caution entry that still needs operator visibility: .worktrees/p0-row-delta (invalid registered worktree; inspect git metadata first)",
     });
   });
 

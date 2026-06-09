@@ -892,8 +892,11 @@ function collectVisualArtifacts(relativeDir) {
 }
 
 export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
-  const visualArtifacts = [".validation", ".tmp/scratchnode-aesthetic-review"]
-    .flatMap((relativeDir) => collectVisualArtifacts(relativeDir));
+  const visualArtifactDirs =
+    Array.isArray(context.visualArtifactDirs) && context.visualArtifactDirs.length > 0
+      ? context.visualArtifactDirs
+      : [".validation", ".tmp/scratchnode-aesthetic-review"];
+  const visualArtifacts = visualArtifactDirs.flatMap((relativeDir) => collectVisualArtifacts(relativeDir));
   const latestArtifact = visualArtifacts[0] ?? null;
   const aestheticReviewAbsolutePath = resolve(repoRoot, reportPaths.aestheticReview);
   const aestheticReviewExists = existsSync(aestheticReviewAbsolutePath);
@@ -1329,7 +1332,7 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
           : visualEvidenceGap
             ? `Goal loop passed, but visual evidence coverage is incomplete: ${visualEvidenceGapReason}`
           : knownCautionCount > 0
-            ? `Goal loop passed with ${knownCautionCount} known caution entr${knownCautionCount === 1 ? "y" : "ies"} that still need operator visibility: ${knownCautionLabels.join("; ")}`
+            ? `Goal loop passed with ${knownCautionCount} known caution entr${knownCautionCount === 1 ? "y" : "ies"} that still ${knownCautionCount === 1 ? "needs" : "need"} operator visibility: ${knownCautionLabels.join("; ")}`
           : quietPassEligible
             ? `Goal loop passed; quiet pass is eligible. ${quietPassReasonParts.join(" ")}`
             : "All launch goal criteria passed; no notification needed.",
