@@ -1480,9 +1480,8 @@ body[data-new-user="true"] .h-menu::after {
   .h { padding: calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left)); }
   .m { padding: 10px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
   .hero {
-    margin-bottom: 0;
+    margin-bottom: 2px;
     display: grid;
-    gap: 1px;
   }
   .hero h1 {
     font-size: 16px;
@@ -1491,14 +1490,7 @@ body[data-new-user="true"] .h-menu::after {
     margin-bottom: 0;
   }
   .hero-meta {
-    margin: 0;
-    font-size: 9px;
-    max-width: 19ch;
-    line-height: 1.05;
-    color: rgba(232,230,227,.58);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: none;
   }
   .about-link { display: none; }
   /* Mobile: pin the composer to the bottom (Slack/Discord/iMessage convention — thumb reach,
@@ -1521,18 +1513,18 @@ body[data-new-user="true"] .h-menu::after {
   body[data-input-focused="true"] .welcome { display: none; }
   .id-row {
     display: grid;
-    grid-template-columns: 20px minmax(0, 1fr) auto;
-    gap: 5px;
-    padding: 0 0 4px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px;
+    padding: 0 0 3px;
     align-items: center;
   }
-  .id-avatar { width: 20px; height: 20px; font-size: 9px; }
+  .id-avatar { display: none; }
   .id-label { display: none; }
   .id-text { min-width: 0; gap: 0; align-items: baseline; }
-  .id-text b { font-size: 11px; line-height: 1.05; }
+  .id-text b { font-size: 10.5px; line-height: 1; color: rgba(232,230,227,.74); }
   .id-set {
-    min-height: 20px;
-    padding: 0 0 0 6px;
+    min-height: 18px;
+    padding: 0 0 0 4px;
     border-radius: 999px;
     border: 0;
     background: transparent;

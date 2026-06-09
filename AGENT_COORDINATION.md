@@ -139,6 +139,8 @@ Server Error) for an unknown slug.
 
 ## Recently shipped (this ScratchNode session)
 
+- **2026-06-09 Codex** - mobile header density pass 4 (`home-v5.html#mobile-header-density-pass-4`): mobile event rooms now suppress the clipped hero meta line and flatten the anonymous identity row so LIVE, room code, event title, Set name, and the composer read faster in the first viewport. Visual evidence: `.validation/scratchnode-mobile-header-before-pass-4.png` -> `.validation/scratchnode-mobile-header-after-pass-4.png`.
+
 - **2026-06-09 Codex** - mobile chat grouping (`home-v5.html#mobile-chat-grouping`): consecutive anonymous live messages now group by same-session author key without merging distinct anonymous guests. Visual evidence: `.validation/scratchnode-chat-grouping-before.png` -> `.validation/scratchnode-chat-grouping-after.png`.
 
 - **2026-06-08 Codex** - room-entry skeleton polish (`home-v5.html#room-entry-skeleton-polish`): refined the `/e/:slug` cold-boot shell with structured preview rows, compact public-only trust cues, and softer ambient depth so the event room feels intentional before live data settles. Visual evidence: `.validation/scratchnode-entry-shell-before.png` -> `.validation/scratchnode-entry-shell-after-2026-06-08-polish.png`.
