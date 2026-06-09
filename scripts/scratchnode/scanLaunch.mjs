@@ -59,6 +59,7 @@ const expectedAutomationScripts = {
   "scratchnode:launch:scan": "scripts/scratchnode/scanLaunch.mjs",
   "scratchnode:launch:interactive": "scripts/scratchnode/scanLaunch.mjs --live --interactive",
   "scratchnode:launch:goal": "scripts/scratchnode/runLaunchGoalLoop.mjs",
+  "ui:aesthetic:review": "scripts/ui-aesthetic-review.mjs",
 };
 
 function readText(relativePath) {
