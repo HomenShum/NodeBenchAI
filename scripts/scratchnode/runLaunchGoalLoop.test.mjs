@@ -1508,7 +1508,7 @@ describe("summarizeDevelopmentBacklogEvidence", () => {
         mode: "fix-first",
         priority: "P0",
         sourcePath: "scripts/scratchnode/runLaunchGoalLoop.mjs",
-        suggestedVerification: ["npm run scratchnode:launch:goal"],
+        suggestedVerification: ["npm run scratchnode:launch:goal", "git diff --check"],
       },
       { id: "attention-2", mode: "fix-first", priority: "P1" },
       {
@@ -1538,12 +1538,14 @@ describe("summarizeDevelopmentBacklogEvidence", () => {
       developmentBacklogSourcePaths: ["missing/backlog-source.md", "scripts/scratchnode/runLaunchGoalLoop.mjs"],
       developmentBacklogMissingSourcePathCount: 1,
       developmentBacklogMissingSourcePaths: [{ id: "goal-3", path: "missing/backlog-source.md" }],
-      developmentBacklogSuggestedVerificationCommandCount: 3,
+      developmentBacklogSuggestedVerificationCommandCount: 4,
+      developmentBacklogSuggestedVerificationUniqueCommandCount: 3,
       developmentBacklogSuggestedVerificationCommands: [
         "git diff --check",
         "npm run repo:augment:check",
         "npm run scratchnode:launch:goal",
       ],
+      developmentBacklogSuggestedVerificationDuplicateCommands: ["git diff --check"],
       developmentBacklogMissingSuggestedVerificationCount: 2,
       developmentBacklogMissingSuggestedVerificationIds: ["attention-2", "drift-4"],
     });

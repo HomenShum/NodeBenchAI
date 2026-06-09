@@ -124,7 +124,9 @@ export const goalLoopEvidenceFieldNames = [
   "developmentBacklogMissingSourcePathCount",
   "developmentBacklogMissingSourcePaths",
   "developmentBacklogSuggestedVerificationCommandCount",
+  "developmentBacklogSuggestedVerificationUniqueCommandCount",
   "developmentBacklogSuggestedVerificationCommands",
+  "developmentBacklogSuggestedVerificationDuplicateCommands",
   "developmentBacklogMissingSuggestedVerificationCount",
   "developmentBacklogMissingSuggestedVerificationIds",
   "goalQueueCount",
@@ -1537,17 +1539,17 @@ export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
         : 0),
     0,
   );
-  const suggestedVerificationCommands = [
-    ...new Set(
-      developmentBacklog.flatMap((item) =>
-        Array.isArray(item?.suggestedVerification)
-          ? item.suggestedVerification
-              .map((command) => (typeof command === "string" ? command.trim() : ""))
-              .filter(Boolean)
-          : [],
-      ),
-    ),
-  ].sort();
+  const suggestedVerificationCommandValues = developmentBacklog.flatMap((item) =>
+    Array.isArray(item?.suggestedVerification)
+      ? item.suggestedVerification.map((command) => (typeof command === "string" ? command.trim() : "")).filter(Boolean)
+      : [],
+  );
+  const suggestedVerificationCommands = [...new Set(suggestedVerificationCommandValues)].sort();
+  const suggestedVerificationCommandCounts = countBy(suggestedVerificationCommandValues, (command) => command);
+  const duplicateSuggestedVerificationCommands = Object.entries(suggestedVerificationCommandCounts)
+    .filter(([, count]) => count > 1)
+    .map(([command]) => command)
+    .sort();
   const missingSuggestedVerificationIds = developmentBacklog
     .filter(
       (item) =>
@@ -1568,7 +1570,9 @@ export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
     developmentBacklogMissingSourcePathCount: missingSourcePathEntries.length,
     developmentBacklogMissingSourcePaths: missingSourcePathEntries,
     developmentBacklogSuggestedVerificationCommandCount: suggestedVerificationCommandCount,
+    developmentBacklogSuggestedVerificationUniqueCommandCount: suggestedVerificationCommands.length,
     developmentBacklogSuggestedVerificationCommands: suggestedVerificationCommands,
+    developmentBacklogSuggestedVerificationDuplicateCommands: duplicateSuggestedVerificationCommands,
     developmentBacklogMissingSuggestedVerificationCount: missingSuggestedVerificationIds.length,
     developmentBacklogMissingSuggestedVerificationIds: missingSuggestedVerificationIds,
   };
