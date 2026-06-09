@@ -1478,14 +1478,14 @@ body[data-new-user="true"] .h-menu::after {
 /* Mobile tweaks */
 @media (max-width: 540px) {
   .h { padding: calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left)); }
-  .m { padding: 10px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
+  .m { padding: 8px calc(14px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(14px + var(--safe-left)); }
   .hero {
-    margin-bottom: 2px;
+    margin-bottom: 1px;
     display: grid;
   }
   .hero h1 {
-    font-size: 16px;
-    line-height: .98;
+    font-size: 15px;
+    line-height: 1.02;
     letter-spacing: -.04em;
     margin-bottom: 0;
   }
@@ -1513,24 +1513,26 @@ body[data-new-user="true"] .h-menu::after {
   body[data-input-focused="true"] .welcome { display: none; }
   .id-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 4px;
-    padding: 0 0 3px;
+    grid-template-columns: minmax(0, max-content) auto;
+    justify-content: start;
+    gap: 3px;
+    padding: 1px 0 2px;
     align-items: center;
   }
   .id-avatar { display: none; }
   .id-label { display: none; }
   .id-text { min-width: 0; gap: 0; align-items: baseline; }
-  .id-text b { font-size: 10.5px; line-height: 1; color: rgba(232,230,227,.74); }
+  .id-text b { font-size: 10px; line-height: 1; color: rgba(232,230,227,.74); }
   .id-set {
-    min-height: 18px;
-    padding: 0 0 0 4px;
+    min-height: auto;
+    padding: 0;
     border-radius: 999px;
     border: 0;
     background: transparent;
-    font-size: 9px;
-    color: rgba(241,138,97,.82);
-    justify-self: end;
+    font-size: 8.5px;
+    line-height: 1;
+    color: rgba(241,138,97,.72);
+    justify-self: start;
   }
   .id-set:hover { background: transparent; color: var(--accent); }
   .demo-join-card {
@@ -1559,14 +1561,14 @@ body[data-new-user="true"] .h-menu::after {
   .c-mode .dot { width: 7px; height: 7px; }
   .feed-divider { display: none; }
   .sn-room-toggle {
-    margin: 0 0 1px;
+    margin: 0 0 0;
     padding: 2px;
     background: rgba(255,255,255,.012);
     border-color: rgba(255,255,255,.06);
   }
   .sn-rt-btn {
-    padding: 4px 9px;
-    font-size: 9.5px;
+    padding: 3px 8px;
+    font-size: 9px;
     letter-spacing: .01em;
   }
 }

@@ -139,6 +139,8 @@ Server Error) for an unknown slug.
 
 ## Recently shipped (this ScratchNode session)
 
+- **2026-06-09 Codex** - mobile header density pass 5 (`home-v5.html#mobile-header-density-pass-5`): compressed the mobile title, identity, and room-toggle stack so live chat appears sooner while preserving LIVE, room code, event title, Set name, and composer clarity. Visual evidence: `.validation/scratchnode-mobile-header-before-pass-5.png` -> `.validation/scratchnode-mobile-header-after-pass-5.png`.
+
 - **2026-06-09 Codex** - mobile header density pass 4 (`home-v5.html#mobile-header-density-pass-4`): mobile event rooms now suppress the clipped hero meta line and flatten the anonymous identity row so LIVE, room code, event title, Set name, and the composer read faster in the first viewport. Visual evidence: `.validation/scratchnode-mobile-header-before-pass-4.png` -> `.validation/scratchnode-mobile-header-after-pass-4.png`.
 
 - **2026-06-09 Codex** - mobile chat grouping (`home-v5.html#mobile-chat-grouping`): consecutive anonymous live messages now group by same-session author key without merging distinct anonymous guests. Visual evidence: `.validation/scratchnode-chat-grouping-before.png` -> `.validation/scratchnode-chat-grouping-after.png`.
