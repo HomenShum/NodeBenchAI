@@ -1082,6 +1082,14 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
       ? Math.max(0, Number(((currentHeadCommittedAtMs - aestheticReviewStat.mtimeMs) / 1000).toFixed(3)))
       : null;
   const aestheticReviewArtifactOnly = aestheticReviewJudgeSkippedReason === "artifact-only";
+  const environmentLimitedArtifactFallback =
+    usedArtifactFallback &&
+    aestheticReviewFallbackReason === "network_access_denied" &&
+    latestArtifact != null &&
+    latestArtifactStale === false &&
+    latestVisualArtifactPredatesHead === false &&
+    latestAestheticReviewStale === false &&
+    latestAestheticReviewPredatesHead === false;
   const hasCoverageGap =
     headFreshnessRequired &&
     Boolean(
@@ -1091,7 +1099,7 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
       latestAestheticReviewPredatesHead ||
       (latestArtifact && aestheticReviewExists && latestAestheticReviewStale) ||
       aestheticReviewArtifactOnly ||
-      usedArtifactFallback,
+      (usedArtifactFallback && !environmentLimitedArtifactFallback),
     );
   const aestheticReviewStatus = !aestheticReviewExists
     ? "missing"
