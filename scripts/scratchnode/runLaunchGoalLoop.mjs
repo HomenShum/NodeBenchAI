@@ -167,6 +167,7 @@ export const goalLoopEvidenceFieldNames = [
   "commandExitCodeHistory",
   "commandResultRows",
   "commandDurationMsByName",
+  "commandDurationHistory",
   "commandDurationTotalMs",
   "commandTimeoutMs",
   "minimumInvokerTimeoutMs",
@@ -823,6 +824,14 @@ export function summarizeCommandEvidence(commands, options = {}) {
         commandDurations.filter((command) => command.command === commandName).map((command) => command.exitCode),
       ]),
   );
+  const commandDurationHistory = Object.fromEntries(
+    Object.keys(commandOccurrenceCounts)
+      .sort((left, right) => left.localeCompare(right))
+      .map((commandName) => [
+        commandName,
+        commandDurations.filter((command) => command.command === commandName).map((command) => command.durationMs),
+      ]),
+  );
   const commandOccurrenceIndexes = new Map();
   const commandResultRows = commandDurations.map((command, index) => {
     const occurrenceIndex = (commandOccurrenceIndexes.get(command.command) ?? 0) + 1;
@@ -864,6 +873,7 @@ export function summarizeCommandEvidence(commands, options = {}) {
     commandExitCodeHistory,
     commandResultRows,
     commandDurationMsByName: Object.fromEntries(commandTimings.map((command) => [command.command, command.durationMs])),
+    commandDurationHistory,
     commandDurationTotalMs: commandTimings.reduce((total, command) => total + command.durationMs, 0),
     commandTimeoutMs,
     minimumInvokerTimeoutMs,

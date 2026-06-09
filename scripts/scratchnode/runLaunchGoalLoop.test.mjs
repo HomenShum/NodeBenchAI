@@ -311,6 +311,11 @@ describe("summarizeCommandEvidence", () => {
         "invalid-duration": [0],
         slow: [1],
       },
+      commandDurationHistory: {
+        fast: [12],
+        "invalid-duration": [0],
+        slow: [39],
+      },
       commandResultRows: [
         {
           index: 0,
@@ -410,6 +415,9 @@ describe("summarizeCommandEvidence", () => {
       commandExitCodeHistory: {
         "hung-check": [124],
       },
+      commandDurationHistory: {
+        "hung-check": [240001],
+      },
       commandResultRows: [
         {
           index: 0,
@@ -479,6 +487,10 @@ describe("summarizeCommandEvidence", () => {
     expect(summary.commandExitCodeHistory).toEqual({
       "git diff --check": [0],
       "npm run scratchnode:launch:goal": [0, 1],
+    });
+    expect(summary.commandDurationHistory).toEqual({
+      "git diff --check": [5],
+      "npm run scratchnode:launch:goal": [10, 15],
     });
     expect(summary.commandResultRows).toEqual([
       {
@@ -2194,6 +2206,7 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("duplicateCommandNames");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodes");
     expect(goalLoopEvidenceFieldNames).toContain("commandExitCodeHistory");
+    expect(goalLoopEvidenceFieldNames).toContain("commandDurationHistory");
     expect(goalLoopEvidenceFieldNames).toContain("commandResultRows");
     expect(goalLoopEvidenceFieldNames).toContain("latestVisualArtifactPath");
     expect(goalLoopEvidenceFieldNames).toContain("latestVisualArtifactStale");
