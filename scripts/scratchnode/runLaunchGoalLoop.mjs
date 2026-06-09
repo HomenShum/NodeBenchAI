@@ -49,6 +49,8 @@ export const goalLoopEvidenceFieldNames = [
   "gitHeadCommittedAt",
   "notifyDecision",
   "notifyTrigger",
+  "notifyActiveTriggers",
+  "notifySuppressedTriggers",
   "notifyKnownCautionOnly",
   "notifyQuietPassEligible",
   "notifyRecommendationReason",
@@ -1310,18 +1312,15 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
     String(context.developmentCandidate?.selectionReason ?? "").trim(),
     String(context.developmentCandidate?.actionabilityReason ?? "").trim(),
   ].filter(Boolean);
-  const notifyTrigger =
-    failures.length > 0
-      ? "failures"
-      : currentHeadChanged
-        ? "head-changed"
-        : visualEvidenceGap
-          ? "visual-evidence-gap"
-          : knownCautionCount > 0
-            ? "known-caution"
-            : quietPassEligible
-              ? "quiet-pass"
-              : "none";
+  const notifyActiveTriggers = [
+    failures.length > 0 ? "failures" : null,
+    currentHeadChanged ? "head-changed" : null,
+    visualEvidenceGap ? "visual-evidence-gap" : null,
+    knownCautionCount > 0 ? "known-caution" : null,
+    quietPassEligible ? "quiet-pass" : null,
+  ].filter(Boolean);
+  const notifyTrigger = notifyActiveTriggers[0] ?? "none";
+  const notifySuppressedTriggers = notifyActiveTriggers.slice(1);
   const notifyKnownCautionOnly =
     notifyTrigger === "known-caution" &&
     failures.length === 0 &&
@@ -1329,24 +1328,30 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
     visualEvidenceGap === false;
   const notifyDecision =
     notifyTrigger === "quiet-pass" ? "quiet-pass" : notifyTrigger === "none" ? "no-notify" : "notify";
+  const baseReason =
+    failures.length > 0
+      ? `Launch goal failures (${failures.length}): ${failures.join("; ")}`
+      : currentHeadChanged
+        ? `Goal loop passed and HEAD changed since the previous report (${previousHeadShortSha} -> ${currentHeadShortSha}); report the verified local slice.`
+        : visualEvidenceGap
+          ? `Goal loop passed, but visual evidence coverage is incomplete: ${visualEvidenceGapReason}`
+          : knownCautionCount > 0
+            ? `Goal loop passed with ${knownCautionCount} known caution entr${knownCautionCount === 1 ? "y" : "ies"} that still ${knownCautionCount === 1 ? "needs" : "need"} operator visibility: ${knownCautionLabels.join("; ")}`
+            : quietPassEligible
+              ? `Goal loop passed; quiet pass is eligible. ${quietPassReasonParts.join(" ")}`
+              : "All launch goal criteria passed; no notification needed.";
   return {
     notifyDecision,
     notifyTrigger,
+    notifyActiveTriggers,
+    notifySuppressedTriggers,
     notifyKnownCautionOnly,
     notifyQuietPassEligible: quietPassEligible,
     notifyRecommended: failures.length > 0 || currentHeadChanged || visualEvidenceGap || knownCautionCount > 0,
     notifyRecommendationReason:
-      failures.length > 0
-        ? `Launch goal failures (${failures.length}): ${failures.join("; ")}`
-        : currentHeadChanged
-          ? `Goal loop passed and HEAD changed since the previous report (${previousHeadShortSha} -> ${currentHeadShortSha}); report the verified local slice.`
-          : visualEvidenceGap
-            ? `Goal loop passed, but visual evidence coverage is incomplete: ${visualEvidenceGapReason}`
-          : knownCautionCount > 0
-            ? `Goal loop passed with ${knownCautionCount} known caution entr${knownCautionCount === 1 ? "y" : "ies"} that still ${knownCautionCount === 1 ? "needs" : "need"} operator visibility: ${knownCautionLabels.join("; ")}`
-          : quietPassEligible
-            ? `Goal loop passed; quiet pass is eligible. ${quietPassReasonParts.join(" ")}`
-            : "All launch goal criteria passed; no notification needed.",
+      notifySuppressedTriggers.length > 0
+        ? `${baseReason} Additional notify reasons: ${notifySuppressedTriggers.join(", ")}.`
+        : baseReason,
   };
 }
 

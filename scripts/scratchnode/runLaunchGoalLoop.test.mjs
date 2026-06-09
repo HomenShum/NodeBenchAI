@@ -1172,6 +1172,8 @@ describe("summarizeNotificationEvidence", () => {
     ).toEqual({
       notifyDecision: "no-notify",
       notifyTrigger: "none",
+      notifyActiveTriggers: [],
+      notifySuppressedTriggers: [],
       notifyKnownCautionOnly: false,
       notifyQuietPassEligible: false,
       notifyRecommended: false,
@@ -1186,6 +1188,8 @@ describe("summarizeNotificationEvidence", () => {
     ).toEqual({
       notifyDecision: "notify",
       notifyTrigger: "failures",
+      notifyActiveTriggers: ["failures"],
+      notifySuppressedTriggers: [],
       notifyKnownCautionOnly: false,
       notifyQuietPassEligible: false,
       notifyRecommended: true,
@@ -1210,6 +1214,8 @@ describe("summarizeNotificationEvidence", () => {
     ).toEqual({
       notifyDecision: "notify",
       notifyTrigger: "visual-evidence-gap",
+      notifyActiveTriggers: ["visual-evidence-gap"],
+      notifySuppressedTriggers: [],
       notifyKnownCautionOnly: false,
       notifyQuietPassEligible: false,
       notifyRecommended: true,
@@ -1232,6 +1238,8 @@ describe("summarizeNotificationEvidence", () => {
     ).toEqual({
       notifyDecision: "notify",
       notifyTrigger: "known-caution",
+      notifyActiveTriggers: ["known-caution"],
+      notifySuppressedTriggers: [],
       notifyKnownCautionOnly: true,
       notifyQuietPassEligible: false,
       notifyRecommended: true,
@@ -2000,6 +2008,8 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGapReason");
     expect(goalLoopEvidenceFieldNames).toContain("notifyDecision");
     expect(goalLoopEvidenceFieldNames).toContain("notifyTrigger");
+    expect(goalLoopEvidenceFieldNames).toContain("notifyActiveTriggers");
+    expect(goalLoopEvidenceFieldNames).toContain("notifySuppressedTriggers");
     expect(goalLoopEvidenceFieldNames).toContain("notifyKnownCautionOnly");
     expect(goalLoopEvidenceFieldNames).toContain("notifyQuietPassEligible");
     expect(goalLoopEvidenceFieldNames).toContain("knownCautionPathBranches");
@@ -2130,6 +2140,8 @@ describe("summarizeNotificationEvidence", () => {
     expect(summarizeNotificationEvidence([{ name: "git drift", ok: false }])).toEqual({
       notifyDecision: "notify",
       notifyTrigger: "failures",
+      notifyActiveTriggers: ["failures"],
+      notifySuppressedTriggers: [],
       notifyKnownCautionOnly: false,
       notifyQuietPassEligible: false,
       notifyRecommended: true,
@@ -2150,6 +2162,8 @@ describe("summarizeNotificationEvidence", () => {
     ).toEqual({
       notifyDecision: "notify",
       notifyTrigger: "head-changed",
+      notifyActiveTriggers: ["head-changed"],
+      notifySuppressedTriggers: [],
       notifyKnownCautionOnly: false,
       notifyQuietPassEligible: false,
       notifyRecommended: true,
@@ -2171,6 +2185,8 @@ describe("summarizeNotificationEvidence", () => {
     ).toEqual({
       notifyDecision: "no-notify",
       notifyTrigger: "none",
+      notifyActiveTriggers: [],
+      notifySuppressedTriggers: [],
       notifyKnownCautionOnly: false,
       notifyQuietPassEligible: false,
       notifyRecommended: false,
@@ -2194,6 +2210,8 @@ describe("summarizeNotificationEvidence", () => {
     ).toEqual({
       notifyDecision: "notify",
       notifyTrigger: "known-caution",
+      notifyActiveTriggers: ["known-caution"],
+      notifySuppressedTriggers: [],
       notifyKnownCautionOnly: true,
       notifyQuietPassEligible: false,
       notifyRecommended: true,
@@ -2217,11 +2235,46 @@ describe("summarizeNotificationEvidence", () => {
     ).toEqual({
       notifyDecision: "quiet-pass",
       notifyTrigger: "quiet-pass",
+      notifyActiveTriggers: ["quiet-pass"],
+      notifySuppressedTriggers: [],
       notifyKnownCautionOnly: false,
       notifyQuietPassEligible: true,
       notifyRecommended: false,
       notifyRecommendationReason:
         "Goal loop passed; quiet pass is eligible. All gates are green. Only the automation fallback is available.",
+    });
+  });
+
+  it("keeps secondary notify reasons visible when a higher-priority trigger wins", () => {
+    expect(
+      summarizeNotificationEvidence(
+        [{ name: "git drift", ok: true }],
+        {
+          previousHeadShortSha: "abc12345",
+          currentHeadShortSha: "def67890",
+          currentHeadChanged: true,
+          visualEvidence: {
+            latestAestheticReviewCoverageGapReason:
+              "Aesthetic review summary .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json predates HEAD.",
+          },
+          knownCautionEntries: [
+            {
+              path: ".worktrees/p0-row-delta",
+              reason: "invalid registered worktree; inspect git metadata first",
+            },
+          ],
+        },
+      ),
+    ).toEqual({
+      notifyDecision: "notify",
+      notifyTrigger: "head-changed",
+      notifyActiveTriggers: ["head-changed", "visual-evidence-gap", "known-caution"],
+      notifySuppressedTriggers: ["visual-evidence-gap", "known-caution"],
+      notifyKnownCautionOnly: false,
+      notifyQuietPassEligible: false,
+      notifyRecommended: true,
+      notifyRecommendationReason:
+        "Goal loop passed and HEAD changed since the previous report (abc12345 -> def67890); report the verified local slice. Additional notify reasons: visual-evidence-gap, known-caution.",
     });
   });
 });
