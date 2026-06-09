@@ -1503,9 +1503,21 @@ describe("summarizeGoalEvidence", () => {
 describe("summarizeDevelopmentBacklogEvidence", () => {
   it("summarizes backlog count, modes, priorities, and ids", () => {
     const summary = summarizeDevelopmentBacklogEvidence([
-      { id: "blocker-1", mode: "fix-first", priority: "P0", sourcePath: "scripts/scratchnode/runLaunchGoalLoop.mjs" },
+      {
+        id: "blocker-1",
+        mode: "fix-first",
+        priority: "P0",
+        sourcePath: "scripts/scratchnode/runLaunchGoalLoop.mjs",
+        suggestedVerification: ["npm run scratchnode:launch:goal"],
+      },
       { id: "attention-2", mode: "fix-first", priority: "P1" },
-      { id: "goal-3", mode: "safe-local-development", priority: "P1", sourcePath: "missing/backlog-source.md" },
+      {
+        id: "goal-3",
+        mode: "safe-local-development",
+        priority: "P1",
+        sourcePath: "missing/backlog-source.md",
+        suggestedVerification: ["npm run repo:augment:check", "git diff --check"],
+      },
       { id: "drift-4" },
     ]);
 
@@ -1526,6 +1538,9 @@ describe("summarizeDevelopmentBacklogEvidence", () => {
       developmentBacklogSourcePaths: ["missing/backlog-source.md", "scripts/scratchnode/runLaunchGoalLoop.mjs"],
       developmentBacklogMissingSourcePathCount: 1,
       developmentBacklogMissingSourcePaths: [{ id: "goal-3", path: "missing/backlog-source.md" }],
+      developmentBacklogSuggestedVerificationCommandCount: 3,
+      developmentBacklogMissingSuggestedVerificationCount: 2,
+      developmentBacklogMissingSuggestedVerificationIds: ["attention-2", "drift-4"],
     });
   });
 });

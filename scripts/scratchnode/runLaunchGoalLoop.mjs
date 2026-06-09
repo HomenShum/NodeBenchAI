@@ -123,6 +123,9 @@ export const goalLoopEvidenceFieldNames = [
   "developmentBacklogSourcePaths",
   "developmentBacklogMissingSourcePathCount",
   "developmentBacklogMissingSourcePaths",
+  "developmentBacklogSuggestedVerificationCommandCount",
+  "developmentBacklogMissingSuggestedVerificationCount",
+  "developmentBacklogMissingSuggestedVerificationIds",
   "goalQueueCount",
   "goalQueueStatusCounts",
   "goalQueueModeCounts",
@@ -1525,6 +1528,23 @@ export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
     .filter((entry) => !existsSync(resolve(repoRoot, entry.path)))
     .map((entry) => ({ id: entry.id, path: entry.path }))
     .sort((left, right) => `${left.path}:${left.id ?? ""}`.localeCompare(`${right.path}:${right.id ?? ""}`));
+  const suggestedVerificationCommandCount = developmentBacklog.reduce(
+    (count, item) =>
+      count +
+      (Array.isArray(item?.suggestedVerification)
+        ? item.suggestedVerification.filter((command) => typeof command === "string" && command.trim()).length
+        : 0),
+    0,
+  );
+  const missingSuggestedVerificationIds = developmentBacklog
+    .filter(
+      (item) =>
+        !Array.isArray(item?.suggestedVerification) ||
+        item.suggestedVerification.filter((command) => typeof command === "string" && command.trim()).length === 0,
+    )
+    .map((item) => item.id)
+    .filter(Boolean)
+    .sort();
 
   return {
     developmentBacklogCount: developmentBacklog.length,
@@ -1535,6 +1555,9 @@ export function summarizeDevelopmentBacklogEvidence(developmentBacklog) {
     developmentBacklogSourcePaths: sourcePaths,
     developmentBacklogMissingSourcePathCount: missingSourcePathEntries.length,
     developmentBacklogMissingSourcePaths: missingSourcePathEntries,
+    developmentBacklogSuggestedVerificationCommandCount: suggestedVerificationCommandCount,
+    developmentBacklogMissingSuggestedVerificationCount: missingSuggestedVerificationIds.length,
+    developmentBacklogMissingSuggestedVerificationIds: missingSuggestedVerificationIds,
   };
 }
 
