@@ -178,6 +178,23 @@ export function summarizeArtifacts(artifactPaths) {
   });
 }
 
+function inferArtifactSurface(artifactPath, requestedSurface) {
+  if (requestedSurface !== "both") return requestedSurface;
+  const basename = path.basename(artifactPath).toLowerCase();
+  if (/\bdesktop\b|\bweb\b/.test(basename)) return "desktop";
+  if (/\bmobile\b|\bphone\b/.test(basename)) return "mobile";
+  return "mobile";
+}
+
+export function artifactVideoCandidates(artifactPaths, surface) {
+  return artifactPaths
+    .filter((artifactPath) => classifyArtifactKind(artifactPath) === "video")
+    .map((artifactPath) => ({
+      surface: inferArtifactSurface(artifactPath, surface),
+      path: path.resolve(ROOT, artifactPath),
+    }));
+}
+
 export function findRecentLocalArtifacts({
   artifactsDir = resolveRepoPath(DEFAULT_VALIDATION_DIR),
   limit = 4,
@@ -201,6 +218,21 @@ function passJudge(judgeJson) {
   const readiness = Number(judgeJson.readiness_score ?? 0);
   const verdict = String(judgeJson.verdict ?? "");
   return readiness >= 70 && verdict !== "needs_work";
+}
+
+function runVideoJudges(summary, videos, model) {
+  summary.videos = videos;
+  for (const video of videos) {
+    const judgeOut = runNode(
+      JUDGE,
+      ["--video", video.path, "--surface", video.surface, "--model", model],
+      `ScratchNode ${video.surface} judge`,
+    );
+    const judgeJson = parseJsonObject(judgeOut, `ScratchNode ${video.surface} judge`);
+    const passed = passJudge(judgeJson);
+    summary.judges.push({ surface: video.surface, passed, ...judgeJson });
+    if (!passed) summary.passed = false;
+  }
 }
 
 function writeSummary(summary, reportPath) {
@@ -338,7 +370,19 @@ async function main() {
       summary.passed = null;
       summary.url = null;
       summary.artifacts = summarizeArtifacts(artifactPaths);
-      summary.judgeSkipped = "artifact-only";
+      const artifactVideos = artifactVideoCandidates(artifactPaths, surface);
+      const shouldJudgeArtifacts = judgeMode === "require" || (judgeMode === "auto" && hasGeminiKey());
+      if (artifactVideos.length && shouldJudgeArtifacts) {
+        summary.passed = true;
+        runVideoJudges(summary, artifactVideos, model);
+        writeSummary(summary, reportPath);
+        console.log(JSON.stringify(summary, null, 2));
+        if (!summary.passed) process.exit(2);
+        return;
+      }
+      summary.judgeSkipped = artifactVideos.length
+        ? (judgeMode === "skip" ? "requested" : "GEMINI_API_KEY not available")
+        : "artifact-only";
       writeSummary(summary, reportPath);
       console.log(JSON.stringify(summary, null, 2));
       return;
@@ -363,17 +407,7 @@ async function main() {
       return;
     }
 
-    for (const video of videos) {
-      const judgeOut = runNode(
-        JUDGE,
-        ["--video", video.path, "--surface", video.surface, "--model", model],
-        `ScratchNode ${video.surface} judge`,
-      );
-      const judgeJson = parseJsonObject(judgeOut, `ScratchNode ${video.surface} judge`);
-      const passed = passJudge(judgeJson);
-      summary.judges.push({ surface: video.surface, passed, ...judgeJson });
-      if (!passed) summary.passed = false;
-    }
+    runVideoJudges(summary, videos, model);
 
     writeSummary(summary, reportPath);
     console.log(JSON.stringify(summary, null, 2));

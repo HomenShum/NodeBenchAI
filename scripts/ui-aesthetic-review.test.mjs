@@ -3,6 +3,7 @@ import { mkdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
+  artifactVideoCandidates,
   buildFailureSummary,
   classifyAestheticReviewFailure,
   classifyArtifactKind,
@@ -105,6 +106,29 @@ describe("artifact-only evidence helpers", () => {
       });
       expect(summary[0].modifiedAt).toMatch(/T/);
       expect(summary[1].modifiedAt).toMatch(/T/);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("turns local video artifacts into judge candidates without including screenshots", () => {
+    const tempDir = resolve(".tmp/test-ui-aesthetic-review-video-candidates");
+    mkdirSync(tempDir, { recursive: true });
+    const imagePath = resolve(tempDir, "mobile-after.png");
+    const mobileVideoPath = resolve(tempDir, "scratchnode-chat-mobile.webm");
+    const desktopVideoPath = resolve(tempDir, "scratchnode-chat-desktop.webm");
+    writeFileSync(imagePath, "png-bytes");
+    writeFileSync(mobileVideoPath, "webm-bytes");
+    writeFileSync(desktopVideoPath, "webm-bytes");
+
+    try {
+      expect(artifactVideoCandidates([imagePath, mobileVideoPath, desktopVideoPath], "both")).toEqual([
+        { surface: "mobile", path: mobileVideoPath },
+        { surface: "desktop", path: desktopVideoPath },
+      ]);
+      expect(artifactVideoCandidates([desktopVideoPath], "mobile")).toEqual([
+        { surface: "mobile", path: desktopVideoPath },
+      ]);
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
