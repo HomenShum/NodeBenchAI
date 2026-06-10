@@ -476,7 +476,7 @@ function buildCriterion(name, ok, detail = "") {
   return { name, ok: !!ok, detail };
 }
 
-export function knownCautionEntries(housekeepingReport, localHistoryReport = null) {
+export function knownCautionEntries(housekeepingReport, localHistoryReport = null, coordinationLedgerEvidence = null) {
   const entries = (housekeepingReport?.cautionEntries ?? []).filter((entry) =>
     /clean registered worktree; explicit prune only/i.test(entry.reason ?? ""),
   );
@@ -505,6 +505,38 @@ export function knownCautionEntries(housekeepingReport, localHistoryReport = nul
       reason: `invalid registered worktrees present: ${invalidRegistered}; explicit keep-entry details unavailable from local-history map/reduce`,
       sourceReport: reportPaths.housekeeping,
       recommendedAction: "Inspect git worktree metadata before any prune or removal.",
+    });
+  }
+  const staleCoordinationSummaries = Array.isArray(coordinationLedgerEvidence?.coordinationActiveClaimStaleSummaries)
+    ? coordinationLedgerEvidence.coordinationActiveClaimStaleSummaries.filter(Boolean)
+    : [];
+  const staleCoordinationHotFileRefs = Array.isArray(coordinationLedgerEvidence?.coordinationActiveClaimStaleHotFileRefs)
+    ? coordinationLedgerEvidence.coordinationActiveClaimStaleHotFileRefs.filter(Boolean)
+    : [];
+  const staleCoordinationBranchRefs = Array.isArray(coordinationLedgerEvidence?.coordinationActiveClaimStaleBranchRefs)
+    ? coordinationLedgerEvidence.coordinationActiveClaimStaleBranchRefs.filter(Boolean)
+    : [];
+  const staleCoordinationMaxAgeDays = Number(coordinationLedgerEvidence?.coordinationActiveClaimMaxAgeDays);
+  const staleCoordinationAgeLabel =
+    Number.isFinite(staleCoordinationMaxAgeDays) && staleCoordinationMaxAgeDays >= 0
+      ? `${staleCoordinationMaxAgeDays} day${staleCoordinationMaxAgeDays === 1 ? "" : "s"} old`
+      : "stale";
+  for (const ref of staleCoordinationHotFileRefs) {
+    entries.push({
+      path: ref,
+      reason: `stale active coordination claim for hot file ref (${staleCoordinationAgeLabel}); refresh ownership before editing`,
+      sourceReport: coordinationLedgerPath,
+      recommendedAction: "Refresh or release the stale coordination claim before editing this hot file region.",
+      branch: staleCoordinationBranchRefs[0] ?? null,
+    });
+  }
+  if (staleCoordinationSummaries.length > 0 && staleCoordinationHotFileRefs.length === 0) {
+    entries.push({
+      path: `${coordinationLedgerPath}#active-claims`,
+      reason: `stale active coordination claims remain (${staleCoordinationAgeLabel}); refresh ownership before parallel edits`,
+      sourceReport: coordinationLedgerPath,
+      recommendedAction: "Refresh or release the stale coordination claim before starting overlapping work.",
+      branch: staleCoordinationBranchRefs[0] ?? null,
     });
   }
   return entries.map((entry) => ({
@@ -2399,6 +2431,10 @@ async function main() {
   const previousGoalLoopReport = readJson(reportPaths.goalLoop);
   const activeCodingGoalText = readText(activeCodingGoalReportPath);
   const coordinationLedgerText = readText(coordinationLedgerPath);
+  const coordinationLedgerEvidence = summarizeCoordinationLedgerEvidence(coordinationLedgerText, {
+    path: coordinationLedgerPath,
+    asOfIso: generatedAt,
+  });
   const commands = [];
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
   commands.push(await run("npm", ["run", "scratchnode:launch:interactive"]));
@@ -2430,7 +2466,7 @@ async function main() {
   const gitBranchEvidence = summarizeGitBranchEvidence(gitBranchStatus);
   const actionableAttention = actionableAttentionItems(housekeepingReport);
   const launchRelevantBlockers = housekeepingReport?.operatorSummary?.launchRelevantBlockers ?? [];
-  const knownCautions = knownCautionEntries(housekeepingReport, localHistoryReport);
+  const knownCautions = knownCautionEntries(housekeepingReport, localHistoryReport, coordinationLedgerEvidence);
   const goalQueue = readGoalQueue();
   const developmentBacklog = buildDevelopmentBacklog({
     actionableAttention,
@@ -2601,10 +2637,6 @@ async function main() {
   const reportSchemaEvidence = summarizeReportSchemaEvidence(reportSchemaVersion);
   const activeCodingGoalEvidence = summarizeActiveCodingGoalEvidence(activeCodingGoalText, {
     path: activeCodingGoalReportPath,
-  });
-  const coordinationLedgerEvidence = summarizeCoordinationLedgerEvidence(coordinationLedgerText, {
-    path: coordinationLedgerPath,
-    asOfIso: generatedAt,
   });
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);

@@ -279,6 +279,46 @@ describe("knownCautionEntries", () => {
       },
     ]);
   });
+
+  it("promotes stale coordination hot-file claims into structured caution entries", () => {
+    const cautions = knownCautionEntries(
+      {
+        cautionEntries: [],
+        summary: {
+          invalidRegistered: 0,
+        },
+      },
+      null,
+      {
+        coordinationActiveClaimMaxAgeDays: 7,
+        coordinationActiveClaimStaleSummaries: [
+          "- **2026-06-03 - Claude ->** `convex/*#handoff-token`, `public/proto/home-v5.html#private-handoff`",
+        ],
+        coordinationActiveClaimStaleHotFileRefs: [
+          "convex/*#handoff-token",
+          "public/proto/home-v5.html#private-handoff",
+        ],
+        coordinationActiveClaimStaleBranchRefs: ["feat/scratchnode-private-notes-token"],
+      },
+    );
+
+    expect(cautions).toEqual([
+      {
+        path: "convex/*#handoff-token",
+        reason: "stale active coordination claim for hot file ref (7 days old); refresh ownership before editing",
+        sourceReport: "AGENT_COORDINATION.md",
+        recommendedAction: "Refresh or release the stale coordination claim before editing this hot file region.",
+        branch: "feat/scratchnode-private-notes-token",
+      },
+      {
+        path: "public/proto/home-v5.html#private-handoff",
+        reason: "stale active coordination claim for hot file ref (7 days old); refresh ownership before editing",
+        sourceReport: "AGENT_COORDINATION.md",
+        recommendedAction: "Refresh or release the stale coordination claim before editing this hot file region.",
+        branch: "feat/scratchnode-private-notes-token",
+      },
+    ]);
+  });
 });
 
 describe("summarizeKnownCautionEvidence", () => {
