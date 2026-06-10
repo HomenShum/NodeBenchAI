@@ -318,7 +318,7 @@ body[data-page-mode="event"]:not([data-sn-room-ready="true"]) .sn-room-entry {
 }
 body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry {
   display: flex;
-  opacity: 0;
+  opacity: .08;
   visibility: visible;
   transition-delay: 0s;
 }
@@ -332,9 +332,9 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry {
   will-change: transform, opacity, filter;
 }
 body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__panel {
-  transform: translateY(-14px) scale(.985);
+  transform: translateY(-18px) scale(.982);
   opacity: .01;
-  filter: blur(6px);
+  filter: blur(8px);
 }
 .sn-room-entry__topline {
   display: flex;
@@ -592,6 +592,10 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__pane
   color: var(--ink);
   font-weight: 600;
 }
+body[data-page-mode="event"] :is(.h, .event-strip, .hero, .welcome, .sn-mem-nudge, #feed, .c, .f) {
+  transform-origin: top center;
+  will-change: transform, opacity, filter;
+}
 body[data-page-mode="event"]:not([data-sn-room-ready="true"]) .sn-room-entry__panel {
   animation: roomEntryPanelRise 560ms var(--ease-out) both;
 }
@@ -603,9 +607,12 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__prog
 }
 body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__preview {
   animation: none;
-  transform: translateY(-8px) scale(.985);
-  opacity: .54;
+  transform: translateY(-10px) scale(.982);
+  opacity: .46;
   transition: transform var(--motion-med) var(--ease-out), opacity var(--motion-med) var(--ease-out);
+}
+body[data-page-mode="event"][data-sn-room-ready="settling"] :is(.h, .event-strip, .hero, .welcome, .sn-mem-nudge, #feed, .c, .f) {
+  animation: roomSurfaceReveal 440ms var(--ease-out) both;
 }
 @keyframes roomEntrySheen { from { background-position: 180% 0; } to { background-position: -20% 0; } }
 @keyframes roomEntryPulse {
@@ -624,6 +631,11 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__prev
 }
 @keyframes roomEntryPanelRise {
   0% { opacity: .01; transform: translateY(22px) scale(.985); filter: blur(10px); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+@keyframes roomSurfaceReveal {
+  0% { opacity: .22; transform: translateY(16px) scale(.992); filter: blur(10px); }
+  55% { opacity: .72; transform: translateY(6px) scale(.997); filter: blur(4px); }
   100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
 }
 @media (max-width: 540px) {
@@ -651,7 +663,8 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__prev
   .sn-room-entry__progress-bar,
   .sn-room-entry__preview,
   .sn-room-entry__skeleton,
-  body[data-page-mode="event"]:not([data-sn-room-ready="true"]) .sn-room-entry__panel {
+  body[data-page-mode="event"]:not([data-sn-room-ready="true"]) .sn-room-entry__panel,
+  body[data-page-mode="event"][data-sn-room-ready="settling"] :is(.h, .event-strip, .hero, .welcome, .sn-mem-nudge, #feed, .c, .f) {
     animation: none;
   }
 }
@@ -8086,7 +8099,7 @@ window._laCueAction       = _laCueAction;
   const roomEntryCodeEl = document.getElementById('sn-room-entry-code');
   const roomEntryTitleEl = document.getElementById('sn-room-entry-title');
   const roomEntrySubEl = document.getElementById('sn-room-entry-sub');
-  const roomEntryExitDurationMs = 520; // Keep pace with the richer shell exit so the reveal does not cut off mid-settle.
+  const roomEntryExitDurationMs = 560; // Keep pace with the richer shell exit so the reveal does not cut off mid-settle.
   let roomEntrySettled = false;
   let roomEntryMinHoldDone = false;
   let roomEntryPendingSettle = false;
@@ -8151,7 +8164,7 @@ window._laCueAction       = _laCueAction;
       var banner = document.createElement('div');
       banner.setAttribute('role', 'alert');
       banner.setAttribute('data-sn-live-error', 'true');
-      banner.style.cssText = 'position:sticky;top:0;z-index:50;padding:10px 14px;background:#3a2a24;color:#f1d6c8;border-bottom:1px solid #5a3a30;font:500 13px/1.4 var(--ui,system-ui);text-align:center;';
+      banner.style.cssText = 'position:sticky;top:0;z-index:50;padding:10px 14px;background:#3a2a24;color:#f1d6c8;border-bottom:1px solid #5a3a30;font:500 13px/1.4 var(--ui,system-ui);text-align:center;animation:roomSurfaceReveal 460ms var(--ease-out,ease-out) both;';
       banner.innerHTML = messageHtml;
       document.body.insertBefore(banner, document.body.firstChild);
     } catch (_) {
