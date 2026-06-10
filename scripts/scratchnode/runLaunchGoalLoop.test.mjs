@@ -1739,7 +1739,7 @@ describe("summarizeCoordinationLedgerEvidence", () => {
 
 - Ready contract.
 `,
-      { path: "AGENT_COORDINATION.md" },
+      { path: "AGENT_COORDINATION.md", asOfIso: "2026-06-10T01:45:14.247Z" },
     );
 
     expect(summary).toEqual({
@@ -1762,6 +1762,16 @@ describe("summarizeCoordinationLedgerEvidence", () => {
         "public/proto/home-v5.html#private-handoff",
       ],
       coordinationActiveClaimBranchRefs: ["feat/scratchnode-private-notes-token"],
+      coordinationActiveClaimStalenessThresholdDays: 3,
+      coordinationActiveClaimDatedCount: 2,
+      coordinationActiveClaimUndatedCount: 0,
+      coordinationActiveClaimAgeDaysByHeader: [
+        { header: "2026-06-03 - Claude ->", ageDays: 7 },
+        { header: "2026-06-09 - Codex ->", ageDays: 1 },
+      ],
+      coordinationActiveClaimMaxAgeDays: 7,
+      coordinationActiveClaimStaleCount: 1,
+      coordinationActiveClaimStaleHeaders: ["2026-06-03 - Claude ->"],
       coordinationActiveClaimSummaries: [
         "- **2026-06-03 - Claude ->** `convex/*#handoff-token`, `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` - shipping private bridge - branch `feat/scratchnode-private-notes-token`. Second line with more context.",
         "- **2026-06-09 - Codex ->** `docs/runbooks/test.md` - docs-only pass.",
@@ -1781,6 +1791,13 @@ describe("summarizeCoordinationLedgerEvidence", () => {
       coordinationActiveClaimHotFileRefCount: 0,
       coordinationActiveClaimHotFileRefs: [],
       coordinationActiveClaimBranchRefs: [],
+      coordinationActiveClaimStalenessThresholdDays: 3,
+      coordinationActiveClaimDatedCount: 0,
+      coordinationActiveClaimUndatedCount: 0,
+      coordinationActiveClaimAgeDaysByHeader: [],
+      coordinationActiveClaimMaxAgeDays: null,
+      coordinationActiveClaimStaleCount: 0,
+      coordinationActiveClaimStaleHeaders: [],
       coordinationActiveClaimSummaries: [],
     });
   });
@@ -2593,6 +2610,13 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimHotFileRefCount");
     expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimHotFileRefs");
     expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimBranchRefs");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimStalenessThresholdDays");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimDatedCount");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimUndatedCount");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimAgeDaysByHeader");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimMaxAgeDays");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimStaleCount");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimStaleHeaders");
     expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimSummaries");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidate");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateActionabilityReason");

@@ -41,6 +41,7 @@ const reportPaths = {
 
 const activeCodingGoalReportPath = ".tmp/active-coding-goal.md";
 const coordinationLedgerPath = "AGENT_COORDINATION.md";
+const coordinationActiveClaimStalenessThresholdDays = 3;
 
 const activeCodingGoalRequiredSections = [
   "Problem",
@@ -83,6 +84,13 @@ export const goalLoopEvidenceFieldNames = [
   "coordinationActiveClaimHotFileRefCount",
   "coordinationActiveClaimHotFileRefs",
   "coordinationActiveClaimBranchRefs",
+  "coordinationActiveClaimStalenessThresholdDays",
+  "coordinationActiveClaimDatedCount",
+  "coordinationActiveClaimUndatedCount",
+  "coordinationActiveClaimAgeDaysByHeader",
+  "coordinationActiveClaimMaxAgeDays",
+  "coordinationActiveClaimStaleCount",
+  "coordinationActiveClaimStaleHeaders",
   "coordinationActiveClaimSummaries",
   "goalId",
   "goalSourceRefCount",
@@ -1661,8 +1669,21 @@ function truncateEvidenceText(value, maxLength = 280) {
   return `${normalized.slice(0, maxLength - 3)}...`;
 }
 
+function parseCoordinationClaimDate(header) {
+  const match = String(header ?? "").match(/\b(\d{4}-\d{2}-\d{2})\b/);
+  if (!match) return null;
+  const parsed = Date.parse(`${match[1]}T00:00:00.000Z`);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function summarizeCoordinationLedgerEvidence(ledgerText, options = {}) {
   const ledgerPath = String(options.path ?? coordinationLedgerPath).trim() || null;
+  const stalenessThresholdDays = Math.max(
+    1,
+    Number.parseInt(options.stalenessThresholdDays ?? "", 10) || coordinationActiveClaimStalenessThresholdDays,
+  );
+  const asOfTime = typeof options.asOfIso === "string" && options.asOfIso.trim() ? Date.parse(options.asOfIso) : NaN;
+  const hasAsOfTime = Number.isFinite(asOfTime);
   const text = typeof ledgerText === "string" ? ledgerText : null;
   const lines = text === null ? [] : text.split(/\r?\n/);
   const activeClaimHeaderIndex = lines.findIndex((line) => /^##\s+Active claims\b/i.test(line.trim()));
@@ -1705,8 +1726,13 @@ export function summarizeCoordinationLedgerEvidence(ledgerText, options = {}) {
             .filter(Boolean),
         ),
       ].sort();
+      const header = truncateEvidenceText(block[0]?.match(/\*\*(.+?)\*\*/)?.[1] ?? block[0] ?? "");
+      const claimDate = parseCoordinationClaimDate(header);
+      const ageDays =
+        hasAsOfTime && claimDate !== null ? Math.max(0, Math.floor((asOfTime - claimDate) / 86_400_000)) : null;
       return {
-        header: truncateEvidenceText(block[0]?.match(/\*\*(.+?)\*\*/)?.[1] ?? block[0] ?? ""),
+        header,
+        ageDays,
         refs,
         hotFileRefs: refs.filter(isCoordinationHotFileRef),
         branchRefs,
@@ -1717,6 +1743,10 @@ export function summarizeCoordinationLedgerEvidence(ledgerText, options = {}) {
   const activeClaimRefs = [...new Set(claims.flatMap((claim) => claim.refs))].sort();
   const activeClaimHotFileRefs = [...new Set(claims.flatMap((claim) => claim.hotFileRefs))].sort();
   const activeClaimBranchRefs = [...new Set(claims.flatMap((claim) => claim.branchRefs))].sort();
+  const claimAgeEntries = claims
+    .filter((claim) => claim.header && claim.ageDays !== null)
+    .map((claim) => ({ header: claim.header, ageDays: claim.ageDays }));
+  const staleClaims = claimAgeEntries.filter((claim) => claim.ageDays >= stalenessThresholdDays);
 
   return {
     coordinationLedgerPath: ledgerPath,
@@ -1729,6 +1759,14 @@ export function summarizeCoordinationLedgerEvidence(ledgerText, options = {}) {
     coordinationActiveClaimHotFileRefCount: activeClaimHotFileRefs.length,
     coordinationActiveClaimHotFileRefs: activeClaimHotFileRefs,
     coordinationActiveClaimBranchRefs: activeClaimBranchRefs,
+    coordinationActiveClaimStalenessThresholdDays: stalenessThresholdDays,
+    coordinationActiveClaimDatedCount: claimAgeEntries.length,
+    coordinationActiveClaimUndatedCount: Math.max(0, claims.length - claimAgeEntries.length),
+    coordinationActiveClaimAgeDaysByHeader: claimAgeEntries,
+    coordinationActiveClaimMaxAgeDays:
+      claimAgeEntries.length > 0 ? Math.max(...claimAgeEntries.map((claim) => claim.ageDays)) : null,
+    coordinationActiveClaimStaleCount: staleClaims.length,
+    coordinationActiveClaimStaleHeaders: staleClaims.map((claim) => claim.header),
     coordinationActiveClaimSummaries: claims.map((claim) => claim.summary),
   };
 }
@@ -2343,6 +2381,7 @@ export function summarizePreviousGoalLoopEvidence(previousGoalLoopReport, curren
 }
 
 async function main() {
+  const generatedAt = new Date().toISOString();
   const previousGoalLoopReport = readJson(reportPaths.goalLoop);
   const activeCodingGoalText = readText(activeCodingGoalReportPath);
   const coordinationLedgerText = readText(coordinationLedgerPath);
@@ -2551,6 +2590,7 @@ async function main() {
   });
   const coordinationLedgerEvidence = summarizeCoordinationLedgerEvidence(coordinationLedgerText, {
     path: coordinationLedgerPath,
+    asOfIso: generatedAt,
   });
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);
@@ -2592,7 +2632,6 @@ async function main() {
     successCriteria: criteria,
   };
   const goalEvidence = summarizeGoalEvidence(goal);
-  const generatedAt = new Date().toISOString();
   const reportMetadataEvidence = summarizeReportMetadataEvidence({
     generatedAt,
     reportPath: outPath,
