@@ -121,6 +121,9 @@ export const goalLoopEvidenceFieldNames = [
   "notifyActiveTriggers",
   "notifySuppressedTriggers",
   "notifyKnownCautionOnly",
+  "notifyKnownCautionCount",
+  "notifyKnownCautionPaths",
+  "notifyKnownCautionLabels",
   "notifyQuietPassEligible",
   "notifyRecommendationReason",
   "criterionCount",
@@ -1643,6 +1646,10 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
     context.currentHeadChanged === true && previousHeadShortSha.length > 0 && currentHeadShortSha.length > 0;
   const knownCautionEntries = Array.isArray(context.knownCautionEntries) ? context.knownCautionEntries.filter(Boolean) : [];
   const knownCautionCount = knownCautionEntries.length;
+  const knownCautionPaths = knownCautionEntries
+    .map((entry) => (typeof entry === "string" ? entry.trim() : String(entry?.path ?? "").trim()))
+    .filter(Boolean)
+    .sort();
   const knownCautionLabels = knownCautionEntries
     .map((entry) => {
       if (typeof entry === "string") return entry.trim();
@@ -1698,6 +1705,9 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
     notifyActiveTriggers,
     notifySuppressedTriggers,
     notifyKnownCautionOnly,
+    notifyKnownCautionCount: knownCautionCount,
+    notifyKnownCautionPaths: knownCautionPaths,
+    notifyKnownCautionLabels: knownCautionLabels,
     notifyQuietPassEligible: quietPassEligible,
     notifyRecommended: failures.length > 0 || currentHeadChanged || visualEvidenceGap || knownCautionCount > 0,
     notifyRecommendationReason:
