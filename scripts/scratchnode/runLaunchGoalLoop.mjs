@@ -1166,22 +1166,22 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
       ? Math.max(0, Number(((currentHeadCommittedAtMs - aestheticReviewStat.mtimeMs) / 1000).toFixed(3)))
       : null;
   const aestheticReviewArtifactOnly = aestheticReviewJudgeSkippedReason === "artifact-only";
+  const evidenceAlignedWithHead =
+    latestArtifact != null &&
+    latestVisualArtifactPredatesHead === false &&
+    latestAestheticReviewPredatesHead === false;
   const environmentLimitedArtifactFallback =
     usedArtifactFallback &&
     aestheticReviewFallbackReason === "network_access_denied" &&
-    latestArtifact != null &&
-    latestArtifactStale === false &&
-    latestVisualArtifactPredatesHead === false &&
-    latestAestheticReviewStale === false &&
-    latestAestheticReviewPredatesHead === false;
+    evidenceAlignedWithHead;
   const hasCoverageGap =
     headFreshnessRequired &&
     Boolean(
       (latestArtifact && !aestheticReviewExists) ||
-      latestArtifactStale ||
+      (latestArtifactStale && !environmentLimitedArtifactFallback) ||
       latestVisualArtifactPredatesHead ||
       latestAestheticReviewPredatesHead ||
-      (latestArtifact && aestheticReviewExists && latestAestheticReviewStale) ||
+      (latestArtifact && aestheticReviewExists && latestAestheticReviewStale && !environmentLimitedArtifactFallback) ||
       aestheticReviewArtifactOnly ||
       (usedArtifactFallback && !environmentLimitedArtifactFallback),
     );
