@@ -252,6 +252,9 @@ export const goalLoopEvidenceFieldNames = [
   "latestAestheticReviewJudgeSkippedReason",
   "latestAestheticReviewFallback",
   "latestAestheticReviewFallbackDetail",
+  "latestAestheticReviewArtifactCount",
+  "latestAestheticReviewArtifactPaths",
+  "latestAestheticReviewArtifactKinds",
   "latestAestheticReviewFailureCode",
   "latestAestheticReviewStatus",
   "latestAestheticReviewCoverageGap",
@@ -1099,6 +1102,22 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
     typeof aestheticReviewReport?.fallback?.detail === "string" && aestheticReviewReport.fallback.detail.trim()
       ? aestheticReviewReport.fallback.detail.trim()
       : null;
+  const aestheticReviewArtifacts = Array.isArray(aestheticReviewReport?.artifacts)
+    ? aestheticReviewReport.artifacts
+        .map((artifact) => {
+          const rawPath = typeof artifact?.path === "string" ? artifact.path.trim() : "";
+          const relativePath =
+            rawPath && rawPath.startsWith(repoRoot)
+              ? rawPath.slice(repoRoot.length + 1).replace(/\\/g, "/")
+              : rawPath.replace(/\\/g, "/");
+          const kind = typeof artifact?.kind === "string" ? artifact.kind.trim() : "";
+          return {
+            path: relativePath || null,
+            kind: kind || null,
+          };
+        })
+        .filter((artifact) => artifact.path)
+    : [];
   const usedArtifactFallback = aestheticReviewJudgeSkippedReason === "local-artifact-fallback";
   const aestheticReviewPassed =
     aestheticReviewReport && typeof aestheticReviewReport.passed === "boolean" ? aestheticReviewReport.passed : null;
@@ -1229,6 +1248,11 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
       aestheticReviewStatus === "artifact_fallback"
         ? aestheticReviewFallbackDetail || aestheticReviewFallbackReason || "Artifact fallback used."
         : null,
+    latestAestheticReviewArtifactCount: aestheticReviewArtifacts.length,
+    latestAestheticReviewArtifactPaths: aestheticReviewArtifacts.map((artifact) => artifact.path),
+    latestAestheticReviewArtifactKinds: [
+      ...new Set(aestheticReviewArtifacts.map((artifact) => artifact.kind).filter(Boolean)),
+    ].sort(),
     latestAestheticReviewFailureCode:
       typeof aestheticReviewReport?.failure?.code === "string" && aestheticReviewReport.failure.code.trim()
         ? aestheticReviewReport.failure.code.trim()
