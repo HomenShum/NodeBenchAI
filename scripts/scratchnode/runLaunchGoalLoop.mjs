@@ -232,6 +232,11 @@ export const goalLoopEvidenceFieldNames = [
   "latestAestheticReviewStatus",
   "latestAestheticReviewCoverageGap",
   "latestAestheticReviewCoverageGapReason",
+  "latestAestheticReviewMobileComposerPinnedToViewportBottom",
+  "latestAestheticReviewMobileComposerBottomDeltaPx",
+  "latestAestheticReviewMobileComposerPosition",
+  "latestAestheticReviewMobileComposerViewport",
+  "latestAestheticReviewMobileComposerRect",
   "housekeepingPassed",
   "housekeepingOperatorStatus",
   "housekeepingOperatorMessage",
@@ -1059,6 +1064,22 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
         .filter(Boolean),
     ),
   ].sort();
+  const mobileLayout = aestheticReviewReport?.record?.results?.mobile?.layout ?? null;
+  const mobileComposer = mobileLayout && typeof mobileLayout === "object" ? mobileLayout.composer : null;
+  const mobileComposerBottomDeltaPx = Number(mobileLayout?.composerBottomDeltaPx);
+  const mobileComposerViewport = mobileLayout?.viewport && typeof mobileLayout.viewport === "object"
+    ? {
+        width: Number.isFinite(Number(mobileLayout.viewport.width)) ? Number(mobileLayout.viewport.width) : null,
+        height: Number.isFinite(Number(mobileLayout.viewport.height)) ? Number(mobileLayout.viewport.height) : null,
+      }
+    : null;
+  const mobileComposerRect = mobileComposer && typeof mobileComposer === "object"
+    ? {
+        top: Number.isFinite(Number(mobileComposer.top)) ? Number(mobileComposer.top) : null,
+        bottom: Number.isFinite(Number(mobileComposer.bottom)) ? Number(mobileComposer.bottom) : null,
+        height: Number.isFinite(Number(mobileComposer.height)) ? Number(mobileComposer.height) : null,
+      }
+    : null;
   const currentHeadCommittedAtRaw =
     typeof context.currentHeadCommittedAt === "string" && context.currentHeadCommittedAt.trim()
       ? context.currentHeadCommittedAt.trim()
@@ -1168,6 +1189,19 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
               ? `Aesthetic review used artifact fallback instead of a live judged capture: ${aestheticReviewFallbackDetail || aestheticReviewFallbackReason || "fallback reason unavailable"}.`
             : null
       : null,
+    latestAestheticReviewMobileComposerPinnedToViewportBottom:
+      typeof mobileLayout?.composerPinnedToViewportBottom === "boolean"
+        ? mobileLayout.composerPinnedToViewportBottom
+        : null,
+    latestAestheticReviewMobileComposerBottomDeltaPx: Number.isFinite(mobileComposerBottomDeltaPx)
+      ? mobileComposerBottomDeltaPx
+      : null,
+    latestAestheticReviewMobileComposerPosition:
+      typeof mobileLayout?.composerPosition === "string" && mobileLayout.composerPosition.trim()
+        ? mobileLayout.composerPosition.trim()
+        : null,
+    latestAestheticReviewMobileComposerViewport: mobileComposerViewport,
+    latestAestheticReviewMobileComposerRect: mobileComposerRect,
   };
 }
 

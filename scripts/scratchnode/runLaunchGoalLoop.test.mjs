@@ -705,6 +705,19 @@ describe("summarizeVisualEvidence", () => {
             },
           ],
           failure: { code: "network_access_denied" },
+          record: {
+            results: {
+              mobile: {
+                layout: {
+                  viewport: { width: 390, height: 844 },
+                  composer: { top: 738, bottom: 844, height: 106 },
+                  composerPosition: "fixed",
+                  composerBottomDeltaPx: 0,
+                  composerPinnedToViewportBottom: true,
+                },
+              },
+            },
+          },
         },
         {
           visualArtifactDirs: [".validation/test-goal-loop-visual"],
@@ -737,6 +750,11 @@ describe("summarizeVisualEvidence", () => {
       expect(summary.latestAestheticReviewStatus).toBe("failed");
       expect(summary.latestAestheticReviewCoverageGap).toBe(false);
       expect(summary.latestAestheticReviewCoverageGapReason).toBeNull();
+      expect(summary.latestAestheticReviewMobileComposerPinnedToViewportBottom).toBe(true);
+      expect(summary.latestAestheticReviewMobileComposerBottomDeltaPx).toBe(0);
+      expect(summary.latestAestheticReviewMobileComposerPosition).toBe("fixed");
+      expect(summary.latestAestheticReviewMobileComposerViewport).toEqual({ width: 390, height: 844 });
+      expect(summary.latestAestheticReviewMobileComposerRect).toEqual({ top: 738, bottom: 844, height: 106 });
     } finally {
       rmSync(validationDir, { recursive: true, force: true });
       if (hadExistingReview && existingReviewText != null) {
@@ -2521,6 +2539,11 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewIssues");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGap");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGapReason");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerPinnedToViewportBottom");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerBottomDeltaPx");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerPosition");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerViewport");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerRect");
     expect(goalLoopEvidenceFieldNames).toContain("gitHeadChangedPaths");
     expect(goalLoopEvidenceFieldNames).toContain("gitHeadVisualEvidenceRelevant");
     expect(goalLoopEvidenceFieldNames).toContain("gitHeadVisualEvidenceRelevantPaths");
