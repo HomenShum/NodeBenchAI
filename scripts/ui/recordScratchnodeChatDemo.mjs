@@ -64,6 +64,33 @@ async function firstVisibleSelector(page, candidates, timeoutMs) {
   return null;
 }
 
+async function captureLayoutSignal(page) {
+  return page.evaluate(() => {
+    const composer = document.querySelector(".c");
+    const rect = composer ? composer.getBoundingClientRect() : null;
+    const viewport = {
+      width: Math.round(window.innerWidth),
+      height: Math.round(window.innerHeight),
+    };
+    const bottomDeltaPx = rect ? Math.round(viewport.height - rect.bottom) : null;
+    return {
+      pageMode: document.body?.dataset?.pageMode || null,
+      scrollY: Math.round(window.scrollY),
+      viewport,
+      composer: rect
+        ? {
+            top: Math.round(rect.top),
+            bottom: Math.round(rect.bottom),
+            height: Math.round(rect.height),
+          }
+        : null,
+      composerPosition: composer ? window.getComputedStyle(composer).position : null,
+      composerBottomDeltaPx: bottomDeltaPx,
+      composerPinnedToViewportBottom: bottomDeltaPx == null ? null : Math.abs(bottomDeltaPx) <= 2,
+    };
+  });
+}
+
 async function waitForChat(page, label) {
   const ready = await firstVisibleSelector(page, roomReadyStates, 25000);
   if (!ready) {
@@ -78,6 +105,7 @@ async function waitForChat(page, label) {
   const ansBots = await page.locator("#feed .ans-bot").count();
   const emptyFeed = await page.locator(".empty").first().isVisible().catch(() => false);
   const unavailableComposer = (await page.locator("#ci[placeholder*='Live room unavailable']").count()) > 0;
+  const layout = await captureLayoutSignal(page);
   return {
     state: ready.state,
     readySelector: ready.selector,
@@ -87,6 +115,7 @@ async function waitForChat(page, label) {
     ansBots,
     emptyFeed,
     unavailableComposer,
+    layout,
   };
 }
 
