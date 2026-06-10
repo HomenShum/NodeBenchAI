@@ -259,6 +259,7 @@ export const goalLoopEvidenceFieldNames = [
   "latestAestheticReviewStatus",
   "latestAestheticReviewCoverageGap",
   "latestAestheticReviewCoverageGapReason",
+  "latestAestheticReviewCoverageGapReasons",
   "latestAestheticReviewMobileComposerPinnedToViewportBottom",
   "latestAestheticReviewMobileComposerBottomDeltaPx",
   "latestAestheticReviewMobileComposerPosition",
@@ -1215,6 +1216,44 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
         : aestheticReviewArtifactOnly
           ? "artifact_only"
         : "present_unknown";
+  const coverageGapReasons = [];
+  if (hasCoverageGap) {
+    if (!aestheticReviewExists && latestArtifact) {
+      coverageGapReasons.push(
+        `Visual artifact ${latestArtifact.path} exists, but ${reportPaths.aestheticReview} is missing.`,
+      );
+    }
+    if (latestArtifactStale && latestArtifact) {
+      coverageGapReasons.push(
+        `Latest visual artifact ${latestArtifact.path} is stale (${latestArtifact.ageSeconds}s old; threshold ${visualEvidenceFreshnessThresholdSeconds}s). Capture fresh visual evidence before treating the aesthetic state as current.`,
+      );
+    }
+    if (latestVisualArtifactPredatesHead && latestArtifact) {
+      coverageGapReasons.push(
+        `Latest visual artifact ${latestArtifact.path} predates HEAD commit ${context.currentHeadShortSha || "(unknown sha)"} by ${latestVisualArtifactPredatesHeadBySeconds}s. Capture fresh visual evidence for the current code before treating the aesthetic state as current.`,
+      );
+    }
+    if (latestAestheticReviewPredatesHead) {
+      coverageGapReasons.push(
+        `Aesthetic review summary ${reportPaths.aestheticReview} predates HEAD commit ${context.currentHeadShortSha || "(unknown sha)"} by ${latestAestheticReviewPredatesHeadBySeconds}s. Refresh the review before treating the aesthetic state as current.`,
+      );
+    }
+    if (latestArtifact && latestAestheticReviewStale) {
+      coverageGapReasons.push(
+        `Aesthetic review summary ${reportPaths.aestheticReview} is stale (${latestAestheticReviewAgeSeconds}s old; threshold ${visualEvidenceFreshnessThresholdSeconds}s) relative to current visual artifacts. Refresh the review before treating the aesthetic state as current.`,
+      );
+    }
+    if (aestheticReviewArtifactOnly) {
+      coverageGapReasons.push(
+        `Aesthetic review summary ${reportPaths.aestheticReview} only summarizes local artifacts without a judged capture. Run ${"npm run ui:aesthetic:review"} against the current surface before treating the aesthetic state as current.`,
+      );
+    }
+    if (aestheticReviewStatus === "artifact_fallback") {
+      coverageGapReasons.push(
+        `Aesthetic review used artifact fallback instead of a live judged capture: ${aestheticReviewFallbackDetail || aestheticReviewFallbackReason || "fallback reason unavailable"}.`,
+      );
+    }
+  }
 
   return {
     latestVisualArtifactCount: visualArtifacts.length,
@@ -1259,23 +1298,8 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
         : null,
     latestAestheticReviewStatus: aestheticReviewStatus,
     latestAestheticReviewCoverageGap: hasCoverageGap,
-    latestAestheticReviewCoverageGapReason: hasCoverageGap
-      ? !aestheticReviewExists && latestArtifact
-        ? `Visual artifact ${latestArtifact.path} exists, but ${reportPaths.aestheticReview} is missing.`
-        : latestArtifactStale && latestArtifact
-          ? `Latest visual artifact ${latestArtifact.path} is stale (${latestArtifact.ageSeconds}s old; threshold ${visualEvidenceFreshnessThresholdSeconds}s). Capture fresh visual evidence before treating the aesthetic state as current.`
-          : latestVisualArtifactPredatesHead && latestArtifact
-            ? `Latest visual artifact ${latestArtifact.path} predates HEAD commit ${context.currentHeadShortSha || "(unknown sha)"} by ${latestVisualArtifactPredatesHeadBySeconds}s. Capture fresh visual evidence for the current code before treating the aesthetic state as current.`
-          : latestAestheticReviewPredatesHead
-              ? `Aesthetic review summary ${reportPaths.aestheticReview} predates HEAD commit ${context.currentHeadShortSha || "(unknown sha)"} by ${latestAestheticReviewPredatesHeadBySeconds}s. Refresh the review before treating the aesthetic state as current.`
-          : latestArtifact && latestAestheticReviewStale
-            ? `Aesthetic review summary ${reportPaths.aestheticReview} is stale (${latestAestheticReviewAgeSeconds}s old; threshold ${visualEvidenceFreshnessThresholdSeconds}s) relative to current visual artifacts. Refresh the review before treating the aesthetic state as current.`
-            : aestheticReviewArtifactOnly
-              ? `Aesthetic review summary ${reportPaths.aestheticReview} only summarizes local artifacts without a judged capture. Run ${"npm run ui:aesthetic:review"} against the current surface before treating the aesthetic state as current.`
-            : aestheticReviewStatus === "artifact_fallback"
-              ? `Aesthetic review used artifact fallback instead of a live judged capture: ${aestheticReviewFallbackDetail || aestheticReviewFallbackReason || "fallback reason unavailable"}.`
-            : null
-      : null,
+    latestAestheticReviewCoverageGapReason: coverageGapReasons[0] ?? null,
+    latestAestheticReviewCoverageGapReasons: coverageGapReasons,
     latestAestheticReviewMobileComposerPinnedToViewportBottom:
       typeof mobileLayout?.composerPinnedToViewportBottom === "boolean"
         ? mobileLayout.composerPinnedToViewportBottom
@@ -1624,6 +1648,11 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
     .filter(Boolean);
   const quietPassEligible = context.developmentCandidate?.quietPassEligible === true;
   const visualEvidenceGapReason = String(context.visualEvidence?.latestAestheticReviewCoverageGapReason ?? "").trim();
+  const visualEvidenceGapReasons = Array.isArray(context.visualEvidence?.latestAestheticReviewCoverageGapReasons)
+    ? context.visualEvidence.latestAestheticReviewCoverageGapReasons
+      .map((reason) => String(reason ?? "").trim())
+      .filter(Boolean)
+    : [];
   const visualEvidenceGap = visualEvidenceGapReason.length > 0;
   const quietPassReasonParts = [
     String(context.developmentCandidate?.selectionReason ?? "").trim(),
@@ -1651,7 +1680,7 @@ export function summarizeNotificationEvidence(criteria, context = {}) {
       : currentHeadChanged
         ? `Goal loop passed and HEAD changed since the previous report (${previousHeadShortSha} -> ${currentHeadShortSha}); report the verified local slice.`
         : visualEvidenceGap
-          ? `Goal loop passed, but visual evidence coverage is incomplete: ${visualEvidenceGapReason}`
+          ? `Goal loop passed, but visual evidence coverage is incomplete: ${visualEvidenceGapReason}${visualEvidenceGapReasons.length > 1 ? ` Additional visual evidence gaps: ${visualEvidenceGapReasons.slice(1).join(" ")}` : ""}`
           : knownCautionCount > 0
             ? `Goal loop passed with ${knownCautionCount} known caution entr${knownCautionCount === 1 ? "y" : "ies"} that still ${knownCautionCount === 1 ? "needs" : "need"} operator visibility: ${knownCautionLabels.join("; ")}`
             : quietPassEligible

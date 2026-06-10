@@ -936,6 +936,9 @@ describe("summarizeVisualEvidence", () => {
       expect(summary.latestAestheticReviewStale).toBe(false);
       expect(summary.latestAestheticReviewCoverageGap).toBe(true);
       expect(summary.latestAestheticReviewCoverageGapReason).toMatch(/only summarizes local artifacts/);
+      expect(summary.latestAestheticReviewCoverageGapReasons).toEqual([
+        expect.stringMatching(/only summarizes local artifacts/),
+      ]);
     } finally {
       rmSync(validationDir, { recursive: true, force: true });
       if (hadExistingReview && existingReviewText != null) {
@@ -993,6 +996,9 @@ describe("summarizeVisualEvidence", () => {
       expect(currentSummary.latestAestheticReviewPredatesHead).toBe(false);
       expect(currentSummary.latestAestheticReviewCoverageGap).toBe(true);
       expect(currentSummary.latestAestheticReviewCoverageGapReason).toMatch(/only summarizes local artifacts/);
+      expect(currentSummary.latestAestheticReviewCoverageGapReasons).toEqual([
+        expect.stringMatching(/only summarizes local artifacts/),
+      ]);
 
       utimesSync(latestImagePath, beforeHeadTime, beforeHeadTime);
       utimesSync(reviewPath, beforeHeadTime, beforeHeadTime);
@@ -1017,6 +1023,15 @@ describe("summarizeVisualEvidence", () => {
       expect(staleSummary.latestAestheticReviewCoverageGapReason).toContain(
         "Latest visual artifact .validation/test-goal-loop-artifact-head/latest-mobile.png predates HEAD commit abc1234",
       );
+      expect(staleSummary.latestAestheticReviewCoverageGapReasons).toEqual([
+        expect.stringContaining(
+          "Latest visual artifact .validation/test-goal-loop-artifact-head/latest-mobile.png predates HEAD commit abc1234",
+        ),
+        expect.stringContaining(
+          "Aesthetic review summary .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json predates HEAD commit abc1234",
+        ),
+        expect.stringMatching(/only summarizes local artifacts/),
+      ]);
 
       const nonVisualHeadSummary = summarizeVisualEvidence(
         {
@@ -1620,6 +1635,10 @@ describe("summarizeNotificationEvidence", () => {
           visualEvidence: {
             latestAestheticReviewCoverageGapReason:
               "Visual artifact .validation/test-goal-loop-gap/latest-mobile.png exists, but .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json is missing.",
+            latestAestheticReviewCoverageGapReasons: [
+              "Visual artifact .validation/test-goal-loop-gap/latest-mobile.png exists, but .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json is missing.",
+              "Aesthetic review summary .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json only summarizes local artifacts without a judged capture.",
+            ],
           },
         },
       ),
@@ -1632,7 +1651,7 @@ describe("summarizeNotificationEvidence", () => {
       notifyQuietPassEligible: false,
       notifyRecommended: true,
       notifyRecommendationReason:
-        "Goal loop passed, but visual evidence coverage is incomplete: Visual artifact .validation/test-goal-loop-gap/latest-mobile.png exists, but .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json is missing.",
+        "Goal loop passed, but visual evidence coverage is incomplete: Visual artifact .validation/test-goal-loop-gap/latest-mobile.png exists, but .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json is missing. Additional visual evidence gaps: Aesthetic review summary .tmp/scratchnode-aesthetic-review/aesthetic-review-summary.json only summarizes local artifacts without a judged capture.",
     });
   });
 
@@ -2712,6 +2731,7 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewIssues");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGap");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGapReason");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGapReasons");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerPinnedToViewportBottom");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerBottomDeltaPx");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerPosition");
