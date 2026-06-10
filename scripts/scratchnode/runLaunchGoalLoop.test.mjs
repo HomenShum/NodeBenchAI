@@ -714,6 +714,13 @@ describe("summarizeVisualEvidence", () => {
                   composerPosition: "fixed",
                   composerBottomDeltaPx: 0,
                   composerPinnedToViewportBottom: true,
+                  headerChrome: {
+                    liveVisible: true,
+                    roomCodeVisible: true,
+                    eventTitleVisible: true,
+                    visibleChipCount: 4,
+                    visibleChipLabels: ["LIVE", "ORBITAL", "Menu", "Chat Wall"],
+                  },
                 },
               },
             },
@@ -755,6 +762,11 @@ describe("summarizeVisualEvidence", () => {
       expect(summary.latestAestheticReviewMobileComposerPosition).toBe("fixed");
       expect(summary.latestAestheticReviewMobileComposerViewport).toEqual({ width: 390, height: 844 });
       expect(summary.latestAestheticReviewMobileComposerRect).toEqual({ top: 738, bottom: 844, height: 106 });
+      expect(summary.latestAestheticReviewMobileHeaderLiveVisible).toBe(true);
+      expect(summary.latestAestheticReviewMobileHeaderRoomCodeVisible).toBe(true);
+      expect(summary.latestAestheticReviewMobileHeaderEventTitleVisible).toBe(true);
+      expect(summary.latestAestheticReviewMobileHeaderVisibleChipCount).toBe(4);
+      expect(summary.latestAestheticReviewMobileHeaderVisibleChipLabels).toEqual(["LIVE", "ORBITAL", "Menu", "Chat Wall"]);
     } finally {
       rmSync(validationDir, { recursive: true, force: true });
       if (hadExistingReview && existingReviewText != null) {
@@ -2544,6 +2556,11 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerPosition");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerViewport");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerRect");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileHeaderLiveVisible");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileHeaderRoomCodeVisible");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileHeaderEventTitleVisible");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileHeaderVisibleChipCount");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileHeaderVisibleChipLabels");
     expect(goalLoopEvidenceFieldNames).toContain("gitHeadChangedPaths");
     expect(goalLoopEvidenceFieldNames).toContain("gitHeadVisualEvidenceRelevant");
     expect(goalLoopEvidenceFieldNames).toContain("gitHeadVisualEvidenceRelevantPaths");

@@ -237,6 +237,11 @@ export const goalLoopEvidenceFieldNames = [
   "latestAestheticReviewMobileComposerPosition",
   "latestAestheticReviewMobileComposerViewport",
   "latestAestheticReviewMobileComposerRect",
+  "latestAestheticReviewMobileHeaderLiveVisible",
+  "latestAestheticReviewMobileHeaderRoomCodeVisible",
+  "latestAestheticReviewMobileHeaderEventTitleVisible",
+  "latestAestheticReviewMobileHeaderVisibleChipCount",
+  "latestAestheticReviewMobileHeaderVisibleChipLabels",
   "housekeepingPassed",
   "housekeepingOperatorStatus",
   "housekeepingOperatorMessage",
@@ -1066,7 +1071,9 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
   ].sort();
   const mobileLayout = aestheticReviewReport?.record?.results?.mobile?.layout ?? null;
   const mobileComposer = mobileLayout && typeof mobileLayout === "object" ? mobileLayout.composer : null;
+  const mobileHeaderChrome = mobileLayout && typeof mobileLayout === "object" ? mobileLayout.headerChrome : null;
   const mobileComposerBottomDeltaPx = Number(mobileLayout?.composerBottomDeltaPx);
+  const mobileHeaderVisibleChipCount = Number(mobileHeaderChrome?.visibleChipCount);
   const mobileComposerViewport = mobileLayout?.viewport && typeof mobileLayout.viewport === "object"
     ? {
         width: Number.isFinite(Number(mobileLayout.viewport.width)) ? Number(mobileLayout.viewport.width) : null,
@@ -1202,6 +1209,20 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
         : null,
     latestAestheticReviewMobileComposerViewport: mobileComposerViewport,
     latestAestheticReviewMobileComposerRect: mobileComposerRect,
+    latestAestheticReviewMobileHeaderLiveVisible:
+      typeof mobileHeaderChrome?.liveVisible === "boolean" ? mobileHeaderChrome.liveVisible : null,
+    latestAestheticReviewMobileHeaderRoomCodeVisible:
+      typeof mobileHeaderChrome?.roomCodeVisible === "boolean" ? mobileHeaderChrome.roomCodeVisible : null,
+    latestAestheticReviewMobileHeaderEventTitleVisible:
+      typeof mobileHeaderChrome?.eventTitleVisible === "boolean" ? mobileHeaderChrome.eventTitleVisible : null,
+    latestAestheticReviewMobileHeaderVisibleChipCount: Number.isFinite(mobileHeaderVisibleChipCount)
+      ? mobileHeaderVisibleChipCount
+      : null,
+    latestAestheticReviewMobileHeaderVisibleChipLabels: Array.isArray(mobileHeaderChrome?.visibleChipLabels)
+      ? mobileHeaderChrome.visibleChipLabels
+          .map((label) => String(label || "").trim())
+          .filter(Boolean)
+      : [],
   };
 }
 

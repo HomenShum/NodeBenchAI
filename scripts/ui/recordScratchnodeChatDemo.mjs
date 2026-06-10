@@ -68,6 +68,53 @@ async function captureLayoutSignal(page) {
   return page.evaluate(() => {
     const composer = document.querySelector(".c");
     const rect = composer ? composer.getBoundingClientRect() : null;
+    const isVisible = (el) => {
+      if (!el) return false;
+      const style = window.getComputedStyle(el);
+      const box = el.getBoundingClientRect();
+      return style.display !== "none"
+        && style.visibility !== "hidden"
+        && Number(style.opacity || "1") > 0
+        && box.width > 0
+        && box.height > 0
+        && box.bottom > 0
+        && box.top < window.innerHeight
+        && box.right > 0
+        && box.left < window.innerWidth;
+    };
+    const chipSelectors = [
+      ".h-live",
+      ".h-code",
+      ".h-menu",
+      ".sn-room-toggle",
+      ".id-set",
+      ".id-notes",
+      ".about-link",
+      ".event-strip .ev-mode",
+      ".event-strip .ev-cap",
+      ".event-strip .la-toggle",
+      ".event-strip .ev-link",
+    ];
+    const chipNodes = Array.from(document.querySelectorAll(chipSelectors.join(",")))
+      .filter(isVisible);
+    const labelFor = (el) => {
+      const text = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (text) return text.slice(0, 48);
+      const aria = (el.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim();
+      if (aria) return aria.slice(0, 48);
+      if (el.id) return `#${el.id}`.slice(0, 48);
+      const className = typeof el.className === "string" ? el.className : "";
+      return className ? `.${className.split(/\s+/).filter(Boolean).join(".")}`.slice(0, 48) : el.tagName.toLowerCase();
+    };
+    const headerChrome = {
+      liveVisible: isVisible(document.querySelector(".h-live")),
+      roomCodeVisible: isVisible(document.querySelector(".h-code")),
+      eventTitleVisible:
+        isVisible(document.querySelector("#sn-event-title-hero"))
+        || isVisible(document.querySelector("#sn-event-title-strip")),
+      visibleChipCount: chipNodes.length,
+      visibleChipLabels: chipNodes.map(labelFor),
+    };
     const viewport = {
       width: Math.round(window.innerWidth),
       height: Math.round(window.innerHeight),
@@ -87,6 +134,7 @@ async function captureLayoutSignal(page) {
       composerPosition: composer ? window.getComputedStyle(composer).position : null,
       composerBottomDeltaPx: bottomDeltaPx,
       composerPinnedToViewportBottom: bottomDeltaPx == null ? null : Math.abs(bottomDeltaPx) <= 2,
+      headerChrome,
     };
   });
 }
@@ -105,6 +153,10 @@ async function waitForChat(page, label) {
   const ansBots = await page.locator("#feed .ans-bot").count();
   const emptyFeed = await page.locator(".empty").first().isVisible().catch(() => false);
   const unavailableComposer = (await page.locator("#ci[placeholder*='Live room unavailable']").count()) > 0;
+  await page.evaluate(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  });
+  await sleep(250);
   const layout = await captureLayoutSignal(page);
   return {
     state: ready.state,
