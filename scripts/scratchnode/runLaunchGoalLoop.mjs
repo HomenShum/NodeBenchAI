@@ -91,6 +91,10 @@ export const goalLoopEvidenceFieldNames = [
   "coordinationActiveClaimMaxAgeDays",
   "coordinationActiveClaimStaleCount",
   "coordinationActiveClaimStaleHeaders",
+  "coordinationActiveClaimStaleRefs",
+  "coordinationActiveClaimStaleHotFileRefs",
+  "coordinationActiveClaimStaleBranchRefs",
+  "coordinationActiveClaimStaleSummaries",
   "coordinationActiveClaimSummaries",
   "goalId",
   "goalSourceRefCount",
@@ -1746,7 +1750,13 @@ export function summarizeCoordinationLedgerEvidence(ledgerText, options = {}) {
   const claimAgeEntries = claims
     .filter((claim) => claim.header && claim.ageDays !== null)
     .map((claim) => ({ header: claim.header, ageDays: claim.ageDays }));
-  const staleClaims = claimAgeEntries.filter((claim) => claim.ageDays >= stalenessThresholdDays);
+  const staleClaimHeaders = new Set(
+    claimAgeEntries.filter((claim) => claim.ageDays >= stalenessThresholdDays).map((claim) => claim.header),
+  );
+  const staleClaims = claims.filter((claim) => staleClaimHeaders.has(claim.header));
+  const staleClaimRefs = [...new Set(staleClaims.flatMap((claim) => claim.refs))].sort();
+  const staleClaimHotFileRefs = [...new Set(staleClaims.flatMap((claim) => claim.hotFileRefs))].sort();
+  const staleClaimBranchRefs = [...new Set(staleClaims.flatMap((claim) => claim.branchRefs))].sort();
 
   return {
     coordinationLedgerPath: ledgerPath,
@@ -1767,6 +1777,10 @@ export function summarizeCoordinationLedgerEvidence(ledgerText, options = {}) {
       claimAgeEntries.length > 0 ? Math.max(...claimAgeEntries.map((claim) => claim.ageDays)) : null,
     coordinationActiveClaimStaleCount: staleClaims.length,
     coordinationActiveClaimStaleHeaders: staleClaims.map((claim) => claim.header),
+    coordinationActiveClaimStaleRefs: staleClaimRefs,
+    coordinationActiveClaimStaleHotFileRefs: staleClaimHotFileRefs,
+    coordinationActiveClaimStaleBranchRefs: staleClaimBranchRefs,
+    coordinationActiveClaimStaleSummaries: staleClaims.map((claim) => claim.summary),
     coordinationActiveClaimSummaries: claims.map((claim) => claim.summary),
   };
 }
