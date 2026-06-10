@@ -10,6 +10,7 @@ import {
   selectDevelopmentCandidate,
   summarizeCommandEvidence,
   summarizeCriteriaEvidence,
+  summarizeCoordinationLedgerEvidence,
   summarizeDevelopmentBacklogEvidence,
   summarizeDevelopmentCandidateEvidence,
   summarizeDevelopmentCandidateSourcePathEvidence,
@@ -1722,6 +1723,69 @@ Revert the slice.
   });
 });
 
+describe("summarizeCoordinationLedgerEvidence", () => {
+  it("summarizes active coordination claims and hot-file refs", () => {
+    const summary = summarizeCoordinationLedgerEvidence(
+      `# Agent Coordination Ledger
+
+## Active claims (who is editing what RIGHT NOW)
+
+- **2026-06-03 - Claude ->** \`convex/*#handoff-token\`, \`src/App.tsx#events-private-route\`,
+  \`public/proto/home-v5.html#private-handoff\` - shipping private bridge - branch \`feat/scratchnode-private-notes-token\`.
+  Second line with more context.
+- **2026-06-09 - Codex ->** \`docs/runbooks/test.md\` - docs-only pass.
+
+## Hand-offs
+
+- Ready contract.
+`,
+      { path: "AGENT_COORDINATION.md" },
+    );
+
+    expect(summary).toEqual({
+      coordinationLedgerPath: "AGENT_COORDINATION.md",
+      coordinationLedgerExists: true,
+      coordinationLedgerActiveClaimSectionFound: true,
+      coordinationLedgerReady: true,
+      coordinationActiveClaimCount: 2,
+      coordinationActiveClaimHeaders: ["2026-06-03 - Claude ->", "2026-06-09 - Codex ->"],
+      coordinationActiveClaimRefs: [
+        "convex/*#handoff-token",
+        "docs/runbooks/test.md",
+        "feat/scratchnode-private-notes-token",
+        "public/proto/home-v5.html#private-handoff",
+        "src/App.tsx#events-private-route",
+      ],
+      coordinationActiveClaimHotFileRefCount: 2,
+      coordinationActiveClaimHotFileRefs: [
+        "convex/*#handoff-token",
+        "public/proto/home-v5.html#private-handoff",
+      ],
+      coordinationActiveClaimBranchRefs: ["feat/scratchnode-private-notes-token"],
+      coordinationActiveClaimSummaries: [
+        "- **2026-06-03 - Claude ->** `convex/*#handoff-token`, `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` - shipping private bridge - branch `feat/scratchnode-private-notes-token`. Second line with more context.",
+        "- **2026-06-09 - Codex ->** `docs/runbooks/test.md` - docs-only pass.",
+      ],
+    });
+  });
+
+  it("reports missing coordination ledger text without fabricating claims", () => {
+    expect(summarizeCoordinationLedgerEvidence(null)).toEqual({
+      coordinationLedgerPath: "AGENT_COORDINATION.md",
+      coordinationLedgerExists: false,
+      coordinationLedgerActiveClaimSectionFound: false,
+      coordinationLedgerReady: false,
+      coordinationActiveClaimCount: 0,
+      coordinationActiveClaimHeaders: [],
+      coordinationActiveClaimRefs: [],
+      coordinationActiveClaimHotFileRefCount: 0,
+      coordinationActiveClaimHotFileRefs: [],
+      coordinationActiveClaimBranchRefs: [],
+      coordinationActiveClaimSummaries: [],
+    });
+  });
+});
+
 describe("requiredTmpReportPaths", () => {
   it("keeps optional operator scratch evidence out of the required tmp report probe", () => {
     expect(requiredTmpReportPaths).toContain(".tmp/workspace-housekeeping-verification.json");
@@ -2519,6 +2583,17 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("activeCodingGoalExists");
     expect(goalLoopEvidenceFieldNames).toContain("activeCodingGoalReady");
     expect(goalLoopEvidenceFieldNames).toContain("activeCodingGoalMissingSections");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationLedgerPath");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationLedgerExists");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationLedgerActiveClaimSectionFound");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationLedgerReady");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimCount");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimHeaders");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimRefs");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimHotFileRefCount");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimHotFileRefs");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimBranchRefs");
+    expect(goalLoopEvidenceFieldNames).toContain("coordinationActiveClaimSummaries");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidate");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateActionabilityReason");
     expect(goalLoopEvidenceFieldNames).toContain("nextDevelopmentCandidateHasSourcePath");

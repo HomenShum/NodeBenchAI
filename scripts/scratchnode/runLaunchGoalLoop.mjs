@@ -40,6 +40,7 @@ const reportPaths = {
 };
 
 const activeCodingGoalReportPath = ".tmp/active-coding-goal.md";
+const coordinationLedgerPath = "AGENT_COORDINATION.md";
 
 const activeCodingGoalRequiredSections = [
   "Problem",
@@ -72,6 +73,17 @@ export const goalLoopEvidenceFieldNames = [
   "activeCodingGoalSections",
   "activeCodingGoalMissingSections",
   "activeCodingGoalReady",
+  "coordinationLedgerPath",
+  "coordinationLedgerExists",
+  "coordinationLedgerActiveClaimSectionFound",
+  "coordinationLedgerReady",
+  "coordinationActiveClaimCount",
+  "coordinationActiveClaimHeaders",
+  "coordinationActiveClaimRefs",
+  "coordinationActiveClaimHotFileRefCount",
+  "coordinationActiveClaimHotFileRefs",
+  "coordinationActiveClaimBranchRefs",
+  "coordinationActiveClaimSummaries",
   "goalId",
   "goalSourceRefCount",
   "goalSourceRefs",
@@ -1634,6 +1646,93 @@ export function summarizeActiveCodingGoalEvidence(activeGoalText, options = {}) 
   };
 }
 
+function isCoordinationHotFileRef(ref) {
+  const normalized = normalizeEvidencePath(ref).toLowerCase();
+  return (
+    normalized.startsWith("public/proto/home-v5.html") ||
+    normalized.startsWith("convex/") ||
+    (normalized.includes("scratchnode") && normalized.includes("e2e"))
+  );
+}
+
+function truncateEvidenceText(value, maxLength = 280) {
+  const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength - 3)}...`;
+}
+
+export function summarizeCoordinationLedgerEvidence(ledgerText, options = {}) {
+  const ledgerPath = String(options.path ?? coordinationLedgerPath).trim() || null;
+  const text = typeof ledgerText === "string" ? ledgerText : null;
+  const lines = text === null ? [] : text.split(/\r?\n/);
+  const activeClaimHeaderIndex = lines.findIndex((line) => /^##\s+Active claims\b/i.test(line.trim()));
+  const activeClaimSectionFound = activeClaimHeaderIndex >= 0;
+  const sectionLines =
+    activeClaimHeaderIndex < 0
+      ? []
+      : lines.slice(
+          activeClaimHeaderIndex + 1,
+          lines.findIndex((line, index) => index > activeClaimHeaderIndex && /^##\s+/.test(line.trim())) < 0
+            ? lines.length
+            : lines.findIndex((line, index) => index > activeClaimHeaderIndex && /^##\s+/.test(line.trim())),
+        );
+  const claimBlocks = [];
+  let currentClaimBlock = null;
+  for (const line of sectionLines) {
+    if (/^-\s+/.test(line)) {
+      if (currentClaimBlock !== null) claimBlocks.push(currentClaimBlock);
+      currentClaimBlock = [line];
+      continue;
+    }
+    if (currentClaimBlock !== null && line.trim()) currentClaimBlock.push(line);
+  }
+  if (currentClaimBlock !== null) claimBlocks.push(currentClaimBlock);
+
+  const claims = claimBlocks
+    .map((block) => {
+      const summary = truncateEvidenceText(block.join(" "));
+      const refs = [
+        ...new Set(
+          [...block.join(" ").matchAll(/`([^`]+)`/g)]
+            .map((match) => normalizeEvidencePath(match[1]))
+            .filter(Boolean),
+        ),
+      ].sort();
+      const branchRefs = [
+        ...new Set(
+          [...block.join(" ").matchAll(/\bbranch\s+`([^`]+)`/gi)]
+            .map((match) => normalizeEvidencePath(match[1]))
+            .filter(Boolean),
+        ),
+      ].sort();
+      return {
+        header: truncateEvidenceText(block[0]?.match(/\*\*(.+?)\*\*/)?.[1] ?? block[0] ?? ""),
+        refs,
+        hotFileRefs: refs.filter(isCoordinationHotFileRef),
+        branchRefs,
+        summary,
+      };
+    })
+    .filter((claim) => claim.summary);
+  const activeClaimRefs = [...new Set(claims.flatMap((claim) => claim.refs))].sort();
+  const activeClaimHotFileRefs = [...new Set(claims.flatMap((claim) => claim.hotFileRefs))].sort();
+  const activeClaimBranchRefs = [...new Set(claims.flatMap((claim) => claim.branchRefs))].sort();
+
+  return {
+    coordinationLedgerPath: ledgerPath,
+    coordinationLedgerExists: text !== null,
+    coordinationLedgerActiveClaimSectionFound: activeClaimSectionFound,
+    coordinationLedgerReady: text !== null && activeClaimSectionFound,
+    coordinationActiveClaimCount: claims.length,
+    coordinationActiveClaimHeaders: claims.map((claim) => claim.header).filter(Boolean),
+    coordinationActiveClaimRefs: activeClaimRefs,
+    coordinationActiveClaimHotFileRefCount: activeClaimHotFileRefs.length,
+    coordinationActiveClaimHotFileRefs: activeClaimHotFileRefs,
+    coordinationActiveClaimBranchRefs: activeClaimBranchRefs,
+    coordinationActiveClaimSummaries: claims.map((claim) => claim.summary),
+  };
+}
+
 export function summarizeGoalEvidence(goal) {
   const sourceRefs = Array.isArray(goal?.sourceRefs) ? goal.sourceRefs.filter(Boolean) : [];
   const successCriteria = Array.isArray(goal?.successCriteria) ? goal.successCriteria.filter(Boolean) : [];
@@ -2246,6 +2345,7 @@ export function summarizePreviousGoalLoopEvidence(previousGoalLoopReport, curren
 async function main() {
   const previousGoalLoopReport = readJson(reportPaths.goalLoop);
   const activeCodingGoalText = readText(activeCodingGoalReportPath);
+  const coordinationLedgerText = readText(coordinationLedgerPath);
   const commands = [];
   commands.push(await run("npm", ["run", "repo:housekeeping:check"]));
   commands.push(await run("npm", ["run", "scratchnode:launch:interactive"]));
@@ -2449,6 +2549,9 @@ async function main() {
   const activeCodingGoalEvidence = summarizeActiveCodingGoalEvidence(activeCodingGoalText, {
     path: activeCodingGoalReportPath,
   });
+  const coordinationLedgerEvidence = summarizeCoordinationLedgerEvidence(coordinationLedgerText, {
+    path: coordinationLedgerPath,
+  });
   const backlogEvidence = summarizeDevelopmentBacklogEvidence(developmentBacklog);
   const candidateEvidence = summarizeDevelopmentCandidateEvidence(developmentCandidate);
   const knownCautionSuppressionEvidence = summarizeKnownCautionSuppressionEvidence({
@@ -2507,6 +2610,7 @@ async function main() {
       failures: criteria.filter((criterion) => !criterion.ok).map((criterion) => criterion.name),
       ...criteriaEvidence,
       ...activeCodingGoalEvidence,
+      ...coordinationLedgerEvidence,
       ...backlogEvidence,
       ...goalQueueEvidence,
       knownCautionCount: knownCautions.length,
