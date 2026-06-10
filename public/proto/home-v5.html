@@ -175,23 +175,17 @@ button:active { transform: scale(.97); transition: transform .08s; }
   .h-menu {
     width: 32px;
     height: 32px;
-    border: 1px solid rgba(255,255,255,.04);
-    background: rgba(255,255,255,.015);
-    color: rgba(232,230,227,.72);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.025);
+    background: rgba(255,255,255,.01);
+    color: rgba(232,230,227,.62);
+    box-shadow: none;
   }
   .h-menu svg {
     width: 14px;
     height: 14px;
   }
   .h-code {
-    min-height: 26px;
-    padding: 2px 6px;
-    background: rgba(255,255,255,.018);
-    border-color: rgba(255,255,255,.08);
-    color: rgba(232,230,227,.78);
-    font-size: 9.5px;
-    letter-spacing: .06em;
+    display: none;
   }
 }
 
@@ -678,6 +672,31 @@ body:not([data-page-mode="landing"]) main.m { animation: pageEnter var(--motion-
 .hero-head { display: grid; gap: 8px; }
 .hero-copy { min-width: 0; display: grid; gap: 4px; }
 .hero :is(h1, h2) { font-size: var(--fs-display); font-weight: 800; letter-spacing: -.02em; margin: 0 0 4px; }
+.hero-title-line { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hero-room-code {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 0 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.09);
+  background: rgba(255,255,255,.025);
+  color: rgba(232,230,227,.82);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: .08em;
+}
+.hero-room-code .label {
+  color: rgba(232,230,227,.56);
+  letter-spacing: .12em;
+}
+.hero-room-code:hover {
+  border-color: rgba(255,255,255,.16);
+  color: var(--ink);
+}
 .hero-meta { font-size: var(--fs-sub); color: var(--ink-muted); line-height: 1.3; }
 .hero-meta b { color: var(--ink); font-weight: 600; }
 
@@ -1586,7 +1605,7 @@ body[data-new-user="true"] .h-menu::after {
     row-gap: 1px;
   }
   .hero-copy {
-    gap: 0;
+    gap: 1px;
   }
   .hero h1 {
     font-size: 14px;
@@ -1594,6 +1613,24 @@ body[data-new-user="true"] .h-menu::after {
     letter-spacing: -.04em;
     margin-bottom: 0;
     max-width: 15ch;
+  }
+  .hero-title-line {
+    gap: 0;
+  }
+  .hero-room-code {
+    display: inline-flex;
+    max-width: max-content;
+    min-height: 18px;
+    padding: 0 7px;
+    margin-top: 4px;
+    font-size: 8.5px;
+    letter-spacing: .06em;
+    background: rgba(255,255,255,.018);
+    border-color: rgba(255,255,255,.07);
+    color: rgba(232,230,227,.74);
+  }
+  .hero-room-code .label {
+    color: rgba(232,230,227,.48);
   }
   .hero-meta {
     display: none;
@@ -1674,13 +1711,13 @@ body[data-new-user="true"] .h-menu::after {
   .sn-room-toggle {
     margin: 0 0 0 auto;
     padding: 1px;
-    background: rgba(255,255,255,.012);
-    border-color: rgba(255,255,255,.06);
+    background: rgba(255,255,255,.008);
+    border-color: rgba(255,255,255,.045);
     align-self: start;
   }
   .sn-rt-btn {
-    padding: 4px 7px;
-    font-size: 9px;
+    padding: 4px 6px;
+    font-size: 8.5px;
     letter-spacing: .01em;
   }
 }
@@ -4058,7 +4095,7 @@ if (document.readyState === 'loading') {
   <section class="hero">
     <div class="hero-head">
       <div class="hero-copy">
-        <h1><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></h1>
+        <h1><span class="hero-title-line"><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></span><button type="button" class="hero-room-code" id="sn-room-code-mobile-btn" onclick="copyRoom()" aria-label="Room code ORBITAL - click to copy join link"><span class="label">CODE</span><span id="sn-room-code-mobile-label">ORBITAL</span></button></h1>
 
         <!-- Identity row -->
         <div class="id-row" id="id-row">
@@ -4659,6 +4696,12 @@ function setScratchNodeLiveEventContext(event) {
     codeBtn.textContent = EVENT_ROOM_CODE;
     codeBtn.setAttribute('aria-label', 'Room code ' + EVENT_ROOM_CODE + ' — click to copy join link');
   }
+  var mobileCodeBtn = document.getElementById('sn-room-code-mobile-btn');
+  if (mobileCodeBtn) {
+    mobileCodeBtn.setAttribute('aria-label', 'Room code ' + EVENT_ROOM_CODE + ' - click to copy join link');
+  }
+  var mobileCodeLabel = document.getElementById('sn-room-code-mobile-label');
+  if (mobileCodeLabel) mobileCodeLabel.textContent = EVENT_ROOM_CODE;
   var stripTitle = document.getElementById('sn-event-title-strip');
   if (stripTitle) stripTitle.textContent = EVENT_TITLE;
   var heroTitle = document.getElementById('sn-event-title-hero');
