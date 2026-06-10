@@ -139,6 +139,8 @@ Server Error) for an unknown slug.
 
 ## Recently shipped (this ScratchNode session)
 
+- **2026-06-09 Codex** - mobile identity set-name density (`home-v5.html#mobile-identity-set-name-density`): made the mobile guest identity label the display-name edit trigger and hid the separate `Set name` text control on phones, preserving LIVE, room code, event title, and name editing. Visual evidence: `.validation/scratchnode-mobile-identity-before.png` -> `.validation/scratchnode-mobile-identity-after.png`; local aesthetic recorder reported mobile header chips `4` and composer pinned.
+
 - **2026-06-09 Codex** - mobile composer fixed-bottom polish (`home-v5.html#mobile-composer-fixed-bottom`): disabled the mobile event-room `main.m` entrance transform so the fixed composer pins to the viewport instead of the transformed page container. Visual evidence: `.validation/scratchnode-mobile-composer-before.png` -> `.validation/scratchnode-mobile-composer-after.png`; seeded local aesthetic review passed at 82.
 
 - **2026-06-09 Codex** - mobile header density pass 8 (`home-v5.html#mobile-header-density-pass-8`): tightened the mobile hero title, merged the guest identity into a denser inline row, and reduced the Chat/Wall toggle footprint so the room reaches the live feed sooner without hiding LIVE, room code, or event identity. Visual evidence: `.validation/scratchnode-mobile-header-current-head.png` -> `.validation/scratchnode-mobile-header-after-pass-8-room.png`.

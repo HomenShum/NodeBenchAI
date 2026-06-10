@@ -1131,6 +1131,20 @@ body[data-new-user="true"] .welcome { display: flex; }
 .id-text { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
 .id-label { color: var(--ink-faint); }
 .id-text b { color: var(--ink); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.id-name-btn {
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: baseline;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.id-name-btn:hover b { color: var(--accent); }
 .id-set { background: transparent; border: 0; color: var(--accent); font-size: var(--fs-sub); cursor: pointer; padding: 4px 6px; border-radius: 4px; font-family: var(--ui); }
 .id-set:hover { background: rgba(217,119,87,.08); }
 
@@ -1542,22 +1556,18 @@ body[data-new-user="true"] .h-menu::after {
     align-items: baseline;
     flex: 0 1 auto;
   }
+  .id-name-btn {
+    min-height: 18px;
+    border-radius: 999px;
+  }
   .id-text b {
     font-size: 10px;
     line-height: 1;
     color: rgba(232,230,227,.72);
   }
   .id-set {
-    min-height: auto;
-    padding: 0;
-    border-radius: 999px;
-    border: 0;
-    background: transparent;
-    font-size: 8.5px;
-    line-height: 1;
-    color: rgba(241,138,97,.68);
+    display: none;
   }
-  .id-set:hover { background: transparent; color: var(--accent); }
   .demo-join-card {
     margin: 2px 0 6px;
     padding: 6px 10px;
@@ -3973,7 +3983,7 @@ if (document.readyState === 'loading') {
         <!-- Identity row -->
         <div class="id-row" id="id-row">
           <span class="id-avatar" id="id-avatar">G</span>
-          <span class="id-text"><span class="id-label">Joined as </span><b id="id-name">Anonymous Guest</b></span>
+          <span class="id-text"><span class="id-label">Joined as </span><button type="button" class="id-name-btn" onclick="setIdentity()" aria-label="Set display name" title="Set display name"><b id="id-name">Anonymous Guest</b></button></span>
           <button type="button" class="id-notes" id="id-notes" data-count="0" onclick="openSheet('notes'); haptic();" aria-label="My private notes">
             <span>🔒</span>
             <span><b id="id-notes-count">0</b> notes</span>
