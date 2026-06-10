@@ -139,6 +139,8 @@ Server Error) for an unknown slug.
 
 ## Recently shipped (this ScratchNode session)
 
+- **2026-06-09 Codex** - mobile composer fixed-bottom polish (`home-v5.html#mobile-composer-fixed-bottom`): disabled the mobile event-room `main.m` entrance transform so the fixed composer pins to the viewport instead of the transformed page container. Visual evidence: `.validation/scratchnode-mobile-composer-before.png` -> `.validation/scratchnode-mobile-composer-after.png`; seeded local aesthetic review passed at 82.
+
 - **2026-06-09 Codex** - mobile header density pass 8 (`home-v5.html#mobile-header-density-pass-8`): tightened the mobile hero title, merged the guest identity into a denser inline row, and reduced the Chat/Wall toggle footprint so the room reaches the live feed sooner without hiding LIVE, room code, or event identity. Visual evidence: `.validation/scratchnode-mobile-header-current-head.png` -> `.validation/scratchnode-mobile-header-after-pass-8-room.png`.
 
 - **2026-06-09 Codex** - mobile header density pass 7 (`home-v5.html#mobile-header-density-pass-7`): moved the Chat/Wall toggle into the mobile hero cluster so the room reaches live content with one fewer stacked pill row while preserving LIVE, room code, event title, and guest identity. Visual evidence: `.validation/scratchnode-mobile-header-after-pass-6-room.png` -> `.validation/scratchnode-mobile-header-after-pass-7-room.png`.

@@ -1479,6 +1479,11 @@ body[data-new-user="true"] .h-menu::after {
 @media (max-width: 540px) {
   .h { padding: calc(8px + var(--safe-top)) calc(13px + var(--safe-right)) 8px calc(13px + var(--safe-left)); }
   .m { padding: 8px calc(13px + var(--safe-right)) calc(112px + var(--safe-bot)) calc(13px + var(--safe-left)); }
+  /* Mobile composer is fixed to the viewport; transformed ancestors trap it below the fold. */
+  body[data-page-mode="event"] main.m {
+    animation: none;
+    transform: none;
+  }
   .hero {
     margin-bottom: 0;
   }
