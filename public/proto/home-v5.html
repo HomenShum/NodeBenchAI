@@ -1609,10 +1609,10 @@ body[data-new-user="true"] .h-menu::after {
   }
   .hero h1 {
     font-size: 14px;
-    line-height: .94;
+    line-height: .98;
     letter-spacing: -.04em;
     margin-bottom: 0;
-    max-width: 15ch;
+    max-width: 16ch;
   }
   .hero-title-line {
     gap: 0;
@@ -1622,7 +1622,7 @@ body[data-new-user="true"] .h-menu::after {
     max-width: max-content;
     min-height: 18px;
     padding: 0 7px;
-    margin-top: 4px;
+    margin-top: 0;
     font-size: 8.5px;
     letter-spacing: .06em;
     background: rgba(255,255,255,.018);
@@ -1659,8 +1659,8 @@ body[data-new-user="true"] .h-menu::after {
     align-items: center;
     flex-wrap: wrap;
     justify-content: flex-start;
-    column-gap: 6px;
-    row-gap: 1px;
+    column-gap: 5px;
+    row-gap: 2px;
     padding: 0;
     min-width: 0;
   }
@@ -1680,6 +1680,21 @@ body[data-new-user="true"] .h-menu::after {
     font-size: 9px;
     line-height: 1;
     color: rgba(232,230,227,.62);
+  }
+  .id-notes {
+    min-height: 18px;
+    gap: 4px;
+    padding: 0 6px;
+    font-size: 8.5px;
+    color: rgba(199,185,255,.72);
+    background: rgba(167,139,250,.08);
+    border-color: rgba(167,139,250,.16);
+  }
+  .id-notes span:first-child {
+    font-size: 9px;
+  }
+  .id-notes b {
+    font-size: 8.5px;
   }
   .id-set {
     display: none;
@@ -1710,23 +1725,25 @@ body[data-new-user="true"] .h-menu::after {
   .c-mode .dot { width: 7px; height: 7px; }
   .feed-divider { display: none; }
   .sn-room-toggle {
-    margin: 1px 0 0;
+    margin: 0;
     margin-left: auto;
-    padding: 0;
+    padding: 1px;
     gap: 2px;
-    background: transparent;
-    border-color: transparent;
-    align-self: center;
+    background: rgba(255,255,255,.015);
+    border-color: rgba(255,255,255,.04);
+    align-self: start;
+    box-shadow: none;
   }
   .sn-rt-btn {
-    padding: 3px 6px;
+    min-height: 20px;
+    padding: 2px 6px;
     font-size: 8px;
     letter-spacing: .01em;
-    color: rgba(232,230,227,.46);
+    color: rgba(232,230,227,.42);
   }
   .sn-rt-btn[data-active="true"] {
-    background: rgba(255,255,255,.06);
-    color: rgba(232,230,227,.92);
+    background: rgba(255,255,255,.05);
+    color: rgba(232,230,227,.84);
   }
 }
 
@@ -4103,11 +4120,12 @@ if (document.readyState === 'loading') {
   <section class="hero">
     <div class="hero-head">
       <div class="hero-copy">
-        <h1><span class="hero-title-line"><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></span><button type="button" class="hero-room-code" id="sn-room-code-mobile-btn" onclick="copyRoom()" aria-label="Room code ORBITAL - click to copy join link"><span class="label">CODE</span><span id="sn-room-code-mobile-label">ORBITAL</span></button></h1>
+        <h1><span class="hero-title-line"><span id="sn-event-title-hero">AI Infra Summit</span> <button type="button" class="about-link" onclick="showAbout()" aria-label="What is this?">what is this?</button></span></h1>
 
         <!-- Identity row -->
         <div class="id-row" id="id-row">
           <span class="id-avatar" id="id-avatar">G</span>
+          <button type="button" class="hero-room-code" id="sn-room-code-mobile-btn" onclick="copyRoom()" aria-label="Room code ORBITAL - click to copy join link"><span class="label">CODE</span><span id="sn-room-code-mobile-label">ORBITAL</span></button>
           <span class="id-text"><span class="id-label">Joined as </span><button type="button" class="id-name-btn" onclick="setIdentity()" aria-label="Set display name" title="Set display name"><b id="id-name">Anonymous Guest</b></button></span>
           <button type="button" class="id-notes" id="id-notes" data-count="0" onclick="openSheet('notes'); haptic();" aria-label="My private notes">
             <span>🔒</span>

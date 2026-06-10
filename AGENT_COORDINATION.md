@@ -129,6 +129,7 @@ Server Error) for an unknown slug.
 
 ## Recently shipped (this ScratchNode session)
 
+- **2026-06-10 Codex** - mobile header density pass 11 (`home-v5.html#mobile-header-density-pass-11`): moved the mobile room-code chip into the identity row, kept the zero-note state visually quieter, and softened the Chat/Wall toggle so the room reads as event first, controls second. Visual evidence: `.validation/scratchnode-mobile-header-after-pass-10-room.png` -> `.validation/scratchnode-mobile-header-after-pass-11-room.png`.
 - **2026-06-10 Codex** - mobile header density pass 10 (`home-v5.html#mobile-header-density-pass-10`): kept the first-viewport structure intact while dialing back the Chat/Wall pill weight and guest utility-row contrast on phones so the room reads less like stacked controls and more like a live conversation. Visual evidence: `.validation/scratchnode-mobile-header-after-pass-9-room.png` -> `.validation/scratchnode-mobile-header-after-pass-10-room.png`.
 - **2026-06-09 Codex** - mobile identity set-name density (`home-v5.html#mobile-identity-set-name-density`): made the mobile guest identity label the display-name edit trigger and hid the separate `Set name` text control on phones, preserving LIVE, room code, event title, and name editing. Visual evidence: `.validation/scratchnode-mobile-identity-before.png` -> `.validation/scratchnode-mobile-identity-after.png`; local aesthetic recorder reported mobile header chips `4` and composer pinned.
 
