@@ -252,6 +252,8 @@ export const goalLoopEvidenceFieldNames = [
   "latestAestheticReviewJudgeSkippedReason",
   "latestAestheticReviewFallback",
   "latestAestheticReviewFallbackDetail",
+  "latestAestheticReviewEnvironmentLimitedArtifactFallback",
+  "latestAestheticReviewEnvironmentLimitedArtifactFallbackReason",
   "latestAestheticReviewArtifactCount",
   "latestAestheticReviewArtifactPaths",
   "latestAestheticReviewArtifactKinds",
@@ -1287,6 +1289,10 @@ export function summarizeVisualEvidence(aestheticReviewReport, context = {}) {
       aestheticReviewStatus === "artifact_fallback"
         ? aestheticReviewFallbackDetail || aestheticReviewFallbackReason || "Artifact fallback used."
         : null,
+    latestAestheticReviewEnvironmentLimitedArtifactFallback: environmentLimitedArtifactFallback,
+    latestAestheticReviewEnvironmentLimitedArtifactFallbackReason: environmentLimitedArtifactFallback
+      ? aestheticReviewFallbackDetail || aestheticReviewFallbackReason || "Artifact fallback accepted because live capture was blocked by the environment."
+      : null,
     latestAestheticReviewArtifactCount: aestheticReviewArtifacts.length,
     latestAestheticReviewArtifactPaths: aestheticReviewArtifacts.map((artifact) => artifact.path),
     latestAestheticReviewArtifactKinds: [

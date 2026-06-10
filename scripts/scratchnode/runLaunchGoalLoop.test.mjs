@@ -798,6 +798,8 @@ describe("summarizeVisualEvidence", () => {
       expect(summary.latestAestheticReviewStatus).toBe("failed");
       expect(summary.latestAestheticReviewCoverageGap).toBe(false);
       expect(summary.latestAestheticReviewCoverageGapReason).toBeNull();
+      expect(summary.latestAestheticReviewEnvironmentLimitedArtifactFallback).toBe(false);
+      expect(summary.latestAestheticReviewEnvironmentLimitedArtifactFallbackReason).toBeNull();
       expect(summary.latestAestheticReviewMobileComposerPinnedToViewportBottom).toBe(true);
       expect(summary.latestAestheticReviewMobileComposerBottomDeltaPx).toBe(0);
       expect(summary.latestAestheticReviewMobileComposerPosition).toBe("fixed");
@@ -1121,6 +1123,10 @@ describe("summarizeVisualEvidence", () => {
       expect(currentSummary.latestAestheticReviewFallbackDetail).toContain(
         "Sandbox denied outbound navigation",
       );
+      expect(currentSummary.latestAestheticReviewEnvironmentLimitedArtifactFallback).toBe(true);
+      expect(currentSummary.latestAestheticReviewEnvironmentLimitedArtifactFallbackReason).toContain(
+        "Sandbox denied outbound navigation",
+      );
 
       utimesSync(latestImagePath, beforeHeadTime, beforeHeadTime);
       utimesSync(reviewPath, beforeHeadTime, beforeHeadTime);
@@ -1145,6 +1151,8 @@ describe("summarizeVisualEvidence", () => {
       expect(staleSummary.latestVisualArtifactPredatesHead).toBe(true);
       expect(staleSummary.latestAestheticReviewPredatesHead).toBe(true);
       expect(staleSummary.latestAestheticReviewCoverageGap).toBe(true);
+      expect(staleSummary.latestAestheticReviewEnvironmentLimitedArtifactFallback).toBe(false);
+      expect(staleSummary.latestAestheticReviewEnvironmentLimitedArtifactFallbackReason).toBeNull();
       expect(staleSummary.latestAestheticReviewCoverageGapReason).toContain(
         "Latest visual artifact .validation/test-goal-loop-artifact-fallback-current/latest-mobile.png predates HEAD commit abc1234",
       );
@@ -2732,6 +2740,8 @@ describe("goalLoopEvidenceFieldNames", () => {
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGap");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGapReason");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewCoverageGapReasons");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewEnvironmentLimitedArtifactFallback");
+    expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewEnvironmentLimitedArtifactFallbackReason");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerPinnedToViewportBottom");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerBottomDeltaPx");
     expect(goalLoopEvidenceFieldNames).toContain("latestAestheticReviewMobileComposerPosition");
