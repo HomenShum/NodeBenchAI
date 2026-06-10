@@ -996,6 +996,9 @@ export function summarizeTopLevelCommandEvidence(commandEvidence) {
     !Array.isArray(commandEvidence.commandExitCodes)
       ? commandEvidence.commandExitCodes
       : {};
+  const commandResults = Array.isArray(commandEvidence?.commandResultRows)
+    ? commandEvidence.commandResultRows
+    : [];
   const minimumInvokerTimeoutMs = Number.isFinite(Number(commandEvidence?.minimumInvokerTimeoutMs))
     ? Number(commandEvidence.minimumInvokerTimeoutMs)
     : null;
@@ -1008,6 +1011,7 @@ export function summarizeTopLevelCommandEvidence(commandEvidence) {
 
   return {
     commandExitCodes,
+    commandResults,
     minimumInvokerTimeoutMs,
     recommendedInvokerTimeoutMs,
     recommendedInvokerTimeoutSeconds,
