@@ -57,7 +57,6 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- **2026-06-10 · Codex →** `public/proto/home-v5.html#mobile-header-density-pass-9` · reducing first-viewport header clutter on mobile while preserving LIVE, room code, event identity, and public/private composer clarity; no private-handoff edits · local main worktree
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
   shipping the cross-domain private-notes token bridge (opaque stateful token, PR #496) ·
@@ -130,6 +129,7 @@ Server Error) for an unknown slug.
 
 ## Recently shipped (this ScratchNode session)
 
+- **2026-06-10 Codex** - mobile header density pass 10 (`home-v5.html#mobile-header-density-pass-10`): kept the first-viewport structure intact while dialing back the Chat/Wall pill weight and guest utility-row contrast on phones so the room reads less like stacked controls and more like a live conversation. Visual evidence: `.validation/scratchnode-mobile-header-after-pass-9-room.png` -> `.validation/scratchnode-mobile-header-after-pass-10-room.png`.
 - **2026-06-09 Codex** - mobile identity set-name density (`home-v5.html#mobile-identity-set-name-density`): made the mobile guest identity label the display-name edit trigger and hid the separate `Set name` text control on phones, preserving LIVE, room code, event title, and name editing. Visual evidence: `.validation/scratchnode-mobile-identity-before.png` -> `.validation/scratchnode-mobile-identity-after.png`; local aesthetic recorder reported mobile header chips `4` and composer pinned.
 
 - **2026-06-09 Codex** - mobile composer fixed-bottom polish (`home-v5.html#mobile-composer-fixed-bottom`): disabled the mobile event-room `main.m` entrance transform so the fixed composer pins to the viewport instead of the transformed page container. Visual evidence: `.validation/scratchnode-mobile-composer-before.png` -> `.validation/scratchnode-mobile-composer-after.png`; seeded local aesthetic review passed at 82.
