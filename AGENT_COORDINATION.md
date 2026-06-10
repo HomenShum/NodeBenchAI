@@ -57,6 +57,7 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
+- **2026-06-09 · Codex →** `public/proto/home-v5.html#room-entry-transition-polish` · tightening the mobile/public room entry shell so loading settles into the live room with less duplicate copy and more intentional motion; no private-handoff edits · local main worktree
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
   shipping the cross-domain private-notes token bridge (opaque stateful token, PR #496) ·

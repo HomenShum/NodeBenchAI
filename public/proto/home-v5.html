@@ -413,6 +413,15 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__pane
     radial-gradient(circle at top left, rgba(217,119,87,.16), transparent 34%);
   box-shadow: 0 24px 70px rgba(0,0,0,.28);
 }
+.sn-room-entry__card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.24), rgba(255,255,255,0));
+  opacity: .8;
+  pointer-events: none;
+}
 .sn-room-entry__card::after {
   content: "";
   position: absolute;
@@ -476,6 +485,41 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__pane
   letter-spacing: .12em;
   text-transform: uppercase;
 }
+.sn-room-entry__progress {
+  position: relative;
+  margin-top: 12px;
+  height: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255,255,255,.06);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+.sn-room-entry__progress::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 50%, rgba(94,168,103,.18), rgba(94,168,103,0) 22%),
+    radial-gradient(circle at 82% 50%, rgba(217,119,87,.22), rgba(217,119,87,0) 24%);
+  opacity: .55;
+  pointer-events: none;
+}
+.sn-room-entry__progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 68%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(94,168,103,.88), rgba(217,119,87,.92));
+  box-shadow: 0 0 18px rgba(217,119,87,.26);
+  transform-origin: left center;
+  animation: roomEntryProgress 2.1s var(--ease-out) infinite;
+}
+.sn-room-entry__status-copy {
+  display: block;
+  margin-top: 10px;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
 .sn-room-entry__skeletons {
   margin-top: 20px;
   display: grid;
@@ -490,7 +534,11 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__pane
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,.06);
   background: rgba(255,255,255,.025);
+  transform-origin: center;
+  animation: roomEntryPreviewFloat 2.8s ease-in-out infinite;
 }
+.sn-room-entry__preview:nth-child(2) { animation-delay: 140ms; }
+.sn-room-entry__preview:nth-child(3) { animation-delay: 280ms; }
 .sn-room-entry__preview-badge {
   width: 28px;
   height: 28px;
@@ -540,22 +588,49 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__pane
 }
 .sn-room-entry__foot {
   margin-top: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  gap: 6px;
   color: var(--ink-faint);
   font-size: 12px;
 }
+.sn-room-entry__foot span:last-child { display: none; }
 .sn-room-entry__foot strong {
   color: var(--ink);
   font-weight: 600;
+}
+body[data-page-mode="event"]:not([data-sn-room-ready="true"]) .sn-room-entry__panel {
+  animation: roomEntryPanelRise 560ms var(--ease-out) both;
+}
+body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__progress-bar {
+  animation: none;
+  width: 100%;
+  opacity: .94;
+  transition: width var(--motion-med) linear, opacity var(--motion-med) linear;
+}
+body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__preview {
+  animation: none;
+  transform: translateY(-8px) scale(.985);
+  opacity: .54;
+  transition: transform var(--motion-med) var(--ease-out), opacity var(--motion-med) var(--ease-out);
 }
 @keyframes roomEntrySheen { from { background-position: 180% 0; } to { background-position: -20% 0; } }
 @keyframes roomEntryPulse {
   0% { box-shadow: 0 0 0 0 rgba(217,119,87,.34); }
   70% { box-shadow: 0 0 0 10px rgba(217,119,87,0); }
   100% { box-shadow: 0 0 0 0 rgba(217,119,87,0); }
+}
+@keyframes roomEntryProgress {
+  0% { width: 28%; opacity: .78; }
+  55% { width: 72%; opacity: 1; }
+  100% { width: 58%; opacity: .84; }
+}
+@keyframes roomEntryPreviewFloat {
+  0%, 100% { transform: translateY(0); border-color: rgba(255,255,255,.06); background: rgba(255,255,255,.025); }
+  50% { transform: translateY(-3px); border-color: rgba(255,255,255,.1); background: rgba(255,255,255,.036); }
+}
+@keyframes roomEntryPanelRise {
+  0% { opacity: .01; transform: translateY(22px) scale(.985); filter: blur(10px); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
 }
 @media (max-width: 540px) {
   .sn-room-entry { padding: calc(14px + var(--safe-top)) calc(14px + var(--safe-right)) calc(18px + var(--safe-bot)) calc(14px + var(--safe-left)); }
@@ -566,22 +641,25 @@ body[data-page-mode="event"][data-sn-room-ready="settling"] .sn-room-entry__pane
   .sn-room-entry__title { font-size: clamp(28px, 11vw, 40px); }
   .sn-room-entry__sub { font-size: 14px; }
   .sn-room-entry__status { flex-wrap: wrap; }
+  .sn-room-entry__status-copy { max-width: 28ch; }
   .sn-room-entry__preview { grid-template-columns: 24px minmax(0, 1fr); padding: 9px 10px; border-radius: 16px; }
   .sn-room-entry__preview-badge { width: 24px; height: 24px; }
-  .sn-room-entry__foot {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .sn-room-entry { transition: none; }
   .sn-room-entry::before,
   .sn-room-entry::after,
+  .sn-room-entry__card::before,
   .sn-room-entry__card::after {
     display: none;
   }
   .sn-room-entry__status::before,
-  .sn-room-entry__skeleton { animation: none; }
+  .sn-room-entry__progress-bar,
+  .sn-room-entry__preview,
+  .sn-room-entry__skeleton,
+  body[data-page-mode="event"]:not([data-sn-room-ready="true"]) .sn-room-entry__panel {
+    animation: none;
+  }
 }
 
 .m { max-width: 720px; margin: 0 auto; padding: 24px calc(20px + var(--safe-right)) calc(80px + var(--safe-bot)) calc(20px + var(--safe-left)); }
@@ -3889,6 +3967,8 @@ if (document.readyState === 'loading') {
       <h1 class="sn-room-entry__title" id="sn-room-entry-title">AI Infra Summit</h1>
       <p class="sn-room-entry__sub" id="sn-room-entry-sub">Public chat, sourced answers, and private notes stay clearly separated.</p>
       <div class="sn-room-entry__status">Connecting the public room and first live updates… <span class="sn-room-entry__status-label">Public room only</span></div>
+      <div class="sn-room-entry__progress" aria-hidden="true"><span class="sn-room-entry__progress-bar"></span></div>
+      <span class="sn-room-entry__status-copy">Warming the first room state so the handoff lands on real chat chrome, not a layout cut.</span>
       <div class="sn-room-entry__skeletons" aria-hidden="true">
         <div class="sn-room-entry__preview">
           <span class="sn-room-entry__preview-badge"></span>
@@ -7937,7 +8017,7 @@ window._laCueAction       = _laCueAction;
   const roomEntryCodeEl = document.getElementById('sn-room-entry-code');
   const roomEntryTitleEl = document.getElementById('sn-room-entry-title');
   const roomEntrySubEl = document.getElementById('sn-room-entry-sub');
-  const roomEntryExitDurationMs = 440; // Keep pace with the panel's --motion-slow exit so the reveal is not cut off.
+  const roomEntryExitDurationMs = 520; // Keep pace with the richer shell exit so the reveal does not cut off mid-settle.
   let roomEntrySettled = false;
   let roomEntryMinHoldDone = false;
   let roomEntryPendingSettle = false;
@@ -7980,7 +8060,7 @@ window._laCueAction       = _laCueAction;
   window.setTimeout(() => {
     roomEntryMinHoldDone = true;
     if (roomEntryPendingSettle) finishRoomEntry();
-  }, 320);
+  }, 380);
 
   const clearPrototypeFeed = () => {
     if (!feedEl) return;
