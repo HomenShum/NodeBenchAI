@@ -52,6 +52,12 @@ Covers six keywords: **agent harness · benchmark · UI · prod agent · loop en
 
 ## Non-negotiables (the honesty floor)
 
+- **PROVE-BEFORE-CLAIM.** Before saying done/passed/works/fixed/blocked/absent/"root cause is", name the
+  artifact that proves it and check THAT, not a proxy (an affordance, keyword, rendered shell, or a
+  hypothesis from priors). Anything that "looks done" needs an independent confirm. A gate isn't real
+  until the autonomous path is tried. The observed failure classes + the gate are in
+  [`docs/PROOFLOOP-FAILURE-SIGNALS.md`](../../../docs/PROOFLOOP-FAILURE-SIGNALS.md) — read it; these are
+  the false-positives the loop exists to catch.
 - **Independent judge > deterministic heuristic.** Always pair the deterministic floor with an
   independent (visual / fresh-context) judge, and require the result to actually address **this** task
   (content match), not "an affordance appeared." Deterministic-only ships lies.
