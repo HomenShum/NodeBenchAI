@@ -199,3 +199,7 @@ scripts/ops/.tmp-*
 
 # Debug/dogfood screenshots at repo root
 /*.png
+
+# proof-looping run evidence (screenshots/videos/traces) — not committed
+.proofloop-ui/
+.proofloop-run/
