@@ -91,4 +91,37 @@ describe("decideLiveGrounding", () => {
 
     expect(decision.useLiveGrounding).toBe(false);
   });
+
+  // Real bug found live (docs/ACCOUNTING-FR-A1-RERUN-FULL-PASS.md thread): an AR-aging question
+  // phrased with "show your calculation" (not "math"/"work") and no explicit reconcile/journal-entry
+  // keyword only got routed correctly by ACCIDENT -- "today's date" in the prompt happened to also
+  // trip FRESHNESS_PATTERNS. Without a freshness word present, this shape would fall through to the
+  // same irrelevant-cache bug the calculation gate was built to fix.
+  it("forces live grounding for an AR aging question with no freshness wording present", () => {
+    const decision = decideLiveGrounding({
+      prompt:
+        "I need an AR aging analysis. We have an invoice for $3,200 issued on 2026-05-15, with payment terms of Net 30. As of 2026-07-01, which aging bucket does this invoice fall into, and exactly how many days past due is it? Please show your calculation.",
+      hasContext: true,
+      memoryHit: true,
+      sourceCacheHit: true,
+      selectedContextCount: 4,
+      sourceRefCount: 6,
+    });
+
+    expect(decision.useLiveGrounding).toBe(true);
+    expect(decision.freshnessIntent).toBe(false); // confirms it's the calculation gate firing, not freshness luck
+  });
+
+  it("does not force live grounding for an ordinary earnings headline that happens to contain 'net' near a number", () => {
+    const decision = decideLiveGrounding({
+      prompt: "Have I seen that Acme's net income rose to $30M in the reported quarter?",
+      hasContext: true,
+      memoryHit: true,
+      sourceCacheHit: true,
+      selectedContextCount: 3,
+      sourceRefCount: 2,
+    });
+
+    expect(decision.useLiveGrounding).toBe(false);
+  });
 });

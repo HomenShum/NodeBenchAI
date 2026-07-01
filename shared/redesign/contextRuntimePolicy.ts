@@ -49,7 +49,14 @@ const CALCULATION_INTENT_PATTERNS = [
   /\btrial\s+balance\b/i,
   /\btie(?:s|d)?\s+out\b/i,
   /\bdebits?\s+(?:and|=|equal)\s+credits?\b/i,
-  /\bshow\s+(?:your\s+)?(?:math|work)\b/i,
+  /\bshow\s+(?:your\s+)?(?:math|work|calculation)\b/i,
+  // AR/AP aging: found live -- "show your calculation" on an aging-bucket question only got
+  // correctly routed because "today's date" happened to also trip FRESHNESS_PATTERNS. Without a
+  // freshness word present, this shape would fall through to the same irrelevant-cache bug.
+  /\bag(?:ing|e)\s+(?:bucket|analysis|report|schedule)\b/i,
+  /\bdays?\s+past\s+due\b/i,
+  /\b(?:ar|ap)\s+aging\b/i,
+  /\bnet\s+\d{1,3}\b/i, // "Net 30" / "Net 60" payment terms
 ];
 
 export function decideLiveGrounding(input: {
