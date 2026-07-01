@@ -57,3 +57,30 @@ explicit derivation/verification line, regardless of whether classification succ
 now a **repeated pattern** (2/2 runs), which is exactly what should be promoted to a shared regression,
 per the repair-loop discipline ("a fix that only lifts one tuned task is reverted; a repeated pattern
 across independent tasks is the real signal").
+
+## CORRECTION — deeper root cause found (same session, after the synthesis-prompt fix)
+
+The prompt fix above (instructing the model to show derivations for calculation requests) shipped to
+prod (`chatRuns.ts`, commit `2f1f791`), but re-driving both FR-A1 and FR-A4-shaped queries live
+**after** that deploy showed **no observable change** — if anything, the "Why it matters" section got
+*thinner* ("Accurate [1]"), and evidence stayed pinned to the same 6 irrelevant cached sources ("Act
+I/II/III", "r/technology", "GitHub", "r/Economics" — sources belonging to an unrelated tech/markets
+"Daily Brief" thread) across two runs with different numbers.
+
+Root cause, one layer up from the synthesis prompt: `shared/redesign/contextRuntimePolicy.ts`'s
+`decideLiveGrounding()` has a branch — `if (memorySufficient && input.sourceRefCount >= 2)` — that
+skips live web-search grounding based purely on *structural* signals (does the thread have ≥2 cached
+source refs?), with **no check that those cached sources are topically relevant** to the question. A
+calculation request asked inside any thread with unrelated cached context gets routed to "answer from
+memory," and the model never sees anything to ground a derivation in — my prompt instruction had
+nothing to work with. This explains both observed symptoms at once (no derivation shown; same
+irrelevant evidence every time) and is the reason the earlier prompt-only fix, while directionally
+correct, did not move the observed output.
+
+Fixed in the same file: added a `CALCULATION_INTENT_PATTERNS` check (reconcile, journal entry, trial
+balance, tie out, debits=credits, show your math/work) that forces `useLiveGrounding: true` regardless
+of the structural "memory sufficient" shortcut — strictly additive (can only flip skip→do grounding,
+never the reverse), so it cannot regress ordinary research/company queries. Covered by 3 new
+scenario-based tests in `contextRuntimePolicy.test.ts` reproducing the exact live bug shape (calculation
+query inside a thread with structurally-sufficient-but-irrelevant cached context), all passing, plus
+confirmation that an ordinary funding-news query mentioning a dollar amount is untouched.
