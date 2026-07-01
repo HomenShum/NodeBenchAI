@@ -11,25 +11,30 @@ import { Doc } from "../../../_generated/dataModel";
 import { v } from "convex/values";
 
 /**
+ * Dedicated eval user — isolated from real accounts. Seeding, getTestUser, and clearTestData all
+ * resolve THIS user (by email), never `ctx.db.query("users").first()` (which on prod is a real user).
+ * That makes seeding + measurement safe on any deployment, incl. prod. (users fields are all optional.)
+ */
+const EVAL_TEST_EMAIL = "golden-eval@nodebench.eval";
+async function findEvalUserId(ctx: any) {
+  const u = (await ctx.db
+    .query("users")
+    .filter((q: any) => q.eq(q.field("email"), EVAL_TEST_EMAIL))
+    .first()) as Doc<"users"> | null;
+  return u?._id ?? null;
+}
+
+/**
  * Seed all golden dataset tables
  */
 export const seedAll = internalMutation({
   args: { confirm: v.optional(v.boolean()) },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // SAFETY (2026-07-01): clearTestData below deletes ALL documents/files/events belonging to
-    // `users.first()`. On a shared/prod deployment users.first() is a REAL user — running this would
-    // destroy their data. Refuse unless the table is tiny (fresh/dev) or the caller explicitly confirms
-    // on an isolated deployment. See docs/BENCHMARK-BASELINE.md CORRECTION 2.
-    const probe = await ctx.db.query("users").take(6);
-    if (probe.length > 3 && args.confirm !== true) {
-      throw new Error(
-        "seedAll refused: users table has >3 rows (looks like a shared/prod deployment). " +
-          "clearTestData deletes users.first()'s documents/files/events. Run only on an isolated/dev " +
-          "deployment and pass { confirm: true }.",
-      );
-    }
-    console.log("🌱 Starting Golden Dataset Seeding...\n");
+    // SAFETY (2026-07-01, updated): seeding now targets a DEDICATED eval user (findEvalUserId), so
+    // clearTestData only ever touches that isolated fixture account — safe on any deployment incl. prod.
+    // (Supersedes the earlier users.first() footgun; see docs/BENCHMARK-BASELINE.md CORRECTION 2.)
+    console.log("🌱 Starting Golden Dataset Seeding (dedicated eval user)...\n");
 
     // Clear existing test data (optional - comment out if you want to keep existing data)
     await clearTestData(ctx);
@@ -53,17 +58,12 @@ export const seedAll = internalMutation({
 async function clearTestData(ctx: any) {
   console.log("🗑️  Clearing existing test data...");
 
-  // Get the test user (same logic as getOrCreateTestUser)
-  const testUser = await ctx.db
-    .query("users")
-    .first() as Doc<"users"> | null;
-
-  if (!testUser) {
-    console.log("   No test user found, skipping clear");
+  // Only ever clear the DEDICATED eval user's data — never users.first() (which could be a real user).
+  const testUserId = await findEvalUserId(ctx);
+  if (!testUserId) {
+    console.log("   No dedicated eval user yet, skipping clear");
     return;
   }
-
-  const testUserId = testUser._id;
 
   // Delete documents created by test user
   const docs = await ctx.db
@@ -120,19 +120,16 @@ async function clearTestData(ctx: any) {
  * Get or create a test user for seeding
  */
 async function getOrCreateTestUser(ctx: any) {
-  // Try to find an existing user
-  const existingUser = await ctx.db
-    .query("users")
-    .first() as Doc<"users"> | null;
-
-  if (existingUser) {
-    console.log(`   Using existing user: ${existingUser._id}`);
-    return existingUser._id;
+  // Resolve the DEDICATED eval user by email (isolated from real accounts); create it if absent.
+  // authTables `users` fields are all optional, so a fixture user with name+email is valid + safe.
+  const existing = await findEvalUserId(ctx);
+  if (existing) {
+    console.log(`   Using dedicated eval user: ${existing}`);
+    return existing;
   }
-
-  // If no user exists, we can't create one (auth system handles that)
-  // In this case, throw an error
-  throw new Error("No users found in database. Please create a user account first before seeding data.");
+  const id = await ctx.db.insert("users", { name: "Golden Eval User", email: EVAL_TEST_EMAIL });
+  console.log(`   Created dedicated eval user: ${id}`);
+  return id;
 }
 
 /**
@@ -530,10 +527,9 @@ export const getTestUser = query({
     v.null()
   ),
   handler: async (ctx) => {
-    // Get the first user (same as what seeding uses)
-    const user = await ctx.db
-      .query("users")
-      .first() as Doc<"users"> | null;
+    // Resolve the DEDICATED eval user (matches the seeder) — never users.first().
+    const evalUserId = await findEvalUserId(ctx);
+    const user = evalUserId ? ((await ctx.db.get(evalUserId)) as Doc<"users"> | null) : null;
 
     if (!user) return null;
 
