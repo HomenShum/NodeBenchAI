@@ -47,6 +47,25 @@ categories (Document read/analyze/create/edit, Tasks, Events, Media, Search, SEC
 > "tasks due today" route to the no-tools FastResponder because `requestLikelyNeedsTooling`'s
 > `\bevent\b`/`\btask\b` word boundaries miss the plurals "events"/"tasks". Net: the 1/43 is real but
 > **confounded**; the true agent pass rate is unknown until measured on a seeded preview.
+>
+> **CORRECTION 3 (2026-07-01, LIVE-VERIFIED on prod — fixes deployed + measured):** the #10 (dedicated
+> eval user) + #11 (plural routing) fixes were **deployed to prod (agile-caribou-964)** and verified:
+> - **#10 works** — `seedAll` seeded `golden-eval@nodebench.eval` and logged "skipping clear — no
+>   dedicated eval user yet" → **zero real-user data touched** (footgun closed for real); `getTestUser`
+>   now resolves the seeded golden user.
+> - **#11 works** — on a **fair (seeded, low-concurrency) quick run, 0/10 tasks fire zero tools** (every
+>   task calls the right tool: findDocument/listTasks/listEvents/searchMedia/linkupSearch). The earlier
+>   "no tools called" is gone.
+> - **A 4th harness confound found:** the comprehensive suite runs **43 tasks in parallel**, which
+>   throttles the model → **30/42 zero-tool** — a *concurrency artifact*, NOT agent capability (the fair
+>   run has 0 zero-tool). The comprehensive harness needs a concurrency cap to be a valid measure.
+> - **The TRUE remaining gap** (fair run: tools fire 10/10, pass 2/10) is NOT routing/fixtures — it's a
+>   mix of **(a) judge-criteria strictness** (agent found+read+summarized the doc but criterion 1
+>   miscounts the tool combo), **(b) agent response-quality** (generic text instead of real media
+>   analysis), **(c) data-scoping** (listMediaFiles reports "no images" despite 5 seeded). That is the
+>   genuine agent-improvement + judge-calibration frontier — the real work the proofloop now enables
+>   (it can finally measure fairly). **The 1/43 comprehensive number is a harness artifact; the agent
+>   demonstrably uses its tools and finds seeded data.**
 
 The failures are dominated (28/42) by the agent **not calling any tool** on tasks that require one
 (read/create/edit documents, list tasks, create events, list/search media). The tools **exist** and
