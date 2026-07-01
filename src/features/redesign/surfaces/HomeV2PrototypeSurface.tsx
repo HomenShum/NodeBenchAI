@@ -997,6 +997,9 @@ const meLines = [
 ];
 
 export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity, guestSafe = false, liveArtifacts }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
+  // BUG FIX (2026-07-01): sibling of the "Connect account" dead-button bug — this "Sign out"
+  // button also had no onClick. Wire it to the real signOut action.
+  const { signOut } = useAuthActions();
   const [reportsRailQuery, setReportsRailQuery] = useState("");
   const [reportsRailFilter, setReportsRailFilter] = useState<(typeof reportRailFilters)[number]["id"]>("all");
   if (surface === "home") return <HomeV2EditionRail onAsk={onAsk} liveArtifacts={liveArtifacts} />;
@@ -1123,7 +1126,11 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
         <div><span>Corrections</span><strong>{guestSafe ? "Locked" : "23"}</strong></div>
         <div><span>Last updated</span><strong>{guestSafe ? "After sign-in" : "2m ago"}</strong></div>
       </div>
-      {!guestSafe && <button className="rd-v2-sign-out">Sign out</button>}
+      {!guestSafe && (
+        <button type="button" className="rd-v2-sign-out" onClick={() => void signOut()}>
+          Sign out
+        </button>
+      )}
     </aside>
   );
 }

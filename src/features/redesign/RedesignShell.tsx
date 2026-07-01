@@ -325,7 +325,7 @@ export default function RedesignShell() {
             surface={prototypeSurface}
             selectedEntity={prototypeEntity}
             onSelectEntity={selectPrototypeRailEntity}
-            guestSafe={surface === "me"}
+            guestSafe={surface === "me" && !isRedesignAuthenticated}
             liveArtifacts={shellLiveArtifacts}
           />
         )}
