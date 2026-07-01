@@ -808,7 +808,36 @@
   color: #ffd7ca;
 }
 
+/* BUG FIX (2026-07-01): same unreachable-.dark issue as nb-badge-success below — additive,
+   unprefixed duplicates so the already-designed dark-overlay colors actually take effect. */
+.nb-kit .nb-rcard-thumb-overlay .nb-badge {
+  border-color: rgba(255, 255, 255, 0.26);
+  background: rgba(12, 15, 22, 0.74);
+  color: #f5f7fb;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(10px);
+}
+
+.nb-kit .nb-rcard-thumb-overlay .nb-badge-accent {
+  border-color: rgba(224, 138, 110, 0.55);
+  background: rgba(224, 138, 110, 0.20);
+  color: #ffd7ca;
+}
+
 .dark .nb-kit .nb-rcard-thumb-overlay .nb-badge-success {
+  border-color: rgba(126, 224, 183, 0.48);
+  background: rgba(16, 185, 129, 0.18);
+  color: #a7f3d0;
+}
+
+/* BUG FIX (2026-07-01): the rule above never applies — this app never sets a `.dark` class on
+   any ancestor (verified live: document.documentElement.className === "" and
+   document.body.className === ""), so `.nb-badge-success` fell back to the light-mode-only
+   colors (dark green text ~rgb(4,120,87) on a near-transparent bg) inside this always-dark
+   report-thumbnail overlay — poor/illegible contrast (found via Gemini visual-judge live scan
+   on /reports). Purely additive: same already-designed colors, unprefixed, so it takes effect
+   without touching the (currently unreachable) .dark-scoped rule above. */
+.nb-kit .nb-rcard-thumb-overlay .nb-badge-success {
   border-color: rgba(126, 224, 183, 0.48);
   background: rgba(16, 185, 129, 0.18);
   color: #a7f3d0;
