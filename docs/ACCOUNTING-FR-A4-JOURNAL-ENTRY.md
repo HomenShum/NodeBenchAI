@@ -84,3 +84,25 @@ never the reverse), so it cannot regress ordinary research/company queries. Cove
 scenario-based tests in `contextRuntimePolicy.test.ts` reproducing the exact live bug shape (calculation
 query inside a thread with structurally-sufficient-but-irrelevant cached context), all passing, plus
 confirmation that an ordinary funding-news query mentioning a dollar amount is untouched.
+
+**Deployed and re-verified live** (commit `e13b9a0`, deployed to `agile-caribou-964`): re-ran the exact
+bank-reconciliation shape with fresh numbers ($7,320.60 / $7,105.10 / $215.50 outstanding check). Trace
+panel now shows the new reason string firing — *"Calculation/verification request detected — the
+active thread's cached context is not a substitute for grounding the specific numbers asked about"* —
+and evidence changed from the previous irrelevant tech/economics cache to genuinely on-topic sources
+(quickbooks.intuit.com, netsuite.com, help.acst.com). **This part of the fix is confirmed live and
+working.**
+
+**Still open, honestly:** even with correct, relevant grounding now in place, the final answer still
+does not show the explicit arithmetic ("$7,320.60 − $215.50 = $7,105.10") — it states the conclusion
+("balances reconcile successfully") without deriving it. That is now a **3rd confirmed occurrence**
+of the same gap (FR-A1, FR-A4, this rerun) — more confirmed than the grounding-routing bug was before
+its fix. Conclusion: a natural-language prompt instruction ("show your derivation") is not a reliable
+enough lever for a small, fast model under a tight "one paragraph" format constraint. The correctly-scoped
+next fix is **deterministic, not another prompt tweak**: compute the reconciliation/journal-entry
+arithmetic server-side (the deterministic oracles in `noderl/packages/nodeeval/src/accounting/*.ts`
+already exist for exactly this) and inject the computed line as a pre-verified fact into the context
+bundle, so the model relays a fact instead of being asked to both compute and format it under
+constraint. Scoped as the next item under task #12 (true agent frontier) rather than attempted here —
+it requires wiring the context-bundle assembly step to a numeric extractor + the existing oracle
+functions, which is real feature work, not a safe small patch.
