@@ -46,6 +46,12 @@ just fail everything for one reason. So the sequence is not negotiable:
   instead of calling them directly → the eval's synchronous `toolsCalled` reads empty. Real cause =
   coordinator-delegation / model tool-calling, **UNCONFIRMED** pending a per-task deployment-log trace;
   testable via `useCoordinator:false` (executor → ChatAgent direct-tool lane).
+  **CORRECTION 2 (definitive):** even the coordinator hypothesis is not the main cause. Fresh run =
+  8/10 CHAT AGENT (full tools), tools fire, tasks still fail because `getTestUser`/seeder use
+  `users.first()` → on prod the "test user" is an arbitrary real user with **no golden data**. So the
+  1/43 is a **prod test-fixture artifact, not an agent bug**; measure on a seeded preview. Real
+  sub-bugs: seedAll deletes `users.first()`'s data (SAFETY P0 — never run on prod) + plural
+  "events/tasks" miss `requestLikelyNeedsTooling`. See `BENCHMARK-BASELINE.md` CORRECTION 2.
 - **Fix (proposed, PR-gated):** ensure tool-needing intents route to the full-tools lane; make the forced
   follow-up use the full-tools lane. Locus: lane select (~L5523) + route fn + `shouldUseFastResponder`.
 - **Verify (safe, no blind prod deploy):** `convex deploy --preview-create` an isolated preview →

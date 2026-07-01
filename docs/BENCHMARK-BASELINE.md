@@ -30,6 +30,23 @@ categories (Document read/analyze/create/edit, Tasks, Events, Media, Search, SEC
 > path (or the model not emitting tool calls) — UNCONFIRMED, pending a per-task deployment-log trace;
 > testable via `useCoordinator:false` (executor → ChatAgent direct-tool lane).** The **1/43 baseline
 > number stands** (verified); only the lane attribution in the paragraph below was premature.
+>
+> **CORRECTION 2 (2026-07-01, DEFINITIVE — fresh run + seed-code read; supersedes both above):** the
+> 1/43 is **not a valid measure of the agent — it is a prod test-fixture problem.** A fresh quick-test
+> run shows **8/10 turns use the full-tools CHAT AGENT lane and tools DO fire** (`findDocument`,
+> `searchFiles`, `searchMedia`, `linkupSearch`) — yet the tasks fail because the expected data isn't
+> there. Root cause: both `getTestUser` (query) and the seeder's `getOrCreateTestUser` resolve the test
+> user via **`ctx.db.query("users").first()`** — the first row in the users table. On a fresh/dev
+> deployment that's the seeded golden user; **on prod it's an arbitrary real user with no "Revenue
+> Report Q4 2024" doc and no golden events/tasks/media**, so content-dependent tasks fail regardless of
+> the agent. The golden fixtures were never seeded on prod (and can't be, safely — see below). **The
+> agent must be measured on an isolated, seeded deployment (preview/dev), not prod.** Two smaller but
+> real findings stand: **(a) SAFETY P0** — `seedAll`'s `clearTestData` DELETES all documents/files/events
+> of `users.first()`; on prod that is a *real user's* data → **never run `seedAll` on prod**; fix it to
+> target a dedicated test user. **(b) a genuine routing bug** — "What events do I have this week?" /
+> "tasks due today" route to the no-tools FastResponder because `requestLikelyNeedsTooling`'s
+> `\bevent\b`/`\btask\b` word boundaries miss the plurals "events"/"tasks". Net: the 1/43 is real but
+> **confounded**; the true agent pass rate is unknown until measured on a seeded preview.
 
 The failures are dominated (28/42) by the agent **not calling any tool** on tasks that require one
 (read/create/edit documents, list tasks, create events, list/search media). The tools **exist** and
