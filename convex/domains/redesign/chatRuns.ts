@@ -1176,6 +1176,12 @@ export const runStreamingChat = internalAction({
 
 Use [1], [2], [3] inline cite markers in the prose. ${liveGrounding.useLiveGrounding ? "Keep claims grounded in the web sources you retrieve. Prefer recency." : "Use only the selected memory/context packet and cached source refs; do not imply a fresh web search was performed."} If you can't find grounded evidence, say so explicitly.
 
+If the user's request involves a numeric calculation, reconciliation, balancing check, or explicitly
+asks you to "show your math" / "show your work" / confirm a total: state the actual derivation
+(the specific numbers and operation, e.g. "$X - $Y = $Z") and an explicit pass/fail confirmation
+of what they asked you to verify inside "Why it matters" — do not just assert the conclusion. This
+does not apply to ordinary research/company/market questions.
+
 Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
       // Emit a stage event so the UI can show "Probing without [N]" / "Carrying forward N pins"
       if (probeSection) {
