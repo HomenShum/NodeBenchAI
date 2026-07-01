@@ -1,4 +1,5 @@
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { showToast } from "../components/Toast";
 import { UniversalComposer, type RouterTier } from "../components/UniversalComposer";
 import type { LiveArtifactsResult, LiveArtifactSourceRow } from "../hooks/useLiveArtifacts";
@@ -1992,6 +1993,16 @@ function InboxPrototypeRail({ onAsk }: HomeV2SurfaceProps) {
 }
 
 function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { guestSafe?: boolean }) {
+  // BUG FIX (2026-07-01): this button previously had no onClick at all — a real signed-in user
+  // who reached this rail (guestSafe was hardcoded true regardless of auth state, fixed in
+  // RedesignShell.tsx) would click "Connect account" and nothing would happen. Wire it to the
+  // same signIn("google") call MeSurface.tsx already uses successfully.
+  const { signIn } = useAuthActions();
+  const handleConnectAccount = () => {
+    void signIn("google", {
+      redirectTo: typeof window !== "undefined" ? window.location.href : "/redesign/me",
+    });
+  };
   const context = guestSafe
     ? "Private context - connect an account to sync"
     : "USER.md · 5 permissions · 7 sessions today";
@@ -2034,8 +2045,8 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
           <p><span>Session memory</span><strong>Observations, corrections, history</strong></p>
         </section>
         <section className="rd-v2-action-card-list">
-          <button className="is-primary">Connect account</button>
-          <button>Preview USER.md</button>
+          <button type="button" className="is-primary" onClick={handleConnectAccount}>Connect account</button>
+          <button type="button">Preview USER.md</button>
         </section>
       </AgentShell>
     );
