@@ -14,9 +14,21 @@ import { v } from "convex/values";
  * Seed all golden dataset tables
  */
 export const seedAll = internalMutation({
-  args: {},
+  args: { confirm: v.optional(v.boolean()) },
   returns: v.null(),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
+    // SAFETY (2026-07-01): clearTestData below deletes ALL documents/files/events belonging to
+    // `users.first()`. On a shared/prod deployment users.first() is a REAL user — running this would
+    // destroy their data. Refuse unless the table is tiny (fresh/dev) or the caller explicitly confirms
+    // on an isolated deployment. See docs/BENCHMARK-BASELINE.md CORRECTION 2.
+    const probe = await ctx.db.query("users").take(6);
+    if (probe.length > 3 && args.confirm !== true) {
+      throw new Error(
+        "seedAll refused: users table has >3 rows (looks like a shared/prod deployment). " +
+          "clearTestData deletes users.first()'s documents/files/events. Run only on an isolated/dev " +
+          "deployment and pass { confirm: true }.",
+      );
+    }
     console.log("🌱 Starting Golden Dataset Seeding...\n");
 
     // Clear existing test data (optional - comment out if you want to keep existing data)

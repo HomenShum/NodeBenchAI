@@ -611,7 +611,9 @@ async function getOrLoadTtlCache<T>(
 function requestLikelyNeedsTooling(message: string): boolean {
   const text = String(message ?? "");
   if (!text.trim()) return false;
-  return /\b(find|search|look up|lookup|open|read|show|display|summarize|analyze|analyze|compare|report|document|pdf|file|image|video|youtube|sec|edgar|10-k|10-q|8-k|calendar|event|task|email|web|latest|current|source|citation|url|pricing|funding|research|browser|mcp|tool|csv|json|table|spreadsheet)\b/i.test(
+  // NOTE (2026-07-01): trailing `s?` so plurals match — "events"/"tasks"/"documents"/"reports" etc.
+  // previously missed by `\bevent\b`, which routed those queries to the no-tools FastResponder lane.
+  return /\b(find|search|look up|lookup|open|read|show|display|summarize|analyze|compare|report|document|pdf|file|image|video|youtube|sec|edgar|10-k|10-q|8-k|calendar|event|task|email|web|latest|current|source|citation|url|pricing|funding|research|browser|mcp|tool|csv|json|table|spreadsheet)s?\b/i.test(
     text,
   );
 }
