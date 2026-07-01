@@ -19,6 +19,18 @@ categories (Document read/analyze/create/edit, Tasks, Events, Media, Search, SEC
 
 ## Root cause: ONE systemic routing bug, not 42 task bugs
 
+> **CORRECTION (2026-07-01, verified against the code — the proofloop gate catching its own author):**
+> the specific attribution below (tool-needing queries hitting the no-tools **FastResponder/MiniNote**
+> lane) is **WRONG.** `shouldUseFastResponder` returns `false` whenever `requestLikelyNeedsTooling`
+> matches — and it matches `show|read|report|document|task|event|…`, i.e. exactly these queries — so
+> they do **not** reach FastResponder. The eval invokes `sendMessageInternal` with a non-anonymous test
+> user and **no `useCoordinator`**, which routes to the **COORDINATOR** lane (advisor profile). The
+> Coordinator *has* tools but **delegates** rather than calling them directly, so the eval's synchronous
+> `toolsCalled` capture reads empty even when work is delegated. **Real cause = the coordinator-delegation
+> path (or the model not emitting tool calls) — UNCONFIRMED, pending a per-task deployment-log trace;
+> testable via `useCoordinator:false` (executor → ChatAgent direct-tool lane).** The **1/43 baseline
+> number stands** (verified); only the lane attribution in the paragraph below was premature.
+
 The failures are dominated (28/42) by the agent **not calling any tool** on tasks that require one
 (read/create/edit documents, list tasks, create events, list/search media). The tools **exist** and
 are wired into the Fast Agent — but `sendMessageInternal` routes each turn to one of **three lanes**:

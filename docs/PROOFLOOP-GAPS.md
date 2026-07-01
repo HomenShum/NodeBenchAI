@@ -12,7 +12,7 @@
 
 | # | Gap | Type | Status / evidence |
 |---|---|---|---|
-| **1** | **Agent doesn't use its tools** | app-not-ready · **P0 prerequisite** | Prod comprehensive benchmark = **1/43** (`BENCHMARK-BASELINE.md`). 28/42 fails = zero tools called. Tool-needing queries land on the no-tools lane. **Nothing else can pass until this is fixed.** |
+| **1** | **Agent doesn't use its tools** | app-not-ready · **P0 prerequisite** | Prod comprehensive benchmark = **1/43** (`BENCHMARK-BASELINE.md`). 28/42 fails = zero tools called (eval hits the **Coordinator** lane, which delegates → tools don't fire synchronously; earlier "no-tools FastResponder lane" attribution was CORRECTED — see §Gap #1). **Nothing else can pass until this is fixed.** |
 | 2 | Accounting proofloop suite (scenarios / oracles / rubrics) | proofloop-gap · P1 | **Does not exist** — net-new. `proofloop/accounting/{scenarios,oracles,rubrics}` unbuilt. |
 | 3 | Finance benchmarks + datasets | proofloop-gap · P1 | Names (Finch, BizFinBench, FinTMMBench, QuantEval, FATURA, CORU, AMuRD) are **ChatGPT-supplied and UNVERIFIED.** Must confirm each exists + license, then **pin** `{slug, version, sha256}`. Kaggle: no `latest` — pin or reject. |
 | 4 | Notion SDR/BDR 4-scenario suite | proofloop-gap · P1 | **Does not exist** — net-new (warm-intro / follow-up / pipeline / meeting-prep). |
@@ -39,8 +39,13 @@ just fail everything for one reason. So the sequence is not negotiable:
 - **Root cause (code-grounded):** `fastAgentPanelStreaming.ts` routes each turn to one of three lanes —
   Coordinator, **FastResponder (`tools:{}`)**, ChatAgent (full tools). The eval calls `sendMessageInternal`
   **without `useCoordinator`**, and `chooseNodeBenchRuntimeRoute` / `shouldUseFastResponder` can drop
-  tool-needing queries onto the no-tools FastResponder lane. The "no tools called → force tool-first
-  follow-up" safety net (~L5956) is not recovering them.
+  tool-needing queries onto a no-tools lane. **CORRECTED 2026-07-01 (verified against code):** that is
+  WRONG — `shouldUseFastResponder` already returns false for these (`requestLikelyNeedsTooling` matches
+  show/read/report/document/task/event), so FastResponder is not the culprit. The eval (non-anonymous
+  test user, no `useCoordinator`) routes to the **COORDINATOR** lane, which *has* tools but **delegates**
+  instead of calling them directly → the eval's synchronous `toolsCalled` reads empty. Real cause =
+  coordinator-delegation / model tool-calling, **UNCONFIRMED** pending a per-task deployment-log trace;
+  testable via `useCoordinator:false` (executor → ChatAgent direct-tool lane).
 - **Fix (proposed, PR-gated):** ensure tool-needing intents route to the full-tools lane; make the forced
   follow-up use the full-tools lane. Locus: lane select (~L5523) + route fn + `shouldUseFastResponder`.
 - **Verify (safe, no blind prod deploy):** `convex deploy --preview-create` an isolated preview →
