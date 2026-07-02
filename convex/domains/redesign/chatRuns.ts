@@ -44,6 +44,7 @@ import {
   decideLiveGrounding,
   type LiveGroundingDecision,
 } from "../../../shared/redesign/contextRuntimePolicy";
+import { classifyPrompt } from "../../../shared/redesign/promptClassifier";
 import {
   classifyEvidenceVerification,
   type EvidenceVerificationState,
@@ -310,15 +311,6 @@ async function runFallbackSourceSearch(query: string): Promise<{
   } finally {
     clearTimeout(timer);
   }
-}
-
-function classifyPrompt(prompt: string): { kind: string; entity?: string } {
-  const lower = prompt.toLowerCase();
-  const capMatch = prompt.match(/(?:about |on |for |re )?([A-Z][A-Za-z0-9]+(?:\s[A-Z][A-Za-z0-9]+)*)/);
-  const entity = capMatch?.[1];
-  if (lower.includes(" vs ") || lower.includes(" compare ")) return { kind: "competitor", entity };
-  if (entity && entity.length > 2) return { kind: "company_search", entity };
-  return { kind: "general" };
 }
 
 function describeContextRef(contextRef?: string): ContextRefDescription {
