@@ -1,4 +1,5 @@
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { showToast } from "../components/Toast";
 import { UniversalComposer, type RouterTier } from "../components/UniversalComposer";
 import type { LiveArtifactsResult, LiveArtifactSourceRow } from "../hooks/useLiveArtifacts";
@@ -996,6 +997,9 @@ const meLines = [
 ];
 
 export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropic", onSelectEntity, guestSafe = false, liveArtifacts }: { surface: PrototypeSurface } & PrototypeSelectionProps) {
+  // BUG FIX (2026-07-01): sibling of the "Connect account" dead-button bug — this "Sign out"
+  // button also had no onClick. Wire it to the real signOut action.
+  const { signOut } = useAuthActions();
   const [reportsRailQuery, setReportsRailQuery] = useState("");
   const [reportsRailFilter, setReportsRailFilter] = useState<(typeof reportRailFilters)[number]["id"]>("all");
   if (surface === "home") return <HomeV2EditionRail onAsk={onAsk} liveArtifacts={liveArtifacts} />;
@@ -1122,7 +1126,11 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
         <div><span>Corrections</span><strong>{guestSafe ? "Locked" : "23"}</strong></div>
         <div><span>Last updated</span><strong>{guestSafe ? "After sign-in" : "2m ago"}</strong></div>
       </div>
-      {!guestSafe && <button className="rd-v2-sign-out">Sign out</button>}
+      {!guestSafe && (
+        <button type="button" className="rd-v2-sign-out" onClick={() => void signOut()}>
+          Sign out
+        </button>
+      )}
     </aside>
   );
 }
@@ -1992,6 +2000,16 @@ function InboxPrototypeRail({ onAsk }: HomeV2SurfaceProps) {
 }
 
 function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { guestSafe?: boolean }) {
+  // BUG FIX (2026-07-01): this button previously had no onClick at all — a real signed-in user
+  // who reached this rail (guestSafe was hardcoded true regardless of auth state, fixed in
+  // RedesignShell.tsx) would click "Connect account" and nothing would happen. Wire it to the
+  // same signIn("google") call MeSurface.tsx already uses successfully.
+  const { signIn } = useAuthActions();
+  const handleConnectAccount = () => {
+    void signIn("google", {
+      redirectTo: typeof window !== "undefined" ? window.location.href : "/redesign/me",
+    });
+  };
   const context = guestSafe
     ? "Private context - connect an account to sync"
     : "USER.md · 5 permissions · 7 sessions today";
@@ -2034,8 +2052,8 @@ function MePrototypeRail({ onAsk, guestSafe = false }: HomeV2SurfaceProps & { gu
           <p><span>Session memory</span><strong>Observations, corrections, history</strong></p>
         </section>
         <section className="rd-v2-action-card-list">
-          <button className="is-primary">Connect account</button>
-          <button>Preview USER.md</button>
+          <button type="button" className="is-primary" onClick={handleConnectAccount}>Connect account</button>
+          <button type="button">Preview USER.md</button>
         </section>
       </AgentShell>
     );
@@ -2407,7 +2425,7 @@ function LivePulseLanding({
 
       <div className="rd-v2-pulse-head">
         <p className="rd-v2-pulse-kicker">For the first decision of the day</p>
-        <h1 id="home-v2-pulse-title">{introspection.title}</h1>
+        <h2 id="home-v2-pulse-title">{introspection.title}</h2>
         <p>{introspection.body}</p>
       </div>
 
@@ -2713,7 +2731,7 @@ export function HomeV2BriefingRail({ onAsk, onOpenReports, liveArtifacts }: Home
         </section>
       </div>
       <footer className="rd-v2-agent-composer">
-        <input placeholder="Ask about today's pulse..." onKeyDown={(event) => {
+        <input placeholder="Ask about today's pulse..." aria-label="Ask about today's pulse" onKeyDown={(event) => {
           if (event.key === "Enter") onAsk?.((event.currentTarget as HTMLInputElement).value);
         }} />
         <button

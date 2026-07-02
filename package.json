@@ -19,6 +19,8 @@
     "post-deploy:verify": "node scripts/post-deploy-verify.mjs",
     "post-deploy:verify:fast": "node scripts/post-deploy-verify.mjs --skip=live-smoke",
     "post-deploy:verify:json": "node scripts/post-deploy-verify.mjs --json",
+    "proofloop:ui": "node surface-bench.mjs",
+    "proofloop:engine": "tsx proofloop-run.ts",
     "build:voice": "tsc -p server/tsconfig.json --noCheck",
     "start:voice": "node dist/server/index.js",
     "lint": "node scripts/ui/agentNativeUiLinter.mjs && tsc -p convex -noEmit --pretty false && tsc -p . -noEmit --pretty false && convex dev --once --typecheck=enable && vite build",

@@ -462,6 +462,7 @@ export function UniversalComposer({
           onKeyDown={handleKey}
           onPaste={handlePaste}
           placeholder={placeholder}
+          aria-label={placeholder}
           rows={1}
           style={{
             width: "100%",
