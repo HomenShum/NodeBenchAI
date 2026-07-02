@@ -377,6 +377,11 @@
   background: var(--rd-muted);
 }
 
+[data-redesign] .rd-btn--quiet:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--rd-paper), 0 0 0 4px var(--rd-accent-ring);
+}
+
 [data-redesign] .rd-btn--danger {
   color: var(--rd-red);
 }
@@ -882,6 +887,10 @@
   border-color: var(--rd-accent);
   box-shadow: var(--rd-shadow-soft);
   outline: none;
+}
+
+[data-redesign] .rd-v3-halo-card:focus-visible {
+  box-shadow: 0 0 0 2px var(--rd-paper), 0 0 0 4px var(--rd-accent-ring), var(--rd-shadow-soft);
 }
 
 [data-redesign] .rd-v3-halo-card:nth-child(odd) {

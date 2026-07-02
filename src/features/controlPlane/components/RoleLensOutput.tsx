@@ -363,6 +363,7 @@ function RoleLensOutputInner({ lens: lensProp, entityName: entityNameProp }: Rol
           value={entityName}
           onChange={(e) => setInternalEntityName(e.target.value)}
           placeholder="Enter company or entity name..."
+          aria-label="Enter company or entity name"
           className="w-full rounded-lg border border-white/[0.06] bg-white/[0.03] pl-9 pr-3 py-2 text-sm text-content placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
         />
       </div>

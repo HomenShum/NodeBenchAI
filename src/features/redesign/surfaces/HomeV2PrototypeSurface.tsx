@@ -2425,7 +2425,7 @@ function LivePulseLanding({
 
       <div className="rd-v2-pulse-head">
         <p className="rd-v2-pulse-kicker">For the first decision of the day</p>
-        <h1 id="home-v2-pulse-title">{introspection.title}</h1>
+        <h2 id="home-v2-pulse-title">{introspection.title}</h2>
         <p>{introspection.body}</p>
       </div>
 
@@ -2731,7 +2731,7 @@ export function HomeV2BriefingRail({ onAsk, onOpenReports, liveArtifacts }: Home
         </section>
       </div>
       <footer className="rd-v2-agent-composer">
-        <input placeholder="Ask about today's pulse..." onKeyDown={(event) => {
+        <input placeholder="Ask about today's pulse..." aria-label="Ask about today's pulse" onKeyDown={(event) => {
           if (event.key === "Enter") onAsk?.((event.currentTarget as HTMLInputElement).value);
         }} />
         <button
