@@ -48,6 +48,7 @@ import {
   classifyEvidenceVerification,
   type EvidenceVerificationState,
 } from "../../../shared/redesign/sourceVerificationPolicy";
+import { extractBankReconciliationFact } from "../../../shared/redesign/bankReconciliationFactExtractor";
 
 // ───────── Types ─────────
 
@@ -1122,6 +1123,20 @@ export const runStreamingChat = internalAction({
       }
       await append("context_runtime_packet", runtimeContext);
       await append("live_grounding_decision", liveGrounding);
+      // Deterministic fix for the bank-reconciliation derivation gap (see
+      // docs/ACCOUNTING-FR-A4-JOURNAL-ENTRY.md, "CORRECTION" section): a
+      // prompt-only instruction to "show your math" was confirmed 3/3 live
+      // runs to never surface the actual arithmetic. When the prompt is an
+      // unambiguous bank-reconciliation shape (exactly 3 dollar amounts, each
+      // confidently tagged bank/ledger/outstanding), compute the tie-out
+      // server-side and inject it as a pre-verified fact instead of asking
+      // the model to both compute and format a derivation. Ambiguous shapes
+      // return null and inject nothing -- the existing prompt-only behavior
+      // is unchanged for every other request shape.
+      const bankReconciliationFact = extractBankReconciliationFact(args.prompt);
+      if (bankReconciliationFact) {
+        await append("verified_calculation", bankReconciliationFact);
+      }
       const contextBundle = {
         role: "operator",
         style: "evidence-first banker memo",
@@ -1135,6 +1150,9 @@ export const runStreamingChat = internalAction({
         graph: runtimeContext.graph,
         notebook: runtimeContext.notebook,
         verification: runtimeContext.verification,
+        // Undefined keys are dropped by JSON.stringify, so an ambiguous shape
+        // (null) injects nothing into the prompt -- never a guessed fact.
+        verifiedCalculation: bankReconciliationFact?.fact,
       };
       const tr2 = {
         step: "Build context bundle",
@@ -1167,6 +1185,13 @@ export const runStreamingChat = internalAction({
       const probeSection = args.probeMaskedSourceUrl
         ? `\n\nIMPORTANT — counterfactual probe: The source previously at <${args.probeMaskedSourceUrl}> (originally cited as [${args.probeMaskedSourceIdx ?? "?"}] in run ${args.probeOriginRunId ?? "?"}) is being treated as UNRELIABLE for this answer. DO NOT cite it. DO NOT use it as the basis for any claim. Re-answer the same prompt and explicitly note in "Risks / unknowns" how the conclusion changes (or holds) if that source is excluded. Prefer alternative grounded sources.`
         : "";
+      // Deterministic bank-reconciliation fact (see extractBankReconciliationFact
+      // above): when present, relay it verbatim instead of recomputing -- this is
+      // the actual fix for the "never shows the derivation" gap, not another
+      // prompt-only ask to compute under constraint.
+      const verifiedCalculationSection = bankReconciliationFact
+        ? `\n\nA server-side VERIFIED_CALCULATION is available in the context packet's "verifiedCalculation" field: ${bankReconciliationFact.fact} This arithmetic has already been computed and checked for you. State it verbatim (the exact numbers and the tie/no-tie conclusion) inside "Why it matters" instead of recomputing or restating different numbers.`
+        : "";
       const systemPrompt = `You are NodeBench's evidence-first analyst. Produce a banker-style memo. Do not include To, From, Date, or Subject headers. Use exactly these markdown section headings:
 1. Short answer (one sentence with citation markers like [1] [2])
 2. Why it matters (one paragraph with citation markers)
@@ -1182,7 +1207,7 @@ asks you to "show your math" / "show your work" / confirm a total: state the act
 of what they asked you to verify inside "Why it matters" — do not just assert the conclusion. This
 does not apply to ordinary research/company/market questions.
 
-Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}`;
+Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}${verifiedCalculationSection}`;
       // Emit a stage event so the UI can show "Probing without [N]" / "Carrying forward N pins"
       if (probeSection) {
         await append("stage", { stage: "probe", maskedUrl: args.probeMaskedSourceUrl, maskedIdx: args.probeMaskedSourceIdx, originRunId: args.probeOriginRunId });
