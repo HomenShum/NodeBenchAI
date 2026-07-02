@@ -38,3 +38,18 @@ limitation in `docs/WCAG-AUDIT-REDESIGN-LENS-PRICING.md`).
   check once the browser-automation environment is stable, or a human should manually Tab through
   `/redesign`'s nav and confirm a visible ring. Until then, treat this specific fix as "shipped,
   mechanism sound, not yet re-confirmed" rather than "confirmed."
+
+## Addendum: same environment issue also blocked live E2E re-verification of the classifyPrompt fix
+
+After deploying commit `5cacee4` (classifyPrompt no longer misfires on sentence-initial common
+words), attempted to re-run the exact FR-A1-shaped bank-reconciliation query live to confirm
+`classify_query` no longer shows `company_search · Bank` in the trace. All 3 open browser tabs
+reported `document.visibilityState: "hidden"` and typed text consistently landed with 0 length in
+the composer -- the same browser-automation input-routing issue documented above, not specific to
+this fix. Unlike the focus-ring fix, this one has strong compensating verification: 9/9 unit tests
+pass using the VERBATIM real prompt strings from the actual live failures this session (not
+paraphrased approximations), plus `tsc -p convex --noEmit` clean, plus the fix is a pure, small,
+well-understood function (scan-and-skip over regex candidates) with no async/runtime dependencies
+that unit tests wouldn't catch. Confidence this fix works live is high; it is just not
+E2E-confirmed with a fresh screenshot/trace this session. Recommend a live spot-check next session
+once the browser-automation environment is stable.
