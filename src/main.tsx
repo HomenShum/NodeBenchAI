@@ -302,10 +302,14 @@ if ('serviceWorker' in navigator && import.meta.env.PROD && !isAutomatedBrowser)
       },
       onRegistered(registration) {
         console.log('[PWA] Service Worker registered');
-        // Check for updates every hour
+        // Check for updates every 10 minutes (was 60 — tightened 2026-07-01 so long-lived SPA
+        // tabs pick up a new deploy faster; the existing controllerchange listener above still
+        // handles the actual reload once an update is found). This is a tuning change, not a bug
+        // fix — the mechanism already existed and works; a real user just landed on a tab opened
+        // before a deploy and hit the old 60-minute window. See docs/LIVE-USER-BENCHMARK-FINDING.md.
         setInterval(() => {
           registration?.update();
-        }, 60 * 60 * 1000);
+        }, 10 * 60 * 1000);
       },
       onRegisterError(error) {
         console.error('[PWA] Service Worker registration failed:', error);

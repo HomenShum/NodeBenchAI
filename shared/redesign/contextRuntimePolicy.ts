@@ -34,6 +34,31 @@ const MEMORY_FIRST_PATTERNS = [
   /\bsources?\s+used\b/i,
 ];
 
+// A query asking to reconcile/derive/verify a specific calculation is domain-mismatched with
+// whatever unrelated report happens to be the active thread's cached context (e.g. asking an
+// accounting question inside a "Daily Brief" tech/markets thread). The memorySufficient shortcut
+// below only checks structural signals (has context + >=2 cached refs) with no topical-relevance
+// check, so it was firing on cached sources that had nothing to do with the question -- live-verified
+// via repeated real bank-reconciliation/journal-entry runs returning the same irrelevant cached refs.
+// Deliberately narrow to calculation/verification-shaped phrasing, not "mentions a dollar amount"
+// (that alone would over-fire on ordinary funding-news/company queries and force live grounding on
+// a huge swath of unrelated traffic -- the opposite of proportionate).
+const CALCULATION_INTENT_PATTERNS = [
+  /\breconcil(?:e|iation)\b/i,
+  /\bjournal\s+entr(?:y|ies)\b/i,
+  /\btrial\s+balance\b/i,
+  /\btie(?:s|d)?\s+out\b/i,
+  /\bdebits?\s+(?:and|=|equal)\s+credits?\b/i,
+  /\bshow\s+(?:your\s+)?(?:math|work|calculation)\b/i,
+  // AR/AP aging: found live -- "show your calculation" on an aging-bucket question only got
+  // correctly routed because "today's date" happened to also trip FRESHNESS_PATTERNS. Without a
+  // freshness word present, this shape would fall through to the same irrelevant-cache bug.
+  /\bag(?:ing|e)\s+(?:bucket|analysis|report|schedule)\b/i,
+  /\bdays?\s+past\s+due\b/i,
+  /\b(?:ar|ap)\s+aging\b/i,
+  /\bnet\s+\d{1,3}\b/i, // "Net 30" / "Net 60" payment terms
+];
+
 export function decideLiveGrounding(input: {
   prompt: string;
   hasContext: boolean;
@@ -45,13 +70,26 @@ export function decideLiveGrounding(input: {
   const prompt = input.prompt || "";
   const freshnessSignals = FRESHNESS_PATTERNS.filter((pattern) => pattern.test(prompt)).map((pattern) => pattern.source);
   const memorySignals = MEMORY_FIRST_PATTERNS.filter((pattern) => pattern.test(prompt)).map((pattern) => pattern.source);
+  const calculationSignals = CALCULATION_INTENT_PATTERNS.filter((pattern) => pattern.test(prompt)).map((pattern) => pattern.source);
   const freshnessIntent = freshnessSignals.length > 0;
   const memoryFirstIntent = memorySignals.length > 0;
+  const calculationIntent = calculationSignals.length > 0;
   const memorySufficient = Boolean(
     input.hasContext &&
     input.memoryHit &&
     (input.sourceCacheHit || input.selectedContextCount > 0 || input.sourceRefCount > 0),
   );
+
+  if (calculationIntent) {
+    return {
+      useLiveGrounding: true,
+      reason: "Calculation/verification request detected -- the active thread's cached context is not a substitute for grounding the specific numbers asked about.",
+      confidence: 0.85,
+      freshnessIntent,
+      memorySufficient,
+      signals: calculationSignals,
+    };
+  }
 
   if (freshnessIntent) {
     return {

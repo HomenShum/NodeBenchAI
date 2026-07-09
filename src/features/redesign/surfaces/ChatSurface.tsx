@@ -1211,6 +1211,13 @@ export function ChatSurface({
         ? "NodeBench is still resolving your account session before it can run live research."
         : !isAuthenticated
           ? "Sign in with an email-backed account before running live research."
+          // BUG FIX (2026-07-01): `userLoading` means the account's eligibility check hasn't
+          // resolved yet — a real, linked account can transiently look "not eligible" for a
+          // moment right after sign-in. Show an honest retry message instead of the misleading
+          // "link an account" text, which was shown even to correctly-linked accounts.
+          // See docs/LIVE-USER-BENCHMARK-FINDING.md.
+          : chatRun.state.userLoading
+            ? "NodeBench is still confirming your account. Send your message again in a moment."
           : !chatRun.state.paidEligible
             ? "Link an email or Google account before running live research. Anonymous sessions can browse public memory only."
             : "NodeBench is still preparing the live chat runtime.";

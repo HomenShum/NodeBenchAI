@@ -15,6 +15,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useConvexAuth } from "convex/react";
 
 import { useViewportMobile } from "@/hooks/useViewportMobile";
 
@@ -120,6 +121,11 @@ export default function RedesignShell() {
     const params = new URLSearchParams(location.search);
     return params.get("qa") === "home-v2-implementation";
   }, [location.search]);
+  // BUG FIX (2026-07-01): the "me" right rail's guestSafe used to be hardcoded to
+  // `surface === "me"`, so a fully signed-in user's own real session was always shown as
+  // "Sign in to sync" with locked stats and a dead "Connect account" button. Derive it from
+  // the real Convex auth state instead — see docs/LIVE-USER-BENCHMARK-FINDING.md.
+  const { isAuthenticated: isRedesignAuthenticated } = useConvexAuth();
   const shellLiveArtifacts = useLiveArtifacts(24, { enabled: !isPrototypeKit });
   const [selectedReport, setSelectedReport] = useState<ReportCardData | null>(null);
   const [prototypeEntity, setPrototypeEntity] = useState("Anthropic");
@@ -319,7 +325,7 @@ export default function RedesignShell() {
             surface={prototypeSurface}
             selectedEntity={prototypeEntity}
             onSelectEntity={selectPrototypeRailEntity}
-            guestSafe={surface === "me"}
+            guestSafe={surface === "me" && !isRedesignAuthenticated}
             liveArtifacts={shellLiveArtifacts}
           />
         )}
@@ -398,7 +404,7 @@ export default function RedesignShell() {
                 selectedEntity={surface === "reports" ? prototypeEntity : undefined}
                 selectedReport={selectedRailReport}
                 onSelectEntity={selectPrototypeRailEntity}
-                guestSafe={surface === "me"}
+                guestSafe={surface === "me" && !isRedesignAuthenticated}
                 liveArtifacts={shellLiveArtifacts}
               />
             )}

@@ -255,6 +255,9 @@ export interface ChatRunState {
   available: boolean;
   /** True only when the signed-in account is eligible for live research. */
   paidEligible: boolean;
+  /** True while an authenticated user's profile (email/eligibility) is still resolving —
+   *  distinct from `!paidEligible`, which means the check has resolved and failed. */
+  userLoading: boolean;
 }
 
 export function isPaidChatEligibleUser(user: unknown): boolean {
@@ -274,6 +277,13 @@ export function useRedesignChatRun() {
 
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // BUG FIX (2026-07-01): `useQuery` returns `undefined` while `loggedInUser` is still resolving,
+  // and `isPaidChatEligibleUser(undefined)` collapses that into "not eligible" — so a fully
+  // authenticated, properly-linked user who sends a message right after page load was shown the
+  // misleading "Link an email or Google account" message even though their account IS linked.
+  // Distinguish "still loading" from "definitely ineligible" so callers can show an honest message.
+  // See docs/LIVE-USER-BENCHMARK-FINDING.md.
+  const userLoading = isAuthenticated && user === undefined;
   const paidEligible = isPaidChatEligibleUser(user);
 
   const events = useQuery(
@@ -497,6 +507,7 @@ export function useRedesignChatRun() {
       error,
       available: !authLoading && isAuthenticated && paidEligible,
       paidEligible,
+      userLoading,
     } as ChatRunState,
     submit,
     reset,
