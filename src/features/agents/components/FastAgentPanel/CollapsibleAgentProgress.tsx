@@ -3,6 +3,20 @@
 
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Wrench, Zap } from 'lucide-react';
+import {
+  Reasoning,
+  ReasoningContent,
+} from '@/components/ai-elements/reasoning';
+import {
+  Task,
+  TaskContent,
+  TaskTrigger,
+} from '@/components/ai-elements/task';
+import {
+  Tool,
+  ToolContent,
+} from '@/components/ai-elements/tool';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { cn } from '@/lib/utils';
 import { StepTimeline, toolPartsToTimelineSteps } from './StepTimeline';
 import type { ToolUIPart } from 'ai';
@@ -39,6 +53,7 @@ export function CollapsibleAgentProgress({
   onNewsSelect,
 }: CollapsibleAgentProgressProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const reducedMotion = useReducedMotion();
 
   // Don't render if there's no process to show
   const hasContent = toolParts.length > 0 || reasoning;
@@ -47,91 +62,117 @@ export function CollapsibleAgentProgress({
   const stepCount = toolParts.length;
 
   return (
-    <div className="mb-3">
-      {/* Toggle button */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className={cn(
-          "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg",
-          "border border-edge bg-surface-secondary hover:bg-surface-hover",
-          "transition-colors text-left group",
-          isExpanded && "bg-surface-hover"
-        )}
-      >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          {/* Icon */}
-          <div className={cn(
-            "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center",
-            isStreaming ? "bg-green-100" : "bg-blue-100"
-          )}>
-            {isStreaming ? (
-              <Zap className="h-3.5 w-3.5 text-green-600" />
-            ) : (
-              <Wrench className="h-3.5 w-3.5 text-blue-600" />
-            )}
-          </div>
-
-          {/* Label */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-content">
-                {isStreaming ? 'Agent Working...' : 'Agent Progress'}
-              </span>
-              {stepCount > 0 && (
-                <span className="text-xs text-content-secondary">
-                  {stepCount} {stepCount === 1 ? 'step' : 'steps'}
-                </span>
+    <Task
+      className="mb-3"
+      defaultOpen={defaultExpanded}
+      onOpenChange={setIsExpanded}
+      open={isExpanded}
+    >
+      <TaskTrigger title={isStreaming ? 'Agent Working...' : 'Agent Progress'}>
+        <button
+          type="button"
+          className={cn(
+            'group flex w-full items-center justify-between gap-2 rounded-lg border border-edge',
+            'bg-surface-secondary px-3 py-2 text-left hover:bg-surface-hover',
+            'transition-colors motion-reduce:transition-none',
+            reducedMotion && '!transition-none',
+            isExpanded && 'bg-surface-hover'
+          )}
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <div
+              className={cn(
+                'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full',
+                isStreaming ? 'bg-primary/10' : 'bg-muted'
+              )}
+            >
+              {isStreaming ? (
+                <Zap className="h-3.5 w-3.5 text-primary" />
+              ) : (
+                <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
               )}
             </div>
-            {!isExpanded && (
-              <p className="text-xs text-content-secondary truncate">
-                Click to view detailed agent actions and tool executions
-              </p>
-            )}
-          </div>
 
-          {/* Expand/collapse icon */}
-          <div className="flex-shrink-0">
-            {isExpanded ? (
-              <ChevronDown className="h-4 w-4 text-content-secondary group-hover:text-content transition-colors" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-content-secondary group-hover:text-content transition-colors" />
-            )}
-          </div>
-        </div>
-      </button>
-
-      {/* Expandable content */}
-      {isExpanded && (
-        <div className="mt-2 space-y-3 animate-in slide-in-from-top-2 duration-200">
-          {/* Reasoning */}
-          {reasoning && (
-            <div className="px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg">
-              <div className="flex items-start gap-2">
-                <span className="text-sm">💭</span>
-                <div className="flex-1">
-                  <div className="text-xs font-medium text-purple-700 mb-1">Reasoning</div>
-                  <p className="text-xs text-purple-600 italic">{reasoning}</p>
-                </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-content">
+                  {isStreaming ? 'Agent Working...' : 'Agent Progress'}
+                </span>
+                {stepCount > 0 && (
+                  <span className="text-xs text-content-secondary">
+                    {stepCount} {stepCount === 1 ? 'step' : 'steps'}
+                  </span>
+                )}
               </div>
+              {!isExpanded && (
+                <p className="truncate text-xs text-content-secondary">
+                  Click to view detailed agent actions and tool executions
+                </p>
+              )}
             </div>
-          )}
 
-          {/* Tool execution timeline */}
-          {toolParts.length > 0 && (
-            <div className="bg-surface border border-edge rounded-lg p-3">
-              <StepTimeline
-                steps={toolPartsToTimelineSteps(toolParts)}
-                isStreaming={isStreaming}
-                onCompanySelect={onCompanySelect}
-                onPersonSelect={onPersonSelect}
-                onEventSelect={onEventSelect}
-                onNewsSelect={onNewsSelect}
-              />
+            <div className="flex-shrink-0">
+              {isExpanded ? (
+                <ChevronDown className="h-4 w-4 text-content-secondary transition-colors group-hover:text-content motion-reduce:transition-none" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-content-secondary transition-colors group-hover:text-content motion-reduce:transition-none" />
+              )}
             </div>
-          )}
-        </div>
-      )}
-    </div>
+          </div>
+        </button>
+      </TaskTrigger>
+
+      <TaskContent
+        className={cn(
+          'mt-2 duration-200 [&>div]:mt-0 [&>div]:space-y-3 [&>div]:border-l-0 [&>div]:pl-0',
+          reducedMotion && '!animate-none !transform-none !transition-none'
+        )}
+        data-reduced-motion={reducedMotion ? 'true' : undefined}
+      >
+        {reasoning && (
+          <Reasoning
+            className="mb-0 rounded-lg border border-edge bg-surface-secondary px-3 py-2"
+            isStreaming={isStreaming}
+            open
+          >
+            <div className="mb-1 text-xs font-medium text-content-secondary">
+              Reasoning
+            </div>
+            <ReasoningContent
+              className={cn(
+                'mt-0 text-xs italic text-content-secondary',
+                reducedMotion && '!animate-none !transform-none !transition-none'
+              )}
+              data-reduced-motion={reducedMotion ? 'true' : undefined}
+            >
+              {reasoning}
+            </ReasoningContent>
+          </Reasoning>
+        )}
+
+        {toolParts.length > 0 && (
+          <Tool className="mb-0 border-0 bg-transparent" open>
+            <ToolContent
+              className={cn(
+                'p-0',
+                reducedMotion && '!animate-none !transform-none !transition-none'
+              )}
+              data-reduced-motion={reducedMotion ? 'true' : undefined}
+            >
+              <div className="rounded-lg border border-edge bg-surface p-3">
+                <StepTimeline
+                  steps={toolPartsToTimelineSteps(toolParts)}
+                  isStreaming={isStreaming}
+                  onCompanySelect={onCompanySelect}
+                  onPersonSelect={onPersonSelect}
+                  onEventSelect={onEventSelect}
+                  onNewsSelect={onNewsSelect}
+                />
+              </div>
+            </ToolContent>
+          </Tool>
+        )}
+      </TaskContent>
+    </Task>
   );
 }
