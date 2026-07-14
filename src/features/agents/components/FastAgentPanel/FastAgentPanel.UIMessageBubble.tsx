@@ -36,10 +36,32 @@ function useRehypeKatex(text: string) {
 import { LazySyntaxHighlighter } from './LazySyntaxHighlighter';
 import { User, Bot, Wrench, Image as ImageIcon, AlertCircle, Loader2, RefreshCw, Trash2, ChevronDown, ChevronRight, CheckCircle2, XCircle, Clock, Copy, Check, BrainCircuit, Zap, ExternalLink, Globe, Calendar, Eye, ThumbsUp, ThumbsDown, Pencil, Bookmark, Volume2, VolumeX, Pin, Share2, Search } from 'lucide-react';
 import { useVoiceOutput } from '@/hooks/useVoiceOutput';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useSmoothText, type UIMessage } from '@convex-dev/agent/react';
 import { cn } from '@/lib/utils';
 import { TokenUsageBadge } from './TokenUsageBadge';
-import type { FileUIPart, ToolUIPart } from 'ai';
+import {
+  Message as AIMessage,
+  MessageContent as AIMessageContent,
+} from '@/components/ai-elements/message';
+import {
+  Reasoning as AIReasoning,
+  ReasoningContent as AIReasoningContent,
+  ReasoningTrigger as AIReasoningTrigger,
+} from '@/components/ai-elements/reasoning';
+import {
+  Tool as AITool,
+  ToolContent as AIToolContent,
+  ToolHeader as AIToolHeader,
+  ToolInput as AIToolInput,
+  ToolOutput as AIToolOutput,
+} from '@/components/ai-elements/tool';
+import {
+  Source as AISource,
+  Sources as AISources,
+  SourcesContent as AISourcesContent,
+  SourcesTrigger as AISourcesTrigger,
+} from '@/components/ai-elements/sources';
 // Type imports (static)
 import { type YouTubeVideo, type SECDocument } from './MediaGallery';
 import { type FileViewerFile } from './FileViewer';
@@ -52,9 +74,19 @@ import { PeopleSelectionCard, type PersonOption } from './PeopleSelectionCard';
 import { EventSelectionCard, type EventOption } from './EventSelectionCard';
 import { NewsSelectionCard, type NewsArticleOption } from './NewsSelectionCard';
 import { RichMediaSection } from './RichMediaSection';
-import { extractMediaFromText, removeMediaMarkersFromText } from './utils/mediaExtractor';
+import {
+  extractMediaFromText,
+  hasMedia,
+  removeMediaMarkersFromText,
+  type ExtractedMedia,
+} from './utils/mediaExtractor';
 import { GoalCard, type TaskStatusItem } from './FastAgentPanel.GoalCard';
-import { DocumentActionGrid, extractDocumentActions, removeDocumentActionMarkers } from './DocumentActionCard';
+import {
+  DocumentActionGrid,
+  extractDocumentActions,
+  removeDocumentActionMarkers,
+  type DocumentAction,
+} from './DocumentActionCard';
 import {
   ArbitrageCitation,
   StatusBadge,
@@ -86,6 +118,12 @@ import type { EntityType } from '@/features/research/types/entitySchema';
 import { makeWebSourceCitationId } from '../../../../../shared/citations/webSourceCitations';
 import { formatBriefDateTime } from '@/lib/briefDate';
 import { useMessageHandlers } from './MessageHandlersContext';
+import {
+  convexToUIParts,
+  type ConvexUIRenderPart,
+  type DomainCategory,
+  type NormalizedToolPart,
+} from './adapters/convexToUIParts';
 
 interface FastAgentUIMessageBubbleProps {
   message: UIMessage;
@@ -722,6 +760,7 @@ const ThinkingAccordion = React.memo(function ThinkingAccordion({
   const [userToggled, setUserToggled] = useState(false);
   const [userWantsOpen, setUserWantsOpen] = useState(false);
   const prevStreamingRef = useRef(isStreaming);
+  const reducedMotion = useReducedMotion();
 
   // Auto-expand during streaming, auto-collapse when done (Claude pattern)
   const isExpanded = userToggled ? userWantsOpen : isStreaming;
@@ -735,45 +774,42 @@ const ThinkingAccordion = React.memo(function ThinkingAccordion({
     prevStreamingRef.current = isStreaming;
   }, [isStreaming]);
 
-  const handleToggle = () => {
-    setUserToggled(true);
-    setUserWantsOpen(!isExpanded);
-  };
-
   if (!reasoning) return null;
 
   const wordCount = reasoning.split(/\s+/).filter(Boolean).length;
 
   return (
-    <div className="mb-3 border border-edge rounded-lg overflow-hidden">
-      <button
-        type="button"
-        onClick={handleToggle}
-        className="w-full px-3 py-2 flex items-center gap-2 text-xs font-medium text-content-secondary hover:bg-surface-secondary transition-colors bg-surface-secondary"
+    <AIReasoning
+      className="group/reasoning mb-3 overflow-hidden rounded-lg border border-edge"
+      isStreaming={isStreaming}
+      onOpenChange={(open) => {
+        setUserToggled(true);
+        setUserWantsOpen(open);
+      }}
+      open={isExpanded}
+    >
+      <AIReasoningTrigger
+        className="w-full bg-surface-secondary px-3 py-2 text-xs font-medium text-content-secondary hover:bg-surface-secondary motion-reduce:transition-none"
       >
-        {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-content-muted" /> : <ChevronRight className="w-3.5 h-3.5 text-content-muted" />}
+        <ChevronDown className={cn("h-3.5 w-3.5 text-content-muted transition-transform motion-reduce:transition-none", !isExpanded && "-rotate-90")} />
         <BrainCircuit className={cn(
           "w-3.5 h-3.5",
-          isStreaming ? "text-purple-500 motion-safe:animate-pulse" : "text-content-muted"
+          isStreaming ? "text-purple-500" : "text-content-muted",
+          isStreaming && !reducedMotion && "motion-safe:animate-pulse",
         )} />
         <span>{isStreaming ? 'Thinking...' : 'Thought process'}</span>
         <span className="ml-auto flex items-center gap-2 text-xs text-content-muted font-normal">
           {isStreaming ? (
-            <Loader2 className="w-3 h-3 motion-safe:animate-spin" />
+            <Loader2 className={cn("h-3 w-3", !reducedMotion && "motion-safe:animate-spin")} />
           ) : (
             <span className="tabular-nums">{wordCount} words</span>
           )}
         </span>
-      </button>
-
-      {isExpanded && (
-        <div className="px-3 py-2.5 border-t border-edge bg-surface max-h-64 overflow-y-auto">
-          <div className="prose prose-xs max-w-none text-content-muted text-[13px] leading-relaxed [&_p]:mb-1.5 [&_p:last-child]:mb-0">
-            <ReactMarkdown>{reasoning}</ReactMarkdown>
-          </div>
-        </div>
-      )}
-    </div>
+      </AIReasoningTrigger>
+      <AIReasoningContent className="mt-0 max-h-64 overflow-y-auto border-t border-edge bg-surface px-3 py-2.5 text-[13px] leading-relaxed motion-reduce:animate-none">
+        {reasoning}
+      </AIReasoningContent>
+    </AIReasoning>
   );
 });
 
@@ -1359,6 +1395,174 @@ function parseSearchResponsePayload(
 /**
  * ToolStep - Renders a single tool call as a structured step with timeline
  */
+type ToolRenderPart = Extract<ConvexUIRenderPart, { kind: 'tool' | 'domain-tool' }>;
+type TextRenderPart = Extract<ConvexUIRenderPart, { kind: 'text' }>;
+type ReasoningRenderPart = Extract<ConvexUIRenderPart, { kind: 'reasoning' }>;
+type DomainRenderPart = Extract<ConvexUIRenderPart, { kind: 'domain' }>;
+type ArbitrageReportData = React.ComponentProps<typeof ArbitrageReportCard>['data'];
+type ToolOwnerRoute =
+  | 'goal-card'
+  | 'fused-search'
+  | 'memory-pill'
+  | 'convex-transparency'
+  | 'grouped-custom'
+  | 'tool-step';
+
+interface RoutedToolOwner {
+  entry: ToolRenderPart;
+  route: ToolOwnerRoute;
+  fusedSearch?: ReturnType<typeof parseFusionSearchOutput>;
+}
+
+function isToolRenderPart(part: ConvexUIRenderPart): part is ToolRenderPart {
+  return part.kind === 'tool' || part.kind === 'domain-tool';
+}
+
+function getDomainPayload(part: DomainRenderPart['part']): unknown {
+  const record = part as Record<string, unknown>;
+  return record.output ?? record.result ?? record.data ?? record.value ?? record;
+}
+
+function getStandaloneStructuredOutput(entry: DomainRenderPart): unknown {
+  const payload = getDomainPayload(entry.part);
+  if (tryParseStructuredOutput(payload)) return payload;
+
+  if (!payload || typeof payload !== 'object') {
+    return payload;
+  }
+
+  const data = payload as Record<string, unknown>;
+  const normalizedType = entry.part.type.toLowerCase().replace(/[-_]/g, '');
+  const kind = entry.categories.includes('selection')
+    ? Array.isArray(data.companies) || normalizedType.includes('companyselection')
+      ? 'company_selection'
+      : Array.isArray(data.people) || normalizedType.includes('peopleselection')
+        ? 'people_selection'
+        : Array.isArray(data.events) || normalizedType.includes('eventselection')
+          ? 'event_selection'
+          : Array.isArray(data.articles) || normalizedType.includes('newsselection')
+            ? 'news_selection'
+            : null
+    : entry.categories.includes('media')
+      ? Array.isArray(data.videos)
+        ? 'youtube_search_results'
+        : Array.isArray(data.documents)
+          ? 'sec_filing_results'
+          : null
+      : null;
+
+  if (!kind) return payload;
+  return {
+    kind,
+    version: 1,
+    summary: typeof data.summary === 'string' ? data.summary : '',
+    data,
+  };
+}
+
+function distributeVisibleParts<
+  T extends TextRenderPart | ReasoningRenderPart,
+>(
+  visible: string | undefined,
+  entries: T[],
+  separator = '',
+): Map<number, string> {
+  const distributed = new Map<number, string>();
+  let cursor = 0;
+  const materialized = visible ?? '';
+
+  entries.forEach((entry, index) => {
+    const rawLength = entry.part.text.length;
+    const isLast = index === entries.length - 1;
+    const end = isLast ? materialized.length : Math.min(cursor + rawLength, materialized.length);
+    distributed.set(entry.originalIndex, materialized.slice(cursor, end));
+    cursor = isLast
+      ? end
+      : Math.min(end + separator.length, materialized.length);
+  });
+
+  return distributed;
+}
+
+function getNormalizedToolName(part: NormalizedToolPart): string {
+  return part.type === 'dynamic-tool'
+    ? part.toolName
+    : part.type.replace(/^tool-/, '');
+}
+
+function isMemoryPlanningToolName(toolName: string): boolean {
+  return ['createPlan', 'updatePlanStep', 'writeMemory', 'logEpisodic'].some((name) =>
+    toolName.includes(name)
+  );
+}
+
+function getAvailableToolOutput(part: NormalizedToolPart): unknown {
+  return part.state === 'output-available' ? part.output : undefined;
+}
+
+function getToolOutputText(part: NormalizedToolPart): string {
+  const output = getAvailableToolOutput(part);
+  if (typeof output === 'string') return output;
+  return output === undefined ? '' : JSON.stringify(output);
+}
+
+function getToolMedia(part: NormalizedToolPart): ExtractedMedia {
+  return extractMediaFromText(getToolOutputText(part));
+}
+
+function getToolDocuments(part: NormalizedToolPart): DocumentAction[] {
+  return extractDocumentActions(getToolOutputText(part));
+}
+
+function getArbitrageReportData(part: NormalizedToolPart): ArbitrageReportData | null {
+  const output = getAvailableToolOutput(part);
+  if (output === undefined) return null;
+
+  try {
+    const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+    if (!parsed || typeof parsed !== 'object') return null;
+    const record = parsed as Record<string, unknown>;
+    if (
+      !('contradictions' in record) &&
+      !('rankedSources' in record) &&
+      !('deltas' in record) &&
+      !('healthResults' in record)
+    ) {
+      return null;
+    }
+    return record as ArbitrageReportData;
+  } catch {
+    return null;
+  }
+}
+
+function hasGroupedDomainContent(entry: ToolRenderPart): boolean {
+  if (entry.kind !== 'domain-tool') return false;
+
+  return (
+    (entry.categories.includes('arbitrage') && !!getArbitrageReportData(entry.part)) ||
+    (entry.categories.includes('documentAction') && getToolDocuments(entry.part).length > 0) ||
+    (entry.categories.includes('media') && hasMedia(getToolMedia(entry.part)))
+  );
+}
+
+function usesNodeBenchDomainRenderer(output: unknown): boolean {
+  const structured = tryParseStructuredOutput(output);
+  if (structured) {
+    return [
+      'youtube_search_results',
+      'sec_filing_results',
+      'company_selection',
+      'people_selection',
+      'event_selection',
+      'news_selection',
+    ].includes(structured.kind);
+  }
+
+  return typeof output === 'string' &&
+    /<!-- (?:YOUTUBE_GALLERY|SEC_GALLERY|COMPANY_SELECTION|PEOPLE_SELECTION|EVENT_SELECTION|NEWS_SELECTION)_DATA/.test(output);
+}
+
 function ToolStep({
   part,
   stepNumber,
@@ -1366,26 +1570,29 @@ function ToolStep({
   onPersonSelect,
   onEventSelect,
   onNewsSelect,
+  useDomainRenderer = false,
   isLast = false,
   showTimeline = true,
 }: {
-  part: ToolUIPart;
+  part: NormalizedToolPart;
   stepNumber: number;
   onCompanySelect?: (company: CompanyOption) => void;
   onPersonSelect?: (person: PersonOption) => void;
   onEventSelect?: (event: EventOption) => void;
   onNewsSelect?: (article: NewsArticleOption) => void;
+  useDomainRenderer?: boolean;
   isLast?: boolean;
   showTimeline?: boolean;
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const hasOutput = part.output !== undefined && part.output !== null;
-  const toolName = part.type.replace('tool-', '');
+  const hasOutput = part.state === 'output-available';
+  const output = hasOutput ? part.output : undefined;
+  const errorText = part.state === 'output-error' ? part.errorText : undefined;
+  const toolName = getNormalizedToolName(part);
 
-  // Determine status based on part type
-  const isComplete = part.type.startsWith('tool-result');
-  const isError = part.type === 'tool-error';
+  // Determine status from the normalized AI SDK v5 state.
+  const isComplete = part.state === 'output-available';
+  const isError = part.state === 'output-error';
   const isActive = !isComplete && !isError;
 
   return (
@@ -1414,93 +1621,77 @@ function ToolStep({
         </>
       )}
 
-      {/* Card */}
-      <div className="mb-3 border border-edge rounded-lg bg-surface shadow-sm overflow-hidden transition-shadow">
-        <button
-          type="button"
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-surface-hover transition-colors"
-        >
-          {/* Step number badge */}
-          <div className={cn(
-            "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
-            isComplete && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-            isError && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-            isActive && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-          )}>
-            {stepNumber}
-          </div>
-
-          {/* Tool Name */}
-          <div className="flex-1 text-left flex items-center gap-2">
-            <span className="text-xs font-semibold text-content font-mono">{toolName}</span>
-            {isComplete && <span className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded-full">Done</span>}
-            {isActive && <Loader2 className="w-3 h-3 text-violet-500 motion-safe:animate-spin" />}
-          </div>
-
-          {/* Expand/Collapse */}
-          {isExpanded ? <ChevronDown className="h-3 w-3 text-content-muted" /> : <ChevronRight className="h-3 w-3 text-content-muted" />}
-        </button>
-
-        {isExpanded && (
-          <div className="px-3 py-2 border-t border-[var(--border-color-light)] bg-surface-secondary/50 text-xs">
-
-            {/* Main Output Renderer (Visual) */}
-            {hasOutput && (
-              <div className="mb-2">
-                <ToolOutputRenderer
-                  output={part.output}
-                  onCompanySelect={onCompanySelect}
-                  onPersonSelect={onPersonSelect}
-                  onEventSelect={onEventSelect}
-                  onNewsSelect={onNewsSelect}
-                />
-              </div>
-            )}
-
-            {/* Collapsible Details (JSON) */}
-            <button
-              type="button"
-              onClick={() => setShowDetails(!showDetails)}
-              className="flex items-center gap-1 text-xs text-content-muted hover:text-content transition-colors mt-2"
-            >
-              {showDetails ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-              <span>{showDetails ? "Hide Debug Details" : "View Debug Details"}</span>
-            </button>
-
-            {showDetails && (
-              <div className="mt-2 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                {/* Arguments */}
-                {(part as any).args && (
-                  <div>
-                    <div className="font-medium text-content-muted mb-1 text-xs">Input Arguments</div>
-                    <pre className="bg-surface p-2 rounded border border-edge overflow-x-auto font-mono text-xs text-content-secondary">
-                      {JSON.stringify((part as any).args, null, 2)}
-                    </pre>
-                  </div>
-                )}
-
-                {/* Raw Output */}
-                {hasOutput && (
-                  <div>
-                    <div className="font-medium text-content-muted mb-1 text-xs">Raw Output</div>
-                    <pre className="bg-surface p-2 rounded border border-edge overflow-x-auto font-mono text-xs text-content-secondary max-h-60">
-                      {typeof part.output === 'string' ? part.output : JSON.stringify(part.output, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Error */}
-            {isError && (part as any).error && (
-              <div className="mt-2 bg-red-50 dark:bg-red-900/20 p-2 rounded border border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400">
-                {(part as any).error}
-              </div>
-            )}
-          </div>
+      {/* AI Elements owns the generic tool disclosure and status semantics. */}
+      <AITool className="mb-3 overflow-hidden rounded-lg border-edge bg-surface shadow-sm" data-step-number={stepNumber}>
+        {part.type === 'dynamic-tool' ? (
+          <AIToolHeader
+            className="px-3 py-2.5 motion-reduce:[&_svg]:animate-none"
+            state={part.state}
+            title={toolName}
+            toolName={part.toolName}
+            type={part.type}
+          />
+        ) : (
+          <AIToolHeader
+            className="px-3 py-2.5 motion-reduce:[&_svg]:animate-none"
+            state={part.state}
+            title={toolName}
+            type={part.type}
+          />
         )}
-      </div>
+        <AIToolContent className="border-t border-[var(--border-color-light)] bg-surface-secondary/50 px-3 py-2 text-xs motion-reduce:animate-none">
+          <AIToolInput input={part.input} />
+
+          {/* Main Output Renderer (Visual) */}
+          {hasOutput && useDomainRenderer && usesNodeBenchDomainRenderer(output) ? (
+            <div className="mb-2">
+              <ToolOutputRenderer
+                output={output}
+                onCompanySelect={onCompanySelect}
+                onPersonSelect={onPersonSelect}
+                onEventSelect={onEventSelect}
+                onNewsSelect={onNewsSelect}
+              />
+            </div>
+          ) : (
+            <AIToolOutput errorText={errorText} output={output} />
+          )}
+
+          {/* Collapsible Details (JSON) */}
+          <button
+            type="button"
+            onClick={() => setShowDetails(!showDetails)}
+            className="flex items-center gap-1 text-xs text-content-muted hover:text-content transition-colors mt-2"
+          >
+            {showDetails ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            <span>{showDetails ? "Hide Debug Details" : "View Debug Details"}</span>
+          </button>
+
+          {showDetails && (
+            <div className="mt-2 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200 motion-reduce:animate-none">
+              {/* Arguments */}
+              {part.input !== undefined && (
+                <div>
+                  <div className="font-medium text-content-muted mb-1 text-xs">Input Arguments</div>
+                  <pre className="bg-surface p-2 rounded border border-edge overflow-x-auto font-mono text-xs text-content-secondary">
+                    {JSON.stringify(part.input, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {/* Raw Output */}
+              {hasOutput && (
+                <div>
+                  <div className="font-medium text-content-muted mb-1 text-xs">Raw Output</div>
+                  <pre className="bg-surface p-2 rounded border border-edge overflow-x-auto font-mono text-xs text-content-secondary max-h-60">
+                    {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </AIToolContent>
+      </AITool>
     </div>
   );
 }
@@ -1537,7 +1728,78 @@ export function FastAgentUIMessageBubble({
   isInContext,
   compact = false,
 }: FastAgentUIMessageBubbleProps) {
-  const isUser = message.role === 'user';
+  const uiParts = useMemo(() => convexToUIParts(message), [message]);
+  const toolRenderParts = useMemo(
+    () => uiParts.renderParts.filter(isToolRenderPart),
+    [uiParts.renderParts],
+  );
+  const toolParts = useMemo(
+    () => toolRenderParts.map((entry) => entry.part),
+    [toolRenderParts],
+  );
+  const textRenderParts = useMemo(
+    () => uiParts.renderParts.flatMap((entry) => entry.kind === 'text' ? [entry] : []),
+    [uiParts.renderParts],
+  );
+  const reasoningRenderParts = useMemo(
+    () => uiParts.renderParts.flatMap((entry) => entry.kind === 'reasoning' ? [entry] : []),
+    [uiParts.renderParts],
+  );
+  const reasoningText = useMemo(
+    () => uiParts.renderParts
+      .flatMap((entry) => entry.kind === 'reasoning' ? [entry.part.text] : [])
+      .join('\n'),
+    [uiParts.renderParts],
+  );
+  const isStreaming = uiParts.isStreaming;
+  const isUser = uiParts.from === 'user';
+  const routedToolOwners = useMemo<RoutedToolOwner[]>(
+    () => toolRenderParts.map((entry) => {
+      const { part } = entry;
+      const toolName = getNormalizedToolName(part);
+
+      if (
+        !isUser && isParent && !isChild &&
+        toolName.startsWith('delegateTo')
+      ) {
+        return { entry, route: 'goal-card' };
+      }
+
+      if (part.state === 'output-available' && isFusionSearchTool(toolName)) {
+        const fusedSearch = parseFusionSearchOutput(part.output, toolName);
+        if (fusedSearch.isValid && fusedSearch.results.length > 0) {
+          return { entry, route: 'fused-search', fusedSearch };
+        }
+      }
+
+      if (isMemoryPlanningToolName(toolName)) {
+        return { entry, route: 'memory-pill' };
+      }
+
+      if (toolName.startsWith('convex_')) {
+        return { entry, route: 'convex-transparency' };
+      }
+
+      if (hasGroupedDomainContent(entry)) {
+        return { entry, route: 'grouped-custom' };
+      }
+
+      return { entry, route: 'tool-step' };
+    }),
+    [isChild, isParent, isUser, toolRenderParts],
+  );
+  const goalToolOwners = useMemo(
+    () => routedToolOwners.filter(({ route }) => route === 'goal-card'),
+    [routedToolOwners],
+  );
+  const groupedToolOwners = useMemo(
+    () => routedToolOwners.filter(({ route }) => route === 'grouped-custom'),
+    [routedToolOwners],
+  );
+  const routedToolOwnerByEntry = useMemo(
+    () => new Map(routedToolOwners.map((owner) => [owner.entry, owner] as const)),
+    [routedToolOwners],
+  );
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -1573,13 +1835,13 @@ export function FastAgentUIMessageBubble({
   const [streamTokPerSec, setStreamTokPerSec] = useState<number>(0);
 
   useEffect(() => {
-    if (message.status === 'streaming') {
+    if (isStreaming) {
       if (!streamStartRef.current) streamStartRef.current = Date.now();
     } else {
       streamStartRef.current = null;
       setStreamTokPerSec(0);
     }
-  }, [message.status]);
+  }, [isStreaming]);
 
   // Note: streaming tok/s effect uses streamTextRef updated after visibleText
   const streamTextLenRef = useRef(0);
@@ -1653,14 +1915,14 @@ export function FastAgentUIMessageBubble({
   };
 
   const handleStartEdit = () => {
-    setEditText(visibleText || message.text || '');
+    setEditText(visibleText || uiParts.text || '');
     setIsEditing(true);
     setTimeout(() => editTextareaRef.current?.focus(), 0);
   };
 
   const handleSaveEdit = () => {
     const trimmed = editText.trim();
-    if (trimmed && trimmed !== (visibleText || message.text || '')) {
+    if (trimmed && trimmed !== (visibleText || uiParts.text || '')) {
       onEditMessage?.(trimmed);
     }
     setIsEditing(false);
@@ -1702,22 +1964,22 @@ export function FastAgentUIMessageBubble({
       };
 
       // Extract and clean text
-      let copyText = stripFormatting(message.text || '');
+      let copyText = stripFormatting(uiParts.text || '');
 
       // Add media references if present
-      const mediaParts = message.parts?.filter((p: any) =>
-        p.type === 'tool-result' &&
-        (p.toolName === 'youtubeSearch' || p.toolName === 'searchSecFilings' || p.toolName === 'linkupSearch')
+      const mediaParts = toolParts.filter((part) =>
+        part.state === 'output-available' &&
+        ['youtubeSearch', 'searchSecFilings', 'linkupSearch'].includes(getNormalizedToolName(part))
       );
 
       if (mediaParts && mediaParts.length > 0) {
         copyText += '\n\n--- Media References ---\n';
         for (const part of mediaParts) {
-          const toolName = (part as any).toolName;
+          const toolName = getNormalizedToolName(part);
           copyText += `\n${toolName}:\n`;
 
           // Try to extract URLs from output
-          const output = (part as any).output ?? (part as any).result;
+          const output = part.state === 'output-available' ? part.output : undefined;
           if (output && typeof output === 'object' && 'value' in output) {
             const value = (output as any).value;
             if (typeof value === 'string') {
@@ -1736,8 +1998,8 @@ export function FastAgentUIMessageBubble({
   };
 
   // Use smooth text streaming - matches documentation pattern exactly
-  const [visibleText] = useSmoothText(message.text, {
-    startStreaming: message.status === 'streaming',
+  const [visibleText] = useSmoothText(uiParts.text, {
+    startStreaming: isStreaming,
   });
   const messageTokens = (message as any).tokensUsed as
     | { input: number; output: number }
@@ -1761,7 +2023,7 @@ export function FastAgentUIMessageBubble({
 
   // Streaming tok/s effect (must be after visibleText)
   useEffect(() => {
-    if (message.status !== 'streaming' || !streamStartRef.current) return;
+    if (!isStreaming || !streamStartRef.current) return;
     streamTextLenRef.current = visibleText?.length ?? 0;
     const elapsed = (Date.now() - streamStartRef.current) / 1000;
     if (elapsed > 0.5) {
@@ -1769,25 +2031,20 @@ export function FastAgentUIMessageBubble({
     }
   });
 
-  // Extract reasoning text from parts
-  const reasoningParts = message.parts.filter((p: any) => p.type === 'reasoning');
-  const reasoningText = reasoningParts.map((p: any) => p.text).join('\n');
   const [visibleReasoning] = useSmoothText(reasoningText, {
-    startStreaming: message.status === 'streaming',
+    startStreaming: isStreaming,
   });
+  const visibleTextByOriginalIndex = useMemo(
+    () => distributeVisibleParts(visibleText, textRenderParts),
+    [textRenderParts, visibleText],
+  );
+  const visibleReasoningByOriginalIndex = useMemo(
+    () => distributeVisibleParts(visibleReasoning, reasoningRenderParts, '\n'),
+    [reasoningRenderParts, visibleReasoning],
+  );
   const streamRuntimeSeconds = streamStartRef.current
     ? (Date.now() - streamStartRef.current) / 1000
     : undefined;
-
-  // Extract tool calls
-  const toolParts = message.parts.filter((p: any): p is ToolUIPart =>
-    p.type.startsWith('tool-')
-  );
-
-  // Extract file parts (images, etc.)
-  const fileParts = message.parts.filter((p: any): p is FileUIPart =>
-    p.type === 'file'
-  );
 
   // Build citation + entity libraries for inline hover parsing (from tool results + final text tokens)
   const { citedCitationLibrary, entityLibrary } = useMemo(() => {
@@ -1928,12 +2185,12 @@ export function FastAgentUIMessageBubble({
     let masterCitationLibrary = createCitationLibrary();
     const seenCitationIds = new Set<string>();
 
-    const toolResultParts = message.parts.filter((p: any) => p.type === 'tool-result');
+    const toolResultParts = toolParts.filter((part) => part.state === 'output-available');
 
     // Ingest live feed tool outputs so `feed_#` citations can resolve to real URLs.
     for (const part of toolResultParts) {
-      const toolName = (part as any).toolName as string | undefined;
-      const toolOutput = (part as any).output ?? (part as any).result;
+      const toolName = getNormalizedToolName(part);
+      const toolOutput = part.state === 'output-available' ? part.output : undefined;
       const outputText = typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput ?? '', null, 2);
       // Tool name may vary depending on how it's registered; also allow content-based detection.
       const looksLikeLiveFeed =
@@ -1960,10 +2217,10 @@ export function FastAgentUIMessageBubble({
     }
 
     for (const part of toolResultParts) {
-      const toolName = (part as any).toolName as string | undefined;
+      const toolName = getNormalizedToolName(part);
       if (!isFusionSearchTool(toolName)) continue;
 
-      const toolOutput = (part as any).output ?? (part as any).result;
+      const toolOutput = part.state === 'output-available' ? part.output : undefined;
       const parsed = parseFusionSearchOutput(toolOutput, toolName);
       if (!parsed.isValid) continue;
 
@@ -1987,7 +2244,7 @@ export function FastAgentUIMessageBubble({
     // Also ingest Linkup (and other) SOURCE_GALLERY_DATA blocks into the citation library
     // so inline `{{cite:websrc_xxx}}` tokens can resolve to a Sources cited dropdown + hover previews.
     for (const part of toolResultParts) {
-      const toolOutput = (part as any).output ?? (part as any).result;
+      const toolOutput = part.state === 'output-available' ? part.output : undefined;
       const outputText = typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput ?? '', null, 2);
 
       if (!outputText.includes('SOURCE_GALLERY_DATA')) continue;
@@ -2014,7 +2271,7 @@ export function FastAgentUIMessageBubble({
     }
 
     // Build the "cited" library in order of appearance in the final text, so markers are [1], [2], ...
-    const finalText = visibleText || message.text || '';
+    const finalText = visibleText || uiParts.text || '';
     const urlByCitationId = parseCitationUrlsFromText(finalText);
     const citationTokens = parseCitations(finalText);
     const citeOrder: string[] = [];
@@ -2051,7 +2308,7 @@ export function FastAgentUIMessageBubble({
 
     // Build entity library from entity tokens in final text (enables hover popovers via EntityLink)
     let entityLibrary: EntityLibrary | undefined;
-    const entityTokens = parseEntities(visibleText || message.text || '');
+    const entityTokens = parseEntities(visibleText || uiParts.text || '');
     if (entityTokens.length > 0) {
       entityLibrary = createEntityLibrary();
       const seenEntityIds = new Set<string>();
@@ -2076,21 +2333,16 @@ export function FastAgentUIMessageBubble({
     }
 
     return { citedCitationLibrary, entityLibrary };
-  }, [entityEnrichment, isUser, message.parts, message.text, visibleText]);
+  }, [entityEnrichment, isUser, message._creationTime, toolParts, uiParts.text, visibleText]);
 
   // Extract media from BOTH tool results AND final text
   const extractedMedia = useMemo(() => {
     if (isUser) return { youtubeVideos: [], secDocuments: [], webSources: [], profiles: [], images: [] };
 
-    // Extract all tool-result parts from message
-    const toolResultParts = message.parts.filter((p: any): p is any =>
-      p.type === 'tool-result'
-    );
-
-    // Combine media from all tool results
-    const toolMedia = toolResultParts.reduce((acc: any, part: any) => {
-      const resultText = String((part as any).output ?? (part as any).result ?? '');
-      const media = extractMediaFromText(resultText);
+    // Only grouped-custom owners feed this renderer. Other owners are consumed
+    // by FusedSearchResults, MemoryPill, ToolCallTransparency, or ToolStep.
+    const toolMedia = groupedToolOwners.reduce<ExtractedMedia>((acc, { entry }) => {
+      const media = getToolMedia(entry.part);
 
       return {
         youtubeVideos: [...acc.youtubeVideos, ...media.youtubeVideos],
@@ -2108,55 +2360,53 @@ export function FastAgentUIMessageBubble({
       toolMedia,
       textMedia,
     };
-  }, [message.parts, isUser, visibleText]);
+  }, [groupedToolOwners, isUser, visibleText]);
 
   // Extract document actions from tool results
   const extractedDocuments = useMemo(() => {
     if (isUser) return [];
 
-    // Extract all tool-result parts from message
-    const toolResultParts = message.parts.filter((p: any): p is any =>
-      p.type === 'tool-result'
+    const documents = groupedToolOwners.flatMap(({ entry }) =>
+      getToolDocuments(entry.part)
     );
-
-    // Combine documents from all tool results
-    const documents = toolResultParts.reduce((acc: any[], part: any) => {
-      const resultText = String((part as any).output ?? (part as any).result ?? '');
-      const docs = extractDocumentActions(resultText);
-      return [...acc, ...docs];
-    }, [] as any[]);
 
     // ALSO extract from final text
     const textDocs = extractDocumentActions(visibleText || '');
 
     return [...documents, ...textDocs];
-  }, [isUser, message.parts, visibleText]);
+  }, [groupedToolOwners, isUser, visibleText]);
 
-  // Extract arbitrage verification data from tool results
-  const arbitrageData = useMemo(() => {
-    if (isUser) return null;
+  const arbitrageReports = useMemo(() => {
+    if (isUser) return [];
 
-    const toolResultParts = message.parts.filter((p: any): p is any => p.type === 'tool-result');
+    return groupedToolOwners.flatMap(({ entry }) => {
+      if (entry.kind !== 'domain-tool' || !entry.categories.includes('arbitrage')) {
+        return [];
+      }
+      const data = getArbitrageReportData(entry.part);
+      return data ? [{ data, toolCallId: entry.part.toolCallId }] : [];
+    });
+  }, [groupedToolOwners, isUser]);
 
-    for (const part of toolResultParts) {
-      const resultText = String((part as any).output ?? (part as any).result ?? '');
-      // Look for arbitrage tool outputs
-      if (part.toolName?.includes('arbitrage') ||
-        part.toolName?.includes('contradiction') ||
-        part.toolName?.includes('sourceQuality') ||
-        part.toolName?.includes('delta')) {
-        try {
-          const parsed = JSON.parse(resultText);
-          if (parsed.contradictions || parsed.rankedSources || parsed.deltas || parsed.healthResults) {
-            return parsed;
-          }
-        } catch {
-          // Not JSON, continue
-        }
+  const groupedDomainAnchor = useMemo(() => {
+    const candidates = groupedToolOwners.map(({ entry }) => entry.originalIndex);
+
+    for (const entry of textRenderParts) {
+      const text = visibleTextByOriginalIndex.get(entry.originalIndex) ?? '';
+      if (hasMedia(extractMediaFromText(text)) || extractDocumentActions(text).length > 0) {
+        candidates.push(entry.originalIndex);
       }
     }
-    return null;
-  }, [isUser, message.parts]);
+
+    return candidates.length > 0 ? Math.min(...candidates) : null;
+  }, [groupedToolOwners, textRenderParts, visibleTextByOriginalIndex]);
+
+  const goalCardAnchor = useMemo(
+    () => goalToolOwners.length > 0
+      ? Math.min(...goalToolOwners.map(({ entry }) => entry.originalIndex))
+      : null,
+    [goalToolOwners],
+  );
 
   // Clean text by removing media markers and document action markers (for display purposes)
   const cleanedText = useMemo(() => {
@@ -2171,12 +2421,667 @@ export function FastAgentUIMessageBubble({
   // Lazy-load KaTeX only when math notation ($, \begin{) is detected
   const rehypeKatexPlugin = useRehypeKatex(cleanedText || visibleText || '');
 
-  return (
+  const renderSourcePart = (
+    entry: Extract<ConvexUIRenderPart, { kind: 'source' }>,
+  ) => {
+    const source = entry.part;
+    return (
+      <div
+        data-original-index={entry.originalIndex}
+        data-render-part-kind="source"
+        key={`source-${entry.originalIndex}`}
+      >
+        <AISources className="mb-1">
+          <AISourcesTrigger count={1} />
+          <AISourcesContent className="motion-reduce:animate-none">
+            {source.type === 'source-url' ? (
+              <AISource
+                href={source.url}
+                title={source.title ?? source.url}
+              />
+            ) : (
+              <div className="flex items-center gap-2 font-medium">
+                <span>{source.title ?? source.filename ?? 'Document source'}</span>
+              </div>
+            )}
+          </AISourcesContent>
+        </AISources>
+      </div>
+    );
+  };
+
+  const renderFilePart = (
+    entry: Extract<ConvexUIRenderPart, { kind: 'file' }>,
+  ) => {
+    const part = entry.part;
+    const fileUrl = part.url || '';
+    const mimeType = part.mediaType || (part as typeof part & { mimeType?: string }).mimeType || '';
+    const fileName = part.filename || (part as typeof part & { name?: string }).name || 'File';
+    const isImage = mimeType.startsWith('image/');
+    const isText = mimeType.startsWith('text/');
+
+    return (
+      <div
+        className="rounded-lg overflow-hidden border border-edge shadow-sm mb-2"
+        data-original-index={entry.originalIndex}
+        data-render-part-kind="file"
+        key={`file-${entry.originalIndex}`}
+      >
+        {isImage ? (
+          <SafeImage
+            src={fileUrl}
+            alt={fileName}
+            className="max-w-full h-auto"
+          />
+        ) : isText ? (
+          <FileTextPreview fileUrl={fileUrl} fileName={fileName} />
+        ) : (
+          <div className="px-4 py-3 bg-gradient-to-r from-surface-secondary to-surface flex items-center gap-3 group hover:from-blue-50 dark:hover:from-blue-900/20 hover:to-surface transition-colors">
+            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300">
+              <ImageIcon className="h-5 w-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <a
+                href={fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-content hover:text-blue-600 transition-colors block truncate"
+              >
+                {fileName}
+              </a>
+              <p className="text-xs text-content-secondary mt-0.5">File Attachment</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderStandaloneDomainPart = (entry: DomainRenderPart) => {
+    const payload = getDomainPayload(entry.part);
+    const record = payload && typeof payload === 'object'
+      ? payload as Record<string, unknown>
+      : null;
+
+    if (entry.categories.includes('arbitrage') && record) {
+      const isReport = ['contradictions', 'rankedSources', 'deltas', 'healthResults']
+        .some((key) => key in record);
+      if (isReport) {
+        return (
+          <div
+            data-domain-part-type={entry.part.type}
+            data-original-index={entry.originalIndex}
+            data-render-part-kind="domain"
+            key={`domain-${entry.originalIndex}`}
+          >
+            <ArbitrageReportCard data={record as ArbitrageReportData} />
+          </div>
+        );
+      }
+    }
+
+    if (entry.categories.includes('documentAction')) {
+      const directDocument = record &&
+        typeof record.documentId === 'string' &&
+        typeof record.title === 'string'
+        ? [record as unknown as DocumentAction]
+        : typeof payload === 'string'
+          ? extractDocumentActions(payload)
+          : [];
+      if (directDocument.length > 0) {
+        return (
+          <div
+            data-domain-part-type={entry.part.type}
+            data-original-index={entry.originalIndex}
+            data-render-part-kind="domain"
+            key={`domain-${entry.originalIndex}`}
+          >
+            <DocumentActionGrid
+              documents={directDocument}
+              title="Documents"
+              onDocumentSelect={effectiveOnDocumentSelect}
+            />
+          </div>
+        );
+      }
+    }
+
+    if (entry.categories.includes('goalCard') && record) {
+      const goal = typeof record.goal === 'string'
+        ? record.goal
+        : typeof record.title === 'string'
+          ? record.title
+          : null;
+      if (goal) {
+        const tasks = Array.isArray(record.tasks)
+          ? record.tasks.flatMap((task, index): TaskStatusItem[] => {
+              if (!task || typeof task !== 'object') return [];
+              const item = task as Record<string, unknown>;
+              const status = ['queued', 'active', 'success', 'failed'].includes(String(item.status))
+                ? String(item.status) as TaskStatusItem['status']
+                : 'queued';
+              return [{
+                id: typeof item.id === 'string' ? item.id : `domain-task-${index}`,
+                name: typeof item.name === 'string' ? item.name : `Task ${index + 1}`,
+                status,
+              }];
+            })
+          : [];
+        return (
+          <div
+            data-domain-part-type={entry.part.type}
+            data-original-index={entry.originalIndex}
+            data-render-part-kind="domain"
+            key={`domain-${entry.originalIndex}`}
+          >
+            <GoalCard goal={goal} tasks={tasks} isStreaming={isStreaming} />
+          </div>
+        );
+      }
+    }
+
+    if (entry.categories.includes('fusedSearch')) {
+      const fusedSearch = parseFusionSearchOutput(payload, 'fusionSearch');
+      if (fusedSearch.isValid && fusedSearch.results.length > 0) {
+        return (
+          <div
+            data-domain-part-type={entry.part.type}
+            data-original-index={entry.originalIndex}
+            data-render-part-kind="domain"
+            key={`domain-${entry.originalIndex}`}
+          >
+            <FusedSearchResults
+              results={fusedSearch.results}
+              sourcesQueried={fusedSearch.sourcesQueried}
+              errors={fusedSearch.errors}
+              timing={fusedSearch.timing}
+              totalTimeMs={fusedSearch.totalTimeMs}
+              showCitations={true}
+            />
+          </div>
+        );
+      }
+    }
+
+    return (
+      <div
+        data-domain-part-type={entry.part.type}
+        data-original-index={entry.originalIndex}
+        data-render-part-kind="domain"
+        key={`domain-${entry.originalIndex}`}
+      >
+        <ToolOutputRenderer
+          output={getStandaloneStructuredOutput(entry)}
+          onCompanySelect={effectiveOnCompanySelect}
+          onPersonSelect={effectiveOnPersonSelect}
+          onEventSelect={effectiveOnEventSelect}
+          onNewsSelect={effectiveOnNewsSelect}
+        />
+      </div>
+    );
+  };
+
+  const renderGoalCardOwners = (originalIndex: number) => {
+    const tasks: TaskStatusItem[] = goalToolOwners.map(({ entry }) => {
+      const part = entry.part;
+      const toolName = getNormalizedToolName(part)
+        .replace('delegateTo', '')
+        .replace('Agent', '') || 'Task';
+      const status: TaskStatusItem['status'] = part.state === 'output-available'
+        ? 'success'
+        : part.state === 'output-error'
+          ? 'failed'
+          : 'active';
+      return {
+        id: `delegation-${part.toolCallId}`,
+        name: toolName,
+        status,
+      };
+    });
+    const goal = uiParts.text.split('\n')[0].substring(0, 150) || 'Processing your request';
+
+    return (
+      <div
+        data-original-index={originalIndex}
+        data-render-part-kind="goal-card"
+        key={`goal-card-${originalIndex}`}
+      >
+        <GoalCard goal={goal} tasks={tasks} isStreaming={isStreaming} />
+      </div>
+    );
+  };
+
+  const renderGroupedDomainOwners = (originalIndex: number) => (
     <div
+      className="contents"
+      data-grouped-domain-anchor={originalIndex}
+      data-grouped-domain-owners={groupedToolOwners.length}
+      data-original-index={originalIndex}
+      data-render-part-kind="grouped-domain"
+      key={`grouped-domain-${originalIndex}`}
+    >
+      {arbitrageReports.map(({ data, toolCallId }) => (
+        <ArbitrageReportCard data={data} key={toolCallId} />
+      ))}
+
+      <RichMediaSection media={extractedMedia} showCitations={true} />
+
+      {extractedDocuments.length > 0 && (
+        <DocumentActionGrid
+          documents={extractedDocuments}
+          title="Documents"
+          onDocumentSelect={effectiveOnDocumentSelect}
+        />
+      )}
+    </div>
+  );
+
+  const renderToolOwner = (owner: RoutedToolOwner) => {
+    const { entry, route, fusedSearch } = owner;
+    const part = entry.part;
+    const toolName = getNormalizedToolName(part);
+    const categories: DomainCategory[] = entry.kind === 'domain-tool' ? entry.categories : [];
+    const completed = part.state === 'output-available' || part.state === 'output-error';
+    const stepNumber = toolRenderParts.findIndex((candidate) => candidate === entry) + 1;
+
+    let content: React.ReactNode;
+    if (route === 'fused-search' && fusedSearch) {
+      content = (
+        <div className="my-3 w-full">
+          <FusedSearchResults
+            results={fusedSearch.results}
+            sourcesQueried={fusedSearch.sourcesQueried}
+            errors={fusedSearch.errors}
+            timing={fusedSearch.timing}
+            totalTimeMs={fusedSearch.totalTimeMs}
+            showCitations={true}
+          />
+        </div>
+      );
+    } else if (route === 'memory-pill') {
+      let type: 'plan_update' | 'test_result' | 'memory_write' = 'memory_write';
+      let title = 'Memory Updated';
+      let details = '';
+      const input = part.input as Record<string, unknown> | undefined;
+
+      if (toolName.includes('createPlan')) {
+        type = 'plan_update';
+        title = 'New Plan Created';
+        details = input?.goal ? `Goal: ${String(input.goal)}` : 'New mission plan initialized';
+      } else if (toolName.includes('updatePlanStep')) {
+        type = 'plan_update';
+        title = 'Plan Updated';
+        details = input?.status ? `Step marked as ${String(input.status)}` : 'Plan progress updated';
+      } else if (toolName.includes('logEpisodic')) {
+        type = 'test_result';
+        title = 'Episodic Log';
+        details = 'System event recorded';
+      } else {
+        const key = typeof input?.key === 'string' ? input.key : 'unknown';
+        title = key.startsWith('constraint:') ? 'Constraint Added' : 'Memory Updated';
+        details = `Key: ${key}`;
+      }
+
+      content = (
+        <div className="my-2 flex justify-center w-full">
+          <MemoryPill
+            event={{
+              id: `pill-${part.toolCallId}`,
+              type,
+              title,
+              details,
+              timestamp: Date.now(),
+            }}
+          />
+        </div>
+      );
+    } else if (route === 'convex-transparency') {
+      const convexToolData = {
+        toolName,
+        status: (part.state === 'output-available'
+          ? 'success'
+          : part.state === 'output-error'
+            ? 'error'
+            : 'running') as 'running' | 'success' | 'error',
+        inputSummary: part.input ? JSON.stringify(part.input).substring(0, 120) : undefined,
+        outputSummary: part.state === 'output-available' && part.output
+          ? (typeof part.output === 'string'
+              ? part.output.substring(0, 120)
+              : JSON.stringify(part.output).substring(0, 120))
+          : undefined,
+      };
+      content = (
+        <div className="my-2 w-full">
+          <ToolCallTransparency toolCalls={[convexToolData]} />
+        </div>
+      );
+    } else {
+      content = (
+        <ToolStep
+          part={part}
+          stepNumber={stepNumber}
+          onCompanySelect={effectiveOnCompanySelect}
+          onPersonSelect={effectiveOnPersonSelect}
+          onEventSelect={effectiveOnEventSelect}
+          onNewsSelect={effectiveOnNewsSelect}
+          useDomainRenderer={categories.includes('selection') || categories.includes('media')}
+        />
+      );
+    }
+
+    return (
+      <div
+        data-original-index={entry.originalIndex}
+        data-render-part-kind="tool"
+        key={`tool-${part.toolCallId}`}
+      >
+        <ToolStepsAccordion
+          toolCount={1}
+          completedCount={completed ? 1 : 0}
+          isStreaming={isStreaming}
+        >
+          <div className="w-full">{content}</div>
+        </ToolStepsAccordion>
+      </div>
+    );
+  };
+
+  const renderTextPart = (
+    entry: TextRenderPart,
+    text: string,
+    isFirstText: boolean,
+    isLastText: boolean,
+  ) => {
+    let partText = removeMediaMarkersFromText(text);
+    partText = removeDocumentActionMarkers(partText)
+      .replace(/\{\{arbitrage:[^}]+\}\}/g, '')
+      .replace(/\{\{fact:[^}]+\}\}/g, '');
+    const displayText = isUser ? (text || '...') : (partText || text);
+    const isOnlyTextPart = textRenderParts.length === 1;
+    const isLong = isOnlyTextPart &&
+      !isUser &&
+      displayText.length > COLLAPSE_THRESHOLD &&
+      message.status !== 'streaming';
+    const markdownText = isLong && isCollapsed
+      ? displayText.slice(0, COLLAPSE_THRESHOLD) + '...'
+      : displayText;
+
+    if (isUser && isEditing && !isFirstText) return null;
+
+    return (
+      <AIMessageContent
+        className="contents"
+        data-original-index={entry.originalIndex}
+        data-render-part-kind="text"
+        key={'text-' + entry.originalIndex}
+      >
+        {!isUser || displayText || (isEditing && isFirstText) ? (
+          <div
+            className={cn(
+              'relative p-4 rounded-lg shadow-sm transition-all duration-200 text-sm leading-relaxed',
+              isUser
+                ? isEditing
+                  ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 text-content rounded-br-none'
+                  : 'bg-gradient-to-br from-violet-500 to-violet-600 text-white rounded-br-none shadow-md'
+                : 'bg-surface border border-edge text-content rounded-bl-none shadow-sm dark:bg-surface-secondary',
+              message.status === 'streaming' && 'motion-safe:animate-pulse-subtle',
+              message.status === 'failed' && 'bg-red-50/80 border-red-200 dark:bg-red-900/20 dark:border-red-800',
+            )}
+          >
+            {isUser && isEditing && isFirstText ? (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  ref={editTextareaRef}
+                  value={editText}
+                  onChange={(event) => setEditText(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      handleSaveEdit();
+                    }
+                    if (event.key === 'Escape') handleCancelEdit();
+                  }}
+                  className="w-full bg-transparent text-sm leading-relaxed resize-none outline-none min-h-[40px] placeholder-blue-300"
+                  rows={Math.max(1, editText.split('\n').length)}
+                />
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="action-btn text-xs px-2.5 py-1 rounded-md text-content-muted hover:text-content hover:bg-surface-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveEdit}
+                    className="press-scale text-xs px-3 py-1 rounded-md bg-violet-500 text-white hover:bg-violet-600 font-medium"
+                  >
+                    Save &amp; Resend
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {!isUser && displayText.includes('<think>') && (() => {
+              const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/);
+              if (!thinkMatch) return null;
+              return (
+                <details className="thinking-disclosure mb-2">
+                  <summary>Reasoning ({thinkMatch[1].split(/\s+/).length} words)</summary>
+                  <div className="mt-1 text-xs leading-relaxed opacity-80 whitespace-pre-wrap">
+                    {thinkMatch[1].trim()}
+                  </div>
+                </details>
+              );
+            })()}
+
+            {!isUser && isLastText && message.status === 'streaming' && displayText && (
+              <div className="w-full h-[2px] bg-[var(--border-color)] rounded-full overflow-hidden mb-1">
+                <div
+                  className="h-full bg-violet-500 rounded-full transition-all duration-300"
+                  style={{ width: Math.min((displayText.length / 2000) * 100, 95) + '%' }}
+                />
+              </div>
+            )}
+
+            {!(isUser && isEditing) && (
+              !isUser &&
+              isLastText &&
+              message.status === 'streaming' &&
+              !displayText ? (
+                <div
+                  aria-label="Assistant response loading"
+                  className="space-y-2"
+                  data-streaming-placeholder="true"
+                >
+                  <div className="h-3 w-11/12 rounded bg-surface-hover motion-safe:animate-pulse" />
+                  <div className="h-3 w-4/5 rounded bg-surface-hover motion-safe:animate-pulse" />
+                  <div className="h-3 w-2/3 rounded bg-surface-hover motion-safe:animate-pulse" />
+                </div>
+              ) : (
+              <div className={cn(!isUser && 'prose-agent')}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkMath]}
+                  rehypePlugins={rehypeKatexPlugin ? [rehypeKatexPlugin] : []}
+                  components={{
+                    code({ inline, className, children, ...props }: any) {
+                      const match = /language-(\w+)/.exec(className || '');
+                      const language = match ? match[1] : '';
+                      if (!inline && language === 'mermaid') {
+                        return (
+                          <Suspense fallback={<div className="motion-safe:animate-pulse h-40 bg-surface-secondary rounded-lg flex items-center justify-center text-sm text-content-muted">Loading diagram...</div>}>
+                            <MermaidDiagram
+                              code={String(children).replace(/\n$/, '')}
+                              onRetryRequest={onMermaidRetry}
+                              isStreaming={message.status === 'streaming'}
+                            />
+                          </Suspense>
+                        );
+                      }
+                      return !inline && match ? (
+                        <CodeBlockWithCopy language={language}>
+                          {String(children).replace(/\n$/, '')}
+                        </CodeBlockWithCopy>
+                      ) : (
+                        <code
+                          className={cn(
+                            'px-1 py-0.5 rounded text-xs font-mono',
+                            isUser ? 'bg-blue-700/50 text-white' : 'bg-surface-hover text-content',
+                          )}
+                          {...props}
+                        >
+                          {children}
+                        </code>
+                      );
+                    },
+                    a({ href, children }) {
+                      return <a href={href} className="text-blue-600 hover:underline font-medium" target="_blank" rel="noopener noreferrer">{children}</a>;
+                    },
+                    table({ children }) {
+                      return <div className="overflow-x-auto my-3 rounded-lg border border-edge"><table className="w-full text-xs border-collapse">{children}</table></div>;
+                    },
+                    thead({ children }) {
+                      return <thead className="bg-surface-secondary">{children}</thead>;
+                    },
+                    th({ children }) {
+                      return <th className="px-3 py-2 text-left font-semibold text-content border-b border-edge text-xs">{children}</th>;
+                    },
+                    td({ children }) {
+                      return <td className="px-3 py-1.5 border-b border-edge text-content-secondary text-xs">{children}</td>;
+                    },
+                    tr({ children }) {
+                      return <tr className="hover:bg-surface-secondary transition-colors">{children}</tr>;
+                    },
+                    p({ children }) {
+                      const textContent = React.Children.toArray(children)
+                        .map((child) => typeof child === 'string' ? child : '')
+                        .join('');
+                      if (parseCitations(textContent).length > 0 || parseEntities(textContent).length > 0) {
+                        return (
+                          <p className="mb-2">
+                            <InteractiveSpanParser
+                              text={textContent}
+                              citations={citedCitationLibrary}
+                              entities={entityLibrary}
+                              entityEnrichment={entityEnrichment}
+                            />
+                          </p>
+                        );
+                      }
+                      if (searchHighlight && textContent.toLowerCase().includes(searchHighlight.toLowerCase())) {
+                        const escaped = searchHighlight.replace(/[.*+?^$(){}|[\]\\]/g, '\\$&');
+                        const regex = new RegExp('(' + escaped + ')', 'gi');
+                        return (
+                          <p className="mb-2">
+                            {textContent.split(regex).map((part, index) =>
+                              part.toLowerCase() === searchHighlight.toLowerCase()
+                                ? <mark key={index} className="bg-yellow-300 dark:bg-yellow-500/40 text-inherit rounded-sm px-0.5">{part}</mark>
+                                : <React.Fragment key={index}>{part}</React.Fragment>
+                            )}
+                          </p>
+                        );
+                      }
+                      return <p className="mb-2">{children}</p>;
+                    },
+                  }}
+                >
+                  {markdownText}
+                </ReactMarkdown>
+                {isLong && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCollapsed((previous) => !previous)}
+                    className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline mt-1"
+                  >
+                    {isCollapsed ? 'Show more ▼' : 'Show less ▲'}
+                  </button>
+                )}
+                {!isUser &&
+                  isLastText &&
+                  (message.status === 'streaming' || message.status === 'typing') &&
+                  displayText && <span className="streaming-caret" />}
+              </div>
+              )
+            )}
+          </div>
+        ) : null}
+      </AIMessageContent>
+    );
+  };
+
+  const renderOrderedPart = (entry: ConvexUIRenderPart) => {
+    if (isToolRenderPart(entry)) {
+      const owner = routedToolOwnerByEntry.get(entry);
+      if (!owner) return null;
+
+      if (owner.route === 'goal-card') {
+        return entry.originalIndex === goalCardAnchor
+          ? renderGoalCardOwners(entry.originalIndex)
+          : null;
+      }
+      if (owner.route === 'grouped-custom') {
+        return entry.originalIndex === groupedDomainAnchor
+          ? renderGroupedDomainOwners(entry.originalIndex)
+          : null;
+      }
+      return renderToolOwner(owner);
+    }
+
+    if (entry.kind === 'text') {
+      const textIndex = textRenderParts.findIndex((candidate) => candidate === entry);
+      const renderedText = renderTextPart(
+        entry,
+        visibleTextByOriginalIndex.get(entry.originalIndex) ?? '',
+        textIndex === 0,
+        textIndex === textRenderParts.length - 1,
+      );
+      if (entry.originalIndex !== groupedDomainAnchor) return renderedText;
+      return (
+        <React.Fragment key={'text-group-' + entry.originalIndex}>
+          {renderedText}
+          {renderGroupedDomainOwners(entry.originalIndex)}
+        </React.Fragment>
+      );
+    }
+
+    if (entry.kind === 'reasoning') {
+      const reasoning = visibleReasoningByOriginalIndex.get(entry.originalIndex) ?? '';
+      if (isUser || !reasoning) return null;
+      return (
+        <div
+          data-original-index={entry.originalIndex}
+          data-render-part-kind="reasoning"
+          key={'reasoning-' + entry.originalIndex}
+        >
+          <ThinkingAccordion reasoning={reasoning} isStreaming={isStreaming} />
+        </div>
+      );
+    }
+
+    if (entry.kind === 'source') return renderSourcePart(entry);
+    if (entry.kind === 'file') return renderFilePart(entry);
+    return renderStandaloneDomainPart(entry);
+  };
+
+  const fallbackTextEntry = textRenderParts.length === 0
+    ? ({
+        kind: 'text',
+        originalIndex: uiParts.renderParts.reduce(
+          (highest, entry) => Math.max(highest, entry.originalIndex),
+          -1,
+        ) + 1,
+        part: { type: 'text', text: uiParts.text },
+      } as TextRenderPart)
+    : null;
+
+  return (
+    <AIMessage
+      from={uiParts.from}
       role="article"
       aria-label={isUser ? "Your message" : "Assistant response"}
       className={cn(
-        "flex group msg-entrance",
+        "max-w-none flex-row group msg-entrance",
         compact ? "gap-2.5 mb-4" : "gap-3 mb-6",
         isUser ? "justify-end" : "justify-start",
         isChild && "ml-0" // Child messages already have margin from parent container
@@ -2227,497 +3132,26 @@ export function FastAgentUIMessageBubble({
           </div>
         )}
 
-        {/* Goal Card - ONLY show for coordinator/parent messages with delegations */}
-        {!isUser && isParent && !isChild && (() => {
-          // Only show GoalCard for coordinator messages that delegate to sub-agents
-          const delegationCalls = toolParts.filter((part: any) =>
-            part.type === 'tool-call' && part.toolName?.startsWith('delegateTo')
-          );
-
-          if (delegationCalls.length === 0) return null;
-
-          // Extract task status from delegation calls
-          const tasks: TaskStatusItem[] = delegationCalls.map((part: any, idx: number) => {
-            const toolName = part.toolName?.replace('delegateTo', '').replace('Agent', '') || 'Task';
-
-            // Default status is queued, will be updated by child responses
-            let status: 'queued' | 'active' | 'success' | 'failed' = 'queued';
-
-            // Check if there's a corresponding result
-            const resultPart = toolParts.find((p: any) =>
-              p.type === 'tool-result' && p.toolCallId === (part as any).toolCallId
-            );
-
-            if (resultPart) {
-              status = 'success';
-            } else if (part.type === 'tool-call') {
-              status = 'active';
-            }
-
-            return {
-              id: `delegation-${idx}`,
-              name: toolName,
-              status,
-            };
-          });
-
-          // Extract goal from the actual user query
-          const goal = message.text?.split('\n')[0].substring(0, 150) || 'Processing your request';
-
-          return (
-            <GoalCard
-              goal={goal}
-              tasks={tasks}
-              isStreaming={message.status === 'streaming'}
-            />
-          );
-        })()}
 
         {/* Thinking Accordion */}
         {!isUser && (
           <StreamingStatus
             parts={message.parts as Array<Record<string, unknown>>}
             messageText={visibleText}
-            isStreaming={message.status === 'streaming'}
+            isStreaming={isStreaming}
             tokensPerSecond={streamTokPerSec}
             runtimeSeconds={streamRuntimeSeconds}
           />
         )}
 
-        {/* Thinking Accordion */}
-        {!isUser && visibleReasoning && (
-          <ThinkingAccordion
-            reasoning={visibleReasoning}
-            isStreaming={message.status === 'streaming'}
-          />
+        {/* Canonical ordered ownership: never render aggregate projections in parallel. */}
+        {uiParts.renderParts.map(renderOrderedPart)}
+        {fallbackTextEntry && renderTextPart(
+          fallbackTextEntry,
+          visibleText ?? '',
+          true,
+          true,
         )}
-
-        {/*
-          ═══════════════════════════════════════════════════════════════════════
-          TOOL STEPS LIST - RENDER PRECEDENCE DOCUMENTATION
-          ═══════════════════════════════════════════════════════════════════════
-
-          Render precedence for tool parts (in order):
-
-          1. FUSION SEARCH (fusionSearch, quickSearch):
-             - tool-result: Render FusedSearchResults component (if valid)
-             - tool-call: Skip (no spinner) - results shown when complete
-             - Invalid parse: Fall through to default ToolStep
-
-          2. MEMORY/PLANNING TOOLS (writeMemory, createPlan, etc.):
-             - Render as compact ToolPill component
-
-          3. DEFAULT:
-             - Render as ToolStep with expandable details
-
-          This ensures each tool has exactly ONE visual representation.
-          ═══════════════════════════════════════════════════════════════════════
-        */}
-        {!isUser && toolParts.length > 0 && (
-          <ToolStepsAccordion
-            toolCount={toolParts.filter((p: any) => p.type === 'tool-call' || p.type === 'tool-result').length}
-            completedCount={toolParts.filter((p: any) => p.type === 'tool-result').length}
-            isStreaming={message.status === 'streaming'}
-          >
-            <div className="w-full">
-              {toolParts.map((part: any, idx: number) => {
-                // Only render tool calls, not results (results are nested in steps)
-                if (part.type !== 'tool-call' && part.type !== 'tool-result' && part.type !== 'tool-error') return null;
-
-                const toolName = (part as any).toolName;
-
-                // ═══════════════════════════════════════════════════════════════
-                // PRECEDENCE 1: Fusion Search tools → FusedSearchResults
-                // ═══════════════════════════════════════════════════════════════
-                if (isFusionSearchTool(toolName) && part.type === 'tool-result') {
-                  // Pass toolName for structured observability logging
-                  const toolOutput = (part as any).output ?? (part as any).result;
-                  const parsed = parseFusionSearchOutput(toolOutput, toolName);
-                  if (parsed.isValid && parsed.results.length > 0) {
-                    return (
-                      <div key={idx} className="my-3 w-full">
-                        <FusedSearchResults
-                          results={parsed.results}
-                          sourcesQueried={parsed.sourcesQueried}
-                          errors={parsed.errors}
-                          timing={parsed.timing}
-                          totalTimeMs={parsed.totalTimeMs}
-                          showCitations={true}
-                        />
-                      </div>
-                    );
-                  }
-                  // If parsing failed, log and fall through to default ToolStep rendering
-                  if (parsed.parseError) {
-                  }
-                }
-
-                // Skip tool-call for fusion search (we render the result above, no spinner needed)
-                if (isFusionSearchTool(toolName) && part.type === 'tool-call') {
-                  return null;
-                }
-
-                // ═══════════════════════════════════════════════════════════════
-                // PRECEDENCE 2: Memory/Planning tools → ToolPill
-                // ═══════════════════════════════════════════════════════════════
-
-                // Check for Memory/Planning tools to render as Pills
-
-                if (toolName && (
-                  toolName.includes('writeMemory') ||
-                  toolName.includes('createPlan') ||
-                  toolName.includes('updatePlanStep') ||
-                  toolName.includes('logEpisodic')
-                )) {
-
-                  // Determine pill type and title based on tool name
-                  let type: 'plan_update' | 'test_result' | 'memory_write' = 'memory_write';
-                  let title = 'Memory Updated';
-                  let details = '';
-
-                  if (toolName.includes('createPlan')) {
-                    type = 'plan_update';
-                    title = 'New Plan Created';
-                    details = (part as any).args?.goal ? `Goal: ${(part as any).args.goal}` : 'New mission plan initialized';
-                  } else if (toolName.includes('updatePlanStep')) {
-                    type = 'plan_update';
-                    title = 'Plan Updated';
-                    const status = (part as any).args?.status;
-                    details = status ? `Step marked as ${status}` : 'Plan progress updated';
-                  } else if (toolName.includes('logEpisodic')) {
-                    type = 'test_result';
-                    title = 'Episodic Log';
-                    details = 'System event recorded';
-                  } else {
-                    // writeMemory
-                    const key = (part as any).args?.key || 'unknown';
-                    title = key.startsWith('constraint:') ? 'Constraint Added' : 'Memory Updated';
-                    details = `Key: ${key}`;
-                  }
-
-                  // If this is a tool-call, render the pill
-                  // We ignore the tool-result for these as the pill usually summarizes the action
-                  if (part.type === 'tool-call') {
-                    return (
-                      <div key={idx} className="my-2 flex justify-center w-full">
-                        <MemoryPill
-                          event={{
-                            id: `pill-${idx}`,
-                            type,
-                            title,
-                            details,
-                            timestamp: Date.now()
-                          }}
-                        />
-                      </div>
-                    );
-                  }
-                  // Skip results/errors for memory tools to keep stream clean
-                  return null;
-                }
-
-                // ═══════════════════════════════════════════════════════════════
-                // PRECEDENCE 2.5: Convex MCP tools → ToolCallTransparency
-                // ═══════════════════════════════════════════════════════════════
-                if (toolName && toolName.startsWith('convex_')) {
-                  const convexToolData = {
-                    toolName,
-                    status: (part.type === 'tool-result' ? 'success' : part.type === 'tool-error' ? 'error' : 'running') as 'running' | 'success' | 'error',
-                    inputSummary: (part as any).args ? JSON.stringify((part as any).args).substring(0, 120) : undefined,
-                    outputSummary: part.type === 'tool-result' && (part as any).output
-                      ? (typeof (part as any).output === 'string' ? (part as any).output.substring(0, 120) : JSON.stringify((part as any).output).substring(0, 120))
-                      : undefined,
-                  };
-                  return (
-                    <div key={idx} className="my-2 w-full">
-                      <ToolCallTransparency toolCalls={[convexToolData]} />
-                    </div>
-                  );
-                }
-
-                // Default: Render as standard ToolStep
-                return (
-                  <ToolStep
-                    key={idx}
-                    part={part}
-                    stepNumber={idx + 1}
-                    onCompanySelect={effectiveOnCompanySelect}
-                    onPersonSelect={effectiveOnPersonSelect}
-                    onEventSelect={effectiveOnEventSelect}
-                    onNewsSelect={effectiveOnNewsSelect}
-                  />
-                );
-              })}
-            </div>
-          </ToolStepsAccordion>
-        )}
-
-        {/* Arbitrage Verification Report (if arbitrage tools were used) */}
-        {!isUser && arbitrageData && (
-          <ArbitrageReportCard data={arbitrageData} />
-        )}
-
-        {/* NEW PRESENTATION LAYER: Polished media display FIRST */}
-        {!isUser && (
-          <RichMediaSection media={extractedMedia} showCitations={true} />
-        )}
-
-        {/* Document Actions */}
-        {!isUser && extractedDocuments.length > 0 && (
-          <DocumentActionGrid
-            documents={extractedDocuments}
-            title="Documents"
-            onDocumentSelect={effectiveOnDocumentSelect}
-          />
-        )}
-
-        {/* Files (images, etc.) */}
-        {fileParts.map((part: any, idx: number) => {
-          // FileUIPart has url and mimeType properties
-          const fileUrl = (part as any).url || '';
-          const mimeType = (part as any).mimeType || '';
-          const fileName = (part as any).name || 'File';
-          const isImage = mimeType.startsWith('image/');
-          const isPDF = mimeType === 'application/pdf';
-          const isText = mimeType.startsWith('text/');
-          const isVideo = mimeType.startsWith('video/');
-          const isAudio = mimeType.startsWith('audio/');
-
-          return (
-            <div key={idx} className="rounded-lg overflow-hidden border border-edge shadow-sm mb-2">
-              {isImage ? (
-                <SafeImage
-                  src={fileUrl}
-                  alt={fileName}
-                  className="max-w-full h-auto"
-                />
-              ) : isText ? (
-                <FileTextPreview fileUrl={fileUrl} fileName={fileName} />
-              ) : (
-                <div className="px-4 py-3 bg-gradient-to-r from-surface-secondary to-surface flex items-center gap-3 group hover:from-blue-50 dark:hover:from-blue-900/20 hover:to-surface transition-colors">
-                  <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300">
-                    <ImageIcon className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <a
-                      href={fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium text-content hover:text-blue-600 transition-colors block truncate"
-                    >
-                      {fileName}
-                    </a>
-                    <p className="text-xs text-content-secondary mt-0.5">File Attachment</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Main text content - THE ANSWER */}
-        {!isUser || (cleanedText || visibleText) ? (
-          <div
-            className={cn(
-              "relative p-4 rounded-lg shadow-sm transition-all duration-200 text-sm leading-relaxed",
-              isUser
-                ? isEditing
-                  ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 text-content rounded-br-none"
-                  : "bg-gradient-to-br from-violet-500 to-violet-600 text-white rounded-br-none shadow-md"
-                : "bg-surface border border-edge text-content rounded-bl-none shadow-sm dark:bg-surface-secondary",
-              message.status === 'streaming' && 'motion-safe:animate-pulse-subtle',
-              message.status === 'failed' && "bg-red-50/80 border-red-200 dark:bg-red-900/20 dark:border-red-800"
-            )}
-          >
-            {/* Inline edit mode for user messages */}
-            {isUser && isEditing ? (
-              <div className="flex flex-col gap-2">
-                <textarea
-                  ref={editTextareaRef}
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveEdit(); }
-                    if (e.key === 'Escape') handleCancelEdit();
-                  }}
-                  className="w-full bg-transparent text-sm leading-relaxed resize-none outline-none min-h-[40px] placeholder-blue-300"
-                  rows={Math.max(1, editText.split('\n').length)}
-                />
-                <div className="flex items-center gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="action-btn text-xs px-2.5 py-1 rounded-md text-content-muted hover:text-content hover:bg-surface-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveEdit}
-                    className="press-scale text-xs px-3 py-1 rounded-md bg-violet-500 text-white hover:bg-violet-600 font-medium"
-                  >
-                    Save & Resend
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Thinking/Reasoning Disclosure (Claude-style) */}
-            {!isUser && (cleanedText || visibleText || '').includes('<think>') && (() => {
-              const text = cleanedText || visibleText || '';
-              const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/);
-              if (!thinkMatch) return null;
-              return (
-                <details className="thinking-disclosure mb-2">
-                  <summary>Reasoning ({thinkMatch[1].split(/\s+/).length} words)</summary>
-                  <div className="mt-1 text-xs leading-relaxed opacity-80 whitespace-pre-wrap">
-                    {thinkMatch[1].trim()}
-                  </div>
-                </details>
-              );
-            })()}
-
-            {/* Streaming Progress Bar */}
-            {!isUser && message.status === 'streaming' && (cleanedText || visibleText) && (() => {
-              const textLen = (cleanedText || visibleText || '').length;
-              const estimatedTotal = 2000;
-              const pct = Math.min((textLen / estimatedTotal) * 100, 95);
-              return (
-                <div className="w-full h-[2px] bg-[var(--border-color)] rounded-full overflow-hidden mb-1">
-                  <div className="h-full bg-violet-500 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
-                </div>
-              );
-            })()}
-
-            {/* Normal content (hidden during edit) */}
-            {!(isUser && isEditing) && (!isUser && message.status === 'streaming' && !cleanedText && !visibleText ? (
-              <div className="skeleton-block">
-                <div className="skeleton-line skeleton-shimmer" />
-                <div className="skeleton-line skeleton-shimmer" />
-                <div className="skeleton-line skeleton-shimmer" />
-                <div className="skeleton-line skeleton-shimmer" />
-              </div>
-            ) : (
-              <div className={cn(!isUser && "prose-agent")}>
-                <ReactMarkdown
-                  remarkPlugins={[remarkMath]}
-                  rehypePlugins={rehypeKatexPlugin ? [rehypeKatexPlugin] : []}
-                  components={{
-                    code({ inline, className, children, ...props }: any) {
-                      const match = /language-(\w+)/.exec(className || '');
-                      const language = match ? match[1] : '';
-
-                      if (!inline && language === 'mermaid') {
-                        const mermaidCode = String(children).replace(/\n$/, '');
-                        const isStreaming = message.status === 'streaming';
-                        return (
-                          <Suspense fallback={<div className="motion-safe:animate-pulse h-40 bg-surface-secondary rounded-lg flex items-center justify-center text-sm text-content-muted">Loading diagram...</div>}>
-                            <MermaidDiagram
-                              code={mermaidCode}
-                              onRetryRequest={onMermaidRetry}
-                              isStreaming={isStreaming}
-                            />
-                          </Suspense>
-                        );
-                      }
-
-                      return !inline && match ? (
-                        <CodeBlockWithCopy language={language}>
-                          {String(children).replace(/\n$/, '')}
-                        </CodeBlockWithCopy>
-                      ) : (
-                        <code className={cn(
-                          "px-1 py-0.5 rounded text-xs font-mono",
-                          isUser ? "bg-blue-700/50 text-white" : "bg-surface-hover text-content"
-                        )} {...props}>
-                          {children}
-                        </code>
-                      );
-                    },
-                    a({ href, children }) {
-                      return <a href={href} className="text-blue-600 hover:underline font-medium" target="_blank" rel="noopener noreferrer">{children}</a>;
-                    },
-                    table({ children }) {
-                      return <div className="overflow-x-auto my-3 rounded-lg border border-edge"><table className="w-full text-xs border-collapse">{children}</table></div>;
-                    },
-                    thead({ children }) {
-                      return <thead className="bg-surface-secondary">{children}</thead>;
-                    },
-                    th({ children }) {
-                      return <th className="px-3 py-2 text-left font-semibold text-content border-b border-edge text-xs">{children}</th>;
-                    },
-                    td({ children }) {
-                      return <td className="px-3 py-1.5 border-b border-edge text-content-secondary text-xs">{children}</td>;
-                    },
-                    tr({ children }) {
-                      return <tr className="hover:bg-surface-secondary transition-colors">{children}</tr>;
-                    },
-                    // Phase All: Enhanced paragraph rendering with citation/entity parsing + adaptive enrichment
-                    p({ children }) {
-                      // Convert children to string for token detection
-                      const textContent = React.Children.toArray(children)
-                        .map(child => typeof child === 'string' ? child : '')
-                        .join('');
-
-                      // If text contains {{cite:...}} or @@entity:...@@ tokens, use InteractiveSpanParser
-                      // Pass entityEnrichment for rich hover previews with adaptive profile data
-                      if (parseCitations(textContent).length > 0 || parseEntities(textContent).length > 0) {
-                        return (
-                          <p className="mb-2">
-                            <InteractiveSpanParser
-                              text={textContent}
-                              citations={citedCitationLibrary}
-                              entities={entityLibrary}
-                              entityEnrichment={entityEnrichment}
-                            />
-                          </p>
-                        );
-                      }
-
-                      // Default paragraph rendering (with optional search highlight)
-                      if (searchHighlight && textContent.toLowerCase().includes(searchHighlight.toLowerCase())) {
-                        const regex = new RegExp(`(${searchHighlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-                        const parts = textContent.split(regex);
-                        return (
-                          <p className="mb-2">
-                            {parts.map((part, i) =>
-                              regex.test(part)
-                                ? <mark key={i} className="bg-yellow-300 dark:bg-yellow-500/40 text-inherit rounded-sm px-0.5">{part}</mark>
-                                : <React.Fragment key={i}>{part}</React.Fragment>
-                            )}
-                          </p>
-                        );
-                      }
-                      return <p className="mb-2">{children}</p>;
-                    },
-                  }}
-                >
-                  {(() => {
-                    const displayText = isUser ? (visibleText || '...') : (cleanedText || visibleText || '...');
-                    const isLong = !isUser && displayText.length > COLLAPSE_THRESHOLD && message.status !== 'streaming';
-                    if (isLong && isCollapsed) {
-                      return displayText.slice(0, COLLAPSE_THRESHOLD) + '...';
-                    }
-                    return displayText;
-                  })()}
-                </ReactMarkdown>
-                {/* Show more/less toggle for long messages */}
-                {!isUser && (cleanedText || visibleText || '').length > COLLAPSE_THRESHOLD && message.status !== 'streaming' && (
-                  <button
-                    type="button"
-                    onClick={() => setIsCollapsed(prev => !prev)}
-                    className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline mt-1"
-                  >
-                    {isCollapsed ? 'Show more ▼' : 'Show less ▲'}
-                  </button>
-                )}
-                {!isUser && (message.status === 'streaming' || message.status === 'typing') && (cleanedText || visibleText) && (
-                  <span className="streaming-caret" />
-                )}
-              </div>
-            ))}
-          </div>
-        ) : null}
 
         {/* Smart Actions (assistant messages, after content finishes) */}
         {!compact && !isUser && message.status !== 'streaming' && (cleanedText || visibleText) && (
@@ -3357,6 +3791,6 @@ export function FastAgentUIMessageBubble({
           </div>
         </div>
       )}
-    </div>
+    </AIMessage>
   );
 }
