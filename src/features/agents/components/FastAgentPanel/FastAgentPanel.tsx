@@ -43,6 +43,7 @@ const TaskManagerView = React.lazy(() => import('../TaskManager').then(m => ({ d
 const SwarmLanesView = React.lazy(() => import('./SwarmLanesView').then(m => ({ default: m.SwarmLanesView })));
 const LiveAgentLanes = React.lazy(() => import('@/features/agents/views/LiveAgentLanes').then(m => ({ default: m.LiveAgentLanes })));
 import { LiveEventCard, type LiveEvent } from './LiveEventCard';
+import { extractLiveEventsFromUIMessages } from './liveEvents';
 import { RichMediaSection } from './RichMediaSection';
 import { DocumentActionGrid, extractDocumentActions, type DocumentAction } from './DocumentActionCard';
 import { extractMediaFromText, type ExtractedMedia } from './utils/mediaExtractor';
@@ -1604,78 +1605,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     if (chatMode !== "agent-streaming") return [];
     if (!streamingMessages || streamingMessages.length === 0) return [];
 
-    const events: LiveEvent[] = [];
-    let eventCounter = 0;
-
-    const toToolName = (part: any): string => {
-      if (typeof part?.toolName === "string" && part.toolName.trim()) return part.toolName.trim();
-      if (typeof part?.name === "string" && part.name.trim()) return part.name.trim();
-
-      const type = typeof part?.type === "string" ? part.type : "";
-      const typed = type.match(/^tool-(?:call|result|error)-(.+)$/);
-      if (typed?.[1]) return typed[1];
-
-      const generic = type.match(/^tool-(.+)$/);
-      if (generic?.[1]) return generic[1];
-      return "unknown";
-    };
-
-    for (const raw of streamingMessages as any[]) {
-      const msg = raw?.message ?? raw;
-      const role = msg?.role ?? raw?.role;
-      const parts = Array.isArray(msg?.parts) ? msg.parts : Array.isArray(raw?.parts) ? raw.parts : [];
-      if (role !== "assistant" || parts.length === 0) continue;
-
-      const baseTimestamp =
-        typeof raw?._creationTime === "number"
-          ? raw._creationTime
-          : typeof msg?._creationTime === "number"
-            ? msg._creationTime
-            : Date.now();
-
-      for (const part of parts) {
-        const partType = typeof part?.type === "string" ? part.type : "";
-        const isResult = partType === "tool-result" || partType.startsWith("tool-result");
-        const isError = partType === "tool-error" || partType.startsWith("tool-error");
-        const isCall =
-          !isResult &&
-          !isError &&
-          (partType === "tool-call" || partType.startsWith("tool-"));
-        if (!isCall && !isResult && !isError) continue;
-
-        const toolName = toToolName(part);
-        const title = toolName;
-        const toolCallId =
-          typeof part?.toolCallId === "string" && part.toolCallId.trim() ? part.toolCallId.trim() : null;
-        const idBase = toolCallId ?? raw?._id ?? raw?.id ?? msg?._id ?? msg?.id ?? "msg";
-        const timestamp = baseTimestamp + eventCounter;
-        eventCounter += 1;
-
-        const resultText = part?.output ?? part?.result;
-        const errorText = part?.error ?? part?.output ?? part?.result;
-
-        events.push({
-          id: `${idBase}-${eventCounter}`,
-          type: isError ? "tool_error" : isResult ? "tool_end" : "tool_start",
-          status: isError ? "error" : isResult ? "success" : "running",
-          title,
-          toolName,
-          details:
-            isResult && resultText
-              ? typeof resultText === "string"
-                ? String(resultText).slice(0, 160)
-                : "Completed"
-              : isError && errorText
-                ? String(errorText).slice(0, 160)
-                : isCall
-                  ? "Executing..."
-                  : undefined,
-          timestamp,
-        });
-      }
-    }
-
-    return events;
+    return extractLiveEventsFromUIMessages(streamingMessages);
   }, [chatMode, isProductConversationMode, productConversation.streaming.stages, streamingMessages]);
 
   const createStreamingThread = useAction(api.domains.agents.fastAgentPanelStreaming.createThread);
