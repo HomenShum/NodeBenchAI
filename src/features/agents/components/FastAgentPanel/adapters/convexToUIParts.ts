@@ -145,6 +145,15 @@ function firstDefined(...values: unknown[]): unknown {
   return values.find((value) => value !== undefined);
 }
 
+function hasErrorEvidence(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  return typeof value !== "string" || value.trim().length > 0;
+}
+
+function firstErrorEvidence(...values: unknown[]): unknown {
+  return values.find(hasErrorEvidence);
+}
+
 function hasOwn(part: PartRecord, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(part, key);
 }
@@ -187,6 +196,9 @@ function hasValidUnifiedStateShape(
   state: ToolState,
 ): boolean {
   if (!hasOwn(part, "input")) return false;
+  if (hasOwn(part, "args") || hasOwn(part, "result") || hasOwn(part, "error")) {
+    return false;
+  }
 
   switch (state) {
     case "input-streaming":
@@ -195,14 +207,25 @@ function hasValidUnifiedStateShape(
     case "output-available":
       return hasOwn(part, "output") && !hasOwn(part, "errorText");
     case "output-error":
-      return !hasOwn(part, "output") && typeof part.errorText === "string";
+      return (
+        !hasOwn(part, "output") && nonEmptyString(part.errorText) !== undefined
+      );
   }
 }
 
 function inferUnifiedState(part: PartRecord): ToolState {
+  const explicitState = validToolState(part.state) ? part.state : undefined;
+  if (
+    explicitState === "output-available" ||
+    explicitState === "output-error"
+  ) {
+    return explicitState;
+  }
+
   const status = nonEmptyString(part.status)?.toLowerCase();
   if (
-    firstDefined(part.errorText, part.error) !== undefined ||
+    hasErrorEvidence(part.errorText) ||
+    hasErrorEvidence(part.error) ||
     status === "error" ||
     status === "failed"
   ) {
@@ -219,7 +242,7 @@ function inferUnifiedState(part: PartRecord): ToolState {
   if (status === "running" || status === "streaming" || status === "pending") {
     return "input-streaming";
   }
-  if (validToolState(part.state)) return part.state;
+  if (explicitState) return explicitState;
   return "input-available";
 }
 
@@ -299,7 +322,7 @@ function normalizeUnifiedToolPart(
     return {
       ...common,
       errorText: String(
-        firstDefined(part.errorText, part.error, part.result, part.output) ??
+        firstErrorEvidence(part.errorText, part.error) ??
           "Tool execution failed",
       ),
     } as NormalizedToolPart;
@@ -437,7 +460,7 @@ function normalizeToolParts(
 
   const rememberOpenCall = (toolName: string, toolCallId: string) => {
     const ids = openCallIdsByName.get(toolName) ?? [];
-    ids.push(toolCallId);
+    if (!ids.includes(toolCallId)) ids.push(toolCallId);
     openCallIdsByName.set(toolName, ids);
   };
 

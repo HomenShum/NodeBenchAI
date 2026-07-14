@@ -205,6 +205,67 @@ describe("convexToUIParts", () => {
     expect(tools[1]).toMatchObject({ input: { page: 2 }, output: "second" });
   });
 
+  it("does not enqueue repeated unified snapshots as separate open calls", () => {
+    const input = { page: 1 };
+    const streamingSnapshot = {
+      type: "tool-fetchUrl",
+      toolCallId: "fetch-1",
+      state: "input-streaming",
+      input,
+    };
+    const availableSnapshot = {
+      type: "tool-fetchUrl",
+      toolCallId: "fetch-1",
+      state: "input-available",
+      input,
+    };
+    const firstResult = {
+      type: "tool-result",
+      toolName: "fetchUrl",
+      result: "first",
+    };
+    const secondResult = {
+      type: "tool-result",
+      toolName: "fetchUrl",
+      result: "second",
+    };
+
+    const result = convexToUIParts(
+      message([
+        streamingSnapshot,
+        availableSnapshot,
+        firstResult,
+        secondResult,
+      ]),
+    );
+
+    expect(result.toolParts).toHaveLength(2);
+    expect(result.toolParts[0]).toMatchObject({
+      toolCallId: "fetch-1",
+      input,
+      output: "first",
+    });
+    expect(result.toolParts[1]).toMatchObject({
+      toolCallId: "legacy:message-1:fetchUrl:4",
+      output: "second",
+    });
+    expect(
+      result.renderParts.map(({ kind, originalIndex }) => ({
+        kind,
+        originalIndex,
+      })),
+    ).toEqual([
+      { kind: "tool", originalIndex: 0 },
+      { kind: "tool", originalIndex: 3 },
+    ]);
+    expect(result.renderParts[0]).toMatchObject({
+      rawParts: [streamingSnapshot, availableSnapshot, firstResult],
+    });
+    expect(result.renderParts[1]).toMatchObject({
+      rawParts: [secondResult],
+    });
+  });
+
   it("normalizes legacy tool errors and keeps the original input object", () => {
     const input = { url: "https://example.com" };
     const [tool] = convexToUIParts(
@@ -434,6 +495,56 @@ describe("convexToUIParts", () => {
       callProviderMetadata: { openai: { requestId: "req-1" } },
     });
     expect(tool).not.toHaveProperty("output");
+  });
+
+  it("keeps explicit terminal states while repairing contradictory nullable fields", () => {
+    const errorInput = { url: "https://example.com" };
+    const partialOutput = { partial: true };
+    const explicitError = {
+      type: "tool-fetchUrl",
+      toolCallId: "fetch-with-partial-output",
+      state: "output-error",
+      input: errorInput,
+      output: partialOutput,
+    };
+    const successInput = { id: 1 };
+    const successOutput = { ok: true };
+    const nullableError = {
+      type: "tool-saveRecord",
+      toolCallId: "save-with-null-error",
+      state: "output-available",
+      input: successInput,
+      output: successOutput,
+      error: null,
+    };
+
+    const [normalizedError, normalizedOutput] = convexToUIParts(
+      message([explicitError, nullableError]),
+    ).toolParts;
+
+    expect(normalizedError).not.toBe(explicitError);
+    expect(normalizedError).toMatchObject({
+      type: "tool-fetchUrl",
+      toolCallId: "fetch-with-partial-output",
+      state: "output-error",
+      input: errorInput,
+      errorText: "Tool execution failed",
+    });
+    expect(normalizedError).not.toHaveProperty("output");
+
+    expect(normalizedOutput).not.toBe(nullableError);
+    expect(normalizedOutput).toMatchObject({
+      type: "tool-saveRecord",
+      toolCallId: "save-with-null-error",
+      state: "output-available",
+      input: successInput,
+      output: successOutput,
+    });
+    expect(
+      normalizedOutput.state === "output-available" && normalizedOutput.output,
+    ).toBe(successOutput);
+    expect(normalizedOutput).not.toHaveProperty("error");
+    expect(normalizedOutput).not.toHaveProperty("errorText");
   });
 
   it("passes a state-valid unified output error through by identity", () => {
