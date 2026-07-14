@@ -6,23 +6,22 @@
  * Integrates with the existing ToolStep rendering in UIMessageBubble.
  */
 
-import React, { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
-  Wrench,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  ChevronDown,
-  ChevronRight,
-  Zap,
   ArrowRight,
-  Search,
-  Shield,
-  Database,
-  FileCode,
-  Settings,
   BookOpen,
+  CheckCircle2,
+  Clock,
+  Wrench,
+  XCircle,
+  Zap,
 } from 'lucide-react';
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  type ToolPart,
+} from '@/components/ai-elements/tool';
 
 interface ToolCallData {
   toolName: string;
@@ -45,26 +44,13 @@ interface ToolCallTransparencyProps {
   compact?: boolean;
 }
 
-const TOOL_ICONS: Record<string, React.ReactNode> = {
-  convex_audit_schema: <Database className="w-3.5 h-3.5" />,
-  convex_suggest_indexes: <Search className="w-3.5 h-3.5" />,
-  convex_check_validator_coverage: <Shield className="w-3.5 h-3.5" />,
-  convex_audit_functions: <FileCode className="w-3.5 h-3.5" />,
-  convex_check_function_refs: <FileCode className="w-3.5 h-3.5" />,
-  convex_pre_deploy_gate: <Shield className="w-3.5 h-3.5" />,
-  convex_check_env_vars: <Settings className="w-3.5 h-3.5" />,
-  convex_record_gotcha: <BookOpen className="w-3.5 h-3.5" />,
-  convex_search_gotchas: <Search className="w-3.5 h-3.5" />,
-  convex_get_methodology: <BookOpen className="w-3.5 h-3.5" />,
-  convex_discover_tools: <Search className="w-3.5 h-3.5" />,
-  convex_generate_rules_md: <FileCode className="w-3.5 h-3.5" />,
-  convex_snapshot_schema: <Database className="w-3.5 h-3.5" />,
-  convex_bootstrap_project: <Zap className="w-3.5 h-3.5" />,
-};
+type PrimitiveToolState = ToolPart['state'];
 
-function getToolIcon(toolName: string): React.ReactNode {
-  return TOOL_ICONS[toolName] || <Wrench className="w-3.5 h-3.5" />;
-}
+const TOOL_STATE_BY_STATUS: Record<ToolCallData['status'], PrimitiveToolState> = {
+  running: 'input-available',
+  success: 'output-available',
+  error: 'output-error',
+};
 
 function getToolCategory(toolName: string): string {
   if (toolName.includes('schema') || toolName.includes('index') || toolName.includes('validator') || toolName.includes('snapshot')) return 'Schema';
@@ -94,124 +80,127 @@ function ConfidenceBadge({ confidence }: { confidence: 'high' | 'medium' | 'low'
   );
 }
 
+function CompactStatusIcon({ state }: { state: PrimitiveToolState }) {
+  if (state === 'output-available') {
+    return <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />;
+  }
+  if (state === 'output-error') {
+    return <XCircle className="h-3.5 w-3.5 text-red-500" />;
+  }
+  return <Clock className="h-3.5 w-3.5 text-primary motion-safe:animate-spin" />;
+}
+
 function SingleToolCall({ call, compact }: { call: ToolCallData; compact?: boolean }) {
-  const [expanded, setExpanded] = useState(false);
   const category = getToolCategory(call.toolName);
-  const icon = getToolIcon(call.toolName);
-
-  const statusIcon = call.status === 'success'
-    ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-    : call.status === 'error'
-    ? <XCircle className="w-3.5 h-3.5 text-red-500" />
-    : <Clock className="w-3.5 h-3.5 text-violet-500 motion-safe:animate-spin" />;
-
+  const primitiveState = TOOL_STATE_BY_STATUS[call.status];
   const displayName = call.toolName.replace(/^convex_/, '').replace(/_/g, ' ');
 
   if (compact) {
     return (
-      <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-surface-secondary border border-edge text-xs">
-        {statusIcon}
+      <Tool
+        className="mb-0 inline-flex w-auto items-center gap-1.5 rounded-full border-edge bg-surface-secondary px-2 py-1 text-xs"
+        data-tool-state={primitiveState}
+      >
+        <CompactStatusIcon state={primitiveState} />
         <span className="font-medium text-content">{displayName}</span>
         {call.durationMs !== undefined && (
           <span className="text-content-muted">{formatDuration(call.durationMs)}</span>
         )}
-      </div>
+      </Tool>
     );
   }
 
   return (
-    <div className="border border-edge rounded-lg overflow-hidden bg-surface shadow-sm">
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-surface-hover transition-colors text-left"
-        aria-label={expanded ? `Collapse ${call.toolName.replace(/^convex_/, '').replace(/_/g, ' ')} details` : `Expand ${call.toolName.replace(/^convex_/, '').replace(/_/g, ' ')} details`}
-      >
-        {expanded ? <ChevronDown className="w-3.5 h-3.5 text-content-muted" /> : <ChevronRight className="w-3.5 h-3.5 text-content-muted" />}
-        <span className="flex items-center gap-1.5 text-content-secondary">
-          {icon}
-        </span>
-        <span className="text-xs font-medium text-content flex-1">{displayName}</span>
-        <span className="text-xs text-content-muted px-1.5 py-0.5 rounded bg-surface-secondary">{category}</span>
+    <Tool
+      className="mb-0 overflow-hidden rounded-lg border-edge bg-surface shadow-sm"
+      data-tool-state={primitiveState}
+      defaultOpen={false}
+    >
+      <ToolHeader
+        className="px-3 py-2 text-left transition-colors hover:bg-surface-hover motion-reduce:transition-none motion-reduce:[&_.animate-pulse]:animate-none"
+        state={primitiveState}
+        title={displayName}
+        toolName={call.toolName}
+        type="dynamic-tool"
+      />
+
+      <div className="-mt-1 flex items-center gap-2 px-3 pb-2 text-xs text-content-muted">
+        <span className="rounded bg-surface-secondary px-1.5 py-0.5">{category}</span>
         {call.durationMs !== undefined && (
-          <span className="text-xs text-content-muted flex items-center gap-0.5">
-            <Clock className="w-3 h-3" />
+          <span className="flex items-center gap-0.5">
+            <Clock className="h-3 w-3" />
             {formatDuration(call.durationMs)}
           </span>
         )}
-        {statusIcon}
-      </button>
+      </div>
 
-      {expanded && (
-        <div className="px-3 pb-3 pt-1 border-t border-edge space-y-2">
-          {call.inputSummary && (
-            <div className="text-xs">
-              <span className="text-content-muted font-medium">Input: </span>
-              <span className="text-content-secondary">{call.inputSummary}</span>
-            </div>
-          )}
-          {call.outputSummary && (
-            <div className="text-xs">
-              <span className="text-content-muted font-medium">Output: </span>
-              <span className="text-content-secondary">{call.outputSummary}</span>
-            </div>
-          )}
+      <ToolContent className="space-y-2 border-t border-edge px-3 pb-3 pt-2">
+        {call.inputSummary && (
+          <div className="text-xs">
+            <span className="font-medium text-content-muted">Input: </span>
+            <span className="text-content-secondary">{call.inputSummary}</span>
+          </div>
+        )}
+        {call.outputSummary && (
+          <div className="text-xs">
+            <span className="font-medium text-content-muted">Output: </span>
+            <span className="text-content-secondary">{call.outputSummary}</span>
+          </div>
+        )}
 
-          {call.quickRef && (
-            <div className="mt-2 p-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Zap className="w-3 h-3 text-violet-500" />
-                <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">QuickRef</span>
-                <ConfidenceBadge confidence={call.quickRef.confidence} />
+        {call.quickRef && (
+          <div className="mt-2 rounded-md border border-blue-200 bg-blue-50 p-2 dark:border-blue-800 dark:bg-blue-900/20">
+            <div className="mb-1 flex items-center gap-1.5">
+              <Zap className="h-3 w-3 text-violet-500" />
+              <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">QuickRef</span>
+              <ConfidenceBadge confidence={call.quickRef.confidence} />
+            </div>
+            <p className="mb-1 text-xs text-blue-800 dark:text-blue-200">
+              {call.quickRef.nextAction}
+            </p>
+            {call.quickRef.nextTools.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1">
+                <ArrowRight className="h-3 w-3 text-blue-400" />
+                {call.quickRef.nextTools.map((tool) => (
+                  <span key={tool} className="rounded bg-blue-100 px-1.5 py-0.5 font-mono text-xs text-blue-700 dark:bg-blue-800/40 dark:text-blue-300">
+                    {tool}
+                  </span>
+                ))}
               </div>
-              <p className="text-xs text-blue-800 dark:text-blue-200 mb-1">
-                {call.quickRef.nextAction}
-              </p>
-              {call.quickRef.nextTools.length > 0 && (
-                <div className="flex items-center gap-1 flex-wrap">
-                  <ArrowRight className="w-3 h-3 text-blue-400" />
-                  {call.quickRef.nextTools.map((tool) => (
-                    <span key={tool} className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-800/40 text-blue-700 dark:text-blue-300 font-mono">
-                      {tool}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {call.quickRef.relatedGotchas.length > 0 && (
-                <div className="mt-1 flex items-center gap-1 flex-wrap">
-                  <BookOpen className="w-3 h-3 text-amber-500" />
-                  {call.quickRef.relatedGotchas.slice(0, 3).map((g) => (
-                    <span key={g} className="text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-800/30 text-amber-700 dark:text-amber-300 font-mono">
-                      {g}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+            )}
+            {call.quickRef.relatedGotchas.length > 0 && (
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                <BookOpen className="h-3 w-3 text-amber-500" />
+                {call.quickRef.relatedGotchas.slice(0, 3).map((gotcha) => (
+                  <span key={gotcha} className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-xs text-amber-700 dark:bg-amber-800/30 dark:text-amber-300">
+                    {gotcha}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </ToolContent>
+    </Tool>
   );
 }
 
-export function ToolCallTransparency({ toolCalls, isStreaming, compact }: ToolCallTransparencyProps) {
+export function ToolCallTransparency({ toolCalls, compact }: ToolCallTransparencyProps) {
   const stats = useMemo(() => {
     const total = toolCalls.length;
-    const success = toolCalls.filter((t) => t.status === 'success').length;
-    const errors = toolCalls.filter((t) => t.status === 'error').length;
-    const running = toolCalls.filter((t) => t.status === 'running').length;
-    const totalDuration = toolCalls.reduce((sum, t) => sum + (t.durationMs || 0), 0);
-    return { total, success, errors, running, totalDuration };
+    const errors = toolCalls.filter((toolCall) => toolCall.status === 'error').length;
+    const running = toolCalls.filter((toolCall) => toolCall.status === 'running').length;
+    const totalDuration = toolCalls.reduce((sum, toolCall) => sum + (toolCall.durationMs || 0), 0);
+    return { total, errors, running, totalDuration };
   }, [toolCalls]);
 
   if (toolCalls.length === 0) return null;
 
   if (compact) {
     return (
-      <div className="flex items-center gap-2 flex-wrap">
-        {toolCalls.map((call, idx) => (
-          <SingleToolCall key={`${call.toolName}-${idx}`} call={call} compact />
+      <div className="flex flex-wrap items-center gap-2">
+        {toolCalls.map((call, index) => (
+          <SingleToolCall key={`${call.toolName}-${index}`} call={call} compact />
         ))}
       </div>
     );
@@ -220,7 +209,7 @@ export function ToolCallTransparency({ toolCalls, isStreaming, compact }: ToolCa
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-xs text-content-muted">
-        <Wrench className="w-3.5 h-3.5" />
+        <Wrench className="h-3.5 w-3.5" />
         <span className="font-medium">
           {stats.total} tool call{stats.total !== 1 ? 's' : ''}
         </span>
@@ -228,8 +217,8 @@ export function ToolCallTransparency({ toolCalls, isStreaming, compact }: ToolCa
           <span>({formatDuration(stats.totalDuration)})</span>
         )}
         {stats.running > 0 && (
-          <span className="text-violet-500 flex items-center gap-0.5">
-            <Clock className="w-3 h-3 motion-safe:animate-spin" />
+          <span className="flex items-center gap-0.5 text-primary">
+            <Clock className="h-3 w-3 motion-safe:animate-spin" />
             {stats.running} running
           </span>
         )}
@@ -239,8 +228,8 @@ export function ToolCallTransparency({ toolCalls, isStreaming, compact }: ToolCa
       </div>
 
       <div className="space-y-1.5">
-        {toolCalls.map((call, idx) => (
-          <SingleToolCall key={`${call.toolName}-${idx}`} call={call} />
+        {toolCalls.map((call, index) => (
+          <SingleToolCall key={`${call.toolName}-${index}`} call={call} />
         ))}
       </div>
     </div>
