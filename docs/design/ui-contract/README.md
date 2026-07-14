@@ -1,52 +1,77 @@
 # UI Contract — Visual Evidence
 
-Dated, append-only visual-contract evidence for NodeBench's UI migrations
-(currently the AI Elements adoption). Governed by
-[`../UI_CONTRACT.md`](../UI_CONTRACT.md); machine-readable companion is
-[`src/design/designSystem.ts`](../../../src/design/designSystem.ts).
+This directory is the append-only evidence store for NodeBench UI migrations.
+It is governed by [`../UI_CONTRACT.md`](../UI_CONTRACT.md); the machine-readable
+companion is [`src/design/designSystem.ts`](../../../src/design/designSystem.ts).
 
-Pattern borrowed from NodeRoom's `docs/design/ui-contract/` — each capture is a
-dated folder holding screenshots + a `manifest.json` describing what was shot,
-plus (for migrations) before/after pairs and Gemini QA receipts.
+At the current `origin/main` boundary through PR #527, this directory contains
+the protocol and schema only. No dated proof folder is present, so this document
+does not claim screenshots, QA findings, an Agentic UI Bar score, preview
+verification, or production-live verification.
+
+## Evidence states
+
+Record each state independently:
+
+| State | Minimum evidence |
+|---|---|
+| source merged | canonical main SHA and PR |
+| checks verified | exact command, result, and tested SHA |
+| visual proof complete | real before/after files plus schema-valid manifest |
+| preview verified | normal product route, preview URL/build, browser assertions |
+| production live verified | post-merge production URL, deployed revision/bundle, browser assertions |
+
+Never promote one state based on another. A build is not a live check; a
+screenshot is not a deployment check; a branch SHA is not the canonical main
+SHA after squash merge.
 
 ## Folder convention
 
-```
+```text
 ui-contract/
-  README.md                         ← this file (the protocol)
-  manifest.schema.json              ← the manifest shape every capture folder follows
-  YYYYMMDD-<slice>/                 ← one folder per capture session
-    manifest.json                   ← required: what/where/how it was captured
-    <surface>-<WxH>.png             ← source-design or "after" screenshots
-    before-<surface>-<WxH>.png      ← (migration proof) the pre-change baseline
-    after-<surface>-<WxH>.png       ← (migration proof) the post-change result
-    <surface>-qa.json               ← (optional) Gemini QA receipt for that shot
+  README.md
+  manifest.schema.json
+  YYYYMMDD-<slice>/
+    manifest.json
+    before-<surface>-<WxH>.png
+    after-<surface>-<WxH>.png
+    <surface>-qa.json              # optional, only when actually produced
 ```
 
-Slug examples: `20260714-ai-elements-batch1`, `20260714-flagship-conversation`.
-Viewports: desktop `1456x940` / `1280x900`, mobile `390x844`. Dark + light both
-where theming changed.
+Useful viewports include desktop `1456x940` or `1280x900` and mobile `390x844`.
+Capture light and dark only where those states are actually exercised.
 
 ## Capture protocol
 
-1. Build + serve the real app (never a static mock):
+1. Start from a clean worktree at the exact baseline or candidate revision.
+2. Build and serve the real app:
    `npm run build && npx vite preview --host 127.0.0.1 --port 4173`.
-2. Drive **normal product paths** to the migrated surface (the FastAgentPanel
-   agent chat), in dark and light, desktop and mobile 390px.
-3. Screenshot before (from `origin/main` or the pre-batch commit) and after.
-   The repo's dogfood tooling already automates capture + publish:
-   `npm run dogfood:full:local` (or `scripts/ui/recordDogfoodWalkthrough.mjs`).
-4. (Optional but preferred) score with the Gemini QA loop
-   (`scripts/ui/runDogfoodGeminiQa.mjs`) and drop the JSON receipt beside the shot.
-5. Write `manifest.json` (schema below) and reference the folder from
-   `UI_CONTRACT.md` → Migration Status.
+3. Drive the normal product path to the reachable changed region. Preserve web
+   navigation as `Home - Reports - Chat - Inbox - Me`; Workspace remains a
+   separate deployed surface.
+4. Capture before and after from the stated revisions. Do not substitute a
+   static mock, story, or unrelated route for a live product seam.
+5. If a scorer is run, store its actual receipt. If it is not run, omit the
+   receipt and score; never invent a score or finding.
+6. Write `manifest.json`, validate it against `manifest.schema.json`, and ensure
+   every referenced file exists before linking the folder from UI_CONTRACT.
+7. If claiming preview or production state, separately record the URL, deployed
+   revision/bundle evidence, browser assertions, and console result.
 
-## Proof requirement
+Dead or unreachable exports may have source/test evidence, but must not be
+described as live. In particular, a CollapsibleAgentProgress unit render or
+successful build is not proof that the component rendered in production.
 
-A migration slice is not "shipped" until its `ui-contract/YYYYMMDD-*` folder
-exists with before/after screenshots and a manifest, AND `UI_CONTRACT.md` links
-it. Per `live_dom_verification`, screenshots alone do not prove "live" — pair
-them with a live-path browser verification.
+## Proof integrity rules
+
+- Never create placeholder PNGs, empty receipts, synthetic manifests, or copied
+  screenshots solely to satisfy the folder convention.
+- Never cite a path that does not exist.
+- Never reuse a result from a different SHA without labeling it historical.
+- Keep domain and proof cards visible in any chat capture; do not replace live
+  Convex data with fixtures to make a screenshot easier.
+- Redact secrets and private content without changing the functional state being
+  verified.
 
 ## Manifest shape
 
@@ -56,23 +81,22 @@ See [`manifest.schema.json`](manifest.schema.json). Minimal example:
 {
   "schema": "nodebench-ui-contract-v1",
   "capturedAt": "2026-07-14T00:00:00.000Z",
-  "slice": "ai-elements-batch1",
+  "slice": "ai-elements-example",
   "app": "nodebench-ai",
   "localServer": "http://127.0.0.1:4173",
-  "policy": "before/after proof for a behavior-preserving migration; production parity verified via normal product paths separately",
-  "commitBefore": "776c4868~1",
-  "commitAfter": "776c4868",
+  "policy": "before/after proof for a behavior-preserving migration",
+  "commitBefore": "<real baseline SHA>",
+  "commitAfter": "<real candidate SHA>",
   "pages": [
     {
-      "id": "fast-agent-panel-typing",
-      "label": "Agent chat — streaming",
-      "purpose": "shimmer + reasoning primitives during a live stream",
+      "id": "fast-agent-panel-chat",
+      "label": "Agent chat",
+      "purpose": "reachable migrated region under normal product navigation",
       "route": "/?surface=ask",
       "viewport": { "width": 1456, "height": 940 },
       "theme": "dark",
-      "before": "before-fast-agent-panel-typing-1456x940.png",
-      "after": "after-fast-agent-panel-typing-1456x940.png",
-      "qa": "fast-agent-panel-typing-qa.json"
+      "before": "before-fast-agent-panel-chat-1456x940.png",
+      "after": "after-fast-agent-panel-chat-1456x940.png"
     }
   ]
 }
