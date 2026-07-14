@@ -184,6 +184,37 @@ export const PanelHeader = memo(function PanelHeader({
 
       {/* Primary Actions */}
       <div className="flex items-center gap-1">
+        {isCompactSidebar && liveEvents.length > 0 && (() => {
+          const runningCount = liveEvents.filter(
+            (event) => event.status === 'running'
+          ).length;
+          return (
+            <button
+              type="button"
+              onClick={() => setShowEventsPanel(previous => !previous)}
+              className="inline-flex items-center gap-1 rounded-md p-1.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content"
+              aria-label={`Open live events (${runningCount} running)`}
+              title="Live Events"
+            >
+              <Activity
+                aria-hidden="true"
+                className={cn(
+                  'h-4 w-4',
+                  runningCount > 0 && 'text-violet-500'
+                )}
+              />
+              {runningCount > 0 && (
+                <span
+                  aria-hidden="true"
+                  className="min-w-4 rounded-full bg-violet-500 px-1 text-center text-[10px] font-semibold leading-4 text-white"
+                >
+                  {runningCount}
+                </span>
+              )}
+            </button>
+          );
+        })()}
+
         {/* Persona Switcher */}
         {!isCompactSidebar && <div className="relative">
           <button
