@@ -133,7 +133,7 @@ describe('FastAgentInputBar parity', () => {
     expect(onSend).toHaveBeenCalledWith('Ship the composer');
   });
 
-  it('allows attachment-only submission through the existing optional content API', async () => {
+  it('holds attachment-only submission with an explicit capability warning', () => {
     const onSend = vi.fn();
     const attachment = new File(['evidence'], 'evidence.txt', {
       type: 'text/plain',
@@ -145,9 +145,18 @@ describe('FastAgentInputBar parity', () => {
       </SelectionProvider>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
-    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
-    expect(onSend).toHaveBeenCalledWith(undefined);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Attachments held. This chat cannot send files yet.',
+    );
+    const submit = screen.getByRole('button', { name: 'Send message' });
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute(
+      'aria-describedby',
+      'fa-chat-input-attachments-held',
+    );
+    fireEvent.click(submit);
+    expect(onSend).not.toHaveBeenCalled();
+    expect(screen.getByText('evidence.txt')).toBeInTheDocument();
   });
 
   it('allows dragged-document-only submission through the parent fallback', async () => {
@@ -192,6 +201,32 @@ describe('FastAgentInputBar parity', () => {
 
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
     expect(onSend).toHaveBeenCalledWith(undefined);
+  });
+
+  it('keeps analyzing-only document submission disabled until a document is ready', () => {
+    const onSend = vi.fn();
+
+    render(
+      <SelectionProvider>
+        <ControlledInputBar
+          contextDocuments={[
+            {
+              analyzing: true,
+              id: 'doc-loading',
+              title: 'Board memo',
+              type: 'document',
+            },
+          ]}
+          onSend={onSend}
+        />
+      </SelectionProvider>,
+    );
+
+    expect(screen.getByText('Analyzing Board memo...')).toBeInTheDocument();
+    const submit = screen.getByRole('button', { name: 'Send message' });
+    expect(submit).toBeDisabled();
+    fireEvent.click(submit);
+    expect(onSend).not.toHaveBeenCalled();
   });
 
   it('intercepts a completed voice command before agent submission', () => {
@@ -461,6 +496,27 @@ describe('FastAgentInputBar parity', () => {
     expect(screen.getByRole('textbox')).toHaveValue(
       'Enhanced prompt with memory',
     );
+  });
+
+  it('does not pass placeholder file ids into prompt enhancement', () => {
+    const attachment = new File(['evidence'], 'evidence.txt', {
+      type: 'text/plain',
+    });
+    render(
+      <SelectionProvider>
+        <ControlledInputBar
+          attachedFiles={[attachment]}
+          initialInput="Improve this with the file"
+        />
+      </SelectionProvider>,
+    );
+
+    const enhanceButton = screen.getByTitle(
+      'Enhance prompt with context (Ctrl+P)',
+    );
+    expect(enhanceButton).toBeDisabled();
+    fireEvent.keyDown(window, { ctrlKey: true, key: 'p' });
+    expect(enhancePrompt).not.toHaveBeenCalled();
   });
 
   it('keeps the real inline enhancer outside the form submit path', async () => {

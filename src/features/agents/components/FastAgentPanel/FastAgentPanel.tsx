@@ -70,6 +70,10 @@ import { useConversationEngine } from '@/features/chat/hooks/useConversationEngi
 import type { LensId } from '@/features/controlPlane/components/searchTypes';
 import { ProductIntakeComposer } from '@/features/product/components/ProductIntakeComposer';
 import { uploadProductDraftFiles } from '@/features/product/lib/uploadDraftFiles';
+import {
+  dispatchFastAgentSubmission,
+  prepareFastAgentSubmission,
+} from './FastAgentPanel.sendContract';
 
 import type {
   Message,
@@ -1856,17 +1860,36 @@ export const FastAgentPanel = memo(function FastAgentPanel({
   }, []);
 
   const handleSendMessage = useCallback(async (content?: string) => {
-    const submittedText = (content ?? input).trim();
-    // InputBar intentionally keeps `content` optional so attachments and document
-    // context can be submitted without synthetic text inside the presentation layer.
-    const attachmentOnlyPrompt = attachedFiles.length > 0
-      ? `Please analyze the attached file${attachedFiles.length === 1 ? '' : 's'}: ${attachedFiles.map((file) => file.name).join(', ')}.`
-      : '';
-    const documentOnlyPrompt = contextDocuments.length > 0 || selectedDocumentIds.size > 0
-      ? 'Please analyze the selected documents.'
-      : '';
-    const text = submittedText || attachmentOnlyPrompt || documentOnlyPrompt;
-    if (!text || isBusy) return;
+    if (isBusy) return;
+
+    const preparedSubmission = prepareFastAgentSubmission({
+      allowAttachments: isProductConversationMode && isAuthenticated,
+      attachedFiles,
+      content,
+      contextDocuments,
+      dossierPrefix: dossierPrefixRef.current,
+      input,
+      selectedDocumentIds,
+    });
+
+    if (!preparedSubmission.ok) {
+      if (preparedSubmission.reason === 'attachments_unsupported') {
+        toast.error('Attachments are held', {
+          description: 'This chat cannot send files yet. Remove them to send your message; your files will stay attached until then.',
+        });
+      } else if (preparedSubmission.reason === 'documents_analyzing') {
+        toast.info('Document analysis is still running', {
+          description: 'Wait for at least one document to finish before sending.',
+        });
+      }
+      return;
+    }
+
+    const {
+      consumedContextDocumentIds,
+      messageContent,
+      text,
+    } = preparedSubmission;
 
     // Guest/demo mode intercept: play scripted or fallback response
     if (!isAuthenticated) {
@@ -1965,39 +1988,19 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       }
     }
 
-    // Build message with document context if documents are selected or dragged
-    let messageContent = text;
-
-    // Include dossier context if present (for act-aware agent interactions)
-    const dossierPrefix = dossierPrefixRef.current;
-    if (dossierPrefix) {
-      messageContent = `${dossierPrefix}${messageContent}`;
-    }
-
-    // Include drag-and-drop context documents
-    if (contextDocuments.length > 0) {
-      const contextInfo = contextDocuments
-        .filter(doc => !doc.analyzing) // Only include analyzed documents
-        .map(doc => `${doc.title} (ID: ${doc.id})`)
-        .join(', ');
-      if (contextInfo) {
-        messageContent = `[CONTEXT: Analyzing documents: ${contextInfo}]\n\n${messageContent}`;
-      }
-    }
-
-    // Also include selected document IDs (legacy)
-    if (selectedDocumentIds.size > 0) {
-      const docIdArray = Array.from(selectedDocumentIds);
-      messageContent = `[CONTEXT: Analyzing ${docIdArray.length} document(s): ${docIdArray.join(', ')}]\n\n${messageContent}`;
-    }
-
     setInput('');
     setLiveTokens("");
     setLiveAgents([]);
     setIsStreaming(true);
 
-    // Clear context documents and calendar events after sending
-    setContextDocuments([]);
+    // Clear only document context that was actually included. Documents still being
+    // analyzed remain visible and cannot be silently dropped by an unrelated send.
+    if (consumedContextDocumentIds.length > 0) {
+      const consumedDocumentIds = new Set(consumedContextDocumentIds);
+      setContextDocuments((current) =>
+        current.filter((document) => !consumedDocumentIds.has(document.id)),
+      );
+    }
     setContextCalendarEvents([]);
 
     // Clear live state
@@ -2024,21 +2027,19 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         setAttachedFiles([]);
         setIsStreaming(false);
       } else if (chatMode === 'agent') {
-        // Agent-based chat flow
-        let result;
-        if (!activeThreadId) {
-          // Create new thread with first message
-          result = await createThreadWithMessage({
-            message: messageContent,
-            model: selectedModel,
-          });
-          setActiveThreadId(result.threadId);
-        } else {
-          // Continue existing thread
-          result = await continueThreadAction({
-            threadId: activeThreadId,
-            message: messageContent,
-          });
+        const result = await dispatchFastAgentSubmission({
+          activeThreadId,
+          chatMode,
+          clientContext: undefined,
+          continueThreadAction,
+          createThreadWithMessage,
+          messageContent,
+          selectedModel,
+          sendStreamingMessage,
+          streamThreadId: null,
+        });
+        if (result.createdThreadId) {
+          setActiveThreadId(result.createdThreadId);
         }
 
         setIsStreaming(false);
@@ -2085,15 +2086,19 @@ export const FastAgentPanel = memo(function FastAgentPanel({
             }
             : undefined;
 
-        await sendStreamingMessage({
-          threadId: threadId as Id<"chatThreadsStream">,
-          prompt: messageContent,
-          model: selectedModel,
-          useCoordinator: true,  // Enable smart routing via coordinator
-          arbitrageEnabled,
+        await dispatchFastAgentSubmission({
+          activeThreadId,
           anonymousSessionId: anonymousSession.sessionId ?? undefined,
+          arbitrageEnabled,
+          chatMode,
           clientContext,
+          continueThreadAction,
+          createThreadWithMessage,
           entitySlug: productEntitySlug ?? undefined,
+          messageContent,
+          selectedModel,
+          sendStreamingMessage,
+          streamThreadId: threadId as Id<"chatThreadsStream">,
         });
 
         setIsStreaming(false);

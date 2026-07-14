@@ -2,7 +2,7 @@
 // Enhanced input bar with auto-resize, context pills, drag-and-drop, and floating design
 
 import React, { useState, useRef, useEffect, useCallback, KeyboardEvent, DragEvent } from 'react';
-import { Send, Loader2, Paperclip, X, Mic, Video, Image as ImageIcon, FileText, ChevronUp, StopCircle, FolderOpen, Table2, Calendar, Zap, Gift, AlignLeft, AlignJustify, BookOpen } from 'lucide-react';
+import { Send, Loader2, Paperclip, X, Mic, Video, Image as ImageIcon, FileText, ChevronUp, StopCircle, FolderOpen, Table2, Calendar, Zap, Gift, AlignLeft, AlignJustify, BookOpen, AlertTriangle } from 'lucide-react';
 import { MediaRecorderComponent } from './FastAgentPanel.MediaRecorder';
 import { FileDropOverlay } from '@/shared/components/FileDropOverlay';
 import { cn } from '@/lib/utils';
@@ -383,6 +383,7 @@ export function FastAgentInputBar({
 
   // Selection context for "Chat with Selection" feature
   const { selection, clearSelection } = useSelection();
+  const attachmentsHeld = attachedFiles.length > 0;
 
   // Prompt enhancement action
   const enhancePromptAction = useAction(api.domains.agents.promptEnhancer.enhancePrompt);
@@ -390,14 +391,19 @@ export function FastAgentInputBar({
   // Handle prompt enhancement (Ctrl+P)
   const handleEnhance = useCallback(async () => {
     if (!input.trim() || isStreaming || isEnhancing) return;
+    if (attachmentsHeld) {
+      toast.error('Attachments are held', {
+        description: 'Prompt enhancement cannot read these files. Remove them before enhancing your message.',
+      });
+      return;
+    }
 
     setIsEnhancing(true);
     try {
-      const attachedFileIds = attachedFiles.map((_, i) => `file-${i}`); // Placeholder IDs
       const result = await enhancePromptAction({
         prompt: input,
         threadId,
-        attachedFileIds: attachedFileIds.length > 0 ? attachedFileIds : undefined,
+        attachedFileIds: undefined,
       });
 
       if (result && result.enhanced) {
@@ -412,7 +418,7 @@ export function FastAgentInputBar({
     } finally {
       setIsEnhancing(false);
     }
-  }, [input, threadId, attachedFiles, isStreaming, isEnhancing, enhancePromptAction, setInput]);
+  }, [attachmentsHeld, input, threadId, isStreaming, isEnhancing, enhancePromptAction, setInput]);
 
   // Keyboard shortcut for enhancement (Ctrl+P)
   useEffect(() => {
@@ -546,19 +552,26 @@ export function FastAgentInputBar({
     }
   }, [isStreaming]);
 
-  const hasDocumentContext =
-    contextDocuments.length > 0 || (selectedDocumentIds?.size ?? 0) > 0;
+  const hasReadyDocumentContext =
+    contextDocuments.some((document) => !document.analyzing) ||
+    (selectedDocumentIds?.size ?? 0) > 0;
+  const attachmentHeldStatusId = `${_id ?? 'fast-agent-input'}-attachments-held`;
 
   const handleSend = useCallback((content?: string) => {
     const trimmed = (content ?? input).trim();
     const hasSelection = selection !== null;
     const hasCalendarEvents = contextCalendarEvents.length > 0;
+    if (attachmentsHeld) {
+      toast.error('Attachments are held', {
+        description: 'This chat cannot send files yet. Remove them before sending; the files will stay attached until then.',
+      });
+      return;
+    }
     if (
       (!trimmed &&
-        attachedFiles.length === 0 &&
         !hasSelection &&
         !hasCalendarEvents &&
-        !hasDocumentContext) ||
+        !hasReadyDocumentContext) ||
       isStreaming
     ) return;
 
@@ -617,7 +630,7 @@ export function FastAgentInputBar({
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [attachedFiles.length, clearSelection, contextCalendarEvents, contextCalendarEvents.length, flashVoiceConfirmation, hasDocumentContext, input, isStreaming, onSend, onSpawn, onVoiceIntent, selection, setInput]);
+  }, [attachmentsHeld, clearSelection, contextCalendarEvents, contextCalendarEvents.length, flashVoiceConfirmation, hasReadyDocumentContext, input, isStreaming, onSend, onSpawn, onVoiceIntent, selection, setInput]);
 
   sendTextRef.current = handleSend;
 
@@ -758,12 +771,15 @@ export function FastAgentInputBar({
   };
 
   const canSend = (
-    input.trim().length > 0 ||
-    attachedFiles.length > 0 ||
-    hasDocumentContext ||
-    selection !== null ||
-    contextCalendarEvents.length > 0
-  ) && !isStreaming;
+    !attachmentsHeld &&
+    (
+      input.trim().length > 0 ||
+      hasReadyDocumentContext ||
+      selection !== null ||
+      contextCalendarEvents.length > 0
+    ) &&
+    !isStreaming
+  );
   const estimatedInputTokens = Math.ceil(input.length / 4);
   const selectedModelInfo = MODEL_UI_INFO[selectedModel as ApprovedModel];
   const selectedModelMaxTokens = parseContextWindow(selectedModelInfo?.contextWindow);
@@ -1042,12 +1058,27 @@ export function FastAgentInputBar({
                     type="button"
                     onClick={() => onRemoveFile(index)}
                     className="absolute -top-1.5 -right-1.5 bg-surface rounded-full border border-edge p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:text-red-500"
+                    aria-label={`Remove ${file.name}`}
                   >
                     <X className="w-3 h-3" />
                   </button>
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {attachmentsHeld && (
+          <div
+            aria-live="polite"
+            className="mx-3 mt-2 flex items-start gap-2 rounded-lg border border-[rgba(180,83,9,0.20)] bg-[rgba(180,83,9,0.06)] px-2.5 py-2 text-[11px] leading-relaxed text-[var(--warning,#B45309)]"
+            id={attachmentHeldStatusId}
+            role="alert"
+          >
+            <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+            <span>
+              <strong>Attachments held.</strong> This chat cannot send files yet. Remove them to send your message; your files remain attached until then.
+            </span>
           </div>
         )}
 
@@ -1294,7 +1325,7 @@ export function FastAgentInputBar({
               value={input}
               onEnhance={handleEnhance}
               isEnhancing={isEnhancing}
-              disabled={isStreaming}
+              disabled={isStreaming || attachmentsHeld}
             />
           )}
 
@@ -1323,6 +1354,7 @@ export function FastAgentInputBar({
 
           {/* Send/Stop Button */}
           <PromptInputSubmit
+            aria-describedby={attachmentsHeld ? attachmentHeldStatusId : undefined}
             aria-label={isStreaming ? 'Stop generating' : 'Send message'}
             className={cn(
               "press-scale relative size-auto rounded-lg p-2.5 transition-all duration-200",
