@@ -126,16 +126,18 @@ test.describe("live-smoke — Tier B hydrated-DOM verification", () => {
     // (the same bundle rendered via `workspace.nodebenchai.com` once DNS is live).
     const response = await page.goto(BASE_URL + "/workspace/w/acme-ai?tab=brief");
     expect(response?.status()).toBe(200);
-    // Chromeless shell — no cockpit rails, no top nav, no bottom tabbar.
-    // Assert the workspace mounted and kept the no-fixture-fallback contract.
-    await expect(page.getByRole("heading", { name: /Workspace draft/i })).toBeVisible({
-      timeout: 15_000,
-    });
-    // Brand-aware: the product lock docs say "Workspace" should appear in the
-    // chromeless header; this also proves the route didn't fall through to
-    // the cockpit layout.
-    await expect(page.getByText(/Workspace/i).first()).toBeVisible();
-    await expect(page.getByText(/No fixture fallback/i)).toBeVisible();
+    // Chromeless shell: assert the stable runtime contact and current report-shell
+    // contract rather than retired fixture-era copy.
+    const workspace = page.locator(
+      '[data-agent-contact="standalone-workspace-runtime"]',
+    );
+    await expect(workspace).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "acme-ai" })).toBeVisible();
+    await expect(page.getByText("WORKSPACE", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Detail pending - report shell active", { exact: true }),
+    ).toBeVisible();
+    await expect(page.locator("[data-rd-topnav]")).toHaveCount(0);
   });
 
   test("console has no uncaught errors during landing load", async ({ page }) => {
