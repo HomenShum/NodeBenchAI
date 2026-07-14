@@ -61,7 +61,7 @@ Server Error) for an unknown slug.
   `.github/workflows/post-deploy-verify.yml`, `scripts/post-deploy-verify.mjs`,
   `tests/e2e/live-smoke.spec.ts`, release runbooks, and final migration governance/proof ·
   repair fail-closed release truth and own the serial merge/deploy train · branch
-  `codex/ai-elements-release`.
+  `fix/release-verification-fail-closed`.
 - **2026-07-14 · Codex message lane →**
   `src/features/agents/components/FastAgentPanel/adapters/*`, direct message contract tests,
   and `FastAgentPanel.UIMessageBubble.tsx` · build the identity-preserving Convex-to-AI-parts
