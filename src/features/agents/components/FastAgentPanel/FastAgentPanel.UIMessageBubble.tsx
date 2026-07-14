@@ -1396,6 +1396,9 @@ function parseSearchResponsePayload(
  * ToolStep - Renders a single tool call as a structured step with timeline
  */
 type ToolRenderPart = Extract<ConvexUIRenderPart, { kind: 'tool' | 'domain-tool' }>;
+type TextRenderPart = Extract<ConvexUIRenderPart, { kind: 'text' }>;
+type ReasoningRenderPart = Extract<ConvexUIRenderPart, { kind: 'reasoning' }>;
+type DomainRenderPart = Extract<ConvexUIRenderPart, { kind: 'domain' }>;
 type ArbitrageReportData = React.ComponentProps<typeof ArbitrageReportCard>['data'];
 type ToolOwnerRoute =
   | 'goal-card'
@@ -1413,6 +1416,66 @@ interface RoutedToolOwner {
 
 function isToolRenderPart(part: ConvexUIRenderPart): part is ToolRenderPart {
   return part.kind === 'tool' || part.kind === 'domain-tool';
+}
+
+function getDomainPayload(part: DomainRenderPart['part']): unknown {
+  const record = part as Record<string, unknown>;
+  return record.output ?? record.result ?? record.data ?? record.value ?? record;
+}
+
+function getStandaloneStructuredOutput(entry: DomainRenderPart): unknown {
+  const payload = getDomainPayload(entry.part);
+  if (tryParseStructuredOutput(payload)) return payload;
+
+  if (!payload || typeof payload !== 'object') {
+    return payload;
+  }
+
+  const data = payload as Record<string, unknown>;
+  const normalizedType = entry.part.type.toLowerCase().replace(/[-_]/g, '');
+  const kind = entry.categories.includes('selection')
+    ? Array.isArray(data.companies) || normalizedType.includes('companyselection')
+      ? 'company_selection'
+      : Array.isArray(data.people) || normalizedType.includes('peopleselection')
+        ? 'people_selection'
+        : Array.isArray(data.events) || normalizedType.includes('eventselection')
+          ? 'event_selection'
+          : Array.isArray(data.articles) || normalizedType.includes('newsselection')
+            ? 'news_selection'
+            : null
+    : entry.categories.includes('media')
+      ? Array.isArray(data.videos)
+        ? 'youtube_search_results'
+        : Array.isArray(data.documents)
+          ? 'sec_filing_results'
+          : null
+      : null;
+
+  if (!kind) return payload;
+  return {
+    kind,
+    version: 1,
+    summary: typeof data.summary === 'string' ? data.summary : '',
+    data,
+  };
+}
+
+function distributeVisibleParts<
+  T extends TextRenderPart | ReasoningRenderPart,
+>(visible: string | undefined, entries: T[]): Map<number, string> {
+  const distributed = new Map<number, string>();
+  let cursor = 0;
+  const materialized = visible ?? '';
+
+  entries.forEach((entry, index) => {
+    const rawLength = entry.part.text.length;
+    const isLast = index === entries.length - 1;
+    const end = isLast ? materialized.length : Math.min(cursor + rawLength, materialized.length);
+    distributed.set(entry.originalIndex, materialized.slice(cursor, end));
+    cursor = end;
+  });
+
+  return distributed;
 }
 
 function getNormalizedToolName(part: NormalizedToolPart): string {
@@ -1668,12 +1731,12 @@ export function FastAgentUIMessageBubble({
     () => toolRenderParts.map((entry) => entry.part),
     [toolRenderParts],
   );
-  const fileParts = useMemo(
-    () => uiParts.renderParts.flatMap((entry) => entry.kind === 'file' ? [entry.part] : []),
+  const textRenderParts = useMemo(
+    () => uiParts.renderParts.flatMap((entry) => entry.kind === 'text' ? [entry] : []),
     [uiParts.renderParts],
   );
-  const sources = useMemo(
-    () => uiParts.renderParts.flatMap((entry) => entry.kind === 'source' ? [entry.part] : []),
+  const reasoningRenderParts = useMemo(
+    () => uiParts.renderParts.flatMap((entry) => entry.kind === 'reasoning' ? [entry] : []),
     [uiParts.renderParts],
   );
   const reasoningText = useMemo(
@@ -1727,10 +1790,8 @@ export function FastAgentUIMessageBubble({
     () => routedToolOwners.filter(({ route }) => route === 'grouped-custom'),
     [routedToolOwners],
   );
-  const accordionToolOwners = useMemo(
-    () => routedToolOwners.filter(({ route }) =>
-      route !== 'goal-card' && route !== 'grouped-custom'
-    ),
+  const routedToolOwnerByEntry = useMemo(
+    () => new Map(routedToolOwners.map((owner) => [owner.entry, owner] as const)),
     [routedToolOwners],
   );
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -1967,6 +2028,14 @@ export function FastAgentUIMessageBubble({
   const [visibleReasoning] = useSmoothText(reasoningText, {
     startStreaming: isStreaming,
   });
+  const visibleTextByOriginalIndex = useMemo(
+    () => distributeVisibleParts(visibleText, textRenderParts),
+    [textRenderParts, visibleText],
+  );
+  const visibleReasoningByOriginalIndex = useMemo(
+    () => distributeVisibleParts(visibleReasoning, reasoningRenderParts),
+    [reasoningRenderParts, visibleReasoning],
+  );
   const streamRuntimeSeconds = streamStartRef.current
     ? (Date.now() - streamStartRef.current) / 1000
     : undefined;
@@ -2313,6 +2382,26 @@ export function FastAgentUIMessageBubble({
     });
   }, [groupedToolOwners, isUser]);
 
+  const groupedDomainAnchor = useMemo(() => {
+    const candidates = groupedToolOwners.map(({ entry }) => entry.originalIndex);
+
+    for (const entry of textRenderParts) {
+      const text = visibleTextByOriginalIndex.get(entry.originalIndex) ?? '';
+      if (hasMedia(extractMediaFromText(text)) || extractDocumentActions(text).length > 0) {
+        candidates.push(entry.originalIndex);
+      }
+    }
+
+    return candidates.length > 0 ? Math.min(...candidates) : null;
+  }, [groupedToolOwners, textRenderParts, visibleTextByOriginalIndex]);
+
+  const goalCardAnchor = useMemo(
+    () => goalToolOwners.length > 0
+      ? Math.min(...goalToolOwners.map(({ entry }) => entry.originalIndex))
+      : null,
+    [goalToolOwners],
+  );
+
   // Clean text by removing media markers and document action markers (for display purposes)
   const cleanedText = useMemo(() => {
     let cleaned = removeMediaMarkersFromText(visibleText || '');
@@ -2325,6 +2414,660 @@ export function FastAgentUIMessageBubble({
 
   // Lazy-load KaTeX only when math notation ($, \begin{) is detected
   const rehypeKatexPlugin = useRehypeKatex(cleanedText || visibleText || '');
+
+  const renderSourcePart = (
+    entry: Extract<ConvexUIRenderPart, { kind: 'source' }>,
+  ) => {
+    const source = entry.part;
+    return (
+      <div
+        data-original-index={entry.originalIndex}
+        data-render-part-kind="source"
+        key={`source-${entry.originalIndex}`}
+      >
+        <AISources className="mb-1">
+          <AISourcesTrigger count={1} />
+          <AISourcesContent className="motion-reduce:animate-none">
+            {source.type === 'source-url' ? (
+              <AISource
+                href={source.url}
+                title={source.title ?? source.url}
+              />
+            ) : (
+              <div className="flex items-center gap-2 font-medium">
+                <span>{source.title ?? source.filename ?? 'Document source'}</span>
+              </div>
+            )}
+          </AISourcesContent>
+        </AISources>
+      </div>
+    );
+  };
+
+  const renderFilePart = (
+    entry: Extract<ConvexUIRenderPart, { kind: 'file' }>,
+  ) => {
+    const part = entry.part;
+    const fileUrl = part.url || '';
+    const mimeType = part.mediaType || (part as typeof part & { mimeType?: string }).mimeType || '';
+    const fileName = part.filename || (part as typeof part & { name?: string }).name || 'File';
+    const isImage = mimeType.startsWith('image/');
+    const isText = mimeType.startsWith('text/');
+
+    return (
+      <div
+        className="rounded-lg overflow-hidden border border-edge shadow-sm mb-2"
+        data-original-index={entry.originalIndex}
+        data-render-part-kind="file"
+        key={`file-${entry.originalIndex}`}
+      >
+        {isImage ? (
+          <SafeImage
+            src={fileUrl}
+            alt={fileName}
+            className="max-w-full h-auto"
+          />
+        ) : isText ? (
+          <FileTextPreview fileUrl={fileUrl} fileName={fileName} />
+        ) : (
+          <div className="px-4 py-3 bg-gradient-to-r from-surface-secondary to-surface flex items-center gap-3 group hover:from-blue-50 dark:hover:from-blue-900/20 hover:to-surface transition-colors">
+            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300">
+              <ImageIcon className="h-5 w-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <a
+                href={fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-content hover:text-blue-600 transition-colors block truncate"
+              >
+                {fileName}
+              </a>
+              <p className="text-xs text-content-secondary mt-0.5">File Attachment</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderStandaloneDomainPart = (entry: DomainRenderPart) => {
+    const payload = getDomainPayload(entry.part);
+    const record = payload && typeof payload === 'object'
+      ? payload as Record<string, unknown>
+      : null;
+
+    if (entry.categories.includes('arbitrage') && record) {
+      const isReport = ['contradictions', 'rankedSources', 'deltas', 'healthResults']
+        .some((key) => key in record);
+      if (isReport) {
+        return (
+          <div
+            data-domain-part-type={entry.part.type}
+            data-original-index={entry.originalIndex}
+            data-render-part-kind="domain"
+            key={`domain-${entry.originalIndex}`}
+          >
+            <ArbitrageReportCard data={record as ArbitrageReportData} />
+          </div>
+        );
+      }
+    }
+
+    if (entry.categories.includes('documentAction')) {
+      const directDocument = record &&
+        typeof record.documentId === 'string' &&
+        typeof record.title === 'string'
+        ? [record as unknown as DocumentAction]
+        : typeof payload === 'string'
+          ? extractDocumentActions(payload)
+          : [];
+      if (directDocument.length > 0) {
+        return (
+          <div
+            data-domain-part-type={entry.part.type}
+            data-original-index={entry.originalIndex}
+            data-render-part-kind="domain"
+            key={`domain-${entry.originalIndex}`}
+          >
+            <DocumentActionGrid
+              documents={directDocument}
+              title="Documents"
+              onDocumentSelect={effectiveOnDocumentSelect}
+            />
+          </div>
+        );
+      }
+    }
+
+    if (entry.categories.includes('goalCard') && record) {
+      const goal = typeof record.goal === 'string'
+        ? record.goal
+        : typeof record.title === 'string'
+          ? record.title
+          : null;
+      if (goal) {
+        const tasks = Array.isArray(record.tasks)
+          ? record.tasks.flatMap((task, index): TaskStatusItem[] => {
+              if (!task || typeof task !== 'object') return [];
+              const item = task as Record<string, unknown>;
+              const status = ['queued', 'active', 'success', 'failed'].includes(String(item.status))
+                ? String(item.status) as TaskStatusItem['status']
+                : 'queued';
+              return [{
+                id: typeof item.id === 'string' ? item.id : `domain-task-${index}`,
+                name: typeof item.name === 'string' ? item.name : `Task ${index + 1}`,
+                status,
+              }];
+            })
+          : [];
+        return (
+          <div
+            data-domain-part-type={entry.part.type}
+            data-original-index={entry.originalIndex}
+            data-render-part-kind="domain"
+            key={`domain-${entry.originalIndex}`}
+          >
+            <GoalCard goal={goal} tasks={tasks} isStreaming={isStreaming} />
+          </div>
+        );
+      }
+    }
+
+    if (entry.categories.includes('fusedSearch')) {
+      const fusedSearch = parseFusionSearchOutput(payload, 'fusionSearch');
+      if (fusedSearch.isValid && fusedSearch.results.length > 0) {
+        return (
+          <div
+            data-domain-part-type={entry.part.type}
+            data-original-index={entry.originalIndex}
+            data-render-part-kind="domain"
+            key={`domain-${entry.originalIndex}`}
+          >
+            <FusedSearchResults
+              results={fusedSearch.results}
+              sourcesQueried={fusedSearch.sourcesQueried}
+              errors={fusedSearch.errors}
+              timing={fusedSearch.timing}
+              totalTimeMs={fusedSearch.totalTimeMs}
+              showCitations={true}
+            />
+          </div>
+        );
+      }
+    }
+
+    return (
+      <div
+        data-domain-part-type={entry.part.type}
+        data-original-index={entry.originalIndex}
+        data-render-part-kind="domain"
+        key={`domain-${entry.originalIndex}`}
+      >
+        <ToolOutputRenderer
+          output={getStandaloneStructuredOutput(entry)}
+          onCompanySelect={effectiveOnCompanySelect}
+          onPersonSelect={effectiveOnPersonSelect}
+          onEventSelect={effectiveOnEventSelect}
+          onNewsSelect={effectiveOnNewsSelect}
+        />
+      </div>
+    );
+  };
+
+  const renderGoalCardOwners = (originalIndex: number) => {
+    const tasks: TaskStatusItem[] = goalToolOwners.map(({ entry }) => {
+      const part = entry.part;
+      const toolName = getNormalizedToolName(part)
+        .replace('delegateTo', '')
+        .replace('Agent', '') || 'Task';
+      const status: TaskStatusItem['status'] = part.state === 'output-available'
+        ? 'success'
+        : part.state === 'output-error'
+          ? 'failed'
+          : 'active';
+      return {
+        id: `delegation-${part.toolCallId}`,
+        name: toolName,
+        status,
+      };
+    });
+    const goal = uiParts.text.split('\n')[0].substring(0, 150) || 'Processing your request';
+
+    return (
+      <div
+        data-original-index={originalIndex}
+        data-render-part-kind="goal-card"
+        key={`goal-card-${originalIndex}`}
+      >
+        <GoalCard goal={goal} tasks={tasks} isStreaming={isStreaming} />
+      </div>
+    );
+  };
+
+  const renderGroupedDomainOwners = (originalIndex: number) => (
+    <div
+      className="contents"
+      data-grouped-domain-anchor={originalIndex}
+      data-grouped-domain-owners={groupedToolOwners.length}
+      data-original-index={originalIndex}
+      data-render-part-kind="grouped-domain"
+      key={`grouped-domain-${originalIndex}`}
+    >
+      {arbitrageReports.map(({ data, toolCallId }) => (
+        <ArbitrageReportCard data={data} key={toolCallId} />
+      ))}
+
+      <RichMediaSection media={extractedMedia} showCitations={true} />
+
+      {extractedDocuments.length > 0 && (
+        <DocumentActionGrid
+          documents={extractedDocuments}
+          title="Documents"
+          onDocumentSelect={effectiveOnDocumentSelect}
+        />
+      )}
+    </div>
+  );
+
+  const renderToolOwner = (owner: RoutedToolOwner) => {
+    const { entry, route, fusedSearch } = owner;
+    const part = entry.part;
+    const toolName = getNormalizedToolName(part);
+    const categories: DomainCategory[] = entry.kind === 'domain-tool' ? entry.categories : [];
+    const completed = part.state === 'output-available' || part.state === 'output-error';
+    const stepNumber = toolRenderParts.findIndex((candidate) => candidate === entry) + 1;
+
+    let content: React.ReactNode;
+    if (route === 'fused-search' && fusedSearch) {
+      content = (
+        <div className="my-3 w-full">
+          <FusedSearchResults
+            results={fusedSearch.results}
+            sourcesQueried={fusedSearch.sourcesQueried}
+            errors={fusedSearch.errors}
+            timing={fusedSearch.timing}
+            totalTimeMs={fusedSearch.totalTimeMs}
+            showCitations={true}
+          />
+        </div>
+      );
+    } else if (route === 'memory-pill') {
+      let type: 'plan_update' | 'test_result' | 'memory_write' = 'memory_write';
+      let title = 'Memory Updated';
+      let details = '';
+      const input = part.input as Record<string, unknown> | undefined;
+
+      if (toolName.includes('createPlan')) {
+        type = 'plan_update';
+        title = 'New Plan Created';
+        details = input?.goal ? `Goal: ${String(input.goal)}` : 'New mission plan initialized';
+      } else if (toolName.includes('updatePlanStep')) {
+        type = 'plan_update';
+        title = 'Plan Updated';
+        details = input?.status ? `Step marked as ${String(input.status)}` : 'Plan progress updated';
+      } else if (toolName.includes('logEpisodic')) {
+        type = 'test_result';
+        title = 'Episodic Log';
+        details = 'System event recorded';
+      } else {
+        const key = typeof input?.key === 'string' ? input.key : 'unknown';
+        title = key.startsWith('constraint:') ? 'Constraint Added' : 'Memory Updated';
+        details = `Key: ${key}`;
+      }
+
+      content = (
+        <div className="my-2 flex justify-center w-full">
+          <MemoryPill
+            event={{
+              id: `pill-${part.toolCallId}`,
+              type,
+              title,
+              details,
+              timestamp: Date.now(),
+            }}
+          />
+        </div>
+      );
+    } else if (route === 'convex-transparency') {
+      const convexToolData = {
+        toolName,
+        status: (part.state === 'output-available'
+          ? 'success'
+          : part.state === 'output-error'
+            ? 'error'
+            : 'running') as 'running' | 'success' | 'error',
+        inputSummary: part.input ? JSON.stringify(part.input).substring(0, 120) : undefined,
+        outputSummary: part.state === 'output-available' && part.output
+          ? (typeof part.output === 'string'
+              ? part.output.substring(0, 120)
+              : JSON.stringify(part.output).substring(0, 120))
+          : undefined,
+      };
+      content = (
+        <div className="my-2 w-full">
+          <ToolCallTransparency toolCalls={[convexToolData]} />
+        </div>
+      );
+    } else {
+      content = (
+        <ToolStep
+          part={part}
+          stepNumber={stepNumber}
+          onCompanySelect={effectiveOnCompanySelect}
+          onPersonSelect={effectiveOnPersonSelect}
+          onEventSelect={effectiveOnEventSelect}
+          onNewsSelect={effectiveOnNewsSelect}
+          useDomainRenderer={categories.includes('selection') || categories.includes('media')}
+        />
+      );
+    }
+
+    return (
+      <div
+        data-original-index={entry.originalIndex}
+        data-render-part-kind="tool"
+        key={`tool-${part.toolCallId}`}
+      >
+        <ToolStepsAccordion
+          toolCount={1}
+          completedCount={completed ? 1 : 0}
+          isStreaming={isStreaming}
+        >
+          <div className="w-full">{content}</div>
+        </ToolStepsAccordion>
+      </div>
+    );
+  };
+
+  const renderTextPart = (
+    entry: TextRenderPart,
+    text: string,
+    isFirstText: boolean,
+    isLastText: boolean,
+  ) => {
+    let partText = removeMediaMarkersFromText(text);
+    partText = removeDocumentActionMarkers(partText)
+      .replace(/\{\{arbitrage:[^}]+\}\}/g, '')
+      .replace(/\{\{fact:[^}]+\}\}/g, '');
+    const displayText = isUser ? (text || '...') : (partText || text);
+    const isOnlyTextPart = textRenderParts.length === 1;
+    const isLong = isOnlyTextPart &&
+      !isUser &&
+      displayText.length > COLLAPSE_THRESHOLD &&
+      message.status !== 'streaming';
+    const markdownText = isLong && isCollapsed
+      ? displayText.slice(0, COLLAPSE_THRESHOLD) + '...'
+      : displayText;
+
+    if (isUser && isEditing && !isFirstText) return null;
+
+    return (
+      <AIMessageContent
+        className="contents"
+        data-original-index={entry.originalIndex}
+        data-render-part-kind="text"
+        key={'text-' + entry.originalIndex}
+      >
+        {!isUser || displayText || (isEditing && isFirstText) ? (
+          <div
+            className={cn(
+              'relative p-4 rounded-lg shadow-sm transition-all duration-200 text-sm leading-relaxed',
+              isUser
+                ? isEditing
+                  ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 text-content rounded-br-none'
+                  : 'bg-gradient-to-br from-violet-500 to-violet-600 text-white rounded-br-none shadow-md'
+                : 'bg-surface border border-edge text-content rounded-bl-none shadow-sm dark:bg-surface-secondary',
+              message.status === 'streaming' && 'motion-safe:animate-pulse-subtle',
+              message.status === 'failed' && 'bg-red-50/80 border-red-200 dark:bg-red-900/20 dark:border-red-800',
+            )}
+          >
+            {isUser && isEditing && isFirstText ? (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  ref={editTextareaRef}
+                  value={editText}
+                  onChange={(event) => setEditText(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      handleSaveEdit();
+                    }
+                    if (event.key === 'Escape') handleCancelEdit();
+                  }}
+                  className="w-full bg-transparent text-sm leading-relaxed resize-none outline-none min-h-[40px] placeholder-blue-300"
+                  rows={Math.max(1, editText.split('\n').length)}
+                />
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="action-btn text-xs px-2.5 py-1 rounded-md text-content-muted hover:text-content hover:bg-surface-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveEdit}
+                    className="press-scale text-xs px-3 py-1 rounded-md bg-violet-500 text-white hover:bg-violet-600 font-medium"
+                  >
+                    Save &amp; Resend
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {!isUser && displayText.includes('<think>') && (() => {
+              const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/);
+              if (!thinkMatch) return null;
+              return (
+                <details className="thinking-disclosure mb-2">
+                  <summary>Reasoning ({thinkMatch[1].split(/\s+/).length} words)</summary>
+                  <div className="mt-1 text-xs leading-relaxed opacity-80 whitespace-pre-wrap">
+                    {thinkMatch[1].trim()}
+                  </div>
+                </details>
+              );
+            })()}
+
+            {!isUser && isLastText && message.status === 'streaming' && displayText && (
+              <div className="w-full h-[2px] bg-[var(--border-color)] rounded-full overflow-hidden mb-1">
+                <div
+                  className="h-full bg-violet-500 rounded-full transition-all duration-300"
+                  style={{ width: Math.min((displayText.length / 2000) * 100, 95) + '%' }}
+                />
+              </div>
+            )}
+
+            {!(isUser && isEditing) && (
+              !isUser &&
+              isLastText &&
+              message.status === 'streaming' &&
+              !displayText ? (
+                <div
+                  aria-label="Assistant response loading"
+                  className="space-y-2"
+                  data-streaming-placeholder="true"
+                >
+                  <div className="h-3 w-11/12 rounded bg-surface-hover motion-safe:animate-pulse" />
+                  <div className="h-3 w-4/5 rounded bg-surface-hover motion-safe:animate-pulse" />
+                  <div className="h-3 w-2/3 rounded bg-surface-hover motion-safe:animate-pulse" />
+                </div>
+              ) : (
+              <div className={cn(!isUser && 'prose-agent')}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkMath]}
+                  rehypePlugins={rehypeKatexPlugin ? [rehypeKatexPlugin] : []}
+                  components={{
+                    code({ inline, className, children, ...props }: any) {
+                      const match = /language-(\w+)/.exec(className || '');
+                      const language = match ? match[1] : '';
+                      if (!inline && language === 'mermaid') {
+                        return (
+                          <Suspense fallback={<div className="motion-safe:animate-pulse h-40 bg-surface-secondary rounded-lg flex items-center justify-center text-sm text-content-muted">Loading diagram...</div>}>
+                            <MermaidDiagram
+                              code={String(children).replace(/\n$/, '')}
+                              onRetryRequest={onMermaidRetry}
+                              isStreaming={message.status === 'streaming'}
+                            />
+                          </Suspense>
+                        );
+                      }
+                      return !inline && match ? (
+                        <CodeBlockWithCopy language={language}>
+                          {String(children).replace(/\n$/, '')}
+                        </CodeBlockWithCopy>
+                      ) : (
+                        <code
+                          className={cn(
+                            'px-1 py-0.5 rounded text-xs font-mono',
+                            isUser ? 'bg-blue-700/50 text-white' : 'bg-surface-hover text-content',
+                          )}
+                          {...props}
+                        >
+                          {children}
+                        </code>
+                      );
+                    },
+                    a({ href, children }) {
+                      return <a href={href} className="text-blue-600 hover:underline font-medium" target="_blank" rel="noopener noreferrer">{children}</a>;
+                    },
+                    table({ children }) {
+                      return <div className="overflow-x-auto my-3 rounded-lg border border-edge"><table className="w-full text-xs border-collapse">{children}</table></div>;
+                    },
+                    thead({ children }) {
+                      return <thead className="bg-surface-secondary">{children}</thead>;
+                    },
+                    th({ children }) {
+                      return <th className="px-3 py-2 text-left font-semibold text-content border-b border-edge text-xs">{children}</th>;
+                    },
+                    td({ children }) {
+                      return <td className="px-3 py-1.5 border-b border-edge text-content-secondary text-xs">{children}</td>;
+                    },
+                    tr({ children }) {
+                      return <tr className="hover:bg-surface-secondary transition-colors">{children}</tr>;
+                    },
+                    p({ children }) {
+                      const textContent = React.Children.toArray(children)
+                        .map((child) => typeof child === 'string' ? child : '')
+                        .join('');
+                      if (parseCitations(textContent).length > 0 || parseEntities(textContent).length > 0) {
+                        return (
+                          <p className="mb-2">
+                            <InteractiveSpanParser
+                              text={textContent}
+                              citations={citedCitationLibrary}
+                              entities={entityLibrary}
+                              entityEnrichment={entityEnrichment}
+                            />
+                          </p>
+                        );
+                      }
+                      if (searchHighlight && textContent.toLowerCase().includes(searchHighlight.toLowerCase())) {
+                        const escaped = searchHighlight.replace(/[.*+?^$(){}|[\]\\]/g, '\\$&');
+                        const regex = new RegExp('(' + escaped + ')', 'gi');
+                        return (
+                          <p className="mb-2">
+                            {textContent.split(regex).map((part, index) =>
+                              part.toLowerCase() === searchHighlight.toLowerCase()
+                                ? <mark key={index} className="bg-yellow-300 dark:bg-yellow-500/40 text-inherit rounded-sm px-0.5">{part}</mark>
+                                : <React.Fragment key={index}>{part}</React.Fragment>
+                            )}
+                          </p>
+                        );
+                      }
+                      return <p className="mb-2">{children}</p>;
+                    },
+                  }}
+                >
+                  {markdownText}
+                </ReactMarkdown>
+                {isLong && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCollapsed((previous) => !previous)}
+                    className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline mt-1"
+                  >
+                    {isCollapsed ? 'Show more ▼' : 'Show less ▲'}
+                  </button>
+                )}
+                {!isUser &&
+                  isLastText &&
+                  (message.status === 'streaming' || message.status === 'typing') &&
+                  displayText && <span className="streaming-caret" />}
+              </div>
+              )
+            )}
+          </div>
+        ) : null}
+      </AIMessageContent>
+    );
+  };
+
+  const renderOrderedPart = (entry: ConvexUIRenderPart) => {
+    if (isToolRenderPart(entry)) {
+      const owner = routedToolOwnerByEntry.get(entry);
+      if (!owner) return null;
+
+      if (owner.route === 'goal-card') {
+        return entry.originalIndex === goalCardAnchor
+          ? renderGoalCardOwners(entry.originalIndex)
+          : null;
+      }
+      if (owner.route === 'grouped-custom') {
+        return entry.originalIndex === groupedDomainAnchor
+          ? renderGroupedDomainOwners(entry.originalIndex)
+          : null;
+      }
+      return renderToolOwner(owner);
+    }
+
+    if (entry.kind === 'text') {
+      const textIndex = textRenderParts.findIndex((candidate) => candidate === entry);
+      const renderedText = renderTextPart(
+        entry,
+        visibleTextByOriginalIndex.get(entry.originalIndex) ?? '',
+        textIndex === 0,
+        textIndex === textRenderParts.length - 1,
+      );
+      if (entry.originalIndex !== groupedDomainAnchor) return renderedText;
+      return (
+        <React.Fragment key={'text-group-' + entry.originalIndex}>
+          {renderedText}
+          {renderGroupedDomainOwners(entry.originalIndex)}
+        </React.Fragment>
+      );
+    }
+
+    if (entry.kind === 'reasoning') {
+      const reasoning = visibleReasoningByOriginalIndex.get(entry.originalIndex) ?? '';
+      if (isUser || !reasoning) return null;
+      return (
+        <div
+          data-original-index={entry.originalIndex}
+          data-render-part-kind="reasoning"
+          key={'reasoning-' + entry.originalIndex}
+        >
+          <ThinkingAccordion reasoning={reasoning} isStreaming={isStreaming} />
+        </div>
+      );
+    }
+
+    if (entry.kind === 'source') return renderSourcePart(entry);
+    if (entry.kind === 'file') return renderFilePart(entry);
+    return renderStandaloneDomainPart(entry);
+  };
+
+  const fallbackTextEntry = textRenderParts.length === 0
+    ? ({
+        kind: 'text',
+        originalIndex: uiParts.renderParts.reduce(
+          (highest, entry) => Math.max(highest, entry.originalIndex),
+          -1,
+        ) + 1,
+        part: { type: 'text', text: uiParts.text },
+      } as TextRenderPart)
+    : null;
 
   return (
     <AIMessage
@@ -2383,44 +3126,6 @@ export function FastAgentUIMessageBubble({
           </div>
         )}
 
-        {/* Goal Card - ONLY show for coordinator/parent messages with delegations */}
-        {!isUser && isParent && !isChild && (() => {
-          if (goalToolOwners.length === 0) return null;
-
-          // Extract task status from delegation calls
-          const tasks: TaskStatusItem[] = goalToolOwners.map(({ entry }) => {
-            const part = entry.part;
-            const toolName = getNormalizedToolName(part).replace('delegateTo', '').replace('Agent', '') || 'Task';
-
-            // Default status is queued, will be updated by child responses
-            let status: 'queued' | 'active' | 'success' | 'failed' = 'queued';
-
-            if (part.state === 'output-available') {
-              status = 'success';
-            } else if (part.state === 'output-error') {
-              status = 'failed';
-            } else {
-              status = 'active';
-            }
-
-            return {
-              id: `delegation-${part.toolCallId}`,
-              name: toolName,
-              status,
-            };
-          });
-
-          // Extract goal from the actual user query
-          const goal = uiParts.text.split('\n')[0].substring(0, 150) || 'Processing your request';
-
-          return (
-            <GoalCard
-              goal={goal}
-              tasks={tasks}
-              isStreaming={isStreaming}
-            />
-          );
-        })()}
 
         {/* Thinking Accordion */}
         {!isUser && (
@@ -2433,414 +3138,14 @@ export function FastAgentUIMessageBubble({
           />
         )}
 
-        {/* Thinking Accordion */}
-        {!isUser && visibleReasoning && (
-          <ThinkingAccordion
-            reasoning={visibleReasoning}
-            isStreaming={isStreaming}
-          />
+        {/* Canonical ordered ownership: never render aggregate projections in parallel. */}
+        {uiParts.renderParts.map(renderOrderedPart)}
+        {fallbackTextEntry && renderTextPart(
+          fallbackTextEntry,
+          visibleText ?? '',
+          true,
+          true,
         )}
-
-        {/*
-          ═══════════════════════════════════════════════════════════════════════
-          TOOL STEPS LIST - RENDER PRECEDENCE DOCUMENTATION
-          ═══════════════════════════════════════════════════════════════════════
-
-          Each adapter render owner is assigned to exactly one route before JSX:
-
-          1. GoalCard or a grouped domain renderer (outside this accordion)
-          2. FusedSearchResults, MemoryPill, or ToolCallTransparency
-          3. ToolStep for every remaining owner, including in-flight tools
-
-          No aggregate projection is rendered in parallel with these owners.
-          ═══════════════════════════════════════════════════════════════════════
-        */}
-        {!isUser && accordionToolOwners.length > 0 && (
-          <ToolStepsAccordion
-            toolCount={accordionToolOwners.length}
-            completedCount={accordionToolOwners.filter(({ entry }) => entry.part.state === 'output-available' || entry.part.state === 'output-error').length}
-            isStreaming={isStreaming}
-          >
-            <div className="w-full">
-              {accordionToolOwners.map(({ entry, route, fusedSearch }, idx: number) => {
-                const part = entry.part;
-                const toolName = getNormalizedToolName(part);
-                const categories: DomainCategory[] = entry.kind === 'domain-tool' ? entry.categories : [];
-
-                // ═══════════════════════════════════════════════════════════════
-                // PRECEDENCE 1: Fusion Search tools → FusedSearchResults
-                // ═══════════════════════════════════════════════════════════════
-                if (route === 'fused-search' && fusedSearch) {
-                  return (
-                    <div key={part.toolCallId} className="my-3 w-full">
-                      <FusedSearchResults
-                        results={fusedSearch.results}
-                        sourcesQueried={fusedSearch.sourcesQueried}
-                        errors={fusedSearch.errors}
-                        timing={fusedSearch.timing}
-                        totalTimeMs={fusedSearch.totalTimeMs}
-                        showCitations={true}
-                      />
-                    </div>
-                  );
-                }
-
-                // ═══════════════════════════════════════════════════════════════
-                // PRECEDENCE 2: Memory/Planning tools → ToolPill
-                // ═══════════════════════════════════════════════════════════════
-
-                // Check for Memory/Planning tools to render as Pills
-
-                if (route === 'memory-pill') {
-
-                  // Determine pill type and title based on tool name
-                  let type: 'plan_update' | 'test_result' | 'memory_write' = 'memory_write';
-                  let title = 'Memory Updated';
-                  let details = '';
-
-                  if (toolName.includes('createPlan')) {
-                    type = 'plan_update';
-                    title = 'New Plan Created';
-                    const input = part.input as Record<string, unknown> | undefined;
-                    details = input?.goal ? `Goal: ${String(input.goal)}` : 'New mission plan initialized';
-                  } else if (toolName.includes('updatePlanStep')) {
-                    type = 'plan_update';
-                    title = 'Plan Updated';
-                    const input = part.input as Record<string, unknown> | undefined;
-                    const status = input?.status;
-                    details = status ? `Step marked as ${status}` : 'Plan progress updated';
-                  } else if (toolName.includes('logEpisodic')) {
-                    type = 'test_result';
-                    title = 'Episodic Log';
-                    details = 'System event recorded';
-                  } else {
-                    // writeMemory
-                    const input = part.input as Record<string, unknown> | undefined;
-                    const key = typeof input?.key === 'string' ? input.key : 'unknown';
-                    title = key.startsWith('constraint:') ? 'Constraint Added' : 'Memory Updated';
-                    details = `Key: ${key}`;
-                  }
-
-                  return (
-                    <div key={part.toolCallId} className="my-2 flex justify-center w-full">
-                      <MemoryPill
-                        event={{
-                          id: `pill-${part.toolCallId}`,
-                          type,
-                          title,
-                          details,
-                          timestamp: Date.now()
-                        }}
-                      />
-                    </div>
-                  );
-                }
-
-                // ═══════════════════════════════════════════════════════════════
-                // PRECEDENCE 2.5: Convex MCP tools → ToolCallTransparency
-                // ═══════════════════════════════════════════════════════════════
-                if (route === 'convex-transparency') {
-                  const convexToolData = {
-                    toolName,
-                    status: (part.state === 'output-available' ? 'success' : part.state === 'output-error' ? 'error' : 'running') as 'running' | 'success' | 'error',
-                    inputSummary: part.input ? JSON.stringify(part.input).substring(0, 120) : undefined,
-                    outputSummary: part.state === 'output-available' && part.output
-                      ? (typeof part.output === 'string' ? part.output.substring(0, 120) : JSON.stringify(part.output).substring(0, 120))
-                      : undefined,
-                  };
-                  return (
-                    <div key={part.toolCallId} className="my-2 w-full">
-                      <ToolCallTransparency toolCalls={[convexToolData]} />
-                    </div>
-                  );
-                }
-
-                // Default: Render as standard ToolStep
-                return (
-                  <ToolStep
-                    key={part.toolCallId}
-                    part={part}
-                    stepNumber={idx + 1}
-                    onCompanySelect={effectiveOnCompanySelect}
-                    onPersonSelect={effectiveOnPersonSelect}
-                    onEventSelect={effectiveOnEventSelect}
-                    onNewsSelect={effectiveOnNewsSelect}
-                    useDomainRenderer={categories.includes('selection') || categories.includes('media')}
-                  />
-                );
-              })}
-            </div>
-          </ToolStepsAccordion>
-        )}
-
-        {/* One grouped custom route owns arbitrage, media, and document facets. */}
-        {!isUser && (
-          <div className="contents" data-grouped-domain-owners={groupedToolOwners.length}>
-            {arbitrageReports.map(({ data, toolCallId }) => (
-              <ArbitrageReportCard data={data} key={toolCallId} />
-            ))}
-
-            <RichMediaSection media={extractedMedia} showCitations={true} />
-
-            {extractedDocuments.length > 0 && (
-              <DocumentActionGrid
-                documents={extractedDocuments}
-                title="Documents"
-                onDocumentSelect={effectiveOnDocumentSelect}
-              />
-            )}
-          </div>
-        )}
-
-        {/* Files (images, etc.) */}
-        {fileParts.map((part: any, idx: number) => {
-          // FileUIPart has url and mimeType properties
-          const fileUrl = (part as any).url || '';
-          const mimeType = (part as any).mimeType || '';
-          const fileName = (part as any).name || 'File';
-          const isImage = mimeType.startsWith('image/');
-          const isPDF = mimeType === 'application/pdf';
-          const isText = mimeType.startsWith('text/');
-          const isVideo = mimeType.startsWith('video/');
-          const isAudio = mimeType.startsWith('audio/');
-
-          return (
-            <div key={idx} className="rounded-lg overflow-hidden border border-edge shadow-sm mb-2">
-              {isImage ? (
-                <SafeImage
-                  src={fileUrl}
-                  alt={fileName}
-                  className="max-w-full h-auto"
-                />
-              ) : isText ? (
-                <FileTextPreview fileUrl={fileUrl} fileName={fileName} />
-              ) : (
-                <div className="px-4 py-3 bg-gradient-to-r from-surface-secondary to-surface flex items-center gap-3 group hover:from-blue-50 dark:hover:from-blue-900/20 hover:to-surface transition-colors">
-                  <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300">
-                    <ImageIcon className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <a
-                      href={fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium text-content hover:text-blue-600 transition-colors block truncate"
-                    >
-                      {fileName}
-                    </a>
-                    <p className="text-xs text-content-secondary mt-0.5">File Attachment</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Main text content - THE ANSWER */}
-        <AIMessageContent className="contents">
-          {!isUser || (cleanedText || visibleText) ? (
-          <div
-            className={cn(
-              "relative p-4 rounded-lg shadow-sm transition-all duration-200 text-sm leading-relaxed",
-              isUser
-                ? isEditing
-                  ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 text-content rounded-br-none"
-                  : "bg-gradient-to-br from-violet-500 to-violet-600 text-white rounded-br-none shadow-md"
-                : "bg-surface border border-edge text-content rounded-bl-none shadow-sm dark:bg-surface-secondary",
-              message.status === 'streaming' && 'motion-safe:animate-pulse-subtle',
-              message.status === 'failed' && "bg-red-50/80 border-red-200 dark:bg-red-900/20 dark:border-red-800"
-            )}
-          >
-            {/* Inline edit mode for user messages */}
-            {isUser && isEditing ? (
-              <div className="flex flex-col gap-2">
-                <textarea
-                  ref={editTextareaRef}
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveEdit(); }
-                    if (e.key === 'Escape') handleCancelEdit();
-                  }}
-                  className="w-full bg-transparent text-sm leading-relaxed resize-none outline-none min-h-[40px] placeholder-blue-300"
-                  rows={Math.max(1, editText.split('\n').length)}
-                />
-                <div className="flex items-center gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="action-btn text-xs px-2.5 py-1 rounded-md text-content-muted hover:text-content hover:bg-surface-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveEdit}
-                    className="press-scale text-xs px-3 py-1 rounded-md bg-violet-500 text-white hover:bg-violet-600 font-medium"
-                  >
-                    Save & Resend
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Thinking/Reasoning Disclosure (Claude-style) */}
-            {!isUser && (cleanedText || visibleText || '').includes('<think>') && (() => {
-              const text = cleanedText || visibleText || '';
-              const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/);
-              if (!thinkMatch) return null;
-              return (
-                <details className="thinking-disclosure mb-2">
-                  <summary>Reasoning ({thinkMatch[1].split(/\s+/).length} words)</summary>
-                  <div className="mt-1 text-xs leading-relaxed opacity-80 whitespace-pre-wrap">
-                    {thinkMatch[1].trim()}
-                  </div>
-                </details>
-              );
-            })()}
-
-            {/* Streaming Progress Bar */}
-            {!isUser && message.status === 'streaming' && (cleanedText || visibleText) && (() => {
-              const textLen = (cleanedText || visibleText || '').length;
-              const estimatedTotal = 2000;
-              const pct = Math.min((textLen / estimatedTotal) * 100, 95);
-              return (
-                <div className="w-full h-[2px] bg-[var(--border-color)] rounded-full overflow-hidden mb-1">
-                  <div className="h-full bg-violet-500 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
-                </div>
-              );
-            })()}
-
-            {/* Normal content (hidden during edit) */}
-            {!(isUser && isEditing) && (!isUser && message.status === 'streaming' && !cleanedText && !visibleText ? (
-              <div className="skeleton-block">
-                <div className="skeleton-line skeleton-shimmer" />
-                <div className="skeleton-line skeleton-shimmer" />
-                <div className="skeleton-line skeleton-shimmer" />
-                <div className="skeleton-line skeleton-shimmer" />
-              </div>
-            ) : (
-              <div className={cn(!isUser && "prose-agent")}>
-                <ReactMarkdown
-                  remarkPlugins={[remarkMath]}
-                  rehypePlugins={rehypeKatexPlugin ? [rehypeKatexPlugin] : []}
-                  components={{
-                    code({ inline, className, children, ...props }: any) {
-                      const match = /language-(\w+)/.exec(className || '');
-                      const language = match ? match[1] : '';
-
-                      if (!inline && language === 'mermaid') {
-                        const mermaidCode = String(children).replace(/\n$/, '');
-                        const isStreaming = message.status === 'streaming';
-                        return (
-                          <Suspense fallback={<div className="motion-safe:animate-pulse h-40 bg-surface-secondary rounded-lg flex items-center justify-center text-sm text-content-muted">Loading diagram...</div>}>
-                            <MermaidDiagram
-                              code={mermaidCode}
-                              onRetryRequest={onMermaidRetry}
-                              isStreaming={isStreaming}
-                            />
-                          </Suspense>
-                        );
-                      }
-
-                      return !inline && match ? (
-                        <CodeBlockWithCopy language={language}>
-                          {String(children).replace(/\n$/, '')}
-                        </CodeBlockWithCopy>
-                      ) : (
-                        <code className={cn(
-                          "px-1 py-0.5 rounded text-xs font-mono",
-                          isUser ? "bg-blue-700/50 text-white" : "bg-surface-hover text-content"
-                        )} {...props}>
-                          {children}
-                        </code>
-                      );
-                    },
-                    a({ href, children }) {
-                      return <a href={href} className="text-blue-600 hover:underline font-medium" target="_blank" rel="noopener noreferrer">{children}</a>;
-                    },
-                    table({ children }) {
-                      return <div className="overflow-x-auto my-3 rounded-lg border border-edge"><table className="w-full text-xs border-collapse">{children}</table></div>;
-                    },
-                    thead({ children }) {
-                      return <thead className="bg-surface-secondary">{children}</thead>;
-                    },
-                    th({ children }) {
-                      return <th className="px-3 py-2 text-left font-semibold text-content border-b border-edge text-xs">{children}</th>;
-                    },
-                    td({ children }) {
-                      return <td className="px-3 py-1.5 border-b border-edge text-content-secondary text-xs">{children}</td>;
-                    },
-                    tr({ children }) {
-                      return <tr className="hover:bg-surface-secondary transition-colors">{children}</tr>;
-                    },
-                    // Phase All: Enhanced paragraph rendering with citation/entity parsing + adaptive enrichment
-                    p({ children }) {
-                      // Convert children to string for token detection
-                      const textContent = React.Children.toArray(children)
-                        .map(child => typeof child === 'string' ? child : '')
-                        .join('');
-
-                      // If text contains {{cite:...}} or @@entity:...@@ tokens, use InteractiveSpanParser
-                      // Pass entityEnrichment for rich hover previews with adaptive profile data
-                      if (parseCitations(textContent).length > 0 || parseEntities(textContent).length > 0) {
-                        return (
-                          <p className="mb-2">
-                            <InteractiveSpanParser
-                              text={textContent}
-                              citations={citedCitationLibrary}
-                              entities={entityLibrary}
-                              entityEnrichment={entityEnrichment}
-                            />
-                          </p>
-                        );
-                      }
-
-                      // Default paragraph rendering (with optional search highlight)
-                      if (searchHighlight && textContent.toLowerCase().includes(searchHighlight.toLowerCase())) {
-                        const regex = new RegExp(`(${searchHighlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-                        const parts = textContent.split(regex);
-                        return (
-                          <p className="mb-2">
-                            {parts.map((part, i) =>
-                              regex.test(part)
-                                ? <mark key={i} className="bg-yellow-300 dark:bg-yellow-500/40 text-inherit rounded-sm px-0.5">{part}</mark>
-                                : <React.Fragment key={i}>{part}</React.Fragment>
-                            )}
-                          </p>
-                        );
-                      }
-                      return <p className="mb-2">{children}</p>;
-                    },
-                  }}
-                >
-                  {(() => {
-                    const displayText = isUser ? (visibleText || '...') : (cleanedText || visibleText || '...');
-                    const isLong = !isUser && displayText.length > COLLAPSE_THRESHOLD && message.status !== 'streaming';
-                    if (isLong && isCollapsed) {
-                      return displayText.slice(0, COLLAPSE_THRESHOLD) + '...';
-                    }
-                    return displayText;
-                  })()}
-                </ReactMarkdown>
-                {/* Show more/less toggle for long messages */}
-                {!isUser && (cleanedText || visibleText || '').length > COLLAPSE_THRESHOLD && message.status !== 'streaming' && (
-                  <button
-                    type="button"
-                    onClick={() => setIsCollapsed(prev => !prev)}
-                    className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline mt-1"
-                  >
-                    {isCollapsed ? 'Show more ▼' : 'Show less ▲'}
-                  </button>
-                )}
-                {!isUser && (message.status === 'streaming' || message.status === 'typing') && (cleanedText || visibleText) && (
-                  <span className="streaming-caret" />
-                )}
-              </div>
-            ))}
-          </div>
-          ) : null}
-        </AIMessageContent>
 
         {/* Smart Actions (assistant messages, after content finishes) */}
         {!compact && !isUser && message.status !== 'streaming' && (cleanedText || visibleText) && (
@@ -3193,31 +3498,6 @@ export function FastAgentUIMessageBubble({
               {emojiReaction}
             </button>
           </div>
-        )}
-
-        {/* Standard AI SDK source parts stay separate from NodeBench inline citations. */}
-        {!isUser && sources.length > 0 && (
-          <AISources className="mb-1">
-            <AISourcesTrigger count={sources.length} />
-            <AISourcesContent className="motion-reduce:animate-none">
-              {sources.map((source) =>
-                source.type === 'source-url' ? (
-                  <AISource
-                    href={source.url}
-                    key={source.sourceId}
-                    title={source.title ?? source.url}
-                  />
-                ) : (
-                  <div
-                    className="flex items-center gap-2 font-medium"
-                    key={source.sourceId}
-                  >
-                    <span>{source.title ?? source.filename ?? 'Document source'}</span>
-                  </div>
-                ),
-              )}
-            </AISourcesContent>
-          </AISources>
         )}
 
         {/* "Sources cited" dropdown (derived from inline citation tokens) */}
