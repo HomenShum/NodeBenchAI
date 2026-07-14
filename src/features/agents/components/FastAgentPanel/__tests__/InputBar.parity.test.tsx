@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { useEffect, useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -112,6 +113,23 @@ describe('FastAgentInputBar parity', () => {
     });
   });
 
+  it('puts the skip-link target on the focusable chat textbox', () => {
+    render(
+      <SelectionProvider>
+        <ControlledInputBar />
+      </SelectionProvider>,
+    );
+
+    const textarea = screen.getByRole('textbox');
+    expect(screen.getByTestId('fast-agent-prompt-input')).not.toHaveAttribute(
+      'id',
+    );
+    expect(textarea).toHaveAttribute('id', 'fa-chat-input');
+    expect(document.querySelector('#fa-chat-input')).toBe(textarea);
+    textarea.focus();
+    expect(textarea).toHaveFocus();
+  });
+
   it('submits with Enter and preserves Shift+Enter for a newline', async () => {
     const onSend = vi.fn();
     render(
@@ -121,10 +139,6 @@ describe('FastAgentInputBar parity', () => {
     );
 
     const textarea = screen.getByRole('textbox');
-    expect(screen.getByTestId('fast-agent-prompt-input')).toHaveAttribute(
-      'id',
-      'fa-chat-input',
-    );
     fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: true });
     expect(onSend).not.toHaveBeenCalled();
 
@@ -157,6 +171,39 @@ describe('FastAgentInputBar parity', () => {
     fireEvent.click(submit);
     expect(onSend).not.toHaveBeenCalled();
     expect(screen.getByText('evidence.txt')).toBeInTheDocument();
+  });
+
+  it('keeps attachment removal visible and operable from the keyboard', async () => {
+    const user = userEvent.setup();
+    const onRemoveFile = vi.fn();
+    const attachment = new File(['evidence'], 'evidence.txt', {
+      type: 'text/plain',
+    });
+
+    render(
+      <SelectionProvider>
+        <ControlledInputBar
+          attachedFiles={[attachment]}
+          onRemoveFile={onRemoveFile}
+        />
+      </SelectionProvider>,
+    );
+
+    const removeButton = screen.getByRole('button', {
+      name: 'Remove evidence.txt',
+    });
+    removeButton.focus();
+
+    expect(removeButton).toHaveFocus();
+    expect(removeButton).toHaveClass(
+      'focus-visible:opacity-100',
+      'focus-visible:ring-2',
+      'focus-visible:ring-[var(--accent-primary)]',
+    );
+
+    await user.keyboard('{Enter}');
+    expect(onRemoveFile).toHaveBeenCalledOnce();
+    expect(onRemoveFile).toHaveBeenCalledWith(0);
   });
 
   it('allows dragged-document-only submission through the parent fallback', async () => {

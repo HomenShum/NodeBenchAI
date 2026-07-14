@@ -877,7 +877,6 @@ export function FastAgentInputBar({
           className="[&_[data-slot=input-group]]:!h-auto [&_[data-slot=input-group]]:!flex-col [&_[data-slot=input-group]]:!items-stretch [&_[data-slot=input-group]]:!rounded-none [&_[data-slot=input-group]]:!border-0 [&_[data-slot=input-group]]:!bg-transparent [&_[data-slot=input-group]]:!shadow-none [&_[data-slot=input-group]]:focus-within:!ring-0"
           data-testid="fast-agent-prompt-input"
           disableFileHandling
-          id={_id}
           onSubmit={({ text }) => handleSend(text)}
         >
         {/* Context Pills Area (Documents, Models, etc.) */}
@@ -1057,7 +1056,7 @@ export function FastAgentInputBar({
                   <button
                     type="button"
                     onClick={() => onRemoveFile(index)}
-                    className="absolute -top-1.5 -right-1.5 bg-surface rounded-full border border-edge p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:text-red-500"
+                    className="absolute -top-1.5 -right-1.5 rounded-full border border-edge bg-surface p-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 hover:text-red-500 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface motion-reduce:transition-none"
                     aria-label={`Remove ${file.name}`}
                   >
                     <X className="w-3 h-3" />
@@ -1207,6 +1206,7 @@ export function FastAgentInputBar({
           {/* Textarea */}
           <PromptInputBody>
             <PromptInputTextarea
+              id={_id}
               ref={textareaRef}
               value={input}
               onChange={(e) => {
