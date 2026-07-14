@@ -34,7 +34,12 @@ export type LiveEventType =
   | 'memory_read'
   | 'memory_write';
 
-export type LiveEventStatus = 'running' | 'success' | 'error' | 'pending';
+export type LiveEventStatus =
+  | 'running'
+  | 'success'
+  | 'error'
+  | 'denied'
+  | 'pending';
 
 export interface LiveEvent {
   id: string;
@@ -59,6 +64,7 @@ type EventIconKind =
   | 'web';
 
 const TOOL_STATE_BY_STATUS: Record<LiveEventStatus, ToolPart['state']> = {
+  denied: 'output-denied',
   error: 'output-error',
   pending: 'input-streaming',
   running: 'input-available',
@@ -132,6 +138,13 @@ function getStatusStyles(status: LiveEventStatus) {
         dot: 'bg-red-500',
         icon: 'text-red-500',
       };
+    case 'denied':
+      return {
+        bg: 'bg-accent-primary/[0.06]',
+        border: 'border-accent-primary/20',
+        dot: 'bg-accent-primary',
+        icon: 'text-accent-primary',
+      };
     case 'pending':
     default:
       return {
@@ -190,6 +203,7 @@ export function LiveEventCard({
                 'border-violet-500 motion-safe:animate-pulse',
               event.status === 'success' && 'border-green-500',
               event.status === 'error' && 'border-red-500',
+              event.status === 'denied' && 'border-accent-primary',
               event.status === 'pending' && 'border-content-muted',
               reducedMotion && '!animate-none !transition-none'
             )}

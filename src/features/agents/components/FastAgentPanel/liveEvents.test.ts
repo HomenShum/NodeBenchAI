@@ -35,7 +35,7 @@ describe('extractLiveEventsFromUIMessages', () => {
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
       details: 'Completed',
-      id: 'search-1-1',
+      id: 'search-1-unified',
       status: 'success',
       title: 'fusionSearch',
       toolName: 'fusionSearch',
@@ -43,7 +43,7 @@ describe('extractLiveEventsFromUIMessages', () => {
     });
   });
 
-  it('uses unified errorText and treats output-denied as an error terminal', () => {
+  it('uses unified errorText and preserves output-denied as a denied terminal', () => {
     const events = extractLiveEventsFromUIMessages(
       streamingMessages([
         {
@@ -71,7 +71,67 @@ describe('extractLiveEventsFromUIMessages', () => {
       },
       {
         details: 'Approval denied',
+        status: 'denied',
+        type: 'tool_error',
+      },
+    ]);
+  });
+
+  it('forces a terminal error when unified errorText arrives before state catches up', () => {
+    const events = extractLiveEventsFromUIMessages(
+      streamingMessages([
+        {
+          errorText: 'Provider failed safely',
+          input: { url: 'https://example.com' },
+          state: 'input-available',
+          toolCallId: 'fetch-lagging-state',
+          type: 'tool-fetchUrl',
+        },
+      ])
+    );
+
+    expect(events).toMatchObject([
+      {
+        details: 'Provider failed safely',
+        id: 'fetch-lagging-state-unified',
         status: 'error',
+        type: 'tool_error',
+      },
+    ]);
+  });
+
+  it('fails closed by skipping an unrecognized unified state without error evidence', () => {
+    const events = extractLiveEventsFromUIMessages(
+      streamingMessages([
+        {
+          input: { query: 'NodeBench' },
+          state: 'mystery-state',
+          toolCallId: 'unknown-state-1',
+          type: 'tool-webSearch',
+        },
+      ])
+    );
+
+    expect(events).toEqual([]);
+  });
+
+  it('uses honest denial fallback copy when the provider omits a denial reason', () => {
+    const events = extractLiveEventsFromUIMessages(
+      streamingMessages([
+        {
+          input: { id: 'doc-1' },
+          state: 'output-denied',
+          toolCallId: 'write-denied',
+          type: 'tool-writeDocument',
+        },
+      ])
+    );
+
+    expect(events).toMatchObject([
+      {
+        details: 'Tool execution denied',
+        id: 'write-denied-unified',
+        status: 'denied',
         type: 'tool_error',
       },
     ]);
@@ -175,5 +235,87 @@ describe('extractLiveEventsFromUIMessages', () => {
         type: 'tool_error',
       },
     ]);
+  });
+
+  it('keeps a tool event id stable when an unrelated earlier part is prepended', () => {
+    const targetPart: TestPart = {
+      input: { query: 'NodeBench' },
+      state: 'input-available',
+      toolCallId: 'stable-target',
+      type: 'tool-webSearch',
+    };
+    const unrelatedPart: TestPart = {
+      input: { id: 'doc-1' },
+      state: 'output-available',
+      toolCallId: 'unrelated-earlier',
+      type: 'tool-readDocument',
+    };
+
+    const beforeId = extractLiveEventsFromUIMessages(
+      streamingMessages([targetPart])
+    )[0]?.id;
+    const afterId = extractLiveEventsFromUIMessages(
+      streamingMessages([unrelatedPart, targetPart])
+    ).find((event) => event.toolName === 'webSearch')?.id;
+
+    expect(beforeId).toBe('stable-target-unified');
+    expect(afterId).toBe(beforeId);
+  });
+
+  it('creates deterministic collision-safe ids for legacy events sharing a tool call id', () => {
+    const parts: TestPart[] = [
+      {
+        args: { query: 'NodeBench' },
+        toolCallId: 'shared-call',
+        toolName: 'legacySearch',
+        type: 'tool-call',
+      },
+      {
+        output: 'Found three results',
+        toolCallId: 'shared-call',
+        toolName: 'legacySearch',
+        type: 'tool-result',
+      },
+      {
+        error: 'Legacy provider failed',
+        toolCallId: 'shared-call',
+        toolName: 'legacySearch',
+        type: 'tool-error',
+      },
+    ];
+
+    const firstIds = extractLiveEventsFromUIMessages(streamingMessages(parts)).map(
+      (event) => event.id
+    );
+    const secondIds = extractLiveEventsFromUIMessages(streamingMessages(parts)).map(
+      (event) => event.id
+    );
+
+    expect(firstIds).toEqual([
+      'shared-call-call',
+      'shared-call-result',
+      'shared-call-error',
+    ]);
+    expect(new Set(firstIds).size).toBe(firstIds.length);
+    expect(secondIds).toEqual(firstIds);
+  });
+
+  it('uses a deterministic suffix when fallback source fingerprints collide', () => {
+    const part: TestPart = {
+      input: { query: 'NodeBench' },
+      state: 'input-available',
+      type: 'tool-webSearch',
+    };
+
+    const firstIds = extractLiveEventsFromUIMessages(
+      streamingMessages([part, { ...part }])
+    ).map((event) => event.id);
+    const secondIds = extractLiveEventsFromUIMessages(
+      streamingMessages([part, { ...part }])
+    ).map((event) => event.id);
+
+    expect(firstIds[0]).toMatch(/^stored-message-1-unified-[a-z0-9]+$/);
+    expect(firstIds[1]).toBe(`${firstIds[0]}-2`);
+    expect(secondIds).toEqual(firstIds);
   });
 });

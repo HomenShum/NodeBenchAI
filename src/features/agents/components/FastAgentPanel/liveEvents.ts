@@ -22,7 +22,7 @@ const UNIFIED_EVENT_BY_STATE: Record<
   'input-available': { status: 'running', type: 'tool_start' },
   'output-available': { status: 'success', type: 'tool_end' },
   'output-error': { status: 'error', type: 'tool_error' },
-  'output-denied': { status: 'error', type: 'tool_error' },
+  'output-denied': { status: 'denied', type: 'tool_error' },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -71,18 +71,114 @@ function unifiedErrorDetails(part: MessagePart): string {
     : String(error).slice(0, 160);
 }
 
+function unifiedDeniedDetails(part: MessagePart): string {
+  const reason =
+    nonEmptyString(part.errorText) ??
+    nonEmptyString(part.denialReason) ??
+    nonEmptyString(part.reason) ??
+    nonEmptyString(part.error);
+  return reason?.slice(0, 160) ?? 'Tool execution denied';
+}
+
+function stableSerialize(value: unknown, seen = new WeakSet<object>()): string {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'string') return JSON.stringify(value);
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (typeof value === 'bigint') return `${value.toString()}n`;
+  if (typeof value !== 'object') return String(value);
+  if (seen.has(value)) return '"[Circular]"';
+
+  seen.add(value);
+  if (Array.isArray(value)) {
+    const serialized = `[${value
+      .map((entry) => stableSerialize(entry, seen))
+      .join(',')}]`;
+    seen.delete(value);
+    return serialized;
+  }
+
+  const serialized = `{${Object.keys(value)
+    .sort()
+    .map(
+      (key) =>
+        `${JSON.stringify(key)}:${stableSerialize(
+          (value as Record<string, unknown>)[key],
+          seen
+        )}`
+    )
+    .join(',')}}`;
+  seen.delete(value);
+  return serialized;
+}
+
+function stableHash(value: unknown): string {
+  const serialized = stableSerialize(value);
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < serialized.length; index += 1) {
+    hash ^= serialized.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function eventIdBase(
+  part: MessagePart,
+  semantic: 'call' | 'error' | 'result' | 'unified',
+  sourceIdentity?: string
+): string {
+  const toolCallId = nonEmptyString(part.toolCallId);
+  if (toolCallId) return `${toolCallId}-${semantic}`;
+
+  const fingerprint = stableHash(part);
+  return sourceIdentity
+    ? `${sourceIdentity}-${semantic}-${fingerprint}`
+    : `part-${semantic}-${fingerprint}`;
+}
+
+function allocateEventId(
+  base: string,
+  occurrences: Map<string, number>
+): string {
+  const occurrence = (occurrences.get(base) ?? 0) + 1;
+  occurrences.set(base, occurrence);
+  return occurrence === 1 ? base : `${base}-${occurrence}`;
+}
+
 function unifiedToolEvent(part: MessagePart): {
   details?: string;
   status: LiveEvent['status'];
   type: LiveEvent['type'];
-} {
+} | null {
   const state =
     typeof part.state === 'string' && hasOwn(UNIFIED_EVENT_BY_STATE, part.state)
       ? (part.state as UnifiedToolState)
       : undefined;
-  const eventState = state
-    ? UNIFIED_EVENT_BY_STATE[state]
-    : UNIFIED_EVENT_BY_STATE['input-available'];
+  const errorText = nonEmptyString(part.errorText);
+
+  if (state === 'output-denied') {
+    return {
+      ...UNIFIED_EVENT_BY_STATE[state],
+      details: unifiedDeniedDetails(part),
+    };
+  }
+
+  // Convex Agent can attach tool-error delta text before advancing the part's
+  // state. Error evidence must win over a stale running/success state.
+  if (errorText) {
+    return {
+      ...UNIFIED_EVENT_BY_STATE['output-error'],
+      details: unifiedErrorDetails(part),
+    };
+  }
+
+  // Unknown future states must not be presented as work that is definitely
+  // running. Skip them until the adapter knows their honest semantics.
+  if (!state) return null;
+
+  const eventState = UNIFIED_EVENT_BY_STATE[state];
 
   if (eventState.type === 'tool_end') {
     return { ...eventState, details: terminalOutputDetails(part) };
@@ -106,6 +202,7 @@ export function extractLiveEventsFromUIMessages(
 ): LiveEvent[] {
   const events: LiveEvent[] = [];
   let eventCounter = 0;
+  const idOccurrences = new Map<string, number>();
 
   for (const rawValue of streamingMessages) {
     if (!isRecord(rawValue)) continue;
@@ -128,6 +225,11 @@ export function extractLiveEventsFromUIMessages(
         : typeof message._creationTime === 'number'
           ? message._creationTime
           : Date.now();
+    const sourceIdentity =
+      nonEmptyString(raw._id) ??
+      nonEmptyString(raw.id) ??
+      nonEmptyString(message._id) ??
+      nonEmptyString(message.id);
 
     for (const rawPart of rawParts) {
       if (!isRecord(rawPart)) continue;
@@ -155,21 +257,17 @@ export function extractLiveEventsFromUIMessages(
       }
 
       const toolName = toToolName(part);
-      const toolCallId = nonEmptyString(part.toolCallId);
-      const idBase =
-        toolCallId ??
-        nonEmptyString(raw._id) ??
-        nonEmptyString(raw.id) ??
-        nonEmptyString(message._id) ??
-        nonEmptyString(message.id) ??
-        'msg';
-      const timestamp = baseTimestamp + eventCounter;
-      eventCounter += 1;
 
       if (isUnifiedTool) {
         const unifiedEvent = unifiedToolEvent(part);
+        if (!unifiedEvent) continue;
+        const timestamp = baseTimestamp + eventCounter;
+        eventCounter += 1;
         events.push({
-          id: `${idBase}-${eventCounter}`,
+          id: allocateEventId(
+            eventIdBase(part, 'unified', sourceIdentity),
+            idOccurrences
+          ),
           title: toolName,
           toolName,
           timestamp,
@@ -180,8 +278,18 @@ export function extractLiveEventsFromUIMessages(
 
       const result = firstPresent(part.output, part.result);
       const error = firstPresent(part.error, part.output, part.result);
+      const semantic = isLegacyError
+        ? 'error'
+        : isLegacyResult
+          ? 'result'
+          : 'call';
+      const timestamp = baseTimestamp + eventCounter;
+      eventCounter += 1;
       events.push({
-        id: `${idBase}-${eventCounter}`,
+        id: allocateEventId(
+          eventIdBase(part, semantic, sourceIdentity),
+          idOccurrences
+        ),
         type: isLegacyError
           ? 'tool_error'
           : isLegacyResult

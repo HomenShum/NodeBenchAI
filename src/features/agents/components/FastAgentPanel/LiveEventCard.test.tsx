@@ -34,6 +34,7 @@ const stateCases: Array<{
   { status: 'running', primitiveState: 'input-available', label: 'Running' },
   { status: 'success', primitiveState: 'output-available', label: 'Completed' },
   { status: 'error', primitiveState: 'output-error', label: 'Error' },
+  { status: 'denied', primitiveState: 'output-denied', label: 'Denied' },
   { status: 'pending', primitiveState: 'input-streaming', label: 'Pending' },
 ];
 
