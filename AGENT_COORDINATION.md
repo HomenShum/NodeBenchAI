@@ -62,7 +62,7 @@ Server Error) for an unknown slug.
   `src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx#terminal-run-error`,
   and focused tests · production dogfood after #529 selected the correct
   tier-eligible model but exposed an empty provider-message list plus an internal
-  error type in the terminal alert · branch `codex/fast-agent-empty-messages`.
+  error type in the terminal alert · branch `fix/fast-agent-empty-messages`.
 
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
