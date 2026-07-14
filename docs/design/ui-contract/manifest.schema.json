@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "nodebench-ui-contract-v1",
+  "title": "NodeBench UI Contract capture manifest",
+  "description": "Describes one dated ui-contract capture folder: the surfaces shot, how, and the before/after proof pairs. Companion to docs/design/UI_CONTRACT.md and src/design/designSystem.ts.",
+  "type": "object",
+  "required": ["schema", "capturedAt", "slice", "app", "pages"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "nodebench-ui-contract-v1" },
+    "capturedAt": { "type": "string", "format": "date-time" },
+    "slice": { "type": "string", "description": "Short slug matching the folder suffix, e.g. ai-elements-batch1." },
+    "app": { "type": "string", "description": "Repo/app the capture belongs to, e.g. nodebench-ai." },
+    "localServer": { "type": "string", "description": "URL the app was served from during capture." },
+    "policy": { "type": "string", "description": "What the screenshots prove and do NOT prove (parity caveats)." },
+    "commitBefore": { "type": "string", "description": "Git ref for the pre-change baseline (migration proof)." },
+    "commitAfter": { "type": "string", "description": "Git ref for the post-change result (migration proof)." },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "viewport"],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "purpose": { "type": "string" },
+          "route": { "type": "string", "description": "Normal product path used to reach the surface." },
+          "viewport": {
+            "type": "object",
+            "required": ["width", "height"],
+            "properties": {
+              "width": { "type": "integer" },
+              "height": { "type": "integer" }
+            }
+          },
+          "theme": { "enum": ["dark", "light"] },
+          "screenshot": { "type": "string", "description": "Single source-design/after screenshot (non-migration captures)." },
+          "before": { "type": "string", "description": "Pre-change baseline screenshot (migration proof)." },
+          "after": { "type": "string", "description": "Post-change result screenshot (migration proof)." },
+          "qa": { "type": "string", "description": "Optional Gemini QA receipt JSON filename beside the shot." }
+        }
+      }
+    }
+  }
+}

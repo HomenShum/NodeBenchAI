@@ -1,9 +1,13 @@
 // src/components/FastAgentPanel/FastAgentPanel.ThoughtBubble.tsx
 // Component for displaying agent reasoning/thinking
 
-import React from 'react';
-import { Brain, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import type { ReactNode } from 'react';
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from '@/components/ai-elements/reasoning';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 interface ThoughtBubbleProps {
   thought: string;
@@ -12,47 +16,42 @@ interface ThoughtBubbleProps {
 }
 
 /**
+ * Reduced-motion-safe thinking label. Mirrors the reasoning primitive's
+ * default message logic but without the animated <Shimmer>, so the component
+ * still honors prefers-reduced-motion after migrating off the previous
+ * `motion-safe:animate-spin` spinner guard.
+ */
+function staticThinkingMessage(isStreaming: boolean, duration?: number): ReactNode {
+  if (isStreaming || duration === 0) {
+    return <span>Thinking...</span>;
+  }
+  if (duration === undefined) {
+    return <span>Thought for a few seconds</span>;
+  }
+  return <span>Thought for {duration} seconds</span>;
+}
+
+/**
  * ThoughtBubble - Displays agent's reasoning between tasks
  * Shows the "why" behind agent actions for transparency
  */
-export function ThoughtBubble({ 
-  thought, 
+export function ThoughtBubble({
+  thought,
   isStreaming = false,
-  className 
+  className,
 }: ThoughtBubbleProps) {
+  // Preserve the original reduced-motion guard: when the user prefers reduced
+  // motion, suppress the primitive's animated shimmer thinking indicator.
+  const reducedMotion = useReducedMotion();
+
   if (!thought) return null;
 
   return (
-    <div className={cn(
-      "mb-4 p-3 rounded-lg border-l-4 border-yellow-500",
-      "bg-yellow-50 dark:bg-yellow-900/10",
-      "transition-all duration-300",
-      isStreaming && "animate-in slide-in-from-top-2",
-      className
-    )}>
-      <div className="flex items-start gap-3">
-        {/* Icon */}
-        <div className="flex-shrink-0 mt-0.5">
-          {isStreaming ? (
-            <Loader2 className="h-4 w-4 text-yellow-600 motion-safe:animate-spin" />
-          ) : (
-            <Brain className="h-4 w-4 text-yellow-600" />
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">💭</span>
-            <span className="text-xs font-semibold text-yellow-700 tracking-wide">
-              Thinking
-            </span>
-          </div>
-          <p className="text-sm text-yellow-800 italic leading-relaxed">
-            {thought}
-          </p>
-        </div>
-      </div>
-    </div>
+    <Reasoning className={className} isStreaming={isStreaming}>
+      <ReasoningTrigger
+        getThinkingMessage={reducedMotion ? staticThinkingMessage : undefined}
+      />
+      <ReasoningContent>{thought}</ReasoningContent>
+    </Reasoning>
   );
 }
