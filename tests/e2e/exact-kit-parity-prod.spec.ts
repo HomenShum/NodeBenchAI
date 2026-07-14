@@ -5,26 +5,49 @@
  */
 
 import { test, expect } from "@playwright/test";
+import {
+  expectAvatarPulseContract,
+  readAvatarPulseMetrics,
+} from "./helpers/avatarPulse";
+import { installVercelPreviewBypass } from "./helpers/vercelPreview";
 
 const BASE_URL =
   process.env.BASE_URL?.replace(/\/$/, "") ?? "https://www.nodebenchai.com";
 
-async function navigate(page: import("@playwright/test").Page, surface: string) {
-  await page.goto(`${BASE_URL}/?surface=${surface}`, { waitUntil: "networkidle", timeout: 30_000 });
+test.beforeEach(async ({ page }) => {
+  await installVercelPreviewBypass(page, BASE_URL);
+});
+
+async function navigate(
+  page: import("@playwright/test").Page,
+  surface: string,
+) {
+  await page.goto(`${BASE_URL}/?surface=${surface}`, {
+    waitUntil: "networkidle",
+    timeout: 30_000,
+  });
   await page.waitForTimeout(5000);
 }
 
 test("PR A4: Home renders ExactHomeSurface composer hero", async ({ page }) => {
   await navigate(page, "ask");
   const result = await page.evaluate(() => ({
-    composer: !!document.querySelector('[data-testid="exact-web-home-composer"]'),
+    composer: !!document.querySelector(
+      '[data-testid="exact-web-home-composer"]',
+    ),
     kicker: !!Array.from(document.querySelectorAll(".nb-kicker")).find((el) =>
       el.textContent?.toLowerCase().includes("on-the-go intelligence"),
     ),
-    h1: Array.from(document.querySelectorAll(".nb-composer-hero h1")).map((h) => h.textContent?.trim()),
-    lanes: Array.from(document.querySelectorAll(".nb-lane")).map((b) => b.textContent?.trim().slice(0, 20)),
+    h1: Array.from(document.querySelectorAll(".nb-composer-hero h1")).map((h) =>
+      h.textContent?.trim(),
+    ),
+    lanes: Array.from(document.querySelectorAll(".nb-lane")).map((b) =>
+      b.textContent?.trim().slice(0, 20),
+    ),
     asyncProof: !!document.querySelector('[data-testid="home-async-proof"]'),
-    firstImpression: !!document.querySelector('[data-testid="home-first-impression-board"]'),
+    firstImpression: !!document.querySelector(
+      '[data-testid="home-first-impression-board"]',
+    ),
   }));
   console.log("HOME:", JSON.stringify(result, null, 2));
   expect(result.composer).toBe(true);
@@ -38,20 +61,33 @@ test("PR A4: Home renders ExactHomeSurface composer hero", async ({ page }) => {
 test("PR A6: Home renders full kit HomePulse layout", async ({ page }) => {
   await navigate(page, "ask");
   const result = await page.evaluate(() => ({
-    pulseStrip: !!document.querySelector('[data-testid="exact-home-pulse-strip"]'),
+    pulseStrip: !!document.querySelector(
+      '[data-testid="exact-home-pulse-strip"]',
+    ),
     pulseHeroCards: document.querySelectorAll(".nb-pulse-card").length,
     pulseMiniCards: document.querySelectorAll(".nb-pulse-mini").length,
-    todayIntel: !!document.querySelector('[data-testid="exact-home-today-intel"]'),
+    todayIntel: !!document.querySelector(
+      '[data-testid="exact-home-today-intel"]',
+    ),
     todayLanes: document.querySelectorAll(".nb-today-lane").length,
-    activeEvent: !!document.querySelector('[data-testid="exact-home-active-event"]'),
+    activeEvent: !!document.querySelector(
+      '[data-testid="exact-home-active-event"]',
+    ),
     eventStats: document.querySelectorAll(".nb-event-stat").length,
-    recentReports: !!document.querySelector('[data-testid="exact-home-recent-reports"]'),
+    recentReports: !!document.querySelector(
+      '[data-testid="exact-home-recent-reports"]',
+    ),
     recentCards: document.querySelectorAll(".nb-recent-card").length,
   }));
   console.log("HOME PULSE:", JSON.stringify(result, null, 2));
   expect(result.pulseStrip, "PulseStrip section should render").toBe(true);
-  expect(result.pulseHeroCards, "4 hero metric cards").toBeGreaterThanOrEqual(4);
-  expect(result.pulseMiniCards, "6 secondary mini cards").toBeGreaterThanOrEqual(6);
+  expect(result.pulseHeroCards, "4 hero metric cards").toBeGreaterThanOrEqual(
+    4,
+  );
+  expect(
+    result.pulseMiniCards,
+    "6 secondary mini cards",
+  ).toBeGreaterThanOrEqual(6);
   expect(result.todayIntel, "Today's intelligence section").toBe(true);
   expect(result.todayLanes, "4 today lanes").toBeGreaterThanOrEqual(4);
   expect(result.activeEvent, "Active event section").toBe(true);
@@ -60,29 +96,44 @@ test("PR A6: Home renders full kit HomePulse layout", async ({ page }) => {
   expect(result.recentCards, "3 recent report cards").toBeGreaterThanOrEqual(3);
 });
 
-test("PR A8: Chat renders ExactChatSurface ChatStream (full conversation thread)", async ({ page }) => {
+test("PR A8: Chat renders ExactChatSurface ChatStream (full conversation thread)", async ({
+  page,
+}) => {
   await navigate(page, "workspace");
   const result = await page.evaluate(() => ({
-    streamMount: !!document.querySelector('[data-testid="exact-web-chat-stream"]'),
-    liveStatus: document.querySelector('[data-testid="exact-web-chat-stream"]')?.getAttribute("data-chat-live-status"),
-    liveEligible: document.querySelector('[data-testid="exact-web-chat-stream"]')?.getAttribute("data-chat-live-eligible"),
-    noFixtureText: document.body.textContent?.includes("no fixture answer loaded"),
-    contextRuntimeText: document.body.textContent?.includes("Context Runtime") || document.body.textContent?.includes("ContextRuntimePacket"),
+    streamMount: !!document.querySelector(
+      '[data-testid="exact-web-chat-stream"]',
+    ),
+    liveStatus: document
+      .querySelector('[data-testid="exact-web-chat-stream"]')
+      ?.getAttribute("data-chat-live-status"),
+    liveEligible: document
+      .querySelector('[data-testid="exact-web-chat-stream"]')
+      ?.getAttribute("data-chat-live-eligible"),
+    noFixtureText: document.body.textContent?.includes(
+      "no fixture answer loaded",
+    ),
+    contextRuntimeText:
+      document.body.textContent?.includes("Context Runtime") ||
+      document.body.textContent?.includes("ContextRuntimePacket"),
     streamRoot: !!document.querySelector(".nb-stream-root"),
     threadHeader: !!document.querySelector(".nb-stream-header h2"),
     headerTitle: document.querySelector(".nb-stream-header h2")?.textContent,
     saveBar: !!document.querySelector(".nb-stream-savebar"),
-    saveBarReportName: document.querySelector(".nb-stream-savebar strong")?.textContent,
+    saveBarReportName: document.querySelector(".nb-stream-savebar strong")
+      ?.textContent,
     fresh: !!document.querySelector(".nb-stream-fresh"),
     turns: document.querySelectorAll(".nb-turn").length,
-    userTurns: document.querySelectorAll(".nb-turn[data-role=\"user\"]").length,
-    agentTurns: document.querySelectorAll(".nb-turn[data-role=\"agent\"]").length,
+    userTurns: document.querySelectorAll('.nb-turn[data-role="user"]').length,
+    agentTurns: document.querySelectorAll('.nb-turn[data-role="agent"]').length,
     runBars: document.querySelectorAll(".nb-runbar").length,
     runUpdates: document.querySelectorAll(".nb-runup").length,
     entityPills: document.querySelectorAll(".nb-epill").length,
     followupChips: document.querySelectorAll(".nb-followup-chip").length,
     composerCard: !!document.querySelector(".nb-composer-card"),
-    goldenComposer: !!document.querySelector('[data-exact-composer="golden"][data-exact-composer-version="2026-05-02"]'),
+    goldenComposer: !!document.querySelector(
+      '[data-exact-composer="golden"][data-exact-composer-version="2026-05-02"]',
+    ),
     composerPin: !!document.querySelector(".nb-composer-pins .nb-pin"),
     composerInput: !!document.querySelector(".nb-composer-input"),
     composerSendButton: !!document.querySelector(".nb-composer-send"),
@@ -92,14 +143,19 @@ test("PR A8: Chat renders ExactChatSurface ChatStream (full conversation thread)
   console.log("CHAT STREAM:", JSON.stringify(result, null, 2));
   expect(result.streamMount, "ChatStream mount").toBe(true);
   expect(result.liveStatus, "live run status marker").toBeTruthy();
-  expect(result.noFixtureText, "chat starts from honest live-ready state").toBe(true);
+  expect(result.noFixtureText, "chat starts from honest live-ready state").toBe(
+    true,
+  );
   expect(result.contextRuntimeText, "Context Runtime copy").toBe(true);
   expect(result.streamRoot).toBe(true);
   expect(result.threadHeader).toBe(true);
   expect(result.headerTitle).toContain("Live Context Runtime");
   expect(result.saveBar, "Save bar").toBe(true);
   expect(result.saveBarReportName).toContain("NodeBench live runtime");
-  expect(result.turns, "at least the live-ready agent turn").toBeGreaterThanOrEqual(1);
+  expect(
+    result.turns,
+    "at least the live-ready agent turn",
+  ).toBeGreaterThanOrEqual(1);
   expect(result.userTurns).toBeGreaterThanOrEqual(0);
   expect(result.agentTurns).toBeGreaterThanOrEqual(1);
   expect(result.runBars, "agent run bars").toBeGreaterThanOrEqual(1);
@@ -113,51 +169,85 @@ test("PR A8: Chat renders ExactChatSurface ChatStream (full conversation thread)
   expect(result.modelPill, "model route pill").toBe(true);
 });
 
-test("PR A2: Reports renders ExactReportsSurface card grid", async ({ page }) => {
+test("PR A2: Reports renders ExactReportsSurface card grid", async ({
+  page,
+}) => {
   await navigate(page, "reports");
   const result = await page.evaluate(() => ({
     grid: !!document.querySelector(".nb-reports-grid"),
     rcards: document.querySelectorAll(".nb-rcard").length,
-    exactCards: document.querySelectorAll('[data-exact-testid="exact-report-card"]').length,
-    actionRows: document.querySelectorAll('[data-testid="report-card-actions"]').length,
-    launcherGoldenComposer: !!document.querySelector('[data-testid="pipeline-launcher"] [data-exact-composer="golden"]'),
-    launcherModelPill: !!document.querySelector('[data-testid="pipeline-launcher"] .nb-model-trigger'),
+    exactCards: document.querySelectorAll(
+      '[data-exact-testid="exact-report-card"]',
+    ).length,
+    actionRows: document.querySelectorAll('[data-testid="report-card-actions"]')
+      .length,
+    launcherGoldenComposer: !!document.querySelector(
+      '[data-testid="pipeline-launcher"] [data-exact-composer="golden"]',
+    ),
+    launcherModelPill: !!document.querySelector(
+      '[data-testid="pipeline-launcher"] .nb-model-trigger',
+    ),
     launcherModelPillText: document
       .querySelector('[data-testid="pipeline-launcher"] .nb-model-trigger')
       ?.textContent?.trim(),
-    launcherSuggestChips: document.querySelectorAll('[data-testid="pipeline-launcher"] .nb-prompt-chip').length,
+    launcherSuggestChips: document.querySelectorAll(
+      '[data-testid="pipeline-launcher"] .nb-prompt-chip',
+    ).length,
     launcherPlaceholder: document
       .querySelector('[data-testid="pipeline-launcher"] .nb-composer-input')
       ?.getAttribute("placeholder"),
     launcherAddContext: !!Array.from(
-      document.querySelectorAll('[data-testid="pipeline-launcher"] .nb-pin-add'),
+      document.querySelectorAll(
+        '[data-testid="pipeline-launcher"] .nb-pin-add',
+      ),
     ).find((node) => node.textContent?.includes("Add context")),
     launcherFooterMeta: document
       .querySelector('[data-testid="pipeline-launcher"] .nb-composer-meta')
       ?.textContent?.trim(),
     launcherTopModelPins: Array.from(
-      document.querySelectorAll('[data-testid="pipeline-launcher"] .nb-composer-pins .typ'),
-    ).filter((node) => node.textContent?.trim().toLowerCase() === "model").length,
+      document.querySelectorAll(
+        '[data-testid="pipeline-launcher"] .nb-composer-pins .typ',
+      ),
+    ).filter((node) => node.textContent?.trim().toLowerCase() === "model")
+      .length,
   }));
   console.log("REPORTS:", JSON.stringify(result, null, 2));
   expect(result.grid).toBe(true);
   expect(result.rcards).toBeGreaterThan(0);
   expect(result.exactCards).toBeGreaterThan(0);
   expect(result.actionRows).toBeGreaterThan(0);
-  expect(result.launcherGoldenComposer, "Reports uses shared golden composer").toBe(true);
-  expect(result.launcherPlaceholder, "Reports uses golden composer placeholder").toBe(
-    "Ask, capture, paste, upload, or record...",
-  );
-  expect(result.launcherAddContext, "Reports keeps the golden + Add context affordance").toBe(true);
-  expect(result.launcherFooterMeta, "Reports keeps the golden memory/cost footer").toBe(
-    "Memory-first - auto route",
-  );
-  expect(result.launcherModelPill, "Reports model control lives in composer footer").toBe(true);
-  expect(result.launcherModelPillText, "Reports defaults to the route selector").toContain(
-    "Auto balanced",
-  );
-  expect(result.launcherTopModelPins, "Reports does not add a top-row model settings pin").toBe(0);
-  expect(result.launcherSuggestChips, "Reports keeps golden suggestion chips").toBeGreaterThanOrEqual(3);
+  expect(
+    result.launcherGoldenComposer,
+    "Reports uses shared golden composer",
+  ).toBe(true);
+  expect(
+    result.launcherPlaceholder,
+    "Reports uses golden composer placeholder",
+  ).toBe("Ask, capture, paste, upload, or record...");
+  expect(
+    result.launcherAddContext,
+    "Reports keeps the golden + Add context affordance",
+  ).toBe(true);
+  expect(
+    result.launcherFooterMeta,
+    "Reports keeps the golden memory/cost footer",
+  ).toBe("Memory-first - auto route");
+  expect(
+    result.launcherModelPill,
+    "Reports model control lives in composer footer",
+  ).toBe(true);
+  expect(
+    result.launcherModelPillText,
+    "Reports defaults to the route selector",
+  ).toContain("Auto balanced");
+  expect(
+    result.launcherTopModelPins,
+    "Reports does not add a top-row model settings pin",
+  ).toBe(0);
+  expect(
+    result.launcherSuggestChips,
+    "Reports keeps golden suggestion chips",
+  ).toBeGreaterThanOrEqual(3);
   const launcherModelSelect = page
     .locator('[data-testid="pipeline-launcher-model"]')
     .filter({ visible: true });
@@ -169,20 +259,27 @@ test("PR A2: Reports renders ExactReportsSurface card grid", async ({ page }) =>
   ).toContainText("Memory-first - free route");
 });
 
-test("PR A1: Inbox renders ExactInboxSurface single-column rows", async ({ page }) => {
+test("PR A1: Inbox renders ExactInboxSurface single-column rows", async ({
+  page,
+}) => {
   await navigate(page, "nudges");
   const result = await page.evaluate(() => ({
     head: !!document.querySelector(".nb-inbox-head"),
-    filterPills: Array.from(document.querySelectorAll(".nb-inbox-filter button")).map((b) =>
-      (b.textContent ?? "").trim().split(/\s+/)[0],
-    ),
+    filterPills: Array.from(
+      document.querySelectorAll(".nb-inbox-filter button"),
+    ).map((b) => (b.textContent ?? "").trim().split(/\s+/)[0]),
     h1: document.querySelector(".nb-inbox-head h1")?.textContent?.trim(),
     rows: document.querySelectorAll(".nb-ibx-row, .nb-panel").length,
   }));
   console.log("INBOX:", JSON.stringify(result, null, 2));
   expect(result.head).toBe(true);
   expect(result.h1).toBe("Inbox");
-  expect(result.filterPills.slice(0, 4)).toEqual(["All", "Act", "Auto", "Watching"]);
+  expect(result.filterPills.slice(0, 4)).toEqual([
+    "All",
+    "Act",
+    "Auto",
+    "Watching",
+  ]);
 });
 
 test("PR A3: Me renders ExactMeSurface 2-pane sidenav", async ({ page }) => {
@@ -191,9 +288,9 @@ test("PR A3: Me renders ExactMeSurface 2-pane sidenav", async ({ page }) => {
     grid: !!document.querySelector(".nb-me-grid"),
     sidenav: !!document.querySelector(".nb-me-sidenav"),
     profileAvatar: !!document.querySelector(".nb-me-sidenav .av"),
-    sectionGroups: Array.from(document.querySelectorAll(".nb-me-sidenav .section-title")).map((el) =>
-      el.textContent?.trim(),
-    ),
+    sectionGroups: Array.from(
+      document.querySelectorAll(".nb-me-sidenav .section-title"),
+    ).map((el) => el.textContent?.trim()),
   }));
   console.log("ME:", JSON.stringify(result, null, 2));
   expect(result.grid).toBe(true);
@@ -202,22 +299,35 @@ test("PR A3: Me renders ExactMeSurface 2-pane sidenav", async ({ page }) => {
   expect(result.sectionGroups).toEqual(["Account", "Preferences", "Workspace"]);
 });
 
-test("PR A7: Reports card click renders inline detail (no workspace redirect)", async ({ page }) => {
+test("PR A7: Reports card click renders inline detail (no workspace redirect)", async ({
+  page,
+}) => {
   // Direct navigation: ?surface=packets&report=disco should render inline detail
-  await page.goto(`${BASE_URL}/?surface=packets&report=disco`, { waitUntil: "networkidle", timeout: 30_000 });
+  await page.goto(`${BASE_URL}/?surface=packets&report=disco`, {
+    waitUntil: "networkidle",
+    timeout: 30_000,
+  });
   await page.waitForTimeout(5000);
 
   // 1. Confirm we're STILL on the cockpit host, NOT redirected to workspace.nodebenchai.com
   const url1 = page.url();
-  expect(url1, "card-click should NOT redirect to workspace subdomain").not.toContain("workspace.nodebenchai.com");
+  expect(
+    url1,
+    "card-click should NOT redirect to workspace subdomain",
+  ).not.toContain("workspace.nodebenchai.com");
   expect(url1).toContain("surface=packets");
   expect(url1).toContain("report=disco");
 
   // 2. Confirm inline detail shell rendered
   const detail = await page.evaluate(() => ({
-    detailMount: !!document.querySelector('[data-testid="exact-web-report-detail"]'),
-    reportId: document.querySelector('[data-testid="exact-web-report-detail"]')?.getAttribute("data-report-id"),
-    breadcrumbCurrent: document.querySelector(".nb-rdetail-crumb-current")?.textContent,
+    detailMount: !!document.querySelector(
+      '[data-testid="exact-web-report-detail"]',
+    ),
+    reportId: document
+      .querySelector('[data-testid="exact-web-report-detail"]')
+      ?.getAttribute("data-report-id"),
+    breadcrumbCurrent: document.querySelector(".nb-rdetail-crumb-current")
+      ?.textContent,
     title: document.querySelector(".nb-rdetail-title")?.textContent,
     eyebrow: document.querySelector(".nb-rdetail-eyebrow")?.textContent,
     sectionCount: document.querySelectorAll(".nb-rdetail-section").length,
@@ -225,8 +335,8 @@ test("PR A7: Reports card click renders inline detail (no workspace redirect)", 
     quote: !!document.querySelector(".nb-rdetail-quote"),
     backButton: !!document.querySelector(".nb-rdetail-back"),
     liveBadge: !!document.querySelector(".nb-rdetail-live"),
-    askAgentButton: !!Array.from(document.querySelectorAll(".nb-btn")).find((el) =>
-      el.textContent?.toLowerCase().includes("ask agent"),
+    askAgentButton: !!Array.from(document.querySelectorAll(".nb-btn")).find(
+      (el) => el.textContent?.toLowerCase().includes("ask agent"),
     ),
   }));
   console.log("INLINE DETAIL:", JSON.stringify(detail, null, 2));
@@ -234,7 +344,9 @@ test("PR A7: Reports card click renders inline detail (no workspace redirect)", 
   expect(detail.reportId).toBe("disco");
   expect(detail.title).toContain("DISCO");
   expect(detail.sectionCount, "DISCO has 5 sections").toBeGreaterThanOrEqual(5);
-  expect(detail.embeddedCard, "Product & moat embedded company card").toBe(true);
+  expect(detail.embeddedCard, "Product & moat embedded company card").toBe(
+    true,
+  );
   expect(detail.quote, "investment thesis quote").toBe(true);
   expect(detail.backButton).toBe(true);
   expect(detail.liveBadge).toBe(true);
@@ -271,49 +383,68 @@ test("PR A9: Avatar HS button opens kit status panel", async ({ page }) => {
 
   // Click the trigger
   await page.click(".nb-avm-trigger");
-  await page.waitForSelector('[data-testid="exact-avatar-menu"]', { timeout: 10_000 });
+  await page.waitForSelector('[data-testid="exact-avatar-menu"]', {
+    timeout: 10_000,
+  });
   await page.waitForTimeout(500);
 
   const open = await page.evaluate(() => ({
     panel: !!document.querySelector('[data-testid="exact-avatar-menu"]'),
     name: document.querySelector(".nb-avm-name")?.textContent,
     proBadge: document.querySelector(".nb-avm-pro")?.textContent,
-    sectionLabels: Array.from(document.querySelectorAll(".nb-avm-section-label")).map((el) => el.textContent),
+    sectionLabels: Array.from(
+      document.querySelectorAll(".nb-avm-section-label"),
+    ).map((el) => el.textContent),
     pulseTiles: document.querySelectorAll(".nb-avm-pulse").length,
-    pulseValues: Array.from(document.querySelectorAll(".nb-avm-pulse-v")).map((el) => el.textContent),
     watchRows: document.querySelectorAll(".nb-avm-watch-row").length,
     usageBars: document.querySelectorAll(".nb-avm-usage").length,
     upgradeBtn: !!document.querySelector(".nb-avm-upgrade"),
     sessionRows: document.querySelectorAll(".nb-avm-session").length,
     thisMarker: !!document.querySelector(".nb-avm-session-this"),
-    themeOpts: Array.from(document.querySelectorAll(".nb-avm-theme-opt")).map((el) => el.textContent?.trim()),
-    links: Array.from(document.querySelectorAll(".nb-avm-link span:first-of-type")).map((el) => el.textContent),
+    themeOpts: Array.from(document.querySelectorAll(".nb-avm-theme-opt")).map(
+      (el) => el.textContent?.trim(),
+    ),
+    links: Array.from(
+      document.querySelectorAll(".nb-avm-link span:first-of-type"),
+    ).map((el) => el.textContent),
   }));
   console.log("AVATAR (open):", JSON.stringify(open, null, 2));
   expect(open.panel).toBe(true);
   expect(open.name).toBe("Hannah Sato");
   expect(open.proBadge).toBe("PRO");
   expect(open.sectionLabels).toEqual(
-    expect.arrayContaining(["Today's pulse", "Watching · 12 entities", "This month · Pro", "Recent sessions", "Theme"]),
+    expect.arrayContaining([
+      "Today's pulse",
+      "Watching · 12 entities",
+      "This month · Pro",
+      "Recent sessions",
+      "Theme",
+    ]),
   );
-  expect(open.pulseTiles, "3 pulse tiles").toBeGreaterThanOrEqual(3);
-  expect(open.pulseValues).toEqual(expect.arrayContaining(["74%", "38", "91%"]));
+  expect(open.pulseTiles, "3 pulse tiles").toBe(3);
+  expectAvatarPulseContract(await readAvatarPulseMetrics(page));
   expect(open.watchRows, "3 watch rows").toBeGreaterThanOrEqual(3);
   expect(open.usageBars, "3 usage bars").toBeGreaterThanOrEqual(3);
   expect(open.upgradeBtn).toBe(true);
   expect(open.sessionRows, "3 recent sessions").toBeGreaterThanOrEqual(3);
   expect(open.thisMarker).toBe(true);
   expect(open.themeOpts).toEqual(["Light", "Dark"]);
-  expect(open.links).toEqual(expect.arrayContaining(["Settings", "Shortcuts", "Help", "Sign out"]));
+  expect(open.links).toEqual(
+    expect.arrayContaining(["Settings", "Shortcuts", "Help", "Sign out"]),
+  );
 
   // Esc closes
   await page.keyboard.press("Escape");
   await page.waitForTimeout(500);
-  const closed = await page.evaluate(() => !document.querySelector('[data-testid="exact-avatar-menu"]'));
+  const closed = await page.evaluate(
+    () => !document.querySelector('[data-testid="exact-avatar-menu"]'),
+  );
   expect(closed, "Esc closes panel").toBe(true);
 });
 
-test("PR A10: Tier A live wiring graceful fallback when unauthenticated", async ({ page }) => {
+test("PR A10: Tier A live wiring graceful fallback when unauthenticated", async ({
+  page,
+}) => {
   // Anonymous visitor: entities.listEntities returns []. The wired surfaces
   // (PulseStrip, TodayIntel reports-updated lane, RecentReports, Avatar
   // Watching) MUST fall back to seed data so the demo experience is preserved.
@@ -345,7 +476,8 @@ test("PR A10: Tier A live wiring graceful fallback when unauthenticated", async 
   await page.waitForTimeout(500);
   const watching = await page.evaluate(() => ({
     rows: document.querySelectorAll(".nb-avm-watch-row").length,
-    label: document.querySelector(".nb-avm-section-label:not([data-skip])")?.textContent,
+    label: document.querySelector(".nb-avm-section-label:not([data-skip])")
+      ?.textContent,
     names: Array.from(document.querySelectorAll(".nb-avm-watch-name")).map(
       (el) => el.textContent,
     ),

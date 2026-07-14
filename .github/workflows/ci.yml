@@ -87,6 +87,7 @@ jobs:
           convex/__tests__/scratchnode.events.test.ts
           server/searchRoute.test.ts
           convex/workflows/ainewsBriefFormat.test.ts
+          scripts/__tests__/releaseWorkflowContracts.test.ts
 
   scratchnode-launch-gates:
     name: ScratchNode launch gates
@@ -109,6 +110,7 @@ jobs:
       - name: Verify demo route gate and live route honesty
         run: >
           npx playwright test
+          tests/e2e/vercel-preview-security.spec.ts
           tests/e2e/scratchnode-demo-route-gate.spec.ts
           tests/e2e/scratchnode-live-route-honesty.spec.ts
           --project=chromium
