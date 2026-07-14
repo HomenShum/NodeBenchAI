@@ -29,6 +29,69 @@ export type RuntimeBillingContext =
   | "anonymous_user"
   | "trusted_evaluation";
 
+type RuntimePromptMessage = {
+  _id?: unknown;
+  id?: unknown;
+  messageId?: unknown;
+  threadId?: unknown;
+  role?: unknown;
+  status?: unknown;
+  text?: unknown;
+  content?: unknown;
+  message?: {
+    role?: unknown;
+    content?: unknown;
+  };
+};
+
+/**
+ * Resolve the exact queued user prompt before routing or reserving provider
+ * budget. The component query supplying these rows is already scoped to the
+ * requested message ID; the additional thread/role/status checks make that
+ * boundary fail closed if queue state is stale or malformed.
+ */
+export function requireRuntimePromptText(args: {
+  messages: readonly (RuntimePromptMessage | null | undefined)[];
+  promptMessageId: string;
+  threadId: string;
+}): string {
+  const expectedMessageId = args.promptMessageId.trim();
+  const expectedThreadId = args.threadId.trim();
+  const promptMessage = args.messages.find((message) => {
+    const messageId = String(
+      message?._id ?? message?.messageId ?? message?.id ?? "",
+    );
+    return messageId === expectedMessageId;
+  });
+  const role = String(
+    promptMessage?.role ?? promptMessage?.message?.role ?? "",
+  ).trim();
+  const status = String(promptMessage?.status ?? "").trim();
+  const threadId = String(promptMessage?.threadId ?? "").trim();
+  const content =
+    typeof promptMessage?.text === "string"
+      ? promptMessage.text
+      : typeof promptMessage?.content === "string"
+        ? promptMessage.content
+        : typeof promptMessage?.message?.content === "string"
+          ? promptMessage.message.content
+          : "";
+
+  if (
+    !expectedMessageId ||
+    !expectedThreadId ||
+    !promptMessage ||
+    threadId !== expectedThreadId ||
+    role !== "user" ||
+    status !== "success" ||
+    !content.trim()
+  ) {
+    throw new Error("Runtime prompt message is missing or empty");
+  }
+
+  return content.trim();
+}
+
 export type MeteredProviderStep = {
   usage?: {
     totalTokens?: number;

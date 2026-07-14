@@ -81,6 +81,7 @@ import {
   getTierSelectionFailureReason,
   getRuntimeAccessTokenEstimate,
   planMeteredProviderStep,
+  requireRuntimePromptText,
   resolveRuntimeBillingContext,
   selectTierEligibleRuntimeModel,
 } from "./runtimeTierFallback";
@@ -248,18 +249,6 @@ async function listThreadMessages(ctx: any, threadId: string, numItems = 30): Pr
     paginationOpts: { cursor: null, numItems },
   });
   return (result?.page ?? result ?? []) as any[];
-}
-
-function findPromptMessageText(messages: any[], promptMessageId?: string, fallbackPrompt?: string): string {
-  if (promptMessageId) {
-    const found = messages.find(
-      (message: any) => String(message?.messageId ?? message?.id ?? message?._id ?? "") === promptMessageId,
-    );
-    if (typeof found?.text === "string" && found.text.trim()) {
-      return found.text;
-    }
-  }
-  return String(fallbackPrompt ?? "").trim();
 }
 
 async function buildRuntimeDailyBriefSummary(ctx: any): Promise<string | null> {
@@ -3295,8 +3284,11 @@ export const streamAsync = internalAction({
       summary?: string;
       messageId?: string;
     } | undefined;
-    const [threadMessages, persistedScratchpad] = await Promise.all([
+    const [threadMessages, promptMessages, persistedScratchpad] = await Promise.all([
       listThreadMessages(ctx, args.threadId, 32),
+      ctx.runQuery(components.agent.messages.getMessagesByIds, {
+        messageIds: [args.promptMessageId],
+      }),
       ctx.runQuery(
         internal.domains.agents.agentScratchpads.getByAgentThreadInternal,
         {
@@ -3304,7 +3296,11 @@ export const streamAsync = internalAction({
         },
       ),
     ]);
-    const promptText = findPromptMessageText(threadMessages, args.promptMessageId);
+    const promptText = requireRuntimePromptText({
+      messages: promptMessages,
+      promptMessageId: args.promptMessageId,
+      threadId: args.threadId,
+    });
     previousCompactContext =
       (persistedScratchpad?.scratchpad?.compactContext as typeof previousCompactContext) ?? undefined;
     let workingSetContext:
@@ -4051,6 +4047,11 @@ export const streamAsync = internalAction({
           { threadId: args.threadId },
           {
             promptMessageId: args.promptMessageId,
+            // recentMessages stays at zero so the queued runtime cannot silently
+            // expand provider context. Supplying the exact validated prompt keeps
+            // the SDK input non-empty; promptMessageId prevents the SDK from
+            // saving a duplicate user message.
+            prompt: promptText,
             system: attemptSystemPrompt,
             abortSignal: attemptController.signal,
             providerOptions,

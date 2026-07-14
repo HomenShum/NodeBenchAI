@@ -58,15 +58,11 @@ Server Error) for an unknown slug.
 ## Active claims (who is editing what RIGHT NOW)
 
 - **2026-07-14 · Codex release captain →**
-  `convex/domains/agents/fastAgentPanelStreaming.ts#runtime-tier-fallback`,
-  `convex/domains/agents/orchestrator/queueProtocol.ts#run-terminal-summary`,
-  `convex/domains/integrations/billing/rateLimiting.ts#internal-usage-accounting`,
-  `convex/tools/media/linkupSearch.ts#abort-signal`,
-  `convex/schema.ts#llm-usage-reservation-fields`,
+  `convex/domains/agents/fastAgentPanelStreaming.ts#provider-message-adapter`,
   `src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx#terminal-run-error`,
-  `.github/workflows/ci.yml#runtime-smoke`, and focused tests · route automatic agent turns onto a tier-eligible fallback and
-  surface terminal worker errors instead of rendering silence · branch
-  `fix/agent-tier-fallback-errors`.
+  and focused tests · production dogfood after #529 selected the correct
+  tier-eligible model but exposed an empty provider-message list plus an internal
+  error type in the terminal alert · branch `codex/fast-agent-empty-messages`.
 
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
