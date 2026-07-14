@@ -73,6 +73,11 @@ import {
   dispatchFastAgentSubmission,
   prepareFastAgentSubmission,
 } from './FastAgentPanel.sendContract';
+import {
+  AgentRunErrorBanner,
+  isActiveAgentRunStatus,
+  isTerminalAgentRunStatus,
+} from './FastAgentPanel.RunState';
 
 import type {
   Message,
@@ -1284,9 +1289,8 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     }
     if (chatMode !== "agent-streaming") return false;
     const runStatus = streamingThread?.runStatus;
-    if (runStatus && runStatus !== "running" && runStatus !== "scheduled") {
-      return false;
-    }
+    if (isActiveAgentRunStatus(runStatus)) return true;
+    if (isTerminalAgentRunStatus(runStatus)) return false;
     if (!streamingMessages || streamingMessages.length === 0) return false;
     return streamingMessages.some(
       (m: any) => m?.role === "assistant" && (m?.status === "streaming" || m?.status === "pending")
@@ -1302,7 +1306,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     }
     const runStatus = streamingThread?.runStatus;
     if (!runStatus) return;
-    if (runStatus === "completed" || runStatus === "failed" || runStatus === "cancelled") {
+    if (isTerminalAgentRunStatus(runStatus)) {
       setIsStreaming(false);
     }
   }, [isProductConversationMode, productConversation.streaming.isStreaming, streamingThread?.runStatus]);
@@ -1985,6 +1989,9 @@ export const FastAgentPanel = memo(function FastAgentPanel({
           streamThreadId: threadId as Id<"chatThreadsStream">,
         });
 
+        // The backend run status now owns the durable busy state. Clear the
+        // component-wide optimistic flag after enqueue so switching to another
+        // thread cannot inherit a stale Stop/Working state.
         setIsStreaming(false);
 
         // Auto-name the thread if it's new (fire and forget)
@@ -2453,7 +2460,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       <>
         {focusSubscription}
         <MinimizedStrip
-          isStreaming={isStreaming}
+          isStreaming={isBusy}
           threads={threads}
           activeThreadId={activeThreadId}
           onSelectThread={(id) => { setActiveThreadId(id); setIsMinimized(false); }}
@@ -2501,7 +2508,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         {/* Simplified Header */}
         <PanelHeader
           isCompactSidebar={isCompactSidebar}
-          isStreaming={isStreaming}
+          isStreaming={isBusy}
           isSwarmActive={isSwarmActive}
           swarmTasks={swarmTasks}
           isAuthenticated={isAuthenticated}
@@ -3182,6 +3189,11 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                       </div>
                     </div>
                   )}
+
+                  <AgentRunErrorBanner
+                    errorMessage={(streamingThread as any)?.runErrorMessage}
+                    status={(streamingThread as any)?.runStatus}
+                  />
 
                   {/* Demo thinking indicator (guest mode) */}
                   {isDemoThinking && (

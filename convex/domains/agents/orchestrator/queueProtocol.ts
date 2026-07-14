@@ -1,14 +1,5 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query, internalQuery } from "../../../_generated/server";
-
-// ... existing code ...
-
-export const getRun = internalQuery({
-  args: { runId: v.id("agentRuns") },
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.runId);
-  },
-});
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { Id } from "../../../_generated/dataModel";
 
@@ -17,6 +8,49 @@ const DEFAULT_LEASE_MS = 5 * 60 * 1000;
 function nowMs() {
   return Date.now();
 }
+
+export const getRun = internalQuery({
+  args: { runId: v.id("agentRuns") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.runId);
+  },
+});
+
+/** Fence each provider attempt and keep the run ledger aligned with its model. */
+export const setEffectiveModel = internalMutation({
+  args: {
+    runId: v.id("agentRuns"),
+    workerId: v.string(),
+    model: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.runId) as {
+      leaseOwner?: string;
+      leaseExpiresAt?: number;
+      status?: string;
+      model?: string;
+    } | null;
+    if (!run) throw new Error("Run not found");
+    if (run.leaseOwner !== args.workerId) throw new Error("Not lease owner");
+    if (run.status !== "running") throw new Error("Run is not active");
+
+    const now = nowMs();
+    if (typeof run.leaseExpiresAt !== "number" || run.leaseExpiresAt <= now) {
+      throw new Error("Run lease expired");
+    }
+
+    // Each attempt is bounded below this window. Refreshing here prevents a live
+    // stream from being reclaimed between provider fallbacks without allowing an
+    // already-expired worker to resurrect its lease.
+    await ctx.db.patch(args.runId, {
+      model: args.model,
+      leaseExpiresAt: now + DEFAULT_LEASE_MS,
+      updatedAt: now,
+    });
+    return null;
+  },
+});
 
 /**
  * Enqueue an existing agent run for worker processing.

@@ -131,7 +131,7 @@ The tool returns verified sources that get stored in the artifact system.`,
     excludeDomains: z.array(z.string()).optional().describe("Exclude these domains from search"),
   }),
 
-  handler: async (ctx, args): Promise<string> => {
+  handler: async (ctx, args, options): Promise<string> => {
     const apiKey = process.env.LINKUP_API_KEY;
     const startTime = Date.now();
     let success = false;
@@ -209,6 +209,7 @@ The tool returns verified sources that get stored in the artifact system.`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
+        signal: options.abortSignal,
       });
 
       if (!response.ok) {

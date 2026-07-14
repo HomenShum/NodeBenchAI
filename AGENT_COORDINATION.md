@@ -58,11 +58,15 @@ Server Error) for an unknown slug.
 ## Active claims (who is editing what RIGHT NOW)
 
 - **2026-07-14 · Codex release captain →**
-  `convex/domains/agents/agentPlanning.ts`, `agentMemory.ts`, their exact public-summary
-  projectors/tests, `FastAgentPanel.tsx#unused-ambient-subscriptions`, and final AI Elements
-  governance/proof · repair the signed-in production query-validator crash discovered by
-  live dogfood, then own the serial P0 merge/deploy/evidence train · branch
-  `fix/agent-query-summary-contracts`.
+  `convex/domains/agents/fastAgentPanelStreaming.ts#runtime-tier-fallback`,
+  `convex/domains/agents/orchestrator/queueProtocol.ts#run-terminal-summary`,
+  `convex/domains/integrations/billing/rateLimiting.ts#internal-usage-accounting`,
+  `convex/tools/media/linkupSearch.ts#abort-signal`,
+  `convex/schema.ts#llm-usage-reservation-fields`,
+  `src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx#terminal-run-error`,
+  `.github/workflows/ci.yml#runtime-smoke`, and focused tests · route automatic agent turns onto a tier-eligible fallback and
+  surface terminal worker errors instead of rendering silence · branch
+  `fix/agent-tier-fallback-errors`.
 
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
@@ -74,6 +78,34 @@ Server Error) for an unknown slug.
   that re-deploys the #494 functions the incident note describes → heals prod.
 
 ## Hand-offs (built + ready for the other agent to call)
+
+- **2026-07-14 - Codex P0 runtime safety (pending branch merge)** - authenticated
+  FastAgent runs reserve budget atomically through internal
+  `domains/billing/rateLimiting:reserveLlmRequestInternal({ reservationKey,
+  attemptKey, userId, model, estimatedInputTokens, estimatedOutputTokens,
+  reserveMaximumTierAllowance?, agentThreadId?, runId?, workerId? })`; the mutation
+  atomically rechecks durable cancellation and the queue lease when those optional
+  fence arguments are supplied. Keyed reconciliation is
+  `recordLlmUsageInternal({ reservationKey, attemptKey, userId, ...usage })` and
+  pre-provider release is `releaseLlmReservationInternal({ reservationKey,
+  attemptKey, userId, reason? })`; it releases only the exact `admitted` attempt
+  and preserves any earlier settled spend. The provider boundary is closed by
+  `markLlmReservationAttemptEndedInternal`, and ambiguous terminal spend is
+  finalized by `finalizeAmbiguousLlmReservationInternal({ reservationKey,
+  attemptKey, userId, reason? })`, retaining the full reservation maximum rather
+  than admitting an unreserved fallback. A scheduled exact-attempt
+  `reapExpiredLlmReservationInternal` applies the same conservative rule to
+  crash-stranded work. `llmUsageLog`
+  adds only optional `reservationKey`, `reservationStatus`, `currentReserved*`,
+  `currentReservationAttemptKey`, `currentReservationAttemptState` (`admitted` /
+  `provider_ended` / `settled`), `reservationAttemptKeys`, and
+  `reservationExpiresAt`; indexes are `by_reservation_key` and
+  `by_user_reservation_status_expiry_timestamp`. The queued model chain exposes only
+  bounded Linkup search plus static ground-truth tools, has no secondary embedding or
+  nested model calls, permits one Linkup call per logical run, propagates durable
+  cancellation into the Linkup fetch, and plans every provider step against one
+  cumulative input-plus-output token ceiling. Do not call these internal functions
+  from UI code.
 
 - **2026-06-03 - Codex -> Claude/Codex next builder** - Public wiki payoff shipped
   in PR #490 and verified live on `scratchnode.live`:
@@ -135,6 +167,10 @@ Server Error) for an unknown slug.
   actually enters a room. The live counter + share moment both honor this.
 
 ## Recently shipped (this ScratchNode session)
+
+- **#528 Codex** - exact public projections for agent plans, memory, and episodic memory;
+  removed unused ambient FastAgentPanel subscriptions; fixed the authenticated
+  query-validator crash found by production dogfood. Canonical main commit `849ff3e5`.
 
 - **2026-06-10 Codex** - room-entry transition polish follow-up (`home-v5.html#room-entry-transition`): softened the loading-shell exit by letting the room header, hero, empty state, and composer rise in under the shell, and animated the unavailable-room banner so the fallback lands on real room chrome instead of a hard cut. Visual evidence: `.validation/scratchnode-entry-shell-after-2026-06-10-transition-polish.png` -> `.validation/scratchnode-entry-shell-settled-v2.png`.
 - **2026-06-10 Codex** - mobile header density pass 11 (`home-v5.html#mobile-header-density-pass-11`): moved the mobile room-code chip into the identity row, kept the zero-note state visually quieter, and softened the Chat/Wall toggle so the room reads as event first, controls second. Visual evidence: `.validation/scratchnode-mobile-header-after-pass-10-room.png` -> `.validation/scratchnode-mobile-header-after-pass-11-room.png`.

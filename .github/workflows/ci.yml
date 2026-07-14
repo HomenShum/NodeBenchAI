@@ -87,6 +87,8 @@ jobs:
           convex/__tests__/scratchnode.events.test.ts
           server/searchRoute.test.ts
           convex/workflows/ainewsBriefFormat.test.ts
+          convex/__tests__/agentRuntimeTierFallback.test.ts
+          src/features/agents/components/FastAgentPanel/__tests__/RunState.test.tsx
           scripts/__tests__/releaseWorkflowContracts.test.ts
 
   scratchnode-launch-gates:
