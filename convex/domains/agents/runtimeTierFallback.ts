@@ -48,7 +48,8 @@ type RuntimePromptMessage = {
  * Resolve the exact queued user prompt before routing or reserving provider
  * budget. The component query supplying these rows is already scoped to the
  * requested message ID; the additional thread/role/status checks make that
- * boundary fail closed if queue state is stale or malformed.
+ * boundary fail closed if queue state is stale or malformed. Success status is
+ * required explicitly so a partial component row cannot enter provider input.
  */
 export function requireRuntimePromptText(args: {
   messages: readonly (RuntimePromptMessage | null | undefined)[];
