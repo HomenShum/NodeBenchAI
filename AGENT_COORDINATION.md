@@ -57,13 +57,6 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- **2026-07-14 · Codex release captain →**
-  `convex/domains/agents/fastAgentPanelStreaming.ts#provider-message-adapter`,
-  `src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx#terminal-run-error`,
-  and focused tests · production dogfood after #529 selected the correct
-  tier-eligible model but exposed an empty provider-message list plus an internal
-  error type in the terminal alert · branch `fix/fast-agent-empty-messages`.
-
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
   shipping the cross-domain private-notes token bridge (opaque stateful token, PR #496) ·
@@ -75,7 +68,8 @@ Server Error) for an unknown slug.
 
 ## Hand-offs (built + ready for the other agent to call)
 
-- **2026-07-14 - Codex P0 runtime safety (pending branch merge)** - authenticated
+- **2026-07-14 - Codex P0 runtime safety (#529 and #531 merged; canonical main
+  `c4035256` / `fa397589`)** - authenticated
   FastAgent runs reserve budget atomically through internal
   `domains/billing/rateLimiting:reserveLlmRequestInternal({ reservationKey,
   attemptKey, userId, model, estimatedInputTokens, estimatedOutputTokens,
@@ -100,8 +94,11 @@ Server Error) for an unknown slug.
   bounded Linkup search plus static ground-truth tools, has no secondary embedding or
   nested model calls, permits one Linkup call per logical run, propagates durable
   cancellation into the Linkup fetch, and plans every provider step against one
-  cumulative input-plus-output token ceiling. Do not call these internal functions
-  from UI code.
+  cumulative input-plus-output token ceiling. The queued provider adapter now
+  validates the exact persisted user row before routing or reservation and passes
+  that prompt explicitly with `recentMessages: 0`, so bounded context cannot become
+  an empty provider request or duplicate the user message. Do not call these
+  internal functions from UI code.
 
 - **2026-06-03 - Codex -> Claude/Codex next builder** - Public wiki payoff shipped
   in PR #490 and verified live on `scratchnode.live`:
@@ -163,6 +160,21 @@ Server Error) for an unknown slug.
   actually enters a room. The live counter + share moment both honor this.
 
 ## Recently shipped (this ScratchNode session)
+
+- **#531 Codex** - exact queued-prompt validation, explicit bounded-context
+  provider input, and safe internal-error redaction. Canonical main commit
+  `fa397589`. Signed-in production run `j9742r0yg3zkfsdqvgpx9he8k98ahv8t`
+  completed on `gemini-2.5-flash` with exactly `TIER_OK`; usage reconciled at
+  741 input / 4 output tokens, daily counters moved +1 request / +1 success /
+  0 errors, and search runs remained zero. The #531 production Vercel deployment
+  `dpl_Ci4RreLinimCumhwLmrJXykiAJAK` reached READY and CI Convex deploy run
+  `29351246820` succeeded.
+
+- **#529 Codex** - tier-safe FastAgent routing, atomic reservation/reconciliation,
+  queue and cancellation fences, bounded Linkup, and honest terminal state.
+  Canonical main commit `c4035256`. Its first production dogfood safely stopped
+  before provider execution, released the zero-token reservation, and exposed the
+  empty-provider-message adapter gap closed by #531.
 
 - **#528 Codex** - exact public projections for agent plans, memory, and episodic memory;
   removed unused ambient FastAgentPanel subscriptions; fixed the authenticated
