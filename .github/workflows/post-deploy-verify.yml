@@ -20,16 +20,9 @@ concurrency:
 
 jobs:
   verify:
-    # On deployment_status events, only run when state is success (skip pending,
-    # failure, in_progress). The PRIOR if-clause also tried to skip Preview URLs
-    # without a bypass secret using `vars.VERCEL_AUTOMATION_BYPASS_SECRET_PRESENT`,
-    # but that var drifted out of sync with `secrets.VERCEL_AUTOMATION_BYPASS_SECRET`
-    # and false-failed every dependabot PR's preview deploy with HTTP 401 SSO.
-    #
-    # The robust fix lives in scripts/post-deploy-verify.mjs: when running against
-    # a Vercel preview URL (*.vercel.app) with no bypass secret in env, the script
-    # now skips cleanly (exit 0 with skipped=true) instead of throwing 401. That
-    # safety net works regardless of the var/secret sync state.
+    # On deployment_status events, only run when state is success. Production
+    # events are verified through the canonical public hostname; only known
+    # Preview environments may explicitly skip when SSO has no bypass secret.
     if: |
       github.event_name != 'deployment_status' ||
       github.event.deployment_status.state == 'success'
@@ -51,19 +44,32 @@ jobs:
 
       - name: Resolve URL
         id: url
+        env:
+          DEPLOYMENT_ENVIRONMENT: ${{ github.event.deployment.environment }}
+          DEPLOYMENT_URL: ${{ github.event.deployment_status.environment_url }}
+          DISPATCH_URL: ${{ github.event.inputs.url }}
         run: |
+          ALLOW_PREVIEW_SKIP=false
           if [ "${{ github.event_name }}" = "deployment_status" ]; then
-            URL="${{ github.event.deployment_status.environment_url }}"
+            if [ "${DEPLOYMENT_ENVIRONMENT,,}" = "production" ]; then
+              URL="https://www.nodebenchai.com"
+            else
+              URL="$DEPLOYMENT_URL"
+              ALLOW_PREVIEW_SKIP=true
+            fi
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            URL="${{ github.event.inputs.url }}"
+            URL="$DISPATCH_URL"
           else
             URL="https://www.nodebenchai.com"
           fi
           echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "allow_preview_skip=$ALLOW_PREVIEW_SKIP" >> "$GITHUB_OUTPUT"
+          echo "Verifying deployment environment '${DEPLOYMENT_ENVIRONMENT:-scheduled/manual}' at $URL"
 
       - name: Verify deployed app
         env:
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          ALLOW_PROTECTED_PREVIEW_SKIP: ${{ steps.url.outputs.allow_preview_skip }}
         run: node scripts/post-deploy-verify.mjs --url=${{ steps.url.outputs.url }} --json > post-deploy-result.json
 
       - name: Upload result
