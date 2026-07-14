@@ -2,8 +2,10 @@ import type { UIMessage } from "@convex-dev/agent/react";
 import type {
   DynamicToolUIPart,
   FileUIPart,
+  ReasoningUIPart,
   SourceDocumentUIPart,
   SourceUrlUIPart,
+  TextUIPart,
   ToolUIPart,
 } from "ai";
 
@@ -33,10 +35,61 @@ export interface DomainParts {
   other: PassthroughMessagePart[];
 }
 
+export type DomainCategory = Exclude<keyof DomainParts, "all" | "other">;
+
+interface IndexedRenderPart {
+  /** Position in the original Convex `message.parts` array. */
+  originalIndex: number;
+}
+
+export type ConvexUIRenderPart =
+  | (IndexedRenderPart & {
+      kind: "text";
+      part: TextUIPart;
+    })
+  | (IndexedRenderPart & {
+      kind: "reasoning";
+      part: ReasoningUIPart;
+    })
+  | (IndexedRenderPart & {
+      kind: "source";
+      part: SourcePart;
+    })
+  | (IndexedRenderPart & {
+      kind: "file";
+      part: FileUIPart;
+    })
+  | (IndexedRenderPart & {
+      kind: "tool";
+      part: NormalizedToolPart;
+      /** Original tool snapshots represented by this one logical owner. */
+      rawParts: PassthroughMessagePart[];
+    })
+  | (IndexedRenderPart & {
+      kind: "domain-tool";
+      part: NormalizedToolPart;
+      /** Latest raw domain payload, retained by identity for custom renderers. */
+      domainPart: PassthroughMessagePart;
+      /** Every domain facet this one logical tool owns, in routing order. */
+      categories: DomainCategory[];
+      /** Original call/result snapshots represented by this one logical owner. */
+      rawParts: PassthroughMessagePart[];
+    })
+  | (IndexedRenderPart & {
+      kind: "domain";
+      part: PassthroughMessagePart;
+      categories: DomainCategory[];
+    });
+
 export interface ConvexUIParts {
   from: UIMessage["role"];
   text: string;
   reasoning: string;
+  /**
+   * Canonical, ordered, exactly-once render ownership plan. Aggregate arrays
+   * below are convenient projections only and must not be rendered in parallel.
+   */
+  renderParts: ConvexUIRenderPart[];
   toolParts: NormalizedToolPart[];
   sources: SourcePart[];
   fileParts: FileUIPart[];
@@ -129,6 +182,23 @@ function validToolState(value: unknown): value is ToolState {
   return typeof value === "string" && TOOL_STATES.has(value as ToolState);
 }
 
+function hasValidUnifiedStateShape(
+  part: PartRecord,
+  state: ToolState,
+): boolean {
+  if (!hasOwn(part, "input")) return false;
+
+  switch (state) {
+    case "input-streaming":
+    case "input-available":
+      return !hasOwn(part, "output") && !hasOwn(part, "errorText");
+    case "output-available":
+      return hasOwn(part, "output") && !hasOwn(part, "errorText");
+    case "output-error":
+      return !hasOwn(part, "output") && typeof part.errorText === "string";
+  }
+}
+
 function inferUnifiedState(part: PartRecord): ToolState {
   const status = nonEmptyString(part.status)?.toLowerCase();
   if (
@@ -204,7 +274,7 @@ function normalizeUnifiedToolPart(
     validToolState(part.state) &&
     part.state === state &&
     nonEmptyString(part.toolCallId) &&
-    hasOwn(part, "input")
+    hasValidUnifiedStateShape(part, state)
   ) {
     return part as NormalizedToolPart;
   }
@@ -307,11 +377,54 @@ function mergeLegacyTerminalPart(
   } as NormalizedToolPart;
 }
 
+interface IndexedPart {
+  part: PartRecord;
+  originalIndex: number;
+}
+
+interface NormalizedToolEntry {
+  part: NormalizedToolPart;
+  originalIndex: number;
+  rawParts: PassthroughMessagePart[];
+  categories: DomainCategory[];
+  domainPart?: PassthroughMessagePart;
+}
+
+function createToolEntry(
+  toolPart: NormalizedToolPart,
+  indexedPart: IndexedPart,
+): NormalizedToolEntry {
+  const categories = domainCategories(indexedPart.part);
+  const rawPart = indexedPart.part as PassthroughMessagePart;
+  return {
+    part: toolPart,
+    originalIndex: indexedPart.originalIndex,
+    rawParts: [rawPart],
+    categories,
+    ...(categories.length > 0 ? { domainPart: rawPart } : {}),
+  };
+}
+
+function updateToolEntry(
+  entry: NormalizedToolEntry,
+  toolPart: NormalizedToolPart,
+  indexedPart: IndexedPart,
+): void {
+  const rawPart = indexedPart.part as PassthroughMessagePart;
+  const nextCategories = domainCategories(indexedPart.part);
+  entry.part = toolPart;
+  entry.rawParts.push(rawPart);
+  if (nextCategories.length > 0) {
+    entry.categories = [...new Set([...entry.categories, ...nextCategories])];
+    entry.domainPart = rawPart;
+  }
+}
+
 function normalizeToolParts(
-  parts: PartRecord[],
+  parts: IndexedPart[],
   messageId: string,
-): NormalizedToolPart[] {
-  const normalized: NormalizedToolPart[] = [];
+): NormalizedToolEntry[] {
+  const normalized: NormalizedToolEntry[] = [];
   const indexByCallId = new Map<string, number>();
   const openCallIdsByName = new Map<string, string[]>();
   const ordinalByName = new Map<string, number>();
@@ -343,7 +456,8 @@ function normalizeToolParts(
     else openCallIdsByName.delete(toolName);
   };
 
-  for (const part of parts) {
+  for (const indexedPart of parts) {
+    const { part } = indexedPart;
     if (!isToolPart(part)) continue;
     const toolName = getToolName(part);
     if (!toolName) continue;
@@ -358,9 +472,9 @@ function normalizeToolParts(
       const existingIndex = indexByCallId.get(toolPart.toolCallId);
       if (existingIndex === undefined) {
         indexByCallId.set(toolPart.toolCallId, normalized.length);
-        normalized.push(toolPart);
+        normalized.push(createToolEntry(toolPart, indexedPart));
       } else {
-        normalized[existingIndex] = toolPart;
+        updateToolEntry(normalized[existingIndex], toolPart, indexedPart);
       }
       rememberOpenCall(toolName, toolPart.toolCallId);
       continue;
@@ -374,7 +488,9 @@ function normalizeToolParts(
         ? indexByCallId.get(matchedCallId)
         : undefined;
       const existing =
-        existingIndex === undefined ? undefined : normalized[existingIndex];
+        existingIndex === undefined
+          ? undefined
+          : normalized[existingIndex].part;
       const merged = mergeLegacyTerminalPart(
         existing,
         part,
@@ -386,9 +502,9 @@ function normalizeToolParts(
 
       if (existingIndex === undefined) {
         indexByCallId.set(merged.toolCallId, normalized.length);
-        normalized.push(merged);
+        normalized.push(createToolEntry(merged, indexedPart));
       } else {
-        normalized[existingIndex] = merged;
+        updateToolEntry(normalized[existingIndex], merged, indexedPart);
       }
       continue;
     }
@@ -402,9 +518,9 @@ function normalizeToolParts(
     const existingIndex = indexByCallId.get(toolPart.toolCallId);
     if (existingIndex === undefined) {
       indexByCallId.set(toolPart.toolCallId, normalized.length);
-      normalized.push(toolPart);
+      normalized.push(createToolEntry(toolPart, indexedPart));
     } else {
-      normalized[existingIndex] = toolPart;
+      updateToolEntry(normalized[existingIndex], toolPart, indexedPart);
     }
 
     if (
@@ -427,8 +543,6 @@ function normalizeDomainType(type: string): string {
     .replace(/[_\s]+/g, "-")
     .toLowerCase();
 }
-
-type DomainCategory = Exclude<keyof DomainParts, "all" | "other">;
 
 function structuredOutputKind(output: unknown): string | undefined {
   if (isRecord(output)) return nonEmptyString(output.kind)?.toLowerCase();
@@ -550,37 +664,68 @@ function routeDomainPart(
  */
 export function convexToUIParts(message: UIMessage): ConvexUIParts {
   const rawParts = Array.isArray(message.parts) ? message.parts : [];
-  const parts = rawParts
-    .map(asPartRecord)
-    .filter((part): part is PartRecord => part !== null);
+  const parts: IndexedPart[] = rawParts.flatMap((rawPart, originalIndex) => {
+    const part = asPartRecord(rawPart);
+    return part ? [{ part, originalIndex }] : [];
+  });
   const sources: SourcePart[] = [];
   const fileParts: FileUIPart[] = [];
   const domainParts = emptyDomainParts();
+  const renderParts: ConvexUIRenderPart[] = [];
   const reasoningParts: string[] = [];
   const textParts: string[] = [];
+  const toolEntries = normalizeToolParts(parts, message.id);
 
-  for (const part of parts) {
+  for (const { part, originalIndex } of parts) {
     if (isPersistentStreamPartType(part.type)) continue;
 
     if (part.type === "text" && typeof part.text === "string") {
       textParts.push(part.text);
+      renderParts.push({
+        kind: "text",
+        originalIndex,
+        part: part as TextUIPart,
+      });
       continue;
     }
     if (part.type === "reasoning" && typeof part.text === "string") {
       reasoningParts.push(part.text);
+      renderParts.push({
+        kind: "reasoning",
+        originalIndex,
+        part: part as ReasoningUIPart,
+      });
       continue;
     }
     if (part.type === "source-url" || part.type === "source-document") {
       sources.push(part as SourcePart);
+      renderParts.push({
+        kind: "source",
+        originalIndex,
+        part: part as SourcePart,
+      });
       continue;
     }
     if (part.type === "file") {
       fileParts.push(part as FileUIPart);
+      renderParts.push({
+        kind: "file",
+        originalIndex,
+        part: part as FileUIPart,
+      });
       continue;
     }
     const categories = domainCategories(part);
     if (part.type.startsWith("data-") || categories.length > 0) {
       routeDomainPart(domainParts, part as PassthroughMessagePart, categories);
+      if (!isToolPart(part)) {
+        renderParts.push({
+          kind: "domain",
+          originalIndex,
+          part: part as PassthroughMessagePart,
+          categories,
+        });
+      }
       continue;
     }
     // The AI SDK union grows over time, and NodeBench also carries product
@@ -588,8 +733,36 @@ export function convexToUIParts(message: UIMessage): ConvexUIParts {
     // non-standard part through the custom-render escape hatch by reference.
     if (part.type !== "step-start" && !isToolPart(part)) {
       routeDomainPart(domainParts, part as PassthroughMessagePart, []);
+      renderParts.push({
+        kind: "domain",
+        originalIndex,
+        part: part as PassthroughMessagePart,
+        categories: [],
+      });
     }
   }
+
+  for (const entry of toolEntries) {
+    if (entry.domainPart) {
+      renderParts.push({
+        kind: "domain-tool",
+        originalIndex: entry.originalIndex,
+        part: entry.part,
+        domainPart: entry.domainPart,
+        categories: entry.categories,
+        rawParts: entry.rawParts,
+      });
+    } else {
+      renderParts.push({
+        kind: "tool",
+        originalIndex: entry.originalIndex,
+        part: entry.part,
+        rawParts: entry.rawParts,
+      });
+    }
+  }
+
+  renderParts.sort((left, right) => left.originalIndex - right.originalIndex);
 
   const materializedText = (message as UIMessage & { text?: unknown }).text;
   const status = message.status;
@@ -601,7 +774,8 @@ export function convexToUIParts(message: UIMessage): ConvexUIParts {
         ? materializedText
         : textParts.join(""),
     reasoning: reasoningParts.join("\n"),
-    toolParts: normalizeToolParts(parts, message.id),
+    renderParts,
+    toolParts: toolEntries.map((entry) => entry.part),
     sources,
     fileParts,
     domainParts,

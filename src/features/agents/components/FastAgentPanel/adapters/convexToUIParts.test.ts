@@ -293,6 +293,197 @@ describe("convexToUIParts", () => {
     });
   });
 
+  it("exposes one ordered render owner for each generic message part", () => {
+    const text = { type: "text", text: "before" };
+    const tool = {
+      type: "tool-webSearch",
+      toolCallId: "search-1",
+      state: "input-available",
+      input: { query: "NodeBench" },
+    };
+    const reasoning = { type: "reasoning", text: "checking" };
+    const domain = {
+      type: "data-verification-receipt",
+      data: { passed: true },
+    };
+    const source = {
+      type: "source-url",
+      sourceId: "source-1",
+      url: "https://example.com",
+    };
+    const file = {
+      type: "file",
+      mediaType: "image/png",
+      url: "https://example.com/chart.png",
+    };
+
+    const result = convexToUIParts(
+      message([text, tool, reasoning, domain, source, file]),
+    );
+
+    expect(
+      result.renderParts.map(({ kind, originalIndex }) => ({
+        kind,
+        originalIndex,
+      })),
+    ).toEqual([
+      { kind: "text", originalIndex: 0 },
+      { kind: "tool", originalIndex: 1 },
+      { kind: "reasoning", originalIndex: 2 },
+      { kind: "domain", originalIndex: 3 },
+      { kind: "source", originalIndex: 4 },
+      { kind: "file", originalIndex: 5 },
+    ]);
+    expect(result.renderParts[0]?.part).toBe(text);
+    expect(result.renderParts[1]?.part).toBe(tool);
+    expect(result.renderParts[2]?.part).toBe(reasoning);
+    expect(result.renderParts[3]?.part).toBe(domain);
+    expect(result.renderParts[4]?.part).toBe(source);
+    expect(result.renderParts[5]?.part).toBe(file);
+  });
+
+  it("gives a unified domain tool exactly one render owner", () => {
+    const domainTool = {
+      type: "tool-fusionSearch",
+      toolCallId: "fusion-1",
+      state: "output-available",
+      input: { query: "NodeBench" },
+      output:
+        "<!-- FUSION_SEARCH_DATA\n{}\n-->\n<!-- SOURCE_GALLERY_DATA\n[]\n-->",
+    };
+
+    const result = convexToUIParts(message([domainTool]));
+
+    expect(result.renderParts).toHaveLength(1);
+    expect(result.renderParts[0]).toMatchObject({
+      kind: "domain-tool",
+      originalIndex: 0,
+      categories: ["media", "fusedSearch"],
+    });
+    expect(result.renderParts[0]?.part).toBe(domainTool);
+    expect(
+      result.renderParts[0]?.kind === "domain-tool" &&
+        result.renderParts[0].domainPart,
+    ).toBe(domainTool);
+    expect(result.toolParts).toEqual([domainTool]);
+    expect(result.domainParts.all).toEqual([domainTool]);
+  });
+
+  it("merges an id-less legacy domain tool into one ordered render owner", () => {
+    const call = {
+      type: "tool-call-fusionSearch",
+      args: { query: "NodeBench" },
+    };
+    const text = { type: "text", text: "interleaved" };
+    const resultPart = {
+      type: "tool-result-fusionSearch",
+      result: "<!-- FUSION_SEARCH_DATA\n{}\n-->",
+    };
+
+    const result = convexToUIParts(message([call, text, resultPart]));
+
+    expect(
+      result.renderParts.map(({ kind, originalIndex }) => ({
+        kind,
+        originalIndex,
+      })),
+    ).toEqual([
+      { kind: "domain-tool", originalIndex: 0 },
+      { kind: "text", originalIndex: 1 },
+    ]);
+    const owner = result.renderParts[0];
+    expect(owner).toMatchObject({
+      kind: "domain-tool",
+      categories: ["fusedSearch"],
+      part: {
+        type: "tool-fusionSearch",
+        toolCallId: "legacy:message-1:fusionSearch:1",
+        state: "output-available",
+        input: { query: "NodeBench" },
+        output: "<!-- FUSION_SEARCH_DATA\n{}\n-->",
+      },
+    });
+    expect(owner?.kind === "domain-tool" && owner.domainPart).toBe(resultPart);
+    expect(owner?.kind === "domain-tool" && owner.rawParts).toEqual([
+      call,
+      resultPart,
+    ]);
+  });
+
+  it("rebuilds Convex output errors that carry an AI SDK-forbidden output", () => {
+    const input = { url: "https://example.com" };
+    const malformed = {
+      type: "tool-fetchUrl",
+      toolCallId: "fetch-1",
+      state: "output-error",
+      input,
+      output: { partial: true },
+      errorText: "timeout",
+      callProviderMetadata: { openai: { requestId: "req-1" } },
+    };
+
+    const [tool] = convexToUIParts(message([malformed])).toolParts;
+
+    expect(tool).not.toBe(malformed);
+    expect(tool).toMatchObject({
+      type: "tool-fetchUrl",
+      toolCallId: "fetch-1",
+      state: "output-error",
+      input,
+      errorText: "timeout",
+      callProviderMetadata: { openai: { requestId: "req-1" } },
+    });
+    expect(tool).not.toHaveProperty("output");
+  });
+
+  it("passes a state-valid unified output error through by identity", () => {
+    const valid = {
+      type: "tool-fetchUrl",
+      toolCallId: "fetch-valid",
+      state: "output-error",
+      input: { url: "https://example.com" },
+      errorText: "timeout",
+    };
+
+    const [tool] = convexToUIParts(message([valid])).toolParts;
+
+    expect(tool).toBe(valid);
+  });
+
+  it("rebuilds terminal unified tools whose required state field is missing", () => {
+    const outputAvailable = {
+      type: "tool-voidAction",
+      toolCallId: "void-1",
+      state: "output-available",
+      input: { id: 1 },
+    };
+    const outputError = {
+      type: "tool-fetchUrl",
+      toolCallId: "fetch-2",
+      state: "output-error",
+      input: { url: "https://example.com" },
+    };
+
+    const [normalizedOutput, normalizedError] = convexToUIParts(
+      message([outputAvailable, outputError]),
+    ).toolParts;
+
+    expect(normalizedOutput).not.toBe(outputAvailable);
+    expect(normalizedOutput).toMatchObject({
+      state: "output-available",
+      input: { id: 1 },
+    });
+    expect(normalizedOutput).toHaveProperty("output", undefined);
+
+    expect(normalizedError).not.toBe(outputError);
+    expect(normalizedError).toMatchObject({
+      state: "output-error",
+      input: { url: "https://example.com" },
+      errorText: "Tool execution failed",
+    });
+    expect(normalizedError).not.toHaveProperty("output");
+  });
+
   it("preserves source and file objects by identity", () => {
     const urlSource = {
       type: "source-url",
@@ -460,6 +651,9 @@ describe("convexToUIParts", () => {
     const result = convexToUIParts(input);
 
     expect(result.domainParts.all).toEqual([]);
+    expect(result.renderParts).toMatchObject([
+      { kind: "text", originalIndex: 1 },
+    ]);
     expect(result).not.toHaveProperty("streamId");
     expect(result).not.toHaveProperty("streamBody");
     expect(JSON.stringify(result)).not.toContain("private stream body");
