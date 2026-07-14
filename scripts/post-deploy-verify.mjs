@@ -15,6 +15,9 @@ const args = process.argv.slice(2).reduce((acc, arg) => {
 const url = String(args.url ?? process.env.PROD_URL ?? "https://www.nodebenchai.com").replace(/\/$/, "");
 const skips = new Set(String(args.skip ?? "").split(",").filter(Boolean));
 const jsonOut = Boolean(args.json);
+const allowProtectedPreviewSkip =
+  args["allow-protected-preview-skip"] === true ||
+  String(args["allow-protected-preview-skip"] ?? process.env.ALLOW_PROTECTED_PREVIEW_SKIP ?? "") === "true";
 
 function run(cmd, cmdArgs, env = {}) {
   const started = Date.now();
@@ -80,15 +83,14 @@ async function fetchHtml() {
  * Vercel preview deployments are SSO-protected by default. When this script
  * runs against a preview URL without a bypass secret configured, every check
  * will hit HTTP 401 — but that's a misconfiguration of the workflow, not a
- * regression of the deployed app. Treat it as a clean skip (exit 0) so the
- * Post-Deploy Verify check stops false-failing on every dependabot PR.
+ * regression of the deployed app. A known Preview event may explicitly opt in
+ * to a recorded skip; every other invocation fails closed.
  *
- * The workflow's `if:` clause is supposed to gate this, but it depends on
- * `vars.VERCEL_AUTOMATION_BYPASS_SECRET_PRESENT` being kept in sync with the
- * actual secret state. This script-level guard is the safety net — if the var
- * drifts from reality, we skip cleanly instead of failing every CI run.
+ * Skipping must be explicitly authorized for a known Preview deployment. A
+ * generated production *.vercel.app URL must never silently skip all checks.
  */
-const shouldSkipPreviewWithoutBypass = isVercelPreview && !vercelBypassSecret;
+const shouldSkipPreviewWithoutBypass =
+  isVercelPreview && !vercelBypassSecret && allowProtectedPreviewSkip;
 
 function tail(text, lines = 18) {
   return text.split("\n").slice(-lines).join("\n").trim();
@@ -177,7 +179,13 @@ if (shouldSkipPreviewWithoutBypass) {
 }
 
 const failed = results.filter((result) => !result.ok).length;
-const summary = { url, failed, firstFailure, results };
+const summary = {
+  url,
+  failed,
+  firstFailure,
+  explicitPreviewSkipAllowed: allowProtectedPreviewSkip,
+  results,
+};
 
 if (jsonOut) {
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
