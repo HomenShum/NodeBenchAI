@@ -57,21 +57,12 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- **2026-07-14 · Codex release captain →** `.github/workflows/tier-b-preview.yml`,
-  `.github/workflows/post-deploy-verify.yml`, `scripts/post-deploy-verify.mjs`,
-  `tests/e2e/live-smoke.spec.ts`, release runbooks, and final migration governance/proof ·
-  repair fail-closed release truth and own the serial merge/deploy train · branch
-  `fix/release-verification-fail-closed`.
-- **2026-07-14 · Codex message lane →**
-  `src/features/agents/components/FastAgentPanel/adapters/*`, direct message contract tests,
-  and `FastAgentPanel.UIMessageBubble.tsx` · build the identity-preserving Convex-to-AI-parts
-  adapter and the live bubble wrap · branch `codex/ai-elements-message`.
-- **2026-07-14 · Codex tools lane →** `CollapsibleAgentProgress.tsx`,
-  `ToolCallTransparency.tsx`, `LiveEventCard.tsx`, and their dedicated tests · migrate the
-  reasoning/tool leaves with honest reachability · branch `codex/ai-elements-tools`.
-- **2026-07-14 · Codex composer lane →** `FastAgentPanel.InputBar.tsx`, its direct tests,
-  and the minimal `FastAgentPanel.tsx` send-forwarding seam · preserve every composer
-  callback while wrapping the live input · branch `codex/ai-elements-composer`.
+- **2026-07-14 · Codex release captain →**
+  `convex/domains/agents/agentPlanning.ts`, `agentMemory.ts`, their exact public-summary
+  projectors/tests, `FastAgentPanel.tsx#unused-ambient-subscriptions`, and final AI Elements
+  governance/proof · repair the signed-in production query-validator crash discovered by
+  live dogfood, then own the serial P0 merge/deploy/evidence train · branch
+  `fix/agent-query-summary-contracts`.
 
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
