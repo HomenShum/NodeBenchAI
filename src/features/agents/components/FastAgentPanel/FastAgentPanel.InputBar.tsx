@@ -2,7 +2,7 @@
 // Enhanced input bar with auto-resize, context pills, drag-and-drop, and floating design
 
 import React, { useState, useRef, useEffect, useCallback, KeyboardEvent, DragEvent } from 'react';
-import { Send, Loader2, Paperclip, X, Mic, Video, Image as ImageIcon, FileText, ChevronUp, StopCircle, FolderOpen, Table2, Calendar, Zap, Gift, AlignLeft, AlignJustify, BookOpen } from 'lucide-react';
+import { Send, Loader2, Paperclip, X, Mic, Video, Image as ImageIcon, FileText, ChevronUp, StopCircle, FolderOpen, Table2, Calendar, Zap, Gift, AlignLeft, AlignJustify, BookOpen, AlertTriangle } from 'lucide-react';
 import { MediaRecorderComponent } from './FastAgentPanel.MediaRecorder';
 import { FileDropOverlay } from '@/shared/components/FileDropOverlay';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,33 @@ import { useSelection } from '@/features/agents/context/SelectionContext';
 import { InlineEnhancer } from './FastAgentPanel.PromptEnhancer';
 import { useAction } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputButton,
+  PromptInputFooter,
+  PromptInputHeader,
+  PromptInputSubmit,
+  PromptInputTextarea,
+} from '@/components/ai-elements/prompt-input';
+import {
+  Context,
+  ContextContent,
+  ContextContentHeader,
+  ContextTrigger,
+} from '@/components/ai-elements/context';
+import {
+  ModelSelector,
+  ModelSelectorContent,
+  ModelSelectorEmpty,
+  ModelSelectorGroup,
+  ModelSelectorInput,
+  ModelSelectorItem,
+  ModelSelectorList,
+  ModelSelectorLogo,
+  ModelSelectorName,
+  ModelSelectorTrigger,
+} from '@/components/ai-elements/model-selector';
 
 // ============================================================================
 // Spawn Command Parser (local to InputBar)
@@ -126,6 +153,19 @@ import {
 
 // Get models from shared module
 const APPROVED_MODEL_LIST = getModelUIList();
+
+function parseContextWindow(contextWindow?: string): number {
+  const match = contextWindow?.trim().match(/^(\d+(?:\.\d+)?)([KM])?$/i);
+  if (!match) return 128_000;
+
+  const value = Number.parseFloat(match[1]);
+  const multiplier = match[2]?.toUpperCase() === 'M'
+    ? 1_000_000
+    : match[2]?.toUpperCase() === 'K'
+      ? 1_000
+      : 1;
+  return Math.max(1, Math.round(value * multiplier));
+}
 
 // File size limits
 const MAX_FILE_SIZE_MB = 10;
@@ -343,6 +383,7 @@ export function FastAgentInputBar({
 
   // Selection context for "Chat with Selection" feature
   const { selection, clearSelection } = useSelection();
+  const attachmentsHeld = attachedFiles.length > 0;
 
   // Prompt enhancement action
   const enhancePromptAction = useAction(api.domains.agents.promptEnhancer.enhancePrompt);
@@ -350,14 +391,19 @@ export function FastAgentInputBar({
   // Handle prompt enhancement (Ctrl+P)
   const handleEnhance = useCallback(async () => {
     if (!input.trim() || isStreaming || isEnhancing) return;
+    if (attachmentsHeld) {
+      toast.error('Attachments are held', {
+        description: 'Prompt enhancement cannot read these files. Remove them before enhancing your message.',
+      });
+      return;
+    }
 
     setIsEnhancing(true);
     try {
-      const attachedFileIds = attachedFiles.map((_, i) => `file-${i}`); // Placeholder IDs
       const result = await enhancePromptAction({
         prompt: input,
         threadId,
-        attachedFileIds: attachedFileIds.length > 0 ? attachedFileIds : undefined,
+        attachedFileIds: undefined,
       });
 
       if (result && result.enhanced) {
@@ -372,7 +418,7 @@ export function FastAgentInputBar({
     } finally {
       setIsEnhancing(false);
     }
-  }, [input, threadId, attachedFiles, isStreaming, isEnhancing, enhancePromptAction, setInput]);
+  }, [attachmentsHeld, input, threadId, isStreaming, isEnhancing, enhancePromptAction, setInput]);
 
   // Keyboard shortcut for enhancement (Ctrl+P)
   useEffect(() => {
@@ -506,11 +552,28 @@ export function FastAgentInputBar({
     }
   }, [isStreaming]);
 
+  const hasReadyDocumentContext =
+    contextDocuments.some((document) => !document.analyzing) ||
+    (selectedDocumentIds?.size ?? 0) > 0;
+  const attachmentHeldStatusId = `${_id ?? 'fast-agent-input'}-attachments-held`;
+
   const handleSend = useCallback((content?: string) => {
     const trimmed = (content ?? input).trim();
     const hasSelection = selection !== null;
     const hasCalendarEvents = contextCalendarEvents.length > 0;
-    if ((!trimmed && attachedFiles.length === 0 && !hasSelection && !hasCalendarEvents) || isStreaming) return;
+    if (attachmentsHeld) {
+      toast.error('Attachments are held', {
+        description: 'This chat cannot send files yet. Remove them before sending; the files will stay attached until then.',
+      });
+      return;
+    }
+    if (
+      (!trimmed &&
+        !hasSelection &&
+        !hasCalendarEvents &&
+        !hasReadyDocumentContext) ||
+      isStreaming
+    ) return;
 
     // Voice intent router — intercept UI commands before agent send
     if (trimmed && onVoiceIntent?.(trimmed, 'text')) {
@@ -567,7 +630,7 @@ export function FastAgentInputBar({
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [attachedFiles.length, clearSelection, contextCalendarEvents, contextCalendarEvents.length, flashVoiceConfirmation, input, isStreaming, onSend, onSpawn, onVoiceIntent, selection, setInput]);
+  }, [attachmentsHeld, clearSelection, contextCalendarEvents, contextCalendarEvents.length, flashVoiceConfirmation, hasReadyDocumentContext, input, isStreaming, onSend, onSpawn, onVoiceIntent, selection, setInput]);
 
   sendTextRef.current = handleSend;
 
@@ -600,11 +663,8 @@ export function FastAgentInputBar({
       }
     }
 
-    // Enter to send (Shift+Enter for newline)
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    // PromptInputTextarea owns ordinary Enter-to-submit and preserves Shift+Enter.
+    // Slash-command keys above prevent default before the primitive sees them.
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -710,7 +770,19 @@ export function FastAgentInputBar({
     return objectUrlMapRef.current.get(fileKey(file)) ?? null;
   };
 
-  const canSend = (input.trim().length > 0 || attachedFiles.length > 0 || contextDocuments.length > 0 || selection !== null || contextCalendarEvents.length > 0) && !isStreaming;
+  const canSend = (
+    !attachmentsHeld &&
+    (
+      input.trim().length > 0 ||
+      hasReadyDocumentContext ||
+      selection !== null ||
+      contextCalendarEvents.length > 0
+    ) &&
+    !isStreaming
+  );
+  const estimatedInputTokens = Math.ceil(input.length / 4);
+  const selectedModelInfo = MODEL_UI_INFO[selectedModel as ApprovedModel];
+  const selectedModelMaxTokens = parseContextWindow(selectedModelInfo?.contextWindow);
   const hasContextPills =
     (selectedDocumentIds?.size ?? 0) > 0 ||
     contextDocuments.length > 0 ||
@@ -801,62 +873,73 @@ export function FastAgentInputBar({
         "focus-within:border-[var(--accent-primary)] focus-within:ring-2 focus-within:ring-[var(--accent-primary)]/15",
         isDragOver && dragFeedback.border
       )}>
-
+        <PromptInput
+          className="[&_[data-slot=input-group]]:!h-auto [&_[data-slot=input-group]]:!flex-col [&_[data-slot=input-group]]:!items-stretch [&_[data-slot=input-group]]:!rounded-none [&_[data-slot=input-group]]:!border-0 [&_[data-slot=input-group]]:!bg-transparent [&_[data-slot=input-group]]:!shadow-none [&_[data-slot=input-group]]:focus-within:!ring-0"
+          data-testid="fast-agent-prompt-input"
+          disableFileHandling
+          onSubmit={({ text }) => handleSend(text)}
+        >
         {/* Context Pills Area (Documents, Models, etc.) */}
         {showTopContextRow && (
-          <div className={cn("px-3 pt-3 flex flex-wrap gap-2 items-center", compact && "pt-2.5")}>
+          <PromptInputHeader className={cn("!px-3 !pt-3 !pb-0 flex-wrap gap-2", compact && "!pt-2.5")}>
             {/* Model Selector */}
             {!compact && (
-              <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowModelSelector(!showModelSelector)}
-              className="flex items-center gap-2 px-2.5 py-1.5 text-xs hover:bg-surface-secondary rounded-lg transition-all duration-200 border border-transparent hover:border-edge"
-            >
-              <span className="text-content-secondary flex items-center gap-1.5 font-medium">
-                {MODEL_UI_INFO[selectedModel as ApprovedModel]?.isFree && <Gift className="w-3 h-3 text-violet-500" />}
-                {MODEL_UI_INFO[selectedModel as ApprovedModel]?.name ?? 'Gemini 3 Flash'}
-              </span>
-              <ChevronUp className={cn("w-3 h-3 text-content-muted transition-transform duration-200", showModelSelector ? "rotate-180" : "")} />
-            </button>
-
-              {/* Model Dropdown */}
-              {showModelSelector && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowModelSelector(false)} />
-                  <div className="absolute bottom-full left-0 mb-2 w-64 bg-surface rounded-lg border border-edge shadow-xl z-20 py-1.5 max-h-80 overflow-y-auto dropdown-enter" style={{ '--dropdown-origin': 'bottom left' } as React.CSSProperties}>
-                    <div className="px-3 py-2 border-b border-edge/50">
-                      <span className="text-xs font-bold text-content-muted">Select Model</span>
-                    </div>
-                    {APPROVED_MODEL_LIST.map((model) => (
-                      <button
-                        type="button"
-                        key={model.id}
-                        onClick={() => {
-                          onSelectModel(model.id);
-                          setShowModelSelector(false);
-                        }}
-                        className={cn(
-                          "w-full px-3 py-2.5 text-left hover:bg-surface-secondary transition-all duration-150",
-                          selectedModel === model.id && "bg-surface-secondary border-l-2 border-l-[rgb(79, 70, 229)]"
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={cn("text-[12px] flex items-center gap-1.5", selectedModel === model.id ? "font-semibold text-content" : "font-medium text-content-secondary")}>
-                            {model.isFree && <Gift className="w-3 h-3 text-violet-500" />}
-                            {model.name}
-                          </span>
-                          <span className="text-xs text-content-muted font-medium">{model.contextWindow}</span>
-                        </div>
-                        <div className="text-xs text-content-muted mt-1 leading-relaxed">
-                          {model.description}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+              <ModelSelector
+                modal={false}
+                onOpenChange={setShowModelSelector}
+                open={showModelSelector}
+              >
+                <ModelSelectorTrigger asChild>
+                  <button
+                    aria-label={`Model: ${selectedModelInfo?.name ?? 'Gemini 3 Flash'}`}
+                    className="flex items-center gap-2 rounded-lg border border-transparent px-2.5 py-1.5 text-xs transition-all duration-200 hover:border-edge hover:bg-surface-secondary"
+                    type="button"
+                  >
+                    <span className="flex items-center gap-1.5 font-medium text-content-secondary">
+                      {selectedModelInfo?.isFree && <Gift className="w-3 h-3 text-violet-500" />}
+                      {selectedModelInfo?.name ?? 'Gemini 3 Flash'}
+                    </span>
+                    <ChevronUp className={cn("w-3 h-3 text-content-muted transition-transform duration-200", showModelSelector && "rotate-180")} />
+                  </button>
+                </ModelSelectorTrigger>
+                <ModelSelectorContent
+                  className="z-[1101] max-h-[min(32rem,80vh)] max-w-md overflow-hidden border border-edge bg-surface text-content shadow-2xl"
+                  title="Select model"
+                >
+                  <ModelSelectorInput placeholder="Search approved models..." />
+                  <ModelSelectorList className="max-h-[min(24rem,65vh)]">
+                    <ModelSelectorEmpty>No approved model found.</ModelSelectorEmpty>
+                    <ModelSelectorGroup heading="Approved models">
+                      {APPROVED_MODEL_LIST.map((model) => (
+                        <ModelSelectorItem
+                          className={cn(
+                            "items-start gap-2.5 px-3 py-2.5",
+                            selectedModel === model.id && "bg-surface-secondary",
+                          )}
+                          key={model.id}
+                          onSelect={() => {
+                            onSelectModel(model.id);
+                            setShowModelSelector(false);
+                          }}
+                          value={`${model.name} ${model.id} ${model.description}`}
+                        >
+                          <ModelSelectorLogo provider={model.provider} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 text-xs">
+                              {model.isFree && <Gift className="w-3 h-3 text-violet-500" />}
+                              <ModelSelectorName className={cn(selectedModel === model.id ? "font-semibold text-content" : "font-medium text-content-secondary")}>
+                                {model.name}
+                              </ModelSelectorName>
+                              <span className="text-xs font-medium text-content-muted">{model.contextWindow}</span>
+                            </div>
+                            <p className="mt-1 text-xs leading-relaxed text-content-muted">{model.description}</p>
+                          </div>
+                        </ModelSelectorItem>
+                      ))}
+                    </ModelSelectorGroup>
+                  </ModelSelectorList>
+                </ModelSelectorContent>
+              </ModelSelector>
             )}
 
           {/* Document Pills (legacy) */}
@@ -952,7 +1035,7 @@ export function FastAgentInputBar({
               </div>
             );
           })}
-          </div>
+          </PromptInputHeader>
         )}
 
         {/* Attached Files Preview */}
@@ -971,14 +1054,30 @@ export function FastAgentInputBar({
                   )}
                   <span className="max-w-[100px] truncate text-content">{file.name}</span>
                   <button
+                    type="button"
                     onClick={() => onRemoveFile(index)}
-                    className="absolute -top-1.5 -right-1.5 bg-surface rounded-full border border-edge p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:text-red-500"
+                    className="absolute -top-1.5 -right-1.5 rounded-full border border-edge bg-surface p-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 hover:text-red-500 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface motion-reduce:transition-none"
+                    aria-label={`Remove ${file.name}`}
                   >
                     <X className="w-3 h-3" />
                   </button>
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {attachmentsHeld && (
+          <div
+            aria-live="polite"
+            className="mx-3 mt-2 flex items-start gap-2 rounded-lg border border-[rgba(180,83,9,0.20)] bg-[rgba(180,83,9,0.06)] px-2.5 py-2 text-[11px] leading-relaxed text-[var(--warning,#B45309)]"
+            id={attachmentHeldStatusId}
+            role="alert"
+          >
+            <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+            <span>
+              <strong>Attachments held.</strong> This chat cannot send files yet. Remove them to send your message; your files remain attached until then.
+            </span>
           </div>
         )}
 
@@ -1047,9 +1146,9 @@ export function FastAgentInputBar({
         )}
 
         {/* Input Area */}
-        <div className={cn("p-3 flex items-end gap-1.5", compact && "pt-2.5")}>
+        <PromptInputFooter className={cn("!p-3 !flex-row !items-end !justify-start gap-1.5", compact && "!pt-2.5")}>
           {/* Attachment Button */}
-          <button
+          <PromptInputButton
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming}
@@ -1058,10 +1157,10 @@ export function FastAgentInputBar({
             aria-label="Attach file"
           >
             <Paperclip className="w-4.5 h-4.5" />
-          </button>
+          </PromptInputButton>
 
           {/* Speech-to-Text / Audio Recording */}
-          <button
+          <PromptInputButton
             type="button"
             onClick={toggleSpeechToText}
             disabled={isStreaming || isRecording}
@@ -1082,9 +1181,9 @@ export function FastAgentInputBar({
             aria-label={isListening ? "Stop listening" : "Voice input using speech recognition"}
           >
             <Mic className="w-4.5 h-4.5" />
-          </button>
+          </PromptInputButton>
           {!compact && (
-            <button
+            <PromptInputButton
               type="button"
               onClick={() => startRecording("video")}
               disabled={isStreaming || isRecording}
@@ -1093,7 +1192,7 @@ export function FastAgentInputBar({
               aria-label="Record video"
             >
               <Video className="w-4.5 h-4.5" />
-            </button>
+            </PromptInputButton>
           )}
           <input
             ref={fileInputRef}
@@ -1105,59 +1204,62 @@ export function FastAgentInputBar({
           />
 
           {/* Textarea */}
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              // Detect @mentions
-              const val = e.target.value;
-              const cursorPos = e.target.selectionStart || 0;
-              const textBefore = val.slice(0, cursorPos);
-              const atMatch = textBefore.match(/@(\w*)$/);
-              if (atMatch) {
-                setShowMentions(true);
-                setMentionQuery(atMatch[1]);
-              } else {
-                setShowMentions(false);
-              }
-            }}
-            onKeyDown={handleKeyDown}
-            onPaste={(e) => {
-              // Image paste handling
-              const items = e.clipboardData?.items;
-              if (items) {
-                const imageFiles: File[] = [];
-                for (const item of Array.from(items)) {
-                  if (item.type.startsWith('image/')) {
-                    const file = item.getAsFile();
-                    if (file) imageFiles.push(file);
+          <PromptInputBody>
+            <PromptInputTextarea
+              id={_id}
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                // Detect @mentions
+                const val = e.target.value;
+                const cursorPos = e.target.selectionStart || 0;
+                const textBefore = val.slice(0, cursorPos);
+                const atMatch = textBefore.match(/@(\w*)$/);
+                if (atMatch) {
+                  setShowMentions(true);
+                  setMentionQuery(atMatch[1]);
+                } else {
+                  setShowMentions(false);
+                }
+              }}
+              onKeyDown={handleKeyDown}
+              onPaste={(e) => {
+                // Image paste handling
+                const items = e.clipboardData?.items;
+                if (items) {
+                  const imageFiles: File[] = [];
+                  for (const item of Array.from(items)) {
+                    if (item.type.startsWith('image/')) {
+                      const file = item.getAsFile();
+                      if (file) imageFiles.push(file);
+                    }
+                  }
+                  if (imageFiles.length > 0) {
+                    e.preventDefault();
+                    onAttachFiles([...attachedFiles, ...imageFiles]);
+                    toast.success(`Pasted ${imageFiles.length} image${imageFiles.length > 1 ? 's' : ''}`);
+                    return;
                   }
                 }
-                if (imageFiles.length > 0) {
-                  e.preventDefault();
-                  onAttachFiles([...attachedFiles, ...imageFiles]);
-                  toast.success(`Pasted ${imageFiles.length} image${imageFiles.length > 1 ? 's' : ''}`);
-                  return;
+                // Smart URL paste: detect URLs and show toast notification
+                const pastedText = e.clipboardData?.getData('text') || '';
+                const urlMatch = pastedText.match(/^https?:\/\/[^\s]+$/);
+                if (urlMatch) {
+                  try {
+                    const url = new URL(pastedText.trim());
+                    const domain = url.hostname.replace('www.', '');
+                    toast.info(`URL detected: ${domain}`, { duration: 2000 });
+                  } catch { /* not a valid URL */ }
                 }
-              }
-              // Smart URL paste: detect URLs and show toast notification
-              const pastedText = e.clipboardData?.getData('text') || '';
-              const urlMatch = pastedText.match(/^https?:\/\/[^\s]+$/);
-              if (urlMatch) {
-                try {
-                  const url = new URL(pastedText.trim());
-                  const domain = url.hostname.replace('www.', '');
-                  toast.info(`URL detected: ${domain}`, { duration: 2000 });
-                } catch { /* not a valid URL */ }
-              }
-            }}
-            placeholder={placeholder}
-            disabled={isStreaming}
-            maxLength={maxLength}
-            className="flex-1 max-h-[200px] py-2 bg-transparent border-none focus:ring-0 p-0 text-sm text-content placeholder:text-content-muted resize-none leading-relaxed"
-            rows={1}
-          />
+              }}
+              placeholder={placeholder}
+              disabled={isStreaming}
+              maxLength={maxLength}
+              className="flex-1 !min-h-0 max-h-[200px] !py-2 bg-transparent border-none focus:ring-0 !px-0 text-sm text-content placeholder:text-content-muted resize-none leading-relaxed"
+              rows={1}
+            />
+          </PromptInputBody>
 
           {/* @Mentions Autocomplete Popup */}
           {showMentions && (
@@ -1223,45 +1325,61 @@ export function FastAgentInputBar({
               value={input}
               onEnhance={handleEnhance}
               isEnhancing={isEnhancing}
-              disabled={isStreaming}
+              disabled={isStreaming || attachmentsHeld}
             />
           )}
 
           {/* Input Token Budget Preview */}
           {!compact && input.length > 20 && !isStreaming && (
-            <span className="text-[8px] tabular-nums text-content-muted whitespace-nowrap" title={`Your message: ~${Math.ceil(input.length / 4)} tokens`}>
-              ~{Math.ceil(input.length / 4)}t
-            </span>
+            <Context
+              maxTokens={selectedModelMaxTokens}
+              modelId={selectedModel}
+              usedTokens={estimatedInputTokens}
+            >
+              <ContextTrigger>
+                <button
+                  aria-label={`Prompt context: approximately ${estimatedInputTokens} tokens`}
+                  className="whitespace-nowrap rounded px-1 text-[8px] tabular-nums text-content-muted hover:bg-surface-secondary"
+                  title={`Your message: ~${estimatedInputTokens} tokens`}
+                  type="button"
+                >
+                  ~{estimatedInputTokens}t
+                </button>
+              </ContextTrigger>
+              <ContextContent align="end" side="top">
+                <ContextContentHeader />
+              </ContextContent>
+            </Context>
           )}
 
           {/* Send/Stop Button */}
-          {isStreaming ? (
-            <button
-              onClick={onStop}
-              className="press-scale group relative p-2.5 bg-red-500 text-white hover:bg-red-600 rounded-lg shadow-md shadow-red-500/20 transition-all duration-200"
-              title="Stop generating"
-              aria-label="Stop generating"
-            >
+          <PromptInputSubmit
+            aria-describedby={attachmentsHeld ? attachmentHeldStatusId : undefined}
+            aria-label={isStreaming ? 'Stop generating' : 'Send message'}
+            className={cn(
+              "press-scale relative size-auto rounded-lg p-2.5 transition-all duration-200",
+              isStreaming
+                ? "group bg-red-500 text-white shadow-md shadow-red-500/20 hover:bg-red-600"
+                : canSend
+                  ? "bg-[var(--accent-primary)] text-white shadow-sm hover:bg-[var(--accent-primary-hover)]"
+                  : "cursor-not-allowed bg-surface-secondary text-content-muted",
+            )}
+            disabled={!isStreaming && !canSend}
+            onStop={onStop}
+            status={isStreaming ? 'streaming' : 'ready'}
+            title={isStreaming ? 'Stop generating' : 'Send message'}
+          >
+            {isStreaming ? (
+              <>
               <div className="absolute inset-0 rounded-lg bg-red-400 motion-safe:animate-ping opacity-20" />
               <StopCircle className="w-5 h-5 relative z-10" />
-            </button>
-          ) : (
-            <button
-              onClick={() => handleSend()}
-              disabled={!canSend}
-              className={cn(
-                "press-scale p-2.5 rounded-lg",
-                canSend
-                  ? "bg-[var(--accent-primary)] text-white shadow-sm transition-all hover:bg-[var(--accent-primary-hover)]"
-                  : "bg-surface-secondary text-content-muted cursor-not-allowed"
-              )}
-              title="Send message"
-              aria-label="Send message"
-            >
+              </>
+            ) : (
               <Send className="w-5 h-5" />
-            </button>
-          )}
-        </div>
+            )}
+          </PromptInputSubmit>
+        </PromptInputFooter>
+        </PromptInput>
       </div>
 
       {/* Keyboard shortcut hints */}
