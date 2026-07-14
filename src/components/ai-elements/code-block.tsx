@@ -142,9 +142,11 @@ const tokensCache = new Map<string, TokenizedCode>();
 const subscribers = new Map<string, Set<(result: TokenizedCode) => void>>();
 
 const getTokensCacheKey = (code: string, language: BundledLanguage) => {
-  const start = code.slice(0, 100);
-  const end = code.length > 100 ? code.slice(-100) : "";
-  return `${language}:${code.length}:${start}:${end}`;
+  // The rendered tokens must be keyed by the complete source. A truncated
+  // prefix/suffix fingerprint can collide for equal-length snippets that only
+  // differ in the middle, which makes the UI display cached code that does not
+  // match the source passed to the Copy action.
+  return `${language}\0${code}`;
 };
 
 const getHighlighter = (
