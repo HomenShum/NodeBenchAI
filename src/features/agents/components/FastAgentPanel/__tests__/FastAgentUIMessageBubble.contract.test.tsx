@@ -116,6 +116,52 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
     expect(screen.getAllByText("Unified result sentinel")).toHaveLength(1);
   });
 
+  it.each([
+    { label: "boolean false", output: false, rendered: "false" },
+    { label: "numeric zero", output: 0, rendered: "0" },
+  ])("renders the present $label tool output", ({ output, rendered }) => {
+    render(
+      <FastAgentUIMessageBubble
+        message={message([
+          {
+            type: "tool-presenceCheck",
+            toolCallId: `presence-${rendered}`,
+            state: "output-available",
+            input: {},
+            output,
+          },
+        ])}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Used 1 tool" }));
+    fireEvent.click(screen.getByRole("button", { name: /presenceCheck/i }));
+
+    expect(screen.getByText("Result")).toBeInTheDocument();
+    expect(screen.getByText(rendered)).toBeInTheDocument();
+  });
+
+  it("treats an empty-string tool output as present and renders its result shell", () => {
+    render(
+      <FastAgentUIMessageBubble
+        message={message([
+          {
+            type: "tool-emptyResult",
+            toolCallId: "empty-result",
+            state: "output-available",
+            input: {},
+            output: "",
+          },
+        ])}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Used 1 tool" }));
+    fireEvent.click(screen.getByRole("button", { name: /emptyResult/i }));
+
+    expect(screen.getByText("Result")).toBeInTheDocument();
+  });
+
   it("gives a structured domain card precedence and invokes its callback once", () => {
     const onCompanySelect = vi.fn();
 
@@ -303,6 +349,55 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
       ["reasoning", "4"],
       ["text", "5"],
     ]);
+  });
+
+  it("keeps three reasoning owners aligned across interleaved render parts", () => {
+    const { container } = render(
+      <FastAgentUIMessageBubble
+        message={message(
+          [
+            { type: "reasoning", text: "alpha" },
+            { type: "text", text: "Answer between reasoning owners" },
+            { type: "reasoning", text: "beta" },
+            {
+              type: "source-url",
+              sourceId: "reasoning-source",
+              url: "https://example.com/reasoning",
+              title: "Reasoning evidence",
+            },
+            { type: "reasoning", text: "gamma" },
+          ],
+          { status: "streaming", text: undefined },
+        )}
+      />,
+    );
+
+    expect(
+      Array.from(
+        container.querySelectorAll<HTMLElement>("[data-render-part-kind]"),
+      ).map((node) => [
+        node.dataset.renderPartKind,
+        node.dataset.originalIndex,
+      ]),
+    ).toEqual([
+      ["reasoning", "0"],
+      ["text", "1"],
+      ["reasoning", "2"],
+      ["source", "3"],
+      ["reasoning", "4"],
+    ]);
+
+    const reasoningOwners = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        '[data-render-part-kind="reasoning"]',
+      ),
+    );
+    expect(reasoningOwners).toHaveLength(3);
+    expect(reasoningOwners[0]).toHaveTextContent("alpha");
+    expect(reasoningOwners[0]).not.toHaveTextContent("beta");
+    expect(reasoningOwners[1]).toHaveTextContent("beta");
+    expect(reasoningOwners[1]).not.toHaveTextContent("gamma");
+    expect(reasoningOwners[2]).toHaveTextContent("gamma");
   });
 
   it("passes standalone and id-less legacy domain owners through custom renderers", () => {

@@ -1462,7 +1462,11 @@ function getStandaloneStructuredOutput(entry: DomainRenderPart): unknown {
 
 function distributeVisibleParts<
   T extends TextRenderPart | ReasoningRenderPart,
->(visible: string | undefined, entries: T[]): Map<number, string> {
+>(
+  visible: string | undefined,
+  entries: T[],
+  separator = '',
+): Map<number, string> {
   const distributed = new Map<number, string>();
   let cursor = 0;
   const materialized = visible ?? '';
@@ -1472,7 +1476,9 @@ function distributeVisibleParts<
     const isLast = index === entries.length - 1;
     const end = isLast ? materialized.length : Math.min(cursor + rawLength, materialized.length);
     distributed.set(entry.originalIndex, materialized.slice(cursor, end));
-    cursor = end;
+    cursor = isLast
+      ? end
+      : Math.min(end + separator.length, materialized.length);
   });
 
   return distributed;
@@ -2033,7 +2039,7 @@ export function FastAgentUIMessageBubble({
     [textRenderParts, visibleText],
   );
   const visibleReasoningByOriginalIndex = useMemo(
-    () => distributeVisibleParts(visibleReasoning, reasoningRenderParts),
+    () => distributeVisibleParts(visibleReasoning, reasoningRenderParts, '\n'),
     [reasoningRenderParts, visibleReasoning],
   );
   const streamRuntimeSeconds = streamStartRef.current

@@ -157,18 +157,21 @@ export const ToolOutput = ({
   errorText,
   ...props
 }: ToolOutputProps) => {
-  if (!(output || errorText)) {
+  const hasOutput = output !== undefined && output !== null;
+  if (!hasOutput && !errorText) {
     return null;
   }
 
-  let Output = <div>{output as ReactNode}</div>;
+  let Output = hasOutput ? <div>{output as ReactNode}</div> : null;
 
-  if (typeof output === "object" && !isValidElement(output)) {
+  if (hasOutput && typeof output === "object" && !isValidElement(output)) {
     Output = (
       <DeferredCodeBlock code={JSON.stringify(output, null, 2)} />
     );
-  } else if (typeof output === "string") {
+  } else if (hasOutput && typeof output === "string") {
     Output = <DeferredCodeBlock code={output} />;
+  } else if (hasOutput) {
+    Output = <DeferredCodeBlock code={String(output)} />;
   }
 
   return (
