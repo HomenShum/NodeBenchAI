@@ -28,6 +28,13 @@
       "runtimeArgs": ["http-server", "public/proto", "-p", "5400", "-c-1", "--silent"],
       "port": 5400,
       "autoPort": true
+    },
+    {
+      "name": "storybook",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": ["storybook", "dev", "-p", "6006", "--no-open", "--ci"],
+      "port": 6006,
+      "autoPort": false
     }
   ]
 }
