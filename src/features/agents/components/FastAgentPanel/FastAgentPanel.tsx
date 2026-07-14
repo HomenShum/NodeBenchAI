@@ -1856,7 +1856,16 @@ export const FastAgentPanel = memo(function FastAgentPanel({
   }, []);
 
   const handleSendMessage = useCallback(async (content?: string) => {
-    const text = (content ?? input).trim();
+    const submittedText = (content ?? input).trim();
+    // InputBar intentionally keeps `content` optional so attachments and document
+    // context can be submitted without synthetic text inside the presentation layer.
+    const attachmentOnlyPrompt = attachedFiles.length > 0
+      ? `Please analyze the attached file${attachedFiles.length === 1 ? '' : 's'}: ${attachedFiles.map((file) => file.name).join(', ')}.`
+      : '';
+    const documentOnlyPrompt = contextDocuments.length > 0 || selectedDocumentIds.size > 0
+      ? 'Please analyze the selected documents.'
+      : '';
+    const text = submittedText || attachmentOnlyPrompt || documentOnlyPrompt;
     if (!text || isBusy) return;
 
     // Guest/demo mode intercept: play scripted or fallback response
@@ -3666,7 +3675,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                   id="fa-chat-input"
                   input={input}
                   setInput={setInput}
-                  onSend={() => stableSendMessage(input)}
+                  onSend={stableSendMessage}
                   isStreaming={isBusy}
                   onStop={handleStopStreaming}
                   selectedModel={selectedModel}

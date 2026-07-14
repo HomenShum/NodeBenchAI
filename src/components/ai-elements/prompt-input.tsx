@@ -493,6 +493,11 @@ export type PromptInputProps = Omit<
   // e.g., "image/*" or leave undefined for any
   accept?: string;
   multiple?: boolean;
+  /**
+   * Keep the primitive's form/textarea behavior while an existing live composer
+   * continues to own attachment state, validation, paste, and drop handling.
+   */
+  disableFileHandling?: boolean;
   // When true, accepts drops anywhere on document. Default false (opt-in).
   globalDrop?: boolean;
   // Render a hidden input with given name and keep it in sync for native form posts. Default false.
@@ -515,6 +520,7 @@ export const PromptInput = ({
   className,
   accept,
   multiple,
+  disableFileHandling = false,
   globalDrop,
   syncHiddenInput,
   maxFiles,
@@ -551,6 +557,7 @@ export const PromptInput = ({
   const openFileDialogLocal = useCallback(() => {
     inputRef.current?.click();
   }, []);
+  const ignoreFiles = useCallback((_files: File[] | FileList) => undefined, []);
 
   const matchesAccept = useCallback(
     (f: File) => {
@@ -702,7 +709,11 @@ export const PromptInput = ({
     []
   );
 
-  const add = usingProvider ? addWithProviderValidation : addLocal;
+  const add = disableFileHandling
+    ? ignoreFiles
+    : usingProvider
+      ? addWithProviderValidation
+      : addLocal;
   const remove = usingProvider ? controller.attachments.remove : removeLocal;
   const openFileDialog = usingProvider
     ? controller.attachments.openFileDialog
@@ -732,7 +743,7 @@ export const PromptInput = ({
   // Attach drop handlers on nearest form and document (opt-in)
   useEffect(() => {
     const form = formRef.current;
-    if (!form) {
+    if (!form || disableFileHandling) {
       return;
     }
     if (globalDrop) {
@@ -759,10 +770,10 @@ export const PromptInput = ({
       form.removeEventListener("dragover", onDragOver);
       form.removeEventListener("drop", onDrop);
     };
-  }, [add, globalDrop]);
+  }, [add, disableFileHandling, globalDrop]);
 
   useEffect(() => {
-    if (!globalDrop) {
+    if (!globalDrop || disableFileHandling) {
       return;
     }
 
@@ -785,7 +796,7 @@ export const PromptInput = ({
       document.removeEventListener("dragover", onDragOver);
       document.removeEventListener("drop", onDrop);
     };
-  }, [add, globalDrop]);
+  }, [add, disableFileHandling, globalDrop]);
 
   useEffect(
     () => () => {
@@ -905,16 +916,18 @@ export const PromptInput = ({
   // Render with or without local provider
   const inner = (
     <>
-      <input
-        accept={accept}
-        aria-label="Upload files"
-        className="hidden"
-        multiple={multiple}
-        onChange={handleChange}
-        ref={inputRef}
-        title="Upload files"
-        type="file"
-      />
+      {!disableFileHandling && (
+        <input
+          accept={accept}
+          aria-label="Upload files"
+          className="hidden"
+          multiple={multiple}
+          onChange={handleChange}
+          ref={inputRef}
+          title="Upload files"
+          type="file"
+        />
+      )}
       <form
         className={cn("w-full", className)}
         onSubmit={handleSubmit}
