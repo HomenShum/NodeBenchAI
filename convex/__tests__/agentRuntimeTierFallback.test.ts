@@ -7,6 +7,7 @@ import {
   getTierSelectionFailureReason,
   getRuntimeAccessTokenEstimate,
   planMeteredProviderStep,
+  requireRuntimePromptText,
   resolveRuntimeBillingContext,
   selectTierEligibleRuntimeModel,
   type TierModelCheck,
@@ -301,7 +302,98 @@ describe("cumulative metered provider token planning", () => {
   });
 });
 
+describe("queued runtime prompt validation", () => {
+  const promptMessage = {
+    _id: "prompt-production-shape",
+    threadId: "thread-production-shape",
+    status: "success",
+    message: {
+      role: "user",
+      content: "Reply with exactly TIER_OK and nothing else.",
+    },
+  };
+
+  it("carries the exact production-shaped user prompt across the bounded history boundary", () => {
+    expect(
+      requireRuntimePromptText({
+        messages: [promptMessage],
+        promptMessageId: promptMessage._id,
+        threadId: promptMessage.threadId,
+      }),
+    ).toBe("Reply with exactly TIER_OK and nothing else.");
+  });
+
+  it.each([
+    { label: "missing", messages: [] },
+    {
+      label: "blank",
+      messages: [{ ...promptMessage, message: { role: "user", content: "   " } }],
+    },
+    {
+      label: "wrong thread",
+      messages: [{ ...promptMessage, threadId: "thread-other" }],
+    },
+    {
+      label: "non-user",
+      messages: [
+        {
+          ...promptMessage,
+          message: { ...promptMessage.message, role: "assistant" },
+        },
+      ],
+    },
+    {
+      label: "failed",
+      messages: [{ ...promptMessage, status: "failed" }],
+    },
+    {
+      label: "missing status",
+      messages: [{ ...promptMessage, status: undefined }],
+    },
+  ])("fails closed for a $label prompt row", ({ messages }) => {
+    expect(() =>
+      requireRuntimePromptText({
+        messages,
+        promptMessageId: promptMessage._id,
+        threadId: promptMessage.threadId,
+      }),
+    ).toThrow("Runtime prompt message is missing or empty");
+  });
+});
+
 describe("streamAsync tier-gate wiring", () => {
+  it("validates an exact prompt before routing and carries it explicitly with zero history", () => {
+    const actionStart = streamingSource.indexOf("export const streamAsync");
+    const actionEnd = streamingSource.indexOf(
+      "export const generateDocumentContent",
+      actionStart,
+    );
+    const actionSource = streamingSource.slice(actionStart, actionEnd);
+    const promptGuard = actionSource.indexOf(
+      "const promptText = requireRuntimePromptText({",
+    );
+    const tierGate = actionSource.indexOf(
+      "const tierSelection = await selectTierEligibleRuntimeModel",
+    );
+    const reservation = actionSource.indexOf(
+      "await reserveRuntimeModelAccess(model, attemptKey)",
+    );
+    const providerCall = actionSource.indexOf("result = await agent.streamText(");
+    const providerCallEnd = actionSource.indexOf(
+      "if (attemptTimedOut)",
+      providerCall,
+    );
+    const providerCallSource = actionSource.slice(providerCall, providerCallEnd);
+
+    expect(promptGuard).toBeGreaterThanOrEqual(0);
+    expect(tierGate).toBeGreaterThan(promptGuard);
+    expect(reservation).toBeGreaterThan(tierGate);
+    expect(providerCall).toBeGreaterThan(reservation);
+    expect(providerCallSource).toContain("promptMessageId: args.promptMessageId");
+    expect(providerCallSource).toContain("prompt: promptText");
+    expect(providerCallSource).toContain("recentMessages: 0");
+  });
+
   it("removes the unmetered dynamic-prompt LLM path from queued streaming", () => {
     const actionStart = streamingSource.indexOf("export const streamAsync");
     const preflight = streamingSource.indexOf(
@@ -457,6 +549,30 @@ describe("agent run presentation", () => {
     ).toBe(
       'Rate limit exceeded: Model "gemini-3-flash-preview" is not available on the free tier',
     );
+  });
+
+  it("maps custom SDK wrappers and empty-message internals to a safe retry hint", () => {
+    expect(
+      formatPublicAgentRunError(
+        "AgentStreamFailedError: Invalid prompt: messages must not be empty\n    at stream (/convex/file.ts:1:1)",
+      ),
+    ).toBe("The agent could not start this request. Please try again.");
+    expect(
+      formatPublicAgentRunError(
+        "Uncaught RuntimePromptError: Runtime prompt message is missing or empty (request id: qa-1)",
+      ),
+    ).toBe("The agent could not start this request. Please try again.");
+  });
+
+  it("maps bare error-class wrappers to the generic public failure", () => {
+    expect(formatPublicAgentRunError("Error\n    at handler")).toBe(
+      "The agent run failed before producing a response.",
+    );
+    expect(
+      formatPublicAgentRunError(
+        "Uncaught AgentStreamFailedError\n    at stream (/convex/file.ts:1:1)",
+      ),
+    ).toBe("The agent run failed before producing a response.");
   });
 
   it("projects terminal error metadata without exposing database-only fields", () => {

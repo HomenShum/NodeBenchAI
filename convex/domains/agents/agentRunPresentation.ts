@@ -32,9 +32,16 @@ export function formatPublicAgentRunError(
   while (message && message !== previous) {
     previous = message;
     message = message
-      .replace(/^Error:\s*/i, "")
       .replace(/^Uncaught\s+/i, "")
+      .replace(/^(?:[A-Za-z_$][\w$.-]*Error|Error)\s*(?::\s*|$)/i, "")
       .trim();
+  }
+
+  if (
+    /^Invalid prompt:\s*messages must not be empty\b/i.test(message) ||
+    /^Runtime prompt message is missing or empty\b/i.test(message)
+  ) {
+    return "The agent could not start this request. Please try again.";
   }
 
   if (!message) return "The agent run failed before producing a response.";
