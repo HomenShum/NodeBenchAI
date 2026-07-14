@@ -2,8 +2,10 @@
 // Unified source card component for displaying documents, articles, and other sources
 
 import React, { useState } from 'react';
-import { ExternalLink, FileText, Globe, Building2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ExternalLink, FileText, Globe, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Source } from '@/components/ai-elements/sources';
+import { InlineCitation, InlineCitationText } from '@/components/ai-elements/inline-citation';
 import type { SECDocument } from './MediaGallery';
 
 export interface BaseSource {
@@ -44,25 +46,29 @@ function extractDomain(url: string): string {
 /**
  * SourceCard - Displays a single source with preview, title, and metadata
  * Supports both generic sources and SEC documents
+ *
+ * Reimplemented on the Vercel AI Elements `Source` primitive (which renders the
+ * anchor) with all rich extras (preview image / favicon / SEC + page badges /
+ * citation number) supplied as custom children. Numbered citations use the
+ * `InlineCitation` primitive.
  */
 export function SourceCard({ source, className, citationNumber }: SourceCardProps) {
   const isSEC = isSECDocument(source);
-  
+
   // Extract metadata
   const title = source.title;
   const url = isSEC ? source.documentUrl : source.url;
   const domain = isSEC ? 'sec.gov' : (source.domain || extractDomain(url));
-  const description = isSEC 
+  const description = isSEC
     ? `${source.formType} • Filed ${source.filingDate}`
     : source.description;
   const previewImage = isSEC ? undefined : source.previewImage;
   const favicon = isSEC ? undefined : source.favicon;
 
   return (
-    <a
+    <Source
       id={citationNumber ? `source-${citationNumber}` : undefined}
       href={url}
-      target="_blank"
       rel="noopener noreferrer"
       className={cn(
         "group block rounded-lg border border-edge hover:shadow-md hover:border-primary/20",
@@ -141,9 +147,11 @@ export function SourceCard({ source, className, citationNumber }: SourceCardProp
         {/* Citation number badge */}
         {citationNumber !== undefined && (
           <div className="flex-shrink-0">
-            <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold">
-              {citationNumber}
-            </div>
+            <InlineCitation>
+              <InlineCitationText className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold">
+                {citationNumber}
+              </InlineCitationText>
+            </InlineCitation>
           </div>
         )}
 
@@ -152,7 +160,7 @@ export function SourceCard({ source, className, citationNumber }: SourceCardProp
           <ExternalLink className="h-4 w-4 text-content-muted" />
         </div>
       </div>
-    </a>
+    </Source>
   );
 }
 
@@ -236,4 +244,3 @@ export function secDocumentToSource(doc: SECDocument): BaseSource {
     description: `${doc.formType} • Filed ${doc.filingDate}`,
   };
 }
-

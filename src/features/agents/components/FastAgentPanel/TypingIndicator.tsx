@@ -3,7 +3,9 @@
 
 import React from 'react';
 import { Bot, Loader2 } from 'lucide-react';
+import { useReducedMotion } from 'motion/react';
 import { cn } from '@/lib/utils';
+import { Shimmer } from '@/components/ai-elements/shimmer';
 
 interface TypingIndicatorProps {
   agentRole?: 'coordinator' | 'documentAgent' | 'mediaAgent' | 'secAgent' | 'webAgent';
@@ -45,6 +47,11 @@ const agentRoleConfig = {
  */
 export function TypingIndicator({ agentRole, message }: TypingIndicatorProps) {
   const roleConfig = agentRole ? agentRoleConfig[agentRole] : null;
+  const prefersReducedMotion = useReducedMotion();
+  // Unify the former animated 3-dot loader + optional status message into a
+  // single shimmering string. Shimmer children must be a non-empty string, so
+  // fall back to a neutral "typing" status when no message is provided.
+  const statusText = message && message.length > 0 ? message : 'Thinking…';
 
   return (
     <div className="flex gap-3 mb-4 justify-start">
@@ -78,21 +85,16 @@ export function TypingIndicator({ agentRole, message }: TypingIndicatorProps) {
           </div>
         )}
 
-        {/* Typing Bubble */}
+        {/* Typing Bubble — Shimmer status replaces the hand-rolled 3-dot loader */}
         <div className="rounded-lg px-4 py-3 bg-surface border border-edge shadow-sm">
-          <div className="flex items-center gap-3">
-            {/* Animated Dots */}
-            <div className="flex gap-1">
-              <span className="w-2 h-2 bg-content-muted rounded-full typing-dot" style={{ animationDelay: '0ms' }}></span>
-              <span className="w-2 h-2 bg-content-muted rounded-full typing-dot" style={{ animationDelay: '150ms' }}></span>
-              <span className="w-2 h-2 bg-content-muted rounded-full typing-dot" style={{ animationDelay: '300ms' }}></span>
-            </div>
-
-            {/* Optional Status Message */}
-            {message && (
-              <span className="text-sm text-content-secondary">{message}</span>
-            )}
-          </div>
+          {prefersReducedMotion ? (
+            // Reduced motion: static status text, no shimmer sweep.
+            <span className="text-sm text-content-secondary">{statusText}</span>
+          ) : (
+            <Shimmer as="span" className="text-sm" duration={1.4}>
+              {statusText}
+            </Shimmer>
+          )}
         </div>
       </div>
     </div>

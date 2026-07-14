@@ -231,6 +231,9 @@ export default defineConfig(({ mode }) => {
           '**/dogfood/generations/**',
           '**/node_modules/**',
           '**/proto/**/node_modules/**',
+          // Shiki grammar/theme chunks — lazy-loaded on demand, not precached.
+          // See chunkFileNames routing above.
+          '**/assets/shiki/**',
         ],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/voice\//, /^\/install\.sh/],
@@ -443,7 +446,23 @@ window.addEventListener('message', async (message) => {
         propertyReadSideEffects: false,
       },
       output: {
-        chunkFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: (chunkInfo) => {
+          // Shiki (behind the AI Elements code-block) ships ~200 TextMate
+          // grammars + themes, each emitted as its own lazy chunk. Route them
+          // to assets/shiki/ so the PWA service worker can exclude the whole
+          // folder from precache via globIgnores — they still lazy-load at
+          // runtime when a code block of that language renders. Without this,
+          // the SW would precache ~9MB of grammars the chat surface almost
+          // never uses on first visit.
+          const facadeId = chunkInfo.facadeModuleId ?? "";
+          if (
+            facadeId.includes("@shikijs/langs") ||
+            facadeId.includes("@shikijs/themes")
+          ) {
+            return "assets/shiki/[name]-[hash].js";
+          }
+          return "assets/[name]-[hash].js";
+        },
         entryFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
         // Route-based code splitting for optimal loading
@@ -506,11 +525,19 @@ window.addEventListener('message', async (message) => {
               id.includes('/node_modules/unist-') ||
               id.includes('/node_modules/emoji-mart') ||
               id.includes('/node_modules/@emoji-mart/') ||
-              id.includes('/node_modules/@floating-ui/') ||
-              id.includes('/node_modules/@shikijs/')
+              id.includes('/node_modules/@floating-ui/')
             ) {
               return 'editor-vendor';
             }
+            // Shiki (syntax highlighter behind the AI Elements `code-block`
+            // primitive) MUST NOT be lumped into one chunk. `@shikijs/langs`
+            // ships ~200 grammars, each behind a dynamic import so Shiki can
+            // load only the languages actually rendered. Force-grouping
+            // `@shikijs/*` collapses that per-language splitting into a single
+            // ~10MB eager blob that overflows the PWA precache limit (2 MiB) and
+            // fails the build. Leave it unmatched so Rolldown preserves Shiki's
+            // native code-splitting: core + engine land in the lazy `code-block`
+            // chunk, and each grammar/theme becomes its own on-demand chunk.
             // Spreadsheet engine (very heavy)
             if (id.includes('/node_modules/xlsx')) {
               return 'spreadsheet-vendor';

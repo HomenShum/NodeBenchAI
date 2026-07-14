@@ -1,31 +1,20 @@
 /**
  * Lazy-loaded SyntaxHighlighter component
- * Reduces initial bundle size by ~130KB by loading react-syntax-highlighter on demand
+ * Reduces initial bundle size by loading the Shiki-based CodeBlock primitive on demand.
+ * Reimplemented on top of `@/components/ai-elements/code-block` — drops the
+ * react-syntax-highlighter dependency usage from this file.
  */
 
-import React, { Suspense, lazy } from 'react';
+import { Suspense, lazy } from 'react';
+import type { BundledLanguage } from 'shiki';
 
-// Lazy load the heavy syntax highlighter
-const SyntaxHighlighterLazy = lazy(() =>
-  import('react-syntax-highlighter').then((mod) => ({
-    default: mod.Prism,
+// Lazy load the heavy (Shiki-based) code block primitive so its highlighter
+// stays out of the initial bundle, matching this file's original intent.
+const CodeBlockLazy = lazy(() =>
+  import('@/components/ai-elements/code-block').then((mod) => ({
+    default: mod.CodeBlock,
   }))
 );
-
-// Lazy load the style separately
-const loadStyle = () =>
-  import('react-syntax-highlighter/dist/esm/styles/prism').then(
-    (mod) => mod.vscDarkPlus
-  );
-
-// Cache the style once loaded
-let cachedStyle: any = null;
-const getStyle = async () => {
-  if (!cachedStyle) {
-    cachedStyle = await loadStyle();
-  }
-  return cachedStyle;
-};
 
 interface LazySyntaxHighlighterProps {
   language: string;
@@ -45,45 +34,22 @@ function CodeFallback({ children, className }: { children: string; className?: s
   );
 }
 
-// Inner component that uses the loaded highlighter
-function SyntaxHighlighterInner({
-  language,
-  children,
-  PreTag = 'div',
-  className,
-}: LazySyntaxHighlighterProps) {
-  const [style, setStyle] = React.useState<any>(cachedStyle);
-
-  React.useEffect(() => {
-    if (!style) {
-      getStyle().then(setStyle);
-    }
-  }, [style]);
-
-  if (!style) {
-    return <CodeFallback className={className}>{children}</CodeFallback>;
-  }
-
-  return (
-    <SyntaxHighlighterLazy
-      style={style}
-      language={language}
-      PreTag={PreTag}
-      className={className}
-    >
-      {children}
-    </SyntaxHighlighterLazy>
-  );
-}
-
 /**
  * Lazy-loaded syntax highlighter with fallback
  * Use this instead of importing react-syntax-highlighter directly
  */
-export function LazySyntaxHighlighter(props: LazySyntaxHighlighterProps) {
+export function LazySyntaxHighlighter({
+  language,
+  children,
+  className,
+}: LazySyntaxHighlighterProps) {
   return (
-    <Suspense fallback={<CodeFallback className={props.className}>{props.children}</CodeFallback>}>
-      <SyntaxHighlighterInner {...props} />
+    <Suspense fallback={<CodeFallback className={className}>{children}</CodeFallback>}>
+      <CodeBlockLazy
+        code={children}
+        language={language as BundledLanguage}
+        className={className}
+      />
     </Suspense>
   );
 }

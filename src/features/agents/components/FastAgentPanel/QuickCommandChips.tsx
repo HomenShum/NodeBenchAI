@@ -8,7 +8,7 @@
  * Mobile UX doc R6: "Quick Command Chips as Default Mobile Input"
  */
 
-import { memo, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import {
   Search,
   FileText,
@@ -18,6 +18,7 @@ import {
   Globe,
   Briefcase,
 } from "lucide-react";
+import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 
 /* ─── Types ────────────────────────────────────────────────────────────────── */
 
@@ -84,36 +85,51 @@ export const QuickCommandChips = memo(function QuickCommandChips({
     return COMMANDS[surface ?? "default"] ?? COMMANDS.default;
   }, [surface]);
 
+  // Map the suggestion string (command id) back to its command so we can
+  // dispatch the correct handler — `Suggestion.onClick` only hands back the
+  // suggestion string, not the command object.
+  const commandsById = useMemo(() => {
+    const map = new Map<string, QuickCommand>();
+    for (const cmd of commands) map.set(cmd.id, cmd);
+    return map;
+  }, [commands]);
+
+  const handleSelect = useCallback(
+    (id: string) => {
+      const cmd = commandsById.get(id);
+      if (!cmd) return;
+      if (cmd.navigate) {
+        // Hand off to a dedicated workspace (e.g. financial operator).
+        if (typeof window !== "undefined") {
+          window.location.assign(cmd.navigate);
+        }
+        return;
+      }
+      onSelect(cmd.query);
+    },
+    [commandsById, onSelect],
+  );
+
   return (
     <div className={`space-y-2 ${className}`}>
       <p className="text-[11px] uppercase tracking-[0.15em] text-white/30 px-1">
         Quick actions
       </p>
-      <div className="flex flex-wrap gap-2">
+      <Suggestions className="flex-wrap">
         {commands.map((cmd) => {
           const Icon = cmd.icon;
           return (
-            <button
+            <Suggestion
               key={cmd.id}
-              type="button"
-              onClick={() => {
-                if (cmd.navigate) {
-                  // Hand off to a dedicated workspace (e.g. financial operator).
-                  if (typeof window !== "undefined") {
-                    window.location.assign(cmd.navigate);
-                  }
-                  return;
-                }
-                onSelect(cmd.query);
-              }}
+              suggestion={cmd.id}
+              onClick={handleSelect}
               className="
-                inline-flex items-center gap-1.5 rounded-lg
-                border border-white/[0.08] bg-white/[0.03]
-                px-3 py-2 min-h-[40px]
+                min-h-[40px] gap-1.5
+                border-white/[0.08] bg-white/[0.03]
                 text-[12px] font-medium text-white/60
                 hover:bg-white/[0.06] hover:text-white/80
                 active:scale-[0.97]
-                focus-visible:outline-none focus-visible:ring-2
+                focus-visible:ring-2
                 focus-visible:ring-[var(--accent-primary)]/40
                 transition-all duration-100 ease-out
                 motion-reduce:transform-none motion-reduce:transition-none
@@ -121,10 +137,10 @@ export const QuickCommandChips = memo(function QuickCommandChips({
             >
               <Icon className="h-3.5 w-3.5 text-[#d97757]/70" />
               {cmd.label}
-            </button>
+            </Suggestion>
           );
         })}
-      </div>
+      </Suggestions>
     </div>
   );
 });
