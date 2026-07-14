@@ -127,7 +127,12 @@ Design parity for a slice is not complete until all are true:
   LazySyntaxHighlighter→code-block, AgentHierarchy→task, SourceCard→sources+inline-citation.
 - Verified: `tsc` 0 errors · FastAgentPanel suite 89 passed / 0 failed (incl. SourceCard's 15) · `npm run build` exit 0.
 - Fixed a build regression the batch introduced (Shiki bundle — see guard above).
-- Commit `776c4868`.
+- **Live-render verified** on the production bundle (`vite preview`): landing + Chat
+  surface render on-brand (terracotta, glass DNA) with **zero console errors**; the
+  migrated `reasoning` disclosure and `suggestion` chips render in the live Chat
+  surface. Durable before/after PNG capture via `npm run dogfood:full:local` →
+  `ui-contract/20260714-ai-elements-batch1/` is the pending proof-folder step.
+- Commit `776c4868` (batch + fix) · `f0b0094e` (design/contract dirs).
 
 Next: the live `UIMessageBubble` + `InputBar` wraps (Phases 2–3), each guarded by
 the streaming tests and cut over only after e2e content assertions + live verification.
