@@ -28,14 +28,6 @@ vi.mock('../FastAgentPanel.MediaRecorder', () => ({
   ),
 }));
 
-vi.mock('../FastAgentPanel.PromptEnhancer', () => ({
-  InlineEnhancer: ({ onEnhance }: { onEnhance: () => void }) => (
-    <button aria-label="Enhance prompt" onClick={onEnhance} type="button">
-      Enhance
-    </button>
-  ),
-}));
-
 vi.mock('@/shared/components/FileDropOverlay', () => ({
   FileDropOverlay: () => null,
 }));
@@ -154,6 +146,50 @@ describe('FastAgentInputBar parity', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(onSend).toHaveBeenCalledWith(undefined);
+  });
+
+  it('allows dragged-document-only submission through the parent fallback', async () => {
+    const onSend = vi.fn();
+
+    render(
+      <SelectionProvider>
+        <ControlledInputBar
+          contextDocuments={[
+            {
+              id: 'doc-1',
+              title: 'Board memo',
+              type: 'document',
+            },
+          ]}
+          onSend={onSend}
+        />
+      </SelectionProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(onSend).toHaveBeenCalledWith(undefined);
+  });
+
+  it('allows legacy selected-document-only submission through the parent fallback', async () => {
+    const onSend = vi.fn();
+
+    render(
+      <SelectionProvider>
+        <ControlledInputBar
+          onSend={onSend}
+          selectedDocumentIds={new Set(['doc-legacy-1'])}
+        />
+      </SelectionProvider>,
+    );
+
+    const submit = screen.getByRole('button', { name: 'Send message' });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
     expect(onSend).toHaveBeenCalledWith(undefined);
   });
@@ -425,5 +461,27 @@ describe('FastAgentInputBar parity', () => {
     expect(screen.getByRole('textbox')).toHaveValue(
       'Enhanced prompt with memory',
     );
+  });
+
+  it('keeps the real inline enhancer outside the form submit path', async () => {
+    const onSend = vi.fn();
+    enhancePrompt.mockResolvedValue({
+      enhanced: 'Enhanced without sending',
+      injectedContext: { memory: [], suggestedTools: [] },
+    });
+    render(
+      <SelectionProvider>
+        <ControlledInputBar initialInput="Improve this" onSend={onSend} />
+      </SelectionProvider>,
+    );
+
+    const enhanceButton = screen.getByTitle(
+      'Enhance prompt with context (Ctrl+P)',
+    );
+    expect(enhanceButton).toHaveAttribute('type', 'button');
+    fireEvent.click(enhanceButton);
+
+    await waitFor(() => expect(enhancePrompt).toHaveBeenCalledTimes(1));
+    expect(onSend).not.toHaveBeenCalled();
   });
 });

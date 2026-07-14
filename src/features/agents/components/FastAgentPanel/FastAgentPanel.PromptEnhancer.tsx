@@ -473,6 +473,7 @@ export function InlineEnhancer({
 
   return (
     <button
+      type="button"
       onClick={onEnhance}
       disabled={disabled || isEnhancing}
       className={cn(

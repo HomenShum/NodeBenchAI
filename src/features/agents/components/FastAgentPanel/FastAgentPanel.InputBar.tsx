@@ -546,11 +546,21 @@ export function FastAgentInputBar({
     }
   }, [isStreaming]);
 
+  const hasDocumentContext =
+    contextDocuments.length > 0 || (selectedDocumentIds?.size ?? 0) > 0;
+
   const handleSend = useCallback((content?: string) => {
     const trimmed = (content ?? input).trim();
     const hasSelection = selection !== null;
     const hasCalendarEvents = contextCalendarEvents.length > 0;
-    if ((!trimmed && attachedFiles.length === 0 && !hasSelection && !hasCalendarEvents) || isStreaming) return;
+    if (
+      (!trimmed &&
+        attachedFiles.length === 0 &&
+        !hasSelection &&
+        !hasCalendarEvents &&
+        !hasDocumentContext) ||
+      isStreaming
+    ) return;
 
     // Voice intent router — intercept UI commands before agent send
     if (trimmed && onVoiceIntent?.(trimmed, 'text')) {
@@ -607,7 +617,7 @@ export function FastAgentInputBar({
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [attachedFiles.length, clearSelection, contextCalendarEvents, contextCalendarEvents.length, flashVoiceConfirmation, input, isStreaming, onSend, onSpawn, onVoiceIntent, selection, setInput]);
+  }, [attachedFiles.length, clearSelection, contextCalendarEvents, contextCalendarEvents.length, flashVoiceConfirmation, hasDocumentContext, input, isStreaming, onSend, onSpawn, onVoiceIntent, selection, setInput]);
 
   sendTextRef.current = handleSend;
 
@@ -747,7 +757,13 @@ export function FastAgentInputBar({
     return objectUrlMapRef.current.get(fileKey(file)) ?? null;
   };
 
-  const canSend = (input.trim().length > 0 || attachedFiles.length > 0 || contextDocuments.length > 0 || selection !== null || contextCalendarEvents.length > 0) && !isStreaming;
+  const canSend = (
+    input.trim().length > 0 ||
+    attachedFiles.length > 0 ||
+    hasDocumentContext ||
+    selection !== null ||
+    contextCalendarEvents.length > 0
+  ) && !isStreaming;
   const estimatedInputTokens = Math.ceil(input.length / 4);
   const selectedModelInfo = MODEL_UI_INFO[selectedModel as ApprovedModel];
   const selectedModelMaxTokens = parseContextWindow(selectedModelInfo?.contextWindow);
