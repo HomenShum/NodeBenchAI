@@ -3,7 +3,8 @@
 Scaffolding NodeBench's AI-chat UI onto [Vercel AI Elements](https://elements.ai-sdk.dev/)
 primitives so we maintain thin wrappers instead of ~80 hand-rolled components.
 
-_Last updated: 2026-07-13_
+_Last updated: 2026-07-14. Canonical source: `origin/main` through PR #527
+(`28d704b2`)._
 
 ## Why
 
@@ -12,7 +13,7 @@ streaming, input, reasoning, tool calls, sources, loaders, code blocks). AI Elem
 ships these as owned, upgradeable source built on shadcn/ui — so "our components" become
 thin adapters over canonical primitives, not full custom implementations to self-maintain.
 
-## Scaffold status — DONE (verified)
+## Scaffold status — MERGED
 
 - **24 AI Elements primitives** installed at `src/components/ai-elements/`:
   message, conversation, prompt-input, reasoning, chain-of-thought, sources,
@@ -30,9 +31,11 @@ thin adapters over canonical primitives, not full custom implementations to self
   `--background`/`--card`/`--muted`/`--border` are the warm neutrals with a `.dark` block.
   Every primitive (`bg-primary`, `text-muted-foreground`, `border`, `ring`) renders on-brand
   automatically. Only optional later polish: glass treatment on `bg-card`.
-- **`tsc --noEmit` clean** across the whole project after the scaffold.
+- The scaffold landed on `origin/main` in PR #516 (`c83a41c8`). Verification
+  claims for later revisions belong to the exact revision that was tested; a
+  historical green command is not reused as proof for current main.
 
-## Consumer layer — SHIPPED (verified `tsc` green)
+## Consumer layer — MERGED
 
 `src/features/agents/components/ai/` — our thin components built on the primitives,
 consuming the app's real `UIMessage` shape directly:
@@ -70,29 +73,45 @@ Modeled on NodeRoom (`src/design/designSystem.ts` + `docs/design/ui-contract/`):
   extra inlined patterns vs. `defaultSpec.ts` — the audit here uses the canonical
   `defaultSpec.ts`; reconciling the two is a tracked follow-up.
 
-## Batch 1 — SHIPPED + verified (2026-07-14, commit `776c4868`)
+## Current delivery status — 11/26 complete, migration ongoing
 
-6 low-risk leaf components migrated (internals-only, export APIs byte-for-byte
-preserved): TypingIndicator→`shimmer`, ThoughtBubble→`reasoning`,
-QuickCommandChips→`suggestion`, LazySyntaxHighlighter→`code-block`,
-AgentHierarchy→`task`, SourceCard→`sources`+`inline-citation`.
-Gate: `tsc` 0 errors · FastAgentPanel suite **89 passed / 0 failed** · `build` exit 0.
+The runbook scoreboard is **11/26 component decisions complete**. It does not
+close the broader 56-file component migration.
 
-**Build regression fixed (this batch introduced it):** LazySyntaxHighlighter
-pulled Shiki into a live path for the first time; `vite.config.ts` force-grouped
-all `@shikijs/*` into one `editor-vendor` chunk → a single 10.2 MB blob that
-overflowed the PWA 2 MiB precache limit and broke the build. Fix (config-only,
-primitive pristine): (1) unlump `@shikijs` so Shiki self-splits per grammar
-(`editor-vendor` 10.2 MB → 782 kB), (2) route the 278 grammar chunks to
-`assets/shiki/` and `globIgnore` them from precache (they lazy-load on demand).
-Curating Shiki to a language allowlist is blocked — shiki 4.x `exports` has no
-`./langs/*` wildcard, so fine-grained imports aren't Vite-resolvable.
+| Milestone | Canonical main source | State |
+|---|---|---|
+| TypingIndicator, ThoughtBubble, QuickCommandChips, LazySyntaxHighlighter, AgentHierarchy, SourceCard | PR #516 · `c83a41c8` | migrated/wrapped |
+| Full-source code-token cache identity | PR #517 · `988a3f56` | compatibility fix |
+| `convexToUIParts` shared adapter | PR #521 · `30688119` | merged adapter |
+| CollapsibleAgentProgress | PR #523 · `a4fe5ee3` | wrapped source; **not a live-render claim** |
+| ToolCallTransparency | PR #524 · `64203ded` | migrated |
+| UIMessageBubble | PR #525 · `165ecec2` | wrapped |
+| InputBar + explicit send-contract seam | PR #526 · `3cc7cd06` | wrapped |
+| LiveEventCard + shared live-event derivation | PR #527 · `28d704b2` | migrated |
+
+The scoreboard counts 11 completed component decisions in the matrix. The
+shared adapter is required foundation but is tracked separately from the
+numerator. Its denominator is the original 26 candidate rows: 8 `migrate`, 17
+`wrap`, and the transitional HumanRequestCard `wrap→likely keep` review. The
+other 30 rows are explicit `keep_custom`. HumanRequestCard remains operationally
+keep-custom unless a future contract review preserves every HITL semantic.
+
+**Shiki build guard:** LazySyntaxHighlighter made Shiki reachable. The PR #516
+Vite change leaves `@shikijs/*` out of `manualChunks`, routes grammar/theme
+chunks to `assets/shiki/`, and excludes that directory from service-worker
+precache. Curating Shiki to a language allowlist remains blocked by the package's
+export map. Do not infer current bundle sizes from the historical migration run;
+measure the exact build being released.
 
 ## Migration matrix (from the mapping workflow — 56 files)
 
-**8 migrate / 18 wrap / 30 keep_custom.** The message-render vertical (live path) and the
-input composer carry all the high-risk Convex seams; everything domain-shaped (entity
-pickers, verification reports, media galleries, memory cards) stays custom.
+**Original 56 rows: 8 migrate / 17 wrap / 30 keep_custom / 1 transitional
+`wrap→likely keep` review (HumanRequestCard).** The program denominator of 26
+counts that transitional row with the migration candidates. Operationally,
+HumanRequestCard stays inside the keep-custom boundary unless a future contract
+review proves full parity. This is a planning matrix, not a completion claim.
+Completed units are listed above; all other rows remain ongoing until their
+exact source and verification evidence land.
 
 ### message-render
 
@@ -185,28 +204,30 @@ pickers, verification reports, media galleries, memory cards) stays custom.
 | ArbitrageReportCard | Verification report | keep_custom | — | data parsed from tool-result; depends on StatusBadge from VisualCitation | low |
 | LiveEventCard | Single live agent-event card | migrate | `tool` + task connector | ORPHANED (FAP inlines its own); feed from liveEvents useMemo, never fixtures | med |
 
-## Sequenced implementation plan (value-per-risk)
+## Sequenced implementation plan
 
-- **Phase 0 — Shared adapter + de-risk on dead code (low risk).** Build `convexToUIParts`
-  once; prove primitives on orphaned files first (ThoughtBubble→reasoning, TypingIndicator→shimmer,
-  CollapsibleAgentProgress, MessageStream/UIMessageStream) — they can't break live flows.
-- **Phase 1 — Message-render leaf renderers (med).** LazySyntaxHighlighter→code-block (−130KB);
-  StreamingMessage→MessageResponse (keep `useStream`); MessageBubble→message+reasoning.
-- **Phase 2 — Live UIMessageBubble wrap (HIGH — crown jewel).** Wrap generic sub-parts only;
-  domain cards render unchanged inside `MessageContent`. Guard with `MessageBubble.streaming.test`.
-- **Phase 3 — Input composer (HIGH).** InputBar→prompt-input (delegate onSubmit→onSend);
-  FileUpload→attachments; QuickCommandChips→suggestion.
-- **Phase 4 — Reasoning + tools/tasks shells (mixed).** LiveThinking, ToolCallTransparency,
-  StepTimeline, AgentTasksTab/AgentHierarchy, ToolResultPopover.
-- **Phase 5 — Cards + domain wraps (low-med, opportunistic).** SourceCard, FileViewer (security!),
-  TokenUsageBadge, GoalCard, DocumentActionCard, EditProgressCard. Re-evaluate HumanRequestCard
-  (likely keep_custom).
+- **Completed foundation:** scaffold + six leaves (#516), shared adapter (#521),
+  CollapsibleAgentProgress (#523), ToolCallTransparency (#524), UIMessageBubble
+  (#525), InputBar (#526), and LiveEventCard (#527).
+- **Next message/input leaves:** MessageBubble, MessageStream, UIMessageStream,
+  StreamingMessage, FileUpload, and LiveThinking. Confirm reachability before
+  work and retain `useStream` for persistent text.
+- **Then tool/task shells:** ToolResultPopover, StepTimeline, and AgentTasksTab.
+  Preserve live queries, timeline ingestion, and entity callbacks.
+- **Then bounded cards:** FileViewer, TokenUsageBadge, GoalCard,
+  DocumentActionCard, and EditProgressCard. FileViewer sandbox policy and edit
+  mutations are security/behavior seams, not presentation details.
+- **Keep custom:** HumanRequestCard and every domain/proof surface named in the
+  keep-custom matrix. Revisit only with an explicit product-contract review.
 
-## Shared adapter (build once)
+Each slice is source-complete only after its tests pass. Visual-proof-complete,
+preview-verified, and production-live-verified remain separate later states.
 
-`src/features/agents/components/FastAgentPanel/adapters/convexToUIParts.ts` — funnel all
-message-render migrations through one parts-parser so "is this a tool-result part?" isn't
-re-derived four times (UIMessageBubble, StepTimeline, streamingPhases, FusedSearchResults):
+## Shared adapter (merged in #521)
+
+`src/features/agents/components/FastAgentPanel/adapters/convexToUIParts.ts`
+funnels message-render migrations through one parts parser so part identity is
+not re-derived independently in every renderer:
 
 ```
 convexToUIParts(message: UIMessage): {
@@ -216,8 +237,7 @@ convexToUIParts(message: UIMessage): {
 }
 ```
 
-`domainParts` is a **pass-through, not a transform** — it routes domain parts to keep_custom
-components, never flattens them into a primitive. That boundary is what keeps the honesty
-contract intact. Do NOT make the adapter emit persistent-text-streaming bodies — that path
-(`useStream`) is a live subscription; StreamingMessage keeps its own hook and plugs into the
-same `MessageResponse` target.
+`domainParts` is a **pass-through, not a transform**. It routes domain parts to
+keep-custom components and never flattens them into a primitive. The adapter
+must not emit persistent-text-streaming bodies: that path remains a live
+`useStream` subscription owned by StreamingMessage.

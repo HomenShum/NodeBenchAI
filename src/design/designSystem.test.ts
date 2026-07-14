@@ -60,6 +60,35 @@ describe("Scenario: a coding agent reads the manifest before migrating", () => {
   it("scopes governance to the AI surface, not the whole app", () => {
     expect(aiSurfaceRoots).toContain("src/components/ai-elements");
     expect(aiSurfaceRoots).toContain("src/features/agents/components/ai");
+    expect(aiSurfaceRoots).toContain("src/features/agents/components/FastAgentPanel");
+  });
+
+  it("records the current migration scoreboard without closing the 56-file program", () => {
+    expect(m.data.migration).toMatchObject({
+      matrixFiles: 56,
+      totalMilestones: 26,
+      completedMilestones: 11,
+      status: "ongoing",
+      canonicalMainThrough: { pullRequest: 527, commit: "28d704b2" },
+    });
+    expect(m.data.migration.completedUnits).toHaveLength(11);
+    expect(m.data.migration.completedUnits).toContain("UIMessageBubble");
+    expect(m.data.migration.completedUnits).toContain("InputBar");
+    expect(m.data.migration.completedUnits).toContain("LiveEventCard");
+    expect(m.data.migration.countingRule).toContain("8 migrate, 17 wrap");
+    expect(m.data.migration.countingRule).toContain("HumanRequestCard");
+  });
+
+  it("marks the merged live adapters and the non-live progress shell honestly", () => {
+    const byPrimitive = new Map(m.data.primitives.map((rule) => [rule.primitive, rule]));
+    expect(byPrimitive.get("message + reasoning + tool + sources")?.adoption).toBe("wrapped");
+    expect(byPrimitive.get("prompt-input + context + model-selector")?.adoption).toBe("wrapped");
+    expect(byPrimitive.get("tool")?.adoption).toBe("migrated");
+    expect(byPrimitive.get("tool + task connector")?.adoption).toBe("migrated");
+
+    const progress = byPrimitive.get("task + chain-of-thought + reasoning + tool");
+    expect(progress?.adoption).toBe("wrapped");
+    expect(progress?.must.join(" ").toLowerCase()).toContain("not a live-surface claim");
   });
 });
 

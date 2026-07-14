@@ -91,6 +91,7 @@ export const nbRadiusScalePx = [4, 6, 8, 12, 16, 24, 9999] as const;
 export const aiSurfaceRoots = [
   "src/components/ai-elements", // 24 vendored AI Elements primitives (we own them)
   "src/features/agents/components/ai", // thin consumers: AiMessage, AiConversation, AiPromptInput
+  "src/features/agents/components/FastAgentPanel", // live adapters + preserved domain renderers
 ] as const;
 
 /* ─── Manifest types ─────────────────────────────────────────────────────── */
@@ -98,7 +99,7 @@ export const aiSurfaceRoots = [
 export type AiPrimitiveAdoption =
   | "migrated" // internals rewritten onto the primitive; export API preserved
   | "wrapped" // primitive wraps existing props/callbacks; domain logic untouched
-  | "scaffolded" // themed + render-verified, not yet cut into a live path
+  | "scaffolded" // themed + available, not yet cut into the target path
   | "planned" // decided target, not yet built
   | "keep_custom_boundary"; // primitive intentionally NOT adopted here; custom stays
 
@@ -122,6 +123,15 @@ export type AiDesignManifest = {
     inspiration: Array<{ source: string; appliedAs: string }>;
     principles: string[];
     tokens: Array<{ name: string; role: string; value: string }>;
+    migration: {
+      matrixFiles: 56;
+      totalMilestones: 26;
+      completedMilestones: 11;
+      status: "ongoing";
+      canonicalMainThrough: { pullRequest: 527; commit: "28d704b2" };
+      completedUnits: string[];
+      countingRule: string;
+    };
     primitives: AiPrimitiveRule[];
     auditChecks: string[];
   };
@@ -170,6 +180,28 @@ export function getNodeBenchAiDesignManifest(): AiDesignManifest {
         { name: "--success", role: "completed / healthy only — never selection", value: nbSemantic.success },
         { name: "--radius", role: "default container radius (8px)", value: "0.5rem" },
       ],
+      migration: {
+        matrixFiles: 56,
+        totalMilestones: 26,
+        completedMilestones: 11,
+        status: "ongoing",
+        canonicalMainThrough: { pullRequest: 527, commit: "28d704b2" },
+        completedUnits: [
+          "TypingIndicator",
+          "ThoughtBubble",
+          "QuickCommandChips",
+          "LazySyntaxHighlighter",
+          "AgentHierarchy",
+          "SourceCard",
+          "CollapsibleAgentProgress",
+          "ToolCallTransparency",
+          "UIMessageBubble",
+          "InputBar",
+          "LiveEventCard",
+        ],
+        countingRule:
+          "The 11/26 scoreboard uses the original 26 candidate rows: 8 migrate, 17 wrap, and the HumanRequestCard wrap-to-keep re-evaluation row. The other 30 rows are explicit keep_custom. HumanRequestCard remains operationally keep-custom unless a future contract review preserves all HITL semantics. The shared convexToUIParts adapter is required foundation but is tracked outside the fraction.",
+      },
       primitives: [
         {
           primitive: "shimmer",
@@ -184,8 +216,11 @@ export function getNodeBenchAiDesignManifest(): AiDesignManifest {
         },
         {
           primitive: "reasoning",
-          consumers: ["src/features/agents/components/FastAgentPanel/FastAgentPanel.ThoughtBubble.tsx"],
-          role: "Collapsible 'Thought for…' disclosure; auto-opens while streaming.",
+          consumers: [
+            "src/features/agents/components/FastAgentPanel/FastAgentPanel.ThoughtBubble.tsx",
+            "src/features/agents/components/FastAgentPanel/CollapsibleAgentProgress.tsx",
+          ],
+          role: "Reasoning disclosures, including the migrated thought leaf and wrapped agent-progress shell.",
           adoption: "migrated",
           must: ["Wire isStreaming through to <Reasoning isStreaming>.", "Pass a static trigger message under reduced motion."],
           avoid: ["Duplicating Reasoning and ChainOfThought in the same turn."],
@@ -229,8 +264,11 @@ export function getNodeBenchAiDesignManifest(): AiDesignManifest {
         },
         {
           primitive: "message + reasoning + tool + sources",
-          consumers: ["src/features/agents/components/ai/AiMessage.tsx (consumer)", "UIMessageBubble (live, wrap target)"],
-          role: "The live UIMessage bubble: parts → text / reasoning / tool / sources, with domain cards passed through.",
+          consumers: [
+            "src/features/agents/components/ai/AiMessage.tsx",
+            "src/features/agents/components/FastAgentPanel/FastAgentPanel.UIMessageBubble.tsx",
+          ],
+          role: "The active-path UIMessage bubble: parts → text / reasoning / tool / sources, with domain cards passed through.",
           adoption: "wrapped",
           must: [
             "Wrap generic sub-parts ONLY; domain cards (selection, arbitrage, media, GoalCard) render unchanged inside MessageContent via a renderCustomPart passthrough.",
@@ -241,7 +279,10 @@ export function getNodeBenchAiDesignManifest(): AiDesignManifest {
         },
         {
           primitive: "prompt-input + context + model-selector",
-          consumers: ["src/features/agents/components/ai/AiPromptInput.tsx (consumer)", "InputBar (live, wrap target)"],
+          consumers: [
+            "src/features/agents/components/ai/AiPromptInput.tsx",
+            "src/features/agents/components/FastAgentPanel/FastAgentPanel.InputBar.tsx",
+          ],
           role: "Composer: autoresize, send/stop, attachments, model, slash/@mentions/voice.",
           adoption: "wrapped",
           must: [
@@ -249,6 +290,39 @@ export function getNodeBenchAiDesignManifest(): AiDesignManifest {
             "Preserve useAction(enhancePrompt); slash/mentions/voice/drag-drop stay custom.",
           ],
           avoid: ["Replacing the live send path with the primitive's own state."],
+        },
+        {
+          primitive: "task + chain-of-thought + reasoning + tool",
+          consumers: ["src/features/agents/components/FastAgentPanel/CollapsibleAgentProgress.tsx"],
+          role: "Agent-progress answer/process disclosure while preserving the ToolUIPart feed.",
+          adoption: "wrapped",
+          must: [
+            "Preserve the exported component contract and toolParts: ToolUIPart[] feed.",
+            "Describe this as a source migration, not a live-surface claim; the component is not a proven production render path.",
+          ],
+          avoid: ["Claiming live verification from unit coverage or a successful build."],
+        },
+        {
+          primitive: "tool",
+          consumers: ["src/features/agents/components/FastAgentPanel/ToolCallTransparency.tsx"],
+          role: "MCP tool-call disclosure with input, output, and error states.",
+          adoption: "migrated",
+          must: [
+            "Preserve running/success/error semantics when mapping to input-available/output-available/output-error.",
+            "Keep tool arguments and results available to the existing transparency surface.",
+          ],
+          avoid: ["Treating an error result as a completed or success state."],
+        },
+        {
+          primitive: "tool + task connector",
+          consumers: ["src/features/agents/components/FastAgentPanel/LiveEventCard.tsx"],
+          role: "Live agent-event cards fed by the panel's shared live-event derivation.",
+          adoption: "migrated",
+          must: [
+            "Feed the card from derived panel events; never introduce fixture fallback in the production path.",
+            "Preserve event status, summary, timing, and task-connector semantics.",
+          ],
+          avoid: ["Treating source merge or post-deploy health as visual-proof-complete."],
         },
         {
           primitive: "confirmation",
@@ -275,6 +349,8 @@ export function getNodeBenchAiDesignManifest(): AiDesignManifest {
         "code-block stays lazy and @shikijs/* is never force-grouped into one chunk",
         "no primitive drives a live stream — Convex hooks remain the data source (honesty contract)",
         "success-green is reserved for completed state and never used for selection",
+        "source-merged, visual-proof-complete, and production-live-verified are distinct evidence states",
+        "web navigation remains Home - Reports - Chat - Inbox - Me; Workspace remains a separate deployed surface",
       ],
     },
   };

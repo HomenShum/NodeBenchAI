@@ -1,119 +1,141 @@
 # AI Elements Migration — Codex Handoff
 
-**Owner of record:** Claude (batch 1 + governance). **Next owner:** Codex agent
-(`gpt-5.6-sol`, deepswe #1 — this is the multi-file, live-Convex-seam work it's for).
-**Date:** 2026-07-14. **Branch to base on:** `origin/main` (batch 1 merged as of this handoff).
+**Date:** 2026-07-14. **Canonical source:** `origin/main` through PR #527,
+commit `28d704b2`. **Program state:** **11/26 component decisions complete**;
+the broader 56-file migrate/wrap/keep-custom migration remains ongoing.
 
-> Goal in one line: **retire the ~56 hand-rolled FastAgentPanel AI components by
-> making them thin adapters over Vercel AI Elements primitives — WITHOUT breaking a
-> single live Convex stream or changing any export contract.**
+> Goal: retire hand-rolled generic AI UI behind thin Vercel AI Elements
+> adapters without changing a live Convex stream, product callback, export
+> contract, navigation contract, or NodeBench-specific proof surface.
 
-## Read these first (do not skip)
+## Release-train ledger
 
-1. [`docs/design/UI_CONTRACT.md`](../design/UI_CONTRACT.md) — the visual + behavior contract, DNA tokens, migration rule.
-2. [`docs/architecture/AI_ELEMENTS_MIGRATION.md`](AI_ELEMENTS_MIGRATION.md) — the full 56-file matrix (8 migrate / 18 wrap / 30 keep_custom), the phased plan, and the `convexToUIParts` adapter design.
-3. [`src/design/designSystem.ts`](../../src/design/designSystem.ts) — machine-readable per-primitive `must`/`avoid`. `npm run test:design` must stay green.
-4. `.claude/rules/scratchpad_first.md` + the honesty contract below.
+These are squash commits on `origin/main`, not pre-merge branch SHAs.
+
+| PR | Canonical main SHA | Slice |
+|---|---|---|
+| #516 | `c83a41c8` | AI Elements scaffold, six leaf cutovers, design governance, Shiki chunk routing |
+| #517 | `988a3f56` | Full-source code-token cache key |
+| #519 | `00e5594d` | Fail-closed post-deploy verification |
+| #520 | `35a7b85d` | Workspace live-smoke parity |
+| #521 | `30688119` | Identity-preserving `convexToUIParts` adapter |
+| #522 | `ad2b26c6` | Protected Tier B preview authentication |
+| #523 | `a4fe5ee3` | `CollapsibleAgentProgress` source migration; **not a live-render claim** |
+| #524 | `64203ded` | `ToolCallTransparency` migration |
+| #525 | `165ecec2` | Live `UIMessageBubble` wrapper |
+| #526 | `3cc7cd06` | Live `InputBar` / send-contract wrapper |
+| #527 | `28d704b2` | `LiveEventCard` migration plus shared live-event derivation and panel header extraction |
+
+## Read first
+
+1. [`docs/design/UI_CONTRACT.md`](../design/UI_CONTRACT.md) — behavior,
+   visual DNA, evidence states, navigation, and keep-custom boundary.
+2. [`docs/architecture/AI_ELEMENTS_MIGRATION.md`](AI_ELEMENTS_MIGRATION.md) —
+   the complete 56-file decision matrix and remaining sequence.
+3. [`src/design/designSystem.ts`](../../src/design/designSystem.ts) —
+   machine-readable primitive rules and 11/26 scoreboard.
+4. [`docs/design/ui-contract/README.md`](../design/ui-contract/README.md) —
+   proof protocol. It forbids placeholder screenshots and unsupported QA scores.
 
 ## Non-negotiable safety contract
 
-These are the invariants that make this migration safe. **Every PR must uphold all of them.**
+1. **No primitive drives a stream.** `useUIMessages(stream:true)`,
+   `useSmoothText`, and persistent `useStream` subscriptions remain the data
+   source. Primitives only present their output. Never replace a live part with
+   fixture data.
+2. **Preserve exports and callbacks.** Migration work changes internals only.
+   Existing public props, barrel exports, send/stop/spawn/voice callbacks, edit
+   and feedback handlers, and model semantics remain load-bearing.
+3. **Domain cards pass through.** Selection cards, arbitrage reports, media,
+   memory, GoalCard, human requests, verification receipts, and document/edit
+   workflows remain custom. The adapter routes them without flattening them.
+4. **Keep the web navigation contract:** `Home - Reports - Chat - Inbox - Me`.
+   Workspace remains a separate deployed surface, never a sixth web tab.
+5. **Reduced motion is explicit.** Motion-driven primitives use an explicit
+   reduced-motion guard; the global CSS rule is insufficient.
+6. **Keep the Shiki bundle guard.** Never force-group `@shikijs/*` into one
+   manual chunk. Grammar/theme chunks stay under `assets/shiki/` and outside
+   the service-worker precache.
+7. **Terracotta, not default Tailwind.** Selection/focus/provenance uses the
+   NodeBench token bridge. Success green remains reserved for completed state.
 
-1. **Honesty contract — no primitive drives a stream.** The live Convex hooks
-   (`useUIMessages(stream:true)`, `useSmoothText`, `useStream` persistent-text-streaming)
-   remain the data source. Primitives are the presentation layer fed by hook output.
-   **Never** feed a primitive a static string where a live stream belonged, and never
-   replace a live part with a fixture. This breaks the `message-live-data` /
-   `MessageBubble.streaming` test invariants and the ScratchNode honesty contract.
-2. **Export API is byte-for-byte preserved.** A migration rewrites a component's
-   *internals only*; its exported signature, prop interface, and barrel re-exports do
-   not change. Call sites and `index.ts` / `index.enhanced.ts` stay untouched.
-3. **Domain cards pass through, never flatten.** Selection cards, arbitrage reports,
-   media galleries, memory cards, GoalCard, verification receipts stay custom and render
-   unchanged inside `MessageContent` via the `renderCustomPart` passthrough. The adapter
-   *routes* domain parts; it does not transform them into a primitive.
-4. **Reduced motion.** motion/react-driven primitives (`Shimmer`, `Reasoning`) bypass the
-   CSS `prefers-reduced-motion` override — add an explicit `useReducedMotion()` guard.
-5. **Shiki bundle guard (already in `vite.config.ts` — do not regress).** Never
-   force-group `@shikijs/*` into one `manualChunk` (collapses ~200 grammars into a 10 MB
-   blob → PWA precache overflow → build fails). Grammar chunks route to `assets/shiki/`
-   and are `globIgnore`d from precache. If you touch `vite.config.ts`, re-run `npm run build`.
-6. **Terracotta, not default Tailwind.** Primitives resolve to the shadcn token bridge.
-   `npm run lint:design` reports no NEW high-severity drift on the AI surface.
+## Evidence vocabulary
 
-## Verification floor (every PR, in order)
+These states are independent and must never be collapsed:
 
-```
-npx tsc --noEmit --pretty false                 # 0 errors
-npx vitest run src/features/agents/components/FastAgentPanel/__tests__/   # 89 baseline, 0 fail
-npx vitest run src/design/designSystem.test.ts  # 11 pass
-npm run lint:design                             # no NEW high-severity on AI surface
-npm run build                                   # exit 0, no "Assets exceeding" precache error
-# For any LIVE-path change, also run the streaming guard explicitly:
+- **Source merged:** the canonical SHA is on `origin/main`.
+- **Checks verified:** named commands were run for that exact source state.
+- **Visual proof complete:** real before/after files and a valid manifest exist.
+- **Preview verified:** a normal product path was browser-driven on a preview.
+- **Production live verified:** the production deployment and rendered bundle
+  were checked directly after the merge.
+
+A green build does not prove preview or production state. A screenshot does not
+prove production state. This handoff creates no screenshot, Agentic UI Bar
+score, Gemini receipt, or production-live claim.
+
+## Verification floor
+
+Run from a clean worktree based on current `origin/main`:
+
+```powershell
+npx tsc --noEmit --pretty false
+npx vitest run src/features/agents/components/FastAgentPanel
+npx vitest run src/design/designSystem.test.ts
+npm run lint:design
+npm run build
 npx vitest run src/features/agents/components/FastAgentPanel/__tests__/MessageBubble.streaming.test.tsx
-# Before claiming "live": vite preview + drive the Chat surface, 0 console errors (live_dom_verification).
+git diff --check
 ```
 
-## Done so far (do not redo)
+For a live-path change, add browser assertions against the normal Chat path.
+Only create a proof folder when the referenced images and receipts actually
+exist. Only claim production live after post-merge production verification.
 
-Batch 1 — 6 leaf components migrated, verified, shipped (this branch):
-TypingIndicator→`shimmer`, ThoughtBubble→`reasoning`, QuickCommandChips→`suggestion`,
-LazySyntaxHighlighter→`code-block`, AgentHierarchy→`task`, SourceCard→`sources`+`inline-citation`.
-Plus the design dir + UI-contract dir + the Shiki build fix.
+## Completed component decisions — 11/26
 
-## The remaining work — sequenced by risk (LOW → HIGH)
+- Six leaf components in #516: TypingIndicator, ThoughtBubble,
+  QuickCommandChips, LazySyntaxHighlighter, AgentHierarchy, and SourceCard.
+- Shared `convexToUIParts` adapter in #521 is required foundation and is tracked
+  separately from the 11/26 component numerator.
+- `CollapsibleAgentProgress` in #523. This is source-complete but must not be
+  presented as a proven live production surface.
+- `ToolCallTransparency` in #524.
+- `UIMessageBubble` in #525.
+- `InputBar` and its explicit send-contract seam in #526.
+- `LiveEventCard` plus the shared live-event derivation in #527.
 
-### Step 1 — CollapsibleAgentProgress (DEAD-safe, do first)
-- **File:** `src/features/agents/components/FastAgentPanel/CollapsibleAgentProgress.tsx` (137 lines).
-- **Consumer:** only `index.enhanced.ts` (a barrel re-export) — **dead**, cannot break a live flow.
-- **Target:** `task` / `chain-of-thought` + `reasoning` + `tool` shell.
-- **Preserve:** the `toolParts: ToolUIPart[]` prop feed + the collapsible answer/process shell shape.
-- **Risk:** low. This is the batch-1 pattern — internals-only, export preserved.
+The 11/26 number counts completed component decisions in the 56-file matrix.
+The denominator is the original 26 candidate rows: 8 migrate, 17 wrap, and the
+HumanRequestCard wrap-to-keep re-evaluation row. HumanRequestCard remains inside
+the operational keep-custom boundary. The broader matrix is not complete.
 
-### Step 2 — ToolCallTransparency + LiveEventCard (LIVE, guard each)
-- **ToolCallTransparency** (`ToolCallTransparency.tsx`, 250 lines) → `tool`.
-  **Consumer: the LIVE `FastAgentPanel.UIMessageBubble.tsx`.** Map the status enum
-  running/success/error → `input-available`/`output-available`/`output-error`. Preserve
-  the MCP tool-call timeline semantics exactly. Guard with `MessageBubble.streaming.test`
-  and a live Chat-surface render check.
-- **LiveEventCard** (`LiveEventCard.tsx`, 255 lines) → `tool` + task connector.
-  Consumer: `FastAgentPanel.tsx` (matrix says orphaned — FAP inlines its own; **confirm
-  render reachability first**). Feed from the `liveEvents` `useMemo`, never fixtures.
-- **Risk:** medium. Both are single-component, self-contained. Preserve exports + behavior.
+## Remaining sequence
 
-### Step 3 — Crown jewels (HIGH — build the adapter first)
-- **Build the shared adapter** `src/features/agents/components/FastAgentPanel/adapters/convexToUIParts.ts`
-  per the matrix spec (§ "Shared adapter"). It funnels message-render migrations through
-  one parts-parser. `domainParts` is a **pass-through, not a transform**. Do NOT make it
-  emit persistent-text-streaming bodies — `useStream` stays a live subscription.
-- **UIMessageBubble.tsx (140 KB, THE live bubble)** → wrap with `message`+`reasoning`+`tool`+`sources`;
-  keep selection/arbitrage/media/GoalCard custom. Preserve `useUIMessages(stream:true)`,
-  `useSmoothText` gated on status, `useMessageHandlers()`, all `on{Company,Person,Event,News,Doc,Regen,Delete,Edit,Feedback}`
-  callbacks, and StreamingStatus. **Guard: `MessageBubble.streaming.test` + full FastAgentPanel suite + live render.**
-- **InputBar.tsx** → wrap with `prompt-input` + `context` + `model-selector`. `PromptInput.onSubmit`
-  MUST delegate to `onSend`/`onStop`/`onSpawn`/`onVoiceIntent` — never swallow. Preserve
-  `useAction(enhancePrompt)`; slash / @mentions / voice / drag-drop stay custom.
-- **Risk:** high — live Convex seams + the largest files. One component per PR. Cut over
-  only after e2e content assertions pass and the change is live-verified.
+1. Capture final visual/browser proof for reachable changed surfaces. Do not
+   invent proof for dead or unreachable exports.
+2. Continue the medium-risk generic shells: MessageBubble, MessageStream,
+   UIMessageStream, StreamingMessage, FileUpload, LiveThinking,
+   ToolResultPopover, StepTimeline, AgentTasksTab, FileViewer, GoalCard,
+   TokenUsageBadge, DocumentActionCard, and EditProgressCard. Reconfirm
+   reachability before each slice.
+3. Keep HumanRequestCard custom unless a future primitive preserves its
+   textarea, multi-option, cancel, and decision-recording semantics.
 
-## Keep-custom boundary (do NOT migrate — the matrix says keep)
-VirtualizedMessageList (perf), StreamingStatus, VisualCitation, ParallelTaskTimeline,
-SwarmLanesView, HumanRequestCard (Confirmation lacks textarea/multi-option), FusedSearchResults,
-ResourceLinkCard, MermaidDiagram (XSS-hardened), MediaGallery, and all domain selection cards.
-See the matrix for the full 30-file keep_custom list + rationale.
+## Keep-custom boundary
 
-## Definition of done (per step)
-1. Verification floor green (above).
-2. Export APIs unchanged; no barrel/call-site edits.
-3. Domain cards + live streams intact (honesty contract).
-4. `docs/architecture/AI_ELEMENTS_MIGRATION.md` adoption status updated (scaffolded→migrated/live).
-5. For live-path steps: before/after proof captured under `docs/design/ui-contract/YYYYMMDD-<slice>/`
-   (`npm run dogfood:full:local`) + live-verified per `live_dom_verification`.
-6. `docs/design/UI_CONTRACT.md` "Migration Status" appended with the shipped slice + commit.
+Do not migrate VirtualizedMessageList, StreamingStatus, VisualCitation,
+ParallelTaskTimeline, SwarmLanesView, HumanRequestCard, FusedSearchResults,
+ResourceLinkCard, MermaidDiagram, MediaGallery, domain selection cards, memory
+cards, or verification reports merely to increase adoption count. See the full
+matrix for every rationale and live seam.
 
-## Tracked follow-ups (not blockers)
-- The `.mjs` design linter has drifted extra inlined patterns vs. canonical `defaultSpec.ts`
-  (only 1 high pattern: `uppercase tracking-widest`). Reconcile so `lint:design` and
-  `auditAiSurfaceDesign` agree.
-- Curating Shiki to a language allowlist is blocked (shiki 4.x `exports` has no `./langs/*`
-  wildcard). Revisit if shiki adds fine-grained subpath exports.
+## Definition of done for the next slice
+
+1. The verification floor passes for the exact candidate revision.
+2. Exports, callbacks, live hooks, domain cards, nav, and Workspace separation
+   remain intact.
+3. The 56-file matrix and machine-readable manifest are updated together.
+4. Changelog entries use canonical main SHAs. A pending marker is allowed only
+   before merge and must be replaced before the final release commit.
+5. Visual and live claims cite artifacts or direct checks that actually exist.

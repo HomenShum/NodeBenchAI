@@ -31,6 +31,10 @@ import {
 } from "../../_generated/server";
 import type { Doc } from "../../_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import {
+  projectAgentEpisodicSummary,
+  projectAgentMemorySummary,
+} from "./agentMemorySummary";
 
 // Avoid TS2589 "excessively deep" instantiations in large-schema projects.
 const mutation = mutationBase as any;
@@ -115,7 +119,7 @@ export const readMemory = query({
             .withIndex("by_user_key", (q) => q.eq("userId", userId).eq("key", args.key))
             .first();
 
-        return memory || null;
+        return memory ? projectAgentMemorySummary(memory) : null;
     },
 });
 
@@ -150,7 +154,7 @@ export const listMemory = query({
             ? await query.take(args.limit)
             : await query.take(50);
 
-        return memories;
+        return memories.map(projectAgentMemorySummary);
     },
 });
 
@@ -327,7 +331,9 @@ export const getEpisodicByRunId = query({
             .order("desc")
             .take(limit);
 
-        return items.filter((e) => e.userId === userId);
+        return items
+            .filter((e) => e.userId === userId)
+            .map(projectAgentEpisodicSummary);
     },
 });
 

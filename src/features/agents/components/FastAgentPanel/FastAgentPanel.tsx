@@ -22,8 +22,6 @@ import { FastAgentUIMessageBubble } from './FastAgentPanel.UIMessageBubble';
 import { MessageHandlersProvider } from './MessageHandlersContext';
 import { VirtualizedMessageList, useMessageVirtualization } from './VirtualizedMessageList';
 import { useSwarmByThread, useSwarmActions, parseSpawnCommand, isSpawnCommand } from '@/hooks/useSwarm';
-import { MemoryStatusHeader, type PlanItem } from './MemoryStatusHeader';
-import { ContextBar, type ContextConstraint } from './ContextBar';
 import { SwarmQuickActions } from './SwarmQuickActions';
 import { QuickCommandChips } from './QuickCommandChips';
 import { QuotePopover } from '@/features/chat/components/QuotePopover';
@@ -1053,50 +1051,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     api.domains.agents.humanInTheLoop.getPendingHumanRequests,
     (isAuthenticated && activeThreadId) ? { threadId: activeThreadId } : 'skip'
   );
-
-  // Query for agent planning data (ambient memory - plan progress)
-  const agentPlans = useQuery(
-    api.domains.agents.agentPlanning.listPlans,
-    isAuthenticated ? { limit: 5 } : 'skip'
-  );
-
-  // Query for agent memory (context constraints / scratchpad)
-  const agentMemory = useQuery(
-    api.domains.agents.agentMemory.listMemory,
-    isAuthenticated ? { limit: 10 } : 'skip'
-  );
-
-  // Transform plans into PlanItem format for MemoryStatusHeader
-  const planItems = useMemo((): PlanItem[] => {
-    if (!agentPlans || agentPlans.length === 0) return [];
-
-    // Get the most recent plan
-    const latestPlan = agentPlans[0];
-    if (!latestPlan?.steps) return [];
-
-    return latestPlan.steps.map((step: any, idx: number) => ({
-      id: `${latestPlan._id}-${idx}`,
-      name: step.name,
-      status: step.status === 'completed' ? 'done'
-        : step.status === 'in_progress' ? 'active'
-          : 'queued',
-    }));
-  }, [agentPlans]);
-
-  // Transform memory into constraints for ContextBar
-  const contextConstraints = useMemo((): ContextConstraint[] => {
-    if (!agentMemory) return [];
-
-    // Filter for constraint-type memory entries (e.g., keys like 'constraint:*' or 'context:*')
-    return agentMemory
-      .filter((m: any) => m.key.startsWith('constraint:') || m.key.startsWith('context:') || m.key === 'scratchpad')
-      .map((m: any) => ({
-        id: m._id,
-        label: m.key.replace(/^(constraint:|context:)/, ''),
-        value: m.content.length > 30 ? m.content.slice(0, 30) + '...' : m.content,
-        type: m.key.startsWith('constraint:') ? 'rule' as const : 'custom' as const,
-      }));
-  }, [agentMemory]);
 
   const processedDocMessageIdsRef = useRef<Set<string>>(new Set());
 

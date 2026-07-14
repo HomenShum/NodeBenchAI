@@ -9,6 +9,7 @@ import { v } from "convex/values";
 import { mutation, query } from "../../_generated/server";
 import type { Doc } from "../../_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { projectAgentPlanSummary } from "./agentPlanSummary";
 
 // Step type for type inference
 type PlanStep = {
@@ -144,7 +145,7 @@ export const getPlan = query({
             return null;
         }
 
-        return plan;
+        return projectAgentPlanSummary(plan);
     },
 });
 
@@ -185,7 +186,7 @@ export const listPlans = query({
             ? await query.take(args.limit)
             : await query.take(20);
 
-        return plans;
+        return plans.map(projectAgentPlanSummary);
     },
 });
 
