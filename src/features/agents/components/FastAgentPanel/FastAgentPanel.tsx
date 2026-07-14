@@ -42,7 +42,7 @@ const BriefTab = React.lazy(() => import('./FastAgentPanel.BriefTab').then(m => 
 const TaskManagerView = React.lazy(() => import('../TaskManager').then(m => ({ default: m.TaskManagerView })));
 const SwarmLanesView = React.lazy(() => import('./SwarmLanesView').then(m => ({ default: m.SwarmLanesView })));
 const LiveAgentLanes = React.lazy(() => import('@/features/agents/views/LiveAgentLanes').then(m => ({ default: m.LiveAgentLanes })));
-import type { LiveEvent } from './LiveEventCard';
+import { LiveEventCard, type LiveEvent } from './LiveEventCard';
 import { RichMediaSection } from './RichMediaSection';
 import { DocumentActionGrid, extractDocumentActions, type DocumentAction } from './DocumentActionCard';
 import { extractMediaFromText, type ExtractedMedia } from './utils/mediaExtractor';
@@ -2889,26 +2889,12 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                         </button>
                       </div>
                       <div className="space-y-1">
-                        {liveEvents.slice(-5).map((event) => (
-                          <div key={event.id} className="flex items-center gap-2 py-1 text-xs">
-                            {event.status === 'running' ? (
-                              <Loader2 className="w-3 h-3 motion-safe:animate-spin text-violet-500" />
-                            ) : event.status === 'success' ? (
-                              <div className="w-3 h-3 rounded-full bg-indigo-100 flex items-center justify-center">
-                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                              </div>
-                            ) : (
-                              <div className="w-3 h-3 rounded-full bg-amber-100 flex items-center justify-center">
-                                <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                              </div>
-                            )}
-                            <span className="text-content-secondary truncate flex-1">
-                              {event.title || event.toolName || event.type.replace(/_/g, ' ')}
-                            </span>
-                            {event.duration && (
-                              <span className="text-xs text-content-muted">{event.duration}ms</span>
-                            )}
-                          </div>
+                        {liveEvents.slice(-5).map((event, index, visibleEvents) => (
+                          <LiveEventCard
+                            key={event.id}
+                            event={event}
+                            isLast={index === visibleEvents.length - 1}
+                          />
                         ))}
                       </div>
                     </div>
