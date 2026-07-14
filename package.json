@@ -99,6 +99,7 @@
     "sentinel:fix": "node scripts/sentinel/index.mjs --fix",
     "sentinel:json": "node scripts/sentinel/index.mjs --json",
     "lint:design": "node scripts/ui/designLinter.mjs",
+    "test:design": "vitest run src/design/designSystem.test.ts",
     "lint:design:json": "node scripts/ui/designLinter.mjs --json",
     "lint:design:fix": "node scripts/ui/designLinter.mjs --fix-suggestions",
     "lint:agent-ui": "node scripts/ui/agentNativeUiLinter.mjs",

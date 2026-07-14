@@ -49,6 +49,45 @@ consuming the app's real `UIMessage` shape directly:
 presentation layer fed by hook output. A migration that replaces a live part with a fixture
 violates the ScratchNode honesty contract and the `message-live-data` test invariant.
 
+## Design governance (design dir + UI contract dir)
+
+Modeled on NodeRoom (`src/design/designSystem.ts` + `docs/design/ui-contract/`):
+
+- **Design dir — [`src/design/designSystem.ts`](../../src/design/designSystem.ts)**:
+  the machine-readable AI-surface design system. Canonical tokens (terracotta
+  `#d97757`, glass hairline, JetBrains Mono), the `compose-don't-surrender` +
+  honesty principles, and a per-primitive `must/avoid` + adoption manifest
+  (`getNodeBenchAiDesignManifest()`). `auditAiSurfaceDesign()` reuses the
+  existing `src/design-governance/` linter (does NOT re-implement rules).
+  Tested by `src/design/designSystem.test.ts` (`npm run test:design`, 11 scenario tests).
+- **UI contract dir — [`docs/design/UI_CONTRACT.md`](../design/UI_CONTRACT.md) +
+  [`docs/design/ui-contract/`](../design/ui-contract/)**: the visual-authority
+  order, DNA tokens, migration rule (Presentation/Adapter/Tiny-fix), the AI
+  Elements adoption table, and the dated before/after proof protocol
+  (`ui-contract/README.md` + `manifest.schema.json`).
+- **Enforcement** stays `npm run lint:design` (`src/design-governance/`). The
+  manifest describes; the linter enforces. Note: the `.mjs` linter has drifted
+  extra inlined patterns vs. `defaultSpec.ts` — the audit here uses the canonical
+  `defaultSpec.ts`; reconciling the two is a tracked follow-up.
+
+## Batch 1 — SHIPPED + verified (2026-07-14, commit `776c4868`)
+
+6 low-risk leaf components migrated (internals-only, export APIs byte-for-byte
+preserved): TypingIndicator→`shimmer`, ThoughtBubble→`reasoning`,
+QuickCommandChips→`suggestion`, LazySyntaxHighlighter→`code-block`,
+AgentHierarchy→`task`, SourceCard→`sources`+`inline-citation`.
+Gate: `tsc` 0 errors · FastAgentPanel suite **89 passed / 0 failed** · `build` exit 0.
+
+**Build regression fixed (this batch introduced it):** LazySyntaxHighlighter
+pulled Shiki into a live path for the first time; `vite.config.ts` force-grouped
+all `@shikijs/*` into one `editor-vendor` chunk → a single 10.2 MB blob that
+overflowed the PWA 2 MiB precache limit and broke the build. Fix (config-only,
+primitive pristine): (1) unlump `@shikijs` so Shiki self-splits per grammar
+(`editor-vendor` 10.2 MB → 782 kB), (2) route the 278 grammar chunks to
+`assets/shiki/` and `globIgnore` them from precache (they lazy-load on demand).
+Curating Shiki to a language allowlist is blocked — shiki 4.x `exports` has no
+`./langs/*` wildcard, so fine-grained imports aren't Vite-resolvable.
+
 ## Migration matrix (from the mapping workflow — 56 files)
 
 **8 migrate / 18 wrap / 30 keep_custom.** The message-render vertical (live path) and the
