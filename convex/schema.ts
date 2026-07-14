@@ -7520,6 +7520,27 @@ export default defineSchema({
   /* ------------------------------------------------------------------ */
   llmUsageLog: defineTable({
     userId: v.id("users"),
+    reservationKey: v.optional(v.string()),
+    reservationStatus: v.optional(
+      v.union(
+        v.literal("reserved"),
+        v.literal("reconciled"),
+        v.literal("released"),
+      ),
+    ),
+    currentReservedInputTokens: v.optional(v.number()),
+    currentReservedOutputTokens: v.optional(v.number()),
+    currentReservedCost: v.optional(v.number()),
+    currentReservationAttemptKey: v.optional(v.string()),
+    currentReservationAttemptState: v.optional(
+      v.union(
+        v.literal("admitted"),
+        v.literal("provider_ended"),
+        v.literal("settled"),
+      ),
+    ),
+    reservationAttemptKeys: v.optional(v.array(v.string())),
+    reservationExpiresAt: v.optional(v.number()),
     timestamp: v.number(),
     model: v.string(), // e.g., "gpt-5.4", "claude-sonnet-4"
     provider: v.string(), // "openai", "anthropic", "gemini"
@@ -7533,6 +7554,13 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_user_timestamp", ["userId", "timestamp"])
+    .index("by_user_reservation_status_expiry_timestamp", [
+      "userId",
+      "reservationStatus",
+      "reservationExpiresAt",
+      "timestamp",
+    ])
+    .index("by_reservation_key", ["reservationKey"])
     .index("by_model", ["model"])
     .index("by_provider", ["provider"]),
 
