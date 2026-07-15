@@ -14,6 +14,7 @@ describe("routeAgentCommand", () => {
     );
 
     expect(spawnSwarm).not.toHaveBeenCalled();
+    expect(openWithContext).toHaveBeenCalledTimes(1);
     expect(openWithContext).toHaveBeenCalledWith({
       initialMessage: "Summarize today's signals",
       initialTab: "chat",
@@ -31,6 +32,7 @@ describe("routeAgentCommand", () => {
     );
 
     expect(openWithContext).not.toHaveBeenCalled();
+    expect(spawnSwarm).toHaveBeenCalledTimes(1);
     expect(spawnSwarm).toHaveBeenCalledWith({
       query: "Compare filings",
       agents: ["doc", "sec"],
