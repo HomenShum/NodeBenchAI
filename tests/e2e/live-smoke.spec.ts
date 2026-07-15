@@ -30,6 +30,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { installVercelPreviewBypass } from "./helpers/vercelPreview";
 
 const BASE_URL =
   process.env.BASE_URL?.replace(/\/$/, "") ?? "https://www.nodebenchai.com";
@@ -39,6 +40,9 @@ const BASE_URL =
 // we wait for a specific element instead.
 test.describe("live-smoke — Tier B hydrated-DOM verification", () => {
   test.setTimeout(45_000);
+  test.beforeEach(async ({ page }) => {
+    await installVercelPreviewBypass(page, BASE_URL);
+  });
 
   test("landing renders after hydration", async ({ page }) => {
     await page.goto(BASE_URL + "/");
