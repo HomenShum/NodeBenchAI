@@ -40,8 +40,8 @@ esac
 #   distribution/, screenshots/, e2e-screenshots/, .tmp-*, tests/,
 #   *.md (top-level except CHANGELOG.md), .github/ (workflows still run via Actions)
 #
-# Strategy: list "build-relevant" paths. If `git diff` against parent
-# touches NONE of them, skip.
+# Strategy: list "build-relevant" paths. If the cumulative diff since the
+# branch's last successful deployment touches NONE of them, skip.
 
 BUILD_RELEVANT=(
   "src" "convex" "packages" "apps" "public" "server" "shared" "api"
@@ -52,14 +52,25 @@ BUILD_RELEVANT=(
   "index.html"
 )
 
-# Vercel checks out a shallow clone — HEAD~1 may not exist on first commit.
-# Compare to HEAD~1 if available, else default to building.
-if ! git rev-parse HEAD~1 >/dev/null 2>&1; then
-  echo "Build: first commit on this branch (no parent to diff)"
+# VERCEL_GIT_PREVIOUS_SHA is the last successful deployment for this project
+# and branch. Comparing only HEAD~1 is unsafe for multi-commit PRs: a docs- or
+# workflow-only follow-up can otherwise cancel the exact-head preview even
+# when an earlier, not-yet-deployed commit changed served code.
+DIFF_BASE="${VERCEL_GIT_PREVIOUS_SHA:-}"
+if [ -z "$DIFF_BASE" ] || [[ "$DIFF_BASE" =~ ^0+$ ]]; then
+  echo "Build: no previous successful branch deployment to compare"
   exit 1
 fi
 
-CHANGED=$(git diff --name-only HEAD~1 HEAD || echo "")
+if ! git cat-file -e "${DIFF_BASE}^{commit}" 2>/dev/null; then
+  echo "Build: previous deployment SHA is unavailable in the shallow clone"
+  exit 1
+fi
+
+if ! CHANGED=$(git diff --name-only "$DIFF_BASE" HEAD); then
+  echo "Build: unable to compute the cumulative deployment diff"
+  exit 1
+fi
 if [ -z "$CHANGED" ]; then
   echo "Skip: no files changed (empty diff)"
   exit 0
