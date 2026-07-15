@@ -68,8 +68,8 @@ Server Error) for an unknown slug.
 
 ## Hand-offs (built + ready for the other agent to call)
 
-- **2026-07-15 · Codex release candidate · branch
-  `feat/agents-autonomy-tastebench`** — scoped notebook authority is available through
+- **2026-07-15 · Codex shipped via PR #538 · canonical main `ba743534`** — scoped
+  notebook authority is available through
   `domains/agents/autonomy/grants:{createGrant,getGrant,listGrants,getAuthorityState,pauseGrant,resumeGrant,revokeGrant}`,
   proposals/receipts through
   `domains/agents/autonomy/proposals:{submitBlockProposal,rejectProposal,approveProposal,getProposal,listProposals,getOperationState,listOperationStates,getReceipt,listReceipts}`,
