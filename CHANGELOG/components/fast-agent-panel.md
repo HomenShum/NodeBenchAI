@@ -7,14 +7,14 @@ Append-only lane for behavior-preserving AI Elements adoption inside
 
 The unopened panel now keeps the composer and four real starter actions as its primary surface. Empty tabs, duplicate command rails, decorative progress/minimap UI, placebo Focus/Tone controls, and text-inferred confidence/citation/media projections are removed while canonical streaming, approvals, structured sources, tool/domain cards, model/token provenance, Markdown, and exports remain.
 
-**PR / canonical main commit**: `PENDING #533 MAIN SHA / FINAL QA`.
+**PR / canonical main commit**: #533 / `655d1556`.
 
 **Evidence state**:
-- Source: pending.
-- Checks: local current-tree FastAgent, streaming, typecheck, design, and build gates passed; required PR checks pending.
-- Visual proof: private local responsive/theme captures independently reviewed; public-safe preview captures pending.
-- Preview: pending.
-- Production live: pending.
+- Source: merged to `main`.
+- Checks: the local FastAgent, streaming, typecheck, design, and build gates passed; required PR Typecheck, Runtime smoke, Build, and Tier B checks passed; main CI run `29393842917` passed.
+- Visual proof: private local responsive/theme captures were independently reviewed. Sanitized preview and production DOM sweeps confirmed the removed empty/heuristic chrome stays absent and the canonical prompt, model, swarm, status, and trace controls remain reachable.
+- Preview: exact-head `549e5895` deployment `5452564772` reached READY; Tier B run `29393537476` passed.
+- Production live: deployment `dpl_CjV1PkzsMKK9c3Le3p1jcWpWJW9K` reached READY; both production Post-Deploy Verify runs, `post-deploy:verify`, and the nine-test live smoke passed. The plain-prompt repair opened one canonical panel with one user message and no swarm or duplicate dispatch; the anonymous quota gate returned the honest sign-in response before model execution.
 
 **Author**: Homen Shum + Codex.
 **Touches**: [`../pages/agents.md`](../pages/agents.md).

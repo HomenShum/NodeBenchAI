@@ -161,6 +161,17 @@ Server Error) for an unknown slug.
 
 ## Recently shipped (this ScratchNode session)
 
+- **#533 Codex** - decluttered the Agents hub and FastAgent shell, repaired plain
+  prompts to open canonical chat, preserved explicit `/spawn`, and retained
+  streaming, approvals, exports, structured sources, tool/domain cards, model
+  provenance, statuses, and trace links. Canonical main commit `655d1556`.
+  Required Typecheck, Runtime smoke, Build, and Tier B checks passed; production
+  deployment `dpl_CjV1PkzsMKK9c3Le3p1jcWpWJW9K` reached READY and both
+  production Post-Deploy Verify runs passed. Sanitized live assertions found no
+  removed placebo copy or controls, no mobile overflow, a 689px six-row topic
+  region, and exactly one canonical panel dispatch for the production routing
+  probe. No Convex deploy ran because the PR changed no backend deploy paths.
+
 - **#531 Codex** - exact queued-prompt validation, explicit bounded-context
   provider input, and safe internal-error redaction. Canonical main commit
   `fa397589`. Signed-in production run `j9742r0yg3zkfsdqvgpx9he8k98ahv8t`
