@@ -6,6 +6,7 @@ import {
   fetchWithRetry,
   isRetryableHttpStatus,
 } from "../lib/fetchWithRetry.mjs";
+import { buildVercelBypassHeaders } from "../lib/vercelProtection.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
 const readRepoFile = (path: string) =>
@@ -38,6 +39,34 @@ describe("release workflow contracts", () => {
     expect(script).toContain(
       "isVercelPreview && !vercelBypassSecret && allowProtectedPreviewSkip",
     );
+  });
+
+  it("authenticates every preview verifier without a cookie redirect loop", () => {
+    const postDeploy = readRepoFile("scripts/post-deploy-verify.mjs");
+    const rawVerifier = readRepoFile("scripts/verify-live.ts");
+    const liveSmoke = readRepoFile("tests/e2e/live-smoke.spec.ts");
+
+    expect(postDeploy).toContain("buildVercelBypassHeaders");
+    expect(postDeploy).not.toContain("x-vercel-set-bypass-cookie");
+    expect(rawVerifier).toContain("buildVercelBypassHeaders");
+    expect(liveSmoke).toContain("installVercelPreviewBypass");
+    expect(liveSmoke).toContain("test.beforeEach");
+
+    expect(
+      buildVercelBypassHeaders(
+        "https://branch-project.vercel.app/",
+        "  test-secret  ",
+      ),
+    ).toEqual({ "x-vercel-protection-bypass": "test-secret" });
+    expect(
+      buildVercelBypassHeaders(
+        "https://branch-project.vercel.app.attacker.example/",
+        "test-secret",
+      ),
+    ).toEqual({});
+    expect(
+      buildVercelBypassHeaders("https://www.nodebenchai.com/", "test-secret"),
+    ).toEqual({});
   });
 
   it("authenticates Tier B to protected previews without tracing the secret", () => {

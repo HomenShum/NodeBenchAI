@@ -3,6 +3,10 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchWithRetry } from "./lib/fetchWithRetry.mjs";
+import {
+  buildVercelBypassHeaders,
+  isVercelPreviewUrl,
+} from "./lib/vercelProtection.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -50,18 +54,14 @@ function run(cmd, cmdArgs, env = {}) {
  * https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation
  */
 const vercelBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-const isVercelPreview = /\.vercel\.app$/.test(new URL(url).hostname);
+const isVercelPreview = isVercelPreviewUrl(url);
 
 function buildHeaders(extra = {}) {
-  const headers = {
+  return {
     "user-agent": "nodebench-post-deploy-verify/1.0",
     ...extra,
+    ...buildVercelBypassHeaders(url, vercelBypassSecret),
   };
-  if (vercelBypassSecret) {
-    headers["x-vercel-protection-bypass"] = vercelBypassSecret;
-    headers["x-vercel-set-bypass-cookie"] = "samesitenone";
-  }
-  return headers;
 }
 
 async function fetchHtml() {
