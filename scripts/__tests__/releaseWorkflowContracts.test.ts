@@ -28,6 +28,23 @@ describe("release workflow contracts", () => {
     );
   });
 
+  it("reuses an ignored-head preview only after ancestry and served-tree proofs", () => {
+    const workflow = readRepoFile(".github/workflows/tier-b-preview.yml");
+
+    expect(workflow).toContain("IGNORED|");
+    expect(workflow).toContain(
+      'gh api "repos/$GITHUB_REPOSITORY/compare/$candidate_sha...$VERCEL_HEAD_SHA"',
+    );
+    expect(workflow).toContain(
+      'git diff --quiet "$candidate_sha" "$VERCEL_HEAD_SHA"',
+    );
+    expect(workflow).toContain("preview_source=equivalent-ancestor");
+    expect(workflow).toContain("scripts/vercel-build.sh");
+    expect(workflow).not.toContain(
+      "src convex packages apps public server shared api scripts vercel.json",
+    );
+  });
+
   it("verifies Production through the canonical public hostname", () => {
     const workflow = readRepoFile(".github/workflows/post-deploy-verify.yml");
     const script = readRepoFile("scripts/post-deploy-verify.mjs");
