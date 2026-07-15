@@ -13,7 +13,7 @@ vi.mock("convex/react", () => ({
 }));
 
 describe("buildTopicCanvasEntries", () => {
-  it("derives sorted topic cards with memory, resources, and next actions", () => {
+  it("sorts topics and exposes only recorded context and resources", () => {
     const entries = buildTopicCanvasEntries([
       {
         _id: "session_older" as never,
@@ -39,15 +39,20 @@ describe("buildTopicCanvasEntries", () => {
     ] as TaskSession[]);
 
     expect(entries[0].title).toBe("ByteDance strategy topic");
-    expect(entries[0].memoryLabel).toContain("Every conclusion is grounded");
+    expect(entries[0].description).toBe(
+      "Compare public market moves with trace-backed evidence.",
+    );
+    expect(entries[0].contextLabel).toContain("Every conclusion is grounded");
     expect(entries[0].resourceLabels).toEqual([
       "10-Q filing",
       "discover_tools",
       "get_workflow_chain",
       "2 agents",
     ]);
-    expect(entries[0].nextAction).toMatch(/proof pack/i);
     expect(entries[0].traceHref).toContain("session_latest");
+    expect(entries[1].description).toBeUndefined();
+    expect(entries[1].contextLabel).toBeUndefined();
+    expect(entries[1].resourceLabels).toEqual([]);
   });
 });
 
@@ -67,7 +72,8 @@ describe("TopicCanvasPanel", () => {
             {
               _id: "session_1",
               title: "AI infrastructure topic",
-              description: "Track model, supplier, and investor signals as one durable topic.",
+              description:
+                "Track model, supplier, and investor signals as one durable topic.",
               type: "agent",
               visibility: "public",
               status: "running",
@@ -84,10 +90,16 @@ describe("TopicCanvasPanel", () => {
 
     render(<TopicCanvasPanel />);
 
-    expect(screen.getByText("Topic canvas")).toBeInTheDocument();
-    expect(screen.getByText(/Topics, not sessions/i)).toBeInTheDocument();
+    expect(screen.getByText("Recent topics")).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 shown · 1 active · 1 sourced/i),
+    ).toBeInTheDocument();
     expect(screen.getByText("AI infrastructure topic")).toBeInTheDocument();
-    expect(screen.getByText(/Track model, supplier, and investor signals/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Track model, supplier, and investor signals/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Canvas memory/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Next action/i)).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Open trace/i })).toHaveAttribute(
       "href",
       "/execution-trace?session=session_1",

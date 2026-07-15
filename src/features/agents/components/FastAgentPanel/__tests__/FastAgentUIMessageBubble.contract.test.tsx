@@ -28,7 +28,11 @@ vi.mock("@/hooks/useVoiceOutput", () => ({
 
 function message(
   parts: Array<Record<string, unknown>>,
-  overrides: Partial<UIMessage> & { text?: string } = {},
+  overrides: Partial<UIMessage> & {
+    text?: string;
+    tokensUsed?: { input: number; output: number };
+    model?: string;
+  } = {},
 ): UIMessage {
   return {
     id: "message-1",
@@ -300,6 +304,66 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
     });
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", "https://example.com/evidence");
+  });
+
+  it("keeps canonical Markdown without heuristic confidence or duplicate source projections", () => {
+    const { container } = render(
+      <FastAgentUIMessageBubble
+        message={message(
+          [
+            {
+              type: "text",
+              text: `This may be uncertain [1].
+
+[Evidence link](https://example.com/evidence)
+
+![Evidence image](https://example.com/chart.png)
+
+[Evidence report](https://example.com/report.pdf)`,
+            },
+          ],
+          { text: undefined },
+        )}
+      />,
+    );
+
+    expect(screen.queryByText(/^(high|moderate|low) confidence$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Sources:")).not.toBeInTheDocument();
+    expect(container.querySelectorAll('a[href="https://example.com/evidence"]')).toHaveLength(1);
+    expect(container.querySelectorAll('img[src="https://example.com/chart.png"]')).toHaveLength(1);
+    expect(container.querySelectorAll('a[href="https://example.com/report.pdf"]')).toHaveLength(1);
+    expect(container.querySelectorAll('img[src*="google.com/s2/favicons"]')).toHaveLength(0);
+  });
+
+  it("renders canonical sources and token/model provenance exactly once", () => {
+    const { container } = render(
+      <FastAgentUIMessageBubble
+        message={message(
+          [
+            {
+              type: "source-url",
+              sourceId: "provenance-source-1",
+              url: "https://example.com/provenance",
+              title: "Provenance source sentinel",
+            },
+          ],
+          {
+            tokensUsed: { input: 1200, output: 345 },
+            model: "gpt-5.4-mini",
+          },
+        )}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Used 1 sources" }));
+    expect(
+      screen.getAllByRole("link", { name: "Provenance source sentinel" }),
+    ).toHaveLength(1);
+
+    const provenanceBadges = container.querySelectorAll('[title*="gpt-5.4-mini"]');
+    expect(provenanceBadges).toHaveLength(1);
+    expect(provenanceBadges[0]).toHaveTextContent("1.2K↓");
+    expect(provenanceBadges[0]).toHaveTextContent("345↑");
   });
 
   it("renders canonical standard owners in their original interleaved order", () => {

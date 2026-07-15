@@ -15,7 +15,6 @@ import {
   Building,
   TrendingUp,
   Search,
-  Sparkles,
   Command,
   Gift,
 } from "lucide-react";
@@ -34,26 +33,7 @@ import {
 // Types & Constants
 // ============================================================================
 
-export type AgentMode = "quick" | "research" | "deep";
 export type { ApprovedModel };
-
-const MODE_CONFIG: Record<AgentMode, { label: string; description: string; icon: React.ElementType }> = {
-  quick: {
-    label: "Quick",
-    description: "Fast single-agent response",
-    icon: Zap,
-  },
-  research: {
-    label: "Research",
-    description: "Multi-source parallel search",
-    icon: Search,
-  },
-  deep: {
-    label: "Deep",
-    description: "Thorough analysis with planning",
-    icon: Sparkles,
-  },
-};
 
 // Build MODEL_OPTIONS from shared APPROVED_MODELS (SINGLE SOURCE OF TRUTH)
 const MODEL_OPTIONS = APPROVED_MODELS.map((modelId) => {
@@ -83,7 +63,6 @@ const AGENT_SHORTCUTS = [
 
 interface AgentCommandBarProps {
   onSubmit: (query: string, options: {
-    mode: AgentMode;
     model: ApprovedModel;
     agents?: string[];
   }) => void;
@@ -95,69 +74,6 @@ interface AgentCommandBarProps {
 // ============================================================================
 // Sub-components
 // ============================================================================
-
-const ModeSelector = memo(function ModeSelector({
-  mode,
-  onModeChange,
-  isOpen,
-  onToggle,
-}: {
-  mode: AgentMode;
-  onModeChange: (mode: AgentMode) => void;
-  isOpen: boolean;
-  onToggle: () => void;
-}) {
-  const config = MODE_CONFIG[mode];
-  const Icon = config.icon;
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={onToggle}
-        className={cn(
-          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg",
-          "text-xs font-medium border border-edge",
-          "hover:bg-surface-hover transition-colors",
-          isOpen && "bg-surface-hover"
-        )}
-      >
-        <Icon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-        <span>{config.label}</span>
-        <ChevronDown className={cn("w-3 h-3 transition-transform", isOpen && "rotate-180")} />
-      </button>
-
-      {isOpen && (
-        <div className="absolute top-full left-0 mt-1 z-50 min-w-[180px] bg-surface border border-edge rounded-lg shadow-lg overflow-hidden">
-          {(Object.entries(MODE_CONFIG) as [AgentMode, typeof MODE_CONFIG["quick"]][]).map(([key, cfg]) => {
-            const ModeIcon = cfg.icon;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => {
-                  onModeChange(key);
-                  onToggle();
-                }}
-                className={cn(
-                  "w-full flex items-start gap-2 px-3 py-2 text-left",
-                  "hover:bg-surface-hover transition-colors",
-                  mode === key && "bg-indigo-500/10"
-                )}
-              >
-                <ModeIcon className="w-4 h-4 mt-0.5 text-indigo-600 dark:text-indigo-400" />
-                <div>
-                  <div className="text-xs font-medium text-content">{cfg.label}</div>
-                  <div className="text-xs text-content-muted">{cfg.description}</div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-});
 
 const ModelSelector = memo(function ModelSelector({
   model,
@@ -225,13 +141,11 @@ const ModelSelector = memo(function ModelSelector({
 export const AgentCommandBar = memo(function AgentCommandBar({
   onSubmit,
   isLoading = false,
-  placeholder = "Ask anything or use /spawn for parallel agents...",
+  placeholder = "Ask NodeBench...",
   className,
 }: AgentCommandBarProps) {
   const [input, setInput] = useState("");
-  const [mode, setMode] = useState<AgentMode>("quick");
   const [model, setModel] = useState<ApprovedModel>(DEFAULT_MODEL);
-  const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -257,16 +171,16 @@ export const AgentCommandBar = memo(function AgentCommandBar({
     if (!input.trim() || isLoading) return;
 
     if (parsedSpawn) {
-      onSubmit(parsedSpawn.query, { mode: "research", model, agents: parsedSpawn.agents });
+      onSubmit(parsedSpawn.query, { model, agents: parsedSpawn.agents });
     } else {
-      onSubmit(input.trim(), { mode, model });
+      onSubmit(input.trim(), { model });
     }
 
     setInput("");
     if (inputRef.current) {
       inputRef.current.style.height = "auto";
     }
-  }, [input, isLoading, parsedSpawn, mode, model, onSubmit]);
+  }, [input, isLoading, parsedSpawn, model, onSubmit]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -289,37 +203,14 @@ export const AgentCommandBar = memo(function AgentCommandBar({
   }, []);
 
   return (
-    <div className={cn("space-y-3", className)}>
-      {/* Quick Action Chips */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {QUICK_ACTIONS.map((action) => {
-          const Icon = action.icon;
-          return (
-            <button
-              key={action.label}
-              type="button"
-              onClick={() => handleQuickAction(action)}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full",
-                "text-xs font-medium border border-edge",
-                "bg-surface hover:bg-surface-hover",
-                "transition-colors"
-              )}
-            >
-              <Icon className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-              {action.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Command Input Area */}
+    <div className={cn("space-y-2", className)}>
+      {/* Command Input Area — the only primary action on first view. */}
       <div className="relative">
         <div
           className={cn(
             "flex flex-col bg-surface rounded-lg border border-edge",
             "focus-within:ring-2 focus-within:ring-ring",
-            "focus-within:border-indigo-500/30/50 transition-all"
+            "focus-within:border-indigo-500/30/50 transition-all",
           )}
         >
           {/* Input Row */}
@@ -335,7 +226,7 @@ export const AgentCommandBar = memo(function AgentCommandBar({
               className={cn(
                 "flex-1 resize-none bg-transparent text-sm",
                 "text-content placeholder:text-content-muted",
-                "outline-none min-h-[24px] max-h-[120px]"
+                "outline-none min-h-[24px] max-h-[120px]",
               )}
             />
             <button
@@ -347,44 +238,28 @@ export const AgentCommandBar = memo(function AgentCommandBar({
                 "flex items-center justify-center w-8 h-8 rounded-lg",
                 "bg-[var(--accent-primary)] text-white",
                 "hover:opacity-90 transition-opacity",
-                "disabled:opacity-50 disabled:cursor-not-allowed"
+                "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
               <Send className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
 
-          {/* Controls Row */}
-          <div className="flex items-center justify-between px-3 pb-3 pt-0">
-            <div className="flex items-center gap-2">
-              <ModeSelector
-                mode={mode}
-                onModeChange={setMode}
-                isOpen={modeDropdownOpen}
-                onToggle={() => {
-                  setModeDropdownOpen(!modeDropdownOpen);
-                  setModelDropdownOpen(false);
-                }}
-              />
+          {/* Swarm-only controls. A plain ask routes to the canonical FastAgent panel. */}
+          {isSpawn && parsedSpawn && (
+            <div className="flex items-center justify-between px-3 pb-3 pt-0">
               <ModelSelector
                 model={model}
                 onModelChange={setModel}
                 isOpen={modelDropdownOpen}
-                onToggle={() => {
-                  setModelDropdownOpen(!modelDropdownOpen);
-                  setModeDropdownOpen(false);
-                }}
+                onToggle={() => setModelDropdownOpen(!modelDropdownOpen)}
               />
-            </div>
-
-            {/* Spawn indicator */}
-            {isSpawn && parsedSpawn && (
               <div className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400">
-                <Zap className="w-3 h-3" />
+                <Zap className="w-3 h-3" aria-hidden="true" />
                 <span>Swarm: {parsedSpawn.agents.length} agents</span>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Command Hint */}
@@ -397,7 +272,10 @@ export const AgentCommandBar = memo(function AgentCommandBar({
               </span>
             </div>
             <p className="text-xs text-content-muted mb-2">
-              Use <code className="px-1 bg-surface-secondary rounded">/spawn "query" --agents=doc,media,sec</code>
+              Use{" "}
+              <code className="px-1 bg-surface-secondary rounded">
+                /spawn "query" --agents=doc,media,sec
+              </code>
             </p>
             <div className="flex flex-wrap gap-1">
               {AGENT_SHORTCUTS.map((agent) => {
@@ -416,6 +294,42 @@ export const AgentCommandBar = memo(function AgentCommandBar({
           </div>
         )}
       </div>
+
+      <details className="group w-fit max-w-full">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-1 text-xs font-medium text-content-muted transition-colors hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          Suggestions
+          <ChevronDown
+            className="h-3 w-3 transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          />
+        </summary>
+        <div
+          className="mt-2 flex flex-wrap items-center gap-2"
+          role="group"
+          aria-label="Agent command suggestions"
+        >
+          {QUICK_ACTIONS.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.label}
+                type="button"
+                onClick={() => handleQuickAction(action)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border border-edge px-2.5 py-1.5",
+                  "bg-surface text-xs font-medium hover:bg-surface-hover transition-colors",
+                )}
+              >
+                <Icon
+                  className="h-3 w-3 text-indigo-600 dark:text-indigo-400"
+                  aria-hidden="true"
+                />
+                {action.label}
+              </button>
+            );
+          })}
+        </div>
+      </details>
     </div>
   );
 });

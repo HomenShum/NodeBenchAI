@@ -338,19 +338,9 @@ export const HumanApprovalQueue = memo(function HumanApprovalQueue({
     );
   }
 
-  // Empty state
+  // Nothing is actionable, so the hub stays quiet.
   if (pendingRequests.length === 0) {
-    return (
-      <div className={cn("p-6 text-center", className)}>
-        <div className="w-10 h-10 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center mx-auto mb-3">
-          <CheckCircle className="w-5 h-5 text-green-600" />
-        </div>
-        <p className="text-sm font-medium text-content">All caught up!</p>
-        <p className="text-xs text-content-muted mt-1">
-          No pending approval requests
-        </p>
-      </div>
-    );
+    return null;
   }
 
   const displayRequests = pendingRequests.slice(0, maxItems);

@@ -914,7 +914,7 @@ export function CockpitLayout({
              the toggle's ~34px height overlapped the trace bar's ~28px band, visually clipping
              the clock on every surface where both render (found via live visual-judge scan:
              benchmarks/pulse/changelog/about). Raised the xl offset to clear the trace bar. */}
-        {!isCompactLayout && !isStandaloneInfoView && !isDesktopPublicShell ? (
+        {isObjectFirstSurface && !isCompactLayout && !isStandaloneInfoView && !isDesktopPublicShell ? (
           <div className="fixed bottom-16 right-4 z-50 xl:bottom-12">
             <ObjectFirstGlobalToggle showLabel />
           </div>

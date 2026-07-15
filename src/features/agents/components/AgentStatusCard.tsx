@@ -2,7 +2,7 @@
  * AgentStatusCard.tsx
  *
  * Real-time agent status card with live subscriptions.
- * Displays agent status, current task preview, and quick actions.
+ * Displays only live agent status and task telemetry.
  */
 
 import React, { memo } from "react";
@@ -14,18 +14,12 @@ import {
   Search,
   Zap,
   Clock,
-  Play,
-  Pause,
-  Settings,
-  ChevronDown,
-  ChevronUp,
   Loader2,
   CheckCircle,
   XCircle,
   AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DEFAULT_MODEL, MODEL_UI_INFO } from "@shared/llm/approvedModels";
 import { SignatureOrb } from "@/shared/ui/SignatureOrb";
 
 // ============================================================================
@@ -114,10 +108,6 @@ export interface AgentStatusCardProps {
   lastActivity?: string;
   tasksCompleted?: number;
   currentTask?: string;
-  isExpanded?: boolean;
-  onToggleExpand?: () => void;
-  onConfigure?: () => void;
-  onToggleStatus?: () => void;
 }
 
 // ============================================================================
@@ -165,10 +155,6 @@ export const AgentStatusCard = memo(function AgentStatusCard({
   lastActivity,
   tasksCompleted = 0,
   currentTask,
-  isExpanded = false,
-  onToggleExpand,
-  onConfigure,
-  onToggleStatus,
 }: AgentStatusCardProps) {
   const config = AGENT_CONFIGS[agentId] || AGENT_CONFIGS.coordinator;
   const Icon = config.icon;
@@ -244,80 +230,6 @@ export const AgentStatusCard = memo(function AgentStatusCard({
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2 px-4 pb-4">
-        <button
-          type="button"
-          onClick={onToggleStatus}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-2 px-3 py-2",
-            "text-xs font-medium rounded-lg border border-edge",
-            "hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-surface"
-          )}
-        >
-          {isActive ? (
-            <>
-              <Pause className="w-3.5 h-3.5" aria-hidden="true" />
-              Pause
-            </>
-          ) : (
-            <>
-              <Play className="w-3.5 h-3.5" aria-hidden="true" />
-              Start
-            </>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onConfigure}
-          className={cn(
-            "flex items-center justify-center p-2 rounded-lg",
-            "border border-edge hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-surface"
-          )}
-          aria-label="Configure agent"
-        >
-          <Settings className="w-4 h-4 text-content-muted" />
-        </button>
-        {onToggleExpand && (
-          <button
-            type="button"
-            onClick={onToggleExpand}
-            className={cn(
-              "flex items-center justify-center p-2 rounded-lg",
-              "border border-edge hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-surface"
-            )}
-            aria-label={isExpanded ? "Collapse details" : "Expand details"}
-          >
-            {isExpanded ? (
-              <ChevronUp className="w-4 h-4 text-content-muted" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-content-muted" />
-            )}
-          </button>
-        )}
-      </div>
-
-      {/* Expanded Details */}
-      {isExpanded && (
-        <div className="px-4 pb-4 border-t border-edge pt-3">
-          <div className="text-xs text-content-muted">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <span className="font-medium">Model:</span> {MODEL_UI_INFO[DEFAULT_MODEL].name}
-              </div>
-              <div>
-                <span className="font-medium">Memory:</span> 2.4k tokens
-              </div>
-              <div>
-                <span className="font-medium">Avg latency:</span> 1.2s
-              </div>
-              <div>
-                <span className="font-medium">Success rate:</span> 98%
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 });

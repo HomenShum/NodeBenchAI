@@ -10,6 +10,7 @@ This directory contains append-only per-surface changelog lanes. Each lane recor
 - [`pages/convex-events.md`](pages/convex-events.md) — ScratchNode live-event backend surface.
 - [`pages/linkedin-daily-brief.md`](pages/linkedin-daily-brief.md) — LinkedIn daily-brief pipeline.
 - [`pages/scratchnode-nodebench-bridge.md`](pages/scratchnode-nodebench-bridge.md) — ScratchNode-to-NodeBench bridge.
+- [`pages/agents.md`](pages/agents.md) — Agents hub prompt routing, topic presentation, and responsive hub navigation.
 
 ### Components
 
