@@ -68,6 +68,22 @@ Server Error) for an unknown slug.
 
 ## Hand-offs (built + ready for the other agent to call)
 
+- **2026-07-15 · Codex release candidate · branch
+  `feat/agents-autonomy-tastebench`** — scoped notebook authority is available through
+  `domains/agents/autonomy/grants:{createGrant,getGrant,listGrants,getAuthorityState,pauseGrant,resumeGrant,revokeGrant}`,
+  proposals/receipts through
+  `domains/agents/autonomy/proposals:{submitBlockProposal,rejectProposal,approveProposal,getProposal,listProposals,getOperationState,listOperationStates,getReceipt,listReceipts}`,
+  guarded commits through `domains/agents/autonomy/commits:{commitBlockProposal,undoBlockReceipt}`,
+  and atomic multi-draft completion through
+  `domains/agents/autonomy/remainders:commitProposalRemainder`. The v1 capability is only
+  exact, owner/entity/run/scratchpad/block/version-bound `notebook.update_block`; network,
+  file, spend, publish, share, export, delete, access, and sync remain denied. TasteBench
+  adds owner-scoped blind A/B runs, append-only correction/friction events, artifact-backed
+  scenarios, honest null metrics, and automatic proposal/receipt event binding in
+  `domains/evaluation/tasteBench`. Tenant-scoped diligence projections, scratchpads, pulse,
+  telemetry, and judge paths were hardened in the same candidate. No out-of-band Convex
+  deploy was performed.
+
 - **2026-07-14 - Codex P0 runtime safety (#529 and #531 merged; canonical main
   `c4035256` / `fa397589`)** - authenticated
   FastAgent runs reserve budget atomically through internal

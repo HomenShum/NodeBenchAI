@@ -2115,10 +2115,13 @@ export const completeSession = mutation({
 
     if (
       reportId &&
+      entityMeta.entityId &&
       entityMeta.entitySlug &&
       effectiveArtifactState === "saved"
     ) {
       await syncGenericDiligenceProjectionDrafts(ctx, {
+        ownerKey,
+        entityId: entityMeta.entityId,
         entitySlug: entityMeta.entitySlug,
         drafts: buildGenericDiligenceProjectionDrafts({
           entitySlug: entityMeta.entitySlug,
@@ -2138,10 +2141,12 @@ export const completeSession = mutation({
         0,
         internal.domains.product.diligenceProjections.runScratchpadProjectionPass,
         {
-          workflowId: `scratchpad:${entityMeta.entitySlug}:${now}:session_complete:all`,
+          ownerKey,
+          entityId: entityMeta.entityId,
+          workflowId: `scratchpad:${entityMeta.entitySlug}:${entityMeta.entityId}:${now}:session_complete:all:${args.sessionId}`,
           reason: "session_complete",
           userId: identity.rawUserId ?? undefined,
-          idempotencyKey: `overlay:${entityMeta.entitySlug}:${now}:all`,
+          idempotencyKey: `overlay:${entityMeta.entityId}:${entityMeta.entitySlug}:${now}:all:${args.sessionId}`,
           report: {
             entitySlug: entityMeta.entitySlug,
             title: reportTitle,

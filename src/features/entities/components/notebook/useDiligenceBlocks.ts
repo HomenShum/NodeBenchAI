@@ -185,6 +185,7 @@ export function deriveDiligenceProjectionsFromSnapshot(
 export function useDiligenceBlocks(
   entitySlug: string,
   snapshot?: NotebookSnapshotLike | undefined,
+  access?: { anonymousSessionId?: string; shareToken?: string },
 ): DiligenceBlocksSubscription {
   // Read Convex-side projections if the generic projection orchestrator has
   // materialized rows for this entity. Snapshot-derived projections remain as
@@ -195,7 +196,13 @@ export function useDiligenceBlocks(
   const api = useConvexApi();
   const convexRows = useQuery(
     api?.domains.product.diligenceProjections.listForEntity as never,
-    (api && entitySlug ? { entitySlug } : "skip") as never,
+    (api && entitySlug
+      ? {
+          entitySlug,
+          anonymousSessionId: access?.anonymousSessionId,
+          shareToken: access?.shareToken,
+        }
+      : "skip") as never,
   ) as
     | ReadonlyArray<{
         entitySlug: string;

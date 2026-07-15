@@ -6,7 +6,7 @@
  *          This module is the "merge" step's single entry point. Any
  *          orchestrator pass that emits a structured projection for a block
  *          calls emitDiligenceProjection(...). The function then routes
- *          through Convex's upsertFromStructuringPass mutation.
+ *          through Convex's internal upsertFromStructuringPass mutation.
  *
  * Prior art:
  *   - Anthropic "Building Effective Agents" — orchestrator-workers with merge
@@ -70,9 +70,10 @@ export type EmitProjectionResult =
 /**
  * Convex mutation caller — parameterized so the helper stays testable.
  *
- * The real orchestrator (running inside a Convex action or a Node worker
- * with the Convex HTTP client) supplies a matching callable. In unit tests
- * we supply a spy.
+ * The real orchestrator runs inside a trusted Convex action and supplies the
+ * internal mutation callable. External Node workers must enter through an
+ * authenticated owner-scoped route rather than calling this producer directly.
+ * In unit tests we supply a spy.
  */
 export type UpsertProjectionMutation = (args: {
   entitySlug: string;
@@ -147,7 +148,7 @@ export function validateEmitArgs(args: EmitProjectionArgs): void {
  * Usage from the orchestrator:
  *
  *   const result = await emitDiligenceProjection(
- *     convex.mutation(api.domains.product.diligenceProjections.upsertFromStructuringPass),
+ *     ctx.runMutation(internal.domains.product.diligenceProjections.upsertFromStructuringPass),
  *     {
  *       entitySlug: "acme-ai",
  *       blockType: "founder",

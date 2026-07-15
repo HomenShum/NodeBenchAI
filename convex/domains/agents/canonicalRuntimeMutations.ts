@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation } from "../../_generated/server";
+import { internalMutation, mutation } from "../../_generated/server";
 
 /**
  * Canonical Runtime Mutations — CRUD for runs, scratchpads, projections, messages
@@ -51,7 +51,7 @@ export const updateRunStatus = mutation({
   },
 });
 
-export const createScratchpad = mutation({
+export const createScratchpad = internalMutation({
   args: {
     agentThreadId: v.string(),
     userId: v.id("users"),
@@ -77,7 +77,7 @@ export const createScratchpad = mutation({
   },
 });
 
-export const updateScratchpad = mutation({
+export const updateScratchpad = internalMutation({
   args: {
     scratchpadId: v.id("agentScratchpads"),
     scratchpad: v.optional(v.any()),
@@ -128,8 +128,10 @@ export const insertCheckpoint = mutation({
   },
 });
 
-export const insertProjection = mutation({
+export const insertProjection = internalMutation({
   args: {
+    ownerKey: v.string(),
+    entityId: v.id("productEntities"),
     entitySlug: v.string(),
     blockType: v.union(
       v.literal("projection"),
@@ -163,7 +165,18 @@ export const insertProjection = mutation({
     updatedAt: v.number(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.insert("diligenceProjections", args);
+    const entity = await ctx.db.get(args.entityId);
+    if (
+      !entity ||
+      entity.ownerKey !== args.ownerKey ||
+      entity.slug !== args.entitySlug
+    ) {
+      throw new Error("insertProjection: invalid owner/entity context");
+    }
+    return await ctx.db.insert("diligenceProjections", {
+      ...args,
+      producerAssurance: "internal_canonical_v1",
+    });
   },
 });
 
@@ -193,7 +206,7 @@ export const insertAgentMessage = mutation({
   },
 });
 
-export const upsertNotebookPage = mutation({
+export const upsertNotebookPage = internalMutation({
   args: {
     ownerKey: v.string(),
     entitySlug: v.string(),
@@ -206,8 +219,11 @@ export const upsertNotebookPage = mutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("productNotebookPages")
-      .withIndex("by_entity_date", (q) =>
-        q.eq("entitySlug", args.entitySlug).eq("dateKey", args.dateKey ?? ""),
+      .withIndex("by_owner_entity_date", (q) =>
+        q
+          .eq("ownerKey", args.ownerKey)
+          .eq("entitySlug", args.entitySlug)
+          .eq("dateKey", args.dateKey ?? ""),
       )
       .unique();
     if (existing) {
@@ -221,7 +237,7 @@ export const upsertNotebookPage = mutation({
   },
 });
 
-export const upsertPulseReport = mutation({
+export const upsertPulseReport = internalMutation({
   args: {
     ownerKey: v.string(),
     userId: v.optional(v.id("users")),
@@ -240,8 +256,11 @@ export const upsertPulseReport = mutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("pulseReports")
-      .withIndex("by_entity_date", (q) =>
-        q.eq("entitySlug", args.entitySlug).eq("dateKey", args.dateKey),
+      .withIndex("by_owner_entity_date", (q) =>
+        q
+          .eq("ownerKey", args.ownerKey)
+          .eq("entitySlug", args.entitySlug)
+          .eq("dateKey", args.dateKey),
       )
       .unique();
     if (existing) {

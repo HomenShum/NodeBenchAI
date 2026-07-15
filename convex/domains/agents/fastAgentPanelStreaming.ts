@@ -3098,7 +3098,7 @@ export const initiateAsyncStreaming = mutation({
           });
           if (md) knownEntityStateMarkdown = md;
           fastLaneCache = await ctx.runQuery(
-            api.domains.agents.canonicalRuntimeQueries.getEntityFastLaneCache,
+            internal.domains.agents.canonicalRuntimeQueries.getEntityFastLaneCache,
             {
               ownerKey: identity.ownerKey,
               entitySlug: args.entitySlug,

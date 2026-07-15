@@ -89,6 +89,16 @@ jobs:
           convex/workflows/ainewsBriefFormat.test.ts
           convex/__tests__/agentRuntimeTierFallback.test.ts
           src/features/agents/components/FastAgentPanel/__tests__/RunState.test.tsx
+          convex/domains/agents/autonomy/autonomy.integration.test.ts
+          convex/domains/agents/autonomy/autonomyTasteBench.integration.test.ts
+          convex/domains/evaluation/tasteBench.integration.test.ts
+          convex/domains/evaluation/tasteBenchPolicy.test.ts
+          convex/domains/product/diligenceTenantIsolation.test.ts
+          src/features/entities/components/notebook/entityNotebookAuthorityHelpers.test.ts
+          src/features/agents/authority/AuthorityControl.test.tsx
+          src/features/agents/authority/DelegatedReceiptRow.test.tsx
+          src/features/dogfood/components/TasteBenchPanel.test.tsx
+          src/features/evaluation/data/tasteBenchScenario.test.ts
           scripts/__tests__/releaseWorkflowContracts.test.ts
 
   scratchnode-launch-gates:

@@ -4,6 +4,7 @@ import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../../../../convex/_generated/api";
 import { PageHeroHeader } from "@/shared/ui/PageHeroHeader";
+import { TasteBenchPanel } from "../components/TasteBenchPanel";
 
 type DogfoodManifestItem = {
   file: string;
@@ -859,6 +860,8 @@ export function DogfoodReviewView() {
             </button>
           </div>
         </div>
+
+        <TasteBenchPanel />
 
         <div className="nb-surface-card p-5 space-y-4">
           <div className="flex items-start justify-between gap-4">

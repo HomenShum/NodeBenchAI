@@ -12,9 +12,11 @@
  */
 
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { action, internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { injectLessonsForThread } from "./lessons/lessonInjection";
+import { toAnonymousProductOwnerKey } from "../product/helpers";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -371,20 +373,24 @@ Mark confidence: verified | corroborated | single-source | unverified.`,
     );
 
     // Write diligence projection (scratchpadRunId uses threadId string)
-    await ctx.runMutation(
-      internal.domains.agents.canonicalRuntimeMutations.insertProjection,
-      {
-        entitySlug: args.entitySlug,
-        blockType: "projection",
-        scratchpadRunId: args.threadId,
-        version: 1,
-        overallTier: "single-source",
-        headerText: "Deep Analysis",
-        bodyProse: result.text,
-        sourceCount: 0,
-        updatedAt: Date.now(),
-      },
-    );
+    if (cache?.entity.id) {
+      await ctx.runMutation(
+        internal.domains.agents.canonicalRuntimeMutations.insertProjection,
+        {
+          ownerKey: args.ownerKey,
+          entityId: cache.entity.id,
+          entitySlug: args.entitySlug,
+          blockType: "projection",
+          scratchpadRunId: args.threadId,
+          version: 1,
+          overallTier: "single-source",
+          headerText: "Deep Analysis",
+          bodyProse: result.text,
+          sourceCount: 0,
+          updatedAt: Date.now(),
+        },
+      );
+    }
 
     // Final checkpoint
     await ctx.runMutation(
@@ -449,7 +455,12 @@ export const triggerPulseForEntity = internalAction({
     // Ensure pulse page exists
     let page = await ctx.runQuery(
       internal.domains.agents.canonicalRuntimeQueries.getEntityNotebookPage,
-      { entitySlug: args.entitySlug, pageType: "pulse", dateKey: args.dateKey },
+      {
+        ownerKey: args.ownerKey,
+        entitySlug: args.entitySlug,
+        pageType: "pulse",
+        dateKey: args.dateKey,
+      },
     );
 
     if (!page) {
@@ -520,7 +531,7 @@ export const triggerPulseForEntity = internalAction({
 
 export const runFastLane = action({
   args: {
-    ownerKey: v.string(),
+    anonymousSessionId: v.optional(v.string()),
     entitySlug: v.string(),
     threadId: v.optional(v.string()),
     userMessage: v.string(),
@@ -535,9 +546,22 @@ export const runFastLane = action({
     fromCache: v.boolean(),
   }),
   handler: async (ctx, args) => {
+    const rawUserId = await getAuthUserId(ctx);
+    const ownerKey = rawUserId
+      ? `user:${String(rawUserId)}`
+      : toAnonymousProductOwnerKey(args.anonymousSessionId);
+    if (!ownerKey) {
+      throw new Error("Authentication or anonymous session required");
+    }
     return await ctx.runAction(
       internal.domains.agents.canonicalPlanner.planAndRunFast,
-      args,
+      {
+        ownerKey,
+        entitySlug: args.entitySlug,
+        threadId: args.threadId,
+        userMessage: args.userMessage,
+        forceMode: args.forceMode,
+      },
     );
   },
 });

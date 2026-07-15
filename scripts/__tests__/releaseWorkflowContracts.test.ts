@@ -13,6 +13,17 @@ const readRepoFile = (path: string) =>
   readFileSync(resolve(root, path), "utf8");
 
 describe("release workflow contracts", () => {
+  it("keeps exact-head previews buildable across multi-commit PRs", () => {
+    const ignoreBuild = readRepoFile("scripts/vercel-ignore-build.sh");
+
+    expect(ignoreBuild).toContain("VERCEL_GIT_PREVIOUS_SHA");
+    expect(ignoreBuild).toContain('git diff --name-only "$DIFF_BASE" HEAD');
+    expect(ignoreBuild).toContain(
+      "Build: no previous successful branch deployment to compare",
+    );
+    expect(ignoreBuild).not.toContain("git diff --name-only HEAD~1 HEAD");
+  });
+
   it("resolves an exact PR-head Vercel preview and fails closed", () => {
     const workflow = readRepoFile(".github/workflows/tier-b-preview.yml");
 

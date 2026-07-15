@@ -16,12 +16,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { useNavigate } from "react-router-dom";
-import {
-  AlertTriangle,
-  ExternalLink,
-  Link2,
-  Lock,
-} from "lucide-react";
+import { AlertTriangle, ExternalLink, Link2, Lock } from "lucide-react";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 import {
   chipsEqual,
@@ -60,7 +55,11 @@ import {
   type BlockChip,
 } from "./BlockChipRenderer";
 import { BlockProvenance } from "./BlockProvenance";
-import { NotebookBlockEditor, type NotebookBlockEditorHandle, type MarkdownBlockKind } from "./NotebookBlockEditor";
+import {
+  NotebookBlockEditor,
+  type NotebookBlockEditorHandle,
+  type MarkdownBlockKind,
+} from "./NotebookBlockEditor";
 import { SlashPalette, type SlashCommand } from "./SlashPalette";
 import { MentionPicker, type EntityMatch } from "./MentionPicker";
 import { BlockStatusBar } from "./BlockStatusBar";
@@ -79,9 +78,26 @@ import { buildProductBlockSyncId } from "../../../../../shared/productBlockSync"
 import { useDiligenceBlocks } from "./useDiligenceBlocks";
 import type { DiligenceDecorationData } from "./DiligenceDecorationPlugin";
 import { acceptDecorationIntoNotebook } from "./acceptDecorationIntoNotebook";
-import { useAgentActions, type DecorationContext } from "@/features/agents/hooks/useAgentActions";
+import {
+  buildNotebookAuthorityOperationKey,
+  buildNotebookAuthorityRemainderCompletionKey,
+  evaluateNotebookAuthorityCandidate,
+  hasNotebookAuthorityCandidateChanged,
+  readScratchpadBaseRunId,
+  recoverNotebookAuthorityCandidate,
+  runInFlightOnly,
+  shouldAutoCommitNotebookAuthorityProposal,
+  shouldSubmitNewNotebookAuthorityAttempt,
+  type NotebookAuthorityCandidate,
+  type NotebookAuthorityOperationSnapshot,
+} from "./entityNotebookAuthorityHelpers";
+import {
+  useAgentActions,
+  type DecorationContext,
+} from "@/features/agents/hooks/useAgentActions";
 import { useFastAgent } from "@/features/agents/context/FastAgentContext";
 import { AgentAuthorTag } from "@/features/agents/primitives/AgentAuthorTag";
+import { NotebookAuthorityControl } from "@/features/agents/authority";
 import { useViewMode } from "@/features/entities/lib/useViewMode";
 
 type Props = {
@@ -90,18 +106,103 @@ type Props = {
   canEdit?: boolean;
   onOpenReferenceNotebook?: () => void;
   viewerOwnerKey?: string | null;
-  collaborationParticipants?: Array<{ ownerKey: string; label: string; email?: string }>;
+  collaborationParticipants?: Array<{
+    ownerKey: string;
+    label: string;
+    email?: string;
+  }>;
   latestHumanEdit?: {
     ownerKey?: string | null;
     updatedAt?: number | null;
   } | null;
 };
 
+type NotebookAuthorityGrant = {
+  grantId: string;
+  mode: "run" | "workspace";
+  effectiveStatus: "active" | "paused" | "revoked" | "expired" | "consumed";
+  entityId?: Id<"productEntities">;
+  runId?: Id<"agentScratchpads">;
+};
+
+type NotebookAuthorityState = {
+  mode: "review" | "run" | "workspace";
+  grant: NotebookAuthorityGrant | null;
+};
+
+type NotebookAuthorityProposalResult = {
+  proposalId: string;
+  status: "pending" | "blocked" | "committing" | "committed" | "rejected";
+  approvalMode: "explicit" | "delegated";
+  receiptId: string | null;
+  needsApproval?: boolean;
+  needsGuardedCommit?: boolean;
+  delegationDenied?: boolean;
+  delegationFailureCode?: string;
+  validationFailed?: boolean;
+  validationFailureCode?: string;
+  needsNewProposal?: boolean;
+};
+
+type NotebookAuthorityCommitResult = {
+  proposalId: string;
+  receiptId?: string;
+  delegationDenied?: boolean;
+  validationFailed?: boolean;
+  reasonCode?: string;
+  needsApproval?: boolean;
+  needsNewProposal?: boolean;
+};
+
+type NotebookAuthorityRemainderResult = {
+  completionKey: string;
+  insertedBlockIds: Id<"productBlocks">[];
+  lastBlockId: Id<"productBlocks">;
+  idempotent: boolean;
+};
+
+type NotebookAuthorityDecorationPlan = {
+  key: string;
+  decoration: DiligenceDecorationData;
+  candidate: NotebookAuthorityCandidate;
+  grantId?: string;
+  shouldSubmitProposal: boolean;
+  operationState?: NotebookAuthorityServerOperationState;
+};
+
+type NotebookAuthorityServerOperationState =
+  NotebookAuthorityOperationSnapshot & {
+    status: "pending" | "blocked" | "committing" | "committed" | "rejected";
+    entityId: Id<"productEntities">;
+    approvalMode: "explicit" | "delegated";
+    grantId: string | null;
+    validationFailed: boolean;
+    validationFailureCode: string | null;
+    delegationDenied: boolean;
+    delegationFailureCode: string | null;
+    evidenceBlockType: DiligenceDecorationData["blockType"];
+    evidenceScratchpadRunId: string;
+    evidenceVersion: number;
+    remainderCompletionKey: string | null;
+    remainderCompleted: boolean;
+    insertedBlockIds: Id<"productBlocks">[];
+    canUndoNow: boolean;
+    undoUnavailableReason: string | null;
+    currentBlockRevision: number | null;
+  };
+
+type NotebookAuthorityWriteStatus = {
+  key: string;
+  tone: "review" | "partial" | "blocked" | "failed";
+  title: string;
+  detail: string;
+  proposalId?: string;
+  receiptId?: string;
+};
+
 // Helper implementations live in `./entityNotebookLiveHelpers`; removed here
 // so this file stays focused on orchestration. Re-exports above preserve the
 // historical `./EntityNotebookLive` import path for tests.
-
-
 
 export function EntityNotebookLive({
   entitySlug,
@@ -149,6 +250,26 @@ export function EntityNotebookLive({
     { initialNumItems: 150 },
   );
   const blocks = blocksPagination.results as LiveBlock[] | undefined;
+  const authorityBlock = blocks?.[0];
+  const authorityEntityId = authorityBlock?.entityId;
+  const isAuthorityOwner = Boolean(
+    canEdit &&
+    !shareToken &&
+    viewerOwnerKey &&
+    authorityBlock?.ownerKey === viewerOwnerKey,
+  );
+  const authorityState = useQuery(
+    api?.domains?.agents?.autonomy?.grants?.getAuthorityState ?? "skip",
+    api && isAuthorityOwner && authorityEntityId
+      ? { entityId: authorityEntityId }
+      : "skip",
+  ) as NotebookAuthorityState | undefined;
+  const authorityOperationStates = useQuery(
+    api?.domains?.agents?.autonomy?.proposals?.listOperationStates ?? "skip",
+    api && isAuthorityOwner && authorityEntityId
+      ? { entityId: authorityEntityId, limit: 50 }
+      : "skip",
+  ) as NotebookAuthorityServerOperationState[] | undefined;
 
   const snapshot = useQuery(
     api?.domains.product.blocks.getEntityNotebook ?? "skip",
@@ -171,6 +292,7 @@ export function EntityNotebookLive({
       : "skip") as never,
   ) as
     | {
+        scratchpadId: Id<"agentScratchpads">;
         runId: string;
         status: "streaming" | "structuring" | "merged" | "failed";
         markdownSource: string | null;
@@ -183,7 +305,12 @@ export function EntityNotebookLive({
           checkpointId: string;
           checkpointNumber: number;
           currentStep: string;
-          status: "active" | "paused" | "completed" | "error" | "waiting_approval";
+          status:
+            | "active"
+            | "paused"
+            | "completed"
+            | "error"
+            | "waiting_approval";
           progress: number;
           createdAt: number;
           error?: string;
@@ -192,16 +319,24 @@ export function EntityNotebookLive({
     | null
     | undefined;
 
-  const appendBlock = useMutation(api?.domains.product.blocks.appendBlock ?? ("skip" as any));
+  const appendBlock = useMutation(
+    api?.domains.product.blocks.appendBlock ?? ("skip" as any),
+  );
   const backfillEntityBlocks = useMutation(
     api?.domains.product.blocks.backfillEntityBlocks ?? ("skip" as any),
   );
-  const moveBlock = useMutation(api?.domains.product.blocks.moveBlock ?? ("skip" as any));
+  const moveBlock = useMutation(
+    api?.domains.product.blocks.moveBlock ?? ("skip" as any),
+  );
   const insertBlockBetween = useMutation(
     api?.domains.product.blocks.insertBlockBetween ?? ("skip" as any),
   );
-  const updateBlock = useMutation(api?.domains.product.blocks.updateBlock ?? ("skip" as any));
-  const deleteBlock = useMutation(api?.domains.product.blocks.deleteBlock ?? ("skip" as any));
+  const updateBlock = useMutation(
+    api?.domains.product.blocks.updateBlock ?? ("skip" as any),
+  );
+  const deleteBlock = useMutation(
+    api?.domains.product.blocks.deleteBlock ?? ("skip" as any),
+  );
   const createBlockRelation = useMutation(
     api?.domains.product.blocks.createBlockRelation ?? ("skip" as any),
   );
@@ -209,10 +344,12 @@ export function EntityNotebookLive({
     api?.domains.product.notebookPresence.notebookHeartbeat ?? ("skip" as any),
   );
   const notebookPresenceDisconnect = useMutation(
-    api?.domains.product.notebookPresence.notebookPresenceDisconnect ?? ("skip" as any),
+    api?.domains.product.notebookPresence.notebookPresenceDisconnect ??
+      ("skip" as any),
   );
   const submitOfflineSnapshot = useMutation(
-    api?.domains.product.blockProsemirror.submitOfflineSnapshot ?? ("skip" as any),
+    api?.domains.product.blockProsemirror.submitOfflineSnapshot ??
+      ("skip" as any),
   );
   const materializeProjectionOverlays = useMutation(
     api?.domains.product.diligenceProjections?.materializeForEntity as never,
@@ -220,14 +357,36 @@ export function EntityNotebookLive({
   const requestProjectionRefreshAndRun = useMutation(
     api?.domains.product.diligenceProjections?.requestRefreshAndRun as never,
   );
+  const submitBlockProposal = useMutation(
+    api?.domains?.agents?.autonomy?.proposals?.submitBlockProposal ??
+      ("skip" as never),
+  );
+  const approveBlockProposal = useMutation(
+    api?.domains?.agents?.autonomy?.proposals?.approveProposal ??
+      ("skip" as never),
+  );
+  const commitBlockProposal = useMutation(
+    api?.domains?.agents?.autonomy?.commits?.commitBlockProposal ??
+      ("skip" as never),
+  );
+  const commitProposalRemainder = useMutation(
+    api?.domains?.agents?.autonomy?.remainders?.commitProposalRemainder ??
+      ("skip" as never),
+  );
 
   const [slashFor, setSlashFor] = useState<Id<"productBlocks"> | null>(null);
-  const [mentionFor, setMentionFor] = useState<{ blockId: Id<"productBlocks">; initial: string } | null>(null);
-  const [focusedBlockId, setFocusedBlockId] = useState<Id<"productBlocks"> | null>(null);
+  const [mentionFor, setMentionFor] = useState<{
+    blockId: Id<"productBlocks">;
+    initial: string;
+  } | null>(null);
+  const [focusedBlockId, setFocusedBlockId] =
+    useState<Id<"productBlocks"> | null>(null);
   // Sticky mount set: once a block has been focused (or hovered near) this
   // session, keep its Tiptap editor mounted so subsequent clicks don't
   // re-fetch the Convex sync snapshot. Fixes the click-reload delay.
-  const [mountedBlockIds, setMountedBlockIds] = useState<Set<string>>(new Set());
+  const [mountedBlockIds, setMountedBlockIds] = useState<Set<string>>(
+    new Set(),
+  );
   const warmBlock = useCallback((blockId: Id<"productBlocks">) => {
     setMountedBlockIds((prev) => {
       const key = String(blockId);
@@ -265,12 +424,15 @@ export function EntityNotebookLive({
       });
     }, 80);
   }, []);
-  useEffect(() => () => {
-    if (hoverWarmTimerRef.current !== null) {
-      window.clearTimeout(hoverWarmTimerRef.current);
-      hoverWarmTimerRef.current = null;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (hoverWarmTimerRef.current !== null) {
+        window.clearTimeout(hoverWarmTimerRef.current);
+        hoverWarmTimerRef.current = null;
+      }
+    },
+    [],
+  );
   // Defer the dismissals Convex subscription to post-first-paint so the
   // WebSocket handshake doesn't compete with the notebook's initial render.
   // The subscription returns null visually and feeds into `dismissedKeySet`;
@@ -280,37 +442,72 @@ export function EntityNotebookLive({
     const id = window.requestAnimationFrame(() => setDismissalsReady(true));
     return () => window.cancelAnimationFrame(id);
   }, []);
-  const [runtimeError, setRuntimeError] = useState<{ title: string; detail?: string } | null>(null);
+  const [runtimeError, setRuntimeError] = useState<{
+    title: string;
+    detail?: string;
+  } | null>(null);
   const [creatingFirstBlock, setCreatingFirstBlock] = useState(false);
   const [preparingSeedContent, setPreparingSeedContent] = useState(false);
-  const [optimisticBlockContent, setOptimisticBlockContent] = useState<Record<string, BlockChip[]>>(
-    {},
+  const [optimisticBlockContent, setOptimisticBlockContent] = useState<
+    Record<string, BlockChip[]>
+  >({});
+  const [presenceRoomToken, setPresenceRoomToken] = useState<string | null>(
+    null,
   );
-  const [presenceRoomToken, setPresenceRoomToken] = useState<string | null>(null);
-  const [presenceSessionToken, setPresenceSessionToken] = useState<string | null>(null);
+  const [presenceSessionToken, setPresenceSessionToken] = useState<
+    string | null
+  >(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [isOffline, setIsOffline] = useState<boolean>(
     typeof navigator !== "undefined" ? navigator.onLine === false : false,
   );
   const [offlineQueueLength, setOfflineQueueLength] = useState(0);
   const [rateLimited, setRateLimited] = useState(false);
-  const [hiddenDecorationRunIds, setHiddenDecorationRunIds] = useState<Record<string, true>>({});
-  const createFirstBlockInFlightRef = useRef<Promise<Id<"productBlocks"> | null> | null>(null);
+  const [hiddenDecorationRunIds, setHiddenDecorationRunIds] = useState<
+    Record<string, true>
+  >({});
+  const [authorityWriteStatus, setAuthorityWriteStatus] =
+    useState<NotebookAuthorityWriteStatus | null>(null);
+  const createFirstBlockInFlightRef =
+    useRef<Promise<Id<"productBlocks"> | null> | null>(null);
   const autoCreateFirstBlockAttemptedRef = useRef(false);
   const autoSeedNotebookAttemptedRef = useRef(false);
-  const editorHandlesRef = useRef<Map<string, NotebookBlockEditorHandle>>(new Map());
-  const pendingOptimisticBlockContentRef = useRef<Record<string, BlockChip[]>>({});
+  const editorHandlesRef = useRef<Map<string, NotebookBlockEditorHandle>>(
+    new Map(),
+  );
+  const pendingOptimisticBlockContentRef = useRef<Record<string, BlockChip[]>>(
+    {},
+  );
   const presenceClientSessionIdRef = useRef(
     `nb-live-${entitySlug}-${Math.random().toString(36).slice(2, 10)}`,
   );
   const materializedProjectionVersionKeyRef = useRef<string | null>(null);
+  const authorityProposalPromisesRef = useRef<
+    Map<string, Promise<NotebookAuthorityProposalResult>>
+  >(new Map());
+  const authorityProposalResultsRef = useRef<
+    Map<string, NotebookAuthorityProposalResult>
+  >(new Map());
+  const authorityCommitPromisesRef = useRef<
+    Map<string, Promise<NotebookAuthorityCommitResult>>
+  >(new Map());
+  const authorityReceiptByPlanRef = useRef<Map<string, string>>(new Map());
+  const authorityPlanByDecorationRef = useRef<
+    Map<string, NotebookAuthorityDecorationPlan>
+  >(new Map());
+  const authorityCompletedPlanKeysRef = useRef<Set<string>>(new Set());
+  const authorityAcceptInFlightRef = useRef<Set<string>>(new Set());
+  const authorityCandidateAvailableRef = useRef(false);
 
   const presence = useQuery(
     api?.domains.product.notebookPresence.notebookPresenceList ?? "skip",
-    api?.domains.product.notebookPresence.notebookPresenceList && presenceRoomToken
+    api?.domains.product.notebookPresence.notebookPresenceList &&
+      presenceRoomToken
       ? { roomToken: presenceRoomToken }
       : "skip",
-  ) as Array<{ userId: string; online: boolean; lastDisconnected: number }> | undefined;
+  ) as
+    | Array<{ userId: string; online: boolean; lastDisconnected: number }>
+    | undefined;
 
   const describeError = useCallback((error: unknown): string | undefined => {
     if (!error) return undefined;
@@ -365,7 +562,8 @@ export function EntityNotebookLive({
       }
       if (!EXPECTED_ALERT_CODES.has(code)) {
         publishNotebookAlert({
-          severity: code === "SERVER_ERROR" || code === "UNKNOWN_ERROR" ? "P0" : "P1",
+          severity:
+            code === "SERVER_ERROR" || code === "UNKNOWN_ERROR" ? "P0" : "P1",
           code,
           title: failure.title,
           detail: failure.detail,
@@ -387,48 +585,63 @@ export function EntityNotebookLive({
     [toast],
   );
 
-  const openFirstBlock = useCallback(async (): Promise<Id<"productBlocks"> | null> => {
-    if (createFirstBlockInFlightRef.current) {
-      return createFirstBlockInFlightRef.current;
-    }
-    setCreatingFirstBlock(true);
-    const run = appendBlock({
+  const openFirstBlock =
+    useCallback(async (): Promise<Id<"productBlocks"> | null> => {
+      if (createFirstBlockInFlightRef.current) {
+        return createFirstBlockInFlightRef.current;
+      }
+      setCreatingFirstBlock(true);
+      const run = appendBlock({
+        anonymousSessionId,
+        shareToken,
+        entitySlug,
+        kind: "text",
+        content: [{ type: "text", value: "" }],
+        authorKind: "user",
+      })
+        .then((blockId: any) => {
+          setRuntimeError(null);
+          setFocusedBlockId(blockId);
+          return blockId;
+        })
+        .catch((error: unknown) => {
+          reportNotebookError("Failed to open the live notebook editor", error);
+          return null;
+        })
+        .finally(() => {
+          setCreatingFirstBlock(false);
+          createFirstBlockInFlightRef.current = null;
+        });
+      createFirstBlockInFlightRef.current = run;
+      return run;
+    }, [
       anonymousSessionId,
-      shareToken,
+      appendBlock,
       entitySlug,
-      kind: "text",
-      content: [{ type: "text", value: "" }],
-      authorKind: "user",
-    })
-      .then((blockId: any) => {
-        setRuntimeError(null);
-        setFocusedBlockId(blockId);
-        return blockId;
-      })
-      .catch((error: unknown) => {
-        reportNotebookError("Failed to open the live notebook editor", error);
-        return null;
-      })
-      .finally(() => {
-        setCreatingFirstBlock(false);
-        createFirstBlockInFlightRef.current = null;
-      });
-    createFirstBlockInFlightRef.current = run;
-    return run;
-  }, [anonymousSessionId, appendBlock, entitySlug, reportNotebookError, shareToken]);
+      reportNotebookError,
+      shareToken,
+    ]);
 
   useEffect(() => {
     autoCreateFirstBlockAttemptedRef.current = false;
     autoSeedNotebookAttemptedRef.current = false;
     createFirstBlockInFlightRef.current = null;
+    authorityProposalPromisesRef.current.clear();
+    authorityProposalResultsRef.current.clear();
+    authorityCommitPromisesRef.current.clear();
+    authorityReceiptByPlanRef.current.clear();
+    authorityPlanByDecorationRef.current.clear();
+    authorityCompletedPlanKeysRef.current.clear();
+    authorityAcceptInFlightRef.current.clear();
+    setAuthorityWriteStatus(null);
     setCreatingFirstBlock(false);
     setPreparingSeedContent(false);
   }, [entitySlug, shareToken]);
 
   const hasDerivedNotebookSeed = Boolean(
     (snapshot?.blocks?.length ?? 0) > 0 ||
-      (snapshot?.reportCount ?? 0) > 0 ||
-      snapshot?.reportUpdatedAt,
+    (snapshot?.reportCount ?? 0) > 0 ||
+    snapshot?.reportUpdatedAt,
   );
 
   const hasOnlyEmptyPlaceholderBlocks = useMemo(() => {
@@ -445,6 +658,15 @@ export function EntityNotebookLive({
     if (!canEdit || !blocks || snapshot === undefined) return;
     if (!hasDerivedNotebookSeed) return;
     if (autoSeedNotebookAttemptedRef.current) return;
+    if (
+      isAuthorityOwner &&
+      (authorityState === undefined ||
+        authorityOperationStates === undefined ||
+        latestScratchpadRun === undefined)
+    ) {
+      return;
+    }
+    if (authorityCandidateAvailableRef.current) return;
 
     const needsSeed = blocks.length === 0 || hasOnlyEmptyPlaceholderBlocks;
     if (!needsSeed) return;
@@ -457,7 +679,10 @@ export function EntityNotebookLive({
       })
       .catch((error: unknown) => {
         autoSeedNotebookAttemptedRef.current = false;
-        reportNotebookError("Failed to prepare the notebook from the saved brief", error);
+        reportNotebookError(
+          "Failed to prepare the notebook from the saved brief",
+          error,
+        );
       })
       .finally(() => {
         setPreparingSeedContent(false);
@@ -468,8 +693,12 @@ export function EntityNotebookLive({
     blocks,
     canEdit,
     entitySlug,
+    authorityState,
+    authorityOperationStates,
     hasDerivedNotebookSeed,
     hasOnlyEmptyPlaceholderBlocks,
+    isAuthorityOwner,
+    latestScratchpadRun,
     reportNotebookError,
     shareToken,
     snapshot,
@@ -505,7 +734,10 @@ export function EntityNotebookLive({
   }, [blocks, optimisticBlockContent]);
 
   const registerEditorHandle = useCallback(
-    (blockId: Id<"productBlocks">, handle: NotebookBlockEditorHandle | null) => {
+    (
+      blockId: Id<"productBlocks">,
+      handle: NotebookBlockEditorHandle | null,
+    ) => {
       const key = String(blockId);
       if (handle) {
         editorHandlesRef.current.set(key, handle);
@@ -516,28 +748,31 @@ export function EntityNotebookLive({
     [],
   );
 
-  const focusBlockHandleWithRetry = useCallback((blockId: Id<"productBlocks">) => {
-    if (typeof window === "undefined") return;
-    let cancelled = false;
-    let attempts = 0;
+  const focusBlockHandleWithRetry = useCallback(
+    (blockId: Id<"productBlocks">) => {
+      if (typeof window === "undefined") return;
+      let cancelled = false;
+      let attempts = 0;
 
-    const tryFocus = () => {
-      if (cancelled) return;
-      const handle = editorHandlesRef.current.get(String(blockId));
-      if (handle) {
-        handle.focus();
-        return;
-      }
-      if (attempts >= 12) return;
-      attempts += 1;
+      const tryFocus = () => {
+        if (cancelled) return;
+        const handle = editorHandlesRef.current.get(String(blockId));
+        if (handle) {
+          handle.focus();
+          return;
+        }
+        if (attempts >= 12) return;
+        attempts += 1;
+        window.requestAnimationFrame(tryFocus);
+      };
+
       window.requestAnimationFrame(tryFocus);
-    };
-
-    window.requestAnimationFrame(tryFocus);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      return () => {
+        cancelled = true;
+      };
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!focusedBlockId) return;
@@ -548,31 +783,37 @@ export function EntityNotebookLive({
     setOfflineQueueLength(readQueue(entitySlug).length);
   }, [entitySlug]);
 
-  const flushOptimisticBlockContent = useCallback((blockId: Id<"productBlocks">) => {
-    const key = String(blockId);
-    const pending = pendingOptimisticBlockContentRef.current[key];
-    if (!pending) return;
-    setOptimisticBlockContent((current) => {
-      if (chipsEqual(current[key], pending)) return current;
-      return { ...current, [key]: pending };
-    });
-  }, []);
-
-  const handleLocalContentChange = useCallback((blockId: Id<"productBlocks">, content: BlockChip[]) => {
-    pendingOptimisticBlockContentRef.current[String(blockId)] = content;
-    if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      enqueueOfflineEdit({
-        id: makeEditId(),
-        blockId: String(blockId),
-        entitySlug,
-        kind: "content",
-        payload: content,
-        queuedAt: Date.now(),
+  const flushOptimisticBlockContent = useCallback(
+    (blockId: Id<"productBlocks">) => {
+      const key = String(blockId);
+      const pending = pendingOptimisticBlockContentRef.current[key];
+      if (!pending) return;
+      setOptimisticBlockContent((current) => {
+        if (chipsEqual(current[key], pending)) return current;
+        return { ...current, [key]: pending };
       });
-      refreshOfflineQueueLength();
-    }
-    setRuntimeError(null);
-  }, [entitySlug, refreshOfflineQueueLength]);
+    },
+    [],
+  );
+
+  const handleLocalContentChange = useCallback(
+    (blockId: Id<"productBlocks">, content: BlockChip[]) => {
+      pendingOptimisticBlockContentRef.current[String(blockId)] = content;
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        enqueueOfflineEdit({
+          id: makeEditId(),
+          blockId: String(blockId),
+          entitySlug,
+          kind: "content",
+          payload: content,
+          queuedAt: Date.now(),
+        });
+        refreshOfflineQueueLength();
+      }
+      setRuntimeError(null);
+    },
+    [entitySlug, refreshOfflineQueueLength],
+  );
 
   useEffect(() => {
     refreshOfflineQueueLength();
@@ -635,7 +876,9 @@ export function EntityNotebookLive({
       if (intervalId != null) window.clearInterval(intervalId);
       const token = presenceSessionToken;
       if (token) {
-        void notebookPresenceDisconnect({ sessionToken: token }).catch(() => undefined);
+        void notebookPresenceDisconnect({ sessionToken: token }).catch(
+          () => undefined,
+        );
       }
     };
   }, [
@@ -649,7 +892,11 @@ export function EntityNotebookLive({
   ]);
 
   useEffect(() => {
-    if (isOffline || !api?.domains.product.blockProsemirror?.submitOfflineSnapshot) return;
+    if (
+      isOffline ||
+      !api?.domains.product.blockProsemirror?.submitOfflineSnapshot
+    )
+      return;
     const queued = readQueue(entitySlug);
     if (queued.length === 0) return;
 
@@ -715,7 +962,15 @@ export function EntityNotebookLive({
       });
       setFocusedBlockId(insertedBlockId);
     },
-    [blocks, canEdit, insertBlockBetween, anonymousSessionId, entitySlug, notifyReadOnly, shareToken],
+    [
+      blocks,
+      canEdit,
+      insertBlockBetween,
+      anonymousSessionId,
+      entitySlug,
+      notifyReadOnly,
+      shareToken,
+    ],
   );
 
   const streaming = useStreamingSearch();
@@ -744,7 +999,9 @@ export function EntityNotebookLive({
             blockId: targetBlockId,
             content: [
               ...block.content,
-              ...(block.content.length > 0 ? ([{ type: "text", value: " " }] as BlockChip[]) : []),
+              ...(block.content.length > 0
+                ? ([{ type: "text", value: " " }] as BlockChip[])
+                : []),
               {
                 type: "mention",
                 value: match.name,
@@ -755,7 +1012,9 @@ export function EntityNotebookLive({
             expectedRevision: block.revision,
           });
         } else {
-          throw new Error("Focused notebook editor was not available for this mention.");
+          throw new Error(
+            "Focused notebook editor was not available for this mention.",
+          );
         }
         // Record the relation so backlinks work.
         await createBlockRelation({
@@ -797,7 +1056,11 @@ export function EntityNotebookLive({
         return;
       }
 
-      if (command.id === "ai" || command.id === "search" || command.id === "deepresearch") {
+      if (
+        command.id === "ai" ||
+        command.id === "search" ||
+        command.id === "deepresearch"
+      ) {
         // Insert a lightweight progress callout so the user sees work start immediately.
         const progressBlockId = await appendBlock({
           anonymousSessionId,
@@ -819,7 +1082,11 @@ export function EntityNotebookLive({
         streaming.startStream(prompt, lens, {
           onComplete: async (payload) => {
             const packet = (payload.packet ?? payload) as {
-              answerBlocks?: Array<{ text?: string; title?: string; sourceRefIds?: string[] }>;
+              answerBlocks?: Array<{
+                text?: string;
+                title?: string;
+                sourceRefIds?: string[];
+              }>;
               answer?: string;
             };
             // Mark the progress block as complete and capture the headline answer.
@@ -871,7 +1138,9 @@ export function EntityNotebookLive({
                 anonymousSessionId,
                 shareToken,
                 blockId: progressBlockId,
-                content: [{ type: "text", value: `[done] ${command.label}: ${prompt}` }],
+                content: [
+                  { type: "text", value: `[done] ${command.label}: ${prompt}` },
+                ],
                 expectedRevision: 1,
               });
             } catch (err) {
@@ -883,10 +1152,20 @@ export function EntityNotebookLive({
               anonymousSessionId,
               shareToken,
               blockId: progressBlockId,
-              content: [{ type: "text", value: `[error] ${command.label}: ${prompt} - ${message}` }],
+              content: [
+                {
+                  type: "text",
+                  value: `[error] ${command.label}: ${prompt} - ${message}`,
+                },
+              ],
               expectedRevision: 1,
-            }).catch((err: any) => reportNotebookMutationFailure("command", err));
-            setRuntimeError({ title: `Notebook command failed`, detail: message });
+            }).catch((err: any) =>
+              reportNotebookMutationFailure("command", err),
+            );
+            setRuntimeError({
+              title: `Notebook command failed`,
+              detail: message,
+            });
             toast.error("Notebook command failed", message);
           },
         });
@@ -910,7 +1189,16 @@ export function EntityNotebookLive({
   );
 
   const sourcesById = useMemo(() => {
-    const map = new Map<string, { id: string; label: string; href?: string; confidence?: number; domain?: string }>();
+    const map = new Map<
+      string,
+      {
+        id: string;
+        label: string;
+        href?: string;
+        confidence?: number;
+        domain?: string;
+      }
+    >();
     if (snapshot?.sources) {
       for (const src of snapshot.sources) {
         map.set(src.id, src);
@@ -929,7 +1217,10 @@ export function EntityNotebookLive({
     return map;
   }, [snapshot?.sources]);
 
-  const diligenceBlocks = useDiligenceBlocks(entitySlug, snapshot);
+  const diligenceBlocks = useDiligenceBlocks(entitySlug, snapshot, {
+    anonymousSessionId: anonymousSessionId ?? undefined,
+    shareToken,
+  });
   // Persisted dismissals live as lifted state. The actual Convex subscription
   // runs inside <NotebookDismissalsSync /> which is wrapped in a local
   // ErrorBoundary at the render site — so a server-side failure on the
@@ -947,7 +1238,11 @@ export function EntityNotebookLive({
         // survives refresh). Keyed by (scratchpadRunId, blockType)
         // so dismissing one block's decoration from a run does not
         // silence the other block types produced by the same run.
-        if (dismissedKeySet.has(`${projection.scratchpadRunId}::${projection.blockType}`)) {
+        if (
+          dismissedKeySet.has(
+            `${projection.scratchpadRunId}::${projection.blockType}`,
+          )
+        ) {
           return false;
         }
         // Suppress starter/placeholder cards that have no real content.
@@ -964,7 +1259,8 @@ export function EntityNotebookLive({
           "use this notebook to accumulate",
         ];
         const lower = prose.toLowerCase();
-        if (placeholderFragments.some((frag) => lower.includes(frag))) return false;
+        if (placeholderFragments.some((frag) => lower.includes(frag)))
+          return false;
         return true;
       }),
     [diligenceBlocks.projections, hiddenDecorationRunIds, dismissedKeySet],
@@ -1040,7 +1336,10 @@ export function EntityNotebookLive({
       entitySlug,
     } as never).catch((error: unknown) => {
       materializedProjectionVersionKeyRef.current = null;
-      console.warn("[notebook] failed to materialize diligence overlays", error);
+      console.warn(
+        "[notebook] failed to materialize diligence overlays",
+        error,
+      );
     });
   }, [
     anonymousSessionId,
@@ -1071,15 +1370,545 @@ export function EntityNotebookLive({
     [entitySlug],
   );
 
+  const activeMatchingAuthorityGrant = useMemo(() => {
+    const grant = authorityState?.grant;
+    if (
+      !grant ||
+      grant.effectiveStatus !== "active" ||
+      !latestScratchpadRun?.scratchpadId
+    ) {
+      return null;
+    }
+    if (grant.mode === "workspace") return grant;
+    if (grant.entityId && grant.entityId !== authorityEntityId) return null;
+    if (grant.runId && grant.runId !== latestScratchpadRun.scratchpadId)
+      return null;
+    return grant;
+  }, [
+    authorityEntityId,
+    authorityState?.grant,
+    latestScratchpadRun?.scratchpadId,
+  ]);
+
+  const authorityDecorationPlans = useMemo<
+    NotebookAuthorityDecorationPlan[]
+  >(() => {
+    if (
+      !api ||
+      !isAuthorityOwner ||
+      authorityState === undefined ||
+      authorityOperationStates === undefined ||
+      !canUseOverlayActions ||
+      !blocks ||
+      !latestScratchpadRun?.scratchpadId ||
+      !authorityEntityId
+    ) {
+      return [];
+    }
+
+    const plans: NotebookAuthorityDecorationPlan[] = [];
+    const usedBlockIds = new Set<string>();
+    const operationByDecoration = new Map<
+      string,
+      NotebookAuthorityServerOperationState
+    >();
+    for (const operation of authorityOperationStates) {
+      const operationDecorationKey = `${operation.evidenceScratchpadRunId}::${operation.evidenceBlockType}::${operation.evidenceVersion}`;
+      // The server returns effective operations newest-first. Preserve the
+      // first match so an older retry can never shadow the recovery state.
+      if (!operationByDecoration.has(operationDecorationKey)) {
+        operationByDecoration.set(operationDecorationKey, operation);
+      }
+    }
+
+    for (const decoration of visibleDiligenceDecorations) {
+      const accepted = acceptDecorationIntoNotebook({
+        decoration,
+        frozenAt: decoration.updatedAt,
+      });
+      if (!accepted.succeeded || !accepted.drafts?.length) continue;
+
+      const decorationKey = `${decoration.scratchpadRunId}::${decoration.blockType}::${decoration.version}`;
+      const persistedOperation = operationByDecoration.get(decorationKey);
+      const operationKey =
+        persistedOperation?.operationKey ??
+        buildNotebookAuthorityOperationKey({
+          entityId: authorityEntityId,
+          scratchpadId: latestScratchpadRun.scratchpadId,
+          scratchpadRunId: decoration.scratchpadRunId,
+          blockType: decoration.blockType,
+          decorationVersion: decoration.version,
+        });
+      if (persistedOperation) {
+        if (
+          persistedOperation.remainderCompleted ||
+          persistedOperation.status === "rejected"
+        ) {
+          continue;
+        }
+        const persistedBlock = blocks.find(
+          (block) => block._id === persistedOperation.blockId,
+        );
+        const liveGrantId = activeMatchingAuthorityGrant?.grantId;
+        if (persistedOperation.status === "blocked") {
+          if (!persistedBlock) continue;
+          const refreshed = evaluateNotebookAuthorityCandidate({
+            block: persistedBlock,
+            displayContent:
+              optimisticBlockContent[String(persistedBlock._id)] ??
+              persistedBlock.content,
+            drafts: accepted.drafts,
+            decorationSourceRefIds: decoration.sourceRefIds,
+            decorationScratchpadRunId: decoration.scratchpadRunId,
+            decorationScratchpadBaseRunId: readScratchpadBaseRunId(
+              decoration.payload,
+            ),
+            scratchpadThreadRunId: latestScratchpadRun.runId,
+            scratchpadId: latestScratchpadRun.scratchpadId,
+            entityId: persistedBlock.entityId,
+            blockType: decoration.blockType,
+            overallTier: decoration.overallTier,
+            decorationVersion: decoration.version,
+            decorationUpdatedAt: decoration.updatedAt,
+            authorityScopeKey: liveGrantId ?? "blocked-retry",
+          });
+          if (
+            refreshed.eligible &&
+            hasNotebookAuthorityCandidateChanged(
+              persistedOperation,
+              refreshed.candidate,
+            )
+          ) {
+            usedBlockIds.add(String(refreshed.candidate.blockId));
+            plans.push({
+              key: decorationKey,
+              decoration,
+              candidate: refreshed.candidate,
+              grantId: liveGrantId,
+              shouldSubmitProposal: true,
+              operationState: persistedOperation,
+            });
+          }
+          continue;
+        }
+        const shouldSubmitProposal = shouldSubmitNewNotebookAuthorityAttempt({
+          status: persistedOperation.status,
+          persistedGrantId: persistedOperation.grantId,
+          activeGrantId: liveGrantId,
+        });
+        const recovered = recoverNotebookAuthorityCandidate({
+          operation: persistedOperation,
+          expectedOperationKey: operationKey,
+          block: persistedBlock,
+          drafts: accepted.drafts,
+          authorityScopeKey: shouldSubmitProposal ? liveGrantId! : "persisted",
+        });
+        if (recovered) {
+          usedBlockIds.add(String(recovered.blockId));
+          plans.push({
+            key: decorationKey,
+            decoration,
+            candidate: recovered,
+            grantId: liveGrantId,
+            shouldSubmitProposal,
+            operationState: persistedOperation,
+          });
+        }
+        continue;
+      }
+
+      for (const block of blocks) {
+        if (usedBlockIds.has(String(block._id))) continue;
+        const evaluation = evaluateNotebookAuthorityCandidate({
+          block,
+          displayContent:
+            optimisticBlockContent[String(block._id)] ?? block.content,
+          drafts: accepted.drafts,
+          decorationSourceRefIds: decoration.sourceRefIds,
+          decorationScratchpadRunId: decoration.scratchpadRunId,
+          decorationScratchpadBaseRunId: readScratchpadBaseRunId(
+            decoration.payload,
+          ),
+          scratchpadThreadRunId: latestScratchpadRun.runId,
+          scratchpadId: latestScratchpadRun.scratchpadId,
+          entityId: block.entityId,
+          blockType: decoration.blockType,
+          overallTier: decoration.overallTier,
+          decorationVersion: decoration.version,
+          decorationUpdatedAt: decoration.updatedAt,
+          authorityScopeKey: activeMatchingAuthorityGrant?.grantId ?? "review",
+        });
+        if (!evaluation.eligible) continue;
+
+        usedBlockIds.add(String(block._id));
+        plans.push({
+          key: decorationKey,
+          decoration,
+          candidate: evaluation.candidate,
+          grantId: activeMatchingAuthorityGrant?.grantId,
+          shouldSubmitProposal: true,
+        });
+        break;
+      }
+    }
+    return plans;
+  }, [
+    activeMatchingAuthorityGrant?.grantId,
+    api,
+    authorityEntityId,
+    authorityOperationStates,
+    authorityState,
+    blocks,
+    canUseOverlayActions,
+    isAuthorityOwner,
+    latestScratchpadRun?.runId,
+    latestScratchpadRun?.scratchpadId,
+    optimisticBlockContent,
+    visibleDiligenceDecorations,
+  ]);
+  authorityCandidateAvailableRef.current = authorityDecorationPlans.length > 0;
+
+  useEffect(() => {
+    for (const plan of authorityDecorationPlans) {
+      authorityPlanByDecorationRef.current.set(plan.key, plan);
+    }
+  }, [authorityDecorationPlans]);
+
+  const ensureAuthorityProposal = useCallback(
+    (
+      plan: NotebookAuthorityDecorationPlan,
+    ): Promise<NotebookAuthorityProposalResult> => {
+      const proposalKey = plan.candidate.idempotencyKey;
+      if (plan.operationState && !plan.shouldSubmitProposal) {
+        const persisted: NotebookAuthorityProposalResult = {
+          proposalId: plan.operationState.proposalId,
+          status: plan.operationState.status,
+          approvalMode: plan.operationState.approvalMode,
+          receiptId: plan.operationState.receiptId,
+          needsApproval:
+            plan.operationState.status === "pending" &&
+            plan.operationState.approvalMode === "explicit",
+          needsGuardedCommit:
+            plan.operationState.status === "pending" &&
+            plan.operationState.approvalMode === "delegated",
+          delegationDenied: plan.operationState.delegationDenied,
+          delegationFailureCode:
+            plan.operationState.delegationFailureCode ?? undefined,
+          validationFailed: plan.operationState.validationFailed,
+          validationFailureCode:
+            plan.operationState.validationFailureCode ?? undefined,
+          needsNewProposal: plan.operationState.validationFailed,
+        };
+        authorityProposalResultsRef.current.set(proposalKey, persisted);
+        return Promise.resolve(persisted);
+      }
+      const cached = authorityProposalResultsRef.current.get(proposalKey);
+      if (cached) return Promise.resolve(cached);
+      const pending = authorityProposalPromisesRef.current.get(proposalKey);
+      if (pending) return pending;
+
+      const request = Promise.resolve(
+        submitBlockProposal({
+          operationKey: plan.candidate.operationKey,
+          idempotencyKey: proposalKey,
+          decorationBlockType: plan.decoration.blockType,
+          decorationScratchpadRunId: plan.decoration.scratchpadRunId,
+          decorationVersion: plan.decoration.version,
+          blockId: plan.candidate.blockId,
+          proposedContent: plan.candidate.proposedContent,
+          proposedSourceRefIds: plan.candidate.proposedSourceRefIds,
+          baseRevision: plan.candidate.baseRevision,
+          runId: plan.candidate.runId,
+          grantId: plan.grantId,
+        } as never) as unknown,
+      )
+        .then((result) => {
+          const proposal = result as NotebookAuthorityProposalResult;
+          authorityProposalResultsRef.current.set(proposalKey, proposal);
+          return proposal;
+        })
+        .catch((error) => {
+          authorityProposalPromisesRef.current.delete(proposalKey);
+          throw error;
+        });
+      authorityProposalPromisesRef.current.set(proposalKey, request);
+      return request;
+    },
+    [submitBlockProposal],
+  );
+
+  const commitAuthorityProposalOnce = useCallback(
+    (
+      proposalId: string,
+      approvalMode: "explicit" | "delegated",
+    ): Promise<NotebookAuthorityCommitResult> => {
+      const commitKey = `${proposalId}:${approvalMode}`;
+      return runInFlightOnly(
+        authorityCommitPromisesRef.current,
+        commitKey,
+        () =>
+          Promise.resolve(
+            commitBlockProposal({
+              proposalId,
+              approvalMode,
+            } as never) as unknown,
+          ).then((result) => result as NotebookAuthorityCommitResult),
+      );
+    },
+    [commitBlockProposal],
+  );
+
+  const completeAuthorityDecoration = useCallback(
+    (
+      plan: NotebookAuthorityDecorationPlan,
+      receiptId: string,
+      focusBlockId: Id<"productBlocks"> = plan.candidate.blockId,
+    ) => {
+      const completionKey = plan.candidate.idempotencyKey;
+      if (authorityCompletedPlanKeysRef.current.has(completionKey)) return;
+      authorityCompletedPlanKeysRef.current.add(completionKey);
+      setDismissedKeySet((current) => {
+        const next = new Set(current);
+        next.add(
+          `${plan.decoration.scratchpadRunId}::${plan.decoration.blockType}`,
+        );
+        return next;
+      });
+      setRuntimeError(null);
+      setLastSyncedAt(Date.now());
+      setFocusedBlockId(focusBlockId);
+      setAuthorityWriteStatus({
+        key: plan.key,
+        tone: "partial",
+        title: "Validated notebook change applied.",
+        detail: `Receipt ${receiptId}. Current undo availability is shown in Authority history.`,
+        proposalId: authorityProposalResultsRef.current.get(
+          plan.candidate.idempotencyKey,
+        )?.proposalId,
+        receiptId,
+      });
+      toast.success("Live snapshot added to notebook");
+      agentActions.logAcceptDecoration(
+        buildDecorationContext(plan.decoration),
+        anonymousSessionId ?? undefined,
+      );
+    },
+    [agentActions, anonymousSessionId, buildDecorationContext, toast],
+  );
+
+  const recordAuthorityReceipt = useCallback(
+    (plan: NotebookAuthorityDecorationPlan, receiptId: string) => {
+      authorityReceiptByPlanRef.current.set(
+        plan.candidate.idempotencyKey,
+        receiptId,
+      );
+      if (
+        authorityCompletedPlanKeysRef.current.has(plan.candidate.idempotencyKey)
+      ) {
+        return;
+      }
+      if (plan.candidate.remainingDrafts.length === 0) {
+        completeAuthorityDecoration(plan, receiptId);
+        return;
+      }
+      if (
+        plan.operationState?.receiptId === receiptId &&
+        !plan.operationState.canUndoNow &&
+        !plan.operationState.remainderCompleted
+      ) {
+        setAuthorityWriteStatus({
+          key: plan.key,
+          tone: "failed",
+          title: "Validated replacement is no longer current.",
+          detail: `Receipt ${receiptId} remains in history, but the target changed (${plan.operationState.undoUnavailableReason ?? "receipt_state_changed"}). No remaining blocks were inserted.`,
+          proposalId: plan.operationState.proposalId,
+          receiptId,
+        });
+        return;
+      }
+      setAuthorityWriteStatus({
+        key: plan.key,
+        tone: "partial",
+        title: "1 safe block applied; remaining structure requires review.",
+        detail: `Receipt ${receiptId}. Accept to add the remaining marker, headings, attributes, or blocks explicitly. Current undo availability is shown in Authority history.`,
+        proposalId: authorityProposalResultsRef.current.get(
+          plan.candidate.idempotencyKey,
+        )?.proposalId,
+        receiptId,
+      });
+    },
+    [completeAuthorityDecoration],
+  );
+
+  const handleAuthorityCommitResult = useCallback(
+    (
+      plan: NotebookAuthorityDecorationPlan,
+      result: NotebookAuthorityCommitResult,
+    ): string | null => {
+      if (result.receiptId) {
+        recordAuthorityReceipt(plan, result.receiptId);
+        return result.receiptId;
+      }
+      if (result.delegationDenied) {
+        setAuthorityWriteStatus({
+          key: plan.key,
+          tone: "blocked",
+          title: "Delegated notebook change blocked.",
+          detail: `No notebook write occurred. The proposal remains reviewable (${result.reasonCode ?? "delegation_denied"}).`,
+          proposalId: result.proposalId,
+        });
+        return null;
+      }
+      if (result.validationFailed) {
+        setAuthorityWriteStatus({
+          key: plan.key,
+          tone: "failed",
+          title: "Notebook proposal validation failed.",
+          detail: `No notebook write occurred. Refresh before reviewing a new proposal (${result.reasonCode ?? "validation_failed"}).`,
+          proposalId: result.proposalId,
+        });
+        return null;
+      }
+      setAuthorityWriteStatus({
+        key: plan.key,
+        tone: "failed",
+        title: "Notebook commit returned no receipt.",
+        detail:
+          "The decoration remains visible and no acceptance was recorded.",
+        proposalId: result.proposalId,
+      });
+      return null;
+    },
+    [recordAuthorityReceipt],
+  );
+
+  useEffect(() => {
+    if (authorityDecorationPlans.length === 0) return;
+    let cancelled = false;
+
+    for (const plan of authorityDecorationPlans) {
+      void ensureAuthorityProposal(plan)
+        .then(async (proposal) => {
+          if (cancelled) return;
+          if (proposal.receiptId) {
+            recordAuthorityReceipt(plan, proposal.receiptId);
+            return;
+          }
+          if (proposal.validationFailed || proposal.status === "blocked") {
+            setAuthorityWriteStatus({
+              key: plan.key,
+              tone: "failed",
+              title: "Notebook proposal validation failed.",
+              detail: `No notebook write occurred. Refresh before reviewing a new proposal (${proposal.validationFailureCode ?? "validation_failed"}).`,
+              proposalId: proposal.proposalId,
+            });
+            return;
+          }
+          if (proposal.delegationDenied) {
+            setAuthorityWriteStatus({
+              key: plan.key,
+              tone: "blocked",
+              title: "Delegated notebook change blocked.",
+              detail: `No notebook write occurred. The saved proposal requires review (${proposal.delegationFailureCode ?? "delegation_denied"}).`,
+              proposalId: proposal.proposalId,
+            });
+            return;
+          }
+          if (shouldAutoCommitNotebookAuthorityProposal(proposal)) {
+            const committed = await commitAuthorityProposalOnce(
+              proposal.proposalId,
+              "delegated",
+            );
+            if (!cancelled) handleAuthorityCommitResult(plan, committed);
+            return;
+          }
+          setAuthorityWriteStatus((current) =>
+            current?.receiptId
+              ? current
+              : {
+                  key: plan.key,
+                  tone: "review",
+                  title: "Notebook change ready for review.",
+                  detail:
+                    "Accept applies the saved proposal explicitly; kind, attributes, and inserted blocks remain review-only.",
+                  proposalId: proposal.proposalId,
+                },
+          );
+          return;
+        })
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          setAuthorityWriteStatus({
+            key: plan.key,
+            tone: "failed",
+            title: "Notebook proposal could not be validated.",
+            detail: `${error instanceof Error ? error.message : "Unknown proposal failure."} No notebook write occurred.`,
+          });
+        });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    authorityDecorationPlans,
+    commitAuthorityProposalOnce,
+    ensureAuthorityProposal,
+    handleAuthorityCommitResult,
+    recordAuthorityReceipt,
+  ]);
+
+  useEffect(() => {
+    if (!authorityOperationStates) return;
+    for (const decoration of visibleDiligenceDecorations) {
+      const operation = authorityOperationStates.find(
+        (candidate) =>
+          candidate.evidenceScratchpadRunId === decoration.scratchpadRunId &&
+          candidate.evidenceBlockType === decoration.blockType &&
+          candidate.evidenceVersion === decoration.version,
+      );
+      if (!operation) continue;
+
+      const decorationKey = `${decoration.scratchpadRunId}::${decoration.blockType}::${decoration.version}`;
+      if (operation.remainderCompleted) {
+        setDismissedKeySet((current) => {
+          const next = new Set(current);
+          next.add(`${decoration.scratchpadRunId}::${decoration.blockType}`);
+          return next;
+        });
+        setAuthorityWriteStatus({
+          key: decorationKey,
+          tone: "partial",
+          title: "Validated notebook change applied.",
+          detail: `Receipt ${operation.receiptId}. The explicit remainder is recorded by ${operation.remainderCompletionKey}.`,
+          proposalId: operation.proposalId,
+          receiptId: operation.receiptId ?? undefined,
+        });
+      } else if (operation.validationFailed) {
+        setAuthorityWriteStatus({
+          key: decorationKey,
+          tone: "failed",
+          title: "Notebook proposal validation failed.",
+          detail: `No notebook write occurred (${operation.validationFailureCode ?? "validation_failed"}).`,
+          proposalId: operation.proposalId,
+        });
+      }
+    }
+  }, [authorityOperationStates, visibleDiligenceDecorations]);
+
   /**
    * "Ask NodeBench about this" — opens the drawer pre-loaded with this
    * decoration as context. Logs the escalation so the drawer timeline
    * reflects the inline ↔ chat continuity (Milestone 4 seam).
    */
   const handleAskAboutDecoration = useCallback(
-    (scratchpadRunId: string, blockType: DiligenceDecorationData["blockType"]) => {
+    (
+      scratchpadRunId: string,
+      blockType: DiligenceDecorationData["blockType"],
+    ) => {
       const decoration = visibleDiligenceDecorations.find(
-        (c) => c.scratchpadRunId === scratchpadRunId && c.blockType === blockType,
+        (c) =>
+          c.scratchpadRunId === scratchpadRunId && c.blockType === blockType,
       );
       if (!decoration) return;
       agentActions.askAboutDecoration(
@@ -1087,21 +1916,32 @@ export function EntityNotebookLive({
         anonymousSessionId ?? undefined,
       );
     },
-    [agentActions, anonymousSessionId, buildDecorationContext, visibleDiligenceDecorations],
+    [
+      agentActions,
+      anonymousSessionId,
+      buildDecorationContext,
+      visibleDiligenceDecorations,
+    ],
   );
 
   const handleDismissDecoration = useCallback(
-    (scratchpadRunId: string, blockType?: DiligenceDecorationData["blockType"]) => {
+    (
+      scratchpadRunId: string,
+      blockType?: DiligenceDecorationData["blockType"],
+    ) => {
       // Still update the local Set instantly for responsive UX — the
       // Convex write is fire-and-forget so the user never sees a lag
       // between click and fade-out. The persisted state syncs via
       // query reactivity in the next tick.
       setHiddenDecorationRunIds((current) =>
-        current[scratchpadRunId] ? current : { ...current, [scratchpadRunId]: true },
+        current[scratchpadRunId]
+          ? current
+          : { ...current, [scratchpadRunId]: true },
       );
       if (!blockType) return; // legacy callers (should shrink to zero)
       const decoration = visibleDiligenceDecorations.find(
-        (c) => c.scratchpadRunId === scratchpadRunId && c.blockType === blockType,
+        (c) =>
+          c.scratchpadRunId === scratchpadRunId && c.blockType === blockType,
       );
       if (!decoration) return;
       void agentActions.dismissDecoration(
@@ -1109,7 +1949,12 @@ export function EntityNotebookLive({
         anonymousSessionId ?? undefined,
       );
     },
-    [agentActions, anonymousSessionId, buildDecorationContext, visibleDiligenceDecorations],
+    [
+      agentActions,
+      anonymousSessionId,
+      buildDecorationContext,
+      visibleDiligenceDecorations,
+    ],
   );
 
   /**
@@ -1134,7 +1979,8 @@ export function EntityNotebookLive({
     ) => {
       const decoration = visibleDiligenceDecorations.find(
         (candidate) =>
-          candidate.scratchpadRunId === scratchpadRunId && candidate.blockType === blockType,
+          candidate.scratchpadRunId === scratchpadRunId &&
+          candidate.blockType === blockType,
       );
       if (!decoration) return;
 
@@ -1189,7 +2035,9 @@ export function EntityNotebookLive({
       } catch (err) {
         toast.error(
           "Refresh failed",
-          err instanceof Error ? err.message : "Unknown error while requesting a refresh.",
+          err instanceof Error
+            ? err.message
+            : "Unknown error while requesting a refresh.",
         );
       }
     },
@@ -1203,8 +2051,144 @@ export function EntityNotebookLive({
     ],
   );
 
+  const materializeAuthorityRemainder = useCallback(
+    async (
+      plan: NotebookAuthorityDecorationPlan,
+      receiptId: string,
+    ): Promise<NotebookAuthorityRemainderResult> => {
+      const proposalId =
+        authorityProposalResultsRef.current.get(plan.candidate.idempotencyKey)
+          ?.proposalId ?? plan.operationState?.proposalId;
+      if (!proposalId) {
+        throw new Error("The persisted proposal could not be recovered.");
+      }
+      const beforeDrafts = plan.candidate.remainingDrafts.slice(
+        0,
+        plan.candidate.selectedDraftIndex,
+      );
+      const afterDrafts = plan.candidate.remainingDrafts.slice(
+        plan.candidate.selectedDraftIndex,
+      );
+      return (await commitProposalRemainder({
+        proposalId,
+        receiptId,
+        completionKey: buildNotebookAuthorityRemainderCompletionKey(
+          plan.candidate.operationKey,
+        ),
+        beforeDrafts,
+        afterDrafts,
+      } as never)) as NotebookAuthorityRemainderResult;
+    },
+    [commitProposalRemainder],
+  );
+
+  const acceptAuthorityDecorationPlan = useCallback(
+    async (plan: NotebookAuthorityDecorationPlan): Promise<void> => {
+      const planKey = plan.candidate.idempotencyKey;
+      if (authorityAcceptInFlightRef.current.has(planKey)) return;
+      authorityAcceptInFlightRef.current.add(planKey);
+      let receiptId = authorityReceiptByPlanRef.current.get(planKey) ?? null;
+
+      try {
+        if (!receiptId) {
+          const proposal = await ensureAuthorityProposal(plan);
+          if (proposal.receiptId) {
+            receiptId = proposal.receiptId;
+            recordAuthorityReceipt(plan, receiptId);
+          } else {
+            if (proposal.validationFailed || proposal.status === "blocked") {
+              setAuthorityWriteStatus({
+                key: plan.key,
+                tone: "failed",
+                title: "Notebook proposal validation failed.",
+                detail: `No notebook write occurred. Refresh before reviewing a new proposal (${proposal.validationFailureCode ?? "validation_failed"}).`,
+                proposalId: proposal.proposalId,
+              });
+              return;
+            }
+            const shouldTryDelegated =
+              Boolean(plan.grantId) || proposal.approvalMode === "delegated";
+            let committed: NotebookAuthorityCommitResult;
+            if (shouldTryDelegated) {
+              committed = await commitAuthorityProposalOnce(
+                proposal.proposalId,
+                "delegated",
+              );
+              if (committed.delegationDenied) {
+                // The user clicked Accept, so a live-grant race may safely
+                // fall back to the same proposal's authenticated explicit
+                // approval after the server has downgraded it to review.
+                await approveBlockProposal({
+                  proposalId: proposal.proposalId,
+                } as never);
+                committed = await commitAuthorityProposalOnce(
+                  proposal.proposalId,
+                  "explicit",
+                );
+              }
+            } else {
+              await approveBlockProposal({
+                proposalId: proposal.proposalId,
+              } as never);
+              committed = await commitAuthorityProposalOnce(
+                proposal.proposalId,
+                "explicit",
+              );
+            }
+            receiptId = handleAuthorityCommitResult(plan, committed);
+          }
+        }
+
+        if (!receiptId) return;
+        const remainder = await materializeAuthorityRemainder(plan, receiptId);
+        completeAuthorityDecoration(plan, receiptId, remainder.lastBlockId);
+      } catch (error) {
+        const committedReceipt = authorityReceiptByPlanRef.current.get(planKey);
+        if (committedReceipt) {
+          setAuthorityWriteStatus({
+            key: plan.key,
+            tone: "failed",
+            title: "Safe block applied; remaining review did not finish.",
+            detail: `Receipt ${committedReceipt} proves the replacement. The decoration remains visible because the explicit marker, attributes, or inserted blocks were not fully added.`,
+            proposalId: authorityProposalResultsRef.current.get(
+              plan.candidate.idempotencyKey,
+            )?.proposalId,
+            receiptId: committedReceipt,
+          });
+          console.warn("[notebook] explicit authority remainder failed", error);
+          return;
+        }
+        setAuthorityWriteStatus({
+          key: plan.key,
+          tone: "failed",
+          title: "Notebook proposal was not applied.",
+          detail: `${error instanceof Error ? error.message : "Unknown authority failure."} No receipt was returned, so the decoration remains visible.`,
+          proposalId: authorityProposalResultsRef.current.get(
+            plan.candidate.idempotencyKey,
+          )?.proposalId,
+        });
+        reportNotebookMutationFailure("save", error);
+      } finally {
+        authorityAcceptInFlightRef.current.delete(planKey);
+      }
+    },
+    [
+      approveBlockProposal,
+      commitAuthorityProposalOnce,
+      completeAuthorityDecoration,
+      ensureAuthorityProposal,
+      handleAuthorityCommitResult,
+      materializeAuthorityRemainder,
+      recordAuthorityReceipt,
+      reportNotebookMutationFailure,
+    ],
+  );
+
   const handleAcceptDecoration = useCallback(
-    async (scratchpadRunId: string, blockType: DiligenceDecorationData["blockType"]) => {
+    async (
+      scratchpadRunId: string,
+      blockType: DiligenceDecorationData["blockType"],
+    ) => {
       if (!blocks || blocks.length === 0) return;
       if (!canEdit || !notebookLoadState.fullyLoaded) {
         notifyReadOnly("accept live intelligence into");
@@ -1213,16 +2197,69 @@ export function EntityNotebookLive({
 
       const decoration = visibleDiligenceDecorations.find(
         (candidate) =>
-          candidate.scratchpadRunId === scratchpadRunId && candidate.blockType === blockType,
+          candidate.scratchpadRunId === scratchpadRunId &&
+          candidate.blockType === blockType,
       );
       if (!decoration) return;
 
       const accepted = acceptDecorationIntoNotebook({ decoration });
-      if (!accepted.succeeded || !accepted.drafts || accepted.drafts.length === 0) {
+      if (
+        !accepted.succeeded ||
+        !accepted.drafts ||
+        accepted.drafts.length === 0
+      ) {
         const title = "Could not add the live snapshot";
-        const detail = accepted.failureReason ?? "No notebook content was generated.";
+        const detail =
+          accepted.failureReason ?? "No notebook content was generated.";
         setRuntimeError({ title, detail });
         toast.error(title, detail);
+        return;
+      }
+
+      const authorityPlanKey = `${decoration.scratchpadRunId}::${decoration.blockType}::${decoration.version}`;
+      const authorityPlan =
+        authorityDecorationPlans.find(
+          (plan) => plan.key === authorityPlanKey,
+        ) ?? authorityPlanByDecorationRef.current.get(authorityPlanKey);
+      if (authorityPlan) {
+        await acceptAuthorityDecorationPlan(authorityPlan);
+        return;
+      }
+      const persistedOperation = authorityOperationStates?.find(
+        (operation) =>
+          operation.evidenceScratchpadRunId === decoration.scratchpadRunId &&
+          operation.evidenceBlockType === decoration.blockType &&
+          operation.evidenceVersion === decoration.version,
+      );
+      if (persistedOperation) {
+        setAuthorityWriteStatus({
+          key: authorityPlanKey,
+          tone: persistedOperation.remainderCompleted ? "partial" : "failed",
+          title: persistedOperation.remainderCompleted
+            ? "Validated notebook change already applied."
+            : "Saved notebook operation requires recovery.",
+          detail: persistedOperation.remainderCompleted
+            ? `Receipt ${persistedOperation.receiptId}; explicit remainder ${persistedOperation.remainderCompletionKey}.`
+            : `NodeBench will not use the legacy write path for persisted operation ${persistedOperation.operationKey}. Refresh to recover its exact proposal state.`,
+          proposalId: persistedOperation.proposalId,
+          receiptId: persistedOperation.receiptId ?? undefined,
+        });
+        return;
+      }
+      if (
+        api &&
+        isAuthorityOwner &&
+        (authorityState === undefined ||
+          authorityOperationStates === undefined ||
+          latestScratchpadRun === undefined)
+      ) {
+        setAuthorityWriteStatus({
+          key: authorityPlanKey,
+          tone: "review",
+          title: "Checking notebook authority.",
+          detail:
+            "Accept will be available after the server confirms the grant and scratchpad run. No notebook write occurred.",
+        });
         return;
       }
 
@@ -1232,11 +2269,16 @@ export function EntityNotebookLive({
         blocks[0];
       if (!anchorBlock) return;
 
-      const anchorIndex = blocks.findIndex((block) => block._id === anchorBlock._id);
+      const anchorIndex = blocks.findIndex(
+        (block) => block._id === anchorBlock._id,
+      );
       const afterOriginalBlockId = blocks[anchorIndex + 1]?._id;
       const anchorDisplayContent =
         optimisticBlockContent[String(anchorBlock._id)] ?? anchorBlock.content;
-      const shouldReuseAnchor = isTriviallyEmptyNotebookBlock(anchorBlock, anchorDisplayContent);
+      const shouldReuseAnchor = isTriviallyEmptyNotebookBlock(
+        anchorBlock,
+        anchorDisplayContent,
+      );
       let beforeBlockId = anchorBlock._id;
       let lastCreatedBlockId: Id<"productBlocks"> = anchorBlock._id;
       let draftStartIndex = 0;
@@ -1257,7 +2299,11 @@ export function EntityNotebookLive({
           draftStartIndex = 1;
         }
 
-        for (let index = draftStartIndex; index < accepted.drafts.length; index += 1) {
+        for (
+          let index = draftStartIndex;
+          index < accepted.drafts.length;
+          index += 1
+        ) {
           const draft = accepted.drafts[index];
           const insertedBlockId = await insertBlockBetween({
             anonymousSessionId,
@@ -1277,7 +2323,10 @@ export function EntityNotebookLive({
           lastCreatedBlockId = insertedBlockId;
         }
 
-        setHiddenDecorationRunIds((current) => ({ ...current, [scratchpadRunId]: true }));
+        setHiddenDecorationRunIds((current) => ({
+          ...current,
+          [scratchpadRunId]: true,
+        }));
         setRuntimeError(null);
         setLastSyncedAt(Date.now());
         setFocusedBlockId(lastCreatedBlockId);
@@ -1297,12 +2346,19 @@ export function EntityNotebookLive({
     [
       agentActions,
       anonymousSessionId,
+      api,
+      acceptAuthorityDecorationPlan,
+      authorityDecorationPlans,
+      authorityOperationStates,
+      authorityState,
       blocks,
       buildDecorationContext,
       canEdit,
       entitySlug,
       focusedBlockId,
       insertBlockBetween,
+      isAuthorityOwner,
+      latestScratchpadRun,
       notebookLoadState.fullyLoaded,
       notifyReadOnly,
       optimisticBlockContent,
@@ -1315,11 +2371,30 @@ export function EntityNotebookLive({
     ],
   );
 
-  if (blocksPagination.status === "LoadingFirstPage" || blocks === undefined || snapshot === undefined) {
-    return <div className="py-16 text-center text-sm text-gray-500">Loading notebook...</div>;
+  if (
+    blocksPagination.status === "LoadingFirstPage" ||
+    blocks === undefined ||
+    snapshot === undefined
+  ) {
+    return (
+      <div className="py-16 text-center text-sm text-gray-500">
+        Loading notebook...
+      </div>
+    );
   }
 
-  if (!blocks || blocks.length === 0 || hasOnlyEmptyPlaceholderBlocks) {
+  const keepAuthorityTargetVisible =
+    hasOnlyEmptyPlaceholderBlocks &&
+    (authorityDecorationPlans.length > 0 ||
+      Boolean(
+        authorityWriteStatus?.proposalId || authorityWriteStatus?.receiptId,
+      ));
+
+  if (
+    !blocks ||
+    blocks.length === 0 ||
+    (hasOnlyEmptyPlaceholderBlocks && !keepAuthorityTargetVisible)
+  ) {
     return (
       <div className="rounded-2xl border border-gray-200/80 bg-white/[0.02] px-6 py-16 text-center dark:border-white/10">
         <div className="mx-auto max-w-xl">
@@ -1350,7 +2425,11 @@ export function EntityNotebookLive({
                   type="button"
                   onClick={() => {
                     setPreparingSeedContent(true);
-                    void backfillEntityBlocks({ anonymousSessionId, shareToken, entitySlug })
+                    void backfillEntityBlocks({
+                      anonymousSessionId,
+                      shareToken,
+                      entitySlug,
+                    })
                       .then(() => {
                         setRuntimeError(null);
                       })
@@ -1368,7 +2447,9 @@ export function EntityNotebookLive({
                   disabled={preparingSeedContent}
                   className="rounded-md bg-[var(--accent-primary)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {preparingSeedContent ? "Preparing notebook..." : "Load saved brief"}
+                  {preparingSeedContent
+                    ? "Preparing notebook..."
+                    : "Load saved brief"}
                 </button>
               ) : (
                 <button
@@ -1377,7 +2458,9 @@ export function EntityNotebookLive({
                   disabled={creatingFirstBlock}
                   className="rounded-md bg-[var(--accent-primary)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {creatingFirstBlock ? "Opening editor..." : "Open live notebook"}
+                  {creatingFirstBlock
+                    ? "Opening editor..."
+                    : "Open live notebook"}
                 </button>
               )}
             </div>
@@ -1407,13 +2490,53 @@ export function EntityNotebookLive({
         onToggle={() => openWorkspaceDrawer("flow")}
         className="mb-4"
       />
+      {authorityEntityId && api?.domains?.agents?.autonomy ? (
+        <NotebookAuthorityControl
+          entityId={authorityEntityId}
+          runId={latestScratchpadRun?.scratchpadId}
+          isOwner={isAuthorityOwner}
+          className="mb-4"
+        />
+      ) : null}
+      {authorityWriteStatus ? (
+        <div
+          role={
+            authorityWriteStatus.tone === "blocked" ||
+            authorityWriteStatus.tone === "failed"
+              ? "alert"
+              : "status"
+          }
+          data-testid="notebook-authority-write-status"
+          data-authority-status={authorityWriteStatus.tone}
+          data-proposal-id={authorityWriteStatus.proposalId}
+          data-receipt-id={authorityWriteStatus.receiptId}
+          className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+            authorityWriteStatus.tone === "partial"
+              ? "border-emerald-200 bg-emerald-50/80 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+              : authorityWriteStatus.tone === "review"
+                ? "border-sky-200 bg-sky-50/80 text-sky-900 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-100"
+                : authorityWriteStatus.tone === "blocked"
+                  ? "border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+                  : "border-red-200 bg-red-50/80 text-red-900 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-100"
+          }`}
+        >
+          <div className="font-medium">{authorityWriteStatus.title}</div>
+          <div className="mt-1 text-xs opacity-80">
+            {authorityWriteStatus.detail}
+          </div>
+        </div>
+      ) : null}
       {runtimeError ? (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="font-medium">{runtimeError.title}</div>
-              {runtimeError.detail ? <div className="mt-1 text-xs opacity-80">{runtimeError.detail}</div> : null}
+              {runtimeError.detail ? (
+                <div className="mt-1 text-xs opacity-80">
+                  {runtimeError.detail}
+                </div>
+              ) : null}
             </div>
             <button
               type="button"
@@ -1431,7 +2554,8 @@ export function EntityNotebookLive({
           decorations={visibleDiligenceDecorations}
           onAcceptDecoration={
             canUseOverlayActions
-              ? (runId, blockType) => void handleAcceptDecoration(runId, blockType)
+              ? (runId, blockType) =>
+                  void handleAcceptDecoration(runId, blockType)
               : undefined
           }
           onDismissDecoration={
@@ -1449,11 +2573,13 @@ export function EntityNotebookLive({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="font-medium">
-                Live notebook loaded {blocks.length} of {notebookLoadState.totalCount} block
+                Live notebook loaded {blocks.length} of{" "}
+                {notebookLoadState.totalCount} block
                 {notebookLoadState.totalCount === 1 ? "" : "s"}
               </div>
               <div className="mt-1 text-xs opacity-80">
-                Editing stays locked until the full notebook is loaded so inserts and saves cannot target a partial block list.
+                Editing stays locked until the full notebook is loaded so
+                inserts and saves cannot target a partial block list.
               </div>
             </div>
             {notebookLoadState.canLoadMore ? (
@@ -1461,7 +2587,10 @@ export function EntityNotebookLive({
                 type="button"
                 onClick={() =>
                   blocksPagination.loadMore(
-                    Math.min(Math.max(notebookLoadState.remainingCount, 1), 150),
+                    Math.min(
+                      Math.max(notebookLoadState.remainingCount, 1),
+                      150,
+                    ),
                   )
                 }
                 disabled={notebookLoadState.isLoadingMore}
@@ -1478,150 +2607,177 @@ export function EntityNotebookLive({
 
       <div className="min-w-0">
         <div className="mx-auto w-full max-w-[920px]">
-            <div className="space-y-0">
-              {blocks.map((block, blockIndex) => (
-                <BlockRow
-                  key={block._id}
-                  block={block}
-                  prev={blocks[blockIndex - 1]}
-                  sourcesById={sourcesById}
-                  citationLabelsById={citationLabelsById}
-                  displayContent={optimisticBlockContent[String(block._id)] ?? block.content}
-                  isEditable={canEdit && notebookLoadState.fullyLoaded && block.accessMode === "edit"}
-                  accessMode={
-                    canEdit && notebookLoadState.fullyLoaded ? (block.accessMode ?? "edit") : "read"
+          <div className="space-y-0">
+            {blocks.map((block, blockIndex) => (
+              <BlockRow
+                key={block._id}
+                block={block}
+                prev={blocks[blockIndex - 1]}
+                sourcesById={sourcesById}
+                citationLabelsById={citationLabelsById}
+                displayContent={
+                  optimisticBlockContent[String(block._id)] ?? block.content
+                }
+                isEditable={
+                  canEdit &&
+                  notebookLoadState.fullyLoaded &&
+                  block.accessMode === "edit"
+                }
+                accessMode={
+                  canEdit && notebookLoadState.fullyLoaded
+                    ? (block.accessMode ?? "edit")
+                    : "read"
+                }
+                isFocused={focusedBlockId === block._id}
+                hasBeenMounted={mountedBlockIds.has(String(block._id))}
+                depth={blockDepthMap.get(String(block._id)) ?? 0}
+                onHoverPrewarm={() => scheduleWarm(block._id)}
+                showSlash={slashFor === block._id}
+                syncDocumentId={buildProductBlockSyncId({
+                  blockId: String(block._id),
+                  anonymousSessionId,
+                  shareToken,
+                })}
+                onFocus={() => {
+                  warmBlock(block._id);
+                  setFocusedBlockId(block._id);
+                }}
+                onBlur={() => {
+                  flushOptimisticBlockContent(block._id);
+                  setFocusedBlockId((current: string | null) =>
+                    current === block._id ? null : current,
+                  );
+                }}
+                onLocalContentChange={(content) =>
+                  handleLocalContentChange(block._id, content)
+                }
+                registerEditorHandle={(handle) =>
+                  registerEditorHandle(block._id, handle)
+                }
+                onEnter={() => void handleEnter(block, blockIndex)}
+                onBackspaceAtStart={async () => {
+                  if (blockIndex === 0) return;
+                  if (!canEdit || block.accessMode !== "edit") {
+                    notifyReadOnly("delete");
+                    return;
                   }
-                  isFocused={focusedBlockId === block._id}
-                  hasBeenMounted={mountedBlockIds.has(String(block._id))}
-                  depth={blockDepthMap.get(String(block._id)) ?? 0}
-                  onHoverPrewarm={() => scheduleWarm(block._id)}
-                  showSlash={slashFor === block._id}
-                  syncDocumentId={buildProductBlockSyncId({
-                    blockId: String(block._id),
+                  const prevBlock = blocks[blockIndex - 1];
+                  if (prevBlock) {
+                    warmBlock(prevBlock._id);
+                    setFocusedBlockId(prevBlock._id);
+                  }
+                  await deleteBlock({
                     anonymousSessionId,
                     shareToken,
-                  })}
-                  onFocus={() => {
-                    warmBlock(block._id);
-                    setFocusedBlockId(block._id);
-                  }}
-                  onBlur={() => {
-                    flushOptimisticBlockContent(block._id);
-                    setFocusedBlockId((current: string | null) => (current === block._id ? null : current));
-                  }}
-                  onLocalContentChange={(content) => handleLocalContentChange(block._id, content)}
-                  registerEditorHandle={(handle) => registerEditorHandle(block._id, handle)}
-                  onEnter={() => void handleEnter(block, blockIndex)}
-                  onBackspaceAtStart={async () => {
-                    if (blockIndex === 0) return;
-                    if (!canEdit || block.accessMode !== "edit") {
-                      notifyReadOnly("delete");
-                      return;
-                    }
-                    const prevBlock = blocks[blockIndex - 1];
-                    if (prevBlock) {
-                      warmBlock(prevBlock._id);
-                      setFocusedBlockId(prevBlock._id);
-                    }
-                    await deleteBlock({ anonymousSessionId, shareToken, blockId: block._id });
-                  }}
-                  onOpenSlash={() => setSlashFor(block._id)}
-                  onCloseSlash={() => setSlashFor(null)}
-                  onSlashCommand={(cmd) => void runSlashCommand(cmd, block)}
-                  onMarkdownShortcut={(kind) => {
-                    if (!canEdit || block.accessMode !== "edit") return;
-                    void updateBlock({
-                      anonymousSessionId,
-                      shareToken,
-                      blockId: block._id,
-                      kind,
-                      content: [],
-                      expectedRevision: block.revision,
-                    });
-                  }}
-                  onTabIndent={() => {
-                    if (!canEdit || block.accessMode !== "edit") return;
-                    const prevBlock = blocks[blockIndex - 1];
-                    if (!prevBlock) return;
-                    if (prevBlock._id === block._id) return;
-                    const nextBlock = blocks[blockIndex + 1];
-                    void moveBlock({
-                      anonymousSessionId,
-                      shareToken,
-                      blockId: block._id,
-                      parentBlockId: prevBlock._id,
-                      beforeBlockId: prevBlock._id,
-                      afterBlockId: nextBlock?._id,
-                    });
-                  }}
-                  onShiftTabOutdent={() => {
-                    if (!canEdit || block.accessMode !== "edit") return;
-                    if (!block.parentBlockId) return;
-                    const currentParent = blocks.find(
-                      (b) => b._id === block.parentBlockId,
-                    );
-                    const grandparentId = currentParent?.parentBlockId;
-                    const prevBlock = blocks[blockIndex - 1];
-                    const nextBlock = blocks[blockIndex + 1];
-                    void moveBlock({
-                      anonymousSessionId,
-                      shareToken,
-                      blockId: block._id,
-                      beforeBlockId: prevBlock?._id,
-                      afterBlockId: nextBlock?._id,
-                      ...(grandparentId
-                        ? { parentBlockId: grandparentId }
-                        : { clearParent: true }),
-                    });
-                  }}
-                  onAcceptDecoration={(runId, blockType) =>
-                    void handleAcceptDecoration(runId, blockType)
-                  }
-                  onDismissDecoration={(runId, blockType) => handleDismissDecoration(runId, blockType)}
-                  onRefreshDecoration={(runId, blockType) =>
-                    handleRefreshDecoration(runId, blockType)
-                  }
-                  onAskAboutDecoration={handleAskAboutDecoration}
-                  navigate={navigate}
-                />
-              ))}
-            </div>
-
-            {notebookLoadState.canLoadMore ? (
-              <div className="mt-4 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() =>
-                    blocksPagination.loadMore(Math.min(Math.max(notebookLoadState.remainingCount, 1), 150))
-                  }
-                  disabled={notebookLoadState.isLoadingMore}
-                  className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 transition-colors hover:border-gray-300 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-300"
-                >
-                  {notebookLoadState.isLoadingMore
-                    ? "Loading more blocks..."
-                    : `Load ${Math.min(notebookLoadState.remainingCount, 150)} more block${Math.min(notebookLoadState.remainingCount, 150) === 1 ? "" : "s"}`}
-                </button>
-              </div>
-            ) : null}
-
-            <BlockStatusBar
-              presence={presence ?? []}
-              selfUserId={resolvePresenceSelfUserId(viewerOwnerKey, anonymousSessionId)}
-              participantDirectory={participantDirectory}
-              latestHumanEdit={latestHumanEdit}
-              lastSyncedAt={lastSyncedAt}
-              offlineQueueLength={offlineQueueLength}
-              isOffline={isOffline}
-              rateLimited={rateLimited}
-              readOnly={
-                !canEdit ||
-                !notebookLoadState.fullyLoaded ||
-                (!!focusedBlock && (focusedBlock.accessMode ?? "edit") !== "edit")
-              }
-            />
-
+                    blockId: block._id,
+                  });
+                }}
+                onOpenSlash={() => setSlashFor(block._id)}
+                onCloseSlash={() => setSlashFor(null)}
+                onSlashCommand={(cmd) => void runSlashCommand(cmd, block)}
+                onMarkdownShortcut={(kind) => {
+                  if (!canEdit || block.accessMode !== "edit") return;
+                  void updateBlock({
+                    anonymousSessionId,
+                    shareToken,
+                    blockId: block._id,
+                    kind,
+                    content: [],
+                    expectedRevision: block.revision,
+                  });
+                }}
+                onTabIndent={() => {
+                  if (!canEdit || block.accessMode !== "edit") return;
+                  const prevBlock = blocks[blockIndex - 1];
+                  if (!prevBlock) return;
+                  if (prevBlock._id === block._id) return;
+                  const nextBlock = blocks[blockIndex + 1];
+                  void moveBlock({
+                    anonymousSessionId,
+                    shareToken,
+                    blockId: block._id,
+                    parentBlockId: prevBlock._id,
+                    beforeBlockId: prevBlock._id,
+                    afterBlockId: nextBlock?._id,
+                  });
+                }}
+                onShiftTabOutdent={() => {
+                  if (!canEdit || block.accessMode !== "edit") return;
+                  if (!block.parentBlockId) return;
+                  const currentParent = blocks.find(
+                    (b) => b._id === block.parentBlockId,
+                  );
+                  const grandparentId = currentParent?.parentBlockId;
+                  const prevBlock = blocks[blockIndex - 1];
+                  const nextBlock = blocks[blockIndex + 1];
+                  void moveBlock({
+                    anonymousSessionId,
+                    shareToken,
+                    blockId: block._id,
+                    beforeBlockId: prevBlock?._id,
+                    afterBlockId: nextBlock?._id,
+                    ...(grandparentId
+                      ? { parentBlockId: grandparentId }
+                      : { clearParent: true }),
+                  });
+                }}
+                onAcceptDecoration={(runId, blockType) =>
+                  void handleAcceptDecoration(runId, blockType)
+                }
+                onDismissDecoration={(runId, blockType) =>
+                  handleDismissDecoration(runId, blockType)
+                }
+                onRefreshDecoration={(runId, blockType) =>
+                  handleRefreshDecoration(runId, blockType)
+                }
+                onAskAboutDecoration={handleAskAboutDecoration}
+                navigate={navigate}
+              />
+            ))}
           </div>
+
+          {notebookLoadState.canLoadMore ? (
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() =>
+                  blocksPagination.loadMore(
+                    Math.min(
+                      Math.max(notebookLoadState.remainingCount, 1),
+                      150,
+                    ),
+                  )
+                }
+                disabled={notebookLoadState.isLoadingMore}
+                className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 transition-colors hover:border-gray-300 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-300"
+              >
+                {notebookLoadState.isLoadingMore
+                  ? "Loading more blocks..."
+                  : `Load ${Math.min(notebookLoadState.remainingCount, 150)} more block${Math.min(notebookLoadState.remainingCount, 150) === 1 ? "" : "s"}`}
+              </button>
+            </div>
+          ) : null}
+
+          <BlockStatusBar
+            presence={presence ?? []}
+            selfUserId={resolvePresenceSelfUserId(
+              viewerOwnerKey,
+              anonymousSessionId,
+            )}
+            participantDirectory={participantDirectory}
+            latestHumanEdit={latestHumanEdit}
+            lastSyncedAt={lastSyncedAt}
+            offlineQueueLength={offlineQueueLength}
+            isOffline={isOffline}
+            rateLimited={rateLimited}
+            readOnly={
+              !canEdit ||
+              !notebookLoadState.fullyLoaded ||
+              (!!focusedBlock && (focusedBlock.accessMode ?? "edit") !== "edit")
+            }
+          />
         </div>
+      </div>
 
       <WorkspaceDrawerPill
         entitySlug={entitySlug}
@@ -1635,10 +2791,7 @@ export function EntityNotebookLive({
           className="fixed inset-0 z-40 flex items-start justify-center bg-black/30 px-4 pt-32"
           onClick={() => setMentionFor(null)}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative"
-          >
+          <div onClick={(e) => e.stopPropagation()} className="relative">
             <MentionPicker
               entitySlug={entitySlug}
               shareToken={shareToken}
@@ -1660,7 +2813,16 @@ export function EntityNotebookLive({
 type BlockRowProps = {
   block: LiveBlock;
   prev?: LiveBlock;
-  sourcesById: Map<string, { id: string; label: string; href?: string; confidence?: number; domain?: string }>;
+  sourcesById: Map<
+    string,
+    {
+      id: string;
+      label: string;
+      href?: string;
+      confidence?: number;
+      domain?: string;
+    }
+  >;
   citationLabelsById: Map<string, string>;
   displayContent: BlockChip[];
   isEditable: boolean;
@@ -1738,7 +2900,10 @@ type BlockRowProps = {
 // actions through a custom-compared memo boundary or a dispatcher-style
 // single-callback API. We take the comparator path because the dispatcher
 // refactor would touch every handler in this 2.2k-line file.
-const blockRowPropsEqual = (prev: BlockRowProps, next: BlockRowProps): boolean => {
+const blockRowPropsEqual = (
+  prev: BlockRowProps,
+  next: BlockRowProps,
+): boolean => {
   return (
     prev.block === next.block &&
     prev.prev === next.prev &&
@@ -1801,7 +2966,9 @@ const BlockRow = memo(function BlockRow({
     prev.authorKind !== block.authorKind ||
     prev.authorId !== block.authorId ||
     prev.sourceSessionId !== block.sourceSessionId;
-  const followsParentHeading = Boolean(block.parentBlockId && prev?._id === block.parentBlockId);
+  const followsParentHeading = Boolean(
+    block.parentBlockId && prev?._id === block.parentBlockId,
+  );
   const opensSection =
     block.kind === "heading_2" ||
     block.kind === "heading_3" ||
@@ -1854,9 +3021,12 @@ const BlockRow = memo(function BlockRow({
   };
 
   if (isEvidence) {
-    const href = displayContent.find((c) => c.type === "link")?.url ?? displayContent[0]?.url;
+    const href =
+      displayContent.find((c) => c.type === "link")?.url ??
+      displayContent[0]?.url;
     const label =
-      displayContent.find((c) => c.type === "link")?.value ?? chipsToPlainText(displayContent);
+      displayContent.find((c) => c.type === "link")?.value ??
+      chipsToPlainText(displayContent);
     return (
       <div className="group ml-6 py-1">
         <a
@@ -1894,7 +3064,9 @@ const BlockRow = memo(function BlockRow({
     >
       <div className="relative min-w-0">
         {isAgentAuthored && startsAuthorRun ? (
-          <div className={`${opensSection ? "mb-3" : "mb-2"} flex flex-wrap items-center gap-2`}>
+          <div
+            className={`${opensSection ? "mb-3" : "mb-2"} flex flex-wrap items-center gap-2`}
+          >
             {/* Per-agent author tag — colored pill carrying WHICH agent
                 wrote this block, not a generic "AI generated" stamp.
                 Pulled from the v3/v4 prototypes: attribution is what
@@ -1947,7 +3119,11 @@ const BlockRow = memo(function BlockRow({
             ) : (
               <div
                 className={`ProseMirror nb-block-shell outline-none focus-visible:outline-none min-h-[1.5em] ${classesForKind()} ${
-                  !isEditable ? "cursor-default opacity-80" : supportsSyncEditing ? "cursor-text" : ""
+                  !isEditable
+                    ? "cursor-default opacity-80"
+                    : supportsSyncEditing
+                      ? "cursor-text"
+                      : ""
                 }`}
                 onFocus={shouldMountSyncEditor ? undefined : onFocus}
                 onBlur={shouldMountSyncEditor ? undefined : onBlur}
@@ -1967,10 +3143,13 @@ const BlockRow = memo(function BlockRow({
                   const source = sourcesById.get(refId);
                   const tooltip = source
                     ? `${source.domain ?? source.label}${
-                        source.confidence != null ? ` - confidence ${source.confidence.toFixed(2)}` : ""
+                        source.confidence != null
+                          ? ` - confidence ${source.confidence.toFixed(2)}`
+                          : ""
                       }`
                     : refId;
-                  const citationLabel = citationLabelsById.get(refId) ?? `s${idx + 1}`;
+                  const citationLabel =
+                    citationLabelsById.get(refId) ?? `s${idx + 1}`;
                   return (
                     <a
                       key={`${block._id}-cite-${idx}`}
@@ -1987,15 +3166,19 @@ const BlockRow = memo(function BlockRow({
               </span>
             ) : null}
           </div>
-          {(accessMode !== "edit" ||
-            (block.authorKind === "agent" &&
-              !block.kind.startsWith("heading_") &&
-              block.kind !== "evidence")) ? (
+          {accessMode !== "edit" ||
+          (block.authorKind === "agent" &&
+            !block.kind.startsWith("heading_") &&
+            block.kind !== "evidence") ? (
             <div className="flex shrink-0 items-start gap-2">
               {accessMode !== "edit" ? (
                 <span
                   className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px] text-amber-600 bg-amber-500/10"
-                  title={accessMode === "read" ? "Read-only block" : "Append-only block"}
+                  title={
+                    accessMode === "read"
+                      ? "Read-only block"
+                      : "Append-only block"
+                  }
                 >
                   <Lock className="h-2.5 w-2.5" />
                   {accessMode}
@@ -2007,10 +3190,7 @@ const BlockRow = memo(function BlockRow({
         </div>
 
         {showSlash ? (
-          <SlashPalette
-            onCommand={onSlashCommand}
-            onClose={onCloseSlash}
-          />
+          <SlashPalette onCommand={onSlashCommand} onClose={onCloseSlash} />
         ) : null}
       </div>
     </div>

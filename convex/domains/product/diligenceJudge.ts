@@ -24,8 +24,13 @@
  */
 
 import { v } from "convex/values";
-import { mutation, query } from "../../_generated/server";
+import { internalMutation, query } from "../../_generated/server";
 import { internal } from "../../_generated/api";
+import {
+  getActivePublicEntityShareByToken,
+  requireProductIdentity,
+  resolveEntityWorkspaceAccess,
+} from "./helpers";
 
 const MAX_VERDICTS = 200;
 const JUDGE_VERSION = "v1";
@@ -44,8 +49,10 @@ const VERDICT_VALIDATOR = v.union(
  * HONEST_SCORES: score is passed through from the deterministic judge. This
  * mutation validates the shape but never overrides the numbers.
  */
-export const recordVerdict = mutation({
+export const recordVerdict = internalMutation({
   args: {
+    ownerKey: v.string(),
+    entityId: v.id("productEntities"),
     telemetryId: v.id("diligenceRunTelemetry"),
     entitySlug: v.string(),
     blockType: v.string(),
@@ -74,6 +81,23 @@ export const recordVerdict = mutation({
     autoScore: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    const [entity, telemetry] = await Promise.all([
+      ctx.db.get(args.entityId),
+      ctx.db.get(args.telemetryId),
+    ]);
+    if (
+      !entity ||
+      !telemetry ||
+      entity.ownerKey !== args.ownerKey ||
+      entity.slug !== args.entitySlug ||
+      telemetry.ownerKey !== args.ownerKey ||
+      telemetry.entityId !== args.entityId ||
+      telemetry.entitySlug !== args.entitySlug ||
+      telemetry.blockType !== args.blockType ||
+      telemetry.scratchpadRunId !== args.scratchpadRunId
+    ) {
+      throw new Error("recordVerdict: invalid owner/entity telemetry context");
+    }
     // Basic sanity: counts must not exceed total gates (10 canonical).
     if (args.passCount < 0 || args.failCount < 0 || args.skipCount < 0) {
       throw new Error("recordVerdict: negative counts are invalid");
@@ -82,6 +106,8 @@ export const recordVerdict = mutation({
       throw new Error(`recordVerdict: score ${args.score} out of [0,1]`);
     }
     const id = await ctx.db.insert("diligenceJudgeVerdicts", {
+      ownerKey: args.ownerKey,
+      entityId: args.entityId,
       telemetryId: args.telemetryId,
       entitySlug: args.entitySlug,
       blockType: args.blockType,
@@ -121,14 +147,25 @@ export const recordVerdict = mutation({
 /** Latest verdicts for a specific entity, newest first. BOUND by MAX_VERDICTS. */
 export const listForEntity = query({
   args: {
+    anonymousSessionId: v.optional(v.string()),
+    shareToken: v.optional(v.string()),
     entitySlug: v.string(),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    if (await getActivePublicEntityShareByToken(ctx, args.shareToken)) {
+      return [];
+    }
+    const access = await resolveEntityWorkspaceAccess(ctx, args);
+    if (!access) return [];
     const limit = Math.max(1, Math.min(args.limit ?? 50, MAX_VERDICTS));
     const rows = await ctx.db
       .query("diligenceJudgeVerdicts")
-      .withIndex("by_entity", (q) => q.eq("entitySlug", args.entitySlug))
+      .withIndex("by_owner_entity", (q) =>
+        q
+          .eq("ownerKey", access.entity.ownerKey)
+          .eq("entityId", access.entity._id),
+      )
       .order("desc")
       .take(limit);
     return rows;
@@ -138,21 +175,25 @@ export const listForEntity = query({
 /** Global verdict stream for the operator dashboard. */
 export const listRecentVerdicts = query({
   args: {
+    anonymousSessionId: v.optional(v.string()),
     limit: v.optional(v.number()),
     verdict: v.optional(VERDICT_VALIDATOR),
   },
   handler: async (ctx, args) => {
+    const identity = await requireProductIdentity(ctx, args.anonymousSessionId);
     const limit = Math.max(1, Math.min(args.limit ?? 100, MAX_VERDICTS));
     if (args.verdict) {
       return await ctx.db
         .query("diligenceJudgeVerdicts")
-        .withIndex("by_verdict", (q) => q.eq("verdict", args.verdict!))
+        .withIndex("by_owner_verdict", (q) =>
+          q.eq("ownerKey", identity.ownerKey).eq("verdict", args.verdict!),
+        )
         .order("desc")
         .take(limit);
     }
     return await ctx.db
       .query("diligenceJudgeVerdicts")
-      .withIndex("by_judged_at")
+      .withIndex("by_owner_judged", (q) => q.eq("ownerKey", identity.ownerKey))
       .order("desc")
       .take(limit);
   },
@@ -165,13 +206,15 @@ export const listRecentVerdicts = query({
  */
 export const rollupVerdicts = query({
   args: {
+    anonymousSessionId: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const identity = await requireProductIdentity(ctx, args.anonymousSessionId);
     const limit = Math.max(1, Math.min(args.limit ?? 200, MAX_VERDICTS));
     const rows = await ctx.db
       .query("diligenceJudgeVerdicts")
-      .withIndex("by_judged_at")
+      .withIndex("by_owner_judged", (q) => q.eq("ownerKey", identity.ownerKey))
       .order("desc")
       .take(limit);
     if (rows.length === 0) {

@@ -1721,6 +1721,8 @@ export const productNotebookPages = defineTable({
 })
   .index("by_entity_type", ["entitySlug", "pageType"])
   .index("by_entity_date", ["entitySlug", "dateKey"])
+  .index("by_owner_entity_type", ["ownerKey", "entitySlug", "pageType"])
+  .index("by_owner_entity_date", ["ownerKey", "entitySlug", "dateKey"])
   .index("by_owner_updated", ["ownerKey", "updatedAt"]);
 
 

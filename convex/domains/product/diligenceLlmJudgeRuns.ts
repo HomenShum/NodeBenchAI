@@ -26,10 +26,12 @@ import { v } from "convex/values";
 import {
   internalAction,
   internalMutation,
+  internalQuery,
   mutation,
   query,
 } from "../../_generated/server";
-import { api, internal } from "../../_generated/api";
+import { internal } from "../../_generated/api";
+import type { Doc } from "../../_generated/dataModel";
 import { generateText } from "ai";
 import { getLanguageModelSafe } from "../agents/mcp_tools/models";
 import {
@@ -40,6 +42,12 @@ import {
   validateLlmJudgeScores,
   type LlmJudgeInput,
 } from "../../../server/pipeline/diligenceLlmJudge";
+import {
+  getActivePublicEntityShareByToken,
+  requireAuthenticatedProductIdentity,
+  requireProductIdentity,
+  resolveEntityWorkspaceAccess,
+} from "./helpers";
 
 const DEFAULT_MODEL = "kimi-k2.6"; // primary OpenRouter judge lane
 const MAX_LLM_RUNS = 200;
@@ -84,6 +92,27 @@ export const recordLlmJudgeRun = internalMutation({
     latencyMs: v.number(),
   },
   handler: async (ctx, args) => {
+    const [verdict, telemetry] = await Promise.all([
+      ctx.db.get(args.verdictId),
+      ctx.db.get(args.telemetryId),
+    ]);
+    if (
+      !verdict ||
+      !telemetry ||
+      verdict.telemetryId !== args.telemetryId ||
+      !verdict.ownerKey ||
+      !verdict.entityId ||
+      telemetry.ownerKey !== verdict.ownerKey ||
+      telemetry.entityId !== verdict.entityId ||
+      verdict.entitySlug !== args.entitySlug ||
+      telemetry.entitySlug !== args.entitySlug ||
+      verdict.blockType !== args.blockType ||
+      telemetry.blockType !== args.blockType
+    ) {
+      throw new Error(
+        "recordLlmJudgeRun: invalid tenant-bound verdict context",
+      );
+    }
     // When status is "scored", all 5 scores must be present and in [0, 1].
     if (args.status === "scored") {
       const allPresent =
@@ -114,6 +143,8 @@ export const recordLlmJudgeRun = internalMutation({
     }
 
     const id = await ctx.db.insert("diligenceLlmJudgeRuns", {
+      ownerKey: verdict.ownerKey,
+      entityId: verdict.entityId,
       verdictId: args.verdictId,
       telemetryId: args.telemetryId,
       entitySlug: args.entitySlug,
@@ -144,16 +175,21 @@ export const recordLlmJudgeRun = internalMutation({
  * ========================================================================== */
 export const listForVerdict = query({
   args: {
+    anonymousSessionId: v.optional(v.string()),
     verdictId: v.id("diligenceJudgeVerdicts"),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const identity = await requireProductIdentity(ctx, args.anonymousSessionId);
+    const verdict = await ctx.db.get(args.verdictId);
+    if (!verdict || verdict.ownerKey !== identity.ownerKey) return [];
     const limit = Math.max(1, Math.min(args.limit ?? 10, MAX_PER_VERDICT));
-    return await ctx.db
+    const rows = await ctx.db
       .query("diligenceLlmJudgeRuns")
       .withIndex("by_verdict", (q) => q.eq("verdictId", args.verdictId))
       .order("desc")
       .take(limit);
+    return rows.filter((row) => row.ownerKey === identity.ownerKey);
   },
 });
 
@@ -162,14 +198,25 @@ export const listForVerdict = query({
  * ========================================================================== */
 export const listForEntity = query({
   args: {
+    anonymousSessionId: v.optional(v.string()),
+    shareToken: v.optional(v.string()),
     entitySlug: v.string(),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    if (await getActivePublicEntityShareByToken(ctx, args.shareToken)) {
+      return [];
+    }
+    const access = await resolveEntityWorkspaceAccess(ctx, args);
+    if (!access) return [];
     const limit = Math.max(1, Math.min(args.limit ?? 50, MAX_LLM_RUNS));
     return await ctx.db
       .query("diligenceLlmJudgeRuns")
-      .withIndex("by_entity", (q) => q.eq("entitySlug", args.entitySlug))
+      .withIndex("by_owner_entity", (q) =>
+        q
+          .eq("ownerKey", access.entity.ownerKey)
+          .eq("entityId", access.entity._id),
+      )
       .order("desc")
       .take(limit);
   },
@@ -180,13 +227,15 @@ export const listForEntity = query({
  * ========================================================================== */
 export const rollupRecent = query({
   args: {
+    anonymousSessionId: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const identity = await requireProductIdentity(ctx, args.anonymousSessionId);
     const limit = Math.max(1, Math.min(args.limit ?? 200, MAX_LLM_RUNS));
     const rows = await ctx.db
       .query("diligenceLlmJudgeRuns")
-      .withIndex("by_judged_at")
+      .withIndex("by_owner_judged", (q) => q.eq("ownerKey", identity.ownerKey))
       .order("desc")
       .take(limit);
     if (rows.length === 0) {
@@ -204,7 +253,9 @@ export const rollupRecent = query({
     }
     const scored = rows.filter((r) => r.status === "scored");
     const parseErrors = rows.filter((r) => r.status === "parse_error").length;
-    const requestFailures = rows.filter((r) => r.status === "request_failed").length;
+    const requestFailures = rows.filter(
+      (r) => r.status === "request_failed",
+    ).length;
     const avg = (pick: (r: (typeof scored)[number]) => number | undefined) => {
       if (scored.length === 0) return 0;
       let sum = 0;
@@ -236,7 +287,7 @@ export const rollupRecent = query({
  * Internal helper: load everything the judge needs.
  * Exposed as a query so actions can read db via ctx.runQuery.
  * ========================================================================== */
-export const getVerdictContext = query({
+export const getVerdictContext = internalQuery({
   args: {
     verdictId: v.id("diligenceJudgeVerdicts"),
   },
@@ -245,17 +296,39 @@ export const getVerdictContext = query({
     if (!verdict) throw new Error("verdict not found");
     const telemetry = await ctx.db.get(verdict.telemetryId);
     if (!telemetry) throw new Error("paired telemetry row not found");
+    if (
+      !verdict.ownerKey ||
+      !verdict.entityId ||
+      telemetry.ownerKey !== verdict.ownerKey ||
+      telemetry.entityId !== verdict.entityId ||
+      telemetry.entitySlug !== verdict.entitySlug ||
+      telemetry.blockType !== verdict.blockType ||
+      telemetry.scratchpadRunId !== verdict.scratchpadRunId
+    ) {
+      throw new Error("tenant-bound verdict context is unavailable");
+    }
     // Try to load the matching projection row for prose + payload + sources.
     const projection = await ctx.db
       .query("diligenceProjections")
-      .withIndex("by_entity_block_run", (q) =>
+      .withIndex("by_owner_entity_block_run", (q) =>
         q
-          .eq("entitySlug", telemetry.entitySlug)
-          .eq("blockType", telemetry.blockType)
+          .eq("ownerKey", verdict.ownerKey!)
+          .eq("entityId", verdict.entityId!)
+          .eq(
+            "blockType",
+            telemetry.blockType as Doc<"diligenceProjections">["blockType"],
+          )
           .eq("scratchpadRunId", telemetry.scratchpadRunId),
       )
       .first();
-    return { verdict, telemetry, projection };
+    return {
+      verdict,
+      telemetry,
+      projection:
+        projection?.producerAssurance === "internal_structuring_v1"
+          ? projection
+          : null,
+    };
   },
 });
 
@@ -277,7 +350,7 @@ export const scoreVerdictWithLlm = internalAction({
 
     // Load context via a query — actions cannot read db directly.
     const loaded = await ctx.runQuery(
-      api.domains.product.diligenceLlmJudgeRuns.getVerdictContext,
+      internal.domains.product.diligenceLlmJudgeRuns.getVerdictContext,
       { verdictId: args.verdictId },
     );
     const { verdict, telemetry, projection } = loaded as {
@@ -318,7 +391,10 @@ export const scoreVerdictWithLlm = internalAction({
     try {
       const model = getLanguageModelSafe(modelName);
       const timeoutPromise = new Promise<never>((_, reject) => {
-        requestTimeoutHandle = setTimeout(() => reject(new Error("request timeout")), REQUEST_TIMEOUT_MS);
+        requestTimeoutHandle = setTimeout(
+          () => reject(new Error("request timeout")),
+          REQUEST_TIMEOUT_MS,
+        );
       });
       const result = await Promise.race([
         generateText({
@@ -425,9 +501,12 @@ export const requestLlmJudge = mutation({
     modelName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const identity = await requireAuthenticatedProductIdentity(ctx);
     // Sanity — verdict must exist.
     const verdict = await ctx.db.get(args.verdictId);
-    if (!verdict) throw new Error("verdict not found");
+    if (!verdict || verdict.ownerKey !== identity.ownerKey) {
+      throw new Error("verdict not found");
+    }
     await ctx.scheduler.runAfter(
       0,
       internal.domains.product.diligenceLlmJudgeRuns.scoreVerdictWithLlm,
