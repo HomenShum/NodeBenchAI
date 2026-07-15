@@ -2,6 +2,7 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fetchWithRetry } from "./lib/fetchWithRetry.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -64,7 +65,7 @@ function buildHeaders(extra = {}) {
 }
 
 async function fetchHtml() {
-  const response = await fetch(url, {
+  const { response, attempts } = await fetchWithRetry(url, {
     redirect: "follow",
     headers: buildHeaders(),
   });
@@ -75,7 +76,11 @@ async function fetchHtml() {
         "(Vercel Project → Settings → Deployment Protection → Protection Bypass for Automation).",
     );
   }
-  if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
+  if (!response.ok) {
+    throw new Error(
+      `HTTP ${response.status} ${response.statusText} after ${attempts} attempt${attempts === 1 ? "" : "s"}`,
+    );
+  }
   return response.text();
 }
 
