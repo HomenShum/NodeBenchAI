@@ -151,6 +151,10 @@ import {
   canaryRuns,
 } from "./domains/evaluation/schema";
 import {
+  tasteBenchRuns,
+  tasteBenchEvents,
+} from "./domains/evaluation/tasteBenchSchema";
+import {
   trajectoryEntities,
   trajectorySpans,
   trajectoryEvidenceBundles,
@@ -171,6 +175,12 @@ import {
   successOutcomeLinks,
 } from "./domains/successLoops/schema";
 import { agentResponseReviews } from "./domains/agents/schema";
+import {
+  autonomyGrants,
+  autonomyProposals,
+  autonomyReceipts,
+  autonomyRemainderCompletions,
+} from "./domains/agents/autonomy/schema";
 
 // MCP Gateway API key & session schema
 import { mcpApiKeys, mcpGatewaySessions } from "./domains/mcp/apiKeysSchema";
@@ -4313,6 +4323,12 @@ export default defineSchema({
   chatScheduledMessages,
   toolApprovals,
   dogfoodQaRuns,
+  tasteBenchRuns,
+  tasteBenchEvents,
+  autonomyGrants,
+  autonomyProposals,
+  autonomyReceipts,
+  autonomyRemainderCompletions,
   timeSeriesObservations,
   timeSeriesSignals,
   causalChains,
@@ -5794,6 +5810,9 @@ export default defineSchema({
 
     /** Canonical entity this scratchpad enriches (e.g., company slug). */
     entitySlug: v.optional(v.string()),
+    /** Migration-safe tenant binding for notebook overlay scratchpads. */
+    ownerKey: v.optional(v.string()),
+    entityId: v.optional(v.id("productEntities")),
 
     /**
      * Entity version observed when this scratchpad was created. Used by
@@ -5849,6 +5868,7 @@ export default defineSchema({
     .index("by_agent_thread", ["agentThreadId"])
     .index("by_user", ["userId"])
     .index("by_entity", ["entitySlug"])
+    .index("by_owner_entity", ["ownerKey", "entityId", "updatedAt"])
     .index("by_idempotency", ["idempotencyKey"])
     .index("by_status", ["status"]),
 
@@ -15033,6 +15053,16 @@ export default defineSchema({
   diligenceProjections: defineTable({
     /** Canonical entity this projection belongs to. */
     entitySlug: v.string(),
+    /** Owner-scoped identity added after producer hardening; legacy rows omit it. */
+    ownerKey: v.optional(v.string()),
+    entityId: v.optional(v.id("productEntities")),
+    producerScratchpadId: v.optional(v.id("agentScratchpads")),
+      producerAssurance: v.optional(
+        v.union(
+          v.literal("internal_structuring_v1"),
+          v.literal("internal_canonical_v1"),
+        ),
+      ),
     /** One of the 10 diligence block types + "projection" fallback. */
     blockType: v.union(
       v.literal("projection"),
@@ -15089,6 +15119,14 @@ export default defineSchema({
     refreshRequestedAt: v.optional(v.number()),
   })
     .index("by_entity", ["entitySlug"])
+    .index("by_owner_entity", ["ownerKey", "entityId"])
+    .index("by_owner_entity_updated", ["ownerKey", "entityId", "updatedAt"])
+    .index("by_owner_entity_block_run", [
+      "ownerKey",
+      "entityId",
+      "blockType",
+      "scratchpadRunId",
+    ])
     .index("by_entity_block", ["entitySlug", "blockType"])
     .index("by_scratchpad", ["scratchpadRunId"])
     .index("by_entity_block_run", [
@@ -15117,6 +15155,9 @@ export default defineSchema({
   diligenceRunTelemetry: defineTable({
     /** Canonical entity this projection belonged to. */
     entitySlug: v.string(),
+    /** Migration-safe tenant binding; legacy rows omit these fields. */
+    ownerKey: v.optional(v.string()),
+    entityId: v.optional(v.id("productEntities")),
     /** One of the 10 canonical block types or "projection". */
     blockType: v.string(),
     /** Stable id for the scratchpad run that emitted this projection. */
@@ -15145,6 +15186,9 @@ export default defineSchema({
     schemaVersion: v.optional(v.number()),
   })
     .index("by_entity", ["entitySlug"])
+    .index("by_owner_entity", ["ownerKey", "entityId", "startedAt"])
+    .index("by_owner_started", ["ownerKey", "startedAt"])
+    .index("by_owner_status", ["ownerKey", "status", "startedAt"])
     .index("by_entity_block", ["entitySlug", "blockType"])
     .index("by_scratchpad", ["scratchpadRunId"])
     .index("by_status", ["status"])
@@ -15168,6 +15212,9 @@ export default defineSchema({
     telemetryId: v.id("diligenceRunTelemetry"),
     /** Denormalized for index-only queries. */
     entitySlug: v.string(),
+    /** Migration-safe tenant binding; legacy rows omit these fields. */
+    ownerKey: v.optional(v.string()),
+    entityId: v.optional(v.id("productEntities")),
     blockType: v.string(),
     scratchpadRunId: v.string(),
     /** Bounded enum (mirrors AGENT_RUN_VERDICT_WORKFLOW.md). */
@@ -15190,6 +15237,9 @@ export default defineSchema({
   })
     .index("by_telemetry", ["telemetryId"])
     .index("by_entity", ["entitySlug"])
+    .index("by_owner_entity", ["ownerKey", "entityId", "judgedAt"])
+    .index("by_owner_judged", ["ownerKey", "judgedAt"])
+    .index("by_owner_verdict", ["ownerKey", "verdict", "judgedAt"])
     .index("by_entity_block", ["entitySlug", "blockType"])
     .index("by_verdict", ["verdict"])
     .index("by_judged_at", ["judgedAt"]),
@@ -15219,6 +15269,9 @@ export default defineSchema({
     verdictId: v.id("diligenceJudgeVerdicts"),
     telemetryId: v.id("diligenceRunTelemetry"),
     entitySlug: v.string(),
+    /** Migration-safe tenant binding inherited from the source verdict. */
+    ownerKey: v.optional(v.string()),
+    entityId: v.optional(v.id("productEntities")),
     blockType: v.string(),
     status: v.string(), // "pending" | "scored" | "parse_error" | "request_failed"
     /** Fingerprint of the exact prompt sent — lets replays detect prompt drift. */
@@ -15246,6 +15299,9 @@ export default defineSchema({
     .index("by_verdict", ["verdictId"])
     .index("by_telemetry", ["telemetryId"])
     .index("by_entity", ["entitySlug"])
+    .index("by_owner_entity", ["ownerKey", "entityId", "judgedAt"])
+    .index("by_owner_judged", ["ownerKey", "judgedAt"])
+    .index("by_owner_status", ["ownerKey", "status", "judgedAt"])
     .index("by_status", ["status"])
     .index("by_judged_at", ["judgedAt"]),
 

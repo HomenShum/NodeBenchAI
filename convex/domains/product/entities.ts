@@ -1984,11 +1984,19 @@ export async function buildKnownEntityStateMarkdown(
 
   const projections = await ctx.db
     .query("diligenceProjections")
-    .withIndex("by_entity", (q: any) => q.eq("entitySlug", args.entitySlug))
+    .withIndex("by_owner_entity", (q: any) =>
+      q.eq("ownerKey", args.ownerKey).eq("entityId", entity._id),
+    )
     .order("desc")
     .take(20);
   const byType = new Map<string, any>();
   for (const row of projections) {
+    if (
+      row.producerAssurance !== "internal_structuring_v1" &&
+      row.producerAssurance !== "internal_canonical_v1"
+    ) {
+      continue;
+    }
     const prior = byType.get(row.blockType);
     if (!prior || row.version > prior.version) byType.set(row.blockType, row);
   }

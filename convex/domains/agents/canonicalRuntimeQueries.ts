@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { query } from "../../_generated/server";
+import { internalQuery, query } from "../../_generated/server";
+import { requireProductIdentity } from "../product/helpers";
 
 /**
  * Canonical Runtime Queries — Fast lane cache hydration
@@ -8,7 +9,7 @@ import { query } from "../../_generated/server";
  * cached state for an entity so the planner can answer immediately.
  */
 
-export const getEntityFastLaneCache = query({
+export const getEntityFastLaneCache = internalQuery({
   args: {
     ownerKey: v.string(),
     entitySlug: v.string(),
@@ -46,36 +47,41 @@ export const getEntityFastLaneCache = query({
     // Latest projections (structured agent output)
     const projections = await ctx.db
       .query("diligenceProjections")
-      .withIndex("by_entity", (q) => q.eq("entitySlug", args.entitySlug))
+      .withIndex("by_owner_entity_updated", (q) =>
+        q.eq("ownerKey", entity.ownerKey).eq("entityId", entity._id),
+      )
       .order("desc")
       .take(20);
 
-    const latestProjections = projections.map((p) => ({
-      id: p._id,
-      blockType: p.blockType,
-      title: p.headerText,
-      summary: p.bodyProse,
-      overallTier: p.overallTier,
-      updatedAt: p.updatedAt,
-    }));
+    const latestProjections = projections
+      .filter(
+        (p) =>
+          p.producerAssurance === "internal_structuring_v1" ||
+          p.producerAssurance === "internal_canonical_v1",
+      )
+      .map((p) => ({
+        id: p._id,
+        blockType: p.blockType,
+        title: p.headerText,
+        summary: p.bodyProse,
+        overallTier: p.overallTier,
+        updatedAt: p.updatedAt,
+      }));
 
     // Latest pulse report
     const latestPulse = await ctx.db
       .query("pulseReports")
-      .withIndex("by_entity_date", (q) => q.eq("entitySlug", args.entitySlug))
+      .withIndex("by_owner_entity_date", (q) =>
+        q.eq("ownerKey", entity.ownerKey).eq("entitySlug", entity.slug),
+      )
       .order("desc")
       .take(1);
-
-    // Entity memory index
-    const memory = await ctx.db
-      .query("entityMemoryIndex")
-      .withIndex("by_entity", (q) => q.eq("entitySlug", args.entitySlug))
-      .unique();
 
     // Latest run status
     const latestRun = await ctx.db
       .query("extendedThinkingRuns")
-      .withIndex("by_entity", (q) => q.eq("entitySlug", args.entitySlug))
+      .withIndex("by_owner", (q) => q.eq("ownerKey", entity.ownerKey))
+      .filter((q) => q.eq(q.field("entitySlug"), entity.slug))
       .order("desc")
       .take(1);
 
@@ -92,14 +98,9 @@ export const getEntityFastLaneCache = query({
       acceptedBlocks,
       latestProjections,
       latestPulse: latestPulse[0] ?? null,
-      memory: memory
-        ? {
-            indexJson: memory.indexJson,
-            topicCount: memory.topicCount,
-            totalFactCount: memory.totalFactCount,
-            lastRebuildAt: memory.lastRebuildAt,
-          }
-        : null,
+      // Legacy entityMemoryIndex is slug-global. Keep it out of this
+      // tenant-bound cache until the memory schema is owner/entity scoped.
+      memory: null,
       latestRun: latestRun[0]
         ? {
             runId: latestRun[0]._id,
@@ -129,21 +130,26 @@ export const getThreadMessages = query({
 
 export const getRunWithScratchpad = query({
   args: {
+    anonymousSessionId: v.optional(v.string()),
     runId: v.id("extendedThinkingRuns"),
   },
   handler: async (ctx, args) => {
-    const run = await ctx.db
-      .query("extendedThinkingRuns")
-      .withIndex("by_status", (q) => q.eq("status", "running"))
-      .filter((q) => q.eq(q.field("_id"), args.runId))
-      .unique();
+    const identity = await requireProductIdentity(ctx, args.anonymousSessionId);
+    const run = await ctx.db.get(args.runId);
 
-    if (!run) return null;
+    if (
+      !run ||
+      run.ownerKey !== identity.ownerKey ||
+      run.status !== "running"
+    ) {
+      return null;
+    }
 
     // Scratchpads don't have a runId field; we look up by entitySlug + status
     const scratchpads = await ctx.db
       .query("agentScratchpads")
       .withIndex("by_entity", (q) => q.eq("entitySlug", run.entitySlug))
+      .filter((q) => q.eq(q.field("ownerKey"), identity.ownerKey))
       .order("desc")
       .take(5);
 
@@ -162,8 +168,9 @@ export const getRunWithScratchpad = query({
   },
 });
 
-export const getEntityNotebookPage = query({
+export const getEntityNotebookPage = internalQuery({
   args: {
+    ownerKey: v.string(),
     entitySlug: v.string(),
     pageType: v.union(v.literal("entity"), v.literal("pulse")),
     dateKey: v.optional(v.string()),
@@ -173,15 +180,21 @@ export const getEntityNotebookPage = query({
     if (args.dateKey) {
       page = await ctx.db
         .query("productNotebookPages")
-        .withIndex("by_entity_date", (q) =>
-          q.eq("entitySlug", args.entitySlug).eq("dateKey", args.dateKey),
+        .withIndex("by_owner_entity_date", (q) =>
+          q
+            .eq("ownerKey", args.ownerKey)
+            .eq("entitySlug", args.entitySlug)
+            .eq("dateKey", args.dateKey),
         )
         .unique();
     } else {
       page = await ctx.db
         .query("productNotebookPages")
-        .withIndex("by_entity_type", (q) =>
-          q.eq("entitySlug", args.entitySlug).eq("pageType", args.pageType),
+        .withIndex("by_owner_entity_type", (q) =>
+          q
+            .eq("ownerKey", args.ownerKey)
+            .eq("entitySlug", args.entitySlug)
+            .eq("pageType", args.pageType),
         )
         .unique();
     }

@@ -21,7 +21,12 @@
  */
 
 import { v } from "convex/values";
-import { mutation, query } from "../../_generated/server";
+import { internalMutation, query } from "../../_generated/server";
+import {
+  getActivePublicEntityShareByToken,
+  requireProductIdentity,
+  resolveEntityWorkspaceAccess,
+} from "./helpers";
 
 const TELEMETRY_SCHEMA_VERSION = 1;
 const MAX_RECENT_RUNS = 200;
@@ -40,8 +45,10 @@ const STATUS_VALIDATOR = v.union(
  * Returns `{ id }` so the caller can pass it into recordVerdict (diligenceJudge)
  * if it wants to attach the inline judge result atomically.
  */
-export const recordTelemetry = mutation({
+export const recordTelemetry = internalMutation({
   args: {
+    ownerKey: v.string(),
+    entityId: v.id("productEntities"),
     entitySlug: v.string(),
     blockType: v.string(),
     scratchpadRunId: v.string(),
@@ -58,10 +65,20 @@ export const recordTelemetry = mutation({
     errorMessage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const entity = await ctx.db.get(args.entityId);
+    if (
+      !entity ||
+      entity.ownerKey !== args.ownerKey ||
+      entity.slug !== args.entitySlug
+    ) {
+      throw new Error("recordTelemetry: invalid owner/entity context");
+    }
     // Defensive: guard against swapped timestamps (DETERMINISTIC invariant —
     // elapsedMs should never be negative).
     const elapsedMs = Math.max(0, args.endedAt - args.startedAt);
     const id = await ctx.db.insert("diligenceRunTelemetry", {
+      ownerKey: args.ownerKey,
+      entityId: args.entityId,
       entitySlug: args.entitySlug,
       blockType: args.blockType,
       scratchpadRunId: args.scratchpadRunId,
@@ -90,14 +107,25 @@ export const recordTelemetry = mutation({
  */
 export const listForEntity = query({
   args: {
+    anonymousSessionId: v.optional(v.string()),
+    shareToken: v.optional(v.string()),
     entitySlug: v.string(),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    if (await getActivePublicEntityShareByToken(ctx, args.shareToken)) {
+      return [];
+    }
+    const access = await resolveEntityWorkspaceAccess(ctx, args);
+    if (!access) return [];
     const limit = Math.max(1, Math.min(args.limit ?? 50, MAX_RECENT_RUNS));
     const rows = await ctx.db
       .query("diligenceRunTelemetry")
-      .withIndex("by_entity", (q) => q.eq("entitySlug", args.entitySlug))
+      .withIndex("by_owner_entity", (q) =>
+        q
+          .eq("ownerKey", access.entity.ownerKey)
+          .eq("entityId", access.entity._id),
+      )
       .order("desc")
       .take(limit);
     return rows;
@@ -111,21 +139,25 @@ export const listForEntity = query({
  */
 export const listRecentRuns = query({
   args: {
+    anonymousSessionId: v.optional(v.string()),
     limit: v.optional(v.number()),
     status: v.optional(STATUS_VALIDATOR),
   },
   handler: async (ctx, args) => {
+    const identity = await requireProductIdentity(ctx, args.anonymousSessionId);
     const limit = Math.max(1, Math.min(args.limit ?? 100, MAX_RECENT_RUNS));
     if (args.status) {
       return await ctx.db
         .query("diligenceRunTelemetry")
-        .withIndex("by_status", (q) => q.eq("status", args.status!))
+        .withIndex("by_owner_status", (q) =>
+          q.eq("ownerKey", identity.ownerKey).eq("status", args.status!),
+        )
         .order("desc")
         .take(limit);
     }
     return await ctx.db
       .query("diligenceRunTelemetry")
-      .withIndex("by_started")
+      .withIndex("by_owner_started", (q) => q.eq("ownerKey", identity.ownerKey))
       .order("desc")
       .take(limit);
   },
@@ -138,13 +170,15 @@ export const listRecentRuns = query({
  */
 export const rollupRecent = query({
   args: {
+    anonymousSessionId: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const identity = await requireProductIdentity(ctx, args.anonymousSessionId);
     const limit = Math.max(1, Math.min(args.limit ?? 200, MAX_RECENT_RUNS));
     const rows = await ctx.db
       .query("diligenceRunTelemetry")
-      .withIndex("by_started")
+      .withIndex("by_owner_started", (q) => q.eq("ownerKey", identity.ownerKey))
       .order("desc")
       .take(limit);
     if (rows.length === 0) {

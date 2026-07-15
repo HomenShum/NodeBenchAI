@@ -33,6 +33,7 @@ export type AccessMode = "read" | "append" | "edit";
 
 export type LiveBlock = {
   _id: Id<"productBlocks">;
+  ownerKey: string;
   entityId: Id<"productEntities">;
   parentBlockId?: Id<"productBlocks">;
   kind: BlockKind;

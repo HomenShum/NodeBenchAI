@@ -46,14 +46,18 @@ function generateToken(): string {
   return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-async function requireOwnerKey(ctx: { auth: { getUserIdentity: () => Promise<unknown> } }, db: unknown): Promise<string> {
-  // Convex's auth helper returns the user id. We expose it as ownerKey for
-  // the productEntities pattern already in use across the codebase.
+async function requireOwnerKeys(ctx: {
+  auth: { getUserIdentity: () => Promise<unknown> };
+}): Promise<{ ownerKey: string; legacyOwnerKey: string }> {
   const userId = await getAuthUserId(
     ctx as unknown as Parameters<typeof getAuthUserId>[0],
   );
   if (!userId) throw new Error("not authenticated");
-  return String(userId);
+  const legacyOwnerKey = String(userId);
+  return {
+    ownerKey: `user:${legacyOwnerKey}`,
+    legacyOwnerKey,
+  };
 }
 
 /* ==========================================================================
@@ -72,7 +76,7 @@ export const mintPublicShare = mutation({
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const ownerKey = await requireOwnerKey(ctx, ctx.db);
+    const { ownerKey } = await requireOwnerKeys(ctx);
 
     if (args.resourceSlug.trim().length === 0) {
       throw new Error("mintPublicShare: resourceSlug required");
@@ -81,27 +85,17 @@ export const mintPublicShare = mutation({
       throw new Error("mintPublicShare: expiresAt must be in the future");
     }
 
-    // For entity shares, verify the owner actually owns the entity. We do
-    // this lazily via productEntityWorkspaceMembers — if the user has no
-    // write access to the entity, they cannot mint a public share for it.
+    // Public bearer shares are owner-only. Workspace members use the scoped
+    // workspace-share flow and cannot mint a public token for someone else's
+    // entity.
     if (args.resourceType === "entity") {
-      const member = await ctx.db
-        .query("productEntityWorkspaceMembers")
-        .withIndex("by_owner_entity", (q) =>
-          q.eq("ownerKey", ownerKey).eq("entitySlug", args.resourceSlug),
+      const entity = await ctx.db
+        .query("productEntities")
+        .withIndex("by_owner_slug", (q) =>
+          q.eq("ownerKey", ownerKey).eq("slug", args.resourceSlug),
         )
         .first();
-      // Some codebases key membership differently; also tolerate by_entity lookup.
-      if (!member) {
-        const entity = await ctx.db
-          .query("productEntities")
-          .withIndex("by_slug", (q) => q.eq("slug", args.resourceSlug))
-          .first();
-        if (!entity) throw new Error("mintPublicShare: entity not found");
-        if (entity.ownerKey !== ownerKey) {
-          throw new Error("mintPublicShare: not the entity owner");
-        }
-      }
+      if (!entity) throw new Error("mintPublicShare: entity not found");
     }
 
     // Retry-on-collision up to 3 times — the token space is 2^256 so
@@ -118,7 +112,8 @@ export const mintPublicShare = mutation({
         break;
       }
     }
-    if (!token) throw new Error("mintPublicShare: unable to allocate unique token");
+    if (!token)
+      throw new Error("mintPublicShare: unable to allocate unique token");
 
     const trimmedLabel =
       typeof args.label === "string" && args.label.trim().length > 0
@@ -147,13 +142,13 @@ export const revokePublicShare = mutation({
     token: v.string(),
   },
   handler: async (ctx, args) => {
-    const ownerKey = await requireOwnerKey(ctx, ctx.db);
+    const { ownerKey, legacyOwnerKey } = await requireOwnerKeys(ctx);
     const row = await ctx.db
       .query("publicShares")
       .withIndex("by_token", (q) => q.eq("token", args.token))
       .first();
     if (!row) throw new Error("revokePublicShare: token not found");
-    if (row.ownerKey !== ownerKey) {
+    if (row.ownerKey !== ownerKey && row.ownerKey !== legacyOwnerKey) {
       throw new Error("revokePublicShare: not the share owner");
     }
     await ctx.db.patch(row._id, { revokedAt: Date.now() });
@@ -168,14 +163,30 @@ export const listMyShares = query({
   args: {
     limit: v.optional(v.number()),
   },
-  handler: async (ctx) => {
-    const ownerKey = await requireOwnerKey(ctx, ctx.db);
-    const rows = await ctx.db
-      .query("publicShares")
-      .withIndex("by_owner", (q) => q.eq("ownerKey", ownerKey))
-      .order("desc")
-      .take(Math.min(MAX_SHARES_PER_OWNER_PAGE, 100));
-    return rows;
+  handler: async (ctx, args) => {
+    const { ownerKey, legacyOwnerKey } = await requireOwnerKeys(ctx);
+    const limit = Math.max(
+      1,
+      Math.min(
+        args.limit ?? MAX_SHARES_PER_OWNER_PAGE,
+        MAX_SHARES_PER_OWNER_PAGE,
+      ),
+    );
+    const [currentRows, legacyRows] = await Promise.all([
+      ctx.db
+        .query("publicShares")
+        .withIndex("by_owner", (q) => q.eq("ownerKey", ownerKey))
+        .order("desc")
+        .take(limit),
+      ctx.db
+        .query("publicShares")
+        .withIndex("by_owner", (q) => q.eq("ownerKey", legacyOwnerKey))
+        .order("desc")
+        .take(limit),
+    ]);
+    return [...currentRows, ...legacyRows]
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .slice(0, limit);
   },
 });
 
@@ -239,11 +250,47 @@ export const getPublicEntityProjections = query({
     }
 
     const cap = Math.max(1, Math.min(args.limit ?? 10, MAX_PUBLIC_PROJECTIONS));
-    const projections = await ctx.db
+    const entity = await ctx.db
+      .query("productEntities")
+      .withIndex("by_owner_slug", (q) =>
+        q.eq("ownerKey", row.ownerKey).eq("slug", row.resourceSlug),
+      )
+      .first();
+    if (!entity) {
+      return { status: "inactive" as const, projections: [] };
+    }
+
+    const projectionRows = await ctx.db
       .query("diligenceProjections")
-      .withIndex("by_entity", (q) => q.eq("entitySlug", row.resourceSlug))
+      .withIndex("by_owner_entity_updated", (q) =>
+        q.eq("ownerKey", row.ownerKey).eq("entityId", entity._id),
+      )
       .order("desc")
-      .take(cap);
+      .take(MAX_PUBLIC_PROJECTIONS);
+    const projections = projectionRows
+      .filter(
+        (projection) =>
+          (projection.producerAssurance === "internal_structuring_v1" ||
+            projection.producerAssurance === "internal_canonical_v1") &&
+          projection.entitySlug === row.resourceSlug,
+      )
+      .slice(0, cap)
+      .map((projection) => ({
+        entitySlug: projection.entitySlug,
+        blockType: projection.blockType,
+        scratchpadRunId: projection.scratchpadRunId,
+        version: projection.version,
+        overallTier: projection.overallTier,
+        headerText: projection.headerText,
+        bodyProse: projection.bodyProse,
+        sourceRefIds: projection.sourceRefIds,
+        sourceCount: projection.sourceCount,
+        sourceLabel: projection.sourceLabel,
+        sourceTokens: projection.sourceTokens,
+        payload: projection.payload,
+        sourceSectionId: projection.sourceSectionId,
+        updatedAt: projection.updatedAt,
+      }));
 
     return {
       status: "active" as const,

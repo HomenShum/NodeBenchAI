@@ -30,10 +30,18 @@
  */
 
 import { v } from "convex/values";
-import { api, internal } from "../../_generated/api";
+import { internal } from "../../_generated/api";
 import type { MutationCtx } from "../../_generated/server";
-import { internalAction, internalMutation, mutation, query } from "../../_generated/server";
-import { requireEntityWorkspaceWriteAccessBySlug } from "./helpers";
+import {
+  internalAction,
+  internalMutation,
+  mutation,
+  query,
+} from "../../_generated/server";
+import {
+  requireEntityWorkspaceWriteAccessBySlug,
+  resolveEntityWorkspaceAccess,
+} from "./helpers";
 import {
   buildGenericDiligenceProjectionDrafts,
   buildScratchpadMarkdownForDrafts,
@@ -101,19 +109,24 @@ type ProjectionRunReportPayload = {
 type StartRunReason = "materialize" | "refresh" | "session_complete";
 
 function buildOverlayRunWorkflowId(args: {
+  entityId: string;
   entitySlug: string;
   reason: StartRunReason;
   targetBlockType?: string;
 }) {
-  return `scratchpad:${args.entitySlug}:${Date.now()}:${args.reason}:${args.targetBlockType ?? "all"}`;
+  const nonce = Array.from(crypto.getRandomValues(new Uint32Array(2)))
+    .map((value) => value.toString(36))
+    .join("");
+  return `scratchpad:${args.entitySlug}:${args.entityId}:${Date.now()}:${args.reason}:${args.targetBlockType ?? "all"}:${nonce}`;
 }
 
 function buildOverlayRunIdempotencyKey(args: {
+  ownerKey: string;
   entitySlug: string;
   reportUpdatedAt: number;
   targetBlockType?: string;
 }) {
-  return `overlay:${args.entitySlug}:${args.reportUpdatedAt}:${args.targetBlockType ?? "all"}`;
+  return `overlay:${args.ownerKey}:${args.entitySlug}:${args.reportUpdatedAt}:${args.targetBlockType ?? "all"}`;
 }
 
 function buildCheckpointId(workflowId: string, checkpointNumber: number) {
@@ -139,7 +152,26 @@ async function materializeEntityDiligenceProjections(
 ) {
   const report = await loadLatestReportForEntity(ctx, args);
   if (!report) {
-    return { status: "noop" as const, reason: "missing-report", total: 0, created: 0, updated: 0, stale: 0, deleted: 0 };
+    return {
+      status: "noop" as const,
+      reason: "missing-report",
+      total: 0,
+      created: 0,
+      updated: 0,
+      stale: 0,
+      deleted: 0,
+    };
+  }
+  if (!report.entityId) {
+    return {
+      status: "noop" as const,
+      reason: "missing-entity",
+      total: 0,
+      created: 0,
+      updated: 0,
+      stale: 0,
+      deleted: 0,
+    };
   }
 
   const drafts = buildGenericDiligenceProjectionDrafts({
@@ -153,6 +185,8 @@ async function materializeEntityDiligenceProjections(
   });
 
   const synced = await syncGenericDiligenceProjectionDrafts(ctx, {
+    ownerKey: args.ownerKey,
+    entityId: report.entityId,
     entitySlug: args.entitySlug,
     drafts,
   });
@@ -161,17 +195,28 @@ async function materializeEntityDiligenceProjections(
 
 export const clearScratchpadProjectionRowsForEntity = internalMutation({
   args: {
+    ownerKey: v.string(),
+    entityId: v.id("productEntities"),
     entitySlug: v.string(),
   },
   handler: async (ctx, args) => {
     const rows = await ctx.db
       .query("diligenceProjections")
-      .withIndex("by_entity", (q) => q.eq("entitySlug", args.entitySlug))
+      .withIndex("by_owner_entity", (q) =>
+        q.eq("ownerKey", args.ownerKey).eq("entityId", args.entityId),
+      )
       .collect();
 
     let deleted = 0;
     for (const row of rows) {
-      if (!row.scratchpadRunId.startsWith(`scratchpad:${args.entitySlug}:`)) continue;
+      if (
+        row.producerAssurance !== "internal_structuring_v1" ||
+        row.entitySlug !== args.entitySlug
+      ) {
+        continue;
+      }
+      if (!row.scratchpadRunId.startsWith(`scratchpad:${args.entitySlug}:`))
+        continue;
       await ctx.db.delete(row._id);
       deleted += 1;
     }
@@ -181,6 +226,8 @@ export const clearScratchpadProjectionRowsForEntity = internalMutation({
 
 export const runScratchpadProjectionPass = internalAction({
   args: {
+    ownerKey: v.string(),
+    entityId: v.id("productEntities"),
     report: v.object({
       entitySlug: v.string(),
       title: v.string(),
@@ -219,17 +266,28 @@ export const runScratchpadProjectionPass = internalAction({
   handler: async (ctx, args) => {
     const now = Date.now();
     const report = args.report as ProjectionRunReportPayload;
-    const allBaseDrafts = buildScratchpadStructuredProjectionDrafts(report, args.workflowId);
+    const allBaseDrafts = buildScratchpadStructuredProjectionDrafts(
+      report,
+      args.workflowId,
+    );
     const drafts =
       args.targetBlockType == null
         ? allBaseDrafts
         : [
-            ...allBaseDrafts.filter((draft) => draft.blockType === args.targetBlockType),
-            ...allBaseDrafts.filter((draft) => draft.blockType !== args.targetBlockType),
+            ...allBaseDrafts.filter(
+              (draft) => draft.blockType === args.targetBlockType,
+            ),
+            ...allBaseDrafts.filter(
+              (draft) => draft.blockType !== args.targetBlockType,
+            ),
           ];
 
     if (drafts.length === 0) {
-      return { status: "noop" as const, reason: "no-drafts", runId: args.workflowId };
+      return {
+        status: "noop" as const,
+        reason: "no-drafts",
+        runId: args.workflowId,
+      };
     }
 
     const saveScratchpad = async (input: {
@@ -241,27 +299,32 @@ export const runScratchpadProjectionPass = internalAction({
       failureReason?: string;
       currentStep?: string;
     }) =>
-      ctx.runMutation(internal.domains.product.diligenceScratchpads.upsertScratchpadRun, {
-        runId: args.workflowId,
-        entitySlug: report.entitySlug,
-        userId: args.userId,
-        markdownSource: buildScratchpadMarkdownForDrafts({
+      ctx.runMutation(
+        internal.domains.product.diligenceScratchpads.upsertScratchpadRun,
+        {
+          runId: args.workflowId,
+          ownerKey: args.ownerKey,
+          entityId: args.entityId,
           entitySlug: report.entitySlug,
-          entityName: report.primaryEntity ?? report.title,
-          scratchpadBaseRunId: args.workflowId,
+          userId: args.userId,
+          markdownSource: buildScratchpadMarkdownForDrafts({
+            entitySlug: report.entitySlug,
+            entityName: report.primaryEntity ?? report.title,
+            scratchpadBaseRunId: args.workflowId,
+            status: input.status,
+            currentStep: input.currentStep,
+            failureReason: input.failureReason,
+            drafts: input.renderedDrafts,
+          }),
           status: input.status,
-          currentStep: input.currentStep,
+          mode: "live",
+          idempotencyKey: args.idempotencyKey,
+          checkpointNumber: input.checkpointNumber,
+          latestBlockType: input.latestBlockType,
+          latestHeaderText: input.latestHeaderText,
           failureReason: input.failureReason,
-          drafts: input.renderedDrafts,
-        }),
-        status: input.status,
-        mode: "live",
-        idempotencyKey: args.idempotencyKey,
-        checkpointNumber: input.checkpointNumber,
-        latestBlockType: input.latestBlockType,
-        latestHeaderText: input.latestHeaderText,
-        failureReason: input.failureReason,
-      });
+        },
+      );
 
     const saveCheckpoint = async (input: {
       checkpointNumber: number;
@@ -275,7 +338,10 @@ export const runScratchpadProjectionPass = internalAction({
       ctx.runMutation(internal.domains.agents.checkpointing.saveCheckpoint, {
         checkpoint: {
           workflowId: args.workflowId,
-          checkpointId: buildCheckpointId(args.workflowId, input.checkpointNumber),
+          checkpointId: buildCheckpointId(
+            args.workflowId,
+            input.checkpointNumber,
+          ),
           checkpointNumber: input.checkpointNumber,
           parentCheckpointId:
             input.checkpointNumber > 0
@@ -302,9 +368,15 @@ export const runScratchpadProjectionPass = internalAction({
       });
 
     try {
-      await ctx.runMutation(internal.domains.product.diligenceProjections.clearScratchpadProjectionRowsForEntity, {
-        entitySlug: report.entitySlug,
-      });
+      await ctx.runMutation(
+        internal.domains.product.diligenceProjections
+          .clearScratchpadProjectionRowsForEntity,
+        {
+          ownerKey: args.ownerKey,
+          entityId: args.entityId,
+          entitySlug: report.entitySlug,
+        },
+      );
 
       await saveScratchpad({
         status: "streaming",
@@ -325,11 +397,15 @@ export const runScratchpadProjectionPass = internalAction({
         const baseDraft = drafts[index]!;
         const checkpointNumber = index + 1;
         const draftContext = [...structuredDrafts, baseDraft];
-        const progress = Math.max(1, Math.round((checkpointNumber / drafts.length) * 100));
+        const progress = Math.max(
+          1,
+          Math.round((checkpointNumber / drafts.length) * 100),
+        );
         const currentStep = `checkpoint:${baseDraft.blockType}`;
 
         await saveScratchpad({
-          status: checkpointNumber === drafts.length ? "structuring" : "streaming",
+          status:
+            checkpointNumber === drafts.length ? "structuring" : "streaming",
           checkpointNumber,
           renderedDrafts: draftContext,
           latestBlockType: baseDraft.blockType,
@@ -349,7 +425,8 @@ export const runScratchpadProjectionPass = internalAction({
           entitySlug: report.entitySlug,
           entityName: report.primaryEntity ?? report.title,
           scratchpadBaseRunId: args.workflowId,
-          status: checkpointNumber === drafts.length ? "structuring" : "streaming",
+          status:
+            checkpointNumber === drafts.length ? "structuring" : "streaming",
           currentStep,
           drafts: draftContext,
         });
@@ -368,7 +445,16 @@ export const runScratchpadProjectionPass = internalAction({
 
         const outcome = await emitDiligenceProjectionInstrumented(
           async (emitArgs) =>
-            await ctx.runMutation(api.domains.product.diligenceProjections.upsertFromStructuringPass, emitArgs),
+            await ctx.runMutation(
+              internal.domains.product.diligenceProjections
+                .upsertFromStructuringPass,
+              {
+                ...emitArgs,
+                ownerKey: args.ownerKey,
+                entityId: args.entityId,
+                producerRunId: args.workflowId,
+              },
+            ),
           draft,
           {
             seedTelemetry: {
@@ -381,22 +467,27 @@ export const runScratchpadProjectionPass = internalAction({
         );
 
         const emitStatus = outcome.ok ? outcome.result.status : "error";
-        const telemetryResult = await ctx.runMutation(api.domains.product.diligenceRunTelemetry.recordTelemetry, {
-          entitySlug: draft.entitySlug,
-          blockType: draft.blockType,
-          scratchpadRunId: draft.scratchpadRunId,
-          version: draft.version,
-          overallTier: draft.overallTier,
-          headerText: draft.headerText,
-          status: emitStatus,
-          startedAt: outcome.telemetry.startedAt,
-          endedAt: outcome.telemetry.endedAt,
-          toolCalls: outcome.telemetry.toolCalls,
-          tokensIn: outcome.telemetry.tokensIn,
-          tokensOut: outcome.telemetry.tokensOut,
-          sourceCount: outcome.telemetry.sourceCount,
-          errorMessage: outcome.telemetry.errorMessage,
-        });
+        const telemetryResult = await ctx.runMutation(
+          internal.domains.product.diligenceRunTelemetry.recordTelemetry,
+          {
+            ownerKey: args.ownerKey,
+            entityId: args.entityId,
+            entitySlug: draft.entitySlug,
+            blockType: draft.blockType,
+            scratchpadRunId: draft.scratchpadRunId,
+            version: draft.version,
+            overallTier: draft.overallTier,
+            headerText: draft.headerText,
+            status: emitStatus,
+            startedAt: outcome.telemetry.startedAt,
+            endedAt: outcome.telemetry.endedAt,
+            toolCalls: outcome.telemetry.toolCalls,
+            tokensIn: outcome.telemetry.tokensIn,
+            tokensOut: outcome.telemetry.tokensOut,
+            sourceCount: outcome.telemetry.sourceCount,
+            errorMessage: outcome.telemetry.errorMessage,
+          },
+        );
 
         // Async reliability (async_reliability.md §4): on emit failure,
         // fingerprint + upsert a DLQ row. Grouping by fingerprint means
@@ -439,57 +530,35 @@ export const runScratchpadProjectionPass = internalAction({
 
         const verdict = judgeDiligenceRun({
           args: draft as EmitProjectionArgs,
-          result: outcome.ok ? (outcome.result as EmitProjectionResult) : undefined,
+          result: outcome.ok
+            ? (outcome.result as EmitProjectionResult)
+            : undefined,
           telemetry: outcome.telemetry,
         });
 
-        await ctx.runMutation(api.domains.product.diligenceJudge.recordVerdict, {
-          telemetryId: telemetryResult.id,
-          entitySlug: draft.entitySlug,
-          blockType: draft.blockType,
-          scratchpadRunId: draft.scratchpadRunId,
-          verdict: verdict.verdict,
-          passCount: verdict.passCount,
-          failCount: verdict.failCount,
-          skipCount: verdict.skipCount,
-          score: verdict.score,
-          latencyBudgetMs: verdict.latencyBudgetMs,
-          gatesJson: JSON.stringify(verdict.gates),
-        });
+        await ctx.runMutation(
+          internal.domains.product.diligenceJudge.recordVerdict,
+          {
+            ownerKey: args.ownerKey,
+            entityId: args.entityId,
+            telemetryId: telemetryResult.id,
+            entitySlug: draft.entitySlug,
+            blockType: draft.blockType,
+            scratchpadRunId: draft.scratchpadRunId,
+            verdict: verdict.verdict,
+            passCount: verdict.passCount,
+            failCount: verdict.failCount,
+            skipCount: verdict.skipCount,
+            score: verdict.score,
+            latencyBudgetMs: verdict.latencyBudgetMs,
+            gatesJson: JSON.stringify(verdict.gates),
+          },
+        );
 
-        // Layered memory (layered_memory.md L2): compact this block's
-        // facts into the per-entity topic file. Only on successful emits
-        // — we don't want to poison topic state with errored output.
-        // Fact extraction: one fact per non-empty sentence-ish line of
-        // bodyProse, capped at MAX_COMPACTION_FACTS to keep the compaction
-        // call bounded.
-        if (outcome.ok && draft.bodyProse) {
-          try {
-            const rawFacts = draft.bodyProse
-              .split(/\n+|\.(?=\s|$)/)
-              .map((s: string) => s.trim())
-              .filter((s: string) => s.length >= 20)
-              .slice(0, 12)
-              .map((text: string) => ({
-                text,
-                sourceRefId: undefined,
-                observedAt: Date.now(),
-              }));
-            if (rawFacts.length > 0) {
-              await ctx.runMutation(
-                internal.domains.product.entityMemory.compactBlockTopic,
-                {
-                  entitySlug: draft.entitySlug,
-                  topicName: draft.blockType,
-                  newFacts: rawFacts,
-                },
-              );
-            }
-          } catch {
-            // Swallow — compaction failure never kills the structuring pass.
-            // ERROR_BOUNDARY per agentic_reliability.md §7.
-          }
-        }
+        // Do not compact tenant-bound projection output into entityMemory yet.
+        // The legacy memory tables are keyed only by entitySlug, so two owners
+        // with the same slug would otherwise share facts. Re-enable this only
+        // after entityTopicFiles/entityMemoryIndex carry ownerKey + entityId.
       }
 
       await saveScratchpad({
@@ -548,12 +617,20 @@ const MAX_PROJECTIONS_PER_ENTITY = 50;
  */
 export const listForEntity = query({
   args: {
+    anonymousSessionId: v.optional(v.string()),
+    shareToken: v.optional(v.string()),
     entitySlug: v.string(),
   },
   handler: async (ctx, args) => {
+    const access = await resolveEntityWorkspaceAccess(ctx, args);
+    if (!access) return [];
     const rows = await ctx.db
       .query("diligenceProjections")
-      .withIndex("by_entity", (q) => q.eq("entitySlug", args.entitySlug))
+      .withIndex("by_owner_entity_updated", (q) =>
+        q
+          .eq("ownerKey", access.entity.ownerKey)
+          .eq("entityId", access.entity._id),
+      )
       .order("desc")
       .take(MAX_PROJECTIONS_PER_ENTITY);
 
@@ -571,6 +648,13 @@ export const listForEntity = query({
     }
 
     return Array.from(winners.values())
+      .filter(
+        (row) =>
+          (row.producerAssurance === "internal_structuring_v1" ||
+            row.producerAssurance === "internal_canonical_v1") &&
+          row.ownerKey === access.entity.ownerKey &&
+          row.entityId === access.entity._id,
+      )
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .map((row) => ({
         entitySlug: row.entitySlug,
@@ -606,8 +690,11 @@ export const listForEntity = query({
  *   Dedup key is (entitySlug, blockType, scratchpadRunId). Same input always
  *   produces the same result, even if the orchestrator retries.
  */
-export const upsertFromStructuringPass = mutation({
+export const upsertFromStructuringPass = internalMutation({
   args: {
+    ownerKey: v.string(),
+    entityId: v.id("productEntities"),
+    producerRunId: v.string(),
     entitySlug: v.string(),
     blockType: v.union(
       v.literal("projection"),
@@ -640,11 +727,35 @@ export const upsertFromStructuringPass = mutation({
     sourceSectionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const [entity, scratchpad] = await Promise.all([
+      ctx.db.get(args.entityId),
+      ctx.db
+        .query("agentScratchpads")
+        .withIndex("by_agent_thread", (q) =>
+          q.eq("agentThreadId", args.producerRunId),
+        )
+        .first(),
+    ]);
+    if (
+      !entity ||
+      !scratchpad ||
+      entity.ownerKey !== args.ownerKey ||
+      entity.slug !== args.entitySlug ||
+      scratchpad.entitySlug !== args.entitySlug ||
+      scratchpad.ownerKey !== args.ownerKey ||
+      scratchpad.entityId !== args.entityId ||
+      !args.scratchpadRunId.startsWith(`${args.producerRunId}:`)
+    ) {
+      throw new Error(
+        "Trusted diligence projection producer context is invalid",
+      );
+    }
     const existing = await ctx.db
       .query("diligenceProjections")
-      .withIndex("by_entity_block_run", (q) =>
+      .withIndex("by_owner_entity_block_run", (q) =>
         q
-          .eq("entitySlug", args.entitySlug)
+          .eq("ownerKey", args.ownerKey)
+          .eq("entityId", args.entityId)
           .eq("blockType", args.blockType)
           .eq("scratchpadRunId", args.scratchpadRunId),
       )
@@ -655,6 +766,10 @@ export const upsertFromStructuringPass = mutation({
     if (!existing) {
       await ctx.db.insert("diligenceProjections", {
         entitySlug: args.entitySlug,
+        ownerKey: args.ownerKey,
+        entityId: args.entityId,
+        producerScratchpadId: scratchpad._id,
+        producerAssurance: "internal_structuring_v1",
         blockType: args.blockType,
         scratchpadRunId: args.scratchpadRunId,
         version: args.version,
@@ -680,6 +795,10 @@ export const upsertFromStructuringPass = mutation({
     }
 
     await ctx.db.patch(existing._id, {
+      ownerKey: args.ownerKey,
+      entityId: args.entityId,
+      producerScratchpadId: scratchpad._id,
+      producerAssurance: "internal_structuring_v1",
       version: args.version,
       overallTier: args.overallTier,
       headerText: args.headerText,
@@ -716,22 +835,26 @@ export const upsertFromStructuringPass = mutation({
  */
 export const requestRefresh = mutation({
   args: {
+    anonymousSessionId: v.optional(v.string()),
+    shareToken: v.optional(v.string()),
     entitySlug: v.string(),
     blockType: DILIGENCE_BLOCK_TYPE_VALIDATOR,
     scratchpadRunId: v.string(),
   },
   handler: async (ctx, args) => {
+    const workspace = await requireEntityWorkspaceWriteAccessBySlug(ctx, args);
     const existing = await ctx.db
       .query("diligenceProjections")
-      .withIndex("by_entity_block_run", (q) =>
+      .withIndex("by_owner_entity_block_run", (q) =>
         q
-          .eq("entitySlug", args.entitySlug)
+          .eq("ownerKey", workspace.entity.ownerKey)
+          .eq("entityId", workspace.entity._id)
           .eq("blockType", args.blockType)
           .eq("scratchpadRunId", args.scratchpadRunId),
       )
       .first();
 
-    if (!existing) {
+    if (!existing || existing.producerAssurance !== "internal_structuring_v1") {
       return { status: "not-found" as const };
     }
 
@@ -741,7 +864,10 @@ export const requestRefresh = mutation({
       existing.refreshRequestedAt > (existing.updatedAt ?? 0);
 
     if (alreadyQueued) {
-      return { status: "already-queued" as const, queuedAt: existing.refreshRequestedAt! };
+      return {
+        status: "already-queued" as const,
+        queuedAt: existing.refreshRequestedAt!,
+      };
     }
 
     await ctx.db.patch(existing._id, { refreshRequestedAt: now });
@@ -771,12 +897,15 @@ export const materializeForEntity = mutation({
     }
 
     const idempotencyKey = buildOverlayRunIdempotencyKey({
+      ownerKey: workspace.entity.ownerKey,
       entitySlug: workspace.entity.slug,
       reportUpdatedAt: report.updatedAt,
     });
     const existingRun = await ctx.db
       .query("agentScratchpads")
-      .withIndex("by_idempotency", (q) => q.eq("idempotencyKey", idempotencyKey))
+      .withIndex("by_idempotency", (q) =>
+        q.eq("idempotencyKey", idempotencyKey),
+      )
       .first();
 
     if (existingRun && existingRun.status !== "failed") {
@@ -788,10 +917,18 @@ export const materializeForEntity = mutation({
     }
 
     const workflowId = buildOverlayRunWorkflowId({
+      entityId: String(workspace.entity._id),
       entitySlug: workspace.entity.slug,
       reason: "materialize",
     });
     const now = Date.now();
+    const workflowCollision = await ctx.db
+      .query("agentScratchpads")
+      .withIndex("by_agent_thread", (q) => q.eq("agentThreadId", workflowId))
+      .first();
+    if (workflowCollision) {
+      throw new Error("Unable to allocate a unique diligence workflow id");
+    }
     await ctx.db.insert("agentScratchpads", {
       agentThreadId: workflowId,
       userId: (workspace.identity.rawUserId ?? ("system" as any)) as any,
@@ -800,6 +937,8 @@ export const materializeForEntity = mutation({
         checkpointNumber: 0,
         workflowType: OVERLAY_WORKFLOW_TYPE,
       },
+      ownerKey: workspace.entity.ownerKey,
+      entityId: workspace.entity._id,
       entitySlug: workspace.entity.slug,
       status: "streaming",
       mode: "live",
@@ -811,6 +950,8 @@ export const materializeForEntity = mutation({
       0,
       internal.domains.product.diligenceProjections.runScratchpadProjectionPass,
       {
+        ownerKey: workspace.entity.ownerKey,
+        entityId: workspace.entity._id,
         workflowId,
         reason: "materialize",
         userId: workspace.identity.rawUserId,
@@ -866,9 +1007,10 @@ export const requestRefreshAndRun = mutation({
 
     const existing = await ctx.db
       .query("diligenceProjections")
-      .withIndex("by_entity_block_run", (q) =>
+      .withIndex("by_owner_entity_block_run", (q) =>
         q
-          .eq("entitySlug", args.entitySlug)
+          .eq("ownerKey", workspace.entity.ownerKey)
+          .eq("entityId", workspace.entity._id)
           .eq("blockType", args.blockType)
           .eq("scratchpadRunId", args.scratchpadRunId),
       )
@@ -876,7 +1018,7 @@ export const requestRefreshAndRun = mutation({
 
     let refreshStatus: "queued" | "already-queued" | "not-found" = "not-found";
     let queuedAt: number | undefined;
-    if (existing) {
+    if (existing?.producerAssurance === "internal_structuring_v1") {
       const now = Date.now();
       const alreadyQueued =
         typeof existing.refreshRequestedAt === "number" &&
@@ -892,6 +1034,7 @@ export const requestRefreshAndRun = mutation({
     }
 
     const workflowId = buildOverlayRunWorkflowId({
+      entityId: String(workspace.entity._id),
       entitySlug: workspace.entity.slug,
       reason: "refresh",
       targetBlockType: args.blockType,
@@ -900,6 +1043,8 @@ export const requestRefreshAndRun = mutation({
       0,
       internal.domains.product.diligenceProjections.runScratchpadProjectionPass,
       {
+        ownerKey: workspace.entity.ownerKey,
+        entityId: workspace.entity._id,
         workflowId,
         reason: "refresh",
         targetBlockType: args.blockType,
@@ -937,12 +1082,19 @@ export const requestRefreshAndRun = mutation({
  */
 export const clearForEntity = mutation({
   args: {
+    anonymousSessionId: v.optional(v.string()),
+    shareToken: v.optional(v.string()),
     entitySlug: v.string(),
   },
   handler: async (ctx, args) => {
+    const workspace = await requireEntityWorkspaceWriteAccessBySlug(ctx, args);
     const rows = await ctx.db
       .query("diligenceProjections")
-      .withIndex("by_entity", (q) => q.eq("entitySlug", args.entitySlug))
+      .withIndex("by_owner_entity", (q) =>
+        q
+          .eq("ownerKey", workspace.entity.ownerKey)
+          .eq("entityId", workspace.entity._id),
+      )
       .take(MAX_PROJECTIONS_PER_ENTITY);
     for (const row of rows) {
       await ctx.db.delete(row._id);

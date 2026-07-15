@@ -1479,10 +1479,323 @@ export const insertBlockBetween = mutation({
   },
 });
 
+export type GuardedBlockInsertDraft = {
+  kind: Doc<"productBlocks">["kind"];
+  content: Doc<"productBlocks">["content"];
+  sourceRefIds?: string[];
+  attributes?: Doc<"productBlocks">["attributes"];
+};
+
+export type GuardedBlockBatchInsertArgs = {
+  entityId: Id<"productEntities">;
+  targetBlockId: Id<"productBlocks">;
+  expectedTargetRevision: number;
+  beforeDrafts: GuardedBlockInsertDraft[];
+  afterDrafts: GuardedBlockInsertDraft[];
+};
+
+export type GuardedBlockBatchInsertResult = {
+  targetBlockId: Id<"productBlocks">;
+  insertedBlockIds: Id<"productBlocks">[];
+  orderedBlockIds: Id<"productBlocks">[];
+  lastBlockId: Id<"productBlocks">;
+};
+
+/**
+ * Owner-only, transaction-safe materialization for an already-approved block
+ * plan. The target supplies entity, parent, and ordering context; callers
+ * cannot smuggle cross-notebook anchors or authorship through the batch.
+ */
+export async function applyGuardedBlockBatchInsert(
+  ctx: MutationCtx,
+  args: GuardedBlockBatchInsertArgs,
+): Promise<GuardedBlockBatchInsertResult> {
+  const drafts = [...args.beforeDrafts, ...args.afterDrafts];
+  if (drafts.length > 50) {
+    throw convexError({
+      code: "BLOCK_BATCH_TOO_LARGE",
+      maxBlocks: 50,
+      actualBlocks: drafts.length,
+    });
+  }
+  const batchBytes = new TextEncoder().encode(JSON.stringify(drafts)).length;
+  if (batchBytes > 500_000) {
+    throw convexError({
+      code: "BLOCK_BATCH_BYTES_EXCEEDED",
+      maxBytes: 500_000,
+      actualBytes: batchBytes,
+    });
+  }
+  for (const draft of drafts) {
+    assertBlockContentSize(draft.content, { kind: draft.kind });
+  }
+
+  const access = await requireBlockWriteAccessById(ctx, {
+    blockId: args.targetBlockId,
+  });
+  const { block: target, entity, identity, mode } = access;
+  if (
+    mode !== "owner" ||
+    entity._id !== args.entityId ||
+    target.entityId !== args.entityId ||
+    target.ownerKey !== identity.ownerKey ||
+    target.accessMode !== "edit"
+  ) {
+    throw new Error("Writable notebook block not found");
+  }
+  if (
+    !Number.isSafeInteger(args.expectedTargetRevision) ||
+    target.revision !== args.expectedTargetRevision
+  ) {
+    throw convexError({
+      code: "REVISION_MISMATCH",
+      blockId: args.targetBlockId,
+      expectedRevision: args.expectedTargetRevision,
+      actualRevision: target.revision,
+    });
+  }
+
+  const siblings = await ctx.db
+    .query("productBlocks")
+    .withIndex("by_entity_position", (q) =>
+      q.eq("entityId", args.entityId).eq("parentBlockId", target.parentBlockId),
+    )
+    .take(501);
+  if (siblings.length > 500) {
+    throw convexError({
+      code: "BLOCK_SIBLING_READ_LIMIT",
+      maxSiblings: 500,
+      reason: "fail_closed_before_batch_insert",
+    });
+  }
+  const orderedSiblings = siblings
+    .filter((block) => block.deletedAt === undefined)
+    .sort((left, right) =>
+      comparePositionsWithId(
+        { int: left.positionInt, frac: left.positionFrac, id: String(left._id) },
+        { int: right.positionInt, frac: right.positionFrac, id: String(right._id) },
+      ),
+    );
+  const targetIndex = orderedSiblings.findIndex(
+    (block) => block._id === args.targetBlockId,
+  );
+  if (targetIndex < 0) {
+    throw new Error("Writable notebook block not found");
+  }
+  const previous = orderedSiblings[targetIndex - 1] ?? null;
+  const next = orderedSiblings[targetIndex + 1] ?? null;
+  const targetPosition = {
+    int: target.positionInt,
+    frac: target.positionFrac,
+  };
+  const beforePositions = positionsBetween(
+    previous
+      ? { int: previous.positionInt, frac: previous.positionFrac }
+      : null,
+    targetPosition,
+    args.beforeDrafts.length,
+  );
+  const afterPositions = positionsBetween(
+    targetPosition,
+    next ? { int: next.positionInt, frac: next.positionFrac } : null,
+    args.afterDrafts.length,
+  );
+
+  const insertAt = async (
+    draft: GuardedBlockInsertDraft,
+    position: { int: number; frac: string },
+    index: number,
+  ): Promise<Id<"productBlocks">> => {
+    await assertNotebookWriteRateLimit(ctx, {
+      ownerKey: identity.ownerKey,
+      sessionKey: notebookWriteSessionKey(identity),
+      actorKey: identity.ownerKey,
+      operation: "applyGuardedBlockBatchInsert",
+      shardHint: `${args.targetBlockId}:${index}`,
+    });
+    const now = Date.now();
+    const blockId = await ctx.db.insert("productBlocks", {
+      ownerKey: entity.ownerKey,
+      entityId: entity._id,
+      parentBlockId: target.parentBlockId,
+      kind: draft.kind,
+      authorKind: "user",
+      authorId: identity.ownerKey,
+      content: draft.content,
+      positionInt: position.int,
+      positionFrac: position.frac,
+      accessMode: "edit",
+      isPublic: false,
+      sourceRefIds: draft.sourceRefIds,
+      attributes: draft.attributes,
+      revision: 1,
+      searchableText: recomputeBlockSearchableText({
+        content: draft.content,
+        deletedAt: undefined,
+      }),
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.domains.search.embedRowOnUpdate.embedBlockRow,
+      { blockId },
+    );
+    return blockId;
+  };
+
+  const beforeBlockIds: Id<"productBlocks">[] = [];
+  for (let index = 0; index < args.beforeDrafts.length; index += 1) {
+    beforeBlockIds.push(
+      await insertAt(args.beforeDrafts[index]!, beforePositions[index]!, index),
+    );
+  }
+  const afterBlockIds: Id<"productBlocks">[] = [];
+  for (let index = 0; index < args.afterDrafts.length; index += 1) {
+    afterBlockIds.push(
+      await insertAt(
+        args.afterDrafts[index]!,
+        afterPositions[index]!,
+        args.beforeDrafts.length + index,
+      ),
+    );
+  }
+  const insertedBlockIds = [...beforeBlockIds, ...afterBlockIds];
+  return {
+    targetBlockId: target._id,
+    insertedBlockIds,
+    orderedBlockIds: [...beforeBlockIds, target._id, ...afterBlockIds],
+    lastBlockId: afterBlockIds.at(-1) ?? target._id,
+  };
+}
+
 /**
  * Update a block's content (or a subset of fields). Creates a previousBlockId
  * chain so the agent-generated version isn't lost when the user rewrites.
  */
+export type GuardedBlockUpdateArgs = {
+  anonymousSessionId?: string;
+  shareToken?: string;
+  blockId: Id<"productBlocks">;
+  content?: Doc<"productBlocks">["content"];
+  kind?: Doc<"productBlocks">["kind"];
+  isChecked?: boolean;
+  sourceRefIds?: string[];
+  attributes?: Doc<"productBlocks">["attributes"];
+  forkHistory?: boolean;
+  editedByAuthorKind?: Doc<"productBlocks">["authorKind"];
+  editedByAuthorId?: string;
+  expectedRevision?: number;
+};
+
+export type GuardedBlockUpdateResult = {
+  blockId: Id<"productBlocks">;
+  ownerKey: string;
+  beforeRevision: number;
+  afterRevision: number;
+  beforeContent: Doc<"productBlocks">["content"];
+  afterContent: Doc<"productBlocks">["content"];
+  previousBlockId?: Id<"productBlocks">;
+};
+
+/**
+ * Shared guarded block-write primitive. Authority workflows call this from
+ * the same transaction as their live grant check and receipt insert, so a
+ * delegated edit cannot bypass notebook ownership, limits, OCC, history,
+ * search, or embedding invariants.
+ */
+export async function applyGuardedBlockUpdate(
+  ctx: MutationCtx,
+  args: GuardedBlockUpdateArgs,
+): Promise<GuardedBlockUpdateResult> {
+  assertBlockContentSize(args.content, { blockId: args.blockId, kind: args.kind });
+  const { block: existing, identity } = await requireBlockWriteAccessById(ctx, args);
+  await assertNotebookWriteRateLimit(ctx, {
+    ownerKey: identity.ownerKey,
+    sessionKey: notebookWriteSessionKey(identity),
+    actorKey: args.editedByAuthorId,
+    operation: "updateBlock",
+    shardHint: `${args.editedByAuthorId ?? "anon"}:${args.blockId}`,
+  });
+  if (existing.accessMode !== "edit") {
+    throw convexError({ code: "BLOCK_READ_ONLY", blockId: args.blockId });
+  }
+  if (
+    typeof args.expectedRevision === "number" &&
+    args.expectedRevision !== existing.revision
+  ) {
+    throw convexError({
+      code: "REVISION_MISMATCH",
+      blockId: args.blockId,
+      current: existing.revision,
+      expected: args.expectedRevision,
+    });
+  }
+
+  const now = Date.now();
+  let previousBlockId: Id<"productBlocks"> | undefined;
+  if (args.forkHistory) {
+    previousBlockId = await ctx.db.insert("productBlocks", {
+      ownerKey: existing.ownerKey,
+      entityId: existing.entityId,
+      parentBlockId: existing.parentBlockId,
+      kind: existing.kind,
+      authorKind: existing.authorKind,
+      authorId: existing.authorId,
+      content: existing.content,
+      positionInt: existing.positionInt,
+      positionFrac: existing.positionFrac,
+      isChecked: existing.isChecked,
+      accessMode: existing.accessMode,
+      isPublic: existing.isPublic,
+      sourceSessionId: existing.sourceSessionId,
+      sourceToolStep: existing.sourceToolStep,
+      sourceRefIds: existing.sourceRefIds,
+      attributes: existing.attributes,
+      previousBlockId: existing.previousBlockId,
+      revision: existing.revision,
+      deletedAt: now,
+      searchableText: "",
+      createdAt: existing.createdAt,
+      updatedAt: existing.updatedAt,
+    });
+  }
+
+  const nextContent = args.content ?? existing.content;
+  const nextBlockSearchableText = recomputeBlockSearchableText({
+    content: nextContent,
+    deletedAt: undefined,
+  });
+  const afterRevision = existing.revision + 1;
+  await ctx.db.patch(args.blockId, {
+    content: nextContent,
+    kind: args.kind ?? existing.kind,
+    isChecked: args.isChecked ?? existing.isChecked,
+    sourceRefIds: args.sourceRefIds ?? existing.sourceRefIds,
+    attributes: args.attributes ?? existing.attributes,
+    previousBlockId: previousBlockId ?? existing.previousBlockId,
+    revision: afterRevision,
+    authorKind: args.editedByAuthorKind ?? existing.authorKind,
+    authorId: args.editedByAuthorId ?? existing.authorId,
+    searchableText: nextBlockSearchableText,
+    updatedAt: now,
+  });
+  await ctx.scheduler.runAfter(
+    0,
+    internal.domains.search.embedRowOnUpdate.embedBlockRow,
+    { blockId: args.blockId },
+  );
+  return {
+    blockId: args.blockId,
+    ownerKey: identity.ownerKey,
+    beforeRevision: existing.revision,
+    afterRevision,
+    beforeContent: existing.content,
+    afterContent: nextContent,
+    previousBlockId,
+  };
+}
+
 export const updateBlock = mutation({
   args: {
     anonymousSessionId: v.optional(v.string()),
@@ -1505,91 +1818,8 @@ export const updateBlock = mutation({
     expectedRevision: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<Id<"productBlocks">> => {
-    assertBlockContentSize(args.content, { blockId: args.blockId, kind: args.kind });
-    const { block: existing, identity } = await requireBlockWriteAccessById(ctx, args);
-    await assertNotebookWriteRateLimit(ctx, {
-      ownerKey: identity.ownerKey,
-      sessionKey: notebookWriteSessionKey(identity),
-      actorKey: args.editedByAuthorId,
-      operation: "updateBlock",
-      shardHint: `${args.editedByAuthorId ?? "anon"}:${args.blockId}`,
-    });
-    if (existing.accessMode !== "edit") {
-      throw convexError({ code: "BLOCK_READ_ONLY", blockId: args.blockId });
-    }
-    if (
-      typeof args.expectedRevision === "number" &&
-      args.expectedRevision !== existing.revision
-    ) {
-      throw convexError({
-        code: "REVISION_MISMATCH",
-        blockId: args.blockId,
-        current: existing.revision,
-        expected: args.expectedRevision,
-      });
-    }
-
-    const now = Date.now();
-    let previousBlockId: Id<"productBlocks"> | undefined;
-    if (args.forkHistory) {
-      // Snapshot the current state as a previous-revision row and mark it deleted
-      // so it drops out of the live list but is still reachable via by_previous.
-      previousBlockId = await ctx.db.insert("productBlocks", {
-        ownerKey: existing.ownerKey,
-        entityId: existing.entityId,
-        parentBlockId: existing.parentBlockId,
-        kind: existing.kind,
-        authorKind: existing.authorKind,
-        authorId: existing.authorId,
-        content: existing.content,
-        positionInt: existing.positionInt,
-        positionFrac: existing.positionFrac,
-        isChecked: existing.isChecked,
-        accessMode: existing.accessMode,
-        isPublic: existing.isPublic,
-        sourceSessionId: existing.sourceSessionId,
-        sourceToolStep: existing.sourceToolStep,
-        sourceRefIds: existing.sourceRefIds,
-        attributes: existing.attributes,
-        previousBlockId: existing.previousBlockId,
-        revision: existing.revision,
-        deletedAt: now,
-        // PR D: deleted snapshot row gets empty searchableText so it drops
-        // out of the federated `search_blocks` index immediately.
-        searchableText: "",
-        createdAt: existing.createdAt,
-        updatedAt: existing.updatedAt,
-      });
-    }
-
-    const nextContent = args.content ?? existing.content;
-    // PR D: refresh searchableText so the federated `search_blocks` index
-    // reflects the edited content. This is the hottest block write path.
-    const nextBlockSearchableText = recomputeBlockSearchableText({
-      content: nextContent,
-      deletedAt: undefined,
-    });
-    await ctx.db.patch(args.blockId, {
-      content: nextContent,
-      kind: args.kind ?? existing.kind,
-      isChecked: args.isChecked ?? existing.isChecked,
-      sourceRefIds: args.sourceRefIds ?? existing.sourceRefIds,
-      attributes: args.attributes ?? existing.attributes,
-      previousBlockId: previousBlockId ?? existing.previousBlockId,
-      revision: existing.revision + 1,
-      authorKind: args.editedByAuthorKind ?? existing.authorKind,
-      authorId: args.editedByAuthorId ?? existing.authorId,
-      searchableText: nextBlockSearchableText,
-      updatedAt: now,
-    });
-    // PR E: schedule per-row embedding for the edited block. Idempotent on
-    // searchableTextHash — same content → embed action skips re-fetch.
-    await ctx.scheduler.runAfter(
-      0,
-      internal.domains.search.embedRowOnUpdate.embedBlockRow,
-      { blockId: args.blockId },
-    );
-    return args.blockId;
+    const result = await applyGuardedBlockUpdate(ctx, args);
+    return result.blockId;
   },
 });
 

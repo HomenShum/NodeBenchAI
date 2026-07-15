@@ -56,7 +56,7 @@ export const generatePulseForEntity = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireProductIdentity(ctx, args.anonymousSessionId);
-    const ownerKey = identity.anonymousSessionId ?? (identity.ownerKey as string);
+    const ownerKey = identity.ownerKey;
     const now = args.atTimestampMs ?? Date.now();
     const dateKey = dateKeyFor(now);
 
@@ -77,20 +77,36 @@ export const generatePulseForEntity = mutation({
     const dayMs = 24 * 60 * 60 * 1000;
     const sinceMs = now - dayMs;
 
+    const entity = await ctx.db
+      .query("productEntities")
+      .withIndex("by_owner_slug", (q) =>
+        q.eq("ownerKey", ownerKey).eq("slug", args.entitySlug),
+      )
+      .first();
+    if (!entity) throw new Error("entity not found");
+
     const recentProjections = await ctx.db
       .query("diligenceProjections")
-      .withIndex("by_entity", (q) => q.eq("entitySlug", args.entitySlug))
+      .withIndex("by_owner_entity_updated", (q) =>
+        q.eq("ownerKey", ownerKey).eq("entityId", entity._id),
+      )
+      .order("desc")
       .take(200);
     const newProjections = recentProjections.filter(
-      (p: any) => (p.updatedAt ?? p.createdAt ?? 0) >= sinceMs,
+      (p: any) =>
+        (p.producerAssurance === "internal_structuring_v1" ||
+          p.producerAssurance === "internal_canonical_v1") &&
+        (p.updatedAt ?? p.createdAt ?? 0) >= sinceMs,
     );
 
     const recentActions = await ctx.db
       .query("agentActions")
-      .withIndex("by_entity_time", (q) => q.eq("entitySlug", args.entitySlug))
+      .withIndex("by_owner_time", (q) => q.eq("ownerKey", ownerKey))
       .order("desc")
-      .take(100);
-    const newActions = recentActions.filter((a: any) => a.createdAt >= sinceMs);
+      .take(200);
+    const newActions = recentActions.filter(
+      (a: any) => a.entitySlug === args.entitySlug && a.createdAt >= sinceMs,
+    );
 
     const materialChangeCount = newProjections.filter(
       (p: any) =>
@@ -102,7 +118,9 @@ export const generatePulseForEntity = mutation({
     const lines: string[] = [];
     lines.push(`# Pulse — ${args.entitySlug}`);
     lines.push(``);
-    lines.push(`**${dateKey}** · ${newProjections.length} new finding${newProjections.length === 1 ? "" : "s"} · ${newActions.length} action${newActions.length === 1 ? "" : "s"} · ${materialChangeCount} material`);
+    lines.push(
+      `**${dateKey}** · ${newProjections.length} new finding${newProjections.length === 1 ? "" : "s"} · ${newActions.length} action${newActions.length === 1 ? "" : "s"} · ${materialChangeCount} material`,
+    );
     lines.push(``);
     if (newProjections.length === 0 && newActions.length === 0) {
       lines.push(`_No activity in the last 24 hours._`);
@@ -153,14 +171,20 @@ export const getPulseForEntity = query({
     dateKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await resolveProductIdentitySafely(ctx, args.anonymousSessionId);
-    if (!identity) return null;
-    const ownerKey = identity.anonymousSessionId ?? (identity.ownerKey as string);
+    const identity = await resolveProductIdentitySafely(
+      ctx,
+      args.anonymousSessionId,
+    );
+    if (!identity.ownerKey) return null;
+    const ownerKey = identity.ownerKey;
     const key = args.dateKey ?? dateKeyFor(Date.now());
     const row = await ctx.db
       .query("pulseReports")
       .withIndex("by_owner_entity_date", (q) =>
-        q.eq("ownerKey", ownerKey).eq("entitySlug", args.entitySlug).eq("dateKey", key),
+        q
+          .eq("ownerKey", ownerKey)
+          .eq("entitySlug", args.entitySlug)
+          .eq("dateKey", key),
       )
       .first();
     return row ?? null;
@@ -178,9 +202,12 @@ export const listPulsesForEntity = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const identity = await resolveProductIdentitySafely(ctx, args.anonymousSessionId);
-    if (!identity) return [];
-    const ownerKey = identity.anonymousSessionId ?? (identity.ownerKey as string);
+    const identity = await resolveProductIdentitySafely(
+      ctx,
+      args.anonymousSessionId,
+    );
+    if (!identity.ownerKey) return [];
+    const ownerKey = identity.ownerKey;
     const limit = Math.min(args.limit ?? 14, MAX_LIST_LIMIT);
     const rows = await ctx.db
       .query("pulseReports")
@@ -204,9 +231,12 @@ export const listRecentPulsesForOwner = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const identity = await resolveProductIdentitySafely(ctx, args.anonymousSessionId);
-    if (!identity) return [];
-    const ownerKey = identity.anonymousSessionId ?? (identity.ownerKey as string);
+    const identity = await resolveProductIdentitySafely(
+      ctx,
+      args.anonymousSessionId,
+    );
+    if (!identity.ownerKey) return [];
+    const ownerKey = identity.ownerKey;
     const limit = Math.min(args.limit ?? 25, MAX_LIST_LIMIT);
     const rows = await ctx.db
       .query("pulseReports")
@@ -227,9 +257,12 @@ export const unreadPulseCount = query({
     anonymousSessionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await resolveProductIdentitySafely(ctx, args.anonymousSessionId);
-    if (!identity) return 0;
-    const ownerKey = identity.anonymousSessionId ?? (identity.ownerKey as string);
+    const identity = await resolveProductIdentitySafely(
+      ctx,
+      args.anonymousSessionId,
+    );
+    if (!identity.ownerKey) return 0;
+    const ownerKey = identity.ownerKey;
     const rows = await ctx.db
       .query("pulseReports")
       .withIndex("by_unread", (q) => q.eq("ownerKey", ownerKey))
@@ -246,7 +279,7 @@ export const markPulseRead = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireProductIdentity(ctx, args.anonymousSessionId);
-    const ownerKey = identity.anonymousSessionId ?? (identity.ownerKey as string);
+    const ownerKey = identity.ownerKey;
     const row = await ctx.db.get(args.pulseId);
     if (!row || row.ownerKey !== ownerKey) return null;
     if (row.readAt) return row._id;

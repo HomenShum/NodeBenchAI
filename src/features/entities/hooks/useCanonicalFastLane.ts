@@ -43,7 +43,7 @@ export function useCanonicalFastLane() {
       setState({ status: "loading" });
       try {
         const result = await runFastLane({
-          ownerKey: anonymousSessionId,
+          anonymousSessionId,
           entitySlug: args.entitySlug,
           userMessage: args.userMessage,
           threadId: args.threadId,

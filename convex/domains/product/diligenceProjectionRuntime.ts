@@ -1,4 +1,4 @@
-import type { Doc } from "../../_generated/dataModel";
+import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 import { ALL_BLOCK_TYPES, classifyAuthority, type BlockType, type AuthorityTier } from "../../../server/pipeline/authority/defaultTiers";
 
@@ -282,13 +282,17 @@ export function buildScratchpadMarkdownForDrafts(args: {
 export async function syncGenericDiligenceProjectionDrafts(
   ctx: MutationCtx,
   args: {
+    ownerKey: string;
+    entityId: Id<"productEntities">;
     entitySlug: string;
     drafts: readonly ProjectionDraft[];
   },
 ): Promise<ProjectionSyncResult> {
   const existingRows = await ctx.db
     .query("diligenceProjections")
-    .withIndex("by_entity", (q) => q.eq("entitySlug", args.entitySlug))
+    .withIndex("by_owner_entity", (q) =>
+      q.eq("ownerKey", args.ownerKey).eq("entityId", args.entityId),
+    )
     .collect();
 
   const producerPrefix = `projection:${args.entitySlug}:`;
@@ -318,6 +322,8 @@ export async function syncGenericDiligenceProjectionDrafts(
     if (!existing) {
       await ctx.db.insert("diligenceProjections", {
         ...draft,
+        ownerKey: args.ownerKey,
+        entityId: args.entityId,
         updatedAt: draft.version,
       });
       created += 1;
@@ -330,6 +336,8 @@ export async function syncGenericDiligenceProjectionDrafts(
     }
 
     await ctx.db.patch(existing._id, {
+      ownerKey: args.ownerKey,
+      entityId: args.entityId,
       version: draft.version,
       overallTier: draft.overallTier,
       headerText: draft.headerText,

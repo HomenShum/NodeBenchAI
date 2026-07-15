@@ -37,8 +37,13 @@ export const getLatestForEntity = query({
     const workspace = await requireEntityWorkspaceWriteAccessBySlug(ctx, args);
     const scratchpads = (await ctx.db
       .query("agentScratchpads")
-      .withIndex("by_entity", (q) => q.eq("entitySlug", workspace.entity.slug))
-      .collect()) as Doc<"agentScratchpads">[];
+      .withIndex("by_owner_entity", (q) =>
+        q
+          .eq("ownerKey", workspace.entity.ownerKey)
+          .eq("entityId", workspace.entity._id),
+      )
+      .order("desc")
+      .take(20)) as Doc<"agentScratchpads">[];
 
     if (scratchpads.length === 0) return null;
 
@@ -63,6 +68,7 @@ export const getLatestForEntity = query({
       }));
 
     return {
+      scratchpadId: latest._id,
       runId: latest.agentThreadId,
       status: (latest.status as ScratchpadStatus | undefined) ?? "streaming",
       markdownSource: readMarkdownSource(latest.scratchpad),
@@ -85,6 +91,8 @@ export const getLatestForEntity = query({
 export const upsertScratchpadRun = internalMutation({
   args: {
     runId: v.string(),
+    ownerKey: v.string(),
+    entityId: v.id("productEntities"),
     entitySlug: v.string(),
     userId: v.optional(v.id("users")),
     markdownSource: v.string(),
@@ -117,8 +125,17 @@ export const upsertScratchpadRun = internalMutation({
     };
 
     if (existing) {
+      if (
+        existing.ownerKey !== args.ownerKey ||
+        existing.entityId !== args.entityId ||
+        existing.entitySlug !== args.entitySlug
+      ) {
+        throw new Error("Scratchpad run belongs to a different workspace");
+      }
       await ctx.db.patch(existing._id, {
         scratchpad,
+        ownerKey: args.ownerKey,
+        entityId: args.entityId,
         entitySlug: args.entitySlug,
         status: args.status,
         mode: args.mode,
@@ -133,6 +150,8 @@ export const upsertScratchpadRun = internalMutation({
       agentThreadId: args.runId,
       userId: (args.userId ?? ("system" as Id<"users">)) as Id<"users">,
       scratchpad,
+      ownerKey: args.ownerKey,
+      entityId: args.entityId,
       entitySlug: args.entitySlug,
       status: args.status,
       mode: args.mode,
