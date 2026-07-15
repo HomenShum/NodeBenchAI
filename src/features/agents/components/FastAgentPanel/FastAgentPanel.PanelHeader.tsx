@@ -117,7 +117,7 @@ export const PanelHeader = memo(function PanelHeader({
   return (
     <div className={cn(
       "flex items-center gap-2 border-b border-edge bg-surface px-3 py-2.5",
-      isCompactSidebar && "px-4 py-3"
+      isCompactSidebar && "px-4 pb-3 pt-[calc(env(safe-area-inset-top,0px)+28px)] sm:py-3"
     )}>
       {/* Status dot + Title */}
       <div className={cn("min-w-0", isCompactSidebar ? "flex-1" : "flex items-center gap-2")}>
@@ -154,9 +154,6 @@ export const PanelHeader = memo(function PanelHeader({
                 )
               )}
             </div>
-            <p className="mt-1 truncate text-[11px] leading-5 text-content-muted">
-              Same chat surface, with files, notebook context, and workspace tools.
-            </p>
           </div>
         ) : (
           <>

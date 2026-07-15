@@ -2335,13 +2335,14 @@ export function FastAgentUIMessageBubble({
     return { citedCitationLibrary, entityLibrary };
   }, [entityEnrichment, isUser, message._creationTime, toolParts, uiParts.text, visibleText]);
 
-  // Extract media from BOTH tool results AND final text
+  // Structured tool output owns rich media cards. Final-answer Markdown renders
+  // its own links and images, so projecting it into a second gallery duplicates it.
   const extractedMedia = useMemo(() => {
     if (isUser) return { youtubeVideos: [], secDocuments: [], webSources: [], profiles: [], images: [] };
 
     // Only grouped-custom owners feed this renderer. Other owners are consumed
     // by FusedSearchResults, MemoryPill, ToolCallTransparency, or ToolStep.
-    const toolMedia = groupedToolOwners.reduce<ExtractedMedia>((acc, { entry }) => {
+    return groupedToolOwners.reduce<ExtractedMedia>((acc, { entry }) => {
       const media = getToolMedia(entry.part);
 
       return {
@@ -2352,15 +2353,7 @@ export function FastAgentUIMessageBubble({
         images: [...acc.images, ...media.images],
       };
     }, { youtubeVideos: [], secDocuments: [], webSources: [], profiles: [], images: [] });
-
-    // ALSO extract from final text (for when agent synthesizes response)
-    const textMedia = extractMediaFromText(visibleText || '');
-
-    return {
-      toolMedia,
-      textMedia,
-    };
-  }, [groupedToolOwners, isUser, visibleText]);
+  }, [groupedToolOwners, isUser]);
 
   // Extract document actions from tool results
   const extractedDocuments = useMemo(() => {
@@ -2393,7 +2386,7 @@ export function FastAgentUIMessageBubble({
 
     for (const entry of textRenderParts) {
       const text = visibleTextByOriginalIndex.get(entry.originalIndex) ?? '';
-      if (hasMedia(extractMediaFromText(text)) || extractDocumentActions(text).length > 0) {
+      if (extractDocumentActions(text).length > 0) {
         candidates.push(entry.originalIndex);
       }
     }
@@ -3296,161 +3289,6 @@ export function FastAgentUIMessageBubble({
               <Clock className="w-2.5 h-2.5" />
               {readMin} min read
             </span>
-          );
-        })()}
-
-        {/* AI Confidence Indicator */}
-        {!compact && !isUser && message.status !== 'streaming' && (cleanedText || visibleText) && (() => {
-          const text = cleanedText || visibleText || '';
-          const hedges = (text.match(/\b(might|may|could|possibly|perhaps|likely|unlikely|uncertain|not sure|it seems|appears to|I think|I believe|approximately|roughly)\b/gi) || []).length;
-          const totalWords = text.split(/\s+/).length;
-          const hedgeRatio = totalWords > 0 ? hedges / totalWords : 0;
-          const confidence = hedgeRatio > 0.03 ? 'low' : hedgeRatio > 0.01 ? 'medium' : 'high';
-          const confColors = { high: '#22c55e', medium: '#f59e0b', low: '#ef4444' };
-          const confLabels = { high: 'High confidence', medium: 'Moderate confidence', low: 'Low confidence' };
-          return (
-            <div className="flex items-center gap-1.5 mt-0.5" title={`${confLabels[confidence]} — ${hedges} hedging words in ${totalWords} words`}>
-              <div className="flex gap-0.5">
-                {[0, 1, 2].map(i => (
-                  <div
-                    key={i}
-                    className="w-1.5 h-1.5 rounded-full transition-colors"
-                    style={{ background: i <= (confidence === 'high' ? 2 : confidence === 'medium' ? 1 : 0) ? confColors[confidence] : 'var(--border-color)' }}
-                  />
-                ))}
-              </div>
-              <span className="text-xs text-content-muted">{confLabels[confidence]}</span>
-            </div>
-          );
-        })()}
-
-        {/* Inline Source Citations with Hover Preview */}
-        {!isUser && message.status !== 'streaming' && (cleanedText || visibleText || '').match(/\[\d+\]/) && (() => {
-          const text = cleanedText || visibleText || '';
-          const citationNums = [...new Set((text.match(/\[(\d+)\]/g) || []).map(c => c.replace(/[\[\]]/g, '')))];
-          if (citationNums.length === 0) return null;
-          const urls = text.match(/https?:\/\/[^\s)]+/g) || [];
-          return (
-            <div className="flex flex-wrap gap-1 mt-1.5">
-              <span className="text-xs text-content-muted mr-0.5">Sources:</span>
-              {citationNums.slice(0, 8).map((num, i) => {
-                const url = urls[i] || null;
-                let domain = '';
-                try { if (url) domain = new URL(url).hostname.replace('www.', ''); } catch { /* */ }
-                return (
-                  <span key={num} className="relative group/cite">
-                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[8px] font-bold cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800/40 transition-colors">
-                      {num}
-                    </span>
-                    {url && (
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover/cite:flex flex-col w-[200px] bg-surface border border-edge rounded-lg shadow-xl p-2 z-50 pointer-events-none">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=16`} alt="" className="w-3 h-3 rounded" width={12} height={12} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                          <span className="text-xs font-medium text-content truncate">{domain}</span>
-                        </div>
-                        <span className="text-[8px] text-content-muted truncate">{url.slice(0, 60)}</span>
-                      </div>
-                    )}
-                  </span>
-                );
-              })}
-            </div>
-          );
-        })()}
-
-        {/* Image/File Inline Previews */}
-        {!isUser && (cleanedText || visibleText || '').match(/!\[.*?\]\(https?:\/\/[^)]+\)/) && (() => {
-          const text = cleanedText || visibleText || '';
-          const imgMatches = [...text.matchAll(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g)];
-          if (imgMatches.length === 0) return null;
-          return (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {imgMatches.slice(0, 4).map((match, i) => (
-                <a
-                  key={i}
-                  href={match[2]}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-lg overflow-hidden border border-edge hover:border-blue-400 transition-colors shadow-sm"
-                >
-                  <img
-                    src={match[2]}
-                    alt={match[1] || 'Image'}
-                    className="max-w-[160px] max-h-[120px] object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                </a>
-              ))}
-            </div>
-          );
-        })()}
-
-        {/* File Attachment Previews (detect file URLs) */}
-        {!isUser && (cleanedText || visibleText || '').match(/\bhttps?:\/\/\S+\.(pdf|csv|xlsx?|docx?|pptx?|json|xml)\b/i) && (() => {
-          const text = cleanedText || visibleText || '';
-          const fileMatches = [...text.matchAll(/\bhttps?:\/\/\S+\.(pdf|csv|xlsx?|docx?|pptx?|json|xml)\b/gi)];
-          if (fileMatches.length === 0) return null;
-          const fileIcons: Record<string, string> = { pdf: '📕', csv: '📊', xls: '📊', xlsx: '📊', doc: '📝', docx: '📝', pptx: '📽️', ppt: '📽️', json: '📋', xml: '📋' };
-          return (
-            <div className="flex flex-wrap gap-1.5 mt-1.5">
-              {fileMatches.slice(0, 4).map((match, i) => {
-                const ext = match[1].toLowerCase();
-                const filename = match[0].split('/').pop() || `file.${ext}`;
-                return (
-                  <a
-                    key={i}
-                    href={match[0]}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="smart-action-chip"
-                  >
-                    <span>{fileIcons[ext] || '📎'}</span>
-                    <span className="truncate max-w-[120px]">{decodeURIComponent(filename)}</span>
-                  </a>
-                );
-              })}
-            </div>
-          );
-        })()}
-
-        {/* Rich Link Preview Cards */}
-        {!isUser && message.status !== 'streaming' && (cleanedText || visibleText || '').match(/https?:\/\/[^\s)]+/) && (() => {
-          const text = cleanedText || visibleText || '';
-          const urlMatches = [...new Set(text.match(/https?:\/\/[^\s)]+/g) || [])];
-          const imageExts = /\.(png|jpg|jpeg|gif|svg|webp|ico)$/i;
-          const fileExts = /\.(pdf|csv|xlsx?|docx?|pptx?|json|xml)$/i;
-          const links = urlMatches.filter(u => !imageExts.test(u) && !fileExts.test(u)).slice(0, 3);
-          if (links.length === 0) return null;
-          return (
-            <div className="flex flex-col gap-1.5 mt-2">
-              {links.map((url, i) => {
-                let domain = '';
-                try { domain = new URL(url).hostname.replace('www.', ''); } catch { domain = url.slice(0, 30); }
-                return (
-                  <a
-                    key={i}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-edge bg-surface-secondary hover:bg-surface-hover transition-colors group/link"
-                  >
-                    <img
-                      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
-                      alt=""
-                      className="w-4 h-4 rounded flex-shrink-0"
-                      width={16}
-                      height={16}
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-content truncate group-hover/link:underline">{domain}</div>
-                      <div className="text-xs text-content-muted truncate">{url.slice(0, 80)}</div>
-                    </div>
-                    <ExternalLink className="w-3 h-3 text-content-muted flex-shrink-0 opacity-0 group-hover/link:opacity-100 transition-opacity" />
-                  </a>
-                );
-              })}
-            </div>
           );
         })()}
 

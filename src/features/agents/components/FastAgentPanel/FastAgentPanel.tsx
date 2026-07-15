@@ -172,31 +172,6 @@ function DossierFocusSubscription({
  * - Clean, minimal interface
  */
 
-/** R6: Mobile Command Chips — shown above the input bar on mobile (max-width: 1024px). */
-function MobileCommandChips({ onSelect }: { onSelect: (message: string) => void }) {
-  const chips = [
-    { label: "Daily Brief", message: "Generate my daily brief \u2014 what changed, main contradiction, next moves" },
-    { label: "Run Diligence", message: "Run diligence analysis on this company" },
-    { label: "Compare", message: "Compare this company against its top 3 competitors" },
-    { label: "Market Scan", message: "Scan the market for recent changes affecting this company" },
-  ];
-  return (
-    <div className="flex flex-wrap gap-2 px-3 py-2 lg:hidden" role="group" aria-label="Quick command suggestions">
-      {chips.map((c) => (
-        <button
-          key={c.label}
-          type="button"
-          onClick={() => onSelect(c.message)}
-          aria-label={`Send command: ${c.label}`}
-          className="rounded-full border border-edge bg-surface px-3 py-1.5 text-[11px] font-medium text-content-secondary transition-all duration-fast ease-out hover:bg-surface-hover hover:text-content active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/40 motion-reduce:transform-none motion-reduce:transition-none"
-        >
-          {c.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export const FastAgentPanel = memo(function FastAgentPanel({
   isOpen,
   onClose,
@@ -370,10 +345,12 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     const saved = localStorage.getItem('fastAgentPanel.chatMode');
     return (saved === 'agent-streaming' || saved === 'agent') ? saved : 'agent-streaming';
   });
+  const lastAnnouncedChatModeRef = useRef(chatMode);
 
   // Force anonymous users to agent-streaming mode (agent mode requires auth)
   useEffect(() => {
     if (!isAuthenticated && chatMode === 'agent') {
+      lastAnnouncedChatModeRef.current = 'agent-streaming';
       setChatMode('agent-streaming');
     }
   }, [isAuthenticated, chatMode]);
@@ -445,9 +422,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
   const [isAutoScrollPaused, setIsAutoScrollPaused] = useState(false);
   const lastScrollTopRef = useRef(0);
 
-  // Scroll progress
-  const [scrollProgress, setScrollProgress] = useState(0);
-
   // Typing speed indicator
   const typingStartRef = useRef<number>(0);
   const typingWordCountRef = useRef<number>(0);
@@ -472,26 +446,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
   // Artifacts/Canvas panel
   const [showArtifacts, setShowArtifacts] = useState(false);
   const [artifactContent, setArtifactContent] = useState<{ type: 'html' | 'svg' | 'code'; content: string; language?: string } | null>(null);
-
-  // Focus/mode presets
-  const FOCUS_MODES = [
-    { id: 'default', label: 'Default', icon: '💬', prompt: '' },
-    { id: 'academic', label: 'Academic', icon: '🎓', prompt: 'Respond in an academic style with citations, formal language, and structured analysis.' },
-    { id: 'creative', label: 'Creative', icon: '🎨', prompt: 'Respond creatively with vivid language, metaphors, and engaging narrative.' },
-    { id: 'precise', label: 'Precise', icon: '🎯', prompt: 'Be extremely precise and concise. Use bullet points. No fluff. Facts only.' },
-    { id: 'code', label: 'Code', icon: '💻', prompt: 'Focus on code. Provide working examples with comments. Use best practices.' },
-  ] as const;
-  const [focusMode, setFocusMode] = useState('default');
-  const [showFocusPicker, setShowFocusPicker] = useState(false);
-
-  // Tone/style presets
-  const TONE_PRESETS = [
-    { id: 'neutral', label: 'Neutral', icon: '⚖️' },
-    { id: 'formal', label: 'Formal', icon: '🏛️' },
-    { id: 'casual', label: 'Casual', icon: '😊' },
-    { id: 'technical', label: 'Technical', icon: '⚙️' },
-  ] as const;
-  const [tonePreset, setTonePreset] = useState('neutral');
 
   // Auto-save drafts (localStorage)
   const draftKey = `fa_draft_${activeThreadId || 'new'}`;
@@ -933,8 +887,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
           setShowContextPruning(false);
         } else if (showPersonaPicker) {
           setShowPersonaPicker(false);
-        } else if (showFocusPicker) {
-          setShowFocusPicker(false);
         } else if (showSearch) {
           setShowSearch(false);
           setSearchQuery('');
@@ -1036,9 +988,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       }
       lastScrollTopRef.current = scrollTop;
 
-      // Scroll progress bar
-      const maxScroll = scrollHeight - clientHeight;
-      setScrollProgress(maxScroll > 0 ? scrollTop / maxScroll : 0);
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
@@ -1178,6 +1127,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     setActiveThreadId(null);
     setAttachedFiles([]);
     setInput(message);
+    lastAnnouncedChatModeRef.current = "agent-streaming";
     setChatMode("agent-streaming");
     setPendingAutoSend({ requestId, message });
   }, [isOpen, onOptionsConsumed, openOptions, isViewportActiveVariant, showsNotebookWorkspaceTabs]);
@@ -1410,6 +1360,12 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       model: msg.model,
     }));
   }, [chatMode, streamingMessages, agentMessages, isAuthenticated, demoMessages, isProductConversationMode, productMessagesToRender]);
+
+  const showPanelTabBar =
+    showsNotebookWorkspaceTabs ||
+    activeTab !== 'chat' ||
+    messagesToRender.length > 0 ||
+    isBusy;
 
   // Auto-title from first exchange (must be after messagesToRender)
   const autoTitle = useMemo(() => {
@@ -1678,8 +1634,10 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     localStorage.setItem('fastAgentPanel.isMinimized', String(isMinimized));
   }, [isMinimized]);
 
-  // Reset active thread when switching chat modes
+  // Reset only after an actual mode change, never during initial mount hydration.
   useEffect(() => {
+    if (lastAnnouncedChatModeRef.current === chatMode) return;
+    lastAnnouncedChatModeRef.current = chatMode;
     setActiveThreadId(null);
     toast.info(`Switched to ${chatMode === 'agent' ? 'Agent' : 'Agent Streaming'} mode`);
   }, [chatMode]);
@@ -2604,6 +2562,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         )}
 
         {/* Tab Bar - Primary tabs visible, power-user tabs behind overflow (hidden in focus mode) */}
+        {showPanelTabBar && (
         <div className={cn(
           "flex items-center border-b border-edge/50",
           isCompactSidebar
@@ -2670,6 +2629,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
             </div>
           </div>}
         </div>
+        )}
 
         {/* Swarm Lanes View - Shows when thread has active swarm */}
         {activeThreadId && isSwarmActive && (
@@ -2792,13 +2752,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                   </div>
                 )}
 
-                {/* Scroll progress bar */}
-                {scrollProgress > 0.01 && scrollProgress < 0.99 && (
-                  <div className="h-[2px] bg-surface-secondary flex-shrink-0">
-                    <div className="h-full bg-indigo-600 transition-all duration-100" style={{ width: `${scrollProgress * 100}%` }} />
-                  </div>
-                )}
-
                 {/* Main scrollable chat area */}
                 <div
                   ref={scrollContainerRef}
@@ -2847,29 +2800,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                     </div>
                   )}
 
-                  {/* Conversation Memory Chips */}
-                  {activeThreadId && messagesToRender && messagesToRender.length > 2 && (
-                    <div className="flex items-center gap-1.5 flex-wrap mb-2">
-                      <span className="text-xs font-medium text-content-muted mr-1">Context:</span>
-                      {(() => {
-                        const topics = new Set<string>();
-                        messagesToRender.slice(0, 6).forEach((m: any) => {
-                          const t = (m.text || m.content || '').slice(0, 200);
-                          const words = t.split(/\s+/).filter((w: string) => w.length > 5 && /^[A-Z]/.test(w));
-                          words.slice(0, 2).forEach((w: string) => topics.add(w.replace(/[^a-zA-Z]/g, '')));
-                        });
-                        return Array.from(topics).slice(0, 4).map(topic => (
-                          <span key={topic} className="px-2 py-0.5 text-xs font-medium bg-surface-secondary border border-edge rounded-full text-content-secondary">
-                            {topic}
-                          </span>
-                        ));
-                      })()}
-                      <span className="px-2 py-0.5 text-xs font-medium bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-full text-violet-600 dark:text-violet-400">
-                        {selectedModel}
-                      </span>
-                    </div>
-                  )}
-
                   {/* Parallel Agent Lanes (Live Activity) */}
                   {chatMode === 'agent-streaming' && streamingThread?.agentThreadId && (
                     <div className="mb-4">
@@ -2891,22 +2821,11 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                     />
                   )}
 
-                  {/* Empty State - Branding + Quick Actions */}
+                  {/* Empty State - Quick Actions */}
                   {!activeThreadId && (!messagesToRender || messagesToRender.length === 0) && (
                     <div className="flex-1 flex flex-col overflow-y-auto">
-                      <div className="mx-auto flex w-full max-w-[440px] flex-col items-center justify-center px-4 pb-8 pt-10 text-center">
-                        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 dark:border-white/[0.12] dark:bg-[#171c22] dark:text-gray-300">
-                          <MessageSquare className="h-3.5 w-3.5 text-[var(--accent-primary)]" />
-                          Workspace chat
-                        </div>
-                        <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-content">
-                          Ask directly or pick a starting point
-                        </h2>
-                        <p className="mt-2 max-w-[360px] text-[13px] leading-6 text-content-muted">
-                          Same conversation feel as the chat page, with recent threads and workspace context close at hand.
-                        </p>
-
-                       <div className="mt-6 grid w-full gap-2 sm:grid-cols-2">
+                      <div className="mx-auto flex w-full max-w-[440px] flex-col items-center justify-center px-4 pb-8 pt-6 text-center">
+                       <div className="grid w-full gap-2 sm:grid-cols-2">
                          {[
                            { label: 'What gaps do I have before pitching?', icon: '🎯' },
                            { label: 'Should I build or find a partner?', icon: '🏗️' },
@@ -3217,35 +3136,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                     </div>
                   )}
 
-                  {/* Follow-up suggestion chips (shown after last assistant message, not while streaming) */}
-                  {!isCompactSidebar && !isBusy && messagesToRender && messagesToRender.length > 0 && (() => {
-                    const lastMsg = messagesToRender[messagesToRender.length - 1];
-                    if (lastMsg?.role !== 'assistant') return null;
-                    const txt = (lastMsg.text || lastMsg.content || '').slice(0, 600);
-                    if (!txt || txt.length < 30) return null;
-                    // Extract key noun phrases for follow-up suggestions
-                    const sentences = txt.split(/[.!?\n]+/).filter((s: string) => s.trim().length > 10);
-                    const suggestions: string[] = [];
-                    if (sentences.length > 0) suggestions.push(`Tell me more about ${sentences[0].trim().split(/\s+/).slice(0, 5).join(' ')}...`);
-                    if (sentences.length > 1) suggestions.push(`How does this compare to alternatives?`);
-                    if (txt.length > 200) suggestions.push(`Summarize the key takeaways`);
-                    if (suggestions.length === 0) return null;
-                    return (
-                      <div className="flex flex-wrap gap-2 px-4 pb-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        {suggestions.slice(0, 3).map((s, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => { setInput(s); void stableSendMessage(s); }}
-                            className="text-xs px-3 py-1.5 rounded-full border border-edge bg-surface-secondary text-content-secondary hover:bg-surface-secondary hover:text-content hover:border-indigo-500/30 transition-all"
-                          >
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    );
-                  })()}
-
                   <div ref={messagesEndRef} />
                 </div>
 
@@ -3261,31 +3151,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                   >
                     ↓ New messages
                   </button>
-                )}
-
-                {/* Conversation Minimap (right edge) */}
-                {messagesToRender && messagesToRender.length > 4 && (
-                  <div className="absolute right-1 top-2 bottom-2 w-[6px] z-20 opacity-0 hover:opacity-100 transition-opacity duration-300">
-                    {messagesToRender.map((msg: any, idx: number) => {
-                      const isUser = msg.role === 'user';
-                      const charLen = (msg.text || msg.content || '').length;
-                      const totalChars = messagesToRender.reduce((s: number, m: any) => s + (m.text || m.content || '').length, 0);
-                      const heightPct = Math.max(2, (charLen / Math.max(1, totalChars)) * 100);
-                      return (
-                        <div
-                          key={idx}
-                          className="w-full rounded-sm cursor-pointer hover:brightness-125 transition-all"
-                          style={{
-                            height: `${heightPct}%`,
-                            background: isUser ? '#3b82f6' : '#22c55e',
-                            opacity: 0.5,
-                            marginBottom: '1px',
-                          }}
-                          title={`${isUser ? 'You' : 'AI'}: ${(msg.text || msg.content || '').slice(0, 50)}`}
-                        />
-                      );
-                    })}
-                  </div>
                 )}
 
                 {/* Scroll-to-bottom FAB (Claude/ChatGPT pattern) */}
@@ -3348,105 +3213,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                 </div>
               </div>
             )}
-
-            {/* Quick Actions Toolbar */}
-            {!isCompactSidebar && messagesToRender && messagesToRender.length > 0 && !isBusy && (
-              <div className="flex items-center gap-1 px-3 pt-1.5">
-                <span className="text-[8px] text-content-muted mr-1">Quick:</span>
-                {[
-                  { label: 'Summarize', action: 'Summarize the conversation so far in 3 bullet points' },
-                  { label: 'Simplify', action: 'Explain your last response in simpler terms' },
-                  { label: 'Expand', action: 'Expand on your last point with more detail and examples' },
-                  { label: 'Translate', action: 'Translate your last response to Spanish' },
-                ].map((qa, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    className="text-xs px-2 py-0.5 rounded-md bg-surface-secondary border border-edge text-content-muted hover:text-content hover:bg-surface-hover transition-colors"
-                    onClick={() => { setInput(qa.action); }}
-                  >
-                    {qa.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Focus Mode + Tone Picker Chips */}
-            {!isCompactSidebar && <div className="flex items-center gap-1.5 px-3 pt-1">
-              {/* Focus Mode Picker */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowFocusPicker(p => !p)}
-                  className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-md bg-surface-secondary border border-edge text-content-muted hover:text-content transition-colors"
-                  aria-label="Focus mode"
-                >
-                  {FOCUS_MODES.find(m => m.id === focusMode)?.icon} {FOCUS_MODES.find(m => m.id === focusMode)?.label}
-                </button>
-                {showFocusPicker && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowFocusPicker(false)} />
-                    <div className="absolute bottom-full left-0 mb-1 z-50 bg-surface border border-edge rounded-lg shadow-xl overflow-hidden">
-                      {FOCUS_MODES.map(mode => (
-                        <button
-                          key={mode.id}
-                          type="button"
-                          onClick={() => { setFocusMode(mode.id); setShowFocusPicker(false); }}
-                          className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-surface-secondary text-left transition-colors ${focusMode === mode.id ? 'bg-surface-secondary font-semibold' : ''}`}
-                        >
-                          <span>{mode.icon}</span>
-                          <span>{mode.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Tone Preset Chips */}
-              {TONE_PRESETS.map(tone => (
-                <button
-                  key={tone.id}
-                  type="button"
-                  onClick={() => setTonePreset(tone.id)}
-                  className={`text-xs px-1.5 py-0.5 rounded-md border transition-colors ${tonePreset === tone.id ? 'bg-indigo-600/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-400 font-medium' : 'bg-transparent border-transparent text-content-muted hover:text-content'}`}
-                  title={`Tone: ${tone.label}`}
-                >
-                  {tone.icon}
-                </button>
-              ))}
-            </div>}
-
-            {/* Follow-up Suggestion Chips */}
-            {!isCompactSidebar && messagesToRender && messagesToRender.length > 0 && !isBusy && (() => {
-              const lastMsg = messagesToRender[messagesToRender.length - 1] as any;
-              if (!lastMsg || lastMsg.role === 'user') return null;
-              const text = (lastMsg.text || lastMsg.content || '').slice(0, 300).toLowerCase();
-              const suggestions: string[] = [];
-              if (text.includes('financ') || text.includes('revenue') || text.includes('earning')) {
-                suggestions.push('Compare to competitors', 'Show quarterly trends', 'Break down by segment');
-              } else if (text.includes('research') || text.includes('study') || text.includes('paper')) {
-                suggestions.push('Find related papers', 'Summarize key findings', 'What are the limitations?');
-              } else if (text.includes('code') || text.includes('function') || text.includes('implement')) {
-                suggestions.push('Add error handling', 'Write tests', 'Optimize performance');
-              } else {
-                suggestions.push('Tell me more', 'Give me examples', 'What are the alternatives?');
-              }
-              return (
-                <div className="flex flex-wrap gap-1.5 px-3 pt-2">
-                  {suggestions.map((s, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      className="smart-action-chip text-xs"
-                      onClick={() => { setInput(s); }}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
 
             {/* Reply-To Indicator */}
             {replyToMsg && (
@@ -3533,10 +3299,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                   <span className="text-xs text-content-muted">A</span>
                 </div>
               </div>}
-              {/* R6: Mobile Command Chips — always visible above input on mobile */}
-              <MobileCommandChips
-                onSelect={(msg) => { setInput(msg); void stableSendMessage(msg); }}
-              />
               {isProductConversationMode ? (
                 <ProductIntakeComposer
                   value={input}

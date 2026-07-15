@@ -3,6 +3,22 @@
 Append-only lane for behavior-preserving AI Elements adoption inside
 `src/features/agents/components/FastAgentPanel/`. Newest entries first.
 
+## 2026-07-14 — Remove ungrounded chat chrome
+
+The unopened panel now keeps the composer and four real starter actions as its primary surface. Empty tabs, duplicate command rails, decorative progress/minimap UI, placebo Focus/Tone controls, and text-inferred confidence/citation/media projections are removed while canonical streaming, approvals, structured sources, tool/domain cards, model/token provenance, Markdown, and exports remain.
+
+**PR / canonical main commit**: `PENDING #533 MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Source: pending.
+- Checks: local current-tree FastAgent, streaming, typecheck, design, and build gates passed; required PR checks pending.
+- Visual proof: private local responsive/theme captures independently reviewed; public-safe preview captures pending.
+- Preview: pending.
+- Production live: pending.
+
+**Author**: Homen Shum + Codex.
+**Touches**: [`../pages/agents.md`](../pages/agents.md).
+
 ## 2026-07-14 — Migrate LiveEventCard onto the shared tool shell
 
 LiveEventCard now composes the tool/task vocabulary, while live-event derivation

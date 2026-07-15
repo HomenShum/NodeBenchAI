@@ -25,7 +25,6 @@ import {
   Cpu,
   ClipboardList,
   ExternalLink,
-  PanelTop,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "../../../../convex/_generated/api";
@@ -38,14 +37,11 @@ import { PageHeroHeader } from "@shared/ui/PageHeroHeader";
 
 // Agent-specific components (always visible on initial render)
 import { AgentStatusCard, AGENT_CONFIGS, type AgentStatus } from "../components/AgentStatusCard";
-import { AgentCommandBar, type AgentMode, type ApprovedModel } from "../components/AgentCommandBar";
+import { AgentCommandBar, type ApprovedModel } from "../components/AgentCommandBar";
 
 // Lazy-loaded heavy sub-components (behind tabs/expandable sections/conditional rendering)
 const HumanApprovalQueue = lazy(() =>
   import("../components/HumanApprovalQueue").then((mod) => ({ default: mod.HumanApprovalQueue }))
-);
-const AgentSidebar = lazy(() =>
-  import("../components/AgentSidebar").then((mod) => ({ default: mod.AgentSidebar }))
 );
 const AutonomousOperationsPanel = lazy(() =>
   import("../components/AutonomousOperationsPanel").then((mod) => ({ default: mod.AutonomousOperationsPanel }))
@@ -68,6 +64,7 @@ const TaskManagerView = lazy(() =>
 
 // Hooks
 import { useSwarmActions } from "@/hooks/useSwarm";
+import { useFastAgent } from "@/features/agents/context/FastAgentContext";
 
 // ============================================================================
 // Types
@@ -79,6 +76,32 @@ interface AgentStatusData {
   lastActivity: number | null;
   tasksCompleted: number;
   currentTask: string | null;
+}
+
+export async function routeAgentCommand(
+  query: string,
+  options: { model: ApprovedModel; agents?: string[] },
+  actions: {
+    spawnSwarm: (params: {
+      query: string;
+      agents: string[];
+      pattern: "fan_out_gather";
+      model: ApprovedModel;
+    }) => Promise<unknown>;
+    openWithContext: (options: { initialMessage: string; initialTab: "chat" }) => void;
+  },
+) {
+  if (options.agents && options.agents.length > 0) {
+    await actions.spawnSwarm({
+      query,
+      agents: options.agents,
+      pattern: "fan_out_gather",
+      model: options.model,
+    });
+    return;
+  }
+
+  actions.openWithContext({ initialMessage: query, initialTab: "chat" });
 }
 
 // ============================================================================
@@ -170,23 +193,9 @@ function QuickStatsBar() {
 // ============================================================================
 
 function AgentGrid() {
-  const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
-
   const agentStatuses = useQuery(
     api.domains.agents.agentHubQueries.getAllAgentStatuses
   ) as AgentStatusData[] | undefined;
-
-  const toggleExpand = useCallback((agentId: string) => {
-    setExpandedAgents((prev) => {
-      const next = new Set(prev);
-      if (next.has(agentId)) {
-        next.delete(agentId);
-      } else {
-        next.add(agentId);
-      }
-      return next;
-    });
-  }, []);
 
   const formatTimeAgo = (timestamp: number | null): string => {
     if (!timestamp) return "Never";
@@ -227,10 +236,6 @@ function AgentGrid() {
           lastActivity={agent.lastActivity}
           tasksCompleted={agent.tasksCompleted}
           currentTask={agent.currentTask}
-          isExpanded={expandedAgents.has(agent.id)}
-          onToggleExpand={() => toggleExpand(agent.id)}
-          onConfigure={() => {}}
-          onToggleStatus={() => {}}
         />
       ))}
     </div>
@@ -309,61 +314,10 @@ function ActiveSwarmsSection() {
 // Main Component
 // ============================================================================
 
-function QuickActionsSummary({ onShowAdvanced }: { onShowAdvanced: () => void }) {
-  return (
-    <div className="nb-surface-card p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <PanelTop className="h-4 w-4 text-accent" />
-            <h2 className="type-section-title text-content">Quick actions</h2>
-          </div>
-          <p className="mt-2 text-sm text-content-secondary">
-            Start a request, review running tasks, or approve blocked work without opening the full operator cockpit.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onShowAdvanced}
-          className="rounded-lg border border-edge px-3 py-1.5 text-xs font-medium text-content-muted transition hover:bg-surface-hover hover:text-content-secondary"
-        >
-          Open advanced view
-        </button>
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        {[
-          {
-            title: "Run a request",
-            body: "Use the command bar to launch research, compare sources, or hand work to an agent.",
-          },
-          {
-            title: "Review active work",
-            body: "The running tasks lane below is the fastest way to see what the system is doing right now.",
-          },
-          {
-            title: "Approve blocked actions",
-            body: "Use the human approval queue for any step that needs review before it can continue.",
-          },
-        ].map((item) => (
-          <div key={item.title} className="rounded-xl border border-edge bg-surface-secondary/40 p-4">
-            <div className="text-sm font-medium text-content">{item.title}</div>
-            <p className="mt-1 text-xs leading-relaxed text-content-muted">{item.body}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function AgentsHub() {
   const [advancedMode, setAdvancedMode] = useState(() => {
     return loadAgentsViewMode() === "advanced";
   });
-  const setViewMode = useCallback((mode: "basic" | "advanced") => {
-    saveAgentsViewMode(mode);
-    setAdvancedMode(mode === "advanced");
-  }, []);
   const toggleMode = useCallback(() => {
     setAdvancedMode((prev) => {
       const next = !prev;
@@ -373,30 +327,20 @@ export function AgentsHub() {
   }, []);
 
   const { spawnSwarm } = useSwarmActions();
+  const { openWithContext } = useFastAgent();
 
   const handleCommandSubmit = useCallback(
     async (
       query: string,
-      options: { mode: AgentMode; model: ApprovedModel; agents?: string[] }
+      options: { model: ApprovedModel; agents?: string[] }
     ) => {
-
-      if (options.agents && options.agents.length > 0) {
-        // Spawn swarm
-        try {
-          await spawnSwarm({
-            query,
-            agents: options.agents,
-            pattern: "fan_out_gather",
-            model: options.model,
-          });
-        } catch (error) {
-          console.error("Failed to spawn swarm:", error);
-        }
-      } else {
-        // Single agent query - would route to FastAgentPanel
+      try {
+        await routeAgentCommand(query, options, { spawnSwarm, openWithContext });
+      } catch (error) {
+        console.error("Failed to run agent command:", error);
       }
     },
-    [spawnSwarm]
+    [openWithContext, spawnSwarm]
   );
 
   return (
@@ -432,11 +376,6 @@ export function AgentsHub() {
               </Suspense>
             </div>
 
-            {!advancedMode && (
-              <div className="mb-6">
-                <QuickActionsSummary onShowAdvanced={() => setViewMode("advanced")} />
-              </div>
-            )}
 
             {/* Active Swarms — always visible */}
             <div className="mb-6">
@@ -458,7 +397,7 @@ export function AgentsHub() {
             </div>
 
             {/* Mode toggle */}
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-6">
               <button
                 type="button"
                 onClick={toggleMode}
@@ -467,11 +406,6 @@ export function AgentsHub() {
                 <Cpu className="h-3.5 w-3.5" />
                 {advancedMode ? "Show less" : "Advanced view"}
               </button>
-              {!advancedMode && (
-                <p className="text-[11px] text-content-muted">
-                  Advanced view adds the operator sidebar, Oracle controls, stats, rankings, and task history.
-                </p>
-              )}
             </div>
 
             {/* ── Advanced sections ── */}
@@ -531,25 +465,7 @@ export function AgentsHub() {
                 </div>
               </>
             )}
-
-            {/* Background Research Banner — always visible */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <Sparkles className="w-5 h-5 text-accent" />
-                <h3 className="font-semibold text-content">
-                  Background Research Active
-                </h3>
-              </div>
-              <p className="text-sm text-content-secondary">
-                AI is continuously researching in the background — scanning news, processing signals,
-                and publishing updates at no extra cost.
-                More powerful analysis runs when you ask for deep research.
-              </p>
-            </div>
           </div>
-
-          {/* Sidebar */}
-          {advancedMode ? <Suspense fallback={<div className="w-64" />}><AgentSidebar /></Suspense> : null}
         </div>
       </div>
     </div>
