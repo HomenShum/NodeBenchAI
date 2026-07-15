@@ -7,7 +7,7 @@ Append-only lane for behavior-preserving AI Elements adoption inside
 
 The unopened panel now keeps the composer and four real starter actions as its primary surface. Empty tabs, duplicate command rails, decorative progress/minimap UI, placebo Focus/Tone controls, and text-inferred confidence/citation/media projections are removed while canonical streaming, approvals, structured sources, tool/domain cards, model/token provenance, Markdown, and exports remain.
 
-**PR / canonical main commit**: `PENDING #TBD MAIN SHA / FINAL QA`.
+**PR / canonical main commit**: `PENDING #533 MAIN SHA / FINAL QA`.
 
 **Evidence state**:
 - Source: pending.

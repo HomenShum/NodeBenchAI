@@ -6,7 +6,7 @@ Append-only lane for the `/agents` hub, its primary command path, topic list, an
 
 Ordinary prompts now open the canonical FastAgent chat while `/spawn` remains the explicit swarm path. The hub shows recorded topic fields instead of fabricated narrative metrics, defers suggestions, removes dead controls, and uses a reachable native selector for the mobile hub rail.
 
-**PR / canonical main commit**: `PENDING #TBD MAIN SHA / FINAL QA`.
+**PR / canonical main commit**: `PENDING #533 MAIN SHA / FINAL QA`.
 
 **Evidence state**:
 - Source: pending.
