@@ -132,10 +132,12 @@ jobs:
           VERCEL_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.inputs.head_sha || github.sha }}
           VERCEL_HEAD_REF: ${{ github.event.pull_request.head.ref || github.event.inputs.head_ref || github.ref_name }}
           OVERRIDE_URL: ${{ github.event.inputs.preview_url }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ -n "$OVERRIDE_URL" ]; then
             echo "Using override URL: $OVERRIDE_URL"
             echo "preview_status=ready" >> "$GITHUB_OUTPUT"
+            echo "preview_source=override" >> "$GITHUB_OUTPUT"
             echo "url=$OVERRIDE_URL" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -153,9 +155,10 @@ jobs:
           #     PR head ref, then require the deployment's metadata to match the
           #     explicit PR head SHA exactly.
           #
-          # Only READY for the exact PR head SHA is acceptable here. The changed-
-          # file step already handles proven non-shipping diffs, so CANCELED,
-          # ERROR, API errors, and resolver timeouts fail closed.
+          # Exact-head READY is preferred. An exact-head CANCELED build may reuse
+          # an ancestor READY deployment only after GitHub ancestry and complete
+          # Vercel-served tree-diff proofs. ERROR, API errors, and unresolved
+          # candidates still fail closed.
           deadline=$(( $(date +%s) + 600 ))
           # URL-encode the branch ref. Branches with "/" in the name (refactor/X,
           # fix/Y, test/Z) require encoding — without it, Vercel's API treats
@@ -179,22 +182,29 @@ jobs:
                   }
                   const deployments = j.deployments;
                   const state = (d) => d.readyState || d.state;
-                  const exactReady = deployments.find(d => {
+                  const commitSha = (d) => {
                     const m = d.meta || {};
-                    return (m.githubCommitSha === sha || m.commitSha === sha) && state(d) === 'READY';
+                    return m.githubCommitSha || m.commitSha || '';
+                  };
+                  const exactReady = deployments.find(d => {
+                    return commitSha(d) === sha && state(d) === 'READY';
                   });
                   const exactError = deployments.find(d => {
-                    const m = d.meta || {};
-                    return (m.githubCommitSha === sha || m.commitSha === sha) && state(d) === 'ERROR';
+                    return commitSha(d) === sha && state(d) === 'ERROR';
                   });
                   const exactCanceled = deployments.find(d => {
-                    const m = d.meta || {};
-                    return (m.githubCommitSha === sha || m.commitSha === sha) && state(d) === 'CANCELED';
+                    return commitSha(d) === sha && state(d) === 'CANCELED';
                   });
+                  const latestReady = deployments.find(d =>
+                    state(d) === 'READY' && /^[0-9a-f]{40}$/i.test(commitSha(d)) && d.url
+                  );
                   const dep = exactReady || exactError || exactCanceled;
                   if (dep) {
                     const st = state(dep);
                     if (st === 'READY') console.log('READY:https://' + dep.url);
+                    else if (st === 'CANCELED' && latestReady) {
+                      console.log('IGNORED|' + commitSha(latestReady) + '|https://' + latestReady.url);
+                    }
                     else if (st === 'CANCELED') console.log('CANCELED:vercel-marked-ignored');
                     else if (st === 'ERROR') console.log('ERROR:vercel-build-failed');
                   }
@@ -208,11 +218,48 @@ jobs:
               url="${result#READY:}"
               echo "Preview ready: $url"
               echo "preview_status=ready" >> "$GITHUB_OUTPUT"
+              echo "preview_source=exact-head" >> "$GITHUB_OUTPUT"
               echo "url=$url" >> "$GITHUB_OUTPUT"
               exit 0
             fi
+            if [[ "$result" == IGNORED\|* ]]; then
+              IFS='|' read -r _ candidate_sha candidate_url <<< "$result"
+              if [[ ! "$candidate_sha" =~ ^[0-9a-f]{40}$ ]] || [[ ! "$candidate_url" =~ ^https://[A-Za-z0-9.-]+\.vercel\.app/?$ ]]; then
+                echo "::error::Vercel returned an invalid equivalent-preview candidate."
+                exit 1
+              fi
+
+              # An ignored exact-head build may reuse a prior READY preview only
+              # when GitHub proves that deployment is an ancestor and a complete
+              # tree diff proves no Vercel-served path changed afterward.
+              relation=$(gh api "repos/$GITHUB_REPOSITORY/compare/$candidate_sha...$VERCEL_HEAD_SHA" --jq '.status')
+              if [[ "$relation" != "ahead" && "$relation" != "identical" ]]; then
+                echo "::error::Prior READY deployment $candidate_sha is not an ancestor of $VERCEL_HEAD_SHA."
+                exit 1
+              fi
+              git fetch --no-tags --depth=1 origin "$candidate_sha"
+              git fetch --no-tags --depth=1 origin "$VERCEL_HEAD_SHA"
+              if ! git diff --quiet "$candidate_sha" "$VERCEL_HEAD_SHA" -- \
+                src convex packages apps public server shared api \
+                scripts/vercel-build.sh vercel.json package.json package-lock.json \
+                tsconfig.json tsconfig.node.json vite.config.ts vite.config.mjs index.html; then
+                echo "::error::Exact head was ignored, but a Vercel-served path changed after READY deployment $candidate_sha."
+                git diff --name-only "$candidate_sha" "$VERCEL_HEAD_SHA" -- \
+                  src convex packages apps public server shared api \
+                  scripts/vercel-build.sh vercel.json package.json package-lock.json \
+                  tsconfig.json tsconfig.node.json vite.config.ts vite.config.mjs index.html | head -20
+                exit 1
+              fi
+
+              echo "::notice::Exact head was intentionally ignored; reusing ancestor READY preview $candidate_sha after a zero served-path diff proof."
+              echo "preview_status=ready" >> "$GITHUB_OUTPUT"
+              echo "preview_source=equivalent-ancestor" >> "$GITHUB_OUTPUT"
+              echo "reused_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+              echo "url=$candidate_url" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             if [[ "$result" == CANCELED:* ]]; then
-              echo "::error::Vercel canceled the exact build-relevant head SHA. Tier B cannot verify this shipping change."
+              echo "::error::Vercel canceled the exact head and no equivalent ancestor READY preview was available."
               exit 1
             fi
             if [[ "$result" == ERROR:* ]]; then
@@ -233,6 +280,8 @@ jobs:
         if: always()
         run: |
           echo "preview_status=${{ steps.preview.outputs.preview_status || 'not_resolved' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "preview_source=${{ steps.preview.outputs.preview_source || 'none' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "reused_sha=${{ steps.preview.outputs.reused_sha || 'none' }}" >> "$GITHUB_STEP_SUMMARY"
           echo "preview_url=${{ steps.preview.outputs.url || 'none' }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Require resolved preview for shipping changes
