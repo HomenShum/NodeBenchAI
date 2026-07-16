@@ -4,6 +4,7 @@ import {
   applyDeterministicResponsePolicy,
   detectRequestedResponseShape,
   modelForTier,
+  parseMemo,
   pricingForModel,
   type ParsedMemo,
 } from "./chatRuns";
@@ -102,6 +103,14 @@ describe("redesign chat runtime response policy", () => {
     expect(shaped.shortAnswer).not.toContain(redirect);
     expect(shaped.shortAnswer).not.toMatch(/\[1\]/);
     expect(shaped.shortAnswer).toContain("gemini-3.5-flash");
+  });
+
+  it("does not truncate a canonical URL before compact response policy runs", () => {
+    const canonical = "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash";
+    const parsed = parseMemo(`- ${"Production status detail ".repeat(10)}${canonical}\n- Second detail`);
+
+    expect(parsed.shortAnswer).toContain(canonical);
+    expect(parsed.shortAnswer).not.toMatch(/https:\/\/[^\s]*gemini-$/);
   });
 
   it("emits a source-needed limitation and removes unsupported strength claims without a URL", () => {

@@ -970,7 +970,7 @@ export function applyDeterministicResponsePolicy(
   };
 }
 
-function parseMemo(text: string): ParsedMemo {
+export function parseMemo(text: string): ParsedMemo {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   const sections: Record<string, string[]> = { short: [], why: [], evidence: [], risks: [], next: [] };
   let current: keyof typeof sections | null = null;
@@ -988,7 +988,9 @@ function parseMemo(text: string): ParsedMemo {
     if (current) sections[current].push(line.replace(/^[-*•]\s*/, ""));
   }
   const fallbackLines = lines.filter((line) => !/^\*\*(to|from|date|subject):\*\*/i.test(line));
-  const shortAnswer = sections.short.join(" ").trim() || (fallbackLines[0] ?? "").slice(0, 240);
+  // Keep enough of an unheaded compact response to preserve a complete URL.
+  // The response-shape policy applies the final presentation limit later.
+  const shortAnswer = sections.short.join(" ").trim() || (fallbackLines[0] ?? "").slice(0, 800);
   const whyItMatters = sections.why.join(" ").trim() || (fallbackLines[1] ?? "").slice(0, 480);
   const risks = sections.risks.length > 0
     ? sections.risks.slice(0, 4)
