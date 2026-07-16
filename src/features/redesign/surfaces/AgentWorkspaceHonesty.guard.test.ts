@@ -9,9 +9,13 @@ describe("first-class agent workspace honesty contract", () => {
   const chat = read("src/features/redesign/surfaces/ChatSurface.tsx");
   const inspector = read("src/features/redesign/components/RightInspector.tsx");
   const shell = read("src/features/redesign/RedesignShell.tsx");
+  const prototype = read("src/features/redesign/surfaces/HomeV2PrototypeSurface.tsx");
+  const workspaceCss = read("src/features/redesign/agent-workspace.css");
+  const composer = read("src/features/redesign/components/UniversalComposer.tsx");
+  const conversation = read("src/components/ai-elements/conversation.tsx");
 
   it("exposes one runtime-grounded read, write, and verification contract", () => {
-    expect(chat).toContain("AgentWorkspaceHeader");
+    expect(chat).toContain("RunScopeDisclosure");
     expect(chat).toContain('writes: "Review mode · no automatic shared writes"');
     expect(chat).toContain("runtimeContextPacket.selectedContext.length");
     expect(chat).toContain("blockedClaimCount");
@@ -29,6 +33,42 @@ describe("first-class agent workspace honesty contract", () => {
     expect(inspector).not.toContain("traceBarWidth");
     expect(inspector).not.toContain("traceDuration");
     expect(inspector).not.toContain('title="Agents"');
-    expect(shell).toContain('surface !== "chat"');
+    expect(shell).toContain("activeChatAgentRail?.hasIntent");
+  });
+
+  it("keeps production chat free of prototype conversations and inferred runtime facts", () => {
+    expect(prototype).not.toContain("Sequoia ratch...");
+    expect(prototype).not.toContain("Anthropic pric...");
+    expect(prototype).not.toContain("ChatThreadGroup");
+    expect(chat).not.toContain("buildSeedTurns");
+    expect(chat).not.toContain("WORKING_NOTES_MARKDOWN");
+    expect(chat).not.toContain("sourceFreshness");
+    expect(chat).not.toContain("ChatV2NextActions");
+    expect(chat).toContain("hasIntent: Boolean(run || hasAnswer)");
+    expect(chat).toContain("runtimeSourceCount > 0 ? \"done\"");
+    expect(chat).toContain("hideAttachments");
+    expect(chat).toContain("telemetry not recorded");
+    expect(chat).toContain("cost not recorded");
+    expect(chat).not.toContain("formatTraceCost");
+    expect(chat).not.toContain('"memory first"');
+    expect(chat).not.toContain("onContextChange={() => setCtx");
+    expect(chat).not.toContain("claim weakens but doesn't flip");
+    expect(chat).not.toContain("Probed: claim weakens");
+    expect(chat).toContain("Awaiting a verified result from the active runtime");
+    expect(chat).not.toContain("$0.005/sec");
+    expect(chat).not.toContain("}, 1800)");
+    expect(composer).toContain("entitySuggestions = []");
+    expect(composer).toContain("ComposerContextChip");
+  });
+
+  it("uses the shared AI Elements transcript and a non-overlapping composer row", () => {
+    expect(chat).toContain("ConversationContent");
+    expect(chat).toContain("ConversationScrollButton");
+    expect(chat).not.toContain("scrollRef");
+    expect(chat).not.toContain("unseenCount");
+    expect(shell).toContain('import "./agent-workspace.css"');
+    expect(shell).toContain(') : surface === "chat" ? (');
+    expect(workspaceCss).toContain('[data-redesign][data-wide="true"] .rd-shell.rd-shell--chat-focus');
+    expect(conversation).toContain('reducedMotion ? "instant" : "smooth"');
   });
 });

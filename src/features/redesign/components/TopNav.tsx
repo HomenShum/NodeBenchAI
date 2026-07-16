@@ -203,7 +203,7 @@ export function TopNav({
             borderRadius: "var(--rd-r-pill)",
             border: "1px solid var(--rd-line)",
             background: "var(--rd-panel)",
-            color: "var(--rd-ink-faint)",
+            color: "var(--rd-ink-mute)",
             fontSize: prototypeMode ? 11.5 : 12,
             justifyContent: "flex-start",
           }}

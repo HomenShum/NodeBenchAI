@@ -13,7 +13,7 @@
  * Submit: Enter sends. Shift+Enter inserts newline. ⌘↵ also sends.
  */
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type CSSProperties } from "react";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 
 export type RouterTier = "auto" | "answer" | "deep" | "compare";
@@ -91,6 +91,43 @@ const SLASH_COMMANDS: Array<{ id: string; label: string; hint: string; insert: s
   { id: "tearsheet",   label: "/tear-sheet",   hint: "Generate a one-pager for an entity",                 insert: "/tear-sheet " },
 ];
 
+const contextChipStyle: CSSProperties = {
+  padding: "3px 9px",
+  fontSize: 11,
+  fontWeight: 590,
+  background: "var(--rd-accent-tint)",
+  color: "var(--rd-accent-strong)",
+  border: "1px solid var(--rd-accent-ring)",
+  borderRadius: "var(--rd-r-pill)",
+  gap: 5,
+  minWidth: 0,
+};
+
+function ComposerContextChip({ label, onChange }: { label: string; onChange?: () => void }) {
+  const content = (
+    <>
+      <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </svg>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360 }}>{label}</span>
+    </>
+  );
+
+  if (!onChange) {
+    return <div className="rd-btn" aria-label={`Current context: ${label}`} style={contextChipStyle}>{content}</div>;
+  }
+
+  return (
+    <button type="button" onClick={onChange} aria-label="Change context" className="rd-btn" style={contextChipStyle}>
+      {content}
+      <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+    </button>
+  );
+}
+
 export function UniversalComposer({
   contextLabel,
   textareaId,
@@ -108,14 +145,7 @@ export function UniversalComposer({
   showRuntimeRibbon = false,
   streaming = false,
   onStop,
-  entitySuggestions = [
-    { slug: "orbital", label: "Orbital Labs", kind: "company" },
-    { slug: "anthropic", label: "Anthropic", kind: "company" },
-    { slug: "mode", label: "Mode Analytics", kind: "company" },
-    { slug: "alex", label: "Alex Chen", kind: "person" },
-    { slug: "ship_demo", label: "Ship Demo Day", kind: "event" },
-    { slug: "voice_eval", label: "Voice-agent evaluation", kind: "topic" },
-  ],
+  entitySuggestions = [],
 }: UniversalComposerProps) {
   const [batchOpen, setBatchOpen] = useState(false);
   const [text, setText] = useState("");
@@ -217,7 +247,7 @@ export function UniversalComposer({
       window.setTimeout(() => setSlashOpen(true), 0);
     }
     // @ mention: track caret position and surface entity picker
-    if (e.key === "@") {
+    if (e.key === "@" && entitySuggestions.length > 0) {
       window.setTimeout(() => { setMentionOpen(true); setMentionQuery(""); }, 0);
     }
     if (e.key === "Enter" && !e.shiftKey && !slashOpen && !mentionOpen) {
@@ -230,7 +260,7 @@ export function UniversalComposer({
     setText(next);
     // Maintain mention state by reading the chars after the last unmatched "@"
     const at = next.lastIndexOf("@");
-    if (at >= 0 && /^[\w-]*$/.test(next.slice(at + 1))) {
+    if (entitySuggestions.length > 0 && at >= 0 && /^[\w-]*$/.test(next.slice(at + 1))) {
       setMentionOpen(true);
       setMentionQuery(next.slice(at + 1).toLowerCase());
     } else if (mentionOpen) {
@@ -312,34 +342,7 @@ export function UniversalComposer({
     >
       {/* Top row — context chip · tier picker */}
       <div className="rd-row--between" style={{ gap: 8 }}>
-        <button
-          type="button"
-          onClick={onContextChange}
-          aria-label="Change context"
-          className="rd-btn"
-          style={{
-            padding: "3px 9px",
-            fontSize: 11,
-            fontWeight: 590,
-            background: "var(--rd-accent-tint)",
-            color: "var(--rd-accent-strong)",
-            border: "1px solid var(--rd-accent-ring)",
-            borderRadius: "var(--rd-r-pill)",
-            gap: 5,
-            minWidth: 0,
-          }}
-        >
-          <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3 2" />
-          </svg>
-          <span style={{
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360,
-          }}>{contextLabel}</span>
-          <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </button>
+        <ComposerContextChip label={contextLabel} onChange={onContextChange} />
 
         <div style={{ position: "relative" }}>
           <button
@@ -454,8 +457,9 @@ export function UniversalComposer({
       {/* Textarea — focal */}
       <div
         style={{ position: "relative" }}
-        onDragOver={(e) => { e.preventDefault(); }}
+        onDragOver={hideAttachments ? undefined : (e) => { e.preventDefault(); }}
         onDrop={(e) => {
+          if (hideAttachments) return;
           e.preventDefault();
           const files = Array.from(e.dataTransfer?.files ?? []);
           if (files.length > 0) addFiles(files);
@@ -468,7 +472,7 @@ export function UniversalComposer({
           value={text}
           onChange={(e) => handleTextChange(e.target.value)}
           onKeyDown={handleKey}
-          onPaste={handlePaste}
+          onPaste={hideAttachments ? undefined : handlePaste}
           placeholder={placeholder}
           aria-label={placeholder}
           rows={1}
@@ -528,7 +532,7 @@ export function UniversalComposer({
       </div>
 
       {/* Attachment chip strip — visible when files were pasted or dropped */}
-      {attachments.length > 0 && (
+      {!hideAttachments && attachments.length > 0 && (
         <div className="rd-composer-attachments" role="list" aria-label="Attached files">
           {attachments.map((a) => (
             <span key={a.id} className="rd-composer-attachment" role="listitem">

@@ -1,0 +1,192 @@
+/* Agent workspace overrides are intentionally isolated from the legacy
+   all-surface primitive sheet. Structure first; decoration stays quiet. */
+
+[data-redesign] .rd-shell--chat-focus {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-redesign][data-wide="true"] .rd-shell.rd-shell--chat-focus {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-redesign] .rd-shell--chat-v3 .rd-shell__main {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+[data-redesign] .rd-shell--chat-v3.rd-shell--chat-no-inspector .rd-shell__main,
+[data-redesign][data-wide="true"] .rd-shell--chat-v3.rd-shell--chat-no-inspector .rd-shell__main {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-redesign] .rd-shell--chat-v3 .rd-pane--right.chat-context {
+  width: 320px;
+}
+
+[data-redesign] .rd-shell--chat-v3 .rd-shell__main > .rd-pane:first-child {
+  align-items: stretch;
+  padding: 0;
+  overflow: hidden;
+  border-right: none;
+}
+
+[data-redesign] .rd-shell--chat-v3 .rd-surface-content {
+  width: 100%;
+  height: 100%;
+}
+
+[data-redesign] .rd-chat-workspace {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--rd-paper);
+}
+
+[data-redesign] .rd-chat-transcript {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+[data-redesign] .rd-chat-transcript__content {
+  width: min(100%, 840px);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(20px, 4vw, 44px) clamp(18px, 4vw, 40px) 48px;
+  gap: 18px;
+}
+
+[data-redesign] .rd-chat-scroll-btn {
+  bottom: 16px;
+  z-index: 4;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--rd-line);
+  border-radius: 999px;
+  background: var(--rd-panel);
+  color: var(--rd-ink);
+  box-shadow: var(--rd-shadow-sm);
+}
+
+[data-redesign] .rd-composer-dock {
+  position: relative;
+  bottom: auto;
+  z-index: 5;
+  padding: 10px clamp(14px, 4vw, 40px) max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--rd-line-faint);
+  background: color-mix(in srgb, var(--rd-paper) 96%, transparent);
+  box-shadow: none;
+}
+
+[data-redesign] .rd-composer-shell {
+  width: min(100%, 840px);
+  margin: 0 auto;
+}
+
+[data-redesign] .rd-run-scope {
+  margin: 0 4px 8px;
+  color: var(--rd-ink-mute);
+  font-size: 11px;
+}
+
+[data-redesign] .rd-run-scope > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+[data-redesign] .rd-run-scope > summary span:nth-of-type(2) {
+  max-width: 36ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-redesign] .rd-run-scope dl {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--rd-line-faint);
+  border-radius: var(--rd-r-sm);
+  background: var(--rd-paper-warm);
+}
+
+[data-redesign] .rd-run-scope dl > div {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 10px;
+}
+
+[data-redesign] .rd-run-scope dt {
+  color: var(--rd-ink-soft);
+  font-weight: 600;
+}
+
+[data-redesign] .rd-run-scope dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+[data-redesign] .rd-chat-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  width: min(100%, 700px);
+  min-height: 0;
+  height: 100%;
+  margin: auto;
+  padding: 28px 0;
+}
+
+[data-redesign] .rd-chat-empty__hero {
+  margin-bottom: 24px;
+}
+
+[data-redesign] .rd-chat-empty__chips {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+[data-redesign] .rd-chat-empty__chip {
+  min-width: 0;
+  min-height: 56px;
+  padding: 12px;
+}
+
+[data-redesign] .rd-chat-empty__chip-title {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  [data-redesign] .rd-run-scope > summary span:nth-of-type(2),
+  [data-redesign] .rd-run-scope > summary span:nth-of-type(3) {
+    display: none;
+  }
+
+  [data-redesign] .rd-chat-transcript__content {
+    padding: 16px 14px 32px;
+  }
+
+  [data-redesign] .rd-composer-dock {
+    padding: 8px 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  [data-redesign] .rd-chat-empty {
+    padding: 18px 0;
+  }
+
+  [data-redesign] .rd-chat-empty__chips {
+    grid-template-columns: 1fr;
+  }
+
+  [data-redesign] .rd-chat-empty__chip {
+    min-height: 48px;
+  }
+}
