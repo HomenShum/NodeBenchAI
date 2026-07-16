@@ -14,7 +14,7 @@
  * stopped client-side before the mutation call; Convex enforces the same
  * policy server-side so anonymous sessions cannot start paid work either.
  */
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { ChatAnswer as BaseChatAnswer } from "../fixtures";
@@ -22,6 +22,13 @@ import type { RouterTier } from "../components/UniversalComposer";
 import type { LiveGroundingDecision } from "shared/redesign/contextRuntimePolicy";
 
 export type ChatRunTier = "free" | "fast" | "auto" | "deep";
+
+export function createChatClientRequestId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 export function normalizeRouterTierForChatRun(tier: RouterTier): ChatRunTier {
   if (tier === "answer") return "fast";
@@ -51,6 +58,11 @@ export interface PlannerArtifact {
 
 export interface RuntimeMetrics {
   runId?: string;
+  model?: string;
+  provider?: string;
+  runtimeReceiptId?: string;
+  createdAt?: number;
+  completedAt?: number;
   totalLatencyMs?: number;
   totalTokens?: number;
   estimatedCostUsd?: number;
@@ -189,11 +201,18 @@ export function buildPartialChatAnswer({
 
 export interface RealChatRun {
   runId: string;
+  prompt?: string;
+  tier?: string;
   hash?: string;
   packet: ChatAnswer;
   totalLatencyMs?: number;
   totalTokens?: number;
   estimatedCostUsd?: number;
+  model?: string;
+  provider?: string;
+  runtimeReceiptId?: string;
+  createdAt?: number;
+  completedAt?: number;
   /** Live working-notes scratchpad (concatenated streamed chunks). */
   scratchpad: string;
   /** Per-stage tool-call cards as they fire. */
@@ -202,7 +221,7 @@ export interface RealChatRun {
   groundingChunks: EvidenceRow[];
   /** Board-state, routing, tool-decision, claim-check, and metric artifacts. */
   runtime: RuntimeTrace;
-  status: "pending" | "running" | "complete" | "error";
+  status: "pending" | "running" | "complete" | "error" | "cancelled";
   errorMessage?: string;
 }
 
@@ -219,6 +238,8 @@ export interface ChatRunState {
   userLoading: boolean;
 }
 
+export type CancelRunResult = "recorded" | "queued" | "unavailable";
+
 export function isPaidChatEligibleUser(user: unknown): boolean {
   if (!user || typeof user !== "object") return false;
   const record = user as Record<string, unknown>;
@@ -229,6 +250,7 @@ export function isPaidChatEligibleUser(user: unknown): boolean {
 export function useRedesignChatRun() {
   const { isLoading: authLoading, isAuthenticated } = useConvexAuth();
   const startChat = useMutation(api.domains.redesign.chatRuns.startChat);
+  const cancelRun = useMutation(api.domains.redesign.chatRuns.cancelRun);
   const user = useQuery(
     api.domains.auth.auth.loggedInUser,
     isAuthenticated ? {} : "skip",
@@ -236,6 +258,8 @@ export function useRedesignChatRun() {
 
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const pendingSubmissionRef = useRef<{ fingerprint: string; requestId: string } | null>(null);
+  const pendingCancellationRef = useRef<{ requestId: string } | null>(null);
   // BUG FIX (2026-07-01): `useQuery` returns `undefined` while `loggedInUser` is still resolving,
   // and `isPaidChatEligibleUser(undefined)` collapses that into "not eligible" — so a fully
   // authenticated, properly-linked user who sends a message right after page load was shown the
@@ -244,6 +268,16 @@ export function useRedesignChatRun() {
   // See docs/LIVE-USER-BENCHMARK-FINDING.md.
   const userLoading = isAuthenticated && user === undefined;
   const paidEligible = isPaidChatEligibleUser(user);
+  const latestOwnedRun = useQuery(
+    api.domains.redesign.chatRuns.getLatestOwnedRun,
+    paidEligible ? {} : "skip",
+  );
+
+  useEffect(() => {
+    if (!activeRunId && latestOwnedRun?.runId) {
+      setActiveRunId(latestOwnedRun.runId);
+    }
+  }, [activeRunId, latestOwnedRun?.runId]);
 
   const events = useQuery(
     api.domains.redesign.chatRuns.streamEventsForRun,
@@ -349,12 +383,24 @@ export function useRedesignChatRun() {
       ? (runRow.packet as ChatAnswer)
       : partial;
     const resolvedArtifacts = resolveRuntimeArtifacts({ contextCandidates, toolDecisions, claimChecks });
+    const persistedMetrics: RuntimeMetrics = {
+      ...metrics,
+      runId: activeRunId,
+      model: runRow?.model,
+      provider: runRow?.provider,
+      runtimeReceiptId: runRow?.runtimeReceiptId,
+      createdAt: runRow?.createdAt,
+      completedAt: runRow?.completedAt,
+      totalLatencyMs: runRow?.totalLatencyMs ?? metrics?.totalLatencyMs,
+      totalTokens: runRow?.totalTokens ?? metrics?.totalTokens,
+      estimatedCostUsd: runRow?.estimatedCostUsd ?? metrics?.estimatedCostUsd,
+    };
     const runtime: RuntimeTrace = {
       boardState,
       contextCandidates: resolvedArtifacts.contextCandidates,
       toolDecisions: resolvedArtifacts.toolDecisions,
       claimChecks: resolvedArtifacts.claimChecks,
-      metrics,
+      metrics: persistedMetrics,
       contextPacket: contextPacket ?? (finalPacket.runtime as RuntimeTrace | undefined)?.contextPacket,
       liveGroundingDecision: liveGroundingDecision ?? (finalPacket.runtime as RuntimeTrace | undefined)?.liveGroundingDecision,
     };
@@ -365,11 +411,18 @@ export function useRedesignChatRun() {
 
     return {
       runId: activeRunId,
+      prompt: runRow?.prompt,
+      tier: runRow?.tier,
       hash: runRow?.hash ?? undefined,
       packet,
       totalLatencyMs: runRow?.totalLatencyMs,
       totalTokens: runRow?.totalTokens,
       estimatedCostUsd: runRow?.estimatedCostUsd,
+      model: runRow?.model,
+      provider: runRow?.provider,
+      runtimeReceiptId: runRow?.runtimeReceiptId,
+      createdAt: runRow?.createdAt,
+      completedAt: runRow?.completedAt,
       scratchpad,
       toolCalls,
       groundingChunks,
@@ -382,6 +435,9 @@ export function useRedesignChatRun() {
   useEffect(() => {
     if (projected?.status === "error" && projected.errorMessage) {
       setError(projected.errorMessage);
+    }
+    if (projected?.status === "complete" || projected?.status === "error" || projected?.status === "cancelled") {
+      pendingSubmissionRef.current = null;
     }
   }, [projected?.status, projected?.errorMessage]);
 
@@ -405,11 +461,50 @@ export function useRedesignChatRun() {
         return null;
       }
       setError(null);
+      const normalizedTier = normalizeRouterTierForChatRun(tier);
+      const fingerprint = JSON.stringify({ prompt: prompt.trim(), tier: normalizedTier, contextRef, pinnedClaims });
+      const existingRequest = pendingSubmissionRef.current;
+      const clientRequestId = existingRequest?.fingerprint === fingerprint
+        ? existingRequest.requestId
+        : createChatClientRequestId();
+      const staleCancellation = pendingCancellationRef.current;
+      if (staleCancellation && staleCancellation.requestId !== clientRequestId) {
+        try {
+          await cancelRun({ clientRequestId: staleCancellation.requestId });
+          pendingCancellationRef.current = null;
+        } catch {
+          setError("The prior cancellation could not be confirmed. Retry before starting unrelated work.");
+          return null;
+        }
+      }
+      pendingSubmissionRef.current = { fingerprint, requestId: clientRequestId };
       try {
-        const runId = await startChat({ prompt, tier: normalizeRouterTierForChatRun(tier), contextRef, pinnedClaims });
+        const runId = await startChat({
+          prompt,
+          tier: normalizedTier,
+          contextRef,
+          pinnedClaims,
+          clientRequestId,
+        });
         setActiveRunId(runId);
+        if (pendingCancellationRef.current?.requestId === clientRequestId) {
+          const cancellation = await cancelRun({ runId });
+          if (cancellation.status === "cancelled" || cancellation.alreadyTerminal) {
+            pendingCancellationRef.current = null;
+          }
+        }
         return runId;
       } catch (err: any) {
+        if (pendingCancellationRef.current?.requestId === clientRequestId) {
+          try {
+            const cancellation = await cancelRun({ clientRequestId });
+            if (cancellation.status === "cancelled" || cancellation.status === "unavailable" || cancellation.alreadyTerminal) {
+              pendingCancellationRef.current = null;
+            }
+          } catch {
+            // Keep the request-bound cancellation for an explicit retry.
+          }
+        }
         const raw = (err?.message ?? String(err)).slice(0, 280);
         const msg = /server error|not authenticated|anonymous|sign in|account/i.test(raw)
           ? "Sign in with an email-backed account before running live research."
@@ -418,13 +513,28 @@ export function useRedesignChatRun() {
         return null;
       }
     },
-    [authLoading, isAuthenticated, paidEligible, startChat],
+    [authLoading, cancelRun, isAuthenticated, paidEligible, startChat],
   );
 
   const reset = useCallback(() => {
     setActiveRunId(null);
     setError(null);
   }, []);
+
+  const cancel = useCallback(async (targetRunId: string | null): Promise<CancelRunResult> => {
+    if (!targetRunId) {
+      if (!pendingSubmissionRef.current) return "unavailable";
+      pendingCancellationRef.current = { requestId: pendingSubmissionRef.current.requestId };
+      return "queued";
+    }
+    try {
+      const result = await cancelRun({ runId: targetRunId });
+      return result.status === "cancelled" && !result.alreadyTerminal ? "recorded" : "unavailable";
+    } catch (err: any) {
+      setError((err?.message ?? String(err)).slice(0, 280));
+      return "unavailable";
+    }
+  }, [cancelRun]);
 
   /**
    * Phase 5 — point the hook at an existing runId (e.g. one returned
@@ -441,6 +551,7 @@ export function useRedesignChatRun() {
     error ? "error"
     : !activeRunId ? "idle"
     : projected?.status === "complete" ? "ok"
+    : projected?.status === "cancelled" ? "idle"
     : projected?.status === "error" ? "error"
     : "thinking";
 
@@ -454,6 +565,7 @@ export function useRedesignChatRun() {
       userLoading,
     } as ChatRunState,
     submit,
+    cancel,
     reset,
     subscribeTo,
     hash: projected?.hash ?? null,

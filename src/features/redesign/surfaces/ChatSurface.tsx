@@ -786,6 +786,7 @@ export function ChatSurface({
     ];
   }, [liveDetail]);
   const [turns, setTurns] = useState<Turn[]>([]);
+  const recoveredRunIdRef = useRef<string | null>(null);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const consumedInitialPromptRef = useRef<string | null>(null);
   const hasInitialPrompt = Boolean(initialPrompt?.trim());
@@ -798,6 +799,33 @@ export function ChatSurface({
   const [tier, setTier] = useState<RouterTier>("auto");
   const [liveBatch, setLiveBatch] = useState<ActiveBatchRun | null>(null);
   const batch = liveBatch;
+
+  // Rebuild the newest owned conversation pair from the durable run after reload.
+  useEffect(() => {
+    const real = chatRun.state.run;
+    if (!real?.prompt || turns.length > 0 || recoveredRunIdRef.current === real.runId) return;
+    recoveredRunIdRef.current = real.runId;
+    const createdAt = real.createdAt ?? Date.now();
+    const terminalMarkdown = real.status === "cancelled"
+      ? liveChatUnavailableMarkdown("This run was cancelled before a final answer packet was available.", liveDetail)
+      : real.status === "error"
+        ? liveChatUnavailableMarkdown(real.errorMessage ?? "The recovered run failed before producing a final packet.", liveDetail)
+        : undefined;
+    setTurns([
+      { id: nextTurnId("u"), role: "user", text: real.prompt, createdAt },
+      {
+        id: nextTurnId("a"),
+        role: "assistant",
+        chatRunId: real.runId,
+        thinking: real.status === "pending" || real.status === "running",
+        packet: real.status === "complete" ? real.packet : undefined,
+        runHash: real.hash,
+        markdown: terminalMarkdown,
+        tier: (real.tier ?? "auto") as RouterTier,
+        createdAt: createdAt + 1,
+      },
+    ]);
+  }, [chatRun.state.run, liveDetail, turns.length]);
 
   // Sprint 4 P1.6 — pinned items carried into the next turn's context.
   const [pinned, setPinned] = useState<Array<{ id: string; label: string; tier: RouterTier; sourceCount: number }>>([]);
@@ -958,6 +986,16 @@ export function ChatSurface({
         out[idx] = next;
         return out;
       }
+      if (real.status === "cancelled") {
+        const out = [...prev];
+        out[idx] = {
+          ...live,
+          thinking: false,
+          streaming: false,
+          markdown: liveChatUnavailableMarkdown("Run cancelled. Any in-flight provider stream was aborted at the next cooperative checkpoint.", liveDetail),
+        };
+        return out;
+      }
       if (real.packet?.runtime) {
         live.packet = real.packet;
       }
@@ -1070,14 +1108,8 @@ export function ChatSurface({
       });
       return;
     }
-    showToast({
-      tone: "info",
-      message: _skipLiveSeed
-        ? "Live chat was not started because fresh=1 disables the run path."
-        : !isAuthenticated
-          ? "Sign in to run live research. Public memory stays available until then."
-          : "Live chat was not started. The research runtime is still preparing.",
-    });
+    // The assistant turn already renders the durable unavailable reason inline.
+    // A second toast obscured the user's prompt on mobile without adding recovery value.
   };
 
   useEffect(() => {
@@ -1307,19 +1339,32 @@ export function ChatSurface({
             placeholder="Ask anything · type / for commands"
             streaming={turns.some((t) => t.thinking || t.streaming)}
             onStop={() => {
-              setTurns((prev) => prev.map((t) =>
-                t.thinking || t.streaming
-                  ? {
-                      ...t,
-                      thinking: false,
-                      streaming: false,
-                      markdown: t.markdown
-                        ? `${t.markdown}\n\n_(stopped by user)_`
-                        : liveChatUnavailableMarkdown("Stopped before a live answer packet was available.", liveDetail),
-                      packet: t.packet,
-                    }
-                  : t,
-              ));
+              const targetTurn = [...turns].reverse().find((turn) => turn.thinking || turn.streaming);
+              if (!targetTurn) return;
+              void chatRun.cancel(targetTurn.chatRunId ?? null).then((result) => {
+                showToast({
+                  tone: result === "unavailable" ? "warning" : "info",
+                  message: result === "recorded"
+                    ? "Cancellation recorded. The active stream will abort at its next checkpoint."
+                    : result === "queued"
+                      ? "Cancellation queued. It will be applied as soon as the run is registered."
+                      : "The selected run was already terminal or unavailable.",
+                });
+                if (result === "unavailable") return;
+                setTurns((prev) => prev.map((t) =>
+                  t.id === targetTurn.id
+                    ? {
+                        ...t,
+                        thinking: false,
+                        streaming: false,
+                        markdown: t.markdown
+                          ? `${t.markdown}\n\n_(cancellation requested)_`
+                          : liveChatUnavailableMarkdown("Cancellation requested before a live answer packet was available.", liveDetail),
+                        packet: t.packet,
+                      }
+                    : t,
+                ));
+              });
             }}
           />
         </div>
@@ -2288,7 +2333,11 @@ function RuntimeBoard({ runtime }: { runtime?: ChatAnswer["runtime"] }) {
           <RuntimeMetric label="Entity" value={entity} />
           <RuntimeMetric label="Target" value={targetReport} />
           <RuntimeMetric label="Cost" value={formatUsd(metrics?.estimatedCostUsd)} />
+          <RuntimeMetric label="Tokens" value={typeof metrics?.totalTokens === "number" ? metrics.totalTokens.toLocaleString() : "pending"} />
           <RuntimeMetric label="Latency" value={formatMs(metrics?.totalLatencyMs ?? metrics?.timeToFinalMs)} />
+          <RuntimeMetric label="Model" value={metrics?.model ?? "pending"} />
+          <RuntimeMetric label="Provider" value={metrics?.provider ?? "pending"} />
+          <RuntimeMetric label="Receipt" value={compactRunId(metrics?.runtimeReceiptId) ?? "pending"} />
           <RuntimeMetric label="Memory hit" value={formatPct(metrics?.memoryHitRate)} />
           <RuntimeMetric label="Live search" value={liveGroundingDecision ? liveGroundingDecision.useLiveGrounding ? "on" : "skipped" : `${metrics?.liveSearchCalls ?? 0}`} />
         </div>

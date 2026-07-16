@@ -95,6 +95,50 @@ describe("FastAgent declutter guards", () => {
     expect(panel).toContain("href={isProductConversationMode ? '#product-intake-query' : '#fa-chat-input'}");
   });
 
+  it("processes contextual opens once on every viewport and waits for a runtime owner", () => {
+    const panel = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
+    const contextualOpen = panel.slice(
+      panel.indexOf("// Apply openOptions once per requestId"),
+      panel.indexOf("// Persist dossier context"),
+    );
+    const autoSend = panel.slice(
+      panel.indexOf("// Auto-send contextual open prompt"),
+      panel.indexOf("// No client heuristics"),
+    );
+
+    // CockpitLayout owns one responsive slide-over, so no CSS-breakpoint branch may
+    // prevent its mounted panel from consuming the request on mobile or tablet.
+    expect(contextualOpen).not.toContain("matchMedia");
+    expect(contextualOpen).not.toContain("isViewportActiveVariant");
+    expect(autoSend).not.toContain("matchMedia");
+    expect(autoSend).not.toContain("isViewportActiveVariant");
+
+    // A set preserves exactly-once semantics even if an old request id reappears
+    // after a different request, instead of remembering only the immediately prior id.
+    expect(panel).toContain("const handledOpenRequestIdsRef = useRef<Set<string>>(new Set());");
+    expect(panel).toContain("const autoSentRequestIdsRef = useRef<Set<string>>(new Set());");
+    expect(panel).toContain("const autoSendInFlightRequestIdsRef = useRef<Set<string>>(new Set());");
+    expect(panel).toContain("const autoSendFailedRequestIdsRef = useRef<Set<string>>(new Set());");
+    expect(contextualOpen).toContain("handledOpenRequestIdsRef.current.has(requestId)");
+    expect(contextualOpen).toContain("handledOpenRequestIdsRef.current.add(requestId)");
+    expect(autoSend).toContain("autoSentRequestIdsRef.current.has(requestId)");
+    expect(autoSend).toContain("autoSentRequestIdsRef.current.add(requestId)");
+    expect(autoSend).toContain("autoSendFailedRequestIdsRef.current.add(requestId)");
+    expect(autoSend).toContain("setInput(message)");
+    expect(autoSend.indexOf("stableSendMessage(message)")).toBeLessThan(autoSend.indexOf("autoSentRequestIdsRef.current.add(requestId)"));
+    const acceptedDispatch = autoSend.slice(autoSend.indexOf("autoSentRequestIdsRef.current.add(requestId)"));
+    expect(acceptedDispatch.indexOf("autoSentRequestIdsRef.current.add(requestId)")).toBeLessThan(acceptedDispatch.indexOf("onOptionsConsumed?.()"));
+
+    // Readiness must be checked before reserving the id, dispatching, or consuming
+    // the options; otherwise the send handler rejects it and the prompt is lost.
+    const readyGuard = autoSend.indexOf("if (!runtimeOwnerReady) return;");
+    expect(readyGuard).toBeGreaterThan(-1);
+    expect(readyGuard).toBeLessThan(autoSend.indexOf("autoSentRequestIdsRef.current.add(requestId)"));
+    expect(readyGuard).toBeLessThan(autoSend.indexOf("stableSendMessage(message)"));
+    expect(readyGuard).toBeLessThan(autoSend.indexOf("onOptionsConsumed?.()"));
+    expect(autoSend).toContain("runtimeOwnerReady,");
+  });
+
   it("migrates removed legacy chat mode instead of restoring dead actions", () => {
     const panel = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
 

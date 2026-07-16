@@ -68,6 +68,13 @@ Server Error) for an unknown slug.
 
 ## Hand-offs (built + ready for the other agent to call)
 
+- **2026-07-16 - Codex `/root` -> frontend/runtime agents** - additive optional
+  `redesignChatRuns.clientRequestId/provider/runtimeReceiptId/cancelRequestedAt/cancelledAt` fields;
+  `startChat({ ..., clientRequestId? })` dedupes by owner + request key;
+  `getLatestOwnedRun({})` restores the newest owned run;
+  `cancelRun({ runId? | clientRequestId? })` records request-bound cooperative cancellation.
+  Shipped through CI on `feat/agent-workspace-depth`; no out-of-band Convex deploy.
+
 - **2026-07-15 · Codex pipeline truth-isolation candidate →** `pipelineRuns`
   adds only optional `attemptKey`, `workflowExecutionKey`, and
   `executionGeneration`; `pipelineRunStreams` adds only optional
