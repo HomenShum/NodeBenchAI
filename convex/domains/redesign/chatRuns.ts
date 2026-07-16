@@ -144,8 +144,6 @@ type RuntimeContextPacket = {
 
 const MAX_PROMPT_CHARS = 4_000;
 const TIMEOUT_MS = 45_000;
-const GEMINI_INPUT_USD_PER_1M_TOKENS = 0.075;
-const GEMINI_OUTPUT_USD_PER_1M_TOKENS = 0.30;
 const FALLBACK_SOURCE_TIMEOUT_MS = 12_000;
 const FALLBACK_SOURCE_LIMIT = 5;
 
@@ -224,11 +222,19 @@ function normalizeChatTier(tier: string): NormalizedChatTier {
   return "auto";
 }
 
-function modelForTier(tier: string): string {
+export function modelForTier(tier: string): string {
   const normalized = normalizeChatTier(tier);
   if (normalized === "deep") return "gemini-3.1-pro-preview";
-  if (normalized === "free") return "gemini-3.1-flash-lite-preview";
-  return "gemini-3-flash-preview";
+  if (normalized === "free") return "gemini-3.1-flash-lite";
+  return "gemini-3.5-flash";
+}
+
+export function pricingForModel(model: string): { inputUsdPer1m: number; outputUsdPer1m: number } {
+  if (model === "gemini-3.5-flash") return { inputUsdPer1m: 1.5, outputUsdPer1m: 9 };
+  if (model === "gemini-3.1-pro-preview") return { inputUsdPer1m: 2, outputUsdPer1m: 12 };
+  if (model === "gemini-3.1-flash-lite") return { inputUsdPer1m: 0.25, outputUsdPer1m: 1.5 };
+  // Unknown models must not inherit a misleading paid estimate.
+  return { inputUsdPer1m: 0, outputUsdPer1m: 0 };
 }
 
 type FallbackSourceSnippet = {
@@ -769,11 +775,167 @@ function buildBoardState(args: {
   };
 }
 
-interface ParsedMemo {
+export interface ParsedMemo {
   shortAnswer: string;
   whyItMatters: string;
   risks: string[];
   nextAction: string;
+}
+
+export type RequestedResponseShape =
+  | { kind: "memo" }
+  | { kind: "title_only" }
+  | { kind: "bullets"; count: number };
+
+const RESPONSE_COUNT_WORDS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+};
+
+const SOURCE_NEEDED_LIMITATION =
+  "Source needed: no supported URL is available, so source-strength and claim-strength comparisons are unverified.";
+
+function parseRequestedCount(value: string): number | null {
+  const count = /^\d+$/.test(value) ? Number(value) : RESPONSE_COUNT_WORDS[value.toLowerCase()];
+  return Number.isInteger(count) && count >= 1 && count <= 12 ? count : null;
+}
+
+export function detectRequestedResponseShape(prompt: string): RequestedResponseShape {
+  const normalized = prompt.replace(/\s+/g, " ").trim().toLowerCase();
+  if (
+    /\btitle[- ]only\b/.test(normalized)
+    || /\b(?:only|just) (?:give|return|output|provide|write|respond with)?\s*(?:me )?(?:a |the )?title\b/.test(normalized)
+    || /\b(?:give|return|output|provide|write|respond with) (?:me )?(?:a |the )?title only\b/.test(normalized)
+  ) {
+    return { kind: "title_only" };
+  }
+
+  const bulletMatch = normalized.match(
+    /\b(?:exactly|in|as|using|give(?: me)?|return|output|provide|write)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:concise\s+|short\s+)?(?:bullet(?:\s+points?)?|bullets)\b/,
+  );
+  const count = bulletMatch ? parseRequestedCount(bulletMatch[1]) : null;
+  return count ? { kind: "bullets", count } : { kind: "memo" };
+}
+
+function sourceUrl(source: string): string | null {
+  const match = source.match(/https?:\/\/[^\s)>\]]+/i);
+  if (!match) return null;
+  try {
+    const url = new URL(match[0].replace(/[.,;:]+$/, ""));
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeUnsupportedSuperlatives(text: string): string {
+  return text.replace(
+    /\b(?:best|strongest)\s+(?:(?:supported|grounded|available)\s+)?(?:source|claim|evidence)\b/gi,
+    "source or claim requiring verification",
+  );
+}
+
+function compactResponseUnit(text: string, stripCitations = false): string {
+  const compact = text
+    .replace(/^\s*(?:#{1,6}|[-*•]|\d+[.)])\s*/, "")
+    .replace(/^\*\*(.+?)\*\*:?$/, "$1")
+    .replace(stripCitations ? /\s*\[\d+\]/g : /$^/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return compact.replace(/[.!?]+$/, "").slice(0, 240);
+}
+
+function responseUnits(parsed: ParsedMemo, evidence: Array<{ quote?: string }>): string[] {
+  const values = [
+    parsed.shortAnswer,
+    parsed.whyItMatters,
+    ...evidence.map((row) => row.quote ?? ""),
+    ...parsed.risks,
+    parsed.nextAction,
+  ];
+  const seen = new Set<string>();
+  const units: string[] = [];
+  for (const value of values) {
+    for (const part of value.split(/\n+|(?<=[.!?])\s+/)) {
+      const unit = compactResponseUnit(part);
+      const key = unit.toLowerCase();
+      if (!unit || seen.has(key)) continue;
+      seen.add(key);
+      units.push(unit);
+    }
+  }
+  return units;
+}
+
+export function applyDeterministicResponsePolicy(
+  prompt: string,
+  parsed: ParsedMemo,
+  evidence: Array<{
+    source: string;
+    quote?: string;
+    blocking?: boolean;
+    verificationState?: EvidenceVerificationState;
+  }>,
+): ParsedMemo {
+  const hasSupportedUrl = evidence.some((row) =>
+    sourceUrl(row.source) !== null
+    && row.blocking !== true
+    && row.verificationState !== "unsupported"
+    && row.verificationState !== "fetch_blocked",
+  );
+  const honest: ParsedMemo = hasSupportedUrl
+    ? parsed
+    : {
+        shortAnswer: sanitizeUnsupportedSuperlatives(parsed.shortAnswer),
+        whyItMatters: sanitizeUnsupportedSuperlatives(parsed.whyItMatters),
+        risks: [
+          ...parsed.risks.map(sanitizeUnsupportedSuperlatives).filter((risk) => risk !== SOURCE_NEEDED_LIMITATION),
+          SOURCE_NEEDED_LIMITATION,
+        ],
+        nextAction: "Add a supported source URL before selecting or promoting any claim.",
+      };
+
+  const shape = detectRequestedResponseShape(prompt);
+  if (shape.kind === "memo") return honest;
+
+  if (shape.kind === "title_only") {
+    const title = compactResponseUnit(honest.shortAnswer || honest.whyItMatters, true) || "Evidence review";
+    return {
+      shortAnswer: hasSupportedUrl ? title : `Source needed: ${title}`.slice(0, 240),
+      whyItMatters: "",
+      risks: [],
+      nextAction: "",
+    };
+  }
+
+  const candidates = responseUnits(honest, evidence)
+    .filter((unit) => unit !== SOURCE_NEEDED_LIMITATION);
+  const bullets = hasSupportedUrl
+    ? candidates.slice(0, shape.count)
+    : candidates.slice(0, Math.max(0, shape.count - 1));
+  while (bullets.length < shape.count - (hasSupportedUrl ? 0 : 1)) {
+    bullets.push(`Additional supported detail ${bullets.length + 1} was not available in this run`);
+  }
+  if (!hasSupportedUrl) bullets.push(SOURCE_NEEDED_LIMITATION);
+  while (bullets.length < shape.count) {
+    bullets.push(`Additional supported detail ${bullets.length + 1} was not available in this run`);
+  }
+  return {
+    shortAnswer: bullets.slice(0, shape.count).map((bullet) => `- ${bullet}`).join("\n"),
+    whyItMatters: "",
+    risks: [],
+    nextAction: "",
+  };
 }
 
 function parseMemo(text: string): ParsedMemo {
@@ -799,7 +961,7 @@ function parseMemo(text: string): ParsedMemo {
   const risks = sections.risks.length > 0
     ? sections.risks.slice(0, 4)
     : ["Grounded sources may not reflect the very latest events — re-run before any irreversible action."];
-  const nextAction = sections.next[0] || "Review evidence rows; pin the strongest claim into the active report.";
+  const nextAction = sections.next[0] || "Review the evidence rows before promoting a claim into the active report.";
   return { shortAnswer, whyItMatters, risks, nextAction };
 }
 
@@ -1281,20 +1443,34 @@ export const runStreamingChat = internalAction({
       const verifiedCalculationSection = bankReconciliationFact
         ? `\n\nA server-side VERIFIED_CALCULATION is available in the context packet's "verifiedCalculation" field: ${bankReconciliationFact.fact} This arithmetic has already been computed and checked for you. State it verbatim (the exact numbers and the tie/no-tie conclusion) inside "Why it matters" instead of recomputing or restating different numbers.`
         : "";
-      const systemPrompt = `You are NodeBench's evidence-first analyst. Produce a banker-style memo. Do not include To, From, Date, or Subject headers. Use exactly these markdown section headings:
+      const requestedResponseShape = detectRequestedResponseShape(args.prompt);
+      const responseShapeInstruction = requestedResponseShape.kind === "title_only"
+        ? "The user requested a title-only response. Output exactly one plain-text title line with no heading, label, bullets, explanation, or memo sections."
+        : requestedResponseShape.kind === "bullets"
+          ? `The user requested exactly ${requestedResponseShape.count} bullets. Output exactly ${requestedResponseShape.count} Markdown bullet lines beginning with \"- \" and no heading, preamble, conclusion, or memo sections.`
+          : `Produce a banker-style memo. Do not include To, From, Date, or Subject headers. Use exactly these markdown section headings:
 1. Short answer (one sentence with citation markers like [1] [2])
 2. Why it matters (one paragraph with citation markers)
 3. Evidence (3-5 bullets, each citing a source)
 4. Risks / unknowns (2-3 bullets)
-5. Next action (one imperative sentence)
-
-Use [1], [2], [3] inline cite markers in the prose. ${liveGrounding.useLiveGrounding ? "Keep claims grounded in the web sources you retrieve. Prefer recency." : "Use only the selected memory/context packet and cached source refs; do not imply a fresh web search was performed."} If you can't find grounded evidence, say so explicitly.
-
-If the user's request involves a numeric calculation, reconciliation, balancing check, or explicitly
+5. Next action (one imperative sentence)`;
+      const citationInstruction = requestedResponseShape.kind === "title_only"
+        ? "Do not include citation markers in the title."
+        : "Use [1], [2], [3] inline cite markers when a statement has a supported source URL.";
+      const calculationInstruction = requestedResponseShape.kind === "title_only"
+        ? ""
+        : requestedResponseShape.kind === "bullets"
+          ? "If the request requires a calculation or reconciliation, include the exact derivation and pass/fail conclusion within the requested bullet count."
+          : `If the user's request involves a numeric calculation, reconciliation, balancing check, or explicitly
 asks you to "show your math" / "show your work" / confirm a total: state the actual derivation
 (the specific numbers and operation, e.g. "$X - $Y = $Z") and an explicit pass/fail confirmation
-of what they asked you to verify inside "Why it matters" — do not just assert the conclusion. This
-does not apply to ordinary research/company/market questions.
+of what they asked you to verify inside "Why it matters" - do not just assert the conclusion. This
+does not apply to ordinary research/company/market questions.`;
+      const systemPrompt = `You are NodeBench's evidence-first analyst. ${responseShapeInstruction}
+
+${citationInstruction} ${liveGrounding.useLiveGrounding ? "Keep claims grounded in the web sources you retrieve. Prefer recency." : "Use only the selected memory/context packet and cached source refs; do not imply a fresh web search was performed."} If you can't find grounded evidence, say so explicitly.
+
+${calculationInstruction}
 
 Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}${verifiedCalculationSection}`;
       // Emit a stage event so the UI can show "Probing without [N]" / "Carrying forward N pins"
@@ -1444,7 +1620,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}${verifi
       }
 
       const t4 = Date.now();
-      const parsed = parseMemo(rawText);
+      let parsed = parseMemo(rawText);
       const geminiEvidence: EvidenceRow[] = groundingChunks.slice(0, 6).map((chunk, i) => {
         const url = chunk.web?.uri ?? "";
         let host = url;
@@ -1480,6 +1656,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}${verifi
       if (evidence.length > 0 && !/\[\d+\]/.test(parsed.whyItMatters)) {
         parsed.whyItMatters = `${parsed.whyItMatters} [1]`;
       }
+      parsed = applyDeterministicResponsePolicy(args.prompt, parsed, evidence);
       const tr4 = {
         step: "Bind evidence",
         detail: `${evidence.length} citations from ${groundingChunks.length} Gemini chunks + ${fallbackSources.length} fallback sources + ${memoryEvidence.length} cached sources`,
@@ -1507,9 +1684,10 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}${verifi
 
       const totalLatencyMs = Date.now() - t0;
       const totalTokens = inputTokens + outputTokens;
+      const pricing = pricingForModel(args.model);
       const estimatedCostUsd =
-        (inputTokens / 1_000_000) * GEMINI_INPUT_USD_PER_1M_TOKENS +
-        (outputTokens / 1_000_000) * GEMINI_OUTPUT_USD_PER_1M_TOKENS;
+        (inputTokens / 1_000_000) * pricing.inputUsdPer1m +
+        (outputTokens / 1_000_000) * pricing.outputUsdPer1m;
       const hash = answerHash({
         prompt: args.prompt,
         tier: args.tier,

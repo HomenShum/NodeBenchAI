@@ -12339,7 +12339,27 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 [data-redesign] .chat-trace-item-meta span:last-child { overflow-wrap: anywhere; color: var(--rd-ink-soft); }
 
 @media (max-width: 760px) {
-  [data-redesign] .rd-shell--chat-v3 .rd-pane--right.chat-context { display: none; }
+  /* Keep this selector more specific than the desktop chat grid in
+     agent-workspace.css, which is imported after this file. Persisted
+     data-wide state must never reserve an inspector column on mobile. */
+  [data-redesign] .rd-shell.rd-shell--chat-v3 .rd-shell__main,
+  [data-redesign][data-wide="true"] .rd-shell.rd-shell--chat-v3 .rd-shell__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Chat also carries the home shell class for shared chrome. Do not let the
+     home wide-mode gutters push the transcript and composer past the viewport. */
+  [data-redesign] .rd-shell.rd-shell--chat-v3 .rd-shell__main > .rd-pane:first-child,
+  [data-redesign][data-wide="true"] .rd-shell.rd-shell--chat-v3 .rd-shell__main > .rd-pane:first-child {
+    min-width: 0;
+    padding-inline: 0;
+  }
+
+  [data-redesign] .rd-shell.rd-shell--chat-v3 .rd-pane--right.chat-context,
+  [data-redesign][data-wide="true"] .rd-shell.rd-shell--chat-v3 .rd-pane--right.chat-context {
+    display: none;
+    width: 0;
+  }
   [data-redesign] .rd-agent-workspace-head { padding: 14px; }
   [data-redesign] .rd-agent-workspace-head__primary { align-items: flex-start; }
   [data-redesign] .rd-agent-workspace-head__scope { grid-template-columns: 1fr; }

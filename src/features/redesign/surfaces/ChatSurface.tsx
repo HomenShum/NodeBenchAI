@@ -1982,6 +1982,10 @@ function AnswerPacket({
   const [traceOpen, setTraceOpen] = useState(false);
   const traceRef = useRef<HTMLDetailsElement | null>(null);
   const researchStages = buildResearchStages(toolCalls ?? packet.trace);
+  const isCompactResponse =
+    !packet.whyItMatters.trim() &&
+    packet.risks.length === 0 &&
+    !packet.nextAction.trim();
 
   // Wire citation interactivity: hover [N] in body → highlight matching source row in evidence list
   const handleCiteEnter = (idx: number) => setHoverCite(idx);
@@ -2103,14 +2107,16 @@ function AnswerPacket({
         </p>
       </section>
 
-      {/* Why useful */}
-      <section>
-        <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Why useful</div>
-        <p className="rd-body" style={{ color: "var(--rd-ink-mute)", margin: 0 }}>{packet.whyItMatters}</p>
-      </section>
+      {/* Compact response shapes intentionally omit memo-only sections. */}
+      {packet.whyItMatters.trim() && (
+        <section>
+          <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Why useful</div>
+          <p className="rd-body" style={{ color: "var(--rd-ink-mute)", margin: 0 }}>{packet.whyItMatters}</p>
+        </section>
+      )}
 
       {/* Evidence — rows highlight when matching [N] in body is hovered */}
-      <section>
+      {!isCompactResponse && packet.evidence.length > 0 && <section>
         <div className="rd-eyebrow" style={{ marginBottom: 8 }}>Evidence ({packet.evidence.length})</div>
         <ol className="rd-stack" style={{ gap: 8, listStyle: "none", padding: 0, margin: 0 }}>
           {packet.evidence.map((e) => {
@@ -2162,10 +2168,10 @@ function AnswerPacket({
             );
           })}
         </ol>
-      </section>
+      </section>}
 
       {/* Risks / unknowns */}
-      <section>
+      {packet.risks.length > 0 && <section>
         <div className="rd-eyebrow" style={{ marginBottom: 8 }}>Risks / unknowns</div>
         <ul className="rd-stack" style={{ gap: 6, listStyle: "none", padding: 0, margin: 0 }}>
           {packet.risks.map((r, i) => (
@@ -2175,10 +2181,10 @@ function AnswerPacket({
             </li>
           ))}
         </ul>
-      </section>
+      </section>}
 
       {/* Next action */}
-      <section className="rd-card" style={{
+      {packet.nextAction.trim() && <section className="rd-card" style={{
         padding: 14,
         background: "var(--rd-accent-tint)",
         borderColor: "var(--rd-accent-ring)",
@@ -2191,7 +2197,7 @@ function AnswerPacket({
           <button type="button" className="rd-action-chip" onClick={onOpenReport}>Open {reportTitle ?? "report"}</button>
           <button type="button" className="rd-action-chip" onClick={onShare}>Export memo</button>
         </div>
-      </section>
+      </section>}
 
       {/* Trace */}
       <details ref={traceRef} open={traceOpen} onToggle={(e) => setTraceOpen((e.currentTarget as HTMLDetailsElement).open)}>

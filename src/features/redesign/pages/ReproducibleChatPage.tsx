@@ -76,6 +76,12 @@ export function ReproducibleChatPage({ hash }: ReproducibleChatPageProps) {
   }, [row?.packet?.shortAnswer]);
 
   const packet: ChatAnswer | null = (row?.packet as ChatAnswer | undefined) ?? null;
+  const isCompactResponse = Boolean(
+    packet &&
+    !packet.whyItMatters?.trim() &&
+    packet.risks.length === 0 &&
+    !packet.nextAction?.trim(),
+  );
 
   const evidenceWithCites = useMemo(() => {
     if (!packet?.evidence) return [];
@@ -214,12 +220,12 @@ export function ReproducibleChatPage({ hash }: ReproducibleChatPageProps) {
           </p>
         </section>
 
-        <section>
+        {packet.whyItMatters?.trim() && <section>
           <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Why useful</div>
           <p className="rd-body" style={{ color: "var(--rd-ink-mute)", margin: 0 }}>{packet.whyItMatters}</p>
-        </section>
+        </section>}
 
-        <section>
+        {!isCompactResponse && evidenceWithCites.length > 0 && <section>
           <div className="rd-eyebrow" style={{ marginBottom: 8 }}>Evidence ({evidenceWithCites.length})</div>
           <ol className="rd-stack" style={{ gap: 8, listStyle: "none", padding: 0, margin: 0 }}>
             {evidenceWithCites.map((e) => {
@@ -268,7 +274,7 @@ export function ReproducibleChatPage({ hash }: ReproducibleChatPageProps) {
               );
             })}
           </ol>
-        </section>
+        </section>}
 
         {packet.risks?.length > 0 && (
           <section>
