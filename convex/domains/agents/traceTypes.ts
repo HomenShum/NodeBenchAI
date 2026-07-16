@@ -157,7 +157,6 @@ export interface TraceOutput {
   auditLog: TraceAuditEntry[];
   analysis?: string;
   analysisIsNonDeterministic: true;
-  confidence: number;
   totalDurationMs: number;
   totalSteps: number;
   selfCorrections: number;

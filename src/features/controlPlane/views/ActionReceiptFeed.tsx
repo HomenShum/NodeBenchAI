@@ -8,56 +8,20 @@ import { Filter, Shield, ShieldAlert } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
-import { DEMO_RECEIPTS } from "../data/receiptFixtures";
 import { ReceiptApprovalQueue } from "../components/ReceiptApprovalQueue";
 import { ReceiptCard } from "../components/ReceiptCard";
 import { toActionReceipt } from "../lib/receiptPresentation";
 
 type FilterMode = "all" | "allowed" | "needs-approval" | "denied" | "reversible";
-type DemoRollbackMap = Record<string, { rolledBackAt: string; rollbackRef: string }>;
-
 export const ActionReceiptFeed = memo(function ActionReceiptFeed() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<FilterMode>("all");
-  const [demoRollbackMap, setDemoRollbackMap] = useState<DemoRollbackMap>({});
 
   const convexReceipts = useQuery(api.domains.agents.receipts.actionReceipts.list, { limit: 100 });
-  const liveReceipts = useMemo(
-    () => (convexReceipts && convexReceipts.length > 0 ? convexReceipts.map((row: any) => toActionReceipt(row as Record<string, unknown>)) : null),
+  const receipts = useMemo(
+    () => (convexReceipts ?? []).map((row: any) => toActionReceipt(row as Record<string, unknown>)),
     [convexReceipts],
   );
-  const isDemo = !liveReceipts;
-
-  const receipts = useMemo(() => {
-    if (liveReceipts) {
-      return liveReceipts;
-    }
-
-    return DEMO_RECEIPTS.map((receipt) => {
-      const rollback = demoRollbackMap[receipt.receiptId];
-      if (!rollback) {
-        return receipt;
-      }
-
-      return {
-        ...receipt,
-        result: {
-          ...receipt.result,
-          success: true,
-          summary: `Rolled back in demo mode. ${receipt.reversible.undoInstructions ?? "The action was reverted locally from the receipt feed."}`,
-        },
-        approval: receipt.approval
-          ? {
-              ...receipt.approval,
-              state: receipt.approval.state === "pending" ? "denied" : receipt.approval.state,
-              reviewedAt: receipt.approval.reviewedAt ?? rollback.rolledBackAt,
-              reviewedBy: receipt.approval.reviewedBy ?? "demo-operator",
-              reviewNotes: "Rolled back locally from the action receipt feed.",
-            }
-          : receipt.approval,
-      };
-    });
-  }, [demoRollbackMap, liveReceipts]);
 
   const filteredReceipts = useMemo(() => {
     if (filter === "all") return receipts;
@@ -87,26 +51,6 @@ export const ActionReceiptFeed = memo(function ActionReceiptFeed() {
     });
   };
 
-  const handleUndo = (receiptId: string) => {
-    if (!isDemo) {
-      return;
-    }
-
-    setDemoRollbackMap((prev) => {
-      if (prev[receiptId]) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        [receiptId]: {
-          rolledBackAt: new Date().toISOString(),
-          rollbackRef: `demo_rb_${receiptId.slice(-8)}`,
-        },
-      };
-    });
-  };
-
   const filterButtons: { mode: FilterMode; label: string; count: number }[] = [
     { mode: "all", label: "All", count: stats.total },
     { mode: "needs-approval", label: "Needs approval", count: stats.pending },
@@ -114,6 +58,20 @@ export const ActionReceiptFeed = memo(function ActionReceiptFeed() {
     { mode: "reversible", label: "Reversible", count: stats.reversible },
     { mode: "allowed", label: "Allowed", count: stats.allowed },
   ];
+
+  if (convexReceipts === undefined) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 view-atmosphere-receipts">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-[var(--accent-primary)]" />
+            <h1 className="text-xl font-semibold tracking-tight text-content">Action Receipts</h1>
+          </div>
+          <p className="text-sm text-content-muted">Loading your recorded agent actions…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 view-atmosphere-receipts stagger [&>*]:animate-[fade-slide-in_0.5s_var(--ease-out-expo)_both]">
@@ -124,7 +82,8 @@ export const ActionReceiptFeed = memo(function ActionReceiptFeed() {
         </div>
         <p className="text-sm text-content-muted">
           Tamper-evident records of what agents saw, did, and were allowed to do. Review denied actions,
-          approval-gated steps, and reversible changes without leaving the feed.
+          approval-gated steps, and reversible changes without leaving the feed. Execution fields are hashed;
+          reviewer decisions remain an explicit mutable workflow.
         </p>
       </div>
 
@@ -174,7 +133,7 @@ export const ActionReceiptFeed = memo(function ActionReceiptFeed() {
           </h2>
         </div>
         <p className="text-xs text-content-muted">
-          Outbound OpenClaw actions pause here before execution. Approvals update the receipt itself instead of a shadow log.
+          Review held actions here. Execution remains held; resume and decision controls stay unavailable until the runtime can enforce them.
         </p>
         <ReceiptApprovalQueue compact />
       </section>
@@ -186,24 +145,19 @@ export const ActionReceiptFeed = memo(function ActionReceiptFeed() {
             receipt={receipt}
             isExpanded={expandedIds.has(receipt.receiptId)}
             onToggle={() => toggleExpand(receipt.receiptId)}
-            onUndo={isDemo ? () => handleUndo(receipt.receiptId) : undefined}
-            rollbackState={demoRollbackMap[receipt.receiptId]
-              ? {
-                  ...demoRollbackMap[receipt.receiptId],
-                  modeLabel: "Demo rollback",
-                }
-              : undefined}
           />
         ))}
         {filteredReceipts.length === 0 && (
-          <div className="py-12 text-center text-sm text-content-muted">No receipts match this trust filter.</div>
+          <div className="py-12 text-center text-sm text-content-muted">
+            {receipts.length === 0
+              ? "No action receipts have been recorded yet."
+              : "No receipts match this trust filter."}
+          </div>
         )}
       </div>
 
       <div className="border-t border-edge/30 pt-4 text-center text-[11px] text-content-muted">
-        {isDemo
-          ? "Demo mode. Showing the golden action-receipt dataset until live runtime data is available. Undo executes locally for reversible demo receipts."
-          : `Live. Showing ${receipts.length} receipts from Convex.`}
+        Showing {receipts.length} recorded {receipts.length === 1 ? "receipt" : "receipts"}.
       </div>
     </div>
   );

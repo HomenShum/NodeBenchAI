@@ -12,7 +12,52 @@
  */
 
 import { v } from "convex/values";
-import { query, mutation, internalMutation, internalQuery } from "../../_generated/server";
+import { query, internalMutation, internalQuery } from "../../_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import type { Id } from "../../_generated/dataModel";
+
+async function getTraceOwnerId(ctx: { auth: any }): Promise<Id<"users"> | null> {
+  const userId = await getAuthUserId(ctx as any);
+  return userId ? (userId as Id<"users">) : null;
+}
+
+const emptyAuditSummary = {
+  totalSteps: 0,
+  gatherInfoSteps: 0,
+  dataOpSteps: 0,
+  outputSteps: 0,
+  selfCorrections: 0,
+  failures: 0,
+  totalDurationMs: 0,
+  toolsUsed: [] as string[],
+  hasFinalized: false,
+};
+
+const auditSummaryValidator = v.object({
+  totalSteps: v.number(),
+  gatherInfoSteps: v.number(),
+  dataOpSteps: v.number(),
+  outputSteps: v.number(),
+  selfCorrections: v.number(),
+  failures: v.number(),
+  totalDurationMs: v.number(),
+  toolsUsed: v.array(v.string()),
+  hasFinalized: v.boolean(),
+});
+
+function summarizeAuditEntries(entries: Array<any>) {
+  return {
+    totalSteps: entries.length,
+    gatherInfoSteps: entries.filter((entry) => entry.choiceType === "gather_info").length,
+    dataOpSteps: entries.filter((entry) => entry.choiceType === "execute_data_op").length,
+    outputSteps: entries.filter((entry) => entry.choiceType === "execute_output").length,
+    selfCorrections: entries.filter((entry) => entry.metadata.correctionApplied).length,
+    failures: entries.filter((entry) => !entry.metadata.success).length,
+    totalDurationMs: entries.reduce((sum, entry) => sum + entry.metadata.durationMs, 0),
+    toolsUsed: [...new Set(entries.map((entry) => String(entry.toolName)))],
+    hasFinalized: entries.some((entry) => entry.choiceType === "finalize"),
+  };
+}
 
 // ============================================================================
 // Mutations
@@ -25,6 +70,7 @@ import { query, mutation, internalMutation, internalQuery } from "../../_generat
 export const appendAuditEntry = internalMutation({
   args: {
     executionId: v.string(),
+    userId: v.optional(v.id("users")),
     executionType: v.union(
       v.literal("swarm"),
       v.literal("tree"),
@@ -42,6 +88,9 @@ export const appendAuditEntry = internalMutation({
       v.literal("finalize"),
     ),
     toolName: v.string(),
+    provenance: v.optional(
+      v.union(v.literal("deterministic_code"), v.literal("ai_model")),
+    ),
     toolParams: v.optional(v.any()),
     metadata: v.object({
       rowCount: v.optional(v.number()),
@@ -65,72 +114,14 @@ export const appendAuditEntry = internalMutation({
   handler: async (ctx, args) => {
     return await ctx.db.insert("traceAuditEntries", {
       executionId: args.executionId,
+      userId: args.userId,
       executionType: args.executionType,
       workflowTag: args.workflowTag,
       seq: args.seq,
       timestamp: Date.now(),
       choiceType: args.choiceType,
       toolName: args.toolName,
-      toolParams: args.toolParams,
-      metadata: args.metadata,
-      description: args.description,
-      createdAt: Date.now(),
-    });
-  },
-});
-
-/**
- * Append an audit entry (public, for use from actions via ctx.runMutation).
- */
-export const appendAuditEntryPublic = mutation({
-  args: {
-    executionId: v.string(),
-    executionType: v.union(
-      v.literal("swarm"),
-      v.literal("tree"),
-      v.literal("chat"),
-      v.literal("forecast_refresh"),
-      v.literal("linkedin_post"),
-      v.literal("pipeline_run"),
-    ),
-    workflowTag: v.optional(v.string()),
-    seq: v.number(),
-    choiceType: v.union(
-      v.literal("gather_info"),
-      v.literal("execute_data_op"),
-      v.literal("execute_output"),
-      v.literal("finalize"),
-    ),
-    toolName: v.string(),
-    toolParams: v.optional(v.any()),
-    metadata: v.object({
-      rowCount: v.optional(v.number()),
-      columnCount: v.optional(v.number()),
-      uniqueValues: v.optional(v.any()),
-      charCount: v.optional(v.number()),
-      wordCount: v.optional(v.number()),
-      keyTopics: v.optional(v.array(v.string())),
-      errorMessage: v.optional(v.string()),
-      durationMs: v.number(),
-      success: v.boolean(),
-      intendedState: v.optional(v.string()),
-      actualState: v.optional(v.string()),
-      correctionApplied: v.optional(v.boolean()),
-      originalRequest: v.optional(v.string()),
-      deliverySummary: v.optional(v.string()),
-    }),
-    description: v.string(),
-  },
-  returns: v.id("traceAuditEntries"),
-  handler: async (ctx, args) => {
-    return await ctx.db.insert("traceAuditEntries", {
-      executionId: args.executionId,
-      executionType: args.executionType,
-      workflowTag: args.workflowTag,
-      seq: args.seq,
-      timestamp: Date.now(),
-      choiceType: args.choiceType,
-      toolName: args.toolName,
+      provenance: args.provenance,
       toolParams: args.toolParams,
       metadata: args.metadata,
       description: args.description,
@@ -155,6 +146,7 @@ export const getAuditLog = query({
     _id: v.id("traceAuditEntries"),
     _creationTime: v.number(),
     executionId: v.string(),
+    userId: v.optional(v.id("users")),
     executionType: v.union(
       v.literal("swarm"),
       v.literal("tree"),
@@ -173,6 +165,9 @@ export const getAuditLog = query({
       v.literal("finalize"),
     ),
     toolName: v.string(),
+    provenance: v.optional(
+      v.union(v.literal("deterministic_code"), v.literal("ai_model")),
+    ),
     toolParams: v.optional(v.any()),
     metadata: v.object({
       rowCount: v.optional(v.number()),
@@ -194,9 +189,13 @@ export const getAuditLog = query({
     createdAt: v.number(),
   })),
   handler: async (ctx, args) => {
+    const userId = await getTraceOwnerId(ctx);
+    if (!userId) return [];
     const entries = await ctx.db
       .query("traceAuditEntries")
-      .withIndex("by_execution", (q) => q.eq("executionId", args.executionId))
+      .withIndex("by_user_execution", (q) =>
+        q.eq("userId", userId).eq("executionId", args.executionId),
+      )
       .order("asc")
       .collect();
     return entries;
@@ -209,11 +208,13 @@ export const getAuditLog = query({
 export const getAuditLogInternal = internalQuery({
   args: {
     executionId: v.string(),
+    userId: v.id("users"),
   },
   returns: v.array(v.object({
     _id: v.id("traceAuditEntries"),
     _creationTime: v.number(),
     executionId: v.string(),
+    userId: v.optional(v.id("users")),
     executionType: v.union(
       v.literal("swarm"),
       v.literal("tree"),
@@ -232,6 +233,9 @@ export const getAuditLogInternal = internalQuery({
       v.literal("finalize"),
     ),
     toolName: v.string(),
+    provenance: v.optional(
+      v.union(v.literal("deterministic_code"), v.literal("ai_model")),
+    ),
     toolParams: v.optional(v.any()),
     metadata: v.object({
       rowCount: v.optional(v.number()),
@@ -255,7 +259,9 @@ export const getAuditLogInternal = internalQuery({
   handler: async (ctx, args) => {
     const entries = await ctx.db
       .query("traceAuditEntries")
-      .withIndex("by_execution", (q) => q.eq("executionId", args.executionId))
+      .withIndex("by_user_execution", (q) =>
+        q.eq("userId", args.userId).eq("executionId", args.executionId),
+      )
       .order("asc")
       .collect();
     return entries;
@@ -287,36 +293,33 @@ export const getAuditSummary = query({
   args: {
     executionId: v.string(),
   },
-  returns: v.object({
-    totalSteps: v.number(),
-    gatherInfoSteps: v.number(),
-    dataOpSteps: v.number(),
-    outputSteps: v.number(),
-    selfCorrections: v.number(),
-    failures: v.number(),
-    totalDurationMs: v.number(),
-    toolsUsed: v.array(v.string()),
-    hasFinalized: v.boolean(),
-  }),
+  returns: auditSummaryValidator,
+  handler: async (ctx, args) => {
+    const userId = await getTraceOwnerId(ctx);
+    if (!userId) return emptyAuditSummary;
+    const entries = await ctx.db
+      .query("traceAuditEntries")
+      .withIndex("by_user_execution", (q) =>
+        q.eq("userId", userId).eq("executionId", args.executionId),
+      )
+      .order("asc")
+      .collect();
+    return summarizeAuditEntries(entries);
+  },
+});
+
+/** Internal summary used by server orchestrators without public auth context. */
+export const getAuditSummaryInternal = internalQuery({
+  args: { executionId: v.string(), userId: v.id("users") },
+  returns: auditSummaryValidator,
   handler: async (ctx, args) => {
     const entries = await ctx.db
       .query("traceAuditEntries")
-      .withIndex("by_execution", (q) => q.eq("executionId", args.executionId))
+      .withIndex("by_user_execution", (q) =>
+        q.eq("userId", args.userId).eq("executionId", args.executionId),
+      )
       .order("asc")
       .collect();
-
-    const toolsUsed = [...new Set(entries.map((e) => e.toolName))];
-
-    return {
-      totalSteps: entries.length,
-      gatherInfoSteps: entries.filter((e) => e.choiceType === "gather_info").length,
-      dataOpSteps: entries.filter((e) => e.choiceType === "execute_data_op").length,
-      outputSteps: entries.filter((e) => e.choiceType === "execute_output").length,
-      selfCorrections: entries.filter((e) => e.metadata.correctionApplied).length,
-      failures: entries.filter((e) => !e.metadata.success).length,
-      totalDurationMs: entries.reduce((sum, e) => sum + e.metadata.durationMs, 0),
-      toolsUsed,
-      hasFinalized: entries.some((e) => e.choiceType === "finalize"),
-    };
+    return summarizeAuditEntries(entries);
   },
 });

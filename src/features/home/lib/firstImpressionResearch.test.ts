@@ -17,25 +17,22 @@ describe("first impression research", () => {
   it("builds a durable research workflow request from query text", () => {
     const request = createBackgroundResearchRequest({
       query: "Research Northstar Bio before my meeting",
-      fallbackPrompt: "fallback",
-      ownerKey: "session:abc",
     });
     expect(request).toMatchObject({
       pipelineKind: "research",
       spec: "Research Northstar Bio before my meeting",
       title: "Research Northstar Bio before my meeting",
       modelId: "nodebench:auto-balanced",
-      ownerKey: "session:abc",
       forceFresh: true,
       linkupDepth: "standard",
     });
   });
 
-  it("uses the suggested card prompt when the query is blank", () => {
+  it("does not silently substitute a suggested prompt when the query is blank", () => {
     const request = createBackgroundResearchRequest({
       query: "   ",
-      fallbackPrompt: "Research scattered salary and culture signals.",
     });
-    expect(request.spec).toBe("Research scattered salary and culture signals.");
+    expect(request.spec).toBe("");
+    expect(request.title).toBe("");
   });
 });

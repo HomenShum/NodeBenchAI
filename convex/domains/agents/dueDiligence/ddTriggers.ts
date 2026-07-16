@@ -19,8 +19,8 @@
 "use node";
 
 import { v } from "convex/values";
-import { action } from "../../../_generated/server";
-import { internal, api } from "../../../_generated/api";
+import { internalAction } from "../../../_generated/server";
+import { internal } from "../../../_generated/api";
 import { Id } from "../../../_generated/dataModel";
 import { DDTier, DD_TIER_BRANCHES, RISK_BASED_BRANCHES, MicroBranchType } from "./types";
 import {
@@ -30,14 +30,11 @@ import {
   formatRiskScore,
 } from "./riskScoring";
 
-// Cooldown period before re-triggering DD for same entity (ms)
-const DD_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-
 // Type for DD job records returned from queries
 interface DDJobRecord {
   jobId: string;
   entityName: string;
-  entityType: string;
+  entityType: "company" | "fund" | "person";
   status: string;
   createdAt: number;
   completedAt?: number;
@@ -55,7 +52,7 @@ interface DDJobRecord {
  * This action performs risk assessment before tier selection, allowing
  * small deals with high risk to escalate to deeper DD tiers.
  */
-export const triggerDDFromFunding = action({
+export const triggerDDFromFundingInternal = internalAction({
   args: {
     fundingEventId: v.id("fundingEvents"),
     userId: v.id("users"),
@@ -119,9 +116,10 @@ export const triggerDDFromFunding = action({
 
     // Check if should trigger (now with risk assessment)
     const check = await ctx.runQuery(
-      api.domains.agents.dueDiligence.ddTriggerQueries.shouldTriggerDDForFunding,
+      internal.domains.agents.dueDiligence.ddTriggerQueries.shouldTriggerDDForFundingInternal,
       {
         fundingEventId,
+        userId,
         riskScore,
         escalationTriggers,
       }
@@ -170,7 +168,7 @@ export const triggerDDFromFunding = action({
 
     // Start DD job with tier-specific branches and micro-branches
     const result = await ctx.runAction(
-      api.domains.agents.dueDiligence.ddOrchestrator.startDueDiligenceJob,
+      internal.domains.agents.dueDiligence.ddOrchestrator.startDueDiligenceJobInternal,
       {
         entityName: event.companyName,
         entityType: "company",
@@ -218,7 +216,7 @@ export const triggerDDFromFunding = action({
 /**
  * Process all pending DD triggers (scheduled job)
  */
-export const processPendingTriggers = action({
+export const processPendingTriggersInternal = internalAction({
   args: {
     userId: v.id("users"),
     maxJobs: v.optional(v.number()),
@@ -226,8 +224,8 @@ export const processPendingTriggers = action({
   handler: async (ctx, { userId, maxJobs = 5 }) => {
     // Get pending triggers
     const pending = await ctx.runQuery(
-      api.domains.agents.dueDiligence.ddTriggerQueries.getPendingDDTriggers,
-      { limit: maxJobs }
+      internal.domains.agents.dueDiligence.ddTriggerQueries.getPendingDDTriggersInternal,
+      { userId, limit: maxJobs }
     );
 
     const results: Array<{
@@ -240,7 +238,7 @@ export const processPendingTriggers = action({
 
     for (const trigger of pending) {
       const result = await ctx.runAction(
-        api.domains.agents.dueDiligence.ddTriggers.triggerDDFromFunding,
+        internal.domains.agents.dueDiligence.ddTriggers.triggerDDFromFundingInternal,
         {
           fundingEventId: trigger.fundingEventId,
           userId,
@@ -265,62 +263,9 @@ export const processPendingTriggers = action({
 });
 
 /**
- * Manual DD trigger from UI
- */
-export const triggerManualDD = action({
-  args: {
-    entityName: v.string(),
-    entityType: v.union(v.literal("company"), v.literal("fund"), v.literal("person")),
-    userId: v.id("users"),
-    entityId: v.optional(v.id("entityContexts")),
-  },
-  handler: async (ctx, { entityName, entityType, userId, entityId }) => {
-    // Check for recent DD
-    const recentJobs = await ctx.runQuery(
-      api.domains.agents.dueDiligence.ddMutations.getUserDDJobs,
-      { userId, limit: 100 }
-    );
-
-    const recentForEntity = recentJobs.find(
-      (job: DDJobRecord) =>
-        job.entityName.toLowerCase() === entityName.toLowerCase() &&
-        job.entityType === entityType &&
-        job.status !== "failed" &&
-        job.createdAt > Date.now() - DD_COOLDOWN_MS
-    );
-
-    if (recentForEntity) {
-      return {
-        triggered: false,
-        reason: `Recent DD job exists (${recentForEntity.status})`,
-        existingJobId: recentForEntity.jobId,
-      };
-    }
-
-    // Start DD job
-    const result = await ctx.runAction(
-      api.domains.agents.dueDiligence.ddOrchestrator.startDueDiligenceJob,
-      {
-        entityName,
-        entityType,
-        triggerSource: "manual",
-        entityId,
-        userId,
-      }
-    );
-
-    return {
-      triggered: true,
-      jobId: result.jobId,
-      status: result.status,
-    };
-  },
-});
-
-/**
  * Trigger DD refresh for stale memos
  */
-export const triggerStaleRefresh = action({
+export const triggerStaleRefreshInternal = internalAction({
   args: {
     maxAgeMs: v.optional(v.number()),
     userId: v.id("users"),
@@ -332,7 +277,7 @@ export const triggerStaleRefresh = action({
 
     // Get completed jobs with old memos
     const jobs = await ctx.runQuery(
-      api.domains.agents.dueDiligence.ddMutations.getUserDDJobs,
+      internal.domains.agents.dueDiligence.ddMutations.getUserDDJobsInternal,
       { userId, status: "completed", limit: 50 }
     );
 
@@ -346,7 +291,7 @@ export const triggerStaleRefresh = action({
 
     for (const staleJob of staleJobs.slice(0, maxJobs)) {
       const result = await ctx.runAction(
-        api.domains.agents.dueDiligence.ddOrchestrator.startDueDiligenceJob,
+        internal.domains.agents.dueDiligence.ddOrchestrator.startDueDiligenceJobInternal,
         {
           entityName: staleJob.entityName,
           entityType: staleJob.entityType,

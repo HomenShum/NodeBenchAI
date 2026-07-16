@@ -70,10 +70,6 @@ function formatLinkLabel(href?: string): string {
   }
 }
 
-function formatConfidence(confidence: number): string {
-  return `${Math.round(confidence * 100)}%`;
-}
-
 function getProofVerdictPresentation(verdict: TaskSessionProofPack["verdict"]) {
   switch (verdict) {
     case 'verified':
@@ -324,9 +320,6 @@ export function TaskSessionDetail({ sessionId, onBack, className }: TaskSessionD
                     )}
                   />
                   {proofPack.verdictLabel}
-                </span>
-                <span className="text-xs text-content-muted">
-                  Confidence {formatConfidence(proofPack.confidence)}
                 </span>
               </div>
               <p className="mt-2 text-sm leading-6 text-content-secondary">

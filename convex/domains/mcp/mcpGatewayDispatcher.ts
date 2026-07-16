@@ -315,6 +315,7 @@ const ALLOWLIST: Record<string, AllowlistEntry> = {
   mcpGetDocument: {
     ref: internal.domains.documents.mcpDocumentEndpoints.mcpGetDocument,
     type: "query",
+    injectUserId: true,
   },
   mcpUpdateDocument: {
     ref: internal.domains.documents.mcpDocumentEndpoints.mcpUpdateDocument,
@@ -394,6 +395,7 @@ const ALLOWLIST: Record<string, AllowlistEntry> = {
   mcpGetSpreadsheetRange: {
     ref: internal.domains.documents.mcpDocumentEndpoints.mcpGetSpreadsheetRange,
     type: "query",
+    injectUserId: true,
   },
   mcpApplySpreadsheetOperations: {
     ref: internal.domains.documents.mcpDocumentEndpoints.mcpApplySpreadsheetOperations,
@@ -406,36 +408,44 @@ const ALLOWLIST: Record<string, AllowlistEntry> = {
     injectUserId: true,
   },
   updateSessionStatus: {
-    ref: api.domains.operations.taskManager.mutations.updateSessionStatus,
+    ref: internal.domains.operations.taskManager.mutations.updateSessionStatusForService,
     type: "mutation",
+    injectUserId: true,
   },
   updateSessionMetrics: {
-    ref: api.domains.operations.taskManager.mutations.updateSessionMetrics,
+    ref: internal.domains.operations.taskManager.mutations.updateSessionMetricsForService,
     type: "mutation",
+    injectUserId: true,
   },
   completeTrace: {
-    ref: api.domains.operations.taskManager.mutations.completeTrace,
+    ref: internal.domains.operations.taskManager.mutations.completeTraceForService,
     type: "mutation",
+    injectUserId: true,
   },
   recordStep: {
-    ref: api.domains.operations.taskManager.mutations.recordStep,
+    ref: internal.domains.operations.taskManager.mutations.recordStepForService,
     type: "mutation",
+    injectUserId: true,
   },
   recordDecision: {
-    ref: api.domains.operations.taskManager.mutations.recordDecision,
+    ref: internal.domains.operations.taskManager.mutations.recordDecisionForService,
     type: "mutation",
+    injectUserId: true,
   },
   recordVerification: {
-    ref: api.domains.operations.taskManager.mutations.recordVerification,
+    ref: internal.domains.operations.taskManager.mutations.recordVerificationForService,
     type: "mutation",
+    injectUserId: true,
   },
   attachEvidence: {
-    ref: api.domains.operations.taskManager.mutations.attachEvidence,
+    ref: internal.domains.operations.taskManager.mutations.attachEvidenceForService,
     type: "mutation",
+    injectUserId: true,
   },
   requestTraceApproval: {
-    ref: api.domains.operations.taskManager.mutations.requestTraceApproval,
+    ref: internal.domains.operations.taskManager.mutations.requestTraceApprovalForService,
     type: "mutation",
+    injectUserId: true,
   },
 
   // ── GROUP D: Agent Planning ─────────────────────────────────────────────────

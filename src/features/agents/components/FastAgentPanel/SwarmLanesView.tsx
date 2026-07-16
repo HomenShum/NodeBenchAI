@@ -276,11 +276,6 @@ export function SwarmLanesView({
         <div className="flex items-center gap-2 text-xs text-content-muted">
           <Zap className="w-3.5 h-3.5 text-green-500" />
           <span>Team completed: {tasks.length} agents</span>
-          {swarm.confidence && (
-            <span className="text-xs">
-              ({Math.round(swarm.confidence * 100)}% confidence)
-            </span>
-          )}
         </div>
       </div>
     );

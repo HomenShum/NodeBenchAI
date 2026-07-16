@@ -217,8 +217,11 @@ export const ENGAGEMENT_CONFIG = {
 /* ================================================================== */
 
 export const HEALTH_CONFIG = {
-  /** Health check interval (ms) */
-  healthCheckIntervalMs: 60_000,
+  /** Health check interval (ms). This is also the deployed cron cadence. */
+  healthCheckIntervalMs: 5 * 60_000,
+
+  /** A measurement is stale after this many missed health-check intervals. */
+  healthCheckStaleMultiplier: 3,
 
   /** Error rate thresholds */
   errorRateCritical: 0.05, // 5%
@@ -234,12 +237,14 @@ export const HEALTH_CONFIG = {
 
   /** Component list for monitoring */
   monitoredComponents: [
-    "signalIngester",
-    "researchQueue",
-    "swarmOrchestrator",
-    "validationEngine",
-    "publishingOrchestrator",
-    "deliveryQueue",
+    "signal_ingestion",
+    "research_queue",
+    "publishing",
+    "delivery",
+    "entity_lifecycle",
+    "validation",
+    "budget",
+    "database",
   ] as const,
 } as const;
 
@@ -370,8 +375,8 @@ export const CRON_CONFIG = {
   /** Delivery queue processor (every minute) */
   deliveryQueueCron: "* * * * *",
 
-  /** Health check (every minute) */
-  healthCheckCron: "* * * * *",
+  /** Health check (every 5 minutes) */
+  healthCheckCron: "*/5 * * * *",
 
   /** Budget reset (daily at midnight UTC) */
   budgetResetCron: "0 0 * * *",

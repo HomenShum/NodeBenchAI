@@ -23,6 +23,7 @@ import {
   type TipTapNode
 } from "../../lib/markdownToTipTap";
 import { extractMediaFromMessages } from "../../lib/dossierHelpers";
+import { assertFastAgentDocumentThreadOwner } from "./fastAgentDocumentCreationOwnership";
 
 /**
  * Constants for validation
@@ -113,11 +114,15 @@ function generateCreationKey(threadId: string | undefined, title: string, conten
 
 // Internal query to fetch a document id by creation key
 export const findByCreationKey = internalQuery({
-  args: { creationKey: v.string() },
-  handler: async (ctx, { creationKey }): Promise<Id<"documents"> | undefined> => {
+  args: {
+    creationKey: v.string(),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, { creationKey, userId }): Promise<Id<"documents"> | undefined> => {
     const row = await ctx.db
       .query("documents")
       .withIndex("by_creation_key", q => q.eq("creationKey", creationKey))
+      .filter((q) => q.eq(q.field("createdBy"), userId))
       .first() as Doc<"documents"> | null;
     return row?._id;
   }
@@ -136,9 +141,12 @@ function hashContent(content: string): string {
 async function findExistingDocument(
   ctx: any,
   creationKey: string,
-  _userId: Id<"users">
+  userId: Id<"users">
 ): Promise<Id<"documents"> | null> {
-  const docId = await ctx.runQuery(internal.domains.agents.fastAgentDocumentCreation.findByCreationKey, { creationKey });
+  const docId = await ctx.runQuery(
+    internal.domains.agents.fastAgentDocumentCreation.findByCreationKey,
+    { creationKey, userId },
+  );
   return (docId as Id<"documents">) ?? null;
 }
 
@@ -170,7 +178,7 @@ export const generateAndCreateDocument = action({
   }),
   handler: async (ctx, args): Promise<{ documentId: Id<"documents">; title: string; contentPreview: string }> => {
     const executionId = Math.random().toString(36).substring(2, 10);
-    console.log(`[generateAndCreateDocument:${executionId}] Starting with prompt: "${args.prompt.substring(0, 50)}..."`);
+    console.log(`[generateAndCreateDocument:${executionId}] Starting authorized request`);
 
     try {
       // 1. Validate input
@@ -192,14 +200,13 @@ export const generateAndCreateDocument = action({
             threadId: args.threadId,
           });
           threadUserId = (thread?.userId ?? null) as Id<"users"> | null;
-          console.log(`[generateAndCreateDocument:${executionId}] Thread found, userId: ${threadUserId}`);
+          assertFastAgentDocumentThreadOwner(userId, threadUserId);
         } catch (err) {
-          console.warn(`[generateAndCreateDocument:${executionId}] Failed to get thread:`, err);
+          console.warn(`[generateAndCreateDocument:${executionId}] Thread ownership check failed`);
+          throw new ValidationError("Thread not found or unauthorized");
         }
       }
 
-      // 4. Generate document content using DocumentGenerationAgent
-      console.log(`[generateAndCreateDocument:${executionId}] Generating content...`);
       // 4. Generate document content using DocumentGenerationAgent
       console.log(`[generateAndCreateDocument:${executionId}] Generating content...`);
 
@@ -221,7 +228,7 @@ export const generateAndCreateDocument = action({
         return openai.chat(model);
       };
 
-      const createDocumentGenerationAgent = (ctx: any, userId: any) => new Agent(components.agent, {
+      const createDocumentGenerationAgent = () => new Agent(components.agent, {
         name: "DocumentGenerationAgent",
         languageModel: getLanguageModel(agentModel),
         instructions: `You are an expert document writer and editor.
@@ -246,11 +253,14 @@ You must include a metadata block at the start of your response:
 Followed by the document content in Markdown.`,
       });
 
-      const agent = createDocumentGenerationAgent(ctx, threadUserId);
+      const agent = createDocumentGenerationAgent();
 
       const result = await agent.streamText(
         ctx,
-        { threadId: args.threadId || "no-thread" },
+        {
+          userId,
+          ...(args.threadId ? { threadId: args.threadId } : {}),
+        },
         { prompt: args.prompt }
       );
 
@@ -574,4 +584,3 @@ export const indexAndSnapshot = internalAction({
     }
   },
 });
-

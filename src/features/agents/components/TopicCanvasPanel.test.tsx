@@ -62,38 +62,46 @@ describe("TopicCanvasPanel", () => {
     useQueryMock.mockReset();
   });
 
-  it("renders a topic-first canvas from live task sessions", () => {
-    useConvexAuthMock.mockReturnValue({ isAuthenticated: false });
-    useQueryMock.mockImplementation((_queryRef: unknown, args: unknown) => {
-      if (args === "skip") return undefined;
-      if (typeof args === "object" && args !== null && "limit" in args) {
-        return {
-          sessions: [
-            {
-              _id: "session_1",
-              title: "AI infrastructure topic",
-              description:
-                "Track model, supplier, and investor signals as one durable topic.",
-              type: "agent",
-              visibility: "public",
-              status: "running",
-              startedAt: Date.parse("2026-03-13T18:00:00.000Z"),
-              sourceRefs: [{ label: "Company blog" }],
-              toolsUsed: ["findTools"],
-              agentsInvolved: ["research-agent"],
-            },
-          ],
-        };
-      }
-      return undefined;
+  it("does not substitute the global public run feed for signed-out history", () => {
+    useConvexAuthMock.mockReturnValue({
+      isAuthenticated: false,
+      isLoading: false,
+    });
+    useQueryMock.mockReturnValue(undefined);
+
+    render(<TopicCanvasPanel />);
+
+    expect(screen.queryByText("Recent work")).not.toBeInTheDocument();
+    expect(useQueryMock).toHaveBeenCalledWith(expect.anything(), "skip");
+  });
+
+  it("renders authenticated history from live user task sessions", () => {
+    useConvexAuthMock.mockReturnValue({
+      isAuthenticated: true,
+      isLoading: false,
+    });
+    useQueryMock.mockReturnValue({
+      sessions: [
+        {
+          _id: "session_1",
+          title: "AI infrastructure topic",
+          description:
+            "Track model, supplier, and investor signals as one durable topic.",
+          type: "agent",
+          visibility: "private",
+          status: "running",
+          startedAt: Date.parse("2026-03-13T18:00:00.000Z"),
+          sourceRefs: [{ label: "Company blog" }],
+          toolsUsed: ["findTools"],
+          agentsInvolved: ["research-agent"],
+        },
+      ],
     });
 
     render(<TopicCanvasPanel />);
 
-    expect(screen.getByText("Recent topics")).toBeInTheDocument();
-    expect(
-      screen.getByText(/1 shown · 1 active · 1 sourced/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Recent work")).toBeInTheDocument();
+    expect(screen.queryByText(/shown .* active .* sourced/i)).not.toBeInTheDocument();
     expect(screen.getByText("AI infrastructure topic")).toBeInTheDocument();
     expect(
       screen.getByText(/Track model, supplier, and investor signals/i),
@@ -104,5 +112,18 @@ describe("TopicCanvasPanel", () => {
       "href",
       "/execution-trace?session=session_1",
     );
+  });
+
+  it("labels unresolved history as loading instead of empty", () => {
+    useConvexAuthMock.mockReturnValue({
+      isAuthenticated: true,
+      isLoading: false,
+    });
+    useQueryMock.mockReturnValue(undefined);
+
+    render(<TopicCanvasPanel />);
+
+    expect(screen.getByText("Loading recent work...")).toBeInTheDocument();
+    expect(screen.queryByText(/No recent work/i)).not.toBeInTheDocument();
   });
 });

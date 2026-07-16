@@ -1,8 +1,8 @@
 /**
  * emitWithReceipt.ts — Helper that wraps appendAuditEntry + emitReceipt.
  *
- * Drop-in replacement for direct appendAuditEntryPublic calls.
- * Emits both a TRACE audit entry AND an action receipt in parallel.
+ * Trusted helper for emitting the internal TRACE audit entry and receipt.
+ * Emits both a TRACE audit entry AND a required action receipt.
  *
  * The receipt provides the tamper-evident, content-addressed counterpart
  * to the operational audit log. Together they form the trust layer.
@@ -13,12 +13,15 @@
  */
 
 import type { ActionCtx } from "../../../_generated/server";
-import { api, internal } from "../../../_generated/api";
+import { internal } from "../../../_generated/api";
+import type { Id } from "../../../_generated/dataModel";
 
 /** Minimal receipt context — only what the orchestrator knows beyond the audit entry. */
 interface ReceiptContext {
   /** Agent identifier (e.g. "research-scout-01") */
   agentId: string;
+  /** Owner whose receipt feed must expose this TRACE action. */
+  userId: Id<"users">;
   /** Convex agentRuns ID if available */
   agentRunId?: string;
   /** Policy that authorized this action. Defaults to "pol_trace_default". */
@@ -41,8 +44,30 @@ interface ReceiptContext {
  * The audit entry goes to traceAuditEntries (operational log).
  * The receipt goes to actionReceipts (tamper-evident trust log).
  *
- * Both are emitted in parallel — neither blocks the other.
+ * A trust-labeled TRACE step is not complete unless both writes succeed.
  */
+function canonicalize(value: unknown): unknown {
+  if (value === null || typeof value !== "object") {
+    if (typeof value === "number" && !Number.isFinite(value)) return String(value);
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(canonicalize);
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, canonicalize(entry)]),
+  );
+}
+
+export async function hashTraceResultOutput(value: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(canonicalize(value)));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return `sha256:${Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
 export async function emitWithReceipt(
   ctx: ActionCtx,
   auditArgs: {
@@ -51,6 +76,7 @@ export async function emitWithReceipt(
     seq: number;
     choiceType: "gather_info" | "execute_data_op" | "execute_output" | "finalize";
     toolName: string;
+    provenance: "deterministic_code" | "ai_model";
     toolParams?: Record<string, unknown>;
     metadata: {
       rowCount?: number;
@@ -69,13 +95,18 @@ export async function emitWithReceipt(
       deliverySummary?: string;
     };
     description: string;
+    /** Exact output/evidence payload attested by resultOutputHash. */
+    resultOutput: unknown;
   },
   receiptCtx: ReceiptContext,
 ): Promise<void> {
-  // Fire both in parallel — receipt emission is best-effort (don't block orchestrator)
+  // Start both writes together, but reject if either one fails.
+  const { resultOutput, ...traceAuditArgs } = auditArgs;
+  const resultOutputHash = await hashTraceResultOutput(resultOutput);
+
   const auditPromise = ctx.runMutation(
-    api.domains.agents.traceAuditLog.appendAuditEntryPublic,
-    auditArgs,
+    internal.domains.agents.traceAuditLog.appendAuditEntry,
+    { ...traceAuditArgs, userId: receiptCtx.userId },
   );
 
   const receiptPromise = ctx.runAction(
@@ -83,6 +114,7 @@ export async function emitWithReceipt(
     {
       agentId: receiptCtx.agentId,
       agentRunId: receiptCtx.agentRunId as never,
+      userId: receiptCtx.userId,
       toolName: auditArgs.toolName,
       params: auditArgs.toolParams,
       actionSummary: auditArgs.description,
@@ -94,7 +126,7 @@ export async function emitWithReceipt(
       resultSummary: auditArgs.metadata.success
         ? `${auditArgs.toolName} completed in ${auditArgs.metadata.durationMs}ms`
         : `${auditArgs.toolName} failed: ${auditArgs.metadata.errorMessage ?? "unknown error"}`,
-      resultOutputHash: undefined,
+      resultOutputHash,
       canUndo: receiptCtx.canUndo ?? false,
       undoInstructions: receiptCtx.undoInstructions,
       violations: auditArgs.metadata.success
@@ -108,10 +140,8 @@ export async function emitWithReceipt(
             },
           ],
     },
-  ).catch(() => {
-    // Receipt emission is best-effort — log but don't fail the orchestrator
-    // In production, this would emit a telemetry event
-  });
+  );
 
+  // A trust-labeled step is not complete unless both records persist.
   await Promise.all([auditPromise, receiptPromise]);
 }

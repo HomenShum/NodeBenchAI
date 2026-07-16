@@ -14,7 +14,7 @@
 
 import { v } from "convex/values";
 import { action, internalAction } from "../../_generated/server";
-import { internal, api } from "../../_generated/api";
+import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
@@ -111,12 +111,26 @@ export const createSwarm = action({
     model: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { query, agents, pattern = "fan_out_gather", model = "claude-sonnet-4.6" } = args;
+    const query = args.query.trim();
+    if (!query || query.length > 4_000) {
+      throw new Error("Team query must contain 1 to 4,000 characters.");
+    }
+    const agents = Array.from(new Set(args.agents))
+      .filter((agent): agent is AgentName => VALID_AGENTS.includes(agent as AgentName))
+      .slice(0, VALID_AGENTS.length);
+    if (agents.length === 0) {
+      throw new Error("At least one supported agent is required.");
+    }
+    const pattern = args.pattern ?? "fan_out_gather";
+    const model = (args.model ?? "claude-sonnet-4.6").trim();
+    if (!model || model.length > 160) {
+      throw new Error("Model identifier must contain 1 to 160 characters.");
+    }
 
     // Get userId from auth context (works for both authenticated and anonymous users)
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      throw new Error("Authentication required to create swarm. Please sign in or use anonymous access.");
+      throw new Error("Authentication required to create a team. Please sign in.");
     }
     const swarmId = crypto.randomUUID();
     const now = Date.now();
@@ -140,7 +154,7 @@ export const createSwarm = action({
     }));
 
     // 3. Create swarm record
-    await ctx.runMutation(api.domains.agents.swarmMutations.createSwarmRecord, {
+    await ctx.runMutation(internal.domains.agents.swarmMutations.createSwarmRecord, {
       swarmId,
       userId,
       threadId: threadId as string,
@@ -151,7 +165,7 @@ export const createSwarm = action({
     });
 
     // 4. Link thread to swarm
-    await ctx.runMutation(api.domains.agents.swarmMutations.linkThreadToSwarm, {
+    await ctx.runMutation(internal.domains.agents.swarmMutations.linkThreadToSwarm, {
       threadId: threadId as Id<"chatThreadsStream">,
       swarmId,
     });
@@ -165,7 +179,7 @@ export const createSwarm = action({
       stateKeyPrefix: config.stateKeyPrefix,
     }));
 
-    await ctx.runMutation(api.domains.agents.swarmMutations.createSwarmTasks, {
+    await ctx.runMutation(internal.domains.agents.swarmMutations.createSwarmTasks, {
       swarmId,
       tasks,
     });
@@ -207,10 +221,17 @@ export const executeSwarmInternal = internalAction({
   handler: async (ctx, args) => {
     const { swarmId, userId, model, tasks } = args;
     const startTime = Date.now();
+    const ownedSwarm = await ctx.runQuery(
+      internal.domains.agents.swarmQueries.getSwarmStatusInternal,
+      { swarmId, userId },
+    );
+    if (!ownedSwarm) {
+      throw new Error("Swarm not found or unauthorized.");
+    }
 
     try {
       // 1. Update status to spawning
-      await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
         swarmId,
         status: "spawning",
         startedAt: startTime,
@@ -233,7 +254,7 @@ export const executeSwarmInternal = internalAction({
 
       // 3. Update task records with delegation IDs and set to running
       for (let i = 0; i < tasks.length; i++) {
-        await ctx.runMutation(api.domains.agents.swarmMutations.updateTaskStatus, {
+        await ctx.runMutation(internal.domains.agents.swarmMutations.updateTaskStatus, {
           taskId: tasks[i].taskId,
           status: "running",
           delegationId: delegationTasks[i].delegationId,
@@ -242,7 +263,7 @@ export const executeSwarmInternal = internalAction({
       }
 
       // 4. Update status to executing
-      await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
         swarmId,
         status: "executing",
       });
@@ -285,7 +306,7 @@ export const executeSwarmInternal = internalAction({
               );
               const finalEvent = events.find((e: any) => e.kind === "final");
 
-              await ctx.runMutation(api.domains.agents.swarmMutations.updateTaskStatus, {
+              await ctx.runMutation(internal.domains.agents.swarmMutations.updateTaskStatus, {
                 taskId: task.taskId,
                 status: delegation.status === "completed" ? "completed" : "failed",
                 result: finalEvent?.textChunk || delegation.result,
@@ -302,7 +323,7 @@ export const executeSwarmInternal = internalAction({
       }
 
       if (!completedPoll) {
-        await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+        await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
           swarmId,
           status: "failed",
           completedAt: Date.now(),
@@ -312,15 +333,15 @@ export const executeSwarmInternal = internalAction({
       }
 
       // 6. Gather results and synthesize
-      await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
         swarmId,
         status: "gathering",
       });
 
       // Get all task results
       const completedTasks = await ctx.runQuery(
-        api.domains.agents.swarmQueries.getSwarmTasks,
-        { swarmId }
+        internal.domains.agents.swarmQueries.getSwarmTasksInternal,
+        { swarmId, userId }
       );
 
       const results = completedTasks
@@ -332,7 +353,7 @@ export const executeSwarmInternal = internalAction({
         }));
 
       if (results.length === 0) {
-        await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+        await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
           swarmId,
           status: "failed",
           completedAt: Date.now(),
@@ -344,19 +365,21 @@ export const executeSwarmInternal = internalAction({
       // 7. Synthesize results via TRACE (Verifiable Orchestrator pattern)
       // Instead of passing raw results to the LLM for merging (Risk 1: Hallucination),
       // we use deterministic tools and only expose metadata to the LLM.
-      await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
         swarmId,
         status: "synthesizing",
       });
 
-      const swarm = await ctx.runQuery(api.domains.agents.swarmQueries.getSwarmStatus, {
-        swarmId,
-      });
+      const swarm = await ctx.runQuery(
+        internal.domains.agents.swarmQueries.getSwarmStatusInternal,
+        { swarmId, userId },
+      );
 
       // TRACE finalization: deterministic merge + audit log + optional AI analysis
       const traceOutput = await ctx.runAction(
         internal.domains.agents.traceOrchestrator.executeTraceFinalization,
         {
+          userId,
           executionId: swarmId,
           executionType: "swarm" as const,
           query: swarm?.query || "",
@@ -368,8 +391,8 @@ export const executeSwarmInternal = internalAction({
       // Build the enhanced result with clear separation of deterministic vs AI content
       const { buildTraceEnhancedResult } = await import("./traceOrchestrator");
       const auditSummary = await ctx.runQuery(
-        api.domains.agents.traceAuditLog.getAuditSummary,
-        { executionId: swarmId }
+        internal.domains.agents.traceAuditLog.getAuditSummaryInternal,
+        { executionId: swarmId, userId }
       );
 
       // Deterministic merge of raw agent results with provenance markers
@@ -387,22 +410,22 @@ export const executeSwarmInternal = internalAction({
       );
 
       // 8. Save merged result
-      await ctx.runMutation(api.domains.agents.swarmMutations.setSwarmResult, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.setSwarmResult, {
         swarmId,
         mergedResult: enhancedResult,
-        confidence: traceOutput.confidence,
       });
 
       // 9. Add synthesis as assistant message to thread
       // This makes the result appear in the chat
-      const swarmRecord = await ctx.runQuery(api.domains.agents.swarmQueries.getSwarmStatus, {
-        swarmId,
-      });
+      const swarmRecord = await ctx.runQuery(
+        internal.domains.agents.swarmQueries.getSwarmStatusInternal,
+        { swarmId, userId },
+      );
 
       if (swarmRecord?.threadId) {
         // Get the thread's agentThreadId for adding message
         const thread = await ctx.runQuery(
-          api.domains.agents.fastAgentPanelStreaming.getThreadByStreamId,
+          internal.domains.agents.fastAgentPanelStreaming.getThreadByStreamIdInternal,
           { threadId: swarmRecord.threadId as Id<"chatThreadsStream"> }
         );
 
@@ -418,7 +441,7 @@ export const executeSwarmInternal = internalAction({
     } catch (error: any) {
       console.error(`[swarmOrchestrator] ❌ Swarm ${swarmId} failed:`, error.message);
 
-      await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
         swarmId,
         status: "failed",
         completedAt: Date.now(),
@@ -436,20 +459,33 @@ export const cancelSwarm = action({
     swarmId: v.string(),
   },
   handler: async (ctx, args) => {
-    await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Authentication required to cancel a team.");
+    }
+    const swarm = await ctx.runQuery(
+      internal.domains.agents.swarmQueries.getSwarmStatusInternal,
+      { swarmId: args.swarmId, userId },
+    );
+    if (!swarm) {
+      throw new Error("Swarm not found or unauthorized.");
+    }
+
+    await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
       swarmId: args.swarmId,
       status: "cancelled",
       completedAt: Date.now(),
     });
 
     // Cancel all pending/running tasks
-    const tasks = await ctx.runQuery(api.domains.agents.swarmQueries.getSwarmTasks, {
-      swarmId: args.swarmId,
-    });
+    const tasks = await ctx.runQuery(
+      internal.domains.agents.swarmQueries.getSwarmTasksInternal,
+      { swarmId: args.swarmId, userId },
+    );
 
     for (const task of tasks) {
       if (task.status === "pending" || task.status === "running") {
-        await ctx.runMutation(api.domains.agents.swarmMutations.updateTaskStatus, {
+        await ctx.runMutation(internal.domains.agents.swarmMutations.updateTaskStatus, {
           taskId: task.taskId,
           status: "cancelled",
           completedAt: Date.now(),
@@ -485,62 +521,4 @@ function getAgentFocus(agentName: string): string {
     EntityResearchAgent: "companies, people, and entity relationships",
   };
   return focuses[agentName] || "general research";
-}
-
-/**
- * Synthesize parallel research results into unified answer
- *
- * COST OPTIMIZATION:
- * - For basic synthesis: Use glm-4.7-flash ($0.07/M) - 93% cheaper than claude-haiku
- * - For complex reasoning: Use deepseek-v3.2 ($0.25/M) - 92% cheaper than claude-sonnet
- * - For premium quality: Use gemini-3-flash-preview ($0.50/M) or claude-sonnet-4 ($3.00/M)
- *
- * Default if not specified: Uses FREE model (qwen3-coder-free) via getLanguageModelSafe
- */
-async function synthesizeResults(
-  ctx: any,
-  query: string,
-  results: Array<{ agentName: string; role: string; result: string }>
-): Promise<{ content: string; confidence: number }> {
-  const resultSummaries = results
-    .map(
-      (r, i) => `
---- Agent ${i + 1}: ${r.agentName} (${r.role}) ---
-${r.result}
-`
-    )
-    .join("\n");
-
-  // Cost optimization: Reasoning tool with glm-4.7-flash ($0.07/M) provides deep synthesis thinking at 98% savings vs claude-sonnet-4 ($3.00/M)
-  // Uses structured reasoning to intelligently merge multi-agent results with transparent step-by-step thinking
-  const synthesisResult = await ctx.runAction(
-    internal.domains.agents.mcp_tools.reasoningTool.getReasoning,
-    {
-      prompt: `You are a synthesis agent. Merge multiple research results into a unified, coherent answer.
-
-Original Query: "${query}"
-
-Research Results from ${results.length} parallel agents:
-${resultSummaries}
-
-Create a unified answer that:
-1. Captures the key findings from all agents
-2. Resolves any contradictions or notes disagreements
-3. Provides a complete, coherent answer to the original query
-4. Cites which agent provided each piece of information
-5. Notes confidence level and any uncertainties
-
-Provide the synthesized answer:`,
-      systemPrompt: "You are a multi-agent synthesis expert. Think step-by-step to merge findings from parallel agents into a coherent, comprehensive answer that resolves contradictions and captures all key insights.",
-      maxTokens: 3000,
-      extractStructured: true,
-    }
-  );
-
-  const text = synthesisResult.structuredResponse || synthesisResult.response;
-
-  // Calculate confidence based on agreement between agents
-  const confidence = Math.min(0.9, 0.5 + results.length * 0.15);
-
-  return { content: text, confidence };
 }

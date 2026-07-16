@@ -51,7 +51,6 @@ export type TaskSessionProofPack = {
   verdict: TaskSessionProofVerdict;
   verdictLabel: string;
   summary: string;
-  confidence: number;
   evidenceCount: number;
   citationCount: number;
   sourceRefCount: number;
@@ -134,10 +133,6 @@ function getTraceSummary(trace: Doc<"agentTaskTraces">): string | undefined {
 function getMetadataList<T>(trace: Doc<"agentTaskTraces">, key: string): T[] {
   const metadata = asRecord(trace.metadata);
   return asArray<T>(metadata?.[key]);
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }
 
 function getVerdictLabel(verdict: TaskSessionProofVerdict): string {
@@ -255,27 +250,6 @@ export function buildTaskSessionProofPack(
     verdict = "in_progress";
   }
 
-  let confidence = 0.25;
-  if (session.status === "completed") confidence += 0.2;
-  if (topSourceRefs.length > 0) confidence += Math.min(0.2, topSourceRefs.length * 0.04);
-  if (evidenceCatalog.length > 0) confidence += Math.min(0.15, evidenceCatalog.length * 0.05);
-  if (verificationCounts.passed > 0 || verificationCounts.fixed > 0) confidence += 0.2;
-  if (decisions.some((item) => typeof item.confidence === "number")) {
-    const averageDecisionConfidence =
-      decisions
-        .map((item) => (typeof item.confidence === "number" ? item.confidence : undefined))
-        .filter((value): value is number => value !== undefined)
-        .reduce((sum, value, _idx, arr) => sum + value / arr.length, 0);
-    confidence = (confidence + averageDecisionConfidence) / 2;
-  }
-  confidence -= verificationCounts.failed * 0.2;
-  confidence -= verificationCounts.warning * 0.08;
-  if (session.crossCheckStatus === "violated") confidence -= 0.25;
-  if (session.crossCheckStatus === "drifting") confidence -= 0.15;
-  if (approvalCounts.pending > 0) confidence -= 0.1;
-  if (unsupportedClaims.length > 0) confidence -= Math.min(0.2, unsupportedClaims.length * 0.08);
-  confidence = clamp(confidence, 0.05, 0.99);
-
   const nextActions = uniqueStrings([
     !progressiveDisclosureUsed
       ? "Resolve tool selection with discover_tools or get_workflow_chain before the next run."
@@ -317,7 +291,6 @@ export function buildTaskSessionProofPack(
     verdict,
     verdictLabel: getVerdictLabel(verdict),
     summary,
-    confidence,
     evidenceCount: evidenceCatalog.length,
     citationCount: topSourceRefs.length,
     sourceRefCount: topSourceRefs.length,

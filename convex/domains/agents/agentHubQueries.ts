@@ -9,9 +9,28 @@ import { v } from "convex/values";
 import { query as queryBase } from "../../_generated/server";
 import type { Id, Doc } from "../../_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { HEALTH_CONFIG } from "../../config/autonomousConfig";
 
 // Avoid TS2589 "excessively deep" instantiations in dashboard-only queries.
 const query = queryBase as any;
+
+const AUTONOMOUS_READ_ROLES = new Set(["viewer", "admin", "owner"]);
+
+async function requireAutonomousReadAccess(ctx: any) {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) throw new Error("Not authenticated");
+
+  const adminUser = await ctx.db
+    .query("adminUsers")
+    .withIndex("by_userId", (q: any) => q.eq("userId", userId))
+    .first();
+
+  if (!adminUser || !AUTONOMOUS_READ_ROLES.has(String(adminUser.role))) {
+    throw new Error("Access denied: autonomous operations are operator-only");
+  }
+
+  return adminUser;
+}
 
 /**
  * Get aggregated agent statistics
@@ -141,13 +160,7 @@ export const getAllAgentStatuses = query({
 
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      return agentTypes.map((type) => ({
-        agentType: type,
-        status: "idle" as const,
-        lastActivity: null,
-        tasksCompleted: 0,
-        currentTask: null,
-      }));
+      return [];
     }
 
     const agentNameMap: Record<string, string> = {
@@ -176,26 +189,28 @@ export const getAllAgentStatuses = query({
     const userTasks = allTasks.filter((t) => userSwarmIds.has(t.swarmId));
 
     // Build status for each agent type
-    return agentTypes.map((agentType) => {
-      const agentName = agentNameMap[agentType];
-      const agentTasks = userTasks.filter((t) => t.agentName === agentName);
+    return agentTypes
+      .map((agentType) => {
+        const agentName = agentNameMap[agentType];
+        const agentTasks = userTasks.filter((t) => t.agentName === agentName);
 
-      const runningTask = agentTasks.find((t) => t.status === "running");
-      const status = runningTask ? "running" : "idle";
+        const runningTask = agentTasks.find((t) => t.status === "running");
+        const status = runningTask ? "running" : "idle";
 
-      const lastTask = agentTasks[0];
-      const lastActivity = lastTask?.completedAt || lastTask?.createdAt || null;
+        const lastTask = agentTasks[0];
+        const lastActivity = lastTask?.completedAt || lastTask?.createdAt || null;
 
-      const completedCount = agentTasks.filter((t) => t.status === "completed").length;
+        const completedCount = agentTasks.filter((t) => t.status === "completed").length;
 
-      return {
-        agentType,
-        status,
-        lastActivity,
-        tasksCompleted: completedCount,
-        currentTask: runningTask?.query || null,
-      };
-    });
+        return {
+          agentType,
+          status,
+          lastActivity,
+          tasksCompleted: completedCount,
+          currentTask: runningTask?.query || null,
+        };
+      })
+      .filter((status) => status.lastActivity !== null || status.currentTask !== null);
   },
 });
 
@@ -244,18 +259,24 @@ export const getActiveSwarms = query({
 /* AUTONOMOUS RESEARCH SYSTEM QUERIES                                  */
 /* ================================================================== */
 
-/**
- * Cron job name to healthChecks component mapping
- */
-const CRON_COMPONENT_MAP: Record<string, { name: string; interval: string }> = {
-  signalIngester: { name: "Signal Ingestion", interval: "5 min" },
-  researchQueue: { name: "Research Queue Processing", interval: "2 min" },
-  signalProcessor: { name: "Signal Processing", interval: "3 min" },
-  publishingQueue: { name: "Publishing Queue", interval: "5 min" },
-  digestGeneration: { name: "Morning Digest", interval: "daily 6am" },
-  freeModelDiscovery: { name: "Free Model Discovery", interval: "6 hours" },
-  healthMonitor: { name: "Health Monitor", interval: "1 min" },
-};
+/** Components actually emitted by healthMonitor.runAllHealthChecks. */
+const HEALTH_COMPONENTS = [
+  { component: "signal_ingestion", displayName: "Signal ingestion" },
+  { component: "research_queue", displayName: "Research queue" },
+  { component: "publishing", displayName: "Publishing" },
+  { component: "delivery", displayName: "Delivery" },
+  { component: "entity_lifecycle", displayName: "Entity lifecycle" },
+  { component: "validation", displayName: "Validation" },
+  { component: "budget", displayName: "Budget" },
+  { component: "database", displayName: "Database" },
+] as const;
+
+const HEALTH_CHECK_INTERVAL_MINUTES = Math.max(
+  1,
+  Math.round(HEALTH_CONFIG.healthCheckIntervalMs / 60_000),
+);
+const HEALTH_CHECK_STALE_MS =
+  HEALTH_CONFIG.healthCheckIntervalMs * HEALTH_CONFIG.healthCheckStaleMultiplier;
 
 /**
  * Get status of all autonomous cron jobs
@@ -264,11 +285,11 @@ const CRON_COMPONENT_MAP: Record<string, { name: string; interval: string }> = {
 export const getAutonomousCronStatus = query({
   args: {},
   handler: async (ctx) => {
-    const componentNames = Object.keys(CRON_COMPONENT_MAP);
+    await requireAutonomousReadAccess(ctx);
     const now = Date.now();
 
     const cronStatuses = await Promise.all(
-      componentNames.map(async (component) => {
+      HEALTH_COMPONENTS.map(async ({ component, displayName }) => {
         // Get most recent health check for this component
         const latestCheck = await ctx.db
           .query("healthChecks")
@@ -276,40 +297,41 @@ export const getAutonomousCronStatus = query({
           .order("desc")
           .first() as Doc<"healthChecks"> | null;
 
-        const config = CRON_COMPONENT_MAP[component];
-
         if (!latestCheck) {
           return {
             component,
-            displayName: config.name,
-            interval: config.interval,
+            displayName,
+            measurementIntervalMinutes: HEALTH_CHECK_INTERVAL_MINUTES,
             status: "unknown" as const,
             lastRun: null,
             latencyP50: null,
             latencyP99: null,
             errorRate: null,
+            queueDepth: null,
             isHealthy: false,
-            isDelayed: true,
+            isStale: true,
           };
         }
 
-        // Determine if delayed (no check in 2x expected interval)
+        // Freshness comes from the same health-monitor cadence as the cron.
         const checkAge = now - latestCheck.checkedAt;
-        const maxAge = getMaxAgeMs(config.interval);
-        const isDelayed = checkAge > maxAge;
+        const isStale = checkAge > HEALTH_CHECK_STALE_MS;
 
         return {
           component,
-          displayName: config.name,
-          interval: config.interval,
-          status: latestCheck.status,
+          displayName,
+          measurementIntervalMinutes: HEALTH_CHECK_INTERVAL_MINUTES,
+          status:
+            latestCheck.status === "down"
+              ? ("unhealthy" as const)
+              : latestCheck.status,
           lastRun: latestCheck.checkedAt,
           latencyP50: latestCheck.latencyP50,
           latencyP99: latestCheck.latencyP99,
           errorRate: latestCheck.errorRate,
           queueDepth: latestCheck.queueDepth ?? null,
-          isHealthy: latestCheck.status === "healthy" && !isDelayed,
-          isDelayed,
+          isHealthy: latestCheck.status === "healthy" && !isStale,
+          isStale,
         };
       })
     );
@@ -317,24 +339,6 @@ export const getAutonomousCronStatus = query({
     return cronStatuses;
   },
 });
-
-/**
- * Helper to convert interval string to max age in ms
- */
-function getMaxAgeMs(interval: string): number {
-  if (interval.includes("min")) {
-    const mins = parseInt(interval);
-    return mins * 60 * 1000 * 2; // 2x the interval
-  }
-  if (interval.includes("hour")) {
-    const hours = parseInt(interval);
-    return hours * 60 * 60 * 1000 * 2;
-  }
-  if (interval.includes("daily")) {
-    return 24 * 60 * 60 * 1000 * 1.5; // 1.5 days
-  }
-  return 10 * 60 * 1000; // Default 10 min
-}
 
 /**
  * Get ranked list of discovered free models

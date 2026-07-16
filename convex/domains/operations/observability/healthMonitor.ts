@@ -80,7 +80,8 @@ const HEALTH_COMPONENTS: HealthCheckType[] = [
 ];
 
 const DEFAULT_HEALTH_WINDOW_MINUTES = Math.max(1, Math.round(HEALTH_CONFIG.healthCheckIntervalMs / 60_000));
-const HEALTH_CHECK_STALE_MS = HEALTH_CONFIG.healthCheckIntervalMs * 3;
+const HEALTH_CHECK_STALE_MS =
+  HEALTH_CONFIG.healthCheckIntervalMs * HEALTH_CONFIG.healthCheckStaleMultiplier;
 
 function asFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;

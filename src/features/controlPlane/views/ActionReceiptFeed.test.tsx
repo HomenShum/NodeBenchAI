@@ -14,26 +14,43 @@ describe("ActionReceiptFeed", () => {
   beforeEach(() => {
     useQueryMock.mockReset();
     useMutationMock.mockReset();
-    useQueryMock.mockReturnValue(null);
+    useQueryMock.mockReturnValue([]);
     useMutationMock.mockReturnValue(vi.fn());
   });
 
-  it("supports local demo rollback for reversible receipts", () => {
+  it("shows an honest empty state instead of demo receipts", () => {
     render(<ActionReceiptFeed />);
 
-    fireEvent.click(screen.getByRole("button", { name: /created investigation dossier from gathered evidence/i }));
-    fireEvent.click(screen.getByRole("button", { name: /undo action/i }));
-
-    expect(screen.getByText(/rolled back in demo mode/i)).toBeInTheDocument();
-    expect(screen.getByText(/rollback_ref:/i)).toBeInTheDocument();
-    expect(screen.getByText(/^rolled back$/i)).toBeInTheDocument();
+    expect(screen.getByText(/no action receipts have been recorded yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/demo mode/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/showing 0 recorded receipts/i)).toBeInTheDocument();
   });
 
-  it("surfaces explicit irreversible copy for non-reversible receipts", () => {
+  it("renders only receipt data returned by the runtime", () => {
+    useQueryMock.mockReturnValue([
+        {
+          receiptId: "sha256:runtime-receipt",
+          agentId: "runtime-agent",
+          createdAt: Date.now(),
+          toolName: "search_sources",
+          actionSummary: "Searched founder evidence",
+          policyId: "policy-runtime",
+          policyRuleName: "Runtime policy",
+          policyAction: "allowed",
+          evidenceRefs: [],
+          resultSuccess: true,
+          resultSummary: "Returned grounded sources",
+          canUndo: false,
+          violations: [],
+        },
+      ]);
+
     render(<ActionReceiptFeed />);
 
-    fireEvent.click(screen.getByRole("button", { name: /searched sec edgar for ftx bankruptcy filings/i }));
+    fireEvent.click(screen.getByRole("button", { name: /searched founder evidence/i }));
 
     expect(screen.getByText(/no rollback available\./i)).toBeInTheDocument();
+    expect(screen.getAllByText(/returned grounded sources/i)).not.toHaveLength(0);
+    expect(screen.queryByText(/golden action-receipt dataset/i)).not.toBeInTheDocument();
   });
 });

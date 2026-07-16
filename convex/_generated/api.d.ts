@@ -165,7 +165,6 @@ import type * as domains_agents_dueDiligence_deepResearch_queryDecomposer from "
 import type * as domains_agents_dueDiligence_deepResearch_types from "../domains/agents/dueDiligence/deepResearch/types.js";
 import type * as domains_agents_dueDiligence_index from "../domains/agents/dueDiligence/index.js";
 import type * as domains_agents_dueDiligence_investorPlaybook_agenticPlaybook from "../domains/agents/dueDiligence/investorPlaybook/agenticPlaybook.js";
-import type * as domains_agents_dueDiligence_investorPlaybook_agenticTest from "../domains/agents/dueDiligence/investorPlaybook/agenticTest.js";
 import type * as domains_agents_dueDiligence_investorPlaybook_branches_claimVerificationBranch from "../domains/agents/dueDiligence/investorPlaybook/branches/claimVerificationBranch.js";
 import type * as domains_agents_dueDiligence_investorPlaybook_branches_enhancedClaimVerification from "../domains/agents/dueDiligence/investorPlaybook/branches/enhancedClaimVerification.js";
 import type * as domains_agents_dueDiligence_investorPlaybook_branches_enhancedNewsVerification from "../domains/agents/dueDiligence/investorPlaybook/branches/enhancedNewsVerification.js";
@@ -193,6 +192,7 @@ import type * as domains_agents_dueDiligence_investorPlaybook_playbookOrchestrat
 import type * as domains_agents_dueDiligence_investorPlaybook_types from "../domains/agents/dueDiligence/investorPlaybook/types.js";
 import type * as domains_agents_dueDiligence_investorProtection_index from "../domains/agents/dueDiligence/investorProtection/index.js";
 import type * as domains_agents_dueDiligence_investorProtection_investorProtectionMutations from "../domains/agents/dueDiligence/investorProtection/investorProtectionMutations.js";
+import type * as domains_agents_dueDiligence_investorProtection_investorProtectionOwnership from "../domains/agents/dueDiligence/investorProtection/investorProtectionOwnership.js";
 import type * as domains_agents_dueDiligence_investorProtection_investorProtectionOrchestrator from "../domains/agents/dueDiligence/investorProtection/investorProtectionOrchestrator.js";
 import type * as domains_agents_dueDiligence_investorProtection_phases_claimsExtraction from "../domains/agents/dueDiligence/investorProtection/phases/claimsExtraction.js";
 import type * as domains_agents_dueDiligence_investorProtection_types from "../domains/agents/dueDiligence/investorProtection/types.js";
@@ -241,7 +241,6 @@ import type * as domains_agents_orchestrator_secEdgarWrapper from "../domains/ag
 import type * as domains_agents_orchestrator_toolHealth from "../domains/agents/orchestrator/toolHealth.js";
 import type * as domains_agents_orchestrator_toolRouter from "../domains/agents/orchestrator/toolRouter.js";
 import type * as domains_agents_orchestrator_worker from "../domains/agents/orchestrator/worker.js";
-import type * as domains_agents_parallelTaskOrchestrator from "../domains/agents/parallelTaskOrchestrator.js";
 import type * as domains_agents_parallelTaskTree from "../domains/agents/parallelTaskTree.js";
 import type * as domains_agents_promptEnhancer from "../domains/agents/promptEnhancer.js";
 import type * as domains_agents_publicWrappers from "../domains/agents/publicWrappers.js";
@@ -1691,7 +1690,6 @@ declare const fullApi: ApiFromModules<{
   "domains/agents/dueDiligence/deepResearch/types": typeof domains_agents_dueDiligence_deepResearch_types;
   "domains/agents/dueDiligence/index": typeof domains_agents_dueDiligence_index;
   "domains/agents/dueDiligence/investorPlaybook/agenticPlaybook": typeof domains_agents_dueDiligence_investorPlaybook_agenticPlaybook;
-  "domains/agents/dueDiligence/investorPlaybook/agenticTest": typeof domains_agents_dueDiligence_investorPlaybook_agenticTest;
   "domains/agents/dueDiligence/investorPlaybook/branches/claimVerificationBranch": typeof domains_agents_dueDiligence_investorPlaybook_branches_claimVerificationBranch;
   "domains/agents/dueDiligence/investorPlaybook/branches/enhancedClaimVerification": typeof domains_agents_dueDiligence_investorPlaybook_branches_enhancedClaimVerification;
   "domains/agents/dueDiligence/investorPlaybook/branches/enhancedNewsVerification": typeof domains_agents_dueDiligence_investorPlaybook_branches_enhancedNewsVerification;
@@ -1719,6 +1717,7 @@ declare const fullApi: ApiFromModules<{
   "domains/agents/dueDiligence/investorPlaybook/types": typeof domains_agents_dueDiligence_investorPlaybook_types;
   "domains/agents/dueDiligence/investorProtection/index": typeof domains_agents_dueDiligence_investorProtection_index;
   "domains/agents/dueDiligence/investorProtection/investorProtectionMutations": typeof domains_agents_dueDiligence_investorProtection_investorProtectionMutations;
+  "domains/agents/dueDiligence/investorProtection/investorProtectionOwnership": typeof domains_agents_dueDiligence_investorProtection_investorProtectionOwnership;
   "domains/agents/dueDiligence/investorProtection/investorProtectionOrchestrator": typeof domains_agents_dueDiligence_investorProtection_investorProtectionOrchestrator;
   "domains/agents/dueDiligence/investorProtection/phases/claimsExtraction": typeof domains_agents_dueDiligence_investorProtection_phases_claimsExtraction;
   "domains/agents/dueDiligence/investorProtection/types": typeof domains_agents_dueDiligence_investorProtection_types;
@@ -1767,7 +1766,6 @@ declare const fullApi: ApiFromModules<{
   "domains/agents/orchestrator/toolHealth": typeof domains_agents_orchestrator_toolHealth;
   "domains/agents/orchestrator/toolRouter": typeof domains_agents_orchestrator_toolRouter;
   "domains/agents/orchestrator/worker": typeof domains_agents_orchestrator_worker;
-  "domains/agents/parallelTaskOrchestrator": typeof domains_agents_parallelTaskOrchestrator;
   "domains/agents/parallelTaskTree": typeof domains_agents_parallelTaskTree;
   "domains/agents/promptEnhancer": typeof domains_agents_promptEnhancer;
   "domains/agents/publicWrappers": typeof domains_agents_publicWrappers;

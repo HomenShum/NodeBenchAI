@@ -117,10 +117,11 @@ test.describe("live-smoke — Tier B hydrated-DOM verification", () => {
     // new `/workspace/w/{slug}?tab=...` URLs).
     const actionRow = page.locator('[data-testid="report-card-actions"]').first();
     await expect(actionRow).toBeVisible();
-    await expect(actionRow.getByRole("button", { name: "Brief" })).toBeVisible();
+    await expect(page.locator('[data-testid="report-card"]').first().getByRole("button", { name: /Open .* report/i })).toBeVisible();
+    await expect(actionRow.getByRole("button", { name: /Resume report chat/i })).toBeVisible();
+    await actionRow.getByText("More", { exact: true }).click();
     await expect(actionRow.getByRole("button", { name: /Open report sources/i })).toBeVisible();
     await expect(actionRow.getByRole("button", { name: /Open report notebook/i })).toBeVisible();
-    await expect(actionRow.getByRole("button", { name: /Resume report chat/i })).toBeVisible();
     await expect(actionRow.getByRole("button", { name: /Export report to CRM CSV/i })).toBeVisible();
   });
 

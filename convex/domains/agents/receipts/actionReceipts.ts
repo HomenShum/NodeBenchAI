@@ -11,6 +11,17 @@
 import { v } from "convex/values";
 import { query, mutation, internalMutation, internalAction } from "../../../_generated/server";
 import { internal } from "../../../_generated/api";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import type { Id } from "../../../_generated/dataModel";
+
+async function getReceiptOwnerId(ctx: { auth: any }): Promise<Id<"users"> | null> {
+  const userId = await getAuthUserId(ctx as any);
+  return userId ? (userId as Id<"users">) : null;
+}
+
+function isOwnedBy(receipt: { userId?: Id<"users"> }, userId: Id<"users">): boolean {
+  return receipt.userId !== undefined && String(receipt.userId) === String(userId);
+}
 
 // â”€â”€â”€ Validators â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -38,6 +49,46 @@ const openclawDirectionValidator = v.union(
   v.literal("error"),
 );
 
+/**
+ * Immutable execution fields covered by the receipt hash. Approval review
+ * fields are intentionally excluded because they are a mutable human workflow
+ * layered on top of the original execution receipt.
+ */
+function canonicalReceiptPayload(receipt: Record<string, any>): string {
+  return JSON.stringify({
+    agentId: receipt.agentId,
+    agentRunId: receipt.agentRunId ?? null,
+    userId: receipt.userId ?? null,
+    sessionKey: receipt.sessionKey ?? null,
+    channelId: receipt.channelId ?? null,
+    direction: receipt.direction ?? null,
+    openclawSessionId: receipt.openclawSessionId ?? null,
+    openclawExecutionId: receipt.openclawExecutionId ?? null,
+    deployment: receipt.deployment ?? null,
+    toolName: receipt.toolName,
+    params: receipt.params ?? null,
+    actionSummary: receipt.actionSummary,
+    policyId: receipt.policyId,
+    policyRuleName: receipt.policyRuleName,
+    policyAction: receipt.policyAction,
+    evidenceRefs: receipt.evidenceRefs,
+    resultSuccess: receipt.resultSuccess,
+    resultSummary: receipt.resultSummary,
+    resultOutputHash: receipt.resultOutputHash ?? null,
+    canUndo: receipt.canUndo,
+    undoInstructions: receipt.undoInstructions ?? null,
+    violations: receipt.violations,
+    createdAt: receipt.createdAt,
+  });
+}
+
+async function computeReceiptId(receipt: Record<string, any>): Promise<string> {
+  const data = new TextEncoder().encode(canonicalReceiptPayload(receipt));
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return "sha256:" + hashArray.map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 // â”€â”€â”€ Queries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** List receipts, newest first, with optional policy action filter. */
@@ -50,39 +101,33 @@ export const list = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
+    const userId = await getReceiptOwnerId(ctx);
+    if (!userId) return [];
     const limit = args.limit ?? 50;
+    const owned = ctx.db
+      .query("actionReceipts")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .order("desc");
 
     if (args.sessionKey) {
-      return await ctx.db
-        .query("actionReceipts")
-        .withIndex("by_sessionKey", (q) => q.eq("sessionKey", args.sessionKey!))
-        .order("desc")
+      return await owned
+        .filter((q) => q.eq(q.field("sessionKey"), args.sessionKey))
         .take(limit);
     }
 
     if (args.approvalState) {
-      return await ctx.db
-        .query("actionReceipts")
-        .withIndex("by_approvalState", (q) => q.eq("approvalState", args.approvalState!))
-        .order("desc")
+      return await owned
+        .filter((q) => q.eq(q.field("approvalState"), args.approvalState))
         .take(limit);
     }
 
     if (args.policyAction) {
-      return await ctx.db
-        .query("actionReceipts")
-        .withIndex("by_policyAction", (q) =>
-          q.eq("policyAction", args.policyAction!),
-        )
-        .order("desc")
+      return await owned
+        .filter((q) => q.eq(q.field("policyAction"), args.policyAction))
         .take(limit);
     }
 
-    return await ctx.db
-      .query("actionReceipts")
-      .withIndex("by_createdAt")
-      .order("desc")
-      .take(limit);
+    return await owned.take(limit);
   },
 });
 
@@ -94,10 +139,13 @@ export const listBySessionKey = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
+    const userId = await getReceiptOwnerId(ctx);
+    if (!userId) return [];
     return await ctx.db
       .query("actionReceipts")
-      .withIndex("by_sessionKey", (q) => q.eq("sessionKey", args.sessionKey))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
+      .filter((q) => q.eq(q.field("sessionKey"), args.sessionKey))
       .take(args.limit ?? 50);
   },
 });
@@ -107,10 +155,13 @@ export const listPendingApprovals = query({
   args: { limit: v.optional(v.number()) },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
+    const userId = await getReceiptOwnerId(ctx);
+    if (!userId) return [];
     return await ctx.db
       .query("actionReceipts")
-      .withIndex("by_approvalState", (q) => q.eq("approvalState", "pending"))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
+      .filter((q) => q.eq(q.field("approvalState"), "pending"))
       .take(args.limit ?? 25);
   },
 });
@@ -120,10 +171,13 @@ export const getByReceiptId = query({
   args: { receiptId: v.string() },
   returns: v.any(),
   handler: async (ctx, args) => {
-    return await ctx.db
+    const userId = await getReceiptOwnerId(ctx);
+    if (!userId) return null;
+    const receipt = await ctx.db
       .query("actionReceipts")
       .withIndex("by_receiptId", (q) => q.eq("receiptId", args.receiptId))
       .unique();
+    return receipt && isOwnedBy(receipt, userId) ? receipt : null;
   },
 });
 
@@ -132,10 +186,13 @@ export const listByAgentRun = query({
   args: { agentRunId: v.id("agentRuns") },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
+    const userId = await getReceiptOwnerId(ctx);
+    if (!userId) return [];
     return await ctx.db
       .query("actionReceipts")
-      .withIndex("by_agentRunId", (q) => q.eq("agentRunId", args.agentRunId))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
+      .filter((q) => q.eq(q.field("agentRunId"), args.agentRunId))
       .collect();
   },
 });
@@ -151,7 +208,12 @@ export const stats = query({
     violations: v.number(),
   }),
   handler: async (ctx) => {
-    const all = await ctx.db.query("actionReceipts").collect();
+    const userId = await getReceiptOwnerId(ctx);
+    if (!userId) return { total: 0, allowed: 0, escalated: 0, denied: 0, violations: 0 };
+    const all = await ctx.db
+      .query("actionReceipts")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .collect();
     let allowed = 0;
     let escalated = 0;
     let denied = 0;
@@ -167,55 +229,6 @@ export const stats = query({
 });
 
 // â”€â”€â”€ Mutations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-/** Log a new action receipt. Called by agent runtime after each tool execution. */
-export const logReceipt = mutation({
-  args: {
-    receiptId: v.string(),
-    agentId: v.string(),
-    agentRunId: v.optional(v.id("agentRuns")),
-    userId: v.optional(v.id("users")),
-    toolName: v.string(),
-    sessionKey: v.optional(v.string()),
-    channelId: v.optional(v.string()),
-    direction: v.optional(openclawDirectionValidator),
-    openclawSessionId: v.optional(v.id("openclawSessions")),
-    openclawExecutionId: v.optional(v.id("openclawExecutions")),
-    deployment: v.optional(v.string()),
-    params: v.optional(v.any()),
-    actionSummary: v.string(),
-    policyId: v.string(),
-    policyRuleName: v.string(),
-    policyAction: v.string(),
-    evidenceRefs: v.array(v.string()),
-    resultSuccess: v.boolean(),
-    resultSummary: v.string(),
-    resultOutputHash: v.optional(v.string()),
-    canUndo: v.boolean(),
-    undoInstructions: v.optional(v.string()),
-    approvalState: v.optional(approvalStateValidator),
-    approvalRequestedAt: v.optional(v.number()),
-    approvalReviewedAt: v.optional(v.number()),
-    approvalReviewedBy: v.optional(v.string()),
-    approvalReviewNotes: v.optional(v.string()),
-    violations: v.array(violationValidator),
-    createdAt: v.optional(v.number()),
-  },
-  returns: v.id("actionReceipts"),
-  handler: async (ctx, args) => {
-    const createdAt = args.createdAt ?? Date.now();
-    const approvalState =
-      args.approvalState ?? (args.policyAction === "escalated" ? "pending" : "not_required");
-    const approvalRequestedAt =
-      args.approvalRequestedAt ?? (approvalState === "pending" ? createdAt : undefined);
-    return await ctx.db.insert("actionReceipts", {
-      ...args,
-      approvalState,
-      approvalRequestedAt,
-      createdAt,
-    });
-  },
-});
 
 /** Internal mutation for system-level receipt logging (crons, internal agents). */
 export const logReceiptInternal = internalMutation({
@@ -274,13 +287,18 @@ export const requestApproval = mutation({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
+    const userId = await getReceiptOwnerId(ctx);
+    if (!userId) throw new Error("Not authenticated");
     const receipt = await ctx.db
       .query("actionReceipts")
       .withIndex("by_receiptId", (q) => q.eq("receiptId", args.receiptId))
       .unique();
-    if (!receipt) return false;
+    if (
+      !receipt ||
+      !isOwnedBy(receipt, userId) ||
+      receipt.policyAction !== "escalated"
+    ) return false;
     await ctx.db.patch(receipt._id, {
-      policyAction: "escalated",
       approvalState: "pending",
       approvalRequestedAt: receipt.approvalRequestedAt ?? Date.now(),
       approvalReviewNotes: args.reviewNotes ?? receipt.approvalReviewNotes,
@@ -289,33 +307,38 @@ export const requestApproval = mutation({
   },
 });
 
-/** Approve or deny an existing receipt-backed action. */
+/**
+ * Record an approval decision for an existing receipt-backed action.
+ *
+ * This mutation is decision-only: no execution engine consumes the decision yet,
+ * so the original policy and result fields must remain unchanged.
+ */
 export const resolveApproval = mutation({
   args: {
     receiptId: v.string(),
     decision: v.union(v.literal("approved"), v.literal("denied")),
-    reviewedBy: v.string(),
     reviewNotes: v.optional(v.string()),
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
+    const userId = await getReceiptOwnerId(ctx);
+    if (!userId) throw new Error("Not authenticated");
     const receipt = await ctx.db
       .query("actionReceipts")
       .withIndex("by_receiptId", (q) => q.eq("receiptId", args.receiptId))
       .unique();
-    if (!receipt) return false;
+    if (
+      !receipt ||
+      !isOwnedBy(receipt, userId) ||
+      receipt.approvalState !== "pending" ||
+      receipt.policyAction !== "escalated"
+    ) return false;
 
     await ctx.db.patch(receipt._id, {
       approvalState: args.decision,
       approvalReviewedAt: Date.now(),
-      approvalReviewedBy: args.reviewedBy,
+      approvalReviewedBy: String(userId),
       approvalReviewNotes: args.reviewNotes,
-      policyAction: args.decision === "approved" ? "allowed" : "denied",
-      resultSuccess: args.decision === "approved",
-      resultSummary:
-        args.decision === "approved"
-          ? `Approved by ${args.reviewedBy}${args.reviewNotes ? `: ${args.reviewNotes}` : ""}`
-          : `Denied by ${args.reviewedBy}${args.reviewNotes ? `: ${args.reviewNotes}` : ""}`,
     });
     return true;
   },
@@ -336,39 +359,18 @@ export const verifyReceiptHash = query({
     actual: v.string(),
   }),
   handler: async (ctx, args) => {
+    const userId = await getReceiptOwnerId(ctx);
+    if (!userId) {
+      return { valid: false, expected: args.receiptId, actual: "NOT_FOUND" };
+    }
     const receipt = await ctx.db
       .query("actionReceipts")
       .withIndex("by_receiptId", (q) => q.eq("receiptId", args.receiptId))
       .unique();
-    if (!receipt) {
+    if (!receipt || !isOwnedBy(receipt, userId)) {
       return { valid: false, expected: args.receiptId, actual: "NOT_FOUND" };
     }
-    // Recompute hash from the canonical fields (same order as emission)
-    const canonical = JSON.stringify({
-      agentId: receipt.agentId,
-      sessionKey: receipt.sessionKey ?? null,
-      channelId: receipt.channelId ?? null,
-      direction: receipt.direction ?? null,
-      openclawSessionId: receipt.openclawSessionId ?? null,
-      openclawExecutionId: receipt.openclawExecutionId ?? null,
-      deployment: receipt.deployment ?? null,
-      toolName: receipt.toolName,
-      actionSummary: receipt.actionSummary,
-      policyId: receipt.policyId,
-      policyAction: receipt.policyAction,
-      resultSuccess: receipt.resultSuccess,
-      resultSummary: receipt.resultSummary,
-      resultOutputHash: receipt.resultOutputHash ?? null,
-      evidenceRefs: receipt.evidenceRefs,
-      violations: receipt.violations,
-      createdAt: receipt.createdAt,
-    });
-    // Use Web Crypto API (available in Convex runtime)
-    const encoder = new TextEncoder();
-    const data = encoder.encode(canonical);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const actual = "sha256:" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    const actual = await computeReceiptId(receipt as Record<string, any>);
     return {
       valid: actual === receipt.receiptId,
       expected: receipt.receiptId,
@@ -418,31 +420,7 @@ export const emitReceipt = internalAction({
   returns: v.id("actionReceipts"),
   handler: async (ctx, args) => {
     const now = Date.now();
-    // Compute content-addressed hash from canonical fields
-    const canonical = JSON.stringify({
-      agentId: args.agentId,
-      sessionKey: args.sessionKey ?? null,
-      channelId: args.channelId ?? null,
-      direction: args.direction ?? null,
-      openclawSessionId: args.openclawSessionId ?? null,
-      openclawExecutionId: args.openclawExecutionId ?? null,
-      deployment: args.deployment ?? null,
-      toolName: args.toolName,
-      actionSummary: args.actionSummary,
-      policyId: args.policyId,
-      policyAction: args.policyAction,
-      resultSuccess: args.resultSuccess,
-      resultSummary: args.resultSummary,
-      resultOutputHash: args.resultOutputHash ?? null,
-      evidenceRefs: args.evidenceRefs,
-      violations: args.violations,
-      createdAt: now,
-    });
-    const encoder = new TextEncoder();
-    const data = encoder.encode(canonical);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const receiptId = "sha256:" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    const receiptId = await computeReceiptId({ ...args, createdAt: now });
 
     // Store via internal mutation
     return await ctx.runMutation(

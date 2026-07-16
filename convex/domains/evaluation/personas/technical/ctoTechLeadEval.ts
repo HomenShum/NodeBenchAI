@@ -9,7 +9,7 @@
 
 import { action } from "../../../../_generated/server";
 import { v } from "convex/values";
-import { api } from "../../../../_generated/api";
+import { internal } from "../../../../_generated/api";
 
 import { CLOUDSCALE_GROUND_TRUTH, type TechPlatformGroundTruth } from "./technicalGroundTruth";
 import {
@@ -42,7 +42,7 @@ export const evaluateCTOTechLead = action({
     try {
       // Run investor playbook with CTO context
       const playbookResult = await ctx.runAction(
-        api.domains.agents.dueDiligence.investorPlaybook.evalPlaybook.runInvestorPlaybookEval,
+        internal.domains.agents.dueDiligence.investorPlaybook.evalPlaybook.runInvestorPlaybookEval,
         {
           entityName,
           entityType: "company",

@@ -2,7 +2,46 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
 import { internal } from "../../_generated/api";
-import { action, query } from "../../_generated/server";
+import { action, internalQuery, query } from "../../_generated/server";
+import { HEALTH_CONFIG } from "../../config/autonomousConfig";
+
+type AutonomousAdminRole = "owner" | "admin" | "viewer";
+type AutonomousAccessMode = "read" | "write";
+
+const AUTONOMOUS_READ_ROLES = new Set<AutonomousAdminRole>([
+  "owner",
+  "admin",
+  "viewer",
+]);
+const AUTONOMOUS_WRITE_ROLES = new Set<AutonomousAdminRole>([
+  "owner",
+  "admin",
+]);
+
+export async function requireAutonomousAdminAccess(
+  ctx: any,
+  userId: any,
+  mode: AutonomousAccessMode,
+): Promise<AutonomousAdminRole> {
+  if (!userId) throw new Error("Not authenticated");
+
+  const adminUser = await ctx.db
+    .query("adminUsers")
+    .withIndex("by_userId", (q: any) => q.eq("userId", userId))
+    .first();
+  const role = adminUser?.role as AutonomousAdminRole | undefined;
+  const allowedRoles = mode === "write" ? AUTONOMOUS_WRITE_ROLES : AUTONOMOUS_READ_ROLES;
+
+  if (!role || !allowedRoles.has(role)) {
+    throw new Error(
+      mode === "write"
+        ? "Access denied: autonomous maintenance requires an owner or admin"
+        : "Access denied: autonomous operations are operator-only",
+    );
+  }
+
+  return role;
+}
 
 type CountSummary = {
   total: number;
@@ -92,6 +131,9 @@ export const getAutonomousControlTowerSnapshot = query({
   args: {},
   returns: v.any(),
   handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    await requireAutonomousAdminAccess(ctx, userId, "read");
+
     const systemHealth = await ctx.runQuery(internal.domains.observability.healthMonitor.getLatestHealthChecks, {});
     const activeAlerts = await ctx.runQuery(internal.domains.observability.healthMonitor.getActiveAlerts, {});
     const healingStats = await ctx.runQuery(internal.domains.observability.selfHealer.getHealingStats, { hours: 24 });
@@ -112,6 +154,15 @@ export const getAutonomousControlTowerSnapshot = query({
     const hotspotCards = Array.isArray((hotspotExport as any)?.cards) ? ((hotspotExport as any).cards as any[]) : [];
     const bugCards = Array.isArray((bugExport as any)?.cards) ? ((bugExport as any).cards as any[]) : [];
 
+    const generatedAt = Date.now();
+    const staleAfterMs =
+      HEALTH_CONFIG.healthCheckIntervalMs * HEALTH_CONFIG.healthCheckStaleMultiplier;
+    const staleComponents = healthChecks
+      .filter((check) => {
+        const timestamp = Number(check.timestamp ?? 0);
+        return timestamp <= 0 || generatedAt - timestamp > staleAfterMs;
+      })
+      .map((check) => check.component);
     const unhealthyComponents = healthChecks
       .filter((check) => check.status === "unhealthy")
       .map((check) => check.component);
@@ -148,20 +199,23 @@ export const getAutonomousControlTowerSnapshot = query({
     const healingSucceeded = Number((healingStats as any)?.succeeded ?? 0);
 
     return {
-      generatedAt: Date.now(),
+      generatedAt,
       health: {
         overall:
           unhealthyComponents.length > 0
             ? "unhealthy"
             : degradedComponents.length > 0
               ? "degraded"
-              : healthChecks.length > 0
+              : staleComponents.length > 0
+                ? "unknown"
+                : healthChecks.length > 0
                 ? "healthy"
                 : "unknown",
         latestCheckAt: latestHealthAt || null,
         activeAlertCount: Array.isArray(activeAlerts) ? activeAlerts.length : 0,
         unhealthyComponents,
         degradedComponents,
+        staleComponents,
       },
       healing: {
         attempted24h: healingAttempted,
@@ -197,6 +251,18 @@ export const getAutonomousControlTowerSnapshot = query({
   },
 });
 
+export const assertAutonomousMaintenanceAccess = internalQuery({
+  args: {
+    userId: v.id("users"),
+  },
+  returns: v.object({
+    role: v.union(v.literal("owner"), v.literal("admin")),
+  }),
+  handler: async (ctx, args) => ({
+    role: await requireAutonomousAdminAccess(ctx, args.userId, "write") as "owner" | "admin",
+  }),
+});
+
 export const runAutonomousMaintenanceNow = action({
   args: {
     includeLlmExplanation: v.optional(v.boolean()),
@@ -207,6 +273,10 @@ export const runAutonomousMaintenanceNow = action({
     if (!userId) {
       throw new Error("Not authenticated");
     }
+    await ctx.runQuery(
+      internal.domains.operations.autonomousControlTower.assertAutonomousMaintenanceAccess,
+      { userId },
+    );
 
     const health = await ctx.runAction(internal.domains.observability.healthMonitor.runAllHealthChecks, {});
     const healing = await ctx.runAction(internal.domains.observability.selfHealer.runSelfHealing, {});

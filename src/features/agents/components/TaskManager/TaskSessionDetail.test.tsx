@@ -50,7 +50,6 @@ describe("TaskSessionDetail", () => {
             verdict: "verified",
             verdictLabel: "Verified",
             summary: "Completed with cited open-source evidence and successful verification checks.",
-            confidence: 0.88,
             evidenceCount: 2,
             citationCount: 3,
             sourceRefCount: 3,
@@ -96,7 +95,7 @@ describe("TaskSessionDetail", () => {
     render(<TaskSessionDetail sessionId={"session_1" as any} />);
 
     expect(screen.getByText("Verified")).toBeInTheDocument();
-    expect(screen.getByText(/Confidence 88%/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Confidence \d+%/i)).not.toBeInTheDocument();
     expect(screen.getByText(/Completed with cited open-source evidence/i)).toBeInTheDocument();
     expect(screen.getByText(/Draft the final memo or response with citations/i)).toBeInTheDocument();
     expect(screen.getByText(/Progressive disclosure: discover_tools, get_workflow_chain/i)).toBeInTheDocument();

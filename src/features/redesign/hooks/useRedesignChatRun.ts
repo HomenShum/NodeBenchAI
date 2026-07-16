@@ -17,7 +17,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import type { ChatAnswer } from "../fixtures";
+import type { ChatAnswer as BaseChatAnswer } from "../fixtures";
 import type { RouterTier } from "../components/UniversalComposer";
 import type { LiveGroundingDecision } from "shared/redesign/contextRuntimePolicy";
 
@@ -28,6 +28,11 @@ export function normalizeRouterTierForChatRun(tier: RouterTier): ChatRunTier {
   if (tier === "compare") return "deep";
   return tier;
 }
+
+export type ChatAnswer = Omit<BaseChatAnswer, "paidCalls" | "fromMemory"> & {
+  paidCalls?: number;
+  fromMemory?: boolean;
+};
 
 type EvidenceRow = ChatAnswer["evidence"][number];
 type TraceRow = ChatAnswer["trace"][number];
@@ -142,90 +147,44 @@ function dedupeClaimChecks(rows: ClaimCheck[]): ClaimCheck[] {
   return [...byIdx.values()].sort((a, b) => a.idx - b.idx);
 }
 
-function inferEntity(prompt: string): string | undefined {
-  return prompt.match(/(?:about |on |for |re )?([A-Z][A-Za-z0-9]+(?:\s[A-Z][A-Za-z0-9]+)*)/)?.[1];
+export function resolveRuntimeArtifacts({
+  contextCandidates,
+  toolDecisions,
+  claimChecks,
+}: {
+  contextCandidates: PlannerArtifact[];
+  toolDecisions: PlannerArtifact[];
+  claimChecks: ClaimCheck[];
+}) {
+  return {
+    contextCandidates: dedupePlannerArtifacts(contextCandidates),
+    toolDecisions: dedupePlannerArtifacts(toolDecisions),
+    claimChecks: dedupeClaimChecks(claimChecks),
+  };
 }
 
-function fallbackContextCandidates(prompt: string): PlannerArtifact[] {
-  const entity = inferEntity(prompt);
-  return [
-    {
-      id: "user_prompt",
-      label: "User prompt",
-      status: "selected",
-      confidence: 1,
-      detail: prompt || "Prompt loaded from the run row.",
-    },
-    {
-      id: "entity_mention",
-      label: entity ?? "Entity unresolved",
-      status: entity ? "candidate" : "deferred",
-      confidence: entity ? 0.72 : 0,
-      detail: entity ? "Detected from the prompt text." : "No stable entity mention found in the prompt.",
-    },
-    {
-      id: "active_report",
-      label: "Active report",
-      status: "deferred",
-      confidence: 0,
-      detail: "No report reference was available in the legacy run row.",
-    },
-    {
-      id: "graph_context_packet",
-      label: "Graph context packet",
-      status: "deferred",
-      confidence: 0,
-      detail: "Legacy run row did not include a bounded report graph packet.",
-    },
-  ];
-}
-
-function fallbackToolDecisions(trace: TraceRow[]): PlannerArtifact[] {
-  const hasFallback = trace.some((row) => /fallback/i.test(`${row.step} ${row.detail}`));
-  const hasGrounding = trace.some((row) => /gemini|ground/i.test(`${row.step} ${row.detail}`));
-  return [
-    {
-      id: "search_memory",
-      label: "search_memory",
-      status: "deferred",
-      riskTier: "low",
-      costUsd: 0,
-      detail: "Legacy run stream did not emit a memory-search decision.",
-    },
-    {
-      id: "resolve_report_graph_context",
-      label: "resolve_report_graph_context",
-      status: "deferred",
-      riskTier: "low",
-      costUsd: 0,
-      detail: "Legacy run stream did not emit a graph-context decision.",
-    },
-    {
-      id: hasFallback ? "fallback_source_search" : "google_search_grounding",
-      label: hasFallback ? "fallback_source_search" : "google_search grounding",
-      status: hasFallback || hasGrounding ? "selected" : "pending",
-      riskTier: "medium",
-      detail: hasFallback
-        ? "Gemini returned no grounding chunks, so Linkup fallback sources were used."
-        : "Fresh evidence grounding was selected for this run.",
-    },
-    {
-      id: "verify_sources",
-      label: "verify_sources",
-      status: "pending",
-      riskTier: "low",
-      costUsd: 0,
-      detail: "Source URL substring validation runs after packet assembly.",
-    },
-    {
-      id: "patch_notebook",
-      label: "patch_notebook",
-      status: "deferred",
-      riskTier: "medium",
-      costUsd: 0,
-      detail: "Notebook writes require an explicit user action.",
-    },
-  ];
+export function buildPartialChatAnswer({
+  sections,
+  groundingChunks,
+  toolCalls,
+  metrics,
+}: {
+  sections: Record<string, any>;
+  groundingChunks: EvidenceRow[];
+  toolCalls: TraceRow[];
+  metrics?: RuntimeMetrics;
+}): ChatAnswer {
+  const evidence = sections.evidence?.rows ?? groundingChunks;
+  return {
+    shortAnswer: sections.short_answer?.text ?? "",
+    whyItMatters: sections.why_it_matters?.text ?? "",
+    evidence,
+    risks: sections.risks?.items ?? [],
+    nextAction: sections.next_action?.text ?? "",
+    sourceCount: evidence.length,
+    trace: toolCalls,
+    ...(typeof metrics?.paidCalls === "number" ? { paidCalls: metrics.paidCalls } : {}),
+  };
 }
 
 export interface RealChatRun {
@@ -383,33 +342,18 @@ export function useRedesignChatRun() {
       }
     }
 
-    const partial: ChatAnswer = {
-      shortAnswer: sections.short_answer?.text ?? "",
-      whyItMatters: sections.why_it_matters?.text ?? "",
-      evidence: sections.evidence?.rows ?? groundingChunks,
-      risks: sections.risks?.items ?? [],
-      nextAction: sections.next_action?.text ?? "",
-      sourceCount: (sections.evidence?.rows ?? groundingChunks).length,
-      paidCalls: 1,
-      fromMemory: false,
-      trace: toolCalls,
-    };
+    const partial = buildPartialChatAnswer({ sections, groundingChunks, toolCalls, metrics });
 
     const status: RealChatRun["status"] = (runRow?.status as RealChatRun["status"]) ?? "pending";
     const finalPacket = (runRow?.status === "complete" && runRow.packet)
       ? (runRow.packet as ChatAnswer)
       : partial;
-    const resolvedContextCandidates = contextCandidates.length > 0
-      ? dedupePlannerArtifacts(contextCandidates)
-      : fallbackContextCandidates(runRow?.prompt ?? "");
-    const resolvedToolDecisions = toolDecisions.length > 0
-      ? dedupePlannerArtifacts(toolDecisions)
-      : fallbackToolDecisions(toolCalls);
+    const resolvedArtifacts = resolveRuntimeArtifacts({ contextCandidates, toolDecisions, claimChecks });
     const runtime: RuntimeTrace = {
       boardState,
-      contextCandidates: resolvedContextCandidates,
-      toolDecisions: resolvedToolDecisions,
-      claimChecks: dedupeClaimChecks(claimChecks),
+      contextCandidates: resolvedArtifacts.contextCandidates,
+      toolDecisions: resolvedArtifacts.toolDecisions,
+      claimChecks: resolvedArtifacts.claimChecks,
       metrics,
       contextPacket: contextPacket ?? (finalPacket.runtime as RuntimeTrace | undefined)?.contextPacket,
       liveGroundingDecision: liveGroundingDecision ?? (finalPacket.runtime as RuntimeTrace | undefined)?.liveGroundingDecision,
@@ -523,5 +467,3 @@ export function useRedesignChatByHash(hash: string | undefined) {
     hash ? { hash } : "skip",
   );
 }
-
-export type { ChatAnswer };

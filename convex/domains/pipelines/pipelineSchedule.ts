@@ -27,9 +27,16 @@ import {
 import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 import { DEFAULT_PIPELINE_MODEL_ROUTE } from "../agents/mcp_tools/models/modelResolver";
+import {
+  pipelineOwnerMatches,
+  requireAuthenticatedPipelineOwnerKey,
+} from "./pipelineOwnership";
+import { normalizePipelineLaunchText } from "./pipelineAdmission";
+import { buildScheduleOccurrenceAttemptKey } from "./pipelineAttempt";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
+const MAX_PIPELINE_SCHEDULES_PER_OWNER = 20;
 
 /* -------------------------------------------------------------------------- */
 /*  Public CRUD                                                                */
@@ -37,7 +44,6 @@ const DAY_MS = 24 * HOUR_MS;
 
 export const createSchedule = mutation({
   args: {
-    ownerKey: v.optional(v.string()),
     pipelineKind: v.union(
       v.literal("code_gen"),
       v.literal("design_gen"),
@@ -53,17 +59,34 @@ export const createSchedule = mutation({
       v.literal("weekly"),
     ),
     nextRunAt: v.optional(v.number()),
-    options: v.optional(v.any()),
+    options: v.optional(
+      v.object({
+        linkupDepth: v.optional(
+          v.union(v.literal("standard"), v.literal("deep")),
+        ),
+      }),
+    ),
   },
   returns: v.object({ scheduleId: v.id("scheduledPipelineRuns") }),
   handler: async (ctx, args) => {
+    const ownerKey = await requireAuthenticatedPipelineOwnerKey(ctx);
+    const launchText = normalizePipelineLaunchText(args);
+    const existingSchedules = await ctx.db
+      .query("scheduledPipelineRuns")
+      .withIndex("by_owner_createdAt", (q) => q.eq("ownerKey", ownerKey))
+      .take(MAX_PIPELINE_SCHEDULES_PER_OWNER);
+    if (existingSchedules.length >= MAX_PIPELINE_SCHEDULES_PER_OWNER) {
+      throw new Error(
+        `Schedule limit reached (${MAX_PIPELINE_SCHEDULES_PER_OWNER}). Delete an existing schedule first`,
+      );
+    }
     const now = Date.now();
     const scheduleId = await ctx.db.insert("scheduledPipelineRuns", {
-      ownerKey: args.ownerKey,
+      ownerKey,
       pipelineKind: args.pipelineKind,
-      spec: args.spec,
-      title: args.title,
-      modelId: args.modelId ?? DEFAULT_PIPELINE_MODEL_ROUTE,
+      spec: launchText.spec,
+      title: launchText.title,
+      modelId: launchText.modelId ?? DEFAULT_PIPELINE_MODEL_ROUTE,
       cadence: args.cadence,
       enabled: true,
       nextRunAt: args.nextRunAt ?? now,
@@ -82,6 +105,11 @@ export const setScheduleEnabled = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const ownerKey = await requireAuthenticatedPipelineOwnerKey(ctx);
+    const schedule = await ctx.db.get(args.scheduleId);
+    if (!pipelineOwnerMatches(schedule, ownerKey)) {
+      throw new Error("Schedule not found or unauthorized");
+    }
     await ctx.db.patch(args.scheduleId, {
       enabled: args.enabled,
       updatedAt: Date.now(),
@@ -91,20 +119,28 @@ export const setScheduleEnabled = mutation({
 });
 
 export const deleteSchedule = mutation({
-  args: { scheduleId: v.id("scheduledPipelineRuns") },
+  args: {
+    scheduleId: v.id("scheduledPipelineRuns"),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const ownerKey = await requireAuthenticatedPipelineOwnerKey(ctx);
+    const schedule = await ctx.db.get(args.scheduleId);
+    if (!pipelineOwnerMatches(schedule, ownerKey)) {
+      throw new Error("Schedule not found or unauthorized");
+    }
     await ctx.db.delete(args.scheduleId);
     return null;
   },
 });
 
 export const listSchedules = query({
-  args: { ownerKey: v.optional(v.string()), limit: v.optional(v.number()) },
+  args: {
+    limit: v.optional(v.number()),
+  },
   returns: v.array(
     v.object({
       _id: v.id("scheduledPipelineRuns"),
-      ownerKey: v.optional(v.string()),
       pipelineKind: v.string(),
       spec: v.string(),
       title: v.optional(v.string()),
@@ -120,20 +156,15 @@ export const listSchedules = query({
     }),
   ),
   handler: async (ctx, args) => {
+    const ownerKey = await requireAuthenticatedPipelineOwnerKey(ctx);
     const limit = Math.min(args.limit ?? 25, 100);
-    let rows;
-    if (args.ownerKey) {
-      rows = await ctx.db
-        .query("scheduledPipelineRuns")
-        .withIndex("by_owner_createdAt", (q) => q.eq("ownerKey", args.ownerKey))
-        .order("desc")
-        .take(limit);
-    } else {
-      rows = await ctx.db.query("scheduledPipelineRuns").order("desc").take(limit);
-    }
+    const rows = await ctx.db
+      .query("scheduledPipelineRuns")
+      .withIndex("by_owner_createdAt", (q) => q.eq("ownerKey", ownerKey))
+      .order("desc")
+      .take(limit);
     return rows.map((r) => ({
       _id: r._id,
-      ownerKey: r.ownerKey,
       pipelineKind: r.pipelineKind,
       spec: r.spec,
       title: r.title,
@@ -164,19 +195,28 @@ export const findDueSchedules = internalMutation({
       .withIndex("by_enabled_nextRunAt", (q) => q.eq("enabled", true))
       .order("asc")
       .take(50);
-    return due.filter((row) => row.nextRunAt <= args.now);
+    return due.filter(
+      (row) =>
+        row.nextRunAt <= args.now &&
+        typeof row.ownerKey === "string" &&
+        /^user:/.test(row.ownerKey),
+    );
   },
 });
 
 export const advanceSchedule = internalMutation({
   args: {
     scheduleId: v.id("scheduledPipelineRuns"),
+    dueNextRunAt: v.number(),
     runId: v.string(),
     status: v.string(),
   },
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.scheduleId);
     if (!row) return { ok: false };
+    if (row.nextRunAt !== args.dueNextRunAt) {
+      return { ok: false, reason: "occurrence_already_advanced" };
+    }
 
     const now = Date.now();
     let nextRunAt = row.nextRunAt;
@@ -186,13 +226,13 @@ export const advanceSchedule = internalMutation({
         enabled = false;
         break;
       case "hourly":
-        nextRunAt = now + HOUR_MS;
+        nextRunAt = args.dueNextRunAt + HOUR_MS;
         break;
       case "daily":
-        nextRunAt = now + DAY_MS;
+        nextRunAt = args.dueNextRunAt + DAY_MS;
         break;
       case "weekly":
-        nextRunAt = now + 7 * DAY_MS;
+        nextRunAt = args.dueNextRunAt + 7 * DAY_MS;
         break;
     }
     await ctx.db.patch(args.scheduleId, {
@@ -225,21 +265,29 @@ export const runDuePipelineSchedules = internalAction({
 
     for (const schedule of due) {
       try {
+        const dueNextRunAt = schedule.nextRunAt;
+        const attemptKey = buildScheduleOccurrenceAttemptKey(
+          String(schedule._id),
+          dueNextRunAt,
+        );
         // Pull options off the schedule (e.g., depth: "deep" for research).
-        const options = (schedule.options ?? {}) as Record<string, unknown>;
+        const options = (schedule.options ?? {}) as {
+          linkupDepth?: "standard" | "deep";
+        };
 
         // Each pipeline kind has slightly different args; the workflow
         // wrapper handles the shared subset.
         const result = await ctx.runMutation(
-          internal.domains.pipelines.pipelineWorkflow.startPipelineRun as any,
+          internal.domains.pipelines.pipelineWorkflow.startPipelineRunInternal as any,
           {
             pipelineKind: schedule.pipelineKind,
             spec: schedule.spec,
             title: schedule.title,
             modelId: schedule.modelId,
             ownerKey: schedule.ownerKey,
-            forceFresh: false,
-            ...options,
+            forceFresh: true,
+            attemptKey,
+            linkupDepth: options.linkupDepth,
           },
         );
         const workflowId =
@@ -250,6 +298,7 @@ export const runDuePipelineSchedules = internalAction({
           internal.domains.pipelines.pipelineSchedule.advanceSchedule,
           {
             scheduleId: schedule._id as Id<"scheduledPipelineRuns">,
+            dueNextRunAt,
             runId: workflowId,
             status: "kicked",
           },
@@ -261,6 +310,7 @@ export const runDuePipelineSchedules = internalAction({
           internal.domains.pipelines.pipelineSchedule.advanceSchedule,
           {
             scheduleId: schedule._id as Id<"scheduledPipelineRuns">,
+            dueNextRunAt: schedule.nextRunAt,
             runId: "",
             status: `error:${message.slice(0, 100)}`,
           },

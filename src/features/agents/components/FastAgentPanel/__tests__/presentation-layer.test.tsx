@@ -89,12 +89,6 @@ describe('SourceCard', () => {
     expect(screen.getByText(/10-K • Filed 2024-01-15/)).toBeInTheDocument();
   });
 
-  it('renders citation number when provided', () => {
-    render(<SourceCard source={mockSECDocument} citationNumber={1} />);
-    
-    expect(screen.getByText('1')).toBeInTheDocument();
-  });
-
   it('renders as clickable link', () => {
     render(<SourceCard source={mockSECDocument} />);
     
@@ -123,7 +117,7 @@ describe('SourceGrid', () => {
     
     expect(screen.getByText('Source 1')).toBeInTheDocument();
     expect(screen.getByText('Source 2')).toBeInTheDocument();
-    expect(screen.getByText('Sources')).toBeInTheDocument();
+    expect(screen.getByText('Consulted sources')).toBeInTheDocument();
     expect(screen.getByText('(2)')).toBeInTheDocument();
   });
 

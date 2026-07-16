@@ -8,7 +8,7 @@
 "use node";
 
 import { v } from "convex/values";
-import { action } from "../../../../_generated/server";
+import { internalAction } from "../../../../_generated/server";
 import { runInvestorPlaybook, generatePlaybookReport } from "./playbookOrchestrator";
 import type { SecuritiesRegime } from "./types";
 
@@ -42,7 +42,7 @@ interface EvalResult {
 /**
  * Evaluate playbook against MyDentalWig ground truth
  */
-export const evaluateMyDentalWig = action({
+export const evaluateMyDentalWig = internalAction({
   args: {},
   handler: async (ctx): Promise<EvalResult> => {
     const startTime = Date.now();
@@ -202,7 +202,7 @@ export const evaluateMyDentalWig = action({
 /**
  * Quick test - just run playbook and return raw results
  */
-export const testPlaybook = action({
+export const testPlaybook = internalAction({
   args: {
     entityName: v.string(),
     claimedFDAStatus: v.optional(v.string()),
@@ -296,7 +296,7 @@ interface Task2EvalResult {
 /**
  * Evaluate Task 2: Vijay Rao / Meta Manus complex verification
  */
-export const evaluateTask2VijayRaoManus = action({
+export const evaluateTask2VijayRaoManus = internalAction({
   args: {},
   handler: async (ctx): Promise<Task2EvalResult> => {
     const startTime = Date.now();
@@ -464,7 +464,7 @@ export const evaluateTask2VijayRaoManus = action({
  * This action is called by the unified persona harness to evaluate
  * different personas against their ground truth cases.
  */
-export const runInvestorPlaybookEval = action({
+export const runInvestorPlaybookEval = internalAction({
   args: {
     entityName: v.string(),
     entityType: v.optional(v.string()),

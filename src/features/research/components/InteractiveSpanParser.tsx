@@ -86,10 +86,6 @@ const parseEntitiesAndSmartLinks = (
   entityEnrichment?: Record<string, EntityHoverData>,
   keyPrefix = "entity",
 ): React.ReactNode[] => {
-  if (!entities || Object.keys(entities.entities).length === 0) {
-    return parseSmartLinks(text, linksData, `${keyPrefix}-smartlinks`);
-  }
-
   const nodes: React.ReactNode[] = [];
   const entityRegex = new RegExp(ENTITY_REGEX.source, "g");
   let lastIndex = 0;
@@ -105,7 +101,7 @@ const parseEntitiesAndSmartLinks = (
     const displayName = match[2];
     const typeOverride = match[3] as EntityType | undefined;
 
-    const entity = entities.entities[entityId];
+    const entity = entities?.entities[entityId];
     if (entity) {
       const displayEntity = typeOverride ? { ...entity, type: typeOverride } : entity;
       // Get pre-loaded enrichment data for medium-detail preview
@@ -126,10 +122,8 @@ const parseEntitiesAndSmartLinks = (
       nodes.push(
         <span
           key={`${keyPrefix}-entity-missing-${entityId}-${match.index}`}
-          className="text-orange-500 text-xs italic"
-          title={`Entity not found: ${entityId}`}
         >
-          [{displayName || entityId}?]
+          {displayName || entityId}
         </span>,
       );
     }
@@ -160,18 +154,6 @@ const parseCitationsEntitiesAndSmartLinks = (
   entityEnrichment?: Record<string, EntityHoverData>,
   keyPrefix = "citation",
 ): React.ReactNode[] => {
-  // If no citations, delegate to entity parser
-  if (!citations || Object.keys(citations.citations).length === 0) {
-    return parseEntitiesAndSmartLinks(
-      text,
-      linksData,
-      entities,
-      onEntityClick,
-      entityEnrichment,
-      `${keyPrefix}-entities`,
-    );
-  }
-
   const nodes: React.ReactNode[] = [];
   const citationRegex = new RegExp(CITATION_REGEX.source, "g");
   let lastIndex = 0;
@@ -197,7 +179,7 @@ const parseCitationsEntitiesAndSmartLinks = (
     const customLabel = match[2];
     const typeOverride = match[3] as CitationType | undefined;
 
-    const citation = citations.citations[citationId];
+    const citation = citations?.citations[citationId];
     if (citation) {
       const displayCitation = typeOverride
         ? { ...citation, type: typeOverride }
@@ -214,10 +196,8 @@ const parseCitationsEntitiesAndSmartLinks = (
       nodes.push(
         <span
           key={`${keyPrefix}-cite-missing-${citationId}-${match.index}`}
-          className="text-red-500 text-xs"
-          title={`Citation not found: ${citationId}`}
         >
-          [?{customLabel || citationId}]
+          {customLabel || "source"}
         </span>,
       );
     }

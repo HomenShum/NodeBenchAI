@@ -20,20 +20,18 @@ export interface PersonProfile {
 interface ProfileCardProps {
   profile: PersonProfile;
   className?: string;
-  citationNumber?: number; // For inline citations like [1], [2]
 }
 
 /**
  * ProfileCard - Displays a single person/entity profile in a polished, read-only format
  * Used for displaying search results, not for disambiguation/selection
  */
-export function ProfileCard({ profile, className, citationNumber }: ProfileCardProps) {
+export function ProfileCard({ profile, className }: ProfileCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasAdditionalInfo = profile.additionalInfo && profile.additionalInfo.length > 0;
 
   return (
     <div
-      id={citationNumber ? `profile-${citationNumber}` : undefined}
       className={cn(
         "group rounded-lg border border-edge hover:shadow-md hover:border-primary/20",
         "transition-all duration-200 bg-surface overflow-hidden scroll-mt-4",
@@ -61,16 +59,11 @@ export function ProfileCard({ profile, className, citationNumber }: ProfileCardP
 
         {/* Profile info */}
         <div className="flex-1 min-w-0">
-          {/* Name and citation */}
+          {/* Name */}
           <div className="flex items-start justify-between gap-2 mb-1">
             <h3 className="font-semibold text-sm text-content line-clamp-1">
               {profile.name}
             </h3>
-            {citationNumber !== undefined && (
-              <span className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">
-                {citationNumber}
-              </span>
-            )}
           </div>
 
           {/* Metadata */}
@@ -156,7 +149,6 @@ export function ProfileCard({ profile, className, citationNumber }: ProfileCardP
 interface ProfileGridProps {
   profiles: PersonProfile[];
   title?: string;
-  showCitations?: boolean;
   className?: string;
 }
 
@@ -166,7 +158,6 @@ interface ProfileGridProps {
 export function ProfileGrid({
   profiles,
   title = "People",
-  showCitations = false,
   className
 }: ProfileGridProps) {
   const [showAll, setShowAll] = useState(false);
@@ -197,7 +188,6 @@ export function ProfileGrid({
           <ProfileCard
             key={idx}
             profile={profile}
-            citationNumber={showCitations ? idx + 1 : undefined}
           />
         ))}
       </div>
@@ -226,4 +216,3 @@ export function ProfileGrid({
     </div>
   );
 }
-

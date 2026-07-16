@@ -365,7 +365,7 @@ describe("streamAsync tier-gate wiring", () => {
   it("validates an exact prompt before routing and carries it explicitly with zero history", () => {
     const actionStart = streamingSource.indexOf("export const streamAsync");
     const actionEnd = streamingSource.indexOf(
-      "export const generateDocumentContent",
+      "export const createDocumentFromAgentContent",
       actionStart,
     );
     const actionSource = streamingSource.slice(actionStart, actionEnd);
@@ -442,7 +442,7 @@ describe("streamAsync tier-gate wiring", () => {
 
   it("does not make hidden compaction or teachability model calls in queued streaming", () => {
     const actionStart = streamingSource.indexOf("export const streamAsync");
-    const actionEnd = streamingSource.indexOf("export const generateDocumentContent", actionStart);
+    const actionEnd = streamingSource.indexOf("export const createDocumentFromAgentContent", actionStart);
     const actionSource = streamingSource.slice(actionStart, actionEnd);
 
     expect(actionSource).not.toContain("compactContext as any");
@@ -453,7 +453,7 @@ describe("streamAsync tier-gate wiring", () => {
 
   it("retries failed reconciliation durably instead of suppressing finalization", () => {
     const actionStart = streamingSource.indexOf("export const streamAsync");
-    const actionEnd = streamingSource.indexOf("export const generateDocumentContent", actionStart);
+    const actionEnd = streamingSource.indexOf("export const createDocumentFromAgentContent", actionStart);
     const actionSource = streamingSource.slice(actionStart, actionEnd);
 
     expect(actionSource).not.toContain("runtimeUsageFinalizationAttempted");
@@ -488,7 +488,7 @@ describe("streamAsync tier-gate wiring", () => {
     );
     const actionStart = streamingSource.indexOf("export const streamAsync");
     const actionEnd = streamingSource.indexOf(
-      "export const generateDocumentContent",
+      "export const createDocumentFromAgentContent",
       actionStart,
     );
     const actionSource = streamingSource.slice(actionStart, actionEnd);

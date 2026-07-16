@@ -3,15 +3,15 @@
  *
  * User-facing launcher for server-side research runs. The backend still uses
  * the pi-ai pipeline workflow, but this surface intentionally describes the
- * experience as saved research that keeps running after the user leaves.
+ * experience as background research that keeps running after the user leaves.
  */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../../../../convex/_generated/api";
-import { Calendar, Layers, Link2, Mic, Paperclip } from "lucide-react";
+import { Calendar, Layers } from "lucide-react";
 import { ExactComposer } from "@/features/designKit/exact/ExactComposer";
-import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 import {
   DEFAULT_PIPELINE_MODEL_SELECTION,
   PIPELINE_MODEL_OPTIONS,
@@ -20,7 +20,7 @@ import {
 } from "@/shared/llm/pipelineModelRoutes";
 
 const PIPELINE_KINDS = [
-  { value: "research", label: "Research report", advanced: false },
+  { value: "research", label: "Research bundle", advanced: false },
   { value: "code_gen", label: "Code starter", advanced: false },
   { value: "design_gen", label: "Design brief", advanced: false },
   { value: "research_then_code", label: "Research, then code", advanced: true },
@@ -41,7 +41,7 @@ const COMPOSED_KINDS = new Set<PipelineKindValue>([
 
 const REPORT_COMPOSER_SUGGESTIONS = [
   "Research a company",
-  "Capture an event note",
+  "Compare two companies",
   "Ask about a person",
 ] as const;
 
@@ -50,7 +50,7 @@ const REPORT_COMPOSER_PROMPT_BY_SUGGESTION: Record<
   string
 > = {
   "Research a company": "Research ",
-  "Capture an event note": "I am at an event. Capture this note: ",
+  "Compare two companies": "Compare ",
   "Ask about a person": "Find the public footprint for ",
 };
 
@@ -71,6 +71,8 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
     kind: "ok" | "error";
     message: string;
   } | null>(null);
+  const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+  const { signIn } = useAuthActions();
 
   const startPipelineRun = useMutation(
     api.domains.pipelines.pipelineWorkflow.startPipelineRun,
@@ -81,19 +83,6 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
   const createSchedule = useMutation(
     api.domains.pipelines.pipelineSchedule.createSchedule,
   );
-
-  const loggedInUser = useQuery(
-    (api as any)?.domains?.auth?.auth?.loggedInUser ?? "skip",
-  );
-  const anonymousSessionId = useMemo(() => getAnonymousProductSessionId(), []);
-  const ownerKey = loggedInUser?._id
-    ? `user:${loggedInUser._id}`
-    : anonymousSessionId
-      ? `session:${anonymousSessionId}`
-      : undefined;
-  const ownerLabel = loggedInUser?._id
-    ? "Reports, sources, and notes are saved to your workspace."
-    : "This browser can reopen the report later. Sign in to keep it across devices.";
 
   const [scheduleMode, setScheduleMode] = useState(false);
   const [scheduleCadence, setScheduleCadence] = useState<
@@ -126,6 +115,10 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
 
   const submitLaunch = async () => {
     if (submitting) return;
+    if (!isAuthenticated) {
+      setFeedback({ kind: "error", message: "Sign in to start background research." });
+      return;
+    }
     if (!spec.trim()) {
       setFeedback({ kind: "error", message: "Tell NodeBench what to research first." });
       return;
@@ -142,7 +135,6 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
     try {
       if (scheduleMode) {
         await createSchedule({
-          ownerKey,
           pipelineKind: pipelineKind as "research" | "code_gen" | "design_gen",
           spec: spec.trim(),
           title: title.trim() || undefined,
@@ -153,7 +145,7 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
         });
         setFeedback({
           kind: "ok",
-          message: "Automatic refresh saved. It will run on the selected cadence and appear below.",
+          message: "Automatic refresh saved. Its runs and bundles will appear below.",
         });
         setSpec("");
         setTitle("");
@@ -169,7 +161,6 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
           spec: spec.trim(),
           title: title.trim() || undefined,
           modelId,
-          ownerKey,
           forceFresh: true,
           linkupDepth: showLinkupDepth ? linkupDepth : undefined,
         });
@@ -179,14 +170,13 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
           spec: spec.trim(),
           title: title.trim() || undefined,
           modelId,
-          ownerKey,
           forceFresh: true,
           linkupDepth: showLinkupDepth ? linkupDepth : undefined,
         });
       }
       setFeedback({
         kind: "ok",
-        message: "Research started. Safe to leave this page; progress and the final report will appear below.",
+        message: "Background run started. Track progress and download the completed bundle below.",
       });
       setSpec("");
       setTitle("");
@@ -197,6 +187,43 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
       setSubmitting(false);
     }
   };
+
+  if (isAuthLoading || !isAuthenticated) {
+    return (
+      <section
+        data-testid="pipeline-launcher"
+        data-pipeline-launcher-variant={variant}
+        aria-label="Start research"
+        className="pipeline-launcher pipeline-launcher-chatlike nb-surface-card p-4"
+      >
+        {isAuthLoading ? (
+          <p className="text-xs text-content-muted">Checking research access...</p>
+        ) : (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="text-sm font-semibold text-content">Background research</h3>
+              <p className="text-xs text-content-muted">
+                Sign in to start paid runs or schedule automatic refreshes.
+              </p>
+            </div>
+            <button
+              type="button"
+              data-testid="pipeline-launcher-sign-in"
+              className="rounded-md bg-content px-3 py-1.5 text-xs font-medium text-surface"
+              onClick={() =>
+                void signIn("google", {
+                  redirectTo:
+                    typeof window !== "undefined" ? window.location.href : "/?surface=reports",
+                })
+              }
+            >
+              Continue with Google
+            </button>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   const launcherOptions = (
     <div className="pipeline-launcher-composer-options">
@@ -308,8 +335,8 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
         value={spec}
         onValueChange={setSpec}
         onSubmit={submitLaunch}
-        placeholder="Ask, capture, paste, upload, or record..."
-        ariaLabel="Ask for a report"
+        placeholder="Ask or paste research text..."
+        ariaLabel="Start a background research run"
         inputTestId="pipeline-launcher-spec"
         inputClassName="pipeline-launcher-composer-input"
         maxLength={4000}
@@ -319,21 +346,16 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
         submitTestId="pipeline-launcher-submit"
         pins={[
           {
-            kind: "Report",
+            kind: "Output",
             label: selectedKindLabel,
             onClick: () => setAdvancedOpen(true),
             ariaLabel: "Choose output type",
             title: "Choose output type",
           },
         ]}
-        addPinLabel="Add context"
+        addPinLabel="Run options"
         addPinExpanded={advancedOpen}
         onAddPin={() => setAdvancedOpen((open) => !open)}
-        tools={[
-          { key: "attach", label: "Attach file", icon: <Paperclip size={14} /> },
-          { key: "url", label: "Add URL", icon: <Link2 size={14} /> },
-          { key: "voice", label: "Voice note", icon: <Mic size={14} /> },
-        ]}
         modelLabel={selectedModelLabel}
         modelTitle="Model"
         modelProvider={selectedModelProvider}
@@ -344,11 +366,6 @@ export const PipelineLauncher: React.FC<PipelineLauncherProps> = ({
         }))}
         onModelValueChange={(value) => setModelId(value as PipelineModelSelection)}
         modelSelectTestId="pipeline-launcher-model"
-        footerMeta={
-          selectedModelOption.isFree
-            ? "Memory-first - free route"
-            : "Memory-first - auto route"
-        }
         options={advancedOpen ? launcherOptions : null}
         suggestions={[...REPORT_COMPOSER_SUGGESTIONS]}
         onSuggestion={(suggestion) => {

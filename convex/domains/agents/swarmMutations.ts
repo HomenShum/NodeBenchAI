@@ -6,13 +6,13 @@
  */
 
 import { v } from "convex/values";
-import { mutation } from "../../_generated/server";
+import { internalMutation } from "../../_generated/server";
 import type { Id, Doc } from "../../_generated/dataModel";
 
 /**
  * Create a new swarm record
  */
-export const createSwarmRecord = mutation({
+export const createSwarmRecord = internalMutation({
   args: {
     swarmId: v.string(),
     userId: v.id("users"),
@@ -52,7 +52,7 @@ export const createSwarmRecord = mutation({
 /**
  * Create agent task records for a swarm
  */
-export const createSwarmTasks = mutation({
+export const createSwarmTasks = internalMutation({
   args: {
     swarmId: v.string(),
     tasks: v.array(
@@ -87,7 +87,7 @@ export const createSwarmTasks = mutation({
 /**
  * Update swarm status
  */
-export const updateSwarmStatus = mutation({
+export const updateSwarmStatus = internalMutation({
   args: {
     swarmId: v.string(),
     status: v.union(
@@ -124,7 +124,7 @@ export const updateSwarmStatus = mutation({
 /**
  * Update task status
  */
-export const updateTaskStatus = mutation({
+export const updateTaskStatus = internalMutation({
   args: {
     taskId: v.string(),
     status: v.union(
@@ -166,7 +166,7 @@ export const updateTaskStatus = mutation({
 /**
  * Set swarm merged result
  */
-export const setSwarmResult = mutation({
+export const setSwarmResult = internalMutation({
   args: {
     swarmId: v.string(),
     mergedResult: v.string(),
@@ -193,7 +193,7 @@ export const setSwarmResult = mutation({
 /**
  * Link thread to swarm
  */
-export const linkThreadToSwarm = mutation({
+export const linkThreadToSwarm = internalMutation({
   args: {
     threadId: v.id("chatThreadsStream"),
     swarmId: v.string(),

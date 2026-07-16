@@ -1,13 +1,14 @@
 /**
  * PipelineEvalScorecard
  *
- * User-facing quality summary for recent background research runs.
+ * User-facing observed outcome summary for recent background research runs.
  */
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useStableQuery } from "@/hooks/useStableQuery";
 import { api } from "../../../../convex/_generated/api";
 import { Gauge, TrendingUp } from "lucide-react";
+import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 
 function pct(n: number): string {
   return `${Math.round(n * 1000) / 10}%`;
@@ -23,24 +24,6 @@ function usd(n?: number): string {
   if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return "-";
   if (n < 0.01) return "<$0.01";
   return `$${n.toFixed(3)}`;
-}
-
-function qualityLabel(b?: number): { label: string; tone: string } {
-  if (typeof b !== "number") return { label: "-", tone: "text-content-muted" };
-  if (b < 0.15)
-    return {
-      label: "well calibrated",
-      tone: "text-emerald-700 dark:text-emerald-300",
-    };
-  if (b < 0.25)
-    return {
-      label: "acceptable",
-      tone: "text-amber-700 dark:text-amber-300",
-    };
-  return {
-    label: "needs review",
-    tone: "text-red-700 dark:text-red-300",
-  };
 }
 
 function verdictLabel(key: string): string {
@@ -67,9 +50,10 @@ const COUNT_TONE: Record<string, string> = {
 };
 
 export const PipelineEvalScorecard: React.FC = () => {
+  const anonymousSessionId = useMemo(() => getAnonymousProductSessionId(), []);
   const stats = useStableQuery(
     api.domains.pipelines.pipelineEvalQueries.getPipelineEvalScorecard,
-    { limit: 100 },
+    { limit: 100, anonymousSessionId },
   );
 
   if (stats === undefined) {
@@ -93,9 +77,9 @@ export const PipelineEvalScorecard: React.FC = () => {
             <Gauge className="w-4 h-4 text-violet-600 dark:text-violet-300" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-content">Research quality</h3>
+            <h3 className="text-sm font-semibold text-content">Run outcomes</h3>
             <p className="text-[11px] text-content-muted">
-              Quality and review counters appear after research runs finish.
+              Final verdict, duration, and estimated-cost counters appear after runs finish.
             </p>
           </div>
         </header>
@@ -103,12 +87,10 @@ export const PipelineEvalScorecard: React.FC = () => {
     );
   }
 
-  const quality = qualityLabel(stats.brier);
-
   return (
     <section
       data-testid="pipeline-eval-scorecard"
-      aria-label="Research quality"
+      aria-label="Run outcomes"
       className="nb-surface-card p-4 space-y-3"
     >
       <header className="flex items-center justify-between gap-3 flex-wrap">
@@ -117,21 +99,17 @@ export const PipelineEvalScorecard: React.FC = () => {
             <Gauge className="w-4 h-4 text-violet-600 dark:text-violet-300" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-content">Research quality</h3>
+            <h3 className="text-sm font-semibold text-content">Run outcomes</h3>
             <p className="text-[11px] text-content-muted">
-              Based on the last {stats.samples} run(s)
+              Recorded final verdicts from the last {stats.samples} run(s)
             </p>
           </div>
         </div>
         <div className="text-[11px] text-content-muted">
-          <span data-testid="pipeline-eval-accuracy">
-            verified {pct(stats.verdictAccuracy)}
+          <span data-testid="pipeline-eval-verified-share">
+            verified verdicts {pct(stats.verifiedShare)}
           </span>{" "}
-          -{" "}
-          <span data-testid="pipeline-eval-brier" className={quality.tone}>
-            confidence {quality.label}
-          </span>{" "}
-          - avg {ms(stats.avgDurationMs)} / {usd(stats.avgUsd)}
+          - avg {ms(stats.avgDurationMs)} / {usd(stats.avgUsd)} estimated
         </div>
       </header>
 
@@ -172,7 +150,7 @@ export const PipelineEvalScorecard: React.FC = () => {
                 <th className="text-right py-0.5">Runs</th>
                 <th className="text-right py-0.5">Verified</th>
                 <th className="text-right py-0.5">Avg time</th>
-                <th className="text-right py-0.5">Avg cost</th>
+                <th className="text-right py-0.5">Avg estimate</th>
               </tr>
             </thead>
             <tbody>

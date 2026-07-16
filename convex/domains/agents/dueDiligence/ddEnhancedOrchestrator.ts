@@ -18,7 +18,7 @@
 "use node";
 
 import { v } from "convex/values";
-import { action, internalAction } from "../../../_generated/server";
+import { internalAction } from "../../../_generated/server";
 import { internal, api } from "../../../_generated/api";
 import { Doc, Id } from "../../../_generated/dataModel";
 import {
@@ -136,7 +136,7 @@ async function withRetry<T>(
 /**
  * Start an enhanced due diligence job with full industry patterns
  */
-export const startEnhancedDDJob = action({
+export const startEnhancedDDJobInternal = internalAction({
   args: {
     entityName: v.string(),
     entityType: v.union(
@@ -243,6 +243,7 @@ export const startEnhancedDDJob = action({
       internal.domains.agents.dueDiligence.ddEnhancedOrchestrator.executeEnhancedDDJob,
       {
         jobId,
+        userId: args.userId,
         enableHandoffs: args.enableHandoffs ?? ENABLE_HANDOFFS,
         enableEntityMemory: args.enableEntityMemory ?? ENABLE_ENTITY_MEMORY,
         enableGuardrails: args.enableGuardrails ?? ENABLE_GUARDRAILS,
@@ -261,33 +262,35 @@ export const startEnhancedDDJob = action({
 export const executeEnhancedDDJob = internalAction({
   args: {
     jobId: v.string(),
+    userId: v.id("users"),
     enableHandoffs: v.boolean(),
     enableEntityMemory: v.boolean(),
     enableGuardrails: v.boolean(),
     existingFacts: v.array(v.any()),
   },
   handler: async (ctx, args) => {
-    const { jobId, enableHandoffs, enableEntityMemory, enableGuardrails } =
+    const { jobId, userId, enableHandoffs, enableEntityMemory, enableGuardrails } =
       args;
     const startTime = Date.now();
+    let ownerValidated = false;
+
+    // Validate the scheduled owner before entering any state-changing path.
+    const job = await ctx.runQuery(
+      internal.domains.agents.dueDiligence.ddMutations.getDDJobInternal,
+      { jobId, userId }
+    );
+    ownerValidated = true;
 
     try {
-      // Get job details
-      const job = await ctx.runQuery(
-        internal.domains.agents.dueDiligence.ddMutations.getDDJobInternal,
-        { jobId }
-      );
-      if (!job) throw new Error("Job not found");
-
       // Phase 1: Initialize Context Engineering
       console.log(`[DD-Enhanced] Phase 1: Initializing context for ${jobId}`);
       await ctx.runMutation(
         internal.domains.agents.dueDiligence.ddMutations.updateDDJobStatus,
-        { jobId, status: "analyzing" }
+        { jobId, userId: job.userId, status: "analyzing" }
       );
 
       // Analyze complexity signals
-      const signals = await analyzeComplexitySignals(ctx, jobId);
+      const signals = await analyzeComplexitySignals(ctx, jobId, userId);
 
       // Determine initial branches
       let branchesToSpawn = determineBranches(signals);
@@ -320,6 +323,7 @@ export const executeEnhancedDDJob = internalAction({
         internal.domains.agents.dueDiligence.ddMutations.updateDDJobStatus,
         {
           jobId,
+          userId: job.userId,
           status: "analyzing",
           complexitySignals: signals,
         }
@@ -328,7 +332,7 @@ export const executeEnhancedDDJob = internalAction({
       // Phase 2: Create parallel task tree
       console.log(`[DD-Enhanced] Phase 2: Creating task tree for ${jobId}`);
       const { treeId, rootTaskId } = await ctx.runMutation(
-        api.domains.agents.parallelTaskTree.createTaskTree,
+        internal.domains.agents.parallelTaskTree.createTaskTreeInternal,
         {
           userId: job.userId,
           agentThreadId: `dd-enhanced-${jobId}`,
@@ -344,8 +348,8 @@ export const executeEnhancedDDJob = internalAction({
       }));
 
       const taskNodeIds = await ctx.runMutation(
-        api.domains.agents.parallelTaskTree.createBranchTasks,
-        { treeId, parentTaskId: rootTaskId, branches: branchConfigs }
+        internal.domains.agents.parallelTaskTree.createBranchTasksInternal,
+        { userId: job.userId, treeId, parentTaskId: rootTaskId, branches: branchConfigs }
       );
 
       // Create DD branch records
@@ -357,13 +361,14 @@ export const executeEnhancedDDJob = internalAction({
 
       await ctx.runMutation(
         internal.domains.agents.dueDiligence.ddMutations.createDDBranches,
-        { jobId, branches: branchRecords }
+        { jobId, userId: job.userId, branches: branchRecords }
       );
 
       await ctx.runMutation(
         internal.domains.agents.dueDiligence.ddMutations.updateDDJobStatus,
         {
           jobId,
+          userId: job.userId,
           status: "executing",
           parallelTreeId: treeId,
           activeBranches: branchesToSpawn,
@@ -375,8 +380,9 @@ export const executeEnhancedDDJob = internalAction({
         `[DD-Enhanced] Phase 3: Executing ${branchesToSpawn.length} branches`
       );
       await ctx.runMutation(
-        api.domains.agents.parallelTaskTree.updateTreeStatus,
+        internal.domains.agents.parallelTaskTree.internalUpdateTreeStatus,
         {
+          userId: job.userId,
           treeId,
           status: "executing",
           phase: "Executing parallel research branches with context engineering",
@@ -393,7 +399,8 @@ export const executeEnhancedDDJob = internalAction({
             taskNodeIds[idx],
             job.entityName,
             job.entityType,
-            enableGuardrails
+            enableGuardrails,
+            job.userId,
           )
         )
       );
@@ -448,8 +455,8 @@ export const executeEnhancedDDJob = internalAction({
           }));
 
           const handoffTaskIds = await ctx.runMutation(
-            api.domains.agents.parallelTaskTree.createBranchTasks,
-            { treeId, parentTaskId: rootTaskId, branches: handoffConfigs }
+            internal.domains.agents.parallelTaskTree.createBranchTasksInternal,
+            { userId: job.userId, treeId, parentTaskId: rootTaskId, branches: handoffConfigs }
           );
 
           // Create branch records for handoffs
@@ -461,7 +468,7 @@ export const executeEnhancedDDJob = internalAction({
 
           await ctx.runMutation(
             internal.domains.agents.dueDiligence.ddMutations.createDDBranches,
-            { jobId, branches: handoffBranchRecords }
+            { jobId, userId: job.userId, branches: handoffBranchRecords }
           );
 
           // Execute handoff branches
@@ -475,6 +482,7 @@ export const executeEnhancedDDJob = internalAction({
                 job.entityName,
                 job.entityType,
                 enableGuardrails,
+                job.userId,
                 handoff // Pass handoff context
               )
             )
@@ -497,12 +505,12 @@ export const executeEnhancedDDJob = internalAction({
       console.log(`[DD-Enhanced] Phase 4: Cross-checking findings`);
       await ctx.runMutation(
         internal.domains.agents.dueDiligence.ddMutations.updateDDJobStatus,
-        { jobId, status: "cross_checking" }
+        { jobId, userId: job.userId, status: "cross_checking" }
       );
 
       await ctx.runMutation(
-        api.domains.agents.parallelTaskTree.updateTreeStatus,
-        { treeId, status: "cross_checking", phase: "Cross-checking findings" }
+        internal.domains.agents.parallelTaskTree.internalUpdateTreeStatus,
+        { userId: job.userId, treeId, status: "cross_checking", phase: "Cross-checking findings" }
       );
 
       const contradictions = await crossCheckFindings(
@@ -524,12 +532,12 @@ export const executeEnhancedDDJob = internalAction({
       console.log(`[DD-Enhanced] Phase 5: Synthesizing memo`);
       await ctx.runMutation(
         internal.domains.agents.dueDiligence.ddMutations.updateDDJobStatus,
-        { jobId, status: "synthesizing" }
+        { jobId, userId: job.userId, status: "synthesizing" }
       );
 
       await ctx.runMutation(
-        api.domains.agents.parallelTaskTree.updateTreeStatus,
-        { treeId, status: "merging", phase: "Synthesizing investment memo" }
+        internal.domains.agents.parallelTaskTree.internalUpdateTreeStatus,
+        { userId: job.userId, treeId, status: "merging", phase: "Synthesizing investment memo" }
       );
 
       const memoId = await synthesizeMemo(
@@ -594,6 +602,7 @@ export const executeEnhancedDDJob = internalAction({
         internal.domains.agents.dueDiligence.ddMutations.updateDDJobStatus,
         {
           jobId,
+          userId: job.userId,
           status: "completed",
           ddMemoId: memoId,
           overallConfidence,
@@ -601,8 +610,8 @@ export const executeEnhancedDDJob = internalAction({
       );
 
       await ctx.runMutation(
-        api.domains.agents.parallelTaskTree.updateTreeStatus,
-        { treeId, status: "completed", phase: "Enhanced due diligence complete" }
+        internal.domains.agents.parallelTaskTree.internalUpdateTreeStatus,
+        { userId: job.userId, treeId, status: "completed", phase: "Enhanced due diligence complete" }
       );
 
       // Update encounter if triggered from one
@@ -636,26 +645,29 @@ export const executeEnhancedDDJob = internalAction({
     } catch (error) {
       console.error(`[DD-Enhanced] Failed ${jobId}:`, error);
 
-      // Record error in scratchpad for learning
-      await ctx.runMutation(
-        internal.domains.agents.dueDiligence.ddContextEngine.recordFailedApproach,
-        {
-          jobId,
-          branchType: "company_profile", // Generic
-          attemptNumber: 1,
-          approach: "Full DD job execution",
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
+      if (ownerValidated) {
+        // Record error in scratchpad for learning only after exact ownership is known.
+        await ctx.runMutation(
+          internal.domains.agents.dueDiligence.ddContextEngine.recordFailedApproach,
+          {
+            jobId,
+            branchType: "company_profile", // Generic
+            attemptNumber: 1,
+            approach: "Full DD job execution",
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
 
-      await ctx.runMutation(
-        internal.domains.agents.dueDiligence.ddMutations.updateDDJobStatus,
-        {
-          jobId,
-          status: "failed",
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
+        await ctx.runMutation(
+          internal.domains.agents.dueDiligence.ddMutations.updateDDJobStatus,
+          {
+            jobId,
+            userId: job.userId,
+            status: "failed",
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+      }
 
       throw error;
     }
@@ -674,6 +686,7 @@ async function executeEnhancedBranch(
   entityName: string,
   entityType: string,
   enableGuardrails: boolean,
+  userId: Id<"users">,
   handoff?: BranchHandoff
 ): Promise<{
   branchType: BranchType;
@@ -684,8 +697,8 @@ async function executeEnhancedBranch(
 }> {
   // Get job branches
   const jobData = await ctx.runQuery(
-    api.domains.agents.dueDiligence.ddMutations.getDDJob,
-    { jobId }
+    internal.domains.agents.dueDiligence.ddMutations.getDDJobDetailInternal,
+    { jobId, userId }
   );
 
   const branch = jobData?.branches?.find(
@@ -713,14 +726,15 @@ async function executeEnhancedBranch(
       () =>
         ctx.runMutation(
           internal.domains.agents.dueDiligence.ddMutations.updateDDBranch,
-          { branchId: branch.branchId, status: "running" }
+          { branchId: branch.branchId, userId, status: "running" }
         ),
       `updateDDBranch-running-${branchType}`
     );
 
     await withRetry(
       () =>
-        ctx.runMutation(api.domains.agents.parallelTaskTree.updateTaskStatus, {
+        ctx.runMutation(internal.domains.agents.parallelTaskTree.updateTaskStatusInternal, {
+          userId,
           taskId: taskNodeId,
           status: "running",
         }),
@@ -863,6 +877,7 @@ async function executeEnhancedBranch(
           internal.domains.agents.dueDiligence.ddMutations.updateDDBranch,
           {
             branchId: branch.branchId,
+            userId,
             status: "completed",
             findings,
             findingsSummary: findingsSummary.summaryText,
@@ -875,7 +890,8 @@ async function executeEnhancedBranch(
 
     await withRetry(
       () =>
-        ctx.runMutation(api.domains.agents.parallelTaskTree.updateTaskStatus, {
+        ctx.runMutation(internal.domains.agents.parallelTaskTree.updateTaskStatusInternal, {
+          userId,
           taskId: taskNodeId,
           status: "completed",
           result: JSON.stringify(findings),
@@ -934,6 +950,7 @@ async function executeEnhancedBranch(
             internal.domains.agents.dueDiligence.ddMutations.updateDDBranch,
             {
               branchId: branch.branchId,
+              userId,
               status: "failed",
               error: errorMsg,
             }
@@ -951,8 +968,9 @@ async function executeEnhancedBranch(
       await withRetry(
         () =>
           ctx.runMutation(
-            api.domains.agents.parallelTaskTree.updateTaskStatus,
+            internal.domains.agents.parallelTaskTree.updateTaskStatusInternal,
             {
+              userId,
               taskId: taskNodeId,
               status: "failed",
               errorMessage: errorMsg,
@@ -982,11 +1000,12 @@ async function executeEnhancedBranch(
 
 async function analyzeComplexitySignals(
   ctx: any,
-  jobId: string
+  jobId: string,
+  userId: Id<"users">,
 ): Promise<ComplexitySignals> {
   const job = await ctx.runQuery(
     internal.domains.agents.dueDiligence.ddMutations.getDDJobInternal,
-    { jobId }
+    { jobId, userId }
   );
 
   if (!job) throw new Error("Job not found");
@@ -1226,6 +1245,7 @@ async function synthesizeMemo(
     internal.domains.agents.dueDiligence.ddMutations.insertDDMemo,
     {
       jobId,
+      userId: job.userId,
       entityName: job.entityName,
       entityType: job.entityType,
       executiveSummary,

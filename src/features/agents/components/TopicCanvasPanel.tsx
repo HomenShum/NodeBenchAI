@@ -155,54 +155,35 @@ function getStatusIcon(status: TaskSessionStatus) {
 }
 
 export function TopicCanvasPanel() {
-  const { isAuthenticated } = useConvexAuth();
-  const effectiveIsPublic = !isAuthenticated;
-
-  const publicSessionsData = useQuery(
-    api.domains.taskManager.queries.getPublicTaskSessions,
-    effectiveIsPublic ? { limit: 6 } : "skip",
-  );
+  const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const userSessionsData = useQuery(
     api.domains.taskManager.queries.getUserTaskSessions,
-    !effectiveIsPublic ? { limit: 6 } : "skip",
+    isAuthenticated ? { limit: 6 } : "skip",
   );
 
   const sessions = useMemo(
-    () =>
-      ((effectiveIsPublic
-        ? publicSessionsData?.sessions
-        : userSessionsData?.sessions) ?? []) as TaskSession[],
-    [
-      effectiveIsPublic,
-      publicSessionsData?.sessions,
-      userSessionsData?.sessions,
-    ],
+    () => (userSessionsData?.sessions ?? []) as TaskSession[],
+    [userSessionsData?.sessions],
   );
   const entries = useMemo(() => buildTopicCanvasEntries(sessions), [sessions]);
 
-  const activeCount = entries.filter(
-    (entry) => entry.status === "running" || entry.status === "pending",
-  ).length;
-  const citedCount = entries.filter(
-    (entry) => entry.resourceLabels.length > 0,
-  ).length;
-  const interventionCount = entries.filter(
-    (entry) => entry.status === "failed",
-  ).length;
+  if (isAuthLoading || !isAuthenticated) {
+    return null;
+  }
 
   return (
     <section className="nb-surface-card overflow-hidden">
-      <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-edge px-4 py-3">
-        <h2 className="type-section-title text-content">Recent topics</h2>
-        <p className="text-xs text-content-muted">
-          {entries.length} shown · {activeCount} active · {citedCount} sourced
-          {interventionCount > 0 ? ` · ${interventionCount} needs review` : ""}
-        </p>
+      <div className="border-b border-edge px-4 py-3">
+        <h2 className="type-section-title text-content">Recent work</h2>
       </div>
 
-      {entries.length === 0 ? (
+      {userSessionsData === undefined ? (
+        <p className="px-4 py-5 text-sm text-content-muted" role="status">
+          Loading recent work...
+        </p>
+      ) : entries.length === 0 ? (
         <p className="px-4 py-5 text-sm text-content-muted">
-          No recent topics. Start a request above.
+          No recent work. Start a request above.
         </p>
       ) : (
         <div className="divide-y divide-edge">
@@ -210,7 +191,7 @@ export function TopicCanvasPanel() {
             const StatusIcon = getStatusIcon(entry.status);
             return (
               <article key={entry.id} className="px-4 py-3">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <h3 className="truncate text-sm font-semibold text-content">
@@ -226,22 +207,31 @@ export function TopicCanvasPanel() {
                       </p>
                     ) : null}
                   </div>
-                  <span
-                    className={cn(
-                      "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium",
-                      entry.statusClassName,
-                    )}
-                  >
-                    <StatusIcon
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span
                       className={cn(
-                        "h-3 w-3",
-                        entry.status === "running" &&
-                          "motion-safe:animate-spin",
+                        "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium",
+                        entry.statusClassName,
                       )}
-                      aria-hidden="true"
-                    />
-                    {entry.statusLabel}
-                  </span>
+                    >
+                      <StatusIcon
+                        className={cn(
+                          "h-3 w-3",
+                          entry.status === "running" &&
+                            "motion-safe:animate-spin",
+                        )}
+                        aria-hidden="true"
+                      />
+                      {entry.statusLabel}
+                    </span>
+                    <a
+                      href={entry.traceHref}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-content-secondary transition hover:text-content hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      Open trace
+                      <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                    </a>
+                  </div>
                 </div>
 
                 {entry.contextLabel || entry.resourceLabels.length > 0 ? (
@@ -261,16 +251,6 @@ export function TopicCanvasPanel() {
                     ))}
                   </div>
                 ) : null}
-
-                <div className="mt-2 flex justify-end">
-                  <a
-                    href={entry.traceHref}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-content-secondary transition hover:text-content hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    Open trace
-                    <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-                  </a>
-                </div>
               </article>
             );
           })}

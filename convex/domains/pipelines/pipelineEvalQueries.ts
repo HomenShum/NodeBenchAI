@@ -1,13 +1,11 @@
 /**
  * Pipeline Eval Queries
  *
- * Aggregate scoring over recent `pipelineRuns`:
+ * Aggregate observed outcomes over recent `pipelineRuns`:
  *
- *   - Verdict accuracy: % of runs landing on `verified` vs the rest.
- *     A simple proxy for "did the run produce trustworthy output."
- *   - Brier score: applied to the verify-step's pass-rate vs binary
- *     verdict outcome. Lower is better; <0.15 = good calibration.
- *   - Cost/quality breakdown: $ per verdict tier.
+ *   - Verified share: % of runs whose recorded final verdict is `verified`.
+ *     This describes the stored verdict mix; it is not an accuracy measure.
+ *   - Cost and duration breakdowns by recorded verdict and pipeline kind.
  *
  * Pattern: deterministic aggregation. No LLM calls — pure SQL-style
  * aggregation over the runs table. Cheap to compute, reactive on every
@@ -16,13 +14,7 @@
 
 import { v } from "convex/values";
 import { query } from "../../_generated/server";
-
-const VERDICT_TO_TARGET: Record<string, number> = {
-  verified: 1,
-  provisionally_verified: 0.7,
-  needs_review: 0.4,
-  failed: 0,
-};
+import { requirePipelineCallerOwnerKey } from "./pipelineOwnership";
 
 export const getPipelineEvalScorecard = query({
   args: {
@@ -34,6 +26,7 @@ export const getPipelineEvalScorecard = query({
       ),
     ),
     limit: v.optional(v.number()),
+    anonymousSessionId: v.optional(v.string()),
   },
   returns: v.object({
     samples: v.number(),
@@ -44,8 +37,7 @@ export const getPipelineEvalScorecard = query({
       failed: v.number(),
       other: v.number(),
     }),
-    verdictAccuracy: v.number(),
-    brier: v.optional(v.number()),
+    verifiedShare: v.number(),
     avgDurationMs: v.optional(v.number()),
     avgUsd: v.optional(v.number()),
     costByVerdict: v.array(
@@ -66,19 +58,20 @@ export const getPipelineEvalScorecard = query({
     ),
   }),
   handler: async (ctx, args) => {
+    const ownerKey = await requirePipelineCallerOwnerKey(
+      ctx,
+      args.anonymousSessionId,
+    );
     const limit = Math.min(args.limit ?? 100, 500);
-    let q;
-    if (args.pipelineKind) {
-      q = ctx.db
-        .query("pipelineRuns")
-        .withIndex("by_kind_createdAt", (q) =>
-          q.eq("pipelineKind", args.pipelineKind!),
-        )
-        .order("desc");
-    } else {
-      q = ctx.db.query("pipelineRuns").order("desc");
-    }
-    const rows = await q.take(limit);
+    const candidateLimit = args.pipelineKind ? Math.min(limit * 4, 2_000) : limit;
+    const candidates = await ctx.db
+      .query("pipelineRuns")
+      .withIndex("by_owner_createdAt", (q) => q.eq("ownerKey", ownerKey))
+      .order("desc")
+      .take(candidateLimit);
+    const rows = args.pipelineKind
+      ? candidates.filter((row) => row.pipelineKind === args.pipelineKind).slice(0, limit)
+      : candidates;
     const samples = rows.length;
 
     const verdictCounts = {
@@ -92,8 +85,6 @@ export const getPipelineEvalScorecard = query({
     let durationSamples = 0;
     let totalUsd = 0;
     let usdSamples = 0;
-    let brierSum = 0;
-    let brierSamples = 0;
     const costByVerdictMap = new Map<string, { count: number; usd: number }>();
     const byKindMap = new Map<
       string,
@@ -142,18 +133,9 @@ export const getPipelineEvalScorecard = query({
         kindEntry.usdN += 1;
       }
       byKindMap.set(r.pipelineKind, kindEntry);
-
-      // Brier: forecast = VERDICT_TO_TARGET[verdict], outcome = 1 if status==succeeded.
-      const forecast = VERDICT_TO_TARGET[v];
-      if (typeof forecast === "number") {
-        const outcome = r.status === "succeeded" ? 1 : 0;
-        brierSum += (forecast - outcome) ** 2;
-        brierSamples += 1;
-      }
     }
 
-    const verdictAccuracy = samples > 0 ? verdictCounts.verified / samples : 0;
-    const brier = brierSamples > 0 ? brierSum / brierSamples : undefined;
+    const verifiedShare = samples > 0 ? verdictCounts.verified / samples : 0;
     const avgDurationMs = durationSamples > 0 ? totalDuration / durationSamples : undefined;
     const avgUsd = usdSamples > 0 ? totalUsd / usdSamples : undefined;
 
@@ -172,8 +154,7 @@ export const getPipelineEvalScorecard = query({
     return {
       samples,
       verdictCounts,
-      verdictAccuracy,
-      brier,
+      verifiedShare,
       avgDurationMs,
       avgUsd,
       costByVerdict,

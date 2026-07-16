@@ -5,8 +5,8 @@
  */
 
 import { v } from "convex/values";
-import { mutation, internalMutation, query, internalQuery } from "../../../../_generated/server";
-import { Id, Doc } from "../../../../_generated/dataModel";
+import { internalMutation, internalQuery } from "../../../../_generated/server";
+import { Doc } from "../../../../_generated/dataModel";
 
 // ============================================================================
 // INTERNAL MUTATIONS
@@ -20,7 +20,7 @@ export const storePlaybookResult = internalMutation({
     entityName: v.string(),
     entityType: v.union(v.literal("company"), v.literal("fund"), v.literal("person")),
     synthesis: v.any(),
-    userId: v.optional(v.id("users")),
+    userId: v.id("users"),
     ddJobId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -226,50 +226,6 @@ export const cacheFinraPortal = internalMutation({
   },
 });
 
-// ============================================================================
-// QUERIES
-// ============================================================================
-
-/**
- * Get playbook result by entity
- */
-export const getPlaybookResultByEntity = query({
-  args: {
-    entityName: v.string(),
-    entityType: v.optional(v.union(v.literal("company"), v.literal("fund"), v.literal("person"))),
-  },
-  handler: async (ctx, args) => {
-    const results = await ctx.db
-      .query("investorPlaybookResults")
-      .withIndex("by_entity", (q) => {
-        let query = q.eq("entityName", args.entityName);
-        if (args.entityType) {
-          query = query.eq("entityType", args.entityType);
-        }
-        return query;
-      })
-      .order("desc")
-      .take(1);
-
-    return results[0] || null;
-  },
-});
-
-/**
- * Get playbook result by DD job
- */
-export const getPlaybookResultByJob = query({
-  args: {
-    jobId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("investorPlaybookResults")
-      .withIndex("by_jobId", (q) => q.eq("jobId", args.jobId))
-      .first();
-  },
-});
-
 /**
  * Get cached entity verification
  */
@@ -295,43 +251,5 @@ export const getCachedEntityVerification = internalQuery({
     }
 
     return cached;
-  },
-});
-
-/**
- * Get all playbook results with high risk
- */
-export const getHighRiskResults = query({
-  args: {},
-  handler: async (ctx) => {
-    const critical = await ctx.db
-      .query("investorPlaybookResults")
-      .withIndex("by_risk", (q) => q.eq("overallRisk", "critical"))
-      .order("desc")
-      .take(50);
-
-    const high = await ctx.db
-      .query("investorPlaybookResults")
-      .withIndex("by_risk", (q) => q.eq("overallRisk", "high"))
-      .order("desc")
-      .take(50);
-
-    return [...critical, ...high];
-  },
-});
-
-/**
- * Get recent playbook results
- */
-export const getRecentResults = query({
-  args: {
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("investorPlaybookResults")
-      .withIndex("by_createdAt")
-      .order("desc")
-      .take(args.limit || 20);
   },
 });

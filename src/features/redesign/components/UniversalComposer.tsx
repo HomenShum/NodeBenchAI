@@ -43,6 +43,10 @@ export interface BatchTarget {
 
 interface UniversalComposerProps {
   contextLabel: string;
+  /** Stable DOM id for cross-surface focus handoffs. */
+  textareaId?: string;
+  /** Focus the composer when its destination route explicitly requests it. */
+  autoFocus?: boolean;
   onContextChange?: () => void;
   /** Fired when "Run on a list →" is chosen with a target universe + the prompt. */
   onRunOnList?: (text: string, tier: RouterTier, target: BatchTarget) => void;
@@ -89,6 +93,8 @@ const SLASH_COMMANDS: Array<{ id: string; label: string; hint: string; insert: s
 
 export function UniversalComposer({
   contextLabel,
+  textareaId,
+  autoFocus = false,
   onContextChange,
   onSubmit,
   onChatNow,
@@ -456,6 +462,8 @@ export function UniversalComposer({
         }}
       >
         <textarea
+          id={textareaId}
+          autoFocus={autoFocus}
           ref={taRef}
           value={text}
           onChange={(e) => handleTextChange(e.target.value)}

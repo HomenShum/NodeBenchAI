@@ -41,17 +41,6 @@ describe('ProfileCard', () => {
     expect(screen.getByText('Founder and CEO of Tesla')).toBeInTheDocument();
   });
 
-  it('should display citation number if provided', () => {
-    render(<ProfileCard profile={mockProfile} citationNumber={1} />);
-    expect(screen.getByText('1')).toBeInTheDocument();
-  });
-
-  it('should have citation ID if citation number provided', () => {
-    const { container } = render(<ProfileCard profile={mockProfile} citationNumber={2} />);
-    const div = container.querySelector('div[id]');
-    expect(div).toHaveAttribute('id', 'profile-2');
-  });
-
   it('should have scroll-mt-4 class for smooth scrolling', () => {
     const { container } = render(<ProfileCard profile={mockProfile} />);
     const div = container.querySelector('div[id]') || container.firstChild;
@@ -152,12 +141,11 @@ describe('ProfileGrid', () => {
     expect(showLessButton).toBeInTheDocument();
   });
 
-  it('should display citation numbers when enabled', () => {
-    render(<ProfileGrid profiles={mockProfiles.slice(0, 3)} showCitations={true} />);
-    
-    expect(screen.getByText('1')).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument();
+  it('does not present found profiles as citations', () => {
+    const { container } = render(<ProfileGrid profiles={mockProfiles.slice(0, 3)} />);
+
+    expect(screen.queryAllByText(/^[0-9]$/)).toHaveLength(0);
+    expect(container.querySelector('[id^="profile-"]')).toBeNull();
   });
 
   it('should display correct count in header', () => {
@@ -167,4 +155,3 @@ describe('ProfileGrid', () => {
     expect(screen.getByText(/4\/6/)).toBeInTheDocument();
   });
 });
-

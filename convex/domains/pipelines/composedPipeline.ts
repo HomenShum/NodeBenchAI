@@ -26,6 +26,7 @@ import { v } from "convex/values";
 import { internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { resolvePipelineModelSelection } from "../agents/mcp_tools/models/modelResolver";
+import { deriveComposedStageKey } from "./pipelineAttempt";
 
 const HEADING = {
   research: "RESEARCH SYNTHESIS",
@@ -45,6 +46,8 @@ export const runComposedPipeline = internalAction({
     modelId: v.optional(v.string()),
     ownerKey: v.optional(v.string()),
     forceFresh: v.optional(v.boolean()),
+    attemptKey: v.optional(v.string()),
+    workflowExecutionKey: v.string(),
     linkupDepth: v.optional(v.union(v.literal("standard"), v.literal("deep"))),
   },
   returns: v.object({
@@ -82,6 +85,13 @@ export const runComposedPipeline = internalAction({
           modelId,
           ownerKey,
           forceFresh: args.forceFresh,
+          attemptKey: args.attemptKey
+            ? deriveComposedStageKey(args.attemptKey, 1)
+            : undefined,
+          workflowExecutionKey: deriveComposedStageKey(
+            args.workflowExecutionKey,
+            1,
+          ),
           linkupDepth: args.linkupDepth,
         },
       );
@@ -98,6 +108,13 @@ export const runComposedPipeline = internalAction({
           modelId,
           ownerKey,
           forceFresh: args.forceFresh,
+          attemptKey: args.attemptKey
+            ? deriveComposedStageKey(args.attemptKey, 1)
+            : undefined,
+          workflowExecutionKey: deriveComposedStageKey(
+            args.workflowExecutionKey,
+            1,
+          ),
         },
       );
       stage1RunId = r.runId;
@@ -161,6 +178,14 @@ export const runComposedPipeline = internalAction({
           modelId,
           ownerKey,
           forceFresh: true, // composition stages must run fresh — different spec hash
+          attemptKey: deriveComposedStageKey(
+            args.attemptKey ?? args.workflowExecutionKey,
+            2,
+          ),
+          workflowExecutionKey: deriveComposedStageKey(
+            args.workflowExecutionKey,
+            2,
+          ),
         },
       );
       stage2Kind = "code_gen";
@@ -179,6 +204,14 @@ export const runComposedPipeline = internalAction({
           modelId,
           ownerKey,
           forceFresh: true,
+          attemptKey: deriveComposedStageKey(
+            args.attemptKey ?? args.workflowExecutionKey,
+            2,
+          ),
+          workflowExecutionKey: deriveComposedStageKey(
+            args.workflowExecutionKey,
+            2,
+          ),
         },
       );
       stage2Kind = "design_gen";

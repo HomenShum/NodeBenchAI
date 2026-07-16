@@ -20,9 +20,19 @@
  */
 
 import { v } from "convex/values";
-import { mutation } from "../../_generated/server";
+import { internalMutation, mutation } from "../../_generated/server";
 import { components, internal } from "../../_generated/api";
 import { WorkflowManager } from "@convex-dev/workflow";
+import { requireAuthenticatedPipelineOwnerKey } from "./pipelineOwnership";
+import {
+  normalizePipelineLaunchText,
+  normalizePipelineOwnerKey,
+  reservePipelineLaunchAdmission,
+} from "./pipelineAdmission";
+import {
+  createManualPipelineAttemptKey,
+  createPipelineWorkflowExecutionKey,
+} from "./pipelineAttempt";
 
 const workflowManager = new WorkflowManager(components.workflow);
 
@@ -43,6 +53,8 @@ export const runPipelineWorkflow = workflowManager.define({
     modelId: v.optional(v.string()),
     ownerKey: v.optional(v.string()),
     forceFresh: v.optional(v.boolean()),
+    attemptKey: v.optional(v.string()),
+    workflowExecutionKey: v.string(),
     linkupDepth: v.optional(v.union(v.literal("standard"), v.literal("deep"))),
   },
   handler: async (
@@ -69,6 +81,8 @@ export const runPipelineWorkflow = workflowManager.define({
           modelId: args.modelId,
           ownerKey: args.ownerKey,
           forceFresh: args.forceFresh,
+          attemptKey: args.attemptKey,
+          workflowExecutionKey: args.workflowExecutionKey,
         },
         { retry },
       );
@@ -89,6 +103,8 @@ export const runPipelineWorkflow = workflowManager.define({
           modelId: args.modelId,
           ownerKey: args.ownerKey,
           forceFresh: args.forceFresh,
+          attemptKey: args.attemptKey,
+          workflowExecutionKey: args.workflowExecutionKey,
         },
         { retry },
       );
@@ -109,6 +125,8 @@ export const runPipelineWorkflow = workflowManager.define({
         modelId: args.modelId,
         ownerKey: args.ownerKey,
         forceFresh: args.forceFresh,
+        attemptKey: args.attemptKey,
+        workflowExecutionKey: args.workflowExecutionKey,
         linkupDepth: args.linkupDepth,
       },
       { retry },
@@ -132,30 +150,74 @@ export const runPipelineWorkflow = workflowManager.define({
  * to surface the new run). Use this from the launcher UI instead of
  * calling each pipeline directly.
  */
-export const startPipelineRun = mutation({
+const pipelineKindValidator = v.union(
+  v.literal("code_gen"),
+  v.literal("design_gen"),
+  v.literal("research"),
+);
+
+const pipelineLaunchArgs = {
+  pipelineKind: pipelineKindValidator,
+  spec: v.string(),
+  title: v.optional(v.string()),
+  modelId: v.optional(v.string()),
+  forceFresh: v.optional(v.boolean()),
+  linkupDepth: v.optional(v.union(v.literal("standard"), v.literal("deep"))),
+};
+
+async function startPipelineWorkflowForOwner(
+  ctx: any,
   args: {
-    pipelineKind: v.union(
-      v.literal("code_gen"),
-      v.literal("design_gen"),
-      v.literal("research"),
-    ),
-    spec: v.string(),
-    title: v.optional(v.string()),
-    modelId: v.optional(v.string()),
-    ownerKey: v.optional(v.string()),
-    forceFresh: v.optional(v.boolean()),
-    linkupDepth: v.optional(v.union(v.literal("standard"), v.literal("deep"))),
+    pipelineKind: "code_gen" | "design_gen" | "research";
+    spec: string;
+    title?: string;
+    modelId?: string;
+    forceFresh?: boolean;
+    attemptKey?: string;
+    linkupDepth?: "standard" | "deep";
   },
+  ownerKey: string,
+): Promise<{ workflowId: string }> {
+  const launchArgs = normalizePipelineLaunchText(args);
+  const attemptKey =
+    launchArgs.attemptKey ??
+    (launchArgs.forceFresh ? createManualPipelineAttemptKey() : undefined);
+  const workflowExecutionKey = createPipelineWorkflowExecutionKey();
+  const workflowId = await workflowManager.start(
+    ctx,
+    internal.domains.pipelines.pipelineWorkflow.runPipelineWorkflow,
+    { ...launchArgs, ownerKey, attemptKey, workflowExecutionKey },
+  );
+  return { workflowId: String(workflowId) };
+}
+
+export const startPipelineRun = mutation({
+  args: pipelineLaunchArgs,
   returns: v.object({
     workflowId: v.string(),
   }),
   handler: async (ctx, args): Promise<{ workflowId: string }> => {
-    const workflowId = await workflowManager.start(
-      ctx,
-      internal.domains.pipelines.pipelineWorkflow.runPipelineWorkflow,
-      args,
-    );
-    return { workflowId: String(workflowId) };
+    const ownerKey = await requireAuthenticatedPipelineOwnerKey(ctx);
+    await reservePipelineLaunchAdmission(ctx, ownerKey);
+    return await startPipelineWorkflowForOwner(ctx, args, ownerKey);
+  },
+});
+
+/** Trusted cron/worker entrypoint. Public clients cannot choose this owner. */
+export const startPipelineRunInternal = internalMutation({
+  args: {
+    ...pipelineLaunchArgs,
+    ownerKey: v.string(),
+    attemptKey: v.optional(v.string()),
+  },
+  returns: v.object({ workflowId: v.string() }),
+  handler: async (ctx, args): Promise<{ workflowId: string }> => {
+    const ownerKey = normalizePipelineOwnerKey(args.ownerKey);
+    const { ownerKey: _ownerKey, ...launchArgs } = args;
+    if (ownerKey.startsWith("user:")) {
+      await reservePipelineLaunchAdmission(ctx, ownerKey);
+    }
+    return await startPipelineWorkflowForOwner(ctx, launchArgs, ownerKey);
   },
 });
 
@@ -175,6 +237,8 @@ export const runComposedWorkflow = workflowManager.define({
     modelId: v.optional(v.string()),
     ownerKey: v.optional(v.string()),
     forceFresh: v.optional(v.boolean()),
+    attemptKey: v.optional(v.string()),
+    workflowExecutionKey: v.string(),
     linkupDepth: v.optional(v.union(v.literal("standard"), v.literal("deep"))),
   },
   handler: async (step, args): Promise<any> => {
@@ -196,16 +260,59 @@ export const startComposedPipelineRun = mutation({
     spec: v.string(),
     title: v.optional(v.string()),
     modelId: v.optional(v.string()),
-    ownerKey: v.optional(v.string()),
     forceFresh: v.optional(v.boolean()),
     linkupDepth: v.optional(v.union(v.literal("standard"), v.literal("deep"))),
   },
   returns: v.object({ workflowId: v.string() }),
   handler: async (ctx, args): Promise<{ workflowId: string }> => {
+    const ownerKey = await requireAuthenticatedPipelineOwnerKey(ctx);
+    await reservePipelineLaunchAdmission(ctx, ownerKey, { units: 2 });
+    const launchArgs = normalizePipelineLaunchText(args);
+    const attemptKey = launchArgs.forceFresh
+      ? createManualPipelineAttemptKey()
+      : undefined;
+    const workflowExecutionKey = createPipelineWorkflowExecutionKey();
     const workflowId = await workflowManager.start(
       ctx,
       internal.domains.pipelines.pipelineWorkflow.runComposedWorkflow,
-      args,
+      { ...launchArgs, ownerKey, attemptKey, workflowExecutionKey },
+    );
+    return { workflowId: String(workflowId) };
+  },
+});
+
+/** Trusted bridge entrypoint for secret-gated service callers. */
+export const startComposedPipelineRunInternal = internalMutation({
+  args: {
+    composition: v.union(
+      v.literal("research_then_code"),
+      v.literal("research_then_design"),
+      v.literal("code_then_design"),
+    ),
+    spec: v.string(),
+    title: v.optional(v.string()),
+    modelId: v.optional(v.string()),
+    ownerKey: v.string(),
+    forceFresh: v.optional(v.boolean()),
+    attemptKey: v.optional(v.string()),
+    linkupDepth: v.optional(v.union(v.literal("standard"), v.literal("deep"))),
+  },
+  returns: v.object({ workflowId: v.string() }),
+  handler: async (ctx, args): Promise<{ workflowId: string }> => {
+    const ownerKey = normalizePipelineOwnerKey(args.ownerKey);
+    const { ownerKey: _ownerKey, ...rawLaunchArgs } = args;
+    if (ownerKey.startsWith("user:")) {
+      await reservePipelineLaunchAdmission(ctx, ownerKey, { units: 2 });
+    }
+    const launchArgs = normalizePipelineLaunchText(rawLaunchArgs);
+    const attemptKey =
+      launchArgs.attemptKey ??
+      (launchArgs.forceFresh ? createManualPipelineAttemptKey() : undefined);
+    const workflowExecutionKey = createPipelineWorkflowExecutionKey();
+    const workflowId = await workflowManager.start(
+      ctx,
+      internal.domains.pipelines.pipelineWorkflow.runComposedWorkflow,
+      { ...launchArgs, ownerKey, attemptKey, workflowExecutionKey },
     );
     return { workflowId: String(workflowId) };
   },

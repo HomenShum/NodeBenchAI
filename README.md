@@ -32,6 +32,57 @@ They need a system that can:
 - watch for meaningful change later
 - improve the next run from what it learned
 
+## Pending Release Candidate: Runtime-Grounded Control Focus
+
+This candidate is not yet merged or deployed. It narrows the reachable product
+to controls backed by a real runtime capability and makes unavailable state
+explicit:
+
+- Agents keeps ask, explicit swarm launch, active work, approvals, sources,
+  traces, receipts, exports, and provenance while removing projected metrics,
+  synthetic fallbacks, duplicate actions, and local-only controls.
+- Generated code remains copyable and exportable but never executes inside the
+  signed-in app origin. Runtime cards accept successful structured tool output,
+  not assistant prose, guessed search fields, or incomplete/error states.
+- Canonical owner-scoped streaming remains; an unreferenced bearer-stream
+  component and HTTP route were removed instead of retained as a second path.
+- Home, Reports, Chat, Inbox, and Me use live runtime data, owner-scoped where
+  private, or honest loading, empty, not-found, and unmeasured states instead of
+  reachable product fixtures. Desktop and mobile now share the same Inbox and
+  Me component trees; duplicate queue/profile renders and their hard-coded plan,
+  usage, connector, and local-draft projections were deleted.
+- Pipeline launches and schedules require an authenticated server identity,
+  while guest history, detail, bundle, stream, and evaluation reads require an
+  anonymous-session possession credential. Browser-supplied owner keys are no
+  longer an authority boundary, and trusted cron or MCP work stays on internal
+  contracts.
+- Authenticated launches consume durable per-owner admission: four units per
+  ten minutes and thirty per day, with composed runs costing two units. Server
+  input bounds and per-owner schedule caps close the remaining cost-abuse path.
+- Fresh pipeline attempts and recurring schedule occurrences are isolated by
+  durable attempt identities and execution-generation fences, so retries can
+  resume the same attempt without stale or overlapping workers rewriting it.
+- Research distinguishes sources consulted from citations actually bound in
+  the synthesis. Missing, malformed, or unbound evidence cannot be promoted to
+  a verified claim, and chat no longer injects citation markers into prose.
+- Operator telemetry and maintenance are deferred until deliberate disclosure
+  and require server-confirmed operator access.
+- Task sessions, traces, steps, evidence, approvals, swarms, and operational
+  history are owner-scoped. The unreachable parallel timeline, kanban, hook,
+  and public orchestrator were removed; due diligence retains only a bounded,
+  owner-checked internal task substrate. Unused public due-diligence, investor,
+  demo, and evaluation entrypoints were internalized or removed, and retained
+  job, branch, memo, and catch-path writes require the exact owner chain. Raw
+  orchestrator writes use internal contracts, MCP document and spreadsheet
+  operations require exact object ownership, and a TRACE completion fails
+  closed unless its receipt persists with an exact output hash.
+
+Release evidence is intentionally pending. The source PR must merge through the
+required CI gates first; a follow-up evidence-seal PR must then record the
+canonical squash SHA, exact-revision checks, preview assertions, production
+deployment revision, and direct production browser verification before this
+section can be described as shipped.
+
 ## What Shipped
 
 - five-surface web app across `Home`, `Reports`, `Chat`, `Inbox`, and `Me`

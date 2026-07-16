@@ -229,6 +229,7 @@ export const WorkspaceRail = memo(function WorkspaceRail({
           <div className={cn("flex items-center", isCollapsed ? "flex-col gap-1" : "gap-2")}>
             <button
               type="button"
+              onClick={() => navigate(buildCockpitPath({ surfaceId: "connect" }))}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/[0.05] bg-white/[0.78] transition-colors hover:bg-white dark:border-white/[0.08] dark:bg-white/[0.05] dark:hover:bg-white/[0.08]"
               aria-label="Operator profile"
             >

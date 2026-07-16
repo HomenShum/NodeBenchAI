@@ -6,13 +6,12 @@
  */
 
 import React from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useWindowedList } from "@/lib/performance/useWindowedList";
 import {
   Calendar,
-  CheckCircle2,
   Pause,
   Play,
   Trash2,
@@ -20,7 +19,6 @@ import {
 
 interface ScheduleRow {
   _id: Id<"scheduledPipelineRuns">;
-  ownerKey?: string;
   pipelineKind: string;
   spec: string;
   title?: string;
@@ -55,21 +53,20 @@ function formatKind(kind: string): string {
 }
 
 type PipelineSchedulesPanelProps = {
-  ownerKey?: string;
   queryLimit?: number;
   initialVisibleCount?: number;
   windowStep?: number;
 };
 
 export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
-  ownerKey,
   queryLimit = 25,
   initialVisibleCount = 6,
   windowStep = 6,
 }) => {
+  const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const schedules = useQuery(
     api.domains.pipelines.pipelineSchedule.listSchedules,
-    { ownerKey, limit: queryLimit },
+    isAuthenticated ? { limit: queryLimit } : "skip",
   ) as ScheduleRow[] | undefined;
   const setEnabled = useMutation(
     api.domains.pipelines.pipelineSchedule.setScheduleEnabled,
@@ -83,6 +80,8 @@ export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
     initialCount: initialVisibleCount,
     step: windowStep,
   });
+
+  if (isAuthLoading || !isAuthenticated) return null;
 
   if (schedules === undefined) {
     return (
@@ -132,7 +131,7 @@ export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
         <div>
           <h3 className="text-sm font-semibold text-content">Automatic refreshes</h3>
           <p className="text-[11px] text-content-muted">
-            Checks for changes every hour - {schedules.filter((s) => s.enabled).length} active -{" "}
+            Scheduler polls hourly; each refresh follows its cadence - {schedules.filter((s) => s.enabled).length} active -{" "}
             showing {visibleSchedules.length} / {schedules.length}
           </p>
         </div>
@@ -159,16 +158,21 @@ export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
               </span>
             </div>
             <div className="text-[11px] text-content-muted">
-              Next check {formatRelative(row.nextRunAt)}
+              Next run {formatRelative(row.nextRunAt)}
               {row.lastRunAt
-                ? ` - last checked ${formatRelative(row.lastRunAt)}${row.lastStatus ? ` (${row.lastStatus})` : ""}`
-                : " - not checked yet"}
+                ? ` - last started ${formatRelative(row.lastRunAt)}`
+                : " - not started yet"}
             </div>
             <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
                 data-testid="pipeline-schedule-toggle"
-                onClick={() => setEnabled({ scheduleId: row._id, enabled: !row.enabled })}
+                onClick={() =>
+                  setEnabled({
+                    scheduleId: row._id,
+                    enabled: !row.enabled,
+                  })
+                }
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] ${
                   row.enabled
                     ? "border-edge text-content-muted hover:bg-surface-hover"
@@ -205,7 +209,7 @@ export const PipelineSchedulesPanel: React.FC<PipelineSchedulesPanelProps> = ({
               </button>
               {row.lastStatus === "kicked" ? (
                 <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="w-3 h-3" /> last check ok
+                  <Play className="w-3 h-3" /> run started
                 </span>
               ) : null}
             </div>

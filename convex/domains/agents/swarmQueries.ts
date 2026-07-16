@@ -8,6 +8,45 @@
 import { v } from "convex/values";
 import { internalQuery, query } from "../../_generated/server";
 import type { Id, Doc } from "../../_generated/dataModel";
+import { getAuthUserId } from "@convex-dev/auth/server";
+
+type SwarmQueryContext = {
+  db: any;
+};
+
+async function findSwarmById(ctx: SwarmQueryContext, swarmId: string) {
+  return await ctx.db
+    .query("agentSwarms")
+    .withIndex("by_swarm", (q: any) => q.eq("swarmId", swarmId))
+    .first() as Doc<"agentSwarms"> | null;
+}
+
+async function findOwnedSwarm(
+  ctx: SwarmQueryContext,
+  swarmId: string,
+  userId: Id<"users">,
+) {
+  const swarm = await findSwarmById(ctx, swarmId);
+  return swarm?.userId === userId ? swarm : null;
+}
+
+async function listOwnedSwarmTasks(
+  ctx: SwarmQueryContext,
+  swarmId: string,
+  userId: Id<"users">,
+) {
+  const swarm = await findOwnedSwarm(ctx, swarmId, userId);
+  if (!swarm) return [];
+  return await ctx.db
+    .query("swarmAgentTasks")
+    .withIndex("by_swarm", (q: any) => q.eq("swarmId", swarmId))
+    .collect() as Doc<"swarmAgentTasks">[];
+}
+
+function boundedLimit(limit: number | undefined, fallback: number, maximum: number) {
+  if (!Number.isFinite(limit)) return fallback;
+  return Math.max(1, Math.min(maximum, Math.trunc(limit!)));
+}
 
 /**
  * Get swarm status by swarmId
@@ -17,12 +56,9 @@ export const getSwarmStatus = query({
     swarmId: v.string(),
   },
   handler: async (ctx, args) => {
-    const swarm = await ctx.db
-      .query("agentSwarms")
-      .withIndex("by_swarm", (q) => q.eq("swarmId", args.swarmId))
-      .first();
-
-    return swarm;
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+    return await findOwnedSwarm(ctx, args.swarmId, userId);
   },
 });
 
@@ -34,12 +70,14 @@ export const getSwarmByThread = query({
     threadId: v.string(),
   },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
     const swarm = await ctx.db
       .query("agentSwarms")
       .withIndex("by_thread", (q) => q.eq("threadId", args.threadId))
-      .first();
+      .first() as Doc<"agentSwarms"> | null;
 
-    return swarm;
+    return swarm?.userId === userId ? swarm : null;
   },
 });
 
@@ -51,12 +89,9 @@ export const getSwarmTasks = query({
     swarmId: v.string(),
   },
   handler: async (ctx, args) => {
-    const tasks = await ctx.db
-      .query("swarmAgentTasks")
-      .withIndex("by_swarm", (q) => q.eq("swarmId", args.swarmId))
-      .collect();
-
-    return tasks;
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    return await listOwnedSwarmTasks(ctx, args.swarmId, userId);
   },
 });
 
@@ -68,17 +103,13 @@ export const subscribeToSwarmTasks = query({
     swarmId: v.string(),
   },
   handler: async (ctx, args) => {
-    const swarm = await ctx.db
-      .query("agentSwarms")
-      .withIndex("by_swarm", (q) => q.eq("swarmId", args.swarmId))
-      .first();
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+    const swarm = await findOwnedSwarm(ctx, args.swarmId, userId);
 
     if (!swarm) return null;
 
-    const tasks = await ctx.db
-      .query("swarmAgentTasks")
-      .withIndex("by_swarm", (q) => q.eq("swarmId", args.swarmId))
-      .collect();
+    const tasks = await listOwnedSwarmTasks(ctx, args.swarmId, userId);
 
     // Calculate progress
     const total = tasks.length;
@@ -101,25 +132,44 @@ export const subscribeToSwarmTasks = query({
   },
 });
 
+/** Owner-checked internal read used by trusted orchestrators. */
+export const getSwarmStatusInternal = internalQuery({
+  args: {
+    swarmId: v.string(),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    return await findOwnedSwarm(ctx, args.swarmId, args.userId);
+  },
+});
+
+/** Owner-checked internal task read used by trusted orchestrators. */
+export const getSwarmTasksInternal = internalQuery({
+  args: {
+    swarmId: v.string(),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    return await listOwnedSwarmTasks(ctx, args.swarmId, args.userId);
+  },
+});
+
 /**
  * List active swarms for a user
  */
 export const listActiveSwarms = query({
   args: {
-    userId: v.optional(v.id("users")),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = args.userId || (identity ? await getUserId(ctx, identity) : null);
-
+    const userId = await getAuthUserId(ctx);
     if (!userId) return [];
 
     const swarms = await ctx.db
       .query("agentSwarms")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .order("desc")
-      .take(args.limit || 10);
+      .take(boundedLimit(args.limit, 10, 100));
 
     return swarms;
   },
@@ -145,17 +195,14 @@ export const listUserSwarms = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-
-    const userId = await getUserId(ctx, identity);
+    const userId = await getAuthUserId(ctx);
     if (!userId) return [];
 
     let swarmsQuery = ctx.db
       .query("agentSwarms")
       .withIndex("by_user", (q) => q.eq("userId", userId));
 
-    const swarms = await swarmsQuery.order("desc").take(args.limit || 20);
+    const swarms = await swarmsQuery.order("desc").take(boundedLimit(args.limit, 20, 100));
 
     // Filter by status if provided
     if (args.status) {
@@ -174,34 +221,42 @@ export const getSwarmWithContext = query({
     swarmId: v.string(),
   },
   handler: async (ctx, args) => {
-    const swarm = await ctx.db
-      .query("agentSwarms")
-      .withIndex("by_swarm", (q) => q.eq("swarmId", args.swarmId))
-      .first() as Doc<"agentSwarms"> | null;
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+    const swarm = await findOwnedSwarm(ctx, args.swarmId, userId);
 
     if (!swarm) return null;
 
-    const tasks = await ctx.db
-      .query("swarmAgentTasks")
-      .withIndex("by_swarm", (q) => q.eq("swarmId", args.swarmId))
-      .collect();
+    const tasks = await listOwnedSwarmTasks(ctx, args.swarmId, userId);
 
     // Get thread info
-    const thread = swarm.threadId
+    const candidateThread = swarm.threadId
       ? await ctx.db.get(swarm.threadId as Id<"chatThreadsStream">)
       : null;
+    const thread = candidateThread?.userId === userId ? candidateThread : null;
 
     // Get write events for each task's delegation
     const taskEvents: Record<string, any[]> = {};
     for (const task of tasks) {
       if (task.delegationId) {
+        const delegation = await ctx.db
+          .query("agentDelegations")
+          .withIndex("by_delegation", (q) => q.eq("delegationId", task.delegationId!))
+          .first() as Doc<"agentDelegations"> | null;
+        if (
+          !delegation ||
+          delegation.userId !== userId ||
+          delegation.runId !== swarm.swarmId
+        ) {
+          continue;
+        }
         const events = await ctx.db
           .query("agentWriteEvents")
           .withIndex("by_delegation", (q) =>
             q.eq("delegationId", task.delegationId!)
           )
           .order("asc")
-          .collect();
+          .take(500);
         taskEvents[task.taskId] = events;
       }
     }
@@ -223,12 +278,14 @@ export const isThreadSwarmActive = query({
     threadId: v.string(),
   },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return { hasSwarm: false, isActive: false };
     const swarm = await ctx.db
       .query("agentSwarms")
       .withIndex("by_thread", (q) => q.eq("threadId", args.threadId))
       .first() as Doc<"agentSwarms"> | null;
 
-    if (!swarm) return { hasSwarm: false, isActive: false };
+    if (!swarm || swarm.userId !== userId) return { hasSwarm: false, isActive: false };
 
     const isActive = ["pending", "spawning", "executing", "gathering", "synthesizing"].includes(
       swarm.status
@@ -251,10 +308,7 @@ export const getThreadsWithSwarmInfo = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-
-    const userId = await getUserId(ctx, identity);
+    const userId = await getAuthUserId(ctx);
     if (!userId) return [];
 
     // Get recent threads
@@ -262,7 +316,7 @@ export const getThreadsWithSwarmInfo = query({
       .query("chatThreadsStream")
       .withIndex("by_user_updatedAt", (q) => q.eq("userId", userId))
       .order("desc")
-      .take(args.limit || 20);
+      .take(boundedLimit(args.limit, 20, 100));
 
     // Enrich with swarm status
     const enrichedThreads = await Promise.all(
@@ -274,7 +328,7 @@ export const getThreadsWithSwarmInfo = query({
             .withIndex("by_swarm", (q) => q.eq("swarmId", thread.swarmId!))
             .first() as Doc<"agentSwarms"> | null;
 
-          if (swarm) {
+          if (swarm?.userId === userId) {
             const tasks = await ctx.db
               .query("swarmAgentTasks")
               .withIndex("by_swarm", (q) => q.eq("swarmId", thread.swarmId!))
@@ -304,44 +358,6 @@ export const getThreadsWithSwarmInfo = query({
     );
 
     return enrichedThreads;
-  },
-});
-
-// Helper to get userId from identity
-async function getUserId(
-  ctx: any,
-  identity: any
-): Promise<Id<"users"> | null> {
-  /* 
-   * FALLBACK: "by_email" index missing in some environments. 
-   * Using filter() instead for compatibility.
-   */
-  const user = await ctx.db
-    .query("users")
-    .filter((q: any) => q.eq(q.field("email"), identity.email))
-    .first() as Doc<"users"> | null;
-
-  return user?._id ?? null;
-}
-
-/**
- * Get user by email - used by actions to resolve userId from auth context
- */
-export const getUserByEmail = query({
-  args: {
-    email: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const user = await ctx.db
-      .query("users")
-      /*
-       * FALLBACK: "by_email" index missing in some environments.
-       * Using filter() instead for compatibility.
-       */
-      .filter((q) => q.eq(q.field("email"), args.email))
-      .first();
-
-    return user;
   },
 });
 

@@ -22,8 +22,9 @@
 "use node";
 
 import { v } from "convex/values";
-import { action, internalAction } from "../../../../_generated/server";
+import { internalAction } from "../../../../_generated/server";
 import { internal, api } from "../../../../_generated/api";
+import type { Id } from "../../../../_generated/dataModel";
 
 import {
   runInvestorPlaybook,
@@ -897,8 +898,8 @@ interface AgenticDDResult {
 async function runAgenticDDCore(
   ctx: any,
   query: string,
-  additionalContext?: string,
-  userId?: any
+  additionalContext: string | undefined,
+  userId: Id<"users">,
 ): Promise<AgenticDDResult> {
   const startTime = Date.now();
 
@@ -1050,11 +1051,11 @@ async function runAgenticDDCore(
 // MAIN AGENTIC ACTION
 // ============================================================================
 
-export const runAgenticDueDiligence = action({
+export const runAgenticDueDiligence = internalAction({
   args: {
     query: v.string(),
     additionalContext: v.optional(v.string()),
-    userId: v.optional(v.id("users")),
+    userId: v.id("users"),
   },
   handler: async (ctx, args) => {
     return runAgenticDDCore(ctx, args.query, args.additionalContext, args.userId);
@@ -1065,13 +1066,14 @@ export const runAgenticDueDiligence = action({
  * Simplified natural language entry point
  * Just takes a question and returns a scam assessment
  */
-export const isThisAScam = action({
+export const isThisAScam = internalAction({
   args: {
     question: v.string(),
+    userId: v.id("users"),
   },
   handler: async (ctx, args) => {
     // Run full agentic DD using shared helper
-    const result = await runAgenticDDCore(ctx, args.question);
+    const result = await runAgenticDDCore(ctx, args.question, undefined, args.userId);
 
     // Return simplified scam assessment
     const isLikelyScam = result.shouldDisengage ||

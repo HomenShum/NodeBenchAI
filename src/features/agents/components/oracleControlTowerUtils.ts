@@ -55,8 +55,14 @@ export function getDogfoodPresentation(verdict?: "missing" | "watch" | "fail" | 
 }
 
 export function getInstitutionalVerdictPresentation(
-  verdict?: "institutional_memory_aligned" | "watch" | "institutional_hallucination_risk" | null,
+  verdict?: "unmeasured" | "institutional_memory_aligned" | "watch" | "institutional_hallucination_risk" | null,
 ) {
+  if (!verdict || verdict === "unmeasured") {
+    return {
+      label: "Not measured",
+      className: "border-edge bg-surface-secondary/50 text-content-muted",
+    };
+  }
   if (verdict === "institutional_memory_aligned") {
     return {
       label: "Institutional memory aligned",

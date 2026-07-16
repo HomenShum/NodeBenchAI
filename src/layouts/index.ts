@@ -11,7 +11,6 @@ export { CommandBar } from "./CommandBar";
 export { StatusStrip } from "./StatusStrip";
 export { ActiveSurfaceHost } from "./ActiveSurfaceHost";
 export { WorkspaceRail } from "./WorkspaceRail";
-export { AgentPresenceRail } from "./AgentPresenceRail";
 export { CommandPalette, AgentMetadata, HashtagQuickNotePopover } from "./chrome";
 export { useCockpitMode } from "./useCockpitMode";
 

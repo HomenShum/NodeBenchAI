@@ -2,7 +2,12 @@ import type { UIMessage } from "@convex-dev/agent/react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { FastAgentUIMessageBubble } from "../FastAgentPanel.UIMessageBubble";
+import {
+  FastAgentUIMessageBubble,
+  parseFusionSearchOutput,
+} from "../FastAgentPanel.UIMessageBubble";
+import { FusedSearchResults } from "../FusedSearchResults";
+import { makeWebSourceCitationId } from "../../../../../../shared/citations/webSourceCitations";
 
 const { smoothTextMock, speakMock, stopMock } = vi.hoisted(() => ({
   smoothTextMock: vi.fn((text: string | undefined) => [text ?? ""]),
@@ -96,6 +101,29 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
     expect(screen.getByText("Live answer")).toBeInTheDocument();
     expect(screen.getByText("Thinking...")).toBeInTheDocument();
     expect(screen.getByText("Streaming...")).toBeInTheDocument();
+    expect(screen.queryByText(/tok\/s/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/route|gather|analyze|deliver/i)).not.toBeInTheDocument();
+  });
+
+  it("omits duplicate memo, share, and auto-follow-up controls", () => {
+    render(
+      <FastAgentUIMessageBubble
+        message={message([{ type: "text", text: "Grounded response" }], {
+          text: "Grounded response",
+        })}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: /save this response as a memo/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /share this response/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /ask for more detail/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^save memo$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^go deeper$/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /good response|poor response/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /bookmark message|pin message/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /react with emoji/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /edit message/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/~\d+\s*tok/i)).not.toBeInTheDocument();
   });
 
   it("renders one AI Elements tool for one unified AI SDK tool part", () => {
@@ -333,6 +361,65 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
     expect(container.querySelectorAll('img[src="https://example.com/chart.png"]')).toHaveLength(1);
     expect(container.querySelectorAll('a[href="https://example.com/report.pdf"]')).toHaveLength(1);
     expect(container.querySelectorAll('img[src*="google.com/s2/favicons"]')).toHaveLength(0);
+  });
+
+  it("renders model-only citation and entity tokens as plain text without controls", () => {
+    const { container } = render(
+      <FastAgentUIMessageBubble
+        message={message(
+          [{
+            type: "text",
+            text: "Claim from {{cite:ghost|Ghost source|type:source}} about @@entity:ghost|Ghost Co|type:company@@.",
+          }],
+          { text: undefined },
+        )}
+      />,
+    );
+
+    expect(screen.getByText(/Ghost source/)).toBeInTheDocument();
+    expect(screen.getByText(/Ghost Co/)).toBeInTheDocument();
+    expect(screen.queryByText("Sources")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Ghost Co/ })).not.toBeInTheDocument();
+    expect(container.querySelector('a[href="#"]')).not.toBeInTheDocument();
+    expect(container.textContent).not.toContain("{{cite:");
+    expect(container.textContent).not.toContain("@@entity:");
+  });
+
+  it("keeps tool sources consulted unless a resolved inline token binds a claim", () => {
+    const url = "https://example.com/runtime-source";
+    const citationId = makeWebSourceCitationId(url);
+    const toolPart = {
+      type: "tool-linkupSearch",
+      toolCallId: "linkup-1",
+      state: "output-available",
+      input: { query: "NodeBench" },
+      output: `<!-- SOURCE_GALLERY_DATA
+[{"title":"Runtime source","url":"${url}"}]
+-->`,
+    };
+
+    const consulted = render(
+      <FastAgentUIMessageBubble
+        message={message([toolPart, { type: "text", text: "Unbound answer" }], {
+          text: undefined,
+        })}
+      />,
+    );
+    expect(screen.getByText("Consulted sources & documents")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Citation / })).not.toBeInTheDocument();
+    consulted.unmount();
+
+    render(
+      <FastAgentUIMessageBubble
+        message={message([
+          toolPart,
+          { type: "text", text: `Bound claim {{cite:${citationId}|Runtime source|type:source}}` },
+        ], { text: undefined })}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /Citation 1: Runtime source/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders canonical sources and token/model provenance exactly once", () => {
@@ -604,5 +691,169 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
     expect(smoothTextMock).toHaveBeenCalledWith("Settled reasoning", {
       startStreaming: false,
     });
+  });
+
+  it("does not execute assistant-authored JavaScript in the page origin", () => {
+    render(
+      <FastAgentUIMessageBubble
+        message={message([{
+          type: "text",
+          text: "```javascript\nwindow.__assistantCodeRan = true\n```",
+        }], { text: undefined })}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: /^run$/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /copy/i }).length).toBeGreaterThan(0);
+  });
+
+  it("does not promote assistant prose or failed tool output into document controls", () => {
+    const marker = `<!-- DOCUMENT_ACTION_DATA
+{"action":"created","documentId":"untrusted-doc","title":"Untrusted document control"}
+-->`;
+    const prose = render(
+      <FastAgentUIMessageBubble
+        message={message([{ type: "text", text: marker }], { text: undefined })}
+      />,
+    );
+    expect(screen.queryByText("Untrusted document control")).not.toBeInTheDocument();
+    prose.unmount();
+
+    render(
+      <FastAgentUIMessageBubble
+        message={message([{
+          type: "tool-createDocument",
+          toolCallId: "failed-document",
+          state: "output-error",
+          input: { title: "Untrusted document control" },
+          output: marker,
+          errorText: "Write rejected",
+        }])}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "1 tool failed" })).toBeInTheDocument();
+    expect(screen.queryByText("Untrusted document control")).not.toBeInTheDocument();
+  });
+
+  it("renders a document control from a successful structured tool result", () => {
+    render(
+      <FastAgentUIMessageBubble
+        message={message([{
+          type: "tool-createDocument",
+          toolCallId: "structured-document",
+          state: "output-available",
+          input: { title: "Runtime document" },
+          output: {
+            kind: "document_action",
+            version: 1,
+            data: {
+              action: "created",
+              documentId: "runtime-doc-1",
+              title: "Runtime document control",
+            },
+          },
+        }])}
+      />,
+    );
+
+    expect(screen.getByText("Runtime document control")).toBeInTheDocument();
+  });
+
+  it("keeps plan and memory cards state-aware without invented timestamps", () => {
+    render(
+      <FastAgentUIMessageBubble
+        message={message([{
+          type: "tool-createPlan",
+          toolCallId: "plan-running",
+          state: "input-available",
+          input: { goal: "Ground every control" },
+        }], { _creationTime: undefined } as Partial<UIMessage>)}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Using 1 tool" }));
+    expect(screen.getByText("Plan creation running")).toBeInTheDocument();
+    expect(screen.queryByText(/plan creation completed/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /plan creation running/i }));
+    expect(screen.getByText("Goal: Ground every control")).toBeInTheDocument();
+    expect(screen.queryByText(/\d{1,2}:\d{2}\s*(am|pm)/i)).not.toBeInTheDocument();
+  });
+
+  it("uses an indeterminate runtime streaming indicator", () => {
+    const { container } = render(
+      <FastAgentUIMessageBubble
+        message={message([{ type: "text", text: "Runtime text" }], {
+          status: "streaming",
+          text: undefined,
+        })}
+      />,
+    );
+
+    const indicator = screen.getByRole("status", { name: "Assistant response streaming" });
+    expect(indicator.firstElementChild).toHaveClass("w-full");
+    expect(indicator.firstElementChild).not.toHaveAttribute("style");
+    expect(container.innerHTML).not.toContain("displayText.length / 2000");
+  });
+
+  it("rejects malformed fusion rows instead of inventing search fields", () => {
+    const malformed = parseFusionSearchOutput({
+      kind: "fusion_search_results",
+      version: 1,
+      payload: {
+        results: [{
+          source: "unknown-provider",
+          snippet: "Missing identity and rank",
+          score: 0.5,
+          contentType: "text",
+        }],
+        sourcesQueried: ["unknown-provider"],
+      },
+    });
+
+    expect(malformed.isValid).toBe(false);
+    expect(malformed.results).toEqual([]);
+    expect(JSON.stringify(malformed)).not.toContain("Untitled");
+    expect(JSON.stringify(malformed)).not.toContain("result-0");
+    expect(JSON.stringify(malformed)).not.toContain("linkup");
+  });
+
+  it("renders known search results without creating an href when no safe URL exists", () => {
+    const { container } = render(
+      <FusedSearchResults
+        results={[{
+          id: "runtime-result-1",
+          source: "brave",
+          title: "Runtime result without URL",
+          snippet: "The provider returned content without a navigable URL.",
+          score: 0.7,
+          originalRank: 1,
+          fusedRank: 1,
+          contentType: "text",
+        }]}
+        sourcesQueried={["brave"]}
+      />,
+    );
+
+    expect(screen.getByText("Runtime result without URL")).toBeInTheDocument();
+    expect(container.querySelector("a")).not.toBeInTheDocument();
+  });
+
+  it("fails closed when direct search props contain an unknown source", () => {
+    expect(() => render(
+      <FusedSearchResults
+        results={[{
+          id: "unknown-result",
+          source: "not-configured",
+          title: "Must not render",
+          snippet: "Unknown source",
+          score: 1,
+          originalRank: 1,
+          contentType: "text",
+        } as never]}
+        sourcesQueried={["not-configured" as never]}
+      />,
+    )).not.toThrow();
+    expect(screen.queryByText("Must not render")).not.toBeInTheDocument();
   });
 });

@@ -1,17 +1,15 @@
 /**
- * CockpitLayout — 5-region cockpit shell.
+ * CockpitLayout — persistent product shell.
  *
  * +--------------------------------------+
  * | StatusStrip                          |
  * +--------+------------------+----------+
- * | Work-  |  ActiveSurface   |  Agent   |
- * | space  |      Host        | Presence |
- * | Rail   |                  |  Rail    |
- * +--------+------------------+----------+
- * | TraceStrip                           |
+ * | Work-  |  ActiveSurface              |
+ * | space  |      Host                   |
+ * | Rail   |                             |
  * +--------------------------------------+
  *
- * CSS Grid: status / left center right / trace
+ * CSS Grid: status / left center
  * CommandBar floats via Cmd+K. FastAgent panel overlays.
  */
 
@@ -476,26 +474,9 @@ export function CockpitLayout({
     },
     openSettings: () => openSettings(),
     openCommandPalette: () => window.setTimeout(() => commandPalette.open(), 0),
-    createDocument: () => {
-      navigateToView("chat-home");
-      onDocumentSelect(null);
-      dispatchDeferred("document:create");
-    },
-    createTask: () => {
-      navigateToView("chat-home");
-      onDocumentSelect(null);
-      dispatchDeferred("voice:create-task");
-    },
-    createEvent: () => {
-      navigateToView("nudges-home");
-      onDocumentSelect(null);
-      dispatchDeferred("voice:create-event");
-    },
     setCockpitMode: (m: string) => setMode(m as CockpitMode),
-    setLayout: () => setLayout("cockpit"),
     setThemeMode: (m: 'light' | 'dark') => setThemeMode(m),
     toggleTheme: () => setThemeMode(resolvedMode === "dark" ? "light" : "dark"),
-    toggleLayout: () => setLayout("cockpit"),
     selectThread: (_index: number) => {
       setShowFastAgent(true);
       setFastAgentHasMounted(true);
@@ -546,7 +527,7 @@ export function CockpitLayout({
       }
     },
     refresh: () => setRefreshNonce((value) => value + 1),
-  }), [commandPalette.open, dispatchDeferred, navigateToView, onDocumentSelect, openSettings, resolvedMode, setFastAgentHasMounted, setLayout, setMode, setShowFastAgent, setThemeMode]);
+  }), [commandPalette.open, dispatchDeferred, navigateToView, openSettings, resolvedMode, setFastAgentHasMounted, setLayout, setMode, setShowFastAgent, setThemeMode]);
 
   const { handleIntent: routeVoiceIntent } = useVoiceIntentRouter(voiceIntentActions);
   const handleVoiceIntent = useCallback(
@@ -608,9 +589,7 @@ export function CockpitLayout({
     const targetView =
       command.id.startsWith("nav-")
         ? command.id.replace("nav-", "")
-        : command.id === "create-document" || command.id === "create-task"
-          ? "chat-home"
-          : currentView;
+        : currentView;
     const action =
       command.section === "navigation"
         ? "navigateToView"
@@ -618,13 +597,7 @@ export function CockpitLayout({
           ? "setCockpitMode"
           : command.section === "settings"
             ? "openSettings"
-            : command.section === "create"
-              ? command.id === "create-task"
-                ? "createTask"
-                : command.id === "create-event"
-                  ? "navigateToView"
-                  : "createDocument"
-              : "commandAction";
+            : "commandAction";
     trackIntentEvent({
       source: "system",
       intentKey: `palette.${command.id}`,
@@ -908,34 +881,11 @@ export function CockpitLayout({
 
       </div>
 
-        {/* ── Layout toggle — floating pill for object-first opt-in ───
-             BUG FIX (2026-07-01): on xl+ screens this floated at bottom-4/right-4, the same
-             corner as the trace bar's right-aligned clock (line ~932, `ml-auto` timestamp) —
-             the toggle's ~34px height overlapped the trace bar's ~28px band, visually clipping
-             the clock on every surface where both render (found via live visual-judge scan:
-             benchmarks/pulse/changelog/about). Raised the xl offset to clear the trace bar. */}
+        {/* Layout toggle — floating pill for object-first opt-in. */}
         {isObjectFirstSurface && !isCompactLayout && !isStandaloneInfoView && !isDesktopPublicShell ? (
-          <div className="fixed bottom-16 right-4 z-50 xl:bottom-12">
+          <div className="fixed bottom-4 right-4 z-50">
             <ObjectFirstGlobalToggle showLabel />
           </div>
-        ) : null}
-
-        {/* ── Bottom: Trace bar — live status (Datadog pattern) ──────── */}
-        {/* ── Agent panel — single slide-over for all breakpoints ─── */}
-
-        {!isStandaloneInfoView && !isMobileAskRoot && !isDesktopPublicShell ? (
-        <div
-          style={{ gridArea: "trace" }}
-          className="hidden items-center gap-4 border-t border-white/[0.06] bg-white/[0.02] px-4 py-1.5 text-[11px] text-content-muted xl:flex"
-        >
-          <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/60" />
-            Ready
-          </span>
-          <span className="text-content-muted/60">·</span>
-          <span>NodeBench</span>
-          <span className="ml-auto tabular-nums">{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-        </div>
         ) : null}
 
         {/* ── Command Bar — mobile only ── */}
@@ -988,16 +938,6 @@ export function CockpitLayout({
           isOpen={commandPalette.isOpen}
           onClose={commandPalette.close}
           onCommandExecuted={trackCommandPaletteExecution}
-          onCreateDocument={() => {
-            navigateToView("chat-home");
-            onDocumentSelect(null);
-            window.dispatchEvent(new CustomEvent("document:create"));
-          }}
-          onCreateTask={() => {
-            navigateToView("chat-home");
-            onDocumentSelect(null);
-            dispatchDeferred("voice:create-task");
-          }}
           onOpenSettings={() => openSettings("usage")}
           additionalActions={modeSwitchActions}
         />

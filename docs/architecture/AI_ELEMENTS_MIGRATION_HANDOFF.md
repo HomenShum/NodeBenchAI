@@ -162,21 +162,22 @@ the operational keep-custom boundary. The broader matrix is not complete.
 
 1. Capture final visual/browser proof for reachable changed surfaces. Do not
    invent proof for dead or unreachable exports.
-2. Continue the medium-risk generic shells: MessageBubble, MessageStream,
-   UIMessageStream, StreamingMessage, FileUpload, LiveThinking,
+2. Continue the reachable medium-risk generic shells: FileUpload, LiveThinking,
    ToolResultPopover, StepTimeline, AgentTasksTab, FileViewer, GoalCard,
-   TokenUsageBadge, DocumentActionCard, and EditProgressCard. Reconfirm
-   reachability before each slice.
+   TokenUsageBadge, DocumentActionCard, and EditProgressCard. MessageBubble,
+   MessageStream, UIMessageStream, and StreamingMessage were removed after
+   reachability checks proved they had no runtime consumers.
 3. Keep HumanRequestCard custom unless a future primitive preserves its
    textarea, multi-option, cancel, and decision-recording semantics.
 
 ## Keep-custom boundary
 
 Do not migrate VirtualizedMessageList, StreamingStatus, VisualCitation,
-ParallelTaskTimeline, SwarmLanesView, HumanRequestCard, FusedSearchResults,
+SwarmLanesView, HumanRequestCard, FusedSearchResults,
 ResourceLinkCard, MermaidDiagram, MediaGallery, domain selection cards, memory
 cards, or verification reports merely to increase adoption count. See the full
-matrix for every rationale and live seam.
+matrix for every rationale and live seam. ParallelTaskTimeline and its Kanban
+projection were removed because neither had a runtime consumer.
 
 ## Definition of done for the next slice
 

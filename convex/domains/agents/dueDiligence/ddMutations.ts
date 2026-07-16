@@ -6,47 +6,61 @@
  */
 
 import { v } from "convex/values";
-import { mutation, query, internalMutation, internalQuery } from "../../../_generated/server";
+import { internalMutation, internalQuery } from "../../../_generated/server";
 import { Doc, Id } from "../../../_generated/dataModel";
-import { BranchType, DDJobStatus } from "./types";
+import type { BranchType } from "./types";
 
 // ============================================================================
-// Queries
+// Internal queries
 // ============================================================================
+
+const OWNERSHIP_ERROR = "Due diligence job not found or unauthorized";
+
+async function requireOwnedJob(
+  ctx: any,
+  jobId: string,
+  userId: Id<"users">,
+): Promise<Doc<"dueDiligenceJobs">> {
+  const job = await ctx.db
+    .query("dueDiligenceJobs")
+    .withIndex("by_jobId", (q: any) => q.eq("jobId", jobId))
+    .first() as Doc<"dueDiligenceJobs"> | null;
+  if (!job || String(job.userId) !== String(userId)) throw new Error(OWNERSHIP_ERROR);
+  return job;
+}
 
 /**
- * Get DD job by jobId
+ * Internal query to get job (for actions)
  */
-export const getDDJob = query({
-  args: { jobId: v.string() },
-  handler: async (ctx, { jobId }) => {
-    const job = await ctx.db
-      .query("dueDiligenceJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"dueDiligenceJobs"> | null;
+export const getDDJobInternal = internalQuery({
+  args: {
+    jobId: v.string(),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, { jobId, userId }) => {
+    return await requireOwnedJob(ctx, jobId, userId);
+  },
+});
 
-    if (!job) return null;
-
-    // Get branches
+/** Owner-bound job, branch, and memo detail for trusted workers. */
+export const getDDJobDetailInternal = internalQuery({
+  args: {
+    jobId: v.string(),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, { jobId, userId }) => {
+    const job = await requireOwnedJob(ctx, jobId, userId);
     const branches = await ctx.db
       .query("ddResearchBranches")
       .withIndex("by_job", (q) => q.eq("jobId", jobId))
       .collect() as Doc<"ddResearchBranches">[];
-
-    // Get memo if completed
-    let memo = null;
-    if (job.ddMemoId) {
-      memo = await ctx.db.get(job.ddMemoId) as Doc<"ddMemos"> | null;
-    }
-
+    const memo = job.ddMemoId ? await ctx.db.get(job.ddMemoId) : null;
     return { job, branches, memo };
   },
 });
 
-/**
- * Get DD jobs for a user
- */
-export const getUserDDJobs = query({
+/** Owner-scoped job listing for trusted trigger workers. */
+export const getUserDDJobsInternal = internalQuery({
   args: {
     userId: v.id("users"),
     status: v.optional(v.union(
@@ -56,158 +70,26 @@ export const getUserDDJobs = query({
       v.literal("cross_checking"),
       v.literal("synthesizing"),
       v.literal("completed"),
-      v.literal("failed")
+      v.literal("failed"),
     )),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, { userId, status, limit = 20 }) => {
-    let query = ctx.db
-      .query("dueDiligenceJobs")
-      .withIndex("by_user", (q) => q.eq("userId", userId));
-
-    const jobs = await query.order("desc").take(limit);
-
-    // Filter by status if provided
-    if (status) {
-      return jobs.filter(j => j.status === status);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      throw new Error("limit must be an integer between 1 and 100");
     }
-
-    return jobs;
-  },
-});
-
-/**
- * Get DD job progress for real-time UI updates
- */
-export const getDDJobProgress = query({
-  args: { jobId: v.string() },
-  handler: async (ctx, { jobId }) => {
-    const job = await ctx.db
+    const jobs = await ctx.db
       .query("dueDiligenceJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"dueDiligenceJobs"> | null;
-
-    if (!job) return null;
-
-    const branches = await ctx.db
-      .query("ddResearchBranches")
-      .withIndex("by_job", (q) => q.eq("jobId", jobId))
-      .collect() as Doc<"ddResearchBranches">[];
-
-    const activeBranches = branches.filter((b: Doc<"ddResearchBranches">) => b.status === "running").map((b: Doc<"ddResearchBranches">) => b.branchType);
-    const completedBranches = branches.filter((b: Doc<"ddResearchBranches">) => b.status === "completed").map((b: Doc<"ddResearchBranches">) => b.branchType);
-    const failedBranches = branches.filter((b: Doc<"ddResearchBranches">) => b.status === "failed").map((b: Doc<"ddResearchBranches">) => b.branchType);
-
-    return {
-      status: job.status,
-      phase: getPhaseDescription(job.status as DDJobStatus),
-      activeBranches,
-      completedBranches,
-      failedBranches,
-      totalBranches: branches.length,
-      elapsedMs: job.startedAt ? Date.now() - job.startedAt : 0,
-      overallConfidence: job.overallConfidence,
-      contradictionsCount: job.contradictions?.length ?? 0,
-    };
-  },
-});
-
-/**
- * Get DD memo by entity
- */
-export const getDDMemoByEntity = query({
-  args: {
-    entityName: v.string(),
-    entityType: v.union(v.literal("company"), v.literal("fund"), v.literal("person")),
-  },
-  handler: async (ctx, { entityName, entityType }) => {
-    return await ctx.db
-      .query("dueDiligenceMemos")
-      .withIndex("by_entity", (q) => q.eq("entityName", entityName).eq("entityType", entityType))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .order("desc")
-      .first();
-  },
-});
-
-/**
- * Internal query to get job (for actions)
- */
-export const getDDJobInternal = internalQuery({
-  args: { jobId: v.string() },
-  handler: async (ctx, { jobId }) => {
-    return await ctx.db
-      .query("dueDiligenceJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first();
+      .take(limit);
+    return status ? jobs.filter((job) => job.status === status) : jobs;
   },
 });
 
 // ============================================================================
 // Mutations - Job Management
 // ============================================================================
-
-/**
- * Create a new DD job
- */
-export const createDDJob = mutation({
-  args: {
-    entityName: v.string(),
-    entityType: v.union(v.literal("company"), v.literal("fund"), v.literal("person")),
-    triggerSource: v.union(
-      v.literal("funding_detection"),
-      v.literal("deals_feed"),
-      v.literal("manual"),
-      v.literal("scheduled_refresh"),
-      v.literal("encounter")
-    ),
-    triggerEventId: v.optional(v.string()),
-    triggerEncounterId: v.optional(v.id("encounterEvents")),
-    entityId: v.optional(v.id("entityContexts")),
-    userId: v.id("users"),
-  },
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    const jobId = crypto.randomUUID();
-
-    // Check for existing active job for this entity
-    const existingJob = await ctx.db
-      .query("dueDiligenceJobs")
-      .withIndex("by_entity", (q) =>
-        q.eq("entityName", args.entityName).eq("entityType", args.entityType)
-      )
-      .filter((q) =>
-        q.or(
-          q.eq(q.field("status"), "pending"),
-          q.eq(q.field("status"), "analyzing"),
-          q.eq(q.field("status"), "executing"),
-          q.eq(q.field("status"), "cross_checking"),
-          q.eq(q.field("status"), "synthesizing")
-        )
-      )
-      .first() as Doc<"dueDiligenceJobs"> | null;
-
-    if (existingJob) {
-      // Return existing job ID instead of creating duplicate
-      return { jobId: existingJob.jobId, existing: true };
-    }
-
-    await ctx.db.insert("dueDiligenceJobs", {
-      jobId,
-      userId: args.userId,
-      entityId: args.entityId,
-      entityName: args.entityName,
-      entityType: args.entityType,
-      triggerSource: args.triggerSource,
-      triggerEventId: args.triggerEventId,
-      triggerEncounterId: args.triggerEncounterId,
-      status: "pending",
-      activeBranches: [],
-      createdAt: now,
-    });
-
-    return { jobId, existing: false };
-  },
-});
 
 /**
  * Internal create DD job (for actions)
@@ -239,12 +121,15 @@ export const createDDJobInternal = internalMutation({
         q.eq("entityName", args.entityName).eq("entityType", args.entityType)
       )
       .filter((q) =>
-        q.or(
-          q.eq(q.field("status"), "pending"),
-          q.eq(q.field("status"), "analyzing"),
-          q.eq(q.field("status"), "executing"),
-          q.eq(q.field("status"), "cross_checking"),
-          q.eq(q.field("status"), "synthesizing")
+        q.and(
+          q.eq(q.field("userId"), args.userId),
+          q.or(
+            q.eq(q.field("status"), "pending"),
+            q.eq(q.field("status"), "analyzing"),
+            q.eq(q.field("status"), "executing"),
+            q.eq(q.field("status"), "cross_checking"),
+            q.eq(q.field("status"), "synthesizing"),
+          ),
         )
       )
       .first() as Doc<"dueDiligenceJobs"> | null;
@@ -277,6 +162,7 @@ export const createDDJobInternal = internalMutation({
 export const updateDDJobStatus = internalMutation({
   args: {
     jobId: v.string(),
+    userId: v.id("users"),
     status: v.union(
       v.literal("pending"),
       v.literal("analyzing"),
@@ -295,15 +181,9 @@ export const updateDDJobStatus = internalMutation({
     contradictions: v.optional(v.array(v.any())),
     error: v.optional(v.string()),
   },
-  handler: async (ctx, { jobId, status, ...updates }) => {
+  handler: async (ctx, { jobId, userId, status, ...updates }) => {
     const now = Date.now();
-
-    const job = await ctx.db
-      .query("dueDiligenceJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"dueDiligenceJobs"> | null;
-
-    if (!job) throw new Error(`DD job not found: ${jobId}`);
+    const job = await requireOwnedJob(ctx, jobId, userId);
 
     const patch: Record<string, unknown> = { status };
 
@@ -358,13 +238,18 @@ export const updateDDJobStatus = internalMutation({
 export const createDDBranches = internalMutation({
   args: {
     jobId: v.string(),
+    userId: v.id("users"),
     branches: v.array(v.object({
       branchType: v.string(),
       taskTreeId: v.optional(v.id("parallelTaskTrees")),
       taskNodeId: v.optional(v.string()),
     })),
   },
-  handler: async (ctx, { jobId, branches }) => {
+  handler: async (ctx, { jobId, userId, branches }) => {
+    await requireOwnedJob(ctx, jobId, userId);
+    if (branches.length === 0 || branches.length > 16) {
+      throw new Error("branches must contain 1-16 items");
+    }
     const now = Date.now();
     const branchIds: string[] = [];
 
@@ -394,6 +279,7 @@ export const createDDBranches = internalMutation({
 export const updateDDBranch = internalMutation({
   args: {
     branchId: v.string(),
+    userId: v.id("users"),
     status: v.union(
       v.literal("pending"),
       v.literal("running"),
@@ -409,7 +295,7 @@ export const updateDDBranch = internalMutation({
     sourcesUsed: v.optional(v.array(v.any())),
     error: v.optional(v.string()),
   },
-  handler: async (ctx, { branchId, status, ...updates }) => {
+  handler: async (ctx, { branchId, userId, status, ...updates }) => {
     const now = Date.now();
 
     const branch = await ctx.db
@@ -418,6 +304,7 @@ export const updateDDBranch = internalMutation({
       .first() as Doc<"ddResearchBranches"> | null;
 
     if (!branch) throw new Error(`DD branch not found: ${branchId}`);
+    await requireOwnedJob(ctx, branch.jobId, userId);
 
     const patch: Record<string, unknown> = { status };
 
@@ -450,6 +337,7 @@ export const updateDDBranch = internalMutation({
 export const insertDDMemo = internalMutation({
   args: {
     jobId: v.string(),
+    userId: v.id("users"),
     entityName: v.string(),
     entityType: v.union(v.literal("company"), v.literal("fund"), v.literal("person")),
     executiveSummary: v.string(),
@@ -473,24 +361,11 @@ export const insertDDMemo = internalMutation({
     updatedAt: v.number(),
     version: v.number(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { userId, ...args }) => {
+    const job = await requireOwnedJob(ctx, args.jobId, userId);
+    if (job.entityName !== args.entityName || job.entityType !== args.entityType) {
+      throw new Error(OWNERSHIP_ERROR);
+    }
     return await ctx.db.insert("dueDiligenceMemos", args);
   },
 });
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-function getPhaseDescription(status: DDJobStatus): string {
-  const phases: Record<DDJobStatus, string> = {
-    pending: "Job queued",
-    analyzing: "Analyzing complexity signals",
-    executing: "Executing parallel research branches",
-    cross_checking: "Cross-checking findings for contradictions",
-    synthesizing: "Synthesizing due diligence memo",
-    completed: "Due diligence complete",
-    failed: "Due diligence failed",
-  };
-  return phases[status] ?? status;
-}

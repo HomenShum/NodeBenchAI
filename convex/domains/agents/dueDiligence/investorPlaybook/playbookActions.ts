@@ -8,7 +8,7 @@
 "use node";
 
 import { v } from "convex/values";
-import { action, internalAction } from "../../../../_generated/server";
+import { internalAction } from "../../../../_generated/server";
 import { internal, api } from "../../../../_generated/api";
 import { Id } from "../../../../_generated/dataModel";
 
@@ -28,7 +28,7 @@ import { SecuritiesRegime } from "./types";
  * Run investor playbook standalone
  * Use this for quick verification of a company requesting funding
  */
-export const runPlaybook = action({
+export const runPlaybook = internalAction({
   args: {
     entityName: v.string(),
     entityType: v.union(v.literal("company"), v.literal("fund"), v.literal("person")),
@@ -46,7 +46,7 @@ export const runPlaybook = action({
     wireInstructions: v.optional(v.string()),
 
     // Additional context
-    userId: v.optional(v.id("users")),
+    userId: v.id("users"),
     ddJobId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -102,7 +102,7 @@ export const runPlaybook = action({
  * Run quick investor check
  * Minimal version that just checks critical stop rules
  */
-export const runQuickCheck = action({
+export const runQuickCheck = internalAction({
   args: {
     entityName: v.string(),
     claimedSecuritiesRegime: v.optional(v.string()),
@@ -148,6 +148,7 @@ export const runQuickCheck = action({
 export const runPlaybookForDDJob = internalAction({
   args: {
     jobId: v.string(),
+    userId: v.id("users"),
     entityName: v.string(),
     entityType: v.union(v.literal("company"), v.literal("fund"), v.literal("person")),
     complexitySignals: v.optional(v.any()),
@@ -186,6 +187,7 @@ export const runPlaybookForDDJob = internalAction({
         entityName: args.entityName,
         entityType: args.entityType,
         synthesis: result.synthesis,
+        userId: args.userId,
         ddJobId: args.jobId,
       }
     );
@@ -249,10 +251,10 @@ export const shouldRunPlaybook = internalAction({
  * Run playbook from natural language query
  * Extracts entity name and claims from user's question
  */
-export const runFromNaturalLanguage = action({
+export const runFromNaturalLanguage = internalAction({
   args: {
     query: v.string(),
-    userId: v.optional(v.id("users")),
+    userId: v.id("users"),
   },
   handler: async (ctx, args) => {
     console.log(`[InvestorPlaybook] Natural language query: "${args.query}"`);
@@ -327,7 +329,7 @@ export const runFromNaturalLanguage = action({
 /**
  * Simplified scam check from natural language
  */
-export const isThisAScam = action({
+export const isThisAScam = internalAction({
   args: {
     question: v.string(),
   },

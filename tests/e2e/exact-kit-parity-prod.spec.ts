@@ -1,14 +1,11 @@
 /**
- * Tier B verification: all 5 cockpit surfaces render the kit's pixel-perfect
- * Exact* surfaces on production.  Probes for kit-specific DOM signals that
- * only the ExactKit JSX produces.
+ * Tier B runtime-grounding verification for the five ExactKit cockpit surfaces.
+ *
+ * These checks deliberately do not require fixture counts. Optional product
+ * sections may render only when their backing runtime query returns data.
  */
 
-import { test, expect } from "@playwright/test";
-import {
-  expectAvatarPulseContract,
-  readAvatarPulseMetrics,
-} from "./helpers/avatarPulse";
+import { expect, test, type Page } from "@playwright/test";
 import { installVercelPreviewBypass } from "./helpers/vercelPreview";
 
 const BASE_URL =
@@ -18,472 +15,302 @@ test.beforeEach(async ({ page }) => {
   await installVercelPreviewBypass(page, BASE_URL);
 });
 
-async function navigate(
-  page: import("@playwright/test").Page,
-  surface: string,
-) {
+async function navigate(page: Page, surface: string) {
   await page.goto(`${BASE_URL}/?surface=${surface}`, {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
     timeout: 30_000,
   });
-  await page.waitForTimeout(5000);
 }
 
-test("PR A4: Home renders ExactHomeSurface composer hero", async ({ page }) => {
-  await navigate(page, "ask");
-  const result = await page.evaluate(() => ({
-    composer: !!document.querySelector(
-      '[data-testid="exact-web-home-composer"]',
-    ),
-    kicker: !!Array.from(document.querySelectorAll(".nb-kicker")).find((el) =>
-      el.textContent?.toLowerCase().includes("on-the-go intelligence"),
-    ),
-    h1: Array.from(document.querySelectorAll(".nb-composer-hero h1")).map((h) =>
-      h.textContent?.trim(),
-    ),
-    lanes: Array.from(document.querySelectorAll(".nb-lane")).map((b) =>
-      b.textContent?.trim().slice(0, 20),
-    ),
-    asyncProof: !!document.querySelector('[data-testid="home-async-proof"]'),
-    firstImpression: !!document.querySelector(
-      '[data-testid="home-first-impression-board"]',
-    ),
-  }));
-  console.log("HOME:", JSON.stringify(result, null, 2));
-  expect(result.composer).toBe(true);
-  expect(result.kicker).toBe(true);
-  expect(result.h1).toContain("Get the read before you walk in.");
-  expect(result.lanes.length).toBeGreaterThanOrEqual(2);
-  expect(result.asyncProof).toBe(true);
-  expect(result.firstImpression).toBe(true);
-});
-
-test("PR A6: Home renders full kit HomePulse layout", async ({ page }) => {
-  await navigate(page, "ask");
-  const result = await page.evaluate(() => ({
-    pulseStrip: !!document.querySelector(
-      '[data-testid="exact-home-pulse-strip"]',
-    ),
-    pulseHeroCards: document.querySelectorAll(".nb-pulse-card").length,
-    pulseMiniCards: document.querySelectorAll(".nb-pulse-mini").length,
-    todayIntel: !!document.querySelector(
-      '[data-testid="exact-home-today-intel"]',
-    ),
-    todayLanes: document.querySelectorAll(".nb-today-lane").length,
-    activeEvent: !!document.querySelector(
-      '[data-testid="exact-home-active-event"]',
-    ),
-    eventStats: document.querySelectorAll(".nb-event-stat").length,
-    recentReports: !!document.querySelector(
-      '[data-testid="exact-home-recent-reports"]',
-    ),
-    recentCards: document.querySelectorAll(".nb-recent-card").length,
-  }));
-  console.log("HOME PULSE:", JSON.stringify(result, null, 2));
-  expect(result.pulseStrip, "PulseStrip section should render").toBe(true);
-  expect(result.pulseHeroCards, "4 hero metric cards").toBeGreaterThanOrEqual(
-    4,
-  );
-  expect(
-    result.pulseMiniCards,
-    "6 secondary mini cards",
-  ).toBeGreaterThanOrEqual(6);
-  expect(result.todayIntel, "Today's intelligence section").toBe(true);
-  expect(result.todayLanes, "4 today lanes").toBeGreaterThanOrEqual(4);
-  expect(result.activeEvent, "Active event section").toBe(true);
-  expect(result.eventStats, "4 event stats").toBeGreaterThanOrEqual(4);
-  expect(result.recentReports, "Recent reports section").toBe(true);
-  expect(result.recentCards, "3 recent report cards").toBeGreaterThanOrEqual(3);
-});
-
-test("PR A8: Chat renders ExactChatSurface ChatStream (full conversation thread)", async ({
+test("Quick Search follows the real Home route and focuses its canonical composer", async ({
   page,
 }) => {
   await navigate(page, "workspace");
-  const result = await page.evaluate(() => ({
-    streamMount: !!document.querySelector(
-      '[data-testid="exact-web-chat-stream"]',
-    ),
-    liveStatus: document
-      .querySelector('[data-testid="exact-web-chat-stream"]')
-      ?.getAttribute("data-chat-live-status"),
-    liveEligible: document
-      .querySelector('[data-testid="exact-web-chat-stream"]')
-      ?.getAttribute("data-chat-live-eligible"),
-    noFixtureText: document.body.textContent?.includes(
-      "no fixture answer loaded",
-    ),
-    contextRuntimeText:
-      document.body.textContent?.includes("Context Runtime") ||
-      document.body.textContent?.includes("ContextRuntimePacket"),
-    streamRoot: !!document.querySelector(".nb-stream-root"),
-    threadHeader: !!document.querySelector(".nb-stream-header h2"),
-    headerTitle: document.querySelector(".nb-stream-header h2")?.textContent,
-    saveBar: !!document.querySelector(".nb-stream-savebar"),
-    saveBarReportName: document.querySelector(".nb-stream-savebar strong")
-      ?.textContent,
-    fresh: !!document.querySelector(".nb-stream-fresh"),
-    turns: document.querySelectorAll(".nb-turn").length,
-    userTurns: document.querySelectorAll('.nb-turn[data-role="user"]').length,
-    agentTurns: document.querySelectorAll('.nb-turn[data-role="agent"]').length,
-    runBars: document.querySelectorAll(".nb-runbar").length,
-    runUpdates: document.querySelectorAll(".nb-runup").length,
-    entityPills: document.querySelectorAll(".nb-epill").length,
-    followupChips: document.querySelectorAll(".nb-followup-chip").length,
-    composerCard: !!document.querySelector(".nb-composer-card"),
-    goldenComposer: !!document.querySelector(
-      '[data-exact-composer="golden"][data-exact-composer-version="2026-05-02"]',
-    ),
-    composerPin: !!document.querySelector(".nb-composer-pins .nb-pin"),
-    composerInput: !!document.querySelector(".nb-composer-input"),
-    composerSendButton: !!document.querySelector(".nb-composer-send"),
-    suggestChips: document.querySelectorAll(".nb-prompt-chip").length,
-    modelPill: !!document.querySelector(".nb-model-trigger"),
-  }));
-  console.log("CHAT STREAM:", JSON.stringify(result, null, 2));
-  expect(result.streamMount, "ChatStream mount").toBe(true);
-  expect(result.liveStatus, "live run status marker").toBeTruthy();
-  expect(result.noFixtureText, "chat starts from honest live-ready state").toBe(
-    true,
-  );
-  expect(result.contextRuntimeText, "Context Runtime copy").toBe(true);
-  expect(result.streamRoot).toBe(true);
-  expect(result.threadHeader).toBe(true);
-  expect(result.headerTitle).toContain("Live Context Runtime");
-  expect(result.saveBar, "Save bar").toBe(true);
-  expect(result.saveBarReportName).toContain("NodeBench live runtime");
-  expect(
-    result.turns,
-    "at least the live-ready agent turn",
-  ).toBeGreaterThanOrEqual(1);
-  expect(result.userTurns).toBeGreaterThanOrEqual(0);
-  expect(result.agentTurns).toBeGreaterThanOrEqual(1);
-  expect(result.runBars, "agent run bars").toBeGreaterThanOrEqual(1);
-  expect(result.entityPills, "inline entity pills").toBeGreaterThanOrEqual(0);
-  expect(result.followupChips, "follow-up chips").toBeGreaterThan(0);
-  expect(result.composerCard).toBe(true);
-  expect(result.goldenComposer, "shared golden composer contract").toBe(true);
-  expect(result.composerPin, "Ship Demo Day pin").toBe(true);
-  expect(result.composerInput).toBe(true);
-  expect(result.suggestChips, "3 suggest chips").toBeGreaterThanOrEqual(3);
-  expect(result.modelPill, "model route pill").toBe(true);
+  await page.getByRole("button", { name: "Search reports, entities, inbox" }).click();
+  await page.locator('[data-agent-id="cmd:quick-search"]').click();
+
+  await expect(page).toHaveURL(/\/redesign(?:\?|$)/);
+  await expect(page.locator("#redesign-home-composer")).toBeFocused();
 });
 
-test("PR A2: Reports renders ExactReportsSurface card grid", async ({
+test("Home keeps one useful composer and renders only runtime-returned sections", async ({
+  page,
+}) => {
+  await navigate(page, "ask");
+
+  await expect(page.getByTestId("exact-web-home-surface")).toBeVisible();
+  await expect(page.getByTestId("exact-web-home-composer")).toBeVisible();
+  await expect(page.locator(".nb-composer-hero h1")).toHaveText(
+    "Get the read before you walk in.",
+  );
+  await expect(page.getByTestId("home-async-proof")).toHaveText(
+    "Background runs continue server-side and stay visible in Reports.",
+  );
+  await expect(page.getByTestId("home-first-impression-board")).toBeVisible();
+
+  const state = await page.evaluate(() => {
+    const has = (selector: string) => Boolean(document.querySelector(selector));
+    const count = (selector: string) => document.querySelectorAll(selector).length;
+    return {
+      pulsePresent: has('[data-testid="exact-home-pulse-strip"]'),
+      pulseItems: count(".nb-pulse-card, .nb-pulse-mini"),
+      todayPresent: has('[data-testid="exact-home-today-intel"]'),
+      todayItems: count(".nb-today-item"),
+      activeEventPresent: has('[data-testid="exact-home-active-event"]'),
+      recentSection: has('[data-testid="exact-home-recent-reports"]'),
+      recentLoading: has('[data-testid="home-recent-reports-loading"]'),
+      recentEmpty: has('[data-testid="home-recent-reports-empty"]'),
+      recentCards: count(".nb-recent-card"),
+      bodyText: document.body.textContent ?? "",
+    };
+  });
+
+  expect(state.recentSection).toBe(true);
+  expect(
+    Number(state.recentLoading) +
+      Number(state.recentEmpty) +
+      Number(state.recentCards > 0),
+    "Recent reports has one honest loading, empty, or live-data state",
+  ).toBe(1);
+  expect(state.pulsePresent).toBe(false);
+  expect(state.pulseItems).toBe(0);
+  if (state.todayPresent) expect(state.todayItems).toBeGreaterThan(0);
+  if (state.activeEventPresent) {
+    await expect(page.getByTestId("exact-home-active-event")).toBeVisible();
+  }
+  expect(state.bodyText).not.toMatch(/Orbital Labs|DISCO|Mercor|attached 10-K/i);
+});
+
+test("Chat routes guests to the session runtime and has one prompt row", async ({
+  page,
+}) => {
+  await navigate(page, "workspace");
+
+  const stream = page.getByTestId("exact-web-chat-stream");
+  await expect(stream).toBeVisible();
+  await expect(stream).toHaveAttribute("data-chat-runtime-route", "session-fast-agent");
+  await expect(stream).toHaveAttribute("data-chat-live-eligible", "false");
+  await expect(stream).toHaveAttribute("data-chat-live-status", /.+/);
+  await expect(page.locator(".nb-stream-header h2")).toContainText(
+    "Live Context Runtime",
+  );
+  await expect(page.locator(".nb-stream-inner")).toContainText(
+    "Runtime evidence and sources appear after you send.",
+  );
+  await expect(page.locator(".nb-composer-card")).toBeVisible();
+  await expect(
+    page.locator(
+      '[data-exact-composer="golden"][data-exact-composer-version="2026-05-02"]',
+    ),
+  ).toBeVisible();
+  await expect(page.locator(".nb-composer-input")).toHaveAttribute(
+    "placeholder",
+    "Ask or paste text... (@ to mention an entity)",
+  );
+  await expect(page.locator(".nb-prompt-chip")).toHaveCount(3);
+  await expect(page.locator(".nb-followup-chip")).toHaveCount(0);
+  await expect(page.locator(".nb-model-trigger")).toHaveCount(0);
+  await expect(page.locator(".nb-epill, .nb-confirm")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText("Ship Demo Day");
+});
+
+test("Reports exposes honest loading, empty, or live state without fixture chrome", async ({
   page,
 }) => {
   await navigate(page, "reports");
-  const result = await page.evaluate(() => ({
-    grid: !!document.querySelector(".nb-reports-grid"),
-    rcards: document.querySelectorAll(".nb-rcard").length,
-    exactCards: document.querySelectorAll(
-      '[data-exact-testid="exact-report-card"]',
-    ).length,
-    actionRows: document.querySelectorAll('[data-testid="report-card-actions"]')
-      .length,
-    launcherGoldenComposer: !!document.querySelector(
-      '[data-testid="pipeline-launcher"] [data-exact-composer="golden"]',
-    ),
-    launcherModelPill: !!document.querySelector(
-      '[data-testid="pipeline-launcher"] .nb-model-trigger',
-    ),
-    launcherModelPillText: document
-      .querySelector('[data-testid="pipeline-launcher"] .nb-model-trigger')
-      ?.textContent?.trim(),
-    launcherSuggestChips: document.querySelectorAll(
-      '[data-testid="pipeline-launcher"] .nb-prompt-chip',
-    ).length,
-    launcherPlaceholder: document
-      .querySelector('[data-testid="pipeline-launcher"] .nb-composer-input')
-      ?.getAttribute("placeholder"),
-    launcherAddContext: !!Array.from(
-      document.querySelectorAll(
-        '[data-testid="pipeline-launcher"] .nb-pin-add',
-      ),
-    ).find((node) => node.textContent?.includes("Add context")),
-    launcherFooterMeta: document
-      .querySelector('[data-testid="pipeline-launcher"] .nb-composer-meta')
-      ?.textContent?.trim(),
-    launcherTopModelPins: Array.from(
-      document.querySelectorAll(
-        '[data-testid="pipeline-launcher"] .nb-composer-pins .typ',
-      ),
-    ).filter((node) => node.textContent?.trim().toLowerCase() === "model")
-      .length,
-  }));
-  console.log("REPORTS:", JSON.stringify(result, null, 2));
-  expect(result.grid).toBe(true);
-  expect(result.rcards).toBeGreaterThan(0);
-  expect(result.exactCards).toBeGreaterThan(0);
-  expect(result.actionRows).toBeGreaterThan(0);
-  expect(
-    result.launcherGoldenComposer,
-    "Reports uses shared golden composer",
-  ).toBe(true);
-  expect(
-    result.launcherPlaceholder,
-    "Reports uses golden composer placeholder",
-  ).toBe("Ask, capture, paste, upload, or record...");
-  expect(
-    result.launcherAddContext,
-    "Reports keeps the golden + Add context affordance",
-  ).toBe(true);
-  expect(
-    result.launcherFooterMeta,
-    "Reports keeps the golden memory/cost footer",
-  ).toBe("Memory-first - auto route");
-  expect(
-    result.launcherModelPill,
-    "Reports model control lives in composer footer",
-  ).toBe(true);
-  expect(
-    result.launcherModelPillText,
-    "Reports defaults to the route selector",
-  ).toContain("Auto balanced");
-  expect(
-    result.launcherTopModelPins,
-    "Reports does not add a top-row model settings pin",
-  ).toBe(0);
-  expect(
-    result.launcherSuggestChips,
-    "Reports keeps golden suggestion chips",
-  ).toBeGreaterThanOrEqual(3);
-  const launcherModelSelect = page
-    .locator('[data-testid="pipeline-launcher-model"]')
-    .filter({ visible: true });
-  await expect(launcherModelSelect).toContainText("Auto free");
-  await launcherModelSelect.selectOption("nodebench:auto-free");
-  await expect(launcherModelSelect).toHaveValue("nodebench:auto-free");
+
+  const root = page.getByTestId("reports-performance-root");
+  await expect(root).toBeVisible();
+  await expect(page.getByTestId("pipeline-launcher")).toBeVisible();
+  await expect(page.getByTestId("pipeline-launcher-sign-in")).toBeVisible();
   await expect(
-    page.locator('[data-testid="pipeline-launcher"]:visible .nb-composer-meta'),
-  ).toContainText("Memory-first - free route");
+    page.locator('[data-testid="pipeline-runs-panel"], [data-testid="pipeline-runs-empty"], [data-testid="pipeline-runs-unavailable"]'),
+  ).toBeVisible();
+
+  await expect
+    .poll(
+      async () => root.getAttribute("data-reports-source"),
+      { timeout: 15_000 },
+    )
+    .not.toBe("loading");
+
+  const state = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="reports-performance-root"]');
+    const reportCards = root?.querySelectorAll('[data-testid="report-card"]').length ?? 0;
+    return {
+      source: root?.getAttribute("data-reports-source"),
+      loading: Boolean(root?.querySelector('[data-testid="reports-loading"]')),
+      empty: Boolean(root?.querySelector('[data-testid="reports-empty"]')),
+      reportCards,
+      sourcePills: root?.querySelectorAll(".nb-reports-source-pill").length ?? 0,
+      viewToggles: root?.querySelectorAll(".nb-view-toggle").length ?? 0,
+      bodyText: root?.textContent ?? "",
+    };
+  });
+
+  expect(["empty", "live_convex"]).toContain(state.source);
+  expect(
+    Number(state.loading) + Number(state.empty) + Number(state.reportCards > 0),
+    "Reports has exactly one runtime-backed state",
+  ).toBe(1);
+  if (state.source === "empty") {
+    expect(state.empty).toBe(true);
+    expect(state.sourcePills).toBe(0);
+    expect(state.viewToggles).toBe(0);
+  } else {
+    expect(state.reportCards).toBeGreaterThan(0);
+    expect(state.sourcePills).toBe(1);
+    expect(state.viewToggles).toBe(1);
+  }
+  expect(state.bodyText).not.toMatch(/Orbital Labs|DISCO|Mercor/i);
+  await expect(page.getByTestId("pipeline-launcher")).not.toContainText(
+    /Upload a file|Record voice|Add URL/i,
+  );
 });
 
-test("PR A1: Inbox renders ExactInboxSurface single-column rows", async ({
+test("Inbox shows runtime nudges or an honest loading/empty state", async ({
   page,
 }) => {
   await navigate(page, "nudges");
-  const result = await page.evaluate(() => ({
-    head: !!document.querySelector(".nb-inbox-head"),
-    filterPills: Array.from(
-      document.querySelectorAll(".nb-inbox-filter button"),
-    ).map((b) => (b.textContent ?? "").trim().split(/\s+/)[0]),
-    h1: document.querySelector(".nb-inbox-head h1")?.textContent?.trim(),
-    rows: document.querySelectorAll(".nb-ibx-row, .nb-panel").length,
-  }));
-  console.log("INBOX:", JSON.stringify(result, null, 2));
-  expect(result.head).toBe(true);
-  expect(result.h1).toBe("Inbox");
-  expect(result.filterPills.slice(0, 4)).toEqual([
+
+  const surface = page.getByTestId("exact-web-inbox-surface");
+  await expect(surface).toBeVisible();
+  await expect(surface.locator(".nb-inbox-head h1")).toHaveText("Inbox");
+  await expect(surface.locator(".nb-inbox-filter button")).toHaveCount(4);
+  await expect(surface.locator(".nb-inbox-filter button")).toContainText([
     "All",
     "Act",
     "Auto",
-    "Watching",
+    "Watch",
   ]);
+
+  const stateCount = await surface.evaluate((node) =>
+    Number(Boolean(node.querySelector('[data-testid="inbox-loading"]'))) +
+    Number((node.textContent ?? "").includes("No runtime nudges")) +
+    Number(node.querySelectorAll(".nb-ibx-row").length > 0),
+  );
+  expect(stateCount).toBe(1);
 });
 
-test("PR A3: Me renders ExactMeSurface 2-pane sidenav", async ({ page }) => {
-  await navigate(page, "me");
-  const result = await page.evaluate(() => ({
-    grid: !!document.querySelector(".nb-me-grid"),
-    sidenav: !!document.querySelector(".nb-me-sidenav"),
-    profileAvatar: !!document.querySelector(".nb-me-sidenav .av"),
-    sectionGroups: Array.from(
-      document.querySelectorAll(".nb-me-sidenav .section-title"),
-    ).map((el) => el.textContent?.trim()),
-  }));
-  console.log("ME:", JSON.stringify(result, null, 2));
-  expect(result.grid).toBe(true);
-  expect(result.sidenav).toBe(true);
-  expect(result.profileAvatar).toBe(true);
-  expect(result.sectionGroups).toEqual(["Account", "Preferences", "Workspace"]);
-});
-
-test("PR A7: Reports card click renders inline detail (no workspace redirect)", async ({
+test("Me reflects guest or runtime identity without plans or preference clutter", async ({
   page,
 }) => {
-  // Direct navigation: ?surface=packets&report=disco should render inline detail
-  await page.goto(`${BASE_URL}/?surface=packets&report=disco`, {
-    waitUntil: "networkidle",
+  await navigate(page, "me");
+
+  const surface = page.getByTestId("exact-web-me-surface");
+  await expect(surface).toBeVisible();
+  await expect(surface.locator(".nb-me-sidenav")).toBeVisible();
+  await expect(surface.locator(".nb-settings-h1")).toHaveText("Memory");
+  await expect(surface.locator(".nb-me-sidenav .section-title")).toHaveText([
+    "Account",
+  ]);
+  await expect(surface.locator(".nb-me-sidenav button")).toContainText(
+    "Settings",
+  );
+
+  const identity = await surface.evaluate((node) => ({
+    initial: node.querySelector(".nb-me-sidenav .av")?.textContent?.trim() ?? "",
+    name: node.querySelector(".nb-me-sidenav .nm")?.textContent?.trim() ?? "",
+    detail: node.querySelector(".nb-me-sidenav .em")?.textContent?.trim() ?? "",
+    loading: Boolean(node.querySelector('[data-testid="me-memory-loading"]')),
+    empty: Boolean(node.querySelector('[data-testid="me-memory-empty"]')),
+    live: Boolean(node.querySelector(".nb-settings-section")),
+  }));
+  expect(identity.initial).toBe(identity.name.slice(0, 1).toUpperCase());
+  if (identity.detail === "Anonymous session") {
+    expect(identity.name).toBe("Guest workspace");
+    expect(identity.initial).toBe("G");
+  } else {
+    expect(identity.name.length).toBeGreaterThan(0);
+    expect(identity.detail.length).toBeGreaterThan(0);
+  }
+  expect(Number(identity.loading) + Number(identity.empty) + Number(identity.live)).toBe(1);
+  await expect(surface.locator(".nb-me-sidenav .section-title")).not.toContainText(
+    /Preferences|Workspace/i,
+  );
+  await expect(surface).not.toContainText(/Pro plan|Upgrade|usage/i);
+});
+
+test("An unknown report stays in the cockpit and fails closed", async ({ page }) => {
+  const reportId = "__missing_runtime_report__";
+  await page.goto(`${BASE_URL}/?surface=packets&report=${reportId}`, {
+    waitUntil: "domcontentloaded",
     timeout: 30_000,
   });
-  await page.waitForTimeout(5000);
 
-  // 1. Confirm we're STILL on the cockpit host, NOT redirected to workspace.nodebenchai.com
-  const url1 = page.url();
-  expect(
-    url1,
-    "card-click should NOT redirect to workspace subdomain",
-  ).not.toContain("workspace.nodebenchai.com");
-  expect(url1).toContain("surface=packets");
-  expect(url1).toContain("report=disco");
-
-  // 2. Confirm inline detail shell rendered
-  const detail = await page.evaluate(() => ({
-    detailMount: !!document.querySelector(
-      '[data-testid="exact-web-report-detail"]',
-    ),
-    reportId: document
-      .querySelector('[data-testid="exact-web-report-detail"]')
-      ?.getAttribute("data-report-id"),
-    breadcrumbCurrent: document.querySelector(".nb-rdetail-crumb-current")
-      ?.textContent,
-    title: document.querySelector(".nb-rdetail-title")?.textContent,
-    eyebrow: document.querySelector(".nb-rdetail-eyebrow")?.textContent,
-    sectionCount: document.querySelectorAll(".nb-rdetail-section").length,
-    embeddedCard: !!document.querySelector(".nb-rdetail-card"),
-    quote: !!document.querySelector(".nb-rdetail-quote"),
-    backButton: !!document.querySelector(".nb-rdetail-back"),
-    liveBadge: !!document.querySelector(".nb-rdetail-live"),
-    askAgentButton: !!Array.from(document.querySelectorAll(".nb-btn")).find(
-      (el) => el.textContent?.toLowerCase().includes("ask agent"),
-    ),
-  }));
-  console.log("INLINE DETAIL:", JSON.stringify(detail, null, 2));
-  expect(detail.detailMount, "inline detail mount").toBe(true);
-  expect(detail.reportId).toBe("disco");
-  expect(detail.title).toContain("DISCO");
-  expect(detail.sectionCount, "DISCO has 5 sections").toBeGreaterThanOrEqual(5);
-  expect(detail.embeddedCard, "Product & moat embedded company card").toBe(
-    true,
+  const detail = page.getByTestId("exact-web-report-detail");
+  await expect(detail).toBeVisible();
+  await expect(detail).toHaveAttribute("data-report-id", reportId);
+  await expect(detail).toContainText(
+    "No runtime-backed report was found for this id.",
   );
-  expect(detail.quote, "investment thesis quote").toBe(true);
-  expect(detail.backButton).toBe(true);
-  expect(detail.liveBadge).toBe(true);
-  expect(detail.askAgentButton).toBe(true);
+  await expect(detail.locator(".nb-rdetail-cockpit, .nb-rdetail-title")).toHaveCount(0);
+  expect(page.url()).not.toContain("workspace.nodebenchai.com");
 
-  // 3. Click back, confirm grid renders again
-  await page.click(".nb-rdetail-back");
-  await page.waitForTimeout(2000);
-  const url2 = page.url();
-  expect(url2).toContain("surface=packets");
-  expect(url2, "back nav should clear ?report").not.toContain("report=");
-  const back = await page.evaluate(() => ({
-    grid: !!document.querySelector(".nb-reports-grid"),
-    rcards: document.querySelectorAll(".nb-rcard").length,
-  }));
-  console.log("AFTER BACK:", JSON.stringify(back, null, 2));
-  expect(back.grid).toBe(true);
-  expect(back.rcards).toBeGreaterThanOrEqual(3);
+  await page.getByTestId("report-detail-back").click();
+  await expect(page).toHaveURL(/surface=packets/);
+  await expect(page).not.toHaveURL(/report=/);
+  await expect(page.getByTestId("reports-performance-root")).toBeVisible();
 });
 
-test("PR A9: Avatar HS button opens kit status panel", async ({ page }) => {
-  await navigate(page, "ask");
-
-  // Closed state — trigger present, panel not in DOM
-  const before = await page.evaluate(() => ({
-    trigger: !!document.querySelector(".nb-avm-trigger"),
-    avatarMark: document.querySelector(".nb-avm-avatar-sm")?.textContent,
-    panelClosed: !document.querySelector('[data-testid="exact-avatar-menu"]'),
-  }));
-  console.log("AVATAR (closed):", JSON.stringify(before, null, 2));
-  expect(before.trigger).toBe(true);
-  expect(before.avatarMark).toBe("HS");
-  expect(before.panelClosed).toBe(true);
-
-  // Click the trigger
-  await page.click(".nb-avm-trigger");
-  await page.waitForSelector('[data-testid="exact-avatar-menu"]', {
-    timeout: 10_000,
-  });
-  await page.waitForTimeout(500);
-
-  const open = await page.evaluate(() => ({
-    panel: !!document.querySelector('[data-testid="exact-avatar-menu"]'),
-    name: document.querySelector(".nb-avm-name")?.textContent,
-    proBadge: document.querySelector(".nb-avm-pro")?.textContent,
-    sectionLabels: Array.from(
-      document.querySelectorAll(".nb-avm-section-label"),
-    ).map((el) => el.textContent),
-    pulseTiles: document.querySelectorAll(".nb-avm-pulse").length,
-    watchRows: document.querySelectorAll(".nb-avm-watch-row").length,
-    usageBars: document.querySelectorAll(".nb-avm-usage").length,
-    upgradeBtn: !!document.querySelector(".nb-avm-upgrade"),
-    sessionRows: document.querySelectorAll(".nb-avm-session").length,
-    thisMarker: !!document.querySelector(".nb-avm-session-this"),
-    themeOpts: Array.from(document.querySelectorAll(".nb-avm-theme-opt")).map(
-      (el) => el.textContent?.trim(),
-    ),
-    links: Array.from(
-      document.querySelectorAll(".nb-avm-link span:first-of-type"),
-    ).map((el) => el.textContent),
-  }));
-  console.log("AVATAR (open):", JSON.stringify(open, null, 2));
-  expect(open.panel).toBe(true);
-  expect(open.name).toBe("Hannah Sato");
-  expect(open.proBadge).toBe("PRO");
-  expect(open.sectionLabels).toEqual(
-    expect.arrayContaining([
-      "Today's pulse",
-      "Watching · 12 entities",
-      "This month · Pro",
-      "Recent sessions",
-      "Theme",
-    ]),
-  );
-  expect(open.pulseTiles, "3 pulse tiles").toBe(3);
-  expectAvatarPulseContract(await readAvatarPulseMetrics(page));
-  expect(open.watchRows, "3 watch rows").toBeGreaterThanOrEqual(3);
-  expect(open.usageBars, "3 usage bars").toBeGreaterThanOrEqual(3);
-  expect(open.upgradeBtn).toBe(true);
-  expect(open.sessionRows, "3 recent sessions").toBeGreaterThanOrEqual(3);
-  expect(open.thisMarker).toBe(true);
-  expect(open.themeOpts).toEqual(["Light", "Dark"]);
-  expect(open.links).toEqual(
-    expect.arrayContaining(["Settings", "Shortcuts", "Help", "Sign out"]),
-  );
-
-  // Esc closes
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(500);
-  const closed = await page.evaluate(
-    () => !document.querySelector('[data-testid="exact-avatar-menu"]'),
-  );
-  expect(closed, "Esc closes panel").toBe(true);
-});
-
-test("PR A10: Tier A live wiring graceful fallback when unauthenticated", async ({
+test("Avatar menu exposes runtime identity and useful controls only", async ({
   page,
 }) => {
-  // Anonymous visitor: entities.listEntities returns []. The wired surfaces
-  // (PulseStrip, TodayIntel reports-updated lane, RecentReports, Avatar
-  // Watching) MUST fall back to seed data so the demo experience is preserved.
-  // This asserts the fallback path doesn't break anything; live-data
-  // assertion would need an authenticated session w/ entities (separate suite).
   await navigate(page, "ask");
-  const result = await page.evaluate(() => ({
-    pulseHero: document.querySelectorAll(".nb-pulse-card").length,
-    pulseMini: document.querySelectorAll(".nb-pulse-mini").length,
-    todayLanes: document.querySelectorAll(".nb-today-lane").length,
-    todayItems: document.querySelectorAll(".nb-today-item").length,
-    recent: document.querySelectorAll(".nb-recent-card").length,
-    recentTitles: Array.from(document.querySelectorAll(".nb-recent-title")).map(
-      (el) => el.textContent,
-    ),
-  }));
-  console.log("LIVE FALLBACK:", JSON.stringify(result, null, 2));
-  expect(result.pulseHero).toBeGreaterThanOrEqual(4);
-  expect(result.pulseMini).toBeGreaterThanOrEqual(6);
-  expect(result.todayLanes).toBeGreaterThanOrEqual(4);
-  expect(result.todayItems).toBeGreaterThanOrEqual(6);
-  expect(result.recent).toBeGreaterThanOrEqual(3);
-  // Anonymous fallback shows seed cards (Orbital / DISCO / Mercor titles)
-  expect(result.recentTitles.join("|")).toMatch(/Orbital|DISCO|Mercor/);
 
-  // Open avatar — Watching list should also fall back to seed (Orbital Labs / DISCO / Mira Patel)
-  await page.click(".nb-avm-trigger");
-  await page.waitForSelector('[data-testid="exact-avatar-menu"]');
-  await page.waitForTimeout(500);
-  const watching = await page.evaluate(() => ({
-    rows: document.querySelectorAll(".nb-avm-watch-row").length,
-    label: document.querySelector(".nb-avm-section-label:not([data-skip])")
-      ?.textContent,
-    names: Array.from(document.querySelectorAll(".nb-avm-watch-name")).map(
-      (el) => el.textContent,
-    ),
+  const trigger = page.locator(".nb-avm-trigger");
+  await expect(trigger).toBeVisible();
+  const triggerInitial = (await trigger.locator(".nb-avm-avatar-sm").textContent())?.trim() ?? "";
+  await expect(page.getByTestId("exact-avatar-menu")).toHaveCount(0);
+  await trigger.click();
+
+  const menu = page.getByTestId("exact-avatar-menu");
+  await expect(menu).toBeVisible();
+  const identity = await menu.evaluate((node) => ({
+    name: node.querySelector(".nb-avm-name")?.textContent?.trim() ?? "",
+    detail: node.querySelector(".nb-avm-id")?.textContent?.trim() ?? "",
+    watchRows: node.querySelectorAll(".nb-avm-watch-row").length,
+    watchEmpty: node.querySelectorAll(".nb-avm-section .nb-avm-empty").length,
+    sessionRows: node.querySelectorAll(".nb-avm-session").length,
+    sessionEmpty: (node.textContent ?? "").includes("runtime sessions"),
   }));
-  console.log("WATCHING:", JSON.stringify(watching, null, 2));
-  expect(watching.rows).toBeGreaterThanOrEqual(3);
-  // Anonymous: 12 entities default; live: real count. Either is OK.
-  expect(watching.names.length).toBeGreaterThanOrEqual(3);
+  expect(triggerInitial).toBe(identity.name.slice(0, 1).toUpperCase());
+  if (identity.detail === "Anonymous session") {
+    expect(identity.name).toBe("Guest workspace");
+    expect(triggerInitial).toBe("G");
+  }
+
+  await expect(menu.locator(".nb-avm-section-label")).toContainText([
+    /Recent entities/,
+    "Recent sessions",
+    "Theme",
+  ]);
+  expect(identity.watchRows > 0 || identity.watchEmpty > 0).toBe(true);
+  expect(identity.sessionRows > 0 || identity.sessionEmpty).toBe(true);
+  await expect(menu.locator(".nb-avm-theme-opt")).toHaveText(["Light", "Dark"]);
+  await expect(menu.locator(".nb-avm-link")).toHaveText(["Settings"]);
+  await expect(
+    menu.locator(".nb-avm-pro, .nb-avm-pulse, .nb-avm-usage, .nb-avm-upgrade"),
+  ).toHaveCount(0);
+  await expect(menu).not.toContainText(/Hannah Sato|Today's pulse|This month|Shortcuts|Help|Sign out/i);
+
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+});
+
+test("Developers page starts from an honest MCP empty state", async ({ page }) => {
+  await page.goto(`${BASE_URL}/developers`, {
+    waitUntil: "domcontentloaded",
+    timeout: 30_000,
+  });
+
+  await expect(page.getByRole("heading", { name: /Bring NodeBench into Claude/i })).toBeVisible();
+  await expect(page.getByTestId("mcp-terminal-empty")).toContainText(
+    "No MCP call has run on this page.",
+  );
+  await expect(page.getByRole("button", { name: "Copy install command" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy hosted public URL" })).toBeVisible();
+  await expect(page.getByTestId("mcp-terminal-empty")).not.toContainText(
+    /DISCO|first dossier returned|tools loaded/i,
+  );
 });

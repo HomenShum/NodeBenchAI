@@ -1,36 +1,20 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { useConvexAuth } from "convex/react";
-import {
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  MoreHorizontal,
-  Search,
-  Share2,
-} from "lucide-react";
+import { Search } from "lucide-react";
+import { useOnlineStatus } from "@/lib/performance/useOnlineStatus";
 import { VIEW_TITLES } from "./cockpitModes";
 import type { MainView } from "@/lib/registry/viewRegistry";
 
 type SystemStatus = "operational" | "degraded" | "offline";
+type ConnectionState = "offline" | "degraded" | "loading" | "authenticated" | "guest";
 
-function useSystemStatus(): SystemStatus {
-  const { isLoading } = useConvexAuth();
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator !== "undefined" ? navigator.onLine : true,
-  );
+function useSystemStatus(
+  isLoading: boolean,
+  online: boolean,
+  convexConnected: boolean,
+): SystemStatus {
   const [convexDegraded, setConvexDegraded] = useState(false);
   const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    const goOnline = () => setIsOnline(true);
-    const goOffline = () => setIsOnline(false);
-    window.addEventListener("online", goOnline);
-    window.addEventListener("offline", goOffline);
-    return () => {
-      window.removeEventListener("online", goOnline);
-      window.removeEventListener("offline", goOffline);
-    };
-  }, []);
 
   useEffect(() => {
     if (isLoading) {
@@ -51,34 +35,29 @@ function useSystemStatus(): SystemStatus {
     };
   }, [isLoading]);
 
-  if (!isOnline) return "offline";
-  if (convexDegraded) return "degraded";
+  if (!online) return "offline";
+  if (!convexConnected || convexDegraded) return "degraded";
   return "operational";
 }
 
-const STATUS_CONFIG: Record<SystemStatus, { dotClass: string; label: string }> = {
-  operational: { dotClass: "bg-emerald-500", label: "All systems operational" },
-  degraded: { dotClass: "bg-amber-400", label: "Backend connection issue" },
+const CONNECTION_CONFIG: Record<ConnectionState, { dotClass: string; label: string }> = {
   offline: { dotClass: "bg-red-500", label: "You are offline" },
+  degraded: { dotClass: "bg-amber-400", label: "Session connection delayed" },
+  loading: { dotClass: "bg-amber-400 animate-pulse", label: "Checking session" },
+  authenticated: { dotClass: "bg-emerald-500", label: "Connected" },
+  guest: { dotClass: "bg-slate-400", label: "Guest session" },
 };
 
-const CHAT_MODEL_OPTIONS = [
-  {
-    id: "max",
-    label: "NodeBench Max",
-    detail: "High-performance agent for deeper, multi-step threads.",
-  },
-  {
-    id: "core",
-    label: "NodeBench",
-    detail: "Versatile agent for most research, diligence, and report work.",
-  },
-  {
-    id: "fast",
-    label: "NodeBench Fast",
-    detail: "Lighter pass for quick lookups and iteration.",
-  },
-] as const;
+function resolveConnectionState(
+  systemStatus: SystemStatus,
+  isLoading: boolean,
+  isAuthenticated: boolean,
+): ConnectionState {
+  if (systemStatus === "offline") return "offline";
+  if (systemStatus === "degraded") return "degraded";
+  if (isLoading) return "loading";
+  return isAuthenticated ? "authenticated" : "guest";
+}
 
 interface StatusStripProps {
   currentView: MainView;
@@ -90,203 +69,48 @@ interface StatusStripProps {
 export const StatusStrip = memo(function StatusStrip({
   currentView,
   entityName,
-  chatHasSession = false,
   onOpenPalette,
 }: StatusStripProps) {
-  const modelButtonRef = useRef<HTMLButtonElement | null>(null);
-  const modelMenuRef = useRef<HTMLDivElement | null>(null);
-  const [modelMenuOpen, setModelMenuOpen] = useState(false);
-  const [chatModelLabel, setChatModelLabel] = useState("NodeBench Max");
   const viewTitle = VIEW_TITLES[currentView] ?? currentView;
   const isChatView = viewTitle === "Chat";
   const { isAuthenticated, isLoading } = useConvexAuth();
-  const systemStatus = useSystemStatus();
-
-  const connectionLabel = isLoading
-    ? "Reconnecting..."
-    : isAuthenticated
-      ? "Connected"
-      : "Guest";
-  const { dotClass: statusDotClass, label: statusLabel } = STATUS_CONFIG[systemStatus];
-  const headerTitle = entityName?.trim() || chatModelLabel;
-  const chatIconButtonClass =
-    "nb-pressable inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.1] bg-white/[0.04] text-gray-100 shadow-[0_12px_26px_-18px_rgba(0,0,0,0.92)] transition hover:bg-white/[0.09] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/40";
-
-  useEffect(() => {
-    if (!isChatView || !modelMenuOpen) return;
-    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (modelButtonRef.current?.contains(target)) return;
-      if (modelMenuRef.current?.contains(target)) return;
-      setModelMenuOpen(false);
-    };
-    const handleEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setModelMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handlePointerDown, true);
-    document.addEventListener("touchstart", handlePointerDown, true);
-    window.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown, true);
-      document.removeEventListener("touchstart", handlePointerDown, true);
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [isChatView, modelMenuOpen]);
+  const { online, convexConnected } = useOnlineStatus();
+  const systemStatus = useSystemStatus(isLoading, online, convexConnected);
+  const connectionState = resolveConnectionState(systemStatus, isLoading, isAuthenticated);
+  const { dotClass: statusDotClass, label: connectionLabel } = CONNECTION_CONFIG[connectionState];
+  const headerTitle = entityName?.trim() || "Chat";
 
   if (isChatView) {
     return (
       <header
-        className="relative flex shrink-0 items-end justify-between border-b border-white/[0.08] bg-[rgba(15,18,23,0.98)] px-4 pb-2.5 pt-[max(10px,env(safe-area-inset-top))] shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_14px_30px_-20px_rgba(0,0,0,0.78)] backdrop-blur-2xl"
+        className="relative flex shrink-0 items-center justify-between border-b border-white/[0.08] bg-[rgba(15,18,23,0.98)] px-4 pb-2.5 pt-[max(10px,env(safe-area-inset-top))] shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_14px_30px_-20px_rgba(0,0,0,0.78)] backdrop-blur-2xl"
         role="banner"
         data-agent-id="cockpit:status-strip"
       >
-        <button
-          type="button"
-          onClick={() => {
-            if (typeof window !== "undefined") {
-              window.dispatchEvent(
-                new CustomEvent("nodebench:chat-header-action", {
-                  detail: { action: "threads" },
-                }),
-              );
-            }
-          }}
-          className={chatIconButtonClass}
-          aria-label="Show threads"
-        >
-          <ChevronLeft className="h-5.5 w-5.5" />
-        </button>
-
-        <div className="relative flex min-w-0 flex-1 justify-center px-3">
-          <button
-            ref={modelButtonRef}
-            type="button"
-            onClick={() => setModelMenuOpen((current) => !current)}
-            className="inline-flex min-h-[44px] min-w-0 max-w-[236px] items-center gap-1.5 rounded-full border border-white/[0.16] bg-white/[0.08] px-5 py-2.5 text-[15px] font-semibold tracking-[-0.02em] text-gray-50 shadow-[0_16px_32px_-20px_rgba(0,0,0,0.94)] transition hover:bg-white/[0.11] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/35"
-            aria-label={`${headerTitle} - ${connectionLabel}`}
-            aria-haspopup="menu"
-            aria-expanded={modelMenuOpen}
-            title={statusLabel}
-          >
-            <span className="truncate">{headerTitle}</span>
-            <ChevronDown
-              className={`h-4.5 w-4.5 text-white/85 transition ${modelMenuOpen ? "rotate-180" : ""}`}
+        <div className="min-w-0">
+          <div className="truncate text-[15px] font-semibold tracking-[-0.02em] text-gray-50">
+            {headerTitle}
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-400">
+            <span
+              className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass}`}
+              aria-label={connectionLabel}
+              role="status"
             />
+            <span>{connectionLabel}</span>
+          </div>
+        </div>
+
+        {onOpenPalette ? (
+          <button
+            type="button"
+            onClick={onOpenPalette}
+            className="nb-pressable inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.1] bg-white/[0.04] text-gray-100 shadow-[0_12px_26px_-18px_rgba(0,0,0,0.92)] transition hover:bg-white/[0.09] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/40"
+            aria-label="Open search"
+          >
+            <Search className="h-4.5 w-4.5" />
           </button>
-
-          {modelMenuOpen ? (
-            <div
-              ref={modelMenuRef}
-              role="menu"
-              aria-label="Model selector"
-              className="absolute top-[calc(100%+10px)] z-20 w-[252px] overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#12171f]/96 p-2 shadow-[0_28px_68px_-32px_rgba(0,0,0,0.92)] backdrop-blur-2xl"
-            >
-              {CHAT_MODEL_OPTIONS.map((option) => {
-                const selected = option.label === chatModelLabel;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={selected}
-                    onClick={() => {
-                      setChatModelLabel(option.label);
-                      setModelMenuOpen(false);
-                    }}
-                    className="flex w-full items-center gap-3 rounded-[20px] px-3.5 py-3 text-left transition hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/35"
-                  >
-                    <span
-                      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${
-                        selected
-                          ? "border-white/[0.18] bg-white/[0.08] text-white"
-                          : "border-white/[0.08] bg-white/[0.03] text-transparent"
-                      }`}
-                    >
-                      <Check className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-[15px] font-semibold text-gray-50">
-                        {option.label}
-                      </span>
-                      <span className="mt-0.5 block text-[12px] leading-5 text-gray-400">
-                        {option.detail}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="inline-flex items-center gap-2">
-          {chatHasSession ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (typeof window !== "undefined") {
-                  window.dispatchEvent(
-                    new CustomEvent("nodebench:chat-header-action", {
-                      detail: { action: "share-thread" },
-                    }),
-                  );
-                }
-              }}
-              className={chatIconButtonClass}
-              aria-label="Share thread"
-            >
-              <Share2 className="h-4.5 w-4.5" />
-            </button>
-          ) : onOpenPalette ? (
-            <button
-              type="button"
-              onClick={onOpenPalette}
-              className={chatIconButtonClass}
-              aria-label="Open search"
-            >
-              <Search className="h-4.5 w-4.5" />
-            </button>
-          ) : null}
-
-          {chatHasSession ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (typeof window !== "undefined") {
-                  window.dispatchEvent(
-                    new CustomEvent("nodebench:chat-header-action", {
-                      detail: { action: "thread-actions" },
-                    }),
-                  );
-                }
-              }}
-              className={chatIconButtonClass}
-              aria-label="Thread actions"
-            >
-              <MoreHorizontal className="h-4.5 w-4.5" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                if (typeof window !== "undefined") {
-                  window.dispatchEvent(
-                    new CustomEvent("nodebench:chat-header-action", {
-                      detail: { action: "threads" },
-                    }),
-                  );
-                }
-              }}
-              className={chatIconButtonClass}
-              aria-label="Show recent threads"
-            >
-              <MoreHorizontal className="h-4.5 w-4.5" />
-            </button>
-          )}
-        </div>
+        ) : null}
       </header>
     );
   }
@@ -316,10 +140,10 @@ export const StatusStrip = memo(function StatusStrip({
             </span>
           </>
         ) : null}
-        <span className="ml-1.5 flex items-center gap-1" title={statusLabel}>
+        <span className="ml-1.5 flex items-center gap-1" title={connectionLabel}>
           <span
             className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass}`}
-            aria-label={statusLabel}
+            aria-label={connectionLabel}
             role="status"
           />
         </span>
@@ -327,18 +151,14 @@ export const StatusStrip = memo(function StatusStrip({
 
       <div className="flex-1" />
 
-      {(isAuthenticated || isLoading) && (
-        <div className="hidden shrink-0 items-center gap-2 text-[12px] text-content-muted/70 xl:flex">
-          <span>{connectionLabel}</span>
-          <span
-            className={`inline-block h-1.5 w-1.5 rounded-full ${
-              isLoading ? "bg-amber-400" : "bg-emerald-500"
-            }`}
-            title={connectionLabel}
-            aria-label={connectionLabel}
-          />
-        </div>
-      )}
+      <div className="hidden shrink-0 items-center gap-2 text-[12px] text-content-muted/70 xl:flex">
+        <span>{connectionLabel}</span>
+        <span
+          className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass}`}
+          title={connectionLabel}
+          aria-hidden="true"
+        />
+      </div>
       {onOpenPalette ? (
         <button
           type="button"

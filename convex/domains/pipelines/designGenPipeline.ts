@@ -33,15 +33,7 @@ import type { Id } from "../../_generated/dataModel";
 import { resolvePipelineModelSelection } from "../agents/mcp_tools/models/modelResolver";
 import { runPiOrAiSdkCompletion } from "./piRuntime";
 import { appendPipelineTraceEntry } from "./pipelineTrace";
-
-function stableHash(input: string): string {
-  let h = 0;
-  for (let i = 0; i < input.length; i++) {
-    h = (h << 5) - h + input.charCodeAt(i);
-    h = h & h;
-  }
-  return Math.abs(h).toString(36);
-}
+import { buildPipelineIdempotencyKey } from "./pipelineAttempt";
 
 function newRunId(): string {
   return `pipeline_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -119,6 +111,8 @@ export const runDesignGenPipeline = internalAction({
     modelId: v.optional(v.string()),
     ownerKey: v.optional(v.string()),
     forceFresh: v.optional(v.boolean()),
+    attemptKey: v.optional(v.string()),
+    workflowExecutionKey: v.string(),
     imageSize: v.optional(
       v.union(v.literal("1024x1024"), v.literal("1792x1024"), v.literal("1024x1792")),
     ),
@@ -145,13 +139,19 @@ export const runDesignGenPipeline = internalAction({
     ),
   }),
   handler: async (ctx, args) => {
+    if (args.forceFresh && !args.attemptKey) {
+      throw new Error("forceFresh pipeline execution requires an attemptKey");
+    }
     const pipelineKind = "design_gen" as const;
     const modelSelection = resolvePipelineModelSelection(args.modelId);
     const modelId = modelSelection.resolvedModelId;
     const title = args.title ?? args.spec.slice(0, 80);
-    const idempotencyKey = stableHash(
-      [pipelineKind, args.spec, args.ownerKey ?? "anon"].sort().join(" "),
-    );
+    const idempotencyKey = buildPipelineIdempotencyKey({
+      pipelineKind,
+      spec: args.spec,
+      ownerKey: args.ownerKey,
+      attemptKey: args.attemptKey,
+    });
     const runId = newRunId();
 
     const create = await ctx.runMutation(
@@ -163,17 +163,20 @@ export const runDesignGenPipeline = internalAction({
         modelId,
         ownerKey: args.ownerKey,
         runId,
+        attemptKey: args.attemptKey,
+        workflowExecutionKey: args.workflowExecutionKey,
         idempotencyKey,
       },
     );
     const pipelineRunId: Id<"pipelineRuns"> = create.pipelineRunId;
     const effectiveRunId = create.runId;
+    const executionGeneration = create.executionGeneration;
+    const executionFence = {
+      workflowExecutionKey: args.workflowExecutionKey,
+      executionGeneration,
+    };
 
-    if (
-      !create.created &&
-      !args.forceFresh &&
-      (create.status === "succeeded" || create.status === "running")
-    ) {
+    if (!create.acquired) {
       return {
         runId: effectiveRunId,
         pipelineRunId,
@@ -184,11 +187,6 @@ export const runDesignGenPipeline = internalAction({
         decomposition: undefined,
       };
     }
-
-    await ctx.runMutation(
-      internal.domains.pipelines.pipelineRunsMutations.transitionRunStatus,
-      { pipelineRunId, status: "running" },
-    );
 
     let totalIn = 0;
     let totalOut = 0;
@@ -216,6 +214,7 @@ export const runDesignGenPipeline = internalAction({
         internal.domains.pipelines.pipelineRunsMutations.appendStep,
         {
           pipelineRunId,
+          ...executionFence,
           runId: effectiveRunId,
           name,
           status,
@@ -231,6 +230,7 @@ export const runDesignGenPipeline = internalAction({
       await appendPipelineTraceEntry({
         ctx,
         runId: effectiveRunId,
+        ownerKey: args.ownerKey,
         seq: traceSeq++,
         toolName: name,
         description: traceDescription ?? name,
@@ -472,6 +472,7 @@ export const runDesignGenPipeline = internalAction({
         internal.domains.pipelines.pipelineRunsMutations.transitionRunStatus,
         {
           pipelineRunId,
+          ...executionFence,
           status: verdictTier === "failed" ? "failed" : "succeeded",
           verdict: verdictTier as any,
           inputTokens: totalIn,
@@ -496,6 +497,7 @@ export const runDesignGenPipeline = internalAction({
         internal.domains.pipelines.pipelineRunsMutations.transitionRunStatus,
         {
           pipelineRunId,
+          ...executionFence,
           status: "failed",
           verdict: "failed",
           errorMessage: message,

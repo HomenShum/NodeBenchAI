@@ -2720,9 +2720,8 @@ html.dark[data-preset="dark-botanical"] .focus-ring:focus-visible {
   display: grid;
   grid-template-areas:
     "status  status  status"
-    "left    center  right"
-    "trace   trace   trace";
-  grid-template-rows: auto 1fr auto;
+    "left    center  right";
+  grid-template-rows: auto 1fr;
   /* Mobile: no rails, center gets all space */
   grid-template-columns: 0px 1fr 0px;
 }

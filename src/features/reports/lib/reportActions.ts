@@ -1,5 +1,4 @@
 export type ReportActionId =
-  | "open_brief"
   | "open_sources"
   | "open_notebook"
   | "resume_chat"
@@ -27,9 +26,9 @@ export type ReportActionCard = {
 
 export const REPORT_CONTEXTUAL_ACTIONS: ReportActionItem[] = [
   {
-    id: "open_brief",
-    label: "Brief",
-    ariaLabel: "Open report brief",
+    id: "resume_chat",
+    label: "Chat",
+    ariaLabel: "Resume report chat",
     target: "button",
   },
   {
@@ -45,14 +44,8 @@ export const REPORT_CONTEXTUAL_ACTIONS: ReportActionItem[] = [
     target: "button",
   },
   {
-    id: "resume_chat",
-    label: "Chat",
-    ariaLabel: "Resume report chat",
-    target: "button",
-  },
-  {
     id: "export_crm_csv",
-    label: "Export",
+    label: "CRM CSV",
     ariaLabel: "Export report to CRM CSV",
     target: "download",
   },
@@ -75,8 +68,9 @@ export function createReportCrmCsv(report: ReportActionCard) {
     "nodebench_report_id",
     "watched",
   ];
+  const recordType = report.kind.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "report";
   const values = [
-    "company",
+    recordType,
     report.title,
     report.kind,
     report.state,

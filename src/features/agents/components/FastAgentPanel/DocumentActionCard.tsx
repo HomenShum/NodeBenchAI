@@ -153,28 +153,86 @@ export function DocumentActionGrid({ documents, title = "Documents", className, 
   );
 }
 
-/**
- * Extract document actions from tool result text
- */
-export function extractDocumentActions(text: string): DocumentAction[] {
-  const documents: DocumentAction[] = [];
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
 
-  // Match all DOCUMENT_ACTION_DATA markers
-  const regex = /<!-- DOCUMENT_ACTION_DATA\n([\s\S]*?)\n-->/g;
-  let match;
+function parseDocumentAction(value: unknown): DocumentAction | null {
+  const record = asRecord(value);
+  if (!record) return null;
 
-  while ((match = regex.exec(text)) !== null) {
-    try {
-      const data = JSON.parse(match[1]);
-      if (data.documentId && data.title) {
-        documents.push(data);
-      }
-    } catch (error) {
-      console.error('[extractDocumentActions] Failed to parse document action data:', error);
-    }
+  const action = record.action;
+  const documentId = typeof record.documentId === 'string'
+    ? record.documentId.trim()
+    : '';
+  const title = typeof record.title === 'string' ? record.title.trim() : '';
+  if ((action !== 'created' && action !== 'updated') || !documentId || !title) {
+    return null;
   }
 
-  return documents;
+  const updatedFields = Array.isArray(record.updatedFields)
+    ? record.updatedFields.flatMap((field): string[] => {
+        const normalized = typeof field === 'string' ? field.trim() : '';
+        return normalized ? [normalized] : [];
+      })
+    : undefined;
+
+  return {
+    action,
+    documentId,
+    title,
+    isPublic: typeof record.isPublic === 'boolean' ? record.isPublic : undefined,
+    updatedFields,
+  };
+}
+
+/**
+ * Decode the document-action contract returned by a completed tool.
+ *
+ * Callers must enforce the tool's `output-available` state. This parser accepts
+ * the current structured object contract and the legacy marker envelope emitted
+ * by document tools; it must never be run against assistant-authored prose.
+ */
+export function extractDocumentActionsFromToolOutput(output: unknown): DocumentAction[] {
+  const decoded: unknown[] = [];
+
+  if (typeof output === 'string') {
+    const trimmed = output.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        decoded.push(JSON.parse(trimmed));
+      } catch {
+        return [];
+      }
+    } else {
+      const regex = /<!-- DOCUMENT_ACTION_DATA\r?\n([\s\S]*?)\r?\n-->/g;
+      let match: RegExpExecArray | null;
+      while ((match = regex.exec(output)) !== null) {
+        try {
+          decoded.push(JSON.parse(match[1]));
+        } catch {
+          // A malformed envelope is not actionable runtime evidence.
+        }
+      }
+    }
+  } else {
+    decoded.push(output);
+  }
+
+  return decoded.flatMap((value): DocumentAction[] => {
+    const record = asRecord(value);
+    if (!record) return [];
+    const payload = record.kind === 'document_action'
+      ? (record.data ?? record.document)
+      : record;
+    const candidates = Array.isArray(payload) ? payload : [payload];
+    return candidates.flatMap((candidate): DocumentAction[] => {
+      const action = parseDocumentAction(candidate);
+      return action ? [action] : [];
+    });
+  });
 }
 
 /**

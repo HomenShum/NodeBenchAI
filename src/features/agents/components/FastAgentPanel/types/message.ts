@@ -55,7 +55,6 @@ export interface Message {
 
   // Metadata
   model?: string;
-  fastMode?: boolean;
   tokensUsed?: {
     input: number;
     output: number;
@@ -74,7 +73,6 @@ export interface MessageCreateInput {
   status?: MessageStatus;
   runId?: Id<"agentRuns">;
   model?: string;
-  fastMode?: boolean;
 }
 
 export interface MessageUpdateInput {

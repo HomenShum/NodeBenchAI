@@ -8,7 +8,7 @@
  */
 
 import { v } from "convex/values";
-import { mutation, query, action, internalMutation } from "../../_generated/server";
+import { mutation, query, internalAction, internalMutation } from "../../_generated/server";
 import { internal, api } from "../../_generated/api";
 import { Doc, Id } from "../../_generated/dataModel";
 import {
@@ -366,18 +366,19 @@ export const updateCurationStatus = mutation({
 /**
  * Run full DD evaluation against ground truth
  */
-export const evaluateDDJob = action({
+export const evaluateDDJobInternal = internalAction({
   args: {
     jobId: v.string(),
+    userId: v.id("users"),
     groundTruthId: v.optional(v.id("ddGroundTruth")),
   },
-  handler: async (ctx, { jobId, groundTruthId }): Promise<DDEvaluationResult> => {
+  handler: async (ctx, { jobId, userId, groundTruthId }): Promise<DDEvaluationResult> => {
     const startTime = Date.now();
 
     // Get the DD job and memo
     const jobResult = await ctx.runQuery(
-      api.domains.agents.dueDiligence.ddOrchestrator.getDDJob,
-      { jobId }
+      internal.domains.agents.dueDiligence.ddMutations.getDDJobDetailInternal,
+      { jobId, userId }
     );
 
     if (!jobResult?.job || !jobResult?.memo) {

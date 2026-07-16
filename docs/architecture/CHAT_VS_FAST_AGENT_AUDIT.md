@@ -1,5 +1,10 @@
 # Chat surface vs. FastAgentPanel — UX audit
 
+> Historical snapshot (2026-04-20). The July 2026 runtime-grounding sweep
+> removed the unreferenced MessageStream, StreamingMessage, UIMessageStream,
+> DecisionTreeKanban, and ParallelTaskTimeline paths. Do not use the component
+> inventory below as a current implementation plan.
+
 **Date**: 2026-04-20 · **Scope**: `/?surface=chat` (ChatHome) vs. the floating/docked `FastAgentPanel` · **Bias**: this doc is code-grounded; every claim cites a file path.
 
 ## TL;DR

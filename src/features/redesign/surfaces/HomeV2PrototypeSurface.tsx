@@ -15,6 +15,7 @@ interface HomeV2SurfaceProps {
   onAsk?: (prompt: string, context?: HomeAskContext) => void;
   onOpenReports?: (reportId?: string) => void;
   liveArtifacts?: LiveArtifactsResult;
+  focusComposer?: boolean;
 }
 
 interface PrototypeSelectionProps extends HomeV2SurfaceProps {
@@ -2335,12 +2336,14 @@ function HomeV3FrontPage({
   onAsk,
   onOpenReports,
   isLoading = false,
+  focusComposer = false,
 }: {
   model: HomeV2Model;
   haloReports: HomeHaloReport[];
   onAsk?: (prompt: string, context?: HomeAskContext) => void;
   onOpenReports?: (reportId?: string) => void;
   isLoading?: boolean;
+  focusComposer?: boolean;
 }) {
   const [activeReportId, setActiveReportId] = useState<string | null>(haloReports[0]?.id ?? null);
   const activeReport = haloReports.find((report) => report.id === activeReportId) ?? haloReports[0];
@@ -2369,6 +2372,8 @@ function HomeV3FrontPage({
         </div>
         <UniversalComposer
           contextLabel={contextLabel}
+          textareaId="redesign-home-composer"
+          autoFocus={focusComposer}
           placeholder="Ask about a company, person, event, market, report, or source packet..."
           showRuntimeRibbon
           onSubmit={submit}
@@ -2501,7 +2506,7 @@ function LivePulseLanding({
   );
 }
 
-export function HomeV2Surface({ onAsk, onOpenReports, liveArtifacts }: HomeV2SurfaceProps) {
+export function HomeV2Surface({ onAsk, onOpenReports, liveArtifacts, focusComposer = false }: HomeV2SurfaceProps) {
   const model = buildHomeV2Model(liveArtifacts);
   const isLiveHome = Boolean(liveArtifacts);
   const haloReports = buildHomeHaloReports(liveArtifacts);
@@ -2513,6 +2518,7 @@ export function HomeV2Surface({ onAsk, onOpenReports, liveArtifacts }: HomeV2Sur
         onAsk={onAsk}
         onOpenReports={onOpenReports}
         isLoading={liveArtifacts?.isLoading ?? false}
+        focusComposer={focusComposer}
       />
       {isLiveHome ? (
         <LivePulseLanding model={model} onAsk={onAsk} onOpenReports={onOpenReports} />

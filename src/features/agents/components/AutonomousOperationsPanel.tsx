@@ -1,12 +1,12 @@
 /**
  * AutonomousOperationsPanel.tsx
  *
- * Displays the status of autonomous cron jobs in the research system.
- * Shows health status, last run time, and key metrics for each job.
+ * Displays operator-only runtime health for autonomous systems.
+ * Shows measured health, freshness, and the maintenance control.
  */
 
 import React, { memo, useState } from "react";
-import { useAction, useQuery } from "convex/react";
+import { useAction, useConvexAuth, useQuery } from "convex/react";
 import {
   Activity,
   Clock,
@@ -18,10 +18,6 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  Shield,
-  Wrench,
-  Siren,
-  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "../../../../convex/_generated/api";
@@ -33,15 +29,15 @@ import { api } from "../../../../convex/_generated/api";
 interface CronStatus {
   component: string;
   displayName: string;
-  interval: string;
-  status: "healthy" | "degraded" | "down" | "unknown";
+  measurementIntervalMinutes: number;
+  status: "healthy" | "degraded" | "unhealthy" | "unknown";
   lastRun: number | null;
   latencyP50: number | null;
   latencyP99: number | null;
   errorRate: number | null;
   queueDepth: number | null;
   isHealthy: boolean;
-  isDelayed: boolean;
+  isStale: boolean;
 }
 
 interface ControlTowerSnapshot {
@@ -52,6 +48,7 @@ interface ControlTowerSnapshot {
     activeAlertCount: number;
     unhealthyComponents: string[];
     degradedComponents: string[];
+    staleComponents: string[];
   };
   healing: {
     attempted24h: number;
@@ -95,30 +92,106 @@ interface ControlTowerSnapshot {
   }>;
 }
 
+export function getOperationsSummary(
+  cronStatuses: CronStatus[] | undefined,
+  controlTower: ControlTowerSnapshot | undefined,
+): { label: string; className: string } {
+  if (cronStatuses === undefined || controlTower === undefined) {
+    return {
+      label: "Loading status",
+      className: "text-content-muted border-edge bg-surface-secondary/50",
+    };
+  }
+
+  const hasUnhealthyJob = cronStatuses.some(
+    (job) => job.status === "unhealthy",
+  );
+  const hasCriticalAttention = controlTower.attentionItems.some(
+    (item) => item.severity === "critical",
+  );
+  const hasDegradedJob = cronStatuses.some(
+    (job) => job.status === "degraded" || job.isStale,
+  );
+  const hasUnknownJob =
+    cronStatuses.length === 0 ||
+    cronStatuses.some(
+      (job) => job.status === "unknown" || job.lastRun === null,
+    );
+
+  if (controlTower.health.overall === "unhealthy" || hasUnhealthyJob) {
+    return {
+      label: "Unhealthy",
+      className: "text-red-700 border-red-500/20 bg-red-500/10 dark:text-red-300",
+    };
+  }
+
+  if (hasCriticalAttention) {
+    return {
+      label: "Needs review",
+      className: "text-red-700 border-red-500/20 bg-red-500/10 dark:text-red-300",
+    };
+  }
+
+  if (controlTower.health.overall === "degraded" || hasDegradedJob) {
+    return {
+      label: "Degraded",
+      className: "text-amber-700 border-amber-500/20 bg-amber-500/10 dark:text-amber-300",
+    };
+  }
+
+  if (controlTower.attentionItems.length > 0) {
+    return {
+      label: "Attention needed",
+      className: "text-amber-700 border-amber-500/20 bg-amber-500/10 dark:text-amber-300",
+    };
+  }
+
+  if (controlTower.health.overall === "unknown" || hasUnknownJob) {
+    return {
+      label: cronStatuses.some((job) => job.lastRun !== null)
+        ? "Status unknown"
+        : "Not measured",
+      className: "text-content-muted border-edge bg-surface-secondary/50",
+    };
+  }
+
+  if (controlTower.health.overall === "healthy") {
+    return {
+      label: "Healthy",
+      className: "text-green-700 border-green-500/20 bg-green-500/10 dark:text-green-300",
+    };
+  }
+
+  return {
+    label: "Status unknown",
+    className: "text-content-muted border-edge bg-surface-secondary/50",
+  };
+}
+
 // ============================================================================
 // Status Indicator
 // ============================================================================
 
 const StatusIcon = memo(function StatusIcon({
   status,
-  isDelayed,
+  isStale,
 }: {
   status: CronStatus["status"];
-  isDelayed: boolean;
+  isStale: boolean;
 }) {
-  if (isDelayed) {
-    return <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />;
+  if (isStale) {
+    return <AlertTriangle className="w-3.5 h-3.5 text-amber-500" aria-hidden="true" />;
   }
 
   switch (status) {
     case "healthy":
-      return <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />;
+      return <CheckCircle2 className="w-3.5 h-3.5 text-green-500" aria-hidden="true" />;
     case "degraded":
-      return <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />;
-    case "down":
-      return <XCircle className="w-3.5 h-3.5 text-red-500" />;
+      return <AlertTriangle className="w-3.5 h-3.5 text-amber-500" aria-hidden="true" />;
+    case "unhealthy":
+      return <XCircle className="w-3.5 h-3.5 text-red-500" aria-hidden="true" />;
     default:
-      return <CircleDot className="w-3.5 h-3.5 text-content-muted" />;
+      return <CircleDot className="w-3.5 h-3.5 text-content-muted" aria-hidden="true" />;
   }
 });
 
@@ -128,7 +201,7 @@ const StatusIcon = memo(function StatusIcon({
 
 const CronJobCard = memo(function CronJobCard({ job }: { job: CronStatus }) {
   const formatTimeAgo = (timestamp: number | null): string => {
-    if (!timestamp) return "Never";
+    if (!timestamp) return "No recorded run";
     const diff = Date.now() - timestamp;
     const seconds = Math.floor(diff / 1000);
     const minutes = Math.floor(diff / 60000);
@@ -140,15 +213,24 @@ const CronJobCard = memo(function CronJobCard({ job }: { job: CronStatus }) {
     return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const statusColor = job.isDelayed
+  const statusColor = job.isStale
     ? "border-amber-500/30 bg-amber-500/5"
     : job.status === "healthy"
       ? "border-green-500/30 bg-green-500/5"
       : job.status === "degraded"
         ? "border-amber-500/30 bg-amber-500/5"
-        : job.status === "down"
+        : job.status === "unhealthy"
           ? "border-red-500/30 bg-red-500/5"
           : "border-edge";
+  const statusLabel = job.isStale
+    ? "Stale"
+    : job.status === "healthy"
+      ? "Healthy"
+      : job.status === "degraded"
+        ? "Degraded"
+        : job.status === "unhealthy"
+          ? "Unhealthy"
+          : "Unknown";
 
   return (
     <div
@@ -160,15 +242,18 @@ const CronJobCard = memo(function CronJobCard({ job }: { job: CronStatus }) {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <StatusIcon status={job.status} isDelayed={job.isDelayed} />
+            <StatusIcon status={job.status} isStale={job.isStale} />
             <span className="text-sm font-medium text-content truncate">
               {job.displayName}
+            </span>
+            <span className="text-[11px] font-medium text-content-muted">
+              {statusLabel}
             </span>
           </div>
           <div className="flex items-center gap-3 mt-1.5 text-xs text-content-muted">
             <span className="flex items-center gap-1">
               <RefreshCw className="w-3 h-3" />
-              {job.interval}
+              Measured every {job.measurementIntervalMinutes} min
             </span>
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
@@ -203,33 +288,50 @@ const CronJobCard = memo(function CronJobCard({ job }: { job: CronStatus }) {
 // ============================================================================
 
 export const AutonomousOperationsPanel = memo(function AutonomousOperationsPanel() {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [runOutcome, setRunOutcome] = useState<"passed" | "needs-review" | "failed" | null>(null);
+  const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+
+  const adminAccess = useQuery(
+    api.domains.proactive.adminQueries.checkAdminAccess,
+    isAuthenticated ? {} : "skip",
+  ) as
+    | {
+        hasAccess: boolean;
+        role?: "owner" | "admin" | "viewer";
+      }
+    | undefined;
+  const canReadOperations = adminAccess?.hasAccess === true;
+  const canRunMaintenance =
+    canReadOperations &&
+    (adminAccess?.role === "owner" || adminAccess?.role === "admin");
 
   const cronStatuses = useQuery(
-    api.domains.agents.agentHubQueries.getAutonomousCronStatus
+    api.domains.agents.agentHubQueries.getAutonomousCronStatus,
+    canReadOperations ? {} : "skip",
   ) as CronStatus[] | undefined;
   const controlTower = useQuery(
     api.domains.operations.autonomousControlTower.getAutonomousControlTowerSnapshot,
+    canReadOperations ? {} : "skip",
   ) as ControlTowerSnapshot | undefined;
   const runAutonomousMaintenanceNow = useAction(
     api.domains.operations.autonomousControlTower.runAutonomousMaintenanceNow,
   );
 
-  const healthyCount = cronStatuses?.filter((c) => c.isHealthy).length ?? 0;
-  const totalCount = cronStatuses?.length ?? 0;
-  const snapshotLoading = controlTower === undefined;
-  const healthTone =
-    controlTower?.health.overall === "unhealthy"
-      ? "text-red-600 border-red-500/20 bg-red-500/10"
-      : controlTower?.health.overall === "degraded"
-        ? "text-amber-600 border-amber-500/20 bg-amber-500/10"
-        : controlTower?.health.overall === "healthy"
-          ? "text-green-600 border-green-500/20 bg-green-500/10"
-          : "text-content-muted border-edge bg-surface-secondary/50";
+  const summary = getOperationsSummary(cronStatuses, controlTower);
+
+  if (
+    isAuthLoading ||
+    !isAuthenticated ||
+    adminAccess === undefined ||
+    !canReadOperations
+  ) {
+    return null;
+  }
 
   const formatTimeAgo = (timestamp: number | null): string => {
-    if (!timestamp) return "Never";
+    if (!timestamp) return "No recorded run";
     const diff = Date.now() - timestamp;
     const seconds = Math.floor(diff / 1000);
     const minutes = Math.floor(diff / 60000);
@@ -259,17 +361,11 @@ export const AutonomousOperationsPanel = memo(function AutonomousOperationsPanel
             </h3>
             <span
               className={cn(
-                "px-1.5 py-0.5 rounded-full text-xs font-medium border",
-                healthyCount === totalCount && totalCount > 0
-                  ? "bg-green-500/10 text-green-600 border-green-500/20"
-                  : healthyCount === 0
-                    ? "bg-surface-secondary/50 text-content-muted border-edge"
-                    : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                "rounded-full border px-1.5 py-0.5 text-xs font-medium",
+                summary.className,
               )}
             >
-              {healthyCount === 0 && totalCount > 0
-                ? `${totalCount} scheduled`
-                : `${healthyCount}/${totalCount} healthy`}
+              {summary.label}
             </span>
           </div>
           {isExpanded ? (
@@ -279,96 +375,89 @@ export const AutonomousOperationsPanel = memo(function AutonomousOperationsPanel
           )}
         </button>
 
-        <button
-          type="button"
-          disabled={isRunning}
-          onClick={async () => {
-            try {
-              setIsRunning(true);
-              await runAutonomousMaintenanceNow({ includeLlmExplanation: false });
-            } finally {
-              setIsRunning(false);
-            }
-          }}
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-edge px-2 py-1 text-xs text-content-secondary transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isRunning ? <Loader2 className="w-3 h-3 motion-safe:animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-          {isRunning ? "Running..." : "Run Now"}
-        </button>
       </div>
 
       {/* Content */}
       {isExpanded && (
         <div id="autonomous-operations-panel" className="px-4 pb-4 border-t border-edge pt-4">
-          {cronStatuses === undefined ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-5 h-5 motion-safe:animate-spin text-content-muted" />
-            </div>
-          ) : cronStatuses.length === 0 ? (
-            <div className="text-center py-6 text-sm text-content-muted">
-              No autonomous operations configured
+          {cronStatuses === undefined || controlTower === undefined ? (
+            <div
+              className="flex items-center justify-center gap-2 py-8 text-sm text-content-muted"
+              role="status"
+            >
+              <Loader2 className="h-5 w-5 motion-safe:animate-spin" aria-hidden="true" />
+              Loading system status...
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                <div className={cn("rounded-lg border p-3", healthTone)}>
-                  <div className="flex items-center gap-2 text-xs font-medium">
-                    <Shield className="w-3.5 h-3.5" />
-                    System Health
-                  </div>
-                  <div className="mt-2 text-lg font-semibold capitalize">
-                    {snapshotLoading ? "Loading" : controlTower?.health.overall ?? "unknown"}
-                  </div>
-                  <div className="mt-1 text-xs text-content-secondary">
-                    Last check {formatTimeAgo(controlTower?.health.latestCheckAt ?? null)}
-                  </div>
+              <div className="flex flex-col justify-between gap-3 rounded-lg border border-edge bg-surface-secondary/50 p-3 sm:flex-row sm:items-start">
+                <div className="space-y-1 text-xs text-content-secondary">
+                  <p>
+                    Health check: {formatTimeAgo(controlTower.health.latestCheckAt)}.
+                  </p>
+                  <p>
+                    {controlTower.maintenance.lastRunAt === null
+                      ? "Maintenance has no recorded run."
+                      : `Maintenance ${controlTower.maintenance.passed ? "passed" : "needs review"} ${formatTimeAgo(controlTower.maintenance.lastRunAt)}.`}
+                  </p>
+                  <p>
+                    {controlTower.healing.attempted24h > 0
+                      ? `Self-healing: ${controlTower.healing.succeeded24h}/${controlTower.healing.attempted24h} successful in 24h.`
+                      : "Self-healing: no attempts in 24h."}
+                  </p>
                 </div>
 
-                <div className="rounded-lg border border-edge p-3 bg-surface-secondary/50">
-                  <div className="flex items-center gap-2 text-xs font-medium text-content-muted">
-                    <Siren className="w-3.5 h-3.5" />
-                    Active Alerts
-                  </div>
-                  <div className="mt-2 text-lg font-semibold text-content">
-                    {controlTower?.health.activeAlertCount ?? 0}
-                  </div>
-                  <div className="mt-1 text-xs text-content-secondary">
-                    {controlTower?.health.unhealthyComponents.length
-                      ? `Unhealthy: ${controlTower.health.unhealthyComponents.join(", ")}`
-                      : controlTower?.health.degradedComponents.length
-                        ? `Degraded: ${controlTower.health.degradedComponents.join(", ")}`
-                        : "No current component alerts"}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-edge p-3 bg-surface-secondary/50">
-                  <div className="flex items-center gap-2 text-xs font-medium text-content-muted">
-                    <Wrench className="w-3.5 h-3.5" />
-                    Self-Healing
-                  </div>
-                  <div className="mt-2 text-lg font-semibold text-content">
-                    {controlTower?.healing.successRate24h?.toFixed?.(1) ?? "0.0"}%
-                  </div>
-                  <div className="mt-1 text-xs text-content-secondary">
-                    {controlTower?.healing.succeeded24h ?? 0}/{controlTower?.healing.attempted24h ?? 0} successful in 24h
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-edge p-3 bg-surface-secondary/50">
-                  <div className="flex items-center gap-2 text-xs font-medium text-content-muted">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Maintenance
-                  </div>
-                  <div className="mt-2 text-lg font-semibold text-content">
-                    {controlTower?.maintenance.passed ? "Pass" : "Review"}
-                  </div>
-                  <div className="mt-1 text-xs text-content-secondary">
-                    Last run {formatTimeAgo(controlTower?.maintenance.lastRunAt ?? null)}
-                  </div>
-                </div>
+                {canRunMaintenance ? (
+                  <button
+                    type="button"
+                    disabled={isRunning}
+                    onClick={async () => {
+                      try {
+                        setIsRunning(true);
+                        setRunOutcome(null);
+                        const result = await runAutonomousMaintenanceNow({
+                          includeLlmExplanation: false,
+                        }) as {
+                          maintenance?: { passed?: boolean };
+                        };
+                        setRunOutcome(
+                          result?.maintenance?.passed === true
+                            ? "passed"
+                            : "needs-review",
+                        );
+                      } catch {
+                        setRunOutcome("failed");
+                      } finally {
+                        setIsRunning(false);
+                      }
+                    }}
+                    className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-edge px-2.5 py-1.5 text-xs text-content-secondary transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isRunning ? (
+                      <Loader2 className="h-3 w-3 motion-safe:animate-spin" aria-hidden="true" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                    )}
+                    {isRunning ? "Running maintenance..." : "Run maintenance"}
+                  </button>
+                ) : null}
               </div>
 
-              {!!controlTower?.attentionItems?.length && (
+              {runOutcome === "passed" ? (
+                <p className="text-xs text-green-700 dark:text-green-300" role="status">
+                  Maintenance completed and all maintenance gates passed.
+                </p>
+              ) : runOutcome === "needs-review" ? (
+                <p className="text-xs text-amber-700 dark:text-amber-300" role="alert">
+                  Maintenance ran, but one or more gates need review. Live status will refresh from the backend.
+                </p>
+              ) : runOutcome === "failed" ? (
+                <p className="text-xs text-red-700 dark:text-red-300" role="alert">
+                  Maintenance could not run. Try again or inspect the operation trace.
+                </p>
+              ) : null}
+
+              {controlTower.attentionItems.length > 0 ? (
                 <div className="rounded-lg border border-edge bg-surface-secondary/50 p-3">
                   <div className="text-sm font-semibold text-content mb-3">Attention Queue</div>
                   <div className="space-y-2">
@@ -394,90 +483,25 @@ export const AutonomousOperationsPanel = memo(function AutonomousOperationsPanel
                     ))}
                   </div>
                 </div>
+              ) : (
+                <p className="rounded-lg border border-edge px-3 py-2 text-sm text-content-muted">
+                  No current attention items.
+                </p>
               )}
 
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-                <div className="rounded-lg border border-edge bg-surface-secondary/50 p-3">
-                  <div className="text-sm font-semibold text-content">Intent Loop</div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-md border border-edge bg-surface px-3 py-2">
-                      <div className="text-content-muted">Total hotspots</div>
-                      <div className="mt-1 text-base font-semibold text-content">{controlTower?.loops.intentHotspots.total ?? 0}</div>
-                    </div>
-                    <div className="rounded-md border border-edge bg-surface px-3 py-2">
-                      <div className="text-content-muted">Inbox</div>
-                      <div className="mt-1 text-base font-semibold text-content">{controlTower?.loops.intentHotspots.byColumn.inbox ?? 0}</div>
-                    </div>
-                    <div className="rounded-md border border-edge bg-surface px-3 py-2">
-                      <div className="text-content-muted">Human review</div>
-                      <div className="mt-1 text-base font-semibold text-content">{controlTower?.loops.intentHotspots.byColumn.human_review ?? 0}</div>
-                    </div>
-                    <div className="rounded-md border border-edge bg-surface px-3 py-2">
-                      <div className="text-content-muted">Done</div>
-                      <div className="mt-1 text-base font-semibold text-content">{controlTower?.loops.intentHotspots.byColumn.done ?? 0}</div>
-                    </div>
+              <div>
+                <h4 className="mb-3 text-sm font-semibold text-content">System health</h4>
+                {cronStatuses.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {cronStatuses.map((job) => (
+                      <CronJobCard key={job.component} job={job} />
+                    ))}
                   </div>
-                </div>
-
-                <div className="rounded-lg border border-edge bg-surface-secondary/50 p-3">
-                  <div className="text-sm font-semibold text-content">Bug Loop</div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-md border border-edge bg-surface px-3 py-2">
-                      <div className="text-content-muted">Total cards</div>
-                      <div className="mt-1 text-base font-semibold text-content">{controlTower?.loops.bugCards.total ?? 0}</div>
-                    </div>
-                    <div className="rounded-md border border-edge bg-surface px-3 py-2">
-                      <div className="text-content-muted">Inbox</div>
-                      <div className="mt-1 text-base font-semibold text-content">{controlTower?.loops.bugCards.byColumn.inbox ?? 0}</div>
-                    </div>
-                    <div className="rounded-md border border-edge bg-surface px-3 py-2">
-                      <div className="text-content-muted">Human approve</div>
-                      <div className="mt-1 text-base font-semibold text-content">{controlTower?.loops.bugCards.byColumn.human_approve ?? 0}</div>
-                    </div>
-                    <div className="rounded-md border border-edge bg-surface px-3 py-2">
-                      <div className="text-content-muted">Done</div>
-                      <div className="mt-1 text-base font-semibold text-content">{controlTower?.loops.bugCards.byColumn.done ?? 0}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-edge bg-surface-secondary/50 p-3">
-                  <div className="text-sm font-semibold text-content">Latest Maintenance</div>
-                  <div className="mt-3 space-y-2 text-xs text-content-secondary">
-                    <div>
-                      Ran {formatTimeAgo(controlTower?.maintenance.lastRunAt ?? null)}
-                    </div>
-                    <div>
-                      Errors {controlTower?.maintenance.errorCount ?? 0}, warnings {controlTower?.maintenance.warningCount ?? 0}
-                    </div>
-                    {controlTower?.maintenance.hotspotSync ? (
-                      <div>
-                        Hotspot sync created {controlTower.maintenance.hotspotSync.created ?? 0}, updated {controlTower.maintenance.hotspotSync.updated ?? 0}
-                      </div>
-                    ) : null}
-                    {controlTower?.maintenance.autoInvestigate ? (
-                      <div>
-                        Auto-investigated {controlTower.maintenance.autoInvestigate.investigated ?? 0} hotspot cards
-                      </div>
-                    ) : null}
-                    {controlTower?.maintenance.errors?.[0] ? (
-                      <div className="rounded-md border border-red-500/20 bg-red-500/5 px-3 py-2 text-red-700 dark:text-red-300">
-                        {controlTower.maintenance.errors[0]}
-                      </div>
-                    ) : null}
-                    {!controlTower?.maintenance.errors?.length && controlTower?.maintenance.warnings?.[0] ? (
-                      <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-amber-700 dark:text-amber-300">
-                        {controlTower.maintenance.warnings[0]}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {cronStatuses.map((job) => (
-                  <CronJobCard key={job.component} job={job} />
-                ))}
+                ) : (
+                  <p className="rounded-lg border border-edge px-3 py-4 text-sm text-content-muted">
+                    No system-health measurements are available.
+                  </p>
+                )}
               </div>
             </div>
           )}

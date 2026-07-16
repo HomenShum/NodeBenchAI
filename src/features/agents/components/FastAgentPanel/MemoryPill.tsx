@@ -2,7 +2,7 @@
 // Inline memory update pill for chat stream
 
 import React, { useState } from 'react';
-import { Zap, AlertCircle, CheckCircle2, FileText, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import { Zap, AlertCircle, CheckCircle2, FileText, Settings, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type MemoryEventType =
@@ -18,8 +18,9 @@ export interface MemoryEvent {
     type: MemoryEventType;
     title: string;
     details?: string;
-    timestamp: number;
-    status?: 'success' | 'failure' | 'info';
+    /** Runtime-supplied event time. Omitted when the tool provided no timestamp. */
+    timestamp?: number;
+    status?: 'running' | 'success' | 'failure' | 'info';
 }
 
 interface MemoryPillProps {
@@ -37,6 +38,12 @@ export function MemoryPill({ event, className }: MemoryPillProps) {
     const [isExpanded, setIsExpanded] = useState(false);
 
     const getIcon = () => {
+        if (event.status === 'running') {
+            return <Loader2 className="w-3 h-3 motion-safe:animate-spin" />;
+        }
+        if (event.status === 'failure') {
+            return <AlertCircle className="w-3 h-3 text-red-500" />;
+        }
         switch (event.type) {
             case 'plan_update':
                 return <Zap className="w-3 h-3" />;
@@ -59,6 +66,8 @@ export function MemoryPill({ event, className }: MemoryPillProps) {
 
     const getStatusColor = () => {
         switch (event.status) {
+            case 'running':
+                return 'text-violet-600 dark:text-violet-400';
             case 'success':
                 return 'text-green-600 dark:text-green-400';
             case 'failure':
@@ -108,9 +117,11 @@ export function MemoryPill({ event, className }: MemoryPillProps) {
                 )}>
                     <div className="flex items-center justify-between gap-2 mb-1">
                         <span className="font-medium text-content">{event.title}</span>
-                        <span className="text-xs text-content-muted">
-                            {formatTime(event.timestamp)}
-                        </span>
+                        {typeof event.timestamp === 'number' && Number.isFinite(event.timestamp) && (
+                            <span className="text-xs text-content-muted">
+                                {formatTime(event.timestamp)}
+                            </span>
+                        )}
                     </div>
                     <p className="whitespace-pre-wrap">{event.details}</p>
                 </div>

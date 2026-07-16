@@ -1,5 +1,6 @@
 const PRODUCT_ANON_SESSION_KEY = "nodebench:product-anon-session";
 const PRODUCT_ANON_COOKIE_KEY = "nodebench_product_anon_session";
+let inMemoryAnonymousSessionId: string | null = null;
 
 function canUseStorage() {
   return typeof window !== "undefined" && !!window.localStorage && !!window.sessionStorage;
@@ -53,7 +54,8 @@ export function getAnonymousProductSessionId() {
     persistAnonymousSessionId(next);
     return next;
   } catch {
-    return "anon-fallback";
+    inMemoryAnonymousSessionId ??= createAnonymousSessionId();
+    return inMemoryAnonymousSessionId;
   }
 }
 

@@ -1,36 +1,9 @@
 /**
- * One-flow regression test — the canonical user journey.
- *
- * Per the stabilization-sprint spec: "Can a user leave, come back,
- * resume the same entity, see prior chats, edit the notebook, trust
- * the sources, explore relationships, and export?"
- *
- * Flow under test:
- *   1. Anonymous visitor lands on canonical Home (?surface=home -> /redesign)
- *   2. Switches to Chat (?surface=chat) — sees seeded thread
- *   3. Source chips render with cached/live badges
- *   4. Switches to Reports (?surface=reports) — sees seeded report grid
- *   5. Opens a report (?surface=reports&report=X) — ExactReportDetailSurface inline
- *   6. Switches to Inbox (?surface=inbox) — sees Today's pulse + seeded items
- *   7. Switches to Me (?surface=me) — Watching count + sessions visible
- *   8. Avatar HS button opens status panel — Watching · 12 entities + 3 pulse tiles
- *   9. Theme toggle works (Light/Dark)
- *  10. No console errors anywhere in the flow
- *
- * This is the "cosmetic completion" gate: passes 10/10 means the
- * 5-surface cockpit + the chat parity work + A9 fallback fixes are
- * all live.
- *
- * Run as `npm run live-smoke` or via the Tier B preview workflow on
- * every PR. BASE_URL controls target (preview URL in CI, prod for
- * post-deploy verification).
+ * One-flow regression: an anonymous visitor can traverse the five canonical
+ * surfaces and sees only runtime-backed loading, empty, or live states.
  */
 
-import { test, expect, type Page } from "@playwright/test";
-import {
-  expectAvatarPulseContract,
-  readAvatarPulseMetrics,
-} from "./helpers/avatarPulse";
+import { expect, test, type Page } from "@playwright/test";
 import { installVercelPreviewBypass } from "./helpers/vercelPreview";
 
 const BASE_URL = process.env.BASE_URL ?? "http://127.0.0.1:4173";
@@ -39,7 +12,6 @@ test.beforeEach(async ({ page }) => {
   await installVercelPreviewBypass(page, BASE_URL);
 });
 
-// Public surface URLs plus the exact-cockpit compatibility route used by A9.
 const SURFACES = {
   home: "/?surface=home",
   chat: "/?surface=chat",
@@ -49,242 +21,102 @@ const SURFACES = {
   exactHome: "/?surface=ask",
 } as const;
 
-async function goSurface(
-  page: Page,
-  surface: keyof typeof SURFACES,
-): Promise<void> {
+async function goSurface(page: Page, surface: keyof typeof SURFACES) {
   await page.goto(`${BASE_URL}${SURFACES[surface]}`, {
     waitUntil: "networkidle",
     timeout: 30_000,
   });
-  await page.waitForTimeout(800); // settle for staggered animations
+  await page.waitForTimeout(800);
 }
 
-async function collectErrors(page: Page): Promise<string[]> {
+function collectErrors(page: Page) {
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-  page.on("console", (msg) => {
-    if (msg.type() === "error") {
-      // Filter out 3rd-party noise (e.g. ResizeObserver, dev-only warnings)
-      const text = msg.text();
-      if (text.includes("ResizeObserver")) return;
-      if (text.includes("React DevTools")) return;
-      errors.push(`console.error: ${text}`);
-    }
+  page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    const text = message.text();
+    if (text.includes("ResizeObserver") || text.includes("React DevTools")) return;
+    errors.push(`console.error: ${text}`);
   });
   return errors;
 }
 
 test.describe("ONE-FLOW REGRESSION", () => {
-  test("anonymous visitor: full surface tour with no console errors + seed fallback intact", async ({
-    page,
-  }) => {
-    const errors = await collectErrors(page);
+  test("anonymous visitor completes a fixture-free runtime surface tour", async ({ page }) => {
+    const errors = collectErrors(page);
 
-    // 1. Home
     await goSurface(page, "home");
+    await expect(page).toHaveURL(/\/redesign(?:[/?#]|$)/);
+    const home = page.getByTestId("home-v3-chat-first-frontpage");
+    await expect(home).toBeVisible();
     await expect(
-      page,
-      "canonical Home redirects to the current redesign",
-    ).toHaveURL(/\/redesign(?:[/?#]|$)/);
-    await expect(
-      page.getByTestId("home-v3-chat-first-frontpage"),
-      "chat-first Home front page",
-    ).toBeVisible();
-    await expect(
-      page.getByTestId("home-v3-report-halo"),
-      "report-memory halo",
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", {
-        name: "Ask once. Turn it into reusable intelligence.",
-      }),
-      "Home intent heading",
-    ).toBeVisible();
-    await expect(
-      page.getByPlaceholder(
+      home.getByPlaceholder(
         "Ask about a company, person, event, market, report, or source packet...",
       ),
-      "Home universal composer",
     ).toBeVisible();
 
-    // 2. Chat — honest live-ready state, with no fixture answer substituted
     await goSurface(page, "chat");
-    const chatReady = await page.evaluate(() => ({
-      streamMount: !!document.querySelector(
-        '[data-testid="exact-web-chat-stream"]',
-      ),
-      liveStatus: document
-        .querySelector('[data-testid="exact-web-chat-stream"]')
-        ?.getAttribute("data-chat-live-status"),
-      noFixtureText: document.body.textContent?.includes(
-        "no fixture answer loaded",
-      ),
-      contextRuntimeText:
-        document.body.textContent?.includes("Context Runtime") ||
-        document.body.textContent?.includes("ContextRuntimePacket"),
-      turns: document.querySelectorAll(".nb-turn").length,
-      agentTurns: document.querySelectorAll('.nb-turn[data-role="agent"]')
-        .length,
-      runBars: document.querySelectorAll(".nb-runbar").length,
-      followups: document.querySelectorAll(".nb-followup-chip").length,
-      goldenComposer: !!document.querySelector(
-        '[data-exact-composer="golden"][data-exact-composer-version="2026-05-02"]',
-      ),
-    }));
-    expect(chatReady.streamMount, "ChatStream mount").toBe(true);
-    expect(
-      chatReady.liveStatus,
-      "Chat exposes its live run status",
-    ).toBeTruthy();
-    expect(
-      chatReady.noFixtureText,
-      "Chat discloses the fixture-free live-ready state",
-    ).toBe(true);
-    expect(
-      chatReady.contextRuntimeText,
-      "Chat names the Context Runtime contract",
-    ).toBe(true);
-    expect(
-      chatReady.turns,
-      "Chat has at least the live-ready turn",
-    ).toBeGreaterThanOrEqual(1);
-    expect(
-      chatReady.agentTurns,
-      "Chat has a live-ready agent turn",
-    ).toBeGreaterThanOrEqual(1);
-    expect(
-      chatReady.runBars,
-      "Chat exposes agent run status",
-    ).toBeGreaterThanOrEqual(1);
-    expect(
-      chatReady.followups,
-      "Chat has actionable follow-up chips",
-    ).toBeGreaterThanOrEqual(1);
-    expect(
-      chatReady.goldenComposer,
-      "Chat keeps the shared golden composer",
-    ).toBe(true);
+    const chat = page.getByTestId("exact-web-chat-stream");
+    await expect(chat).toBeVisible();
+    await expect(chat).toHaveAttribute(
+      "data-chat-runtime-route",
+      /^(paid-redesign|session-fast-agent)$/,
+    );
+    await expect(chat.locator('[data-exact-composer="golden"]')).toHaveCount(1);
+    await expect(chat.locator(".nb-prompt-chip")).toHaveCount(3);
+    await expect(chat.locator(".nb-followup-chip")).toHaveCount(0);
+    await expect(chat).not.toContainText(/Ship Demo Day|no fixture answer loaded|ContextRuntimePacket/i);
 
-    // 3. Reports list
     await goSurface(page, "reports");
-    const reportsReady = await page.evaluate(() => ({
-      cards: document.querySelectorAll(".nb-rcard, .nb-report-card").length,
-    }));
-    expect(
-      reportsReady.cards,
-      "Reports list shows seeded cards",
-    ).toBeGreaterThanOrEqual(1);
-
-    // 4. Inbox
-    await goSurface(page, "inbox");
-    const inboxReady = await page.evaluate(() => ({
-      head: !!document.querySelector(".nb-inbox-head"),
-      heading: document.querySelector(".nb-inbox-head h1")?.textContent?.trim(),
-      filters: Array.from(
-        document.querySelectorAll(".nb-inbox-filter button"),
-      ).map((button) => (button.textContent ?? "").trim().split(/\s+/)[0]),
-      rows: document.querySelectorAll(".nb-ibx-row, .nb-panel").length,
-    }));
-    expect(inboxReady.head, "Inbox renders its current header").toBe(true);
-    expect(inboxReady.heading, "Inbox heading").toBe("Inbox");
-    expect(
-      inboxReady.filters.slice(0, 4),
-      "Inbox keeps the locked primary filters",
-    ).toEqual(["All", "Act", "Auto", "Watching"]);
-    expect(
-      inboxReady.rows,
-      "Inbox renders actionable rows",
-    ).toBeGreaterThanOrEqual(1);
-
-    // 5. Me
-    await goSurface(page, "me");
-    const meReady = await page.evaluate(() => ({
-      sidenav: !!document.querySelector(".nb-me-sidenav, .nb-me-shell"),
-    }));
-    expect(meReady.sidenav, "Me surface renders kit shell").toBeTruthy();
-
-    // 6. Avatar status panel — A9 regression coverage
-    await goSurface(page, "exactHome");
-    await page.click(".nb-avm-trigger", { timeout: 10_000 });
-    await page.waitForSelector('[data-testid="exact-avatar-menu"]', {
-      timeout: 10_000,
+    const reports = page.getByTestId("reports-performance-root");
+    await expect(reports).toBeVisible();
+    await expect
+      .poll(() => reports.getAttribute("data-reports-source"), { timeout: 15_000 })
+      .not.toBe("loading");
+    const reportStateCount = await reports.evaluate((node) => {
+      const cards = node.querySelectorAll('[data-testid="report-card"]').length;
+      return Number(Boolean(node.querySelector('[data-testid="reports-loading"]'))) +
+        Number(Boolean(node.querySelector('[data-testid="reports-empty"]'))) +
+        Number(cards > 0);
     });
-    await page.waitForTimeout(400);
-    const avatarReady = await page.evaluate(() => ({
-      pulseTiles: document.querySelectorAll(".nb-avm-pulse").length,
-      sectionLabels: Array.from(
-        document.querySelectorAll(".nb-avm-section-label"),
-      ).map((el) => el.textContent),
-      watchRows: document.querySelectorAll(".nb-avm-watch-row").length,
-      sessionRows: document.querySelectorAll(".nb-avm-session").length,
-    }));
-    expect(avatarReady.pulseTiles, "3 pulse tiles").toBe(3);
-    expectAvatarPulseContract(await readAvatarPulseMetrics(page));
-    expect(
-      avatarReady.sectionLabels,
-      "Watching reads 12 entities (A9 fix)",
-    ).toEqual(expect.arrayContaining(["Watching · 12 entities"]));
-    expect(avatarReady.watchRows, "3 watch rows").toBeGreaterThanOrEqual(3);
-    expect(
-      avatarReady.sessionRows,
-      "at least 3 recent sessions",
-    ).toBeGreaterThanOrEqual(3);
+    expect(reportStateCount, "Reports exposes one loading, empty, or live runtime state").toBe(1);
+    await expect(reports).not.toContainText(/Orbital Labs|DISCO|Mercor/i);
 
-    // 7. No console errors throughout
-    expect(errors, `console errors during flow: ${errors.join(" | ")}`).toEqual(
-      [],
-    );
-  });
+    await goSurface(page, "inbox");
+    const inbox = page.getByTestId("exact-web-inbox-surface");
+    await expect(inbox).toBeVisible();
+    await expect(inbox.locator(".nb-inbox-filter button")).toHaveCount(4);
+    const inboxStateCount = await inbox.evaluate((node) =>
+      Number(Boolean(node.querySelector('[data-testid="inbox-loading"]'))) +
+      Number((node.textContent ?? "").includes("No runtime nudges")) +
+      Number(node.querySelectorAll(".nb-ibx-row").length > 0));
+    expect(inboxStateCount, "Inbox exposes one loading, empty, or live runtime state").toBe(1);
 
-  test("source chip click opens domain in new tab (interactive behavior)", async ({
-    page,
-    context,
-  }) => {
-    await goSurface(page, "chat");
-    const chipExists = await page.evaluate(
-      () => !!document.querySelector(".nb-src-chip"),
-    );
-    test.skip(
-      !chipExists,
-      "no source chip rendered — skipping interactive test",
-    );
+    await goSurface(page, "me");
+    const me = page.getByTestId("exact-web-me-surface");
+    await expect(me).toBeVisible();
+    const meStateCount = await me.evaluate((node) =>
+      Number(Boolean(node.querySelector('[data-testid="me-memory-loading"]'))) +
+      Number(Boolean(node.querySelector('[data-testid="me-memory-empty"]'))) +
+      Number(Boolean(node.querySelector(".nb-settings-section"))));
+    expect(meStateCount, "Me exposes one loading, empty, or live memory state").toBe(1);
+    await expect(me).not.toContainText(/Pro plan|Upgrade|usage/i);
 
-    // Wait for new-tab popup when chip is clicked
-    const popupPromise = context.waitForEvent("page", { timeout: 5_000 });
-    await page.click(".nb-src-chip");
-    const popup = await popupPromise.catch(() => null);
-    if (popup) {
-      expect(popup.url(), "source chip opens external URL").toMatch(
-        /^https?:\/\//,
-      );
-      await popup.close();
-    }
-    // If browser blocked the popup, the click should still register without error.
-  });
+    await goSurface(page, "exactHome");
+    await page.locator(".nb-avm-trigger").click();
+    const menu = page.getByTestId("exact-avatar-menu");
+    await expect(menu).toBeVisible();
+    await expect(menu.locator(".nb-avm-section-label")).toContainText([
+      /Recent entities/,
+      "Recent sessions",
+      "Theme",
+    ]);
+    await expect(menu.locator(".nb-avm-theme-opt")).toHaveText(["Light", "Dark"]);
+    await expect(menu.locator(".nb-avm-link")).toHaveText(["Settings"]);
+    await expect(
+      menu.locator(".nb-avm-pro, .nb-avm-pulse, .nb-avm-usage, .nb-avm-upgrade"),
+    ).toHaveCount(0);
 
-  test("follow-up chip sends as new prompt (interactive behavior)", async ({
-    page,
-  }) => {
-    await goSurface(page, "chat");
-    const followupExists = await page.evaluate(
-      () => !!document.querySelector(".nb-followup-chip"),
-    );
-    test.skip(
-      !followupExists,
-      "no followup chip rendered — skipping interactive test",
-    );
-
-    const before = await page.evaluate(
-      () => document.querySelectorAll(".nb-turn").length,
-    );
-    await page.click(".nb-followup-chip");
-    await page.waitForTimeout(800); // wait for streaming start
-    const after = await page.evaluate(
-      () => document.querySelectorAll(".nb-turn").length,
-    );
-    expect(after, "follow-up chip appended a new user turn").toBeGreaterThan(
-      before,
-    );
+    expect(errors, `console errors during flow: ${errors.join(" | ")}`).toEqual([]);
   });
 });
