@@ -6,6 +6,17 @@ For in-app release notes, see Research Hub > Changelog.
 
 ---
 
+## Unreleased (July 15, 2026)
+
+### First-class agent workspace
+
+- Replaced the redesigned Chat route's stacked status banners with one runtime-grounded run contract: objective, read scope, review-only write boundary, verification state, and review handoff.
+- Reworked the right inspector into Run and Evidence views, removing inferred background-agent claims, fabricated trace durations, and decorative progress bars.
+- Removed toast-only Export and Track actions plus the simulated client-side batch runner; live batch telemetry remains read-only and Convex-backed.
+- Unified phone and desktop Chat on the same real run tree, preserved the five canonical destinations, and fixed initial scroll, hidden inspector-row, composer reachability, and mobile navigation overflow.
+
+---
+
 ## v0.4.1 (February 2, 2026)
 
 Document system enhancements: MCP gateway document tools, batch operations, full-text content search, Markdown export, document duplication, and version comparison.

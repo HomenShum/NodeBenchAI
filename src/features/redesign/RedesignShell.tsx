@@ -225,8 +225,10 @@ export default function RedesignShell() {
       return true;
     })();
 
-  // Mobile path overrides everything except /redesign/workspace (which keeps its own surface).
-  if (isMobile && surface !== "workspace" && !isPrototypeKit) {
+  // Chat keeps the canonical runtime-backed workspace at every breakpoint.
+  // The former MobileShell chat was a separate static tree with no submit/run
+  // contract, so it could not honestly represent or continue an agent run.
+  if (isMobile && surface !== "workspace" && surface !== "chat" && !isPrototypeKit) {
     const mobileSurface: SurfaceId = (surface === "workspace" ? "reports" : surface) as SurfaceId;
     // Edition flag bypasses MobileShell at the home surface so the
     // single-column editorial layout stays responsive at any width.

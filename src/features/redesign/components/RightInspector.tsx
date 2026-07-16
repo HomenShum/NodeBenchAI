@@ -29,6 +29,14 @@ export interface AgentRailMetric {
   tone?: "green" | "amber" | "accent";
 }
 
+export interface AgentWorkspaceContract {
+  objective: string;
+  reads: string;
+  writes: string;
+  verification: string;
+  reviewHref?: string;
+}
+
 export interface AgentRailSnapshot {
   title: string;
   subtitle?: string;
@@ -40,11 +48,12 @@ export interface AgentRailSnapshot {
   backgroundAgents: AgentRailItem[];
   sources: AgentRailItem[];
   metrics?: AgentRailMetric[];
+  contract?: AgentWorkspaceContract;
 }
 
 const chatContextTabs = [
-  { id: "session", label: "Session" },
-  { id: "trace", label: "Trace" },
+  { id: "session", label: "Run" },
+  { id: "trace", label: "Evidence" },
 ] as const;
 
 type ChatContextTab = typeof chatContextTabs[number]["id"];
@@ -121,9 +130,35 @@ export function RightInspector({ activeLiveArtifactDetail, agentSnapshot }: Righ
 }
 
 function SessionContextPanel({ snapshot }: { snapshot: AgentRailSnapshot }) {
+  const contract = snapshot.contract ?? {
+    objective: snapshot.subtitle ?? "Waiting for a request.",
+    reads: "No runtime context recorded.",
+    writes: "No automatic writes.",
+    verification: "Not started.",
+  };
   return (
     <>
-      <ChatContextSection title="Progress">
+      <div className="chat-run-contract" data-status={snapshot.status}>
+        <div className="chat-run-contract__head">
+          <div>
+            <div className="chat-ctx-label">Current run</div>
+            <strong>{snapshot.title}</strong>
+          </div>
+          <StatusPill status={snapshot.status} />
+        </div>
+        <p>{contract.objective}</p>
+        {snapshot.runId && <code>run {snapshot.runId}</code>}
+      </div>
+
+      <ChatContextSection title="Scope">
+        <dl className="chat-run-scope">
+          <div><dt>Reads</dt><dd>{contract.reads}</dd></div>
+          <div><dt>Writes</dt><dd>{contract.writes}</dd></div>
+          <div><dt>Checks</dt><dd>{contract.verification}</dd></div>
+        </dl>
+      </ChatContextSection>
+
+      <ChatContextSection title="Execution">
         {snapshot.progress.map((item) => (
           <div className="chat-ctx-task" key={item.id}>
             <span className={`chat-ctx-task-dot ${taskDotClass(item.status)}`} />
@@ -144,21 +179,12 @@ function SessionContextPanel({ snapshot }: { snapshot: AgentRailSnapshot }) {
         )}
       </ChatContextSection>
 
-      <ChatContextSection title="Agents">
-        {snapshot.backgroundAgents.map((item, index) => (
-          <div className="chat-ctx-agent" key={item.id}>
-            <span className="chat-ctx-agent-dot" style={{ background: agentDotColor(item.status, index) }} />
-            <span className="chat-ctx-agent-name">{item.label}</span>
-            <span className="chat-ctx-agent-role">{agentRoleLabel(item)}</span>
-          </div>
-        ))}
-      </ChatContextSection>
-
-      <ChatContextSection title="Sources">
-        {snapshot.sources.map((item) => (
-          <ContextSourceRow key={item.id} item={item} />
-        ))}
-      </ChatContextSection>
+      {contract.reviewHref && (
+        <div className="chat-run-handoff">
+          <a href={contract.reviewHref}>Open review workspace <span aria-hidden="true">→</span></a>
+          <small>Inspect sources and proposed changes before any shared write.</small>
+        </div>
+      )}
     </>
   );
 }
@@ -173,7 +199,7 @@ function TraceContextPanel({
   const traceItems = traceRowsForSnapshot(snapshot);
   const toolCalls = metricValue(snapshot, "tools", String(traceItems.length));
   const latency = metricValue(snapshot, "latency", traceLatencyFallback(snapshot));
-  const contextSize = metricValue(snapshot, "tokens", graphPacket ? graphPacket.packedNodes.toLocaleString() : "0");
+  const contextSize = metricValue(snapshot, "context", graphPacket ? graphPacket.packedNodes.toLocaleString() : "0");
   const cost = metricValue(snapshot, "cost", metricValue(snapshot, "paid", "$0.00"));
 
   return (
@@ -192,16 +218,19 @@ function TraceContextPanel({
             <div className="chat-trace-item-body">
               <div className="chat-trace-item-name">{traceName(item)}</div>
               <div className="chat-trace-item-meta">
-                <span>{traceDuration(item, index)}</span>
-                <span>{item.meta ?? traceMeta(item)}</span>
+                <span>{item.status ?? "not recorded"}</span>
+                <span>{item.detail ?? item.meta ?? "No runtime detail recorded."}</span>
               </div>
-            </div>
-            <div className="chat-trace-item-bar">
-              <div className="chat-trace-item-bar-fill" style={{ width: `${traceBarWidth(item, index)}%` }} />
             </div>
           </div>
         ))}
       </div>
+
+      <ChatContextSection title="Sources">
+        {snapshot.sources.map((item) => (
+          <ContextSourceRow key={item.id} item={item} />
+        ))}
+      </ChatContextSection>
 
       <div className="chat-trace-model">
         <div className="chat-ctx-label">Model usage</div>
@@ -218,8 +247,8 @@ function TraceContextPanel({
           <span className="chat-trace-model-val">{graphPacket?.topology ? `${graphPacket.topology.view} ${graphPacket.topology.densityScore}` : "not attached"}</span>
         </div>
         <div className="chat-trace-model-row">
-          <span className="chat-trace-model-name">Safe writes</span>
-          <span className="chat-trace-model-val">{runDetailStatus(snapshot, "writes")}</span>
+          <span className="chat-trace-model-name">Write boundary</span>
+          <span className="chat-trace-model-val">{snapshot.contract?.writes ?? "No automatic writes"}</span>
         </div>
       </div>
     </>
@@ -293,23 +322,6 @@ function artifactBadge(item: AgentRailItem): string {
   return "ctx";
 }
 
-function agentDotColor(status: AgentRailStatus | undefined, index: number): string {
-  if (status === "running") return "var(--rd-accent)";
-  if (status === "blocked") return "var(--rd-amber)";
-  const colors = ["var(--rd-accent)", "var(--rd-green)", "#60a5fa", "#a78bfa", "var(--rd-ink-soft)"];
-  return colors[index % colors.length] ?? "var(--rd-ink-soft)";
-}
-
-function agentRoleLabel(item: AgentRailItem): string {
-  const id = item.id.toLowerCase();
-  if (id.includes("coordinator")) return "orchestrator";
-  if (id.includes("memory") || id.includes("graph")) return "retrieval";
-  if (id.includes("source") || id.includes("verify")) return "analyst";
-  if (id.includes("notebook")) return "worker";
-  if (id.includes("judge")) return "eval";
-  return item.status ?? "agent";
-}
-
 function metricValue(snapshot: AgentRailSnapshot, label: string, fallback: string): string {
   return snapshot.metrics?.find((metric) => metric.label.toLowerCase() === label)?.value ?? fallback;
 }
@@ -328,27 +340,6 @@ function traceName(item: AgentRailItem): string {
     .replace(/^graph-context$/, "Graph context")
     .replace(/^graph-packet$/, "Graph packet")
     .replace(/-/g, " ");
-}
-
-function traceMeta(item: AgentRailItem): string {
-  if (item.detail?.includes(" - ")) return item.detail.split(" - ")[0].slice(0, 28);
-  return item.detail?.slice(0, 28) || item.label.slice(0, 28);
-}
-
-function traceDuration(item: AgentRailItem, index: number): string {
-  const detail = `${item.detail ?? ""} ${item.meta ?? ""}`;
-  const explicit = detail.match(/\b\d+(?:\.\d+)?(?:ms|s)\b/i)?.[0];
-  if (explicit) return explicit;
-  if (item.status === "running") return "live";
-  if (item.status === "queued" || item.status === "idle") return "queued";
-  return `${Math.max(120, 180 + index * 140)}ms`;
-}
-
-function traceBarWidth(item: AgentRailItem, index: number): number {
-  if (item.status === "queued" || item.status === "idle") return 12;
-  if (item.status === "running") return 58;
-  if (item.status === "blocked") return 38;
-  return Math.min(100, 28 + index * 11);
 }
 
 function traceIconClass(item: AgentRailItem): string {
@@ -373,10 +364,6 @@ function traceLatencyFallback(snapshot: AgentRailSnapshot): string {
 function runDetailValue(snapshot: AgentRailSnapshot, id: string): string {
   const detail = snapshot.runDetails.find((item) => item.id === id);
   return detail?.detail?.slice(0, 24) ?? "pending";
-}
-
-function runDetailStatus(snapshot: AgentRailSnapshot, id: string): string {
-  return snapshot.runDetails.find((item) => item.id === id)?.status ?? "idle";
 }
 
 function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLoading: boolean): AgentRailSnapshot {
