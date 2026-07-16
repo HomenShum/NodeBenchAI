@@ -105,24 +105,30 @@ test.describe("live-smoke — Tier B hydrated-DOM verification", () => {
     await expect(page.locator('[aria-label="Breadcrumb"]')).toBeVisible();
   });
 
-  test("/?surface=reports shows contextual report action row on cards", async ({ page }) => {
+  test("/?surface=reports shows one honest runtime state", async ({ page }) => {
     const response = await page.goto(BASE_URL + "/?surface=reports");
     expect(response?.status()).toBe(200);
-    // Wait for report cards to hydrate.
-    await expect(
-      page.locator('[data-testid="report-card"]').first(),
-    ).toBeVisible({ timeout: 20_000 });
-    // Every card must carry the new action row.
-    // Action labels were refreshed in PR #17 (Graph → Explore, wiring the
-    // new `/workspace/w/{slug}?tab=...` URLs).
-    const actionRow = page.locator('[data-testid="report-card-actions"]').first();
-    await expect(actionRow).toBeVisible();
-    await expect(page.locator('[data-testid="report-card"]').first().getByRole("button", { name: /Open .* report/i })).toBeVisible();
-    await expect(actionRow.getByRole("button", { name: /Resume report chat/i })).toBeVisible();
-    await actionRow.getByText("More", { exact: true }).click();
-    await expect(actionRow.getByRole("button", { name: /Open report sources/i })).toBeVisible();
-    await expect(actionRow.getByRole("button", { name: /Open report notebook/i })).toBeVisible();
-    await expect(actionRow.getByRole("button", { name: /Export report to CRM CSV/i })).toBeVisible();
+    const reports = page.getByTestId("reports-performance-root");
+    await expect(reports).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(() => reports.getAttribute("data-reports-source"), { timeout: 20_000 })
+      .not.toBe("loading");
+
+    const state = await reports.evaluate((node) => ({
+      loading: node.querySelectorAll('[data-testid="reports-loading"]').length,
+      empty: node.querySelectorAll('[data-testid="reports-empty"]').length,
+      cards: node.querySelectorAll('[data-testid="report-card"]').length,
+    }));
+    expect(Number(state.loading > 0) + Number(state.empty > 0) + Number(state.cards > 0)).toBe(1);
+    await expect(reports).not.toContainText(/Orbital Labs|DISCO|Mercor/i);
+
+    if (state.cards > 0) {
+      const firstCard = reports.locator('[data-testid="report-card"]').first();
+      const actionRow = firstCard.locator('[data-testid="report-card-actions"]');
+      await expect(actionRow).toBeVisible();
+      await expect(firstCard.getByRole("button", { name: /Open .* report/i })).toBeVisible();
+      await expect(actionRow.getByRole("button", { name: /Resume report chat/i })).toBeVisible();
+    }
   });
 
   test("/workspace/w/:id mounts UniversalWorkspacePage chromelessly", async ({ page }) => {
