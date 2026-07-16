@@ -958,8 +958,11 @@ export function applyDeterministicResponsePolicy(
     bullets.push("The run did not return another clean supported detail; review the source directly");
   }
   const renderedBullets = bullets.slice(0, shape.count).map((bullet) =>
-    mustIncludeUrl && !bullet.includes(primarySupportedUrl)
-      ? `${bullet}: ${primarySupportedUrl}`
+    mustIncludeUrl
+      ? `${bullet
+          .replace(/\s*\(?https?:\/\/[^\s)]+\)?/gi, "")
+          .replace(/\s*[:;,]\s*$/, "")
+          .trim()}: ${primarySupportedUrl}`
       : bullet,
   );
   return {
