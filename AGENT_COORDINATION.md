@@ -57,12 +57,6 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- **2026-07-16 · Codex `/root` →** `convex/schema.ts#redesignChatRuns`,
-  `convex/domains/redesign/chatRuns.ts#continuation-context`,
-  `src/features/redesign/{pages/ReproducibleChatPage,surfaces/ChatSurface,RedesignShell}` ·
-  add durable, privacy-redacted receipt-to-live-chat continuation ·
-  branch `fix/receipt-continue-chat`, PR #557. CI deploy only; no out-of-band Convex deploy.
-
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
   shipping the cross-domain private-notes token bridge (opaque stateful token, PR #496) ·
@@ -74,8 +68,8 @@ Server Error) for an unknown slug.
 
 ## Hand-offs (built + ready for the other agent to call)
 
-- **2026-07-16 - Codex `/root` ->** Receipt continuation contract is additive and ready
-  on `fix/receipt-continue-chat` (PR #557): `startChat` accepts optional
+- **2026-07-16 - Codex `/root` ->** Receipt continuation contract is live on `main`
+  through CI-gated PR #557 (`6dd180c9`): `startChat` accepts optional
   `conversationContext: Array<{role: "user" | "assistant"; text: string; sourceUrls?: string[]}>`
   plus `parentRunHash?: string`. Context is bounded and sanitized before persistence and
   grounding. Public `getByHash` receipts deliberately redact both fields so a shared hash
@@ -206,6 +200,13 @@ Server Error) for an unknown slug.
   actually enters a room. The live counter + share moment both honor this.
 
 ## Recently shipped (this ScratchNode session)
+
+- **2026-07-16 Codex - reproducible receipt continuation (#557 `6dd180c9`)** -
+  separated fresh reruns from live-chat continuation, restored the receipt prompt,
+  answer, and source lineage above the real composer, persisted bounded private
+  conversation context, redacted it from public hash reads, and fixed mobile
+  min-content clipping. All required CI gates passed; Convex deployed successfully,
+  and the canonical live DOM exposed the continuation banner plus enabled composer.
 
 - **2026-07-15 Codex — runtime-grounded control focus (#541 `15eb9a0a`, strict
   rollout #542 `16d3ceeb`, verifier #543 `56d8413a`)** — removed dead/no-op and
