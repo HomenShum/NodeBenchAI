@@ -2138,7 +2138,7 @@ function AnswerPacket({
       {/* Avatar gutter — parity-studio bot icon pattern */}
       <div className="rd-chat-msg__avatar" aria-hidden="true">✦</div>
 
-      <article className="rd-chat-msg__body" style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 10, background: "var(--rd-paper-warm)", borderRadius: "var(--rd-r-md)", borderBottomLeftRadius: 4 }}>
+      <article className="rd-chat-msg__body" style={{ padding: "var(--rd-s-2) var(--rd-s-3)", display: "flex", flexDirection: "column", gap: "var(--rd-s-2)", background: "var(--rd-paper-warm)", borderRadius: "var(--rd-r-md)", borderBottomLeftRadius: 4 }}>
         <div className="rd-agent-lead">{packet.shortAnswer.length > 60 ? "Research complete" : "NodeBench"}</div>
         <header className="rd-chat-msg__header" style={{ fontSize: 10, color: "var(--rd-ink-faint)" }}>
           <span>{tierMeta.label}</span>
@@ -2189,16 +2189,7 @@ function AnswerPacket({
       {/* Short answer — citations clickable + hover-linked to evidence list */}
       <section>
         <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Short answer</div>
-        <p style={{
-          fontFamily: "var(--rd-font-display)",
-          fontSize: 18,
-          fontWeight: 510,
-          lineHeight: 1.4,
-          color: "var(--rd-ink-strong)",
-          letterSpacing: "-0.18px",
-          whiteSpace: "pre-wrap",
-          margin: 0,
-        }}>
+        <p className="rd-answer-copy">
           {renderInlineWithCites(packet.shortAnswer, packet.evidence, handleCiteEnter, handleCiteLeave, handleCiteContext, maskedIdx)}
         </p>
       </section>

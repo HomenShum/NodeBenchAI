@@ -98,6 +98,17 @@
   gap: 18px;
 }
 
+[data-redesign] .rd-answer-copy {
+  margin: 0;
+  color: var(--rd-ink-strong);
+  font-family: var(--rd-font-display);
+  font-size: var(--rd-type-answer);
+  font-weight: var(--rd-weight-answer);
+  letter-spacing: 0;
+  line-height: var(--rd-leading-answer);
+  white-space: pre-wrap;
+}
+
 [data-redesign] .rd-chat-scroll-btn {
   bottom: 16px;
   z-index: 4;
@@ -242,7 +253,7 @@
   }
 
   [data-redesign] .rd-chat-transcript__content {
-    padding: 16px 14px 32px;
+    padding: var(--rd-s-3) var(--rd-s-3) var(--rd-s-6);
   }
 
   [data-redesign] .rd-composer-dock {

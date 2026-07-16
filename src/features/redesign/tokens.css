@@ -96,6 +96,9 @@
   --rd-font-display: 'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
   --rd-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --rd-font-serif: 'Source Serif 4', 'Iowan Old Style', Georgia, serif;
+  --rd-type-answer: 14px;
+  --rd-leading-answer: 1.55;
+  --rd-weight-answer: 450;
 
   /* ───── Motion ───── */
   --rd-ease: cubic-bezier(0.16, 1, 0.3, 1);
