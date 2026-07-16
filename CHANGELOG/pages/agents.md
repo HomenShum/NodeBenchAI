@@ -6,14 +6,14 @@ Append-only lane for the `/agents` hub, its primary command path, topic list, an
 
 The pending candidate keeps the composer, explicit `/spawn` path, running swarms, approvals, runtime topic rows, and trace links as the primary controls. It removes signed-out exposure of private task history, hardcoded agent or savings metrics, response-shape confidence labels, and client-callable fixture seeds; defers operator tooling behind an advanced disclosure; distinguishes loading and unmeasured state from zero; and reports stale health as unknown rather than healthy. Task sessions, traces, spans, decisions, verifications, evidence, approvals, swarm records, and swarm tasks require authenticated ownership, while raw orchestrator writes and secret-gated service calls use internal owner-checked contracts. The unreachable parallel timeline, kanban, hook, and public orchestrator are gone; due diligence keeps only four bounded, owner-chain-checked internal task mutations. Unused public due-diligence, investor, demo, and evaluation functions were internalized or deleted, and retained job, branch, memo, and executor error writes revalidate exact ownership. Verifier outages remain unavailable instead of being converted into a passing score. Server-confirmed viewers, admins, and owners may read operator health; only admins and owners may run maintenance.
 
-**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+**PR / canonical main commit**: #541 / `15eb9a0a`; strict session rollout #542 / `16d3ceeb`; live-verifier alignment #543 / `56d8413a`.
 
 **Evidence state**:
-- Source: pending; this worktree candidate is not merged to `main`.
-- Checks: not recorded for a canonical `main` SHA.
-- Visual proof: not recorded in source; local-only candidate artifacts are not release evidence.
-- Preview: not recorded.
-- Production live: not recorded.
+- Source: merged to `main` through CI-gated squash PRs #541, #542, and #543.
+- Checks: required Typecheck, Runtime smoke, Build, and Tier B checks passed on all three PRs; source CI `29474652151`, strict-rollout CI `29475282082`, and verifier CI `29475698322`.
+- Visual proof: private responsive/theme artifacts remain outside git; the production exact/mobile/product/one-flow matrix passed all 17 assertions, with one blank mobile navigation transient passing on immediate isolated rerun.
+- Preview: #541 exact-head preview `nodebench-2otgtyneq-hshum2018-gmailcoms-projects.vercel.app` passed Tier B run `29474652192`; #542 preview `nodebench-iwmpxngv3-hshum2018-gmailcoms-projects.vercel.app` passed `29475281999`.
+- Production live: Vercel main deploy verification run `29475582335` and Convex deploy `29475582657` passed for strict SHA `16d3ceeb`; canonical `https://www.nodebenchai.com` passed the runtime-grounded production matrix and automated Post-Deploy Verify run `29476029941`.
 
 **Author**: Homen Shum + Codex.
 **Touches**: [`../components/fast-agent-panel.md`](../components/fast-agent-panel.md), [`exact-cockpit.md`](exact-cockpit.md), and [`../integrations/pipeline-runtime.md`](../integrations/pipeline-runtime.md).

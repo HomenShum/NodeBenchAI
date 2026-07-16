@@ -57,24 +57,6 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- **2026-07-15 · Codex due-diligence public-surface subtraction →**
-  `convex/domains/agents/dueDiligence/{investorProtection,investorPlaybook,deepResearch}/**`
-  and adjacent unreachable eval/test exports · removing caller-selected ownership and
-  global private reads from dead public DD surfaces while preserving trusted internal
-  execution contracts · branch `codex/runtime-grounded-control-focus`.
-
-- **2026-07-15 · Codex parallel-task subtraction →**
-  `convex/domains/agents/parallelTaskTree.ts` and removed parallel-task UI/API paths ·
-  deleting the unreachable timeline, kanban, hook, and public orchestrator while retaining
-  only four bounded, owner-chain-checked internal mutations used by due diligence · branch
-  `codex/runtime-grounded-control-focus`.
-
-- **2026-07-15 · Codex pipeline truth isolation →** `convex/schema.ts#pipelineRuns`,
-  `convex/domains/pipelines/**` · adding optional logical-attempt/workflow-instance
-  fences so manual refreshes and scheduled occurrences isolate rows while durable
-  retries reuse only their own attempt; also separating consulted research sources
-  from synthesis-bound citations · branch `codex/runtime-grounded-control-focus`.
-
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
   shipping the cross-domain private-notes token bridge (opaque stateful token, PR #496) ·
@@ -204,6 +186,17 @@ Server Error) for an unknown slug.
   actually enters a room. The live counter + share moment both honor this.
 
 ## Recently shipped (this ScratchNode session)
+
+- **2026-07-15 Codex — runtime-grounded control focus (#541 `15eb9a0a`, strict
+  rollout #542 `16d3ceeb`, verifier #543 `56d8413a`)** — removed dead/no-op and
+  fixture-backed cockpit/Agents/FastAgent controls, closed public private-data
+  surfaces, added exact owner and durable pipeline attempt/generation fencing,
+  separated consulted sources from bound citations, and completed the anonymous
+  pipeline reader migration without frontend/backend validator skew. Required CI
+  gates passed on every PR; Vercel run `29475582335` and Convex run `29475582657`
+  deployed the strict contract; Post-Deploy Verify `29476029941` passed and the
+  canonical production matrix passed all 17
+  assertions with one blank mobile navigation transient passing on isolated rerun.
 
 - **#533 Codex** - decluttered the Agents hub and FastAgent shell, repaired plain
   prompts to open canonical chat, preserved explicit `/spawn`, and retained
