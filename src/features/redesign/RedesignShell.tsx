@@ -21,6 +21,7 @@ import { useViewportMobile } from "@/hooks/useViewportMobile";
 
 import "./tokens.css";
 import "./primitives.css";
+import "./agent-workspace.css";
 
 import { RightInspector, type AgentRailSnapshot } from "./components/RightInspector";
 import { MobileShell } from "./components/MobileShell";
@@ -292,6 +293,7 @@ export default function RedesignShell() {
     !isPrototypeKit &&
     surface === "chat" &&
     Boolean(chatHash);
+  const showChatInspector = surface === "chat" && Boolean(activeChatAgentRail?.hasIntent);
 
   return (
     <div
@@ -316,10 +318,10 @@ export default function RedesignShell() {
         prototypeMode={isPrototypeKit}
       />
       <div
-        className={`rd-shell ${usesV2Canvas ? "rd-shell--home-v2" : ""} ${surface === "chat" && !isPrototypeKit ? "rd-shell--chat-v3" : ""} ${surface === "reports" ? "rd-shell--reports-v3" : ""} ${suppressRightRail ? "rd-shell--single" : ""}`}
+        className={`rd-shell ${usesV2Canvas ? "rd-shell--home-v2" : ""} ${surface === "chat" && !isPrototypeKit ? "rd-shell--chat-v3 rd-shell--chat-focus" : ""} ${surface === "chat" && !showChatInspector ? "rd-shell--chat-no-inspector" : ""} ${surface === "reports" ? "rd-shell--reports-v3" : ""} ${suppressRightRail ? "rd-shell--single" : ""}`}
         style={{ flex: 1, minHeight: 0 }}
       >
-        {isPrototypeKit ? (
+        {surface === "chat" && !isPrototypeKit ? null : isPrototypeKit ? (
           <PrototypeV2LeftRail
             surface={prototypeSurface}
             selectedEntity={prototypeEntity}
@@ -400,11 +402,13 @@ export default function RedesignShell() {
                 onOpenReports={openTouchedReports}
                 liveArtifacts={shellLiveArtifacts}
               />
-            ) : surface === "chat" ? (
+            ) : surface === "chat" && showChatInspector ? (
               <RightInspector
                 activeLiveArtifactDetail={activeChatDetail ?? undefined}
                 agentSnapshot={activeChatAgentRail}
               />
+            ) : surface === "chat" ? (
+              null
             ) : (
               <PrototypeV2RightRail
                 surface={prototypeSurface}

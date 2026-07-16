@@ -40,6 +40,8 @@ export interface AgentWorkspaceContract {
 export interface AgentRailSnapshot {
   title: string;
   subtitle?: string;
+  /** True only after a user prompt or runtime run exists. */
+  hasIntent?: boolean;
   status: "idle" | "thinking" | "ok" | "error";
   runId?: string;
   progress: AgentRailItem[];

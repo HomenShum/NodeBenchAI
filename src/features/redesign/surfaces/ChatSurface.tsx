@@ -7,7 +7,7 @@
  * Bottom: UniversalComposer.
  */
 
-import React, { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import React, { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { UniversalComposer, DEFAULT_TIERS, type RouterTier } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
@@ -26,39 +26,11 @@ import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { LiveResearchChecklist, type ResearchStage, type ResearchStageId } from "../../research/LiveResearchChecklist";
-
-/**
- * Sprint 3 P2.11 — fixture for the open-questions tray (claims flagged
- * uncertain by the agent or 👎'd by the user). Once chat is live-wired,
- * this becomes a `useAgentRunFeedback({ filter: "thumbs_down" })` query.
- */
-type OpenQuestion = {
-  id: string;
-  label: string;
-  turnId: string;
-  flagged: "agent" | "user";
-  when: string;
-};
-
-const OPEN_QUESTIONS: OpenQuestion[] = [
-  { id: "oq1", label: "Procurement timing for Orbital Labs pilots", turnId: "a1", flagged: "agent", when: "2h ago" },
-  { id: "oq2", label: "Hippocratic AI traction vs Abridge",         turnId: "a2", flagged: "user",  when: "12m ago" },
-  { id: "oq3", label: "Voice-agent eval competitors within 6 months", turnId: "a1", flagged: "agent", when: "5h ago" },
-];
-
-function liveOpenQuestions(detail: LiveArtifactDetail): OpenQuestion[] {
-  const sectionItems = detail.sections.flatMap((section) => section.items ?? []);
-  const candidates = sectionItems.length > 0
-    ? sectionItems
-    : [{ label: detail.title, body: detail.summary }];
-  return candidates.slice(0, 3).map((item, index) => ({
-    id: `live-oq-${detail.id}-${index}`,
-    label: `${item.label}: verify source support`,
-    turnId: index === 1 ? "a2" : "a1",
-    flagged: index === 1 ? "user" : "agent",
-    when: index === 0 ? detail.updatedAt : "live",
-  }));
-}
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
 
 /**
  * Sprint 4 P2.13 — deterministic reproducibility hash for an answer.
@@ -129,74 +101,6 @@ function sourceLabel(source: string): string {
   }
 }
 
-/**
- * Sprint 3 P2.9 — deterministic fixture for source freshness so each citation
- * popover can show "refreshed Xh ago". Replace with `sourceRefs.lastFetchedAt`
- * once chat is live-wired.
- */
-function sourceFreshness(source: string): string {
-  let h = 0;
-  for (let i = 0; i < source.length; i++) h = (h * 31 + source.charCodeAt(i)) >>> 0;
-  const hours = h % 72;
-  if (hours < 1) return "just refreshed";
-  if (hours < 24) return `refreshed ${hours}h ago`;
-  return `refreshed ${Math.floor(hours / 24)}d ago`;
-}
-
-/**
- * Sprint 2 P0.2 — Streaming scratchpad fixture.
- *
- * Showcase content reflecting the same pipeline shape as the backend
- * agent's scratchpad (orchestrator + sub-agent notes per `.claude/rules/scratchpad_first.md`).
- * Once chat is live-wired this becomes a live subscription to the
- * `agentScratchpads` Convex table.
- */
-const WORKING_NOTES_MARKDOWN = `**Plan**
-1. Confirm Orbital Labs' wedge from prior research notes
-2. Check what changed since last touch (2h ago)
-3. Look for procurement / pilot signals worth flagging this week
-4. Cross-check headcount + funding + competitive position
-
-**Notes during run**
-- Memory hit: 3 prior reports, last touched 2h ago. High familiarity → terse output, skip backstory.
-- Web search: 4 fresh results, 1 from TechCrunch (Mar 2026), Crunchbase headcount delta +4 (eval engineers).
-- Open question: 6-month procurement cycle could compress timing — flag as risk, not blocker.
-- Cross-checked: HIPAA-aware grading wedge confirmed in Orbital whitepaper p.4 + TechCrunch piece.
-
-**Confidence**
-- Wedge claim: high (3 sources agree)
-- Pilot intent: medium (founder note + 1 LinkedIn signal, no procurement docs yet)
-- Hiring spike: high (Crunchbase + LinkedIn agree)`;
-
-function liveWorkingNotesMarkdown(detail: LiveArtifactDetail): string {
-  const topSources = detail.sourceRows
-    .slice(0, 3)
-    .map((source, index) => `${index + 1}. ${source.title}${source.host ? ` (${source.host})` : ""}`)
-    .join("\n");
-  const topItems = detail.sections
-    .flatMap((section) => section.items ?? [])
-    .slice(0, 3)
-    .map((item) => `- ${item.label}: ${item.body}`)
-    .join("\n");
-  return `**Plan**
-1. Load ${detail.title} from saved memory
-2. Reuse cached sources before any paid refresh
-3. Check claim support and review gaps
-4. Convert strongest signal into notebook-ready next action
-
-**Live artifact**
-- ${detail.sourceCount} sources
-- ${detail.claimCount} claims
-- ${detail.followUps} follow-ups
-- Status: ${detail.status}
-
-**Top signals**
-${topItems || `- ${detail.summary}`}
-
-**Source refs**
-${topSources || "- No source rows returned yet"}`;
-}
-
 interface ChatSurfaceProps {
   contextLabel?: string;
   workspaceDetail?: LiveArtifactDetail;
@@ -244,7 +148,8 @@ function compactRunId(runId?: string): string | undefined {
 }
 
 function formatRailUsd(value?: number | null): string {
-  if (!value || !Number.isFinite(value) || value <= 0) return "$0.00";
+  if (typeof value !== "number" || !Number.isFinite(value)) return "not recorded";
+  if (value <= 0) return "$0.00";
   if (value < 0.01) return `$${value.toFixed(4)}`;
   return `$${value.toFixed(2)}`;
 }
@@ -346,7 +251,8 @@ function buildChatAgentRailSnapshot(args: {
   const toolDecisions = runtime?.toolDecisions ?? [];
   const claimChecks = runtime?.claimChecks ?? [];
   const metrics = runtime?.metrics;
-  const sourceCount = metrics?.sourceCount ?? run?.groundingChunks.length ?? activePacket?.sourceCount ?? liveDetail?.sourceCount ?? 0;
+  const runtimeSourceCount = metrics?.sourceCount ?? run?.groundingChunks.length ?? activePacket?.sourceCount ?? 0;
+  const sourceCount = runtimeSourceCount || liveDetail?.sourceCount || 0;
   const verifiedSourceCount = metrics?.verifiedSourceCount ?? claimChecks.filter((check) => check.verified === true).length;
   const softWarningSourceCount = metrics?.softWarningSourceCount
     ?? claimChecks.filter((check) => check.verified === false && !isBlockingClaimCheck(check)).length;
@@ -354,7 +260,7 @@ function buildChatAgentRailSnapshot(args: {
     ?? claimChecks.filter((check) => isBlockingClaimCheck(check)).length;
   const blockedClaimCount = unsupportedSourceCount;
   const toolCallCount = metrics?.toolCallCount ?? run?.toolCalls.length ?? activePacket?.trace.length ?? 0;
-  const estimatedCost = metrics?.estimatedCostUsd ?? run?.estimatedCostUsd ?? 0;
+  const estimatedCost = metrics?.estimatedCostUsd ?? run?.estimatedCostUsd;
   const latency = metrics?.timeToFinalMs ?? metrics?.totalLatencyMs ?? run?.totalLatencyMs;
   const memoryHitRate = typeof metrics?.memoryHitRate === "number" ? `${Math.round(metrics.memoryHitRate * 100)}%` : "pending";
   const cacheHitRate = typeof metrics?.sourceCacheHitRate === "number" ? `${Math.round(metrics.sourceCacheHitRate * 100)}%` : "pending";
@@ -372,9 +278,9 @@ function buildChatAgentRailSnapshot(args: {
           : "Account needs email or Google link before live research.";
 
   const memoryStatus: AgentRailStatus =
-    contextCandidates.length > 0 || liveDetail ? "done" : isRunning ? "running" : "queued";
+    contextCandidates.length > 0 || runtimeContextPacket?.hasContext ? "done" : isRunning ? "running" : "queued";
   const sourceStatus: AgentRailStatus =
-    sourceCount > 0 ? "done" : isRunning ? "running" : "queued";
+    runtimeSourceCount > 0 ? "done" : isRunning ? "running" : "queued";
   const verifyStatus: AgentRailStatus =
     blockedClaimCount > 0 ? "blocked" : claimChecks.length > 0 || verifiedSourceCount > 0 ? "done" : isRunning && sourceCount > 0 ? "running" : "queued";
 
@@ -396,7 +302,7 @@ function buildChatAgentRailSnapshot(args: {
     {
       id: "graph-context",
       label: "Resolve graph context packet",
-      status: runtimeContextPacket?.hasContext ? "done" : graphPacket ? "done" : isRunning ? "running" : "queued",
+      status: runtimeContextPacket?.hasContext ? "done" : isRunning ? "running" : "queued",
       detail: runtimeContextPacket?.hasContext
         ? `${runtimeContextPacket.graph.nodeCount} nodes, ${runtimeContextPacket.graph.edgeCount} edges, ${runtimeContextPacket.verification.tier} verification.`
         : graphPacket?.agentSummary ?? "Packs first-ring report graph, source refs, and safe action handles.",
@@ -462,7 +368,7 @@ function buildChatAgentRailSnapshot(args: {
       id: "cost",
       label: "Cost and cache",
       status: estimatedCost > 0 || metrics ? "done" : "queued",
-      detail: `${formatRailUsd(estimatedCost)} estimated - memory ${memoryHitRate} - source cache ${cacheHitRate} - live search ${metrics?.liveSearchCalls ?? 0}${runtimeContextPacket ? ` - runtime graph ${runtimeContextPacket.graph.nodeCount} nodes` : graphPacket ? ` - graph ${graphPacket.packedNodes} nodes` : ""}.`,
+      detail: `${formatRailUsd(estimatedCost)} estimated - memory ${memoryHitRate} - source cache ${cacheHitRate} - live search ${metrics?.liveSearchCalls ?? "not recorded"}${runtimeContextPacket ? ` - runtime graph ${runtimeContextPacket.graph.nodeCount} nodes` : ""}.`,
     },
     {
       id: "context-runtime",
@@ -551,7 +457,7 @@ function buildChatAgentRailSnapshot(args: {
     {
       id: "coordinator",
       label: "Coordinator",
-      status: lastUserPrompt || liveDetail ? isRunning ? "running" : "done" : "queued",
+      status: lastUserPrompt || run || hasAnswer ? isRunning ? "running" : "done" : "queued",
       detail: "Selects context, routing, and safe write policy.",
     },
     {
@@ -563,7 +469,7 @@ function buildChatAgentRailSnapshot(args: {
     {
       id: "graph",
       label: "Graph context agent",
-      status: runtimeContextPacket?.hasContext ? "done" : graphPacket ? "done" : "queued",
+      status: runtimeContextPacket?.hasContext ? "done" : isRunning ? "running" : "queued",
       detail: runtimeContextPacket?.hasContext
         ? runtimeContextPacket.graph.clusters.map((cluster) => `${cluster.name}:${cluster.count}`).join(" · ")
         : graphPacket?.whySelected[2] ?? "Builds bounded neighborhoods before paid live search.",
@@ -640,6 +546,7 @@ function buildChatAgentRailSnapshot(args: {
 
   return {
     title,
+    hasIntent: Boolean(run || hasAnswer),
     subtitle: lastUserPrompt
       ? lastUserPrompt
       : liveDetail
@@ -653,12 +560,12 @@ function buildChatAgentRailSnapshot(args: {
     backgroundAgents,
     sources: sourceItems,
     metrics: [
-      { label: "sources", value: String(sourceCount), tone: "accent" },
+      { label: "sources", value: String(runtimeSourceCount), tone: "accent" },
       { label: "tools", value: String(toolCallCount), tone: "green" },
       { label: "latency", value: formatLatency(latency), tone: latency ? "green" : "accent" },
       { label: "context", value: graphPacket ? graphPacket.packedNodes.toLocaleString() : "0", tone: "accent" },
       { label: "graph", value: graphPacket ? String(graphPacket.packedNodes) : "0", tone: "accent" },
-      { label: "cost", value: formatRailUsd(estimatedCost), tone: estimatedCost > 0 ? "amber" : "green" },
+      { label: "cost", value: formatRailUsd(estimatedCost), tone: typeof estimatedCost === "number" && estimatedCost > 0 ? "amber" : "accent" },
     ],
     contract: {
       objective: lastUserPrompt ?? (liveDetail ? `Work from ${liveDetail.title}.` : "Waiting for a request."),
@@ -764,58 +671,6 @@ function traceToToolCalls(trace: ChatAnswer["trace"]): ToolCall[] {
   }));
 }
 
-function liveAnswer(detail: LiveArtifactDetail): ChatAnswer {
-  const firstSection = detail.sections[0];
-  const evidence = detail.sourceRows.slice(0, 4).map((source, index) => ({
-    idx: index + 1,
-    quote: source.excerpt || source.title,
-    source: source.href ? `${source.title} · ${source.href}` : source.title,
-  }));
-  return {
-    shortAnswer: detail.summary,
-    whyItMatters: firstSection?.body || "This live artifact is already preserved as reusable NodeBench memory and can be promoted into reports, claims, sources, and follow-ups.",
-    evidence: evidence.length
-      ? evidence
-      : [{ idx: 1, quote: detail.summary, source: `${detail.sourceCount} live source references` }],
-    risks: detail.followUps > 0
-      ? [`${detail.followUps} items still need review before this becomes fully trusted memory.`]
-      : ["No blocking review items are visible in the latest live artifact, but claim-level verification should stay attached."],
-    nextAction: detail.primaryAction,
-    sourceCount: detail.sourceCount,
-    paidCalls: 0,
-    fromMemory: true,
-    trace: [
-      { step: "Resolve live artifact", status: "ok", detail: detail.title, durationMs: 34 },
-      { step: "Memory-first", status: "ok", detail: `${detail.sourceCount} sources · ${detail.claimCount} claims cached`, durationMs: 52 },
-      { step: "Notebook hydrate", status: "ok", detail: "Live artifact body is ready for TipTap review", durationMs: 81 },
-      { step: "Save to report", status: "info", detail: detail.status === "verified" ? "Already verified in live memory" : "Needs review before verification", durationMs: 0 },
-    ],
-  };
-}
-
-function liveToolCalls(detail: LiveArtifactDetail): ToolCall[] {
-  return [
-    { step: "Load saved artifact", detail: detail.id, status: "ok", durationMs: 34, tool: "load_live_artifact" },
-    { step: "Hydrate source rows", detail: `${detail.sourceCount} source refs`, status: "ok", durationMs: 68, tool: "hydrate_sources" },
-    { step: "Assemble answer packet", detail: "claim · evidence · risk · next action", status: "ok", durationMs: 94, tool: "assemble_response" },
-  ];
-}
-
-function liveFollowupMarkdown(detail: LiveArtifactDetail): string {
-  const bullets = detail.sections
-    .flatMap((section) => section.items ?? [])
-    .slice(0, 3)
-    .map((item) => `- **${item.label}**: ${item.body}`)
-    .join("\n");
-  return `## Quick follow-up on ${detail.title}
-
-${bullets || `- ${detail.summary}`}
-
-> **Bottom line:** ${detail.primaryAction}
-
-[Open live workspace →](/redesign/workspace?report=${detail.id}&tab=brief)`;
-}
-
 function liveChatUnavailableMarkdown(reason: string, detail?: LiveArtifactDetail | null): string {
   const context = detail
     ? `Current live context is **${detail.title}** with ${detail.sourceCount} sources and ${detail.claimCount} claims.`
@@ -830,28 +685,6 @@ ${reason}
 ${context}
 
 ${nextStep}`;
-}
-
-function buildSeedTurns(detail?: LiveArtifactDetail): Turn[] {
-  if (!detail) {
-    return [
-      {
-        id: "a1",
-        role: "assistant",
-        markdown: liveChatUnavailableMarkdown("Waiting for saved live artifacts before seeding the thread."),
-        streaming: false,
-        tier: "auto",
-        createdAt: Date.now(),
-      },
-    ];
-  }
-  const now = Date.now();
-  return [
-    { id: "u1", role: "user", text: `What is the latest read on ${detail.title}?`, createdAt: now - 4 * 60_000 },
-    { id: "a1", role: "assistant", packet: liveAnswer(detail), tier: "auto", toolCalls: liveToolCalls(detail), createdAt: now - 4 * 60_000 + 3000 },
-    { id: "u2", role: "user", text: "Turn the strongest signal into a notebook-ready follow-up.", createdAt: now - 30_000 },
-    { id: "a2", role: "assistant", markdown: liveFollowupMarkdown(detail), streaming: false, tier: "auto", createdAt: now - 25_000 },
-  ];
 }
 
 type ResearchTraceLike = { step: string; detail?: string; status?: string; tool?: string };
@@ -873,59 +706,41 @@ const RESEARCH_STAGE_TEMPLATE: Array<{ id: ResearchStageId; label: string }> = [
   { id: "vault_save", label: "Vault save" },
 ];
 
-function buildResearchStages(trace: ResearchTraceLike[] = [], complete = false): ResearchStage[] {
-  const steps = trace.map((t) => `${t.step} ${t.detail} ${t.tool ?? ""}`.toLowerCase());
-  const has = (pattern: RegExp) => steps.some((s) => pattern.test(s));
-  const hasWarning = (pattern: RegExp) => trace.some((t) =>
-    pattern.test(`${t.step} ${t.detail} ${t.tool ?? ""}`.toLowerCase()) && (t.status === "warn" || t.status === "error")
-  );
-  const passed = new Set<ResearchStageId>();
+function buildResearchStages(trace: ResearchTraceLike[] = [], running = false): ResearchStage[] {
+  const patterns: Record<ResearchStageId, RegExp> = {
+    understanding: /understand|prompt|goal/,
+    entity: /entity|classif/,
+    memory: /memory|context|artifact/,
+    source_plan: /source plan|retrieval plan/,
+    official: /official source/,
+    news_web: /news|web search/,
+    primary_reading: /primary read|fetch/,
+    claims: /claim extract|claims/,
+    contradictions: /contradiction/,
+    graph: /graph/,
+    evidence_scoring: /evidence scor|verify/,
+    memo_draft: /memo draft|draft memo/,
+    citations: /citation/,
+    vault_save: /vault save|save vault/,
+  };
 
-  if (trace.length > 0 || complete) passed.add("understanding");
-  if (has(/classif|entit|query/)) passed.add("entity");
-  if (has(/context|memory|bundle|artifact/)) {
-    passed.add("memory");
-    passed.add("source_plan");
-  }
-  if (has(/gemini|ground|search|official|source|synthesis/)) {
-    passed.add("official");
-    passed.add("news_web");
-    passed.add("primary_reading");
-    passed.add("claims");
-  }
-  if (has(/bind|evidence|citation|ground/)) {
-    passed.add("evidence_scoring");
-    passed.add("citations");
-  }
-  if (complete) {
-    passed.add("contradictions");
-    passed.add("memo_draft");
-    passed.add("vault_save");
-  }
-
-  let firstWaiting = RESEARCH_STAGE_TEMPLATE.findIndex((stage) => !passed.has(stage.id));
-  if (firstWaiting < 0) firstWaiting = RESEARCH_STAGE_TEMPLATE.length;
-
-  return RESEARCH_STAGE_TEMPLATE.map((stage, index) => {
-    const key = stage.id.split("_")[0];
-    const matchingTrace = trace.find((t) => `${t.step} ${t.detail} ${t.tool ?? ""}`.toLowerCase().includes(key));
-    if (hasWarning(new RegExp(key))) {
-      return {
-        ...stage,
-        state: "warning",
-        detail: matchingTrace?.detail,
-        tool: matchingTrace?.tool,
-        warning: "Agent step returned a warning",
-      };
+  const grounded = RESEARCH_STAGE_TEMPLATE.flatMap((stage) => {
+    const matchingTrace = trace.find((item) =>
+      patterns[stage.id].test(`${item.step} ${item.detail ?? ""} ${item.tool ?? ""}`.toLowerCase()),
+    );
+    if (!matchingTrace) return [];
+    const status = matchingTrace.status?.toLowerCase();
+    if (status === "warn" || status === "error" || status === "failed") {
+      return [{ ...stage, state: "warning" as const, detail: matchingTrace.detail, tool: matchingTrace.tool, warning: "Agent step returned a warning" }];
     }
-    if (passed.has(stage.id)) {
-      return { ...stage, state: "passed", detail: matchingTrace?.detail, tool: matchingTrace?.tool };
+    if (status === "running" || status === "pending") {
+      return [{ ...stage, state: "running" as const, detail: matchingTrace.detail, tool: matchingTrace.tool }];
     }
-    if (!complete && index === firstWaiting) {
-      return { ...stage, state: "running", detail: trace.at(-1)?.detail ?? "waiting for next streamed event" };
-    }
-    return { ...stage, state: "waiting" };
+    return [{ ...stage, state: "passed" as const, detail: matchingTrace.detail, tool: matchingTrace.tool }];
   });
+
+  if (grounded.length > 0 || !running) return grounded;
+  return [{ ...RESEARCH_STAGE_TEMPLATE[0], state: "running", detail: "Waiting for the first runtime event" }];
 }
 
 export function ChatSurface({
@@ -961,16 +776,6 @@ export function ChatSurface({
   useEffect(() => {
     onActiveContextChange?.(liveDetail ?? null);
   }, [liveDetail, onActiveContextChange]);
-  const liveSeedKey = liveDetail?.id ?? (liveArtifacts.isLoading ? "loading" : "empty");
-  const openQuestions = useMemo(
-    () => (liveDetail ? liveOpenQuestions(liveDetail) : []),
-    [liveDetail],
-  );
-  const [oqOpen, setOqOpen] = useState(false);
-  const workingNotesMarkdown = useMemo(
-    () => (liveDetail ? liveWorkingNotesMarkdown(liveDetail) : WORKING_NOTES_MARKDOWN),
-    [liveDetail],
-  );
   const liveStarters = useMemo(() => {
     if (!liveDetail) return undefined;
     return [
@@ -980,7 +785,6 @@ export function ChatSurface({
       { icon: "📤", title: "Prepare an export", prompt: `Create a CRM-ready export summary for ${liveDetail.title}.` },
     ];
   }, [liveDetail]);
-  const [seedKey, setSeedKey] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const consumedInitialPromptRef = useRef<string | null>(null);
@@ -1114,20 +918,9 @@ export function ChatSurface({
   const compareTurn = compareTurnId ? turns.find((t) => t.id === compareTurnId) : undefined;
 
   useEffect(() => {
-    if (liveSeedKey === "loading" || seedKey === liveSeedKey) return;
-    if (hasInitialPrompt && !hasUserInteracted) {
-      setCtx(liveDetail ? `Asking about: ${liveDetail.title}` : contextLabel);
-      setSeedKey(liveSeedKey);
-      return;
-    }
-    if (hasUserInteracted) {
-      setSeedKey(liveSeedKey);
-      return;
-    }
-    setTurns(buildSeedTurns(liveDetail));
+    if (hasUserInteracted || hasInitialPrompt) return;
     setCtx(liveDetail ? `Asking about: ${liveDetail.title}` : contextLabel);
-    setSeedKey(liveSeedKey);
-  }, [contextLabel, hasInitialPrompt, hasUserInteracted, liveDetail, liveSeedKey, seedKey]);
+  }, [contextLabel, hasInitialPrompt, hasUserInteracted, liveDetail]);
 
   // Phase 2 — when the streamed chat run completes, commit the final packet
   // onto whichever turn carries the matching chatRunId. While in flight,
@@ -1338,24 +1131,22 @@ export function ChatSurface({
       });
       return;
     }
-    window.setTimeout(() => {
-      setTurns((prev) => prev.map((t) =>
-        t.id === turnId
-          ? {
-              ...t,
-              thinking: false,
-              toolCalls: undefined,
-              packet: undefined,
-              markdown: liveChatUnavailableMarkdown(
-                prompt
-                  ? "Regenerate needs the live chat runtime to be ready."
-                  : "Regenerate needs an original user prompt for this turn.",
-                liveDetail,
-              ),
-            }
-          : t,
-      ));
-    }, 1800);
+    setTurns((prev) => prev.map((t) =>
+      t.id === turnId
+        ? {
+            ...t,
+            thinking: false,
+            toolCalls: undefined,
+            packet: undefined,
+            markdown: liveChatUnavailableMarkdown(
+              prompt
+                ? "Regenerate needs the live chat runtime to be ready."
+                : "Regenerate needs an original user prompt for this turn.",
+              liveDetail,
+            ),
+          }
+        : t,
+    ));
   };
 
   const branchFromTurn = (turnId: string) => {
@@ -1366,73 +1157,26 @@ export function ChatSurface({
     setCtx(`Branched from message ${turnId}`);
   };
 
-  // Scroll-to-bottom button: visible when user has scrolled up + auto-scroll on new turn
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [showScrollBtn, setShowScrollBtn] = useState(false);
-  const [unseenCount, setUnseenCount] = useState(0);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const onScroll = () => {
-      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-      setShowScrollBtn(distance > 200);
-      if (distance < 100) setUnseenCount(0);
-    };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
-  // Auto-scroll on new turn unless user is reading higher in the thread
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distance < 200) {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    } else {
-      setUnseenCount((n) => n + 1);
-    }
-  }, [turns.length]);
-  const scrollToBottom = () => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-    setUnseenCount(0);
-  };
-
   return (
-    <div className="rd-stack" style={{ height: "100%", overflow: "hidden", position: "relative" }}>
+    <div
+      className="rd-chat-workspace"
+      data-agent-runtime-surface="redesign-chat"
+      data-empty={turns.length === 0 ? "true" : undefined}
+    >
       <BatchLiveBoundary onError={() => setLiveBatch(null)}>
         <BatchLiveBridge onBatch={setLiveBatch} />
       </BatchLiveBoundary>
-      <div ref={scrollRef} className="rd-stack rd-chat-scroll-area" style={{ flex: 1, overflow: "auto", padding: "24px 40px 160px", gap: 18, maxWidth: 920, width: "100%", margin: "0 auto" }}>
+      <Conversation className="rd-chat-transcript">
+        <ConversationContent className="rd-chat-transcript__content">
         {batch && <BatchMonitorCell batch={batch} />}
-
-        <AgentWorkspaceHeader
-          snapshot={agentRailSnapshot}
-          memoryReady={liveArtifacts.isLive}
-          onOpenReview={liveDetail ? openCurrentReport : undefined}
-        >
-          {openQuestions.length > 0 && !oqOpen && (
-            <button type="button" className="rd-open-q__inline-toggle" onClick={() => setOqOpen(true)} aria-label="Show open questions">
-              <span className="rd-open-q__count">{openQuestions.length}</span> open questions
-            </button>
-          )}
-        </AgentWorkspaceHeader>
-
-        {/* Sprint 3 P2.11 — open-questions tray (only rendered when explicitly opened) */}
-        <OpenQuestionsTray questions={openQuestions} open={oqOpen} onToggle={() => setOqOpen(false)} />
 
         {turns.length === 0 ? (
           <ChatEmptyState
             starters={liveStarters}
             onPick={(prompt) => sendMessage(prompt, tier)}
-            recentThread={liveDetail
-              ? { id: liveDetail.id, entity: liveDetail.title, lastMessage: liveDetail.primaryAction, minutesAgo: 1 }
-              : undefined}
-            onResume={(threadId) => navigate(`/redesign/workspace?report=${encodeURIComponent(threadId)}&tab=chat`)}
           />
         ) : (
           turns.map((t) => {
-            // Sprint 3 P2.11 — wrap with data-turn-id so OpenQuestionsTray jump can target it
             const inner = (() => {
               if (t.role === "user") return <UserBubble text={t.text!} createdAt={t.createdAt} />;
               if (t.thinking) return (
@@ -1441,7 +1185,7 @@ export function ChatSurface({
                   <LiveResearchChecklist
                     compact
                     title="Live research run"
-                    stages={buildResearchStages(t.toolCalls ?? [], false)}
+                    stages={buildResearchStages(t.toolCalls ?? [], true)}
                   />
                   <RuntimeBoard runtime={t.packet?.runtime} />
                 </div>
@@ -1462,7 +1206,7 @@ export function ChatSurface({
                   tier={t.tier ?? "auto"}
                   toolCalls={t.toolCalls}
                   reportTitle={liveDetail?.title}
-                  workingNotesMarkdown={workingNotesMarkdown}
+                  workingNotesMarkdown={t.liveScratchpad}
                   createdAt={t.createdAt}
                   onRegenerate={(tierOverride) => regenerate(t.id, tierOverride)}
                   onBranch={() => branchFromTurn(t.id)}
@@ -1507,28 +1251,9 @@ export function ChatSurface({
             );
           })
         )}
-        <ChatV2NextActions
-          liveDetail={liveDetail}
-          disabled={turns.some((t) => t.thinking || t.streaming)}
-          onOpenReport={openCurrentReport}
-          onPrompt={(prompt) => sendMessage(prompt, tier)}
-        />
-      </div>
-
-      {showScrollBtn && (
-        <button
-          type="button"
-          className="rd-chat-scroll-btn"
-          onClick={scrollToBottom}
-          aria-label="Scroll to latest message"
-          title="Scroll to latest"
-        >
-          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 5v14M19 12l-7 7-7-7" />
-          </svg>
-          {unseenCount > 0 && <span className="rd-chat-scroll-btn__badge">{unseenCount}</span>}
-        </button>
-      )}
+        </ConversationContent>
+        <ConversationScrollButton className="rd-chat-scroll-btn" aria-label="Scroll to latest message" />
+      </Conversation>
       {/* Sprint 4 P1.6 — pinned items carry forward into next turn */}
       {pinned.length > 0 && (
         <div className="rd-pinned-bar" role="region" aria-label="Pinned context for next turn">
@@ -1570,17 +1295,16 @@ export function ChatSurface({
           </ul>
         </div>
       )}
-      <div className="rd-composer-dock" style={{ borderTop: "1px solid var(--rd-line-faint)" }}>
-        <div style={{ maxWidth: 920, margin: "0 auto" }}>
+      <div className="rd-composer-dock">
+        <div className="rd-composer-shell">
+          <RunScopeDisclosure snapshot={agentRailSnapshot} />
           <UniversalComposer
+            hideAttachments
             contextLabel={ctx}
-            onContextChange={() => setCtx(ctx.startsWith("Asking")
-              ? `Adding to: ${liveDetail?.title ?? "current report"}`
-              : `Asking about: ${liveDetail?.title ?? "current context"}`)}
             onSubmit={sendMessage}
             tier={tier}
             onTierChange={setTier}
-            placeholder="Ask anything · type / for commands · @ to mention an entity"
+            placeholder="Ask anything · type / for commands"
             streaming={turns.some((t) => t.thinking || t.streaming)}
             onStop={() => {
               setTurns((prev) => prev.map((t) =>
@@ -1685,138 +1409,22 @@ export function ChatSurface({
   );
 }
 
-/**
- * Sprint 3 P2.11 — sticky tray surfacing claims that need verification.
- * Today: fixture from OPEN_QUESTIONS. Once chat is live-wired, replace
- * with `useAgentRunFeedback` query filtered to flagged + unresolved items.
- */
-function AgentWorkspaceHeader({
-  snapshot,
-  memoryReady,
-  onOpenReview,
-  children,
-}: {
-  snapshot: AgentRailSnapshot;
-  memoryReady: boolean;
-  onOpenReview?: () => void;
-  children?: ReactNode;
-}) {
+function RunScopeDisclosure({ snapshot }: { snapshot: AgentRailSnapshot }) {
   const contract = snapshot.contract;
-  const stateLabel = snapshot.status === "thinking"
-    ? "Running"
-    : snapshot.status === "ok"
-      ? "Ready for review"
-      : snapshot.status === "error"
-        ? "Needs attention"
-        : "Ready";
-
   return (
-    <section className="rd-agent-workspace-head" data-status={snapshot.status} aria-label="Current agent run">
-      <div className="rd-agent-workspace-head__primary">
-        <div>
-          <span className="rd-agent-workspace-head__eyebrow">Agent workspace</span>
-          <h1>{contract?.objective ?? snapshot.subtitle ?? "Start a traceable run"}</h1>
-        </div>
-        <span className="rd-agent-workspace-head__state"><span aria-hidden="true" />{stateLabel}</span>
-      </div>
-      <div className="rd-agent-workspace-head__scope">
-        <span><b>Reads</b>{contract?.reads ?? "No context recorded"}</span>
-        <span><b>Writes</b>{contract?.writes ?? "No automatic writes"}</span>
-        <span><b>Checks</b>{contract?.verification ?? "Not started"}</span>
-      </div>
-      <div className="rd-agent-workspace-head__foot">
-        <span>{memoryReady ? "Memory available" : "Memory loading"}{snapshot.runId ? ` · run ${snapshot.runId}` : " · no active run"}</span>
-        <div>{children}{onOpenReview && <button type="button" onClick={onOpenReview}>Open review workspace</button>}</div>
-      </div>
-    </section>
-  );
-}
-
-function ChatV2NextActions({
-  liveDetail,
-  disabled,
-  onOpenReport,
-  onPrompt,
-}: {
-  liveDetail?: LiveArtifactDetail | null;
-  disabled: boolean;
-  onOpenReport: () => void;
-  onPrompt: (prompt: string) => void;
-}) {
-  const title = liveDetail?.title ?? "current context";
-  const actions = [
-    ["Open notebook", onOpenReport],
-    ["Draft memo", () => onPrompt(`Draft a concise sourced memo for ${title}. Include answer, evidence, risks, and next action.`)],
-    ["Verify claims", () => onPrompt(`Verify the open claims for ${title}. Use memory first and list citation gaps explicitly.`)],
-    ["Compare", () => onPrompt(`Compare ${title} against the closest related reports already in memory.`)],
-  ] as const;
-
-  return (
-    <div className="rd-action-chips" aria-label="Chat next actions" style={{ gap: 6 }}>
-      {actions.map(([label, action], i) => (
-        <button key={label} type="button" className={`rd-action-chip${i === 0 ? " rd-action-chip--primary" : ""}`} disabled={disabled} onClick={action}>{label}</button>
-      ))}
-    </div>
-  );
-}
-
-function OpenQuestionsTray({ questions, open, onToggle }: { questions: OpenQuestion[]; open: boolean; onToggle: () => void }) {
-  const [items, setItems] = useState(questions);
-  useEffect(() => {
-    setItems(questions);
-  }, [questions]);
-  if (items.length === 0 || !open) return null;
-  const dismissOne = (id: string) => {
-    setItems((cur) => cur.filter((q) => q.id !== id));
-    showToast({ tone: "success", message: "Question marked verified." });
-  };
-  const jumpTo = (turnId: string) => {
-    const node = document.querySelector(`[data-turn-id="${turnId}"]`);
-    if (node instanceof HTMLElement) {
-      node.scrollIntoView({ block: "start", behavior: "smooth" });
-      node.classList.add("rd-flash-attention");
-      window.setTimeout(() => node.classList.remove("rd-flash-attention"), 1600);
-    }
-  };
-  return (
-    <aside className="rd-open-q" aria-label="Open questions worth verifying">
-      <div className="rd-open-q__head">
-        <span className="rd-eyebrow">Open questions</span>
-        <span className="rd-open-q__count">{items.length}</span>
-        <span className="rd-open-q__hint">Tap to jump, ✓ to clear</span>
-        <button type="button" className="rd-open-q__close" aria-label="Close open questions" onClick={onToggle}>✕</button>
-      </div>
-      <ul className="rd-open-q__list">
-        {items.map((q) => (
-          <li key={q.id} className="rd-open-q__item">
-            <span
-              className="rd-open-q__pill"
-              data-flag={q.flagged}
-              title={q.flagged === "agent" ? "Flagged by the agent" : "Flagged by you"}
-            >
-              {q.flagged === "agent" ? "🤖" : "👎"}
-            </span>
-            <button
-              type="button"
-              className="rd-open-q__label"
-              onClick={() => jumpTo(q.turnId)}
-            >
-              {q.label}
-            </button>
-            <span className="rd-open-q__when">{q.when}</span>
-            <button
-              type="button"
-              className="rd-open-q__clear"
-              aria-label={`Mark "${q.label}" verified`}
-              title="Mark verified"
-              onClick={() => dismissOne(q.id)}
-            >
-              ✓
-            </button>
-          </li>
-        ))}
-      </ul>
-    </aside>
+    <details className="rd-run-scope" data-status={snapshot.status}>
+      <summary>
+        <span>Review mode</span>
+        <span>{contract?.reads ?? "Prompt only"}</span>
+        <span aria-hidden="true">·</span>
+        <span>No automatic shared writes</span>
+      </summary>
+      <dl>
+        <div><dt>Reads</dt><dd>{contract?.reads ?? "No runtime context recorded."}</dd></div>
+        <div><dt>Writes</dt><dd>{contract?.writes ?? "Review mode · no automatic shared writes"}</dd></div>
+        <div><dt>Checks</dt><dd>{contract?.verification ?? "Not started"}</dd></div>
+      </dl>
+    </details>
   );
 }
 
@@ -2328,6 +1936,7 @@ function AnswerPacket({
   const [probeMenu, setProbeMenu] = useState<{ idx: number; x: number; y: number } | null>(null);
   const [traceOpen, setTraceOpen] = useState(false);
   const traceRef = useRef<HTMLDetailsElement | null>(null);
+  const researchStages = buildResearchStages(toolCalls ?? packet.trace);
 
   // Wire citation interactivity: hover [N] in body → highlight matching source row in evidence list
   const handleCiteEnter = (idx: number) => setHoverCite(idx);
@@ -2335,15 +1944,15 @@ function AnswerPacket({
   // Right-click on a cite chip → counterfactual probe menu
   const handleCiteContext = (idx: number, e: ReactMouseEvent) => {
     e.preventDefault();
+    if (!onProbeRunWithoutSource) return;
     setProbeMenu({ idx, x: e.clientX, y: e.clientY });
   };
   const probeWithoutSource = (idx: number) => {
-    setMaskedIdx(idx);
     setProbeMenu(null);
     // Phase 5 — if a real probe handler is wired (authenticated user with
-    // an active runId on this turn), call the real action; otherwise fall
-    // back to the showcase toast pair.
+    // an active runId on this turn), call the real action.
     if (onProbeRunWithoutSource) {
+      setMaskedIdx(idx);
       showToast({
         tone: "info",
         message: `Re-running model without source [${idx}]…`,
@@ -2352,15 +1961,9 @@ function AnswerPacket({
       return;
     }
     showToast({
-      tone: "info",
-      message: `Probing without source [${idx}]…`,
+      tone: "warning",
+      message: "Counterfactual probing is unavailable without an active runtime run.",
     });
-    window.setTimeout(() => {
-      showToast({
-        tone: "warning",
-        message: `Probed: claim weakens without [${idx}]. Other evidence still supports the conclusion.`,
-      });
-    }, 1100);
   };
   const restoreProbe = () => {
     setMaskedIdx(null);
@@ -2369,7 +1972,7 @@ function AnswerPacket({
   const showTrace = () => {
     setTraceOpen(true);
     window.setTimeout(() => {
-      traceRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      traceRef.current?.scrollIntoView({ block: "nearest", behavior: "auto" });
     }, 0);
   };
   // Dismiss probe menu on outside click / Escape
@@ -2398,22 +2001,24 @@ function AnswerPacket({
           <span>·</span>
           <span>{packet.sourceCount} sources</span>
           <span>·</span>
-          <span>{formatTraceCost(packet)}</span>
+          <span>{formatTraceTelemetry(packet)}</span>
           {createdAt && <span className="rd-chat-msg__when"><LiveTime at={createdAt} /></span>}
         </header>
 
         {/* Status strip — tool badges (home-v3 parity) */}
         <div className="rd-tool-badges">
-          <span className="rd-tool-badge">memory</span>
-          <span className="rd-tool-badge">{reportTitle ?? "report"}</span>
-          <span className="rd-tool-badge">{packet.paidCalls > 0 ? `${packet.paidCalls} external refresh${packet.paidCalls === 1 ? "" : "es"}` : "memory first"}</span>
+          {reportTitle && <span className="rd-tool-badge">{reportTitle}</span>}
+          {typeof packet.runtime?.metrics?.memoryHitRate === "number" && (
+            <span className="rd-tool-badge">{Math.round(packet.runtime.metrics.memoryHitRate * 100)}% memory hit</span>
+          )}
+          {typeof packet.paidCalls === "number" && (
+            <span className="rd-tool-badge">{packet.paidCalls} external refresh{packet.paidCalls === 1 ? "" : "es"}</span>
+          )}
         </div>
 
-        <LiveResearchChecklist
-          compact
-          title="Research run"
-          stages={buildResearchStages(toolCalls ?? packet.trace, true)}
-        />
+        {researchStages.length > 0 && (
+          <LiveResearchChecklist compact title="Research run" stages={researchStages} />
+        )}
         <RuntimeBoard runtime={packet.runtime} />
 
         {/* Inline tool-call cards (parity-studio pattern) — render the agent's actual reasoning.
@@ -2429,8 +2034,8 @@ function AnswerPacket({
           </div>
         )}
 
-        {/* Sprint 2 P0.2 — collapsible streaming-scratchpad / working notes */}
-        <WorkingNotes markdown={workingNotesMarkdown ?? WORKING_NOTES_MARKDOWN} />
+        {/* Scratchpad is runtime-derived. No notes render when the run emitted none. */}
+        {workingNotesMarkdown && <WorkingNotes markdown={workingNotesMarkdown} />}
 
         {/* Sprint 2 P0.3 — counterfactual probe banner (visible when a source is masked) */}
         {maskedIdx !== null && (
@@ -2773,7 +2378,7 @@ function ProbeBanner({ idx, onRestore }: { idx: number; onRestore: () => void })
           Probing without source [{idx}]
         </span>
         <span className="rd-probe-banner__detail">
-          Source is dimmed below. Other evidence still supports the conclusion — claim weakens but doesn't flip.
+          Re-running without this source. Awaiting a verified result from the active runtime.
         </span>
       </div>
       <button type="button" className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onRestore}>
@@ -2783,20 +2388,18 @@ function ProbeBanner({ idx, onRestore }: { idx: number; onRestore: () => void })
   );
 }
 
-/**
- * Sprint 1 P1.5 — total elapsed + estimated cost from trace durations.
- * Showcase rate: $0.005/sec (replace with real provider billing once chat is live-wired).
- */
-function formatTraceCost(packet: ChatAnswer): string {
+/** Runtime telemetry only; missing cost data is never inferred from duration. */
+function formatTraceTelemetry(packet: ChatAnswer): string {
   if (packet.runtime?.metrics) {
     const metrics = packet.runtime.metrics;
     return `${formatMs(metrics.totalLatencyMs ?? metrics.timeToFinalMs)} · ${formatUsd(metrics.estimatedCostUsd)}`;
   }
-  const totalMs = packet.trace.reduce((sum, step) => sum + (step.durationMs ?? 0), 0);
-  const timeStr = totalMs < 1000 ? `${totalMs}ms` : `${(totalMs / 1000).toFixed(1)}s`;
-  const usd = (totalMs / 1000) * 0.005;
-  const costStr = usd >= 0.01 ? `$${usd.toFixed(3)}` : `<$0.01`;
-  return `${timeStr} · ${costStr}`;
+  const recordedDurations = packet.trace
+    .map((step) => step.durationMs)
+    .filter((duration): duration is number => typeof duration === "number" && Number.isFinite(duration));
+  if (recordedDurations.length === 0) return "telemetry not recorded";
+  const totalMs = recordedDurations.reduce((sum, duration) => sum + duration, 0);
+  return `${formatMs(totalMs)} · cost not recorded`;
 }
 
 function formatUsd(value: number | undefined): string {
@@ -2871,7 +2474,6 @@ function renderInlineWithCites(
           <span className="rd-cite-popover__quote">&ldquo;{cite.quote}&rdquo;</span>
           <span className="rd-cite-popover__source">{sourceLabel(cite.source)}</span>
           {/* Sprint 3 P2.9 — source freshness */}
-          <span className="rd-cite-popover__freshness">{sourceFreshness(cite.source)}</span>
         </span>
       </span>,
     );
