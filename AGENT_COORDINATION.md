@@ -61,7 +61,7 @@ Server Error) for an unknown slug.
   `convex/domains/redesign/chatRuns.ts#continuation-context`,
   `src/features/redesign/{pages/ReproducibleChatPage,surfaces/ChatSurface,RedesignShell}` ·
   add durable, privacy-redacted receipt-to-live-chat continuation ·
-  branch `codex/receipt-continue-chat`. CI deploy only; no out-of-band Convex deploy.
+  branch `fix/receipt-continue-chat`, PR #557. CI deploy only; no out-of-band Convex deploy.
 
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
@@ -75,7 +75,7 @@ Server Error) for an unknown slug.
 ## Hand-offs (built + ready for the other agent to call)
 
 - **2026-07-16 - Codex `/root` ->** Receipt continuation contract is additive and ready
-  on `codex/receipt-continue-chat`: `startChat` accepts optional
+  on `fix/receipt-continue-chat` (PR #557): `startChat` accepts optional
   `conversationContext: Array<{role: "user" | "assistant"; text: string; sourceUrls?: string[]}>`
   plus `parentRunHash?: string`. Context is bounded and sanitized before persistence and
   grounding. Public `getByHash` receipts deliberately redact both fields so a shared hash
