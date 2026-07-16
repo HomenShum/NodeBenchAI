@@ -847,21 +847,20 @@ function sanitizeUnsupportedSuperlatives(text: string): string {
 
 function compactResponseUnit(text: string, stripCitations = false): string {
   const compact = text
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1 $2")
     .replace(/^\s*(?:#{1,6}|[-*•]|\d+[.)])\s*/, "")
     .replace(/^\*\*(.+?)\*\*:?$/, "$1")
     .replace(stripCitations ? /\s*\[\d+\]/g : /$^/, "")
+    .replace(/`/g, "")
     .replace(/\s+/g, " ")
     .trim();
   return compact.replace(/[.!?]+$/, "").slice(0, 240);
 }
 
-function responseUnits(parsed: ParsedMemo, evidence: Array<{ quote?: string }>): string[] {
+function responseUnits(parsed: ParsedMemo): string[] {
   const values = [
     parsed.shortAnswer,
     parsed.whyItMatters,
-    ...evidence.map((row) => row.quote ?? ""),
-    ...parsed.risks,
-    parsed.nextAction,
   ];
   const seen = new Set<string>();
   const units: string[] = [];
@@ -877,6 +876,15 @@ function responseUnits(parsed: ParsedMemo, evidence: Array<{ quote?: string }>):
   return units;
 }
 
+function isCleanCompactUnit(unit: string): boolean {
+  if (!unit) return false;
+  return !/(?:search\.cloud\.google\.com\/grounding-api-redirect|\[!\[|跳至主要內容|jump to main content|<\/?[a-z][^>]*>)/i.test(unit);
+}
+
+function requiresUrlInEveryBullet(prompt: string): boolean {
+  return /\beach\s+bullet\b[^.]{0,100}\b(?:url|link)\b|\b(?:url|link)\b[^.]{0,100}\beach\s+bullet\b/i.test(prompt);
+}
+
 export function applyDeterministicResponsePolicy(
   prompt: string,
   parsed: ParsedMemo,
@@ -887,12 +895,17 @@ export function applyDeterministicResponsePolicy(
     verificationState?: EvidenceVerificationState;
   }>,
 ): ParsedMemo {
-  const hasSupportedUrl = evidence.some((row) =>
-    sourceUrl(row.source) !== null
-    && row.blocking !== true
-    && row.verificationState !== "unsupported"
-    && row.verificationState !== "fetch_blocked",
-  );
+  const supportedUrls = evidence.flatMap((row) => {
+    const url = sourceUrl(row.source);
+    return url
+      && row.blocking !== true
+      && row.verificationState !== "unsupported"
+      && row.verificationState !== "fetch_blocked"
+      ? [url]
+      : [];
+  });
+  const primarySupportedUrl = supportedUrls[0] ?? null;
+  const hasSupportedUrl = primarySupportedUrl !== null;
   const honest: ParsedMemo = hasSupportedUrl
     ? parsed
     : {
@@ -918,20 +931,26 @@ export function applyDeterministicResponsePolicy(
     };
   }
 
-  const candidates = responseUnits(honest, evidence)
-    .filter((unit) => unit !== SOURCE_NEEDED_LIMITATION);
+  const candidates = responseUnits(honest)
+    .filter((unit) => unit !== SOURCE_NEEDED_LIMITATION && isCleanCompactUnit(unit));
   const bullets = hasSupportedUrl
     ? candidates.slice(0, shape.count)
     : candidates.slice(0, Math.max(0, shape.count - 1));
   while (bullets.length < shape.count - (hasSupportedUrl ? 0 : 1)) {
-    bullets.push(`Additional supported detail ${bullets.length + 1} was not available in this run`);
+    bullets.push("The run did not return another clean supported detail; review the source directly");
   }
   if (!hasSupportedUrl) bullets.push(SOURCE_NEEDED_LIMITATION);
   while (bullets.length < shape.count) {
-    bullets.push(`Additional supported detail ${bullets.length + 1} was not available in this run`);
+    bullets.push("The run did not return another clean supported detail; review the source directly");
   }
+  const mustIncludeUrl = primarySupportedUrl !== null && requiresUrlInEveryBullet(prompt);
+  const renderedBullets = bullets.slice(0, shape.count).map((bullet) =>
+    mustIncludeUrl && !bullet.includes(primarySupportedUrl)
+      ? `${bullet}: ${primarySupportedUrl}`
+      : bullet,
+  );
   return {
-    shortAnswer: bullets.slice(0, shape.count).map((bullet) => `- ${bullet}`).join("\n"),
+    shortAnswer: renderedBullets.map((bullet) => `- ${bullet}`).join("\n"),
     whyItMatters: "",
     risks: [],
     nextAction: "",
