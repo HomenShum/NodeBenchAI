@@ -183,11 +183,11 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
   const anonymousSessionId = useMemo(() => getAnonymousProductSessionId(), []);
   const runs = useStableQuery(
     api.domains.pipelines.pipelineRunsQueries.listRecentRuns,
-    { limit: queryLimit, ownerKey: `session:${anonymousSessionId}` },
+    { limit: queryLimit, anonymousSessionId },
   );
   const stats = useStableQuery(
     api.domains.pipelines.pipelineRunsQueries.getRunSummaryStats,
-    {},
+    { anonymousSessionId },
   );
 
   const safeRuns = useMemo(() => runs ?? [], [runs]);
