@@ -230,10 +230,12 @@ export const FastAgentPanel = memo(function FastAgentPanel({
   const [showDocumentSelector, setShowDocumentSelector] = useState(false);
 
   // Contextual-open handling (FastAgentContext.openWithContext)
-  const lastHandledOpenRequestIdRef = useRef<string | null>(null);
+  const handledOpenRequestIdsRef = useRef<Set<string>>(new Set());
   const [pendingAutoSend, setPendingAutoSend] = useState<null | { requestId: string; message: string }>(null);
   // Guard against duplicate auto-sends
-  const lastAutoSentRequestIdRef = useRef<string | null>(null);
+  const autoSentRequestIdsRef = useRef<Set<string>>(new Set());
+  const autoSendInFlightRequestIdsRef = useRef<Set<string>>(new Set());
+  const autoSendFailedRequestIdsRef = useRef<Set<string>>(new Set());
   // Guard against duplicate manual sends (rapid clicks)
   const lastSentMessageRef = useRef<{ text: string; timestamp: number } | null>(null);
   // Forward-ref for stableSendMessage (avoids TDZ in scheduled messages useEffect)
@@ -566,7 +568,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
 
   // Ref-based callback pattern for stable handleSendMessage reference
   // This prevents re-renders when callback dependencies change
-  const handleSendMessageRef = useRef<(content?: string) => Promise<void>>(undefined);
+  const handleSendMessageRef = useRef<(content?: string) => Promise<boolean>>(undefined);
 
   // Track auto-created documents to avoid duplicates (by agentThreadId) and processed message IDs
   const autoDocCreatedThreadIdsRef = useRef<Set<string>>(new Set());
@@ -584,15 +586,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       setActiveThreadId(initialThreadId);
     }
   }, [initialThreadId, activeThreadId]);
-
-  // In desktop layouts both sidebar and overlay variants can be mounted simultaneously
-  // (one hidden via CSS). Only the viewport-active variant should consume contextual
-  // openOptions to avoid duplicate autosend requests.
-  const isViewportActiveVariant = useCallback(() => {
-    if (typeof window === "undefined") return true;
-    const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
-    return variant === "sidebar" ? isDesktop : !isDesktop;
-  }, [variant]);
 
   // Cross-surface agent unification: when the user is on an entity page,
   // agent responses can be saved directly into that entity's notebook.
@@ -637,12 +630,11 @@ export const FastAgentPanel = memo(function FastAgentPanel({
 
   // Apply openOptions once per requestId, and optionally auto-send.
   useEffect(() => {
-    if (!isViewportActiveVariant()) return;
     if (!isOpen) return;
     const requestId = openOptions?.requestId;
     if (!requestId) return;
-    if (lastHandledOpenRequestIdRef.current === requestId) return;
-    lastHandledOpenRequestIdRef.current = requestId;
+    if (handledOpenRequestIdsRef.current.has(requestId)) return;
+    handledOpenRequestIdsRef.current.add(requestId);
 
     const contextDocIds = (openOptions?.contextDocumentIds ?? []).map(String).filter(Boolean);
     if (contextDocIds.length > 0) {
@@ -700,7 +692,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     lastAnnouncedChatModeRef.current = "agent-streaming";
     setChatMode("agent-streaming");
     setPendingAutoSend({ requestId, message });
-  }, [isOpen, onOptionsConsumed, openOptions, isViewportActiveVariant, showsNotebookWorkspaceTabs]);
+  }, [isOpen, onOptionsConsumed, openOptions, showsNotebookWorkspaceTabs]);
 
   useEffect(() => {
     if (showsNotebookWorkspaceTabs) {
@@ -1218,10 +1210,10 @@ export const FastAgentPanel = memo(function FastAgentPanel({
   }, [activeThreadId, anonymousSession.sessionId, threads, chatMode, deleteAgentThread, deleteStreamingThread, isProductConversationMode]);
 
   const handleSendMessage = useCallback(async (content?: string) => {
-    if (isBusy) return;
+    if (isBusy) return false;
     if (!runtimeOwnerReady) {
       toast.info("Preparing secure session. Try again in a moment.");
-      return;
+      return false;
     }
 
     const preparedSubmission = prepareFastAgentSubmission({
@@ -1244,7 +1236,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
           description: 'Wait for at least one document to finish before sending.',
         });
       }
-      return;
+      return false;
     }
 
     const { messageContent, text } = preparedSubmission;
@@ -1255,10 +1247,8 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     if (lastSentMessageRef.current &&
         lastSentMessageRef.current.text === text &&
         now - lastSentMessageRef.current.timestamp < DEDUPE_WINDOW_MS) {
-      return;
+      return false;
     }
-    lastSentMessageRef.current = { text, timestamp: now };
-
     // Check if anonymous user has exceeded their daily limit
     if (anonymousSession.isAnonymous && !anonymousSession.canSendMessage) {
       toast.error(
@@ -1267,8 +1257,9 @@ export const FastAgentPanel = memo(function FastAgentPanel({
           <div className="text-xs">{FAST_AGENT_SIGN_IN_BENEFIT_COPY}</div>
         </div>
       );
-      return;
+      return false;
     }
+    lastSentMessageRef.current = { text, timestamp: now };
 
     const documentCreationTopic = getAuthenticatedDocumentCreationTopic({
       chatMode,
@@ -1334,12 +1325,13 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         );
 
         setIsStreaming(false);
-        return;
+        return true;
       } catch (error) {
         console.error("Failed to create document:", error);
         toast.error("Failed to create document");
         setIsStreaming(false);
-        return;
+        lastSentMessageRef.current = null;
+        return false;
       }
     }
 
@@ -1457,10 +1449,13 @@ export const FastAgentPanel = memo(function FastAgentPanel({
           });
         }
       }
+      return true;
     } catch (error) {
       console.error("Failed to send message:", error);
       toast.error("Failed to send message");
       setIsStreaming(false);
+      lastSentMessageRef.current = null;
+      return false;
     }
   }, [
     input,
@@ -1495,17 +1490,17 @@ export const FastAgentPanel = memo(function FastAgentPanel({
 
   // Stable callback wrapper - never changes reference, always calls latest implementation
   const stableSendMessage = useCallback((content?: string) => {
-    return handleSendMessageRef.current?.(content);
+    return handleSendMessageRef.current?.(content) ?? Promise.resolve(false);
   }, []);
   stableSendMessageRef.current = stableSendMessage;
 
   // Auto-send contextual open prompt once streaming mode is active.
   useEffect(() => {
-    if (!isViewportActiveVariant()) return;
     if (!isOpen) return;
     if (!pendingAutoSend) return;
     if (chatMode !== "agent-streaming") return;
     if (isBusy) return;
+    if (!runtimeOwnerReady) return;
     if (anonymousSession.isAnonymous && anonymousSession.isLoading) return;
 
     if (anonymousSession.isAnonymous && !anonymousSession.canSendMessage) {
@@ -1524,14 +1519,25 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     if (openOptions?.requestId && openOptions.requestId !== requestId) return;
 
     // ⚡ CRITICAL GUARD: Prevent duplicate auto-sends
-    if (lastAutoSentRequestIdRef.current === requestId) {
+    if (
+      autoSentRequestIdsRef.current.has(requestId)
+      || autoSendInFlightRequestIdsRef.current.has(requestId)
+      || autoSendFailedRequestIdsRef.current.has(requestId)
+    ) {
       return;
     }
-    lastAutoSentRequestIdRef.current = requestId;
-
-    stableSendMessage(message);
-    setPendingAutoSend(null);
-    onOptionsConsumed?.();
+    autoSendInFlightRequestIdsRef.current.add(requestId);
+    void stableSendMessage(message).then((accepted) => {
+      autoSendInFlightRequestIdsRef.current.delete(requestId);
+      if (!accepted) {
+        autoSendFailedRequestIdsRef.current.add(requestId);
+        setInput(message);
+        return;
+      }
+      autoSentRequestIdsRef.current.add(requestId);
+      setPendingAutoSend((current) => current?.requestId === requestId ? null : current);
+      onOptionsConsumed?.();
+    });
   }, [
     isOpen,
     pendingAutoSend,
@@ -1540,7 +1546,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     openOptions?.requestId,
     stableSendMessage,
     onOptionsConsumed,
-    isViewportActiveVariant,
+    runtimeOwnerReady,
     anonymousSession.isAnonymous,
     anonymousSession.isLoading,
     anonymousSession.canSendMessage,

@@ -54,7 +54,7 @@ interface UniversalComposerProps {
   batchTargets?: BatchTarget[];
   /**
    * Default submit (Enter, ⌘↵, or "Run research" button). Mode = "research" by default.
-   * Mirrors live nodebenchai.com — research saves to Reports; chat is ephemeral.
+   * Research creates a durable runtime run; explicit promotion controls save artifacts elsewhere.
    */
   onSubmit?: (text: string, tier: RouterTier, mode: ComposerMode) => void;
   /**
@@ -219,7 +219,7 @@ export function UniversalComposer({
 
   const handleSubmit = (mode: ComposerMode = "research") => {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed || streaming) return;
     if (mode === "chat" && onChatNow) {
       onChatNow(trimmed, tier);
     } else {
@@ -677,8 +677,8 @@ export function UniversalComposer({
             <button
               type="button"
               onClick={onStop}
-              aria-label="Stop generation"
-              title="Stop generation (Esc)"
+              aria-label="Cancel active run"
+              title="Cancel active run (Esc)"
               className="rd-btn rd-btn--sm"
               style={{
                 gap: 6,
@@ -698,7 +698,7 @@ export function UniversalComposer({
               onClick={() => handleSubmit("research")}
               disabled={!text.trim()}
               aria-label="Run research"
-              title="Run research (Enter) — saves to Reports"
+              title="Run research (Enter)"
               className="rd-btn rd-btn--primary rd-btn--sm"
               style={{
                 opacity: text.trim() ? 1 : 0.55,

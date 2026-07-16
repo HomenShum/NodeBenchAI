@@ -180,7 +180,12 @@ async function assertRunReadable(ctx: any, runId: string): Promise<any> {
 
 function redactSharedRun(row: any): any {
   if (!row) return null;
-  const { userId: _userId, ...safeRow } = row;
+  const {
+    userId: _userId,
+    clientRequestId: _clientRequestId,
+    cancelRequestedAt: _cancelRequestedAt,
+    ...safeRow
+  } = row;
   return safeRow;
 }
 
@@ -808,6 +813,8 @@ function parseMemo(text: string): ParsedMemo {
 export const startChat = mutation({
   args: {
     prompt: v.string(),
+    /** Stable per user submission. Replays return the original run. */
+    clientRequestId: v.optional(v.string()),
     tier: v.union(
       v.literal("free"),
       v.literal("fast"),
@@ -836,15 +843,28 @@ export const startChat = mutation({
       throw new Error("Prompt too short — write at least a 3-character question.");
     }
     const userId = await requirePaidChatUserId(ctx);
+    const clientRequestId = args.clientRequestId?.trim().slice(0, 160);
+    if (clientRequestId) {
+      const existing = await ctx.db
+        .query("redesignChatRuns")
+        .withIndex("by_user_client_request", (q) =>
+          q.eq("userId", userId).eq("clientRequestId", clientRequestId),
+        )
+        .first();
+      if (existing) return existing.runId;
+    }
     const normalizedTier = normalizeChatTier(args.tier);
     const model = modelForTier(normalizedTier);
     const runId = generateRunId();
     await ctx.db.insert("redesignChatRuns", {
       runId,
+      ...(clientRequestId ? { clientRequestId } : {}),
       userId,
       prompt,
       tier: normalizedTier,
       model,
+      provider: "google-gemini",
+      runtimeReceiptId: `redesign-chat:${runId}`,
       status: "pending",
       createdAt: Date.now(),
     });
@@ -904,6 +924,8 @@ export const probeRun = mutation({
       prompt: orig.prompt,
       tier: normalizedTier,
       model,
+      provider: "google-gemini",
+      runtimeReceiptId: `redesign-chat:${runId}`,
       status: "pending",
       createdAt: Date.now(),
     });
@@ -945,6 +967,58 @@ export const getRun = query({
   },
 });
 
+/** Recover the owner's newest durable run after a reload. */
+export const getLatestOwnedRun = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+    return await ctx.db
+      .query("redesignChatRuns")
+      .withIndex("by_user_created", (q) => q.eq("userId", userId))
+      .order("desc")
+      .first();
+  },
+});
+
+/**
+ * Request cooperative cancellation. Pending work is stopped before a paid call;
+ * running streams observe this flag and abort at the next chunk boundary.
+ */
+export const cancelRun = mutation({
+  args: {
+    runId: v.optional(v.string()),
+    clientRequestId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requirePaidChatUserId(ctx);
+    if (!args.runId && !args.clientRequestId) throw new Error("A run or request id is required.");
+    const row = args.runId
+      ? await ctx.db
+          .query("redesignChatRuns")
+          .withIndex("by_runId", (q) => q.eq("runId", args.runId!))
+          .first()
+      : await ctx.db
+          .query("redesignChatRuns")
+          .withIndex("by_user_client_request", (q) =>
+            q.eq("userId", userId).eq("clientRequestId", args.clientRequestId!),
+          )
+          .first();
+    if (!row || row.userId !== userId) return { status: "unavailable", alreadyTerminal: false };
+    if (row.status === "complete" || row.status === "error" || row.status === "cancelled") {
+      return { status: row.status ?? "error", alreadyTerminal: true };
+    }
+    const now = Date.now();
+    await ctx.db.patch(row._id, {
+      status: "cancelled",
+      cancelRequestedAt: now,
+      cancelledAt: now,
+      completedAt: now,
+    });
+    return { status: "cancelled", alreadyTerminal: false };
+  },
+});
+
 /** Public query: get an immutable run by hash for the /r/{hash} share route. */
 export const getByHash = query({
   args: { hash: v.string() },
@@ -983,6 +1057,17 @@ export const appendEvent = internalMutation({
   },
 });
 
+export const getRunControl = internalQuery({
+  args: { runId: v.string() },
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query("redesignChatRuns")
+      .withIndex("by_runId", (q) => q.eq("runId", args.runId))
+      .first();
+    return row ? { status: row.status, cancelRequestedAt: row.cancelRequestedAt } : null;
+  },
+});
+
 export const setRunRunning = internalMutation({
   args: { runId: v.string() },
   handler: async (ctx, args) => {
@@ -990,7 +1075,7 @@ export const setRunRunning = internalMutation({
       .query("redesignChatRuns")
       .withIndex("by_runId", (q) => q.eq("runId", args.runId))
       .first();
-    if (row) await ctx.db.patch(row._id, { status: "running" });
+    if (row && row.status !== "cancelled") await ctx.db.patch(row._id, { status: "running" });
   },
 });
 
@@ -1008,7 +1093,7 @@ export const finalizeRun = internalMutation({
       .query("redesignChatRuns")
       .withIndex("by_runId", (q) => q.eq("runId", args.runId))
       .first();
-    if (row) {
+    if (row && row.status !== "cancelled") {
       await ctx.db.patch(row._id, {
         status: "complete",
         hash: args.hash,
@@ -1029,7 +1114,7 @@ export const failRun = internalMutation({
       .query("redesignChatRuns")
       .withIndex("by_runId", (q) => q.eq("runId", args.runId))
       .first();
-    if (row) {
+    if (row && row.status !== "cancelled") {
       await ctx.db.patch(row._id, {
         status: "error",
         errorMessage: args.errorMessage,
@@ -1069,10 +1154,21 @@ export const runStreamingChat = internalAction({
         eventType,
         payload: payload as any,
       });
+    const isCancelled = async () => {
+      const control = await ctx.runQuery(
+        internal.domains.redesign.chatRuns.getRunControl,
+        { runId: args.runId },
+      );
+      return control?.status === "cancelled" || Boolean(control?.cancelRequestedAt);
+    };
+    const assertNotCancelled = async () => {
+      if (await isCancelled()) throw new Error("RUN_CANCELLED");
+    };
 
     try {
       if (!apiKey) throw new Error("GEMINI_API_KEY not configured in Convex env");
 
+      await assertNotCancelled();
       await ctx.runMutation(internal.domains.redesign.chatRuns.setRunRunning, { runId: args.runId });
 
       // Stage 1 — classify
@@ -1168,6 +1264,7 @@ export const runStreamingChat = internalAction({
       });
 
       // Stage 3 — Gemini streaming with grounding
+      await assertNotCancelled();
       const t3 = Date.now();
       // Phase 5 — pinned claims carry-forward as hard context
       const pinnedSection = args.pinnedClaims && args.pinnedClaims.length > 0
@@ -1244,6 +1341,11 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}${verifi
         let buf = "";
         const seenChunkUris = new Set<string>();
         while (true) {
+          if (await isCancelled()) {
+            controller.abort();
+            await reader.cancel();
+            throw new Error("RUN_CANCELLED");
+          }
           const { done, value } = await reader.read();
           if (done) break;
           buf += decoder.decode(value, { stream: true });
@@ -1305,6 +1407,9 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}${verifi
         await append("tool_call", tr3);
       } catch (err: any) {
         clearTimeout(timeoutId);
+        if ((err?.message || String(err)) === "RUN_CANCELLED" || await isCancelled()) {
+          throw new Error("RUN_CANCELLED");
+        }
         const detail = err.name === "AbortError" ? "request_timeout" : (err.message || String(err));
         const tr3 = { step: "Gemini synthesis", detail, status: "error" as const, durationMs: Date.now() - t3 };
         trace.push(tr3);
@@ -1467,6 +1572,7 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}${verifi
         runtime,
       };
 
+      await assertNotCancelled();
       await ctx.runMutation(internal.domains.redesign.chatRuns.finalizeRun, {
         runId: args.runId,
         hash,
@@ -1501,6 +1607,9 @@ Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}${verifi
         });
       }
     } catch (err: any) {
+      if ((err?.message || String(err)) === "RUN_CANCELLED" || await isCancelled()) {
+        return;
+      }
       const errorMessage = (err?.message || String(err)).slice(0, 280);
       await append("error", { errorMessage });
       await ctx.runMutation(internal.domains.redesign.chatRuns.failRun, {

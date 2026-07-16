@@ -15997,11 +15997,13 @@ export default defineSchema({
    * with the link. Same packet → same hash → same URL across deploys.
    *
    * runId is unique per run; hash is unique per {prompt, tier, model,
-   * shortAnswer, sortedEvidenceUrls} combination — same input → same cached
-   * run, idempotent re-runs collapse onto the same row.
+   * shortAnswer, sortedEvidenceUrls} combination. Paid submission retries
+   * collapse by owner + clientRequestId before a second run is scheduled.
    */
   redesignChatRuns: defineTable({
     runId: v.string(),
+    /** Client-generated idempotency key. Optional for backwards compatibility. */
+    clientRequestId: v.optional(v.string()),
     hash: v.optional(v.string()),
     userId: v.optional(v.id("users")),
     prompt: v.string(),
@@ -16021,11 +16023,17 @@ export default defineSchema({
     totalLatencyMs: v.optional(v.number()),
     totalTokens: v.optional(v.number()),
     estimatedCostUsd: v.optional(v.number()),
+    /** Honest runtime receipt metadata; no provider response id is inferred. */
+    provider: v.optional(v.string()),
+    runtimeReceiptId: v.optional(v.string()),
+    cancelRequestedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
   })
     .index("by_runId", ["runId"])
     .index("by_hash", ["hash"])
+    .index("by_user_client_request", ["userId", "clientRequestId"])
     .index("by_user_created", ["userId", "createdAt"]),
 
   /**

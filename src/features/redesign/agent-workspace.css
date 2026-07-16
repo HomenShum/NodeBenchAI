@@ -87,7 +87,7 @@
 [data-redesign] .rd-run-scope {
   margin: 0 4px 8px;
   color: var(--rd-ink-mute);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 [data-redesign] .rd-run-scope > summary {
@@ -138,7 +138,7 @@
   flex: 1;
   flex-direction: column;
   justify-content: center;
-  width: min(100%, 700px);
+  width: min(100%, 840px);
   min-height: 0;
   height: 100%;
   margin: auto;
@@ -149,9 +149,21 @@
   margin-bottom: 24px;
 }
 
+[data-redesign] .rd-chat-empty__h {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+[data-redesign] .rd-chat-empty__sub {
+  max-width: 58ch;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 [data-redesign] .rd-chat-empty__chips {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+  max-width: none;
 }
 
 [data-redesign] .rd-chat-empty__chip {
@@ -161,7 +173,13 @@
 }
 
 [data-redesign] .rd-chat-empty__chip-title {
+  font-size: 14px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+[data-redesign] .rd-chat-empty__chip-hint {
+  font-size: 12px;
 }
 
 @media (max-width: 760px) {

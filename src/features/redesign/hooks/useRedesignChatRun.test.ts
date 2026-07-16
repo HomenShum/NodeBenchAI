@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPartialChatAnswer,
+  createChatClientRequestId,
   isPaidChatEligibleUser,
   normalizeRouterTierForChatRun,
   resolveRuntimeArtifacts,
 } from "./useRedesignChatRun";
+
+describe("durable run request identity", () => {
+  it("creates a distinct non-empty idempotency key per submission", () => {
+    const first = createChatClientRequestId();
+    const second = createChatClientRequestId();
+    expect(first.length).toBeGreaterThan(8);
+    expect(second).not.toBe(first);
+  });
+});
 
 describe("normalizeRouterTierForChatRun", () => {
   it("maps UI-only tiers to Convex chat run tiers", () => {
