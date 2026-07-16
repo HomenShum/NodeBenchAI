@@ -9,7 +9,7 @@
 
 import React, { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { UniversalComposer, DEFAULT_TIERS, type RouterTier, type BatchTarget } from "../components/UniversalComposer";
+import { UniversalComposer, DEFAULT_TIERS, type RouterTier } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
 import type { AgentRailItem, AgentRailSnapshot, AgentRailStatus } from "../components/RightInspector";
 import { StreamingMarkdown } from "../components/StreamingMarkdown";
@@ -660,6 +660,23 @@ function buildChatAgentRailSnapshot(args: {
       { label: "graph", value: graphPacket ? String(graphPacket.packedNodes) : "0", tone: "accent" },
       { label: "cost", value: formatRailUsd(estimatedCost), tone: estimatedCost > 0 ? "amber" : "green" },
     ],
+    contract: {
+      objective: lastUserPrompt ?? (liveDetail ? `Work from ${liveDetail.title}.` : "Waiting for a request."),
+      reads: runtimeContextPacket?.hasContext
+        ? `${runtimeContextPacket.selectedContext.length} selected context items · ${runtimeContextPacket.sourceRefs.length} source refs`
+        : liveDetail
+          ? `${liveDetail.title} · ${liveDetail.sourceCount} attached source${liveDetail.sourceCount === 1 ? "" : "s"}`
+          : "Prompt only · no report context attached",
+      writes: "Review mode · no automatic shared writes",
+      verification: blockedClaimCount > 0
+        ? `${blockedClaimCount} unsupported source${blockedClaimCount === 1 ? "" : "s"} blocking review`
+        : claimChecks.length > 0
+          ? `${verifiedSourceCount} verified · ${softWarningSourceCount} limited · ${sourceCount} total`
+          : isRunning ? "Checks pending" : "No claim checks recorded",
+      reviewHref: liveDetail
+        ? `/redesign/workspace?report=${encodeURIComponent(liveDetail.id)}&tab=sources`
+        : undefined,
+    },
   };
 }
 
@@ -944,21 +961,6 @@ export function ChatSurface({
   useEffect(() => {
     onActiveContextChange?.(liveDetail ?? null);
   }, [liveDetail, onActiveContextChange]);
-  const batchTargets = useMemo<BatchTarget[]>(() => {
-    if (liveArtifacts.reports.length === 0) return [];
-    return [
-      {
-        universeId: "live-artifacts",
-        universeName: "Current live artifacts",
-        entityCount: liveArtifacts.reports.length,
-      },
-      ...liveArtifacts.reports.slice(0, 5).map((report) => ({
-        universeId: report.id,
-        universeName: `${report.entity} review set`,
-        entityCount: Math.max(1, report.claims + report.followUps),
-      })),
-    ];
-  }, [liveArtifacts.reports]);
   const liveSeedKey = liveDetail?.id ?? (liveArtifacts.isLoading ? "loading" : "empty");
   const openQuestions = useMemo(
     () => (liveDetail ? liveOpenQuestions(liveDetail) : []),
@@ -990,12 +992,8 @@ export function ChatSurface({
   };
   const [ctx, setCtx] = useState(contextLabel);
   const [tier, setTier] = useState<RouterTier>("auto");
-  // Sprint S2: optional live batch monitor. Supporting telemetry is isolated
-  // so it cannot collapse the primary research surface.
   const [liveBatch, setLiveBatch] = useState<ActiveBatchRun | null>(null);
-  const [overrideBatch, setOverrideBatch] = useState<ActiveBatchRun | null>(null);
-  const batch = overrideBatch ?? liveBatch;
-  const setBatch = setOverrideBatch;
+  const batch = liveBatch;
 
   // Sprint 4 P1.6 — pinned items carried into the next turn's context.
   const [pinned, setPinned] = useState<Array<{ id: string; label: string; tier: RouterTier; sourceCount: number }>>([]);
@@ -1368,54 +1366,6 @@ export function ChatSurface({
     setCtx(`Branched from message ${turnId}`);
   };
 
-  const runOnList = (text: string, _t: RouterTier, target: BatchTarget) => {
-    setHasUserInteracted(true);
-    const totalEntities = Math.max(1, target.entityCount);
-    const recentSteps = liveArtifacts.reports.slice(0, 5).map((report, index) => ({
-      entity: report.entity,
-      status: index === 0 ? "running" as const : "queued" as const,
-      durationMs: index === 0 ? 0 : undefined,
-      paidCalls: 0,
-    }));
-    setBatch({
-      id: `batch_${target.universeId}_${Date.now()}`,
-      universeId: target.universeId,
-      universeName: target.universeName,
-      styleId: "user.inferred",
-      styleName: "Founder / banker lens · v3",
-      rubric: "Live artifact review",
-      totalEntities,
-      doneCount: 0,
-      reviewCount: 0,
-      etaSeconds: totalEntities * 4,
-      spentUsd: 0,
-      recentSteps,
-    });
-    setTurns((prev) => [
-      ...prev,
-      { id: `u${prev.length}`, role: "user", text: `${text}  ·  on live set: ${target.universeName} (${totalEntities} entities)` },
-    ]);
-  };
-
-  // Tick the live batch counters so it feels alive
-  useEffect(() => {
-    if (!batch) return;
-    const t = window.setInterval(() => {
-      setBatch((cur) => {
-        if (!cur) return null;
-        if (cur.doneCount >= cur.totalEntities) return cur;
-        const inc = Math.min(2, cur.totalEntities - cur.doneCount);
-        return {
-          ...cur,
-          doneCount: cur.doneCount + inc,
-          spentUsd: +(cur.spentUsd + inc * 0.005).toFixed(3),
-          etaSeconds: Math.max(0, cur.etaSeconds - 4),
-        };
-      });
-    }, 2000);
-    return () => window.clearInterval(t);
-  }, [batch?.id]);
-
   // Scroll-to-bottom button: visible when user has scrolled up + auto-scroll on new turn
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -1431,11 +1381,6 @@ export function ChatSurface({
     el.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => el.removeEventListener("scroll", onScroll);
-  }, []);
-  // Scroll to bottom on mount so the latest content is visible above the composer dock
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
   }, []);
   // Auto-scroll on new turn unless user is reading higher in the thread
   useEffect(() => {
@@ -1459,41 +1404,19 @@ export function ChatSurface({
         <BatchLiveBridge onBatch={setLiveBatch} />
       </BatchLiveBoundary>
       <div ref={scrollRef} className="rd-stack rd-chat-scroll-area" style={{ flex: 1, overflow: "auto", padding: "24px 40px 160px", gap: 18, maxWidth: 920, width: "100%", margin: "0 auto" }}>
-        {batch && <BatchMonitorCell batch={batch} onCancel={() => setBatch(null)} />}
+        {batch && <BatchMonitorCell batch={batch} />}
 
-        <ChatV2ReportBanner
-          liveDetail={liveDetail}
-          turns={turns}
-          isLive={liveArtifacts.isLive}
-          paidEligible={chatRun.state.paidEligible}
-          runStatus={chatRun.state.run?.status}
-          onOpenReport={openCurrentReport}
-          onExport={() => showToast({ tone: "info", message: "Export preview stays approval-gated until a final answer packet exists." })}
-          onTrack={() => showToast({ tone: "success", message: liveDetail ? `${liveDetail.title} is already attached as the active report context.` : "Track updates after selecting or creating a report context." })}
-        />
-        <ChatV2CheckpointStrip
-          liveDetail={liveDetail}
-          turns={turns}
-          toolCallCount={chatRun.state.run?.toolCalls.length ?? 0}
-          runStatus={chatRun.state.run?.status}
-          authReady={!authLoading}
-          isAuthenticated={isAuthenticated}
-        />
-
-        {/* Compact thread header — no marketing copy. Just status + thread context. */}
-        <header className="rd-chat-thread-head">
-          <div className="rd-row" style={{ gap: 8, flexWrap: "wrap", flex: 1 }}>
-            <Pill tone="green"><span className="rd-dot rd-dot--live" />{liveArtifacts.isLive ? "Memory ready" : "Memory warming"}</Pill>
-            <span className="rd-mono" style={{ fontSize: 11, color: "var(--rd-ink-soft)" }}>
-              {liveDetail ? `Thread - ${liveDetail.title} - ${liveDetail.sourceCount} source${liveDetail.sourceCount === 1 ? "" : "s"} - no external refresh` : "Thread - no report selected - no external refresh"}
-            </span>
-          </div>
+        <AgentWorkspaceHeader
+          snapshot={agentRailSnapshot}
+          memoryReady={liveArtifacts.isLive}
+          onOpenReview={liveDetail ? openCurrentReport : undefined}
+        >
           {openQuestions.length > 0 && !oqOpen && (
             <button type="button" className="rd-open-q__inline-toggle" onClick={() => setOqOpen(true)} aria-label="Show open questions">
               <span className="rd-open-q__count">{openQuestions.length}</span> open questions
             </button>
           )}
-        </header>
+        </AgentWorkspaceHeader>
 
         {/* Sprint 3 P2.11 — open-questions tray (only rendered when explicitly opened) */}
         <OpenQuestionsTray questions={openQuestions} open={oqOpen} onToggle={() => setOqOpen(false)} />
@@ -1589,7 +1512,6 @@ export function ChatSurface({
           disabled={turns.some((t) => t.thinking || t.streaming)}
           onOpenReport={openCurrentReport}
           onPrompt={(prompt) => sendMessage(prompt, tier)}
-          onExport={() => showToast({ tone: "info", message: "Export will use the final sourced answer packet, not an unsourced draft." })}
         />
       </div>
 
@@ -1656,8 +1578,6 @@ export function ChatSurface({
               ? `Adding to: ${liveDetail?.title ?? "current report"}`
               : `Asking about: ${liveDetail?.title ?? "current context"}`)}
             onSubmit={sendMessage}
-            onRunOnList={runOnList}
-            batchTargets={batchTargets}
             tier={tier}
             onTierChange={setTier}
             placeholder="Ask anything · type / for commands · @ to mention an entity"
@@ -1770,83 +1690,45 @@ export function ChatSurface({
  * Today: fixture from OPEN_QUESTIONS. Once chat is live-wired, replace
  * with `useAgentRunFeedback` query filtered to flagged + unresolved items.
  */
-function ChatV2ReportBanner({
-  liveDetail,
-  turns,
-  isLive,
-  paidEligible,
-  runStatus,
-  onOpenReport,
-  onExport,
-  onTrack,
+function AgentWorkspaceHeader({
+  snapshot,
+  memoryReady,
+  onOpenReview,
+  children,
 }: {
-  liveDetail?: LiveArtifactDetail | null;
-  turns: Turn[];
-  isLive: boolean;
-  paidEligible: boolean;
-  runStatus?: string;
-  onOpenReport: () => void;
-  onExport: () => void;
-  onTrack: () => void;
+  snapshot: AgentRailSnapshot;
+  memoryReady: boolean;
+  onOpenReview?: () => void;
+  children?: ReactNode;
 }) {
-  const savedLabel = liveDetail ? `Saved to ${liveDetail.title}` : "Ready for a live report packet";
-  const meta = liveDetail
-    ? `${liveDetail.sections.length} sections · ${liveDetail.claimCount} claims · ${liveDetail.sourceCount} sources · notebook context loaded`
-    : `${turns.length} messages · ${isLive ? "memory hot" : "memory warming"} · ${paidEligible ? "paid eligible" : "free-first"} · ${runStatus ?? "idle"}`;
+  const contract = snapshot.contract;
+  const stateLabel = snapshot.status === "thinking"
+    ? "Running"
+    : snapshot.status === "ok"
+      ? "Ready for review"
+      : snapshot.status === "error"
+        ? "Needs attention"
+        : "Ready";
 
   return (
-    <section className="rd-v2-saved-banner" aria-label="Current chat work packet">
-      <strong>{savedLabel}</strong>
-      <span>{meta}</span>
-      <button type="button" onClick={onOpenReport}>{liveDetail ? "Open notebook" : "Open reports"}</button>
-      <button type="button" onClick={onExport}>Export</button>
-      <button type="button" onClick={onTrack}>Track updates</button>
-    </section>
-  );
-}
-
-function ChatV2CheckpointStrip({
-  liveDetail,
-  turns,
-  toolCallCount,
-  runStatus,
-  authReady,
-  isAuthenticated,
-}: {
-  liveDetail?: LiveArtifactDetail | null;
-  turns: Turn[];
-  toolCallCount: number;
-  runStatus?: string;
-  authReady: boolean;
-  isAuthenticated: boolean;
-}) {
-  const hasUserTurn = turns.some((turn) => turn.role === "user");
-  const hasPacket = turns.some((turn) => turn.packet?.shortAnswer);
-  const hasFollowUp = turns.some((turn) => turn.markdown || turn.packet?.nextAction);
-  const running = runStatus === "running" || runStatus === "queued" || turns.some((turn) => turn.thinking || turn.streaming);
-  const checkpoints: Array<{ icon: string; text: string; done: boolean }> = [
-    { icon: "⚙", text: liveDetail ? "Report context loaded" : authReady ? "Memory checked" : "Resolving session", done: Boolean(liveDetail) || authReady },
-    { icon: "◉", text: "Prompt captured", done: hasUserTurn },
-    { icon: running && toolCallCount === 0 ? "↻" : "✓", text: `${toolCallCount} tool calls`, done: toolCallCount > 0 || running },
-    { icon: running && !hasPacket ? "↻" : "✓", text: "Answer packet", done: hasPacket || running },
-    { icon: hasFollowUp ? "✓" : "○", text: "Notebook / follow-up", done: hasFollowUp },
-    { icon: isAuthenticated ? "✓" : "○", text: isAuthenticated ? "Telemetry persisted" : "Guest telemetry local", done: isAuthenticated },
-  ];
-
-  return (
-    <div className="rd-v2-chat-center">
-      <h1>{liveDetail ? `${liveDetail.title} workspace chat` : "Ask NodeBench to work the live packet"}</h1>
-      <p className="rd-v2-muted-line">
-        {runStatus ? `Run ${runStatus}` : "Idle"} · {turns.length} messages
-      </p>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", marginTop: 4 }}>
-        {checkpoints.filter((c) => c.done).map((c) => (
-          <span key={c.text} className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>
-            {c.icon} {c.text}
-          </span>
-        ))}
+    <section className="rd-agent-workspace-head" data-status={snapshot.status} aria-label="Current agent run">
+      <div className="rd-agent-workspace-head__primary">
+        <div>
+          <span className="rd-agent-workspace-head__eyebrow">Agent workspace</span>
+          <h1>{contract?.objective ?? snapshot.subtitle ?? "Start a traceable run"}</h1>
+        </div>
+        <span className="rd-agent-workspace-head__state"><span aria-hidden="true" />{stateLabel}</span>
       </div>
-    </div>
+      <div className="rd-agent-workspace-head__scope">
+        <span><b>Reads</b>{contract?.reads ?? "No context recorded"}</span>
+        <span><b>Writes</b>{contract?.writes ?? "No automatic writes"}</span>
+        <span><b>Checks</b>{contract?.verification ?? "Not started"}</span>
+      </div>
+      <div className="rd-agent-workspace-head__foot">
+        <span>{memoryReady ? "Memory available" : "Memory loading"}{snapshot.runId ? ` · run ${snapshot.runId}` : " · no active run"}</span>
+        <div>{children}{onOpenReview && <button type="button" onClick={onOpenReview}>Open review workspace</button>}</div>
+      </div>
+    </section>
   );
 }
 
@@ -1855,13 +1737,11 @@ function ChatV2NextActions({
   disabled,
   onOpenReport,
   onPrompt,
-  onExport,
 }: {
   liveDetail?: LiveArtifactDetail | null;
   disabled: boolean;
   onOpenReport: () => void;
   onPrompt: (prompt: string) => void;
-  onExport: () => void;
 }) {
   const title = liveDetail?.title ?? "current context";
   const actions = [
@@ -1869,7 +1749,6 @@ function ChatV2NextActions({
     ["Draft memo", () => onPrompt(`Draft a concise sourced memo for ${title}. Include answer, evidence, risks, and next action.`)],
     ["Verify claims", () => onPrompt(`Verify the open claims for ${title}. Use memory first and list citation gaps explicitly.`)],
     ["Compare", () => onPrompt(`Compare ${title} against the closest related reports already in memory.`)],
-    ["Export", onExport],
   ] as const;
 
   return (
@@ -2287,7 +2166,7 @@ function ABCompareModal({
   );
 }
 
-function BatchMonitorCell({ batch, onCancel }: { batch: ActiveBatchRun; onCancel: () => void }) {
+function BatchMonitorCell({ batch }: { batch: ActiveBatchRun }) {
   const pct = Math.round((batch.doneCount / batch.totalEntities) * 100);
   const eta = batch.etaSeconds < 60
     ? `${batch.etaSeconds}s`
@@ -2329,10 +2208,6 @@ function BatchMonitorCell({ batch, onCancel }: { batch: ActiveBatchRun; onCancel
             ))}
           </div>
         )}
-      </div>
-      <div className="rd-action-chips" style={{ flexDirection: "column", alignItems: "flex-end" }}>
-        <button className="rd-action-chip">Pause</button>
-        <button className="rd-action-chip" onClick={onCancel}>Cancel</button>
       </div>
     </article>
   );

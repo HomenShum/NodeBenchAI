@@ -253,6 +253,7 @@ export function TopNav({
         <button
           type="button"
           onClick={onToggleWideMode}
+          data-rd-wide-toggle
           aria-pressed={wideMode}
           aria-label={wideMode ? "Use standard width" : "Use wide mode"}
           title={wideMode ? "Use standard width (W)" : "Use wide mode (W)"}
@@ -312,6 +313,7 @@ export function TopNav({
 
         {showAccountSlot && isLoading ? (
           <div
+            data-rd-account-slot
             aria-hidden="true"
             style={{
               width: 34,
@@ -323,6 +325,7 @@ export function TopNav({
         ) : showAccountSlot && initials ? (
           <button
             type="button"
+            data-rd-account-slot
             aria-label="Account menu"
             className="rd-btn rd-btn--quiet"
             style={{
@@ -345,6 +348,7 @@ export function TopNav({
         ) : showAccountSlot ? (
           <button
             type="button"
+            data-rd-account-slot
             onClick={onSignIn}
             className="rd-btn rd-btn--primary rd-btn--sm"
             style={{

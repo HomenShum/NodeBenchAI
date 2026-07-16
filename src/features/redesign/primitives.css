@@ -2835,10 +2835,17 @@
 
 @media (max-width: 640px) {
   [data-redesign] [data-rd-topnav] {
-    gap: 8px !important;
-    padding: 8px 10px !important;
-    overflow-x: auto;
+    gap: 2px !important;
+    padding: 8px 6px !important;
+    overflow: hidden;
   }
+
+  [data-redesign] [data-rd-topnav] > button:first-of-type,
+  [data-redesign] [data-rd-wide-toggle],
+  [data-redesign] [data-rd-account-slot] { display: none !important; }
+
+  [data-redesign] [data-rd-topnav] nav { flex: 1; justify-content: space-between; min-width: 0; }
+  [data-redesign] [data-rd-topnav] nav .rd-btn { min-height: 32px !important; padding: 6px 8px !important; font-size: 11.5px !important; }
 
   [data-redesign] [data-rd-topnav-search] {
     display: none !important;
@@ -12223,6 +12230,122 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   height: 100%;
   border-radius: 2px;
   background: var(--rd-accent);
+}
+
+/* First-class agent workspace: one runtime contract, then progressive detail. */
+[data-redesign] .rd-agent-workspace-head {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--rd-line);
+  border-left: 3px solid var(--rd-line-strong);
+  border-radius: var(--rd-r-md);
+  background: var(--rd-panel);
+  box-shadow: var(--rd-shadow-xs);
+}
+
+[data-redesign] .rd-agent-workspace-head[data-status="thinking"] { border-left-color: var(--rd-accent); }
+[data-redesign] .rd-agent-workspace-head[data-status="ok"] { border-left-color: var(--rd-green); }
+[data-redesign] .rd-agent-workspace-head[data-status="error"] { border-left-color: var(--rd-amber); }
+
+[data-redesign] .rd-agent-workspace-head__primary,
+[data-redesign] .rd-agent-workspace-head__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-redesign] .rd-agent-workspace-head__eyebrow {
+  color: var(--rd-ink-soft);
+  font-size: 9px;
+  font-weight: 720;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+[data-redesign] .rd-agent-workspace-head h1 {
+  max-width: 64ch;
+  margin: 3px 0 0;
+  color: var(--rd-ink-strong);
+  font-size: 15px;
+  font-weight: 680;
+  line-height: 1.35;
+}
+
+[data-redesign] .rd-agent-workspace-head__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  color: var(--rd-ink-mute);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+[data-redesign] .rd-agent-workspace-head__state > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rd-line-strong);
+}
+
+[data-redesign] .rd-agent-workspace-head[data-status="thinking"] .rd-agent-workspace-head__state > span { background: var(--rd-accent); }
+[data-redesign] .rd-agent-workspace-head[data-status="ok"] .rd-agent-workspace-head__state > span { background: var(--rd-green); }
+[data-redesign] .rd-agent-workspace-head[data-status="error"] .rd-agent-workspace-head__state > span { background: var(--rd-amber); }
+
+[data-redesign] .rd-agent-workspace-head__scope {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-block: 1px solid var(--rd-line-faint);
+}
+
+[data-redesign] .rd-agent-workspace-head__scope > span {
+  min-width: 0;
+  padding: 10px 12px;
+  color: var(--rd-ink-soft);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+[data-redesign] .rd-agent-workspace-head__scope > span + span { border-left: 1px solid var(--rd-line-faint); }
+[data-redesign] .rd-agent-workspace-head__scope b { display: block; margin-bottom: 2px; color: var(--rd-ink-mute); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+[data-redesign] .rd-agent-workspace-head__foot { color: var(--rd-ink-soft); font-family: var(--rd-font-mono); font-size: 10px; }
+[data-redesign] .rd-agent-workspace-head__foot > div { display: flex; align-items: center; gap: 8px; }
+[data-redesign] .rd-agent-workspace-head__foot button,
+[data-redesign] .chat-run-handoff a {
+  border: 0;
+  background: transparent;
+  color: var(--rd-accent-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 680;
+  text-decoration: none;
+}
+
+[data-redesign] .chat-run-contract { padding: 16px; border-bottom: 1px solid var(--rd-line-faint); }
+[data-redesign] .chat-run-contract__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+[data-redesign] .chat-run-contract__head .chat-ctx-label { margin-bottom: 3px; }
+[data-redesign] .chat-run-contract strong { color: var(--rd-ink-strong); font-size: 13px; line-height: 1.35; }
+[data-redesign] .chat-run-contract p { margin: 8px 0 0; color: var(--rd-ink-mute); font-size: 11.5px; line-height: 1.5; }
+[data-redesign] .chat-run-contract code { display: block; margin-top: 7px; color: var(--rd-ink-soft); font: 10px var(--rd-font-mono); }
+[data-redesign] .chat-run-scope { display: grid; gap: 9px; margin: 0; }
+[data-redesign] .chat-run-scope > div { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 8px; }
+[data-redesign] .chat-run-scope dt { color: var(--rd-ink-soft); font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+[data-redesign] .chat-run-scope dd { margin: 0; color: var(--rd-ink-mute); font-size: 10.5px; line-height: 1.45; }
+[data-redesign] .chat-run-handoff { display: grid; gap: 3px; padding: 14px 16px; }
+[data-redesign] .chat-run-handoff small { color: var(--rd-ink-soft); font-size: 10px; line-height: 1.4; }
+[data-redesign] .chat-trace-item-meta { min-width: 0; flex-direction: column; gap: 2px; line-height: 1.35; }
+[data-redesign] .chat-trace-item-meta span:last-child { overflow-wrap: anywhere; color: var(--rd-ink-soft); }
+
+@media (max-width: 760px) {
+  [data-redesign] .rd-shell--chat-v3 .rd-pane--right.chat-context { display: none; }
+  [data-redesign] .rd-agent-workspace-head { padding: 14px; }
+  [data-redesign] .rd-agent-workspace-head__primary { align-items: flex-start; }
+  [data-redesign] .rd-agent-workspace-head__scope { grid-template-columns: 1fr; }
+  [data-redesign] .rd-agent-workspace-head__scope > span { padding-inline: 0; }
+  [data-redesign] .rd-agent-workspace-head__scope > span + span { border-left: 0; border-top: 1px solid var(--rd-line-faint); }
+  [data-redesign] .rd-agent-workspace-head__foot { align-items: flex-start; flex-direction: column; }
 }
 
 [data-redesign] .chat-trace-model {
