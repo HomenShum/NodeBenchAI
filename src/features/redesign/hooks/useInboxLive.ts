@@ -118,7 +118,7 @@ export function useInboxLive(): UseInboxLiveResult {
   const livePipeline = useQuery(
     (api as unknown as { domains: { pipelines: { pipelineRunsQueries: { listRecentRuns: unknown } } } })
       .domains.pipelines.pipelineRunsQueries.listRecentRuns as Parameters<typeof useQuery>[0],
-    { limit: 20 } as Parameters<typeof useQuery>[1],
+    { limit: 20, anonymousSessionId } as Parameters<typeof useQuery>[1],
   ) as PipelineRun[] | undefined;
   const nudgeSnapshot = useQuery(
     (api as unknown as { domains: { product: { nudges: { getNudgesSnapshot: unknown } } } })

@@ -21,10 +21,6 @@ import {
 } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
-import { TrajectorySummaryBand } from "@/features/trajectory/components/TrajectorySummaryBand";
-import type { TrajectorySummaryData } from "@/features/trajectory/types";
-import { SuccessLoopsPanel } from "@/features/agents/components/successLoops/SuccessLoopsPanel";
-import type { SuccessLoopsDashboardSnapshot } from "@/features/agents/components/successLoops/types";
 import { AgentResponseFlywheelPanel } from "./AgentResponseFlywheelPanel";
 import {
   formatCompactNumber,
@@ -36,10 +32,6 @@ import {
   getDogfoodPresentation,
   getInstitutionalVerdictPresentation,
 } from "./oracleControlTowerUtils";
-import {
-  getTemporalPhasePresentation,
-  summarizeTemporalCounts,
-} from "./oracleTemporalOsUtils";
 
 interface OracleControlTowerSnapshot {
   summary: {
@@ -52,6 +44,7 @@ interface OracleControlTowerSnapshot {
     totalCostUsd: number;
     avgLatencyMs: number;
     institutionalVerdict:
+      | "unmeasured"
       | "institutional_memory_aligned"
       | "watch"
       | "institutional_hallucination_risk";
@@ -118,26 +111,8 @@ interface OracleControlTowerSnapshot {
     }>;
     topToolSequence: string[];
   }>;
-  temporalOs: {
-    loopFormula: string[];
-    counts: {
-      observations: number;
-      signals: number;
-      causalChains: number;
-      zeroDrafts: number;
-      proofPacks: number;
-    };
-    phases: Array<{
-      id: string;
-      title: string;
-      window: string;
-      objective: string;
-      progress: number;
-      status: "completed" | "in_progress" | "pending";
-      current: boolean;
-    }>;
-  };
-  successLoops: SuccessLoopsDashboardSnapshot;
+  temporalOs: null;
+  successLoops: null;
   responseFlywheel: {
     summary: {
       totalReviews: number;
@@ -189,37 +164,25 @@ interface OracleControlTowerSnapshot {
   };
   nextRecommendedAction: string;
   industryMetrics?: {
+    scope: "authenticated_owner";
     toolCalls: {
       last24h: number;
-      successRate24h: number;
+      sampleCount: number;
+      successRate24h: number | null;
       failedLast24h: number;
-      avgDurationMs: number;
-      totalWeek: number;
+      avgDurationMs: number | null;
+      sampledWeek: number;
       topTools: Array<{ name: string; count: number }>;
     };
     evidence: {
-      totalArtifacts: number;
-      totalPacks: number;
-      totalChainLinks: number;
+      sourceRefCount: number;
+      attachmentCount: number;
+      traceSampleCount: number;
     };
-    narrative: {
-      newInsightsThisWeek: number;
-      totalEvents: number;
-      hypotheses: {
-        active: number;
-        supported: number;
-        weakened: number;
-        total: number;
-      };
-    };
-    signals: {
-      totalIngested: number;
-      pending: number;
-      processed: number;
-    };
-    eval: {
-      totalRuns: number;
-      avgPassRate: number | null;
+    sessions: {
+      sampleCount: number;
+      completed: number;
+      failed: number;
     };
   };
 }
@@ -287,20 +250,20 @@ function IndustryMetricsSection({
 }: {
   metrics: NonNullable<OracleControlTowerSnapshot["industryMetrics"]>;
 }) {
-  const { toolCalls, evidence, narrative, signals, eval: evalData } = metrics;
+  const { toolCalls, evidence, sessions } = metrics;
 
   return (
     <div className="rounded-xl border border-edge bg-surface p-4 space-y-4">
       <div className="flex items-center gap-2 text-sm font-semibold text-content">
         <BarChart3 className="h-4 w-4 text-accent" />
-        Industry Metrics
+        Owner execution telemetry
       </div>
 
       {/* Tool Calls */}
       <div className="rounded-lg border border-edge bg-background/40 p-3 space-y-1.5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-content">Tool Execution</span>
-          <span className="text-[11px] text-content-muted">24h / 7d</span>
+          <span className="text-[11px] text-content-muted">authenticated owner only</span>
         </div>
         <MetricRow
           icon={Wrench}
@@ -311,8 +274,9 @@ function IndustryMetricsSection({
         <MetricRow
           icon={Zap}
           label="Success rate"
-          value={`${toolCalls.successRate24h}%`}
-          accent={toolCalls.successRate24h >= 95 ? "text-emerald-400" : toolCalls.successRate24h >= 80 ? "text-amber-400" : "text-red-400"}
+          value={toolCalls.successRate24h === null ? "Unknown" : `${toolCalls.successRate24h}%`}
+          sub={`${toolCalls.sampleCount} measured calls`}
+          accent={toolCalls.successRate24h === null ? "text-content-muted" : toolCalls.successRate24h >= 95 ? "text-emerald-400" : toolCalls.successRate24h >= 80 ? "text-amber-400" : "text-red-400"}
         />
         {toolCalls.failedLast24h > 0 && (
           <MetricRow
@@ -325,13 +289,13 @@ function IndustryMetricsSection({
         <MetricRow
           icon={Timer}
           label="Avg latency"
-          value={toolCalls.avgDurationMs > 0 ? formatDurationCompact(toolCalls.avgDurationMs) : "N/A"}
+          value={toolCalls.avgDurationMs === null ? "Unknown" : formatDurationCompact(toolCalls.avgDurationMs)}
           accent="text-violet-400"
         />
         <MetricRow
           icon={Wrench}
-          label="Total (7d)"
-          value={formatCompactNumber(toolCalls.totalWeek)}
+          label="Sampled calls (7d)"
+          value={formatCompactNumber(toolCalls.sampledWeek)}
           accent="text-blue-400"
         />
 
@@ -349,122 +313,53 @@ function IndustryMetricsSection({
         )}
       </div>
 
-      {/* Evidence & Artifacts */}
+      {/* Evidence recorded on the sampled owned traces */}
       <div className="rounded-lg border border-edge bg-background/40 p-3 space-y-1.5">
-        <span className="text-xs font-medium text-content">Evidence Gathered</span>
+        <span className="text-xs font-medium text-content">Recorded evidence</span>
         <MetricRow
           icon={FileText}
-          label="Source artifacts"
-          value={formatCompactNumber(evidence.totalArtifacts)}
+          label="Source references"
+          value={formatCompactNumber(evidence.sourceRefCount)}
           accent="text-emerald-400"
         />
         <MetricRow
           icon={Swords}
-          label="Evidence packs"
-          value={formatCompactNumber(evidence.totalPacks)}
+          label="Evidence attachments"
+          value={formatCompactNumber(evidence.attachmentCount)}
           accent="text-amber-400"
         />
         <MetricRow
           icon={Waypoints}
-          label="Chain/deduction links"
-          value={formatCompactNumber(evidence.totalChainLinks)}
+          label="Traces sampled"
+          value={formatCompactNumber(evidence.traceSampleCount)}
           accent="text-cyan-400"
         />
       </div>
 
-      {/* Narrative Intelligence */}
+      {/* Owned task-session sample */}
       <div className="rounded-lg border border-edge bg-background/40 p-3 space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-content">Narrative Intelligence</span>
-          {narrative.newInsightsThisWeek > 0 && (
-            <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-400">
-              +{narrative.newInsightsThisWeek} new this week
-            </span>
-          )}
-        </div>
+        <span className="text-xs font-medium text-content">Task sessions sampled</span>
         <MetricRow
-          icon={Lightbulb}
-          label="New insights (7d)"
-          value={narrative.newInsightsThisWeek}
-          accent="text-amber-400"
-        />
-        <MetricRow
-          icon={Lightbulb}
-          label="Total events tracked"
-          value={formatCompactNumber(narrative.totalEvents)}
-          accent="text-pink-400"
-        />
-
-        {narrative.hypotheses.total > 0 && (
-          <div className="mt-1.5 grid grid-cols-3 gap-1.5">
-            <div className="rounded-md border border-edge bg-surface px-2 py-1.5 text-center">
-              <div className="text-sm font-semibold tabular-nums text-emerald-400">{narrative.hypotheses.active}</div>
-              <div className="text-[10px] text-content-muted">Active</div>
-            </div>
-            <div className="rounded-md border border-edge bg-surface px-2 py-1.5 text-center">
-              <div className="text-sm font-semibold tabular-nums text-blue-400">{narrative.hypotheses.supported}</div>
-              <div className="text-[10px] text-content-muted">Supported</div>
-            </div>
-            <div className="rounded-md border border-edge bg-surface px-2 py-1.5 text-center">
-              <div className="text-sm font-semibold tabular-nums text-amber-400">{narrative.hypotheses.weakened}</div>
-              <div className="text-[10px] text-content-muted">Weakened</div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Signals */}
-      <div className="rounded-lg border border-edge bg-background/40 p-3 space-y-1.5">
-        <span className="text-xs font-medium text-content">Signal Pipeline</span>
-        <MetricRow
-          icon={Radio}
-          label="Total ingested"
-          value={formatCompactNumber(signals.totalIngested)}
+          icon={Swords}
+          label="Sessions"
+          value={formatCompactNumber(sessions.sampleCount)}
           accent="text-violet-400"
         />
         <MetricRow
           icon={CheckCircle2}
-          label="Processed"
-          value={formatCompactNumber(signals.processed)}
+          label="Completed"
+          value={formatCompactNumber(sessions.completed)}
           accent="text-emerald-400"
         />
-        {signals.pending > 0 && (
+        {sessions.failed > 0 && (
           <MetricRow
-            icon={Loader2}
-            label="Pending"
-            value={signals.pending}
-            accent="text-amber-400"
-          />
-        )}
-        {signals.totalIngested > 0 && (
-          <MiniBar
-            value={signals.processed}
-            max={signals.totalIngested}
-            color="bg-emerald-500/60"
+            icon={AlertTriangle}
+            label="Failed"
+            value={sessions.failed}
+            accent="text-red-400"
           />
         )}
       </div>
-
-      {/* Eval */}
-      {evalData.totalRuns > 0 && (
-        <div className="rounded-lg border border-edge bg-background/40 p-3 space-y-1.5">
-          <span className="text-xs font-medium text-content">Evaluation</span>
-          <MetricRow
-            icon={Beaker}
-            label="Eval runs"
-            value={evalData.totalRuns}
-            accent="text-cyan-400"
-          />
-          {evalData.avgPassRate !== null && (
-            <MetricRow
-              icon={CheckCircle2}
-              label="Avg pass rate"
-              value={`${evalData.avgPassRate}%`}
-              accent={evalData.avgPassRate >= 80 ? "text-emerald-400" : evalData.avgPassRate >= 60 ? "text-amber-400" : "text-red-400"}
-            />
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -472,18 +367,13 @@ function IndustryMetricsSection({
 export const OracleControlTowerPanel = memo(function OracleControlTowerPanel() {
   const snapshot = useQuery(api.domains.taskManager.queries.getOracleControlTowerSnapshot, {
     limit: 6,
-  }) as OracleControlTowerSnapshot | undefined;
-  const trajectoryDashboard = useQuery(api.domains.trajectory.queries.getTrajectoryDashboardSnapshot, {
-    windowDays: 90,
-  }) as
-    | {
-        product?: {
-          summary: TrajectorySummaryData;
-        };
-      }
-    | undefined;
-  const industryMetrics = useQuery(api.domains.taskManager.queries.getIndustryMetrics) as
+  }) as OracleControlTowerSnapshot | null | undefined;
+  const industryMetrics = useQuery(
+    api.domains.taskManager.queries.getIndustryMetrics,
+    snapshot ? {} : "skip",
+  ) as
     | NonNullable<OracleControlTowerSnapshot["industryMetrics"]>
+    | null
     | undefined;
 
   if (snapshot === undefined) {
@@ -497,62 +387,19 @@ export const OracleControlTowerPanel = memo(function OracleControlTowerPanel() {
     );
   }
 
+  if (snapshot === null) {
+    return (
+      <div className="nb-surface-card p-6">
+        <div className="text-sm font-medium text-content">Sign in to view execution controls</div>
+        <p className="mt-1 text-sm text-content-secondary">
+          Operational sessions, traces, approvals, and telemetry are private to their owner.
+        </p>
+      </div>
+    );
+  }
+
   const institutionalTone = getInstitutionalVerdictPresentation(snapshot.summary.institutionalVerdict);
   const dogfoodTone = getDogfoodPresentation(snapshot.latestDogfood?.verdict ?? "missing");
-  const temporalOs = snapshot.temporalOs ?? {
-    loopFormula: [
-      "Ingest unstructured data",
-      "Extract temporal signals",
-      "Forecast the outcome",
-      "Execute the zero-draft behavior",
-      "Log the proof pack",
-    ],
-    counts: {
-      observations: 0,
-      signals: 0,
-      causalChains: 0,
-      zeroDrafts: 0,
-      proofPacks: 0,
-    },
-    phases: [
-      {
-        id: "phase_1",
-        title: "Temporal substrate & ingestion",
-        window: "Weeks 1-3",
-        objective: "Ingest messy source material and anchor facts to exact source references.",
-        progress: 0,
-        status: "in_progress" as const,
-        current: true,
-      },
-      {
-        id: "phase_2",
-        title: "Temporal math & causal API",
-        window: "Weeks 4-6",
-        objective: "Detect temporal breaks and expose causal chains as structured outputs.",
-        progress: 0,
-        status: "pending" as const,
-        current: false,
-      },
-      {
-        id: "phase_3",
-        title: "Gamified Oracle & zero-drafting",
-        window: "Weeks 7-9",
-        objective: "Pre-draft artifacts behind approval gates so the operator starts from momentum, not blank pages.",
-        progress: 0,
-        status: "pending" as const,
-        current: false,
-      },
-      {
-        id: "phase_4",
-        title: "Enterprise proof-pack execution",
-        window: "Weeks 10-12",
-        objective: "Package deterministic replay, activity monitoring, and quality review evidence into a proof pack.",
-        progress: 0,
-        status: "pending" as const,
-        current: false,
-      },
-    ],
-  };
 
   return (
     <div className="nb-surface-card overflow-hidden">
@@ -588,16 +435,6 @@ export const OracleControlTowerPanel = memo(function OracleControlTowerPanel() {
       </div>
 
       <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
-        <div className="md:col-span-2 xl:col-span-4">
-          <TrajectorySummaryBand
-            summary={trajectoryDashboard?.product?.summary ?? null}
-            loading={trajectoryDashboard === undefined}
-            emptyLabel="The product-level trajectory cache has not been backfilled yet. The Oracle control tower is still reading the older monitoring surfaces directly."
-          />
-        </div>
-        <div className="md:col-span-2 xl:col-span-4">
-          <SuccessLoopsPanel snapshot={snapshot.successLoops ?? null} />
-        </div>
         <StatCard
           label="Active quests"
           value={String(snapshot.summary.activeSessions)}
@@ -633,98 +470,6 @@ export const OracleControlTowerPanel = memo(function OracleControlTowerPanel() {
             <div className="mt-2 flex items-start gap-3">
               <ArrowRight className="mt-0.5 h-4 w-4 text-accent" />
               <p className="text-sm leading-6 text-content">{snapshot.nextRecommendedAction}</p>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-edge bg-surface p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <div className="text-sm font-semibold text-content">Unified Temporal Agentic OS</div>
-                <div className="mt-1 text-xs text-content-muted">
-                  {summarizeTemporalCounts(temporalOs.counts)}
-                </div>
-              </div>
-              <span className="rounded-full border border-edge bg-background/50 px-2 py-0.5 text-[11px] text-content-secondary">
-                loop until done
-              </span>
-            </div>
-
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-              <div className="rounded-lg border border-edge bg-background/40 p-3 text-xs text-content-secondary">
-                <div className="font-medium text-content">Observations</div>
-                <div className="mt-1 text-lg font-semibold text-content">{formatCompactNumber(temporalOs.counts.observations)}</div>
-              </div>
-              <div className="rounded-lg border border-edge bg-background/40 p-3 text-xs text-content-secondary">
-                <div className="font-medium text-content">Signals</div>
-                <div className="mt-1 text-lg font-semibold text-content">
-                  {formatCompactNumber(temporalOs.counts.signals)}
-                </div>
-              </div>
-              <div className="rounded-lg border border-edge bg-background/40 p-3 text-xs text-content-secondary">
-                <div className="font-medium text-content">Causal chains</div>
-                <div className="mt-1 text-lg font-semibold text-content">
-                  {formatCompactNumber(temporalOs.counts.causalChains)}
-                </div>
-              </div>
-              <div className="rounded-lg border border-edge bg-background/40 p-3 text-xs text-content-secondary">
-                <div className="font-medium text-content">Zero-drafts</div>
-                <div className="mt-1 text-lg font-semibold text-content">
-                  {formatCompactNumber(temporalOs.counts.zeroDrafts)}
-                </div>
-              </div>
-              <div className="rounded-lg border border-edge bg-background/40 p-3 text-xs text-content-secondary">
-                <div className="font-medium text-content">Proof packs</div>
-                <div className="mt-1 text-lg font-semibold text-content">
-                  {formatCompactNumber(temporalOs.counts.proofPacks)}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {temporalOs.loopFormula.map((step) => (
-                <span
-                  key={step}
-                  className="rounded-full border border-edge bg-surface px-2 py-0.5 text-[11px] text-content-secondary"
-                >
-                  {step}
-                </span>
-              ))}
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {temporalOs.phases.map((phase) => {
-                const tone = getTemporalPhasePresentation(phase.status);
-                return (
-                  <div key={phase.id} className="rounded-lg border border-edge bg-background/40 p-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-sm font-medium text-content">{phase.title}</div>
-                          <span
-                            className={cn(
-                              "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                              tone.className,
-                            )}
-                          >
-                            {tone.label}
-                          </span>
-                          {phase.current ? (
-                            <span className="rounded-full border border-accent/30 bg-[var(--accent-primary-bg)] px-2 py-0.5 text-[11px] text-accent">
-                              current bottleneck
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="mt-1 text-[11px] text-content-muted">{phase.window}</div>
-                      </div>
-                      <div className="text-right text-[11px] text-content-muted">
-                        <div>{phase.progress}%</div>
-                        <div>progress</div>
-                      </div>
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-content-secondary">{phase.objective}</p>
-                  </div>
-                );
-              })}
             </div>
           </div>
 

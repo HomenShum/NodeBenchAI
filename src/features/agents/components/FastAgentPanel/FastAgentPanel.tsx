@@ -3,64 +3,66 @@
 
 import React, { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvex, usePaginatedQuery, useQuery, useMutation, useAction, useConvexAuth } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
-import { X, Loader2, ChevronDown, ArrowDown, MessageSquare, Activity, LogIn, Search } from 'lucide-react';
+import { X, Loader2, ChevronDown, ArrowDown, MessageSquare, Activity, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { useUIMessages } from '@convex-dev/agent/react';
+import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 
 import './FastAgentPanel.animations.css';
 import { FastAgentThreadList } from './FastAgentPanel.ThreadList';
 import { FastAgentInputBar } from './FastAgentPanel.InputBar';
-import { FileUpload } from './FastAgentPanel.FileUpload';
-import { ExportMenu } from './FastAgentPanel.ExportMenu';
 // Core chat components — always needed on panel open
 import { HumanRequestList } from './HumanRequestCard';
 import { FastAgentUIMessageBubble } from './FastAgentPanel.UIMessageBubble';
 import { MessageHandlersProvider } from './MessageHandlersContext';
 import { VirtualizedMessageList, useMessageVirtualization } from './VirtualizedMessageList';
 import { useSwarmByThread, useSwarmActions, parseSpawnCommand, isSpawnCommand } from '@/hooks/useSwarm';
-import { SwarmQuickActions } from './SwarmQuickActions';
 import { QuickCommandChips } from './QuickCommandChips';
 import { QuotePopover } from '@/features/chat/components/QuotePopover';
 
 // Tab-gated / conditional components — lazy-loaded on first use
 import type { DisclosureEvent } from './FastAgentPanel.DisclosureTrace';
-const SettingsPanel = React.lazy(() => import('./FastAgentPanel.Settings').then(m => ({ default: m.Settings })));
 const AgentHierarchy = React.lazy(() => import('./FastAgentPanel.AgentHierarchy').then(m => ({ default: m.AgentHierarchy })));
 const SkillsPanel = React.lazy(() => import('./FastAgentPanel.SkillsPanel').then(m => ({ default: m.SkillsPanel })));
 const DisclosureTrace = React.lazy(() => import('./FastAgentPanel.DisclosureTrace').then(m => ({ default: m.DisclosureTrace })));
 const AgentTasksTab = React.lazy(() => import('./FastAgentPanel.AgentTasksTab').then(m => ({ default: m.AgentTasksTab })));
 const TraceAuditPanel = React.lazy(() => import('./FastAgentPanel.TraceAuditPanel').then(m => ({ default: m.TraceAuditPanel })));
-const ParallelTaskTimeline = React.lazy(() => import('./FastAgentPanel.ParallelTaskTimeline').then(m => ({ default: m.ParallelTaskTimeline })));
 const EditsTab = React.lazy(() => import('./FastAgentPanel.EditsTab').then(m => ({ default: m.EditsTab })));
 const BriefTab = React.lazy(() => import('./FastAgentPanel.BriefTab').then(m => ({ default: m.BriefTab })));
-const TaskManagerView = React.lazy(() => import('../TaskManager').then(m => ({ default: m.TaskManagerView })));
 const SwarmLanesView = React.lazy(() => import('./SwarmLanesView').then(m => ({ default: m.SwarmLanesView })));
 const LiveAgentLanes = React.lazy(() => import('@/features/agents/views/LiveAgentLanes').then(m => ({ default: m.LiveAgentLanes })));
 import { LiveEventCard, type LiveEvent } from './LiveEventCard';
 import { extractLiveEventsFromUIMessages } from './liveEvents';
 import { RichMediaSection } from './RichMediaSection';
-import { DocumentActionGrid, extractDocumentActions, type DocumentAction } from './DocumentActionCard';
-import { extractMediaFromText, type ExtractedMedia } from './utils/mediaExtractor';
-import type { SpawnedAgent } from './types/agent';
+import { DocumentActionGrid, type DocumentAction } from './DocumentActionCard';
+import type { ExtractedMedia } from './utils/mediaExtractor';
+import { collectConsultedArtifacts } from './FastAgentPanel.provenance';
 import type { AgentOpenOptions, DossierContext } from '@/features/agents/context/FastAgentContext';
 import { useFastAgent } from '@/features/agents/context/FastAgentContext';
 import { SaveToNotebookButton } from '@/features/agents/components/SaveToNotebookButton';
 import { trackEvent } from '@/lib/analytics';
 import { buildDossierContextPrefix } from '@/features/agents/context/FastAgentContext';
-import { findDemoConversation, GUEST_FALLBACK_RESPONSE, type DemoConversation } from './demoConversation';
 import { MinimizedStrip } from './FastAgentPanel.MinimizedStrip';
 import { PanelHeader } from './FastAgentPanel.PanelHeader';
 import { PanelOverlays } from './FastAgentPanel.PanelOverlays';
 import { PanelDialogs } from './FastAgentPanel.PanelDialogs';
 import { DossierModeIndicator } from '@/features/agents/components/DossierModeIndicator';
-import { DEFAULT_MODEL, MODEL_UI_INFO, type ApprovedModel } from '@shared/llm/approvedModels';
+import { DEFAULT_MODEL, type ApprovedModel } from '@shared/llm/approvedModels';
+import {
+  ANONYMOUS_FAST_AGENT_MODEL_ID,
+  FAST_AGENT_SIGN_IN_BENEFIT_COPY,
+} from '../../../../../shared/llm/fastAgentRuntimeContract';
 import { cn } from '@/lib/utils';
 import { buildCockpitPath } from '@/lib/registry/viewRegistry';
 import { useAnonymousSession } from '../../hooks/useAnonymousSession';
+import {
+  getFastAgentViewTabs,
+  isFastAgentRuntimeOwnerReady,
+  selectAnonymousRecoveryThreadId,
+  type FastAgentPanelTab,
+} from './FastAgentPanel.guestRuntime';
 import { useAgentNavigation } from '../../hooks/useAgentNavigation';
 import { useIntentTelemetry } from '@/lib/hooks/useIntentTelemetry';
 import { useOracleSessionContext } from '@/contexts/OracleSessionContext';
@@ -71,6 +73,7 @@ import { ProductIntakeComposer } from '@/features/product/components/ProductInta
 import { uploadProductDraftFiles } from '@/features/product/lib/uploadDraftFiles';
 import {
   dispatchFastAgentSubmission,
+  getAuthenticatedDocumentCreationTopic,
   prepareFastAgentSubmission,
 } from './FastAgentPanel.sendContract';
 import {
@@ -79,13 +82,13 @@ import {
   isTerminalAgentRunStatus,
 } from './FastAgentPanel.RunState';
 
-import type {
-  Message,
-  Thread,
-  ThinkingStep,
-  ToolCall,
-  Source
-} from './types';
+import type { Message, Thread } from './types';
+
+function focusFastAgentComposer() {
+  document.querySelector<HTMLTextAreaElement>(
+    '.fast-agent-panel #product-intake-query, .fast-agent-panel #fa-chat-input',
+  )?.focus();
+}
 
 interface FastAgentPanelProps {
   isOpen: boolean;
@@ -101,8 +104,6 @@ interface FastAgentPanelProps {
   /** Voice intent router — intercepts UI commands before agent send. Return true if handled. */
   onVoiceIntent?: (text: string, source?: 'voice' | 'text') => boolean;
 }
-
-type PanelTab = 'chat' | 'scratchpad' | 'flow' | 'sources' | 'telemetry' | 'trace';
 
 /**
  * Extract plain text from an agent message regardless of which shape the
@@ -185,7 +186,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
 }: FastAgentPanelProps) {
   // ========== AUTH ==========
   const { isAuthenticated } = useConvexAuth();
-  const { signIn } = useAuthActions();
   const convex = useConvex();
   const navigate = useNavigate();
   const trackIntentEvent = useIntentTelemetry();
@@ -199,128 +199,34 @@ export const FastAgentPanel = memo(function FastAgentPanel({
 
   // ========== ANONYMOUS SESSION (5 free messages/day for unauthenticated users) ==========
   const anonymousSession = useAnonymousSession();
+  const runtimeOwnerReady = isFastAgentRuntimeOwnerReady({
+    isAuthenticated,
+    isLoading: anonymousSession.isLoading,
+    sessionId: anonymousSession.sessionId,
+  });
 
   // ========== ORACLE SESSION (auto-track agent threads as Oracle sessions) ==========
   const oracleSession = useOracleSessionContext();
   const isCompactSidebar = variant === 'sidebar';
 
-  // ========== DEMO CONVERSATION STATE (guest mode) ==========
-  interface DemoMessage {
-    role: 'user' | 'assistant';
-    text: string;
-    key: string;
-    status: 'complete' | 'typing';
-    sources?: DemoConversation['sources'];
-    keyInsight?: string;
-  }
-  const [demoMessages, setDemoMessages] = useState<DemoMessage[]>(() => {
-    try {
-      const raw = localStorage.getItem('nodebench-agent-chat');
-      if (raw) {
-        const parsed = JSON.parse(raw) as DemoMessage[];
-        // Only restore completed messages (skip any that were mid-typing)
-        return parsed.filter((m) => m.status === 'complete');
-      }
-    } catch { /* ignore parse errors */ }
-    return [];
-  });
-  const [isDemoThinking, setIsDemoThinking] = useState(false);
-  const demoTypingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Persist demo messages to localStorage whenever they change
-  useEffect(() => {
-    const completed = demoMessages.filter((m) => m.status === 'complete');
-    if (completed.length > 0) {
-      localStorage.setItem('nodebench-agent-chat', JSON.stringify(completed));
-    } else {
-      localStorage.removeItem('nodebench-agent-chat');
-    }
-  }, [demoMessages]);
-
-  /** Play a pre-scripted demo conversation (guest mode only). */
-  const playDemoConversation = useCallback((demo: DemoConversation, questionOverride?: string) => {
-    const question = questionOverride ?? demo.question;
-    const userMsg: DemoMessage = {
-      role: 'user',
-      text: question,
-      key: `demo-user-${Date.now()}`,
-      status: 'complete',
-    };
-    setDemoMessages((prev) => [...prev, userMsg]);
-    setInput('');
-    setIsDemoThinking(true);
-
-    // Simulate thinking delay, then progressively reveal the response
-    setTimeout(() => {
-      setIsDemoThinking(false);
-      const fullText = demo.response;
-      const assistantKey = `demo-assistant-${Date.now()}`;
-
-      // Start with empty typing message
-      const assistantMsg: DemoMessage = {
-        role: 'assistant',
-        text: '',
-        key: assistantKey,
-        status: 'typing',
-        sources: demo.sources,
-        keyInsight: demo.keyInsight,
-      };
-      setDemoMessages((prev) => [...prev, assistantMsg]);
-
-      // Progressive character reveal with 3-phase speed:
-      // Phase 1 (0-50 chars): 15ms/char — fast burst to show content immediately
-      // Phase 2 (50-200 chars): 8ms/char — reading speed
-      // Phase 3 (200+ chars): instant dump — total reveal < 2s regardless of length
-      let revealed = 0;
-      const totalChars = fullText.length;
-
-      const tick = () => {
-        if (revealed < 50) {
-          // Phase 1: reveal 1 char every 15ms (fast burst)
-          revealed = Math.min(revealed + 1, totalChars);
-        } else if (revealed < 200) {
-          // Phase 2: reveal 2 chars every 8ms (reading speed)
-          revealed = Math.min(revealed + 2, totalChars);
-        } else {
-          // Phase 3: dump remaining instantly
-          revealed = totalChars;
-        }
-        const partialText = fullText.slice(0, revealed);
-        setDemoMessages((prev) =>
-          prev.map((m) =>
-            m.key === assistantKey
-              ? { ...m, text: partialText, status: revealed >= totalChars ? 'complete' : 'typing' }
-              : m
-          )
-        );
-        if (revealed < totalChars) {
-          const delayMs = revealed <= 50 ? 15 : 8;
-          demoTypingRef.current = setTimeout(tick, delayMs);
-        }
-      };
-      demoTypingRef.current = setTimeout(tick, 30);
-    }, demo.thinkingDuration);
-  }, []);
-
-  // Cleanup demo typing interval on unmount
-  useEffect(() => {
-    return () => {
-      if (demoTypingRef.current) clearTimeout(demoTypingRef.current);
-    };
-  }, []);
-
   // ========== STATE ==========
   // Agent component uses string threadIds, not Id<"chatThreads">
   const [activeThreadId, setActiveThreadId] = useState<string | null>(initialThreadId || null);
+  const recoveredAnonymousSessionRef = useRef<string | null>(null);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [exportingThreadId, setExportingThreadId] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
 
   // Multi-document selection
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<string>>(
     _selectedDocumentIds ? new Set(_selectedDocumentIds.map(id => String(id))) : new Set()
   );
+  const handleRemoveSelectedDocument = useCallback((documentId: string) => {
+    setSelectedDocumentIds((current) => {
+      const next = new Set(current);
+      next.delete(documentId);
+      return next;
+    });
+  }, []);
   const [showDocumentSelector, setShowDocumentSelector] = useState(false);
 
   // Contextual-open handling (FastAgentContext.openWithContext)
@@ -338,28 +244,17 @@ export const FastAgentPanel = memo(function FastAgentPanel({
   const dossierPrefixRef = useRef<string>("");
   const [dossierBriefId, setDossierBriefId] = useState<string | null>(null);
 
-  // Chat mode: 'agent' (non-streaming) or 'agent-streaming' (with streaming output)
-  // Note: Anonymous users MUST use agent-streaming mode (agent mode requires authentication)
-  const [chatMode, setChatMode] = useState<'agent' | 'agent-streaming'>(() => {
-    // Load from localStorage
-    const saved = localStorage.getItem('fastAgentPanel.chatMode');
-    return (saved === 'agent-streaming' || saved === 'agent') ? saved : 'agent-streaming';
-  });
+  // The reachable panel has one runtime: streaming. Ignore and overwrite the
+  // removed legacy `agent` preference so returning users cannot enter a mode
+  // whose message actions are unavailable.
+  const [chatMode, setChatMode] = useState<'agent' | 'agent-streaming'>('agent-streaming');
   const lastAnnouncedChatModeRef = useRef(chatMode);
 
-  // Force anonymous users to agent-streaming mode (agent mode requires auth)
-  useEffect(() => {
-    if (!isAuthenticated && chatMode === 'agent') {
-      lastAnnouncedChatModeRef.current = 'agent-streaming';
-      setChatMode('agent-streaming');
-    }
-  }, [isAuthenticated, chatMode]);
-
-  // Settings
-  const [fastMode, setFastMode] = useState(true);
   // Use approved model aliases only (9 approved models) - uses DEFAULT_MODEL from shared/llm/approvedModels.ts
   const [selectedModel, setSelectedModel] = useState<ApprovedModel>(DEFAULT_MODEL);
-  const [arbitrageEnabled, setArbitrageEnabled] = useState(false);
+  const runtimeSelectedModel: ApprovedModel = isAuthenticated
+    ? selectedModel
+    : ANONYMOUS_FAST_AGENT_MODEL_ID;
 
   // Thread list collapse state
   const [showSidebar, setShowSidebar] = useState(false);
@@ -391,7 +286,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
   const searchWasOpenRef = useRef(false);
 
   // Response length control
-  const [responseLength, setResponseLength] = useState<'brief' | 'detailed' | 'exhaustive'>('detailed');
 
   useEffect(() => {
     if (showSearch && !searchWasOpenRef.current) {
@@ -410,38 +304,20 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     searchWasOpenRef.current = showSearch;
   }, [activeThreadId, showSearch, trackIntentEvent, variant]);
 
-  // Command palette (Ctrl+K)
-  const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [commandQuery, setCommandQuery] = useState('');
-  const commandInputRef = useRef<HTMLInputElement>(null);
-
   // Focus mode
   const [isFocusMode, setIsFocusMode] = useState(false);
 
-  // Auto-scroll pause
-  const [isAutoScrollPaused, setIsAutoScrollPaused] = useState(false);
-  const lastScrollTopRef = useRef(0);
+  // Auto-scroll follows new output only while the reader remains near the bottom.
+  const autoScrollEnabledRef = useRef(true);
+  const renderedMessagesRef = useRef<any[]>([]);
 
   // Typing speed indicator
   const typingStartRef = useRef<number>(0);
   const typingWordCountRef = useRef<number>(0);
   const [typingWpm, setTypingWpm] = useState(0);
 
-  // Context window meter — derived from actual MODEL_UI_INFO
-  const contextLimit = useMemo(() => {
-    const info = MODEL_UI_INFO[selectedModel as ApprovedModel];
-    if (!info) return 32000;
-    const cw = info.contextWindow;
-    if (cw.endsWith('M')) return parseFloat(cw) * 1_000_000;
-    if (cw.endsWith('K')) return parseFloat(cw) * 1_000;
-    return parseInt(cw, 10) || 32000;
-  }, [selectedModel]);
-
   // Conversation timeline toggle
   const [showTimeline, setShowTimeline] = useState(false);
-
-  // Context pruning UI
-  const [showContextPruning, setShowContextPruning] = useState(false);
 
   // Artifacts/Canvas panel
   const [showArtifacts, setShowArtifacts] = useState(false);
@@ -461,90 +337,14 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     if (saved && !input) setInput(saved);
   }, [activeThreadId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Message pinning (localStorage-backed)
-  const [pinnedMsgIds, setPinnedMsgIds] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem('fa_pinned_msgs');
-      return saved ? new Set(JSON.parse(saved) as string[]) : new Set();
-    } catch { return new Set(); }
-  });
-  const togglePinMsg = useCallback((msgId: string) => {
-    setPinnedMsgIds(prev => {
-      const next = new Set(prev);
-      if (next.has(msgId)) next.delete(msgId); else next.add(msgId);
-      localStorage.setItem('fa_pinned_msgs', JSON.stringify([...next]));
-      return next;
-    });
-  }, []);
-
-  // Message bookmarks (localStorage-backed)
-  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem('fa_bookmarks');
-      return saved ? new Set(JSON.parse(saved) as string[]) : new Set();
-    } catch { return new Set(); }
-  });
-  const toggleBookmark = useCallback((msgId: string) => {
-    setBookmarkedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(msgId)) next.delete(msgId); else next.add(msgId);
-      localStorage.setItem('fa_bookmarks', JSON.stringify([...next]));
-      return next;
-    });
-  }, []);
-
   // Overflow menu state (for secondary actions)
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
-
-  // Custom system prompt per thread (localStorage-backed)
-  const [showSystemPrompt, setShowSystemPrompt] = useState(false);
-  const [systemPrompt, setSystemPrompt] = useState('');
-  useEffect(() => {
-    if (activeThreadId) {
-      const saved = localStorage.getItem(`fa_sysprompt_${activeThreadId}`);
-      setSystemPrompt(saved || '');
-    } else {
-      setSystemPrompt('');
-    }
-  }, [activeThreadId]);
-  const saveSystemPrompt = useCallback(() => {
-    if (activeThreadId) {
-      if (systemPrompt.trim()) {
-        localStorage.setItem(`fa_sysprompt_${activeThreadId}`, systemPrompt);
-      } else {
-        localStorage.removeItem(`fa_sysprompt_${activeThreadId}`);
-      }
-    }
-    setShowSystemPrompt(false);
-    toast.success('System prompt saved');
-  }, [activeThreadId, systemPrompt]);
-
-  // Quick reply templates (localStorage-backed)
-  const [showQuickReplies, setShowQuickReplies] = useState(false);
-  const [quickReplies, setQuickReplies] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('fa_quick_replies');
-      return saved ? JSON.parse(saved) as string[] : [
-        'Summarize this in bullet points',
-        'What are the key risks?',
-        'Compare pros and cons',
-        'Give me actionable next steps',
-      ];
-    } catch { return []; }
-  });
 
   // File attachment state
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
 
   // Context documents from drag-and-drop
-  const [contextDocuments, setContextDocuments] = useState<Array<{
-    id: string;
-    title: string;
-    type?: 'document' | 'dossier' | 'note';
-    analyzing?: boolean;
-  }>>([]);
-
   // Calendar events context from drag-and-drop
   const [contextCalendarEvents, setContextCalendarEvents] = useState<Array<{
     id: string;
@@ -558,25 +358,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
 
   const handleAttachFiles = (files: File[]) => {
     setAttachedFiles(prev => [...prev, ...files]);
-  };
-
-  const handleRemoveFile = (index: number) => {
-    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleAddContextDocument = (doc: { id: string; title: string; type?: 'document' | 'dossier' | 'note'; analyzing?: boolean }) => {
-    setContextDocuments(prev => {
-      // Update existing or add new
-      const existing = prev.find(d => d.id === doc.id);
-      if (existing) {
-        return prev.map(d => d.id === doc.id ? doc : d);
-      }
-      return [...prev, doc];
-    });
-  };
-
-  const handleRemoveContextDocument = (docId: string) => {
-    setContextDocuments(prev => prev.filter(d => d.id !== docId));
   };
 
   const handleAddCalendarEvent = (event: { id: string; title: string; startTime: number; endTime?: number; allDay?: boolean; location?: string; description?: string }) => {
@@ -594,95 +375,16 @@ export const FastAgentPanel = memo(function FastAgentPanel({
 
   // ========== TIER 13 STATE ==========
 
-  // Voice input (Web Speech API)
-  const [isRecording, setIsRecording] = useState(false);
-  const recognitionRef = useRef<any>(null);
-  const startVoiceInput = useCallback(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) { toast.error('Speech recognition not supported in this browser'); return; }
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-    recognition.onresult = (event: any) => {
-      const transcript = Array.from(event.results).map((r: any) => r[0].transcript).join('');
-      setInput(prev => prev + transcript);
-    };
-    recognition.onend = () => setIsRecording(false);
-    recognition.onerror = () => { setIsRecording(false); toast.error('Voice input failed'); };
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsRecording(true);
-  }, [setInput]);
-  const stopVoiceInput = useCallback(() => {
-    recognitionRef.current?.stop();
-    setIsRecording(false);
-  }, []);
-
-  // RLHF feedback per message
-  const [feedbackMap, setFeedbackMap] = useState<Record<string, 'up' | 'down'>>({});
-  const [showFeedbackComment, setShowFeedbackComment] = useState<string | null>(null);
-  const [feedbackComment, setFeedbackComment] = useState('');
-  const handleFeedback = useCallback((msgId: string, vote: 'up' | 'down') => {
-    setFeedbackMap(prev => ({ ...prev, [msgId]: vote }));
-  }, []);
-
   // Font size / density
   const [fontSize, setFontSize] = useState<number>(() => {
     try { return parseInt(localStorage.getItem('fa_font_size') || '14', 10); } catch { return 14; }
   });
   useEffect(() => { localStorage.setItem('fa_font_size', String(fontSize)); }, [fontSize]);
 
-  // Conversation analytics overlay
-  const [showAnalytics, setShowAnalytics] = useState(false);
-
-  // Side-by-side model comparison
-  const [showModelComparison, setShowModelComparison] = useState(false);
-  const [comparisonResult, setComparisonResult] = useState<{ modelA: string; modelB: string; responseA: string; responseB: string } | null>(null);
-
   // Drag-and-drop overlay
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Thread branch tree
-  const [showBranchTree, setShowBranchTree] = useState(false);
-
   // Auto-title (moved after messagesToRender definition)
-  // Message edit diff tracking
-  const [editDiffs, setEditDiffs] = useState<Record<string, { oldText: string; newText: string }>>({});
-
-  // contextWindowMsgs (moved after messagesToRender definition)
-
-  // ========== TIER 14 STATE ==========
-
-  // Streaming speed indicator (state only; useEffect moved after messagesToRender)
-  const [streamingStats, setStreamingStats] = useState<{ startTime: number; firstTokenTime: number | null; tokenCount: number; tokensPerSec: number }>({ startTime: 0, firstTokenTime: null, tokenCount: 0, tokensPerSec: 0 });
-  const prevStreamingTextRef = useRef('');
-
-  // Message threading (reply-to)
-  const [replyToMsgId, setReplyToMsgId] = useState<string | null>(null);
-  // replyToMsg (moved after messagesToRender definition)
-
-  // Persistent cross-thread memory
-  const [memories, setMemories] = useState<Array<{ id: string; text: string; createdAt: number }>>(() => {
-    try { return JSON.parse(localStorage.getItem('fa_memories') || '[]'); } catch { return []; }
-  });
-  const [showMemoryPanel, setShowMemoryPanel] = useState(false);
-  const addMemory = useCallback((text: string) => {
-    const mem = { id: `mem_${Date.now()}`, text, createdAt: Date.now() };
-    setMemories(prev => {
-      const updated = [mem, ...prev].slice(0, 50);
-      localStorage.setItem('fa_memories', JSON.stringify(updated));
-      return updated;
-    });
-    toast.success('Saved to memory');
-  }, []);
-  const removeMemory = useCallback((id: string) => {
-    setMemories(prev => {
-      const updated = prev.filter(m => m.id !== id);
-      localStorage.setItem('fa_memories', JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
 
   // Conversation starters — founder-relevant for Ask NodeBench
   const conversationStarters = useMemo(() => [
@@ -692,99 +394,10 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     { icon: '🔍', label: 'Competitor check', prompt: 'What have my competitors shipped recently?' },
   ], []);
 
-  // Image paste preview
-  const [imagePreview, setImagePreview] = useState<Array<{ file: File; url: string }>>([]);
-  useEffect(() => {
-    return () => { imagePreview.forEach(img => URL.revokeObjectURL(img.url)); };
-  }, [imagePreview]);
-
   // Keyboard message navigation
   const [focusedMsgIdx, setFocusedMsgIdx] = useState<number | null>(null);
 
-  // Right-click context menu
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msgId: string; role: string } | null>(null);
-
-  // Message annotations
-  const [annotations, setAnnotations] = useState<Record<string, string[]>>(() => {
-    try { return JSON.parse(localStorage.getItem('fa_annotations') || '{}'); } catch { return {}; }
-  });
-  const addAnnotation = useCallback((msgId: string, note: string) => {
-    setAnnotations(prev => {
-      const updated = { ...prev, [msgId]: [...(prev[msgId] || []), note] };
-      localStorage.setItem('fa_annotations', JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
-  // High contrast / accessibility mode
-  const [highContrast, setHighContrast] = useState(() => localStorage.getItem('fa_high_contrast') === 'true');
-  useEffect(() => { localStorage.setItem('fa_high_contrast', String(highContrast)); }, [highContrast]);
-
-  // Smart paste detection
-  const detectPasteType = useCallback((text: string): 'url' | 'json' | 'code' | 'text' => {
-    if (/^https?:\/\//.test(text.trim())) return 'url';
-    try { JSON.parse(text); return 'json'; } catch { /* not json */ }
-    if (/^(import |export |const |let |var |function |class |def |public |private )/.test(text.trim())) return 'code';
-    return 'text';
-  }, []);
-
-  // Conversation import
-  const [showImport, setShowImport] = useState(false);
-
-  // Message scheduling
-  const [scheduledMessages, setScheduledMessages] = useState<Array<{ id: string; text: string; scheduledAt: number }>>([]);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const now = Date.now();
-      setScheduledMessages(prev => {
-        const ready = prev.filter(m => m.scheduledAt <= now);
-        const remaining = prev.filter(m => m.scheduledAt > now);
-        ready.forEach(m => { void stableSendMessageRef.current?.(m.text); });
-        return remaining;
-      });
-    }, 5000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Conversation snapshots
-  const [snapshots, setSnapshots] = useState<Array<{ id: string; name: string; messageCount: number; createdAt: number }>>(() => {
-    try { return JSON.parse(localStorage.getItem('fa_snapshots') || '[]'); } catch { return []; }
-  });
-  // saveSnapshot (moved after messagesToRender definition)
-
   // detectedLanguage (moved after messagesToRender definition)
-
-  // Performance metrics (state only; useEffect moved after isBusy)
-  const [perfMetrics, setPerfMetrics] = useState<{ responseTimes: number[]; avgLatency: number; p95Latency: number }>({ responseTimes: [], avgLatency: 0, p95Latency: 0 });
-  const responseStartRef = useRef<number>(0);
-
-  // ========== TIER 15: AGENT + PERF + A11Y + POLISH ==========
-
-  // Tool approval UI (review needed)
-  const [pendingApprovals, setPendingApprovals] = useState<Array<{ id: string; toolName: string; args: any; riskLevel: 'low' | 'medium' | 'high'; createdAt: number }>>([]);
-  const approveToolCall = useCallback((id: string) => {
-    setPendingApprovals(prev => prev.filter(a => a.id !== id));
-    toast.success('Action approved');
-  }, []);
-  const rejectToolCall = useCallback((id: string) => {
-    setPendingApprovals(prev => prev.filter(a => a.id !== id));
-    toast.info('Action rejected');
-  }, []);
-
-  // Multi-agent handoff visualization
-  const [agentHandoffs, setAgentHandoffs] = useState<Array<{ id: string; fromAgent: string; toAgent: string; reason: string; status: 'active' | 'completed'; timestamp: number }>>([]);
-
-  // Persona switching
-  const personas = useMemo(() => [
-    { id: 'default', name: 'Assistant', icon: '🤖', systemPrompt: 'You are a helpful assistant.' },
-    { id: 'coder', name: 'Code Expert', icon: '💻', systemPrompt: 'You are an expert programmer. Focus on clean, efficient code with best practices.' },
-    { id: 'writer', name: 'Writer', icon: '✍️', systemPrompt: 'You are a professional writer. Focus on clarity, engagement, and proper structure.' },
-    { id: 'analyst', name: 'Data Analyst', icon: '📊', systemPrompt: 'You are a data analyst. Focus on insights, patterns, and data-driven recommendations.' },
-    { id: 'researcher', name: 'Researcher', icon: '🔬', systemPrompt: 'You are a thorough researcher. Provide well-sourced, balanced analysis.' },
-  ], []);
-  const [activePersona, setActivePersona] = useState('default');
-  const [showPersonaPicker, setShowPersonaPicker] = useState(false);
-  const currentPersona = useMemo(() => personas.find(p => p.id === activePersona) || personas[0], [personas, activePersona]);
 
   // ========== KEYBOARD SHORTCUTS ==========
   // "/" : focus input (GitHub/Slack pattern), Escape: close or blur, Ctrl+Shift+N: new thread
@@ -799,8 +412,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       // "/" — Focus input bar (only when not already typing)
       if (e.key === '/' && !isTyping && !isModKey) {
         e.preventDefault();
-        const inputEl = document.querySelector<HTMLTextAreaElement>('[placeholder="Message..."]');
-        inputEl?.focus();
+        focusFastAgentComposer();
         return;
       }
 
@@ -809,22 +421,12 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         e.preventDefault();
         setActiveThreadId(null);
         setInput('');
-        const inputEl = document.querySelector<HTMLTextAreaElement>('[placeholder="Message..."]');
-        inputEl?.focus();
-        return;
-      }
-
-      // Ctrl/Cmd+K — Open command palette
-      if (isModKey && e.key === 'k') {
-        e.preventDefault();
-        setShowCommandPalette(prev => !prev);
-        setCommandQuery('');
-        setTimeout(() => commandInputRef.current?.focus(), 50);
+        focusFastAgentComposer();
         return;
       }
 
       // Ctrl/Cmd+T — Toggle conversation timeline
-      if (isModKey && e.key === 't') {
+      if (isModKey && e.key === 't' && renderedMessagesRef.current.length > 0) {
         e.preventDefault();
         setShowTimeline(prev => !prev);
         return;
@@ -848,9 +450,10 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       // J/K — Navigate messages (Vim-style, only when not typing)
       if ((e.key === 'j' || e.key === 'k') && !isTyping && !isModKey) {
         e.preventDefault();
-        if (!messagesToRender || messagesToRender.length === 0) return;
+        const renderedMessages = renderedMessagesRef.current;
+        if (renderedMessages.length === 0) return;
         setFocusedMsgIdx(prev => {
-          const max = messagesToRender.length - 1;
+          const max = renderedMessages.length - 1;
           if (prev === null) return e.key === 'j' ? 0 : max;
           const next = e.key === 'j' ? Math.min(prev + 1, max) : Math.max(prev - 1, 0);
           const msgEls = scrollContainerRef.current?.querySelectorAll('.msg-entrance');
@@ -864,29 +467,12 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         return;
       }
 
-      // Escape — Close command palette, search, overlay, blur input, or close panel
+      // Escape — Close search, overlay, blur input, or close panel
       if (e.key === 'Escape') {
-        if (contextMenu) {
-          setContextMenu(null);
-        } else if (showMemoryPanel) {
-          setShowMemoryPanel(false);
-        } else if (showImport) {
-          setShowImport(false);
-        } else if (showAnalytics) {
-          setShowAnalytics(false);
-        } else if (showBranchTree) {
-          setShowBranchTree(false);
-        } else if (showArtifacts) {
+        if (showArtifacts) {
           setShowArtifacts(false);
-        } else if (showCommandPalette) {
-          setShowCommandPalette(false);
-          setCommandQuery('');
         } else if (showTimeline) {
           setShowTimeline(false);
-        } else if (showContextPruning) {
-          setShowContextPruning(false);
-        } else if (showPersonaPicker) {
-          setShowPersonaPicker(false);
         } else if (showSearch) {
           setShowSearch(false);
           setSearchQuery('');
@@ -904,7 +490,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, showShortcutsOverlay, showSearch]);
+  }, [isOpen, onClose, showArtifacts, showShortcutsOverlay, showSearch, showTimeline]);
 
   // Artifacts panel event listener
   useEffect(() => {
@@ -919,21 +505,13 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     return () => window.removeEventListener('fa-open-artifact', handleArtifact);
   }, []);
 
-  // Live streaming state
-  const [liveThinking, setLiveThinking] = useState<ThinkingStep[]>([]);
-  const [liveTokens, setLiveTokens] = useState<string>("");
-  const [liveAgents, setLiveAgents] = useState<SpawnedAgent[]>([]);
-
-  const [liveToolCalls, setLiveToolCalls] = useState<ToolCall[]>([]);
-  const [liveSources, setLiveSources] = useState<Source[]>([]);
-
   // Progressive Disclosure state
   const [disclosureEvents, setDisclosureEvents] = useState<DisclosureEvent[]>([]);
   const [showDisclosureTrace, setShowDisclosureTrace] = useState(false);
 
   // Tab state - default agent tabs plus entity-workspace tabs when the
   // drawer is opened from the notebook surface.
-  const [activeTab, setActiveTab] = useState<PanelTab>('chat');
+  const [activeTab, setActiveTab] = useState<FastAgentPanelTab>('chat');
   const [isThreadDropdownOpen, setIsThreadDropdownOpen] = useState(false);
 
   // ========== AGENT-DRIVEN NAVIGATION ==========
@@ -978,15 +556,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       const { scrollTop, scrollHeight, clientHeight } = container;
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
       setShowScrollFab(distanceFromBottom > 120);
-
-      // Auto-scroll pause detection
-      if (scrollTop < lastScrollTopRef.current - 20) {
-        setIsAutoScrollPaused(true);
-      }
-      if (distanceFromBottom < 30) {
-        setIsAutoScrollPaused(false);
-      }
-      lastScrollTopRef.current = scrollTop;
+      autoScrollEnabledRef.current = distanceFromBottom < 30;
 
     };
 
@@ -1087,9 +657,9 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     if (requestedTab) {
       const allowed = showsNotebookWorkspaceTabs
         ? (["chat", "scratchpad", "flow"] as const)
-        : (["chat", "sources", "telemetry", "trace"] as const);
+        : (["chat", "sources", "trace"] as const);
       if (allowed.includes(requestedTab as any)) {
-        setActiveTab(requestedTab as PanelTab);
+        setActiveTab(requestedTab as FastAgentPanelTab);
       } else {
         setActiveTab("chat");
       }
@@ -1186,7 +756,9 @@ export const FastAgentPanel = memo(function FastAgentPanel({
   // Note: Anonymous users can also use streaming mode with their sessionId
   const streamingThreadsPagination = usePaginatedQuery(
     api.domains.agents.fastAgentPanelStreaming.listThreads,
-    chatMode === "agent-streaming" && !isProductConversationMode ? {} : "skip",
+    chatMode === "agent-streaming" && !isProductConversationMode && runtimeOwnerReady
+      ? { anonymousSessionId: anonymousSession.sessionId ?? undefined }
+      : "skip",
     { initialNumItems: 20 }
   );
   const requestStreamCancel = useMutation(api.domains.agents.fastAgentPanelStreaming.requestStreamCancel);
@@ -1261,7 +833,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     }
   }, [isProductConversationMode, productConversation.streaming.isStreaming, streamingThread?.runStatus]);
 
-  const isBusy = isStreaming || isGenerating || isDemoThinking;
+  const isBusy = isStreaming || isGenerating;
 
   const productMessagesToRender = useMemo(() => {
     if (!isProductConversationMode) return [] as any[];
@@ -1331,19 +903,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
 
   // Prepare messages for rendering - must be before any useMemo/useCallback/useEffect that references messagesToRender
   const messagesToRender = useMemo(() => {
-    // In guest mode with demo messages, render those instead of (empty) backend messages
-    if (!isAuthenticated && demoMessages.length > 0) {
-      return demoMessages.map((m) => ({
-        role: m.role,
-        text: m.text,
-        content: m.text,
-        status: m.status,
-        key: m.key,
-        parts: [{ type: 'text' as const, text: m.text }],
-        _demoSources: m.sources,
-        _demoKeyInsight: m.keyInsight,
-      }));
-    }
     if (isProductConversationMode) {
       return productMessagesToRender;
     }
@@ -1359,47 +918,14 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       _creationTime: msg._creationTime,
       model: msg.model,
     }));
-  }, [chatMode, streamingMessages, agentMessages, isAuthenticated, demoMessages, isProductConversationMode, productMessagesToRender]);
+  }, [chatMode, streamingMessages, agentMessages, isProductConversationMode, productMessagesToRender]);
+  renderedMessagesRef.current = messagesToRender;
 
   const showPanelTabBar =
     showsNotebookWorkspaceTabs ||
     activeTab !== 'chat' ||
     messagesToRender.length > 0 ||
     isBusy;
-
-  // Auto-title from first exchange (must be after messagesToRender)
-  const autoTitle = useMemo(() => {
-    if (!messagesToRender || messagesToRender.length === 0) return null;
-    const firstUser = messagesToRender.find((m: any) => m.role === 'user');
-    const firstAI = messagesToRender.find((m: any) => m.role === 'assistant');
-    if (!firstUser) return null;
-    const userText = (firstUser.text || firstUser.content || '').slice(0, 40);
-    const aiText = firstAI ? (firstAI.text || firstAI.content || '').slice(0, 30) : '';
-    const topic = userText.split(/[.?!]/)[0].trim();
-    return topic || null;
-  }, [messagesToRender]);
-
-  // Multi-turn context indicator
-  const contextWindowMsgs = useMemo(() => {
-    if (!messagesToRender || messagesToRender.length === 0) return { inContext: 0, total: 0 };
-    const totalTokens = messagesToRender.reduce((s: number, m: any) => s + Math.ceil((m.text || m.content || '').length / 4), 0);
-    const maxTokens = 128000;
-    let runningTokens = 0;
-    let inContext = 0;
-    for (let i = messagesToRender.length - 1; i >= 0; i--) {
-      const t = Math.ceil((messagesToRender[i].text || messagesToRender[i].content || '').length / 4);
-      if (runningTokens + t > maxTokens) break;
-      runningTokens += t;
-      inContext++;
-    }
-    return { inContext, total: messagesToRender.length };
-  }, [messagesToRender]);
-
-  // Reply-to message lookup
-  const replyToMsg = useMemo(() => {
-    if (!replyToMsgId || !messagesToRender) return null;
-    return messagesToRender.find((m: any) => (m._id || m.id || m.key) === replyToMsgId) || null;
-  }, [replyToMsgId, messagesToRender]);
 
   // Multi-language auto-detect
   const detectedLanguage = useMemo(() => {
@@ -1418,61 +944,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     return null;
   }, [messagesToRender]);
 
-  // Streaming stats useEffect (must be after messagesToRender)
-  useEffect(() => {
-    if (isBusy && messagesToRender && messagesToRender.length > 0) {
-      const lastMsg = messagesToRender[messagesToRender.length - 1] as any;
-      if (lastMsg?.role === 'assistant' && lastMsg?.status === 'streaming') {
-        const text = lastMsg.text || lastMsg.content || '';
-        if (streamingStats.startTime === 0) {
-          setStreamingStats(prev => ({ ...prev, startTime: Date.now() }));
-        }
-        if (text.length > 0 && !streamingStats.firstTokenTime) {
-          setStreamingStats(prev => ({ ...prev, firstTokenTime: Date.now() }));
-        }
-        const tokens = Math.ceil(text.length / 4);
-        const elapsed = (Date.now() - (streamingStats.firstTokenTime || Date.now())) / 1000;
-        const tps = elapsed > 0.5 ? Math.round(tokens / elapsed) : 0;
-        setStreamingStats(prev => ({ ...prev, tokenCount: tokens, tokensPerSec: tps }));
-        prevStreamingTextRef.current = text;
-      }
-    } else if (!isBusy && streamingStats.startTime > 0) {
-      setTimeout(() => setStreamingStats({ startTime: 0, firstTokenTime: null, tokenCount: 0, tokensPerSec: 0 }), 3000);
-    }
-  }, [isBusy, messagesToRender, streamingStats.startTime, streamingStats.firstTokenTime]);
-
-  // Conversation snapshot save (must be after messagesToRender + autoTitle)
-  const saveSnapshot = useCallback(() => {
-    if (!messagesToRender || messagesToRender.length === 0) { toast.error('No messages to snapshot'); return; }
-    const snap = { id: `snap_${Date.now()}`, name: autoTitle || 'Snapshot', messageCount: messagesToRender.length, createdAt: Date.now() };
-    const snapsData = JSON.parse(localStorage.getItem('fa_snap_data') || '{}');
-    snapsData[snap.id] = messagesToRender.map((m: any) => ({ role: m.role, text: m.text || m.content || '' }));
-    localStorage.setItem('fa_snap_data', JSON.stringify(snapsData));
-    setSnapshots(prev => {
-      const updated = [snap, ...prev].slice(0, 20);
-      localStorage.setItem('fa_snapshots', JSON.stringify(updated));
-      return updated;
-    });
-    toast.success('Snapshot saved');
-  }, [messagesToRender, autoTitle]);
-
-  // Performance metrics useEffect (must be after isBusy)
-  useEffect(() => {
-    if (isBusy && responseStartRef.current === 0) {
-      responseStartRef.current = Date.now();
-    } else if (!isBusy && responseStartRef.current > 0) {
-      const elapsed = Date.now() - responseStartRef.current;
-      responseStartRef.current = 0;
-      setPerfMetrics(prev => {
-        const times = [...prev.responseTimes, elapsed].slice(-50);
-        const sorted = [...times].sort((a, b) => a - b);
-        const avg = Math.round(times.reduce((s, t) => s + t, 0) / times.length);
-        const p95 = sorted[Math.floor(sorted.length * 0.95)] || avg;
-        return { responseTimes: times, avgLatency: avg, p95Latency: p95 };
-      });
-    }
-  }, [isBusy]);
-
   const handleStopStreaming = useCallback(async () => {
     if (isProductConversationMode) {
       productConversation.streaming.stopStream();
@@ -1487,20 +958,23 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       setIsStreaming(false);
       return;
     }
-    if (!isAuthenticated) {
-      toast.info("Sign in to cancel generation.");
+    if (!runtimeOwnerReady) {
+      toast.info("Preparing secure session. Try again in a moment.");
       return;
     }
 
     try {
-      await requestStreamCancel({ threadId: activeThreadId as Id<"chatThreadsStream"> });
+      await requestStreamCancel({
+        threadId: activeThreadId as Id<"chatThreadsStream">,
+        anonymousSessionId: anonymousSession.sessionId ?? undefined,
+      });
     } catch (err) {
       console.error("[FastAgentPanel] Failed to cancel stream:", err);
       toast.error("Failed to cancel");
     } finally {
       setIsStreaming(false);
     }
-  }, [activeThreadId, chatMode, isAuthenticated, isProductConversationMode, productConversation.streaming, requestStreamCancel]);
+  }, [activeThreadId, anonymousSession.sessionId, chatMode, isProductConversationMode, productConversation.streaming, requestStreamCancel, runtimeOwnerReady]);
 
   // Live Events - extracted from streaming messages (must be after streamingMessages definition)
   const liveEvents = useMemo<LiveEvent[]>(() => {
@@ -1556,6 +1030,40 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     : chatMode === 'agent'
       ? agentThreadsPagination.results
       : streamingThreadsPagination.results;
+
+  useEffect(() => {
+    const sessionId = anonymousSession.sessionId;
+    if (
+      !anonymousSession.isAnonymous ||
+      !runtimeOwnerReady ||
+      !sessionId ||
+      recoveredAnonymousSessionRef.current === sessionId ||
+      streamingThreadsPagination.status === "LoadingFirstPage" ||
+      pendingAutoSend ||
+      initialThreadId
+    ) {
+      return;
+    }
+
+    recoveredAnonymousSessionRef.current = sessionId;
+    const recoveredThreadId = selectAnonymousRecoveryThreadId({
+      activeThreadId,
+      isAnonymous: true,
+      runtimeOwnerReady,
+      sessionId,
+      threads: streamingThreadsPagination.results,
+    });
+    if (recoveredThreadId) setActiveThreadId(recoveredThreadId);
+  }, [
+    activeThreadId,
+    anonymousSession.isAnonymous,
+    anonymousSession.sessionId,
+    initialThreadId,
+    pendingAutoSend,
+    runtimeOwnerReady,
+    streamingThreadsPagination.results,
+    streamingThreadsPagination.status,
+  ]);
   const threadsStatus = isProductConversationMode
     ? "Loaded"
     : chatMode === 'agent'
@@ -1600,10 +1108,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     };
   }, []);
 
-  // For agent mode, use the regular messages
-  // For streaming mode, we use streamingMessages directly (UIMessage format)
-  const messages = agentMessages;
-
   const formatTimeAgo = useCallback((timestamp?: number | null): string => {
     if (!timestamp) return "";
     const diffMs = Date.now() - timestamp;
@@ -1619,10 +1123,13 @@ export const FastAgentPanel = memo(function FastAgentPanel({
 
   // ========== EFFECTS ==========
 
-  // Auto-scroll to bottom when new messages arrive
+  // Follow the rendered conversation, including live streaming previews, only
+  // while the reader has stayed near the bottom.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, liveThinking, liveToolCalls]);
+    if (autoScrollEnabledRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [isBusy, messagesToRender]);
 
   // Persist chat mode to localStorage
   useEffect(() => {
@@ -1649,6 +1156,10 @@ export const FastAgentPanel = memo(function FastAgentPanel({
   // ========== HANDLERS ==========
 
   const handleCreateThread = useCallback(async () => {
+    if (!runtimeOwnerReady) {
+      toast.info("Preparing secure session. Try again in a moment.");
+      return;
+    }
     if (isProductConversationMode) {
       productConversation.clearSession();
       toast.success("Ready to start new product chat");
@@ -1663,7 +1174,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       try {
         const threadId = await createStreamingThread({
           title: "New Chat",
-          model: selectedModel,
+          model: runtimeSelectedModel,
           // Pass anonymous session ID for unauthenticated users
           anonymousSessionId: anonymousSession.sessionId ?? undefined,
         });
@@ -1674,7 +1185,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         toast.error('Failed to create new chat');
       }
     }
-  }, [anonymousSession.sessionId, chatMode, createStreamingThread, isProductConversationMode, productConversation, selectedModel]);
+  }, [anonymousSession.sessionId, chatMode, createStreamingThread, isProductConversationMode, productConversation, runtimeOwnerReady, runtimeSelectedModel]);
 
   const handleDeleteThread = useCallback(async (threadId: string) => {
     if (isProductConversationMode) {
@@ -1682,10 +1193,15 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       return;
     }
     try {
+      let agentDeletionComplete = true;
       if (chatMode === 'agent') {
         await deleteAgentThread({ threadId });
       } else {
-        await deleteStreamingThread({ threadId: threadId as Id<"chatThreadsStream"> });
+        const deletion = await deleteStreamingThread({
+          threadId: threadId as Id<"chatThreadsStream">,
+          anonymousSessionId: anonymousSession.sessionId ?? undefined,
+        });
+        agentDeletionComplete = deletion.agentDeletionComplete;
       }
 
       // If deleted thread was active, select another
@@ -1694,25 +1210,25 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         setActiveThreadId(remainingThreads[0]?._id ?? null);
       }
 
-      toast.success('Conversation deleted');
+      toast.success(agentDeletionComplete ? 'Conversation deleted' : 'Conversation deletion started');
     } catch (error) {
       console.error('Failed to delete thread:', error);
       toast.error('Failed to delete conversation');
     }
-  }, [activeThreadId, threads, chatMode, deleteAgentThread, deleteStreamingThread, isProductConversationMode]);
-
-  const handleExportThread = useCallback((threadId: string) => {
-    setExportingThreadId(threadId);
-  }, []);
+  }, [activeThreadId, anonymousSession.sessionId, threads, chatMode, deleteAgentThread, deleteStreamingThread, isProductConversationMode]);
 
   const handleSendMessage = useCallback(async (content?: string) => {
     if (isBusy) return;
+    if (!runtimeOwnerReady) {
+      toast.info("Preparing secure session. Try again in a moment.");
+      return;
+    }
 
     const preparedSubmission = prepareFastAgentSubmission({
       allowAttachments: isProductConversationMode && isAuthenticated,
       attachedFiles,
       content,
-      contextDocuments,
+      contextDocuments: [],
       dossierPrefix: dossierPrefixRef.current,
       input,
       selectedDocumentIds,
@@ -1731,19 +1247,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       return;
     }
 
-    const {
-      consumedContextDocumentIds,
-      messageContent,
-      text,
-    } = preparedSubmission;
-
-    // Guest/demo mode intercept: play scripted or fallback response
-    if (!isAuthenticated) {
-      const demo = findDemoConversation(text);
-      trackEvent("demo_conversation_start", { prompt: text.slice(0, 100) });
-      playDemoConversation(demo ?? GUEST_FALLBACK_RESPONSE, text);
-      return;
-    }
+    const { messageContent, text } = preparedSubmission;
 
     // ⚡ CRITICAL GUARD: Prevent duplicate sends of same message within 3 seconds
     const now = Date.now();
@@ -1760,17 +1264,21 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       toast.error(
         <div className="flex flex-col gap-1">
           <div className="font-medium">Daily limit reached</div>
-          <div className="text-xs">Sign in for unlimited access!</div>
+          <div className="text-xs">{FAST_AGENT_SIGN_IN_BENEFIT_COPY}</div>
         </div>
       );
       return;
     }
 
-    // Check if this is a document creation request
-    const docCreationMatch = text.match(/^(?:make|create)\s+(?:new\s+)?document\s+(?:about|on|for)\s+(.+)$/i);
+    const documentCreationTopic = getAuthenticatedDocumentCreationTopic({
+      chatMode,
+      isAuthenticated,
+      isProductConversationMode,
+      text,
+    });
 
-    if (docCreationMatch && chatMode === 'agent-streaming' && !isProductConversationMode) {
-      const topic = docCreationMatch[1];
+    if (documentCreationTopic) {
+      const topic = documentCreationTopic;
 
       setInput('');
       setIsStreaming(true);
@@ -1781,7 +1289,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         if (!threadId) {
           const streamingThread = await createStreamingThread({
             title: `Create document about ${topic}`,
-            model: selectedModel,
+            model: runtimeSelectedModel,
             anonymousSessionId: anonymousSession.sessionId ?? undefined,
           });
           threadId = streamingThread;
@@ -1795,6 +1303,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         if (!agentThreadId) {
           const fetched = await convex.query(api.domains.agents.fastAgentPanelStreaming.getThreadByStreamId, {
             threadId: threadId as Id<"chatThreadsStream">,
+            anonymousSessionId: anonymousSession.sessionId ?? undefined,
           });
           agentThreadId = (fetched as any)?.agentThreadId;
         }
@@ -1835,24 +1344,9 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     }
 
     setInput('');
-    setLiveTokens("");
-    setLiveAgents([]);
     setIsStreaming(true);
 
-    // Clear only document context that was actually included. Documents still being
-    // analyzed remain visible and cannot be silently dropped by an unrelated send.
-    if (consumedContextDocumentIds.length > 0) {
-      const consumedDocumentIds = new Set(consumedContextDocumentIds);
-      setContextDocuments((current) =>
-        current.filter((document) => !consumedDocumentIds.has(document.id)),
-      );
-    }
     setContextCalendarEvents([]);
-
-    // Clear live state
-    setLiveThinking([]);
-    setLiveToolCalls([]);
-    setLiveSources([]);
 
     try {
       if (isProductConversationMode) {
@@ -1880,7 +1374,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
           continueThreadAction,
           createThreadWithMessage,
           messageContent,
-          selectedModel,
+          selectedModel: runtimeSelectedModel,
           sendStreamingMessage,
           streamThreadId: null,
         });
@@ -1898,7 +1392,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         if (!threadId) {
           threadId = await createStreamingThread({
             title: messageContent.substring(0, 50),
-            model: selectedModel,
+            model: runtimeSelectedModel,
             anonymousSessionId: anonymousSession.sessionId ?? undefined,
           });
           setActiveThreadId(threadId);
@@ -1935,14 +1429,13 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         await dispatchFastAgentSubmission({
           activeThreadId,
           anonymousSessionId: anonymousSession.sessionId ?? undefined,
-          arbitrageEnabled,
           chatMode,
           clientContext,
           continueThreadAction,
           createThreadWithMessage,
           entitySlug: productEntitySlug ?? undefined,
           messageContent,
-          selectedModel,
+          selectedModel: runtimeSelectedModel,
           sendStreamingMessage,
           streamThreadId: threadId as Id<"chatThreadsStream">,
         });
@@ -1973,16 +1466,13 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     input,
     isBusy,
     activeThreadId,
-    fastMode,
-    selectedModel,
-    arbitrageEnabled,
+    runtimeSelectedModel,
     attachedFiles,
     chatMode,
     isProductConversationMode,
     productConversation,
     productLens,
     selectedDocumentIds,
-    contextDocuments,
     createThreadWithMessage,
     continueThreadAction,
     createStreamingThread,
@@ -1994,10 +1484,10 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     streamingThread,
     autoNameThread,
     isAuthenticated,
-    playDemoConversation,
     anonymousSession,
     oracleSession,
     productEntitySlug,
+    runtimeOwnerReady,
   ]);
 
   // Update ref for stable callback reference
@@ -2022,7 +1512,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       toast.error(
         <div className="flex flex-col gap-1">
           <div className="font-medium">Daily limit reached</div>
-          <div className="text-xs">Sign in for unlimited access!</div>
+          <div className="text-xs">{FAST_AGENT_SIGN_IN_BENEFIT_COPY}</div>
         </div>
       );
       setPendingAutoSend(null);
@@ -2069,13 +1559,14 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       await deleteMessage({
         threadId: activeThreadId as Id<"chatThreadsStream">,
         messageId,
+        anonymousSessionId: anonymousSession.sessionId ?? undefined,
       });
       toast.success('Message deleted');
     } catch (err) {
       console.error('[FastAgentPanel] Failed to delete message:', err);
       toast.error('Failed to delete message');
     }
-  }, [activeThreadId, chatMode, deleteMessage, isProductConversationMode]);
+  }, [activeThreadId, anonymousSession.sessionId, chatMode, deleteMessage, isProductConversationMode]);
 
   // Handle general message regeneration
   const handleRegenerateMessage = useCallback(async (messageKey: string) => {
@@ -2148,7 +1639,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       await sendStreamingMessage({
         threadId: activeThreadId as Id<"chatThreadsStream">,
         prompt: userPrompt,
-        model: selectedModel,
+        model: runtimeSelectedModel,
         useCoordinator: true,
         clientContext,
         entitySlug: productEntitySlug ?? undefined,
@@ -2158,29 +1649,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
       console.error('[FastAgentPanel] Failed to regenerate:', err);
       toast.error('Failed to regenerate response');
     }
-  }, [activeThreadId, chatMode, isProductConversationMode, messagesToRender, productConversation, productLens, selectedModel, sendStreamingMessage, streamingMessages, productEntitySlug]);
-
-  // Handle manual Mermaid diagram retry
-  const handleMermaidRetry = useCallback(async (error: string, code: string) => {
-    // ... (existing implementation)
-  }, [chatMode, activeThreadId, sendStreamingMessage, selectedModel]);
-
-  // Handle company/person/event/news selection
-  const handleCompanySelect = useCallback(async (company: any) => {
-    // ... (existing implementation)
-  }, [chatMode, activeThreadId, sendStreamingMessage, selectedModel]);
-
-  const handlePersonSelect = useCallback(async (person: any) => {
-    // ... (existing implementation)
-  }, [chatMode, activeThreadId, sendStreamingMessage, selectedModel]);
-
-  const handleEventSelect = useCallback(async (event: any) => {
-    // ... (existing implementation)
-  }, [chatMode, activeThreadId, sendStreamingMessage, selectedModel]);
-
-  const handleNewsSelect = useCallback(async (article: any) => {
-    // ... (existing implementation)
-  }, [chatMode, activeThreadId, sendStreamingMessage, selectedModel]);
+  }, [activeThreadId, chatMode, isProductConversationMode, messagesToRender, productConversation, productLens, runtimeSelectedModel, sendStreamingMessage, streamingMessages, productEntitySlug]);
 
   // Handle document selection from document action cards
   const handleDocumentSelect = useCallback((documentId: string) => {
@@ -2197,35 +1666,11 @@ export const FastAgentPanel = memo(function FastAgentPanel({
   }, []);
 
   // Memoized message handlers for context provider (prevents callback prop drilling)
-  // R4: Inline action button handlers
-  const handleSendFollowUp = useCallback((text: string) => {
-    setInput(text);
-    void stableSendMessage(text);
-  }, [stableSendMessage]);
-
-  const handleSaveAsMemo = useCallback((messageText: string) => {
-    // Navigate to shareable memo with the message content
-    const encoded = encodeURIComponent(messageText.slice(0, 2000));
-    navigate(`/memo/demo?content=${encoded}`);
-  }, [navigate]);
-
-  const handleShareMessage = useCallback((messageText: string) => {
-    const shareUrl = `${window.location.origin}/memo/demo?content=${encodeURIComponent(messageText.slice(0, 2000))}`;
-    navigator.clipboard.writeText(shareUrl);
-  }, []);
-
   const messageHandlers = useMemo(() => ({
-    onCompanySelect: handleCompanySelect,
-    onPersonSelect: handlePersonSelect,
-    onEventSelect: handleEventSelect,
-    onNewsSelect: handleNewsSelect,
     onDocumentSelect: handleDocumentSelect,
     onRegenerateMessage: handleRegenerateMessage,
     onDeleteMessage: handleDeleteMessage,
-    onSendFollowUp: handleSendFollowUp,
-    onSaveAsMemo: handleSaveAsMemo,
-    onShareMessage: handleShareMessage,
-  }), [handleCompanySelect, handlePersonSelect, handleEventSelect, handleNewsSelect, handleDocumentSelect, handleRegenerateMessage, handleDeleteMessage, handleSendFollowUp, handleSaveAsMemo, handleShareMessage]);
+  }), [handleDocumentSelect, handleRegenerateMessage, handleDeleteMessage]);
 
   // ========== MEMOIZED VALUES (must be before early return) ==========
 
@@ -2273,19 +1718,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     toast.success('Downloaded as Markdown');
   }, [conversationToMarkdown, threads, activeThreadId]);
 
-  // Shared conversation link
-  const shareConversation = useCallback(() => {
-    const md = conversationToMarkdown?.();
-    if (md) {
-      const blob = new Blob([md], { type: 'text/markdown' });
-      const url = URL.createObjectURL(blob);
-      navigator.clipboard.writeText(url);
-      toast.success('Conversation link copied to clipboard');
-    } else {
-      toast.error('No conversation to share');
-    }
-  }, [conversationToMarkdown]);
-
   // Conversation search: compute match count from messages
   const searchMatches = useMemo(() => {
     if (!searchQuery.trim() || !messagesToRender) return [] as number[];
@@ -2298,62 +1730,14 @@ export const FastAgentPanel = memo(function FastAgentPanel({
     return indices;
   }, [searchQuery, messagesToRender]);
 
-  // Artifact extraction helpers
-  const assistantTexts = useMemo(() => {
-    if (!messagesToRender) return [] as string[];
-
-    return messagesToRender
-      .filter((msg: any) => (msg.role ?? msg?.message?.role) === 'assistant')
-      .map((msg: any) => {
-        return extractAssistantMessageText(msg) || '';
-      })
-      .filter(Boolean);
-  }, [messagesToRender]);
-
-  const aggregatedMedia = useMemo<ExtractedMedia>(() => {
-    const base: ExtractedMedia = { youtubeVideos: [], secDocuments: [], webSources: [], profiles: [], images: [] };
-
-    const dedupe = <T,>(items: T[], getKey: (item: T) => string | undefined) => {
-      const map = new Map<string, T>();
-      items.forEach((item) => {
-        const key = getKey(item);
-        if (!key) return;
-        if (!map.has(key)) map.set(key, item);
-      });
-      return Array.from(map.values());
-    };
-
-    const collected = assistantTexts.reduce((acc: typeof base, text: string) => {
-      const media = extractMediaFromText(text);
-      acc.youtubeVideos.push(...media.youtubeVideos);
-      acc.secDocuments.push(...media.secDocuments);
-      acc.webSources.push(...media.webSources);
-      acc.profiles.push(...media.profiles);
-      acc.images.push(...media.images);
-      return acc;
-    }, base);
-
-    return {
-      youtubeVideos: dedupe(collected.youtubeVideos, (v: any) => v.url || v.videoId),
-      secDocuments: dedupe(collected.secDocuments, (doc: any) => doc.accessionNumber || doc.documentUrl),
-      webSources: dedupe(collected.webSources, (source: any) => source.url || source.title),
-      profiles: dedupe(collected.profiles, (profile: any) => profile.url || profile.name),
-      images: dedupe(collected.images, (img: any) => img.url),
-    };
-  }, [assistantTexts]);
-
-  const aggregatedDocumentActions = useMemo<DocumentAction[]>(() => {
-    const dedupe = (docs: DocumentAction[]) => {
-      const map = new Map<string, DocumentAction>();
-      docs.forEach((doc) => {
-        if (!map.has(doc.documentId)) map.set(doc.documentId, doc);
-      });
-      return Array.from(map.values());
-    };
-
-    const docs = assistantTexts.flatMap((text: string) => extractDocumentActions(text));
-    return dedupe(docs);
-  }, [assistantTexts]);
+  // The sources/artifacts tab is a provenance surface. Populate it only from
+  // canonical source parts and completed tool outputs, never assistant prose.
+  const consultedArtifacts = useMemo(
+    () => collectConsultedArtifacts((messagesToRender ?? []) as UIMessage[]),
+    [messagesToRender],
+  );
+  const aggregatedMedia: ExtractedMedia = consultedArtifacts.media;
+  const aggregatedDocumentActions: DocumentAction[] = consultedArtifacts.documents;
 
   // Convert messages to Message type based on chat mode
   const uiMessages: Message[] = useMemo(() => {
@@ -2381,10 +1765,10 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         status: (msg.status || 'complete') as 'sending' | 'streaming' | 'complete' | 'error',
         timestamp: new Date(msg._creationTime || msg.createdAt || Date.now()),
         isStreaming: msg.status === 'streaming',
-        model: msg.model || selectedModel,
+        model: msg.model || runtimeSelectedModel,
       };
     });
-  }, [messagesToRender, activeThreadId, selectedModel]);
+  }, [messagesToRender, activeThreadId, runtimeSelectedModel]);
 
   const openCurrentConversationInChat = useCallback(() => {
     if (!isProductConversationMode || !activeThreadId) {
@@ -2422,7 +1806,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
           threads={threads}
           activeThreadId={activeThreadId}
           onSelectThread={(id) => { setActiveThreadId(id); setIsMinimized(false); }}
-          onNewChat={() => { setActiveThreadId(null); setDemoMessages([]); localStorage.removeItem('nodebench-agent-chat'); setIsMinimized(false); }}
+          onNewChat={() => { setActiveThreadId(null); setIsMinimized(false); }}
           onExpand={() => setIsMinimized(false)}
           onClose={onClose}
         />
@@ -2447,7 +1831,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
           variant === 'sidebar' && 'sidebar-mode',
           isWideMode && 'wide-mode',
           isFocusMode && 'focus-mode',
-          highContrast && 'high-contrast',
           isCompactSidebar
             ? "border-0 bg-white shadow-none dark:bg-[#11161c]"
             : "border-l border-gray-200 bg-white shadow-[0_20px_70px_-50px_rgba(15,23,42,0.34)] dark:border-white/[0.08] dark:bg-[#11161c] dark:shadow-[0_26px_90px_-58px_rgba(0,0,0,0.82)]",
@@ -2455,11 +1838,15 @@ export const FastAgentPanel = memo(function FastAgentPanel({
         style={{ fontSize: `${fontSize}px` }}
         role="complementary"
         aria-label="AI Chat Panel"
-        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+        onDragOver={(e) => {
+          if (!isProductConversationMode) return;
+          e.preventDefault();
+          setIsDragOver(true);
+        }}
         onDragLeave={(e) => { if (e.currentTarget === e.target) setIsDragOver(false); }}
       >
         {/* Skip to content link (a11y) */}
-        <a href="#fa-chat-input" className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:bg-indigo-600 focus:text-white focus:px-3 focus:py-1.5 focus:rounded focus:text-xs">
+        <a href={isProductConversationMode ? '#product-intake-query' : '#fa-chat-input'} className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:bg-indigo-600 focus:text-white focus:px-3 focus:py-1.5 focus:rounded focus:text-xs">
           Skip to chat input
         </a>
 
@@ -2468,18 +1855,15 @@ export const FastAgentPanel = memo(function FastAgentPanel({
           isCompactSidebar={isCompactSidebar}
           isStreaming={isBusy}
           isSwarmActive={isSwarmActive}
+          runtimeOwnerReady={runtimeOwnerReady}
           swarmTasks={swarmTasks}
           isAuthenticated={isAuthenticated}
           activeThreadId={activeThreadId}
           messagesToRender={messagesToRender}
           threads={threads}
-          selectedModel={selectedModel}
-          systemPrompt={systemPrompt}
           isFocusMode={isFocusMode}
           isWideMode={isWideMode}
           liveEvents={liveEvents}
-          personas={personas}
-          activePersona={activePersona}
           anonymousSession={anonymousSession}
           setActiveThreadId={setActiveThreadId}
           setInput={setInput}
@@ -2487,27 +1871,36 @@ export const FastAgentPanel = memo(function FastAgentPanel({
           setShowOverflowMenu={setShowOverflowMenu}
           setShowEventsPanel={setShowEventsPanel}
           setShowSkillsPanel={setShowSkillsPanel}
-          setShowSystemPrompt={setShowSystemPrompt}
-          setShowAnalytics={setShowAnalytics}
-          setShowTimeline={setShowTimeline}
+          showSidebar={showSidebar}
+          setShowSidebar={setShowSidebar}
           setIsFocusMode={setIsFocusMode}
           setIsWideMode={setIsWideMode}
           setIsMinimized={setIsMinimized}
-          setActivePersona={setActivePersona}
-          setShowPersonaPicker={setShowPersonaPicker}
           showOverflowMenu={showOverflowMenu}
-          showPersonaPicker={showPersonaPicker}
           onClose={onClose}
-          onClearChat={() => {
-            setDemoMessages([]);
-            localStorage.removeItem('nodebench-agent-chat');
-          }}
           handleCopyAsMarkdown={handleCopyAsMarkdown}
           handleDownloadMarkdown={handleDownloadMarkdown}
           appendToSignalsLog={appendToSignalsLog}
           showOpenInChat={isProductConversationMode}
           onOpenInChat={openCurrentConversationInChat}
         />
+
+        {isCompactSidebar && showSidebar && activeTab === 'chat' && !isFocusMode ? (
+          <div className="max-h-[min(45dvh,420px)] overflow-y-auto border-b border-edge bg-surface-secondary">
+            <FastAgentThreadList
+              threads={threads}
+              activeThreadId={activeThreadId}
+              onSelectThread={(threadId) => {
+                setActiveThreadId(threadId);
+                setShowSidebar(false);
+              }}
+              onDeleteThread={isProductConversationMode ? undefined : handleDeleteThread}
+              hasMore={hasMoreThreads}
+              onLoadMore={() => loadMoreThreads(10)}
+              isLoadingMore={isLoadingMoreThreads}
+            />
+          </div>
+        ) : null}
 
         {/* Conversation Search Bar */}
         {showSearch && (
@@ -2570,17 +1963,10 @@ export const FastAgentPanel = memo(function FastAgentPanel({
             : "px-3",
           isFocusMode && "hidden"
         )}>
-          {(showsNotebookWorkspaceTabs
-            ? ([
-                { id: 'chat', label: 'Chat' },
-                { id: 'scratchpad', label: 'Scratchpad' },
-                { id: 'flow', label: 'Flow' },
-              ] as const)
-            : ([
-                { id: 'chat', label: 'Answer' },
-                { id: 'sources', label: 'Sources' },
-              ] as const)
-          ).map((tab) => (
+          {getFastAgentViewTabs({
+            isCompactSidebar,
+            showsNotebookWorkspaceTabs,
+          }).map((tab) => (
             <button
               type="button"
               key={tab.id}
@@ -2600,34 +1986,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
               {tab.label}
             </button>
           ))}
-          {/* Overflow menu for power-user tabs */}
-          {!showsNotebookWorkspaceTabs && !isCompactSidebar && <div className="relative ml-auto group">
-            <button
-              type="button"
-              className="px-2 py-2 text-xs text-content-secondary hover:text-content transition-colors"
-              aria-label="More views"
-            >
-              ···
-            </button>
-            <div className="absolute right-0 top-full mt-1 bg-surface border border-edge rounded-lg shadow-lg py-1 min-w-[120px] hidden group-hover:block z-50">
-              {([
-                { id: 'trace', label: 'Activity' },
-                { id: 'telemetry', label: 'Performance' },
-              ] as const).map((tab) => (
-                <button
-                  type="button"
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-full px-3 py-1.5 text-xs text-left transition-colors ${activeTab === tab.id
-                    ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-600/5'
-                    : 'text-content-secondary hover:text-content hover:bg-surface-secondary'
-                    }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>}
         </div>
         )}
 
@@ -2662,7 +2020,10 @@ export const FastAgentPanel = memo(function FastAgentPanel({
               <FastAgentThreadList
                 threads={threads}
                 activeThreadId={activeThreadId}
-                onSelectThread={setActiveThreadId}
+                onSelectThread={(threadId) => {
+                  setActiveThreadId(threadId);
+                  setShowSidebar(false);
+                }}
                 onDeleteThread={isProductConversationMode ? undefined : handleDeleteThread}
                 hasMore={hasMoreThreads}
                 onLoadMore={() => loadMoreThreads(10)}
@@ -2678,8 +2039,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
               <EntityWorkspaceDrawerContent entitySlug={productEntitySlug} tab="scratchpad" />
             ) : activeTab === 'flow' && productEntitySlug ? (
               <EntityWorkspaceDrawerContent entitySlug={productEntitySlug} tab="flow" />
-            ) : activeTab === 'telemetry' ? (
-              <TaskManagerView isPublic={false} className="h-full" />
             ) : activeTab === 'trace' ? (
               <div className="flex-1 overflow-y-auto p-3">
                 {/* Show TraceAuditPanel for: active swarm ID or active thread */}
@@ -2835,16 +2194,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                            <button
                              key={chip.label}
                              type="button"
-                             onClick={() => {
-                               if (!isAuthenticated) {
-                                 const demo = findDemoConversation(chip.label);
-                                 if (demo) {
-                                   playDemoConversation(demo, chip.label);
-                                   return;
-                                 }
-                               }
-                               setInput(chip.label);
-                             }}
+                             onClick={() => setInput(chip.label)}
                              className="chip-press flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-3.5 py-3 text-left text-xs font-medium text-content-secondary transition-colors hover:border-[var(--accent-primary)]/20 hover:bg-gray-50 hover:text-content dark:border-white/[0.08] dark:bg-[#171c22] dark:hover:bg-white/[0.04]"
                            >
                              <span className="text-sm" aria-hidden="true">{chip.icon}</span>
@@ -2918,60 +2268,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                         </div>
                       </div>}
 
-                      {/* Swarm Quick Actions — hidden for clean panel */}
-                      {false && <SwarmQuickActions
-                        onSpawn={async (query, agents) => {
-                          try {
-                            toast.info(`Starting team with ${agents.length} agents...`);
-                            const result = await spawnSwarm({
-                              query,
-                              agents,
-                              model: selectedModel,
-                            });
-                            setActiveThreadId(result.threadId);
-                            toast.success(`Team started with ${result.taskCount} agents`);
-                          } catch (error: any) {
-                            console.error('[FastAgentPanel] Swarm spawn failed:', error);
-                            toast.error(error.message || 'Failed to spawn swarm');
-                          }
-                        }}
-                        className="flex-1"
-                      />}
-                    </div>
-                  )}
-
-                  {/* Waiting for Approval */}
-                  {pendingApprovals.length > 0 && (
-                    <div className="mx-2 mb-2 space-y-1.5" role="alert" aria-label="Actions waiting for your approval">
-                      {pendingApprovals.map(approval => (
-                        <div key={approval.id} className={`flex items-center gap-2 p-2 rounded-lg border text-xs ${
-                          approval.riskLevel === 'high' ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800' :
-                          approval.riskLevel === 'medium' ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800' :
-                          'bg-violet-50 dark:bg-violet-900/10 border-violet-200 dark:border-violet-800'
-                        }`}>
-                          <span className="text-base">{approval.riskLevel === 'high' ? '🔴' : approval.riskLevel === 'medium' ? '🟡' : '🟢'}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-content">Tool: {approval.toolName}</div>
-                            <div className="text-content-muted truncate">{JSON.stringify(approval.args).slice(0, 60)}</div>
-                          </div>
-                          <button type="button" onClick={() => approveToolCall(approval.id)} className="px-2 py-1 rounded bg-green-500 text-white text-xs font-medium hover:bg-green-600 transition-colors">Approve</button>
-                          <button type="button" onClick={() => rejectToolCall(approval.id)} className="px-2 py-1 rounded bg-surface-secondary text-content-muted text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors">Reject</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Multi-Agent Handoff Cards */}
-                  {agentHandoffs.length > 0 && (
-                    <div className="mx-2 mb-2 flex gap-1.5 overflow-x-auto pb-1" role="status" aria-label="Agent handoffs">
-                      {agentHandoffs.map(h => (
-                        <div key={h.id} className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs ${h.status === 'active' ? 'bg-violet-50 dark:bg-violet-900/10 border-violet-200 dark:border-violet-800' : 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800'}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${h.status === 'active' ? 'bg-violet-500 motion-safe:animate-pulse' : 'bg-green-500'}`} />
-                          <span className="font-medium text-content">{h.fromAgent}</span>
-                          <span className="text-content-muted">→</span>
-                          <span className="font-medium text-content">{h.toAgent}</span>
-                        </div>
-                      ))}
                     </div>
                   )}
 
@@ -2980,7 +2276,7 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                       messages={messagesToRender ?? []}
                       getMessageKey={(msg: any) => msg._id || msg.id || `msg-${msg.key}`}
                       renderMessage={(message: any) => (
-                        <div onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, msgId: message._id || message.id || message.key, role: message.role }); }}>
+                        <div>
                           {/* Timestamp grouping: date divider */}
                           {(() => {
                             if (!message._creationTime) return null;
@@ -3003,25 +2299,9 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                             message={message}
                             onRegenerateMessage={() => handleRegenerateMessage(message.key)}
                             onDeleteMessage={isProductConversationMode ? undefined : () => handleDeleteMessage(message._id)}
-                            onEditMessage={(newText: string) => {
-                              void stableSendMessage(newText);
-                            }}
                             searchHighlight={searchQuery || undefined}
-                            isBookmarked={bookmarkedIds.has(message._id || message.id || message.key)}
-                            onToggleBookmark={() => toggleBookmark(message._id || message.id || message.key)}
-                            isMessagePinned={pinnedMsgIds.has(message._id || message.id || message.key)}
-                            onTogglePin={() => togglePinMsg(message._id || message.id || message.key)}
-                            feedbackVote={feedbackMap[message._id || message.id || message.key] || null}
-                            onFeedback={(vote) => handleFeedback(message._id || message.id || message.key, vote)}
                             fontSize={fontSize}
-                            editDiff={editDiffs[message._id || message.id || message.key] || null}
                             compact={isCompactSidebar}
-                            isInContext={(() => {
-                              if (!messagesToRender) return true;
-                              const idx = messagesToRender.indexOf(message);
-                              const startIdx = messagesToRender.length - contextWindowMsgs.inContext;
-                              return idx >= startIdx;
-                            })()}
                           />
                           {/* Save to notebook — appears under completed assistant
                               responses when the user is on an entity page. Writes
@@ -3041,31 +2321,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                               </div>
                             );
                           })()}
-                          {/* Demo source badges + key insight */}
-                          {message._demoSources && message._demoSources.length > 0 && message.role === 'assistant' && message.status === 'complete' && (
-                            <div className="ml-10 mt-1.5 mb-2 animate-in fade-in slide-in-from-bottom-1 duration-300">
-                              <div className="flex flex-wrap gap-1.5 mb-1.5">
-                                {message._demoSources.map((src: { label: string; type: string }, i: number) => (
-                                  <span
-                                    key={i}
-                                    className={cn(
-                                      "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium",
-                                      src.type === 'code' && "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-                                      src.type === 'docs' && "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-                                      src.type === 'data' && "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-                                    )}
-                                  >
-                                    {src.type === 'code' ? '{ }' : src.type === 'docs' ? '\u{1F4D6}' : '\u{1F4CA}'} {src.label}
-                                  </span>
-                                ))}
-                              </div>
-                              {message._demoKeyInsight && (
-                                <p className="text-[11px] text-content-muted italic leading-relaxed">
-                                  Key insight: {message._demoKeyInsight}
-                                </p>
-                              )}
-                            </div>
-                          )}
                         </div>
                       )}
                       containerRef={scrollContainerRef}
@@ -3083,15 +2338,13 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                       const quoted = '> ' + text.replace(/\n/g, '\n> ') + '\n\n';
                       setInput((prev) => quoted + (prev ?? ''));
                       setTimeout(() => {
-                        const el = document.querySelector<HTMLTextAreaElement>('[placeholder="Message..."]');
-                        el?.focus();
+                        focusFastAgentComposer();
                       }, 20);
                     }}
                     onAskAbout={(text) => {
                       setInput(`What about this: "${text}"?`);
                       setTimeout(() => {
-                        const el = document.querySelector<HTMLTextAreaElement>('[placeholder="Message..."]');
-                        el?.focus();
+                        focusFastAgentComposer();
                       }, 20);
                     }}
                   />
@@ -3103,9 +2356,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                         <Loader2 className="w-3 h-3 motion-safe:animate-spin" />
                         <span>Waiting for available agent...</span>
                       </div>
-                      <div className="text-xs text-violet-500 pl-5">
-                        Position in queue: 1 (Estimated wait: &lt; 5s)
-                      </div>
                     </div>
                   )}
 
@@ -3113,17 +2363,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                     errorMessage={(streamingThread as any)?.runErrorMessage}
                     status={(streamingThread as any)?.runStatus}
                   />
-
-                  {/* Demo thinking indicator (guest mode) */}
-                  {isDemoThinking && (
-                    <div className="flex items-center gap-2 px-4 mb-4 animate-in fade-in duration-normal">
-                      <div className="typing-dots">
-                        <span className="dot" />
-                        <span className="dot" />
-                        <span className="dot" />
-                      </div>
-                    </div>
-                  )}
 
                   {/* Streaming Indicator */}
                   {isBusy && (
@@ -3139,25 +2378,12 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Auto-scroll paused "New messages" pill */}
-                {isAutoScrollPaused && isBusy && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-                      setIsAutoScrollPaused(false);
-                    }}
-                    className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 text-xs font-medium bg-violet-600 text-white rounded-full shadow-lg hover:bg-violet-700 transition-colors animate-in fade-in slide-in-from-bottom-2"
-                  >
-                    ↓ New messages
-                  </button>
-                )}
-
-                {/* Scroll-to-bottom FAB (Claude/ChatGPT pattern) */}
+                {/* One scroll-to-bottom control when the reader has moved away. */}
                 {showScrollFab && (
                   <button
                     type="button"
                     onClick={() => {
+                      autoScrollEnabledRef.current = true;
                       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
                     }}
                     className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 w-8 h-8 rounded-full bg-surface-secondary border border-edge shadow-lg flex items-center justify-center text-content-muted hover:text-content hover:bg-surface-secondary transition-all duration-normal animate-in fade-in slide-in-from-bottom-2"
@@ -3166,63 +2392,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                     <ArrowDown className="w-4 h-4" aria-hidden="true" />
                   </button>
                 )}
-              </div>
-            )}
-
-            {/* Anonymous User Banner — minimized for clean panel */}
-            {false && anonymousSession.isAnonymous && !anonymousSession.isLoading && (
-              <div className={`mx-3 mt-2 px-3 py-2.5 rounded-lg border ${anonymousSession.canSendMessage
-                ? 'bg-gradient-to-r from-violet-50/80 to-indigo-50/80 border-violet-200/50'
-                : 'bg-gradient-to-r from-amber-50/80 to-orange-50/80 border-amber-200/50'
-                }`}>
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <div className="flex items-center gap-2.5">
-                    {anonymousSession.canSendMessage ? (
-                      <>
-                        <div className="w-6 h-6 rounded-full bg-violet-100 flex items-center justify-center">
-                          <MessageSquare className="w-3.5 h-3.5 text-violet-600" />
-                        </div>
-                        <span className="text-[12px] text-content-secondary">
-                          <span className="font-semibold text-content">{anonymousSession.remaining}</span>
-                          {' '}of {anonymousSession.limit} free messages remaining today
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center">
-                          <LogIn className="w-3.5 h-3.5 text-amber-600" />
-                        </div>
-                        <span className="text-[12px] text-content-secondary">
-                          Daily limit reached. Sign in for unlimited access!
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void signIn("google", {
-                        redirectTo: typeof window !== "undefined" ? window.location.href : "/",
-                      })
-                    }
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[var(--accent-primary)] text-white hover:bg-[var(--accent-primary-hover)] transition-colors shadow-sm"
-                  >
-                    <LogIn className="w-3 h-3" />
-                    Sign in
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Reply-To Indicator */}
-            {replyToMsg && (
-              <div className="mx-3 mt-1 px-3 py-1.5 rounded-t-lg border border-b-0 border-edge bg-surface-secondary flex items-center gap-2">
-                <div className="w-0.5 h-6 rounded-full bg-indigo-600" />
-                <div className="flex-1 min-w-0">
-                  <span className="text-xs text-content-muted">Replying to {(replyToMsg as any).role === 'user' ? 'yourself' : 'AI'}</span>
-                  <p className="text-xs text-content-secondary truncate">{((replyToMsg as any).text || (replyToMsg as any).content || '').slice(0, 80)}</p>
-                </div>
-                <button type="button" onClick={() => setReplyToMsgId(null)} className="text-content-muted hover:text-content text-xs">&times;</button>
               </div>
             )}
 
@@ -3242,48 +2411,9 @@ export const FastAgentPanel = memo(function FastAgentPanel({
               </div>
             )}
 
-            {/* Image Paste Preview Thumbnails */}
-            {imagePreview.length > 0 && (
-              <div className="mx-3 mt-1 flex items-center gap-2 flex-wrap">
-                {imagePreview.map((img, i) => (
-                  <div key={i} className="relative group">
-                    <img src={img.url} alt="" className="w-12 h-12 rounded-lg object-cover border border-edge" width={48} height={48} />
-                    <button
-                      type="button"
-                      onClick={() => setImagePreview(prev => { URL.revokeObjectURL(prev[i].url); return prev.filter((_, j) => j !== i); })}
-                      className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      aria-label={`Remove image ${i + 1}`}
-                    >
-                      &times;
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Scheduled Messages Indicator */}
-            {scheduledMessages.length > 0 && (
-              <div className="mx-3 mt-1 text-xs text-content-muted flex items-center gap-1">
-                <span>🕐</span>
-                {scheduledMessages.length} scheduled message{scheduledMessages.length > 1 ? 's' : ''} pending
-              </div>
-            )}
-
-            {/* Voice Input + Input Area */}
+            {/* Input Area */}
             <div className="p-3 border-t border-edge">
-              {/* Voice Input Button */}
-              {!isCompactSidebar && <div className="flex items-center gap-2 mb-1.5">
-                <button
-                  type="button"
-                  onClick={isRecording ? stopVoiceInput : startVoiceInput}
-                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-all ${isRecording
-                    ? 'bg-red-50 dark:bg-red-900/20 border-red-300 text-red-600 motion-safe:animate-pulse'
-                    : 'bg-surface-secondary border-edge text-content-muted hover:text-content'
-                  }`}
-                  aria-label={isRecording ? 'Stop recording' : 'Voice input'}
-                >
-                  {isRecording ? '⏹ Stop' : '🎙 Voice'}
-                </button>
+              {!isCompactSidebar && <div className="flex items-center justify-end mb-1.5">
                 {/* Font Size Slider */}
                 <div className="flex items-center gap-1 ml-auto">
                   <span className="text-[8px] text-content-muted">A</span>
@@ -3326,30 +2456,25 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                   setInput={setInput}
                   onSend={stableSendMessage}
                   isStreaming={isBusy}
+                  isSendDisabled={!runtimeOwnerReady}
                   onStop={handleStopStreaming}
-                  selectedModel={selectedModel}
+                  selectedModel={runtimeSelectedModel}
                   onSelectModel={setSelectedModel as (model: string) => void}
-                  attachedFiles={attachedFiles}
-                  onAttachFiles={handleAttachFiles}
-                  onRemoveFile={handleRemoveFile}
+                  modelSelectionEnabled={isAuthenticated}
                   selectedDocumentIds={selectedDocumentIds}
-                  contextDocuments={contextDocuments}
-                  onAddContextDocument={handleAddContextDocument}
-                  onRemoveContextDocument={handleRemoveContextDocument}
+                  onRemoveSelectedDocument={handleRemoveSelectedDocument}
                   contextCalendarEvents={contextCalendarEvents}
                   onAddCalendarEvent={handleAddCalendarEvent}
                   onRemoveCalendarEvent={handleRemoveCalendarEvent}
-                  responseLength={responseLength}
-                  onResponseLengthChange={setResponseLength}
                   onVoiceIntent={onVoiceIntent}
                   compact={isCompactSidebar}
-                  onSpawn={async (query, agents) => {
+                  onSpawn={isAuthenticated ? async (query, agents) => {
                     try {
                       toast.info(`Starting team with ${agents.length} agents...`);
                       const result = await spawnSwarm({
                         query,
                         agents,
-                        model: selectedModel,
+                        model: runtimeSelectedModel,
                       });
                       // Switch to the new team thread
                       setActiveThreadId(result.threadId);
@@ -3358,166 +2483,33 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                       console.error('[FastAgentPanel] Swarm spawn failed:', error);
                       toast.error(error.message || 'Failed to start team');
                     }
-                  }}
+                  } : undefined}
                 />
               )}
             </div>
 
-            {/* Simplified Status Bar */}
-            {!isCompactSidebar && <div className="status-bar">
-              <div className={`status-dot ${isAuthenticated ? 'connected' : 'disconnected'}`} />
-              {isBusy ? (
-                <span className="text-violet-500 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 bg-violet-500 rounded-full motion-safe:animate-pulse" />
-                  Working...
-                </span>
-              ) : (
-                <span className="text-content-muted">{isAuthenticated ? 'Ready' : 'Offline'}</span>
-              )}
-              <span className="flex items-center gap-2 ml-auto">
-                <button
-                  type="button"
-                  onClick={() => setShowAnalytics(true)}
-                  className="opacity-40 hover:opacity-80 text-xs transition-opacity"
-                  title="Analytics"
-                >
-                  📊
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowTimeline(p => !p)}
-                  className="opacity-40 hover:opacity-80 text-xs transition-opacity"
-                  title="Conversation timeline"
-                >
-                  Timeline
-                </button>
-              </span>
-            </div>}
           </div>
 
         </div>
 
-        {/* Export Menu */}
-        {exportingThreadId && (() => {
-          const thread = threads?.find((t) => t._id === exportingThreadId);
-          if (!thread) return null;
-
-          // Convert to Thread type for ExportMenu
-          const exportThread: Thread = {
-            _id: thread._id,
-            userId: thread.userId,
-            title: thread.title,
-            pinned: Boolean((thread as any).pinned),
-            createdAt: (thread as any).createdAt ?? thread._creationTime,
-            updatedAt: (thread as any).updatedAt ?? thread._creationTime,
-            _creationTime: thread._creationTime,
-            messageCount: (thread as any).messageCount,
-            lastMessage: (thread as any).lastMessage,
-            lastMessageAt: (thread as any).lastMessageAt,
-            toolsUsed: (thread as any).toolsUsed,
-            modelsUsed: (thread as any).modelsUsed,
-          };
-
-          return (
-            <ExportMenu
-              thread={exportThread}
-              messages={uiMessages}
-              onClose={() => setExportingThreadId(null)}
-            />
-          );
-        })()}
-
         <PanelOverlays
           showShortcutsOverlay={showShortcutsOverlay}
           setShowShortcutsOverlay={setShowShortcutsOverlay}
-          showSystemPrompt={showSystemPrompt}
-          setShowSystemPrompt={setShowSystemPrompt}
-          systemPrompt={systemPrompt}
-          setSystemPrompt={setSystemPrompt}
-          saveSystemPrompt={saveSystemPrompt}
-          activeThreadId={activeThreadId}
-          showQuickReplies={showQuickReplies}
-          setShowQuickReplies={setShowQuickReplies}
-          quickReplies={quickReplies}
-          setQuickReplies={setQuickReplies}
-          setInput={setInput}
-          showCommandPalette={showCommandPalette}
-          setShowCommandPalette={setShowCommandPalette}
-          commandQuery={commandQuery}
-          setCommandQuery={setCommandQuery}
-          commandInputRef={commandInputRef}
-          threads={threads}
-          setActiveThreadId={setActiveThreadId}
-          setShowSearch={setShowSearch}
-          searchInputRef={searchInputRef}
-          setIsFocusMode={setIsFocusMode}
-          setIsWideMode={setIsWideMode}
-          setShowTimeline={setShowTimeline}
-          setShowContextPruning={setShowContextPruning}
-          setShowAnalytics={setShowAnalytics}
-          setShowBranchTree={setShowBranchTree}
-          setShowMemoryPanel={setShowMemoryPanel}
-          setShowImport={setShowImport}
-          setHighContrast={setHighContrast}
-          shareConversation={shareConversation}
-          saveSnapshot={saveSnapshot}
           showTimeline={showTimeline}
           setShowTimelineState={setShowTimeline}
           messagesToRender={messagesToRender}
           scrollContainerRef={scrollContainerRef}
-          showContextPruning={showContextPruning}
-          setShowContextPruningState={setShowContextPruning}
-          contextLimit={contextLimit}
-          selectedModel={selectedModel}
         />
 
         <PanelDialogs
           showArtifacts={showArtifacts}
           setShowArtifacts={setShowArtifacts}
           artifactContent={artifactContent}
-          isDragOver={isDragOver}
+          isDragOver={isProductConversationMode && isDragOver}
           setIsDragOver={setIsDragOver}
           setAttachedFiles={setAttachedFiles}
-          showAnalytics={showAnalytics}
-          setShowAnalytics={setShowAnalytics}
-          messagesToRender={messagesToRender}
-          selectedModel={selectedModel}
-          contextLimit={contextLimit}
-          contextWindowMsgs={contextWindowMsgs}
-          showBranchTree={showBranchTree}
-          setShowBranchTree={setShowBranchTree}
-          threads={threads}
-          activeThreadId={activeThreadId}
-          setActiveThreadId={setActiveThreadId}
-          contextMenu={contextMenu}
-          setContextMenu={setContextMenu}
-          togglePinMsg={togglePinMsg}
-          toggleBookmark={toggleBookmark}
-          addMemory={addMemory}
-          handleDeleteMessage={handleDeleteMessage}
-          setReplyToMsgId={setReplyToMsgId}
-          showMemoryPanel={showMemoryPanel}
-          setShowMemoryPanel={setShowMemoryPanel}
-          memories={memories}
-          removeMemory={removeMemory}
-          showImport={showImport}
-          setShowImport={setShowImport}
           variant={variant}
-          showSettings={showSettings}
         />
-
-        {/* Settings Panel */}
-        {showSettings && (
-          <SettingsPanel
-            fastMode={fastMode}
-            onFastModeChange={setFastMode}
-            model={selectedModel}
-            onModelChange={setSelectedModel as (model: string) => void}
-            arbitrageMode={arbitrageEnabled}
-            onArbitrageModeChange={setArbitrageEnabled}
-            onClose={() => setShowSettings(false)}
-          />
-        )}
 
       </div>
     </>
@@ -3576,12 +2568,12 @@ function ArtifactsTab({ media, documents, hasThread, onDocumentSelect }: Artifac
         <div className="flex items-center justify-between mb-2">
           <div>
             <p className="text-xs font-semibold text-content">Artifacts</p>
-            <p className="text-xs text-content-muted">Evidence the agent discovered, with links and media.</p>
+            <p className="text-xs text-content-muted">Consulted sources and tool outputs, with links and media.</p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <RichMediaSection media={media} showCitations={true} />
+          <RichMediaSection media={media} />
 
           {documents.length > 0 && (
             <div className="border-t border-edge pt-3">

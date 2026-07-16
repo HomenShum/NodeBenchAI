@@ -11,11 +11,6 @@ import {
   MessageSquare,
   Sparkles,
   ChevronDown,
-  MoreHorizontal,
-  FileText,
-  ArrowRight,
-  TrendingUp,
-  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -67,14 +62,6 @@ interface ChatLaneProps {
   /** Whether thread is collapsed */
   threadCollapsed?: boolean;
 }
-
-// Suggested quick actions based on context
-const DEFAULT_SUGGESTIONS: QuickAction[] = [
-  { id: "open-report", label: "Open report", icon: FileText, onClick: () => {} },
-  { id: "continue-research", label: "Continue research", icon: ArrowRight, onClick: () => {} },
-  { id: "compare", label: "Compare to competitor", icon: TrendingUp, onClick: () => {} },
-  { id: "export", label: "Export memo", icon: Download, onClick: () => {} },
-];
 
 // Lens options
 const LENS_OPTIONS: { id: LensId; label: string; shortcut: string }[] = [
@@ -252,7 +239,7 @@ export function ChatLane({
     [inputValue, disabled, onSubmit]
   );
 
-  const suggestions = quickActions || DEFAULT_SUGGESTIONS;
+  const suggestions = quickActions ?? [];
 
   return (
     <div className={cn("flex flex-col h-full bg-muted/20", className)}>
@@ -277,9 +264,6 @@ export function ChatLane({
               />
             </button>
           )}
-          <button className="p-1.5 hover:bg-muted rounded-md transition-colors">
-            <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-          </button>
         </div>
       </div>
 
@@ -337,7 +321,7 @@ export function ChatLane({
       </div>
 
       {/* Quick actions */}
-      {!threadCollapsed && messages.length > 0 && (
+      {!threadCollapsed && messages.length > 0 && suggestions.length > 0 && (
         <div className="px-4 py-2 border-t border-border/30">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
             Suggested actions
@@ -375,24 +359,9 @@ export function ChatLane({
 
           {/* Composer actions */}
           <div className="flex items-center justify-between px-2 pb-2">
-            {/* Left: Lens selector + attach */}
+            {/* Left: Lens selector */}
             <div className="flex items-center gap-1">
               <LensSelector value={lens} onChange={onLensChange} />
-              <button className="p-1.5 hover:bg-muted rounded-md transition-colors">
-                <svg
-                  className="w-4 h-4 text-muted-foreground"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-                  />
-                </svg>
-              </button>
             </div>
 
             {/* Right: Send button */}

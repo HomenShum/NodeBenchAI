@@ -1,5 +1,6 @@
 import { cronJobs } from "convex/server";
 import { internal } from "./_generated/api";
+import { HEALTH_CONFIG } from "./config/autonomousConfig";
 
 const crons = cronJobs();
 
@@ -704,10 +705,10 @@ crons.daily(
 );
 
 // --- Self-Healing & Observability (Phase 7) ---
-// Run health checks every 5 minutes
+// Run health checks on the same cadence used by freshness calculations.
 crons.interval(
   "system health check",
-  { minutes: 5 },
+  { minutes: HEALTH_CONFIG.healthCheckIntervalMs / 60_000 },
   internal.domains.observability.healthMonitor.tickHealthCheck,
   {}
 );

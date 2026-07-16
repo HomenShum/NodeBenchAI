@@ -7,7 +7,11 @@
  */
 
 import { v } from "convex/values";
-import { query } from "../../_generated/server";
+import { internalQuery, query } from "../../_generated/server";
+import {
+  pipelineOwnerMatches,
+  requirePipelineCallerOwnerKey,
+} from "./pipelineOwnership";
 
 export const listRecentRuns = query({
   args: {
@@ -20,7 +24,7 @@ export const listRecentRuns = query({
         v.literal("custom"),
       ),
     ),
-    ownerKey: v.optional(v.string()),
+    anonymousSessionId: v.optional(v.string()),
   },
   returns: v.array(
     v.object({
@@ -31,13 +35,13 @@ export const listRecentRuns = query({
       verdict: v.optional(v.string()),
       title: v.string(),
       modelId: v.string(),
-      ownerKey: v.optional(v.string()),
       createdAt: v.number(),
       durationMs: v.optional(v.number()),
       inputTokens: v.optional(v.number()),
       outputTokens: v.optional(v.number()),
       estimatedUsd: v.optional(v.number()),
       stepCount: v.number(),
+      hasStream: v.boolean(),
       errorMessage: v.optional(v.string()),
       outputDocumentId: v.optional(v.id("documents")),
       bundleUrl: v.optional(v.union(v.null(), v.string())),
@@ -45,24 +49,20 @@ export const listRecentRuns = query({
     }),
   ),
   handler: async (ctx, args) => {
+    const ownerKey = await requirePipelineCallerOwnerKey(
+      ctx,
+      args.anonymousSessionId,
+    );
     const limit = Math.min(args.limit ?? 25, 100);
-
-    let q;
-    if (args.ownerKey) {
-      q = ctx.db
-        .query("pipelineRuns")
-        .withIndex("by_owner_createdAt", (q) => q.eq("ownerKey", args.ownerKey))
-        .order("desc");
-    } else if (args.pipelineKind) {
-      q = ctx.db
-        .query("pipelineRuns")
-        .withIndex("by_kind_createdAt", (q) => q.eq("pipelineKind", args.pipelineKind!))
-        .order("desc");
-    } else {
-      q = ctx.db.query("pipelineRuns").order("desc");
-    }
-
-    const rows = await q.take(limit);
+    const candidateLimit = args.pipelineKind ? Math.min(limit * 4, 400) : limit;
+    const candidates = await ctx.db
+      .query("pipelineRuns")
+      .withIndex("by_owner_createdAt", (q) => q.eq("ownerKey", ownerKey))
+      .order("desc")
+      .take(candidateLimit);
+    const rows = args.pipelineKind
+      ? candidates.filter((row) => row.pipelineKind === args.pipelineKind).slice(0, limit)
+      : candidates;
 
     // Step counts via by_run index (cheap — bounded by step count per run).
     const out: Array<any> = [];
@@ -71,6 +71,10 @@ export const listRecentRuns = query({
         .query("pipelineSteps")
         .withIndex("by_run", (q) => q.eq("pipelineRunId", r._id))
         .collect();
+      const stream = await ctx.db
+        .query("pipelineRunStreams")
+        .withIndex("by_runId_stepName", (q) => q.eq("runId", r.runId))
+        .first();
 
       // Bundle + image URLs (resolved via Convex storage). Both are
       // optional — null when the run has no persisted bundle/image yet.
@@ -103,13 +107,13 @@ export const listRecentRuns = query({
         verdict: r.verdict,
         title: r.title,
         modelId: r.modelId,
-        ownerKey: r.ownerKey,
         createdAt: r.createdAt,
         durationMs: r.durationMs,
         inputTokens: r.inputTokens,
         outputTokens: r.outputTokens,
         estimatedUsd: r.estimatedUsd,
         stepCount: steps.length,
+        hasStream: Boolean(stream),
         errorMessage: r.errorMessage,
         outputDocumentId: r.outputDocumentId,
         bundleUrl,
@@ -121,7 +125,10 @@ export const listRecentRuns = query({
 });
 
 export const getRunDetail = query({
-  args: { runId: v.string() },
+  args: {
+    runId: v.string(),
+    anonymousSessionId: v.optional(v.string()),
+  },
   returns: v.union(
     v.null(),
     v.object({
@@ -134,7 +141,6 @@ export const getRunDetail = query({
         title: v.string(),
         spec: v.string(),
         modelId: v.string(),
-        ownerKey: v.optional(v.string()),
         createdAt: v.number(),
         startedAt: v.optional(v.number()),
         completedAt: v.optional(v.number()),
@@ -167,11 +173,15 @@ export const getRunDetail = query({
     }),
   ),
   handler: async (ctx, args) => {
+    const ownerKey = await requirePipelineCallerOwnerKey(
+      ctx,
+      args.anonymousSessionId,
+    );
     const run = await ctx.db
       .query("pipelineRuns")
       .withIndex("by_runId", (q) => q.eq("runId", args.runId))
       .first();
-    if (!run) return null;
+    if (!pipelineOwnerMatches(run, ownerKey)) return null;
 
     const stepDocs = await ctx.db
       .query("pipelineSteps")
@@ -189,7 +199,6 @@ export const getRunDetail = query({
         title: run.title,
         spec: run.spec,
         modelId: run.modelId,
-        ownerKey: run.ownerKey,
         createdAt: run.createdAt,
         startedAt: run.startedAt,
         completedAt: run.completedAt,
@@ -227,7 +236,10 @@ export const getRunDetail = query({
  * stale. The frontend uses this to render a "Download bundle" link.
  */
 export const getRunBundleDownloadUrl = query({
-  args: { runId: v.string() },
+  args: {
+    runId: v.string(),
+    anonymousSessionId: v.optional(v.string()),
+  },
   returns: v.union(
     v.null(),
     v.object({
@@ -236,11 +248,15 @@ export const getRunBundleDownloadUrl = query({
     }),
   ),
   handler: async (ctx, args) => {
+    const ownerKey = await requirePipelineCallerOwnerKey(
+      ctx,
+      args.anonymousSessionId,
+    );
     const run = await ctx.db
       .query("pipelineRuns")
       .withIndex("by_runId", (q) => q.eq("runId", args.runId))
       .first();
-    if (!run) return null;
+    if (!pipelineOwnerMatches(run, ownerKey)) return null;
     const bundleUrl = run.outputZipStorageId
       ? await ctx.storage.getUrl(run.outputZipStorageId)
       : null;
@@ -268,7 +284,7 @@ export const getRunBundleDownloadUrl = query({
 });
 
 export const getRunSummaryStats = query({
-  args: {},
+  args: { anonymousSessionId: v.optional(v.string()) },
   returns: v.object({
     totalRuns: v.number(),
     succeeded: v.number(),
@@ -277,8 +293,16 @@ export const getRunSummaryStats = query({
     totalEstimatedUsd: v.number(),
     avgDurationMs: v.optional(v.number()),
   }),
-  handler: async (ctx) => {
-    const recent = await ctx.db.query("pipelineRuns").order("desc").take(200);
+  handler: async (ctx, args) => {
+    const ownerKey = await requirePipelineCallerOwnerKey(
+      ctx,
+      args.anonymousSessionId,
+    );
+    const recent = await ctx.db
+      .query("pipelineRuns")
+      .withIndex("by_owner_createdAt", (q) => q.eq("ownerKey", ownerKey))
+      .order("desc")
+      .take(200);
     const succeeded = recent.filter((r) => r.status === "succeeded").length;
     const failed = recent.filter((r) => r.status === "failed").length;
     const inProgress = recent.filter(
@@ -299,6 +323,129 @@ export const getRunSummaryStats = query({
       inProgress,
       totalEstimatedUsd,
       avgDurationMs,
+    };
+  },
+});
+
+/**
+ * Secret-gated service bridges use explicit internal reads. They must supply
+ * the server-derived service owner key and cannot reopen the public ownerKey
+ * surface.
+ */
+export const listRecentRunsInternal = internalQuery({
+  args: {
+    ownerKey: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(args.limit ?? 25, 100);
+    const rows = await ctx.db
+      .query("pipelineRuns")
+      .withIndex("by_owner_createdAt", (q) => q.eq("ownerKey", args.ownerKey))
+      .order("desc")
+      .take(limit);
+
+    const output: Array<any> = [];
+    for (const run of rows) {
+      const steps = await ctx.db
+        .query("pipelineSteps")
+        .withIndex("by_run", (q) => q.eq("pipelineRunId", run._id))
+        .collect();
+      let bundleUrl: string | null = null;
+      let imageUrl: string | null = null;
+      if (run.outputZipStorageId) {
+        try {
+          bundleUrl = await ctx.storage.getUrl(run.outputZipStorageId);
+        } catch {
+          bundleUrl = null;
+        }
+      }
+      const imageStep = steps.find((step) => step.name === "design.image");
+      const imageStorageId = imageStep?.scratchpad?.match(
+        /image_storage_id=([a-z0-9]+)/i,
+      )?.[1];
+      if (imageStorageId) {
+        try {
+          imageUrl = await ctx.storage.getUrl(imageStorageId as any);
+        } catch {
+          imageUrl = null;
+        }
+      }
+      output.push({
+        _id: run._id,
+        runId: run.runId,
+        pipelineKind: run.pipelineKind,
+        status: run.status,
+        verdict: run.verdict,
+        title: run.title,
+        modelId: run.modelId,
+        createdAt: run.createdAt,
+        durationMs: run.durationMs,
+        inputTokens: run.inputTokens,
+        outputTokens: run.outputTokens,
+        estimatedUsd: run.estimatedUsd,
+        stepCount: steps.length,
+        errorMessage: run.errorMessage,
+        outputDocumentId: run.outputDocumentId,
+        bundleUrl,
+        imageUrl,
+      });
+    }
+    return output;
+  },
+});
+
+export const getRunDetailInternal = internalQuery({
+  args: { runId: v.string(), ownerKey: v.string() },
+  handler: async (ctx, args) => {
+    const run = await ctx.db
+      .query("pipelineRuns")
+      .withIndex("by_runId", (q) => q.eq("runId", args.runId))
+      .first();
+    if (!pipelineOwnerMatches(run, args.ownerKey)) return null;
+
+    const stepDocs = await ctx.db
+      .query("pipelineSteps")
+      .withIndex("by_run", (q) => q.eq("pipelineRunId", run._id))
+      .collect();
+    stepDocs.sort((a, b) => a.seq - b.seq);
+    return {
+      run: {
+        _id: run._id,
+        runId: run.runId,
+        pipelineKind: run.pipelineKind,
+        status: run.status,
+        verdict: run.verdict,
+        title: run.title,
+        spec: run.spec,
+        modelId: run.modelId,
+        createdAt: run.createdAt,
+        startedAt: run.startedAt,
+        completedAt: run.completedAt,
+        durationMs: run.durationMs,
+        inputTokens: run.inputTokens,
+        outputTokens: run.outputTokens,
+        estimatedUsd: run.estimatedUsd,
+        errorMessage: run.errorMessage,
+        outputDocumentId: run.outputDocumentId,
+        outputArchiveRowId: run.outputArchiveRowId,
+        outputZipStorageId: run.outputZipStorageId,
+      },
+      steps: stepDocs.map((step) => ({
+        _id: step._id,
+        seq: step.seq,
+        name: step.name,
+        status: step.status,
+        startedAt: step.startedAt,
+        completedAt: step.completedAt,
+        durationMs: step.durationMs,
+        inputTokens: step.inputTokens,
+        outputTokens: step.outputTokens,
+        estimatedUsd: step.estimatedUsd,
+        modelId: step.modelId,
+        scratchpad: step.scratchpad,
+        errorMessage: step.errorMessage,
+      })),
     };
   },
 });

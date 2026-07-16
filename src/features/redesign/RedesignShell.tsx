@@ -117,6 +117,10 @@ export default function RedesignShell() {
   const chatHash = useMemo(() => pathToChatHash(location.pathname), [location.pathname]);
   const workspace = useMemo(() => workspaceParams(location.search), [location.search]);
   const initialChatPrompt = useMemo(() => queryPrompt(location.search), [location.search]);
+  const focusHomeComposer = useMemo(
+    () => new URLSearchParams(location.search).get("focus") === "home-composer",
+    [location.search],
+  );
   const isPrototypeKit = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return params.get("qa") === "home-v2-implementation";
@@ -233,6 +237,7 @@ export default function RedesignShell() {
             onAsk={sendPromptToChat}
             onOpenReports={openTouchedReports}
             liveArtifacts={shellLiveArtifacts}
+            focusComposer={focusHomeComposer}
           />
           {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}
           {showQaChrome && <ViewportFab forceMobile={forceMobile} setForceMobile={setForceMobile} />}
@@ -361,6 +366,7 @@ export default function RedesignShell() {
                   onAsk={sendPromptToChat}
                   onOpenReports={openTouchedReports}
                   liveArtifacts={shellLiveArtifacts}
+                  focusComposer={focusHomeComposer}
                 />
               )}
             {!isPrototypeKit && surface === "reports" && !reportId && (

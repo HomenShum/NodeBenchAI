@@ -252,7 +252,7 @@ export function getNodeBenchAiDesignManifest(): AiDesignManifest {
           role: "Sub-agent / delegation list shell with elapsed timing.",
           adoption: "migrated",
           must: ["Preserve startedAt / completedAt timing semantics."],
-          avoid: ["Replacing the live ParallelTaskTimeline (Convex useQuery) — that stays custom."],
+          avoid: ["Adding control surfaces without a reachable runtime workflow."],
         },
         {
           primitive: "sources + inline-citation",

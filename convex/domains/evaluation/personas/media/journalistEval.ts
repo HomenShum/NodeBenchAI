@@ -9,7 +9,7 @@
 
 import { action } from "../../../../_generated/server";
 import { v } from "convex/values";
-import { api } from "../../../../_generated/api";
+import { internal } from "../../../../_generated/api";
 
 import { VIRALTECH_LAYOFFS_GROUND_TRUTH, type NewsStoryGroundTruth } from "./mediaGroundTruth";
 import {
@@ -42,7 +42,7 @@ export const evaluateJournalist = action({
     try {
       // Run investor playbook with journalist context (claim + news verification)
       const playbookResult = await ctx.runAction(
-        api.domains.agents.dueDiligence.investorPlaybook.evalPlaybook.runInvestorPlaybookEval,
+        internal.domains.agents.dueDiligence.investorPlaybook.evalPlaybook.runInvestorPlaybookEval,
         {
           entityName: groundTruth.story.subject,
           entityType: "company",

@@ -56,25 +56,33 @@ const RequestCard = memo(function RequestCard({
   onRespond,
   onCancel,
   isProcessing,
+  errorMessage,
 }: {
   request: HumanRequest;
-  onRespond: (requestId: Id<"humanRequests">, response: string) => void;
-  onCancel: (requestId: Id<"humanRequests">) => void;
+  onRespond: (requestId: Id<"humanRequests">, response: string) => Promise<boolean>;
+  onCancel: (requestId: Id<"humanRequests">) => Promise<boolean>;
   isProcessing: boolean;
+  errorMessage?: string;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [customResponse, setCustomResponse] = useState("");
 
   const timeAgo = formatTimeAgo(request._creationTime);
 
-  const handleOptionClick = useCallback((option: string) => {
-    onRespond(request._id, option);
+  const handleOptionClick = useCallback(async (option: string) => {
+    await onRespond(request._id, option);
   }, [request._id, onRespond]);
 
-  const handleCustomSubmit = useCallback(() => {
-    if (customResponse.trim()) {
-      onRespond(request._id, customResponse.trim());
-      setCustomResponse("");
+  const handleCustomSubmit = useCallback(async () => {
+    const response = customResponse.trim();
+    if (response) {
+      const accepted = await onRespond(request._id, response);
+      if (accepted) {
+        // Keep the user's text recoverable until the backend confirms success.
+        // The pending subscription will normally remove the card immediately.
+        // Clearing here also covers delayed subscription updates.
+        setCustomResponse("");
+      }
     }
   }, [request._id, customResponse, onRespond]);
 
@@ -146,7 +154,7 @@ const RequestCard = memo(function RequestCard({
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => handleOptionClick(option)}
+                  onClick={() => void handleOptionClick(option)}
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-xs font-medium",
                     "border border-edge",
@@ -175,13 +183,13 @@ const RequestCard = memo(function RequestCard({
                 )}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    handleCustomSubmit();
+                    void handleCustomSubmit();
                   }
                 }}
               />
               <button
                 type="button"
-                onClick={handleCustomSubmit}
+                onClick={() => void handleCustomSubmit()}
                 disabled={!customResponse.trim()}
                 aria-label="Submit response"
                 className={cn(
@@ -195,7 +203,7 @@ const RequestCard = memo(function RequestCard({
               </button>
               <button
                 type="button"
-                onClick={() => onCancel(request._id)}
+                onClick={() => void onCancel(request._id)}
                 aria-label="Cancel request"
                 className={cn(
                   "p-1.5 rounded-lg",
@@ -225,13 +233,13 @@ const RequestCard = memo(function RequestCard({
               )}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
-                  handleCustomSubmit();
+                  void handleCustomSubmit();
                 }
               }}
             />
             <button
               type="button"
-              onClick={handleCustomSubmit}
+              onClick={() => void handleCustomSubmit()}
               disabled={!customResponse.trim()}
               aria-label="Submit response"
               className={cn(
@@ -245,7 +253,7 @@ const RequestCard = memo(function RequestCard({
             </button>
             <button
               type="button"
-              onClick={() => onCancel(request._id)}
+              onClick={() => void onCancel(request._id)}
               aria-label="Cancel request"
               className={cn(
                 "p-1.5 rounded-lg",
@@ -258,6 +266,14 @@ const RequestCard = memo(function RequestCard({
             </button>
           </div>
         )}
+        {errorMessage ? (
+          <p
+            className="mt-2 rounded-md border border-red-500/20 bg-red-500/5 px-2.5 py-2 text-xs text-red-700 dark:text-red-300"
+            role="alert"
+          >
+            {errorMessage}
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -290,6 +306,7 @@ export const HumanApprovalQueue = memo(function HumanApprovalQueue({
   maxItems = 10,
 }: HumanApprovalQueueProps) {
   const [processingIds, setProcessingIds] = useState<Set<Id<"humanRequests">>>(new Set());
+  const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
 
   // Fetch pending requests
   const pendingRequests = useQuery(api.domains.agents.humanInTheLoop.getAllPendingRequests) as HumanRequest[] | undefined;
@@ -300,10 +317,21 @@ export const HumanApprovalQueue = memo(function HumanApprovalQueue({
 
   const handleRespond = useCallback(async (requestId: Id<"humanRequests">, response: string) => {
     setProcessingIds((prev) => new Set(prev).add(requestId));
+    setRequestErrors((prev) => {
+      const next = { ...prev };
+      delete next[String(requestId)];
+      return next;
+    });
     try {
       await respondToRequest({ requestId, response });
-    } catch (error) {
-      console.error("Failed to respond to request:", error);
+      return true;
+    } catch {
+      console.error("Failed to respond to request");
+      setRequestErrors((prev) => ({
+        ...prev,
+        [String(requestId)]: "The response was not saved. This request is still pending; try again.",
+      }));
+      return false;
     } finally {
       setProcessingIds((prev) => {
         const next = new Set(prev);
@@ -315,10 +343,21 @@ export const HumanApprovalQueue = memo(function HumanApprovalQueue({
 
   const handleCancel = useCallback(async (requestId: Id<"humanRequests">) => {
     setProcessingIds((prev) => new Set(prev).add(requestId));
+    setRequestErrors((prev) => {
+      const next = { ...prev };
+      delete next[String(requestId)];
+      return next;
+    });
     try {
       await cancelRequest({ requestId });
-    } catch (error) {
-      console.error("Failed to cancel request:", error);
+      return true;
+    } catch {
+      console.error("Failed to cancel request");
+      setRequestErrors((prev) => ({
+        ...prev,
+        [String(requestId)]: "The request was not cancelled. It is still pending; try again.",
+      }));
+      return false;
     } finally {
       setProcessingIds((prev) => {
         const next = new Set(prev);
@@ -371,6 +410,7 @@ export const HumanApprovalQueue = memo(function HumanApprovalQueue({
             onRespond={handleRespond}
             onCancel={handleCancel}
             isProcessing={processingIds.has(request._id)}
+            errorMessage={requestErrors[String(request._id)]}
           />
         ))}
       </div>
@@ -386,4 +426,3 @@ export const HumanApprovalQueue = memo(function HumanApprovalQueue({
 });
 
 export default HumanApprovalQueue;
-

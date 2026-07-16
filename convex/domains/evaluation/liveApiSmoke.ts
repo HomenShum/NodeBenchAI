@@ -569,7 +569,7 @@ export const run = action({
             },
           ];
 
-          await ctx.runMutation(api.domains.agents.swarmMutations.createSwarmRecord, {
+          await ctx.runMutation(internal.domains.agents.swarmMutations.createSwarmRecord, {
             swarmId,
             userId,
             threadId: threadId as string,
@@ -579,7 +579,7 @@ export const run = action({
             agentConfigs,
           });
 
-          await ctx.runMutation(api.domains.agents.swarmMutations.linkThreadToSwarm, {
+          await ctx.runMutation(internal.domains.agents.swarmMutations.linkThreadToSwarm, {
             threadId: threadId as any,
             swarmId,
           });
@@ -592,7 +592,7 @@ export const run = action({
             stateKeyPrefix: config.stateKeyPrefix,
           }));
 
-          await ctx.runMutation(api.domains.agents.swarmMutations.createSwarmTasks, {
+          await ctx.runMutation(internal.domains.agents.swarmMutations.createSwarmTasks, {
             swarmId,
             tasks,
           });
@@ -604,8 +604,14 @@ export const run = action({
             tasks,
           });
 
-          const swarm = await ctx.runQuery(api.domains.agents.swarmQueries.getSwarmStatus, { swarmId });
-          const swarmTasks = await ctx.runQuery(api.domains.agents.swarmQueries.getSwarmTasks, { swarmId });
+          const swarm = await ctx.runQuery(
+            internal.domains.agents.swarmQueries.getSwarmStatusInternal,
+            { swarmId, userId },
+          );
+          const swarmTasks = await ctx.runQuery(
+            internal.domains.agents.swarmQueries.getSwarmTasksInternal,
+            { swarmId, userId },
+          );
 
           const statusCounts = (Array.isArray(swarmTasks) ? swarmTasks : []).reduce<Record<string, number>>(
             (acc, t: any) => {

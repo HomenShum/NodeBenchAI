@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { useConvex, useMutation, useQuery } from "convex/react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useConvex, useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { api as generatedApi } from "../../../../convex/_generated/api";
 import { useConvexApi } from "@/lib/convexApi";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
+import { useFastAgent } from "@/features/agents/context/FastAgentContext";
 import {
-  Archive,
   ArrowUpRight,
-  Bell,
-  BookOpen,
-  Bot,
   Check,
   ChevronRight,
   Clock3,
@@ -17,34 +15,16 @@ import {
   Copy,
   Eye,
   FileText,
-  Filter,
-  GitBranch,
-  Globe2,
   Grid3X3,
-  Home,
   Inbox,
-  Layers,
-  LayoutGrid,
   Link2,
   List,
-  Map,
   MessageSquare,
   Mic,
-  Moon,
-  MoreHorizontal,
-  Paperclip,
-  Plus,
-  RefreshCw,
   Repeat,
-  Save,
-  Search,
   Send,
   Settings,
-  Share2,
-  ShieldCheck,
   Sparkles,
-  Target,
-  Terminal,
   User,
   X,
   Zap,
@@ -52,15 +32,14 @@ import {
 } from "lucide-react";
 
 import { buildCockpitPath, type CockpitSurfaceId } from "@/lib/registry/viewRegistry";
-import { RichNotebookEditor } from "@/features/notebook/components/RichNotebookEditor";
 import { EntityFindingsPanel } from "@/features/narrative/components/social/EntityFindingsPanel";
 import { PipelineRunsPanel } from "@/features/pipelines/views/PipelineRunsPanel";
 import { PipelineLauncher } from "@/features/pipelines/views/PipelineLauncher";
 import { PipelineSchedulesPanel } from "@/features/pipelines/views/PipelineSchedulesPanel";
 import { PipelineEvalScorecard } from "@/features/pipelines/views/PipelineEvalScorecard";
+import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 import { ExactComposer } from "@/features/designKit/exact/ExactComposer";
 import {
-  buildLocalWorkspacePath,
   buildWorkspaceUrl,
   type WorkspaceTab,
 } from "@/features/workspace/lib/workspaceRouting";
@@ -82,16 +61,18 @@ import {
   type FirstImpressionHorizon,
 } from "@/features/home/lib/firstImpressionResearch";
 import {
-  DEFAULT_PIPELINE_MODEL_SELECTION,
-  PIPELINE_MODEL_OPTIONS,
-  getPipelineModelOption,
-  type PipelineModelSelection,
-} from "@/shared/llm/pipelineModelRoutes";
-import {
   useRedesignChatRun,
   type ChatAnswer as LiveChatAnswer,
   type RealChatRun,
 } from "@/features/redesign/hooks/useRedesignChatRun";
+import {
+  acquireExactChatSubmitLock,
+  hasSavedEntityReport,
+  isExactChatRunInFlight,
+  projectExactRuntimeSources,
+  requireSuccessfulInboxMutation,
+  type ExactRuntimeSource,
+} from "@/features/designKit/exact/exactRuntimeContracts";
 
 import "./exactKit.css";
 
@@ -99,7 +80,6 @@ type WebSurfaceProps = {
   onSurfaceChange?: (surface: CockpitSurfaceId) => void;
 };
 
-type LaneId = "answer" | "deep";
 type MobileSurface = "home" | "reports" | "chat" | "inbox" | "me";
 
 type PublicResearchHomeRow = {
@@ -111,193 +91,15 @@ type PublicResearchHomeRow = {
   updatedAt: number;
   claimCount: number;
   sourceCount: number;
-  confidence: number;
   summary?: string;
   sources?: Array<{ title?: string; url: string }>;
 };
 
-const LANES: Array<{ id: LaneId; label: string; note: string }> = [
-  { id: "answer", label: "Quick answer", note: "fast read" },
-  { id: "deep", label: "Deep research", note: "more sources" },
-];
-
 const PROMPT_CARDS: Array<{ icon: LucideIcon; prompt: string }> = [
-  { icon: Sparkles, prompt: "DISCO - worth reaching out? Fastest debrief." },
-  { icon: FileText, prompt: "Summarize the attached 10-K into a 1-pager." },
-  { icon: Eye, prompt: "Watch Mercor and nudge me on hiring signal." },
+  { icon: Sparkles, prompt: "Research a company before a meeting." },
+  { icon: FileText, prompt: "Summarize pasted filing text into a one-page brief." },
+  { icon: Eye, prompt: "Compare two companies using current sources." },
 ];
-
-const REPORTS = [
-  {
-    id: "disco-diligence",
-    kind: "Company",
-    title: "DISCO - diligence debrief",
-    summary: "Legal AI platform with SOC2 movement, enterprise momentum, and still-open valuation risk.",
-    state: "verified",
-    sources: 24,
-    updated: "12h ago",
-    watched: true,
-    colorA: "#1a365d",
-    colorB: "#d97757",
-  },
-  {
-    id: "mercor-hiring",
-    kind: "Hiring",
-    title: "Mercor - hiring velocity",
-    summary: "Engineering hiring pattern supports the infra-heavy Series B prep hypothesis.",
-    state: "needs review",
-    sources: 18,
-    updated: "2h ago",
-    watched: true,
-    colorA: "#0e7a5c",
-    colorB: "#5e6ad2",
-  },
-  {
-    id: "cognition-devin",
-    kind: "Agent",
-    title: "Cognition - devin postmortem",
-    summary: "Benchmark claims were promoted after independent reruns and source reconciliation.",
-    state: "verified",
-    sources: 31,
-    updated: "1d ago",
-    watched: false,
-    colorA: "#6b3ba3",
-    colorB: "#d97757",
-  },
-  {
-    id: "turing-contract",
-    kind: "Services",
-    title: "Turing - contract spend YoY",
-    summary: "Quarterly filing refresh changed the model inputs but not the spend trend.",
-    state: "verified",
-    sources: 16,
-    updated: "3d ago",
-    watched: false,
-    colorA: "#c77826",
-    colorB: "#0f4c81",
-  },
-  {
-    id: "anthropic-safety",
-    kind: "Foundation",
-    title: "Anthropic - safety framework",
-    summary: "Framework v2.3 affects notebook assumptions but has not yet attached to a saved report.",
-    state: "watching",
-    sources: 9,
-    updated: "4d ago",
-    watched: true,
-    colorA: "#334155",
-    colorB: "#5e6ad2",
-  },
-  {
-    id: "foundation-labs",
-    kind: "Market",
-    title: "Foundation labs - positioning",
-    summary: "Landscape map for foundation-model labs, open claims, and category edges.",
-    state: "needs review",
-    sources: 14,
-    updated: "6d ago",
-    watched: false,
-    colorA: "#0e7a5c",
-    colorB: "#c77826",
-  },
-];
-
-const INBOX_SEED = [
-  {
-    id: "n1",
-    when: "just now",
-    entity: "DISCO",
-    priority: "act",
-    icon: Zap,
-    title: "Announced GA of native SOC 2 Type II in EU",
-    body: "Addresses the regulatory risk flagged in your Nov 14 run. This is material. Your needs-review stance likely flips.",
-    actions: ["rerun", "open", "snooze", "dismiss"],
-    report: "DISCO - diligence debrief",
-    deltaSources: 3,
-  },
-  {
-    id: "n2",
-    when: "2h ago",
-    entity: "Mercor",
-    priority: "act",
-    icon: Zap,
-    title: "Posted 7 new eng roles in 24h - infra heavy",
-    body: "Consistent with the Series B prep hypothesis. Three new stealth hires reinforce it.",
-    actions: ["rerun", "open", "snooze", "dismiss"],
-    report: "Mercor - hiring velocity",
-    deltaSources: 5,
-  },
-  {
-    id: "n3",
-    when: "yesterday",
-    entity: "Cognition",
-    priority: "auto",
-    icon: Check,
-    title: "Two claims verified - we promoted the report",
-    body: "Independent benchmark rerun landed. The report moved from needs review to verified automatically.",
-    actions: ["open", "undo", "dismiss"],
-    report: "Cognition - devin postmortem",
-    deltaSources: 2,
-  },
-  {
-    id: "n4",
-    when: "yesterday",
-    entity: "Anthropic",
-    priority: "watch",
-    icon: Eye,
-    title: "New safety framework doc v2.3 published",
-    body: "Not on any saved report, but in your notebook. Want me to draft a brief?",
-    actions: ["draft", "watch", "dismiss"],
-    report: null,
-    deltaSources: 1,
-  },
-  {
-    id: "n5",
-    when: "3d ago",
-    entity: "Turing",
-    priority: "fyi",
-    icon: GitBranch,
-    title: "Quarterly filing updated - no material change",
-    body: "We refreshed the numbers in your saved report. Contract spend trend is unchanged.",
-    actions: ["open", "dismiss"],
-    report: "Turing - contract spend YoY",
-    deltaSources: 1,
-  },
-] as const;
-
-const WATCHLIST = [
-  { id: "disco", name: "DISCO", ticker: "DSCO", value: "84", delta: "+12", trend: "up", meta: "3 new sources", initials: "D", avatar: "linear-gradient(135deg,#1A365D,#0F4C81)" },
-  { id: "mercor", name: "Mercor", ticker: "MRC", value: "91", delta: "+7", trend: "up", meta: "hiring spike", initials: "M", avatar: "linear-gradient(135deg,#0E7A5C,#16A37E)" },
-  { id: "cognition", name: "Cognition", ticker: "COG", value: "68", delta: "-4", trend: "down", meta: "claim review", initials: "C", avatar: "linear-gradient(135deg,#6B3BA3,#8B5CC1)" },
-  { id: "anthropic", name: "Anthropic", ticker: "ANT", value: "76", delta: "+3", trend: "up", meta: "framework v2.3", initials: "A", avatar: "linear-gradient(135deg,#334155,#475569)" },
-];
-
-const THREADS = [
-  { id: "t1", title: "DISCO debrief", meta: "12h ago - 24 sources" },
-  { id: "t2", title: "Mercor hiring signal", meta: "2h ago - inbox routed" },
-  { id: "t3", title: "Technical vendor API notes", meta: "yesterday - saved report" },
-];
-
-const WORKSPACE_TABS: Array<{ id: WorkspaceTab; label: string; icon: LucideIcon; count?: number }> = [
-  { id: "chat", label: "Chat", icon: MessageSquare },
-  { id: "brief", label: "Brief", icon: FileText },
-  { id: "cards", label: "Cards", icon: LayoutGrid, count: 14 },
-  { id: "notebook", label: "Notebook", icon: BookOpen },
-  { id: "sources", label: "Sources", icon: ShieldCheck, count: 24 },
-  { id: "map", label: "Map", icon: Map },
-];
-
-const VALID_WORKSPACE_TABS = new Set<WorkspaceTab>(WORKSPACE_TABS.map((tab) => tab.id));
-
-function getWorkspaceTab(value: string | null): WorkspaceTab {
-  if (value && VALID_WORKSPACE_TABS.has(value as WorkspaceTab)) return value as WorkspaceTab;
-  return "chat";
-}
-
-function getWorkspaceId(pathname: string) {
-  const match = pathname.match(/(?:^\/workspace)?\/w\/([^/?#]+)/);
-  return match?.[1] ? decodeURIComponent(match[1]) : "ship-demo-day";
-}
 
 function openWorkspace(workspaceId: string, tab: WorkspaceTab) {
   window.location.assign(buildWorkspaceUrl({ workspaceId, tab }));
@@ -338,53 +140,10 @@ function ReportThumb({
   );
 }
 
-function MobileIcon({ name, size = 16 }: { name: string; size?: number }) {
-  const map: Record<string, LucideIcon> = {
-    archive: Archive,
-    bell: Bell,
-    brief: FileText,
-    camera: Eye,
-    cards: Grid3X3,
-    chat: MessageSquare,
-    chevron: ChevronRight,
-    file: FileText,
-    home: Home,
-    inbox: Inbox,
-    map: Map,
-    me: User,
-    mic: Mic,
-    notebook: BookOpen,
-    plus: Plus,
-    reports: FileText,
-    search: Search,
-    send: Send,
-    settings: Settings,
-    source: ShieldCheck,
-    thread: MoreHorizontal,
-  };
-  const Icon = map[name] ?? Sparkles;
-  return <Icon size={size} strokeWidth={1.8} aria-hidden />;
-}
-
 /**
- * ResponsiveSurface — conditionally renders the mobile OR desktop variant.
- *
- * Previously this mounted BOTH trees with CSS `md:hidden` / `hidden md:block`
- * gates. That caused 3 distinct `<h1>` elements to ship in the raw DOM at
- * production (mobile + desktop H1s + the desktop hero H1), failing SEO
- * crawlers and screen readers even though only one was visible to sighted
- * desktop users.
- *
- * Fix: subscribe to matchMedia and render only the matching variant. The
- * inactive tree is unmounted entirely — no DOM presence, no duplicate H1s.
- *
- * We keep the Tailwind `md` breakpoint (767px) here so visual behavior is
- * preserved bit-for-bit. The shared hook is parameterized so other call-
- * sites (CockpitLayout's isCompactLayout at 1280px) can opt into their own
- * breakpoint without forking the implementation.
- *
- * See `.claude/rules/live_dom_verification.md` — single-H1 in raw HTML is
- * one of the concrete content signals this rule polices.
+* ResponsiveSurface keeps one canonical, runtime-backed surface tree at every
+ * viewport. Mobile receives its established smoke-test wrapper and compact
+ * styling, but never swaps in a second fixture-only implementation.
  */
 function ResponsiveSurface({
   mobile,
@@ -394,29 +153,51 @@ function ResponsiveSurface({
   children: ReactNode;
 }) {
   const isMobile = useViewportMobile(TAILWIND_MD_QUERY);
-  if (isMobile) {
-    return <ExactMobileSurface surface={mobile} />;
-  }
   return (
-    <div className="nb-kit min-h-full">
+    <div
+      className={`nb-kit min-h-full${isMobile ? " nb-kit-responsive-mobile" : ""}`}
+      data-testid={isMobile ? `mobile-${mobile}-surface` : undefined}
+      data-responsive-surface={isMobile ? "mobile" : "desktop"}
+      data-mobile-surface={mobile}
+    >
       <div className="nb-shell">{children}</div>
     </div>
   );
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
-   Home Pulse subsections — ported 1:1 from
-   ui_kits/nodebench-web/{PulseStrip,TodayIntel,ActiveEvent,RecentReports}.jsx
-   Static seed data lives here. Live wiring (when entities/runs exist) replaces
-   it via props in a follow-up — we keep the kit's exact JSX + class names so
-   visual parity is verifiable in raw HTML.
-   ────────────────────────────────────────────────────────────────────────── */
+/* Runtime-backed Home intelligence sections. */
 
 function DeferredReportsPanel({ label }: { label: string }) {
   return (
     <section className="nb-deferred-panel" aria-label={`${label} loading`}>
       <span className="nb-deferred-panel-dot" aria-hidden />
       <span>{label} loading after the first reports view.</span>
+    </section>
+  );
+}
+
+function PipelineRuntimeUnavailable({ testId, label }: { testId: string; label: string }) {
+  return (
+    <section className="nb-deferred-panel" data-testid={testId} role="status">
+      <span className="nb-deferred-panel-dot" aria-hidden />
+      <span>{label} is temporarily unavailable. Saved reports remain accessible.</span>
+    </section>
+  );
+}
+
+function RuntimeEmptyState({
+  testId,
+  title,
+  description,
+}: {
+  testId: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <section className="nb-panel nb-runtime-empty" data-testid={testId} role="status">
+      <h2>{title}</h2>
+      <p>{description}</p>
     </section>
   );
 }
@@ -441,7 +222,7 @@ function FirstImpressionBoard({
       <header className="nb-first-board-head">
         <div>
           <div className="nb-kicker">Immediate relevance</div>
-          <h2>Pick the situation. NodeBench turns scattered context into a saved report.</h2>
+          <h2>Pick the situation. NodeBench turns scattered context into a background research bundle.</h2>
         </div>
         <div className="nb-first-tabs" role="tablist" aria-label="Research horizon">
           {FIRST_IMPRESSION_HORIZONS.map((item) => (
@@ -476,11 +257,6 @@ function FirstImpressionBoard({
               </div>
             </div>
             <div className="nb-first-actions">
-              <div className="nb-first-export" aria-label="Export targets">
-                {card.exportTargets.slice(0, 3).map((target) => (
-                  <span key={target}>{target}</span>
-                ))}
-              </div>
               <button type="button" className="nb-btn nb-btn-secondary" onClick={() => onUsePrompt(card.prompt)}>
                 Fill prompt
               </button>
@@ -501,190 +277,6 @@ function FirstImpressionBoard({
   );
 }
 
-type PulseMetric = {
-  id: string;
-  label: string;
-  value: number;
-  unit: string;
-  trend: string;
-  what: string;
-  hero?: boolean;
-};
-
-const PULSE_METRICS: PulseMetric[] = [
-  { id: "entities",   label: "Entities tracked",     value: 42810,  unit: "",  trend: "+184 today",  what: "A real intelligence graph" },
-  { id: "edges",      label: "Relationships mapped", value: 183204, unit: "",  trend: "+612 today",  what: "How people, companies, products connect" },
-  { id: "reports",    label: "Reports created",      value: 18204,  unit: "",  trend: "+47 today",   what: "Chats become durable work products" },
-  { id: "memory_pct", label: "Served from memory",   value: 71,     unit: "%", trend: "up 4pp / wk", what: "Search not repeated every time", hero: true },
-  { id: "avoided",    label: "Searches avoided",     value: 126000, unit: "",  trend: "this week",   what: "Cost-saving + speed moat" },
-  { id: "refreshed",  label: "Sources refreshed",    value: 9420,   unit: "",  trend: "this week",   what: "Freshness + trust" },
-  { id: "verified",   label: "Claims verified",      value: 2841,   unit: "",  trend: "this week",   what: "Evidence quality" },
-  { id: "avg_time",   label: "Avg sourced answer",   value: 3.4,    unit: "s", trend: "-0.6s / mo",  what: "UX speed" },
-  { id: "followups",  label: "Follow-ups created",   value: 612,    unit: "",  trend: "this week",   what: "Business action, not just research" },
-  { id: "crm",        label: "CRM exports",          value: 184,    unit: "",  trend: "this week",   what: "Workflow completion" },
-];
-
-function fmtNumber(value: number): string {
-  if (value >= 1_000_000) return (value / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
-  if (value >= 1_000) return (value / 1_000).toFixed(1).replace(/\.0$/, "") + "k";
-  if (Number.isInteger(value)) return value.toLocaleString();
-  return String(value);
-}
-
-const SPARK_SEEDS: Record<string, number[]> = {
-  memory_pct: [56, 58, 61, 60, 63, 67, 69, 71],
-  entities:   [38, 39, 40, 41, 41, 42, 42, 43],
-  edges:      [160, 165, 170, 173, 176, 178, 181, 183],
-  reports:    [16, 16, 17, 17, 17, 18, 18, 18],
-};
-
-function PulseSparkline({ id }: { id: string }) {
-  const data = SPARK_SEEDS[id] ?? [10, 12, 11, 14, 13, 16, 15, 18];
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  const w = 100;
-  const h = 28;
-  const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - ((v - min) / range) * (h - 4) - 2;
-    return [x, y] as const;
-  });
-  const path = points.map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : `L${p[0]},${p[1]}`)).join(" ");
-  const area = `${path} L${w},${h} L0,${h} Z`;
-  return (
-    <svg className="nb-pulse-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden>
-      <path d={area} className="fill" />
-      <path d={path} className="line" />
-    </svg>
-  );
-}
-
-function NBPulseStrip({ liveEntities }: { liveEntities?: Array<any> | null }) {
-  const heroIds = ["memory_pct", "entities", "edges", "reports"];
-  const secondaryIds = ["avoided", "refreshed", "verified", "avg_time", "followups", "crm"];
-
-  // B2: pull authoritative pulse metrics from the activity ledger; this is
-  // server-aggregated counts (entities/reports/chat/source/claim/export rows).
-  // Anonymous visitors get an all-zero result with live=false → falls back
-  // to seed.  Authenticated users see real counts where the ledger covers,
-  // seed otherwise (memory %, avg latency).
-  const api = useConvexApi();
-  const anonymousSessionId = getAnonymousProductSessionId();
-  const pulse = useQuery(
-    api?.domains.product.entities.getProductPulseMetrics ?? "skip",
-    api?.domains.product.entities.getProductPulseMetrics
-      ? { anonymousSessionId, lookbackHours: 168 }
-      : "skip",
-  );
-  const pulseLive = (pulse as any)?.live === true;
-
-  // Live counts: prefer ledger query (authoritative server-side), fall back to
-  // child entities listing for the simple count. The query returns 0 when
-  // anonymous; we keep the seed in that case.
-  const live = pulseLive || (Array.isArray(liveEntities) && liveEntities.length > 0);
-  const ledgerEntityCount = pulseLive ? Number((pulse as any)?.entitiesTracked ?? 0) : null;
-  const ledgerReportCount = pulseLive ? Number((pulse as any)?.reportsCreated ?? 0) : null;
-  const ledgerSearchesAvoided = pulseLive ? Number((pulse as any)?.chatMessagesRecent ?? 0) : null;
-  const ledgerSourcesRefreshed = pulseLive ? Number((pulse as any)?.sourcesAttachedRecent ?? 0) : null;
-  const ledgerClaimsVerified = pulseLive ? Number((pulse as any)?.claimsChangedRecent ?? 0) : null;
-  const ledgerCrmExports = pulseLive ? Number((pulse as any)?.exportsCompletedLifetime ?? 0) : null;
-  const ledgerEdges = pulseLive ? Number((pulse as any)?.relationshipsMapped ?? 0) : null;
-  const ledgerFollowups = pulseLive ? Number((pulse as any)?.followupsCreated ?? 0) : null;
-  // Tier D — 3 remaining live metrics
-  const ledgerMemoryHitPct = pulseLive ? ((pulse as any)?.memoryHitPct as number | null | undefined) ?? null : null;
-  const ledgerAvgSourcedSec = pulseLive ? ((pulse as any)?.avgSourcedAnswerSec as number | null | undefined) ?? null : null;
-  const ledgerSourcesFreshPct = pulseLive ? ((pulse as any)?.sourcesFreshPct as number | null | undefined) ?? null : null;
-  const positiveOrNull = (value: number | null) => (value != null && value > 0 ? value : null);
-  const fallbackEntityCount =
-    Array.isArray(liveEntities) && liveEntities.length > 0 ? liveEntities!.length : null;
-  const fallbackReportCount =
-    Array.isArray(liveEntities) && liveEntities.length > 0
-      ? liveEntities!.reduce(
-          (acc, e) => acc + (typeof e?.reportCount === "number" ? e.reportCount : 0),
-          0,
-        )
-      : null;
-  const overrideOrSeed = (id: string, fallback: number | null): { value: number; trendOverride?: string } | null => {
-    if (id === "entities") {
-      const v = positiveOrNull(ledgerEntityCount) ?? fallbackEntityCount;
-      if (v != null) return { value: v, trendOverride: "live · just now" };
-    } else if (id === "reports") {
-      const v = positiveOrNull(ledgerReportCount) ?? fallbackReportCount;
-      if (v != null) return { value: v, trendOverride: "live · just now" };
-    } else if (id === "avoided") {
-      const v = positiveOrNull(ledgerSearchesAvoided);
-      if (v != null) return { value: v, trendOverride: "this week" };
-    } else if (id === "refreshed") {
-      const v = positiveOrNull(ledgerSourcesRefreshed);
-      if (v != null) return { value: v, trendOverride: "this week" };
-    } else if (id === "verified") {
-      const v = positiveOrNull(ledgerClaimsVerified);
-      if (v != null) return { value: v, trendOverride: "this week" };
-    } else if (id === "crm") {
-      const v = positiveOrNull(ledgerCrmExports);
-      if (v != null) return { value: v, trendOverride: "lifetime" };
-    } else if (id === "edges") {
-      const v = positiveOrNull(ledgerEdges);
-      if (v != null) return { value: v, trendOverride: "live · graph" };
-    } else if (id === "followups") {
-      const v = positiveOrNull(ledgerFollowups);
-      if (v != null) return { value: v, trendOverride: "this week" };
-    } else if (id === "memory_pct" && ledgerMemoryHitPct != null) {
-      return { value: ledgerMemoryHitPct, trendOverride: "live · 7d" };
-    } else if (id === "avg_time" && ledgerAvgSourcedSec != null) {
-      return { value: ledgerAvgSourcedSec, trendOverride: "live · 7d" };
-    }
-    return null;
-  };
-  const apply = (m: PulseMetric): PulseMetric => {
-    const o = overrideOrSeed(m.id, null);
-    if (!o) return m;
-    return { ...m, value: o.value, trend: o.trendOverride ?? m.trend };
-  };
-  const heroes = PULSE_METRICS.filter((m) => heroIds.includes(m.id)).map(apply);
-  const secondary = PULSE_METRICS.filter((m) => secondaryIds.includes(m.id)).map(apply);
-  // suppress unused-warning when no ledger metrics override the seed:
-  void live;
-  return (
-    <section className="nb-pulse" data-layout="card-grid" data-scale="big" data-testid="exact-home-pulse-strip">
-      <header className="nb-pulse-head">
-        <div>
-          <div className="nb-kicker">Today's signals</div>
-          <h2 className="nb-pulse-title">What changed across your watched entities.</h2>
-          <p className="nb-pulse-sub">Public context compounds. Private notes stay private.</p>
-        </div>
-        <span className="nb-pulse-priv" title="Private notes never leak into public counters.">
-          <span className="nb-pulse-priv-dot" /> private notes excluded
-        </span>
-      </header>
-      <div className="nb-pulse-cards">
-        {heroes.map((m) => (
-          <article key={m.id} className="nb-pulse-card" data-hero={m.id === "memory_pct"}>
-            <div className="nb-pulse-card-num">
-              {fmtNumber(m.value)}<span className="u">{m.unit}</span>
-            </div>
-            <div className="nb-pulse-card-label">{m.label.toLowerCase()}</div>
-            <div className="nb-pulse-card-trend">
-              <span className="nb-pulse-trend-dot" data-dir="up" /> {m.trend}
-            </div>
-            <PulseSparkline id={m.id} />
-          </article>
-        ))}
-      </div>
-      <div className="nb-pulse-secondary">
-        {secondary.map((m) => (
-          <div key={m.id} className="nb-pulse-mini">
-            <span className="v">{fmtNumber(m.value)}<span className="u">{m.unit}</span></span>
-            <span className="l">{m.label.toLowerCase()}</span>
-            <span className="t">{m.trend}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 type TodayLane = {
   id: string;
   title: string;
@@ -693,44 +285,7 @@ type TodayLane = {
   items: { hd: string; meta: string }[];
 };
 
-const TODAY_LANES: TodayLane[] = [
-  {
-    id: "signal", title: "New signals", accent: "accent", count: 4,
-    items: [
-      { hd: "Mercor hiring velocity ↑",   meta: "18 sources · 1d ago · watching" },
-      { hd: "Orbital Labs press mention",      meta: "TechCrunch · 4h ago" },
-      { hd: "DISCO files secondary",           meta: "SEC · 6h ago" },
-    ],
-  },
-  {
-    id: "updated", title: "Reports updated", accent: "indigo", count: 3,
-    items: [
-      { hd: "Ship Demo Day",              meta: "12 captures · 8 cos · 14 ppl · 9 follow-ups" },
-      { hd: "Voice-agent eval landscape", meta: "+ 4 claims · −1 weak" },
-      { hd: "Series-B litigation OS",     meta: "+ 2 entities" },
-    ],
-  },
-  {
-    id: "watchlist", title: "Watchlist changes", accent: "success", count: 5,
-    items: [
-      { hd: "Cellebrite — claim updated", meta: "gross retention 96% → 93%" },
-      { hd: "Anita Park (CRO) joined",         meta: "evidence: 2 · medium confidence" },
-      { hd: "Bessemer term sheet leak",        meta: "rumored · 2 sources" },
-    ],
-  },
-  {
-    id: "followup", title: "Follow-ups due", accent: "warning", count: 2,
-    items: [
-      { hd: "Alex @ Orbital Labs",      meta: "ask about healthcare pilot criteria" },
-      { hd: "Schedule DISCO debrief",   meta: "today · before market close" },
-    ],
-  },
-];
-
-function NBTodayIntel({ liveEntities }: { liveEntities?: Array<any> | null }) {
-  // Tier A: "Reports updated" lane → live entities sorted by latestReportUpdatedAt
-  // Tier B1: "New signals" + "Watchlist changes" lanes → live morningDigestQueries
-  // "Follow-ups due" stays seed until a dedicated followups query lands.
+function NBTodayIntel({ liveEntities }: { liveEntities?: Array<any> }) {
   const live = Array.isArray(liveEntities) && liveEntities.length > 0;
   const liveSorted = live
     ? [...liveEntities!]
@@ -739,10 +294,7 @@ function NBTodayIntel({ liveEntities }: { liveEntities?: Array<any> | null }) {
         .slice(0, 3)
     : [];
 
-  // B1: pull morning digest signals + watchlist (anonymous visitors get null/empty;
-  // those fall through to seed naturally).
   const api = useConvexApi();
-  const anonymousSessionId = getAnonymousProductSessionId();
   const freshSignals = useQuery(
     api?.domains.ai.morningDigestQueries.getFreshCriticalSignals ?? "skip",
     api?.domains.ai.morningDigestQueries.getFreshCriticalSignals
@@ -753,15 +305,6 @@ function NBTodayIntel({ liveEntities }: { liveEntities?: Array<any> | null }) {
     api?.domains.ai.morningDigestQueries.getDigestData ?? "skip",
     api?.domains.ai.morningDigestQueries.getDigestData ? {} : "skip",
   );
-  // C1: pulse metrics doubles as a follow-ups counter (live total + due-today).
-  const pulse = useQuery(
-    api?.domains.product.entities.getProductPulseMetrics ?? "skip",
-    api?.domains.product.entities.getProductPulseMetrics
-      ? { anonymousSessionId, lookbackHours: 168 }
-      : "skip",
-  );
-  const liveFollowupTotal = (pulse as any)?.live ? Number((pulse as any)?.followupsCreated ?? 0) : null;
-  const liveFollowupDueToday = (pulse as any)?.live ? Number((pulse as any)?.followupsDueToday ?? 0) : null;
   const liveSignalItems: Array<{ hd: string; meta: string }> = ((freshSignals as any)?.signals as any[] | undefined)
     ?.slice(0, 3)
     .map((s) => ({
@@ -777,43 +320,39 @@ function NBTodayIntel({ liveEntities }: { liveEntities?: Array<any> | null }) {
       meta: `${w?.source ?? "feed"} · ${formatRelativeWhen(typeof w?._creationTime === "number" ? w._creationTime : undefined)}`,
     })) ?? [];
 
-  const lanes = TODAY_LANES.map((lane) => {
-    if (lane.id === "updated" && live && liveSorted.length > 0) {
-      return {
-        ...lane,
-        count: liveSorted.length,
-        items: liveSorted.map((entity) => ({
+  const lanes: TodayLane[] = [];
+  if (liveSignalItems.length > 0) {
+    const totalAvailable = (freshSignals as any)?.totalAvailable;
+    lanes.push({
+      id: "signal",
+      title: "New signals",
+      accent: "accent",
+      count: typeof totalAvailable === "number" ? totalAvailable : liveSignalItems.length,
+      items: liveSignalItems,
+    });
+  }
+  if (live && liveSorted.length > 0) {
+    lanes.push({
+      id: "updated",
+      title: "Reports updated",
+      accent: "indigo",
+      count: liveSorted.length,
+      items: liveSorted.map((entity) => ({
           hd: String(entity?.name ?? "Untitled"),
           meta: `${entity?.reportCount ?? 0} reports · ${formatRelativeWhen(entity?.latestReportUpdatedAt as number | undefined)}`,
-        })),
-      };
-    }
-    if (lane.id === "signal" && liveSignalItems.length > 0) {
-      const totalAvailable = (freshSignals as any)?.totalAvailable;
-      return {
-        ...lane,
-        count: typeof totalAvailable === "number" ? totalAvailable : liveSignalItems.length,
-        items: liveSignalItems,
-      };
-    }
-    if (lane.id === "watchlist" && liveWatchlistItems.length > 0) {
-      const total = (digest as any)?.watchlistRelevant?.length ?? liveWatchlistItems.length;
-      return {
-        ...lane,
-        count: total,
-        items: liveWatchlistItems,
-      };
-    }
-    if (lane.id === "followup" && liveFollowupTotal != null && liveFollowupTotal > 0) {
-      // Live: show the count of due-today open followups; keep seed item titles
-      // for now until a dedicated "list followups due today" query lands.
-      return {
-        ...lane,
-        count: liveFollowupDueToday ?? liveFollowupTotal,
-      };
-    }
-    return lane;
-  });
+      })),
+    });
+  }
+  if (liveWatchlistItems.length > 0) {
+    lanes.push({
+      id: "watchlist",
+      title: "Watchlist changes",
+      accent: "success",
+      count: (digest as any)?.watchlistRelevant?.length ?? liveWatchlistItems.length,
+      items: liveWatchlistItems,
+    });
+  }
+  if (lanes.length === 0) return null;
   return (
     <section className="nb-home-block" data-testid="exact-home-today-intel">
       <header className="nb-home-block-head">
@@ -821,7 +360,6 @@ function NBTodayIntel({ liveEntities }: { liveEntities?: Array<any> | null }) {
           <div className="nb-kicker">Today&apos;s intelligence</div>
           <h3 className="nb-home-block-title">Pick up where memory left off.</h3>
         </div>
-        <button type="button" className="nb-home-block-link">View all</button>
       </header>
       <div className="nb-today-grid">
         {lanes.map((lane) => (
@@ -846,24 +384,7 @@ function NBTodayIntel({ liveEntities }: { liveEntities?: Array<any> | null }) {
   );
 }
 
-const EVENT_STATS: { v: string | number; l: string; emph: boolean }[] = [
-  { v: 1482,   l: "entities discovered",      emph: false },
-  { v: "78%",  l: "answers from event corpus", emph: true  },
-  { v: 4920,   l: "repeated searches avoided", emph: false },
-  { v: 214,    l: "private capture sessions",  emph: false },
-];
-
-const RECENT_CAPTURES = [
-  { time: "0:42 ago", who: "Alex Park · Orbital Labs",   note: "voice-agent eval infra · matched first name" },
-  { time: "12m ago",  who: "Maya Cole · ex-Epic",         note: "clinical lead · ring-1 healthcare" },
-  { time: "38m ago",  who: "Sam Reichelt · ex-Olive AI",  note: "product co-founder" },
-  { time: "1h ago",   who: "Booth photo · D14-1",         note: "3 captures attached to Team" },
-];
-
 function NBActiveEvent() {
-  // C2: Pull most-recently-touched event workspace + captures. Anonymous
-  // visitors (or users with no event workspace) get the seed Ship Demo Day
-  // demo experience.
   const api = useConvexApi();
   const anonymousSessionId = getAnonymousProductSessionId();
   const snapshot = useQuery(
@@ -873,28 +394,25 @@ function NBActiveEvent() {
       : "skip",
   );
   const liveSnap = (snapshot as any)?.live === true && (snapshot as any)?.workspaceId;
-  const title = liveSnap ? String((snapshot as any).title ?? "Active workspace") : "Ship Demo Day";
-  const stats: Array<{ v: string | number; l: string; emph: boolean }> = liveSnap
-    ? [
-        { v: Number((snapshot as any).entitiesDiscovered ?? 0), l: "entities discovered", emph: false },
-        // 78% / 4920 / 214 are corpus-level metrics that need the Pulse ledger to track per-workspace.
-        // Keep seed values until those land — but with live entity count alongside.
-        { v: "78%", l: "answers from event corpus", emph: true },
-        { v: 4920, l: "repeated searches avoided", emph: false },
-        { v: Number((snapshot as any).captureCount ?? 0), l: "private capture sessions", emph: false },
-      ]
-    : EVENT_STATS;
-  const liveCaptures = liveSnap ? ((snapshot as any).recentCaptures as Array<any>) : [];
-  const captures = liveSnap && liveCaptures.length > 0
+  if (!liveSnap) return null;
+  const title = String((snapshot as any).title ?? "Active workspace");
+  const stats: Array<{ v: string | number; l: string; emph: boolean }> = [
+    { v: Number((snapshot as any).entitiesDiscovered ?? 0), l: "entities discovered", emph: false },
+    { v: Number((snapshot as any).evidenceCount ?? 0), l: "evidence items", emph: false },
+    { v: Number((snapshot as any).followupCount ?? 0), l: "follow-ups", emph: false },
+    { v: Number((snapshot as any).captureCount ?? 0), l: "private capture sessions", emph: false },
+  ];
+  const liveCaptures = ((snapshot as any).recentCaptures as Array<any> | undefined) ?? [];
+  const captures = liveCaptures.length > 0
     ? liveCaptures.map((c) => ({
-        time: typeof c?.time === "number" ? formatRelativeWhen(c.time) : "just now",
+        time: formatRelativeWhen(typeof c?.time === "number" ? c.time : undefined),
         who: String(c?.who ?? "Capture"),
         note: String(c?.note ?? ""),
       }))
-    : RECENT_CAPTURES;
-  const freshness = liveSnap && (snapshot as any).lastUpdated
+    : [];
+  const freshness = (snapshot as any).lastUpdated
     ? `corpus freshness · ${formatRelativeWhen((snapshot as any).lastUpdated as number)}`
-    : "corpus freshness · 2m ago";
+    : "freshness unavailable";
   return (
     <section className="nb-home-block nb-event" data-testid="exact-home-active-event">
       <header className="nb-home-block-head">
@@ -904,7 +422,6 @@ function NBActiveEvent() {
           </div>
           <h3 className="nb-home-block-title">Corpus is compounding in real time.</h3>
         </div>
-        <button type="button" className="nb-home-block-link">Open event</button>
       </header>
       <div className="nb-event-stats">
         {stats.map((s, i) => (
@@ -937,50 +454,21 @@ type RecentEntry = {
   id: string;
   title: string;
   eyebrow: string;
-  fresh: "fresh" | "updated" | "watching";
+  fresh: "fresh" | "updated" | "older";
   meta: string;
   teaser: string;
 };
-
-const RECENT_REPORTS: RecentEntry[] = [
-  {
-    id: "orbital",
-    title: "Orbital Labs — should I follow up?",
-    eyebrow: "diligence · series A",
-    fresh: "fresh",
-    meta: "8 turns · 14 sources · 6 entities",
-    teaser: "Voice-agent eval infra. Open-core SDK; design partners with Oscar, Commure, one unnamed payer.",
-  },
-  {
-    id: "disco",
-    title: "DISCO — diligence debrief",
-    eyebrow: "diligence · series C",
-    fresh: "updated",
-    meta: "6 branches · 24 sources · 3 sections",
-    teaser: "Series-C legal-tech. $100M led by Bessemer. Concentration risk + EU regulatory exposure.",
-  },
-  {
-    id: "mercor",
-    title: "Mercor — series B signal?",
-    eyebrow: "watch · marketplace",
-    fresh: "watching",
-    meta: "4 turns · 18 sources · ring-1",
-    teaser: "Hiring velocity ↑ 62% MoM. Three new design partners. Compete: Worksome, Toptal-Pro.",
-  },
-];
 
 function NBRecentReports({
   onOpenReport,
   liveEntities,
 }: {
   onOpenReport: (id: string) => void;
-  liveEntities?: Array<any> | null;
+  liveEntities?: Array<any>;
 }) {
-  // Tier A live wiring: top 3 entities by latestReportUpdatedAt mapped to the
-  // RecentEntry shape; falls back to seed when unauthenticated/no entities.
-  const live = Array.isArray(liveEntities) && liveEntities.length > 0;
-  const liveCards: RecentEntry[] | null = live
-    ? [...liveEntities!]
+  const liveCards: RecentEntry[] | undefined = liveEntities === undefined
+    ? undefined
+    : [...liveEntities]
         .filter((e) => typeof e?.latestReportUpdatedAt === "number" || (e?.reportCount ?? 0) > 0)
         .sort((a, b) => {
           const at = (a?.latestReportUpdatedAt as number | undefined) ?? a?.updatedAt ?? 0;
@@ -992,7 +480,7 @@ function NBRecentReports({
           const latestUpdated = (entity?.latestReportUpdatedAt as number | undefined) ?? entity?.updatedAt;
           const ageMs = typeof latestUpdated === "number" ? Date.now() - latestUpdated : Infinity;
           const fresh: RecentEntry["fresh"] =
-            ageMs < 1000 * 60 * 60 * 24 ? "fresh" : ageMs < 1000 * 60 * 60 * 24 * 7 ? "updated" : "watching";
+            ageMs < 1000 * 60 * 60 * 24 ? "fresh" : ageMs < 1000 * 60 * 60 * 24 * 7 ? "updated" : "older";
           const reportCount = entity?.reportCount ?? 0;
           return {
             id: String(entity?.slug ?? entity?._id ?? entity?.name ?? "entity"),
@@ -1002,9 +490,8 @@ function NBRecentReports({
             meta: `${reportCount} report${reportCount === 1 ? "" : "s"}`,
             teaser: String(entity?.summary ?? "").slice(0, 180) || "Saved entity memory — open to see the full report.",
           };
-        })
-    : null;
-  const cards = liveCards && liveCards.length > 0 ? liveCards : RECENT_REPORTS;
+        });
+  const cards = liveCards ?? [];
   return (
     <section className="nb-home-block" data-testid="exact-home-recent-reports">
       <header className="nb-home-block-head">
@@ -1014,7 +501,19 @@ function NBRecentReports({
         </div>
         <button type="button" className="nb-home-block-link" onClick={() => onOpenReport("__all__")}>All reports</button>
       </header>
-      <div className="nb-recent-grid">
+      {liveCards === undefined ? (
+        <RuntimeEmptyState
+          testId="home-recent-reports-loading"
+          title="Loading saved reports"
+          description="Checking the runtime entity and report ledgers."
+        />
+      ) : cards.length === 0 ? (
+        <RuntimeEmptyState
+          testId="home-recent-reports-empty"
+          title="No saved reports yet"
+          description="Saved reports appear here only after a report-producing workflow completes."
+        />
+      ) : <div className="nb-recent-grid">
         {cards.map((r) => (
           // Mouse onClick anywhere on the card opens the report (preserves the
           // "whole card is clickable" affordance), but the article is NOT a
@@ -1034,21 +533,21 @@ function NBRecentReports({
             <p className="nb-recent-teaser">{r.teaser}</p>
             <div className="nb-recent-meta">{r.meta}</div>
             <div className="nb-recent-actions">
-              <button type="button" className="nb-recent-action" data-primary="true" onClick={(e) => { e.stopPropagation(); onOpenReport(r.id); }}>Brief</button>
-              <button type="button" className="nb-recent-action" onClick={(e) => { e.stopPropagation(); onOpenReport(r.id); }}>Explore</button>
-              <button type="button" className="nb-recent-action" onClick={(e) => { e.stopPropagation(); onOpenReport(r.id); }}>Chat</button>
+              <button type="button" className="nb-recent-action" data-primary="true" onClick={(e) => { e.stopPropagation(); onOpenReport(r.id); }}>Open</button>
             </div>
           </article>
         ))}
-      </div>
+      </div>}
     </section>
   );
 }
 
 export function ExactHomeSurface(_props: WebSurfaceProps) {
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [lane, setLane] = useState<LaneId>("answer");
+  const [searchParams] = useSearchParams();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const { signIn } = useAuthActions();
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
   const [horizon, setHorizon] = useState<FirstImpressionHorizon>("today");
   const [backgroundSubmitting, setBackgroundSubmitting] = useState(false);
   const [backgroundFeedback, setBackgroundFeedback] = useState<{
@@ -1067,10 +566,6 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
   });
   const voiceActive = voice.isListening || voice.isTranscribing;
 
-  // Tier A live wiring: pull entities.listEntities once at the home surface level
-  // and pass slices to PulseStrip + TodayIntel + RecentReports.  When the user
-  // is unauthenticated or has zero entities, the children fall back to their
-  // seed arrays so the demo experience is preserved.
   const api = useConvexApi();
   const anonymousSessionId = getAnonymousProductSessionId();
   const entities = useQuery(
@@ -1078,9 +573,6 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
     api?.domains.product.entities.listEntities
       ? { anonymousSessionId, search: "", filter: "All" }
       : "skip",
-  );
-  const loggedInUser = useQuery(
-    (api as any)?.domains?.auth?.auth?.loggedInUser ?? "skip",
   );
   const latestPublicResearch = useQuery(
     (api as any)?.domains?.publicResearch?.core?.listLatestPublicEntityResearch ?? "skip",
@@ -1091,27 +583,39 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
   const startPipelineRun = useMutation(
     generatedApi.domains.pipelines.pipelineWorkflow.startPipelineRun,
   );
-  const liveEntities = (entities as Array<any> | undefined) ?? null;
-  const ownerKey = loggedInUser?._id
-    ? `user:${loggedInUser._id}`
-    : anonymousSessionId
-      ? `session:${anonymousSessionId}`
-      : undefined;
+  const liveEntities = entities as Array<any> | undefined;
   const firstImpressionCards = useMemo(() => getFirstImpressionCards(horizon), [horizon]);
-  const firstFallbackPrompt = firstImpressionCards[0]?.prompt ?? PROMPT_CARDS[0].prompt;
 
   const start = (nextQuery = query) => {
-    const resolved = nextQuery.trim() || PROMPT_CARDS[0].prompt;
-    navigate(buildCockpitPath({ surfaceId: "workspace", extra: { q: resolved, lane } }));
+    const resolved = nextQuery.trim();
+    navigate(buildCockpitPath({
+      surfaceId: "workspace",
+      extra: resolved ? { q: resolved } : undefined,
+    }));
   };
 
   const startBackgroundResearch = async (nextQuery = query, title?: string) => {
     if (backgroundSubmitting) return;
+    if (!isAuthenticated) {
+      try {
+        const redirectTo = (() => {
+          if (typeof window === "undefined") return "/?surface=ask";
+          const url = new URL(window.location.href);
+          const pendingQuery = nextQuery.trim();
+          if (pendingQuery) url.searchParams.set("q", pendingQuery);
+          return url.toString();
+        })();
+        await signIn("google", {
+          redirectTo,
+        });
+      } catch {
+        setBackgroundFeedback({ kind: "error", message: "Sign-in could not be started. Try again." });
+      }
+      return;
+    }
     const request = createBackgroundResearchRequest({
       query: nextQuery,
-      fallbackPrompt: firstFallbackPrompt,
       title,
-      ownerKey,
     });
     if (!request.spec.trim()) {
       setBackgroundFeedback({ kind: "error", message: "Add a query or choose a scenario first." });
@@ -1123,7 +627,7 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
       await startPipelineRun(request);
       setBackgroundFeedback({
         kind: "ok",
-        message: "Research started. Safe to close this tab or lock your phone. The report, sources, notes, and export options will be saved under Reports.",
+        message: "Background run started. Follow its progress and export the completed bundle from Reports Background runs.",
       });
       setQuery(request.spec);
     } catch (error) {
@@ -1137,6 +641,10 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
   };
 
   const openReport = (id: string) => {
+    if (id === "__all__") {
+      navigate(buildCockpitPath({ surfaceId: "packets" }));
+      return;
+    }
     navigate(buildCockpitPath({ surfaceId: "packets", extra: { report: id } }));
   };
 
@@ -1145,7 +653,7 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
     surfaceId: "home",
     rootSelector: '[data-testid="exact-web-home-surface"]',
     firstActionSelector: '[data-nb-perf-action="home-primary"]',
-    dataSource: liveEntities && liveEntities.length > 0 ? "live_convex" : "starter",
+    dataSource: liveEntities === undefined ? "loading" : liveEntities.length > 0 ? "live_convex" : "empty",
   });
 
   return (
@@ -1159,7 +667,7 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
       <section className="nb-composer-hero">
         <div className="nb-kicker">On-the-go intelligence</div>
         <h1>Get the read before you walk in.</h1>
-        <p>Research a person, school, company, product, or meeting. NodeBench keeps working server-side and turns the answer into sources, reports, notes, and exports.</p>
+        <p>Ask in Chat for an immediate answer, or start background research you can inspect and export under Reports, in Background runs.</p>
 
         <div className="nb-composer-box" data-testid="exact-web-home-composer">
           <textarea
@@ -1176,20 +684,6 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
             aria-label="Ask anything - a company, a market, or a question"
           />
           <div className="nb-composer-bottom">
-            <div className="nb-lanes">
-              {LANES.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="nb-lane"
-                  data-active={lane === item.id}
-                  onClick={() => setLane(item.id)}
-                >
-                  {item.label}
-                  <small>{item.note}</small>
-                </button>
-              ))}
-            </div>
             <span style={{ color: "var(--text-faint)", fontFamily: "var(--font-mono)", fontSize: 11 }}>
               <Command size={12} style={{ display: "inline", verticalAlign: "-2px" }} /> Enter
             </span>
@@ -1218,19 +712,24 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
               className="nb-btn nb-btn-primary"
               data-nb-perf-action="home-primary"
               data-testid="home-background-run"
-              disabled={backgroundSubmitting}
+              disabled={authLoading || backgroundSubmitting || (isAuthenticated && !query.trim())}
+              title={
+                !isAuthenticated
+                  ? "Sign in to start background research"
+                  : !query.trim()
+                    ? "Add a research question first"
+                    : undefined
+              }
               onClick={() => void startBackgroundResearch()}
             >
               {backgroundSubmitting ? <Clock3 size={14} /> : <Send size={14} />}
-              Run research
+              {isAuthenticated ? "Run research" : "Sign in to run"}
             </button>
           </div>
         </div>
 
         <div className="nb-async-proof" data-testid="home-async-proof">
-          <span><Clock3 size={12} /> Continues if the phone locks</span>
-          <span><Save size={12} /> Saves to Reports</span>
-          <span><Share2 size={12} /> Export to Notes, Notion, Linear, CSV</span>
+          <span><Clock3 size={12} /> Background runs continue server-side and stay visible in Reports.</span>
         </div>
         {voiceActive || voice.error ? (
           <div className="nb-voice-status" role={voice.error ? "alert" : "status"} aria-live="polite">
@@ -1280,6 +779,15 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
             role={backgroundFeedback.kind === "error" ? "alert" : "status"}
           >
             {backgroundFeedback.message}
+            {backgroundFeedback.kind === "ok" ? (
+              <button
+                type="button"
+                className="nb-btn nb-btn-secondary"
+                onClick={() => navigate(buildCockpitPath({ surfaceId: "packets" }))}
+              >
+                View activity
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -1329,7 +837,6 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
                 <div className="nb-public-memory-meta">
                   <span>{item.claimCount} claim{item.claimCount === 1 ? "" : "s"}</span>
                   <span>{item.sourceCount} source{item.sourceCount === 1 ? "" : "s"}</span>
-                  <span>{Math.round((item.confidence || 0) * 100)}% confidence</span>
                 </div>
               </button>
             ))}
@@ -1346,8 +853,6 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
         submitting={backgroundSubmitting}
       />
 
-      <NBPulseStrip liveEntities={liveEntities} />
-
       <details className="nb-home-more">
         <summary>
           <span>Recent intelligence and saved reports</span>
@@ -1362,23 +867,12 @@ export function ExactHomeSurface(_props: WebSurfaceProps) {
           <NBRecentReports onOpenReport={openReport} liveEntities={liveEntities} />
         </div>
       </details>
-
-      <div className="nb-install-chip">
-        <span style={{ textTransform: "uppercase", letterSpacing: ".14em" }}>Use from Claude or Cursor</span>
-        <code>npx nodebench-mcp</code>
-        <a href="/cli" style={{ color: "var(--accent-ink)", fontWeight: 800, textDecoration: "none" }}>Developer docs -&gt;</a>
-      </div>
       </div>
     </ResponsiveSurface>
   );
 }
 
-/* ── Live data adapter for ExactReportsSurface ──
- * Maps Convex `entities.listEntities` → ExactKit's REPORTS card shape so
- * the kit JSX renders the user's real entity-backed reports instead of
- * static REPORTS fixtures.  HONEST_SCORES: REPORTS only renders as the
- * fallback for unauthenticated users with zero entities.
- */
+/* Runtime entity-to-report projection used by the canonical Reports surface. */
 const ENTITY_TONE_PAIRS: Record<string, [string, string]> = {
   company: ["#1a365d", "#d97757"],
   person: ["#6b3ba3", "#d97757"],
@@ -1430,135 +924,15 @@ type ReportDetail = {
   branches: number;
   sources: number;
   saved: string;
-  status: "verified" | "needs review" | "watching";
   sections: ReportSection[];
   card?: { kind: string; name: string; rows: [string, string][] };
 };
 
-const REPORT_DETAILS: Record<string, ReportDetail> = {
-  disco: {
-    id: "disco",
-    eyebrow: "Diligence · Series C · Active",
-    title: "DISCO — diligence debrief",
-    template: "Company dossier",
-    scope: "Series C diligence · Nov 2026",
-    branches: 6,
-    sources: 24,
-    saved: "Saved 2h ago",
-    status: "verified",
-    sections: [
-      {
-        id: "summary",
-        heading: "Executive summary",
-        body: "Series C-stage legal-tech company. DISCO raised a $100M Series C in October, with [1] confirming participation from Bessemer. Customer count crossed 2,400+ across AmLaw 200 firms [2]. Two material risks: customer concentration and EU regulatory exposure.",
-      },
-      {
-        id: "thesis",
-        heading: "Investment thesis",
-        body: "eDiscovery is the wedge; the long game is a litigation-OS. Kiwi Camara has positioned every product line — review, hold, depositions — as nodes on a single graph, which is what makes Cellebrite and Relativity look monolithic by comparison [3].",
-        quote: {
-          text: "We are not selling discovery — we are selling the spine that holds together every workflow a litigator touches.",
-          cite: "Kiwi Camara · TechCrunch Disrupt 2026",
-        },
-      },
-      {
-        id: "product",
-        heading: "Product & moat",
-        body: "Three product surfaces share a typed knowledge graph: DISCO Review, DISCO Hold, and DISCO Depositions. The graph is the moat — competitors fork data per workflow [4].",
-      },
-      {
-        id: "market",
-        heading: "Market & positioning",
-        body: "eDiscovery TAM is consolidating around three players. DISCO leads on velocity-to-deploy; Relativity leads on ecosystem; Everlaw leads on price. The interesting wedge is the voice-agent eval trend [5].",
-      },
-      {
-        id: "team",
-        heading: "Team",
-        body: "Kiwi Camara (CEO, founded 2013), Sarah Grayson (CFO, joined Nov 2026 from Slack), Aaron Eisenstein (CTO since 2018). Recent additions: Anita Park (CRO, ex-Box) — evidence: 2 sources, medium confidence.",
-      },
-    ],
-    card: {
-      kind: "company",
-      name: "DISCO",
-      rows: [
-        ["HQ", "Austin, TX"],
-        ["Founded", "2013"],
-        ["Employees", "~520"],
-        ["Last raise", "$100M Series C"],
-        ["Customers", "2,400+ firms"],
-        ["Stage", "Series C"],
-      ],
-    },
-  },
-  mercor: {
-    id: "mercor",
-    eyebrow: "Watch · Marketplace · Active",
-    title: "Mercor — series B signal?",
-    template: "Watch list",
-    scope: "Marketplace · Nov 2026",
-    branches: 4,
-    sources: 18,
-    saved: "Saved 1h ago",
-    status: "watching",
-    sections: [
-      {
-        id: "signal",
-        heading: "Signal",
-        body: "Hiring velocity ↑ 62% MoM over the last 90 days. Three new design partners added (per careers + LinkedIn signal) [1]. This is a candidate Series B trigger if the velocity holds for one more cycle.",
-      },
-      {
-        id: "compete",
-        heading: "Competitive frame",
-        body: "Direct competition: Worksome (talent ops), Toptal-Pro (premium tier). Mercor's ring-1 advantage is integration depth with VC portfolio companies — a network effect Worksome can't replicate without a fund relationship.",
-      },
-      {
-        id: "watch",
-        heading: "What to watch",
-        body: "If hiring velocity sustains > 50% MoM through Q1 2027 + ARR cohort retention > 110%, model a $40-60M Series B at a 2.5x revenue multiple. If velocity drops below 30%, the thesis fails — re-classify as growth-stage marketplace plateau.",
-      },
-    ],
-  },
-  orbital: {
-    id: "orbital",
-    eyebrow: "Diligence · Series A · Fresh",
-    title: "Orbital Labs — should I follow up?",
-    template: "Company dossier",
-    scope: "Series A · Nov 2026",
-    branches: 8,
-    sources: 14,
-    saved: "Saved 30m ago",
-    status: "verified",
-    sections: [
-      {
-        id: "summary",
-        heading: "Executive summary",
-        body: "Voice-agent eval infra. Open-core SDK; design partners with Oscar, Commure, and one unnamed payer [1]. Founders are ex-Anthropic + ex-Cerebras. Raising Series A this quarter at a $80-120M post.",
-      },
-      {
-        id: "moat",
-        heading: "Moat",
-        body: "The eval harness compounds with every customer's traffic — proprietary edge cases get harder to fork as the corpus grows. Competing harnesses (Trulens, LangSmith) lack the healthcare-specific evals.",
-      },
-      {
-        id: "risk",
-        heading: "Risk",
-        body: "OSS commoditization risk — if the open-core SDK gets forked aggressively, the closed enterprise tier needs to compound differentiation faster than the fork curve. Watch their PR cadence on the closed tier.",
-      },
-    ],
-  },
-};
-
-function getReportDetail(id: string | null): ReportDetail | null {
-  if (!id) return null;
-  return REPORT_DETAILS[id.toLowerCase()] ?? REPORT_DETAILS.disco;
-}
-
 export function ExactReportDetailSurface({ reportId, onBack }: { reportId: string; onBack: () => void }) {
   const navigate = useNavigate();
 
-  // B4: pull live entity workspace by slug. When live data available,
-  // prefer the latest report's structured sections; fall back to seed
-  // REPORT_DETAILS for unknown ids or anonymous visitors.
+  // Pull the live entity workspace by slug. Missing runtime content stays
+  // missing rather than substituting a completed dossier.
   const api = useConvexApi();
   const anonymousSessionId = getAnonymousProductSessionId();
   const liveWorkspace = useQuery(
@@ -1589,23 +963,33 @@ export function ExactReportDetailSurface({ reportId, onBack }: { reportId: strin
       id: String(entity?.slug ?? entity?._id ?? reportId),
       eyebrow: `${humanizeEntityType(entity?.entityType)} · ${formatRelativeWhen(latest?.updatedAt as number | undefined)}`,
       title: String(entity?.name ?? "Untitled"),
-      template: String(latest?.type ?? "Live entity"),
+      template: String(latest?.type ?? "Saved entity"),
       scope: latest?.routing?.routingReason
         ? String(latest.routing.routingReason).slice(0, 60)
-        : "Live entity context",
+        : "Saved entity context",
       branches: reportCount,
       sources: sourceCount,
       saved: `Saved ${formatRelativeWhen(latest?.updatedAt as number | undefined)}`,
-      status: latest?.status === "verified" ? "verified" : "watching",
       sections: liveSections,
     };
   }, [liveWorkspace, reportId]);
 
-  const detail = liveDetail ?? getReportDetail(reportId);
+  if (liveWorkspace === undefined) {
+    return (
+      <ResponsiveSurface mobile="reports">
+        <RuntimeEmptyState
+          testId="report-detail-loading"
+          title="Loading report"
+          description="NodeBench is checking the runtime report store."
+        />
+      </ResponsiveSurface>
+    );
+  }
+  const detail = liveDetail;
   if (!detail) {
     return (
       <ResponsiveSurface mobile="reports">
-        <section style={{ padding: 24 }} data-testid="exact-web-report-detail">
+        <section style={{ padding: 24 }} data-testid="exact-web-report-detail" data-report-id={reportId}>
           <button
             type="button"
             className="nb-btn nb-btn-secondary"
@@ -1614,14 +998,11 @@ export function ExactReportDetailSurface({ reportId, onBack }: { reportId: strin
           >
             ← Back to reports
           </button>
-          <p style={{ marginTop: 12, color: "var(--text-muted)" }}>Report not found.</p>
+          <p style={{ marginTop: 12, color: "var(--text-muted)" }}>No runtime-backed report was found for this id.</p>
         </section>
       </ResponsiveSurface>
     );
   }
-
-  const statusBadge =
-    detail.status === "verified" ? "nb-badge nb-badge-success" : "nb-badge";
 
   return (
     <ResponsiveSurface mobile="reports">
@@ -1650,12 +1031,9 @@ export function ExactReportDetailSurface({ reportId, onBack }: { reportId: strin
             <span className="nb-rdetail-crumb-current">{detail.title}</span>
           </nav>
           <div className="nb-rdetail-actions">
-            <span className="nb-rdetail-live" aria-label="Live status">
-              <span className="nb-rdetail-live-dot" /> Live · {detail.saved.replace(/^Saved\s+/, "")}
+            <span className="nb-rdetail-live" aria-label="Saved report status">
+              Saved · {detail.saved.replace(/^Saved\s+/, "")}
             </span>
-            <button type="button" className="nb-btn nb-btn-secondary nb-rdetail-action">
-              <RefreshCw size={13} /> Re-run
-            </button>
             <button
               type="button"
               className="nb-btn nb-btn-primary nb-rdetail-action"
@@ -1670,12 +1048,9 @@ export function ExactReportDetailSurface({ reportId, onBack }: { reportId: strin
         <h1 className="nb-rdetail-title">{detail.title}</h1>
 
         <div className="nb-rdetail-meta">
-          <span className={statusBadge}>
-            <Check size={11} style={{ display: "inline", verticalAlign: "-1px" }} /> {detail.status}
-          </span>
           <span className="nb-badge">{detail.template}</span>
           <span className="nb-badge">{detail.scope}</span>
-          <span className="nb-badge">{detail.branches} branches · {detail.sources} sources</span>
+          <span className="nb-badge">{detail.branches} saved report{detail.branches === 1 ? "" : "s"} · {detail.sources} sources</span>
           <span className="nb-badge nb-badge-quiet">{detail.saved}</span>
         </div>
 
@@ -1729,10 +1104,10 @@ export function ExactReportsSurface() {
       : "skip",
   );
 
-  const liveReports: ExactReportCard[] | null = useMemo(() => {
+  const liveReports: ExactReportCard[] | undefined = useMemo(() => {
     const list = entities as Array<any> | undefined;
-    if (!list || list.length === 0) return null;
-    return list.map((entity) => {
+    if (list === undefined) return undefined;
+    return list.filter(hasSavedEntityReport).map((entity) => {
       const tone = ENTITY_TONE_PAIRS[String(entity.entityType ?? "").toLowerCase()] ?? ["#475569", "#d97757"];
       const reportCount = typeof entity.reportCount === "number" ? entity.reportCount : 0;
       const updatedAt = typeof entity.latestReportUpdatedAt === "number" ? entity.latestReportUpdatedAt : entity.updatedAt;
@@ -1741,8 +1116,8 @@ export function ExactReportsSurface() {
         kind: humanizeEntityType(entity.entityType),
         title: String(entity.name ?? "Untitled"),
         summary: String(entity.summary ?? ""),
-        state: reportCount >= 1 ? "verified" : "needs review",
-        sources: reportCount,
+        state: "saved",
+        sources: Array.isArray(entity.sourceUrls) ? entity.sourceUrls.length : 0,
         updated: formatRelativeWhen(typeof updatedAt === "number" ? updatedAt : undefined),
         watched: false,
         colorA: tone[0],
@@ -1752,24 +1127,22 @@ export function ExactReportsSurface() {
   }, [entities]);
 
   const [view, setView] = useState<"grid" | "list">("grid");
-  const [filter, setFilter] = useState("all");
   const [visibleReportCount, setVisibleReportCount] = useState(12);
   const [reportsOpsOpen, setReportsOpsOpen] = useState(false);
   const backgroundReady = useIdleGate({ timeoutMs: 850 });
 
   useEffect(() => {
     setVisibleReportCount(12);
-  }, [filter, liveReports]);
+  }, [liveReports]);
 
   const reportsReadModel = useMemo(
     () =>
       buildCompactReportsReadModel({
         liveReports,
-        fallbackReports: REPORTS,
-        filter,
+        filter: "all",
         visibleCount: visibleReportCount,
       }),
-    [filter, liveReports, visibleReportCount],
+    [liveReports, visibleReportCount],
   );
 
   useRoutePerformanceRecord({
@@ -1799,10 +1172,6 @@ export function ExactReportsSurface() {
     event: MouseEvent<HTMLButtonElement>,
   ) => {
     event.stopPropagation();
-    if (actionId === "open_brief") {
-      openInlineReport(report.id);
-      return;
-    }
     if (actionId === "open_sources") {
       openWorkspace(report.id, "sources");
       return;
@@ -1836,50 +1205,62 @@ export function ExactReportsSurface() {
               Saved research reports with sources, review status, exports, and follow-up actions.
             </p>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <span className="nb-reports-source-pill" data-source={reportsReadModel.sourceKind}>
-              {reportsReadModel.sourceLabel} - {reportsReadModel.filteredReports.length} reports
-            </span>
-            <div className="nb-view-toggle" aria-label="Report filter">
-              {["all", "verified", "review", "watching"].map((item) => (
-                <button key={item} type="button" data-active={filter === item} onClick={() => setFilter(item)}>
-                  {item[0].toUpperCase() + item.slice(1)}
-                </button>
-              ))}
+          {reportsReadModel.sourceKind === "live_convex" && reportsReadModel.filteredReports.length > 0 ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span className="nb-reports-source-pill" data-source={reportsReadModel.sourceKind}>
+                {reportsReadModel.sourceLabel} - {reportsReadModel.filteredReports.length} reports
+              </span>
+              <div className="nb-view-toggle" aria-label="Report view">
+                <button type="button" data-active={view === "grid"} onClick={() => setView("grid")}><Grid3X3 size={13} /> Grid</button>
+                <button type="button" data-active={view === "list"} onClick={() => setView("list")}><List size={13} /> List</button>
+              </div>
             </div>
-            <div className="nb-view-toggle" aria-label="Report view">
-              <button type="button" data-active={view === "grid"} onClick={() => setView("grid")}><Grid3X3 size={13} /> Grid</button>
-              <button type="button" data-active={view === "list"} onClick={() => setView("list")}><List size={13} /> List</button>
-            </div>
-          </div>
+          ) : null}
         </div>
 
         <section className="nb-research-workbench nb-research-workbench-minimal" data-testid="reports-research-workbench">
           <header className="nb-report-command-head">
-            <span className="nb-report-command-title">Ask for a report</span>
-            <span className="nb-report-command-note">background safe</span>
+            <span className="nb-report-command-title">Start background research</span>
+            <span className="nb-report-command-note">continues server-side</span>
           </header>
           <div className="nb-workbench-panel" data-testid="reports-pipeline-launcher-slot">
             <PipelineLauncher />
+          </div>
+          <div data-testid="reports-pipelines-panel-slot">
+            <ErrorBoundary
+              section="Background runs"
+              fallback={<PipelineRuntimeUnavailable testId="pipeline-runs-unavailable" label="Background-run activity" />}
+            >
+              <PipelineRunsPanel initialVisibleCount={4} queryLimit={12} windowStep={4} />
+            </ErrorBoundary>
           </div>
           <details
             className="nb-reports-ops-disclosure"
             open={reportsOpsOpen}
             onToggle={(event) => setReportsOpsOpen(event.currentTarget.open)}
           >
-            <summary>Activity</summary>
+            <summary>Advanced</summary>
             {reportsOpsOpen ? (
               <div className="nb-reports-ops-grid">
-                <div data-testid="reports-pipelines-panel-slot">
-                  <PipelineRunsPanel initialVisibleCount={4} queryLimit={12} windowStep={4} />
-                </div>
                 <div data-testid="reports-pipeline-eval-slot">
-                  {backgroundReady ? <PipelineEvalScorecard /> : <DeferredReportsPanel label="Research quality" />}
+                  {backgroundReady ? (
+                    <ErrorBoundary
+                      section="Research quality"
+                      fallback={<PipelineRuntimeUnavailable testId="pipeline-eval-unavailable" label="Research quality" />}
+                    >
+                      <PipelineEvalScorecard />
+                    </ErrorBoundary>
+                  ) : <DeferredReportsPanel label="Research quality" />}
                 </div>
                 <div className="nb-workbench-stack">
                   <div data-testid="reports-pipeline-schedules-slot">
                     {backgroundReady ? (
-                      <PipelineSchedulesPanel initialVisibleCount={3} queryLimit={9} windowStep={3} />
+                      <ErrorBoundary
+                        section="Automatic refreshes"
+                        fallback={<PipelineRuntimeUnavailable testId="pipeline-schedules-unavailable" label="Automatic refreshes" />}
+                      >
+                        <PipelineSchedulesPanel initialVisibleCount={3} queryLimit={9} windowStep={3} />
+                      </ErrorBoundary>
                     ) : (
                       <DeferredReportsPanel label="Automatic refreshes" />
                     )}
@@ -1893,12 +1274,23 @@ export function ExactReportsSurface() {
           </details>
         </section>
 
-        <div className="nb-reports-grid" data-view={view}>
+        {reportsReadModel.sourceKind === "loading" ? (
+          <RuntimeEmptyState
+            testId="reports-loading"
+            title="Loading saved reports"
+            description="NodeBench is checking the runtime report store."
+          />
+        ) : reportsReadModel.sourceKind === "empty" ? (
+          <RuntimeEmptyState
+            testId="reports-empty"
+            title="No saved reports yet"
+            description="No saved entity reports yet. Background-run progress and output are listed above."
+          />
+        ) : <div className="nb-reports-grid" data-view={view}>
           {reportsReadModel.visibleReports.map((report) => (
             <article
               key={report.id}
               className="nb-rcard"
-              onClick={() => openInlineReport(report.id)}
               data-testid="report-card"
               data-exact-testid="exact-report-card"
             >
@@ -1912,10 +1304,17 @@ export function ExactReportsSurface() {
                 </div>
               </div>
               <div className="nb-rcard-body">
-                <div className="nb-rcard-title">{report.title}</div>
+                <button
+                  type="button"
+                  className="nb-rcard-title"
+                  aria-label={`Open ${report.title} report`}
+                  onClick={() => openInlineReport(report.id)}
+                >
+                  {report.title}
+                </button>
                 <div className="nb-rcard-sub">{report.summary}</div>
                 <div data-testid="report-card-actions" className="nb-rcard-actions">
-                  {REPORT_CONTEXTUAL_ACTIONS.map((action) => (
+                  {REPORT_CONTEXTUAL_ACTIONS.filter((action) => action.id === "resume_chat").map((action) => (
                     <button
                       key={action.id}
                       type="button"
@@ -1927,19 +1326,32 @@ export function ExactReportsSurface() {
                       {action.label}
                     </button>
                   ))}
+                  <details className="nb-rcard-more">
+                    <summary>More</summary>
+                    <div className="nb-rcard-more-actions">
+                      {REPORT_CONTEXTUAL_ACTIONS.filter((action) => action.id !== "resume_chat").map((action) => (
+                        <button
+                          key={action.id}
+                          type="button"
+                          className="nb-btn nb-btn-secondary"
+                          data-nb-action={action.id}
+                          aria-label={action.ariaLabel}
+                          onClick={(event) => handleReportAction(report, action.id, event)}
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  </details>
                 </div>
                 <div className="nb-rcard-foot">
-                  <span>{report.sources} sources</span>
+                  {report.sources > 0 ? <span>{report.sources} linked source{report.sources === 1 ? "" : "s"}</span> : null}
                   <span>{report.updated}</span>
-                  <span className="nb-rcard-watch" data-on={report.watched}>
-                    <Eye size={11} />
-                    {report.watched ? "Watching" : "Watch"}
-                  </span>
                 </div>
               </div>
             </article>
           ))}
-        </div>
+        </div>}
         {reportsReadModel.hasMore ? (
           <div className="nb-show-more-row">
             <button
@@ -1957,31 +1369,11 @@ export function ExactReportsSurface() {
   );
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
-   ExactAvatarMenu — kit TopNav avatar button + status panel
-   Click HS avatar → opens 380px popover with sections:
-     · Identity strip (HS gradient + Hannah Sato + email + workspace + PRO)
-     · Today's pulse (3 mini stats: Memory hits / Searches saved / Sources fresh)
-     · Watching · 12 entities (3 watch rows + See all → connect)
-     · This month · Pro (3 usage bars + Upgrade to Team button)
-     · Recent sessions (3 rows w/ THIS marker)
-     · Footer: Theme segment + Settings/Shortcuts/Help/Sign out grid
-   Class names mirror the kit verbatim.
-   ────────────────────────────────────────────────────────────────────────── */
+/* Runtime-backed profile, recent entities, sessions, theme, and settings. */
 
-type WatchDot = "hot" | "warm" | "cool";
+type RecencyDot = "hot" | "warm" | "cool";
 
-function PulseStatTile({ label, value, trend, hot = false }: { label: string; value: string; trend: string; hot?: boolean }) {
-  return (
-    <div className="nb-avm-pulse" data-hot={hot}>
-      <div className="nb-avm-pulse-v">{value}</div>
-      <div className="nb-avm-pulse-l">{label}</div>
-      <div className="nb-avm-pulse-t">{trend}</div>
-    </div>
-  );
-}
-
-function WatchRow({ name, detail, dot, color }: { name: string; detail: string; dot: WatchDot; color: string }) {
+function RecentEntityRow({ name, detail, dot, color }: { name: string; detail: string; dot: RecencyDot; color: string }) {
   return (
     <div className="nb-avm-watch-row">
       <div className="nb-avm-watch-mark" style={{ background: `${color}22`, color }}>{name[0]}</div>
@@ -1990,25 +1382,6 @@ function WatchRow({ name, detail, dot, color }: { name: string; detail: string; 
         <div className="nb-avm-watch-detail">{detail}</div>
       </div>
       <span className="nb-avm-watch-dot" data-dot={dot} />
-    </div>
-  );
-}
-
-function UsageBar({ label, used, cap, unit }: { label: string; used: number; cap: number; unit?: string }) {
-  const pct = Math.min(100, Math.round((used / cap) * 100));
-  const hot = pct >= 80;
-  const u = unit ? ` ${unit}` : "";
-  return (
-    <div className="nb-avm-usage">
-      <div className="nb-avm-usage-head">
-        <span className="nb-avm-usage-label">{label}</span>
-        <span className="nb-avm-usage-num" data-hot={hot}>
-          {used}{u} <span className="nb-avm-usage-cap">/ {cap}{u}</span>
-        </span>
-      </div>
-      <div className="nb-avm-usage-track">
-        <div className="nb-avm-usage-fill" data-hot={hot} style={{ width: `${pct}%` }} />
-      </div>
     </div>
   );
 }
@@ -2054,50 +1427,23 @@ export function ExactAvatarMenu({
   setMode: (m: "light" | "dark") => void;
   onSurfaceChange?: (s: CockpitSurfaceId) => void;
 }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
-  // Tier A live wiring: pull entities and use top 3 most-recent for the
-  // Watching list + total count for the section label. Other sections
-  // (Today's pulse %, Plan & usage bars, Recent sessions) still need
-  // dedicated Convex tables (metricsLedger, userPlanUsage, userSessions)
-  // and stay seed for now.
   const api = useConvexApi();
   const anonymousSessionId = getAnonymousProductSessionId();
-  const watchedEntities = useQuery(
+  const loggedInUser = useQuery(
+    (api as any)?.domains?.auth?.auth?.loggedInUser ?? "skip",
+  ) as { name?: string; email?: string } | null | undefined;
+  const recentEntities = useQuery(
     api?.domains.product.entities.listEntities ?? "skip",
     api?.domains.product.entities.listEntities
       ? { anonymousSessionId, search: "", filter: "All" }
       : "skip",
   );
-  const liveEntitiesArr = (watchedEntities as Array<any> | undefined) ?? null;
+  const liveEntitiesArr = recentEntities as Array<any> | undefined;
 
-  // B2: Avatar Today's pulse — pull aggregated metrics; fall back to seed
-  // when anonymous or query empty.
-  const avatarPulse = useQuery(
-    api?.domains.product.entities.getProductPulseMetrics ?? "skip",
-    api?.domains.product.entities.getProductPulseMetrics
-      ? { anonymousSessionId, lookbackHours: 168 }
-      : "skip",
-  );
-  const avatarPulseLive = (avatarPulse as any)?.live === true;
-  const livePulseStats = avatarPulseLive
-    ? {
-        searches: Number((avatarPulse as any)?.chatMessagesRecent ?? 0),
-        // Derive a memory-hit % proxy: claims_changed + sources_attached
-        // both indicate the answer reused public context. Anonymous → seed.
-        memoryHitPct: (() => {
-          const claims = Number((avatarPulse as any)?.claimsChangedRecent ?? 0);
-          const sources = Number((avatarPulse as any)?.sourcesAttachedRecent ?? 0);
-          const chats = Number((avatarPulse as any)?.chatMessagesRecent ?? 0);
-          if (chats === 0) return null;
-          // crude proxy: how many ledger writes per chat. Cap at 99%.
-          const ratio = Math.min(99, Math.round(((claims + sources) / Math.max(chats, 1)) * 100));
-          return ratio;
-        })(),
-      }
-    : null;
-  // Tier D — recordCurrentSession + listRecentSessions
   const recordSession = useMutation(api?.domains.product.entities.recordCurrentSession);
   const recentSessions = useQuery(
     api?.domains.product.entities.listRecentSessions ?? "skip",
@@ -2127,9 +1473,9 @@ export function ExactAvatarMenu({
     const deviceLabel = [platform, browser, tz].filter(Boolean).join(" · ");
     void recordSession({ anonymousSessionId, sessionKey, deviceLabel }).catch(() => {});
   }, [recordSession, anonymousSessionId]);
-  const liveSessionRows = (recentSessions as Array<any> | undefined) ?? null;
+  const liveSessionRows = recentSessions as Array<any> | undefined;
 
-  const liveWatching =
+  const recentEntityPreview =
     Array.isArray(liveEntitiesArr) && liveEntitiesArr.length > 0
       ? [...liveEntitiesArr]
           .sort((a, b) => (b?.updatedAt ?? 0) - (a?.updatedAt ?? 0))
@@ -2147,11 +1493,12 @@ export function ExactAvatarMenu({
               color: dot === "hot" ? "#D97757" : dot === "warm" ? "#5E6AD2" : "#3F8F6E",
             };
           })
-      : null;
-  const watchingTotal =
-    Array.isArray(liveEntitiesArr) && liveEntitiesArr.length > 0
-      ? liveEntitiesArr.length
-      : 12;
+      : [];
+  const recentEntityTotal =
+    Array.isArray(liveEntitiesArr) ? liveEntitiesArr.length : 0;
+  const identityName = loggedInUser?.name?.trim() || "Guest workspace";
+  const identityDetail = loggedInUser?.email?.trim() || "Anonymous session";
+  const identityInitial = identityName.slice(0, 1).toUpperCase() || "N";
 
   useEffect(() => {
     if (!open) return;
@@ -2167,9 +1514,13 @@ export function ExactAvatarMenu({
     };
   }, [open]);
 
-  const goConnect = () => {
+  const goMe = () => {
     setOpen(false);
     onSurfaceChange?.("connect");
+  };
+  const goSettings = () => {
+    setOpen(false);
+    navigate("/settings");
   };
 
   return (
@@ -2183,92 +1534,41 @@ export function ExactAvatarMenu({
         aria-label="Open profile"
         onClick={() => setOpen((o) => !o)}
       >
-        <div className="nb-avm-avatar-sm">HS</div>
+        <div className="nb-avm-avatar-sm">{identityInitial}</div>
         <ChevronRight size={12} className="nb-avm-chev" data-open={open} style={{ transform: open ? "rotate(90deg)" : "rotate(90deg)" }} />
       </button>
       {open && (
         <div role="menu" className="nb-avm-menu" data-testid="exact-avatar-menu">
           <div className="nb-avm-identity">
-            <div className="nb-avm-avatar-lg">HS</div>
+            <div className="nb-avm-avatar-lg">{identityInitial}</div>
             <div className="nb-avm-identity-body">
-              <div className="nb-avm-name">Hannah Sato</div>
-              <div className="nb-avm-id">hannah@orbital.ai · Orbital Labs</div>
-            </div>
-            <span className="nb-avm-pro">PRO</span>
-          </div>
-
-          <div className="nb-avm-section">
-            <div className="nb-avm-section-label">Today&apos;s pulse</div>
-            <div className="nb-avm-pulse-grid">
-              <PulseStatTile
-                label="Memory hits"
-                value={livePulseStats?.memoryHitPct ? `${livePulseStats.memoryHitPct}%` : "74%"}
-                trend={livePulseStats?.memoryHitPct ? "live · 7d" : "+6%"}
-                hot
-              />
-              <PulseStatTile
-                label="Searches saved"
-                value={livePulseStats?.searches ? String(livePulseStats.searches) : "38"}
-                trend={livePulseStats?.searches ? "this week" : "vs 22 last wk"}
-              />
-              <PulseStatTile
-                label="Sources fresh"
-                value={
-                  avatarPulseLive && (avatarPulse as any)?.sourcesFreshPct != null
-                    ? `${(avatarPulse as any).sourcesFreshPct}%`
-                    : "91%"
-                }
-                trend={
-                  avatarPulseLive && (avatarPulse as any)?.sourcesFreshPct != null
-                    ? `${Math.max(0, ((avatarPulse as any).sourcesTotalCount ?? 0) - Math.round((((avatarPulse as any).sourcesFreshPct ?? 0) / 100) * ((avatarPulse as any).sourcesTotalCount ?? 0)))} stale`
-                    : "2 stale"
-                }
-              />
+              <div className="nb-avm-name">{identityName}</div>
+              <div className="nb-avm-id">{identityDetail}</div>
             </div>
           </div>
 
           <div className="nb-avm-section">
             <div className="nb-avm-section-head">
-              <span className="nb-avm-section-label">Watching · {watchingTotal} entit{watchingTotal === 1 ? "y" : "ies"}</span>
-              <button type="button" className="nb-avm-section-link" onClick={goConnect}>See all</button>
+              <span className="nb-avm-section-label">Recent entities · {recentEntityTotal}</span>
+              <button type="button" className="nb-avm-section-link" onClick={goMe}>See all</button>
             </div>
-            {liveWatching && liveWatching.length > 0 ? (
-              liveWatching.map((w, i) => (
-                <WatchRow key={i} name={w.name} detail={w.detail} dot={w.dot} color={w.color} />
+            {liveEntitiesArr === undefined ? (
+              <div className="nb-avm-empty">Loading runtime memory…</div>
+            ) : recentEntityPreview.length > 0 ? (
+              recentEntityPreview.map((entity, i) => (
+                <RecentEntityRow key={i} name={entity.name} detail={entity.detail} dot={entity.dot} color={entity.color} />
               ))
             ) : (
-              <>
-                <WatchRow name="Orbital Labs" detail="3 new signals · last 4h" dot="hot" color="#D97757" />
-                <WatchRow name="DISCO" detail="Report refreshed · 22m ago" dot="warm" color="#5E6AD2" />
-                <WatchRow name="Mira Patel" detail="Quiet · last seen 2d" dot="cool" color="#3F8F6E" />
-              </>
+              <div className="nb-avm-empty">No saved entities yet.</div>
             )}
-          </div>
-
-          <div className="nb-avm-section nb-avm-section-divided">
-            <div className="nb-avm-section-head">
-              <span className="nb-avm-section-label">This month · Pro</span>
-              <span className="nb-avm-section-meta">resets Mar 1</span>
-            </div>
-            <UsageBar label="Sourced answers" used={284} cap={500} />
-            <UsageBar label="Watched entities" used={12} cap={25} />
-            <UsageBar label="Memory store" used={68} cap={100} unit="MB" />
-            <button
-              type="button"
-              className="nb-avm-upgrade"
-              onClick={() => {
-                setOpen(false);
-                window.location.assign("/pricing");
-              }}
-            >
-              <Zap size={12} className="nb-avm-upgrade-ic" /> Upgrade to Team
-            </button>
           </div>
 
           <div className="nb-avm-section nb-avm-section-divided">
             <div className="nb-avm-section-label">Recent sessions</div>
             <div className="nb-avm-sessions">
-              {liveSessionRows && liveSessionRows.length >= 3 ? (
+              {liveSessionRows === undefined ? (
+                <div className="nb-avm-empty">Loading runtime sessions…</div>
+              ) : liveSessionRows.length > 0 ? (
                 liveSessionRows.slice(0, 3).map((s, i) => (
                   <SessionRow
                     key={s.sessionKey ?? i}
@@ -2278,11 +1578,7 @@ export function ExactAvatarMenu({
                   />
                 ))
               ) : (
-                <>
-                  <SessionRow time="now" device="MacBook · Safari · SF" current />
-                  <SessionRow time="3h ago" device="iPhone · Native · SF" />
-                  <SessionRow time="yesterday" device="MacBook · Chrome · SF" />
-                </>
+                <div className="nb-avm-empty">No runtime sessions recorded yet.</div>
               )}
             </div>
           </div>
@@ -2293,18 +1589,8 @@ export function ExactAvatarMenu({
               <ThemeSegment resolvedMode={resolvedMode} setMode={setMode} />
             </div>
             <div className="nb-avm-links">
-              <button type="button" className="nb-avm-link" onClick={goConnect}>
+              <button type="button" className="nb-avm-link" onClick={goSettings}>
                 <Settings size={13} /> <span>Settings</span>
-              </button>
-              <button type="button" className="nb-avm-link">
-                <Terminal size={13} /> <span>Shortcuts</span>
-                <span className="nb-avm-kbd">?</span>
-              </button>
-              <button type="button" className="nb-avm-link">
-                <BookOpen size={13} /> <span>Help</span>
-              </button>
-              <button type="button" className="nb-avm-link" data-danger>
-                <X size={13} /> <span>Sign out</span>
               </button>
             </div>
           </div>
@@ -2329,20 +1615,12 @@ type ChatRunUpdate = { kind: "session" | "graph" | "notebook" | "followup"; labe
 type ChatSegment =
   | { t: "t"; v: string }
   | { t: "strong"; v: string }
-  | { t: "pill"; kind: string; id: string; v: string; subtle?: string }
   | { t: "cite"; n: number };
 type ChatBlock =
   | { kind: "p"; segs: ChatSegment[] }
   | { kind: "h"; v: string }
-  | { kind: "list"; items: ChatSegment[][] }
-  | { kind: "confirm"; match: string; confidence: "low" | "medium" | "high"; entityKind?: string };
-type ChatSource = {
-  n: number;
-  fav: string;
-  domain: string;
-  title: string;
-  cached?: boolean;
-};
+  | { kind: "list"; items: ChatSegment[][] };
+type ChatSource = ExactRuntimeSource;
 
 type ChatTurn =
   | { id: string; role: "user"; time: string; text: string }
@@ -2357,213 +1635,6 @@ type ChatTurn =
       sources?: ChatSource[];
       followups?: string[];
     };
-
-const ORBITAL_THREAD_TURNS: ChatTurn[] = [
-  { id: "t1", role: "user", time: "2:14 PM", text: "I'm at Ship Demo Day. Help me keep track." },
-  {
-    id: "t2",
-    role: "agent",
-    time: "2:14 PM",
-    run: { kind: "context", summary: "Started event context", detail: "Using event corpus · Ship Demo Day" },
-    trace: [
-      { step: "mem", label: "searched memory · 0.18s", hits: "2 prior captures" },
-      { step: "corpus", label: "event corpus · Ship Demo Day", hits: "1 active session" },
-    ],
-    body: [
-      {
-        kind: "p",
-        segs: [
-          { t: "t", v: "Got it — anchored to " },
-          { t: "pill", kind: "event", id: "ship-demo-day", v: "Ship Demo Day" },
-          { t: "t", v: ". New captures will land here as event notes. Speak, type, paste, or upload — I'll route them to the right entity." },
-        ],
-      },
-    ],
-    runUpdates: [{ kind: "session", label: "Session pinned", detail: "0 paid calls so far" }],
-    followups: ["Capture a person", "Capture a company", "Open the event report"],
-  },
-  {
-    id: "t3",
-    role: "user",
-    time: "2:21 PM",
-    text: "Met Alex from Orbital Labs. They build voice-agent eval infra. Looking for healthcare design partners.",
-  },
-  {
-    id: "t4",
-    role: "agent",
-    time: "2:21 PM",
-    run: { kind: "capture", summary: "Captured to Ship Demo Day", detail: "3 entities resolved · 1 follow-up created" },
-    trace: [
-      { step: "extract", label: "parsed capture", hits: "1 person · 1 company · 1 theme" },
-      { step: "mem", label: "searched memory · 0.22s", hits: "0 prior matches for \"Orbital Labs\"" },
-      { step: "resolve", label: "resolving entities", hits: "created · pending confirm" },
-    ],
-    body: [
-      {
-        kind: "p",
-        segs: [
-          { t: "t", v: "Captured. New entities: " },
-          { t: "pill", kind: "person", id: "alex", v: "Alex", subtle: "first name only" },
-          { t: "t", v: " · " },
-          { t: "pill", kind: "company", id: "orbital-labs", v: "Orbital Labs", subtle: "new" },
-          { t: "t", v: " · " },
-          { t: "pill", kind: "theme", id: "voice-eval", v: "voice-agent eval infra" },
-          { t: "t", v: "." },
-        ],
-      },
-      {
-        kind: "p",
-        segs: [
-          { t: "t", v: "Linked to " },
-          { t: "pill", kind: "event", id: "ship-demo-day", v: "Ship Demo Day" },
-          { t: "t", v: " · created follow-up to confirm Alex's last name and contact channel." },
-        ],
-      },
-    ],
-    runUpdates: [
-      { kind: "graph", label: "3 entities · 4 edges added" },
-      { kind: "followup", label: "1 follow-up: confirm Alex's contact" },
-    ],
-    followups: ["Research Orbital Labs", "Who else is in voice-agent eval?"],
-  },
-  // ─── Turn 3 — the big research turn (kit ChatStreamData t5+t6) ────────
-  {
-    id: "t5",
-    role: "user",
-    time: "2:24 PM",
-    text: "Research Orbital Labs and tell me if I should follow up.",
-  },
-  {
-    id: "t6",
-    role: "agent",
-    time: "2:24 PM",
-    run: {
-      kind: "research",
-      summary: "Memory-first research · 14 sources · 1 paid call",
-      detail: "cache · corpus · live refresh",
-    },
-    trace: [
-      { step: "mem", label: "memory · 8 hits in 0.14s", hits: "3 prior reports · 2 captures · 3 graph rings" },
-      { step: "cache", label: "source cache · 5 reusable", hits: "2 fresh · 3 ≤14d" },
-      { step: "live", label: "live refresh · 1 paid call", hits: "public profile · 220ms" },
-      { step: "extract", label: "graph expansion · ring 1", hits: "6 neighbors · 11 edges" },
-      { step: "compose", label: "synthesizing answer packet", hits: "5 sections · 7 claims" },
-    ],
-    body: [
-      { kind: "h", v: "Short answer" },
-      {
-        kind: "p",
-        segs: [
-          { t: "strong", v: "Yes, follow up. " },
-          { t: "t", v: "Their pitch overlaps with two threads you already care about — agent evaluation and healthcare workflow QA — and they're actively looking for design partners" },
-          { t: "cite", n: 1 },
-          { t: "t", v: "." },
-        ],
-      },
-      { kind: "h", v: "Why it matters" },
-      {
-        kind: "p",
-        segs: [
-          { t: "pill", kind: "company", id: "orbital-labs", v: "Orbital Labs" },
-          { t: "t", v: " (Series Seed, Aug 2025, $4.2M led by " },
-          { t: "pill", kind: "company", id: "amplify", v: "Amplify Partners" },
-          { t: "t", v: ")" },
-          { t: "cite", n: 2 },
-          { t: "t", v: " is one of three teams shipping " },
-          { t: "pill", kind: "theme", id: "voice-eval", v: "voice-agent eval" },
-          { t: "t", v: " infrastructure — workflow replay, synthetic call generation, and grounded eval against transcripts." },
-        ],
-      },
-      { kind: "h", v: "Evidence" },
-      {
-        kind: "list",
-        items: [
-          [
-            { t: "t", v: "Founders ex-" },
-            { t: "pill", kind: "company", id: "olive-ai", v: "Olive AI" },
-            { t: "t", v: " (Sam Reichelt, eng) and ex-" },
-            { t: "pill", kind: "company", id: "epic", v: "Epic" },
-            { t: "t", v: " (Maya Cole, clinical informatics)" },
-            { t: "cite", n: 3 },
-            { t: "t", v: " — credible healthcare context." },
-          ],
-          [
-            { t: "t", v: "Three named pilots: " },
-            { t: "pill", kind: "company", id: "oscar", v: "Oscar Health" },
-            { t: "t", v: ", " },
-            { t: "pill", kind: "company", id: "commure", v: "Commure" },
-            { t: "t", v: ", and an unnamed payer" },
-            { t: "cite", n: 4 },
-            { t: "t", v: "." },
-          ],
-          [
-            { t: "t", v: "GitHub activity up 4× since June; " },
-            { t: "pill", kind: "theme", id: "voice-eval", v: "voice-eval" },
-            { t: "t", v: " SDK is open and has 12 external contributors" },
-            { t: "cite", n: 5 },
-            { t: "t", v: "." },
-          ],
-        ],
-      },
-      { kind: "h", v: "Recommended next action" },
-      {
-        kind: "p",
-        segs: [
-          { t: "t", v: "Reply to Alex by EOD with two specific questions: (1) does their replay infra accept full workflow replay or only audio, and (2) are they looking for paid pilots or unpaid design partners. I drafted a 4-line email — open the report to review." },
-        ],
-      },
-    ],
-    sources: [
-      { n: 1, fav: "O", domain: "orbitallabs.dev", title: "Orbital Labs design partner page", cached: false },
-      { n: 2, fav: "A", domain: "amplifypartners.com", title: "Amplify Partners portfolio update", cached: true },
-      { n: 3, fav: "L", domain: "linkedin.com", title: "Sam Reichelt LinkedIn", cached: true },
-      { n: 4, fav: "C", domain: "commure.com", title: "Commure pilot announcement", cached: true },
-      { n: 5, fav: "G", domain: "github.com", title: "orbital-labs/voice-eval", cached: true },
-    ],
-    runUpdates: [
-      { kind: "graph", label: "6 ring-1 neighbors added", detail: "Olive AI · Epic · Oscar Health · Commure · Braintrust · Arize" },
-      { kind: "notebook", label: "Notebook updated", detail: "3 sections · 7 claims · 5 sources" },
-      { kind: "followup", label: "1 follow-up created", detail: "Reply to Alex by EOD · drafted email saved" },
-    ],
-    followups: [
-      "Compare Orbital Labs vs. Braintrust",
-      "Show the graph",
-      "Draft the reply to Alex",
-      "What did we say about voice-eval before?",
-    ],
-  },
-  // ─── Turn 4 — entity disambiguation with confirm-match block ───────────
-  { id: "t7", role: "user", time: "2:31 PM", text: "Who is Alex?" },
-  {
-    id: "t8",
-    role: "agent",
-    time: "2:31 PM",
-    run: { kind: "lookup", summary: "Using current report context", detail: "0 paid calls · 1 graph hop" },
-    trace: [
-      { step: "mem", label: "thread memory · prior turns", hits: "Alex captured at Ship Demo Day" },
-      { step: "compose", label: "evaluating possible match", hits: "1 person · medium confidence" },
-    ],
-    body: [
-      {
-        kind: "p",
-        segs: [
-          { t: "strong", v: "Likely Alex Park" },
-          { t: "t", v: ", co-founder and head of product at " },
-          { t: "pill", kind: "company", id: "orbital-labs", v: "Orbital Labs" },
-          { t: "t", v: ". Match confidence is medium — I matched on first name + Ship Demo Day attendee list + LinkedIn proximity to " },
-          { t: "pill", kind: "person", id: "sam-reichelt", v: "Sam Reichelt" },
-          { t: "cite", n: 6 },
-          { t: "t", v: ". Confirm before I promote this match across your reports." },
-        ],
-      },
-      { kind: "confirm", match: "Alex Park · Orbital Labs", confidence: "medium", entityKind: "person" },
-    ],
-    sources: [
-      { n: 6, fav: "S", domain: "shipdemoday.com", title: "Ship Demo Day attendee list", cached: true },
-    ],
-    followups: ["Promote Alex to root", "Show people I should follow up with first"],
-  },
-];
 
 const RUN_KIND_GLYPH: Record<ChatRunKind, string> = {
   context: "◷",
@@ -2591,7 +1662,7 @@ function ChatRunBarView({ run }: { run: ChatRunBar }) {
 
 function ChatTraceView({ trace }: { trace: ChatTraceStep[] }) {
   if (!trace.length) return null;
-  const summary = `Reasoned across ${trace.length} steps`;
+  const summary = `${trace.length} recorded runtime event${trace.length === 1 ? "" : "s"}`;
   const tags = trace.map((s) => s.step).join(" + ");
   return (
     <details className="nb-runtrace">
@@ -2616,15 +1687,6 @@ function renderSegments(segs: ChatSegment[]) {
   return segs.map((s, i) => {
     if (s.t === "strong") return <strong key={i}>{s.v}</strong>;
     if (s.t === "cite") return <sup key={i} className="nb-cite">{s.n}</sup>;
-    if (s.t === "pill") {
-      return (
-        <button key={i} type="button" className="nb-epill" data-kind={s.kind} title={`Peek ${s.v}`}>
-          <span className="d" />
-          <span className="lbl">{s.v}</span>
-          {s.subtle && <span className="sub">{s.subtle}</span>}
-        </button>
-      );
-    }
     return <span key={i}>{s.v}</span>;
   });
 }
@@ -2639,7 +1701,7 @@ function ChatTurnView({
   if (turn.role === "user") {
     return (
       <div className="nb-turn" data-role="user">
-        <div className="nb-turn-avatar" data-role="user">HS</div>
+        <div className="nb-turn-avatar" data-role="user" aria-hidden="true"><User size={12} /></div>
         <div className="nb-turn-body">
           <div className="nb-turn-head">
             <span className="nb-turn-who">You</span>
@@ -2678,22 +1740,6 @@ function ChatTurnView({
                   </ul>
                 );
               }
-              if (b.kind === "confirm") {
-                return (
-                  <div key={i} className="nb-confirm" data-confidence={b.confidence}>
-                    <div className="hd">
-                      <span className="d" />
-                      <span><strong>Possible match:</strong> {b.match}</span>
-                      <span className="conf">{b.confidence} confidence</span>
-                    </div>
-                    <div className="actions">
-                      <button type="button" className="primary">Confirm match</button>
-                      <button type="button">Keep separate</button>
-                      <button type="button">Show evidence</button>
-                    </div>
-                  </div>
-                );
-              }
               return null;
             })}
           </div>
@@ -2708,10 +1754,11 @@ function ChatTurnView({
                 className="nb-src-chip"
                 title={s.title}
                 onClick={() => {
-                  if (typeof window !== "undefined" && s.domain) {
-                    window.open(`https://${s.domain}`, "_blank", "noopener,noreferrer");
+                  if (typeof window !== "undefined" && s.url) {
+                    window.open(s.url, "_blank", "noopener,noreferrer");
                   }
                 }}
+                disabled={!s.url}
               >
                 <span className="fav">{s.fav}</span>
                 <span className="n">{s.n}</span>
@@ -2749,33 +1796,10 @@ function ChatTurnView({
   );
 }
 
-const STREAM_PROMPTS = ["Research a company", "Capture an event note", "Ask about a person"];
-
-function sourceDomain(source: string | undefined) {
-  if (!source) return "source";
-  try {
-    const parsed = new URL(source);
-    return parsed.hostname.replace(/^www\./, "");
-  } catch {
-    return source.replace(/^https?:\/\//, "").split("/")[0] || "source";
-  }
-}
-
-function chatSourceFav(domain: string) {
-  return (domain.match(/[a-z0-9]/i)?.[0] ?? "S").toUpperCase();
-}
+const STREAM_PROMPTS = ["Research a company", "Compare two companies", "Ask about a person"];
 
 function liveAnswerSources(packet: LiveChatAnswer): ChatSource[] {
-  return (packet.evidence ?? []).slice(0, 8).map((row, index) => {
-    const domain = sourceDomain(row.source);
-    return {
-      n: row.idx ?? index + 1,
-      fav: chatSourceFav(domain),
-      domain,
-      title: row.quote || row.source || `Source ${index + 1}`,
-      cached: row.verificationState === "cached_reference" ? true : row.verificationState === "provider_grounded" ? false : undefined,
-    };
-  });
+  return projectExactRuntimeSources(packet.evidence ?? []);
 }
 
 function liveAnswerTrace(run: RealChatRun | null): ChatTraceStep[] {
@@ -2811,7 +1835,7 @@ function liveAnswerBlocks(packet: LiveChatAnswer, scratchpad?: string): ChatBloc
   } else if (scratchpad) {
     blocks.push({ kind: "p", segs: [{ t: "t", v: scratchpad.slice(0, 900) }] });
   } else {
-    blocks.push({ kind: "p", segs: [{ t: "t", v: "Starting the live NodeBench runtime. Context routing, search, graph recall, and verification will stream here as they finish." }] });
+    blocks.push({ kind: "p", segs: [{ t: "t", v: "The runtime accepted the request. Recorded evidence and sources will appear here as they are emitted." }] });
   }
   if (packet.whyItMatters) {
     blocks.push({ kind: "h", v: "Why it matters" });
@@ -2854,11 +1878,23 @@ function liveRunUpdates(run: RealChatRun | null): ChatRunUpdate[] {
     });
   }
   if (metrics) {
-    updates.push({
-      kind: "session",
-      label: "Cost and latency tracked",
-      detail: `${metrics.totalLatencyMs ?? metrics.timeToFinalMs ?? 0}ms - $${(metrics.estimatedCostUsd ?? 0).toFixed(4)}`,
-    });
+    const metricDetails = [
+      typeof metrics.totalLatencyMs === "number"
+        ? `${metrics.totalLatencyMs}ms`
+        : typeof metrics.timeToFinalMs === "number"
+          ? `${metrics.timeToFinalMs}ms`
+          : null,
+      typeof metrics.estimatedCostUsd === "number"
+        ? `$${metrics.estimatedCostUsd.toFixed(4)}`
+        : null,
+    ].filter((detail): detail is string => Boolean(detail));
+    if (metricDetails.length > 0) {
+      updates.push({
+        kind: "session",
+        label: "Cost and latency tracked",
+        detail: metricDetails.join(" - "),
+      });
+    }
   }
   const pendingClaims = run?.runtime.claimChecks?.filter((row) => !row.verified).length ?? 0;
   if (pendingClaims > 0) {
@@ -2884,6 +1920,21 @@ function liveAgentTurnFromRun(turnId: string, run: RealChatRun, previous?: ChatT
     : run.status === "error"
       ? "Live run failed"
       : "Live run in progress";
+  const runtimeCounts = [
+    run.runtime.contextCandidates.length > 0
+      ? `${run.runtime.contextCandidates.length} context candidates`
+      : null,
+    run.runtime.toolDecisions.length > 0
+      ? `${run.runtime.toolDecisions.length} tool decisions`
+      : null,
+  ].filter((detail): detail is string => Boolean(detail));
+  const sources = liveAnswerSources(run.packet);
+  const followups = run.status === "complete"
+    ? [
+        "Draft a follow-up based on this answer",
+        ...(sources.length > 0 ? ["Compare related entities using these sources"] : []),
+      ]
+    : undefined;
   return {
     id: turnId,
     role: "agent",
@@ -2891,17 +1942,15 @@ function liveAgentTurnFromRun(turnId: string, run: RealChatRun, previous?: ChatT
     run: {
       kind: "research",
       summary: statusText,
-      detail: `${run.runtime.contextCandidates.length} context candidates - ${run.runtime.toolDecisions.length} tool decisions`,
+      detail: runtimeCounts.length > 0 ? runtimeCounts.join(" - ") : undefined,
     },
     trace: liveAnswerTrace(run),
     body: run.status === "error"
       ? [{ kind: "p", segs: [{ t: "t", v: run.errorMessage ?? "The live run failed before producing an answer packet." }] }]
       : liveAnswerBlocks(run.packet, run.scratchpad),
-    sources: liveAnswerSources(run.packet),
+    sources,
     runUpdates: liveRunUpdates(run),
-    followups: run.status === "complete"
-      ? ["Open the report", "Show sources used", "Draft a follow-up", "Compare related entities"]
-      : undefined,
+    followups,
   };
 }
 
@@ -2911,15 +1960,10 @@ function liveUnavailableTurn(turnId: string, reason: string): ChatTurn {
     role: "agent",
     time: nowTime(),
     run: { kind: "context", summary: "Live runtime not started", detail: "No fixture answer inserted" },
-    trace: [
-      { step: "auth", label: "checked live run eligibility", hits: reason },
-      { step: "policy", label: "blocked synthetic fallback", hits: "production chat stays honest" },
-    ],
     body: [
       { kind: "p", segs: [{ t: "t", v: reason }] },
-      { kind: "p", segs: [{ t: "t", v: "NodeBench can still show public memory and saved reports, but live research runs require an email-backed account." }] },
+      { kind: "p", segs: [{ t: "t", v: "The paid research runtime did not return a run. No synthetic answer was inserted; retry here or use the session agent." }] },
     ],
-    runUpdates: [{ kind: "session", label: "No paid calls", detail: "No backend run was created." }],
   };
 }
 
@@ -2928,20 +1972,14 @@ function initialLiveChatTurn(): ChatTurn {
     id: "live-ready",
     role: "agent",
     time: nowTime(),
-    run: { kind: "context", summary: "Live Context Runtime ready", detail: "Convex chat runs - graph packets - source verification" },
-    trace: [
-      { step: "runtime", label: "waiting for prompt", hits: "no fixture answer loaded" },
-      { step: "context", label: "pins available", hits: "Ship Demo Day can be replaced with any report/entity" },
-    ],
     body: [
       {
         kind: "p",
         segs: [
-          { t: "t", v: "Ask a company, person, event, market, or notebook question. When you submit, NodeBench starts the real Convex-backed agent runtime and streams context, tool decisions, verification, sources, and write proposals here." },
+          { t: "t", v: "Ask about a company, person, event, market, or saved report. Runtime evidence and sources appear after you send." },
         ],
       },
     ],
-    followups: STREAM_PROMPTS,
   };
 }
 
@@ -2957,20 +1995,20 @@ function contextRefFromPins(searchParams: URLSearchParams, pins: Array<{ kind: s
 }
 
 export function ExactChatSurface() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get("q") ?? "";
   const [composer, setComposer] = useState(initialQuery);
-  const [pins, setPins] = useState<{ kind: string; label: string }[]>([
-    { kind: "event", label: "Ship Demo Day" },
-  ]);
-  const [chatModelId, setChatModelId] = useState<PipelineModelSelection>(
-    DEFAULT_PIPELINE_MODEL_SELECTION,
-  );
-  const chatModelOption = getPipelineModelOption(chatModelId);
+  const [pins, setPins] = useState<{ kind: string; label: string }[]>(() => {
+    const reportId = searchParams.get("report")?.trim();
+    return reportId ? [{ kind: "report", label: reportId }] : [];
+  });
   const realChat = useRedesignChatRun();
+  const fastAgent = useFastAgent();
   const [activeLiveTurnId, setActiveLiveTurnId] = useState<string | null>(null);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const submitLockRef = useRef(false);
+  const [submissionPending, setSubmissionPending] = useState(false);
+  const chatRunInFlight = isExactChatRunInFlight(realChat.state.status, activeLiveTurnId, submissionPending);
 
   // Live cockpit chat: prefer a persisted Convex thread when one exists.
   // Otherwise start from an honest live-ready state, not a synthetic answer.
@@ -3026,10 +2064,24 @@ export function ExactChatSurface() {
 
   const sendTurn = (text: string) => {
     const t = text.trim();
-    if (!t) return;
+    if (!t || chatRunInFlight || !acquireExactChatSubmitLock(submitLockRef)) return;
+    setSubmissionPending(true);
+    if (!realChat.state.available) {
+      setHasUserInteracted(true);
+      setComposer("");
+      fastAgent.openWithContext({
+        initialTab: "chat",
+        initialMessage: t,
+        contextTitle: pins.length > 0 ? pins.map((pin) => pin.label).join(", ") : undefined,
+      });
+      queueMicrotask(() => {
+        submitLockRef.current = false;
+        setSubmissionPending(false);
+      });
+      return;
+    }
     const userTurnId = `u${Date.now()}`;
     const agentTurnId = `a${Date.now()}`;
-    const submittedTier = chatModelOption.isFree ? "free" : "auto";
     const contextRef = contextRefFromPins(searchParams, pins);
     setHasUserInteracted(true);
     setTurns((prev) => [
@@ -3041,28 +2093,33 @@ export function ExactChatSurface() {
         time: nowTime(),
         run: {
           kind: "research",
-          summary: "Starting live run",
+          summary: "Submitting research request",
           detail: contextRef ? `context ${contextRef}` : "prompt-only context",
         },
-        trace: [{ step: "submit", label: "starting Convex chat run", hits: "waiting for run id" }],
-        body: [{ kind: "p", segs: [{ t: "t", v: "Starting live research. NodeBench is routing memory, reports, graph context, source cache, and verification lanes." }] }],
+        trace: [{ step: "submit", label: "request sent", hits: "waiting for a runtime run id" }],
+        body: [{ kind: "p", segs: [{ t: "t", v: "Request submitted. Waiting for the runtime to emit a run and its recorded evidence." }] }],
       },
     ]);
     setComposer("");
-    void realChat.submit(t, submittedTier, contextRef).then((runId) => {
-      if (runId) {
-        setActiveLiveTurnId(agentTurnId);
-        return;
-      }
-      setTurns((prev) => prev.map((turn) =>
-        turn.id === agentTurnId
-          ? liveUnavailableTurn(
-              agentTurnId,
-              realChat.state.error ?? "Sign in with an email-backed account before running live research.",
-            )
-          : turn,
-      ));
-    });
+    void realChat.submit(t, "auto", contextRef)
+      .then((runId) => {
+        if (runId) {
+          setActiveLiveTurnId(agentTurnId);
+          return;
+        }
+        setTurns((prev) => prev.map((turn) =>
+          turn.id === agentTurnId
+            ? liveUnavailableTurn(
+                agentTurnId,
+                realChat.state.error ?? "The paid research runtime could not start. Try again or use the session agent.",
+              )
+            : turn,
+        ));
+      })
+      .finally(() => {
+        submitLockRef.current = false;
+        setSubmissionPending(false);
+      });
   };
 
   useRoutePerformanceRecord({
@@ -3079,6 +2136,7 @@ export function ExactChatSurface() {
         data-testid="exact-web-chat-stream"
         data-chat-live-status={realChat.state.status}
         data-chat-live-eligible={realChat.state.available ? "true" : "false"}
+        data-chat-runtime-route={realChat.state.available ? "paid-redesign" : "session-fast-agent"}
         data-chat-run-id={realChat.state.run?.runId ?? ""}
         style={{ display: "flex", flexDirection: "column", gap: 14 }}
       >
@@ -3087,52 +2145,33 @@ export function ExactChatSurface() {
             Chat
           </h1>
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
-            Live agent runtime with ContextRuntimePacket routing, source-backed answers, traceable tool decisions, and gated report writes.
+            Ask a question. Sources, runtime progress, and any proposed writes appear only after the run starts.
           </div>
         </div>
 
         <div className="nb-stream-root">
           <div className="nb-stream-main">
             <div className="nb-stream-header">
-              <button type="button" className="nb-rail-toggle" aria-label="Toggle threads" title="Threads">
-                <Layers size={14} />
-              </button>
               <div className="nb-chat-header-icon">O</div>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h2>Live Context Runtime</h2>
                 <div className="nb-stream-header-meta">
-                  <span className="nb-stream-fresh" data-state="fresh">● fresh</span>
-                  <span>·</span>
                   <span>{turns.length} turns</span>
-                  <span>·</span>
-                  <span>{realChat.state.run?.packet.sourceCount ?? "live"} sources</span>
-                  <span>·</span>
-                  <span>{realChat.state.run?.runtime.contextCandidates.length ?? "bounded"} context candidates</span>
-                  <span>·</span>
-                  <span>{realChat.state.run?.packet.paidCalls ?? 0} paid calls</span>
+                  {realChat.state.run ? (
+                    <>
+                      {realChat.state.run.packet.sourceCount > 0 ? (
+                        <><span>·</span><span>{realChat.state.run.packet.sourceCount} sources</span></>
+                      ) : null}
+                      {realChat.state.run.runtime.contextCandidates.length > 0 ? (
+                        <><span>·</span><span>{realChat.state.run.runtime.contextCandidates.length} context candidates</span></>
+                      ) : null}
+                      {typeof realChat.state.run.packet.paidCalls === "number" ? (
+                        <><span>·</span><span>{realChat.state.run.packet.paidCalls} paid calls</span></>
+                      ) : null}
+                    </>
+                  ) : null}
                 </div>
               </div>
-              <div className="nb-chat-header-actions" style={{ display: "flex" }}>
-                <button type="button" onClick={() => navigate(buildCockpitPath({ surfaceId: "packets", extra: { report: "orbital" } }))}>
-                  <BookOpen size={11} /> Open report
-                </button>
-                <button type="button">
-                  <Share2 size={11} /> Share
-                </button>
-              </div>
-              <button type="button" className="nb-rail-toggle" aria-label="Toggle context" title="Context">
-                <LayoutGrid size={14} />
-              </button>
-            </div>
-
-            <div className="nb-stream-savebar">
-              <span className="nb-stream-savebar-icon">●</span>
-              <span>{realChat.state.run ? "Streaming from" : "Ready for"} <strong>NodeBench live runtime</strong></span>
-              <span className="dim">- context routing - layered verification - notebook writes require gates</span>
-              <span style={{ flex: 1 }} />
-              <button type="button" onClick={() => navigate(buildCockpitPath({ surfaceId: "packets", extra: { report: "orbital" } }))}>Open notebook</button>
-              <button type="button">Export</button>
-              <button type="button">Track updates</button>
             </div>
 
             <div className="nb-stream-scroll">
@@ -3148,32 +2187,14 @@ export function ExactChatSurface() {
                 value={composer}
                 onValueChange={setComposer}
                 onSubmit={() => sendTurn(composer)}
-                placeholder="Ask, capture, paste, upload, or record... (@ to mention an entity)"
+                placeholder="Ask or paste text... (@ to mention an entity)"
                 ariaLabel="Chat composer"
                 enableEntityMentions
                 pins={pins.map((pin) => ({ ...pin, removable: true }))}
                 onRemovePin={(index) => setPins((prev) => prev.filter((_, idx) => idx !== index))}
-                addPinLabel="Add context"
-                onAddPin={() => setPins((prev) => [...prev, { kind: "entity", label: "Orbital Labs" }])}
-                tools={[
-                  { key: "attach", label: "Attach file", icon: <Paperclip size={14} /> },
-                  { key: "url", label: "Add URL", icon: <Link2 size={14} /> },
-                  { key: "voice", label: "Voice note", icon: <Mic size={14} /> },
-                ]}
-                modelLabel={chatModelOption.shortLabel}
-                modelTitle="Model"
-                modelProvider={chatModelOption.provider}
-                modelValue={chatModelId}
-                modelOptions={PIPELINE_MODEL_OPTIONS.map((model) => ({
-                  value: model.value,
-                  label: model.label,
-                }))}
-                onModelValueChange={(value) => setChatModelId(value as PipelineModelSelection)}
-                footerMeta={
-                  chatModelOption.isFree ? "Memory-first - free route" : "Memory-first - auto route"
-                }
+                footerMeta="Runtime-routed"
                 submitPerfAction="chat-send"
-                submitDisabled={!composer.trim()}
+                submitDisabled={!composer.trim() || chatRunInFlight}
                 suggestions={STREAM_PROMPTS}
                 onSuggestion={(prompt) => setComposer(`${prompt} `)}
               />
@@ -3194,14 +2215,7 @@ function nowTime() {
   return `${hr}:${mm} ${h < 12 ? "AM" : "PM"}`;
 }
 
-/* ── Live data adapter for ExactInboxSurface ──
- * Maps Convex `getNudgesSnapshot` → ExactKit's INBOX item shape so the
- * pixel-perfect kit JSX can render real user nudges instead of static
- * INBOX_SEED.  HONEST_SCORES: the seed only renders as a fallback when
- * live data is unavailable (loading, query failed, or unauthenticated
- * with zero nudges) — in that case it acts as the demo experience for
- * brand-new users.
- */
+/* Runtime nudge snapshot projected into the canonical Inbox rows. */
 const ICON_BY_PRIORITY: Record<"act" | "auto" | "watch" | "fyi", LucideIcon> = {
   act: Zap,
   auto: Check,
@@ -3218,14 +2232,12 @@ function derivePriority(nudge: { type?: string; bucket?: string }): "act" | "aut
 }
 
 function deriveActions(priority: "act" | "auto" | "watch" | "fyi"): string[] {
-  if (priority === "act") return ["rerun", "open", "snooze", "dismiss"];
-  if (priority === "auto") return ["open", "undo", "dismiss"];
-  if (priority === "watch") return ["draft", "watch", "dismiss"];
+  if (priority === "act") return ["open", "snooze", "dismiss"];
   return ["open", "dismiss"];
 }
 
 function formatRelativeWhen(ts?: number): string {
-  if (!ts) return "just now";
+  if (!ts) return "time unavailable";
   const ageMs = Date.now() - ts;
   const minutes = Math.max(1, Math.round(ageMs / 60_000));
   if (minutes < 60) return `${minutes}m ago`;
@@ -3255,7 +2267,6 @@ type ExactInboxItem = {
   body: string;
   actions: string[];
   report: string | null;
-  deltaSources: number;
 };
 
 export function ExactInboxSurface() {
@@ -3268,10 +2279,10 @@ export function ExactInboxSurface() {
     api?.domains.product.nudges.getNudgesSnapshot ? { anonymousSessionId } : "skip",
   );
 
-  const liveItems: ExactInboxItem[] | null = useMemo(() => {
+  const liveItems: ExactInboxItem[] | undefined = useMemo(() => {
+    if (snapshot === undefined) return undefined;
     const nudges = snapshot?.nudges as Array<any> | undefined;
-    if (!nudges || nudges.length === 0) return null;
-    return nudges.map((n) => {
+    return (nudges ?? []).map((n) => {
       const priority = derivePriority(n);
       return {
         id: String(n._id),
@@ -3283,19 +2294,18 @@ export function ExactInboxSurface() {
         body: String(n.summary ?? n.title ?? ""),
         actions: deriveActions(priority),
         report: n.linkedReportTitle ?? null,
-        deltaSources: typeof n.groupedCount === "number" && n.groupedCount > 1 ? n.groupedCount : 1,
       };
     });
   }, [snapshot]);
 
   const [filter, setFilter] = useState<"all" | "act" | "auto" | "watch">("all");
-  const [items, setItems] = useState<Array<typeof INBOX_SEED[number] | ExactInboxItem>>(
-    () => [...INBOX_SEED],
-  );
+  const [items, setItems] = useState<ExactInboxItem[]>([]);
+  const [pendingAction, setPendingAction] = useState<{ id: string; action: "snooze" | "dismiss" } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Sync live items when the Convex query resolves with data.
   useEffect(() => {
-    if (liveItems) setItems(liveItems);
+    if (liveItems !== undefined) setItems(liveItems);
   }, [liveItems]);
   const counts = useMemo(
     () => ({
@@ -3308,30 +2318,26 @@ export function ExactInboxSurface() {
   );
   const visible = filter === "all" ? items : items.filter((item) => item.priority === filter);
 
-  const act = (id: string, action: string) => {
-    // Live-data mode: call real Convex mutations, then optimistically remove.
-    if (liveItems && api) {
-      if (action === "dismiss") {
-        void convex
-          .mutation(api.domains.product.nudges.completeNudge, { nudgeId: id, anonymousSessionId })
-          .catch(() => undefined);
-        setItems((current) => current.filter((item) => item.id !== id));
-        return;
-      }
-      if (action === "snooze") {
-        void convex
-          .mutation(api.domains.product.nudges.snoozeNudge, { nudgeId: id, anonymousSessionId })
-          .catch(() => undefined);
-        setItems((current) => current.filter((item) => item.id !== id));
-        return;
-      }
-    } else if (action === "dismiss" || action === "snooze") {
-      // Demo mode: just hide locally.
-      setItems((current) => current.filter((item) => item.id !== id));
+  const act = async (id: string, action: "open" | "snooze" | "dismiss") => {
+    if (action === "open") {
+      navigate(buildCockpitPath({ surfaceId: "packets" }));
       return;
     }
-    if (action === "open" || action === "rerun") {
-      navigate(buildCockpitPath({ surfaceId: action === "open" ? "packets" : "workspace" }));
+    if (liveItems === undefined || !api || pendingAction) return;
+
+    setPendingAction({ id, action });
+    setActionError(null);
+    try {
+      const mutation = action === "dismiss"
+        ? api.domains.product.nudges.completeNudge
+        : api.domains.product.nudges.snoozeNudge;
+      const result = await convex.mutation(mutation, { nudgeId: id, anonymousSessionId });
+      requireSuccessfulInboxMutation(result);
+      setItems((current) => current.filter((item) => item.id !== id));
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "The inbox action failed. Try again.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -3340,7 +2346,7 @@ export function ExactInboxSurface() {
     surfaceId: "inbox",
     rootSelector: '[data-testid="exact-web-inbox-surface"]',
     firstActionSelector: '[data-nb-perf-action="inbox-filter"]',
-    dataSource: liveItems ? "live_convex" : "starter",
+    dataSource: liveItems === undefined ? "loading" : liveItems.length > 0 ? "live_convex" : "empty",
   });
 
   return (
@@ -3358,7 +2364,7 @@ export function ExactInboxSurface() {
               ["all", "All", counts.all],
               ["act", "Act", counts.act],
               ["auto", "Auto", counts.auto],
-              ["watch", "Watching", counts.watch],
+              ["watch", "Watch", counts.watch],
             ].map(([key, label, count]) => (
               <button
                 key={key}
@@ -3373,11 +2379,30 @@ export function ExactInboxSurface() {
           </div>
         </div>
 
+        {actionError ? (
+          <div
+            role="alert"
+            style={{ marginTop: 14, padding: "10px 12px", border: "1px solid var(--danger)", borderRadius: 10, color: "var(--danger)", fontSize: 13 }}
+          >
+            {actionError}
+          </div>
+        ) : null}
+
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 18 }}>
-          {visible.length === 0 ? (
+          {liveItems === undefined ? (
+            <RuntimeEmptyState
+              testId="inbox-loading"
+              title="Loading inbox"
+              description="Checking runtime nudges for this workspace."
+            />
+          ) : visible.length === 0 ? (
             <div className="nb-panel" style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>
               <Check size={24} />
-              <div style={{ marginTop: 8 }}>All caught up. New items arrive when watched entities move.</div>
+              <div style={{ marginTop: 8 }}>
+                {items.length === 0
+                  ? "No runtime nudges. New items arrive when watched entities move."
+                  : "Nothing matches this filter."}
+              </div>
             </div>
           ) : (
             visible.map((item) => {
@@ -3393,20 +2418,13 @@ export function ExactInboxSurface() {
                     </div>
                     <div className="nb-ibx-msg">{item.body}</div>
                     <div className="nb-ibx-actions">
-                      {item.actions.includes("rerun") ? <button className="primary" onClick={() => act(item.id, "rerun")}><GitBranch size={11} /> Re-run report</button> : null}
-                      {item.actions.includes("draft") ? <button className="primary" onClick={() => act(item.id, "draft")}><Sparkles size={11} /> Draft brief</button> : null}
-                      {item.actions.includes("open") && item.report ? <button onClick={() => act(item.id, "open")}><FileText size={11} /> Open {item.entity}</button> : null}
-                      {item.actions.includes("watch") ? <button onClick={() => act(item.id, "watch")}><Eye size={11} /> Watch {item.entity}</button> : null}
-                      {item.actions.includes("undo") ? <button onClick={() => act(item.id, "undo")}>Undo auto-promote</button> : null}
-                      {item.actions.includes("snooze") ? <button onClick={() => act(item.id, "snooze")}><Clock3 size={11} /> Snooze 1h</button> : null}
-                      {item.actions.includes("dismiss") ? <button onClick={() => act(item.id, "dismiss")}><X size={11} /> Dismiss</button> : null}
+                      {item.actions.includes("open") ? <button onClick={() => void act(item.id, "open")}><FileText size={11} /> Open reports</button> : null}
+                      {item.actions.includes("snooze") ? <button disabled={pendingAction?.id === item.id} onClick={() => void act(item.id, "snooze")}><Clock3 size={11} /> Snooze 24h</button> : null}
+                      {item.actions.includes("dismiss") ? <button disabled={pendingAction?.id === item.id} onClick={() => void act(item.id, "dismiss")}><X size={11} /> Dismiss</button> : null}
                     </div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-                    <span className="nb-ibx-priority">{item.priority === "act" ? "act now" : item.priority === "auto" ? "auto-handled" : item.priority === "watch" ? "watching" : "fyi"}</span>
-                    <span style={{ color: "var(--text-faint)", fontFamily: "var(--font-mono)", fontSize: 10.5 }}>
-                      +{item.deltaSources} source{item.deltaSources > 1 ? "s" : ""}
-                    </span>
+                    <span className="nb-ibx-priority">{item.priority === "act" ? "act now" : item.priority === "auto" ? "auto" : item.priority === "watch" ? "watch" : "fyi"}</span>
                   </div>
                 </div>
               );
@@ -3418,28 +2436,14 @@ export function ExactInboxSurface() {
   );
 }
 
-/* ── Live data adapter for ExactMeSurface ──
- * Maps Convex `entities.listEntities` → ExactKit's notebook entities row
- * shape so the kit JSX shows the user's real watched entities instead of
- * the static DISCO/Mercor/Cognition/Turing/Anthropic/OpenAI fixtures.
- */
+/* Runtime entity memory projected into the canonical Me surface. */
 type ExactNotebookEntity = {
   id: string;
   name: string;
   tag: string;
   lastReport: string;
   reports: number;
-  changes: number;
 };
-
-const ME_NOTEBOOK_SEED: ExactNotebookEntity[] = [
-  { id: "disco", name: "DISCO", tag: "legal tech", lastReport: "Nov 14", reports: 3, changes: 2 },
-  { id: "mercor", name: "Mercor", tag: "hiring", lastReport: "Nov 12", reports: 4, changes: 5 },
-  { id: "cognition", name: "Cognition", tag: "agents", lastReport: "Nov 10", reports: 2, changes: 1 },
-  { id: "turing", name: "Turing", tag: "services", lastReport: "Nov 03", reports: 5, changes: 0 },
-  { id: "anthropic", name: "Anthropic", tag: "foundation", lastReport: "Oct 28", reports: 1, changes: 3 },
-  { id: "openai", name: "OpenAI", tag: "foundation", lastReport: "Oct 22", reports: 6, changes: 4 },
-];
 
 function formatShortDate(ts?: number): string {
   if (!ts) return "—";
@@ -3447,8 +2451,12 @@ function formatShortDate(ts?: number): string {
 }
 
 export function ExactMeSurface() {
+  const navigate = useNavigate();
   const api = useConvexApi();
   const anonymousSessionId = getAnonymousProductSessionId();
+  const loggedInUser = useQuery(
+    (api as any)?.domains?.auth?.auth?.loggedInUser ?? "skip",
+  ) as { name?: string; email?: string } | null | undefined;
   const liveEntities = useQuery(
     api?.domains.product.entities.listEntities ?? "skip",
     api?.domains.product.entities.listEntities
@@ -3456,46 +2464,35 @@ export function ExactMeSurface() {
       : "skip",
   );
 
-  const liveNotebook: ExactNotebookEntity[] | null = useMemo(() => {
+  const liveNotebook: ExactNotebookEntity[] | undefined = useMemo(() => {
     const list = liveEntities as Array<any> | undefined;
-    if (!list || list.length === 0) return null;
+    if (list === undefined) return undefined;
     return list.map((entity) => {
       const updatedAt = typeof entity.latestReportUpdatedAt === "number" ? entity.latestReportUpdatedAt : entity.updatedAt;
-      const revision = typeof entity.latestRevision === "number" ? entity.latestRevision : 0;
       const reportCount = typeof entity.reportCount === "number" ? entity.reportCount : 0;
       // "changes" = revisions beyond the first — a user-visible signal that
       // this entity has been re-investigated and gained new context.
-      const changes = revision > 1 ? revision - 1 : 0;
       return {
         id: String(entity.slug ?? entity._id ?? entity.name),
         name: String(entity.name ?? "Untitled"),
         tag: humanizeEntityType(entity.entityType).toLowerCase(),
         lastReport: formatShortDate(typeof updatedAt === "number" ? updatedAt : undefined),
         reports: reportCount,
-        changes,
       };
     });
   }, [liveEntities]);
 
-  const [section, setSection] = useState("notebook");
-  const [entities, setEntities] = useState<ExactNotebookEntity[]>(() => [...ME_NOTEBOOK_SEED]);
-  const [pendingUnwatchId, setPendingUnwatchId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (liveNotebook) setEntities(liveNotebook);
-  }, [liveNotebook]);
-  const nav = [
-    { group: "Account", items: [{ id: "notebook", label: "Memory", icon: BookOpen, count: entities.length }, { id: "profile", label: "Profile", icon: User }] },
-    { group: "Preferences", items: [{ id: "notifications", label: "Notifications", icon: Bell }, { id: "pace", label: "Pace & feel", icon: Zap }, { id: "data", label: "Data & memory", icon: FileText }] },
-    { group: "Workspace", items: [{ id: "integrations", label: "Integrations", icon: Link2 }, { id: "usage", label: "Usage", icon: Sparkles }] },
-  ];
+  const entities = liveNotebook ?? [];
+  const identityName = loggedInUser?.name?.trim() || "Guest workspace";
+  const identityDetail = loggedInUser?.email?.trim() || "Anonymous session";
+  const identityInitial = identityName.slice(0, 1).toUpperCase() || "N";
 
   useRoutePerformanceRecord({
     routeId: "me",
     surfaceId: "me",
     rootSelector: '[data-testid="exact-web-me-surface"]',
-    firstActionSelector: '[data-nb-perf-action="me-add-entity"]',
-    dataSource: liveNotebook ? "live_convex" : "starter",
+    firstActionSelector: '[data-nb-perf-action="me-settings"]',
+    dataSource: liveNotebook === undefined ? "loading" : liveNotebook.length > 0 ? "live_convex" : "empty",
   });
 
   return (
@@ -3503,48 +2500,54 @@ export function ExactMeSurface() {
       <section className="nb-me-grid" data-testid="exact-web-me-surface">
         <aside className="nb-me-sidenav">
           <div className="hd">
-            <div className="av">HS</div>
+            <div className="av">{identityInitial}</div>
             <div style={{ minWidth: 0 }}>
-              <div className="nm">Homen Shum</div>
-              <div className="em">homen@nodebench.ai</div>
+              <div className="nm">{identityName}</div>
+              <div className="em">{identityDetail}</div>
             </div>
           </div>
-          {nav.map((group) => (
-            <div key={group.group}>
-              <div className="section-title">{group.group}</div>
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button key={item.id} type="button" data-active={section === item.id} onClick={() => setSection(item.id)}>
-                    <Icon size={14} />
-                    <span>{item.label}</span>
-                    {"count" in item ? <span style={{ marginLeft: "auto", fontFamily: "var(--font-mono)", fontSize: 11 }}>{item.count}</span> : null}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+          <div className="section-title">Account</div>
+          <button
+            type="button"
+            data-nb-perf-action="me-settings"
+            onClick={() => navigate("/settings")}
+          >
+            <Settings size={14} />
+            <span>Settings</span>
+          </button>
         </aside>
 
         <section>
-          {section === "notebook" ? (
-            <div>
-              <h1 className="nb-settings-h1">Memory</h1>
-              <p className="nb-settings-sub">Entities NodeBench watches for you. Reports, source updates, and Inbox nudges anchor here.</p>
-              <div className="nb-settings-section" style={{ padding: 0, overflow: "hidden" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-subtle)", padding: "14px 20px" }}>
-                  <div>
-                    <div style={{ fontSize: 13.5, fontWeight: 800 }}>{entities.length} watched entities</div>
-                    <div style={{ color: "var(--text-muted)", fontSize: 11.5 }}>New reports automatically link to entities they mention.</div>
-                  </div>
-                  <button className="nb-btn nb-btn-secondary" type="button" data-nb-perf-action="me-add-entity"><Plus size={13} /> Add entity</button>
+          <h1 className="nb-settings-h1">Memory</h1>
+          <p className="nb-settings-sub">Runtime entities connected to saved reports and inbox nudges.</p>
+          {liveNotebook === undefined ? (
+            <RuntimeEmptyState
+              testId="me-memory-loading"
+              title="Loading memory"
+              description="Checking the workspace entity ledger."
+            />
+          ) : entities.length === 0 ? (
+            <RuntimeEmptyState
+              testId="me-memory-empty"
+              title="No saved entities"
+              description="Entities appear here after a saved report or runtime workflow links them."
+            />
+          ) : (
+            <div className="nb-settings-section" style={{ padding: 0, overflow: "hidden" }}>
+              <div style={{ borderBottom: "1px solid var(--border-subtle)", padding: "14px 20px" }}>
+                <div style={{ fontSize: 13.5, fontWeight: 800 }}>
+                  {entities.length} runtime entit{entities.length === 1 ? "y" : "ies"}
                 </div>
-                {entities.map((entity, index) => (
+                <div style={{ color: "var(--text-muted)", fontSize: 11.5 }}>
+                  Report counts and activity dates come from the entity ledger.
+                </div>
+              </div>
+              {entities.map((entity, index) => (
                   <div
                     key={entity.id}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "36px minmax(0, 1fr) auto minmax(130px, auto)",
+                      gridTemplateColumns: "36px minmax(0, 1fr) auto",
                       gap: 14,
                       alignItems: "center",
                       borderTop: index === 0 ? 0 : "1px solid var(--border-subtle)",
@@ -3558,1837 +2561,24 @@ export function ExactMeSurface() {
                       <div style={{ fontWeight: 750 }}>{entity.name}</div>
                       <div style={{ color: "var(--text-muted)", fontSize: 11.5 }}>
                         {entity.tag} - {entity.reports} {entity.reports === 1 ? "report" : "reports"} - last activity {entity.lastReport}
-                        {entity.changes > 0 ? <span style={{ color: "var(--accent-primary)", marginLeft: 6, fontWeight: 800 }}>- {entity.changes} new</span> : null}
                       </div>
                     </div>
-                    <button type="button" className="nb-btn nb-btn-secondary"><FileText size={12} /> Reports</button>
-                    {pendingUnwatchId === entity.id ? (
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                        <button type="button" className="nb-btn nb-btn-secondary" onClick={() => setPendingUnwatchId(null)}>
-                          Keep
-                        </button>
-                        <button
-                          type="button"
-                          className="nb-btn"
-                          aria-label={`Stop watching ${entity.name}`}
-                          onClick={() => {
-                            setEntities((current) => current.filter((item) => item.id !== entity.id));
-                            setPendingUnwatchId(null);
-                          }}
-                        >
-                          Stop watching
-                        </button>
-                      </div>
-                    ) : (
+                    {entity.reports > 0 ? (
                       <button
                         type="button"
-                        className="nb-btn"
-                        aria-label={`Stop watching ${entity.name}`}
-                        onClick={() => setPendingUnwatchId(entity.id)}
+                        className="nb-btn nb-btn-secondary"
+                        onClick={() => navigate(buildCockpitPath({ surfaceId: "packets", extra: { report: entity.id } }))}
                       >
-                        <X size={13} /> Stop watching
+                        <FileText size={12} /> Reports
                       </button>
-                    )}
+                    ) : null}
                   </div>
-                ))}
-              </div>
+              ))}
             </div>
-          ) : null}
-
-          {section === "profile" ? <ProfileSettings /> : null}
-          {section === "notifications" ? <NotificationSettings /> : null}
-          {section === "pace" ? <PaceSettings /> : null}
-          {section === "data" ? <DataSettings /> : null}
-          {section === "integrations" ? <IntegrationsSettings /> : null}
-          {section === "usage" ? <UsageSettings /> : null}
+          )}
         </section>
       </section>
     </ResponsiveSurface>
-  );
-}
-
-function ProfileSettings() {
-  return (
-    <div>
-      <h1 className="nb-settings-h1">Profile</h1>
-      <p className="nb-settings-sub">How you appear inside NodeBench and on shared reports.</p>
-      <div className="nb-settings-section">
-        <h2>Identity</h2>
-        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Name and email shown on anything you share.</p>
-        <SettingField label="Display name"><input type="text" defaultValue="Homen Shum" /></SettingField>
-        <SettingField label="Email"><input type="email" defaultValue="homen@nodebench.ai" /></SettingField>
-        <SettingField label="Role"><select defaultValue="founder"><option value="founder">Founder</option><option value="investor">Investor</option><option value="analyst">Analyst</option></select></SettingField>
-      </div>
-    </div>
-  );
-}
-
-function NotificationSettings() {
-  const [values, setValues] = useState({ act: true, auto: true, watch: true, fyi: false });
-  return (
-    <div>
-      <h1 className="nb-settings-h1">Notifications</h1>
-      <p className="nb-settings-sub">Only four rings. Silence the ones you do not need.</p>
-      <div className="nb-settings-section">
-        {[
-          ["act", "Act-now items", "Materially changes a saved report"],
-          ["auto", "Auto-handled", "Report was refreshed or promoted automatically"],
-          ["watch", "Watching", "Entity you follow moved but no report affected"],
-          ["fyi", "FYI", "Filings refreshed, no material change"],
-        ].map(([key, label, hint]) => (
-          <SettingField key={key} label={label} hint={hint}>
-            <button type="button" className="nb-switch" data-on={values[key as keyof typeof values]} onClick={() => setValues((current) => ({ ...current, [key]: !current[key as keyof typeof values] }))} />
-          </SettingField>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PaceSettings() {
-  const [pace, setPace] = useState("conversational");
-  return (
-    <div>
-      <h1 className="nb-settings-h1">Pace & feel</h1>
-      <p className="nb-settings-sub">How NodeBench shows its thinking.</p>
-      <div className="nb-settings-section">
-        <SettingField label="Pace">
-          {["instant", "conversational", "deliberate"].map((item) => (
-            <button key={item} type="button" className={pace === item ? "nb-btn nb-btn-primary" : "nb-btn nb-btn-secondary"} onClick={() => setPace(item)}>
-              {item[0].toUpperCase() + item.slice(1)}
-            </button>
-          ))}
-        </SettingField>
-        <SettingField label="Texture"><button className="nb-switch" data-on={false} /></SettingField>
-        <SettingField label="Show trace"><button className="nb-switch" data-on={true} /></SettingField>
-      </div>
-    </div>
-  );
-}
-
-function DataSettings() {
-  return (
-    <div>
-      <h1 className="nb-settings-h1">Data & memory</h1>
-      <p className="nb-settings-sub">What NodeBench retains across sessions.</p>
-      <div className="nb-settings-section">
-        <SettingField label="Keep unsaved runs"><select defaultValue="30"><option value="7">7 days</option><option value="30">30 days</option><option value="forever">Keep forever</option></select></SettingField>
-        <SettingField label="Learn from saves"><button className="nb-switch" data-on={true} /></SettingField>
-        <SettingField label="Learn from dismisses"><button className="nb-switch" data-on={true} /></SettingField>
-      </div>
-    </div>
-  );
-}
-
-function IntegrationsSettings() {
-  return (
-    <div>
-      <h1 className="nb-settings-h1">Integrations</h1>
-      <p className="nb-settings-sub">Where NodeBench reaches out from - never in.</p>
-      <div className="nb-settings-section">
-        {["Slack", "Gmail", "Linear", "Notion", "Calendar"].map((name, index) => (
-          <SettingField key={name} label={name} hint={index < 2 ? "Connected" : "Not connected"}>
-            <button className={index < 2 ? "nb-btn nb-btn-secondary" : "nb-btn nb-btn-primary"} type="button">
-              {index < 2 ? "Disconnect" : "Connect"}
-            </button>
-          </SettingField>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function UsageSettings() {
-  return (
-    <div>
-      <h1 className="nb-settings-h1">Usage</h1>
-      <p className="nb-settings-sub">Current billing period. Resets monthly.</p>
-      <div className="nb-settings-section">
-        {[
-          ["Runs this month", "84 / 200"],
-          ["Saved reports", "17 / 50"],
-          ["Watched entities", "12 / 25"],
-          ["Source credits", "1,840 / 2,500"],
-        ].map(([label, value]) => (
-          <SettingField key={label} label={label}><span style={{ fontFamily: "var(--font-mono)", fontWeight: 800 }}>{value}</span></SettingField>
-        ))}
-        <button type="button" className="nb-btn nb-btn-primary">Upgrade to Team</button>
-      </div>
-    </div>
-  );
-}
-
-function SettingField({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
-  return (
-    <div className="nb-field">
-      <div className="nb-field-l">{label}{hint ? <span className="hint">{hint}</span> : null}</div>
-      <div className="nb-field-r">{children}</div>
-    </div>
-  );
-}
-
-function ExactMobileSurface({ surface }: { surface: MobileSurface }) {
-  const surfaceTestIds: Partial<Record<MobileSurface, string>> = {
-    home: "mobile-home-surface",
-    reports: "mobile-reports-surface",
-    chat: "mobile-chat-surface",
-    inbox: "mobile-inbox-surface",
-    me: "mobile-me-surface",
-  };
-  const topTitle: Record<MobileSurface, string> = {
-    home: "NodeBench",
-    reports: "Reports",
-    chat: "NodeBench Chat",
-    inbox: "Inbox",
-    me: "Me",
-  };
-  const topSubtitle: Record<MobileSurface, string> = {
-    home: "Disco Corp. - workspace",
-    reports: "ask, review, export",
-    chat: "capture to intelligence",
-    inbox: "signals and follow-ups",
-    me: "workspace settings",
-  };
-  const mobileRootTestId = surfaceTestIds[surface] ?? "mobile-home-surface";
-
-  useRoutePerformanceRecord({
-    routeId: `mobile-${surface}`,
-    surfaceId: surface,
-    rootSelector: `[data-testid="${mobileRootTestId}"]`,
-    firstActionSelector: surface === "reports" ? '[data-testid="pipeline-launcher-submit"]' : undefined,
-    dataSource: surface === "reports" ? "live_convex" : "starter",
-  });
-
-  return (
-    <div className="nb-mobile-kit">
-      <div className="m-screen" data-testid={mobileRootTestId}>
-        <header className="m-top">
-          <button className="m-icon-btn" aria-label="Menu"><MobileIcon name="thread" /></button>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div className="m-title">{topTitle[surface]}</div>
-            <div className="m-top-sub">{topSubtitle[surface]}</div>
-          </div>
-          <button className="m-icon-btn" aria-label="Notifications"><MobileIcon name="bell" /></button>
-        </header>
-
-        {surface === "home" ? <MobileHomeBody /> : null}
-        {surface === "chat" ? <MobileChatBody /> : null}
-        {surface === "reports" ? <MobileReportsBody /> : null}
-        {surface === "inbox" ? <MobileInboxBody /> : null}
-        {surface === "me" ? <MobileMeBody /> : null}
-      </div>
-    </div>
-  );
-}
-
-function MobileReportsBody() {
-  return (
-    <main className="m-body m-reports-body">
-      <MobileReportsPipelineBlock />
-      <section className="m-section m-report-cards-section" data-testid="mobile-reports-card-list">
-        <header className="m-section-head">
-          <span className="kicker">Recent reports</span>
-          <a href="/?surface=reports" role="button">All {REPORTS.length}</a>
-        </header>
-        <div className="m-report-list">
-          {REPORTS.slice(0, 5).map((report) => (
-            <a
-              key={report.id}
-              className="m-report-row"
-              data-testid="mobile-report-card"
-              href={`/?surface=packets&report=${report.id}`}
-            >
-              <span
-                className="m-report-row-avatar"
-                style={{ background: `linear-gradient(135deg, ${report.colorA}, ${report.colorB})` }}
-              >
-                {report.title[0]}
-              </span>
-              <span className="m-report-row-main">
-                <span className="m-report-row-title">{report.title}</span>
-                <span className="m-report-row-summary">{report.summary}</span>
-                <span className="m-report-row-meta">
-                  <span>{report.sources} sources</span>
-                  <span>{report.updated}</span>
-                  <span>{report.state}</span>
-                </span>
-              </span>
-              <MobileIcon name="chevron" />
-            </a>
-          ))}
-        </div>
-      </section>
-    </main>
-  );
-}
-
-function MobileReportsPipelineBlock() {
-  const [activePanel, setActivePanel] = useState<"none" | "runs" | "quality" | "refreshes">("none");
-  const evalReady = useIdleGate({ timeoutMs: 450 });
-  const panels = [
-    { id: "runs", label: "Runs" },
-    { id: "quality", label: "Quality" },
-    { id: "refreshes", label: "Refreshes" },
-  ] as const;
-
-  return (
-    <section
-      className="m-pipeline-block m-pipeline-block-minimal"
-      data-testid="mobile-reports-pipeline-block"
-      aria-label="Mobile research runtime"
-    >
-      <div data-testid="reports-pipeline-launcher-slot">
-        <PipelineLauncher variant="compact" />
-      </div>
-      <div className="m-report-runtime-bar">
-        <span>Background safe.</span>
-        <div className="m-report-runtime-actions" role="tablist" aria-label="Research activity">
-          {panels.map((panel) => (
-            <button
-              key={panel.id}
-              type="button"
-              role="tab"
-              data-active={activePanel === panel.id}
-              aria-selected={activePanel === panel.id}
-              onClick={() => setActivePanel((current) => (current === panel.id ? "none" : panel.id))}
-            >
-              {panel.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="m-pipeline-stack">
-        {activePanel === "runs" ? (
-          <div data-testid="reports-pipelines-panel-slot">
-            <PipelineRunsPanel initialVisibleCount={4} queryLimit={12} windowStep={4} />
-          </div>
-        ) : null}
-        {activePanel === "quality" ? (
-          <div data-testid="reports-pipeline-eval-slot">
-            {evalReady ? <PipelineEvalScorecard /> : <DeferredReportsPanel label="Research quality" />}
-          </div>
-        ) : null}
-        {activePanel === "refreshes" ? (
-          <div data-testid="reports-pipeline-schedules-slot">
-            <PipelineSchedulesPanel initialVisibleCount={3} queryLimit={10} windowStep={3} />
-          </div>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-function MobileHomeBody() {
-  const navigate = useNavigate();
-  const api = useConvexApi();
-  const [mobileQuery, setMobileQuery] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const mobileVoice = useVoiceInput({
-    mode: "browser",
-    continuous: false,
-    onTranscript: (text) => {
-      if (text.trim()) setMobileQuery(text);
-    },
-    onEnd: (finalText) => {
-      if (finalText.trim()) setMobileQuery(finalText);
-    },
-  });
-  const mobileVoiceActive = mobileVoice.isListening || mobileVoice.isTranscribing;
-  const startPipelineRun = useMutation(
-    generatedApi.domains.pipelines.pipelineWorkflow.startPipelineRun,
-  );
-  const anonymousSessionId = useMemo(() => getAnonymousProductSessionId(), []);
-  const latestPublicResearch = useQuery(
-    (api as any)?.domains?.publicResearch?.core?.listLatestPublicEntityResearch ?? "skip",
-    (api as any)?.domains?.publicResearch?.core?.listLatestPublicEntityResearch
-      ? { limit: 5 }
-      : "skip",
-  ) as PublicResearchHomeRow[] | undefined;
-  const mobileCards = getFirstImpressionCards("today");
-  const runMobileBackground = async (prompt = mobileQuery, title?: string) => {
-    if (submitting) return;
-    const request = createBackgroundResearchRequest({
-      query: prompt,
-      fallbackPrompt: mobileCards[0]?.prompt ?? PROMPT_CARDS[0].prompt,
-      title,
-      ownerKey: anonymousSessionId ? `session:${anonymousSessionId}` : undefined,
-    });
-    setSubmitting(true);
-    setFeedback(null);
-    try {
-      await startPipelineRun(request);
-      setMobileQuery(request.spec);
-      setFeedback("Research started. Safe to lock your phone; the report will appear under Reports.");
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : String(error));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <main className="m-body">
-      <div className="m-home-greet">
-        <h2>Need the read before you walk in?</h2>
-        <p>Start a server-side research run, lock your phone, and come back to sources, notes, and exports.</p>
-      </div>
-      <div className="m-search" data-testid="mobile-home-async-run">
-        <MobileIcon name="search" />
-        <input
-          placeholder="Search entities..."
-          value={mobileQuery}
-          onChange={(event) => setMobileQuery(event.target.value)}
-        />
-        <button
-          type="button"
-          aria-label={mobileVoiceActive ? "Stop voice input" : `Voice input using ${mobileVoice.mode} mode`}
-          aria-pressed={mobileVoiceActive}
-          title={mobileVoiceActive ? "Stop voice input" : `Voice input (${mobileVoice.mode})`}
-          onClick={mobileVoice.toggle}
-          data-state={mobileVoiceActive ? "active" : "inactive"}
-          className="m-voice-button"
-        >
-          <Mic size={16} />
-        </button>
-        <button type="button" onClick={() => void runMobileBackground()} disabled={submitting}>
-          {submitting ? "Running" : "Run"}
-        </button>
-      </div>
-      {mobileVoiceActive || mobileVoice.error ? (
-        <div className="m-run-feedback" role={mobileVoice.error ? "alert" : "status"} aria-live="polite">
-          {mobileVoice.error ? mobileVoice.error : mobileVoice.isTranscribing ? "Transcribing voice input..." : "Listening for voice input..."}
-        </div>
-      ) : null}
-      <div className="m-offline-proof">
-        <span>keeps working</span>
-        <span>safe to leave</span>
-        <span>export-ready</span>
-      </div>
-      <div
-        style={{
-          background: "var(--bg-surface)",
-          border: "1px solid var(--border-default)",
-          borderRadius: 18,
-          boxShadow: "var(--shadow-sm)",
-          display: "grid",
-          gap: 10,
-          padding: 14,
-        }}
-      >
-        <div style={{ alignItems: "center", display: "flex", gap: 8 }}>
-          <Link2 size={15} />
-          <strong style={{ color: "var(--text-primary)", fontSize: 14 }}>Research first, link after value.</strong>
-        </div>
-        <p style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.5, margin: 0 }}>
-          Public dossiers work without sign-in. Link NodeBench when you want saved history, higher limits, and team controls.
-        </p>
-        <button
-          type="button"
-          onClick={() => navigate("/settings?tab=connections")}
-          style={{
-            alignItems: "center",
-            background: "var(--accent-primary)",
-            border: 0,
-            borderRadius: 10,
-            color: "#fff",
-            display: "inline-flex",
-            fontSize: 12.5,
-            fontWeight: 700,
-            justifyContent: "center",
-            minHeight: 36,
-            padding: "0 16px",
-          }}
-        >
-          Link when ready
-        </button>
-      </div>
-      {feedback ? <div className="m-run-feedback" role="status">{feedback}</div> : null}
-      {(latestPublicResearch?.length ?? 0) > 0 ? (
-        <section className="m-section" data-testid="mobile-latest-public-research">
-          <header className="m-section-head">
-            <span className="kicker">Latest public research</span>
-            <a href="/?surface=reports">Public memory</a>
-          </header>
-          <div className="m-public-memory-stack">
-            {latestPublicResearch?.slice(0, 3).map((item) => (
-              <button
-                key={item.entityKey}
-                type="button"
-                className="m-public-memory-card"
-                onClick={() => navigate(buildCockpitPath({
-                  surfaceId: "workspace",
-                  extra: { q: `Open public dossier for ${item.entityName}`, lane: "answer" },
-                }))}
-              >
-                <div>
-                  <strong>{item.entityName}</strong>
-                  <small>{item.entityType} - {item.status.replace(/_/g, " ")} - {formatRelativeWhen(item.updatedAt)}</small>
-                </div>
-                <p>{item.summary || "Verified public claims appear as sources are extracted."}</p>
-                <span>{item.claimCount} claims - {item.sourceCount} sources</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      ) : null}
-      <section className="m-section" data-testid="mobile-home-first-impression">
-        <header className="m-section-head"><span className="kicker">Use cases today</span><a href="/?surface=reports">Reports</a></header>
-        <div className="m-scenario-stack">
-          {mobileCards.slice(0, 1).map((card) => (
-            <div key={card.id} className="m-scenario-card">
-              <div className="m-scenario-top"><span>{card.audience}</span><span>{card.exportTargets[0]}</span></div>
-              <div className="m-scenario-title">{card.title}</div>
-              <p>{card.proofPoints.join(" - ")}</p>
-              <button type="button" onClick={() => void runMobileBackground(card.prompt, card.title)} disabled={submitting}>
-                Run research
-              </button>
-            </div>
-          ))}
-          <details className="m-scenario-more">
-            <summary>More example workflows</summary>
-            {mobileCards.slice(1).map((card) => (
-              <button
-                key={card.id}
-                type="button"
-                onClick={() => void runMobileBackground(card.prompt, card.title)}
-                disabled={submitting}
-              >
-                <span>{card.audience}</span>
-                {card.title}
-              </button>
-            ))}
-          </details>
-        </div>
-      </section>
-      <section className="m-section">
-        <header className="m-section-head"><span className="kicker">Today</span><a href="/?surface=inbox" role="button">All 5</a></header>
-        <div className="m-nudges">
-          {INBOX_SEED.slice(0, 1).map((item) => {
-            const Icon = item.icon;
-            return (
-              <div key={item.id} className="m-nudge">
-                <div className="m-nudge-icon"><Icon size={14} /></div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="m-nudge-title">{item.title}</div>
-                  <div className="m-nudge-meta"><span>{item.entity}</span><span>{item.when}</span></div>
-                </div>
-                <MobileIcon name="chevron" />
-              </div>
-            );
-          })}
-        </div>
-      </section>
-      <details className="m-section m-mobile-more">
-        <summary><span>Watchlist</span><small>4 tracked</small></summary>
-        <div className="m-watch">
-          {WATCHLIST.map((item) => (
-            <div key={item.id} className="m-watch-tile">
-              <div className="m-watch-tile-head">
-                <div className="m-watch-tile-avatar" style={{ background: item.avatar }}>{item.initials}</div>
-                <div className="m-watch-tile-name">{item.name}</div>
-                <div className="m-watch-tile-ticker">{item.ticker}</div>
-              </div>
-              <div className="m-watch-tile-val"><strong>{item.value}</strong><span className="delta" data-trend={item.trend}>{item.delta}</span></div>
-              <div className="m-watch-tile-meta">{item.meta}</div>
-            </div>
-          ))}
-        </div>
-      </details>
-      <section className="m-section">
-        <details className="m-mobile-more">
-          <summary><span>Recent threads</span><small>3 saved</small></summary>
-          <div className="m-threads">
-            {THREADS.map((thread) => (
-              <div key={thread.id} className="m-thread">
-                <div className="m-thread-icon"><MobileIcon name="chat" size={14} /></div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="m-thread-title">{thread.title}</div>
-                  <div className="m-thread-meta">{thread.meta}</div>
-                </div>
-                <MobileIcon name="chevron" />
-              </div>
-            ))}
-          </div>
-        </details>
-      </section>
-    </main>
-  );
-}
-
-function MobileChatBody() {
-  return (
-    <main className="m-body m-chat-body">
-      <div className="m-chat-query">
-        <div className="m-chat-query-u">HS</div>
-        <div className="m-chat-query-t">Is DISCO worth reaching out to this week?</div>
-      </div>
-      <div className="m-chat-runbar">
-        <span className="pill pill-ok">verified</span>
-        <span className="pill pill-ok">24 sources</span>
-        <span className="pill pill-neutral">saved context</span>
-      </div>
-      <h1 className="m-chat-title">Reach out, but verify the EU compliance claim first.</h1>
-      <p className="m-chat-p">DISCO now looks more actionable because its newest source directly addresses a risk already flagged in the saved diligence report.</p>
-      <div className="m-chat-callout">
-        <div className="m-chat-callout-head"><Sparkles size={12} /> So what</div>
-        <p>The next best action is not a generic intro. Verify the claim, then send a tight reply around regulated EU expansion.</p>
-      </div>
-      <details className="m-chat-evidence">
-        <summary>
-          <span>Evidence</span>
-          <small>3 entities - 24 sources</small>
-        </summary>
-        <div className="m-strip-head"><span className="kicker">Entities</span><a href="/?surface=reports">Open entity cards</a></div>
-        <div className="m-strip">
-          {WATCHLIST.slice(0, 3).map((item) => (
-            <div key={item.id} className="m-card">
-              <div className="m-card-head">
-                <div className="m-card-avatar" style={{ background: item.avatar }}>{item.initials}</div>
-                <div><div className="m-card-name">{item.name}</div><div className="m-card-sub">{item.meta}</div></div>
-              </div>
-              <div className="m-card-metrics">
-                <div><div className="m-card-metric-l">Signal</div><div className="m-card-metric-v" data-trend={item.trend}>{item.value}</div></div>
-                <div><div className="m-card-metric-l">Delta</div><div className="m-card-metric-v" data-trend={item.trend}>{item.delta}</div></div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="m-strip-head"><span className="kicker">Top sources</span><a href="/?surface=reports">View source list</a></div>
-        {["Security page", "Saved report", "Launch note"].map((source, index) => (
-          <div key={source} className="m-src-row">
-            <MobileIcon name="source" />
-            <div style={{ flex: 1 }}>
-              <div className="m-src-title">{source}</div>
-              <div className="m-src-meta"><span>source {index + 1}</span><span>medium confidence</span></div>
-            </div>
-          </div>
-        ))}
-      </details>
-      <div className="m-followups">
-        <span className="kicker">Next</span>
-        {["Verify", "Open card", "Draft reply"].map((item) => <button key={item} className="m-followup">{item}</button>)}
-      </div>
-      <div className="m-composer-dock">
-        <input placeholder="Ask a follow-up..." />
-        <button className="m-composer-send" aria-label="Send"><MobileIcon name="send" /></button>
-      </div>
-    </main>
-  );
-}
-
-function MobileBriefBody({ embedded = false }: { embedded?: boolean }) {
-  return (
-    <main className={embedded ? "m-brief-body" : "m-body m-brief-body"}>
-      <div className="m-brief-kicker"><span className="pill pill-accent">Brief</span><span className="pill pill-ok">Verified</span></div>
-      <h1 className="m-brief-title">DISCO diligence debrief</h1>
-      <p className="m-brief-sub">A concise read on why this company matters now, what changed, and what to do next.</p>
-      <div className="m-brief-meta">
-        <span className="pill pill-neutral">24 sources</span>
-        <span className="pill pill-neutral">6 entities</span>
-        <span className="pill pill-warn">2 claims to verify</span>
-      </div>
-      <section className="m-verdict">
-        <span className="kicker">Verdict</span>
-        <h2>Reach out after verification.</h2>
-        <p>The compliance update removes one concern, but the funding and customer claims still need public evidence before the report becomes canonical.</p>
-      </section>
-      <div className="m-stats">
-        <div className="m-stat"><div className="m-stat-v" data-trend="up">84</div><div className="m-stat-l">Signal score</div></div>
-        <div className="m-stat"><div className="m-stat-v">24</div><div className="m-stat-l">Sources</div></div>
-      </div>
-      <div className="m-triad">
-        <div className="m-triad-card"><span className="kicker">What</span><h3>Legal AI workflow company</h3><p>Strongest signal is regulated workflow expansion.</p></div>
-        <div className="m-triad-card"><span className="kicker">So what</span><h3>Risk posture changed</h3><p>The latest source may flip a prior review flag.</p></div>
-        <div className="m-triad-card"><span className="kicker">Now what</span><h3>Verify, then follow up</h3><p>Keep the field-note claims separate until evidence lands.</p></div>
-      </div>
-      <h3 className="m-h3"><Clock3 size={14} /> Timeline</h3>
-      {["Today", "Yesterday", "Nov 14"].map((date) => (
-        <div key={date} className="m-timeline-row">
-          <div className="m-timeline-date">{date}</div>
-          <div><div className="m-timeline-t">Signal added</div><div className="m-timeline-m">Claim attached to report and routed to verification.</div></div>
-        </div>
-      ))}
-    </main>
-  );
-}
-
-function MobileSourcesBody({ embedded = false }: { embedded?: boolean }) {
-  return (
-    <main className={embedded ? "m-src-body" : "m-body m-src-body"}>
-      <div className="m-src-head">
-        <span className="kicker">Sources</span>
-        <h2>Claims and evidence</h2>
-      </div>
-      {["SOC2 EU scope is available", "Hiring spike implies infra investment", "Customer claim needs verification"].map((claim, index) => (
-        <div key={claim} className="m-claim">
-          <div className="m-claim-q">{claim}</div>
-          <div className="m-claim-status">
-            <span className={index === 2 ? "pill pill-warn" : "pill pill-ok"}>{index === 2 ? "needs review" : "verified"}</span>
-            <span className="pill pill-neutral">{index + 2} sources</span>
-          </div>
-        </div>
-      ))}
-    </main>
-  );
-}
-
-function MobileNotebookBody({ embedded = false }: { embedded?: boolean }) {
-  return (
-    <main className={embedded ? "m-notebook-body" : "m-body m-notebook-body"}>
-      <h1 className="m-notebook-title">DISCO memo</h1>
-      <div className="m-notebook-meta"><span className="pill pill-accent">living note</span><span className="pill pill-neutral">auto-saved</span></div>
-      <p className="m-notebook-p">The strongest signal is that DISCO's compliance movement is directly connected to a previously identified blocker.</p>
-      <h2 className="m-notebook-h2">Next paragraph</h2>
-      <p className="m-notebook-p">Keep the reach-out short. Mention the EU compliance update, ask for scope details, and verify whether the launch changes customer readiness.</p>
-      <div className="m-notebook-proposal">
-        <span className="kicker">Agent proposal</span>
-        <div className="m-notebook-proposal-note">Insert a verification checklist before the follow-up draft.</div>
-      </div>
-    </main>
-  );
-}
-
-function MobileInboxBody() {
-  const [filter, setFilter] = useState("all");
-  const visible = filter === "all" ? INBOX_SEED : INBOX_SEED.filter((item) => item.priority === filter);
-  const filters = [
-    ["all", "All 5"],
-    ["act", "Mentions 2"],
-    ["auto", "Signals 2"],
-    ["watch", "Tasks 1"],
-  ];
-  return (
-    <main className="m-body">
-      <div className="m-inbox-tabs">
-        {filters.map(([tab, label]) => (
-          <button key={tab} className="m-inbox-tab" data-active={filter === tab} onClick={() => setFilter(tab)}>
-            {label}
-          </button>
-        ))}
-      </div>
-      <section className="m-inbox-section">
-        <div className="m-inbox-section-head">Today</div>
-        <div className="m-inbox-list">
-          {visible.map((item) => (
-            <button key={item.id} type="button" className="m-inbox-row" data-unread={item.priority === "act"}>
-              <div className="m-inbox-row-avatar" style={{ background: item.priority === "act" ? "#d97757" : "#5e6ad2" }}>{item.entity[0]}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="m-inbox-row-title">{item.title}</div>
-                <div className="m-inbox-row-snippet">{item.body}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
-    </main>
-  );
-}
-
-function MobileMeBody() {
-  return (
-    <main className="m-body">
-      <section className="m-me-identity">
-        <div className="m-me-avatar" style={{ background: "linear-gradient(135deg,#D97757,#5E6AD2)" }}>HS</div>
-        <div className="m-me-identity-main">
-          <div className="m-me-name">Homen Shum</div>
-          <div className="m-me-email">homen@nodebench.ai</div>
-        </div>
-        <button className="m-me-edit">Edit</button>
-      </section>
-      <section className="m-me-stats">
-        {[
-          ["17", "Threads"],
-          ["12", "Reports"],
-          ["84", "Runs"],
-          ["2.4k", "Sources"],
-        ].map(([value, label]) => (
-          <div key={label} className="m-me-stat"><div className="m-me-stat-v">{value}</div><div className="m-me-stat-l">{label}</div></div>
-        ))}
-      </section>
-      <section className="m-me-section">
-        <div className="m-me-section-head">Workspaces</div>
-        <div className="m-me-ws-list">
-          {REPORTS.slice(0, 4).map((report) => (
-            <button key={report.id} type="button" className="m-me-ws-row">
-              <div className="m-me-ws-avatar" style={{ background: report.colorA }}>{report.title[0]}</div>
-              <div style={{ flex: 1, minWidth: 0 }}><div className="m-me-ws-name">{report.title}</div><div className="m-me-ws-meta">{report.sources} sources</div></div>
-            </button>
-          ))}
-        </div>
-      </section>
-      <section className="m-me-section">
-        <div className="m-me-section-head">Quick settings</div>
-        <button type="button" className="m-me-setting-row">
-          <div className="m-me-setting-icon"><MobileIcon name="thread" /></div>
-          <div style={{ flex: 1 }}><div className="m-me-setting-label">Starred threads</div><div className="m-me-setting-value">Pinned for quick access</div></div>
-        </button>
-        {["Evidence mode", "Files", "Credits", "Integrations"].map((item) => (
-          <button key={item} type="button" className="m-me-setting-row">
-            <div className="m-me-setting-icon"><MobileIcon name="settings" /></div>
-            <div style={{ flex: 1 }}><div className="m-me-setting-label">{item}</div><div className="m-me-setting-value">Configured</div></div>
-          </button>
-        ))}
-      </section>
-    </main>
-  );
-}
-
-export function ExactWorkspaceKitPage() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const workspaceId = useMemo(() => getWorkspaceId(location.pathname), [location.pathname]);
-  const activeTab = getWorkspaceTab(searchParams.get("tab"));
-  const [thread, setThread] = useState("t1");
-  const [rootEntity, setRootEntity] = useState("disco");
-  const [selectedCard, setSelectedCard] = useState<string | null>("everlaw");
-  const [sourceFilter, setSourceFilter] = useState("all");
-  const [expandedClaim, setExpandedClaim] = useState<string | null>("c1");
-  const setTab = (tab: WorkspaceTab) => navigate(buildLocalWorkspacePath({ workspaceId, tab }), { replace: true });
-  const inspector = activeTab === "cards" && selectedCard ? (
-    <WorkspaceCardInspector
-      cardId={selectedCard}
-      onClose={() => setSelectedCard(null)}
-      onDrill={(id) => {
-        setRootEntity(id);
-        setSelectedCard(null);
-      }}
-    />
-  ) : null;
-
-  return (
-    <div className="ws-kit" data-testid="exact-workspace-page">
-      <WorkspaceShell
-        activeTab={activeTab}
-        onTabChange={setTab}
-        workspaceId={workspaceId}
-        entityMeta={activeTab === "chat" ? `workspace - ${WORKSPACE_THREADS_EXACT.find((item) => item.id === thread)?.meta ?? "2h - 24 src"}` : "workspace - diligence - v3 - 2h ago"}
-        inspector={inspector}
-      >
-        {activeTab === "chat" ? <WorkspaceChatSurface thread={thread} setThread={setThread} onTabChange={setTab} /> : null}
-        {activeTab === "brief" ? <WorkspaceBriefSurface onJump={setTab} /> : null}
-        {activeTab === "cards" ? (
-          <WorkspaceCardsSurface
-            rootId={rootEntity}
-            setRootId={setRootEntity}
-            selectedCard={selectedCard}
-            setSelectedCard={setSelectedCard}
-          />
-        ) : null}
-        {activeTab === "notebook" ? <WorkspaceNotebookSurface /> : null}
-        {activeTab === "sources" ? (
-          <WorkspaceSourcesSurface
-            filter={sourceFilter}
-            setFilter={setSourceFilter}
-            expandedClaim={expandedClaim}
-            setExpandedClaim={setExpandedClaim}
-          />
-        ) : null}
-        {activeTab === "map" ? <WorkspaceMapSurface onTabChange={setTab} /> : null}
-      </WorkspaceShell>
-    </div>
-  );
-}
-
-const WORKSPACE_THREADS_EXACT = [
-  { id: "t1", title: "DISCO - worth reaching out?", meta: "2h - 24 src", query: "DISCO - worth reaching out? Fastest debrief." },
-  { id: "t2", title: "Mercor - hiring velocity", meta: "1d - 18 src", query: "Mercor - hiring velocity the past 90 days. Break it down." },
-  { id: "t3", title: "Everlaw - head-to-head", meta: "2d - 11 src", query: "Everlaw vs DISCO on AmLaw 100 coverage and blended ARPU." },
-  { id: "t4", title: "Turing - contract YoY", meta: "1w - 12 src", query: "Turing - contract revenue YoY. Any concentration risk?" },
-  { id: "t5", title: "EU AI Act - legal tech", meta: "2w - 9 src", query: "How will the EU AI Act hit legal tech operators in 2026?" },
-];
-
-const WORKSPACE_ENTITIES_EXACT: Record<string, {
-  id: string;
-  name: string;
-  kind: string;
-  kicker: string;
-  avatar: string;
-  avatarBg: string;
-  subtitle: string;
-  ticker?: string;
-  metrics: Array<{ label: string; value: string; trend?: "up" | "down" }>;
-  footer?: string;
-}> = {
-  disco: {
-    id: "disco",
-    name: "DISCO",
-    kind: "company",
-    kicker: "root",
-    avatar: "DI",
-    avatarBg: "linear-gradient(135deg,#1A365D,#0F4C81)",
-    subtitle: "legal tech - series c",
-    ticker: "LAW",
-    metrics: [
-      { label: "ARR", value: "$186M", trend: "up" },
-      { label: "Growth", value: "2.8x", trend: "up" },
-      { label: "NRR", value: "122%", trend: "up" },
-      { label: "GM", value: "78%" },
-    ],
-    footer: "refreshed 2h ago - 24 sources",
-  },
-  everlaw: {
-    id: "everlaw",
-    name: "Everlaw",
-    kind: "company",
-    kicker: "competitor",
-    avatar: "EV",
-    avatarBg: "linear-gradient(135deg,#7A3A1F,#C76648)",
-    subtitle: "legal tech - competitor",
-    metrics: [
-      { label: "ARR", value: "$140M", trend: "up" },
-      { label: "Growth", value: "1.9x" },
-      { label: "NRR", value: "108%" },
-      { label: "Pricing", value: "-18%", trend: "down" },
-    ],
-    footer: "midmarket wedge",
-  },
-  greylock: {
-    id: "greylock",
-    name: "Greylock",
-    kind: "investor",
-    kicker: "investor",
-    avatar: "G",
-    avatarBg: "linear-gradient(135deg,#6B3BA3,#8B5CC1)",
-    subtitle: "investor - lead",
-    metrics: [
-      { label: "Round", value: "$100M" },
-      { label: "Board", value: "Grayson" },
-      { label: "Portfolio", value: "3 in legal" },
-      { label: "Since", value: "2025" },
-    ],
-    footer: "platform bets",
-  },
-  "legal-tech": {
-    id: "legal-tech",
-    name: "Legal tech market",
-    kind: "market",
-    kicker: "market",
-    avatar: "M",
-    avatarBg: "linear-gradient(135deg,#C77826,#E09149)",
-    subtitle: "market - AmLaw 100",
-    metrics: [
-      { label: "TAM", value: "$22B", trend: "up" },
-      { label: "Growth", value: "1.4x" },
-      { label: "Players", value: "41" },
-      { label: "AI Act", value: "Feb 26" },
-    ],
-  },
-  "eu-ai-act": {
-    id: "eu-ai-act",
-    name: "EU AI Act",
-    kind: "regulation",
-    kicker: "regulation",
-    avatar: "EU",
-    avatarBg: "linear-gradient(135deg,#0E7A5C,#16A37E)",
-    subtitle: "regulation - GPAI",
-    metrics: [
-      { label: "Enforce", value: "Feb 2026" },
-      { label: "Tax", value: "6-9 mo" },
-      { label: "Scope", value: "GPAI" },
-      { label: "Penalty", value: "7% rev" },
-    ],
-  },
-  "kiwi-camara": {
-    id: "kiwi-camara",
-    name: "Kiwi Camara",
-    kind: "person",
-    kicker: "person",
-    avatar: "KC",
-    avatarBg: "linear-gradient(135deg,#334155,#475569)",
-    subtitle: "person - CEO / founder",
-    metrics: [
-      { label: "Tenure", value: "13 yr" },
-      { label: "Prior", value: "Harvard L" },
-      { label: "Ownership", value: "14%" },
-      { label: "Replies", value: "rare" },
-    ],
-  },
-  relativity: {
-    id: "relativity",
-    name: "Relativity",
-    kind: "company",
-    kicker: "incumbent",
-    avatar: "R",
-    avatarBg: "linear-gradient(135deg,#334155,#475569)",
-    subtitle: "incumbent - eDiscovery",
-    metrics: [
-      { label: "ARR", value: "$320M" },
-      { label: "Growth", value: "1.2x", trend: "down" },
-      { label: "Share", value: "38%" },
-      { label: "AI tier", value: "late" },
-    ],
-  },
-  opus2: {
-    id: "opus2",
-    name: "Opus 2",
-    kind: "company",
-    kicker: "adjacent",
-    avatar: "O2",
-    avatarBg: "linear-gradient(135deg,#1A365D,#0F4C81)",
-    subtitle: "legal - case mgmt",
-    metrics: [
-      { label: "ARR", value: "$42M" },
-      { label: "Growth", value: "2.1x", trend: "up" },
-      { label: "Region", value: "UK/EU" },
-      { label: "Funding", value: "B" },
-    ],
-  },
-  "sarah-grayson": {
-    id: "sarah-grayson",
-    name: "Sarah Grayson",
-    kind: "person",
-    kicker: "investor-person",
-    avatar: "SG",
-    avatarBg: "linear-gradient(135deg,#6B3BA3,#8B5CC1)",
-    subtitle: "person - GP Greylock",
-    metrics: [
-      { label: "Boards", value: "7" },
-      { label: "Legal co.", value: "2" },
-      { label: "Since", value: "2019" },
-      { label: "Check", value: "$50-200M" },
-    ],
-  },
-};
-
-const WORKSPACE_RELATIONS_EXACT: Record<string, string[]> = {
-  disco: ["legal-tech", "greylock", "kiwi-camara", "eu-ai-act", "everlaw"],
-  everlaw: ["relativity", "opus2", "sarah-grayson"],
-  greylock: ["sarah-grayson", "kiwi-camara"],
-  "legal-tech": ["disco", "everlaw", "relativity", "opus2", "eu-ai-act"],
-  "eu-ai-act": ["disco", "everlaw", "legal-tech"],
-  "kiwi-camara": ["disco"],
-  relativity: ["legal-tech"],
-  opus2: ["legal-tech"],
-  "sarah-grayson": ["greylock", "disco"],
-};
-
-const WORKSPACE_SOURCES_EXACT = [
-  { n: 1, title: "DISCO closes $100M Series C, Greylock leads", domain: "techcrunch.com", date: "Nov 14 2025", type: "press", cites: 4, weight: 0.9 },
-  { n: 2, title: "Legal tech market overview 2025", domain: "gartner.com", date: "Oct 2025", type: "analyst", cites: 3, weight: 0.95 },
-  { n: 3, title: "EU AI Act enforcement timeline", domain: "euractiv.com", date: "Feb 2026", type: "reg", cites: 2, weight: 0.92 },
-  { n: 4, title: "DISCO Q3 2025 IR filing", domain: "sec.gov", date: "Sep 30 2025", type: "filing", cites: 6, weight: 1 },
-  { n: 5, title: "DISCO press room - Series C", domain: "press.disco.com", date: "Nov 14 2025", type: "pr", cites: 2, weight: 0.6 },
-  { n: 6, title: "Everlaw pricing moves in 2026", domain: "lawtech.com", date: "Mar 18 2026", type: "analyst", cites: 3, weight: 0.72 },
-  { n: 7, title: "Greylock fund notes", domain: "greylock.com", date: "Nov 2025", type: "pr", cites: 2, weight: 0.7 },
-  { n: 8, title: "AmLaw 100 firm list 2026", domain: "amlaw.com", date: "Jan 2026", type: "analyst", cites: 1, weight: 0.88 },
-];
-
-const WORKSPACE_CLAIMS_EXACT = [
-  { id: "c1", q: "Series C led by Greylock at $900M post", support: [1, 5, 4], contra: [] as number[] },
-  { id: "c2", q: "ARR $186M in Q3 2025", support: [4, 2], contra: [] as number[] },
-  { id: "c3", q: "NRR 122% over the trailing four quarters", support: [4, 2], contra: [6] },
-  { id: "c4", q: "Serves six of AmLaw 10", support: [4, 8, 2], contra: [] as number[] },
-  { id: "c5", q: "EU AI Act enforcement begins Feb 2026 for GPAI", support: [3, 2], contra: [] as number[] },
-  { id: "c6", q: "Everlaw midmarket pricing cut 18%", support: [6], contra: [] as number[] },
-];
-
-const WORKSPACE_ANSWERS_EXACT: Record<string, {
-  verdict: string;
-  recommendation: string;
-  topCards: string[];
-  topSourceIds: number[];
-  followups: string[];
-}> = {
-  t1: {
-    verdict: "Yes - worth reaching out. DISCO is compounding above the legal-tech median.",
-    recommendation: "Reach out this quarter. Lead with AmLaw traction and the Greylock signal; ask how they plan to absorb the AI Act compliance load without raising effective price.",
-    topCards: ["disco", "everlaw", "greylock"],
-    topSourceIds: [1, 2, 3, 4],
-    followups: ["Compare with Everlaw head-to-head", "Draft a cold intro to Kiwi Camara", "Board composition post-Series C", "Re-run in 30 days if NRR dips"],
-  },
-  t2: {
-    verdict: "Hiring ramp tripled in Q1 2026 - healthy but watch burn.",
-    recommendation: "Monitor quarterly. Revisit if burn exceeds $25M/month or ARR growth falls below 3x by mid-2026.",
-    topCards: ["disco", "everlaw", "greylock"],
-    topSourceIds: [1, 4, 2],
-    followups: ["Who are they hiring from?", "GTM leadership map", "Peer burn comparison"],
-  },
-  t3: {
-    verdict: "Everlaw is gaining midmarket share; losing ground in AmLaw 50.",
-    recommendation: "DISCO has the stronger top-of-market story; Everlaw is winning on price below the AmLaw 100 line.",
-    topCards: ["everlaw", "disco", "legal-tech"],
-    topSourceIds: [6, 4, 2, 8],
-    followups: ["Win-rate by firm tier", "Upmarket expansion plan", "Buy vs partner thesis"],
-  },
-  t4: {
-    verdict: "Contract revenue flat YoY, concentration rising.",
-    recommendation: "Flag for diligence call. Ask about renewal terms on the top five and customer concentration risk.",
-    topCards: ["disco", "legal-tech", "greylock"],
-    topSourceIds: [4, 2],
-    followups: ["Who are the top five?", "Renewal dates", "Net new logos 2026"],
-  },
-  t5: {
-    verdict: "Enforcement begins Feb 2026; expect a 6-9 month adjustment for GPAI users.",
-    recommendation: "Ask every legal-tech target for its AI Act readiness doc. If they cannot produce one, that is the conversation.",
-    topCards: ["legal-tech", "eu-ai-act", "disco"],
-    topSourceIds: [3, 2],
-    followups: ["Who is ready?", "Penalty exposure", "Compare with US state laws"],
-  },
-};
-
-function WorkspaceShell({
-  activeTab,
-  onTabChange,
-  workspaceId,
-  entityMeta,
-  inspector,
-  children,
-}: {
-  activeTab: WorkspaceTab;
-  onTabChange: (tab: WorkspaceTab) => void;
-  workspaceId: string;
-  entityMeta: string;
-  inspector?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className="ws-shell" data-workspace-id={workspaceId}>
-      <header className="ws-header">
-        <button type="button" className="ws-brand" aria-label="NodeBench workspace home">
-          <span className="ws-logo">N</span>
-          <span>NodeBench <em>AI</em></span>
-        </button>
-        <button type="button" className="ws-entity" aria-label="Current workspace entity">
-          <span className="ws-entity-avatar">DI</span>
-          <span className="ws-entity-name">DISCO</span>
-          <span className="ws-entity-meta">{entityMeta}</span>
-        </button>
-        <nav className="ws-tabs" aria-label="Workspace tabs">
-          {WORKSPACE_TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button key={tab.id} type="button" className="ws-tab" data-active={activeTab === tab.id} onClick={() => onTabChange(tab.id)}>
-                <Icon size={13} />
-                {tab.label}
-                {tab.count ? <span className="ws-tab-count">{tab.count}</span> : null}
-              </button>
-            );
-          })}
-        </nav>
-        <div className="ws-header-actions">
-          <button className="ws-icon-btn" type="button" aria-label="Share workspace"><Share2 size={14} /></button>
-          <button className="ws-icon-btn" type="button" aria-label="History"><Clock3 size={14} /></button>
-          <button className="ws-icon-btn" type="button" aria-label="More"><MoreHorizontal size={15} /></button>
-          <button className="ws-icon-btn" type="button" aria-label="Search"><Search size={14} /></button>
-        </div>
-      </header>
-      <div className="ws-body" data-has-inspector={Boolean(inspector)}>
-        <main className="ws-main">{children}</main>
-        {inspector ? <aside className="ws-inspector">{inspector}</aside> : null}
-      </div>
-    </div>
-  );
-}
-
-function WorkspacePill({ tone = "neutral", children }: { tone?: "neutral" | "accent" | "ok" | "warn" | "indigo"; children: ReactNode }) {
-  return <span className={`pill pill-${tone}`}>{children}</span>;
-}
-
-function WorkspaceEntityChip({ name, code, type = "company" }: { name: string; code: string; type?: string }) {
-  const colorClass = type === "market" ? "ent-chip-dot--amber" : type === "investor" ? "ent-chip-dot--purple" : type === "regulation" ? "ent-chip-dot--green" : "";
-  return (
-    <button type="button" className="ent-chip">
-      <span className={`ent-chip-dot ${colorClass}`}>{code}</span>
-      {name}
-    </button>
-  );
-}
-
-function WorkspaceCite({ n, onClick }: { n: number; onClick?: () => void }) {
-  return (
-    <button type="button" className="cite" onClick={onClick} aria-label={`Open source ${n}`}>
-      {n}
-    </button>
-  );
-}
-
-function WorkspaceCompanyCard({
-  entity,
-  active = false,
-  onClick,
-}: {
-  entity: (typeof WORKSPACE_ENTITIES_EXACT)[string];
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button type="button" className="cc" data-active={active} onClick={onClick}>
-      <span className="cc-header">
-        <span className="cc-avatar" style={{ background: entity.avatarBg }}>{entity.avatar}</span>
-        <span className="cc-main">
-          <span className="cc-title">{entity.name}</span>
-          <span className="cc-subtitle">{entity.subtitle}</span>
-        </span>
-        <span className="cc-kicker">{entity.kicker}</span>
-      </span>
-      <span className="cc-metrics">
-        {entity.metrics.map((metric) => (
-          <span key={`${entity.id}-${metric.label}`} className="cc-metric">
-            <span className="cc-metric-label">{metric.label}</span>
-            <span className="cc-metric-val" data-trend={metric.trend}>{metric.value}</span>
-          </span>
-        ))}
-      </span>
-      {entity.footer ? <span className="cc-footer"><Clock3 size={10} /> {entity.footer}</span> : null}
-    </button>
-  );
-}
-
-function WorkspaceChatSurface({
-  thread,
-  setThread,
-  onTabChange,
-}: {
-  thread: string;
-  setThread: (thread: string) => void;
-  onTabChange: (tab: WorkspaceTab) => void;
-}) {
-  const [composerText, setComposerText] = useState("");
-  const [queryOverride, setQueryOverride] = useState<string | null>(null);
-  const threadMeta = WORKSPACE_THREADS_EXACT.find((item) => item.id === thread) ?? WORKSPACE_THREADS_EXACT[0];
-  const answer = WORKSPACE_ANSWERS_EXACT[thread] ?? WORKSPACE_ANSWERS_EXACT.t1;
-  const query = queryOverride ?? threadMeta.query;
-  const submit = (text: string) => {
-    const next = text.trim();
-    if (!next) return;
-    setQueryOverride(next);
-    setComposerText("");
-  };
-
-  return (
-    <div className="chat-layout" data-composer="dock">
-      <aside className="chat-history">
-        <div className="chat-history-header">
-          <span className="kicker">Threads</span>
-          <button className="ws-icon-btn" type="button" aria-label="New thread" onClick={() => submit("Start a new exploration")}>
-            <Plus size={12} />
-          </button>
-        </div>
-        <div className="chat-history-list">
-          {WORKSPACE_THREADS_EXACT.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="chat-history-item"
-              data-active={item.id === thread}
-              onClick={() => {
-                setThread(item.id);
-                setQueryOverride(null);
-              }}
-            >
-              <span className="chat-history-title">{item.title}</span>
-              <span className="chat-history-meta">{item.meta}</span>
-            </button>
-          ))}
-        </div>
-      </aside>
-
-      <section className="chat-answer">
-        <div className="chat-query">
-          <div className="chat-query-user">HS</div>
-          <div className="chat-query-text">{query}</div>
-        </div>
-
-        <div className="chat-runbar">
-          <WorkspacePill tone="ok"><Check size={10} /> verified</WorkspacePill>
-          <WorkspacePill tone="accent"><Sparkles size={10} /> 6 branches</WorkspacePill>
-          <WorkspacePill>kimi-k2.6 - 174s - llm-judge 9.6</WorkspacePill>
-          <span className="chat-run-actions">
-            <button className="ws-icon-btn" type="button" aria-label="Save as report" onClick={() => onTabChange("brief")}><Save size={13} /></button>
-            <button className="ws-icon-btn" type="button" aria-label="Watch entity"><Bell size={13} /></button>
-          </span>
-        </div>
-
-        <article className="chat-body">
-          <h1 className="chat-title">{answer.verdict}</h1>
-          <p>
-            <WorkspaceEntityChip name="DISCO" code="DI" /> closed a <strong>$100M Series C</strong> led by{" "}
-            <WorkspaceEntityChip name="Greylock" code="G" type="investor" /> on Nov 14, 2025 <WorkspaceCite n={1} onClick={() => onTabChange("sources")} />,
-            putting ARR growth above the 2.5x legal-tech median <WorkspaceCite n={2} onClick={() => onTabChange("sources")} />. The company serves <strong>2,400+ firms</strong>, including six of the{" "}
-            <WorkspaceEntityChip name="AmLaw 10" code="A" type="market" /> <WorkspaceCite n={4} onClick={() => onTabChange("sources")} />.
-          </p>
-          <p>
-            Two things to weigh before an intro: the <WorkspaceEntityChip name="EU AI Act" code="EU" type="regulation" /> integration tax over the next 6-9 months{" "}
-            <WorkspaceCite n={3} onClick={() => onTabChange("sources")} />, and <WorkspaceEntityChip name="Everlaw" code="EV" /> lower-midmarket pricing pressure{" "}
-            <WorkspaceCite n={7} onClick={() => onTabChange("sources")} />. Net: product velocity looks real; pricing discipline is the watch item.
-          </p>
-
-          <div className="chat-callout">
-            <div className="chat-callout-head"><Target size={13} /> <span>Recommendation</span></div>
-            <p>{answer.recommendation}</p>
-          </div>
-        </article>
-
-        <div className="chat-strip">
-          <div className="chat-strip-head">
-            <span className="kicker">Top cards - 3 of 14</span>
-            <button type="button" className="chat-strip-more" onClick={() => onTabChange("cards")}>Open all</button>
-          </div>
-          <div className="chat-strip-row">
-            {answer.topCards.map((entityId, index) => {
-              const entity = WORKSPACE_ENTITIES_EXACT[entityId];
-              return entity ? <WorkspaceCompanyCard key={entityId} entity={entity} active={index === 0} onClick={() => onTabChange("cards")} /> : null;
-            })}
-          </div>
-        </div>
-
-        <div className="chat-sources">
-          <div className="chat-strip-head">
-            <span className="kicker">Sources - top {answer.topSourceIds.length} of 24</span>
-            <button type="button" className="chat-strip-more" onClick={() => onTabChange("sources")}>View all</button>
-          </div>
-          <div className="chat-sources-list">
-            {answer.topSourceIds.map((sourceId) => {
-              const source = WORKSPACE_SOURCES_EXACT.find((item) => item.n === sourceId);
-              if (!source) return null;
-              return (
-                <button key={source.n} type="button" className="chat-source-row" onClick={() => onTabChange("sources")}>
-                  <span className="cite">{source.n}</span>
-                  <span className="chat-source-title">{source.title}</span>
-                  <span className="pill pill-neutral">{source.type}</span>
-                  <span className="chat-source-meta">{source.domain}</span>
-                  <span className="chat-source-meta">{source.date}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="chat-followups">
-          <span className="kicker">Continue</span>
-          {answer.followups.map((followup) => (
-            <button key={followup} type="button" className="chat-followup" onClick={() => submit(followup)}>{followup}</button>
-          ))}
-        </div>
-      </section>
-
-      <div className="chat-composer chat-composer--dock">
-        <div className="composer">
-          <textarea
-            className="composer-input"
-            rows={1}
-            value={composerText}
-            placeholder="Compare DISCO to Everlaw on AmLaw 100 coverage and blended ARPU."
-            onChange={(event) => setComposerText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                submit(composerText || "Compare DISCO to Everlaw on AmLaw 100 coverage and blended ARPU.");
-              }
-            }}
-          />
-          <div className="composer-tools">
-            <button type="button" className="composer-tool-btn"><Paperclip size={12} /> Attach</button>
-            <button type="button" className="composer-tool-btn" data-active="true"><Globe2 size={12} /> Web</button>
-            <button type="button" className="composer-tool-btn"><Sparkles size={12} /> Branches - 6</button>
-            <button type="button" className="composer-tool-btn"><Layers size={12} /> Use report</button>
-            <button type="button" className="composer-submit" aria-label="Send" onClick={() => submit(composerText || "Compare DISCO to Everlaw on AmLaw 100 coverage and blended ARPU.")}>
-              <Send size={13} />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function WorkspaceBriefSurface({ onJump }: { onJump: (tab: WorkspaceTab) => void }) {
-  const [activeSection, setActiveSection] = useState("exec");
-  const sections = [
-    ["exec", "Executive summary"],
-    ["what", "What happened"],
-    ["so", "So what"],
-    ["now", "Now what"],
-    ["receipts", "Receipts"],
-    ["timeline", "Timeline"],
-    ["watch", "Watch conditions"],
-  ];
-
-  return (
-    <div className="brief-layout">
-      <aside className="brief-toc">
-        <div className="kicker">Contents</div>
-        <nav className="brief-toc-list" aria-label="Brief contents">
-          {sections.map(([id, label]) => (
-            <button key={id} type="button" className="brief-toc-item" data-active={activeSection === id} onClick={() => setActiveSection(id)}>
-              {label}
-            </button>
-          ))}
-        </nav>
-        <div className="brief-health">
-          <div className="kicker">Report health</div>
-          {[
-            ["Freshness", "92%"],
-            ["Source diversity", "78%"],
-            ["Claim support", "100%"],
-            ["Contradictions", "14%"],
-          ].map(([label, width], index) => (
-            <div key={label} className="brief-health-row">
-              <span>{label}</span>
-              <div className="brief-meter" data-warn={index === 3}><span style={{ width }} /></div>
-            </div>
-          ))}
-        </div>
-      </aside>
-
-      <article className="brief-main">
-        <header className="brief-header">
-          <div className="kicker">Diligence - Series C opportunity</div>
-          <h1 className="brief-title">DISCO - worth reaching out, with pricing as the watch item.</h1>
-          <p className="brief-sub">A two-minute debrief for a banker evaluating outbound effort. Verdict and recommended next step lead; receipts, timeline, and watch conditions follow.</p>
-          <div className="brief-meta">
-            <WorkspacePill tone="ok"><Check size={10} /> verified</WorkspacePill>
-            <WorkspacePill tone="accent">v3 - refreshed 2h ago</WorkspacePill>
-            <WorkspacePill>24 sources - 6 branches</WorkspacePill>
-            <WorkspacePill>llm-judge 9.6 / 10</WorkspacePill>
-          </div>
-        </header>
-
-        <section className="brief-exec">
-          <div className="brief-exec-verdict">
-            <span className="kicker">Verdict</span>
-            <h2>Reach out this quarter.</h2>
-            <p>Lead with AmLaw traction and the Greylock signal; ask how they plan to absorb EU AI Act compliance load without raising effective price. If NRR holds above 120% through Q2, expand the conversation to platform partnership scope.</p>
-          </div>
-          <div className="brief-exec-stats">
-            <WorkspaceBriefStat value="$100M" label="Series C - lead Greylock" trend="up" onClick={() => onJump("sources")} />
-            <WorkspaceBriefStat value="2.8x" label="ARR growth" trend="up" />
-            <WorkspaceBriefStat value="122%" label="Net revenue retention" trend="up" />
-            <WorkspaceBriefStat value="6 of 10" label="AmLaw firms served" />
-          </div>
-        </section>
-
-        <section className="brief-triad">
-          <WorkspaceTriadCard kicker="What happened" title="Greylock-led Series C on Nov 14" body="$100M at a $900M post. Sarah Grayson joins the board. Announced alongside a customer count refresh." />
-          <WorkspaceTriadCard kicker="So what" title="Above-median growth, platform positioning" body="Growth outperforms the 2.5x legal-tech median and the round signals platform-tier ambition rather than a narrow e-discovery wedge." />
-          <WorkspaceTriadCard kicker="Now what" title="Move now; monitor pricing" body="Outbound this quarter. Re-run this report if NRR dips under 118% or blended pricing slips more than 6% QoQ." />
-        </section>
-
-        <section>
-          <h3 className="brief-h3">Receipts</h3>
-          <div className="brief-receipts">
-            {[
-              ["ARR", "$186M", "up", "Q3 IR filing"],
-              ["ARR growth YoY", "2.8x", "up", "Mgmt. commentary"],
-              ["Net revenue retention", "122%", "up", "Q3 IR filing"],
-              ["Gross margin", "78%", "", "Q3 IR filing"],
-              ["Runway at Series C", "38 mo", "", "Press release"],
-              ["Rev multiple post", "14.2x", "", "Implied post"],
-              ["AmLaw 10 penetration", "6 / 10", "", "Customer list"],
-              ["Top customer concentration", "11%", "down", "IR filing"],
-            ].map(([label, value, trend, source]) => (
-              <button key={label} type="button" className="brief-receipt" onClick={() => onJump("sources")}>
-                <span className="brief-receipt-label">{label}</span>
-                <span className="brief-receipt-val" data-trend={trend || undefined}>{value}</span>
-                <span className="brief-receipt-src">{source}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <h3 className="brief-h3">Timeline</h3>
-          <div className="brief-timeline">
-            {[
-              ["Nov 14 2025", "Series C closed", "Greylock leads, $100M at $900M post", true],
-              ["Sep 30 2025", "Q3 IR filing", "ARR $186M, NRR 122%, GM 78%", false],
-              ["Jul 12 2025", "Major product release", "Cecilia 3 - agentic review", false],
-              ["Feb 01 2026", "EU AI Act GPAI rules", "Enforcement begins; integration tax 6-9 mo", false],
-              ["Mar 2026", "Everlaw pricing cut", "-18% on midmarket tiers", false],
-            ].map(([date, title, meta, accent]) => (
-              <div key={`${date}-${title}`} className="brief-event">
-                <div className={`brief-event-dot ${accent ? "is-accent" : ""}`} />
-                <div className="brief-event-date">{date}</div>
-                <div className="brief-event-body">
-                  <div className="brief-event-title">{title}</div>
-                  <div className="brief-event-meta">{meta}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <h3 className="brief-h3">Watch conditions</h3>
-          <div className="brief-nudges">
-            {["NRR drops below 118%", "Blended pricing falls more than 6% QoQ", "Greylock board exits"].map((item) => (
-              <div key={item} className="brief-nudge">
-                <span className="brief-nudge-dot" />
-                <div>
-                  <div className="brief-nudge-title">{item}</div>
-                  <div className="brief-nudge-meta">monitor - web ops</div>
-                </div>
-                <button className="ws-icon-btn" type="button" aria-label={`Watch ${item}`}><Bell size={13} /></button>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <footer className="brief-footer">
-          <div className="kicker">Run - hs-7e3a</div>
-          <div className="brief-footer-meta">kimi-k2.6 - p95 174s - verified Apr 23, 2026</div>
-        </footer>
-      </article>
-    </div>
-  );
-}
-
-function WorkspaceBriefStat({ value, label, trend, onClick }: { value: string; label: string; trend?: "up" | "down"; onClick?: () => void }) {
-  return (
-    <button type="button" className="brief-stat" onClick={onClick}>
-      <span className="brief-stat-val" data-trend={trend}>{value}</span>
-      <span className="brief-stat-label">{label}</span>
-    </button>
-  );
-}
-
-function WorkspaceTriadCard({ kicker, title, body }: { kicker: string; title: string; body: string }) {
-  return (
-    <div className="brief-triad-card">
-      <div className="kicker">{kicker}</div>
-      <div className="brief-triad-title">{title}</div>
-      <p className="brief-triad-body">{body}</p>
-    </div>
-  );
-}
-
-function WorkspaceCardsSurface({
-  rootId,
-  setRootId,
-  selectedCard,
-  setSelectedCard,
-}: {
-  rootId: string;
-  setRootId: (id: string) => void;
-  selectedCard: string | null;
-  setSelectedCard: (id: string | null) => void;
-}) {
-  const root = WORKSPACE_ENTITIES_EXACT[rootId] ?? WORKSPACE_ENTITIES_EXACT.disco;
-  const relatedIds = WORKSPACE_RELATIONS_EXACT[root.id] ?? [];
-  const drill = selectedCard ? WORKSPACE_ENTITIES_EXACT[selectedCard] : null;
-  const drillIds = drill ? WORKSPACE_RELATIONS_EXACT[drill.id] ?? [] : [];
-
-  return (
-    <div className="cards-layout">
-      <div className="cards-breadcrumb">
-        <button type="button" className="cards-crumb" onClick={() => setRootId("disco")}>
-          <span className="cards-crumb-kicker">root</span>
-          <span>DISCO</span>
-        </button>
-        {root.id !== "disco" ? (
-          <>
-            <ChevronRight size={11} />
-            <button type="button" className="cards-crumb" onClick={() => setRootId(root.id)}>
-              <span className="cards-crumb-kicker">{root.kicker}</span>
-              <span>{root.name}</span>
-            </button>
-          </>
-        ) : null}
-        <span className="cards-actions">
-          <button className="ws-icon-btn" type="button" aria-label="Reset cards" onClick={() => { setRootId("disco"); setSelectedCard(null); }}><RefreshCw size={13} /></button>
-          <button className="ws-icon-btn" type="button" aria-label="Filter cards"><Filter size={13} /></button>
-        </span>
-      </div>
-
-      <div className="cards-columns">
-        <WorkspaceCardColumn title="Root" subtitle="1 card">
-          <WorkspaceCompanyCard entity={root} active />
-        </WorkspaceCardColumn>
-        <WorkspaceCardColumn title="Related" subtitle={`${relatedIds.length} - from graph`}>
-          {relatedIds.map((entityId) => {
-            const entity = WORKSPACE_ENTITIES_EXACT[entityId];
-            return entity ? (
-              <WorkspaceCompanyCard key={entityId} entity={entity} active={selectedCard === entityId} onClick={() => setSelectedCard(entityId)} />
-            ) : null;
-          })}
-        </WorkspaceCardColumn>
-        <WorkspaceCardColumn title={drill ? `Drilldown - ${drill.name}` : "Drilldown"} subtitle={drill ? `${drillIds.length} - one hop deeper` : "select a card"}>
-          {!drill ? <div className="cards-blank">Click a related card to drill in</div> : null}
-          {drillIds.map((entityId) => {
-            const entity = WORKSPACE_ENTITIES_EXACT[entityId];
-            return entity ? <WorkspaceCompanyCard key={entityId} entity={entity} onClick={() => { setRootId(entityId); setSelectedCard(null); }} /> : null;
-          })}
-          {drill ? (
-            <button type="button" className="cards-blank" onClick={() => { setRootId(drill.id); setSelectedCard(null); }}>
-              <Plus size={14} /> Make {drill.name} the root
-            </button>
-          ) : null}
-        </WorkspaceCardColumn>
-      </div>
-    </div>
-  );
-}
-
-function WorkspaceCardColumn({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
-  return (
-    <section className="cards-col">
-      <div className="cards-col-head">
-        <div className="kicker">{title}</div>
-        <div className="cards-col-sub">{subtitle}</div>
-      </div>
-      <div className="cards-col-body">{children}</div>
-    </section>
-  );
-}
-
-function WorkspaceCardInspector({ cardId, onClose, onDrill }: { cardId: string; onClose: () => void; onDrill: (id: string) => void }) {
-  const entity = WORKSPACE_ENTITIES_EXACT[cardId];
-  if (!entity) return null;
-  return (
-    <>
-      <div className="ws-inspector-header">
-        <div>
-          <div className="ws-inspector-kicker">{entity.kicker}</div>
-          <h3 className="ws-inspector-title">{entity.name}</h3>
-        </div>
-        <button className="ws-icon-btn" type="button" aria-label="Close inspector" onClick={onClose}><X size={12} /></button>
-      </div>
-      <div className="ws-inspector-body">
-        <section className="ws-insp-section">
-          <h4>At a glance</h4>
-          <div className="ws-insp-metrics">
-            {entity.metrics.map((metric) => (
-              <div key={metric.label} className="cc-metric">
-                <span className="cc-metric-label">{metric.label}</span>
-                <span className="cc-metric-val" data-trend={metric.trend}>{metric.value}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section className="ws-insp-section">
-          <h4>Position vs root</h4>
-          <p>{entity.subtitle}. Connected to the DISCO thesis via market overlap, source citations, and the investor graph.</p>
-        </section>
-        <section className="ws-insp-section">
-          <h4>Actions</h4>
-          <button type="button" className="composer-tool-btn" onClick={() => onDrill(entity.id)}><Layers size={12} /> Drill into {entity.name}</button>
-          <button type="button" className="composer-tool-btn"><Bell size={12} /> Watch for changes</button>
-          <button type="button" className="composer-tool-btn"><BookOpen size={12} /> Pin to Notebook</button>
-        </section>
-      </div>
-    </>
-  );
-}
-
-function WorkspaceNotebookSurface() {
-  return (
-    <div className="nb-layout" data-width="wide">
-      <aside className="nb-block-gutter">
-        <div className="nb-handle-row">
-          <button type="button" className="nb-handle nb-handle-plus">+</button>
-          <button type="button" className="nb-handle">::</button>
-          <button type="button" className="nb-handle">::</button>
-        </div>
-      </aside>
-      <article className="nb-doc">
-        <header className="nb-doc-head">
-          <div className="nb-crumbs">Workspace / DISCO diligence / Notebook</div>
-          <h1 className="nb-title">DISCO diligence notebook</h1>
-          <div className="nb-title-meta">
-            <span className="nb-save-state"><span className="nb-save-dot" /> Saved 4s ago</span>
-            <WorkspacePill tone="ok"><Check size={10} /> 12 linked claims</WorkspacePill>
-            <WorkspacePill>24 sources</WorkspacePill>
-          </div>
-        </header>
-        <RichNotebookEditor
-          initialContent={`<h2>Investment memo spine</h2><p>DISCO looks worth reaching out to this quarter. The evidence stack is strongest around ARR growth, AmLaw penetration, and Greylock board support.</p><p>The open issue is pricing discipline. Everlaw pressure and EU AI Act compliance work can change the effective price even if headline ARR remains strong.</p>`}
-          storageKey="nodebench.workspace.disco.exact-kit"
-          testId="workspace-notebook-editor"
-          className="nb-rich-editor"
-          editorClassName="font-serif"
-        />
-        <div className="nb-claim">
-          <div className="nb-claim-head"><ShieldCheck size={13} /> Claim block <span className="nb-claim-status"><WorkspacePill tone="ok">verified</WorkspacePill></span></div>
-          <div className="nb-claim-body">DISCO is above the legal-tech median on ARR growth and has credible top-of-market penetration.</div>
-          <div className="nb-claim-evidence">
-            <span className="nb-claim-ev"><WorkspaceCite n={2} /> Legal tech market overview 2025</span>
-            <span className="nb-claim-ev"><WorkspaceCite n={4} /> DISCO Q3 2025 IR filing</span>
-          </div>
-        </div>
-      </article>
-    </div>
-  );
-}
-
-function WorkspaceSourcesSurface({
-  filter,
-  setFilter,
-  expandedClaim,
-  setExpandedClaim,
-}: {
-  filter: string;
-  setFilter: (filter: string) => void;
-  expandedClaim: string | null;
-  setExpandedClaim: (claim: string | null) => void;
-}) {
-  const types = ["all", "filing", "press", "analyst", "reg", "pr"];
-  const visibleSources = filter === "all" ? WORKSPACE_SOURCES_EXACT : WORKSPACE_SOURCES_EXACT.filter((source) => source.type === filter);
-
-  return (
-    <div className="sources-layout">
-      <div className="sources-header">
-        <div>
-          <div className="kicker">Sources</div>
-          <h2 className="sources-title">{WORKSPACE_SOURCES_EXACT.length} cited - {WORKSPACE_CLAIMS_EXACT.length} claims - 1 conflict</h2>
-        </div>
-        <div className="sources-filters">
-          {types.map((type) => (
-            <button key={type} type="button" className="sources-filter" data-active={filter === type} onClick={() => setFilter(type)}>
-              {type}
-            </button>
-          ))}
-          <span className="sources-sep" />
-          <button type="button" className="composer-tool-btn"><Filter size={12} /> fresh &lt; 30d</button>
-          <button type="button" className="composer-tool-btn"><Filter size={12} /> trust &gt;= 0.8</button>
-        </div>
-      </div>
-
-      <section className="sources-section">
-        <div className="kicker">Claims</div>
-        <div className="sources-claims">
-          {WORKSPACE_CLAIMS_EXACT.map((claim) => (
-            <button
-              key={claim.id}
-              type="button"
-              className="sources-claim"
-              data-expanded={expandedClaim === claim.id}
-              onClick={() => setExpandedClaim(expandedClaim === claim.id ? null : claim.id)}
-            >
-              <span className="sources-claim-text">{claim.q}</span>
-              <span className="sources-claim-support">
-                <WorkspacePill tone="ok"><Check size={10} /> {claim.support.length} support</WorkspacePill>
-                {claim.contra.length ? <WorkspacePill tone="warn">{claim.contra.length} conflict</WorkspacePill> : null}
-                <span className="sources-claim-toggle">{expandedClaim === claim.id ? "hide evidence" : "show evidence"}</span>
-              </span>
-              {expandedClaim === claim.id ? (
-                <span className="sources-claim-refs">
-                  {[...claim.support, ...claim.contra].map((sourceId) => {
-                    const source = WORKSPACE_SOURCES_EXACT.find((item) => item.n === sourceId);
-                    return source ? <span key={`${claim.id}-${sourceId}`} className="sources-domain">{source.domain}</span> : null;
-                  })}
-                </span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="sources-section">
-        <div className="sources-table">
-          <div className="sources-table-head">
-            <span>#</span><span>Source</span><span>Type</span><span>Cites</span><span>Trust</span><span>Date</span>
-          </div>
-          {visibleSources.map((source) => (
-            <button key={source.n} type="button" className="sources-row">
-              <span className="cite">{source.n}</span>
-              <span className="sources-row-title"><span className="sources-row-name">{source.title}</span><span className="sources-row-domain">{source.domain}</span></span>
-              <span>{source.type}</span>
-              <span>{source.cites}</span>
-              <span className="sources-trust"><span style={{ width: `${Math.round(source.weight * 100)}%` }} /></span>
-              <span>{source.date}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function WorkspaceMapSurface({ onTabChange }: { onTabChange: (tab: WorkspaceTab) => void }) {
-  return (
-    <div className="map-layout">
-      <section className="map-canvas">
-        <div className="map-toolbar">
-          <div className="map-toolbar-l">
-            <span className="kicker">Entity map</span>
-            <div className="map-kind-filter">
-              {["company", "market", "person", "source"].map((kind) => (
-                <button key={kind} type="button" className="map-kind-btn" data-active={kind === "company"}>
-                  <span className="map-kind-dot" /> {kind}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button type="button" className="map-recenter"><RefreshCw size={12} /> Recenter</button>
-        </div>
-        <div className="map-svg-wrap">
-          <svg className="map-svg" viewBox="0 0 900 560" role="img" aria-label="DISCO workspace relationship map">
-            <rect width="900" height="560" fill="#faf8f5" />
-            <circle cx="450" cy="280" r="210" fill="rgba(217,119,87,.08)" />
-            <circle cx="450" cy="280" r="130" fill="none" stroke="rgba(217,119,87,.18)" />
-            <WorkspaceMapEdge x1={450} y1={280} x2={260} y2={170} label="market" />
-            <WorkspaceMapEdge x1={450} y1={280} x2={650} y2={160} label="lead" />
-            <WorkspaceMapEdge x1={450} y1={280} x2={240} y2={390} label="pressure" />
-            <WorkspaceMapEdge x1={450} y1={280} x2={680} y2={385} label="reg" />
-            <WorkspaceMapNode x={450} y={280} entity={WORKSPACE_ENTITIES_EXACT.disco} large />
-            <WorkspaceMapNode x={260} y={170} entity={WORKSPACE_ENTITIES_EXACT["legal-tech"]} />
-            <WorkspaceMapNode x={650} y={160} entity={WORKSPACE_ENTITIES_EXACT.greylock} />
-            <WorkspaceMapNode x={240} y={390} entity={WORKSPACE_ENTITIES_EXACT.everlaw} />
-            <WorkspaceMapNode x={680} y={385} entity={WORKSPACE_ENTITIES_EXACT["eu-ai-act"]} />
-            <WorkspaceMapNode x={465} y={92} entity={WORKSPACE_ENTITIES_EXACT["kiwi-camara"]} />
-          </svg>
-        </div>
-        <div className="map-help"><span><kbd>click</kbd> inspect</span><span><kbd>shift</kbd> promote to root</span><span><kbd>tab</kbd> jump surfaces</span></div>
-      </section>
-      <aside className="map-panel">
-        <div className="map-panel-head">
-          <span className="map-panel-avatar">DI</span>
-          <div><div className="map-panel-name">DISCO</div><div className="map-panel-sub">root company - 14 connected cards</div></div>
-        </div>
-        <div className="map-panel-metrics">
-          {WORKSPACE_ENTITIES_EXACT.disco.metrics.map((metric) => (
-            <div key={metric.label} className="map-panel-metric">
-              <span className="map-panel-metric-l">{metric.label}</span>
-              <span className="map-panel-metric-v" data-trend={metric.trend}>{metric.value}</span>
-            </div>
-          ))}
-        </div>
-        <section className="map-panel-section">
-          <div className="kicker">Connected cards</div>
-          <div className="map-panel-list">
-            {WORKSPACE_RELATIONS_EXACT.disco.map((entityId) => {
-              const entity = WORKSPACE_ENTITIES_EXACT[entityId];
-              return (
-                <button key={entityId} type="button" className="map-panel-row" onClick={() => onTabChange("cards")}>
-                  <span className="map-panel-row-avatar" style={{ background: entity.avatarBg }}>{entity.avatar}</span>
-                  <span className="map-panel-row-mid"><span className="map-panel-row-name">{entity.name}</span><span className="map-panel-row-rel">{entity.kicker}</span></span>
-                  <ChevronRight size={13} />
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      </aside>
-    </div>
-  );
-}
-
-function WorkspaceMapEdge({ x1, y1, x2, y2, label }: { x1: number; y1: number; x2: number; y2: number; label: string }) {
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2;
-  return (
-    <g>
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#d97757" strokeWidth={1.7} />
-      <rect x={midX - 34} y={midY - 9} width={68} height={18} rx={9} fill="#faf8f5" stroke="#d7d0c8" />
-      <text x={midX} y={midY + 3} textAnchor="middle" fontSize={10} fontWeight={800} fill="#6b7280">{label}</text>
-    </g>
-  );
-}
-
-function WorkspaceMapNode({ x, y, entity, large = false }: { x: number; y: number; entity: (typeof WORKSPACE_ENTITIES_EXACT)[string]; large?: boolean }) {
-  const radius = large ? 42 : 32;
-  return (
-    <g style={{ cursor: "pointer" }}>
-      <circle cx={x} cy={y} r={radius + 4} fill="rgba(255,255,255,.78)" stroke="rgba(15,23,42,.08)" />
-      <circle cx={x} cy={y} r={radius} fill={entity.avatarBg.includes("gradient") ? "#1a365d" : entity.avatarBg} />
-      <text x={x} y={y - 2} textAnchor="middle" fontSize={large ? 12 : 11} fontWeight={800} fill="#fffaf0">
-        {entity.avatar}
-      </text>
-      <text x={x} y={y + radius + 18} textAnchor="middle" fontSize={12} fontWeight={800} fill="#111827">{entity.name}</text>
-      <text x={x} y={y + radius + 33} textAnchor="middle" fontSize={10} fill="#6b7280">{entity.kind}</text>
-    </g>
   );
 }
 
@@ -5410,15 +2600,15 @@ export function ExactMcpTerminalPage() {
     });
   };
   return (
-    <div className="nb-kit" style={{ minHeight: "100dvh", background: "#09090b", color: "#e5e7eb" }}>
+    <div className="nb-kit nb-mcp-page" style={{ minHeight: "100dvh", background: "#09090b", color: "#e5e7eb" }}>
       <div className="nb-shell">
-        <a href="/" style={{ color: "#9ca3af", textDecoration: "none", fontSize: 13 }}>{"<- Back to NodeBench"}</a>
-        <div style={{ marginTop: 28, display: "grid", gap: 18, gridTemplateColumns: "minmax(0,1.1fr) minmax(320px,.9fr)" }}>
-          <section>
+        <a className="nb-mcp-back" href="/">{"<- Back to NodeBench"}</a>
+        <div className="nb-mcp-layout">
+          <section className="nb-mcp-copy">
             <div className="nb-kicker" style={{ color: "#d97757" }}>CLI / MCP</div>
-            <h1 style={{ margin: "8px 0", color: "#fff", fontSize: 42, lineHeight: 1.05, letterSpacing: "-.04em" }}>Bring NodeBench into Claude, Cursor, and agent workflows.</h1>
-            <p style={{ color: "#a1a1aa", fontSize: 16, lineHeight: 1.7, maxWidth: 620 }}>Start with a public dossier from the hosted MCP endpoint, no sign-in required. Link NodeBench after the first useful result to keep memory, raise limits, and manage teams.</p>
-            <div style={{ marginTop: 18, display: "flex", flexWrap: "wrap", gap: 10 }}>
+            <h1 className="nb-mcp-title">Bring NodeBench into Claude, Cursor, and agent workflows.</h1>
+            <p className="nb-mcp-intro">Start with a public dossier from the hosted MCP endpoint, no sign-in required. Link NodeBench after the first useful result to keep memory, raise limits, and manage teams.</p>
+            <div className="nb-mcp-actions">
               <button className="nb-btn nb-btn-primary" type="button" onClick={copy}>
                 {copied ? <Check size={15} /> : <Copy size={15} />}
                 {copied ? "Copied" : "Copy install command"}
@@ -5429,27 +2619,22 @@ export function ExactMcpTerminalPage() {
               </button>
             </div>
           </section>
-          <TerminalCard title="~/diligence - zsh - 120x32" badge="core lane">
-            <TerminalLine>client &gt; tools/list profile=gmail-research</TerminalLine>
-            <TerminalLine tone="ok">anonymous - 10 public research tools loaded</TerminalLine>
-            <TerminalLine tone="ok">account key - anon-client:gmail-research:...</TerminalLine>
-            <TerminalDivider />
-            <TerminalLine>agent &gt; nodebench.research_company({"{"} companyName: "DISCO" {"}"})</TerminalLine>
-            <TerminalLine tone="accent">public-source research - sources, claims, freshness</TerminalLine>
-            <TerminalLine tone="ok">first dossier returned - no signup gate</TerminalLine>
-            <div style={{ border: "1px solid rgba(217,119,87,.26)", borderRadius: 8, background: "rgba(217,119,87,.10)", padding: 12, color: "#f8fafc", fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 1.7 }}>
-              Link NodeBench to save this run, raise daily limits, create API keys, and share team usage controls.
+          <TerminalCard title="Connection setup" badge="not connected">
+            <div data-testid="mcp-terminal-empty">
+              <TerminalLine>status &gt; No MCP call has run on this page.</TerminalLine>
+              <TerminalDivider />
+              <TerminalLine tone="accent">Copy an endpoint above, then connect it from your agent client.</TerminalLine>
+              <TerminalLine tone="ok">Tool results stay in that client and appear in the MCP ledger after a real call.</TerminalLine>
             </div>
-            <TerminalLine tone="ok">upgrade prompt shown after value - not before</TerminalLine>
           </TerminalCard>
         </div>
-        <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
+        <div className="nb-mcp-benefits">
           {[
             { title: "Use anonymously", body: "Public research and Gmail profiles return sourced dossiers without a token." },
-            { title: "Link after value", body: "Prompt sign-in once the user sees sources, freshness, confidence, and missing info." },
+            { title: "Link after value", body: "Prompt sign-in once the user sees sources, freshness, and missing information." },
             { title: "Unlock controls", body: "Linked accounts get history, higher budgets, API keys, team usage, webhooks, and billing." },
           ].map((item) => (
-            <section key={item.title} style={{ border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, background: "rgba(255,255,255,.03)", padding: 18 }}>
+            <section className="nb-mcp-benefit" key={item.title}>
               <div style={{ color: "#e59579", fontFamily: "var(--font-mono)", fontSize: 13 }}>{item.title}</div>
               <p style={{ color: "#a1a1aa", fontSize: 13, lineHeight: 1.7 }}>{item.body}</p>
             </section>
@@ -5462,13 +2647,13 @@ export function ExactMcpTerminalPage() {
 
 function TerminalCard({ title, badge, children }: { title: string; badge: string; children: ReactNode }) {
   return (
-    <section style={{ overflow: "hidden", border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, background: "#0f1115", boxShadow: "0 24px 60px rgba(0,0,0,.32)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid rgba(255,255,255,.06)", background: "#171b22", padding: "12px 14px" }}>
+    <section className="nb-mcp-terminal">
+      <div className="nb-mcp-terminal-head">
         <span style={{ display: "flex", gap: 5 }}><i style={dot("#ff605c")} /><i style={dot("#ffbd44")} /><i style={dot("#00ca4e")} /></span>
         <span style={{ border: "1px solid rgba(255,255,255,.06)", borderRadius: 5, background: "rgba(255,255,255,.04)", color: "#e5e7eb", padding: "4px 8px", fontFamily: "var(--font-mono)", fontSize: 11 }}>{title}</span>
         <span style={{ marginLeft: "auto", border: "1px solid rgba(217,119,87,.3)", borderRadius: 5, background: "rgba(217,119,87,.10)", color: "#e59579", padding: "4px 8px", fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 800, letterSpacing: ".14em", textTransform: "uppercase" }}>{badge}</span>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: 16 }}>{children}</div>
+      <div className="nb-mcp-terminal-body">{children}</div>
     </section>
   );
 }

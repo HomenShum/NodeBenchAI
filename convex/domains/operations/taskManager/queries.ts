@@ -2,7 +2,7 @@
  * Task Manager Queries
  *
  * Provides public and authenticated queries for task sessions, traces, and spans.
- * Public queries support unauthenticated access for cron job monitoring.
+ * Only deliberately public sessions are exposed without authentication.
  */
 
 import { v } from "convex/values";
@@ -10,7 +10,6 @@ import { query } from "../../../_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { Id, Doc } from "../../../_generated/dataModel";
 import { buildTaskSessionProofPack } from "./proofPack";
-import { buildSuccessLoopsDashboardSnapshot } from "../../successLoops/projection";
 import { buildAgentResponseFlywheelSnapshot } from "../../agents/responseFlywheel";
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -87,8 +86,7 @@ export const getPublicTaskSessions = query({
 });
 
 /**
- * Get cron job execution history
- * No authentication required - shows scheduled job runs
+ * Get cron job execution history for the authenticated owner.
  */
 export const getCronJobHistory = query({
   args: {
@@ -98,32 +96,26 @@ export const getCronJobHistory = query({
     dateTo: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const limit = args.limit ?? 100;
-
-    let sessionsQuery;
-
-    if (args.cronJobName) {
-      // Query by specific cron job
-      sessionsQuery = ctx.db
-        .query("agentTaskSessions")
-        .withIndex("by_cron", (q) => q.eq("cronJobName", args.cronJobName))
-        .order("desc");
-    } else {
-      // Query all cron sessions
-      sessionsQuery = ctx.db
-        .query("agentTaskSessions")
-        .withIndex("by_type_date", (q) => q.eq("type", "cron"))
-        .order("desc");
+    const rawUserId = await getAuthUserId(ctx);
+    if (!rawUserId) {
+      return { sessions: [], byCronJob: {}, totalRuns: 0, successCount: 0, failureCount: 0 };
     }
-
-    const sessions = await sessionsQuery.take(limit);
+    const userId = await getSafeUserId(ctx);
+    const limit = Math.max(1, Math.min(args.limit ?? 100, 200));
+    const sessions = await ctx.db
+      .query("agentTaskSessions")
+      .withIndex("by_user_date", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(Math.min(500, limit * 3));
 
     // Apply date filters
     const filtered = sessions.filter((s) => {
+      if (s.type !== "cron") return false;
+      if (args.cronJobName && s.cronJobName !== args.cronJobName) return false;
       if (args.dateFrom && s.startedAt < args.dateFrom) return false;
       if (args.dateTo && s.startedAt > args.dateTo) return false;
       return true;
-    });
+    }).slice(0, limit);
 
     // Group by cron job name for summary
     const byCronJob = new Map<string, typeof filtered>();
@@ -377,64 +369,6 @@ function getDogfoodVerdict(run: Doc<"dogfoodQaRuns"> | null): {
   };
 }
 
-function getPhasePlan(counts: {
-  observations: number;
-  signals: number;
-  causalChains: number;
-  zeroDrafts: number;
-  proofPacks: number;
-}) {
-  const basePhases = [
-    {
-      id: "phase_1",
-      title: "Temporal substrate & ingestion",
-      window: "Weeks 1-3",
-      objective: "Ingest messy source material and anchor every extracted fact to exact source references.",
-      progress:
-        (counts.observations > 0 ? 50 : 0) +
-        (counts.signals > 0 ? 50 : 0),
-      done: counts.observations > 0 && counts.signals > 0,
-    },
-    {
-      id: "phase_2",
-      title: "Temporal math & causal API",
-      window: "Weeks 4-6",
-      objective: "Detect temporal breaks, extract causal chains, and expose machine-readable historical narratives.",
-      progress: counts.causalChains > 0 ? 100 : 0,
-      done: counts.causalChains > 0,
-    },
-    {
-      id: "phase_3",
-      title: "Gamified Oracle & zero-drafting",
-      window: "Weeks 7-9",
-      objective: "Lower action friction by pre-drafting artifacts and surfacing them behind approval checkpoints.",
-      progress: counts.zeroDrafts > 0 ? 100 : 0,
-      done: counts.zeroDrafts > 0,
-    },
-    {
-      id: "phase_4",
-      title: "Enterprise proof-pack execution",
-      window: "Weeks 10-12",
-      objective: "Package deterministic execution, replay, and proof packs for enterprise-grade outcome guarantees.",
-      progress: counts.proofPacks > 0 ? 100 : 0,
-      done: counts.proofPacks > 0,
-    },
-  ];
-
-  const firstIncomplete = basePhases.findIndex((phase) => !phase.done);
-
-  return basePhases.map((phase, index) => ({
-    ...phase,
-    status:
-      phase.done
-        ? ("completed" as const)
-        : index === (firstIncomplete === -1 ? basePhases.length - 1 : firstIncomplete)
-          ? ("in_progress" as const)
-          : ("pending" as const),
-    current: index === (firstIncomplete === -1 ? basePhases.length - 1 : firstIncomplete),
-  }));
-}
-
 function uniqueStrings(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
@@ -446,67 +380,30 @@ export const getOracleControlTowerSnapshot = query({
   handler: async (ctx, args) => {
     const limit = Math.max(1, Math.min(args.limit ?? 6, 12));
     const rawUserId = await getAuthUserId(ctx);
-    const userId = rawUserId ? await getSafeUserId(ctx) : null;
+    if (!rawUserId) return null;
+    const userId = await getSafeUserId(ctx);
 
-    const recentSessions = userId
-      ? await ctx.db
-          .query("agentTaskSessions")
-          .withIndex("by_user_date", (q) => q.eq("userId", userId))
-          .order("desc")
-          .take(limit)
-      : await ctx.db
-          .query("agentTaskSessions")
-          .withIndex("by_visibility_date", (q) => q.eq("visibility", "public"))
-          .order("desc")
-          .take(limit);
+    const recentSessions = await ctx.db
+      .query("agentTaskSessions")
+      .withIndex("by_user_date", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(limit);
 
-    const latestDogfoodRun = userId
-      ? (
-          await ctx.db
-            .query("dogfoodQaRuns")
-            .withIndex("by_user_createdAt", (q) => q.eq("userId", userId))
-            .order("desc")
-            .take(1)
-        )[0] ?? null
-      : (
-          await ctx.db
-            .query("dogfoodQaRuns")
-            .withIndex("by_createdAt")
-            .order("desc")
-            .take(1)
-        )[0] ?? null;
+    const latestDogfoodRun = (
+      await ctx.db
+        .query("dogfoodQaRuns")
+        .withIndex("by_user_createdAt", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(1)
+    )[0] ?? null;
 
     const pendingConfirmations = (
-      userId
-        ? await ctx.db
-            .query("actionDrafts")
-            .withIndex("by_user", (q) => q.eq("userId", userId))
-            .order("desc")
-            .take(20)
-        : await ctx.db
-            .query("actionDrafts")
-            .withIndex("by_status", (q) => q.eq("status", "pending"))
-            .order("desc")
-            .take(20)
+      await ctx.db
+        .query("actionDrafts")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(20)
     ).filter((draft) => draft.status === "pending" && draft.expiresAt > Date.now());
-
-    const [observations, signals, causalChainsRows, zeroDrafts, proofPacksRows] = await Promise.all([
-      ctx.db.query("timeSeriesObservations").collect(),
-      ctx.db.query("timeSeriesSignals").collect(),
-      ctx.db.query("causalChains").collect(),
-      ctx.db.query("zeroDraftArtifacts").collect(),
-      ctx.db.query("proofPacks").collect(),
-    ]);
-
-    const temporalCounts = {
-      observations: observations.length,
-      signals: signals.length,
-      causalChains: causalChainsRows.length,
-      zeroDrafts: zeroDrafts.length,
-      proofPacks: proofPacksRows.length,
-    };
-    const phases = getPhasePlan(temporalCounts);
-    const currentPhase = phases.find((phase) => phase.current) ?? phases[0];
 
     const sessionsWithTraces = await Promise.all(
       recentSessions.map(async (session) => {
@@ -581,12 +478,19 @@ export const getOracleControlTowerSnapshot = query({
         : 0;
 
     const dogfood = getDogfoodVerdict(latestDogfoodRun);
+    const hasAlignmentEvidence =
+      dogfood.verdict === "pass" ||
+      sessionsWithTraces.some(
+        (session) => session.crossCheckStatus === "aligned" && session.traceCount > 0,
+      );
     const institutionalVerdict =
       violatedCount > 0 || dogfood.verdict === "fail"
         ? "institutional_hallucination_risk"
         : driftingCount > 0 || dogfood.verdict === "watch"
           ? "watch"
-          : "institutional_memory_aligned";
+          : hasAlignmentEvidence
+            ? "institutional_memory_aligned"
+            : "unmeasured";
 
     const openFailures = [
       ...sessionsWithTraces
@@ -607,20 +511,14 @@ export const getOracleControlTowerSnapshot = query({
         })),
     ];
 
-    if (temporalCounts.observations === 0) {
-      openFailures.push({
-        kind: "phase_1_gap",
-        title: "Phase 1 substrate has no observations yet",
-        detail:
-          "The temporal OS tables are defined, but no ingestion run has landed evidence into timeSeriesObservations/timeSeriesSignals yet.",
-      });
-    }
-
-    const successLoops = await buildSuccessLoopsDashboardSnapshot(ctx, userId);
     const responseFlywheel = await buildAgentResponseFlywheelSnapshot(ctx, userId);
 
-    let nextRecommendedAction = `Advance ${currentPhase.title.toLowerCase()} by creating the first durable artifact for that phase.`;
-    if (violatedCount > 0) {
+    let nextRecommendedAction =
+      "Continue the highest-priority owned session and attach runtime evidence before marking it complete.";
+    if (sessionsWithTraces.length === 0) {
+      nextRecommendedAction =
+        "Start an owned session and attach runtime evidence before drawing an operational conclusion.";
+    } else if (violatedCount > 0) {
       nextRecommendedAction =
         "Repair violated loops first. Tighten the vision snapshot, restate the success criteria in plain English, and rerun dogfood before shipping more code.";
     } else if (pendingConfirmations.length > 0) {
@@ -629,25 +527,6 @@ export const getOracleControlTowerSnapshot = query({
     } else if (dogfood.verdict === "missing") {
       nextRecommendedAction =
         "Attach a fresh dogfood run to the active session so the control tower has proof, not just intent.";
-    } else if (temporalCounts.observations === 0) {
-      nextRecommendedAction =
-        "Start Phase 1 by ingesting a first batch of temporal observations with exact source references, then derive the first signal from them.";
-    } else if (temporalCounts.causalChains === 0) {
-      nextRecommendedAction =
-        "Phase 2 is now the bottleneck. Extract the first causal chain from observed signals and expose it through a structured API response.";
-    } else if (temporalCounts.zeroDrafts === 0) {
-      nextRecommendedAction =
-        "Phase 3 is open. Generate the first approval-gated zero-draft artifact that converts a temporal signal into an executable next step.";
-    } else if (temporalCounts.proofPacks === 0) {
-      nextRecommendedAction =
-        "Phase 4 is open. Package the current loop into a proof pack with telemetry, citations, and the linked dogfood verdict.";
-    } else if (
-      successLoops.summary.weakestLoop &&
-      ["weakening", "missing", "mixed"].includes(
-        successLoops.loops.find((loop) => loop.loopType === successLoops.summary.weakestLoop?.loopType)?.status ?? "missing",
-      )
-    ) {
-      nextRecommendedAction = successLoops.nextRecommendedAction;
     } else if (
       responseFlywheel.summary.weakestDimension &&
       responseFlywheel.summary.weakestDimension.averageScore < 0.62
@@ -694,18 +573,8 @@ export const getOracleControlTowerSnapshot = query({
       })),
       openFailures,
       recentSessions: sessionsWithTraces,
-      temporalOs: {
-        loopFormula: [
-          "Ingest unstructured data",
-          "Extract temporal signals",
-          "Forecast the outcome",
-          "Execute the zero-draft behavior",
-          "Log the proof pack",
-        ],
-        counts: temporalCounts,
-        phases,
-      },
-      successLoops,
+      temporalOs: null,
+      successLoops: null,
       responseFlywheel,
       nextRecommendedAction,
     };
@@ -718,63 +587,62 @@ export const getOracleControlTowerSnapshot = query({
 export const getIndustryMetrics = query({
   args: {},
   handler: async (ctx) => {
+    const rawUserId = await getAuthUserId(ctx);
+    if (!rawUserId) return null;
+    const userId = await getSafeUserId(ctx);
     const now = Date.now();
     const dayAgo = now - 86_400_000;
     const weekAgo = now - 7 * 86_400_000;
-    const CAP = 500;
-
-    const [
-      recentToolCalls,
-      toolDailyRollups,
-      sourceArtifactsSample,
-      evidencePacksSample,
-      narrativeEventsRecent,
-      narrativeHypothesesSample,
-      pendingSignals,
-      processedSignals,
-      evalRunsSample,
-    ] = await Promise.all([
-      // Tool calls: use index by_allowed_startedAt for efficient time-range scan
-      ctx.db
-        .query("mcpToolCallLedger")
-        .order("desc")
-        .filter((q) => q.gte(q.field("startedAt"), dayAgo))
-        .take(CAP),
-      // Daily rollups (small table, safe to take 100)
-      ctx.db
-        .query("mcpToolUsageDaily")
-        .order("desc")
-        .take(100),
-      // Evidence counts (bounded)
-      ctx.db.query("sourceArtifacts").take(CAP),
-      ctx.db.query("evidencePacks").take(CAP),
-      // Narrative events (newest first, bounded)
-      ctx.db
-        .query("narrativeEvents")
-        .order("desc")
-        .take(200),
-      // Hypotheses (bounded)
-      ctx.db.query("narrativeHypotheses").take(CAP),
-      // Signals: use index by_status for targeted counts instead of full scan
-      ctx.db
-        .query("signals")
-        .withIndex("by_status", (q) => q.eq("processingStatus", "pending"))
-        .take(CAP),
-      ctx.db
-        .query("signals")
-        .withIndex("by_status", (q) => q.eq("processingStatus", "processed"))
-        .take(CAP),
-      // Eval runs (bounded)
-      ctx.db.query("evaluationRuns").take(CAP),
-    ]);
+    const sampledSessions = await ctx.db
+      .query("agentTaskSessions")
+      .withIndex("by_user_date", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(12);
+    const sampledTraces = (
+      await Promise.all(sampledSessions.map((session) =>
+        ctx.db
+          .query("agentTaskTraces")
+          .withIndex("by_session", (q) => q.eq("sessionId", session._id))
+          .order("desc")
+          .take(4),
+      ))
+    ).flat();
+    const sampledAuditEntries = (
+      await Promise.all(sampledTraces.map((trace) =>
+        ctx.db
+          .query("traceAuditEntries")
+          .withIndex("by_user_execution", (q) =>
+            q.eq("userId", userId).eq("executionId", trace.traceId),
+          )
+          .take(50),
+      ))
+    ).flat();
+    const weekToolCalls = sampledAuditEntries
+      .filter((entry) => entry.timestamp >= weekAgo)
+      .map((entry) => ({
+        toolName: entry.toolName,
+        success: entry.metadata.success,
+        durationMs: entry.metadata.durationMs,
+        timestamp: entry.timestamp,
+      }));
+    const recentToolCalls = weekToolCalls.filter((entry) => entry.timestamp >= dayAgo);
+    const sourceRefKeys = new Set(
+      [...sampledSessions.flatMap((session) => session.sourceRefs ?? []),
+       ...sampledTraces.flatMap((trace) => trace.sourceRefs ?? [])]
+        .map((ref) => `${ref.label}|${ref.href ?? ""}`),
+    );
+    const evidenceAttachmentCount = sampledTraces.reduce((count, trace) => {
+      const evidence = trace.metadata?.executionTraceEvidence;
+      return count + (Array.isArray(evidence) ? evidence.length : 0);
+    }, 0);
 
     // Tool call stats
     const successfulCalls = recentToolCalls.filter((c) => c.success);
     const failedCalls = recentToolCalls.filter((c) => !c.success);
     const avgToolDurationMs =
-      successfulCalls.length > 0
+      recentToolCalls.length > 0
         ? Math.round(
-            successfulCalls.reduce((sum, c) => sum + (c.durationMs ?? 0), 0) / successfulCalls.length,
+            recentToolCalls.reduce((sum, c) => sum + (c.durationMs ?? 0), 0) / recentToolCalls.length,
           )
         : 0;
 
@@ -788,73 +656,30 @@ export const getIndustryMetrics = query({
       .slice(0, 8)
       .map(([name, count]) => ({ name, count }));
 
-    // Weekly rollup from daily data
-    const sevenDayKey = new Date(weekAgo).toISOString().slice(0, 10);
-    const weeklyRollups = toolDailyRollups.filter(
-      (r) => r.dateKey >= sevenDayKey && r.scope === "tool",
-    );
-    const totalToolCallsWeek = weeklyRollups.reduce((sum, r) => sum + r.count, 0);
-
-    // Narrative: filter to last 7 days
-    const recentNarrativeEvents = narrativeEventsRecent.filter(
-      (e) => (e.occurredAt ?? e._creationTime) >= weekAgo,
-    );
-
-    // Hypothesis stats
-    const activeHypotheses = narrativeHypothesesSample.filter((h) => h.status === "active");
-    const supportedHypotheses = narrativeHypothesesSample.filter((h) => h.status === "supported");
-    const weakenedHypotheses = narrativeHypothesesSample.filter((h) => h.status === "weakened");
-    const totalEvidenceLinks = narrativeHypothesesSample.reduce(
-      (sum, h) => sum + (h.supportingEvidenceCount ?? 0) + (h.contradictingEvidenceCount ?? 0),
-      0,
-    );
-
-    // Eval summary
-    const evalPassRates = evalRunsSample
-      .filter((r) => r.summary?.passRate !== undefined)
-      .map((r) => r.summary!.passRate);
-    const avgEvalPassRate =
-      evalPassRates.length > 0
-        ? Math.round(evalPassRates.reduce((sum, r) => sum + r, 0) / evalPassRates.length)
-        : null;
-
     return {
+      scope: "authenticated_owner" as const,
       toolCalls: {
         last24h: recentToolCalls.length,
+        sampleCount: recentToolCalls.length,
         successRate24h:
           recentToolCalls.length > 0
             ? Math.round((successfulCalls.length / recentToolCalls.length) * 100)
-            : 100,
+            : null,
         failedLast24h: failedCalls.length,
-        avgDurationMs: avgToolDurationMs,
-        totalWeek: totalToolCallsWeek,
+        avgDurationMs: recentToolCalls.length > 0 ? avgToolDurationMs : null,
+        sampledWeek: weekToolCalls.length,
         topTools: topToolsByFrequency,
       },
       evidence: {
-        totalArtifacts: sourceArtifactsSample.length,
-        totalPacks: evidencePacksSample.length,
-        totalChainLinks: totalEvidenceLinks,
+        sourceRefCount: sourceRefKeys.size,
+        attachmentCount: evidenceAttachmentCount,
+        traceSampleCount: sampledTraces.length,
       },
-      narrative: {
-        newInsightsThisWeek: recentNarrativeEvents.length,
-        totalEvents: narrativeEventsRecent.length,
-        hypotheses: {
-          active: activeHypotheses.length,
-          supported: supportedHypotheses.length,
-          weakened: weakenedHypotheses.length,
-          total: narrativeHypothesesSample.length,
-        },
-      },
-      signals: {
-        totalIngested: pendingSignals.length + processedSignals.length,
-        pending: pendingSignals.length,
-        processed: processedSignals.length,
-      },
-      eval: {
-        totalRuns: evalRunsSample.length,
-        avgPassRate: avgEvalPassRate,
+      sessions: {
+        sampleCount: sampledSessions.length,
+        completed: sampledSessions.filter((session) => session.status === "completed").length,
+        failed: sampledSessions.filter((session) => session.status === "failed").length,
       },
     };
   },
 });
-

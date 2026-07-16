@@ -22,6 +22,23 @@ export type FastAgentPreparedSubmission =
       text: string;
     };
 
+export function getAuthenticatedDocumentCreationTopic({
+  chatMode,
+  isAuthenticated,
+  isProductConversationMode,
+  text,
+}: {
+  chatMode: 'agent' | 'agent-streaming';
+  isAuthenticated: boolean;
+  isProductConversationMode: boolean;
+  text: string;
+}): string | null {
+  if (!isAuthenticated || chatMode !== 'agent-streaming' || isProductConversationMode) {
+    return null;
+  }
+  return text.match(/^(?:make|create)\s+(?:new\s+)?document\s+(?:about|on|for)\s+(.+)$/i)?.[1]?.trim() || null;
+}
+
 interface PrepareFastAgentSubmissionArgs {
   allowAttachments: boolean;
   attachedFiles: Array<{ name: string }>;
@@ -112,7 +129,6 @@ interface FastAgentClientContext {
 interface DispatchFastAgentSubmissionArgs {
   activeThreadId: string | null;
   anonymousSessionId?: string;
-  arbitrageEnabled?: boolean;
   chatMode: 'agent' | 'agent-streaming';
   clientContext?: FastAgentClientContext;
   continueThreadAction: (args: {
@@ -128,7 +144,6 @@ interface DispatchFastAgentSubmissionArgs {
   selectedModel: string;
   sendStreamingMessage: (args: {
     anonymousSessionId?: string;
-    arbitrageEnabled?: boolean;
     clientContext?: FastAgentClientContext;
     entitySlug?: string;
     model: string;
@@ -142,7 +157,6 @@ interface DispatchFastAgentSubmissionArgs {
 export async function dispatchFastAgentSubmission({
   activeThreadId,
   anonymousSessionId,
-  arbitrageEnabled,
   chatMode,
   clientContext,
   continueThreadAction,
@@ -177,7 +191,6 @@ export async function dispatchFastAgentSubmission({
 
   await sendStreamingMessage({
     anonymousSessionId,
-    arbitrageEnabled,
     clientContext,
     entitySlug,
     model: selectedModel,

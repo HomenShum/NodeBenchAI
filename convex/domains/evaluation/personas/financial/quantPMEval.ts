@@ -9,7 +9,7 @@
 
 import { action } from "../../../../_generated/server";
 import { v } from "convex/values";
-import { api } from "../../../../_generated/api";
+import { internal } from "../../../../_generated/api";
 
 import { ALPHA_MOMENTUM_GROUND_TRUTH, type QuantStrategyGroundTruth } from "./quantPMGroundTruth";
 import {
@@ -41,7 +41,7 @@ export const evaluateQuantPM = action({
     try {
       // Run investor playbook with quant context
       const playbookResult = await ctx.runAction(
-        api.domains.agents.dueDiligence.investorPlaybook.evalPlaybook.runInvestorPlaybookEval,
+        internal.domains.agents.dueDiligence.investorPlaybook.evalPlaybook.runInvestorPlaybookEval,
         {
           entityName,
           entityType: "company", // Strategy treated as company for now

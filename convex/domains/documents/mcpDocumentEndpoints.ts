@@ -24,6 +24,13 @@ export const mcpCreateDocument = internalMutation({
     content: v.optional(v.string()),
   },
   handler: async (ctx, { userId, title, parentId, content }) => {
+    if (parentId) {
+      const parent = (await ctx.db.get(parentId)) as Doc<"documents"> | null;
+      if (!parent || parent.createdBy !== userId) {
+        throw new Error("Parent document not found or unauthorized");
+      }
+    }
+
     const docId = await ctx.db.insert("documents", {
       title,
       parentId,
@@ -39,10 +46,15 @@ export const mcpCreateDocument = internalMutation({
 
 export const mcpGetDocument = internalQuery({
   args: {
+    userId: v.id("users"),
     documentId: v.id("documents"),
   },
-  handler: async (ctx, { documentId }) => {
-    return await ctx.db.get(documentId);
+  handler: async (ctx, { userId, documentId }) => {
+    const document = (await ctx.db.get(documentId)) as Doc<"documents"> | null;
+    if (!document || document.createdBy !== userId) {
+      throw new Error("Document not found or unauthorized");
+    }
+    return document;
   },
 });
 
@@ -89,6 +101,7 @@ export const mcpArchiveDocument = internalMutation({
         .withIndex("by_parent", (q) => q.eq("parentId", documentId))
         .collect();
       for (const child of children) {
+        if (child.createdBy !== userId) continue;
         await ctx.db.patch(child._id, { isArchived: true });
         await recursiveArchive(child._id);
       }
@@ -115,6 +128,7 @@ export const mcpRestoreDocument = internalMutation({
         .withIndex("by_parent", (q) => q.eq("parentId", documentId))
         .collect();
       for (const child of children) {
+        if (child.createdBy !== userId) continue;
         await ctx.db.patch(child._id, { isArchived: false });
         await recursiveRestore(child._id);
       }
@@ -264,8 +278,8 @@ export const mcpGetFolderWithDocuments = internalQuery({
     folderId: v.id("folders"),
   },
   handler: async (ctx, { userId, folderId }) => {
-    const folder = await ctx.db.get(folderId);
-    if (!folder || (folder as any).userId !== userId) return null;
+    const folder = (await ctx.db.get(folderId)) as Doc<"folders"> | null;
+    if (!folder || folder.userId !== userId) return null;
 
     const links = await ctx.db
       .query("documentFolders")
@@ -274,8 +288,9 @@ export const mcpGetFolderWithDocuments = internalQuery({
 
     const docs = await Promise.all(
       links.map(async (link) => {
-        const doc = await ctx.db.get((link as any).documentId);
-        return doc && !(doc as any).isArchived ? doc : null;
+        if (link.userId !== userId) return null;
+        const doc = (await ctx.db.get(link.documentId)) as Doc<"documents"> | null;
+        return doc && doc.createdBy === userId && !doc.isArchived ? doc : null;
       })
     );
 
@@ -290,8 +305,14 @@ export const mcpAddDocumentToFolder = internalMutation({
     folderId: v.id("folders"),
   },
   handler: async (ctx, { userId, documentId, folderId }) => {
-    const folder = await ctx.db.get(folderId);
-    if (!folder || (folder as any).userId !== userId) throw new Error("Folder not found");
+    const folder = (await ctx.db.get(folderId)) as Doc<"folders"> | null;
+    if (!folder || folder.userId !== userId) {
+      throw new Error("Folder not found or unauthorized");
+    }
+    const document = (await ctx.db.get(documentId)) as Doc<"documents"> | null;
+    if (!document || document.createdBy !== userId) {
+      throw new Error("Document not found or unauthorized");
+    }
 
     const existing = await ctx.db
       .query("documentFolders")
@@ -367,16 +388,22 @@ export const mcpListSpreadsheets = internalQuery({
 
 export const mcpGetSpreadsheetRange = internalQuery({
   args: {
+    userId: v.id("users"),
     sheetId: v.id("spreadsheets"),
     startRow: v.number(),
     endRow: v.number(),
     startCol: v.number(),
     endCol: v.number(),
   },
-  handler: async (ctx, { sheetId, startRow, endRow, startCol, endCol }) => {
+  handler: async (ctx, { userId, sheetId, startRow, endRow, startCol, endCol }) => {
+    const sheet = (await ctx.db.get(sheetId)) as Doc<"spreadsheets"> | null;
+    if (!sheet || sheet.userId !== userId) {
+      throw new Error("Spreadsheet not found or unauthorized");
+    }
+
     return await ctx.db
       .query("sheetCells")
-      .withIndex("by_sheet_row", (q) => q.eq("sheetId", sheetId))
+      .withIndex("by_sheet_row_col", (q) => q.eq("sheetId", sheetId))
       .filter((q) =>
         q.and(
           q.gte(q.field("row"), startRow),
@@ -396,10 +423,9 @@ export const mcpApplySpreadsheetOperations = internalMutation({
     operations: v.array(v.any()),
   },
   handler: async (ctx, { userId, sheetId, operations }) => {
-    const sheet = await ctx.db.get(sheetId);
-    if (!sheet) throw new Error("Spreadsheet not found");
-    if ((sheet as any).userId && (sheet as any).userId !== userId) {
-      throw new Error("Unauthorized");
+    const sheet = (await ctx.db.get(sheetId)) as Doc<"spreadsheets"> | null;
+    if (!sheet || sheet.userId !== userId) {
+      throw new Error("Spreadsheet not found or unauthorized");
     }
 
     let applied = 0;
@@ -410,7 +436,7 @@ export const mcpApplySpreadsheetOperations = internalMutation({
         if (op.op === "setCell") {
           const existing = await ctx.db
             .query("sheetCells")
-            .withIndex("by_sheet_row", (q) => q.eq("sheetId", sheetId))
+            .withIndex("by_sheet_row_col", (q) => q.eq("sheetId", sheetId))
             .filter((q) =>
               q.and(
                 q.eq(q.field("row"), op.row),
@@ -441,7 +467,7 @@ export const mcpApplySpreadsheetOperations = internalMutation({
         } else if (op.op === "clearCell") {
           const existing = await ctx.db
             .query("sheetCells")
-            .withIndex("by_sheet_row", (q) => q.eq("sheetId", sheetId))
+            .withIndex("by_sheet_row_col", (q) => q.eq("sheetId", sheetId))
             .filter((q) =>
               q.and(
                 q.eq(q.field("row"), op.row),

@@ -53,6 +53,13 @@ const QUICK_ACTIONS = [
   { label: "Media Scan", command: "/spawn", agents: ["media"], icon: Video },
 ];
 
+const ASK_ACTIONS = [
+  { label: "Research", prompt: "Research a company using current sources.", icon: Search },
+  { label: "Compare Sources", prompt: "Compare the strongest sources for this question.", icon: FileText },
+  { label: "Market Analysis", prompt: "Analyze a market and identify the most decision-relevant changes.", icon: TrendingUp },
+  { label: "Media Scan", prompt: "Find and summarize relevant public media with source links.", icon: Video },
+];
+
 const AGENT_SHORTCUTS = [
   { key: "doc", name: "Document", icon: FileText },
   { key: "media", name: "Media", icon: Video },
@@ -69,6 +76,7 @@ interface AgentCommandBarProps {
   isLoading?: boolean;
   placeholder?: string;
   className?: string;
+  allowSpawn?: boolean;
 }
 
 // ============================================================================
@@ -143,6 +151,7 @@ export const AgentCommandBar = memo(function AgentCommandBar({
   isLoading = false,
   placeholder = "Ask NodeBench...",
   className,
+  allowSpawn = true,
 }: AgentCommandBarProps) {
   const [input, setInput] = useState("");
   const [model, setModel] = useState<ApprovedModel>(DEFAULT_MODEL);
@@ -151,7 +160,7 @@ export const AgentCommandBar = memo(function AgentCommandBar({
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Detect /spawn command in input
-  const isSpawn = isSpawnCommand(input);
+  const isSpawn = allowSpawn && isSpawnCommand(input);
   const parsedSpawn = isSpawn ? parseSpawnCommand(input) : null;
 
   // Auto-resize textarea
@@ -164,8 +173,8 @@ export const AgentCommandBar = memo(function AgentCommandBar({
 
   // Show hint when user starts typing /
   useEffect(() => {
-    setShowHint(input.startsWith("/") && !isSpawn);
-  }, [input, isSpawn]);
+    setShowHint(allowSpawn && input.startsWith("/") && !isSpawn);
+  }, [allowSpawn, input, isSpawn]);
 
   const handleSubmit = useCallback(() => {
     if (!input.trim() || isLoading) return;
@@ -189,18 +198,22 @@ export const AgentCommandBar = memo(function AgentCommandBar({
     }
   }, [handleSubmit]);
 
-  const handleQuickAction = useCallback((action: typeof QUICK_ACTIONS[0]) => {
-    const agentsStr = action.agents.join(",");
-    setInput(`/spawn "" --agents=${agentsStr}`);
+  const handleQuickAction = useCallback((action: (typeof QUICK_ACTIONS)[number] | (typeof ASK_ACTIONS)[number]) => {
+    const nextInput = "agents" in action && allowSpawn
+      ? `/spawn "" --agents=${action.agents.join(",")}`
+      : "prompt" in action
+        ? action.prompt
+        : action.label;
+    setInput(nextInput);
     inputRef.current?.focus();
-    // Position cursor inside quotes
-    setTimeout(() => {
+    // Position the cursor inside the explicit authenticated /spawn query.
+    if ("agents" in action && allowSpawn) setTimeout(() => {
       if (inputRef.current) {
         const pos = 8; // Position after first quote
         inputRef.current.setSelectionRange(pos, pos);
       }
     }, 0);
-  }, []);
+  }, [allowSpawn]);
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -308,7 +321,7 @@ export const AgentCommandBar = memo(function AgentCommandBar({
           role="group"
           aria-label="Agent command suggestions"
         >
-          {QUICK_ACTIONS.map((action) => {
+          {(allowSpawn ? QUICK_ACTIONS : ASK_ACTIONS).map((action) => {
             const Icon = action.icon;
             return (
               <button

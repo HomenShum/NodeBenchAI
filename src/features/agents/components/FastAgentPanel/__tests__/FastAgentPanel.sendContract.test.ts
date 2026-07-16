@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   dispatchFastAgentSubmission,
+  getAuthenticatedDocumentCreationTopic,
   prepareFastAgentSubmission,
 } from '../FastAgentPanel.sendContract';
 
@@ -32,6 +33,22 @@ async function prepareAndDispatch(
 }
 
 describe('FastAgentPanel send contract', () => {
+  it('routes guest document wording through normal chat instead of the auth-only creator', () => {
+    expect(getAuthenticatedDocumentCreationTopic({
+      chatMode: 'agent-streaming',
+      isAuthenticated: false,
+      isProductConversationMode: false,
+      text: 'Create document about battery supply chains',
+    })).toBeNull();
+
+    expect(getAuthenticatedDocumentCreationTopic({
+      chatMode: 'agent-streaming',
+      isAuthenticated: true,
+      isProductConversationMode: false,
+      text: 'Create document about battery supply chains',
+    })).toBe('battery supply chains');
+  });
+
   it('holds text plus files and never calls a text-only backend', async () => {
     const backends = createBackends();
 
@@ -121,7 +138,6 @@ describe('FastAgentPanel send contract', () => {
     });
     expect(backends.sendStreamingMessage).toHaveBeenCalledWith({
       anonymousSessionId: undefined,
-      arbitrageEnabled: undefined,
       clientContext: { locale: 'en-US' },
       entitySlug: undefined,
       model: 'gpt-5.4-mini',
@@ -130,6 +146,39 @@ describe('FastAgentPanel send contract', () => {
       threadId: 'stream-thread-1',
       useCoordinator: true,
     });
+  });
+
+  it('sends anonymous prompts through the canonical streaming backend', async () => {
+    const backends = createBackends();
+
+    const result = await prepareAndDispatch(
+      {
+        allowAttachments: false,
+        attachedFiles: [],
+        contextDocuments: [],
+        dossierPrefix: '',
+        input: 'What changed in my market?',
+        selectedDocumentIds: [],
+      },
+      {
+        activeThreadId: 'anonymous-thread',
+        anonymousSessionId: 'anonymous-session-1',
+        chatMode: 'agent-streaming',
+        clientContext: { locale: 'en-US' },
+        selectedModel: 'gpt-5.4-mini',
+        streamThreadId: 'anonymous-thread',
+        ...backends,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, text: 'What changed in my market?' });
+    expect(backends.sendStreamingMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        anonymousSessionId: 'anonymous-session-1',
+        prompt: 'What changed in my market?',
+        threadId: 'anonymous-thread',
+      }),
+    );
   });
 
   it('holds analyzing-only document sends and leaves every backend untouched', async () => {

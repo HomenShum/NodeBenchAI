@@ -5,7 +5,7 @@
  * - Per-source facet filters (toggle sources on/off)
  * - Source attribution badges with icons
  * - Partial failure warnings with expandable details
- * - Consistent citation numbering
+ * - Ranked consulted-result presentation
  * - Accessible keyboard navigation and screen reader support
  *
  * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -51,7 +51,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Globe, FileText, Youtube, BookOpen, Newspaper, Database, Building2,
-  AlertTriangle, Filter, X, ExternalLink, Clock, ChevronDown, ChevronUp, Loader2
+  AlertTriangle, Filter, X, ExternalLink, Clock, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -59,7 +59,17 @@ import { cn } from '@/lib/utils';
 // TYPES
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-export type SearchSource = "linkup" | "sec" | "rag" | "documents" | "news" | "youtube" | "arxiv";
+export const SEARCH_SOURCES = [
+  "linkup", "brave", "serper", "tavily", "exa", "sec", "rag",
+  "documents", "news", "youtube", "arxiv", "fda", "finra", "uspto",
+  "state_registry",
+] as const;
+
+export type SearchSource = typeof SEARCH_SOURCES[number];
+
+export function isSearchSource(value: unknown): value is SearchSource {
+  return typeof value === "string" && (SEARCH_SOURCES as readonly string[]).includes(value);
+}
 
 export interface FusedResult {
   id: string;
@@ -70,7 +80,7 @@ export interface FusedResult {
   score: number;
   originalRank: number;
   fusedRank?: number;
-  contentType: "text" | "pdf" | "video" | "image" | "filing" | "news";
+  contentType: "text" | "pdf" | "video" | "image" | "filing" | "news" | "patent" | "organization";
   publishedAt?: string;
   author?: string;
   metadata?: Record<string, unknown>;
@@ -87,7 +97,6 @@ export interface FusedSearchResultsProps {
   errors?: SourceError[];
   timing?: Record<SearchSource, number>;
   totalTimeMs?: number;
-  showCitations?: boolean;
   className?: string;
 }
 
@@ -97,13 +106,36 @@ export interface FusedSearchResultsProps {
 
 const SOURCE_CONFIG: Record<SearchSource, { icon: React.ElementType; label: string; color: string }> = {
   linkup: { icon: Globe, label: "Web", color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20" },
+  brave: { icon: Globe, label: "Brave", color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20" },
+  serper: { icon: Globe, label: "Google", color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20" },
+  tavily: { icon: Globe, label: "Tavily", color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20" },
+  exa: { icon: Globe, label: "Exa", color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20" },
   sec: { icon: Building2, label: "SEC", color: "bg-surface-secondary text-content-secondary border-edge" },
   rag: { icon: Database, label: "Internal", color: "bg-surface-secondary text-content-secondary border-edge" },
   documents: { icon: FileText, label: "Docs", color: "bg-green-100 text-green-700 border-green-200" },
   news: { icon: Newspaper, label: "News", color: "bg-red-100 text-red-700 border-red-200" },
   youtube: { icon: Youtube, label: "YouTube", color: "bg-rose-100 text-rose-700 border-rose-200" },
   arxiv: { icon: BookOpen, label: "arXiv", color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20" },
+  fda: { icon: Database, label: "FDA", color: "bg-surface-secondary text-content-secondary border-edge" },
+  finra: { icon: Building2, label: "FINRA", color: "bg-surface-secondary text-content-secondary border-edge" },
+  uspto: { icon: FileText, label: "USPTO", color: "bg-surface-secondary text-content-secondary border-edge" },
+  state_registry: { icon: Building2, label: "State registry", color: "bg-surface-secondary text-content-secondary border-edge" },
 };
+
+function safeResultHref(url: unknown): string | undefined {
+  if (typeof url !== "string") return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith("/")) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "https:" || parsed.protocol === "http:"
+      ? parsed.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // SUB-COMPONENTS
@@ -185,23 +217,16 @@ function PartialFailureWarning({ errors }: { errors: SourceError[] }) {
 }
 
 /** Single result card with source attribution - accessible link card */
-function ResultCard({ result, citationNumber }: { result: FusedResult; citationNumber?: number }) {
+function ResultCard({ result }: { result: FusedResult }) {
   const config = SOURCE_CONFIG[result.source];
   const Icon = config.icon;
+  const href = safeResultHref(result.url);
 
   // Build accessible label
-  const ariaLabel = citationNumber !== undefined
-    ? `Result ${citationNumber} from ${config.label}: ${result.title}${result.fusedRank ? `, ranked #${result.fusedRank}` : ''}`
-    : `${config.label} result: ${result.title}`;
+  const ariaLabel = `${config.label} result: ${result.title}${result.fusedRank ? `, ranked #${result.fusedRank}` : ''}`;
 
-  return (
-    <a
-      href={result.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={ariaLabel}
-      className="group block p-3 rounded-lg border border-edge hover:shadow-md hover:border-primary/20 transition-all bg-surface focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-    >
+  const content = (
+    <>
       <div className="flex items-start gap-3">
         {/* Source icon */}
         <div className={cn("flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center", config.color.split(' ')[0])} aria-hidden="true">
@@ -211,14 +236,6 @@ function ResultCard({ result, citationNumber }: { result: FusedResult; citationN
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h4 className="text-sm font-medium text-content truncate group-hover:text-indigo-700 dark:text-indigo-300">{result.title}</h4>
-            {citationNumber !== undefined && (
-              <span
-                className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs font-semibold"
-                aria-label={`Citation ${citationNumber}`}
-              >
-                {citationNumber}
-              </span>
-            )}
           </div>
           <p className="text-xs text-content-secondary line-clamp-2">{result.snippet}</p>
           <div className="flex items-center gap-3 mt-2 text-xs text-content-muted">
@@ -229,12 +246,32 @@ function ResultCard({ result, citationNumber }: { result: FusedResult; citationN
                 <span aria-label={`Published ${result.publishedAt}`}>{result.publishedAt}</span>
               </span>
             )}
-            {result.fusedRank && <span aria-label={`Fusion rank ${result.fusedRank}`}>Rank #{result.fusedRank}</span>}
+            {result.fusedRank !== undefined && <span aria-label={`Fusion rank ${result.fusedRank}`}>Rank #{result.fusedRank}</span>}
           </div>
         </div>
-        <ExternalLink className="w-4 h-4 text-content-muted group-hover:text-content-secondary flex-shrink-0" aria-hidden="true" />
+        {href && <ExternalLink className="w-4 h-4 text-content-muted group-hover:text-content-secondary flex-shrink-0" aria-hidden="true" />}
       </div>
+    </>
+  );
+
+  return href ? (
+    <a
+      href={href}
+      target={href.startsWith('/') ? undefined : "_blank"}
+      rel={href.startsWith('/') ? undefined : "noopener noreferrer"}
+      aria-label={ariaLabel}
+      className="group block p-3 rounded-lg border border-edge hover:shadow-md hover:border-primary/20 transition-all bg-surface focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+    >
+      {content}
     </a>
+  ) : (
+    <div
+      aria-label={ariaLabel}
+      className="group block p-3 rounded-lg border border-edge bg-surface"
+      role="group"
+    >
+      {content}
+    </div>
   );
 }
 
@@ -251,27 +288,48 @@ export function FusedSearchResults({
   errors = [],
   timing,
   totalTimeMs,
-  showCitations = true,
   className,
 }: FusedSearchResultsProps) {
+  // Props originate at a runtime boundary despite their static types. Unknown
+  // sources are omitted rather than indexing an absent presentation config.
+  const safeSources = useMemo(
+    () => [...new Set(sourcesQueried.filter(isSearchSource))],
+    [sourcesQueried],
+  );
+  const safeResults = useMemo(
+    () => results.filter((result) =>
+      isSearchSource(result?.source) &&
+      typeof result.id === 'string' && result.id.trim().length > 0 &&
+      typeof result.title === 'string' && result.title.trim().length > 0
+    ),
+    [results],
+  );
+  const safeErrors = useMemo(
+    () => errors.filter((error) =>
+      isSearchSource(error?.source) &&
+      typeof error.error === 'string' && error.error.trim().length > 0
+    ),
+    [errors],
+  );
+
   // Track which sources are active (for filtering)
-  const [activeSources, setActiveSources] = useState<Set<SearchSource>>(new Set(sourcesQueried));
+  const [activeSources, setActiveSources] = useState<Set<SearchSource>>(new Set(safeSources));
   const [showAll, setShowAll] = useState(false);
   const INITIAL_COUNT = 10;
 
   // Count results per source
   const sourceCounts = useMemo(() => {
     const counts: Record<SearchSource, number> = {} as any;
-    for (const r of results) {
+    for (const r of safeResults) {
       counts[r.source] = (counts[r.source] || 0) + 1;
     }
     return counts;
-  }, [results]);
+  }, [safeResults]);
 
   // Filter results by active sources
   const filteredResults = useMemo(() => {
-    return results.filter(r => activeSources.has(r.source));
-  }, [results, activeSources]);
+    return safeResults.filter(r => activeSources.has(r.source));
+  }, [safeResults, activeSources]);
 
   const displayedResults = showAll ? filteredResults : filteredResults.slice(0, INITIAL_COUNT);
   const hasMore = filteredResults.length > INITIAL_COUNT;
@@ -290,16 +348,16 @@ export function FusedSearchResults({
   };
 
   // Reset filters
-  const resetFilters = () => setActiveSources(new Set(sourcesQueried));
+  const resetFilters = () => setActiveSources(new Set(safeSources));
 
-  if (results.length === 0 && errors.length === 0) {
+  if (safeResults.length === 0 && safeErrors.length === 0) {
     return null;
   }
 
   return (
     <div className={cn("space-y-3", className)}>
       {/* Partial failure warning */}
-      <PartialFailureWarning errors={errors} />
+      <PartialFailureWarning errors={safeErrors} />
 
       {/* Header with timing */}
       <div className="flex items-center justify-between">
@@ -308,7 +366,7 @@ export function FusedSearchResults({
           <span className="text-sm font-medium text-content">
             {filteredResults.length} result{filteredResults.length !== 1 ? 's' : ''}
           </span>
-          {activeSources.size < sourcesQueried.length && (
+          {activeSources.size < safeSources.length && (
             <button type="button" onClick={resetFilters} className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:text-indigo-300 hover:underline flex items-center gap-1">
               <X className="w-3 h-3" /> Reset filters
             </button>
@@ -327,7 +385,7 @@ export function FusedSearchResults({
         role="group"
         aria-label="Filter results by source"
       >
-        {sourcesQueried.map(source => (
+        {safeSources.map(source => (
           <SourceBadge
             key={source}
             source={source}
@@ -348,7 +406,6 @@ export function FusedSearchResults({
           <div key={`${result.id}-${idx}`} role="listitem">
             <ResultCard
               result={result}
-              citationNumber={showCitations ? idx + 1 : undefined}
             />
           </div>
         ))}
@@ -377,4 +434,3 @@ export function FusedSearchResults({
     </div>
   );
 }
-

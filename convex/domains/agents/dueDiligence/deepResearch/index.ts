@@ -107,7 +107,7 @@ export type {
 // ORCHESTRATOR
 // ============================================================================
 
-export { startDeepResearch, formatWithCitation, formatReferenceList } from "./deepResearchOrchestrator";
+export { formatWithCitation, formatReferenceList } from "./deepResearchOrchestrator";
 
 // ============================================================================
 // QUERY DECOMPOSITION

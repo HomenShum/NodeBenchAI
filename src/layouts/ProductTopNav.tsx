@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Bell, Command, Moon, Search, Sun } from "lucide-react";
+import { Command, Moon, Search, Sun } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { type CockpitSurfaceId } from "@/lib/registry/viewRegistry";
 import { ExactAvatarMenu } from "@/features/designKit/exact/ExactKit";
@@ -81,14 +81,6 @@ export const ProductTopNav = memo(function ProductTopNav({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          <button
-            type="button"
-            className="nb-kit-topnav-icon"
-            aria-label="Open notifications"
-            title="Notifications"
-          >
-            <Bell size={16} aria-hidden />
-          </button>
           <button
             type="button"
             onClick={() => setMode(resolvedMode === "dark" ? "light" : "dark")}

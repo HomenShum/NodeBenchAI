@@ -1,4 +1,4 @@
-export type CompactReportSourceKind = "live_convex" | "starter";
+export type CompactReportSourceKind = "loading" | "empty" | "live_convex";
 
 export type CompactReportsReadModel<TReport> = {
   sourceKind: CompactReportSourceKind;
@@ -12,18 +12,16 @@ export type CompactReportsReadModel<TReport> = {
 
 export function buildCompactReportsReadModel<TReport extends { state: string }>({
   liveReports,
-  fallbackReports,
   filter,
   visibleCount,
 }: {
-  liveReports: TReport[] | null;
-  fallbackReports: readonly TReport[];
+  liveReports: TReport[] | undefined;
   filter: string;
   visibleCount: number;
 }): CompactReportsReadModel<TReport> {
-  const allReports = liveReports && liveReports.length > 0 ? liveReports : [...fallbackReports];
+  const allReports = liveReports ?? [];
   const sourceKind: CompactReportSourceKind =
-    liveReports && liveReports.length > 0 ? "live_convex" : "starter";
+    liveReports === undefined ? "loading" : liveReports.length > 0 ? "live_convex" : "empty";
   const filteredReports =
     filter === "all" ? allReports : allReports.filter((report) => report.state.includes(filter));
   const safeVisibleCount = Math.max(0, Math.min(filteredReports.length, visibleCount));
@@ -32,7 +30,8 @@ export function buildCompactReportsReadModel<TReport extends { state: string }>(
 
   return {
     sourceKind,
-    sourceLabel: sourceKind === "live_convex" ? "live memory" : "starter memory",
+    sourceLabel:
+      sourceKind === "live_convex" ? "saved reports" : sourceKind === "loading" ? "loading reports" : "no saved reports",
     allReports,
     filteredReports,
     visibleReports,

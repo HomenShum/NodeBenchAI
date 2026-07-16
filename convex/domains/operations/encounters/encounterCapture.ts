@@ -11,6 +11,7 @@ import { v } from "convex/values";
 import { action, internalAction } from "../../../_generated/server";
 import { api, internal } from "../../../_generated/api";
 import { Id } from "../../../_generated/dataModel";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import type {
   EncounterParticipant,
   EncounterCompany,
@@ -97,6 +98,14 @@ export const triggerDeepDiveFromEncounter = action({
   },
   handler: async (ctx, args) => {
     const startTime = Date.now();
+    const authUserId = await getAuthUserId(ctx);
+    if (!authUserId) {
+      throw new Error("Not authenticated");
+    }
+    const encounterOwnerId = await getUserIdFromEncounter(ctx, args.encounterId);
+    if (encounterOwnerId !== authUserId) {
+      throw new Error("Not authorized");
+    }
 
     // 1. Update encounter status to deep_dive_queued
     await ctx.runMutation(
@@ -110,13 +119,13 @@ export const triggerDeepDiveFromEncounter = action({
 
     // 2. Start the DD job with encounter trigger
     const ddResult = await ctx.runAction(
-      api.domains.agents.dueDiligence.ddOrchestrator.startDueDiligenceJob,
+      internal.domains.agents.dueDiligence.ddOrchestrator.startDueDiligenceJobInternal,
       {
         entityName: args.entityName,
         entityType: args.entityType || "company",
         triggerSource: "encounter",
         triggerEncounterId: args.encounterId,
-        userId: await getUserIdFromEncounter(ctx, args.encounterId),
+        userId: authUserId,
       }
     );
 

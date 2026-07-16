@@ -8,11 +8,9 @@ import {
     Bell,
     FileText,
     FileSearch,
-    CheckSquare,
     Settings,
     Home,
     MessageSquare,
-    Plus,
     Command,
     ArrowRight,
     User,
@@ -42,8 +40,6 @@ export interface ExecutedCommand {
 interface CommandPaletteProps {
     isOpen: boolean;
     onClose: () => void;
-    onCreateDocument?: () => void;
-    onCreateTask?: () => void;
     onOpenSettings?: () => void;
     onCommandExecuted?: (command: ExecutedCommand) => void;
     /** Extra actions injected by the host (e.g. cockpit mode switches) */
@@ -53,8 +49,6 @@ interface CommandPaletteProps {
 export function CommandPalette({
     isOpen,
     onClose,
-    onCreateDocument,
-    onCreateTask,
     onOpenSettings,
     onCommandExecuted,
     additionalActions,
@@ -77,7 +71,6 @@ export function CommandPalette({
             : "skip",
         api?.domains.documents.documents.getSidebar ? {} : "skip",
     );
-    const recentTasks = null;
 
     // Define all available commands
     const allCommands = useMemo<CommandAction[]>(() => {
@@ -92,12 +85,11 @@ export function CommandPalette({
                 section: 'navigation',
                 shortcut: '/',
                 action: () => {
-                    navigateToSurface('ask');
-                    // Focus the search input after navigation settles
-                    setTimeout(() => {
-                        const input = document.getElementById('home-query');
-                        input?.focus();
-                    }, 300);
+                    navigate(buildCockpitPath({
+                        surfaceId: 'ask',
+                        extra: { focus: 'home-composer' },
+                    }));
+                    onClose();
                 }
             },
             // Navigation
@@ -157,33 +149,6 @@ export function CommandPalette({
                 }
             },
 
-            // Create Actions
-            {
-                id: 'create-document',
-                label: 'Create New Document',
-                description: 'Start a fresh document',
-                icon: <Plus className="w-4 h-4" />,
-                keywords: ['new', 'create', 'document', 'file', 'note'],
-                section: 'create',
-                shortcut: 'Ctrl+N',
-                action: () => {
-                    onCreateDocument?.();
-                    onClose();
-                }
-            },
-            {
-                id: 'create-task',
-                label: 'Create New Task',
-                description: 'Add a task to your to-do list',
-                icon: <CheckSquare className="w-4 h-4" />,
-                keywords: ['new', 'create', 'task', 'todo', 'checklist'],
-                section: 'create',
-                shortcut: 'Ctrl+T',
-                action: () => {
-                    onCreateTask?.();
-                    onClose();
-                }
-            },
             // Settings
             {
                 id: 'settings-open',
@@ -211,23 +176,11 @@ export function CommandPalette({
                     keywords: ['recent', 'document', sanitizeDocumentTitle(doc.title, 'Untitled Document').toLowerCase()],
                     section: 'recent',
                     action: () => {
-                        onClose();
-                    }
-                });
-            });
-        }
-
-        // Add recent tasks
-        if (recentTasks && recentTasks.length > 0) {
-            recentTasks.forEach((task: any) => {
-                commands.push({
-                    id: `task-${task._id}`,
-                    label: task.title || 'Untitled Task',
-                    description: `Open recent task`,
-                    icon: <CheckSquare className="w-4 h-4" />,
-                    keywords: ['recent', 'task', task.title?.toLowerCase() || ''],
-                    section: 'recent',
-                    action: () => {
+                        window.dispatchEvent(
+                            new CustomEvent('nodebench:openDocument', {
+                                detail: { documentId: doc._id },
+                            }),
+                        );
                         onClose();
                     }
                 });
@@ -252,7 +205,7 @@ export function CommandPalette({
         });
 
         return [...(additionalActions ?? []), ...commands];
-    }, [additionalActions, recentDocs, recentTasks, navigateToSurface, onCreateDocument, onCreateTask, onOpenSettings, onClose]);
+    }, [additionalActions, navigate, recentDocs, navigateToSurface, onOpenSettings, onClose]);
 
     // Lightweight fuzzy scorer: returns 0 (no match) or positive score (higher = better)
     const fuzzyScore = useCallback((text: string, term: string): number => {

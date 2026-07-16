@@ -6,133 +6,27 @@
  */
 
 import { v } from "convex/values";
-import { mutation, query, internalMutation, internalQuery } from "../../../../_generated/server";
-import { Doc, Id } from "../../../../_generated/dataModel";
-import type { InvestorProtectionJobStatus } from "./types";
+import { internalMutation, internalQuery } from "../../../../_generated/server";
+import type { MutationCtx } from "../../../../_generated/server";
+import type { Doc, Id } from "../../../../_generated/dataModel";
+import { assertInvestorProtectionJobOwner } from "./investorProtectionOwnership";
 
-// ============================================================================
-// QUERIES
-// ============================================================================
+async function getOwnedJob(
+  ctx: MutationCtx,
+  jobId: string,
+  userId: Id<"users">,
+): Promise<Doc<"investorPlaybookJobs">> {
+  const job = await ctx.db
+    .query("investorPlaybookJobs")
+    .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
+    .first();
 
-/**
- * Get investor protection job by jobId
- */
-export const getJob = query({
-  args: { jobId: v.string() },
-  handler: async (ctx, { jobId }) => {
-    const job = await ctx.db
-      .query("investorPlaybookJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"investorPlaybookJobs"> | null;
-
-    if (!job) return null;
-
-    // Get result if completed
-    let result = null;
-    if (job.resultId) {
-      result = await ctx.db.get(job.resultId);
-    }
-
-    return { job, result };
-  },
-});
-
-/**
- * Get jobs for a user
- */
-export const getUserJobs = query({
-  args: {
-    userId: v.id("users"),
-    status: v.optional(v.string()),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, { userId, status, limit = 20 }) => {
-    const jobs = await ctx.db
-      .query("investorPlaybookJobs")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .order("desc")
-      .take(limit) as Doc<"investorPlaybookJobs">[];
-
-    if (status) {
-      return jobs.filter((j) => j.status === status);
-    }
-
-    return jobs;
-  },
-});
-
-/**
- * Get job progress for real-time UI updates
- */
-export const getJobProgress = query({
-  args: { jobId: v.string() },
-  handler: async (ctx, { jobId }) => {
-    const job = await ctx.db
-      .query("investorPlaybookJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"investorPlaybookJobs"> | null;
-
-    if (!job) return null;
-
-    const completedPhases: string[] = [];
-    if (job.extractedClaims) completedPhases.push("claims_extraction");
-    if (job.entityVerification) completedPhases.push("entity_verification");
-    if (job.securitiesVerification) completedPhases.push("securities_verification");
-    if (job.claimsValidation) completedPhases.push("claims_validation");
-    if (job.moneyFlowVerification) completedPhases.push("money_flow_verification");
-    if (job.resultId) completedPhases.push("synthesis");
-
-    return {
-      jobId: job.jobId,
-      status: job.status,
-      currentPhase: job.status,
-      completedPhases,
-      elapsedMs: job.elapsedMs ?? (Date.now() - job.createdAt),
-      error: job.error,
-    };
-  },
-});
-
-/**
- * Internal: Get job by ID (for actions)
- */
-export const internalGetJob = internalQuery({
-  args: { jobId: v.string() },
-  handler: async (ctx, { jobId }) => {
-    return await ctx.db
-      .query("investorPlaybookJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"investorPlaybookJobs"> | null;
-  },
-});
+  return assertInvestorProtectionJobOwner(job, userId, jobId);
+}
 
 // ============================================================================
 // MUTATIONS
 // ============================================================================
-
-/**
- * Create a new investor protection verification job
- */
-export const createJob = mutation({
-  args: {
-    jobId: v.string(),
-    userId: v.id("users"),
-    offeringName: v.string(),
-    offeringUrl: v.optional(v.string()),
-    fundingPortal: v.optional(v.string()),
-    pitchDocumentId: v.optional(v.id("documents")),
-    pitchText: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const docId = await ctx.db.insert("investorPlaybookJobs", {
-      ...args,
-      status: "pending",
-      createdAt: Date.now(),
-    });
-
-    return { docId, jobId: args.jobId };
-  },
-});
 
 /**
  * Internal: Create job (for actions)
@@ -164,6 +58,7 @@ export const internalCreateJob = internalMutation({
 export const internalUpdateJobStatus = internalMutation({
   args: {
     jobId: v.string(),
+    userId: v.id("users"),
     status: v.union(
       v.literal("pending"),
       v.literal("extracting_claims"),
@@ -180,15 +75,8 @@ export const internalUpdateJobStatus = internalMutation({
     completedAt: v.optional(v.number()),
     elapsedMs: v.optional(v.number()),
   },
-  handler: async (ctx, { jobId, status, error, startedAt, completedAt, elapsedMs }) => {
-    const job = await ctx.db
-      .query("investorPlaybookJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"investorPlaybookJobs"> | null;
-
-    if (!job) {
-      throw new Error(`Job not found: ${jobId}`);
-    }
+  handler: async (ctx, { jobId, userId, status, error, startedAt, completedAt, elapsedMs }) => {
+    const job = await getOwnedJob(ctx, jobId, userId);
 
     const updates: Record<string, unknown> = { status };
     if (error !== undefined) updates.error = error;
@@ -206,6 +94,7 @@ export const internalUpdateJobStatus = internalMutation({
 export const internalSaveExtractedClaims = internalMutation({
   args: {
     jobId: v.string(),
+    userId: v.id("users"),
     extractedClaims: v.object({
       companyName: v.string(),
       companyNameVariants: v.optional(v.array(v.string())),
@@ -239,15 +128,8 @@ export const internalSaveExtractedClaims = internalMutation({
       confidence: v.number(),
     }),
   },
-  handler: async (ctx, { jobId, extractedClaims }) => {
-    const job = await ctx.db
-      .query("investorPlaybookJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"investorPlaybookJobs"> | null;
-
-    if (!job) {
-      throw new Error(`Job not found: ${jobId}`);
-    }
+  handler: async (ctx, { jobId, userId, extractedClaims }) => {
+    const job = await getOwnedJob(ctx, jobId, userId);
 
     await ctx.db.patch(job._id, { extractedClaims });
   },
@@ -259,6 +141,7 @@ export const internalSaveExtractedClaims = internalMutation({
 export const internalSaveEntityVerification = internalMutation({
   args: {
     jobId: v.string(),
+    userId: v.id("users"),
     entityVerification: v.object({
       verified: v.boolean(),
       stateRegistry: v.optional(v.string()),
@@ -277,15 +160,8 @@ export const internalSaveEntityVerification = internalMutation({
       verifiedAt: v.number(),
     }),
   },
-  handler: async (ctx, { jobId, entityVerification }) => {
-    const job = await ctx.db
-      .query("investorPlaybookJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"investorPlaybookJobs"> | null;
-
-    if (!job) {
-      throw new Error(`Job not found: ${jobId}`);
-    }
+  handler: async (ctx, { jobId, userId, entityVerification }) => {
+    const job = await getOwnedJob(ctx, jobId, userId);
 
     await ctx.db.patch(job._id, { entityVerification });
   },
@@ -297,6 +173,7 @@ export const internalSaveEntityVerification = internalMutation({
 export const internalSaveSecuritiesVerification = internalMutation({
   args: {
     jobId: v.string(),
+    userId: v.id("users"),
     securitiesVerification: v.object({
       verified: v.boolean(),
       filingType: v.optional(v.string()),
@@ -322,15 +199,8 @@ export const internalSaveSecuritiesVerification = internalMutation({
       verifiedAt: v.number(),
     }),
   },
-  handler: async (ctx, { jobId, securitiesVerification }) => {
-    const job = await ctx.db
-      .query("investorPlaybookJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"investorPlaybookJobs"> | null;
-
-    if (!job) {
-      throw new Error(`Job not found: ${jobId}`);
-    }
+  handler: async (ctx, { jobId, userId, securitiesVerification }) => {
+    const job = await getOwnedJob(ctx, jobId, userId);
 
     await ctx.db.patch(job._id, { securitiesVerification });
   },
@@ -342,6 +212,7 @@ export const internalSaveSecuritiesVerification = internalMutation({
 export const internalSaveClaimsValidation = internalMutation({
   args: {
     jobId: v.string(),
+    userId: v.id("users"),
     claimsValidation: v.object({
       fdaVerifications: v.array(v.object({
         claimDescription: v.string(),
@@ -366,15 +237,8 @@ export const internalSaveClaimsValidation = internalMutation({
       verifiedAt: v.number(),
     }),
   },
-  handler: async (ctx, { jobId, claimsValidation }) => {
-    const job = await ctx.db
-      .query("investorPlaybookJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"investorPlaybookJobs"> | null;
-
-    if (!job) {
-      throw new Error(`Job not found: ${jobId}`);
-    }
+  handler: async (ctx, { jobId, userId, claimsValidation }) => {
+    const job = await getOwnedJob(ctx, jobId, userId);
 
     await ctx.db.patch(job._id, { claimsValidation });
   },
@@ -386,6 +250,7 @@ export const internalSaveClaimsValidation = internalMutation({
 export const internalSaveMoneyFlowVerification = internalMutation({
   args: {
     jobId: v.string(),
+    userId: v.id("users"),
     moneyFlowVerification: v.object({
       verified: v.boolean(),
       expectedFlow: v.string(),
@@ -395,15 +260,8 @@ export const internalSaveMoneyFlowVerification = internalMutation({
       verifiedAt: v.number(),
     }),
   },
-  handler: async (ctx, { jobId, moneyFlowVerification }) => {
-    const job = await ctx.db
-      .query("investorPlaybookJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"investorPlaybookJobs"> | null;
-
-    if (!job) {
-      throw new Error(`Job not found: ${jobId}`);
-    }
+  handler: async (ctx, { jobId, userId, moneyFlowVerification }) => {
+    const job = await getOwnedJob(ctx, jobId, userId);
 
     await ctx.db.patch(job._id, { moneyFlowVerification });
   },
@@ -452,9 +310,10 @@ export const internalSaveResult = internalMutation({
     branchesExecuted: v.array(v.string()),
     executionTimeMs: v.number(),
     fullSynthesis: v.optional(v.any()),
-    userId: v.optional(v.id("users")),
+    userId: v.id("users"),
   },
   handler: async (ctx, args) => {
+    const job = await getOwnedJob(ctx, args.jobId, args.userId);
     const { jobId, ...resultData } = args;
 
     // Insert result
@@ -464,20 +323,13 @@ export const internalSaveResult = internalMutation({
       createdAt: Date.now(),
     });
 
-    // Link result to job
-    const job = await ctx.db
-      .query("investorPlaybookJobs")
-      .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
-      .first() as Doc<"investorPlaybookJobs"> | null;
-
-    if (job) {
-      await ctx.db.patch(job._id, {
-        resultId,
-        status: "completed",
-        completedAt: Date.now(),
-        elapsedMs: Date.now() - job.createdAt,
-      });
-    }
+    // Link result to the exact owner-verified job.
+    await ctx.db.patch(job._id, {
+      resultId,
+      status: "completed",
+      completedAt: Date.now(),
+      elapsedMs: Date.now() - job.createdAt,
+    });
 
     return resultId;
   },

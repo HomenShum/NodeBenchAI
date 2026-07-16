@@ -35,7 +35,6 @@ export interface TaskSessionProofPack {
   verdict: TaskSessionProofVerdict;
   verdictLabel: string;
   summary: string;
-  confidence: number;
   evidenceCount: number;
   citationCount: number;
   sourceRefCount: number;

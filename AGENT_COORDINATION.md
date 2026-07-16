@@ -57,6 +57,24 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
+- **2026-07-15 · Codex due-diligence public-surface subtraction →**
+  `convex/domains/agents/dueDiligence/{investorProtection,investorPlaybook,deepResearch}/**`
+  and adjacent unreachable eval/test exports · removing caller-selected ownership and
+  global private reads from dead public DD surfaces while preserving trusted internal
+  execution contracts · branch `codex/runtime-grounded-control-focus`.
+
+- **2026-07-15 · Codex parallel-task subtraction →**
+  `convex/domains/agents/parallelTaskTree.ts` and removed parallel-task UI/API paths ·
+  deleting the unreachable timeline, kanban, hook, and public orchestrator while retaining
+  only four bounded, owner-chain-checked internal mutations used by due diligence · branch
+  `codex/runtime-grounded-control-focus`.
+
+- **2026-07-15 · Codex pipeline truth isolation →** `convex/schema.ts#pipelineRuns`,
+  `convex/domains/pipelines/**` · adding optional logical-attempt/workflow-instance
+  fences so manual refreshes and scheduled occurrences isolate rows while durable
+  retries reuse only their own attempt; also separating consulted research sources
+  from synthesis-bound citations · branch `codex/runtime-grounded-control-focus`.
+
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
   shipping the cross-domain private-notes token bridge (opaque stateful token, PR #496) ·
@@ -67,6 +85,16 @@ Server Error) for an unknown slug.
   that re-deploys the #494 functions the incident note describes → heals prod.
 
 ## Hand-offs (built + ready for the other agent to call)
+
+- **2026-07-15 · Codex pipeline truth-isolation candidate →** `pipelineRuns`
+  adds only optional `attemptKey`, `workflowExecutionKey`, and
+  `executionGeneration`; `pipelineRunStreams` adds only optional
+  `workflowExecutionKey` and `executionGeneration`. Public launch/auth/admission
+  signatures remain unchanged. Trusted scheduled starts may pass an internal
+  deterministic `attemptKey`; primitives derive idempotency from
+  kind/spec/owner/attempt, and all child writes are workflow+generation fenced.
+  Research export/document payloads use `sourcesConsulted` separately from
+  marker-bound `citationsUsed`. No out-of-band Convex deploy was performed.
 
 - **2026-07-15 · Codex shipped via PR #538 · canonical main `ba743534`** — scoped
   notebook authority is available through

@@ -13,7 +13,7 @@
 "use node";
 
 import { v } from "convex/values";
-import { action, internalAction } from "../../../../_generated/server";
+import { internalAction } from "../../../../_generated/server";
 import { api, internal } from "../../../../_generated/api";
 import { Id } from "../../../../_generated/dataModel";
 
@@ -73,10 +73,9 @@ const DEFAULT_CONFIG = {
  * 4. Evaluates hypotheses
  * 5. Synthesizes final report
  */
-export const startDeepResearch = action({
+export const startDeepResearch = internalAction({
   args: {
     query: v.string(),
-    userId: v.id("users"),
     depth: v.optional(v.union(
       v.literal("quick"),
       v.literal("standard"),

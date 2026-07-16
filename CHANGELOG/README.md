@@ -11,6 +11,7 @@ This directory contains append-only per-surface changelog lanes. Each lane recor
 - [`pages/linkedin-daily-brief.md`](pages/linkedin-daily-brief.md) — LinkedIn daily-brief pipeline.
 - [`pages/scratchnode-nodebench-bridge.md`](pages/scratchnode-nodebench-bridge.md) — ScratchNode-to-NodeBench bridge.
 - [`pages/agents.md`](pages/agents.md) — Agents hub prompt routing, topic presentation, and responsive hub navigation.
+- [`pages/exact-cockpit.md`](pages/exact-cockpit.md) — Runtime truth across the deployed Home, Reports, Chat, Inbox, and Me cockpit.
 
 ### Components
 
@@ -19,6 +20,7 @@ This directory contains append-only per-surface changelog lanes. Each lane recor
 ### Integrations
 
 - [`integrations/ai-elements.md`](integrations/ai-elements.md) — Vercel AI Elements scaffold, adapter, and governance integration.
+- [`integrations/pipeline-runtime.md`](integrations/pipeline-runtime.md) — Owner-scoped pipeline launch, activity, streaming, evaluation, schedules, and MCP bridge contracts.
 
 ### Build and bundling
 

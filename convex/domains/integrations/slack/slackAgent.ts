@@ -591,7 +591,7 @@ async function triggerDeepDiveFromButton(
   try {
     // Trigger DD job directly via orchestrator
     const result = await ctx.runAction(
-      api.domains.agents.dueDiligence.ddOrchestrator.startDueDiligenceJob,
+      internal.domains.agents.dueDiligence.ddOrchestrator.startDueDiligenceJobInternal,
       {
         entityName,
         entityType: "company" as const,

@@ -2,33 +2,13 @@
  * Due Diligence Framework Index
  *
  * Parallelized multi-front research with traditional IC memo output.
- * Re-exports all public APIs from the DD framework.
+ * Re-exports pure helpers and types from the DD framework. Convex server
+ * functions are referenced through their defining module so internal authority
+ * cannot be confused with a public barrel API.
  */
 
 // Types
 export * from "./types";
-
-// Mutations (queries and mutations - non-Node.js runtime)
-export {
-  // Queries
-  getDDJob,
-  getUserDDJobs,
-  getDDJobProgress,
-  getDDMemoByEntity,
-  // Mutations
-  createDDJob,
-} from "./ddMutations";
-
-// Orchestrator (actions only - Node.js runtime)
-export {
-  startDueDiligenceJob,
-} from "./ddOrchestrator";
-
-// Enhanced Orchestrator (full industry patterns - Node.js runtime)
-export {
-  startEnhancedDDJob,
-  executeEnhancedDDJob,
-} from "./ddEnhancedOrchestrator";
 
 // Context Engineering (Manus/Anthropic patterns)
 export {
@@ -100,20 +80,6 @@ export {
   generateExecutiveSummary,
 } from "./memoSynthesizer";
 
-// Trigger Queries (non-Node.js runtime)
-export {
-  shouldTriggerDDForFunding,
-  getPendingDDTriggers,
-} from "./ddTriggerQueries";
-
-// Trigger Actions (Node.js runtime)
-export {
-  triggerDDFromFunding,
-  processPendingTriggers,
-  triggerManualDD,
-  triggerStaleRefresh,
-} from "./ddTriggers";
-
 // Branch handlers (for direct imports if needed)
 export { executeCompanyProfileBranch } from "./branches/companyProfile";
 export { executeTeamFoundersBranch } from "./branches/teamDeepResearch";
@@ -130,20 +96,6 @@ export {
 // INVESTOR PLAYBOOK (Verification Framework)
 // ============================================================================
 
-// Playbook actions
-export {
-  runPlaybook,
-  runQuickCheck,
-} from "./investorPlaybook/playbookActions";
-
-// Playbook queries
-export {
-  getPlaybookResultByEntity,
-  getPlaybookResultByJob,
-  getHighRiskResults,
-  getRecentResults,
-} from "./investorPlaybook/playbookMutations";
-
 // Playbook types and orchestrator (namespaced to avoid conflicts with main types)
 export type { InvestorPlaybookBranchType as PlaybookBranchType } from "./investorPlaybook/types";
 export { INVESTOR_PLAYBOOK_BRANCHES as PLAYBOOK_BRANCHES } from "./investorPlaybook/types";
@@ -151,18 +103,6 @@ export {
   runInvestorPlaybook,
   generatePlaybookReport,
 } from "./investorPlaybook/playbookOrchestrator";
-
-// Agentic playbook (natural language interface)
-export {
-  runAgenticDueDiligence,
-  isThisAScam,
-} from "./investorPlaybook/agenticPlaybook";
-
-// Playbook evaluation
-export {
-  evaluateMyDentalWig,
-  testPlaybook,
-} from "./investorPlaybook/evalPlaybook";
 
 // ============================================================================
 // INVESTOR PROTECTION (Fraud Detection Verification)
@@ -182,17 +122,6 @@ export type {
   Discrepancy,
   InvestorProtectionReport,
 } from "./investorProtection/types";
-
-// Investor protection orchestrator
-export { startVerificationJob } from "./investorProtection/investorProtectionOrchestrator";
-
-// Investor protection queries/mutations
-export {
-  getJob as getInvestorProtectionJob,
-  getUserJobs as getInvestorProtectionJobs,
-  getJobProgress as getInvestorProtectionProgress,
-  createJob as createInvestorProtectionJob,
-} from "./investorProtection/investorProtectionMutations";
 
 // Claims extraction
 export {
@@ -243,8 +172,8 @@ export type {
   TemporalConsistencyResult,
 } from "./deepResearch/types";
 
-// Deep research orchestrator
-export { startDeepResearch } from "./deepResearch/deepResearchOrchestrator";
+// Deep research formatting helpers
+export { formatWithCitation, formatReferenceList } from "./deepResearch/deepResearchOrchestrator";
 
 // Query decomposition
 export {

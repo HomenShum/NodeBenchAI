@@ -1,22 +1,18 @@
 /**
  * Research Pipeline (pi-ai, streamed synthesis)
  *
- * Three-step pipeline that exercises the streamed runtime end-to-end:
+ * Four-step pipeline that exercises the streamed runtime end-to-end:
  *
  *   1. research.scope     — pi-ai parses the question into 3-5
  *                           sub-questions + an initial outline. Single-shot.
- *   2. research.synthesize — STREAMED via `runPiCompletionStreamed`.
+ *   2. research.gather     — retrieves bounded external snippets via Linkup.
+ *   3. research.synthesize — STREAMED via `runPiCompletionStreamed`.
  *                            Each text delta is pushed to
  *                            `pipelineRunStreams.partialText` so
  *                            clients subscribed via `getPipelineStream`
  *                            see the answer grow in real-time.
- *   3. research.verify    — pi-ai checks the synthesis's internal
- *                           consistency + flags hedged claims.
- *
- * Note: v1 does NOT make external web calls — synthesis comes from the
- * model's internal knowledge. To swap in real web search later, replace
- * the synthesize prompt with retrieved snippets (Linkup / Brave / etc.)
- * before sending. The shape of the rest of the pipeline doesn't change.
+ *   4. research.verify     — combines model review with deterministic
+ *                            citation-marker binding before final verdict.
  *
  * Output handoff:
  *   - JSON bundle (sub-questions + synthesis + verdict) → Convex storage
@@ -41,15 +37,13 @@ import {
   formatSnippetsForPrompt,
   type LinkupSnippet,
 } from "./linkupAdapter";
-
-function stableHash(input: string): string {
-  let h = 0;
-  for (let i = 0; i < input.length; i++) {
-    h = (h << 5) - h + input.charCodeAt(i);
-    h = h & h;
-  }
-  return Math.abs(h).toString(36);
-}
+import { buildPipelineIdempotencyKey } from "./pipelineAttempt";
+import {
+  applyCitationBoundVerdict,
+  selectCitationsUsed,
+  validateCitationMarkers,
+  type ResearchVerdict,
+} from "./researchProvenance";
 
 function newRunId(): string {
   return `pipeline_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -65,13 +59,6 @@ interface ResearchScope {
   outline: string[];
 }
 
-interface ResearchVerdict {
-  tier: "verified" | "provisionally_verified" | "needs_review" | "failed";
-  passing: number;
-  failing: number;
-  notes: string[];
-}
-
 export const runResearchPipeline = internalAction({
   args: {
     spec: v.string(),
@@ -79,6 +66,8 @@ export const runResearchPipeline = internalAction({
     modelId: v.optional(v.string()),
     ownerKey: v.optional(v.string()),
     forceFresh: v.optional(v.boolean()),
+    attemptKey: v.optional(v.string()),
+    workflowExecutionKey: v.string(),
     /**
      * Linkup search depth — "standard" (~€0.005) or "deep" (~€0.05).
      * Use "deep" for gnarlier multi-hop research. Default "standard".
@@ -95,13 +84,19 @@ export const runResearchPipeline = internalAction({
     bundleStorageId: v.optional(v.id("_storage")),
   }),
   handler: async (ctx, args) => {
+    if (args.forceFresh && !args.attemptKey) {
+      throw new Error("forceFresh pipeline execution requires an attemptKey");
+    }
     const pipelineKind = "research" as const;
     const modelSelection = resolvePipelineModelSelection(args.modelId);
     const modelId = modelSelection.resolvedModelId;
     const title = args.title ?? args.spec.slice(0, 80);
-    const idempotencyKey = stableHash(
-      [pipelineKind, args.spec, args.ownerKey ?? "anon"].sort().join(" "),
-    );
+    const idempotencyKey = buildPipelineIdempotencyKey({
+      pipelineKind,
+      spec: args.spec,
+      ownerKey: args.ownerKey,
+      attemptKey: args.attemptKey,
+    });
     const runId = newRunId();
 
     const create = await ctx.runMutation(
@@ -113,17 +108,20 @@ export const runResearchPipeline = internalAction({
         modelId,
         ownerKey: args.ownerKey,
         runId,
+        attemptKey: args.attemptKey,
+        workflowExecutionKey: args.workflowExecutionKey,
         idempotencyKey,
       },
     );
     const pipelineRunId: Id<"pipelineRuns"> = create.pipelineRunId;
     const effectiveRunId = create.runId;
+    const executionGeneration = create.executionGeneration;
+    const executionFence = {
+      workflowExecutionKey: args.workflowExecutionKey,
+      executionGeneration,
+    };
 
-    if (
-      !create.created &&
-      !args.forceFresh &&
-      (create.status === "succeeded" || create.status === "running")
-    ) {
+    if (!create.acquired) {
       return {
         runId: effectiveRunId,
         pipelineRunId,
@@ -134,11 +132,6 @@ export const runResearchPipeline = internalAction({
         bundleStorageId: undefined,
       };
     }
-
-    await ctx.runMutation(
-      internal.domains.pipelines.pipelineRunsMutations.transitionRunStatus,
-      { pipelineRunId, status: "running" },
-    );
 
     let totalIn = 0;
     let totalOut = 0;
@@ -166,6 +159,7 @@ export const runResearchPipeline = internalAction({
         internal.domains.pipelines.pipelineRunsMutations.appendStep,
         {
           pipelineRunId,
+          ...executionFence,
           runId: effectiveRunId,
           name,
           status,
@@ -181,6 +175,7 @@ export const runResearchPipeline = internalAction({
       await appendPipelineTraceEntry({
         ctx,
         runId: effectiveRunId,
+        ownerKey: args.ownerKey,
         seq: traceSeq++,
         toolName: name,
         description: traceDescription ?? name,
@@ -319,6 +314,7 @@ export const runResearchPipeline = internalAction({
           pipelineRunId,
           runId: effectiveRunId,
           stepName: "research.synthesize",
+          ...executionFence,
         },
       );
 
@@ -366,7 +362,7 @@ export const runResearchPipeline = internalAction({
           onTextDelta: async (delta) => {
             await ctx.runMutation(
               internal.domains.pipelines.pipelineStreamMutations.appendPipelineStreamChunk,
-              { streamId, delta },
+              { streamId, delta, ...executionFence },
             );
           },
         });
@@ -376,12 +372,13 @@ export const runResearchPipeline = internalAction({
         totalUsd += synthRes.usage.estimatedUsd;
         await ctx.runMutation(
           internal.domains.pipelines.pipelineStreamMutations.finalizePipelineStream,
-          { streamId, status: "complete" },
+          { streamId, status: "complete", ...executionFence },
         );
         await ctx.runMutation(
           internal.domains.pipelines.pipelineRunsMutations.appendStep,
           {
             pipelineRunId,
+            ...executionFence,
             runId: effectiveRunId,
             name: "research.synthesize",
             status: "ok",
@@ -396,6 +393,7 @@ export const runResearchPipeline = internalAction({
         await appendPipelineTraceEntry({
           ctx,
           runId: effectiveRunId,
+          ownerKey: args.ownerKey,
           seq: traceSeq++,
           toolName: "research.synthesize",
           description: `Streamed ${synthesis.length} chars`,
@@ -407,7 +405,12 @@ export const runResearchPipeline = internalAction({
         synthError = e instanceof Error ? e.message : String(e);
         await ctx.runMutation(
           internal.domains.pipelines.pipelineStreamMutations.finalizePipelineStream,
-          { streamId, status: "error", errorMessage: synthError },
+          {
+            streamId,
+            status: "error",
+            errorMessage: synthError,
+            ...executionFence,
+          },
         );
         await recordStep(
           "research.synthesize",
@@ -425,6 +428,7 @@ export const runResearchPipeline = internalAction({
           internal.domains.pipelines.pipelineRunsMutations.transitionRunStatus,
           {
             pipelineRunId,
+            ...executionFence,
             status: "failed",
             verdict: "failed",
             errorMessage: synthError,
@@ -445,13 +449,26 @@ export const runResearchPipeline = internalAction({
       }
 
       // ── Step 3: research.verify ────────────────────────────────────
+      const citationValidation = validateCitationMarkers(
+        synthesis,
+        allSnippets.length,
+      );
+      const citationsUsed = selectCitationsUsed(
+        allSnippets,
+        citationValidation,
+      );
+
       const verifyStart = Date.now();
       const verifyPrompt = [
         "Review the synthesis for internal consistency and unhedged speculative",
         "claims. STRICT JSON: { \"tier\": \"verified\"|\"provisionally_verified\"|\"needs_review\"|\"failed\",",
         "\"passing\": number, \"failing\": number, \"notes\": string[] }.",
-        "Hedge appropriately — no real web search, so hard numerical claims",
-        "should be flagged \"needs_review\" unless the model explicitly hedges.",
+        "Check hard claims against the externally retrieved evidence where available.",
+        "External evidence is usable only when synthesis [N] markers bind to",
+        "the retrieved source with that number. Never call unbound claims verified.",
+        `CITATION STATE: ${citationValidation.state}`,
+        `VALID MARKERS: ${citationValidation.validMarkers.join(", ") || "none"}`,
+        `INVALID MARKERS: ${citationValidation.invalidMarkers.join(", ") || "none"}`,
         "",
         "QUESTION:",
         scope.question,
@@ -466,20 +483,24 @@ export const runResearchPipeline = internalAction({
         maxOutputTokens: 600,
         timeoutMs: 30_000,
       });
-      let verdict: ResearchVerdict;
+      let candidateVerdict: ResearchVerdict;
       try {
         const cleaned = verifyRes.text
           .replace(/^```(?:json)?\s*/i, "")
           .replace(/\s*```$/i, "");
-        verdict = JSON.parse(cleaned);
+        candidateVerdict = JSON.parse(cleaned);
       } catch {
-        verdict = {
+        candidateVerdict = {
           tier: "needs_review",
           passing: 0,
           failing: 0,
           notes: ["judge returned non-JSON; manual review required"],
         };
       }
+      const verdict = applyCitationBoundVerdict(
+        candidateVerdict,
+        citationValidation,
+      );
       await recordStep(
         "research.verify",
         "ok",
@@ -491,7 +512,14 @@ export const runResearchPipeline = internalAction({
             usd: verifyRes.usage.estimatedUsd,
           },
         },
-        trimScratchpad(JSON.stringify({ raw: verifyRes.text, verdict })),
+        trimScratchpad(
+          JSON.stringify({
+            raw: verifyRes.text,
+            candidateVerdict,
+            verdict,
+            citationValidation,
+          }),
+        ),
         undefined,
         "finalize",
         `Verdict: ${verdict.tier} (passing=${verdict.passing} failing=${verdict.failing})`,
@@ -509,11 +537,6 @@ export const runResearchPipeline = internalAction({
       // ── Step 4: bundle.persist + document handoff ─────────────────
       const persistStart = Date.now();
       let bundleStorageId: Id<"_storage"> | undefined = undefined;
-      const citations = allSnippets.map((s, i) => ({
-        idx: i + 1,
-        title: s.title,
-        url: s.url,
-      }));
       try {
         const bundleJson = JSON.stringify(
           {
@@ -523,8 +546,9 @@ export const runResearchPipeline = internalAction({
             scope,
             synthesis,
             verdict,
-            sources: allSnippets,
-            citations,
+            sourcesConsulted: allSnippets,
+            citationsUsed,
+            citationValidation,
           },
           null,
           2,
@@ -555,11 +579,17 @@ export const runResearchPipeline = internalAction({
           {
             pipelineRunId,
             runId: effectiveRunId,
+            ...executionFence,
             bundle: {
               pipelineKind,
               spec: args.spec,
               synthesis,
-              citations,
+              sourcesConsulted: allSnippets.map((source, index) => ({
+                idx: index + 1,
+                title: source.title,
+                url: source.url,
+              })),
+              citationsUsed,
               verdict,
             },
           },
@@ -576,6 +606,7 @@ export const runResearchPipeline = internalAction({
         internal.domains.pipelines.pipelineRunsMutations.transitionRunStatus,
         {
           pipelineRunId,
+          ...executionFence,
           status: verdictTier === "failed" ? "failed" : "succeeded",
           verdict: verdictTier as any,
           inputTokens: totalIn,
@@ -601,6 +632,7 @@ export const runResearchPipeline = internalAction({
         internal.domains.pipelines.pipelineRunsMutations.transitionRunStatus,
         {
           pipelineRunId,
+          ...executionFence,
           status: "failed",
           verdict: "failed",
           errorMessage: message,

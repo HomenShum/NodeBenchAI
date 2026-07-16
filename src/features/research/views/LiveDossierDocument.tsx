@@ -967,7 +967,7 @@ function CollapsibleMediaSection({ media, defaultExpanded = false }: Collapsible
             {/* Content - Collapsible */}
             {isExpanded && (
                 <div className="px-4 pb-4 pt-2 border-t border-edge dark:border-edge animate-in slide-in-from-top-2 duration-200">
-                    <RichMediaSection media={media} showCitations />
+                    <RichMediaSection media={media} />
                 </div>
             )}
         </section>
@@ -1289,4 +1289,3 @@ function LiveAgentTicker({
         </div>
     );
 }
-

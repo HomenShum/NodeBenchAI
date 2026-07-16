@@ -20,7 +20,7 @@
  */
 
 import { v } from "convex/values";
-import { query, internalMutation } from "../../../_generated/server";
+import { internalMutation, internalQuery } from "../../../_generated/server";
 import { Doc, Id } from "../../../_generated/dataModel";
 import {
   DDTier,
@@ -194,14 +194,15 @@ export interface DDTierSelectionResult {
  * Note: Risk scoring happens in the action layer (ddTriggers.ts) since it may
  * require external API calls. This query accepts optional pre-computed risk data.
  */
-export const shouldTriggerDDForFunding = query({
+export const shouldTriggerDDForFundingInternal = internalQuery({
   args: {
     fundingEventId: v.id("fundingEvents"),
+    userId: v.id("users"),
     // Optional risk assessment (computed in action layer)
     riskScore: v.optional(v.number()),
     escalationTriggers: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, { fundingEventId, riskScore, escalationTriggers }) => {
+  handler: async (ctx, { fundingEventId, userId, riskScore, escalationTriggers }) => {
     const event = await ctx.db.get(fundingEventId) as Doc<"fundingEvents"> | null;
     if (!event) return { shouldTrigger: false, reason: "Funding event not found" };
 
@@ -259,6 +260,7 @@ export const shouldTriggerDDForFunding = query({
       )
       .filter((q) =>
         q.and(
+          q.eq(q.field("userId"), userId),
           q.neq(q.field("status"), "failed"),
           q.gt(q.field("createdAt"), Date.now() - DD_COOLDOWN_MS)
         )
@@ -303,9 +305,15 @@ export const shouldTriggerDDForFunding = query({
  * Get pending funding events that should trigger DD.
  * Now includes tier information for each event.
  */
-export const getPendingDDTriggers = query({
-  args: { limit: v.optional(v.number()) },
-  handler: async (ctx, { limit = 10 }) => {
+export const getPendingDDTriggersInternal = internalQuery({
+  args: {
+    userId: v.id("users"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { userId, limit = 10 }) => {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      throw new Error("limit must be an integer between 1 and 100");
+    }
     // Get verified funding events from the last 7 days
     const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
 
@@ -330,7 +338,7 @@ export const getPendingDDTriggers = query({
       if (pending.length >= limit) break;
 
       // Check if should trigger
-      const check = await shouldTriggerDDForFundingInternal(ctx, event);
+      const check = await shouldTriggerDDForFundingForOwner(ctx, event, userId);
       if (check.shouldTrigger && check.tier) {
         pending.push({
           fundingEventId: event._id,
@@ -374,9 +382,10 @@ export const recordTriggerDecision = internalMutation({
 // Internal Helpers
 // ============================================================================
 
-async function shouldTriggerDDForFundingInternal(
+async function shouldTriggerDDForFundingForOwner(
   ctx: any,
   event: Doc<"fundingEvents">,
+  userId: Id<"users">,
   riskScore?: number,
   escalationTriggers?: string[]
 ): Promise<{
@@ -421,6 +430,7 @@ async function shouldTriggerDDForFundingInternal(
     )
     .filter((q: any) =>
       q.and(
+        q.eq(q.field("userId"), userId),
         q.neq(q.field("status"), "failed"),
         q.gt(q.field("createdAt"), Date.now() - DD_COOLDOWN_MS)
       )

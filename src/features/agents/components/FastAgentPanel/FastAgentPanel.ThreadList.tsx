@@ -2,7 +2,7 @@
 // Thread list sidebar with time-based grouping, pagination, and clean design
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { MessageSquare, Pin, Trash2, Search, X, Download, Wrench, MoreHorizontal, Clock, ChevronDown, Loader2, MessageCircle } from 'lucide-react';
+import { MessageSquare, Pin, Trash2, Search, X, ChevronDown, Loader2, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Thread } from './types';
 
@@ -105,7 +105,7 @@ export function FastAgentThreadList({
   // Keyboard navigation
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const flatThreads = useMemo(() => {
-    let filtered = threads;
+    let filtered = [...threads];
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(t => t.title.toLowerCase().includes(q) || t.lastMessage?.toLowerCase().includes(q));
@@ -141,7 +141,7 @@ export function FastAgentThreadList({
 
   // Filter, paginate, and group threads
   const { groupedThreads, totalFiltered } = useMemo(() => {
-    let filtered = threads;
+    let filtered = [...threads];
 
     // Search filter
     if (searchQuery.trim()) {
@@ -219,7 +219,17 @@ export function FastAgentThreadList({
                 {groupThreads.map(thread => (
                   <div
                     key={thread._id}
+                    role="button"
+                    tabIndex={0}
+                    aria-current={activeThreadId === thread._id ? "true" : undefined}
+                    aria-label={`Open conversation: ${thread.title || "New Chat"}`}
                     onClick={() => onSelectThread(thread._id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelectThread(thread._id);
+                      }
+                    }}
                     className={cn(
                       "group relative px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-150 message-enter thread-item",
                       activeThreadId === thread._id

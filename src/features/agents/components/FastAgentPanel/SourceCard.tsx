@@ -5,7 +5,6 @@ import React, { useState } from 'react';
 import { ExternalLink, FileText, Globe, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Source } from '@/components/ai-elements/sources';
-import { InlineCitation, InlineCitationText } from '@/components/ai-elements/inline-citation';
 import type { SECDocument } from './MediaGallery';
 
 export interface BaseSource {
@@ -21,7 +20,6 @@ export interface BaseSource {
 interface SourceCardProps {
   source: BaseSource | SECDocument;
   className?: string;
-  citationNumber?: number; // For inline citations like [1], [2]
 }
 
 /**
@@ -48,11 +46,11 @@ function extractDomain(url: string): string {
  * Supports both generic sources and SEC documents
  *
  * Reimplemented on the Vercel AI Elements `Source` primitive (which renders the
- * anchor) with all rich extras (preview image / favicon / SEC + page badges /
- * citation number) supplied as custom children. Numbered citations use the
- * `InlineCitation` primitive.
+ * anchor) with rich preview metadata supplied as custom children. These cards
+ * represent consulted sources; claim-bound citation UI is rendered separately
+ * from resolved inline citation tokens.
  */
-export function SourceCard({ source, className, citationNumber }: SourceCardProps) {
+export function SourceCard({ source, className }: SourceCardProps) {
   const isSEC = isSECDocument(source);
 
   // Extract metadata
@@ -67,7 +65,6 @@ export function SourceCard({ source, className, citationNumber }: SourceCardProp
 
   return (
     <Source
-      id={citationNumber ? `source-${citationNumber}` : undefined}
       href={url}
       rel="noopener noreferrer"
       className={cn(
@@ -144,17 +141,6 @@ export function SourceCard({ source, className, citationNumber }: SourceCardProp
           )}
         </div>
 
-        {/* Citation number badge */}
-        {citationNumber !== undefined && (
-          <div className="flex-shrink-0">
-            <InlineCitation>
-              <InlineCitationText className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold">
-                {citationNumber}
-              </InlineCitationText>
-            </InlineCitation>
-          </div>
-        )}
-
         {/* External link indicator */}
         <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <ExternalLink className="h-4 w-4 text-content-muted" />
@@ -170,10 +156,9 @@ export function SourceCard({ source, className, citationNumber }: SourceCardProp
 interface SourceGridProps {
   sources: (BaseSource | SECDocument)[];
   title?: string;
-  showCitations?: boolean;
 }
 
-export function SourceGrid({ sources, title = "Sources", showCitations = false }: SourceGridProps) {
+export function SourceGrid({ sources, title = "Consulted sources" }: SourceGridProps) {
   const [showAll, setShowAll] = useState(false);
   const INITIAL_DISPLAY_COUNT = 6;
 
@@ -203,7 +188,6 @@ export function SourceGrid({ sources, title = "Sources", showCitations = false }
           <SourceCard
             key={idx}
             source={source}
-            citationNumber={showCitations ? idx + 1 : undefined}
           />
         ))}
       </div>

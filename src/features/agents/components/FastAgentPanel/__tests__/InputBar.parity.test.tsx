@@ -8,6 +8,7 @@ import {
   useSelection,
 } from '@/features/agents/context/SelectionContext';
 import { FastAgentInputBar } from '../FastAgentPanel.InputBar';
+import { ANONYMOUS_FAST_AGENT_MODEL_ID } from '../../../../../../shared/llm/fastAgentRuntimeContract';
 
 const enhancePrompt = vi.fn();
 
@@ -23,25 +24,12 @@ vi.mock('sonner', () => ({
   },
 }));
 
-vi.mock('../FastAgentPanel.MediaRecorder', () => ({
-  MediaRecorderComponent: ({ mode }: { mode: string }) => (
-    <div data-mode={mode} data-testid="media-recorder" />
-  ),
-}));
-
-vi.mock('@/shared/components/FileDropOverlay', () => ({
-  FileDropOverlay: () => null,
-}));
-
 type InputBarProps = React.ComponentProps<typeof FastAgentInputBar>;
 
 const defaultProps = (): InputBarProps => ({
-  attachedFiles: [],
   id: 'fa-chat-input',
   input: '',
   isStreaming: false,
-  onAttachFiles: vi.fn(),
-  onRemoveFile: vi.fn(),
   onSelectModel: vi.fn(),
   onSend: vi.fn(),
   onStop: vi.fn(),
@@ -130,6 +118,25 @@ describe('FastAgentInputBar parity', () => {
     expect(textarea).toHaveFocus();
   });
 
+  it('disables the primary send until a runtime owner is ready', async () => {
+    const onSend = vi.fn();
+    render(
+      <SelectionProvider>
+        <ControlledInputBar
+          initialInput="Do not create an ownerless thread"
+          isSendDisabled
+          onSend={onSend}
+        />
+      </SelectionProvider>,
+    );
+
+    const submit = screen.getByRole('button', { name: 'Send message' });
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute('title', 'Preparing secure session');
+    await userEvent.click(submit);
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it('submits with Enter and preserves Shift+Enter for a newline', async () => {
     const onSend = vi.fn();
     render(
@@ -147,63 +154,49 @@ describe('FastAgentInputBar parity', () => {
     expect(onSend).toHaveBeenCalledWith('Ship the composer');
   });
 
-  it('holds attachment-only submission with an explicit capability warning', () => {
-    const onSend = vi.fn();
-    const attachment = new File(['evidence'], 'evidence.txt', {
-      type: 'text/plain',
-    });
-
-    render(
+  it('hides controls whose transport is unavailable in standard chat', () => {
+    const { container } = render(
       <SelectionProvider>
-        <ControlledInputBar attachedFiles={[attachment]} onSend={onSend} />
+        <ControlledInputBar initialInput="Ground this in runtime data" />
       </SelectionProvider>,
     );
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Attachments held. This chat cannot send files yet.',
-    );
-    const submit = screen.getByRole('button', { name: 'Send message' });
-    expect(submit).toBeDisabled();
-    expect(submit).toHaveAttribute(
-      'aria-describedby',
-      'fa-chat-input-attachments-held',
-    );
-    fireEvent.click(submit);
-    expect(onSend).not.toHaveBeenCalled();
-    expect(screen.getByText('evidence.txt')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Attach file' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record video' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /response length/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /prompt context/i })).not.toBeInTheDocument();
+    expect(container.querySelector('input[type="file"]')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /voice input using speech recognition/i })).toBeInTheDocument();
   });
 
-  it('keeps attachment removal visible and operable from the keyboard', async () => {
-    const user = userEvent.setup();
-    const onRemoveFile = vi.fn();
-    const attachment = new File(['evidence'], 'evidence.txt', {
-      type: 'text/plain',
-    });
-
+  it('discloses the enforced guest model without offering an ineffective selector', () => {
     render(
       <SelectionProvider>
         <ControlledInputBar
-          attachedFiles={[attachment]}
-          onRemoveFile={onRemoveFile}
+          modelSelectionEnabled={false}
+          selectedModel={ANONYMOUS_FAST_AGENT_MODEL_ID}
         />
       </SelectionProvider>,
     );
 
-    const removeButton = screen.getByRole('button', {
-      name: 'Remove evidence.txt',
-    });
-    removeButton.focus();
+    const enforcedRuntimeModel = screen.getByTestId('fast-agent-enforced-runtime-model');
+    expect(enforcedRuntimeModel).toHaveTextContent('Guest runtime');
+    expect(enforcedRuntimeModel).toHaveTextContent('Gemini 3.1 Flash-Lite Preview');
+    expect(screen.queryByRole('button', { name: /runtime model|gemini 3\.1 flash-lite/i })).not.toBeInTheDocument();
+  });
 
-    expect(removeButton).toHaveFocus();
-    expect(removeButton).toHaveClass(
-      'focus-visible:opacity-100',
-      'focus-visible:ring-2',
-      'focus-visible:ring-[var(--accent-primary)]',
+  it('does not claim document drag-and-drop grounding without a runtime transport', () => {
+    const { container } = render(
+      <SelectionProvider>
+        <ControlledInputBar />
+      </SelectionProvider>,
     );
 
-    await user.keyboard('{Enter}');
-    expect(onRemoveFile).toHaveBeenCalledOnce();
-    expect(onRemoveFile).toHaveBeenCalledWith(0);
+    fireEvent.dragOver(container.firstElementChild as Element, {
+      dataTransfer: { types: ['application/x-nodebench-document'] },
+    });
+    expect(screen.queryByText(/drop documents to add context/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/analyzing document/i)).not.toBeInTheDocument();
   });
 
   it('allows dragged-document-only submission through the parent fallback', async () => {
@@ -248,6 +241,39 @@ describe('FastAgentInputBar parity', () => {
 
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
     expect(onSend).toHaveBeenCalledWith(undefined);
+  });
+
+  it('lets the user remove a selected document before it enters the prompt scope', () => {
+    const onRemoveSelectedDocument = vi.fn();
+    render(
+      <SelectionProvider>
+        <ControlledInputBar
+          onRemoveSelectedDocument={onRemoveSelectedDocument}
+          selectedDocumentIds={new Set(['doc-legacy-1'])}
+        />
+      </SelectionProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Remove selected document doc-legacy-1',
+    }));
+    expect(onRemoveSelectedDocument).toHaveBeenCalledWith('doc-legacy-1');
+  });
+
+  it('removes attachment controls from the keyboard order while sending', () => {
+    render(
+      <SelectionProvider>
+        <ControlledInputBar
+          isStreaming
+          onRemoveSelectedDocument={vi.fn()}
+          selectedDocumentIds={new Set(['doc-legacy-1'])}
+        />
+      </SelectionProvider>,
+    );
+
+    expect(screen.queryByRole('button', {
+      name: 'Remove selected document doc-legacy-1',
+    })).not.toBeInTheDocument();
   });
 
   it('keeps analyzing-only document submission disabled until a document is ready', () => {
@@ -335,6 +361,27 @@ describe('FastAgentInputBar parity', () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  it('does not advertise or intercept /spawn when the runtime capability is unavailable', async () => {
+    const onSend = vi.fn();
+    render(
+      <SelectionProvider>
+        <ControlledInputBar initialInput="/" onSend={onSend} />
+      </SelectionProvider>,
+    );
+
+    expect(screen.queryByText('Start Team')).not.toBeInTheDocument();
+
+    const textarea = screen.getByRole('textbox');
+    fireEvent.change(textarea, {
+      target: { value: '/spawn "Tesla analysis" --agents=doc,media' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith(
+      '/spawn "Tesla analysis" --agents=doc,media',
+    ));
+  });
+
   it('forwards the constructed selection and calendar context as the send argument', async () => {
     const onSend = vi.fn();
     render(
@@ -404,7 +451,7 @@ describe('FastAgentInputBar parity', () => {
     expect(onSelectModel).toHaveBeenCalledWith('gpt-5.4-mini');
   });
 
-  it('keeps @mention completion on the controlled live input', async () => {
+  it('keeps ordinary @ text without advertising unsupported mention controls', () => {
     render(
       <SelectionProvider>
         <ControlledInputBar />
@@ -413,17 +460,17 @@ describe('FastAgentInputBar parity', () => {
 
     const textarea = screen.getByRole('textbox');
     fireEvent.change(textarea, {
-      target: { selectionStart: 3, value: '@do' },
+      target: { selectionStart: 5, value: '@docs' },
     });
-    fireEvent.click(await screen.findByText('@docs'));
 
-    expect(textarea).toHaveValue('@docs ');
+    expect(textarea).toHaveValue('@docs');
+    expect(screen.queryByText('Search documents')).not.toBeInTheDocument();
   });
 
   it('keeps slash-command completion on the controlled live input', async () => {
     render(
       <SelectionProvider>
-        <ControlledInputBar />
+        <ControlledInputBar onSpawn={vi.fn()} />
       </SelectionProvider>,
     );
 
@@ -432,92 +479,6 @@ describe('FastAgentInputBar parity', () => {
     fireEvent.click(await screen.findByText('Start Team'));
 
     expect(textarea).toHaveValue('/spawn "Tesla analysis" --agents=doc,media,sec');
-  });
-
-  it('keeps file-picker and pasted-image attachments on the parent-owned state path', () => {
-    const onAttachFiles = vi.fn();
-    const pickedFile = new File(['video'], 'clip.mp4', { type: 'video/mp4' });
-    const pastedFile = new File(['image'], 'chart.png', { type: 'image/png' });
-    const { container } = render(
-      <SelectionProvider>
-        <ControlledInputBar onAttachFiles={onAttachFiles} />
-      </SelectionProvider>,
-    );
-
-    const fileInputs = container.querySelectorAll('input[type="file"]');
-    expect(fileInputs).toHaveLength(1);
-    const fileInput = fileInputs.item(0);
-    expect(fileInput).not.toBeNull();
-    fireEvent.change(fileInput!, { target: { files: [pickedFile] } });
-    expect(onAttachFiles).toHaveBeenNthCalledWith(1, [pickedFile]);
-
-    fireEvent.paste(screen.getByRole('textbox'), {
-      clipboardData: {
-        getData: () => '',
-        items: [
-          {
-            getAsFile: () => pastedFile,
-            kind: 'file',
-            type: 'image/png',
-          },
-        ],
-      },
-    });
-    expect(onAttachFiles).toHaveBeenNthCalledWith(2, [pastedFile]);
-  });
-
-  it('keeps media drag-and-drop on the parent-owned attachment state path', () => {
-    const onAttachFiles = vi.fn();
-    const droppedFile = new File(['image'], 'drop.png', { type: 'image/png' });
-    const { container } = render(
-      <SelectionProvider>
-        <ControlledInputBar onAttachFiles={onAttachFiles} />
-      </SelectionProvider>,
-    );
-
-    const dropTarget = container.querySelector('.fa-input-bar-wrapper');
-    expect(dropTarget).not.toBeNull();
-    fireEvent.drop(dropTarget!, {
-      dataTransfer: {
-        files: [droppedFile],
-        getData: () => '',
-        types: ['Files'],
-      },
-    });
-
-    expect(onAttachFiles).toHaveBeenCalledTimes(1);
-    expect(onAttachFiles).toHaveBeenCalledWith([droppedFile]);
-  });
-
-  it('keeps the custom media recorder entry point', () => {
-    render(
-      <SelectionProvider>
-        <ControlledInputBar />
-      </SelectionProvider>,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Record video' }));
-    expect(screen.getByTestId('media-recorder')).toHaveAttribute(
-      'data-mode',
-      'video',
-    );
-  });
-
-  it('keeps response-length control delegated to the parent', () => {
-    const onResponseLengthChange = vi.fn();
-    render(
-      <SelectionProvider>
-        <ControlledInputBar
-          onResponseLengthChange={onResponseLengthChange}
-          responseLength="detailed"
-        />
-      </SelectionProvider>,
-    );
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Response length: detailed' }),
-    );
-    expect(onResponseLengthChange).toHaveBeenCalledWith('exhaustive');
   });
 
   it('keeps Ctrl+P enhancement on the Convex action and controlled input', async () => {
@@ -543,27 +504,6 @@ describe('FastAgentInputBar parity', () => {
     expect(screen.getByRole('textbox')).toHaveValue(
       'Enhanced prompt with memory',
     );
-  });
-
-  it('does not pass placeholder file ids into prompt enhancement', () => {
-    const attachment = new File(['evidence'], 'evidence.txt', {
-      type: 'text/plain',
-    });
-    render(
-      <SelectionProvider>
-        <ControlledInputBar
-          attachedFiles={[attachment]}
-          initialInput="Improve this with the file"
-        />
-      </SelectionProvider>,
-    );
-
-    const enhanceButton = screen.getByTitle(
-      'Enhance prompt with context (Ctrl+P)',
-    );
-    expect(enhanceButton).toBeDisabled();
-    fireEvent.keyDown(window, { ctrlKey: true, key: 'p' });
-    expect(enhancePrompt).not.toHaveBeenCalled();
   });
 
   it('keeps the real inline enhancer outside the form submit path', async () => {

@@ -31,7 +31,8 @@ interface BundleSummaryArgs {
   imageStorageId?: Id<"_storage">;
   // Research specific
   synthesis?: string;
-  citations?: Array<{ idx: number; title?: string; url?: string }>;
+  sourcesConsulted?: Array<{ idx: number; title?: string; url?: string }>;
+  citationsUsed?: Array<{ idx: number; title?: string; url?: string }>;
   // Common
   verdict?: { tier: string; passing: number; failing: number; notes: string[] };
 }
@@ -119,13 +120,41 @@ function buildProseMirrorDoc(args: BundleSummaryArgs): string {
       type: "paragraph",
       content: [{ type: "text", text: args.synthesis }],
     });
-    if (args.citations?.length) {
+    if (args.sourcesConsulted?.length) {
       blocks.push({
         type: "heading",
         attrs: { level: 2 },
-        content: [{ type: "text", text: "Citations" }],
+        content: [{ type: "text", text: "Sources consulted" }],
       });
-      const items = args.citations.map((c) => ({
+      const items = args.sourcesConsulted.map((c) => ({
+        type: "listItem",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: `[${c.idx}] ${c.title ?? ""} ` },
+              ...(c.url
+                ? [
+                    {
+                      type: "text",
+                      marks: [{ type: "link", attrs: { href: c.url } }],
+                      text: c.url,
+                    },
+                  ]
+                : []),
+            ],
+          },
+        ],
+      }));
+      blocks.push({ type: "bulletList", content: items });
+    }
+    if (args.citationsUsed?.length) {
+      blocks.push({
+        type: "heading",
+        attrs: { level: 2 },
+        content: [{ type: "text", text: "Citations used in synthesis" }],
+      });
+      const items = args.citationsUsed.map((c) => ({
         type: "listItem",
         content: [
           {
@@ -231,6 +260,8 @@ export const createPipelineDocument = internalMutation({
   args: {
     pipelineRunId: v.id("pipelineRuns"),
     runId: v.string(),
+    workflowExecutionKey: v.string(),
+    executionGeneration: v.number(),
     bundle: v.object({
       pipelineKind: v.union(
         v.literal("code_gen"),
@@ -246,7 +277,16 @@ export const createPipelineDocument = internalMutation({
       decomposition: v.optional(v.any()),
       imageStorageId: v.optional(v.id("_storage")),
       synthesis: v.optional(v.string()),
-      citations: v.optional(
+      sourcesConsulted: v.optional(
+        v.array(
+          v.object({
+            idx: v.number(),
+            title: v.optional(v.string()),
+            url: v.optional(v.string()),
+          }),
+        ),
+      ),
+      citationsUsed: v.optional(
         v.array(
           v.object({
             idx: v.number(),
@@ -274,6 +314,17 @@ export const createPipelineDocument = internalMutation({
     const run = await ctx.db.get(args.pipelineRunId);
     if (!run) {
       return { documentId: undefined, skipped: true, skipReason: "run_not_found" };
+    }
+    if (
+      run.workflowExecutionKey !== args.workflowExecutionKey ||
+      run.executionGeneration !== args.executionGeneration ||
+      run.status !== "running"
+    ) {
+      return {
+        documentId: undefined,
+        skipped: true,
+        skipReason: "stale_execution",
+      };
     }
 
     // Auth contract: only user:<id>-owned runs get a Workspace document.

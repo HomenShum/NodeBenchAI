@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReceiptApprovalQueue } from "./ReceiptApprovalQueue";
 
@@ -16,18 +16,18 @@ describe("ReceiptApprovalQueue", () => {
     useMutationMock.mockReset();
   });
 
-  it("falls back to demo mode when no live approvals are available", () => {
-    useQueryMock.mockReturnValue(null);
+  it("shows an honest clear state when no approvals are returned", () => {
+    useQueryMock.mockReturnValue([]);
     useMutationMock.mockReturnValue(vi.fn());
 
     render(<ReceiptApprovalQueue />);
 
-    expect(screen.getByText(/demo mode/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /approve/i })).toBeDisabled();
+    expect(screen.getByText(/approval queue is clear/i)).toBeInTheDocument();
+    expect(screen.queryByText(/demo mode/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /record approval/i })).not.toBeInTheDocument();
   });
 
-  it("approves a live receipt", async () => {
-    const resolveApproval = vi.fn().mockResolvedValue(true);
+  it("keeps pending receipts read-only while no resume consumer exists", () => {
     useQueryMock.mockReturnValue([
       {
         receiptId: "sha256:test",
@@ -46,18 +46,12 @@ describe("ReceiptApprovalQueue", () => {
         violations: [],
       },
     ]);
-    useMutationMock.mockReturnValue(resolveApproval);
+    useMutationMock.mockReturnValue(vi.fn());
 
     render(<ReceiptApprovalQueue />);
-    fireEvent.click(screen.getByRole("button", { name: /approve/i }));
-
-    await waitFor(() => {
-      expect(resolveApproval).toHaveBeenCalledWith(
-        expect.objectContaining({
-          receiptId: "sha256:test",
-          decision: "approved",
-        }),
-      );
-    });
+    expect(screen.getByText(/execution remains held/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /approv/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /den/i })).not.toBeInTheDocument();
+    expect(useMutationMock).not.toHaveBeenCalled();
   });
 });

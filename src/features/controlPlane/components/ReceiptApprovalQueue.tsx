@@ -1,9 +1,8 @@
-import { memo, useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { memo, useMemo } from "react";
+import { useQuery } from "convex/react";
 import { CheckCircle2, Clock3, ShieldAlert } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
-import { DEMO_RECEIPTS } from "../data/receiptFixtures";
 import { formatApprovalQueueTime, toActionReceipt } from "../lib/receiptPresentation";
 
 interface ReceiptApprovalQueueProps {
@@ -20,36 +19,19 @@ export const ReceiptApprovalQueue = memo(function ReceiptApprovalQueue({
   const pending = useQuery(api.domains.agents.receipts.actionReceipts.listPendingApprovals, {
     limit: maxItems,
   });
-  const resolveApproval = useMutation(api.domains.agents.receipts.actionReceipts.resolveApproval);
-  const [processingReceiptId, setProcessingReceiptId] = useState<string | null>(null);
 
-  const liveRows = useMemo(
-    () => (pending && pending.length > 0 ? pending.map((row) => toActionReceipt(row as Record<string, unknown>)) : null),
+  const receipts = useMemo(
+    () => (pending ?? []).map((row) => toActionReceipt(row as Record<string, unknown>)),
     [pending],
   );
-  const receipts =
-    liveRows ??
-    DEMO_RECEIPTS.filter((receipt) => receipt.approval?.state === "pending").slice(0, maxItems);
-  const isDemo = !liveRows;
 
-  const handleDecision = async (receiptId: string, decision: "approved" | "denied") => {
-    setProcessingReceiptId(receiptId);
-    try {
-      await resolveApproval({
-        receiptId,
-        decision,
-        reviewedBy: "control-plane-operator",
-        reviewNotes:
-          decision === "approved"
-            ? "Approved from the receipts queue."
-            : "Denied from the receipts queue.",
-      });
-    } catch (error) {
-      console.error("Failed to resolve receipt approval", error);
-    } finally {
-      setProcessingReceiptId(null);
-    }
-  };
+  if (pending === undefined) {
+    return (
+      <div className={cn("rounded-xl border border-edge bg-surface-secondary/40 p-5 text-center", className)}>
+        <p className="text-sm font-medium text-content">Loading approval queue…</p>
+      </div>
+    );
+  }
 
   if (!receipts.length) {
     return (
@@ -58,7 +40,7 @@ export const ReceiptApprovalQueue = memo(function ReceiptApprovalQueue({
           <CheckCircle2 className="h-5 w-5 text-emerald-400" />
         </div>
         <p className="text-sm font-medium text-content">Approval queue is clear</p>
-        <p className="mt-1 text-xs text-content-muted">No OpenClaw receipts are waiting for review.</p>
+        <p className="mt-1 text-xs text-content-muted">No receipt-backed actions are waiting for a decision.</p>
       </div>
     );
   }
@@ -75,8 +57,11 @@ export const ReceiptApprovalQueue = memo(function ReceiptApprovalQueue({
         </div>
       )}
 
+      <p className="text-xs text-content-muted">
+        Execution remains held. Resume and decision controls are unavailable until a runtime consumer can enforce them.
+      </p>
+
       {receipts.map((receipt) => {
-        const busy = processingReceiptId === receipt.receiptId;
         return (
           <div key={receipt.receiptId} className="rounded-xl border border-edge bg-surface-secondary/50 p-4">
             <div className="flex items-start justify-between gap-3">
@@ -102,32 +87,7 @@ export const ReceiptApprovalQueue = memo(function ReceiptApprovalQueue({
                 </div>
                 <p className="mt-2 text-xs text-content-muted">{receipt.result.summary}</p>
               </div>
-
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  disabled={busy || isDemo}
-                  onClick={() => handleDecision(receipt.receiptId, "approved")}
-                  className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  disabled={busy || isDemo}
-                  onClick={() => handleDecision(receipt.receiptId, "denied")}
-                  className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Deny
-                </button>
-              </div>
             </div>
-
-            {isDemo && (
-              <p className="mt-3 text-[11px] text-content-muted">
-                Demo mode. Connect a live OpenClaw session to approve or deny from the queue.
-              </p>
-            )}
           </div>
         );
       })}

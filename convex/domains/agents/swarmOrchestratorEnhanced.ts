@@ -20,7 +20,8 @@
 
 import { v } from "convex/values";
 import { internalAction } from "../../_generated/server";
-import { internal, api } from "../../_generated/api";
+import { internal } from "../../_generated/api";
+import type { Id } from "../../_generated/dataModel";
 import { TelemetryLogger } from "../observability/telemetry";
 import { CheckpointManager } from "./checkpointing";
 
@@ -50,6 +51,13 @@ export const executeSwarmWithObservability = internalAction({
   },
   handler: async (ctx, args) => {
     const { swarmId, userId, query, model, tasks } = args;
+    const ownedSwarm = await ctx.runQuery(
+      internal.domains.agents.swarmQueries.getSwarmStatusInternal,
+      { swarmId, userId },
+    );
+    if (!ownedSwarm) {
+      throw new Error("Swarm not found or unauthorized.");
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // INITIALIZE OBSERVABILITY
@@ -94,7 +102,7 @@ export const executeSwarmWithObservability = internalAction({
 
       const spawningSpanId = logger.startSpan("spawn_agents", {}, swarmSpanId);
 
-      await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
         swarmId,
         status: "spawning",
         startedAt: Date.now(),
@@ -116,7 +124,7 @@ export const executeSwarmWithObservability = internalAction({
 
       // Update task records
       for (let i = 0; i < tasks.length; i++) {
-        await ctx.runMutation(api.domains.agents.swarmMutations.updateTaskStatus, {
+        await ctx.runMutation(internal.domains.agents.swarmMutations.updateTaskStatus, {
           taskId: tasks[i].taskId,
           status: "running",
           delegationId: delegationTasks[i].delegationId,
@@ -139,7 +147,7 @@ export const executeSwarmWithObservability = internalAction({
       // PHASE 2: POLL FOR COMPLETION
       // ═══════════════════════════════════════════════════════════════
 
-      await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
         swarmId,
         status: "executing",
       });
@@ -153,8 +161,8 @@ export const executeSwarmWithObservability = internalAction({
         pollCount++;
 
         const taskStatuses = await ctx.runQuery(
-          api.domains.agents.swarmQueries.getSwarmTasks,
-          { swarmId }
+          internal.domains.agents.swarmQueries.getSwarmTasksInternal,
+          { swarmId, userId }
         );
 
         const completed = taskStatuses.filter((t: any) => t.status === "completed").length;
@@ -216,14 +224,14 @@ export const executeSwarmWithObservability = internalAction({
       // PHASE 3: GATHER RESULTS
       // ═══════════════════════════════════════════════════════════════
 
-      await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
         swarmId,
         status: "gathering",
       });
 
       const completedTasks = await ctx.runQuery(
-        api.domains.agents.swarmQueries.getSwarmTasks,
-        { swarmId }
+        internal.domains.agents.swarmQueries.getSwarmTasksInternal,
+        { swarmId, userId }
       );
 
       const results = completedTasks
@@ -241,7 +249,7 @@ export const executeSwarmWithObservability = internalAction({
         const trace = logger.endTrace("error", "No completed agents");
         await ctx.runMutation(internal.domains.observability.traces.saveTrace, { trace });
 
-        await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+        await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
           swarmId,
           status: "failed",
           completedAt: Date.now(),
@@ -259,7 +267,7 @@ export const executeSwarmWithObservability = internalAction({
       // PHASE 4: SYNTHESIS (WITH LLM TRACING)
       // ═══════════════════════════════════════════════════════════════
 
-      await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
         swarmId,
         status: "synthesizing",
       });
@@ -275,9 +283,10 @@ export const executeSwarmWithObservability = internalAction({
 
       const synthesisStartTime = Date.now();
 
-      const swarm = await ctx.runQuery(api.domains.agents.swarmQueries.getSwarmStatus, {
-        swarmId,
-      });
+      const swarm = await ctx.runQuery(
+        internal.domains.agents.swarmQueries.getSwarmStatusInternal,
+        { swarmId, userId },
+      );
 
       // Call existing synthesis function
       const synthesis = await ctx.runAction(
@@ -291,11 +300,8 @@ export const executeSwarmWithObservability = internalAction({
 
       const synthesisLatency = Date.now() - synthesisStartTime;
 
-      // Update LLM span with usage (estimated)
+      // Only record measured latency. Provider usage is unavailable in this path.
       logger.updateSpanAttributes(llmSpanId, {
-        "llm.usage.input_tokens": 2000, // Estimated from prompt
-        "llm.usage.output_tokens": synthesis.content.length / 3, // ~3 chars/token
-        "llm.cost.total": 0.0002, // ~$0.0002 with GLM 4.7 Flash
         "llm.latency_ms": synthesisLatency,
       });
 
@@ -304,25 +310,22 @@ export const executeSwarmWithObservability = internalAction({
 
       await checkpointManager.checkpoint(workflowId, "synthesis", 90, {
         synthesisResult: synthesis.content,
-        confidence: synthesis.confidence,
       });
 
       // ═══════════════════════════════════════════════════════════════
       // PHASE 5: FINALIZE
       // ═══════════════════════════════════════════════════════════════
 
-      await ctx.runMutation(api.domains.agents.swarmMutations.setSwarmResult, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.setSwarmResult, {
         swarmId,
         mergedResult: synthesis.content,
-        confidence: synthesis.confidence,
       });
 
       await checkpointManager.complete(workflowId, {
         synthesisResult: synthesis.content,
-        confidence: synthesis.confidence,
       });
 
-      await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
         swarmId,
         status: "completed",
         completedAt: Date.now(),
@@ -355,7 +358,7 @@ export const executeSwarmWithObservability = internalAction({
       const trace = logger.endTrace("error", error.message);
       await ctx.runMutation(internal.domains.observability.traces.saveTrace, { trace });
 
-      await ctx.runMutation(api.domains.agents.swarmMutations.updateSwarmStatus, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.updateSwarmStatus, {
         swarmId,
         status: "failed",
         completedAt: Date.now(),
@@ -386,15 +389,20 @@ export const resumeFailedSwarm = internalAction({
     if (checkpoint.status !== "error") {
       throw new Error(`Workflow not in error state: ${checkpoint.status}`);
     }
+    if (!checkpoint.userId) {
+      throw new Error("Workflow owner is unavailable.");
+    }
+    const userId = checkpoint.userId as Id<"users">;
 
     console.log(`[SwarmEnhanced] Resuming from checkpoint #${checkpoint.checkpointNumber}`);
     console.log(`[SwarmEnhanced] Completed agents: ${checkpoint.state.completedAgents?.length || 0}`);
     console.log(`[SwarmEnhanced] Pending agents: ${checkpoint.state.pendingAgents?.length || 0}`);
 
     // Get swarm details
-    const swarm = await ctx.runQuery(api.domains.agents.swarmQueries.getSwarmStatus, {
-      swarmId: args.swarmId,
-    });
+    const swarm = await ctx.runQuery(
+      internal.domains.agents.swarmQueries.getSwarmStatusInternal,
+      { swarmId: args.swarmId, userId },
+    );
 
     if (!swarm) {
       throw new Error("Swarm not found");
@@ -402,9 +410,10 @@ export const resumeFailedSwarm = internalAction({
 
     // Resume execution (only execute pending agents)
     const pendingTaskIds = checkpoint.state.pendingAgents || [];
-    const tasks = await ctx.runQuery(api.domains.agents.swarmQueries.getSwarmTasks, {
-      swarmId: args.swarmId,
-    });
+    const tasks = await ctx.runQuery(
+      internal.domains.agents.swarmQueries.getSwarmTasksInternal,
+      { swarmId: args.swarmId, userId },
+    );
 
     const pendingTasks = tasks.filter((t: any) => pendingTaskIds.includes(t.taskId));
 
@@ -422,10 +431,9 @@ export const resumeFailedSwarm = internalAction({
         }
       );
 
-      await ctx.runMutation(api.domains.agents.swarmMutations.setSwarmResult, {
+      await ctx.runMutation(internal.domains.agents.swarmMutations.setSwarmResult, {
         swarmId: args.swarmId,
         mergedResult: synthesis.content,
-        confidence: synthesis.confidence,
       });
 
       await manager.complete(args.workflowId, {
@@ -488,7 +496,7 @@ Create a unified answer that:
 2. Resolves any contradictions or notes disagreements
 3. Provides a complete, coherent answer to the original query
 4. Cites which agent provided each piece of information
-5. Notes confidence level and any uncertainties
+5. Notes unresolved uncertainty without inventing a numeric score
 
 Provide the synthesized answer:`,
         systemPrompt: "You are a multi-agent synthesis expert. Think step-by-step to merge findings from parallel agents into a coherent, comprehensive answer that resolves contradictions and captures all key insights.",
@@ -498,8 +506,6 @@ Provide the synthesized answer:`,
     );
 
     const text = synthesisResult.structuredResponse || synthesisResult.response;
-    const confidence = Math.min(0.9, 0.5 + args.results.length * 0.15);
-
-    return { content: text, confidence };
+    return { content: text };
   },
 });

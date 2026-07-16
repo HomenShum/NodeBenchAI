@@ -34,7 +34,7 @@ function useRehypeKatex(text: string) {
   return needsMath ? plugin : null;
 }
 import { LazySyntaxHighlighter } from './LazySyntaxHighlighter';
-import { User, Bot, Wrench, Image as ImageIcon, AlertCircle, Loader2, RefreshCw, Trash2, ChevronDown, ChevronRight, CheckCircle2, XCircle, Clock, Copy, Check, BrainCircuit, Zap, ExternalLink, Globe, Calendar, Eye, ThumbsUp, ThumbsDown, Pencil, Bookmark, Volume2, VolumeX, Pin, Share2, Search } from 'lucide-react';
+import { User, Bot, Wrench, Image as ImageIcon, AlertCircle, Loader2, RefreshCw, Trash2, ChevronDown, ChevronRight, CheckCircle2, XCircle, Clock, Copy, Check, BrainCircuit, Zap, ExternalLink, Globe, Calendar, Eye, Volume2, VolumeX } from 'lucide-react';
 import { useVoiceOutput } from '@/hooks/useVoiceOutput';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useSmoothText, type UIMessage } from '@convex-dev/agent/react';
@@ -83,7 +83,7 @@ import {
 import { GoalCard, type TaskStatusItem } from './FastAgentPanel.GoalCard';
 import {
   DocumentActionGrid,
-  extractDocumentActions,
+  extractDocumentActionsFromToolOutput,
   removeDocumentActionMarkers,
   type DocumentAction,
 } from './DocumentActionCard';
@@ -97,8 +97,13 @@ import {
 import { ArbitrageReportCard } from './ArbitrageReportCard';
 import { MemoryPill } from './MemoryPill';
 import { ToolCallTransparency } from './ToolCallTransparency';
-import { FusedSearchResults, type FusedResult, type SourceError, type SearchSource } from './FusedSearchResults';
-import { StreamingStatus } from './FastAgentPanel.StreamingStatus';
+import {
+  FusedSearchResults,
+  isSearchSource,
+  type FusedResult,
+  type SourceError,
+  type SearchSource,
+} from './FusedSearchResults';
 // Phase All: Citation & Entity parsing with adaptive enrichment
 import { InteractiveSpanParser } from '@/features/research/components/InteractiveSpanParser';
 import type { EntityHoverData } from '@/features/research/components/EntityHoverPreview';
@@ -113,7 +118,6 @@ import {
   type CitationLibrary,
   type EntityLibrary
 } from '@/features/research/types/index';
-import type { CitationType } from '@/features/research/types/citationSchema';
 import type { EntityType } from '@/features/research/types/entitySchema';
 import { makeWebSourceCitationId } from '../../../../../shared/citations/webSourceCitations';
 import { formatBriefDateTime } from '@/lib/briefDate';
@@ -136,7 +140,6 @@ interface FastAgentUIMessageBubbleProps {
   onEventSelect?: (event: EventOption) => void;
   onNewsSelect?: (article: NewsArticleOption) => void;
   onDocumentSelect?: (documentId: string) => void;
-  onEditMessage?: (newText: string) => void;
   isParent?: boolean; // Whether this message has child messages
   isChild?: boolean; // Whether this is a child message (specialized agent)
   agentRole?: 'coordinator' | 'documentAgent' | 'mediaAgent' | 'secAgent' | 'webAgent';
@@ -144,24 +147,8 @@ interface FastAgentUIMessageBubbleProps {
   entityEnrichment?: Record<string, EntityHoverData>;
   /** Search query to highlight in message text */
   searchHighlight?: string;
-  /** Whether this message is bookmarked */
-  isBookmarked?: boolean;
-  /** Callback to toggle bookmark on this message */
-  onToggleBookmark?: () => void;
-  /** Whether this message is pinned */
-  isMessagePinned?: boolean;
-  /** Callback to toggle pin on this message */
-  onTogglePin?: () => void;
-  /** RLHF feedback vote for this message */
-  feedbackVote?: 'up' | 'down' | null;
-  /** Callback for RLHF feedback */
-  onFeedback?: (vote: 'up' | 'down') => void;
   /** Font size override */
   fontSize?: number;
-  /** Edit diff data (old vs new text) */
-  editDiff?: { oldText: string; newText: string } | null;
-  /** Whether this message is inside the context window */
-  isInContext?: boolean;
   /** Compact presentation for the cockpit sidebar variant. */
   compact?: boolean;
 }
@@ -684,11 +671,14 @@ const ToolStepsAccordion = React.memo(function ToolStepsAccordion({
   children,
   toolCount,
   completedCount,
+  failedCount = 0,
   isStreaming,
 }: {
   children: React.ReactNode;
   toolCount: number;
+  /** Successfully completed tools only. */
   completedCount: number;
+  failedCount?: number;
   isStreaming: boolean;
 }) {
   const [userToggled, setUserToggled] = useState(false);
@@ -709,10 +699,14 @@ const ToolStepsAccordion = React.memo(function ToolStepsAccordion({
     setUserWantsOpen(!isExpanded);
   };
 
-  const allDone = completedCount >= toolCount && !isStreaming;
-  const label = isStreaming
-    ? `Researching... (${completedCount}/${toolCount} steps)`
-    : `Used ${toolCount} tool${toolCount !== 1 ? 's' : ''}`;
+  const pendingCount = Math.max(0, toolCount - completedCount - failedCount);
+  const allDone = completedCount >= toolCount && failedCount === 0 && !isStreaming;
+  const toolLabel = `tool${toolCount !== 1 ? 's' : ''}`;
+  const label = failedCount > 0
+    ? `${failedCount} ${failedCount === 1 ? 'tool' : 'tools'} failed`
+    : isStreaming || pendingCount > 0
+      ? `Using ${toolCount} ${toolLabel}`
+      : `Used ${toolCount} ${toolLabel}`;
 
   return (
     <div className="mb-3 border border-edge rounded-lg overflow-hidden">
@@ -814,52 +808,6 @@ const ThinkingAccordion = React.memo(function ThinkingAccordion({
 });
 
 /**
- * RunCodeButton - In-browser JS/TS code execution with sandboxed eval
- */
-const RunCodeButton = React.memo(function RunCodeButton({ code, language }: { code: string; language: string }) {
-  const [output, setOutput] = useState<string | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
-
-  const runCode = useCallback(() => {
-    setIsRunning(true);
-    setOutput(null);
-    const logs: string[] = [];
-    const fakeConsole = {
-      log: (...args: any[]) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
-      error: (...args: any[]) => logs.push('[ERROR] ' + args.map(a => String(a)).join(' ')),
-      warn: (...args: any[]) => logs.push('[WARN] ' + args.map(a => String(a)).join(' ')),
-    };
-    try {
-      const fn = new Function('console', code);
-      const result = fn(fakeConsole);
-      if (result !== undefined && logs.length === 0) logs.push(String(result));
-      setOutput(logs.join('\n') || '(no output)');
-    } catch (err: any) {
-      setOutput(`Error: ${err.message}`);
-    }
-    setIsRunning(false);
-  }, [code]);
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={runCode}
-        className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 transition-colors"
-        disabled={isRunning}
-      >
-        {isRunning ? '⏳' : '▶'} Run
-      </button>
-      {output !== null && (
-        <div className="absolute left-0 right-0 top-full z-50 mx-3 mt-1 rounded-lg border border-edge bg-gray-900 text-green-400 text-xs font-mono p-2 max-h-[120px] overflow-auto shadow-xl whitespace-pre-wrap">
-          {output}
-        </div>
-      )}
-    </>
-  );
-});
-
-/**
  * CodeBlockWithCopy - Code block with language label and copy button (Claude/ChatGPT pattern)
  */
 const CodeBlockWithCopy = React.memo(function CodeBlockWithCopy({
@@ -896,9 +844,6 @@ const CodeBlockWithCopy = React.memo(function CodeBlockWithCopy({
               <ExternalLink className="w-3 h-3" /> Canvas
             </button>
           )}
-          {['javascript', 'js', 'typescript', 'ts'].includes(language) && (
-            <RunCodeButton code={children} language={language} />
-          )}
           <button
             type="button"
             onClick={() => { void handleCopy(); }}
@@ -933,7 +878,7 @@ const SUPPORTED_PAYLOAD_VERSION = 1;
  * Parsed result from fusion search tool output.
  * Includes validation status and error details for debugging.
  */
-interface ParsedFusionSearchResult {
+export interface ParsedFusionSearchResult {
   results: FusedResult[];
   sourcesQueried: SearchSource[];
   errors: SourceError[];
@@ -1044,11 +989,9 @@ function getSourceConfig(type: string): { icon: typeof Globe; color: string; bg:
   }
 }
 
-function SourcesCitedDropdown({ library, basisMs }: { library: CitationLibrary; basisMs?: number }) {
-  const citations = getOrderedCitations(library);
+function SourcesCitedDropdown({ library }: { library: CitationLibrary }) {
+  const citations = getOrderedCitations(library).filter((citation) => Boolean(citation.url));
   if (citations.length === 0) return null;
-
-  const asOf = typeof basisMs === 'number' && Number.isFinite(basisMs) ? formatTimeAgo(basisMs) : null;
 
   return (
     <details className="mt-4 group rounded-lg border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/30 overflow-hidden">
@@ -1060,7 +1003,7 @@ function SourcesCitedDropdown({ library, basisMs }: { library: CitationLibrary; 
           <div>
             <span className="block">Sources</span>
             <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
-              {citations.length} cited {asOf && `· ${asOf}`}
+              {citations.length} cited
             </span>
           </div>
         </div>
@@ -1078,7 +1021,7 @@ function SourcesCitedDropdown({ library, basisMs }: { library: CitationLibrary; 
           return (
             <a
               key={c.id}
-              href={c.url || '#'}
+              href={c.url!}
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
@@ -1098,8 +1041,12 @@ function SourcesCitedDropdown({ library, basisMs }: { library: CitationLibrary; 
                   <span className={cn("text-sm font-semibold", config.color)}>
                     {domain || c.type}
                   </span>
-                  <span className="text-slate-500 dark:text-slate-600">·</span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">{timeAgo || 'recently'}</span>
+                  {timeAgo ? (
+                    <>
+                      <span className="text-slate-500 dark:text-slate-600">·</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{timeAgo}</span>
+                    </>
+                  ) : null}
                   <span className="ml-auto text-xs font-medium text-slate-400 dark:text-slate-500 bg-slate-200 dark:bg-slate-700/50 px-1.5 py-0.5 rounded">
                     [{c.number}]
                   </span>
@@ -1126,11 +1073,6 @@ function SourcesCitedDropdown({ library, basisMs }: { library: CitationLibrary; 
 }
 
 /**
- * Valid search sources for validation.
- */
-const VALID_SEARCH_SOURCES = ['linkup', 'sec', 'rag', 'documents', 'news', 'youtube', 'arxiv'] as const;
-
-/**
  * Parse fusion search tool output into structured data for FusedSearchResults component.
  *
  * Supports two payload formats:
@@ -1142,7 +1084,7 @@ const VALID_SEARCH_SOURCES = ['linkup', 'sec', 'rag', 'documents', 'news', 'yout
  * - Legacy payloads are supported for backward compatibility but logged
  * - Invalid payloads return isValid=false with parseError details
  */
-function parseFusionSearchOutput(output: unknown, toolName?: string): ParsedFusionSearchResult {
+export function parseFusionSearchOutput(output: unknown, toolName?: string): ParsedFusionSearchResult {
   const emptyResult: ParsedFusionSearchResult = {
     results: [],
     sourcesQueried: [],
@@ -1215,16 +1157,20 @@ function parseFusionSearchOutput(output: unknown, toolName?: string): ParsedFusi
     // ═══════════════════════════════════════════════════════════════════════
     if (data.kind === 'fusion_search_results') {
       // Validate version
-      if (typeof data.version !== 'number') {
+      if (
+        typeof data.version !== 'number' ||
+        !Number.isInteger(data.version) ||
+        data.version < 1
+      ) {
         logFusionPayloadEvent({
           event: 'fusion_payload_parse_error',
           toolName,
           source: 'versioned',
           shapeSignature,
-          error: `Invalid version type: ${typeof data.version}`,
+          error: `Invalid payload version: ${String(data.version)}`,
           timestamp: new Date().toISOString(),
         });
-        return { ...emptyResult, parseError: `Invalid version type: ${typeof data.version}` };
+        return { ...emptyResult, parseError: `Invalid payload version: ${String(data.version)}` };
       }
 
       if (data.version > SUPPORTED_PAYLOAD_VERSION) {
@@ -1341,45 +1287,120 @@ function parseSearchResponsePayload(
     return { ...emptyResult, parseError: 'payload.results is not an array' };
   }
 
-  // Parse results with validation
-  const results: FusedResult[] = [];
-  for (let idx = 0; idx < data.results.length; idx++) {
-    const r = data.results[idx] as Record<string, unknown>;
+  const validContentTypes = new Set<FusedResult['contentType']>([
+    'text', 'pdf', 'video', 'image', 'filing', 'news', 'patent', 'organization',
+  ]);
 
-    // Validate source is known (silently fallback to defaults for performance)
-    const source = String(r.source || 'linkup');
+  // Parse results with validation. Any invalid row rejects the rich-result
+  // projection; no fallback source, identifier, title, score, or rank is
+  // manufactured at this trust boundary.
+  const results: FusedResult[] = [];
+  let invalidResultCount = 0;
+  for (let idx = 0; idx < data.results.length; idx++) {
+    const raw = data.results[idx];
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      invalidResultCount += 1;
+      continue;
+    }
+    const r = raw as Record<string, unknown>;
+    const id = typeof r.id === 'string' ? r.id.trim() : '';
+    const title = typeof r.title === 'string' ? r.title.trim() : '';
+    const snippet = typeof r.snippet === 'string' ? r.snippet : undefined;
+    const score = typeof r.score === 'number' && Number.isFinite(r.score)
+      ? r.score
+      : undefined;
+    const originalRank = typeof r.originalRank === 'number' &&
+      Number.isInteger(r.originalRank) && r.originalRank >= 0
+      ? r.originalRank
+      : undefined;
+    const fusedRank = r.fusedRank === undefined
+      ? undefined
+      : typeof r.fusedRank === 'number' &&
+          Number.isInteger(r.fusedRank) && r.fusedRank > 0
+        ? r.fusedRank
+        : null;
+    const contentType = typeof r.contentType === 'string' &&
+      validContentTypes.has(r.contentType as FusedResult['contentType'])
+      ? r.contentType as FusedResult['contentType']
+      : undefined;
+
+    if (
+      !id || !title || !isSearchSource(r.source) || score === undefined ||
+      originalRank === undefined || fusedRank === null || !contentType ||
+      snippet === undefined
+    ) {
+      invalidResultCount += 1;
+      continue;
+    }
 
     results.push({
-      id: String(r.id || `result-${idx}`),
-      source: source as SearchSource,
-      title: String(r.title || 'Untitled'),
-      snippet: String(r.snippet || ''),
-      url: r.url ? String(r.url) : undefined,
-      score: Number(r.score || 0),
-      originalRank: Number(r.originalRank || idx + 1),
-      fusedRank: r.fusedRank ? Number(r.fusedRank) : undefined,
-      contentType: (r.contentType || 'text') as FusedResult['contentType'],
-      publishedAt: r.publishedAt ? String(r.publishedAt) : undefined,
-      author: r.author ? String(r.author) : undefined,
-      metadata: r.metadata as Record<string, unknown> | undefined,
+      id,
+      source: r.source,
+      title,
+      snippet,
+      url: typeof r.url === 'string' && r.url.trim() ? r.url.trim() : undefined,
+      score,
+      originalRank,
+      fusedRank: fusedRank ?? undefined,
+      contentType,
+      publishedAt: typeof r.publishedAt === 'string' && r.publishedAt.trim()
+        ? r.publishedAt.trim()
+        : undefined,
+      author: typeof r.author === 'string' && r.author.trim()
+        ? r.author.trim()
+        : undefined,
+      metadata: r.metadata && typeof r.metadata === 'object' && !Array.isArray(r.metadata)
+        ? r.metadata as Record<string, unknown>
+        : undefined,
     });
   }
+  if (invalidResultCount > 0) {
+    return {
+      ...emptyResult,
+      parseError: `payload.results contains ${invalidResultCount} invalid result contract${invalidResultCount === 1 ? '' : 's'}`,
+    };
+  }
 
-  // Parse sourcesQueried
-  const sourcesQueried: SearchSource[] = Array.isArray(data.sourcesQueried)
-    ? (data.sourcesQueried as string[]).filter(s => VALID_SEARCH_SOURCES.includes(s as SearchSource)) as SearchSource[]
-    : [...new Set(results.map(r => r.source))];
+  // `sourcesQueried` is required runtime evidence. An absent list must not be
+  // inferred from returned rows because that would erase partial-search state.
+  if (!Array.isArray(data.sourcesQueried)) {
+    return { ...emptyResult, parseError: 'payload.sourcesQueried is not an array' };
+  }
+  if (data.sourcesQueried.some((source) => !isSearchSource(source))) {
+    return { ...emptyResult, parseError: 'payload.sourcesQueried contains an unknown source' };
+  }
+  const sourcesQueried = [...new Set(data.sourcesQueried as SearchSource[])];
+  if (results.some((result) => !sourcesQueried.includes(result.source))) {
+    return { ...emptyResult, parseError: 'payload.results contains a source that was not queried' };
+  }
 
   // Parse errors
   const errors: SourceError[] = Array.isArray(data.errors)
-    ? (data.errors as Array<{ source: string; error: string }>).map(e => ({
-      source: e.source as SearchSource,
-      error: String(e.error),
-    }))
+    ? data.errors.flatMap((value): SourceError[] => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+        const error = value as Record<string, unknown>;
+        if (!isSearchSource(error.source) || typeof error.error !== 'string' || !error.error.trim()) {
+          return [];
+        }
+        return [{ source: error.source, error: error.error.trim() }];
+      })
     : [];
 
-  const timing = (data.timing || {}) as Record<SearchSource, number>;
-  const totalTimeMs = Number(data.totalTimeMs || 0);
+  const timing = Object.fromEntries(
+    Object.entries(data.timing && typeof data.timing === 'object' && !Array.isArray(data.timing)
+      ? data.timing as Record<string, unknown>
+      : {})
+      .filter(([source, duration]) =>
+        isSearchSource(source) &&
+        typeof duration === 'number' &&
+        Number.isFinite(duration) &&
+        duration >= 0
+      ),
+  ) as Record<SearchSource, number>;
+  const totalTimeMs = typeof data.totalTimeMs === 'number' &&
+    Number.isFinite(data.totalTimeMs) && data.totalTimeMs >= 0
+    ? data.totalTimeMs
+    : 0;
 
   return {
     results,
@@ -1511,7 +1532,7 @@ function getToolMedia(part: NormalizedToolPart): ExtractedMedia {
 }
 
 function getToolDocuments(part: NormalizedToolPart): DocumentAction[] {
-  return extractDocumentActions(getToolOutputText(part));
+  return extractDocumentActionsFromToolOutput(getAvailableToolOutput(part));
 }
 
 function getArbitrageReportData(part: NormalizedToolPart): ArbitrageReportData | null {
@@ -1711,21 +1732,12 @@ export function FastAgentUIMessageBubble({
   onEventSelect,
   onNewsSelect,
   onDocumentSelect,
-  onEditMessage,
   isParent,
   isChild,
   agentRole,
   entityEnrichment,
   searchHighlight,
-  isBookmarked,
-  onToggleBookmark,
-  isMessagePinned,
-  onTogglePin,
-  feedbackVote,
-  onFeedback,
   fontSize,
-  editDiff,
-  isInContext,
   compact = false,
 }: FastAgentUIMessageBubbleProps) {
   const uiParts = useMemo(() => convexToUIParts(message), [message]);
@@ -1803,10 +1815,6 @@ export function FastAgentUIMessageBubble({
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState('');
-  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Read-aloud TTS via useVoiceOutput (ElevenLabs → browser SpeechSynthesis fallback)
   const voiceOutput = useVoiceOutput();
@@ -1814,11 +1822,6 @@ export function FastAgentUIMessageBubble({
   // Message collapse/expand for long messages
   const [isCollapsed, setIsCollapsed] = useState(true);
   const COLLAPSE_THRESHOLD = 1200; // chars (~300 words)
-
-  // Emoji reactions
-  const [emojiReaction, setEmojiReaction] = useState<string | null>(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const QUICK_EMOJIS = ['👍', '❤️', '🔥', '💡', '🎯', '👀'];
 
   // Smart actions menu
   const [showSmartActions, setShowSmartActions] = useState(false);
@@ -1829,22 +1832,6 @@ export function FastAgentUIMessageBubble({
   // Text selection toolbar
   const [selectionToolbar, setSelectionToolbar] = useState<{ x: number; y: number; text: string } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
-
-  // Streaming token counter
-  const streamStartRef = useRef<number | null>(null);
-  const [streamTokPerSec, setStreamTokPerSec] = useState<number>(0);
-
-  useEffect(() => {
-    if (isStreaming) {
-      if (!streamStartRef.current) streamStartRef.current = Date.now();
-    } else {
-      streamStartRef.current = null;
-      setStreamTokPerSec(0);
-    }
-  }, [isStreaming]);
-
-  // Note: streaming tok/s effect uses streamTextRef updated after visibleText
-  const streamTextLenRef = useRef(0);
 
   // Text selection toolbar handler
   useEffect(() => {
@@ -1912,25 +1899,6 @@ export function FastAgentUIMessageBubble({
       contextHandlers.onDeleteMessage(messageId);
     }
     setShowDeleteConfirm(false);
-  };
-
-  const handleStartEdit = () => {
-    setEditText(visibleText || uiParts.text || '');
-    setIsEditing(true);
-    setTimeout(() => editTextareaRef.current?.focus(), 0);
-  };
-
-  const handleSaveEdit = () => {
-    const trimmed = editText.trim();
-    if (trimmed && trimmed !== (visibleText || uiParts.text || '')) {
-      onEditMessage?.(trimmed);
-    }
-    setIsEditing(false);
-  };
-
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setEditText('');
   };
 
   const handleCopy = async () => {
@@ -2021,16 +1989,6 @@ export function FastAgentUIMessageBubble({
     void voiceOutput.speak(text);
   }, [isSpeaking, visibleText, voiceOutput]);
 
-  // Streaming tok/s effect (must be after visibleText)
-  useEffect(() => {
-    if (!isStreaming || !streamStartRef.current) return;
-    streamTextLenRef.current = visibleText?.length ?? 0;
-    const elapsed = (Date.now() - streamStartRef.current) / 1000;
-    if (elapsed > 0.5) {
-      setStreamTokPerSec(Math.round(streamTextLenRef.current / 4 / elapsed));
-    }
-  });
-
   const [visibleReasoning] = useSmoothText(reasoningText, {
     startStreaming: isStreaming,
   });
@@ -2042,10 +2000,6 @@ export function FastAgentUIMessageBubble({
     () => distributeVisibleParts(visibleReasoning, reasoningRenderParts, '\n'),
     [reasoningRenderParts, visibleReasoning],
   );
-  const streamRuntimeSeconds = streamStartRef.current
-    ? (Date.now() - streamStartRef.current) / 1000
-    : undefined;
-
   // Build citation + entity libraries for inline hover parsing (from tool results + final text tokens)
   const { citedCitationLibrary, entityLibrary } = useMemo(() => {
     if (isUser) return { citedCitationLibrary: undefined, entityLibrary: undefined };
@@ -2125,61 +2079,12 @@ export function FastAgentUIMessageBubble({
         }));
     }
 
-    // Many assistant responses include a markdown "Sources Cited" section with real links
-    // (e.g. `- [Title](https://...) {{cite:feed_1|Title|type:source}}`).
-    // If tool-result parts aren't persisted, this is still enough to make the dropdown titles clickable.
-    function parseCitationUrlsFromText(text: string): Map<string, string> {
-      const urlById = new Map<string, string>();
-      const raw = String(text ?? '');
-      if (!raw.includes('{{cite:')) return urlById;
-
-      const extractUrl = (line: string | undefined): string | undefined => {
-        const rawLine = String(line ?? '').trim();
-        if (!rawLine) return undefined;
-
-        const mUrlLine = /\bURL:\s*(https?:\/\/\S+)\s*$/i.exec(rawLine);
-        if (mUrlLine?.[1]) return mUrlLine[1].trim();
-
-        const mMdLink = /\[[^\]]+\]\((https?:\/\/[^)\s]+)\)/.exec(rawLine);
-        if (mMdLink?.[1]) return mMdLink[1].trim();
-
-        const mPlain = /(https?:\/\/\S+)/.exec(rawLine);
-        if (mPlain?.[1]) return mPlain[1].trim();
-        return undefined;
-      };
-
-      const lines = raw.split(/\r?\n/);
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i] ?? '';
-        const citeIds: string[] = [];
-        const citeRe = /\{\{cite:([^|}]+)(?:\|([^|}]+))?(?:\|type:([^}]+))?\}\}/g;
-        let m: RegExpExecArray | null;
-        while ((m = citeRe.exec(line))) {
-          if (m[1]) citeIds.push(m[1]);
-        }
-        if (citeIds.length === 0) continue;
-
-        const url =
-          extractUrl(line) ??
-          extractUrl(lines[i + 1]) ??
-          extractUrl(lines[i + 2]);
-        if (!url) continue;
-
-        for (const id of citeIds) {
-          if (!urlById.has(id)) urlById.set(id, url);
-        }
-      }
-
-      return urlById;
-    }
-
     // Use the message timestamp as the stable "accessed" time for any sources used in this response.
     // (Avoids confusing per-render Date.now() differences.)
-    const accessedAt = new Date(
-      typeof message._creationTime === 'number' && Number.isFinite(message._creationTime)
-        ? message._creationTime
-        : Date.now(),
-    ).toISOString();
+    const accessedAt = typeof message._creationTime === 'number' &&
+      Number.isFinite(message._creationTime)
+      ? new Date(message._creationTime).toISOString()
+      : undefined;
 
     // Build a master library from fusion search results (tool outputs embed structured payload markers)
     let masterCitationLibrary = createCitationLibrary();
@@ -2272,12 +2177,9 @@ export function FastAgentUIMessageBubble({
 
     // Build the "cited" library in order of appearance in the final text, so markers are [1], [2], ...
     const finalText = visibleText || uiParts.text || '';
-    const urlByCitationId = parseCitationUrlsFromText(finalText);
     const citationTokens = parseCitations(finalText);
     const citeOrder: string[] = [];
-    const citeTokenById = new Map<string, typeof citationTokens[number]>();
     for (const token of citationTokens) {
-      if (!citeTokenById.has(token.id)) citeTokenById.set(token.id, token);
       if (!citeOrder.includes(token.id)) citeOrder.push(token.id);
     }
 
@@ -2285,23 +2187,19 @@ export function FastAgentUIMessageBubble({
     if (citeOrder.length > 0) {
       citedCitationLibrary = createCitationLibrary();
       for (const id of citeOrder) {
-        const token = citeTokenById.get(id);
         const base = masterCitationLibrary.citations[id];
-        const tokenType = (token?.type as CitationType | undefined) ?? undefined;
-        const type = tokenType ?? base?.type ?? 'source';
+        if (!base) continue;
 
         citedCitationLibrary = addCitation(citedCitationLibrary, {
           id,
-          type,
-          label: token?.label || base?.label || id,
-          fullText: base?.fullText || token?.label || id,
-          url: base?.url ?? urlByCitationId.get(id),
-          author: base?.author,
-          publishedAt: base?.publishedAt,
-          // Ensure we always show a deterministic date, even for citations that only exist as inline tokens.
-          accessedAt: base?.accessedAt ?? accessedAt,
-          // Page-indexed document citations: {{cite:id|label|type:document|page:3}}
-          pageIndex: token?.pageIndex ?? base?.pageIndex,
+          type: base.type,
+          label: base.label,
+          fullText: base.fullText,
+          url: base.url,
+          author: base.author,
+          publishedAt: base.publishedAt,
+          accessedAt: base.accessedAt,
+          pageIndex: base.pageIndex,
         });
       }
     }
@@ -2319,6 +2217,7 @@ export function FastAgentUIMessageBubble({
         const type = (token.type as EntityType | undefined) ?? 'topic';
         const name = token.displayName || token.id;
         const enrichment = entityEnrichment?.[token.id] || entityEnrichment?.[name];
+        if (!enrichment?.dossierId && !enrichment?.url) continue;
 
         entityLibrary = addEntity(entityLibrary, {
           id: token.id,
@@ -2359,15 +2258,10 @@ export function FastAgentUIMessageBubble({
   const extractedDocuments = useMemo(() => {
     if (isUser) return [];
 
-    const documents = groupedToolOwners.flatMap(({ entry }) =>
+    return groupedToolOwners.flatMap(({ entry }) =>
       getToolDocuments(entry.part)
     );
-
-    // ALSO extract from final text
-    const textDocs = extractDocumentActions(visibleText || '');
-
-    return [...documents, ...textDocs];
-  }, [groupedToolOwners, isUser, visibleText]);
+  }, [groupedToolOwners, isUser]);
 
   const arbitrageReports = useMemo(() => {
     if (isUser) return [];
@@ -2383,16 +2277,8 @@ export function FastAgentUIMessageBubble({
 
   const groupedDomainAnchor = useMemo(() => {
     const candidates = groupedToolOwners.map(({ entry }) => entry.originalIndex);
-
-    for (const entry of textRenderParts) {
-      const text = visibleTextByOriginalIndex.get(entry.originalIndex) ?? '';
-      if (extractDocumentActions(text).length > 0) {
-        candidates.push(entry.originalIndex);
-      }
-    }
-
     return candidates.length > 0 ? Math.min(...candidates) : null;
-  }, [groupedToolOwners, textRenderParts, visibleTextByOriginalIndex]);
+  }, [groupedToolOwners]);
 
   const goalCardAnchor = useMemo(
     () => goalToolOwners.length > 0
@@ -2513,32 +2399,6 @@ export function FastAgentUIMessageBubble({
       }
     }
 
-    if (entry.categories.includes('documentAction')) {
-      const directDocument = record &&
-        typeof record.documentId === 'string' &&
-        typeof record.title === 'string'
-        ? [record as unknown as DocumentAction]
-        : typeof payload === 'string'
-          ? extractDocumentActions(payload)
-          : [];
-      if (directDocument.length > 0) {
-        return (
-          <div
-            data-domain-part-type={entry.part.type}
-            data-original-index={entry.originalIndex}
-            data-render-part-kind="domain"
-            key={`domain-${entry.originalIndex}`}
-          >
-            <DocumentActionGrid
-              documents={directDocument}
-              title="Documents"
-              onDocumentSelect={effectiveOnDocumentSelect}
-            />
-          </div>
-        );
-      }
-    }
-
     if (entry.categories.includes('goalCard') && record) {
       const goal = typeof record.goal === 'string'
         ? record.goal
@@ -2589,7 +2449,6 @@ export function FastAgentUIMessageBubble({
               errors={fusedSearch.errors}
               timing={fusedSearch.timing}
               totalTimeMs={fusedSearch.totalTimeMs}
-              showCitations={true}
             />
           </div>
         );
@@ -2657,7 +2516,7 @@ export function FastAgentUIMessageBubble({
         <ArbitrageReportCard data={data} key={toolCallId} />
       ))}
 
-      <RichMediaSection media={extractedMedia} showCitations={true} />
+      <RichMediaSection media={extractedMedia} />
 
       {extractedDocuments.length > 0 && (
         <DocumentActionGrid
@@ -2674,7 +2533,8 @@ export function FastAgentUIMessageBubble({
     const part = entry.part;
     const toolName = getNormalizedToolName(part);
     const categories: DomainCategory[] = entry.kind === 'domain-tool' ? entry.categories : [];
-    const completed = part.state === 'output-available' || part.state === 'output-error';
+    const succeeded = part.state === 'output-available';
+    const failed = part.state === 'output-error';
     const stepNumber = toolRenderParts.findIndex((candidate) => candidate === entry) + 1;
 
     let content: React.ReactNode;
@@ -2687,33 +2547,45 @@ export function FastAgentUIMessageBubble({
             errors={fusedSearch.errors}
             timing={fusedSearch.timing}
             totalTimeMs={fusedSearch.totalTimeMs}
-            showCitations={true}
           />
         </div>
       );
     } else if (route === 'memory-pill') {
       let type: 'plan_update' | 'test_result' | 'memory_write' = 'memory_write';
-      let title = 'Memory Updated';
+      let actionLabel = 'memory write';
       let details = '';
       const input = part.input as Record<string, unknown> | undefined;
 
       if (toolName.includes('createPlan')) {
         type = 'plan_update';
-        title = 'New Plan Created';
-        details = input?.goal ? `Goal: ${String(input.goal)}` : 'New mission plan initialized';
+        actionLabel = 'plan creation';
+        details = typeof input?.goal === 'string' && input.goal.trim()
+          ? `Goal: ${input.goal.trim()}`
+          : '';
       } else if (toolName.includes('updatePlanStep')) {
         type = 'plan_update';
-        title = 'Plan Updated';
-        details = input?.status ? `Step marked as ${String(input.status)}` : 'Plan progress updated';
+        actionLabel = 'plan update';
+        details = typeof input?.status === 'string' && input.status.trim()
+          ? `Requested status: ${input.status.trim()}`
+          : '';
       } else if (toolName.includes('logEpisodic')) {
-        type = 'test_result';
-        title = 'Episodic Log';
-        details = 'System event recorded';
+        type = 'memory_write';
+        actionLabel = 'episodic log';
       } else {
-        const key = typeof input?.key === 'string' ? input.key : 'unknown';
-        title = key.startsWith('constraint:') ? 'Constraint Added' : 'Memory Updated';
-        details = `Key: ${key}`;
+        const key = typeof input?.key === 'string' ? input.key.trim() : '';
+        actionLabel = key.startsWith('constraint:') ? 'constraint write' : 'memory write';
+        details = key ? `Key: ${key}` : '';
       }
+
+      const title = failed
+        ? `${actionLabel[0].toUpperCase()}${actionLabel.slice(1)} failed`
+        : succeeded
+          ? `${actionLabel[0].toUpperCase()}${actionLabel.slice(1)} completed`
+          : `${actionLabel[0].toUpperCase()}${actionLabel.slice(1)} running`;
+      const runtimeTimestamp = typeof message._creationTime === 'number' &&
+        Number.isFinite(message._creationTime)
+        ? message._creationTime
+        : undefined;
 
       content = (
         <div className="my-2 flex justify-center w-full">
@@ -2722,8 +2594,9 @@ export function FastAgentUIMessageBubble({
               id: `pill-${part.toolCallId}`,
               type,
               title,
-              details,
-              timestamp: Date.now(),
+              details: failed ? part.errorText || details : details,
+              timestamp: runtimeTimestamp,
+              status: failed ? 'failure' : succeeded ? 'success' : 'running',
             }}
           />
         </div>
@@ -2770,7 +2643,8 @@ export function FastAgentUIMessageBubble({
       >
         <ToolStepsAccordion
           toolCount={1}
-          completedCount={completed ? 1 : 0}
+          completedCount={succeeded ? 1 : 0}
+          failedCount={failed ? 1 : 0}
           isStreaming={isStreaming}
         >
           <div className="w-full">{content}</div>
@@ -2782,7 +2656,6 @@ export function FastAgentUIMessageBubble({
   const renderTextPart = (
     entry: TextRenderPart,
     text: string,
-    isFirstText: boolean,
     isLastText: boolean,
   ) => {
     let partText = removeMediaMarkersFromText(text);
@@ -2799,8 +2672,6 @@ export function FastAgentUIMessageBubble({
       ? displayText.slice(0, COLLAPSE_THRESHOLD) + '...'
       : displayText;
 
-    if (isUser && isEditing && !isFirstText) return null;
-
     return (
       <AIMessageContent
         className="contents"
@@ -2808,54 +2679,17 @@ export function FastAgentUIMessageBubble({
         data-render-part-kind="text"
         key={'text-' + entry.originalIndex}
       >
-        {!isUser || displayText || (isEditing && isFirstText) ? (
+        {!isUser || displayText ? (
           <div
             className={cn(
               'relative p-4 rounded-lg shadow-sm transition-all duration-200 text-sm leading-relaxed',
               isUser
-                ? isEditing
-                  ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 text-content rounded-br-none'
-                  : 'bg-gradient-to-br from-violet-500 to-violet-600 text-white rounded-br-none shadow-md'
+                ? 'bg-gradient-to-br from-violet-500 to-violet-600 text-white rounded-br-none shadow-md'
                 : 'bg-surface border border-edge text-content rounded-bl-none shadow-sm dark:bg-surface-secondary',
               message.status === 'streaming' && 'motion-safe:animate-pulse-subtle',
               message.status === 'failed' && 'bg-red-50/80 border-red-200 dark:bg-red-900/20 dark:border-red-800',
             )}
           >
-            {isUser && isEditing && isFirstText ? (
-              <div className="flex flex-col gap-2">
-                <textarea
-                  ref={editTextareaRef}
-                  value={editText}
-                  onChange={(event) => setEditText(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      handleSaveEdit();
-                    }
-                    if (event.key === 'Escape') handleCancelEdit();
-                  }}
-                  className="w-full bg-transparent text-sm leading-relaxed resize-none outline-none min-h-[40px] placeholder-blue-300"
-                  rows={Math.max(1, editText.split('\n').length)}
-                />
-                <div className="flex items-center gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="action-btn text-xs px-2.5 py-1 rounded-md text-content-muted hover:text-content hover:bg-surface-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveEdit}
-                    className="press-scale text-xs px-3 py-1 rounded-md bg-violet-500 text-white hover:bg-violet-600 font-medium"
-                  >
-                    Save &amp; Resend
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
             {!isUser && displayText.includes('<think>') && (() => {
               const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/);
               if (!thinkMatch) return null;
@@ -2870,16 +2704,18 @@ export function FastAgentUIMessageBubble({
             })()}
 
             {!isUser && isLastText && message.status === 'streaming' && displayText && (
-              <div className="w-full h-[2px] bg-[var(--border-color)] rounded-full overflow-hidden mb-1">
+              <div
+                aria-label="Assistant response streaming"
+                className="w-full h-[2px] bg-[var(--border-color)] rounded-full overflow-hidden mb-1"
+                role="status"
+              >
                 <div
-                  className="h-full bg-violet-500 rounded-full transition-all duration-300"
-                  style={{ width: Math.min((displayText.length / 2000) * 100, 95) + '%' }}
+                  className="h-full w-full bg-violet-500/70 rounded-full motion-safe:animate-pulse motion-reduce:opacity-60"
                 />
               </div>
             )}
 
-            {!(isUser && isEditing) && (
-              !isUser &&
+            {!isUser &&
               isLastText &&
               message.status === 'streaming' &&
               !displayText ? (
@@ -2995,8 +2831,7 @@ export function FastAgentUIMessageBubble({
                   (message.status === 'streaming' || message.status === 'typing') &&
                   displayText && <span className="streaming-caret" />}
               </div>
-              )
-            )}
+              )}
           </div>
         ) : null}
       </AIMessageContent>
@@ -3026,7 +2861,6 @@ export function FastAgentUIMessageBubble({
       const renderedText = renderTextPart(
         entry,
         visibleTextByOriginalIndex.get(entry.originalIndex) ?? '',
-        textIndex === 0,
         textIndex === textRenderParts.length - 1,
       );
       if (entry.originalIndex !== groupedDomainAnchor) return renderedText;
@@ -3125,24 +2959,11 @@ export function FastAgentUIMessageBubble({
           </div>
         )}
 
-
-        {/* Thinking Accordion */}
-        {!isUser && (
-          <StreamingStatus
-            parts={message.parts as Array<Record<string, unknown>>}
-            messageText={visibleText}
-            isStreaming={isStreaming}
-            tokensPerSecond={streamTokPerSec}
-            runtimeSeconds={streamRuntimeSeconds}
-          />
-        )}
-
         {/* Canonical ordered ownership: never render aggregate projections in parallel. */}
         {uiParts.renderParts.map(renderOrderedPart)}
         {fallbackTextEntry && renderTextPart(
           fallbackTextEntry,
           visibleText ?? '',
-          true,
           true,
         )}
 
@@ -3194,87 +3015,6 @@ export function FastAgentUIMessageBubble({
               💾 Save as file
             </button>
 
-            {/* RLHF Feedback Buttons */}
-            {onFeedback && (
-              <div className="flex items-center gap-0.5 ml-auto">
-                <button
-                  type="button"
-                  className={`smart-action-chip !px-1.5 ${feedbackVote === 'up' ? '!bg-green-100 !text-green-700 dark:!bg-green-900/30 dark:!text-green-400' : ''}`}
-                  onClick={() => onFeedback('up')}
-                  title="Good response"
-                >
-                  👍
-                </button>
-                <button
-                  type="button"
-                  className={`smart-action-chip !px-1.5 ${feedbackVote === 'down' ? '!bg-red-100 !text-red-700 dark:!bg-red-900/30 dark:!text-red-400' : ''}`}
-                  onClick={() => onFeedback('down')}
-                  title="Bad response"
-                >
-                  👎
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* R4: Inline Actionable Response Cards */}
-        {!compact && !isUser && message.status !== 'streaming' && (cleanedText || visibleText) && (
-          <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-white/[0.06]">
-            <button
-              type="button"
-              aria-label="Save this response as a memo"
-              className="rounded-md bg-white/[0.06] px-2.5 py-1.5 text-[11px] font-medium text-white/60 hover:bg-white/[0.10] hover:text-white/80 transition-colors"
-              onClick={() => {
-                contextHandlers.onSaveAsMemo(cleanedText || visibleText || '');
-                toast.success('Saved as memo');
-              }}
-            >
-              Save as Memo
-            </button>
-            <button
-              type="button"
-              aria-label="Share this response"
-              className="rounded-md bg-white/[0.06] px-2.5 py-1.5 text-[11px] font-medium text-white/60 hover:bg-white/[0.10] hover:text-white/80 transition-colors"
-              onClick={() => {
-                contextHandlers.onShareMessage(cleanedText || visibleText || '');
-                toast.success('Share link copied');
-              }}
-            >
-              Share
-            </button>
-            <button
-              type="button"
-              aria-label="Ask for more detail on this response"
-              className="rounded-md bg-white/[0.06] px-2.5 py-1.5 text-[11px] font-medium text-white/60 hover:bg-white/[0.10] hover:text-white/80 transition-colors"
-              onClick={() => {
-                const summary = (cleanedText || visibleText || '').slice(0, 200);
-                contextHandlers.onSendFollowUp(`Go deeper on this: ${summary}...`);
-              }}
-            >
-              Go Deeper
-            </button>
-          </div>
-        )}
-
-        {/* Edit Diff View */}
-        {editDiff && (
-          <div className="mt-2 rounded-lg border border-edge overflow-hidden text-xs font-mono">
-            <div className="px-3 py-1.5 bg-surface-secondary text-content-muted text-xs font-semibold">Edit Diff</div>
-            <div className="px-3 py-1.5 bg-red-50 dark:bg-red-900/10 text-red-700 dark:text-red-400 line-through whitespace-pre-wrap">
-              {editDiff.oldText}
-            </div>
-            <div className="px-3 py-1.5 bg-green-50 dark:bg-green-900/10 text-green-700 dark:text-green-400 whitespace-pre-wrap">
-              {editDiff.newText}
-            </div>
-          </div>
-        )}
-
-        {/* Multi-turn Context Indicator */}
-        {!compact && isInContext === false && !isUser && (
-          <div className="mt-1 text-[8px] text-content-muted flex items-center gap-1 opacity-60" title="This message may be outside the model's context window">
-            <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-            Outside context window
           </div>
         )}
 
@@ -3330,23 +3070,9 @@ export function FastAgentUIMessageBubble({
           </pre>
         )}
 
-        {/* Emoji reaction badge */}
-        {emojiReaction && (
-          <div className="flex items-center gap-1 mt-0.5">
-            <button
-              type="button"
-              onClick={() => setEmojiReaction(null)}
-              className="text-sm px-1.5 py-0.5 rounded-full bg-surface-secondary border border-edge hover:bg-surface-secondary transition-colors"
-              title="Remove reaction"
-            >
-              {emojiReaction}
-            </button>
-          </div>
-        )}
-
         {/* "Sources cited" dropdown (derived from inline citation tokens) */}
         {!isUser && citedCitationLibrary && message.status !== 'streaming' && (
-          <SourcesCitedDropdown library={citedCitationLibrary} basisMs={message._creationTime} />
+          <SourcesCitedDropdown library={citedCitationLibrary} />
         )}
 
         {/* Status indicator and actions */}
@@ -3355,44 +3081,22 @@ export function FastAgentUIMessageBubble({
             <div className="text-xs text-content-muted flex items-center gap-1.5">
               <span className="inline-block w-2 h-2 bg-green-500 rounded-full motion-safe:animate-pulse"></span>
               <span>Streaming...</span>
-              {streamTokPerSec > 0 && (
-                <span className="tabular-nums text-xs text-content-muted">
-                  {streamTokPerSec} tok/s
-                </span>
-              )}
-              {streamStartRef.current && (
-                <span className="tabular-nums text-xs text-content-muted">
-                  {((Date.now() - streamStartRef.current) / 1000).toFixed(1)}s
-                </span>
-              )}
             </div>
           )}
 
           {/* Action buttons for completed messages */}
           {message.status !== 'streaming' && visibleText && (
             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              {/* Timestamp + token estimate on hover */}
+              {/* Timestamp on hover */}
               {message._creationTime && (
                 <span className="text-xs text-content-muted tabular-nums mr-1">
                   {new Date(message._creationTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               )}
               {!compact && visibleText && (
-                <span className="text-xs text-content-muted tabular-nums mr-1" title={`${visibleText.split(/\s+/).length} words, ${visibleText.length} chars, ~${Math.ceil(visibleText.length / 4)} tokens`}>
-                  ~{Math.ceil(visibleText.length / 4)} tok &middot; {visibleText.split(/\s+/).length}w
+                <span className="text-xs text-content-muted tabular-nums mr-1" title={`${visibleText.split(/\s+/).length} words, ${visibleText.length} chars`}>
+                  {visibleText.split(/\s+/).length} words
                 </span>
-              )}
-              {/* Edit button for user messages */}
-              {isUser && onEditMessage && (
-                <button
-                  type="button"
-                  onClick={handleStartEdit}
-                  className="action-btn text-xs text-content-muted hover:text-content-secondary flex items-center gap-1"
-                  title="Edit message"
-                  aria-label="Edit message"
-                >
-                  <Pencil className="h-3 w-3" />
-                </button>
               )}
 
               {/* Copy button */}
@@ -3428,74 +3132,6 @@ export function FastAgentUIMessageBubble({
                 </button>
               )}
 
-              {/* Bookmark button */}
-              {!compact && onToggleBookmark && (
-                <button
-                  type="button"
-                  onClick={onToggleBookmark}
-                  className={cn(
-                    "action-btn text-xs flex items-center gap-1",
-                    isBookmarked
-                      ? "text-amber-500 dark:text-amber-400"
-                      : "text-content-muted hover:text-amber-500 dark:hover:text-amber-400"
-                  )}
-                  title={isBookmarked ? "Remove bookmark" : "Bookmark message"}
-                  aria-label={isBookmarked ? "Remove bookmark" : "Bookmark message"}
-                >
-                  <Bookmark className={cn("h-3 w-3", isBookmarked && "fill-current")} />
-                </button>
-              )}
-
-              {/* Pin button */}
-              {!compact && onTogglePin && (
-                <button
-                  type="button"
-                  onClick={onTogglePin}
-                  className={cn(
-                    "action-btn text-xs flex items-center gap-1",
-                    isMessagePinned
-                      ? "text-purple-500 dark:text-purple-400"
-                      : "text-content-muted hover:text-purple-500 dark:hover:text-purple-400"
-                  )}
-                  title={isMessagePinned ? "Unpin message" : "Pin message"}
-                  aria-label={isMessagePinned ? "Unpin message" : "Pin message"}
-                >
-                  <Pin className={cn("h-3 w-3", isMessagePinned && "fill-current")} />
-                </button>
-              )}
-
-              {/* Emoji reaction picker */}
-              {!compact && (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowEmojiPicker(prev => !prev)}
-                  className="action-btn text-xs text-content-muted hover:text-content-secondary flex items-center gap-1"
-                  title="React with emoji"
-                  aria-label="React with emoji"
-                >
-                  <span className="text-sm">😀</span>
-                </button>
-                {showEmojiPicker && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />
-                    <div className="absolute bottom-6 left-0 z-50 flex gap-1 p-1.5 bg-surface border border-edge rounded-lg shadow-xl">
-                      {QUICK_EMOJIS.map(e => (
-                        <button
-                          key={e}
-                          type="button"
-                          onClick={() => { setEmojiReaction(e); setShowEmojiPicker(false); }}
-                          className="text-base hover:scale-125 transition-transform p-0.5"
-                        >
-                          {e}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-              )}
-
               {/* Regenerate button for assistant messages */}
               {!compact && !isUser && onRegenerateMessage && (
                 <button
@@ -3507,38 +3143,6 @@ export function FastAgentUIMessageBubble({
                 >
                   <RefreshCw className={`h-3 w-3 ${isRegenerating ? 'motion-safe:animate-spin' : ''}`} />
                 </button>
-              )}
-
-              {/* Feedback buttons */}
-              {!compact && !isUser && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setFeedback(f => f === 'up' ? null : 'up')}
-                    className={cn(
-                      "action-btn p-0.5 rounded",
-                      feedback === 'up'
-                        ? "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20"
-                        : "text-content-muted hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
-                    )}
-                    title="Good response"
-                  >
-                    <ThumbsUp className="h-3 w-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFeedback(f => f === 'down' ? null : 'down')}
-                    className={cn(
-                      "action-btn p-0.5 rounded",
-                      feedback === 'down'
-                        ? "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20"
-                        : "text-content-muted hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                    )}
-                    title="Poor response"
-                  >
-                    <ThumbsDown className="h-3 w-3" />
-                  </button>
-                </>
               )}
 
               {/* Delete button */}
@@ -3571,51 +3175,6 @@ export function FastAgentUIMessageBubble({
                   </button>
                 )
               )}
-            </div>
-          )}
-
-          {/* ── Inline Action Cards — mobile-first, one-tap actions on assistant responses ── */}
-          {!isUser && !compact && visibleText.length > 80 && (
-            <div className="flex flex-wrap gap-1.5 mt-2 lg:mt-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    const memos = JSON.parse(localStorage.getItem('nodebench_saved_memos') || '[]');
-                    memos.push({ id: `memo_${Date.now()}`, text: visibleText.slice(0, 2000), savedAt: new Date().toISOString() });
-                    localStorage.setItem('nodebench_saved_memos', JSON.stringify(memos));
-                    toast?.('Saved to Memo');
-                  } catch { /* silent */ }
-                }}
-                className="inline-flex items-center gap-1 rounded-md border border-[#d97757]/25 bg-[#d97757]/8 px-2.5 py-1.5 text-[11px] font-medium text-[#d97757] hover:bg-[#d97757]/15 active:scale-[0.97] transition-all min-h-[32px]"
-              >
-                <Bookmark className="h-3 w-3" />
-                Save Memo
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const shareData = { title: 'NodeBench Analysis', text: visibleText.slice(0, 500) };
-                  if (navigator.share) { void navigator.share(shareData); }
-                  else { void navigator.clipboard.writeText(visibleText.slice(0, 2000)); toast?.('Copied to clipboard'); }
-                }}
-                className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-white/50 hover:bg-white/[0.06] hover:text-white/70 active:scale-[0.97] transition-all min-h-[32px]"
-              >
-                <Share2 className="h-3 w-3" />
-                Share
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const deeperPrompt = `Go deeper on this analysis. Expand on the key findings and add risk assessment:\n\n${visibleText.slice(0, 500)}`;
-                  const input = document.querySelector<HTMLTextAreaElement>('textarea[placeholder*="Message"]');
-                  if (input) { input.value = deeperPrompt; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); }
-                }}
-                className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-white/50 hover:bg-white/[0.06] hover:text-white/70 active:scale-[0.97] transition-all min-h-[32px]"
-              >
-                <Search className="h-3 w-3" />
-                Go Deeper
-              </button>
             </div>
           )}
         </div>

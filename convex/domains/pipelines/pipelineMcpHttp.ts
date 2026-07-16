@@ -16,8 +16,7 @@
  */
 
 import { httpAction } from "../../_generated/server";
-import { api, internal } from "../../_generated/api";
-import type { Id } from "../../_generated/dataModel";
+import { internal } from "../../_generated/api";
 
 function unauthorized(): Response {
   return new Response(JSON.stringify({ error: "unauthorized" }), {
@@ -32,6 +31,10 @@ function check(req: Request): boolean {
   return Boolean(expected) && provided === expected;
 }
 
+// The secret-gated bridge is a service principal. Its owner is fixed on the
+// server so request bodies and query strings can never select another owner.
+const MCP_PIPELINE_OWNER_KEY = "mcp:shared-service";
+
 export const runPipelineHttp = httpAction(async (ctx, request) => {
   if (!check(request)) return unauthorized();
   let body: any = {};
@@ -43,7 +46,7 @@ export const runPipelineHttp = httpAction(async (ctx, request) => {
       headers: { "Content-Type": "application/json" },
     });
   }
-  const { pipelineKind, spec, title, modelId, ownerKey, forceFresh, linkupDepth } = body ?? {};
+  const { pipelineKind, spec, title, modelId, forceFresh, linkupDepth } = body ?? {};
   if (
     pipelineKind !== "code_gen" &&
     pipelineKind !== "design_gen" &&
@@ -64,13 +67,13 @@ export const runPipelineHttp = httpAction(async (ctx, request) => {
     });
   }
   const result = await ctx.runMutation(
-    api.domains.pipelines.pipelineWorkflow.startPipelineRun,
+    internal.domains.pipelines.pipelineWorkflow.startPipelineRunInternal,
     {
       pipelineKind,
       spec,
       title,
       modelId,
-      ownerKey,
+      ownerKey: MCP_PIPELINE_OWNER_KEY,
       forceFresh: forceFresh === true,
       linkupDepth: linkupDepth === "deep" ? "deep" : undefined,
     },
@@ -92,7 +95,7 @@ export const runComposedPipelineHttp = httpAction(async (ctx, request) => {
       headers: { "Content-Type": "application/json" },
     });
   }
-  const { composition, spec, title, modelId, ownerKey, forceFresh, linkupDepth } = body ?? {};
+  const { composition, spec, title, modelId, forceFresh, linkupDepth } = body ?? {};
   const validCompositions = new Set([
     "research_then_code",
     "research_then_design",
@@ -114,13 +117,13 @@ export const runComposedPipelineHttp = httpAction(async (ctx, request) => {
     });
   }
   const result = await ctx.runMutation(
-    api.domains.pipelines.pipelineWorkflow.startComposedPipelineRun,
+    internal.domains.pipelines.pipelineWorkflow.startComposedPipelineRunInternal,
     {
       composition,
       spec,
       title,
       modelId,
-      ownerKey,
+      ownerKey: MCP_PIPELINE_OWNER_KEY,
       forceFresh: forceFresh === true,
       linkupDepth: linkupDepth === "deep" ? "deep" : undefined,
     },
@@ -142,8 +145,8 @@ export const getPipelineStatusHttp = httpAction(async (ctx, request) => {
     });
   }
   const detail = await ctx.runQuery(
-    api.domains.pipelines.pipelineRunsQueries.getRunDetail,
-    { runId },
+    internal.domains.pipelines.pipelineRunsQueries.getRunDetailInternal,
+    { runId, ownerKey: MCP_PIPELINE_OWNER_KEY },
   );
   if (!detail) {
     return new Response(JSON.stringify({ error: "not_found", runId }), {
@@ -161,10 +164,9 @@ export const listPipelineRunsHttp = httpAction(async (ctx, request) => {
   if (!check(request)) return unauthorized();
   const url = new URL(request.url);
   const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "25", 10) || 25, 100);
-  const ownerKey = url.searchParams.get("ownerKey") ?? undefined;
   const result = await ctx.runQuery(
-    api.domains.pipelines.pipelineRunsQueries.listRecentRuns,
-    { limit, ownerKey: ownerKey ?? undefined },
+    internal.domains.pipelines.pipelineRunsQueries.listRecentRunsInternal,
+    { limit, ownerKey: MCP_PIPELINE_OWNER_KEY },
   );
   return new Response(JSON.stringify({ runs: result }), {
     status: 200,

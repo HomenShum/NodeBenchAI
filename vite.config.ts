@@ -656,8 +656,6 @@ window.addEventListener('message', async (message) => {
               if (id.includes('.BriefTab')) return 'agent-panel-brief';
               if (id.includes('.AgentTasksTab')) return 'agent-panel-tasks';
               if (id.includes('.EditsTab')) return 'agent-panel-edits';
-              if (id.includes('.ParallelTaskTimeline')) return 'agent-panel-timeline';
-              if (id.includes('.DecisionTreeKanban')) return 'agent-panel-kanban';
               if (id.includes('.PromptEnhancer')) return 'agent-panel-enhancer';
               if (id.includes('.SkillsPanel')) return 'agent-panel-skills';
               if (id.includes('.AgentHierarchy')) return 'agent-panel-hierarchy';

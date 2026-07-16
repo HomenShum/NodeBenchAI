@@ -9,6 +9,7 @@ import React, { useMemo, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { useStableQuery } from "@/hooks/useStableQuery";
 import { useWindowedList } from "@/lib/performance/useWindowedList";
+import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 import {
   Cpu,
   AlertCircle,
@@ -34,7 +35,7 @@ const statusBadge: Record<string, { label: string; className: string; Icon: any 
     Icon: Loader2,
   },
   succeeded: {
-    label: "Ready",
+    label: "Completed",
     className: "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30",
     Icon: CheckCircle2,
   },
@@ -82,7 +83,7 @@ function formatDuration(ms: number | undefined): string {
 }
 
 function formatKind(kind: string): string {
-  if (kind === "research") return "research report";
+  if (kind === "research") return "research bundle";
   if (kind === "code_gen") return "code starter";
   if (kind === "design_gen") return "design brief";
   if (kind === "custom") return "custom run";
@@ -104,10 +105,14 @@ function formatRunTitle(title: string): string {
   return cleaned || "Research run";
 }
 
-const PipelineRunStreamPreview: React.FC<{ runId: string }> = ({ runId }) => {
+const PipelineRunStreamPreview: React.FC<{
+  runId: string;
+  anonymousSessionId: string;
+  runStatus: string;
+}> = ({ runId, anonymousSessionId, runStatus }) => {
   const stream = useStableQuery(
     api.domains.pipelines.pipelineStreamMutations.getPipelineStream,
-    { runId },
+    { runId, anonymousSessionId },
   );
   if (stream === undefined) {
     return (
@@ -125,7 +130,7 @@ const PipelineRunStreamPreview: React.FC<{ runId: string }> = ({ runId }) => {
         data-testid="pipeline-run-stream-empty"
         className="text-[11px] text-content-muted"
       >
-        No live output for this run.
+        {runStatus === "running" ? "Waiting for streamed output." : "No streamed output was recorded."}
       </div>
     );
   }
@@ -175,13 +180,14 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
   windowStep = 8,
 }) => {
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+  const anonymousSessionId = useMemo(() => getAnonymousProductSessionId(), []);
   const runs = useStableQuery(
     api.domains.pipelines.pipelineRunsQueries.listRecentRuns,
-    { limit: queryLimit },
+    { limit: queryLimit, anonymousSessionId },
   );
   const stats = useStableQuery(
     api.domains.pipelines.pipelineRunsQueries.getRunSummaryStats,
-    {},
+    { anonymousSessionId },
   );
 
   const safeRuns = useMemo(() => runs ?? [], [runs]);
@@ -213,9 +219,9 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
             <Cpu className="w-4 h-4 text-amber-600 dark:text-amber-300" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-content">Research runs</h3>
+            <h3 className="text-sm font-semibold text-content">Background runs &amp; exports</h3>
             <p className="text-[11px] text-content-muted">
-              Your background research appears here with status, sources, review state, and exports.
+              Runtime progress and downloadable output stay together here.
             </p>
           </div>
         </header>
@@ -229,7 +235,7 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
   return (
     <section
       data-testid="pipeline-runs-panel"
-      aria-label="Research runs"
+      aria-label="Background runs and exports"
       className="nb-surface-card p-4 space-y-3"
     >
       <header className="flex items-start justify-between gap-3 flex-wrap">
@@ -238,9 +244,9 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
             <Cpu className="w-4 h-4 text-amber-600 dark:text-amber-300" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-content">Research runs</h3>
+            <h3 className="text-sm font-semibold text-content">Background runs &amp; exports</h3>
             <p className="text-[11px] text-content-muted">
-              Background research with progress, review status, and export links.
+              Runtime progress, review status, and available exports.
             </p>
           </div>
         </div>
@@ -250,14 +256,14 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
               <span className="text-emerald-700 dark:text-emerald-300 font-medium">
                 {stats.succeeded}
               </span>{" "}
-              ready
+              completed
             </span>
             <span data-testid="pipeline-stat-failed">
               <span className="text-red-700 dark:text-red-300 font-medium">{stats.failed}</span>{" "}
               failed
             </span>
             <span data-testid="pipeline-stat-cost">
-              {formatUsd(stats.totalEstimatedUsd)} spent
+              {formatUsd(stats.totalEstimatedUsd)} estimated
             </span>
             <span data-testid="pipeline-stat-window">
               showing {visibleRuns.length} / {safeRuns.length}
@@ -295,7 +301,7 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
               <div className="flex items-center gap-3 text-[11px] text-content-muted flex-wrap">
                 <span>{formatKind(run.pipelineKind)}</span>
                 <span>-</span>
-                <span>{run.stepCount} checks</span>
+                <span>{run.stepCount} steps</span>
                 <span>-</span>
                 <span>{formatDuration(run.durationMs)}</span>
                 <span>-</span>
@@ -318,9 +324,13 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
                 </p>
               ) : null}
               {expandedRunId === run.runId ? (
-                <PipelineRunStreamPreview runId={run.runId} />
+                <PipelineRunStreamPreview
+                  runId={run.runId}
+                  anonymousSessionId={anonymousSessionId}
+                  runStatus={run.status}
+                />
               ) : null}
-              <div className="flex items-center gap-3 pt-1">
+              {run.hasStream || run.status === "running" ? <div className="flex items-center gap-3 pt-1">
                 <button
                   type="button"
                   data-testid="pipeline-run-toggle"
@@ -334,9 +344,13 @@ export const PipelineRunsPanel: React.FC<PipelineRunsPanelProps> = ({
                   ) : (
                     <ChevronRight className="w-3 h-3" />
                   )}
-                  {expandedRunId === run.runId ? "Hide live output" : "Show live output"}
+                  {expandedRunId === run.runId
+                    ? "Hide streamed output"
+                    : run.status === "running"
+                      ? "Follow live output"
+                      : "Show streamed output"}
                 </button>
-              </div>
+              </div> : null}
               {run.bundleUrl || run.imageUrl ? (
                 <div className="flex items-center gap-3 pt-1">
                   {run.imageUrl ? (

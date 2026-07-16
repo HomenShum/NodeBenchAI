@@ -1,31 +1,29 @@
 /**
- * parallelTaskTree.ts
+ * Internal, owner-bound task-tree storage used by due-diligence orchestrators.
  *
- * Deep Agent 2.0 Parallel Task Tree Execution Engine
- *
- * Implements the A -> B1, B2, B3 -> verify -> cross-check -> prune -> refine pattern.
- * Instead of walking one path, we explore a decision tree in parallel and catch errors
- * before committing to the research response path.
- *
- * Key features:
- * - Task decomposition into parallel branches
- * - Independent verification of each branch
- * - Cross-checking between branches (answers critique each other)
- * - Pruning of low-quality/contradicted paths
- * - Merging surviving paths into final result
- * - Natural backtracking when paths fail
+ * This module intentionally has no public queries, mutations, or actions. The
+ * former public parallel-task UI and general orchestrator had no runtime
+ * consumers. Trusted due-diligence actions pass the job owner explicitly, and
+ * every write revalidates the complete owner -> tree -> task chain.
  */
 
 import { v } from "convex/values";
-import { mutation, query, action, internalMutation, internalAction } from "../../_generated/server";
-import { internal, api } from "../../_generated/api";
-import { Doc, Id } from "../../_generated/dataModel";
+import { internalMutation } from "../../_generated/server";
+import type { Doc, Id } from "../../_generated/dataModel";
 
-// ============================================================================
-// Types
-// ============================================================================
+const OWNERSHIP_ERROR = "Task tree not found or unauthorized";
+const MAX_AGENT_THREAD_ID_LENGTH = 500;
+const MAX_QUERY_LENGTH = 4_000;
+const MAX_BRANCHES = 16;
+const MAX_TITLE_LENGTH = 500;
+const MAX_DESCRIPTION_LENGTH = 4_000;
+const MAX_AGENT_NAME_LENGTH = 160;
+const MAX_PHASE_LENGTH = 500;
+const MAX_RESULT_LENGTH = 2_000_000;
+const MAX_RESULT_SUMMARY_LENGTH = 4_000;
+const MAX_ERROR_MESSAGE_LENGTH = 4_000;
 
-export type TreeStatus =
+type TreeStatus =
   | "decomposing"
   | "executing"
   | "verifying"
@@ -34,7 +32,7 @@ export type TreeStatus =
   | "completed"
   | "failed";
 
-export type TaskStatus =
+type TaskStatus =
   | "pending"
   | "running"
   | "awaiting_children"
@@ -44,221 +42,340 @@ export type TaskStatus =
   | "failed"
   | "backtracked";
 
-export type TaskType =
-  | "root"
-  | "branch"
-  | "verification"
-  | "critique"
-  | "merge"
-  | "refinement";
-
-export interface DecomposedTask {
-  title: string;
-  description: string;
-  agentName?: string;
-  context?: Record<string, unknown>;
+function sameId(left: unknown, right: unknown): boolean {
+  return String(left) === String(right);
 }
 
-export interface VerificationResult {
-  score: number;       // 0-1
-  notes: string;
-  passed: boolean;
+async function requireExistingOwner(ctx: any, userId: Id<"users">): Promise<void> {
+  const owner = await ctx.db.get(userId);
+  if (!owner) throw new Error(OWNERSHIP_ERROR);
 }
 
-export interface CrossCheckResult {
-  verdict: "agree" | "disagree" | "partial" | "abstain";
-  agreementPoints?: string[];
-  disagreementPoints?: string[];
-  confidence: number;
-  reasoning?: string;
+async function requireOwnedTree(
+  ctx: any,
+  treeId: Id<"parallelTaskTrees">,
+  userId: Id<"users">,
+): Promise<Doc<"parallelTaskTrees">> {
+  const tree = await ctx.db.get(treeId) as Doc<"parallelTaskTrees"> | null;
+  if (!tree || !sameId(tree.userId, userId)) throw new Error(OWNERSHIP_ERROR);
+  return tree;
 }
 
-export interface MergedResult {
-  content: string;
-  confidence: number;
-  sourceTasks: string[];
-  mergeStrategy: "consensus" | "weighted" | "best_single";
+async function requireOwnedTask(
+  ctx: any,
+  taskId: string,
+  userId: Id<"users">,
+): Promise<{ task: Doc<"parallelTaskNodes">; tree: Doc<"parallelTaskTrees"> }> {
+  const task = await ctx.db
+    .query("parallelTaskNodes")
+    .withIndex("by_taskId", (q: any) => q.eq("taskId", taskId))
+    .first() as Doc<"parallelTaskNodes"> | null;
+  if (!task) throw new Error(OWNERSHIP_ERROR);
+  const tree = await requireOwnedTree(ctx, task.treeId, userId);
+  return { task, tree };
 }
 
-// ============================================================================
-// Queries
-// ============================================================================
+async function requireOwnedTaskInTree(
+  ctx: any,
+  treeId: Id<"parallelTaskTrees">,
+  taskId: string,
+  userId: Id<"users">,
+): Promise<{ task: Doc<"parallelTaskNodes">; tree: Doc<"parallelTaskTrees"> }> {
+  const owned = await requireOwnedTask(ctx, taskId, userId);
+  if (!sameId(owned.task.treeId, treeId)) throw new Error(OWNERSHIP_ERROR);
+  return owned;
+}
 
-/**
- * Get the current task tree for an agent thread
- */
-export const getTaskTree = query({
-  args: { agentThreadId: v.string() },
-  handler: async (ctx, { agentThreadId }) => {
-    const tree = await ctx.db
-      .query("parallelTaskTrees")
-      .withIndex("by_agent_thread", (q) => q.eq("agentThreadId", agentThreadId))
-      .order("desc")
-      .first() as Doc<"parallelTaskTrees"> | null;
+function requiredBoundedString(value: string, field: string, maxLength: number): string {
+  const normalized = value.trim();
+  if (!normalized || normalized.length > maxLength) {
+    throw new Error(`${field} must contain 1-${maxLength} characters`);
+  }
+  return normalized;
+}
 
-    if (!tree) return null;
+function optionalBoundedString(
+  value: string | undefined,
+  field: string,
+  maxLength: number,
+): string | undefined {
+  if (value === undefined) return undefined;
+  return requiredBoundedString(value, field, maxLength);
+}
 
-    // Get all nodes for this tree
-    const nodes = await ctx.db
-      .query("parallelTaskNodes")
-      .withIndex("by_tree", (q) => q.eq("treeId", tree._id))
-      .collect();
+async function createTaskTreeForOwner(
+  ctx: any,
+  args: {
+    userId: Id<"users">;
+    agentThreadId: string;
+    query: string;
+  },
+) {
+  await requireExistingOwner(ctx, args.userId);
+  const agentThreadId = requiredBoundedString(
+    args.agentThreadId,
+    "agentThreadId",
+    MAX_AGENT_THREAD_ID_LENGTH,
+  );
+  const query = requiredBoundedString(args.query, "query", MAX_QUERY_LENGTH);
+  const now = Date.now();
+  const treeId = await ctx.db.insert("parallelTaskTrees", {
+    userId: args.userId,
+    agentThreadId,
+    query,
+    status: "decomposing",
+    phase: "Preparing due-diligence branches",
+    phaseProgress: 0,
+    totalBranches: 0,
+    activeBranches: 0,
+    completedBranches: 0,
+    prunedBranches: 0,
+    createdAt: now,
+    updatedAt: now,
+  });
 
-    // Get recent events (last 50)
-    const events = await ctx.db
-      .query("parallelTaskEvents")
-      .withIndex("by_tree", (q) => q.eq("treeId", tree._id))
-      .order("desc")
-      .take(50);
+  const rootTaskId = crypto.randomUUID();
+  await ctx.db.insert("parallelTaskNodes", {
+    treeId,
+    taskId: rootTaskId,
+    title: "Due diligence",
+    description: query,
+    taskType: "root",
+    status: "running",
+    depth: 0,
+    startedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await ctx.db.patch(treeId, { rootTaskId });
+  await ctx.db.insert("parallelTaskEvents", {
+    treeId,
+    taskId: rootTaskId,
+    seq: 0,
+    eventType: "started",
+    message: "Due-diligence task tree started",
+    createdAt: now,
+  });
+  return { treeId, rootTaskId };
+}
 
-    // Get cross-checks
-    const crossChecks = await ctx.db
-      .query("parallelTaskCrossChecks")
-      .withIndex("by_tree", (q) => q.eq("treeId", tree._id))
-      .collect();
+async function updateTreeStatusForOwner(
+  ctx: any,
+  args: {
+    userId: Id<"users">;
+    treeId: Id<"parallelTaskTrees">;
+    status: TreeStatus;
+    phase?: string;
+    phaseProgress?: number;
+  },
+) {
+  const tree = await requireOwnedTree(ctx, args.treeId, args.userId);
+  if (
+    args.phaseProgress !== undefined &&
+    (!Number.isFinite(args.phaseProgress) || args.phaseProgress < 0 || args.phaseProgress > 100)
+  ) {
+    throw new Error("phaseProgress must be between 0 and 100");
+  }
+  const phase = optionalBoundedString(args.phase, "phase", MAX_PHASE_LENGTH);
+  const now = Date.now();
+  const updates: Partial<Doc<"parallelTaskTrees">> = {
+    status: args.status,
+    updatedAt: now,
+  };
+  if (phase !== undefined) updates.phase = phase;
+  if (args.phaseProgress !== undefined) updates.phaseProgress = args.phaseProgress;
+  if (args.status === "completed" || args.status === "failed") {
+    updates.completedAt = now;
+    updates.elapsedMs = now - tree.createdAt;
+  }
+  await ctx.db.patch(args.treeId, updates);
+}
 
-    return {
-      tree,
-      nodes,
-      events: events.reverse(),
-      crossChecks,
+async function createBranchTasksForOwner(
+  ctx: any,
+  args: {
+    userId: Id<"users">;
+    treeId: Id<"parallelTaskTrees">;
+    parentTaskId: string;
+    branches: Array<{
+      title: string;
+      description?: string;
+      agentName?: string;
+    }>;
+  },
+) {
+  if (args.branches.length === 0 || args.branches.length > MAX_BRANCHES) {
+    throw new Error(`branches must contain 1-${MAX_BRANCHES} items`);
+  }
+  const branches = args.branches.map((branch, index) => ({
+    title: requiredBoundedString(branch.title, `branches[${index}].title`, MAX_TITLE_LENGTH),
+    description: optionalBoundedString(
+      branch.description,
+      `branches[${index}].description`,
+      MAX_DESCRIPTION_LENGTH,
+    ),
+    agentName: optionalBoundedString(
+      branch.agentName,
+      `branches[${index}].agentName`,
+      MAX_AGENT_NAME_LENGTH,
+    ),
+  }));
+  const { task: parent, tree } = await requireOwnedTaskInTree(
+    ctx,
+    args.treeId,
+    args.parentTaskId,
+    args.userId,
+  );
+  const now = Date.now();
+  const taskIds: string[] = [];
+  const depth = parent.depth + 1;
+
+  for (let index = 0; index < branches.length; index += 1) {
+    const branch = branches[index];
+    const taskId = crypto.randomUUID();
+    await ctx.db.insert("parallelTaskNodes", {
+      treeId: args.treeId,
+      taskId,
+      parentTaskId: args.parentTaskId,
+      title: branch.title,
+      description: branch.description,
+      taskType: "branch",
+      status: "pending",
+      branchIndex: index,
+      siblingCount: branches.length,
+      depth,
+      agentName: branch.agentName,
+      canBacktrack: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    taskIds.push(taskId);
+    await ctx.db.insert("parallelTaskEvents", {
+      treeId: args.treeId,
+      taskId,
+      seq: 0,
+      eventType: "started",
+      message: `Branch ${index + 1}/${branches.length}: ${branch.title}`,
+      createdAt: now,
+    });
+  }
+
+  await ctx.db.patch(args.treeId, {
+    totalBranches: (tree.totalBranches ?? 0) + branches.length,
+    updatedAt: now,
+  });
+  await ctx.db.patch(parent._id, {
+    status: "awaiting_children",
+    updatedAt: now,
+  });
+  return taskIds;
+}
+
+type TaskStatusUpdate = {
+  userId: Id<"users">;
+  taskId: string;
+  status: TaskStatus;
+  result?: string;
+  resultSummary?: string;
+  confidence?: number;
+  errorMessage?: string;
+};
+
+async function updateTaskStatusForOwner(ctx: any, args: TaskStatusUpdate) {
+  const { task, tree } = await requireOwnedTask(ctx, args.taskId, args.userId);
+  const result = optionalBoundedString(args.result, "result", MAX_RESULT_LENGTH);
+  const resultSummary = optionalBoundedString(
+    args.resultSummary,
+    "resultSummary",
+    MAX_RESULT_SUMMARY_LENGTH,
+  );
+  const errorMessage = optionalBoundedString(
+    args.errorMessage,
+    "errorMessage",
+    MAX_ERROR_MESSAGE_LENGTH,
+  );
+  if (
+    args.confidence !== undefined
+    && (!Number.isFinite(args.confidence) || args.confidence < 0 || args.confidence > 1)
+  ) {
+    throw new Error("confidence must be a finite number between 0 and 1");
+  }
+  const now = Date.now();
+  const updates: Partial<Doc<"parallelTaskNodes">> = {
+    status: args.status,
+    updatedAt: now,
+  };
+  if (result !== undefined) updates.result = result;
+  if (resultSummary !== undefined) updates.resultSummary = resultSummary;
+  if (args.confidence !== undefined) updates.confidence = args.confidence;
+  if (errorMessage !== undefined) updates.errorMessage = errorMessage;
+  if (args.status === "running" && !task.startedAt) updates.startedAt = now;
+  if (["completed", "pruned", "failed", "backtracked"].includes(args.status)) {
+    updates.completedAt = now;
+    if (task.startedAt) updates.elapsedMs = now - task.startedAt;
+  }
+  await ctx.db.patch(task._id, updates);
+
+  if (task.taskType === "branch" && task.status !== args.status) {
+    const wasActive = task.status === "running" || task.status === "verifying";
+    const isActive = args.status === "running" || args.status === "verifying";
+    const treeUpdates: Partial<Doc<"parallelTaskTrees">> = {
+      updatedAt: now,
+      activeBranches: Math.max(
+        0,
+        (tree.activeBranches ?? 0) + Number(isActive) - Number(wasActive),
+      ),
+      completedBranches: Math.max(
+        0,
+        (tree.completedBranches ?? 0)
+          + Number(args.status === "completed")
+          - Number(task.status === "completed"),
+      ),
+      prunedBranches: Math.max(
+        0,
+        (tree.prunedBranches ?? 0)
+          + Number(args.status === "pruned")
+          - Number(task.status === "pruned"),
+      ),
     };
-  },
-});
+    await ctx.db.patch(task.treeId, treeUpdates);
+  }
 
-/**
- * Get task tree by ID
- */
-export const getTaskTreeById = query({
-  args: { treeId: v.id("parallelTaskTrees") },
-  handler: async (ctx, { treeId }) => {
-    const tree = await ctx.db.get(treeId);
-    if (!tree) return null;
+  const latestEvent = await ctx.db
+    .query("parallelTaskEvents")
+    .withIndex("by_tree_task", (q: any) =>
+      q.eq("treeId", task.treeId).eq("taskId", args.taskId)
+    )
+    .order("desc")
+    .first() as Doc<"parallelTaskEvents"> | null;
 
-    const nodes = await ctx.db
-      .query("parallelTaskNodes")
-      .withIndex("by_tree", (q) => q.eq("treeId", treeId))
-      .collect();
+  await ctx.db.insert("parallelTaskEvents", {
+    treeId: task.treeId,
+    taskId: args.taskId,
+    seq: (latestEvent?.seq ?? -1) + 1,
+    eventType: args.status === "completed" ? "completed"
+      : args.status === "pruned" ? "pruned"
+      : args.status === "failed" ? "failed"
+      : args.status === "backtracked" ? "backtracked"
+      : "progress",
+    message: `Task ${args.status}: ${task.title}`,
+    data: result ? { resultPreview: result.slice(0, 200) } : undefined,
+    createdAt: now,
+  });
+}
 
-    return { tree, nodes };
-  },
-});
-
-/**
- * Get real-time events for a task tree (for streaming UI)
- */
-export const getTaskEvents = query({
-  args: {
-    treeId: v.id("parallelTaskTrees"),
-    afterSeq: v.optional(v.number()),
-    taskId: v.optional(v.string()),
-  },
-  handler: async (ctx, { treeId, afterSeq, taskId }) => {
-    const query = ctx.db
-      .query("parallelTaskEvents")
-      .withIndex("by_tree", (q) => q.eq("treeId", treeId));
-
-    const events = await query.collect();
-
-    // Filter by afterSeq if provided
-    let filtered = events;
-    if (afterSeq !== undefined) {
-      filtered = events.filter(e => e.seq > afterSeq);
-    }
-    if (taskId) {
-      filtered = filtered.filter(e => e.taskId === taskId);
-    }
-
-    return filtered;
-  },
-});
-
-/**
- * Get children of a task node
- */
-export const getTaskChildren = query({
-  args: {
-    treeId: v.id("parallelTaskTrees"),
-    parentTaskId: v.string(),
-  },
-  handler: async (ctx, { treeId, parentTaskId }) => {
-    return await ctx.db
-      .query("parallelTaskNodes")
-      .withIndex("by_tree_parent", (q) =>
-        q.eq("treeId", treeId).eq("parentTaskId", parentTaskId)
-      )
-      .collect();
-  },
-});
-
-// ============================================================================
-// Mutations - Tree Management
-// ============================================================================
-
-/**
- * Create a new parallel task tree
- */
-export const createTaskTree = mutation({
+export const createTaskTreeInternal = internalMutation({
   args: {
     userId: v.id("users"),
     agentThreadId: v.string(),
     query: v.string(),
   },
-  handler: async (ctx, { userId, agentThreadId, query }) => {
-    const now = Date.now();
-
-    const treeId = await ctx.db.insert("parallelTaskTrees", {
-      userId,
-      agentThreadId,
-      query,
-      status: "decomposing",
-      phase: "Analyzing query and planning parallel exploration",
-      phaseProgress: 0,
-      totalBranches: 0,
-      activeBranches: 0,
-      completedBranches: 0,
-      prunedBranches: 0,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // Create root task node
-    const rootTaskId = crypto.randomUUID();
-    await ctx.db.insert("parallelTaskNodes", {
-      treeId,
-      taskId: rootTaskId,
-      title: "Analyze and Decompose Query",
-      description: `Decompose "${query}" into parallel exploration branches`,
-      taskType: "root",
-      status: "running",
-      depth: 0,
-      startedAt: now,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // Update tree with root task ID
-    await ctx.db.patch(treeId, { rootTaskId });
-
-    // Log event
-    await ctx.db.insert("parallelTaskEvents", {
-      treeId,
-      taskId: rootTaskId,
-      seq: 0,
-      eventType: "started",
-      message: "Starting parallel task tree execution",
-      createdAt: now,
-    });
-
-    return { treeId, rootTaskId };
-  },
+  handler: async (ctx, args) => await createTaskTreeForOwner(ctx, args),
 });
 
-/**
- * Update tree status
- */
-export const updateTreeStatus = mutation({
+export const internalUpdateTreeStatus = internalMutation({
   args: {
+    userId: v.id("users"),
     treeId: v.id("parallelTaskTrees"),
     status: v.union(
       v.literal("decomposing"),
@@ -272,54 +389,12 @@ export const updateTreeStatus = mutation({
     phase: v.optional(v.string()),
     phaseProgress: v.optional(v.number()),
   },
-  handler: async (ctx, { treeId, status, phase, phaseProgress }) => {
-    const now = Date.now();
-    const updates: Partial<Doc<"parallelTaskTrees">> = {
-      status,
-      updatedAt: now,
-    };
-    if (phase !== undefined) updates.phase = phase;
-    if (phaseProgress !== undefined) updates.phaseProgress = phaseProgress;
-    if (status === "completed" || status === "failed") {
-      updates.completedAt = now;
-      const tree = await ctx.db.get(treeId) as Doc<"parallelTaskTrees"> | null;
-      if (tree) {
-        updates.elapsedMs = now - tree.createdAt;
-      }
-    }
-    await ctx.db.patch(treeId, updates);
-  },
+  handler: async (ctx, args) => await updateTreeStatusForOwner(ctx, args),
 });
 
-/**
- * Set merged result on tree
- */
-export const setTreeResult = mutation({
+export const createBranchTasksInternal = internalMutation({
   args: {
-    treeId: v.id("parallelTaskTrees"),
-    mergedResult: v.string(),
-    confidence: v.number(),
-  },
-  handler: async (ctx, { treeId, mergedResult, confidence }) => {
-    await ctx.db.patch(treeId, {
-      mergedResult,
-      confidence,
-      status: "completed",
-      completedAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-  },
-});
-
-// ============================================================================
-// Mutations - Task Node Management
-// ============================================================================
-
-/**
- * Create parallel branch tasks
- */
-export const createBranchTasks = mutation({
-  args: {
+    userId: v.id("users"),
     treeId: v.id("parallelTaskTrees"),
     parentTaskId: v.string(),
     branches: v.array(v.object({
@@ -328,77 +403,12 @@ export const createBranchTasks = mutation({
       agentName: v.optional(v.string()),
     })),
   },
-  handler: async (ctx, { treeId, parentTaskId, branches }) => {
-    const now = Date.now();
-    const taskIds: string[] = [];
-
-    // Get parent to determine depth
-    const parent = await ctx.db
-      .query("parallelTaskNodes")
-      .withIndex("by_taskId", (q) => q.eq("taskId", parentTaskId))
-      .first() as Doc<"parallelTaskNodes"> | null;
-    const depth = (parent?.depth ?? 0) + 1;
-
-    for (let i = 0; i < branches.length; i++) {
-      const branch = branches[i];
-      const taskId = crypto.randomUUID();
-
-      await ctx.db.insert("parallelTaskNodes", {
-        treeId,
-        taskId,
-        parentTaskId,
-        title: branch.title,
-        description: branch.description,
-        taskType: "branch",
-        status: "pending",
-        branchIndex: i,
-        siblingCount: branches.length,
-        depth,
-        agentName: branch.agentName,
-        canBacktrack: true,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      taskIds.push(taskId);
-
-      // Log event
-      await ctx.db.insert("parallelTaskEvents", {
-        treeId,
-        taskId,
-        seq: 0,
-        eventType: "started",
-        message: `Branch ${i + 1}/${branches.length}: ${branch.title}`,
-        createdAt: now,
-      });
-    }
-
-    // Update tree stats
-    const tree = await ctx.db.get(treeId) as Doc<"parallelTaskTrees"> | null;
-    if (tree) {
-      await ctx.db.patch(treeId, {
-        totalBranches: (tree.totalBranches ?? 0) + branches.length,
-        updatedAt: now,
-      });
-    }
-
-    // Mark parent as awaiting children
-    if (parent) {
-      await ctx.db.patch(parent._id, {
-        status: "awaiting_children",
-        updatedAt: now,
-      });
-    }
-
-    return taskIds;
-  },
+  handler: async (ctx, args) => await createBranchTasksForOwner(ctx, args),
 });
 
-/**
- * Update task status
- */
-export const updateTaskStatus = mutation({
+export const updateTaskStatusInternal = internalMutation({
   args: {
+    userId: v.id("users"),
     taskId: v.string(),
     status: v.union(
       v.literal("pending"),
@@ -415,297 +425,5 @@ export const updateTaskStatus = mutation({
     confidence: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
   },
-  handler: async (ctx, { taskId, status, result, resultSummary, confidence, errorMessage }) => {
-    const now = Date.now();
-
-    const task = await ctx.db
-      .query("parallelTaskNodes")
-      .withIndex("by_taskId", (q) => q.eq("taskId", taskId))
-      .first() as Doc<"parallelTaskNodes"> | null;
-
-    if (!task) return;
-
-    const updates: Partial<Doc<"parallelTaskNodes">> = {
-      status,
-      updatedAt: now,
-    };
-
-    if (result !== undefined) updates.result = result;
-    if (resultSummary !== undefined) updates.resultSummary = resultSummary;
-    if (confidence !== undefined) updates.confidence = confidence;
-    if (errorMessage !== undefined) updates.errorMessage = errorMessage;
-
-    if (status === "running" && !task.startedAt) {
-      updates.startedAt = now;
-    }
-
-    if (status === "completed" || status === "pruned" || status === "failed" || status === "backtracked") {
-      updates.completedAt = now;
-      if (task.startedAt) {
-        updates.elapsedMs = now - task.startedAt;
-      }
-    }
-
-    await ctx.db.patch(task._id, updates);
-
-    // Update tree branch counts
-    const tree = await ctx.db.get(task.treeId) as Doc<"parallelTaskTrees"> | null;
-    if (tree) {
-      const branchUpdates: Partial<Doc<"parallelTaskTrees">> = { updatedAt: now };
-
-      if (status === "running") {
-        branchUpdates.activeBranches = (tree.activeBranches ?? 0) + 1;
-      } else if (status === "completed") {
-        branchUpdates.completedBranches = (tree.completedBranches ?? 0) + 1;
-        branchUpdates.activeBranches = Math.max(0, (tree.activeBranches ?? 1) - 1);
-      } else if (status === "pruned") {
-        branchUpdates.prunedBranches = (tree.prunedBranches ?? 0) + 1;
-        branchUpdates.activeBranches = Math.max(0, (tree.activeBranches ?? 1) - 1);
-      } else if (status === "failed" || status === "backtracked") {
-        branchUpdates.activeBranches = Math.max(0, (tree.activeBranches ?? 1) - 1);
-      }
-
-      await ctx.db.patch(task.treeId, branchUpdates);
-    }
-
-    // Log event
-    await ctx.db.insert("parallelTaskEvents", {
-      treeId: task.treeId,
-      taskId,
-      seq: now, // Use timestamp for seq in this simple case
-      eventType: status === "completed" ? "completed"
-                : status === "pruned" ? "pruned"
-                : status === "failed" ? "failed"
-                : status === "backtracked" ? "backtracked"
-                : "progress",
-      message: `Task ${status}: ${task.title}`,
-      data: result ? { resultPreview: result.slice(0, 200) } : undefined,
-      createdAt: now,
-    });
-  },
-});
-
-/**
- * Add verification result to a task
- */
-export const addVerificationResult = mutation({
-  args: {
-    taskId: v.string(),
-    score: v.number(),
-    notes: v.string(),
-    passed: v.boolean(),
-  },
-  handler: async (ctx, { taskId, score, notes, passed }) => {
-    const now = Date.now();
-
-    const task = await ctx.db
-      .query("parallelTaskNodes")
-      .withIndex("by_taskId", (q) => q.eq("taskId", taskId))
-      .first() as Doc<"parallelTaskNodes"> | null;
-
-    if (!task) return;
-
-    await ctx.db.patch(task._id, {
-      verificationScore: score,
-      verificationNotes: notes,
-      survivedVerification: passed,
-      status: passed ? "completed" : "pruned",
-      updatedAt: now,
-    });
-
-    // Log event
-    await ctx.db.insert("parallelTaskEvents", {
-      treeId: task.treeId,
-      taskId,
-      seq: now,
-      eventType: "verification_result",
-      message: passed ? `✓ Verification passed (${(score * 100).toFixed(0)}%)`
-                      : `✗ Verification failed (${(score * 100).toFixed(0)}%)`,
-      data: { score, notes, passed },
-      createdAt: now,
-    });
-  },
-});
-
-/**
- * Add cross-check result
- */
-export const addCrossCheck = mutation({
-  args: {
-    treeId: v.id("parallelTaskTrees"),
-    sourceTaskId: v.string(),
-    targetTaskId: v.string(),
-    verdict: v.union(
-      v.literal("agree"),
-      v.literal("disagree"),
-      v.literal("partial"),
-      v.literal("abstain"),
-    ),
-    agreementPoints: v.optional(v.array(v.string())),
-    disagreementPoints: v.optional(v.array(v.string())),
-    confidence: v.number(),
-    reasoning: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const now = Date.now();
-
-    await ctx.db.insert("parallelTaskCrossChecks", {
-      ...args,
-      createdAt: now,
-    });
-
-    // Update target task with critique
-    const targetTask = await ctx.db
-      .query("parallelTaskNodes")
-      .withIndex("by_taskId", (q) => q.eq("taskId", args.targetTaskId))
-      .first() as Doc<"parallelTaskNodes"> | null;
-
-    if (targetTask) {
-      const existingCritiques = targetTask.critiques ?? [];
-      await ctx.db.patch(targetTask._id, {
-        critiques: [
-          ...existingCritiques,
-          {
-            source: args.sourceTaskId,
-            verdict: args.verdict,
-            reason: args.reasoning ?? "",
-          },
-        ],
-        updatedAt: now,
-      });
-    }
-
-    // Log event
-    await ctx.db.insert("parallelTaskEvents", {
-      treeId: args.treeId,
-      taskId: args.targetTaskId,
-      seq: now,
-      eventType: "critique_received",
-      message: `Critique from sibling: ${args.verdict}`,
-      data: {
-        sourceTaskId: args.sourceTaskId,
-        verdict: args.verdict,
-        confidence: args.confidence,
-      },
-      createdAt: now,
-    });
-  },
-});
-
-/**
- * Log a task event
- */
-export const logTaskEvent = mutation({
-  args: {
-    treeId: v.id("parallelTaskTrees"),
-    taskId: v.string(),
-    eventType: v.union(
-      v.literal("started"),
-      v.literal("progress"),
-      v.literal("thinking"),
-      v.literal("tool_call"),
-      v.literal("result_partial"),
-      v.literal("result_final"),
-      v.literal("verification_started"),
-      v.literal("verification_result"),
-      v.literal("critique_received"),
-      v.literal("pruned"),
-      v.literal("completed"),
-      v.literal("failed"),
-      v.literal("backtracked"),
-    ),
-    message: v.optional(v.string()),
-    data: v.optional(v.any()),
-  },
-  handler: async (ctx, { treeId, taskId, eventType, message, data }) => {
-    const now = Date.now();
-
-    // Get latest seq for this task
-    const latestEvent = await ctx.db
-      .query("parallelTaskEvents")
-      .withIndex("by_task", (q) => q.eq("taskId", taskId))
-      .order("desc")
-      .first() as Doc<"parallelTaskEvents"> | null;
-
-    const seq = (latestEvent?.seq ?? 0) + 1;
-
-    await ctx.db.insert("parallelTaskEvents", {
-      treeId,
-      taskId,
-      seq,
-      eventType,
-      message,
-      data,
-      createdAt: now,
-    });
-  },
-});
-
-// ============================================================================
-// Internal Mutations (for actions)
-// ============================================================================
-
-export const internalUpdateTreeStatus = internalMutation({
-  args: {
-    treeId: v.id("parallelTaskTrees"),
-    status: v.union(
-      v.literal("decomposing"),
-      v.literal("executing"),
-      v.literal("verifying"),
-      v.literal("cross_checking"),
-      v.literal("merging"),
-      v.literal("completed"),
-      v.literal("failed"),
-    ),
-    phase: v.optional(v.string()),
-    phaseProgress: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    const tree = await ctx.db.get(args.treeId) as Doc<"parallelTaskTrees"> | null;
-    if (!tree) return;
-
-    const updates: Partial<Doc<"parallelTaskTrees">> = {
-      status: args.status,
-      updatedAt: now,
-    };
-    if (args.phase !== undefined) updates.phase = args.phase;
-    if (args.phaseProgress !== undefined) updates.phaseProgress = args.phaseProgress;
-    if (args.status === "completed" || args.status === "failed") {
-      updates.completedAt = now;
-      updates.elapsedMs = now - tree.createdAt;
-    }
-    await ctx.db.patch(args.treeId, updates);
-  },
-});
-
-export const internalLogEvent = internalMutation({
-  args: {
-    treeId: v.id("parallelTaskTrees"),
-    taskId: v.string(),
-    eventType: v.string(),
-    message: v.optional(v.string()),
-    data: v.optional(v.any()),
-  },
-  handler: async (ctx, { treeId, taskId, eventType, message, data }) => {
-    const now = Date.now();
-
-    const latestEvent = await ctx.db
-      .query("parallelTaskEvents")
-      .withIndex("by_task", (q) => q.eq("taskId", taskId))
-      .order("desc")
-      .first() as Doc<"parallelTaskEvents"> | null;
-
-    const seq = (latestEvent?.seq ?? 0) + 1;
-
-    await ctx.db.insert("parallelTaskEvents", {
-      treeId,
-      taskId,
-      seq,
-      eventType: eventType,
-      message,
-      data,
-      createdAt: now,
-    });
-  },
+  handler: async (ctx, args) => await updateTaskStatusForOwner(ctx, args),
 });

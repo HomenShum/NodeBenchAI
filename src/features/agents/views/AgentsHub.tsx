@@ -10,23 +10,18 @@
  * - Human-in-the-loop approval queue
  */
 
-import React, { useState, useCallback, useMemo, lazy, Suspense } from "react";
-import { useQuery, useAction } from "convex/react";
+import React, { useState, useCallback, useMemo, lazy, Suspense, useId } from "react";
+import { useConvexAuth, useQuery } from "convex/react";
 import {
   Bot,
   Zap,
-  Sparkles,
-  TrendingUp,
   Activity,
-  AlertCircle,
   ChevronDown,
   ChevronUp,
-  DollarSign,
   Cpu,
   ClipboardList,
   ExternalLink,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { api } from "../../../../convex/_generated/api";
 import { loadAgentsViewMode, saveAgentsViewMode } from "@/features/controlPlane/lib/onboardingState";
 
@@ -82,6 +77,7 @@ export async function routeAgentCommand(
   query: string,
   options: { model: ApprovedModel; agents?: string[] },
   actions: {
+    canSpawn?: boolean;
     spawnSwarm: (params: {
       query: string;
       agents: string[];
@@ -91,7 +87,7 @@ export async function routeAgentCommand(
     openWithContext: (options: { initialMessage: string; initialTab: "chat" }) => void;
   },
 ) {
-  if (options.agents && options.agents.length > 0) {
+  if (options.agents && options.agents.length > 0 && actions.canSpawn !== false) {
     await actions.spawnSwarm({
       query,
       agents: options.agents,
@@ -105,100 +101,27 @@ export async function routeAgentCommand(
 }
 
 // ============================================================================
-// Quick Stats Component
-// ============================================================================
-
-function QuickStatsBar() {
-  const stats = useQuery(api.domains.agents.agentHubQueries.getAgentStats);
-  const costMetrics = useQuery(
-    api.domains.agents.agentHubQueries.getCostSavingsMetrics,
-    { windowHours: 24 }
-  );
-
-  if (!stats) {
-    return (
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-        {[...Array(6)].map((_, i) => (
-          <div
-            key={i}
-            className="nb-surface-card p-4 no-skeleton-animation"
-            aria-busy="true"
-          >
-            <div className="h-6 w-12 bg-surface-secondary rounded mb-1" />
-            <div className="h-4 w-20 bg-surface-secondary rounded" />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  const statItems = [
-    {
-      value: stats.totalAgents,
-      label: "AI Assistants",
-      icon: Bot,
-      color: "text-accent",
-    },
-    {
-      value: stats.activeNow,
-      label: "Active Now",
-      icon: Activity,
-      color: stats.activeNow > 0 ? "text-content" : "text-content-muted",
-    },
-    {
-      value: stats.tasksCompleted,
-      label: "Tasks Completed",
-      icon: TrendingUp,
-      color: "text-content",
-    },
-    {
-      value: `${stats.successRate}%`,
-      label: "Success Rate",
-      icon: Sparkles,
-      color: "text-content-secondary",
-    },
-    {
-      value: costMetrics ? `$${costMetrics.dollarsSaved.toFixed(2)}` : "$0.00",
-      label: "Cost Saved (24h)",
-      icon: DollarSign,
-      color: "text-content",
-    },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-      {statItems.map((item) => {
-        const Icon = item.icon;
-        return (
-          <div
-            key={item.label}
-            className="nb-surface-card p-4"
-          >
-            <div className="flex items-center gap-2">
-              <Icon className={cn("w-4 h-4", item.color)} />
-              <span className={cn("text-2xl font-bold", item.color)}>
-                {item.value}
-              </span>
-            </div>
-            <p className="text-xs text-content-muted mt-1">{item.label}</p>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ============================================================================
 // Agent Grid Component
 // ============================================================================
 
-function AgentGrid() {
+export function AgentGrid() {
   const agentStatuses = useQuery(
     api.domains.agents.agentHubQueries.getAllAgentStatuses
   ) as AgentStatusData[] | undefined;
 
+  if (agentStatuses === undefined) {
+    return (
+      <div
+        className="nb-surface-card px-4 py-6 text-sm text-content-muted"
+        role="status"
+      >
+        Loading live agent status...
+      </div>
+    );
+  }
+
   const formatTimeAgo = (timestamp: number | null): string => {
-    if (!timestamp) return "Never";
+    if (!timestamp) return "No recorded activity";
     const diff = Date.now() - timestamp;
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
@@ -210,21 +133,25 @@ function AgentGrid() {
     return `${days}d ago`;
   };
 
-  // Use static agent list if query is loading
-  const agents = useMemo(() => {
-    const agentTypes = ["coordinator", "document", "media", "sec", "openbb", "arbitrage"];
-
-    return agentTypes.map((agentType) => {
-      const statusData = agentStatuses?.find((s) => s.agentType === agentType);
+  const agents = agentStatuses
+    .filter((statusData) => Boolean(AGENT_CONFIGS[statusData.agentType]))
+    .map((statusData) => {
       return {
-        id: agentType,
-        status: (statusData?.status || "idle") as AgentStatus,
-        lastActivity: formatTimeAgo(statusData?.lastActivity || null),
-        tasksCompleted: statusData?.tasksCompleted || 0,
-        currentTask: statusData?.currentTask || undefined,
+        id: statusData.agentType,
+        status: statusData.status as AgentStatus,
+        lastActivity: formatTimeAgo(statusData.lastActivity),
+        tasksCompleted: statusData.tasksCompleted,
+        currentTask: statusData.currentTask || undefined,
       };
     });
-  }, [agentStatuses]);
+
+  if (agents.length === 0) {
+    return (
+      <div className="nb-surface-card px-4 py-6 text-sm text-content-muted">
+        No agent runtime activity has been recorded.
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -248,6 +175,7 @@ function AgentGrid() {
 
 function ActiveSwarmsSection() {
   const [isExpanded, setIsExpanded] = useState(true);
+  const contentId = useId();
 
   const activeSwarms = useQuery(api.domains.agents.agentHubQueries.getActiveSwarms, {
     limit: 5,
@@ -275,6 +203,8 @@ function ActiveSwarmsSection() {
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center justify-between p-4 hover:bg-surface-hover transition-colors"
+        aria-expanded={isExpanded}
+        aria-controls={contentId}
       >
         <div className="flex items-center gap-2">
           <Zap className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
@@ -294,7 +224,7 @@ function ActiveSwarmsSection() {
 
       {/* Content */}
       {isExpanded && (
-        <div className="border-t border-edge">
+        <div id={contentId} className="border-t border-edge">
           <Suspense fallback={<div className="p-4 text-xs text-content-muted">Loading swarm...</div>}>
             {runningSwarms.map((swarm) => (
               <SwarmLanesView
@@ -315,9 +245,11 @@ function ActiveSwarmsSection() {
 // ============================================================================
 
 export function AgentsHub() {
+  const { isAuthenticated } = useConvexAuth();
   const [advancedMode, setAdvancedMode] = useState(() => {
     return loadAgentsViewMode() === "advanced";
   });
+  const [commandError, setCommandError] = useState<string | null>(null);
   const toggleMode = useCallback(() => {
     setAdvancedMode((prev) => {
       const next = !prev;
@@ -335,12 +267,13 @@ export function AgentsHub() {
       options: { model: ApprovedModel; agents?: string[] }
     ) => {
       try {
-        await routeAgentCommand(query, options, { spawnSwarm, openWithContext });
-      } catch (error) {
-        console.error("Failed to run agent command:", error);
+        setCommandError(null);
+        await routeAgentCommand(query, options, { canSpawn: isAuthenticated, spawnSwarm, openWithContext });
+      } catch {
+        setCommandError("NodeBench could not start that request. Try again or review the active runtime status.");
       }
     },
-    [openWithContext, spawnSwarm]
+    [isAuthenticated, openWithContext, spawnSwarm]
   );
 
   return (
@@ -367,7 +300,15 @@ export function AgentsHub() {
 
             {/* Command Bar — always visible */}
             <div className="mb-6">
-              <AgentCommandBar onSubmit={handleCommandSubmit} />
+              <AgentCommandBar onSubmit={handleCommandSubmit} allowSpawn={isAuthenticated} />
+              {commandError ? (
+                <p
+                  className="mt-2 rounded-md border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-700 dark:text-red-300"
+                  role="alert"
+                >
+                  {commandError}
+                </p>
+              ) : null}
             </div>
 
             <div className="mb-6">
@@ -389,13 +330,6 @@ export function AgentsHub() {
               </Suspense>
             </div>
 
-            {/* Autonomous Operations Status - always visible for operator QA */}
-            <div className="mb-6">
-              <Suspense fallback={<div className="h-[120px]" />}>
-                <AutonomousOperationsPanel />
-              </Suspense>
-            </div>
-
             {/* Mode toggle */}
             <div className="mb-6">
               <button
@@ -411,9 +345,11 @@ export function AgentsHub() {
             {/* ── Advanced sections ── */}
             {advancedMode && (
               <>
-                {/* Quick Stats */}
+                {/* Autonomous operations are deliberate operator controls, not landing-page chrome. */}
                 <div className="mb-6">
-                  <QuickStatsBar />
+                  <Suspense fallback={<div className="h-[64px]" />}>
+                    <AutonomousOperationsPanel />
+                  </Suspense>
                 </div>
 
                 {/* Oracle Control Tower */}
@@ -423,16 +359,18 @@ export function AgentsHub() {
                   </Suspense>
                 </div>
 
-                {/* Agent Status Grid */}
-                <div className="mb-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Activity className="w-4 h-4 text-accent" />
-                    <h2 className="type-section-title text-content">
-                      Available Agents
-                    </h2>
+                {/* Agent runtime is owner-scoped; guests never receive invented idle rows. */}
+                {isAuthenticated ? (
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Activity className="w-4 h-4 text-accent" />
+                      <h2 className="type-section-title text-content">
+                        Agent runtime
+                      </h2>
+                    </div>
+                    <AgentGrid />
                   </div>
-                  <AgentGrid />
-                </div>
+                ) : null}
 
                 {/* Free Model Rankings */}
                 <div className="mb-6">
@@ -441,28 +379,30 @@ export function AgentsHub() {
                   </Suspense>
                 </div>
 
-                {/* Task Manager - Agent Task History & Telemetry */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <ClipboardList className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                      <h2 className="type-section-title text-content">
-                        Task History
-                      </h2>
+                {/* Private task history is owner-scoped and absent for guests. */}
+                {isAuthenticated ? (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <ClipboardList className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        <h2 className="type-section-title text-content">
+                          Task History
+                        </h2>
+                      </div>
+                      <a
+                        href="/#activity"
+                        className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:text-indigo-300 hover:underline"
+                      >
+                        Public Feed <ExternalLink className="w-3 h-3" />
+                      </a>
                     </div>
-                    <a
-                      href="/#activity"
-                      className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:text-indigo-300 hover:underline"
-                    >
-                      Public Feed <ExternalLink className="w-3 h-3" />
-                    </a>
+                    <div className="nb-surface-card overflow-hidden h-[500px]">
+                      <Suspense fallback={<div className="h-full flex items-center justify-center text-xs text-content-muted">Loading tasks...</div>}>
+                        <TaskManagerView isPublic={false} className="h-full" />
+                      </Suspense>
+                    </div>
                   </div>
-                  <div className="nb-surface-card overflow-hidden h-[500px]">
-                    <Suspense fallback={<div className="h-full flex items-center justify-center text-xs text-content-muted">Loading tasks...</div>}>
-                      <TaskManagerView isPublic={false} className="h-full" />
-                    </Suspense>
-                  </div>
-                </div>
+                ) : null}
               </>
             )}
           </div>

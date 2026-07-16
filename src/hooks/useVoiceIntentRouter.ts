@@ -7,14 +7,9 @@ export interface VoiceIntentActions {
   navigateToView: (viewId: MainView) => void;
   openSettings: () => void;
   openCommandPalette: () => void;
-  createDocument: () => void;
-  createTask: () => void;
-  createEvent: () => void;
   setCockpitMode: (mode: CockpitMode) => void;
-  setLayout: (layout: "cockpit" | "classic") => void;
   setThemeMode: (mode: "light" | "dark") => void;
   toggleTheme: () => void;
-  toggleLayout: () => void;
   selectThread: (index: number) => void;
   triggerSearch: (query: string) => void;
   scrollTo: (position: "top" | "bottom") => void;
@@ -34,14 +29,9 @@ export interface ParsedVoiceIntent {
     | "navigateToView"
     | "openSettings"
     | "openCommandPalette"
-    | "createDocument"
-    | "createTask"
-    | "createEvent"
     | "setCockpitMode"
-    | "setLayout"
     | "setThemeMode"
     | "toggleTheme"
-    | "toggleLayout"
     | "selectThread"
     | "triggerSearch"
     | "scrollTo"
@@ -196,18 +186,6 @@ export function parseVoiceIntent(raw: string): ParsedVoiceIntent | null {
     }
   }
 
-  if (/^(?:new|create|add)\s+(?:document|doc|note)$/.test(text)) {
-    return { intent: "create", action: "createDocument", params: {} };
-  }
-
-  if (/^(?:new|create|add)\s+task$/.test(text)) {
-    return { intent: "create", action: "createTask", params: {} };
-  }
-
-  if (/^(?:new|create|add)\s+(?:event|meeting)$/.test(text)) {
-    return { intent: "create", action: "createEvent", params: {} };
-  }
-
   if (/^(?:dark\s+mode|toggle\s+dark)$/.test(text)) {
     return { intent: "theme", action: "setThemeMode", params: { mode: "dark" } };
   }
@@ -218,18 +196,6 @@ export function parseVoiceIntent(raw: string): ParsedVoiceIntent | null {
 
   if (/^toggle\s+theme$/.test(text)) {
     return { intent: "theme", action: "toggleTheme", params: {} };
-  }
-
-  if (/^(?:classic|classic\s+layout)$/.test(text)) {
-    return { intent: "layout", action: "setLayout", params: { layout: "classic" } };
-  }
-
-  if (/^(?:cockpit|cockpit\s+layout)$/.test(text)) {
-    return { intent: "layout", action: "setLayout", params: { layout: "cockpit" } };
-  }
-
-  if (/^switch\s+layout$/.test(text)) {
-    return { intent: "layout", action: "toggleLayout", params: {} };
   }
 
   const searchMatch = text.match(/^(?:search\s+for|search|find|look\s+up)\s+(.+)$/);
@@ -305,22 +271,12 @@ function hasAction(
       return typeof actions.openSettings === "function";
     case "openCommandPalette":
       return typeof actions.openCommandPalette === "function";
-    case "createDocument":
-      return typeof actions.createDocument === "function";
-    case "createTask":
-      return typeof actions.createTask === "function";
-    case "createEvent":
-      return typeof actions.createEvent === "function";
     case "setCockpitMode":
       return typeof actions.setCockpitMode === "function";
-    case "setLayout":
-      return typeof actions.setLayout === "function";
     case "setThemeMode":
       return typeof actions.setThemeMode === "function";
     case "toggleTheme":
       return typeof actions.toggleTheme === "function";
-    case "toggleLayout":
-      return typeof actions.toggleLayout === "function";
     case "selectThread":
       return typeof actions.selectThread === "function";
     case "triggerSearch":
@@ -358,29 +314,14 @@ export function useVoiceIntentRouter(actions: Partial<VoiceIntentActions>): {
         case "openCommandPalette":
           actions.openCommandPalette?.();
           break;
-        case "createDocument":
-          actions.createDocument?.();
-          break;
-        case "createTask":
-          actions.createTask?.();
-          break;
-        case "createEvent":
-          actions.createEvent?.();
-          break;
         case "setCockpitMode":
           actions.setCockpitMode?.(parsed.params.mode as CockpitMode);
-          break;
-        case "setLayout":
-          actions.setLayout?.(parsed.params.layout as "cockpit" | "classic");
           break;
         case "setThemeMode":
           actions.setThemeMode?.(parsed.params.mode as "light" | "dark");
           break;
         case "toggleTheme":
           actions.toggleTheme?.();
-          break;
-        case "toggleLayout":
-          actions.toggleLayout?.();
           break;
         case "selectThread":
           actions.selectThread?.(parsed.params.index as number);

@@ -19,6 +19,7 @@
 
 import type { ActionCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
+import type { Id } from "../../_generated/dataModel";
 
 export type PipelineChoiceType =
   | "gather_info"
@@ -30,6 +31,8 @@ export interface PipelineTraceArgs {
   ctx: ActionCtx;
   /** runId from `pipelineRuns.runId` — used as both executionId and workflowTag prefix. */
   runId: string;
+  /** Server-derived pipeline owner; authenticated user owners become public TRACE owners. */
+  ownerKey?: string;
   /** Monotonic sequence number within the run. */
   seq: number;
   /** Step name, e.g. "spec.parse" or "image.generate". */
@@ -53,11 +56,15 @@ export interface PipelineTraceArgs {
 }
 
 export async function appendPipelineTraceEntry(args: PipelineTraceArgs): Promise<void> {
+  const ownerUserId = args.ownerKey?.startsWith("user:")
+    ? (args.ownerKey.slice("user:".length) as Id<"users">)
+    : undefined;
   try {
     await args.ctx.runMutation(
       internal.domains.agents.traceAuditLog.appendAuditEntry,
       {
         executionId: args.runId,
+        userId: ownerUserId,
         executionType: "pipeline_run" as const,
         workflowTag: `pipeline_${args.runId}`,
         seq: args.seq,

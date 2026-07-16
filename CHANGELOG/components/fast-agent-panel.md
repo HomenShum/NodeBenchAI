@@ -3,6 +3,22 @@
 Append-only lane for behavior-preserving AI Elements adoption inside
 `src/features/agents/components/FastAgentPanel/`. Newest entries first.
 
+## 2026-07-15 — Keep only runtime-backed chat controls
+
+The pending candidate removes the scripted guest transcript, projected queue and streaming metrics, local-only preference and feedback controls, unsupported attachment and mention affordances, duplicate actions, the unreachable nested command palette and telemetry view, no-op entity-selection controls, synthetic receipt fallbacks, an unreferenced bearer-stream component and HTTP route, and the unrendered parallel timeline and kanban path. Canonical authenticated and anonymous streaming, stop and recovery, owned thread deletion, structured sources and tool cards, approvals, exports, and backend-supplied model and token provenance remain. Generated code can be copied or exported but cannot execute with the signed-in app's origin authority. Document, memory, plan, and fused-search cards fail closed unless successful structured tool output supplies their state and provenance; assistant prose, malformed results, running tools, and errors cannot mint a success card. Reader-position-aware auto-scroll follows the actual streaming message list without pulling a reader away from earlier content, and every shortcut or skip link focuses whichever real composer is mounted. Retrieved sources remain visible as consulted evidence, but the server no longer injects source tokens into unrelated prose or promotes an unbound URL into a claim citation. TRACE and receipt reads are owner-scoped, both direct and tool-driven document creation verify exact thread ownership before reading or linking content, MCP document/folder/spreadsheet reads and writes verify exact object ownership, receipt hashes bind the exact output payload, receipt persistence is required for trust-labeled completion, and every TRACE row distinguishes deterministic code from AI-model output or uses the neutral `Recorded` label; unavailable data renders as loading, empty, or not measured instead of as a fixture.
+
+**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Source: pending; this worktree candidate is not merged to `main`.
+- Checks: not recorded for a canonical `main` SHA.
+- Visual proof: not recorded in source; local-only candidate artifacts are not release evidence.
+- Preview: not recorded.
+- Production live: not recorded.
+
+**Author**: Homen Shum + Codex.
+**Touches**: [`../pages/agents.md`](../pages/agents.md), [`../pages/exact-cockpit.md`](../pages/exact-cockpit.md), and [`../integrations/pipeline-runtime.md`](../integrations/pipeline-runtime.md).
+
 ## 2026-07-14 — Remove ungrounded chat chrome
 
 The unopened panel now keeps the composer and four real starter actions as its primary surface. Empty tabs, duplicate command rails, decorative progress/minimap UI, placebo Focus/Tone controls, and text-inferred confidence/citation/media projections are removed while canonical streaming, approvals, structured sources, tool/domain cards, model/token provenance, Markdown, and exports remain.

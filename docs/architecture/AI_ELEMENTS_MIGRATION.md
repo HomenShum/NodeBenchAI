@@ -117,11 +117,11 @@ exact source and verification evidence land.
 
 | Custom file | Purpose | Decision | Target primitive | Wiring seam to preserve | Risk |
 |---|---|---|---|---|---|
-| MessageBubble | Legacy single bubble: avatar, markdown/code, cursor, actions, reasoning | migrate | `message` + `reasoning` | `useSmoothText`; `streamId` → StreamingMessage; LiveThinking/MemoryPreview stay custom | med |
+| MessageBubble | Legacy single bubble: avatar, markdown/code, cursor, actions, reasoning | removed | — | Zero runtime consumers; canonical rendering is UIMessageBubble | none |
 | **UIMessageBubble** (140KB) | THE live UIMessage bubble: parts → text/reasoning/tool/sources + domain cards | wrap | `message`+`reasoning`+`tool`+`sources`; keep selection/arbitrage/media/GoalCard | `useUIMessages(stream:true)`; `useSmoothText` gated on status; `useMessageHandlers()`; on{Company,Person,Event,News,Doc,Regen,Delete,Edit,Feedback}; StreamingStatus | **high** |
-| MessageStream | Legacy scroll container + follow-up chips | migrate | `conversation` + `suggestion` | live-token append; onSendFollowUp. *(dead)* | med |
-| UIMessageStream | UIMessage[] container: coordinator→child grouping, dedup | wrap | `conversation` shell; keep grouping/dedup | reconcile `useSmartAutoScroll` with StickToBottom. *(dead — live uses VirtualizedMessageList)* | med |
-| StreamingMessage | persistent-text-streaming body + cursor | wrap | `message` (MessageResponse); keep hook | **CRITICAL:** `useStream(getStreamBody, .convex.site URL, isDriven, streamId)` — feed hook output to MessageResponse, never a static string | med |
+| MessageStream | Legacy scroll container + follow-up chips | removed | — | Zero runtime consumers | none |
+| UIMessageStream | UIMessage[] container: coordinator→child grouping, dedup | removed | — | Zero runtime consumers; live uses VirtualizedMessageList | none |
+| StreamingMessage | Legacy persistent-text-streaming renderer and HTTP driver | removed | — | Zero runtime consumers; bearer stream reads and `/api/chat-stream` were removed with it | none |
 | VirtualizedMessageList | IntersectionObserver windowing | keep_custom | — | THE live perf wrapper; replacing regresses 50+ msg threads | low |
 | TypingIndicator | 3-dot loader + status | migrate | `shimmer` | none (only consumer is dead UIMessageStream) | low |
 | StreamingStatus | 4-phase telemetry card | keep_custom | — | LIVE in UIMessageBubble; preserve `summarizeStreamingPhases()` | low |
@@ -156,8 +156,8 @@ exact source and verification evidence land.
 | ToolCallTransparency | MCP tool-call timeline | migrate | `tool` | status map running/success/error → input-available/output-available/output-error | med |
 | ToolResultPopover | Modal result/args/error tabs | wrap | `code-block` + Dialog/Tabs | on{Entity}Select callbacks bridge tool output → mutation | med |
 | **StepTimeline** | Delegation/tool/result timeline | wrap | `task`(+`tool`) shell | preserve `toolPartsToTimelineSteps(ToolUIPart[])` ingestion + popover callbacks | **high** |
-| ParallelTaskTimeline | Convex parallel verification tree | keep_custom | — | `useQuery(getTaskTree)` live sub | high |
-| DecisionTreeKanban | "Pruning Garden" pipeline | keep_custom | — | receives graph prop; preserve onNodeClick | low |
+| ParallelTaskTimeline | Unreachable parallel-task projection | removed | — | Zero runtime consumers; public task-tree controls were removed | none |
+| DecisionTreeKanban | Unreachable "Pruning Garden" projection | removed | — | Zero runtime consumers | none |
 | AgentTasksTab | Live orchestration task list | wrap | `task` list + `context` | `useQuery(listAgentTasksByThread)` live sub | med |
 | AgentHierarchy | Sub-agent list + elapsed | wrap | `task` list shell | preserve startedAt/completedAt timing | low |
 | SwarmLanesView | Parallel swarm lanes grid | keep_custom | — | TWO live hooks: `useSwarmByThread` + `useLaneEvents` | med |
@@ -209,9 +209,9 @@ exact source and verification evidence land.
 - **Completed foundation:** scaffold + six leaves (#516), shared adapter (#521),
   CollapsibleAgentProgress (#523), ToolCallTransparency (#524), UIMessageBubble
   (#525), InputBar (#526), and LiveEventCard (#527).
-- **Next message/input leaves:** MessageBubble, MessageStream, UIMessageStream,
-  StreamingMessage, FileUpload, and LiveThinking. Confirm reachability before
-  work and retain `useStream` for persistent text.
+- **Next message/input leaves:** FileUpload and LiveThinking. MessageBubble,
+  MessageStream, UIMessageStream, and StreamingMessage were removed after
+  reachability checks proved they had no runtime consumers.
 - **Then tool/task shells:** ToolResultPopover, StepTimeline, and AgentTasksTab.
   Preserve live queries, timeline ingestion, and entity callbacks.
 - **Then bounded cards:** FileViewer, TokenUsageBadge, GoalCard,
@@ -239,5 +239,6 @@ convexToUIParts(message: UIMessage): {
 
 `domainParts` is a **pass-through, not a transform**. It routes domain parts to
 keep-custom components and never flattens them into a primitive. The adapter
-must not emit persistent-text-streaming bodies: that path remains a live
-`useStream` subscription owned by StreamingMessage.
+must not emit legacy persistent-text-streaming bodies. The unreferenced
+StreamingMessage client, bearer-ID reads, and `/api/chat-stream` driver were
+removed; canonical FastAgent output is the owner-scoped UIMessage path.

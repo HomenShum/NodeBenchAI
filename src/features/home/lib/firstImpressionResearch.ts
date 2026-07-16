@@ -9,7 +9,6 @@ export type FirstImpressionCard = {
   horizon: FirstImpressionHorizon;
   prompt: string;
   proofPoints: string[];
-  exportTargets: string[];
 };
 
 export type BackgroundResearchRequest = {
@@ -17,7 +16,6 @@ export type BackgroundResearchRequest = {
   spec: string;
   title: string;
   modelId: string;
-  ownerKey?: string;
   forceFresh: boolean;
   linkupDepth: "standard";
 };
@@ -29,7 +27,7 @@ export const FIRST_IMPRESSION_HORIZONS: Array<{
 }> = [
   { id: "today", label: "Today", note: "meeting or field note" },
   { id: "week", label: "This week", note: "compare options" },
-  { id: "month", label: "This month", note: "track and export" },
+  { id: "month", label: "This month", note: "compare and export" },
 ];
 
 export const FIRST_IMPRESSION_CARDS: FirstImpressionCard[] = [
@@ -41,7 +39,6 @@ export const FIRST_IMPRESSION_CARDS: FirstImpressionCard[] = [
     prompt:
       "Research a school, principal, district, and nearby staff culture before a relocation conversation. Include reviews, salary clues, commute, public signals, and what to ask current teachers.",
     proofPoints: ["reviews and scattered forums", "salary and district context", "questions to ask people"],
-    exportTargets: ["Apple Notes", "Notion", "OneNote"],
   },
   {
     id: "banker-meeting-prep",
@@ -51,7 +48,6 @@ export const FIRST_IMPRESSION_CARDS: FirstImpressionCard[] = [
     prompt:
       "Create a banker-style one-page prep memo on a company and its key people. Include business model, investors, recent signals, risks, questions, and source-backed claims.",
     proofPoints: ["company brief", "people and investor edges", "meeting questions"],
-    exportTargets: ["CRM CSV", "Linear", "Notion"],
   },
   {
     id: "founder-market-diligence",
@@ -59,9 +55,8 @@ export const FIRST_IMPRESSION_CARDS: FirstImpressionCard[] = [
     title: "Customer, competitor, and product diligence",
     horizon: "week",
     prompt:
-      "Research a product category, competitors, buyer pain, founder public footprint, pricing signals, and evidence-backed wedge. Turn it into a report with sources and follow-ups.",
+      "Research a product category, competitors, buyer pain, founder public footprint, pricing signals, and evidence-backed wedge. Organize the output with sources and follow-ups.",
     proofPoints: ["competitor cluster", "buyer pain signals", "follow-up plan"],
-    exportTargets: ["ChatGPT", "Notion", "Markdown"],
   },
   {
     id: "culture-salary-scan",
@@ -71,17 +66,15 @@ export const FIRST_IMPRESSION_CARDS: FirstImpressionCard[] = [
     prompt:
       "Gather scattered public context about an organization or person: salary ranges, culture reviews, news, public footprint, concerns, and what is unsupported or stale.",
     proofPoints: ["culture and compensation clues", "unsupported claim audit", "source freshness"],
-    exportTargets: ["Apple Notes", "OneNote", "CSV"],
   },
   {
     id: "watchlist-monthly-refresh",
     audience: "Operator",
-    title: "Track the entity and nudge on changes",
+    title: "Monthly change scan",
     horizon: "month",
     prompt:
-      "Create a watchlist-style monthly refresh for this entity. Track new public signals, stale sources, claim changes, and the next action packet for export.",
-    proofPoints: ["monthly deltas", "stale source list", "exportable action packet"],
-    exportTargets: ["Linear", "CRM CSV", "Markdown"],
+      "Compare this entity's recent public signals with the prior context. Identify stale sources, claim changes, and the next action packet for export.",
+    proofPoints: ["monthly deltas", "stale source list", "downloadable action bundle"],
   },
 ];
 
@@ -91,16 +84,12 @@ export function getFirstImpressionCards(horizon: FirstImpressionHorizon) {
 
 export function createBackgroundResearchRequest({
   query,
-  fallbackPrompt,
   title,
-  ownerKey,
 }: {
   query: string;
-  fallbackPrompt: string;
   title?: string;
-  ownerKey?: string;
 }): BackgroundResearchRequest {
-  const spec = query.trim() || fallbackPrompt.trim();
+  const spec = query.trim();
   const resolvedTitle = title?.trim() || (spec.length > 72 ? `${spec.slice(0, 69).trim()}...` : spec);
   return {
     pipelineKind: "research",
@@ -109,6 +98,5 @@ export function createBackgroundResearchRequest({
     modelId: DEFAULT_PIPELINE_MODEL_SELECTION,
     forceFresh: true,
     linkupDepth: "standard",
-    ...(ownerKey ? { ownerKey } : {}),
   };
 }

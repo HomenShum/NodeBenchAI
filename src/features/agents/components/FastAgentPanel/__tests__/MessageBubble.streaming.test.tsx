@@ -1,32 +1,35 @@
-import { test, expect } from 'vitest';
-import React from 'react';
-import { render } from '@testing-library/react';
-import { MessageBubble } from '../FastAgentPanel.MessageBubble';
-import type { Message } from '../types';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, test } from 'vitest';
 
-function renderBubble(partial?: Partial<Message>, isStreaming = true) {
-  const message: Message = {
-    id: 'm1',
-    role: 'assistant',
-    content: '',
-    createdAt: Date.now(),
-    ...partial,
-  } as Message;
+const panelDirectory = join(
+  process.cwd(),
+  'src/features/agents/components/FastAgentPanel',
+);
+const legacyBubblePath = join(panelDirectory, 'FastAgentPanel.MessageBubble.tsx');
+const legacyStreamPath = join(panelDirectory, 'FastAgentPanel.MessageStream.tsx');
+const unusedUiStreamPath = join(panelDirectory, 'FastAgentPanel.UIMessageStream.tsx');
 
-  render(
-    <MessageBubble
-      message={message}
-      isStreaming={isStreaming}
-      liveThinking={[]}
-      liveToolCalls={[]}
-      liveSources={[]}
-    />
-  );
-}
+describe('FastAgent removed UI guard', () => {
+  test('keeps the unreachable legacy renderer island deleted', () => {
+    expect(existsSync(legacyBubblePath)).toBe(false);
+    expect(existsSync(legacyStreamPath)).toBe(false);
+    expect(existsSync(unusedUiStreamPath)).toBe(false);
+  });
 
-test('renders LiveThinking container while streaming even with no live data', () => {
-  renderBubble();
-  const live = document.querySelector('.message-live-data');
-  expect(live).not.toBeNull();
+  test('does not recreate fake clipboard sharing or inferred follow-ups in the active renderer', () => {
+    const activeBubble = readFileSync(join(panelDirectory, 'FastAgentPanel.UIMessageBubble.tsx'), 'utf8');
+
+    expect(activeBubble).not.toContain('Shared from AI Assistant');
+    expect(activeBubble).not.toContain('generateFollowUps');
+  });
+
+  test('does not restore the write-only snapshot command or unlimited-access claim', () => {
+    const panel = readFileSync(join(panelDirectory, 'FastAgentPanel.tsx'), 'utf8');
+    const overlays = readFileSync(join(panelDirectory, 'FastAgentPanel.PanelOverlays.tsx'), 'utf8');
+
+    expect(panel).not.toContain('fa_snapshots');
+    expect(overlays).not.toContain('Save Snapshot');
+    expect(`${panel}\n${overlays}`).not.toMatch(/unlimited access/i);
+  });
 });
-

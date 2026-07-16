@@ -3,10 +3,6 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { PersistentTextStreaming, StreamId } from "@convex-dev/persistent-text-streaming";
-import { components } from "./_generated/api";
-import { createCoordinatorAgent } from "./domains/agents/core/coordinatorAgent";
-import { DEFAULT_MODEL, normalizeModelInput } from "./domains/agents/mcp_tools/models";
 import { z } from "zod";
 import {
   createPlanHttp,
@@ -33,10 +29,6 @@ import {
 } from "./domains/mcp/mcpBridgeHttp";
 
 const http = httpRouter();
-
-const persistentTextStreaming = new PersistentTextStreaming(
-  components.persistentTextStreaming
-);
 
 // Helper: Base64 encode ASCII strings without relying on Node or browser globals.
 // Used for HTTP Basic Authorization headers in environments without btoa/Buffer.
@@ -912,162 +904,6 @@ http.route({
         JSON.stringify({ error: err instanceof Error ? err.message : "Failed to invoke MCP tool" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
-    }
-  }),
-});
-
-// Persistent Text Streaming endpoint for FastAgentPanel
-
-// CORS preflight handler
-http.route({
-  path: "/api/chat-stream",
-  method: "OPTIONS",
-  handler: httpAction(async (ctx, request) => {
-    const origin = request.headers.get("Origin");
-    const headers = new Headers();
-    headers.set("Access-Control-Allow-Origin", origin ?? "*");
-    headers.set("Vary", "Origin");
-    headers.set("Access-Control-Allow-Credentials", "true");
-    headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    headers.set("Access-Control-Allow-Headers", "Content-Type, Accept");
-    headers.set("Access-Control-Max-Age", "600");
-    return new Response(null, { status: 204, headers });
-  }),
-});
-
-http.route({
-  path: "/api/chat-stream",
-  method: "POST",
-  handler: httpAction(async (ctx, request) => {
-    const origin = request.headers.get("Origin");
-    const { streamId, model } = (await request.json()) as {
-      streamId: string;
-      model?: string;
-    };
-
-    try {
-      const streamingMessage = await ctx.runQuery(api.domains.agents.fastAgentPanelStreaming.getMessageByStreamId, {
-        streamId,
-      });
-
-      if (!streamingMessage) {
-        return new Response(JSON.stringify({ error: "Message not found" }), {
-          status: 404,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": origin ?? "*",
-          },
-        });
-      }
-
-      const streamingThread = await ctx.runQuery(api.domains.agents.fastAgentPanelStreaming.getThreadByStreamId, {
-        threadId: streamingMessage.threadId,
-      });
-
-      if (!streamingThread || !streamingThread.agentThreadId) {
-        return new Response(JSON.stringify({ error: "Thread configuration error" }), {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": origin ?? "*",
-          },
-        });
-      }
-
-      const messages = await ctx.runQuery(internal.domains.agents.fastAgentPanelStreaming.getThreadMessagesForStreaming, {
-        threadId: streamingMessage.threadId,
-      });
-
-      const lastUserMessage = messages
-        .filter((m: any) => m.role === "user" && m._id !== streamingMessage._id && m.content?.trim())
-        .pop();
-
-      if (!lastUserMessage || !lastUserMessage.content) {
-        return new Response(JSON.stringify({ error: "No user message found" }), {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": origin ?? "*",
-          },
-        });
-      }
-
-      const prompt = lastUserMessage.content;
-      const threadModel = (streamingThread)?.model as string | undefined;
-      const modelName = normalizeModelInput(model || threadModel || DEFAULT_MODEL);
-      const agentThreadId = streamingThread.agentThreadId;
-      console.log(`[chat-stream-agent] Prompt: "${prompt.substring(0, 50)}..." for thread ${agentThreadId} with model ${modelName}`);
-
-      const chatAgent = createCoordinatorAgent(modelName);
-
-      const generateChat = async (
-        innerCtx: any,
-        _requestContext: any,
-        _stream: StreamId,
-        chunkAppender: (chunk: string) => Promise<void>
-      ) => {
-        let fullResponse = "";
-        try {
-          const { messageId: promptMessageId } = await chatAgent.saveMessage(innerCtx, {
-            threadId: agentThreadId,
-            prompt,
-          });
-
-          const result = await chatAgent.streamText(innerCtx, { threadId: agentThreadId }, { promptMessageId });
-
-          if (result.messageId) {
-            await ctx.runMutation(internal.domains.agents.fastAgentPanelStreaming.markStreamStarted, {
-              messageId: streamingMessage._id,
-              agentMessageId: result.messageId,
-            });
-          }
-
-          for await (const chunk of result.textStream) {
-            fullResponse += chunk;
-            await chunkAppender(chunk);
-          }
-
-          await ctx.runMutation(internal.domains.agents.fastAgentPanelStreaming.markStreamComplete, {
-            messageId: streamingMessage._id,
-            finalContent: fullResponse,
-            status: "complete",
-          });
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          await chunkAppender(`Error: ${errorMsg}`);
-
-          await ctx.runMutation(internal.domains.agents.fastAgentPanelStreaming.markStreamComplete, {
-            messageId: streamingMessage._id,
-            finalContent: fullResponse || `Error: ${errorMsg}`,
-            status: "error",
-          });
-        }
-      };
-
-      const response = await persistentTextStreaming.stream(
-        ctx,
-        request,
-        streamId as StreamId,
-        generateChat
-      );
-
-      response.headers.set("Access-Control-Allow-Origin", origin ?? "*");
-      response.headers.set("Vary", "Origin");
-      response.headers.set("Access-Control-Allow-Credentials", "true");
-      response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-      response.headers.set("Access-Control-Allow-Headers", "Content-Type, Accept");
-
-      return response;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[chat-stream-agent] ERROR:`, error);
-      return new Response(JSON.stringify({ error: msg }), {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": origin ?? "*",
-        },
-      });
     }
   }),
 });

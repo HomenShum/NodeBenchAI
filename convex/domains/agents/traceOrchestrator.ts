@@ -69,6 +69,7 @@ const TRACE_MODEL = "qwen3-coder-free"; // FREE model for orchestration decision
  */
 export const executeTraceFinalization = internalAction({
   args: {
+    userId: v.id("users"),
     executionId: v.string(),
     executionType: v.union(
       v.literal("swarm"),
@@ -90,6 +91,7 @@ export const executeTraceFinalization = internalAction({
     const {
       executionId,
       executionType,
+      userId,
       query,
       agentResults,
       generateAnalysis = true,
@@ -112,7 +114,10 @@ export const executeTraceFinalization = internalAction({
 
     // Record the initial gather_info step (deterministic metadata extraction)
     // emitWithReceipt logs both the TRACE audit entry AND a tamper-evident action receipt
-    const receiptCtx = { agentId: `trace-${executionType}-${executionId.slice(0, 8)}` };
+    const receiptCtx = {
+      agentId: `trace-${executionType}-${executionId.slice(0, 8)}`,
+      userId,
+    };
     await emitWithReceipt(
       ctx,
       {
@@ -121,6 +126,7 @@ export const executeTraceFinalization = internalAction({
         seq: seq++,
         choiceType: "gather_info",
         toolName: "extractMetadataSummary",
+        provenance: "deterministic_code",
         toolParams: { agentCount: agentResults.length },
         metadata: {
           rowCount: agentResults.length,
@@ -135,6 +141,7 @@ export const executeTraceFinalization = internalAction({
           durationMs: Date.now() - startTime,
           success: true,
         },
+        resultOutput: agentMetadata,
         description: `Extracted deterministic metadata from ${agentResults.length} agent results. Total chars: ${agentResults.reduce((s, r) => s + r.result.length, 0)}. LLM will see metadata only, not raw data.`,
       },
       receiptCtx,
@@ -157,12 +164,17 @@ export const executeTraceFinalization = internalAction({
           seq: seq++,
           choiceType: "gather_info",
           toolName: "selfCorrectionCheck",
+          provenance: "deterministic_code",
           metadata: {
             durationMs: 0,
             success: true,
             intendedState: `${expectedAgentCount} agents with substantial results`,
             actualState: `${successfulAgents.length} agents with substantial results (${expectedAgentCount - successfulAgents.length} returned minimal data)`,
             correctionApplied: true,
+          },
+          resultOutput: {
+            expectedAgentCount,
+            successfulAgentCount: successfulAgents.length,
           },
           description: `Self-correction: ${expectedAgentCount - successfulAgents.length} agent(s) returned minimal results. Proceeding with ${successfulAgents.length} substantial results.`,
         },
@@ -190,6 +202,7 @@ export const executeTraceFinalization = internalAction({
         seq: seq++,
         choiceType: "execute_data_op",
         toolName: "mergeAgentResults",
+        provenance: "deterministic_code",
         toolParams: {
           strategy: "concatenate_with_provenance",
           agentsIncluded: successfulAgents.map((r) => r.agentName),
@@ -201,6 +214,7 @@ export const executeTraceFinalization = internalAction({
           durationMs: Date.now() - startTime,
           success: true,
         },
+        resultOutput: mergedRawData,
         description: `Merged ${successfulAgents.length} agent results with provenance markers. Total: ${mergedRawData.length} chars. Each section labeled with source agent.`,
       },
       receiptCtx,
@@ -230,6 +244,7 @@ export const executeTraceFinalization = internalAction({
         seq: seq++,
         choiceType: "execute_data_op",
         toolName: "crossAgentTopicAnalysis",
+        provenance: "deterministic_code",
         toolParams: {
           totalTopics: allTopics.size,
           sharedCount: sharedTopics.length,
@@ -239,6 +254,10 @@ export const executeTraceFinalization = internalAction({
           keyTopics: sharedTopics.slice(0, 5) as string[],
           durationMs: Date.now() - startTime,
           success: true,
+        },
+        resultOutput: {
+          sharedTopics,
+          uniqueTopicsByAgent,
         },
         description: `Cross-agent topic analysis: ${allTopics.size} total topics, ${sharedTopics.length} shared across agents. Shared: [${sharedTopics.slice(0, 3).join(", ")}]. ${uniqueTopicsByAgent.map((a) => `${a.agent}: ${a.uniqueTopics.length} unique`).join(", ")}.`,
       },
@@ -296,6 +315,7 @@ Remember: You are analyzing metadata summaries, not raw data. Be transparent abo
             seq: seq++,
             choiceType: "execute_output",
             toolName: "generateAnalysis",
+            provenance: "ai_model",
             toolParams: { model: TRACE_MODEL, maxTokens: 2000 },
             metadata: {
               charCount: analysis.length,
@@ -303,6 +323,7 @@ Remember: You are analyzing metadata summaries, not raw data. Be transparent abo
               durationMs: Date.now() - startTime,
               success: true,
             },
+            resultOutput: analysis,
             description: `Generated LLM analysis (NON-DETERMINISTIC, labeled as AI-generated). ${analysis.length} chars. Model: ${TRACE_MODEL}. This content is clearly separated from deterministic outputs in the UI.`,
           },
           receiptCtx,
@@ -316,11 +337,13 @@ Remember: You are analyzing metadata summaries, not raw data. Be transparent abo
             seq: seq++,
             choiceType: "execute_output",
             toolName: "generateAnalysis",
+            provenance: "ai_model",
             metadata: {
               durationMs: Date.now() - startTime,
               success: false,
               errorMessage: error.message,
             },
+            resultOutput: { errorMessage: error.message },
             description: `LLM analysis generation failed: ${error.message}. Raw data and audit log remain valid.`,
           },
           receiptCtx,
@@ -340,6 +363,7 @@ Remember: You are analyzing metadata summaries, not raw data. Be transparent abo
         seq: seq++,
         choiceType: "finalize",
         toolName: "traceFinalize",
+        provenance: "deterministic_code",
         metadata: {
           rowCount: successfulAgents.length,
           charCount: mergedRawData.length,
@@ -349,15 +373,17 @@ Remember: You are analyzing metadata summaries, not raw data. Be transparent abo
           originalRequest: query.length > 500 ? query.slice(0, 500) + "â€¦" : query,
           deliverySummary: `${successfulAgents.length} agent(s), ${seq} steps, ${mergedRawData.length} chars raw data`,
         },
+        resultOutput: {
+          mergedRawData,
+          analysis: analysis ?? null,
+          successfulAgents: successfulAgents.map((agent) => agent.agentName),
+          totalSteps: seq,
+          selfCorrections,
+        },
         description: `TRACE finalization complete. ${seq} steps, ${totalDuration}ms, ${selfCorrections} self-correction(s). Raw data: ${mergedRawData.length} chars from ${successfulAgents.length} agents. Audit log: ${seq} entries.`,
       },
       receiptCtx,
     );
-
-    // Calculate confidence from deterministic metrics
-    const agentCoverage = successfulAgents.length / Math.max(expectedAgentCount, 1);
-    const topicOverlap = sharedTopics.length / Math.max(allTopics.size, 1);
-    const confidence = Math.min(0.95, agentCoverage * 0.6 + topicOverlap * 0.4);
 
     // â”€â”€ Build the three-part output â”€â”€
     const traceOutput: TraceOutput = {
@@ -367,7 +393,6 @@ Remember: You are analyzing metadata summaries, not raw data. Be transparent abo
       auditLog: [], // Will be populated by the caller via getAuditLog query
       analysis,
       analysisIsNonDeterministic: true,
-      confidence,
       totalDurationMs: totalDuration,
       totalSteps: seq,
       selfCorrections,

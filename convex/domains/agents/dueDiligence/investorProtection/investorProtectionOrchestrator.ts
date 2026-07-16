@@ -6,7 +6,7 @@
  */
 
 import { v } from "convex/values";
-import { action, internalAction } from "../../../../_generated/server";
+import { internalAction } from "../../../../_generated/server";
 import { api, internal } from "../../../../_generated/api";
 
 import type {
@@ -39,7 +39,7 @@ import { stateRegistryAdapter } from "../../../search/fusion/adapters/stateRegis
 /**
  * Start an investor protection verification job
  */
-export const startVerificationJob = action({
+export const startVerificationJob = internalAction({
   args: {
     offeringName: v.string(),
     offeringUrl: v.optional(v.string()),
@@ -67,6 +67,7 @@ export const startVerificationJob = action({
       // Phase 0: Extract claims
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalUpdateJobStatus, {
         jobId,
+        userId: args.userId,
         status: "extracting_claims",
         startedAt: Date.now(),
       });
@@ -75,6 +76,7 @@ export const startVerificationJob = action({
 
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalSaveExtractedClaims, {
         jobId,
+        userId: args.userId,
         extractedClaims: {
           companyName: extractedClaims.companyName,
           companyNameVariants: extractedClaims.companyNameVariants || [],
@@ -94,6 +96,7 @@ export const startVerificationJob = action({
       // Phase 1: Entity Verification
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalUpdateJobStatus, {
         jobId,
+        userId: args.userId,
         status: "verifying_entity",
       });
 
@@ -104,6 +107,7 @@ export const startVerificationJob = action({
 
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalSaveEntityVerification, {
         jobId,
+        userId: args.userId,
         entityVerification: {
           verified: entityResult.verified,
           stateRegistry: entityResult.stateRegistry,
@@ -126,6 +130,7 @@ export const startVerificationJob = action({
       // Phase 2: Securities Verification
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalUpdateJobStatus, {
         jobId,
+        userId: args.userId,
         status: "verifying_securities",
       });
 
@@ -137,6 +142,7 @@ export const startVerificationJob = action({
 
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalSaveSecuritiesVerification, {
         jobId,
+        userId: args.userId,
         securitiesVerification: {
           verified: securitiesResult.verified,
           filingType: securitiesResult.filingType,
@@ -166,6 +172,7 @@ export const startVerificationJob = action({
       // Phase 3: Claims Validation (FDA + Patents)
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalUpdateJobStatus, {
         jobId,
+        userId: args.userId,
         status: "validating_claims",
       });
 
@@ -177,6 +184,7 @@ export const startVerificationJob = action({
 
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalSaveClaimsValidation, {
         jobId,
+        userId: args.userId,
         claimsValidation: {
           fdaVerifications: claimsResult.fdaVerifications.map((v) => ({
             claimDescription: v.claim.description,
@@ -205,6 +213,7 @@ export const startVerificationJob = action({
       // Phase 4: Money Flow Verification
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalUpdateJobStatus, {
         jobId,
+        userId: args.userId,
         status: "checking_money_flow",
       });
 
@@ -216,6 +225,7 @@ export const startVerificationJob = action({
 
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalSaveMoneyFlowVerification, {
         jobId,
+        userId: args.userId,
         moneyFlowVerification: {
           verified: moneyFlowResult.verified,
           expectedFlow: moneyFlowResult.expectedFlow,
@@ -229,6 +239,7 @@ export const startVerificationJob = action({
       // Phase 5: Synthesis
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalUpdateJobStatus, {
         jobId,
+        userId: args.userId,
         status: "synthesizing",
       });
 
@@ -242,6 +253,7 @@ export const startVerificationJob = action({
       // Save final result
       const resultId = await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalSaveResult, {
         jobId,
+        userId: args.userId,
         entityName: extractedClaims.companyName,
         entityType: "company",
         overallRisk: mapVerdictToRisk(synthesis.verdict),
@@ -261,11 +273,11 @@ export const startVerificationJob = action({
         stopRulesTriggered: synthesis.fraudIndicators,
         branchesExecuted: ["entity", "securities", "claims", "money_flow", "synthesis"],
         executionTimeMs: Date.now() - startTime,
-        userId: args.userId,
       });
 
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalUpdateJobStatus, {
         jobId,
+        userId: args.userId,
         status: "completed",
         completedAt: Date.now(),
         elapsedMs: Date.now() - startTime,
@@ -284,6 +296,7 @@ export const startVerificationJob = action({
 
       await ctx.runMutation(internal.domains.agents.dueDiligence.investorProtection.investorProtectionMutations.internalUpdateJobStatus, {
         jobId,
+        userId: args.userId,
         status: "failed",
         error: error instanceof Error ? error.message : String(error),
       });
