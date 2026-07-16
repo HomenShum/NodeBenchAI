@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { api, components } from "../../_generated/api";
 import schema from "../../schema";
 import { authorizeFastAgentStreamingRequest } from "./fastAgentPanelStreaming";
-import agentComponentSchema from "../../../../../node_modules/@convex-dev/agent/dist/component/schema.js";
+import agentComponentSchema from "../../../node_modules/@convex-dev/agent/dist/component/schema.js";
 
 const DIR_SEGMENTS = ["domains", "agents"];
 function rerootGlobKey(key: string): string {
@@ -24,7 +24,7 @@ const convexModules = Object.fromEntries(
   ),
 );
 const agentComponentModules = import.meta.glob(
-  "../../../../../node_modules/@convex-dev/agent/dist/component/**/*.js",
+  "../../../node_modules/@convex-dev/agent/dist/component/**/*.js",
 );
 
 let convexTest: any;
