@@ -24,14 +24,20 @@ export interface RouterTierOption {
   hint: string;
   estimateMs: number;
   paidCall: boolean;
+  /** Exact provider persisted by the chat runtime for this tier. */
+  provider: string;
+  /** Exact provider model id selected by the chat runtime for this tier. */
+  model: string;
 }
 
 export const DEFAULT_TIERS: RouterTierOption[] = [
-  { id: "auto",    label: "Auto",                hint: "Memory-first · NodeBench picks the right engine",  estimateMs: 1800,  paidCall: false },
-  { id: "answer",  label: "Quick answer",        hint: "Fast pass · cached sources only",                  estimateMs: 800,   paidCall: false },
-  { id: "deep",    label: "Deep dive",           hint: "Refresh sources · paid call may be required",      estimateMs: 7500,  paidCall: true  },
-  { id: "compare", label: "Compare across list", hint: "Run on every entity in this view",                 estimateMs: 12000, paidCall: true  },
+  { id: "auto",    label: "Auto",                hint: "Standard live research",            estimateMs: 1800,  paidCall: true, provider: "google-gemini", model: "gemini-3.5-flash" },
+  { id: "answer",  label: "Quick answer",        hint: "Quick live research",               estimateMs: 800,   paidCall: true, provider: "google-gemini", model: "gemini-3.5-flash" },
+  { id: "deep",    label: "Deep dive",           hint: "Deeper live research",              estimateMs: 7500,  paidCall: true, provider: "google-gemini", model: "gemini-3.1-pro-preview" },
+  { id: "compare", label: "Compare across list", hint: "Deep research across every entity", estimateMs: 12000, paidCall: true, provider: "google-gemini", model: "gemini-3.1-pro-preview" },
 ];
+
+export const CANCEL_ARM_DELAY_MS = 400;
 
 export type ComposerMode = "chat" | "research";
 
@@ -156,6 +162,7 @@ export function UniversalComposer({
   const [slashOpen, setSlashOpen] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
+  const [cancelArmed, setCancelArmed] = useState(false);
   const tier = tierProp ?? tierInternal;
   const setTier = (t: RouterTier) => {
     if (tierProp === undefined) setTierInternal(t);
@@ -177,6 +184,18 @@ export function UniversalComposer({
     },
   });
   const recording = voice.isListening || voice.isTranscribing;
+
+  // A submit replaces Run with Stop at the same coordinates. Delay pointer
+  // cancellation so the second click of a double-click cannot cancel the run.
+  useEffect(() => {
+    if (!streaming) {
+      setCancelArmed(false);
+      return;
+    }
+    setCancelArmed(false);
+    const timer = window.setTimeout(() => setCancelArmed(true), CANCEL_ARM_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [streaming]);
 
   useEffect(() => {
     if (!taRef.current) return;
@@ -200,17 +219,22 @@ export function UniversalComposer({
     return () => document.removeEventListener("mousedown", onClick);
   }, [tierMenuOpen, toolsMenuOpen]);
 
-  // Esc dismisses any open popover
+  // Escape remains a keyboard-complete cancel path after the same arming
+  // boundary used by the Stop button.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setTierMenuOpen(false);
         setToolsMenuOpen(false);
+        if (streaming && cancelArmed && onStop) {
+          e.preventDefault();
+          onStop();
+        }
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [cancelArmed, onStop, streaming]);
 
   useEffect(() => {
     if (!voice.error) return;
@@ -229,12 +253,6 @@ export function UniversalComposer({
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Esc while streaming → stop generation (highest priority)
-    if (e.key === "Escape" && streaming && onStop) {
-      e.preventDefault();
-      onStop();
-      return;
-    }
     // Esc closes any composer popover
     if (e.key === "Escape") {
       setSlashOpen(false);
@@ -437,6 +455,9 @@ export function UniversalComposer({
                       color: "var(--rd-ink-mute)",
                       lineHeight: 1.4,
                     }}>{t.hint}</span>
+                    <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)" }}>
+                      {t.provider} / {t.model}
+                    </span>
                   </button>
                 );
               })}
@@ -446,13 +467,32 @@ export function UniversalComposer({
                 marginTop: 4,
               }}>
                 <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)" }}>
-                  Provider names appear in the trace, not here.
+                  Preflight shows the requested runtime. The completed trace confirms what ran.
                 </span>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {activeTier.paidCall && (
+        <div
+          role="status"
+          aria-label="Paid runtime preflight"
+          className="rd-mono"
+          style={{
+            padding: "5px 8px",
+            border: "1px solid var(--rd-line-faint)",
+            borderRadius: 7,
+            background: "var(--rd-paper-warm)",
+            color: "var(--rd-ink-mute)",
+            fontSize: 10,
+            lineHeight: 1.4,
+          }}
+        >
+          Paid live run · provider {activeTier.provider} · model {activeTier.model}
+        </div>
+      )}
 
       {/* Textarea — focal */}
       <div
@@ -676,15 +716,20 @@ export function UniversalComposer({
           {streaming && onStop ? (
             <button
               type="button"
-              onClick={onStop}
+              onClick={() => {
+                if (cancelArmed) onStop();
+              }}
+              disabled={!cancelArmed}
               aria-label="Cancel active run"
-              title="Cancel active run (Esc)"
+              title={cancelArmed ? "Cancel active run (Esc)" : "Preparing cancel control"}
               className="rd-btn rd-btn--sm"
               style={{
                 gap: 6,
                 background: "var(--rd-amber)",
                 borderColor: "var(--rd-amber)",
                 color: "#fff",
+                opacity: cancelArmed ? 1 : 0.6,
+                cursor: cancelArmed ? "pointer" : "wait",
               }}
             >
               <svg width={11} height={11} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
