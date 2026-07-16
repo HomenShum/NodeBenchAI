@@ -93,6 +93,9 @@ jobs:
 
       - name: Comment PR with QA results
         if: always()
+        # Reporting must not override the actual QA result when GitHub's
+        # comments API is temporarily unavailable.
+        continue-on-error: true
         uses: actions/github-script@v9
         with:
           script: |
