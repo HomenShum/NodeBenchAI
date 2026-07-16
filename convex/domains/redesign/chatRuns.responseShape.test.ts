@@ -82,6 +82,28 @@ describe("redesign chat runtime response policy", () => {
     expect(bullets[1]).toContain("did not return another clean supported detail");
   });
 
+  it("prefers the requested canonical URL over a provider redirect without duplicating citation links", () => {
+    const canonical = "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash";
+    const redirect = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/opaque-token";
+    const shaped = applyDeterministicResponsePolicy(
+      `Using ${canonical}, return exactly two bullets. Each bullet must include the supported URL.`,
+      {
+        shortAnswer: `Gemini 3.5 Flash is listed as stable at [the official model page](${canonical}). [1]`,
+        whyItMatters: "",
+        risks: [],
+        nextAction: "",
+      },
+      [{ source: redirect, quote: "Provider-grounded result." }],
+    );
+    const bullets = shaped.shortAnswer.split("\n");
+
+    expect(bullets).toHaveLength(2);
+    expect(bullets.every((line) => line.includes(canonical))).toBe(true);
+    expect(shaped.shortAnswer).not.toContain(redirect);
+    expect(shaped.shortAnswer).not.toMatch(/\[1\]/);
+    expect(shaped.shortAnswer).toContain("gemini-3.5-flash");
+  });
+
   it("emits a source-needed limitation and removes unsupported strength claims without a URL", () => {
     const shaped = applyDeterministicResponsePolicy(
       "Give me exactly two bullets",

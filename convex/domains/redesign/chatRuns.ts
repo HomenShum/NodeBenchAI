@@ -838,6 +838,13 @@ function sourceUrl(source: string): string | null {
   }
 }
 
+function urlsInText(text: string): string[] {
+  return [...text.matchAll(/https?:\/\/[^\s)>\]]+/gi)].flatMap((match) => {
+    const url = sourceUrl(match[0]);
+    return url ? [url] : [];
+  });
+}
+
 function sanitizeUnsupportedSuperlatives(text: string): string {
   return text.replace(
     /\b(?:best|strongest)\s+(?:(?:supported|grounded|available)\s+)?(?:source|claim|evidence)\b/gi,
@@ -854,10 +861,10 @@ function compactResponseUnit(text: string, stripCitations = false): string {
     .replace(/`/g, "")
     .replace(/\s+/g, " ")
     .trim();
-  return compact.replace(/[.!?]+$/, "").slice(0, 240);
+  return compact.replace(/[.!?]+$/, "").slice(0, 600);
 }
 
-function responseUnits(parsed: ParsedMemo): string[] {
+function responseUnits(parsed: ParsedMemo, stripCitations: boolean): string[] {
   const values = [
     parsed.shortAnswer,
     parsed.whyItMatters,
@@ -866,7 +873,7 @@ function responseUnits(parsed: ParsedMemo): string[] {
   const units: string[] = [];
   for (const value of values) {
     for (const part of value.split(/\n+|(?<=[.!?])\s+/)) {
-      const unit = compactResponseUnit(part);
+      const unit = compactResponseUnit(part, stripCitations);
       const key = unit.toLowerCase();
       if (!unit || seen.has(key)) continue;
       seen.add(key);
@@ -904,8 +911,14 @@ export function applyDeterministicResponsePolicy(
       ? [url]
       : [];
   });
-  const primarySupportedUrl = supportedUrls[0] ?? null;
-  const hasSupportedUrl = primarySupportedUrl !== null;
+  const requestedUrls = urlsInText(prompt);
+  // Grounding providers commonly return an opaque redirect even when the
+  // user supplied the canonical source. Keep the provider URL in evidence,
+  // but display the requested canonical URL in an explicit URL contract.
+  const hasSupportedUrl = supportedUrls.length > 0;
+  const primarySupportedUrl = hasSupportedUrl
+    ? requestedUrls[0] ?? supportedUrls[0]
+    : null;
   const honest: ParsedMemo = hasSupportedUrl
     ? parsed
     : {
@@ -922,7 +935,7 @@ export function applyDeterministicResponsePolicy(
   if (shape.kind === "memo") return honest;
 
   if (shape.kind === "title_only") {
-    const title = compactResponseUnit(honest.shortAnswer || honest.whyItMatters, true) || "Evidence review";
+    const title = (compactResponseUnit(honest.shortAnswer || honest.whyItMatters, true) || "Evidence review").slice(0, 240);
     return {
       shortAnswer: hasSupportedUrl ? title : `Source needed: ${title}`.slice(0, 240),
       whyItMatters: "",
@@ -931,7 +944,8 @@ export function applyDeterministicResponsePolicy(
     };
   }
 
-  const candidates = responseUnits(honest)
+  const mustIncludeUrl = primarySupportedUrl !== null && requiresUrlInEveryBullet(prompt);
+  const candidates = responseUnits(honest, mustIncludeUrl)
     .filter((unit) => unit !== SOURCE_NEEDED_LIMITATION && isCleanCompactUnit(unit));
   const bullets = hasSupportedUrl
     ? candidates.slice(0, shape.count)
@@ -943,7 +957,6 @@ export function applyDeterministicResponsePolicy(
   while (bullets.length < shape.count) {
     bullets.push("The run did not return another clean supported detail; review the source directly");
   }
-  const mustIncludeUrl = primarySupportedUrl !== null && requiresUrlInEveryBullet(prompt);
   const renderedBullets = bullets.slice(0, shape.count).map((bullet) =>
     mustIncludeUrl && !bullet.includes(primarySupportedUrl)
       ? `${bullet}: ${primarySupportedUrl}`
