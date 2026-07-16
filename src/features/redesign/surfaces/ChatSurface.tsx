@@ -2101,6 +2101,7 @@ function AnswerPacket({
           lineHeight: 1.4,
           color: "var(--rd-ink-strong)",
           letterSpacing: "-0.18px",
+          whiteSpace: "pre-wrap",
           margin: 0,
         }}>
           {renderInlineWithCites(packet.shortAnswer, packet.evidence, handleCiteEnter, handleCiteLeave, handleCiteContext, maskedIdx)}
