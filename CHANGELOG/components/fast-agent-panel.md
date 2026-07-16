@@ -7,14 +7,14 @@ Append-only lane for behavior-preserving AI Elements adoption inside
 
 The pending candidate removes the scripted guest transcript, projected queue and streaming metrics, local-only preference and feedback controls, unsupported attachment and mention affordances, duplicate actions, the unreachable nested command palette and telemetry view, no-op entity-selection controls, synthetic receipt fallbacks, an unreferenced bearer-stream component and HTTP route, and the unrendered parallel timeline and kanban path. Canonical authenticated and anonymous streaming, stop and recovery, owned thread deletion, structured sources and tool cards, approvals, exports, and backend-supplied model and token provenance remain. Generated code can be copied or exported but cannot execute with the signed-in app's origin authority. Document, memory, plan, and fused-search cards fail closed unless successful structured tool output supplies their state and provenance; assistant prose, malformed results, running tools, and errors cannot mint a success card. Reader-position-aware auto-scroll follows the actual streaming message list without pulling a reader away from earlier content, and every shortcut or skip link focuses whichever real composer is mounted. Retrieved sources remain visible as consulted evidence, but the server no longer injects source tokens into unrelated prose or promotes an unbound URL into a claim citation. TRACE and receipt reads are owner-scoped, both direct and tool-driven document creation verify exact thread ownership before reading or linking content, MCP document/folder/spreadsheet reads and writes verify exact object ownership, receipt hashes bind the exact output payload, receipt persistence is required for trust-labeled completion, and every TRACE row distinguishes deterministic code from AI-model output or uses the neutral `Recorded` label; unavailable data renders as loading, empty, or not measured instead of as a fixture.
 
-**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+**PR / canonical main commit**: #541 / `15eb9a0a`; strict session rollout #542 / `16d3ceeb`; live-verifier alignment #543 / `56d8413a`.
 
 **Evidence state**:
-- Source: pending; this worktree candidate is not merged to `main`.
-- Checks: not recorded for a canonical `main` SHA.
-- Visual proof: not recorded in source; local-only candidate artifacts are not release evidence.
-- Preview: not recorded.
-- Production live: not recorded.
+- Source: merged to `main` through CI-gated squash PRs #541, #542, and #543.
+- Checks: required Typecheck, Runtime smoke, Build, and Tier B checks passed on all three PRs; source CI `29474652151`, strict-rollout CI `29475282082`, and verifier CI `29475698322`.
+- Visual proof: private responsive/theme artifacts remain outside git; the production exact/mobile/product/one-flow matrix passed all 17 assertions, with one blank mobile navigation transient passing on immediate isolated rerun.
+- Preview: #541 exact-head preview `nodebench-2otgtyneq-hshum2018-gmailcoms-projects.vercel.app` passed Tier B run `29474652192`; #542 preview `nodebench-iwmpxngv3-hshum2018-gmailcoms-projects.vercel.app` passed `29475281999`.
+- Production live: Vercel main deploy verification run `29475582335` and Convex deploy `29475582657` passed for strict SHA `16d3ceeb`; canonical `https://www.nodebenchai.com` passed the runtime-grounded production matrix and automated Post-Deploy Verify run `29476029941`.
 
 **Author**: Homen Shum + Codex.
 **Touches**: [`../pages/agents.md`](../pages/agents.md), [`../pages/exact-cockpit.md`](../pages/exact-cockpit.md), and [`../integrations/pipeline-runtime.md`](../integrations/pipeline-runtime.md).
