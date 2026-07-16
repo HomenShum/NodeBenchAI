@@ -172,6 +172,18 @@ describe.skipIf(!convexTestAvailable)("pipeline caller ownership", () => {
     expect(listA.map((row: any) => row.runId)).toEqual(["run-a"]);
     expect(listB.map((row: any) => row.runId)).toEqual(["run-b"]);
 
+    const legacyListA = await t.query(
+      pipelines.pipelineRunsQueries.listRecentRuns,
+      { ownerKey: "session:anon-session-a", limit: 10 },
+    );
+    expect(legacyListA.map((row: any) => row.runId)).toEqual(["run-a"]);
+    await expect(
+      t.query(pipelines.pipelineRunsQueries.listRecentRuns, {
+        ownerKey: "user:victim",
+        limit: 10,
+      }),
+    ).rejects.toThrow(/authentication or anonymous session required/i);
+
     expect(
       await t.query(pipelines.pipelineRunsQueries.getRunDetail, {
         ...sessionA,

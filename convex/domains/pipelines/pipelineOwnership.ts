@@ -31,6 +31,22 @@ export async function requirePipelineCallerOwnerKey(
   return `session:${sessionId}`;
 }
 
+/**
+ * Transitional reader compatibility for the pre-session public query shape.
+ * Only anonymous session owner keys are accepted; `user:*` remains derived
+ * exclusively from server authentication.
+ */
+export function anonymousSessionFromLegacyOwnerKey(
+  ownerKey?: string | null,
+): string | undefined {
+  const value = ownerKey?.trim() ?? "";
+  if (!value.startsWith("session:")) return undefined;
+  const sessionId = value.slice("session:".length);
+  return ANONYMOUS_SESSION_PATTERN.test(sessionId) && sessionId !== "anon-fallback"
+    ? sessionId
+    : undefined;
+}
+
 /** Resolve a cost-bearing public pipeline operation from server auth only. */
 export async function requireAuthenticatedPipelineOwnerKey(
   ctx: PipelineCallerContext,
