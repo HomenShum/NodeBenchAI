@@ -14,5 +14,7 @@ describe("compact chat response rendering", () => {
     expect(chat).toContain("packet.nextAction.trim() &&");
     expect(replay).toContain("packet.whyItMatters?.trim() &&");
     expect(replay).toContain("!isCompactResponse && evidenceWithCites.length > 0 &&");
+    expect(chat).toContain('whiteSpace: "pre-wrap"');
+    expect(replay).toContain('whiteSpace: "pre-wrap"');
   });
 });

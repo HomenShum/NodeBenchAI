@@ -214,6 +214,7 @@ export function ReproducibleChatPage({ hash }: ReproducibleChatPageProps) {
             lineHeight: 1.4,
             color: "var(--rd-ink-strong)",
             letterSpacing: "-0.18px",
+            whiteSpace: "pre-wrap",
             margin: 0,
           }}>
             {packet.shortAnswer}
