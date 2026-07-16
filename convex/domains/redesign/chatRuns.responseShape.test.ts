@@ -60,6 +60,28 @@ describe("redesign chat runtime response policy", () => {
     expect(shaped.nextAction).toBe("");
   });
 
+  it("keeps fetched-page chrome out of compact bullets and honors a URL-in-each-bullet contract", () => {
+    const shaped = applyDeterministicResponsePolicy(
+      "Return exactly two bullets. Each bullet must include the supported URL.",
+      {
+        shortAnswer: "Gemini 3.5 Flash is the requested model.",
+        whyItMatters: "",
+        risks: [],
+        nextAction: "",
+      },
+      [{
+        source: "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash",
+        quote: "[跳至主要內容](#main-content) [![Gemini API](logo.svg)](/) English Deutsch Español",
+      }],
+    );
+    const bullets = shaped.shortAnswer.split("\n");
+
+    expect(bullets).toHaveLength(2);
+    expect(bullets.every((line) => line.includes("https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash"))).toBe(true);
+    expect(shaped.shortAnswer).not.toMatch(/跳至主要內容|Gemini API.*logo\.svg|English Deutsch/);
+    expect(bullets[1]).toContain("did not return another clean supported detail");
+  });
+
   it("emits a source-needed limitation and removes unsupported strength claims without a URL", () => {
     const shaped = applyDeterministicResponsePolicy(
       "Give me exactly two bullets",
