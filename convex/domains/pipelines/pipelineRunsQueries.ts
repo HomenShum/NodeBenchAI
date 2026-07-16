@@ -9,7 +9,6 @@
 import { v } from "convex/values";
 import { internalQuery, query } from "../../_generated/server";
 import {
-  anonymousSessionFromLegacyOwnerKey,
   pipelineOwnerMatches,
   requirePipelineCallerOwnerKey,
 } from "./pipelineOwnership";
@@ -26,7 +25,6 @@ export const listRecentRuns = query({
       ),
     ),
     anonymousSessionId: v.optional(v.string()),
-    ownerKey: v.optional(v.string()),
   },
   returns: v.array(
     v.object({
@@ -53,7 +51,7 @@ export const listRecentRuns = query({
   handler: async (ctx, args) => {
     const ownerKey = await requirePipelineCallerOwnerKey(
       ctx,
-      args.anonymousSessionId ?? anonymousSessionFromLegacyOwnerKey(args.ownerKey),
+      args.anonymousSessionId,
     );
     const limit = Math.min(args.limit ?? 25, 100);
     const candidateLimit = args.pipelineKind ? Math.min(limit * 4, 400) : limit;
@@ -130,7 +128,6 @@ export const getRunDetail = query({
   args: {
     runId: v.string(),
     anonymousSessionId: v.optional(v.string()),
-    ownerKey: v.optional(v.string()),
   },
   returns: v.union(
     v.null(),
@@ -178,7 +175,7 @@ export const getRunDetail = query({
   handler: async (ctx, args) => {
     const ownerKey = await requirePipelineCallerOwnerKey(
       ctx,
-      args.anonymousSessionId ?? anonymousSessionFromLegacyOwnerKey(args.ownerKey),
+      args.anonymousSessionId,
     );
     const run = await ctx.db
       .query("pipelineRuns")
@@ -242,7 +239,6 @@ export const getRunBundleDownloadUrl = query({
   args: {
     runId: v.string(),
     anonymousSessionId: v.optional(v.string()),
-    ownerKey: v.optional(v.string()),
   },
   returns: v.union(
     v.null(),
@@ -254,7 +250,7 @@ export const getRunBundleDownloadUrl = query({
   handler: async (ctx, args) => {
     const ownerKey = await requirePipelineCallerOwnerKey(
       ctx,
-      args.anonymousSessionId ?? anonymousSessionFromLegacyOwnerKey(args.ownerKey),
+      args.anonymousSessionId,
     );
     const run = await ctx.db
       .query("pipelineRuns")
@@ -288,10 +284,7 @@ export const getRunBundleDownloadUrl = query({
 });
 
 export const getRunSummaryStats = query({
-  args: {
-    anonymousSessionId: v.optional(v.string()),
-    ownerKey: v.optional(v.string()),
-  },
+  args: { anonymousSessionId: v.optional(v.string()) },
   returns: v.object({
     totalRuns: v.number(),
     succeeded: v.number(),
@@ -303,7 +296,7 @@ export const getRunSummaryStats = query({
   handler: async (ctx, args) => {
     const ownerKey = await requirePipelineCallerOwnerKey(
       ctx,
-      args.anonymousSessionId ?? anonymousSessionFromLegacyOwnerKey(args.ownerKey),
+      args.anonymousSessionId,
     );
     const recent = await ctx.db
       .query("pipelineRuns")
