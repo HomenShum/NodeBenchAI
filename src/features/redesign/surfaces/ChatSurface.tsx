@@ -21,8 +21,16 @@ import { ChatToolCall, type ToolCall } from "../components/ChatToolCall";
 
 import { ChatEmptyState } from "../components/ChatEmptyState";
 import { showToast } from "../components/Toast";
-import { normalizeRouterTierForChatRun, useRedesignChatRun, type ChatRunState, type RealChatRun } from "../hooks/useRedesignChatRun";
+import {
+  normalizeRouterTierForChatRun,
+  useRedesignChatByHash,
+  useRedesignChatRun,
+  type ChatRunState,
+  type ConversationContextTurn,
+  type RealChatRun,
+} from "../hooks/useRedesignChatRun";
 import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
+import { buildConversationContext } from "../lib/chatContinuation";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { LiveResearchChecklist, type ResearchStage, type ResearchStageId } from "../../research/LiveResearchChecklist";
@@ -105,6 +113,7 @@ interface ChatSurfaceProps {
   contextLabel?: string;
   workspaceDetail?: LiveArtifactDetail;
   initialPrompt?: string;
+  continuationHash?: string;
   onActiveContextChange?: (detail: LiveArtifactDetail | null) => void;
   onAgentRailChange?: (snapshot: AgentRailSnapshot | null) => void;
 }
@@ -131,6 +140,15 @@ interface Turn {
   chatRunId?: string;
   /** Phase 2 streaming — live working-notes scratchpad text from the agent. */
   liveScratchpad?: string;
+}
+
+function restoredTurns(context: ConversationContextTurn[] | undefined, createdAt: number): Turn[] {
+  return (context ?? []).map((turn, index) => ({
+    id: `history-${createdAt}-${index}`,
+    role: turn.role,
+    ...(turn.role === "user" ? { text: turn.text } : { markdown: turn.text }),
+    createdAt: createdAt - ((context?.length ?? 0) - index) * 2,
+  }));
 }
 
 function agentStatusFromPlanner(status?: string): AgentRailStatus {
@@ -747,6 +765,7 @@ export function ChatSurface({
   contextLabel = "Asking about: current context",
   workspaceDetail,
   initialPrompt,
+  continuationHash,
   onActiveContextChange,
   onAgentRailChange,
 }: ChatSurfaceProps) {
@@ -763,6 +782,7 @@ export function ChatSurface({
     : liveArtifacts.details[0];
   // Phase 1 — real LLM chat behind the composer for authenticated users.
   const chatRun = useRedesignChatRun();
+  const continuedRun = useRedesignChatByHash(continuationHash);
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   // Phase 4 — real reactions for inline correction + 👍/👎 toolbar.
   const recordReaction = useMutation(api.domains.redesign.agentRunFeedback.recordReaction);
@@ -787,9 +807,11 @@ export function ChatSurface({
   }, [liveDetail]);
   const [turns, setTurns] = useState<Turn[]>([]);
   const recoveredRunIdRef = useRef<string | null>(null);
+  const consumedContinuationRef = useRef<string | null>(null);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const consumedInitialPromptRef = useRef<string | null>(null);
   const hasInitialPrompt = Boolean(initialPrompt?.trim());
+  const hasLaunchContext = hasInitialPrompt || Boolean(continuationHash);
   const turnIdCounterRef = useRef(0);
   const nextTurnId = (prefix: "u" | "a") => {
     turnIdCounterRef.current += 1;
@@ -803,7 +825,7 @@ export function ChatSurface({
   // Rebuild the newest owned conversation pair from the durable run after reload.
   useEffect(() => {
     const real = chatRun.state.run;
-    if (!real?.prompt || turns.length > 0 || recoveredRunIdRef.current === real.runId) return;
+    if (continuationHash || !real?.prompt || turns.length > 0 || recoveredRunIdRef.current === real.runId) return;
     recoveredRunIdRef.current = real.runId;
     const createdAt = real.createdAt ?? Date.now();
     const terminalMarkdown = real.status === "cancelled"
@@ -812,6 +834,7 @@ export function ChatSurface({
         ? liveChatUnavailableMarkdown(real.errorMessage ?? "The recovered run failed before producing a final packet.", liveDetail)
         : undefined;
     setTurns([
+      ...restoredTurns(real.conversationContext, createdAt),
       { id: nextTurnId("u"), role: "user", text: real.prompt, createdAt },
       {
         id: nextTurnId("a"),
@@ -825,7 +848,35 @@ export function ChatSurface({
         createdAt: createdAt + 1,
       },
     ]);
-  }, [chatRun.state.run, liveDetail, turns.length]);
+  }, [chatRun.state.run, continuationHash, liveDetail, turns.length]);
+
+  // Keep the receipt immutable while restoring it as the visible start of a
+  // new local conversation. Future runs persist this transcript privately.
+  useEffect(() => {
+    const packet = continuedRun?.packet as ChatAnswer | undefined;
+    if (
+      !continuationHash ||
+      !packet?.shortAnswer ||
+      consumedContinuationRef.current === continuationHash ||
+      turns.length > 0
+    ) return;
+    consumedContinuationRef.current = continuationHash;
+    const createdAt = continuedRun.createdAt ?? Date.now();
+    setHasUserInteracted(true);
+    setCtx(`Continued from reproducible answer /r/${continuationHash}`);
+    setTier((continuedRun.tier ?? "auto") as RouterTier);
+    setTurns([
+      { id: `receipt-user-${continuationHash}`, role: "user", text: continuedRun.prompt, createdAt },
+      {
+        id: `receipt-answer-${continuationHash}`,
+        role: "assistant",
+        packet,
+        runHash: continuationHash,
+        tier: (continuedRun.tier ?? "auto") as RouterTier,
+        createdAt: createdAt + 1,
+      },
+    ]);
+  }, [continuedRun, continuationHash, turns.length]);
 
   // Sprint 4 P1.6 — pinned items carried into the next turn's context.
   const [pinned, setPinned] = useState<Array<{ id: string; label: string; tier: RouterTier; sourceCount: number }>>([]);
@@ -946,9 +997,9 @@ export function ChatSurface({
   const compareTurn = compareTurnId ? turns.find((t) => t.id === compareTurnId) : undefined;
 
   useEffect(() => {
-    if (hasUserInteracted || hasInitialPrompt) return;
+    if (hasUserInteracted || hasLaunchContext) return;
     setCtx(liveDetail ? `Asking about: ${liveDetail.title}` : contextLabel);
-  }, [contextLabel, hasInitialPrompt, hasUserInteracted, liveDetail]);
+  }, [contextLabel, hasLaunchContext, hasUserInteracted, liveDetail]);
 
   // Phase 2 — when the streamed chat run completes, commit the final packet
   // onto whichever turn carries the matching chatRunId. While in flight,
@@ -1033,6 +1084,8 @@ export function ChatSurface({
     const now = Date.now();
     const userId = nextTurnId("u");
     const assistantId = nextTurnId("a");
+    const conversationContext = buildConversationContext(turns);
+    const parentRunHash = [...turns].reverse().find((turn) => turn.runHash)?.runHash;
     const canRunLiveChat = chatRun.state.available && !_skipLiveSeed;
     const unavailableReason = _skipLiveSeed
       ? "The `fresh=1` diagnostic flag disables live chat for this route."
@@ -1080,7 +1133,14 @@ export function ChatSurface({
       const contextRef = liveDetail
         ? buildLiveContextRef(liveDetail, requestedArtifactKey)
         : undefined;
-      void chatRun.submit(text, submittedTier, contextRef, pinnedClaims).then((runId) => {
+      void chatRun.submit(
+        text,
+        submittedTier,
+        contextRef,
+        pinnedClaims,
+        conversationContext,
+        parentRunHash,
+      ).then((runId) => {
         if (runId) {
           setTurns((prev) => prev.map((t) =>
             t.id === assistantId
@@ -1126,6 +1186,9 @@ export function ChatSurface({
 
   const regenerate = (turnId: string, _tierOverride?: "free" | "fast" | "deep") => {
     const targetIndex = turns.findIndex((t) => t.id === turnId);
+    const priorTurns = targetIndex > 0 ? turns.slice(0, targetIndex) : [];
+    const conversationContext = buildConversationContext(priorTurns);
+    const parentRunHash = [...priorTurns].reverse().find((turn) => turn.runHash)?.runHash;
     const prompt = (() => {
       for (let i = targetIndex - 1; i >= 0; i--) {
         if (turns[i].role === "user" && turns[i].text?.trim()) return turns[i].text.trim();
@@ -1145,7 +1208,14 @@ export function ChatSurface({
       const contextRef = liveDetail
         ? buildLiveContextRef(liveDetail, requestedArtifactKey)
         : undefined;
-      void chatRun.submit(prompt, requestedTier, contextRef, pinnedClaims).then((runId) => {
+      void chatRun.submit(
+        prompt,
+        requestedTier,
+        contextRef,
+        pinnedClaims,
+        conversationContext,
+        parentRunHash,
+      ).then((runId) => {
         setTurns((prev) => prev.map((t) =>
           t.id === turnId
             ? runId
@@ -1194,7 +1264,30 @@ export function ChatSurface({
       className="rd-chat-workspace"
       data-agent-runtime-surface="redesign-chat"
       data-empty={turns.length === 0 ? "true" : undefined}
+      data-continuation={continuationHash ? "true" : undefined}
     >
+      {continuationHash && (
+        <aside
+          className="rd-continuation-context"
+          data-testid="continued-chat-context"
+          data-state={continuedRun === undefined ? "loading" : continuedRun === null ? "unavailable" : "ready"}
+          aria-live="polite"
+        >
+          <div>
+            <span className="rd-eyebrow">Continued conversation</span>
+            <p>
+              {continuedRun === undefined
+                ? "Restoring the reproducible answer and its evidence…"
+                : continuedRun === null
+                  ? "That reproducible answer is unavailable. You can still start a new chat below."
+                  : `Prompt, answer, and ${continuedRun.packet?.sourceCount ?? 0} source${continuedRun.packet?.sourceCount === 1 ? "" : "s"} are carried into new messages.`}
+            </p>
+          </div>
+          <a className="rd-btn rd-btn--quiet rd-btn--sm" href={`/redesign/chat/r/${encodeURIComponent(continuationHash)}`}>
+            View immutable receipt
+          </a>
+        </aside>
+      )}
       <BatchLiveBoundary onError={() => setLiveBatch(null)}>
         <BatchLiveBridge onBatch={setLiveBatch} />
       </BatchLiveBoundary>
@@ -1202,7 +1295,9 @@ export function ChatSurface({
         <ConversationContent className="rd-chat-transcript__content">
         {batch && <BatchMonitorCell batch={batch} />}
 
-        {turns.length === 0 ? (
+        {turns.length === 0 && continuationHash && continuedRun === undefined ? (
+          <div className="rd-card rd-card__pad" role="status">Restoring conversation context…</div>
+        ) : turns.length === 0 ? (
           <ChatEmptyState
             starters={liveStarters}
             onPick={(prompt) => sendMessage(prompt, tier)}

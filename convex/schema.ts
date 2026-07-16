@@ -16026,6 +16026,14 @@ export default defineSchema({
     /** Honest runtime receipt metadata; no provider response id is inferred. */
     provider: v.optional(v.string()),
     runtimeReceiptId: v.optional(v.string()),
+    /** Private, bounded transcript supplied to a continuation run. Never returned by getByHash. */
+    conversationContext: v.optional(v.array(v.object({
+      role: v.union(v.literal("user"), v.literal("assistant")),
+      text: v.string(),
+      sourceUrls: v.optional(v.array(v.string())),
+    }))),
+    /** Reproducible receipt this run continued from. Optional for existing rows. */
+    parentRunHash: v.optional(v.string()),
     cancelRequestedAt: v.optional(v.number()),
     cancelledAt: v.optional(v.number()),
     createdAt: v.number(),

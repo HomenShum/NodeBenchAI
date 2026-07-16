@@ -47,6 +47,7 @@ import { WorkspaceSurface } from "./surfaces/WorkspaceSurface";
 import { ReproducibleChatPage } from "./pages/ReproducibleChatPage";
 import { useLiveArtifacts, type LiveArtifactDetail } from "./hooks/useLiveArtifacts";
 import type { ReportCardData, SurfaceId } from "./fixtures";
+import { parseChatLaunchParams } from "./lib/chatContinuation";
 
 const PATH_TO_SURFACE: Record<string, SurfaceId | "workspace"> = {
   "": "home",
@@ -73,11 +74,6 @@ function pathToChatHash(pathname: string): string | null {
   // /redesign/chat/r/<hash> → <hash> (Phase 3 reproducibility URL)
   const match = pathname.match(/^\/redesign\/chat\/r\/([A-Za-z0-9_-]+)/);
   return match?.[1] ?? null;
-}
-
-function queryPrompt(search: string): string {
-  const params = new URLSearchParams(search);
-  return params.get("q")?.trim() ?? "";
 }
 
 function normalizeEntityKey(value: string): string {
@@ -117,7 +113,7 @@ export default function RedesignShell() {
   const reportId = useMemo(() => pathToReportId(location.pathname), [location.pathname]);
   const chatHash = useMemo(() => pathToChatHash(location.pathname), [location.pathname]);
   const workspace = useMemo(() => workspaceParams(location.search), [location.search]);
-  const initialChatPrompt = useMemo(() => queryPrompt(location.search), [location.search]);
+  const chatLaunch = useMemo(() => parseChatLaunchParams(location.search), [location.search]);
   const focusHomeComposer = useMemo(
     () => new URLSearchParams(location.search).get("focus") === "home-composer",
     [location.search],
@@ -360,7 +356,8 @@ export default function RedesignShell() {
               )}
               {!isPrototypeKit && surface === "chat" && (
                 <ChatSurface
-                  initialPrompt={initialChatPrompt}
+                  initialPrompt={chatLaunch.prompt}
+                  continuationHash={chatLaunch.continuationHash}
                   onActiveContextChange={setActiveChatDetail}
                   onAgentRailChange={setActiveChatAgentRail}
                 />

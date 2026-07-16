@@ -3,6 +3,13 @@
 Append-only lane for pipeline launch, activity, streaming, evaluation, schedule,
 and secret-gated MCP bridge ownership contracts. Newest entries first.
 
+## 2026-07-16 - Ground chat follow-ups in bounded receipt context
+
+The pending candidate extends redesign chat runs with optional, sanitized conversation
+turns and a parent receipt hash. The live action includes this transcript as context while
+requiring factual claims to be re-grounded, and public hash receipts redact the private
+continuation fields. See [`../pages/redesign-chat.md`](../pages/redesign-chat.md).
+
 ## 2026-07-15 — Derive pipeline ownership on the server
 
 The pending candidate removes browser-selected `ownerKey` authority from public pipeline launch, history, detail, bundle, stream, scorecard, and schedule APIs. Cost-bearing single and composed launches and all schedule controls now require an authenticated server identity. Guest history, detail, bundle, stream, and evaluation reads require an anonymous-session possession credential; schedule changes verify row ownership, public responses omit owner keys, and cron or secret-gated MCP work uses explicit internal service contracts. Legacy anonymous schedules do not execute.

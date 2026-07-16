@@ -57,6 +57,12 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
+- **2026-07-16 · Codex `/root` →** `convex/schema.ts#redesignChatRuns`,
+  `convex/domains/redesign/chatRuns.ts#continuation-context`,
+  `src/features/redesign/{pages/ReproducibleChatPage,surfaces/ChatSurface,RedesignShell}` ·
+  add durable, privacy-redacted receipt-to-live-chat continuation ·
+  branch `fix/receipt-continue-chat`, PR #557. CI deploy only; no out-of-band Convex deploy.
+
 - **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
   `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
   shipping the cross-domain private-notes token bridge (opaque stateful token, PR #496) ·
@@ -67,6 +73,13 @@ Server Error) for an unknown slug.
   that re-deploys the #494 functions the incident note describes → heals prod.
 
 ## Hand-offs (built + ready for the other agent to call)
+
+- **2026-07-16 - Codex `/root` ->** Receipt continuation contract is additive and ready
+  on `fix/receipt-continue-chat` (PR #557): `startChat` accepts optional
+  `conversationContext: Array<{role: "user" | "assistant"; text: string; sourceUrls?: string[]}>`
+  plus `parentRunHash?: string`. Context is bounded and sanitized before persistence and
+  grounding. Public `getByHash` receipts deliberately redact both fields so a shared hash
+  never exposes a private follow-up transcript.
 
 - **2026-07-16 - Codex `/root` -> frontend/runtime agents** - additive optional
   `redesignChatRuns.clientRequestId/provider/runtimeReceiptId/cancelRequestedAt/cancelledAt` fields;

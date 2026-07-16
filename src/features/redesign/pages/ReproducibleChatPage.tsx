@@ -9,7 +9,7 @@
  * Behavior:
  *   - Loading: skeleton card
  *   - Not found: helpful message + back-to-chat CTA
- *   - Complete: full AnswerPacket render with hash banner + re-run CTA
+ *   - Complete: full AnswerPacket render with continuation + re-run CTAs
  *
  * Accessibility: doc title set to "{shortAnswer} · NodeBench" so the
  * tab name reflects the cached answer.
@@ -174,17 +174,30 @@ export function ReproducibleChatPage({ hash }: ReproducibleChatPageProps) {
           {latencyStr && ` · ${latencyStr}`}
           {costStr && ` · ${costStr}`}
         </span>
-        <button
-          type="button"
-          className="rd-btn rd-btn--quiet rd-btn--sm"
-          style={{ marginLeft: "auto" }}
-          onClick={() => {
-            navigate(`/redesign/chat?prompt=${encodeURIComponent(row.prompt)}`);
-          }}
-          title="Re-run this prompt with current memory + sources"
-        >
-          Re-run prompt →
-        </button>
+        <div className="rd-row" style={{ marginLeft: "auto", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="rd-btn rd-btn--quiet rd-btn--sm"
+            onClick={() => {
+              navigate(`/redesign/chat?q=${encodeURIComponent(row.prompt)}`);
+            }}
+            title="Run the original prompt again with current memory and sources"
+          >
+            Re-run prompt
+          </button>
+          <button
+            type="button"
+            className="rd-btn rd-btn--primary rd-btn--sm"
+            data-testid="continue-reproducible-chat"
+            aria-label="Continue this reproducible answer in live chat"
+            onClick={() => {
+              navigate(`/redesign/chat?continue=${encodeURIComponent(hash)}`);
+            }}
+            title="Open a live chat with this prompt, answer, and evidence carried forward"
+          >
+            Continue in chat →
+          </button>
+        </div>
       </div>
 
       {/* User prompt */}
