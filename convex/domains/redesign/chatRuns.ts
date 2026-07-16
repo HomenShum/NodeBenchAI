@@ -69,6 +69,12 @@ type TraceRow = {
   durationMs: number;
 };
 
+export type ConversationContextTurn = {
+  role: "user" | "assistant";
+  text: string;
+  sourceUrls?: string[];
+};
+
 interface AnswerPacket {
   shortAnswer: string;
   whyItMatters: string;
@@ -143,6 +149,9 @@ type RuntimeContextPacket = {
 // ───────── Constants ─────────
 
 const MAX_PROMPT_CHARS = 4_000;
+const MAX_CONVERSATION_TURNS = 10;
+const MAX_CONVERSATION_TURN_CHARS = 2_000;
+const MAX_CONVERSATION_SOURCE_URLS = 5;
 const TIMEOUT_MS = 45_000;
 const FALLBACK_SOURCE_TIMEOUT_MS = 12_000;
 const FALLBACK_SOURCE_LIMIT = 5;
@@ -176,11 +185,34 @@ async function assertRunReadable(ctx: any, runId: string): Promise<any> {
   return row;
 }
 
-function redactSharedRun(row: any): any {
+export function sanitizeConversationContext(
+  rows: ConversationContextTurn[] | undefined,
+): ConversationContextTurn[] | undefined {
+  if (!rows?.length) return undefined;
+  const normalized = rows
+    .slice(-MAX_CONVERSATION_TURNS)
+    .map((row) => ({
+      role: row.role,
+      text: row.text.trim().slice(0, MAX_CONVERSATION_TURN_CHARS),
+      ...(row.sourceUrls?.length
+        ? {
+            sourceUrls: row.sourceUrls
+              .filter((url) => /^https?:\/\//i.test(url))
+              .slice(0, MAX_CONVERSATION_SOURCE_URLS),
+          }
+        : {}),
+    }))
+    .filter((row) => row.text.length > 0);
+  return normalized.length ? normalized : undefined;
+}
+
+export function redactSharedRun(row: any): any {
   if (!row) return null;
   const {
     userId: _userId,
     clientRequestId: _clientRequestId,
+    conversationContext: _conversationContext,
+    parentRunHash: _parentRunHash,
     cancelRequestedAt: _cancelRequestedAt,
     ...safeRow
   } = row;
@@ -1030,6 +1062,13 @@ export const startChat = mutation({
       text: v.string(),
       source: v.optional(v.string()),
     }))),
+    /** Bounded prior transcript. Persisted privately for reload recovery. */
+    conversationContext: v.optional(v.array(v.object({
+      role: v.union(v.literal("user"), v.literal("assistant")),
+      text: v.string(),
+      sourceUrls: v.optional(v.array(v.string())),
+    }))),
+    parentRunHash: v.optional(v.string()),
     /** Phase 5 — counterfactual probe. When set, the run is a probe
      *  re-evaluation of an earlier run with the cited source masked. */
     probeOriginRunId: v.optional(v.string()),
@@ -1053,6 +1092,8 @@ export const startChat = mutation({
       if (existing) return existing.runId;
     }
     const normalizedTier = normalizeChatTier(args.tier);
+    const conversationContext = sanitizeConversationContext(args.conversationContext);
+    const parentRunHash = args.parentRunHash?.trim().slice(0, 80);
     const model = modelForTier(normalizedTier);
     const runId = generateRunId();
     await ctx.db.insert("redesignChatRuns", {
@@ -1064,6 +1105,8 @@ export const startChat = mutation({
       model,
       provider: "google-gemini",
       runtimeReceiptId: `redesign-chat:${runId}`,
+      ...(conversationContext ? { conversationContext } : {}),
+      ...(parentRunHash ? { parentRunHash } : {}),
       status: "pending",
       createdAt: Date.now(),
     });
@@ -1074,6 +1117,8 @@ export const startChat = mutation({
       contextRef: args.contextRef,
       model,
       pinnedClaims: args.pinnedClaims,
+      conversationContext,
+      parentRunHash,
       probeOriginRunId: args.probeOriginRunId,
       probeMaskedSourceUrl: args.probeMaskedSourceUrl,
       probeMaskedSourceIdx: args.probeMaskedSourceIdx,
@@ -1337,6 +1382,12 @@ export const runStreamingChat = internalAction({
       text: v.string(),
       source: v.optional(v.string()),
     }))),
+    conversationContext: v.optional(v.array(v.object({
+      role: v.union(v.literal("user"), v.literal("assistant")),
+      text: v.string(),
+      sourceUrls: v.optional(v.array(v.string())),
+    }))),
+    parentRunHash: v.optional(v.string()),
     /** Phase 5 — counterfactual probe origin */
     probeOriginRunId: v.optional(v.string()),
     probeMaskedSourceUrl: v.optional(v.string()),
@@ -1469,6 +1520,12 @@ export const runStreamingChat = internalAction({
       const pinnedSection = args.pinnedClaims && args.pinnedClaims.length > 0
         ? `\n\nPinned claims (carry forward as established context — do not contradict without explicit re-grounding):\n${args.pinnedClaims.map((p, i) => `  ${i + 1}. ${p.text}${p.source ? ` (source: ${p.source})` : ""}`).join("\n")}`
         : "";
+      const conversationSection = args.conversationContext && args.conversationContext.length > 0
+        ? `\n\nPrior conversation (context only; preserve the user's intent, but re-ground factual claims when needed):\n${args.conversationContext.map((turn, i) => {
+            const sources = turn.sourceUrls?.length ? `\n     sources: ${turn.sourceUrls.join(", ")}` : "";
+            return `  ${i + 1}. ${turn.role.toUpperCase()}: ${turn.text}${sources}`;
+          }).join("\n")}`
+        : "";
       // Phase 5 — counterfactual probe instruction
       const probeSection = args.probeMaskedSourceUrl
         ? `\n\nIMPORTANT — counterfactual probe: The source previously at <${args.probeMaskedSourceUrl}> (originally cited as [${args.probeMaskedSourceIdx ?? "?"}] in run ${args.probeOriginRunId ?? "?"}) is being treated as UNRELIABLE for this answer. DO NOT cite it. DO NOT use it as the basis for any claim. Re-answer the same prompt and explicitly note in "Risks / unknowns" how the conclusion changes (or holds) if that source is excluded. Prefer alternative grounded sources.`
@@ -1509,13 +1566,20 @@ ${citationInstruction} ${liveGrounding.useLiveGrounding ? "Keep claims grounded 
 
 ${calculationInstruction}
 
-Context: ${JSON.stringify(contextBundle)}${pinnedSection}${probeSection}${verifiedCalculationSection}`;
+Context: ${JSON.stringify(contextBundle)}${conversationSection}${pinnedSection}${probeSection}${verifiedCalculationSection}`;
       // Emit a stage event so the UI can show "Probing without [N]" / "Carrying forward N pins"
       if (probeSection) {
         await append("stage", { stage: "probe", maskedUrl: args.probeMaskedSourceUrl, maskedIdx: args.probeMaskedSourceIdx, originRunId: args.probeOriginRunId });
       }
       if (pinnedSection) {
         await append("stage", { stage: "pinned", count: args.pinnedClaims!.length });
+      }
+      if (conversationSection) {
+        await append("stage", {
+          stage: "conversation_context",
+          count: args.conversationContext!.length,
+          parentRunHash: args.parentRunHash,
+        });
       }
 
       const controller = new AbortController();

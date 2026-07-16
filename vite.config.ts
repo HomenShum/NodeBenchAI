@@ -234,6 +234,11 @@ export default defineConfig(({ mode }) => {
           // Shiki grammar/theme chunks — lazy-loaded on demand, not precached.
           // See chunkFileNames routing above.
           '**/assets/shiki/**',
+          // The markdown note editor is a route-lazy workspace surface and can
+          // exceed Workbox's 2 MiB precache ceiling as dependency versions move.
+          // Keep it network-loaded and runtime-cached instead of blocking every
+          // production build on an optional editor chunk.
+          '**/assets/EntityNoteMarkdownEditor-*.js',
         ],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/voice\//, /^\/install\.sh/],
@@ -374,7 +379,9 @@ window.addEventListener('message', async (message) => {
       { find: /^@\//, replacement: `${path.resolve(__dirname, "./src").replace(/\\/g, "/")}/` },
     ],
     // Prevent duplicate React instances (common cause of "Invalid hook call" in Vite/monorepo setups).
-    dedupe: ["react", "react-dom"],
+    // Streamdown and the app both consume Shiki. Resolve one root copy so a
+    // no-lock install cannot leave Rolldown chasing a nested peer at build time.
+    dedupe: ["react", "react-dom", "shiki"],
   },
   optimizeDeps: {
     include: ["react", "react-dom", "rehype-raw", "rehype-sanitize", "rehype-parse", "hast-util-raw"],

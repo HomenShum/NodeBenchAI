@@ -23,6 +23,12 @@ import type { LiveGroundingDecision } from "shared/redesign/contextRuntimePolicy
 
 export type ChatRunTier = "free" | "fast" | "auto" | "deep";
 
+export interface ConversationContextTurn {
+  role: "user" | "assistant";
+  text: string;
+  sourceUrls?: string[];
+}
+
 export function createChatClientRequestId(): string {
   if (typeof globalThis.crypto?.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
@@ -61,6 +67,8 @@ export interface RuntimeMetrics {
   model?: string;
   provider?: string;
   runtimeReceiptId?: string;
+  conversationContext?: ConversationContextTurn[];
+  parentRunHash?: string;
   createdAt?: number;
   completedAt?: number;
   totalLatencyMs?: number;
@@ -389,6 +397,8 @@ export function useRedesignChatRun() {
       model: runRow?.model,
       provider: runRow?.provider,
       runtimeReceiptId: runRow?.runtimeReceiptId,
+      conversationContext: runRow?.conversationContext as ConversationContextTurn[] | undefined,
+      parentRunHash: runRow?.parentRunHash,
       createdAt: runRow?.createdAt,
       completedAt: runRow?.completedAt,
       totalLatencyMs: runRow?.totalLatencyMs ?? metrics?.totalLatencyMs,
@@ -447,6 +457,8 @@ export function useRedesignChatRun() {
       tier: RouterTier,
       contextRef?: string,
       pinnedClaims?: Array<{ text: string; source?: string }>,
+      conversationContext?: ConversationContextTurn[],
+      parentRunHash?: string,
     ): Promise<string | null> => {
       if (authLoading) {
         setError("Auth state is still loading. Try again in a moment.");
@@ -462,7 +474,14 @@ export function useRedesignChatRun() {
       }
       setError(null);
       const normalizedTier = normalizeRouterTierForChatRun(tier);
-      const fingerprint = JSON.stringify({ prompt: prompt.trim(), tier: normalizedTier, contextRef, pinnedClaims });
+      const fingerprint = JSON.stringify({
+        prompt: prompt.trim(),
+        tier: normalizedTier,
+        contextRef,
+        pinnedClaims,
+        conversationContext,
+        parentRunHash,
+      });
       const existingRequest = pendingSubmissionRef.current;
       const clientRequestId = existingRequest?.fingerprint === fingerprint
         ? existingRequest.requestId
@@ -484,6 +503,8 @@ export function useRedesignChatRun() {
           tier: normalizedTier,
           contextRef,
           pinnedClaims,
+          conversationContext,
+          parentRunHash,
           clientRequestId,
         });
         setActiveRunId(runId);

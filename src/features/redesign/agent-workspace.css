@@ -37,13 +37,52 @@
 [data-redesign] .rd-chat-workspace {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto auto auto;
+  width: 100%;
+  min-width: 0;
   height: 100%;
   min-height: 0;
   overflow: hidden;
   background: var(--rd-paper);
 }
 
+[data-redesign] .rd-chat-workspace > * {
+  min-width: 0;
+}
+
+[data-redesign] .rd-chat-workspace[data-continuation="true"] {
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+}
+
+[data-redesign] .rd-continuation-context {
+  width: min(100% - 32px, 840px);
+  box-sizing: border-box;
+  margin: 12px auto 0;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--rd-accent-ring);
+  border-radius: var(--rd-r-md);
+  background: var(--rd-accent-tint);
+  color: var(--rd-ink);
+}
+
+[data-redesign] .rd-continuation-context p {
+  margin: 3px 0 0;
+  color: var(--rd-ink-mute);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+[data-redesign] .rd-continuation-context[data-state="unavailable"] {
+  border-color: var(--rd-amber-ring, var(--rd-line));
+  background: var(--rd-amber-tint, var(--rd-panel));
+}
+
 [data-redesign] .rd-chat-transcript {
+  width: 100%;
+  min-width: 0;
   min-height: 0;
   height: 100%;
   overflow: hidden;
@@ -51,6 +90,8 @@
 
 [data-redesign] .rd-chat-transcript__content {
   width: min(100%, 840px);
+  min-width: 0;
+  box-sizing: border-box;
   min-height: 100%;
   margin: 0 auto;
   padding: clamp(20px, 4vw, 44px) clamp(18px, 4vw, 40px) 48px;
@@ -71,6 +112,9 @@
 
 [data-redesign] .rd-composer-dock {
   position: relative;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   bottom: auto;
   z-index: 5;
   padding: 10px clamp(14px, 4vw, 40px) max(14px, env(safe-area-inset-bottom));
@@ -81,6 +125,7 @@
 
 [data-redesign] .rd-composer-shell {
   width: min(100%, 840px);
+  min-width: 0;
   margin: 0 auto;
 }
 
@@ -183,6 +228,14 @@
 }
 
 @media (max-width: 760px) {
+  [data-redesign] .rd-continuation-context {
+    width: calc(100% - 24px);
+    margin-top: 8px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
   [data-redesign] .rd-run-scope > summary span:nth-of-type(2),
   [data-redesign] .rd-run-scope > summary span:nth-of-type(3) {
     display: none;
