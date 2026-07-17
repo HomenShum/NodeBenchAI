@@ -533,8 +533,12 @@ export function ChatSurface({
   const liveDetail = workspaceDetail ?? (_skipLiveSeed ? null : _rawLiveDetail);
   const liveStarters = useMemo(() => {
     if (!liveDetail) return undefined;
+    // Chip LABELS drop a trailing date so all three chips hold one line — the
+    // context chip in the composer already carries the dated title, and the
+    // full title stays in the prompt the chip actually sends.
+    const chipTitle = liveDetail.title.replace(/\s*[-–·]\s*\d{4}-\d{2}-\d{2}\s*$/, "");
     return [
-      { icon: STARTER_ICONS.summarize, title: `Summarize ${liveDetail.title}`, prompt: `Summarize ${liveDetail.title}. Keep it evidence-led and end with a next action.` },
+      { icon: STARTER_ICONS.summarize, title: `Summarize ${chipTitle}`, prompt: `Summarize ${liveDetail.title}. Keep it evidence-led and end with a next action.` },
       { icon: STARTER_ICONS.promote, title: "Promote strongest claim", prompt: `Promote the strongest verified signal from ${liveDetail.title} into a notebook claim with sources.` },
       { icon: STARTER_ICONS.search, title: "Find the review gaps", prompt: `List what still needs source review in ${liveDetail.title}, grouped by risk.` },
       { icon: STARTER_ICONS.export, title: "Prepare an export", prompt: `Create a CRM-ready export summary for ${liveDetail.title}.` },
