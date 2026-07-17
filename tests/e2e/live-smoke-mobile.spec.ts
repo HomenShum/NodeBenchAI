@@ -1,3 +1,18 @@
+/**
+ * live-smoke-mobile — Tier B / post-deploy mobile verification.
+ *
+ * Rewritten 2026-07-17: the previous version asserted the standalone mobile
+ * shell surfaces (mobile-home-surface, mobile-reports-surface, ...), which
+ * stopped mounting when #561 contracted NodeBench to the single decision
+ * workspace — every entry route now resolves to /redesign/chat at every
+ * viewport. The old assertions were red against current production while
+ * living outside CI: exactly the "test the pipeline cannot see" failure mode
+ * issue #567 documented. This spec now asserts the one-surface reality;
+ * richer per-clause coverage lives in the surface contract
+ * (docs/design/ui-contract/surfaces/decision-workspace.contract.json) executed
+ * by ui-contract-runner.spec.ts.
+ */
+
 import { expect, test } from "@playwright/test";
 
 const BASE_URL =
@@ -19,68 +34,27 @@ async function expectNoHorizontalOverflow(page: import("@playwright/test").Page)
   expect(fits, "mobile runtime surface should not overflow horizontally").toBe(true);
 }
 
-test.describe("live-smoke-mobile — canonical runtime surfaces", () => {
+test.describe("live-smoke-mobile — one workspace at 390px", () => {
   test.setTimeout(45_000);
 
-  test("Home keeps the mobile wrapper around the runtime-backed Home surface", async ({ page }) => {
-    await page.goto(`${BASE_URL}/`);
-    const surface = page.locator('[data-testid="mobile-home-surface"]');
-    await expect(surface).toBeVisible({ timeout: 20_000 });
-    await expect(surface.locator('[data-testid="exact-web-home-surface"]')).toBeVisible();
-    await expect(surface.locator('[data-testid="exact-web-home-composer"]')).toBeVisible();
-    await expect(surface.locator('[data-testid="mobile-home-async-run"]')).toHaveCount(0);
-    await expectNoHorizontalOverflow(page);
-  });
+  for (const path of ["/", "/?surface=reports", "/?surface=chat", "/?surface=inbox", "/?surface=me"]) {
+    test(`${path} resolves to the single decision workspace`, async ({ page }) => {
+      await page.goto(`${BASE_URL}${path}`);
+      await expect(page).toHaveURL(/\/redesign\/chat(?:[/?#]|$)/, { timeout: 20_000 });
+      await expect(page.getByTestId("one-surface-workspace")).toBeVisible({ timeout: 20_000 });
+      // Exactly one composer; the legacy mobile shell must not resurface.
+      await expect(page.locator("textarea:visible")).toHaveCount(1);
+      await expect(page.getByTestId("mobile-home-surface")).toHaveCount(0);
+      await expectNoHorizontalOverflow(page);
+    });
+  }
 
-  test("Reports exposes real pipeline controls and honest runtime report state", async ({ page }) => {
-    await page.goto(`${BASE_URL}/?surface=reports`);
-    const surface = page.locator('[data-testid="mobile-reports-surface"]');
-    await expect(surface).toBeVisible({ timeout: 20_000 });
-    await expect(surface.locator('[data-testid="reports-performance-root"]')).toBeVisible();
-    await expect(surface.locator('[data-testid="pipeline-launcher"]')).toBeVisible();
-    await expect(surface.locator('[data-testid="pipeline-launcher-sign-in"]')).toBeVisible();
-    await expect(
-      surface.locator('[data-testid="reports-loading"], [data-testid="reports-empty"], [data-testid="report-card"]').first(),
-    ).toBeVisible();
-    await expect(surface.locator('[data-testid="mobile-report-card"]')).toHaveCount(0);
-    await expectNoHorizontalOverflow(page);
-  });
-
-  test("Chat mounts the live runtime and a working composer, not a verified fixture", async ({ page }) => {
-    await page.goto(`${BASE_URL}/?surface=chat`);
-    const surface = page.locator('[data-testid="mobile-chat-surface"]');
-    await expect(surface).toBeVisible({ timeout: 20_000 });
-    await expect(surface.locator('[data-testid="exact-web-chat-stream"]')).toBeVisible();
-    await expect(surface.getByLabel("Chat composer")).toBeVisible();
-    await expect(surface.getByLabel("Chat composer")).toHaveAttribute(
-      "placeholder",
-      "Ask or paste text... (@ to mention an entity)",
-    );
-    await expect(surface.getByText("Live Context Runtime")).toBeVisible();
-    await expect(surface.getByText(/3 entities - 24 sources/i)).toHaveCount(0);
-    await expectNoHorizontalOverflow(page);
-  });
-
-  test("Inbox shows only the runtime snapshot or its honest empty/loading state", async ({ page }) => {
-    await page.goto(`${BASE_URL}/?surface=inbox`);
-    const surface = page.locator('[data-testid="mobile-inbox-surface"]');
-    await expect(surface).toBeVisible({ timeout: 20_000 });
-    await expect(surface.locator('[data-testid="exact-web-inbox-surface"]')).toBeVisible();
-    await expect(surface.getByRole("button", { name: /^All / })).toBeVisible();
-    await expect(surface.getByRole("button", { name: /^Mentions / })).toHaveCount(0);
-    await expectNoHorizontalOverflow(page);
-  });
-
-  test("Me uses runtime identity and memory rather than canned workspace controls", async ({ page }) => {
-    await page.goto(`${BASE_URL}/?surface=me`);
-    const surface = page.locator('[data-testid="mobile-me-surface"]');
-    await expect(surface).toBeVisible({ timeout: 20_000 });
-    await expect(surface.locator('[data-testid="exact-web-me-surface"]')).toBeVisible();
-    await expect(surface.getByRole("button", { name: "Settings" })).toBeVisible();
-    await expect(
-      surface.locator('[data-testid="me-memory-loading"], [data-testid="me-memory-empty"], .nb-settings-section').first(),
-    ).toBeVisible();
-    await expect(surface.getByText(/^Workspaces$/)).toHaveCount(0);
+  test("unknown share link degrades honestly on mobile", async ({ page }) => {
+    await page.goto(`${BASE_URL}/redesign/chat/r/__smoke_missing__`);
+    await expect(page.getByText("That reproducible answer is unavailable").first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByTestId("one-surface-workspace")).toBeVisible({ timeout: 20_000 });
     await expectNoHorizontalOverflow(page);
   });
 });

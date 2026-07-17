@@ -52,7 +52,17 @@ interface SurfaceContract {
     gridTracks?: number;
     minWidthPx?: number;
   }>;
-  states?: Array<{ name: string; why: string; url: string; expectText: string; forbidText?: string }>;
+  states?: Array<{
+    name: string;
+    why: string;
+    url: string;
+    viewport?: string;
+    expectText?: string;
+    forbidText?: string;
+    expectTestId?: string;
+    forbidTestId?: string;
+    expectUrlPattern?: string;
+  }>;
 }
 
 function loadContracts(): SurfaceContract[] {
@@ -130,13 +140,34 @@ for (const contract of contracts) {
 
     for (const state of contract.states ?? []) {
       test(`state › ${state.name}: copy agrees with reality`, async ({ page }) => {
+        const viewport = state.viewport
+          ? contract.viewports.find((v) => v.name === state.viewport)
+          : undefined;
+        if (viewport) {
+          await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        }
         await installVercelPreviewBypass(page, BASE_URL);
         await page.goto(`${BASE_URL}${state.url}`, { waitUntil: "domcontentloaded" });
-        await expect(page.getByText(state.expectText).first(), state.why).toBeVisible({
-          timeout: 30_000,
-        });
+        if (state.expectUrlPattern) {
+          await expect(page, state.why).toHaveURL(new RegExp(state.expectUrlPattern), {
+            timeout: 30_000,
+          });
+        }
+        if (state.expectText) {
+          await expect(page.getByText(state.expectText).first(), state.why).toBeVisible({
+            timeout: 30_000,
+          });
+        }
+        if (state.expectTestId) {
+          await expect(page.getByTestId(state.expectTestId).first(), state.why).toBeVisible({
+            timeout: 30_000,
+          });
+        }
         if (state.forbidText) {
           await expect(page.getByText(state.forbidText), state.why).toHaveCount(0);
+        }
+        if (state.forbidTestId) {
+          await expect(page.getByTestId(state.forbidTestId), state.why).toHaveCount(0);
         }
       });
     }

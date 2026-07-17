@@ -1,4 +1,33 @@
 ﻿import path from "node:path";
+import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+/**
+ * Ground truth for the vision judge: every clause in the executable surface
+ * contracts (docs/design/ui-contract/surfaces/*.contract.json) is verified
+ * deterministically in CI by ui-contract-runner.spec.ts. A vision finding that
+ * contradicts a verified clause is a misread, not a bug — feeding the clause
+ * list to the judge stops paid vision passes from re-litigating what CI
+ * already proved (and cuts the score variance the Gemini loop is known for).
+ */
+function contractVerifiedInvariants() {
+  try {
+    const dir = path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "..", "..", "docs", "design", "ui-contract", "surfaces",
+    );
+    const lines = [];
+    for (const file of readdirSync(dir).filter((f) => f.endsWith(".contract.json"))) {
+      const contract = JSON.parse(readFileSync(path.join(dir, file), "utf8"));
+      for (const anchor of contract.anchors ?? []) lines.push(`- [${contract.surface}] ${anchor.why}`);
+      for (const rule of contract.geometry ?? []) lines.push(`- [${contract.surface}] ${rule.why}`);
+      for (const state of contract.states ?? []) lines.push(`- [${contract.surface}] state "${state.name}": ${state.why}`);
+    }
+    return lines.join("\n");
+  } catch {
+    return "";
+  }
+}
 import fs from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import net from "node:net";
@@ -2138,11 +2167,15 @@ async function judgeIssuesWithLLM(issues) {
     return `ISSUE #${i + 1} [${route}]: ${header}\n${details}`;
   }).join("\n\n---\n\n");
 
+  const verifiedInvariants = contractVerifiedInvariants();
   const prompt = `You are a senior UI/UX quality judge reviewing automated QA findings for a web application.
 
 DESIGN CONTEXT:
 ${DESIGN_CONTEXT}
-
+${verifiedInvariants ? `
+CONTRACT-VERIFIED INVARIANTS (machine-checked in CI on every PR — treat as ground truth; a finding that contradicts one of these is a screenshot misread, not a bug):
+${verifiedInvariants}
+` : ""}
 TASK: For each issue below, classify it into exactly ONE category:
 - "genuine_bug": A real, actionable defect that would affect users (broken layout, actual contrast failure, real typo, data corruption visible to end users)
 - "design_opinion": A subjective preference about intentional design choices (density, spacing, color hierarchy, information architecture, terminology for target audience)
