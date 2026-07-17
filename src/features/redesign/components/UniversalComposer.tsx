@@ -718,23 +718,41 @@ export function UniversalComposer({
               Chat now
             </button>
           )}
-          {streaming && onStop ? (
+          {/* Stop and submit are BOTH always rendered so neither ever moves:
+              the Stop slot is reserved (visibility:hidden) while idle, and the
+              submit button stays at identical coordinates while streaming —
+              merely disabled. The second click of a double-click therefore
+              lands on the inert submit, never on Stop, regardless of the
+              user's double-click interval. The CANCEL_ARM_DELAY_MS arming
+              below stays as defense in depth for pointer replays that do
+              land on Stop (e.g. Escape spam, automation). */}
+          {onStop ? (
             <button
               type="button"
               onClick={() => {
-                if (cancelArmed) onStop();
+                if (streaming && cancelArmed) onStop();
               }}
-              disabled={!cancelArmed}
+              disabled={!streaming || !cancelArmed}
               aria-label="Cancel active run"
-              title={cancelArmed ? "Cancel active run (Esc)" : "Preparing cancel control"}
+              aria-hidden={!streaming}
+              tabIndex={streaming ? 0 : -1}
+              title={
+                !streaming
+                  ? undefined
+                  : cancelArmed
+                    ? "Cancel active run (Esc)"
+                    : "Preparing cancel control"
+              }
               className="rd-btn rd-btn--sm"
               style={{
                 gap: 6,
                 background: "var(--rd-amber)",
                 borderColor: "var(--rd-amber)",
                 color: "#fff",
-                opacity: cancelArmed ? 1 : 0.6,
-                cursor: cancelArmed ? "pointer" : "wait",
+                opacity: !streaming ? 0 : cancelArmed ? 1 : 0.6,
+                cursor: !streaming ? "default" : cancelArmed ? "pointer" : "wait",
+                visibility: streaming ? "visible" : "hidden",
+                pointerEvents: streaming ? undefined : "none",
               }}
             >
               <svg width={11} height={11} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -742,24 +760,23 @@ export function UniversalComposer({
               </svg>
               Stop
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => handleSubmit("research")}
-              disabled={!text.trim()}
-              aria-label="Run research"
-              title="Run research (Enter)"
-              className="rd-btn rd-btn--primary rd-composer-submit"
-              style={{
-                opacity: text.trim() ? 1 : 0.55,
-                cursor: text.trim() ? "pointer" : "not-allowed",
-              }}
-            >
-              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 19V5M5 12l7-7 7 7" />
-              </svg>
-            </button>
-          )}
+          ) : null}
+          <button
+            type="button"
+            onClick={() => handleSubmit("research")}
+            disabled={!text.trim() || streaming}
+            aria-label="Run research"
+            title={streaming ? "Run in progress" : "Run research (Enter)"}
+            className="rd-btn rd-btn--primary rd-composer-submit"
+            style={{
+              opacity: text.trim() && !streaming ? 1 : 0.55,
+              cursor: text.trim() && !streaming ? "pointer" : "not-allowed",
+            }}
+          >
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 19V5M5 12l7-7 7 7" />
+            </svg>
+          </button>
           {onRunOnList && batchTargets.length > 0 && (
             <button
               type="button"
