@@ -29,6 +29,7 @@ import {
 import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
 import { buildConversationContext } from "../lib/chatContinuation";
 import { isStructuredAnswer } from "../../../../shared/redesign/answerFormat";
+import { STARTER_ICONS } from "../components/ChatEmptyState";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { LiveResearchChecklist, type ResearchStage, type ResearchStageId } from "../../research/LiveResearchChecklist";
@@ -265,7 +266,9 @@ function buildRunScopeSnapshot(args: {
     reads: runtimeContextPacket?.hasContext
       ? `${runtimeContextPacket.selectedContext.length} selected context items · ${runtimeContextPacket.sourceRefs.length} source refs`
       : liveDetail
-        ? `${liveDetail.title} · ${liveDetail.sourceCount} attached source${liveDetail.sourceCount === 1 ? "" : "s"}`
+        // The context chip directly below already names the context; repeating
+        // the title here pushed the source count into ellipsis at 390px.
+        ? `${liveDetail.sourceCount} attached source${liveDetail.sourceCount === 1 ? "" : "s"}`
         : "Prompt only · no report context attached",
     writes: "Review mode · no automatic shared writes",
     verification: blockedClaimCount > 0
@@ -458,13 +461,17 @@ function LaunchContextCard({
   };
   const artifactLabel = artifactKey ? artifactLabels[artifactKey] ?? "Artifact" : null;
 
-  let title = "Context selected";
+  // The title must agree with the body: claiming "selected" while the body
+  // admits the context is unavailable reads as a success state on a miss.
+  let title = detail ? "Context selected" : "Saved context unavailable";
   let body = detail
     ? `${detail.title} is attached to the next run with ${detail.sourceCount} source${detail.sourceCount === 1 ? "" : "s"}. Nothing is written until you explicitly ask.`
     : "The requested saved context is not available in this session. You can still ask a new question below.";
 
   if (artifactLabel) {
-    title = `${artifactLabel} context selected`;
+    title = detail
+      ? `${artifactLabel} context selected`
+      : `${artifactLabel} context unavailable`;
   } else if (requestedReportId || intent === "review-report") {
     title = detail ? "Report context selected" : "Requested report unavailable";
   } else if (intent === "account" || intent === "settings") {
@@ -527,10 +534,10 @@ export function ChatSurface({
   const liveStarters = useMemo(() => {
     if (!liveDetail) return undefined;
     return [
-      { icon: "🧾", title: `Summarize ${liveDetail.title}`, prompt: `Summarize ${liveDetail.title}. Keep it evidence-led and end with a next action.` },
-      { icon: "✅", title: "Promote strongest claim", prompt: `Promote the strongest verified signal from ${liveDetail.title} into a notebook claim with sources.` },
-      { icon: "🔎", title: "Find the review gaps", prompt: `List what still needs source review in ${liveDetail.title}, grouped by risk.` },
-      { icon: "📤", title: "Prepare an export", prompt: `Create a CRM-ready export summary for ${liveDetail.title}.` },
+      { icon: STARTER_ICONS.summarize, title: `Summarize ${liveDetail.title}`, prompt: `Summarize ${liveDetail.title}. Keep it evidence-led and end with a next action.` },
+      { icon: STARTER_ICONS.promote, title: "Promote strongest claim", prompt: `Promote the strongest verified signal from ${liveDetail.title} into a notebook claim with sources.` },
+      { icon: STARTER_ICONS.search, title: "Find the review gaps", prompt: `List what still needs source review in ${liveDetail.title}, grouped by risk.` },
+      { icon: STARTER_ICONS.export, title: "Prepare an export", prompt: `Create a CRM-ready export summary for ${liveDetail.title}.` },
     ];
   }, [liveDetail]);
   const [turns, setTurns] = useState<Turn[]>([]);
