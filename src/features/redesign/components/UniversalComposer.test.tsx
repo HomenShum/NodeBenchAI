@@ -78,7 +78,7 @@ describe("UniversalComposer runtime controls", () => {
       provider: "google-gemini",
     });
     expect(screen.getByRole("status", { name: "Paid runtime preflight" })).toHaveTextContent(
-      "Paid live run · provider google-gemini · model gemini-3.5-flash",
+      "Paid · google-gemini · gemini-3.5-flash",
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Auto/ }));
@@ -87,7 +87,7 @@ describe("UniversalComposer runtime controls", () => {
     );
     fireEvent.click(screen.getByRole("option", { name: /Deep dive/ }));
     expect(screen.getByRole("status", { name: "Paid runtime preflight" })).toHaveTextContent(
-      "Paid live run · provider google-gemini · model gemini-3.1-pro-preview",
+      "Paid · google-gemini · gemini-3.1-pro-preview",
     );
   });
 });

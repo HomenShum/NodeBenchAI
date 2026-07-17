@@ -490,7 +490,7 @@ export function UniversalComposer({
             lineHeight: 1.4,
           }}
         >
-          Paid live run · provider {activeTier.provider} · model {activeTier.model}
+          Paid · {activeTier.provider} · {activeTier.model}
         </div>
       )}
 
@@ -687,9 +687,11 @@ export function UniversalComposer({
               </button>
             </>
           )}
-          <span className="rd-mono rd-shortcut-hint" style={{ fontSize: 11, color: "var(--rd-ink-mute)", marginLeft: 6 }}>
-            {voice.isTranscribing ? "Transcribing..." : recording ? "Listening..." : `${navigator.platform?.startsWith("Mac") ? "⌘" : "Ctrl"}+Enter run research · Shift+Enter newline`}
-          </span>
+          {(voice.isTranscribing || recording) && (
+            <span role="status" className="rd-mono" style={{ fontSize: 11, color: "var(--rd-ink-mute)", marginLeft: 6 }}>
+              {voice.isTranscribing ? "Transcribing..." : "Listening..."}
+            </span>
+          )}
         </div>
 
         <div className="rd-row" style={{ gap: 8 }}>
@@ -744,17 +746,15 @@ export function UniversalComposer({
               disabled={!text.trim()}
               aria-label="Run research"
               title="Run research (Enter)"
-              className="rd-btn rd-btn--primary rd-btn--sm"
+              className="rd-btn rd-btn--primary rd-composer-submit"
               style={{
                 opacity: text.trim() ? 1 : 0.55,
                 cursor: text.trim() ? "pointer" : "not-allowed",
-                gap: 6,
               }}
             >
-              <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M2 12l5-9 5 9-5 9-5-9zM12 3l5 9-5 9M22 12l-5-9-5 9 5 9 5-9z" />
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 19V5M5 12l7-7 7 7" />
               </svg>
-              Run research
             </button>
           )}
           {onRunOnList && batchTargets.length > 0 && (

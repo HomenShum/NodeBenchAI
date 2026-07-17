@@ -21,8 +21,9 @@ All redesign code is scoped to `[data-redesign]`. The active shell shares the li
 
 ## File map
 
-The active runtime tree is `RedesignShell` → `TopNav` + `ChatSurface` + the conditional
-`RightInspector`. The remaining historical surface modules are retained only as
+The active runtime tree is `RedesignShell` → `TopNav` + `ChatSurface`. Runtime scope,
+evidence, receipts, and source review live progressively inside the conversation instead
+of a parallel inspector. The remaining historical surface modules are retained only as
 unmounted migration references while their reusable runtime fragments are folded into
 the conversation; adding them back to `RedesignShell` violates the one-surface guard.
 
@@ -39,7 +40,6 @@ src/features/redesign/
 │   ├── UniversalComposer.tsx              Claude/ChatGPT-style composer · tier dropdown · + menu · send circle
 │   ├── Pill.tsx                           tone-mapped status pill (accent / green / blue / amber / red)
 │   ├── CardStack.tsx                      3-column max graph traversal · breadcrumb + Back · drill / promote
-│   ├── RightInspector.tsx                 chat right rail · Report status · Active entity · Graph · Sources · Threads
 │   └── MobileShell.tsx                    capture-first phone shell · bottom 5-tab nav · bottom sheets
 │
 └── surfaces/
@@ -57,7 +57,7 @@ src/features/redesign/
 
 | Path | Renders |
 |---|---|
-| `/redesign/chat` | The canonical `ChatSurface`, with a contextual runtime inspector after a run starts |
+| `/redesign/chat` | The canonical `ChatSurface`, with progressive runtime and evidence detail inside each run |
 | `/redesign/chat/r/:hash` | The same conversation with an immutable receipt loaded as context and the composer still available |
 | `/redesign`, `/redesign/reports/*`, `/redesign/inbox`, `/redesign/me`, `/redesign/workspace` | Context-preserving replace into `/redesign/chat` |
 | Main-site `/reports/:id` and its brief/cards/notebook/sources/graph/map tabs | Report and artifact context in `/redesign/chat`; recursive editing stays on the Workspace hostname |
@@ -165,7 +165,7 @@ import {
 } from "@/features/redesign/components/UniversalComposer";
 
 <UniversalComposer
-  contextLabel="Asking about: Orbital Labs"   // top-left chip
+  contextLabel="Orbital Labs"                 // top-left context chip
   onContextChange={() => {/* open picker */}}  // chip click
   onSubmit={(text, tier) => {/* dispatch */}}  // Enter or send-button click
   tier="auto"                                  // controlled tier (omit for uncontrolled)

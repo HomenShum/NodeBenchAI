@@ -20,9 +20,7 @@ export function ChatEmptyState({ onPick, starters = STARTERS }: ChatEmptyStatePr
   return (
     <div className="rd-chat-empty">
       <div className="rd-chat-empty__hero">
-        <div className="rd-chat-empty__avatar" aria-hidden="true">✦</div>
         <h2 className="rd-chat-empty__h">What do you need to know?</h2>
-        <p className="rd-chat-empty__sub">Ask from saved memory or start a sourced research run.</p>
       </div>
 
       <div className="rd-chat-empty__chips">

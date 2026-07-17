@@ -26,7 +26,6 @@ const migratedSurfaces = [
   "src/features/redesign/components/CommandPalette.tsx",
   "src/layouts/chrome/CommandPalette.tsx",
   "src/features/redesign/components/MessageActions.tsx",
-  "src/features/redesign/components/RightInspector.tsx",
   "src/shared/ui/SurfacePrimitives.tsx",
   "src/features/redesign/surfaces/ReportsSurface.tsx",
   "src/layouts/settings/SettingsModal.tsx",

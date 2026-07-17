@@ -14,6 +14,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ai-ui/dropdown-menu";
+import { VoiceCostBadge } from "@/features/voice";
+import { useCurrentUserId } from "@/hooks/useCurrentUser";
 
 interface TopNavProps {
   theme: "light" | "dark";
@@ -23,6 +25,7 @@ interface TopNavProps {
 export function TopNav({ theme, onToggleTheme }: TopNavProps) {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const { signIn, signOut } = useAuthActions();
+  const userId = useCurrentUserId();
 
   const onSignIn = () => {
     void Promise.resolve(
@@ -68,17 +71,6 @@ export function TopNav({ theme, onToggleTheme }: TopNavProps) {
         Node<span style={{ color: "var(--rd-accent)" }}>Bench</span>
       </a>
 
-      <span
-        aria-hidden="true"
-        style={{
-          color: "var(--rd-ink-mute)",
-          fontSize: 11,
-          letterSpacing: "0.02em",
-        }}
-      >
-        Decision workspace
-      </span>
-
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 7 }}>
         {!isLoading && !isAuthenticated && (
           <button
@@ -108,6 +100,8 @@ export function TopNav({ theme, onToggleTheme }: TopNavProps) {
             <DropdownMenuContent align="end" className="rd-account-menu">
               <DropdownMenuLabel>NodeBench account</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {userId && <VoiceCostBadge userId={userId} className="rd-account-voice" />}
+              {userId && <DropdownMenuSeparator />}
               <DropdownMenuItem onSelect={onSignOut}>Sign out</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
