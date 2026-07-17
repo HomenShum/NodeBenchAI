@@ -1,0 +1,46 @@
+{
+  "schema": "nodebench-surface-contract-v1",
+  "surface": "decision-workspace",
+  "description": "The single NodeBench workspace (/redesign/chat). Every invariant here is executable by tests/e2e/ui-contract-runner.spec.ts against the live DOM — anchors, computed geometry, theme wiring, and deep-link-forced state copy.",
+  "route": "/redesign/chat",
+  "theme": {
+    "storageKey": "nodebench:redesign:theme",
+    "attribute": "data-redesign-theme",
+    "values": ["light", "dark"]
+  },
+  "viewports": [
+    { "name": "desktop", "width": 1440, "height": 900 },
+    { "name": "mobile", "width": 390, "height": 844 }
+  ],
+  "anchors": [
+    { "why": "one canonical workspace", "testId": "one-surface-workspace", "presence": "visible" },
+    { "why": "exactly one composer", "selector": "textarea:visible", "count": 1 },
+    { "why": "no legacy nav shell", "selector": "nav", "count": 0 },
+    { "why": "submit always present and named", "role": "button", "name": "Run research", "presence": "visible" },
+    { "why": "product surface marker for agents", "selector": "[data-product-surface=\"decision-workspace\"]", "count": 1 }
+  ],
+  "geometry": [
+    {
+      "why": "2026-07-16 audit: wide-mode rule collapsed chat to a 70px strip; overflow booleans missed it",
+      "selector": ".rd-shell__main",
+      "viewport": "mobile",
+      "gridTracks": 1,
+      "minWidthPx": 300
+    },
+    {
+      "why": "main content column must hold the viewport, not a rail sliver",
+      "selector": "main#main-content",
+      "viewport": "mobile",
+      "minWidthPx": 300
+    }
+  ],
+  "states": [
+    {
+      "name": "context-miss",
+      "why": "2026-07-17 nitpick pass: banner claimed 'selected' while body said unavailable",
+      "url": "/redesign/chat?report=__contract_missing__&artifact=notebook",
+      "expectText": "Notebook context unavailable",
+      "forbidText": "Notebook context selected"
+    }
+  ]
+}
