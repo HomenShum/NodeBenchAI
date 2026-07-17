@@ -13,8 +13,6 @@ export { useCockpitRouting, useCockpitSurfaceFromUrl } from "./useCockpitRouting
 
 // Navigation & interaction
 export { useCommandPalette } from "./useCommandPalette";
-export { useKeyboardNavigation } from "./useKeyboardNavigation";
-export { useFocusTrap } from "./useFocusTrap";
 export { useGlobalEventListeners } from "./useGlobalEventListeners";
 
 // Voice pipeline

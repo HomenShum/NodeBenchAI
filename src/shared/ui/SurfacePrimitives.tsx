@@ -11,6 +11,7 @@
 import { memo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ai-ui/tabs";
 
 // ═══════════════════════════════════════════════════════════════════════
 // Cards
@@ -183,30 +184,23 @@ export function SurfaceTabs<T extends string>({
   className,
 }: SurfaceTabsProps<T>) {
   return (
-    <div className={cn("flex gap-1 border-b border-edge", className)} role="tablist">
-      {tabs.map((tab) => {
-        const isActive = tab.id === activeTab;
-        const Icon = tab.icon;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onTabChange(tab.id)}
-            className={cn(
-              "flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-150",
-              isActive
-                ? "border-[var(--accent-primary)] text-content"
-                : "border-transparent text-content-muted hover:text-content",
-            )}
-          >
-            {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
-            {tab.label}
-          </button>
-        );
-      })}
-    </div>
+    <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as T)}>
+      <TabsList className={cn("h-auto justify-start gap-1 rounded-none border-b border-edge bg-transparent p-0", className)}>
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              className="gap-1.5 rounded-none border-b-2 border-transparent px-3 py-2 text-sm font-medium text-content-muted shadow-none data-[state=active]:border-[var(--accent-primary)] data-[state=active]:bg-transparent data-[state=active]:text-content data-[state=active]:shadow-none"
+            >
+              {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
+              {tab.label}
+            </TabsTrigger>
+          );
+        })}
+      </TabsList>
+    </Tabs>
   );
 }
 

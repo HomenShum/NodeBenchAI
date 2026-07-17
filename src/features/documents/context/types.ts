@@ -94,10 +94,6 @@ export interface DocumentOrderSlice {
   saveOrderForFilter: (value: string) => void;
   /** Persist order preference for segmented context */
   saveOrderForSegmented: (value: string) => void;
-  /** Refs for filter pill buttons (keyboard navigation) */
-  filterButtonRefs: React.MutableRefObject<Record<string, HTMLButtonElement | null>>;
-  /** Keyboard handler for filter pill navigation */
-  onFilterKeyDown: (e: React.KeyboardEvent, filter: string) => void;
 }
 
 // ─── Document Upload Slice ───────────────────────────────────────────────────

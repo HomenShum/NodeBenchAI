@@ -1,8 +1,6 @@
 import { memo, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 import { Star, Pencil, Folder, Info, Trash2 } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
-import { useMotionConfig } from "@/lib/motion";
+import { Sheet, SheetContent, SheetOverlay, SheetPortal } from "@/components/ai-ui/sheet";
 
 export interface ThreadAction {
   id: string;
@@ -45,43 +43,11 @@ export const ThreadActionsSheet = memo(function ThreadActionsSheet({
   hasActiveSession = true,
 }: ThreadActionsSheetProps) {
   const firstItemRef = useRef<HTMLButtonElement | null>(null);
-  const sheetRef = useRef<HTMLDivElement | null>(null);
-  const { transition } = useMotionConfig();
-  const portalRoot = typeof document !== "undefined" ? document.body : null;
 
   useEffect(() => {
     if (!open) return;
     haptic(12);
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-    };
-    const handlePointer = (event: MouseEvent | TouchEvent) => {
-      const target = event.target as Node | null;
-      if (target && sheetRef.current?.contains(target)) return;
-      onClose();
-    };
-    window.addEventListener("keydown", handleKey);
-    window.addEventListener("mousedown", handlePointer);
-    window.addEventListener("touchstart", handlePointer);
-    const t = window.setTimeout(() => firstItemRef.current?.focus(), 90);
-    return () => {
-      window.removeEventListener("keydown", handleKey);
-      window.removeEventListener("mousedown", handlePointer);
-      window.removeEventListener("touchstart", handlePointer);
-      window.clearTimeout(t);
-    };
-  }, [open, onClose]);
-
-  useEffect(() => {
-    if (!open || typeof document === "undefined") return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
+    return undefined;
   }, [open]);
 
   const disabledReason = hasActiveSession
@@ -149,41 +115,26 @@ export const ThreadActionsSheet = memo(function ThreadActionsSheet({
     },
   ];
 
-  if (!portalRoot) return null;
-
-  return createPortal(
-    <AnimatePresence>
-      {open ? (
-        <motion.div
-          role="dialog"
-          aria-modal="true"
+  return (
+    <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <SheetPortal>
+        <SheetOverlay asChild className="z-[110] bg-black/42 backdrop-blur-[2px]">
+          <button type="button" aria-label="Close thread actions" onClick={onClose} />
+        </SheetOverlay>
+        <SheetContent
           aria-label="Thread actions"
-          className="fixed inset-0 z-[110] isolate"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={transition({ duration: 0.24, ease: [0.22, 1, 0.36, 1] })}
+          showCloseButton={false}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            firstItemRef.current?.focus();
+          }}
+          className="pointer-events-auto fixed right-3 top-[112px] z-[110] w-[min(calc(100vw-24px),320px)] overflow-hidden rounded-[34px] border border-white/[0.1] bg-[#171c23] px-4 py-3 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.92)] backdrop-blur-xl [backface-visibility:hidden] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-top-2 data-[state=closed]:slide-out-to-top-2 motion-reduce:animate-none sm:right-6 sm:top-[82px] sm:w-[332px]"
         >
-          <motion.button
-            type="button"
-            aria-label="Close thread actions"
-            onClick={onClose}
-            className="absolute inset-0 bg-black/42 backdrop-blur-[2px]"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={transition({ duration: 0.24 })}
-          />
-          <motion.div
-            ref={sheetRef}
-            role="menu"
-            aria-label="Thread actions"
-            className="pointer-events-auto absolute right-3 top-[112px] w-[min(calc(100vw-24px),320px)] overflow-hidden rounded-[34px] border border-white/[0.1] bg-[#171c23] px-4 py-3 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.92)] backdrop-blur-xl [backface-visibility:hidden] sm:right-6 sm:top-[82px] sm:w-[332px]"
-            initial={{ y: -10, opacity: 0, scale: 0.985 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: -6, opacity: 0, scale: 0.985 }}
-            transition={transition({ type: "spring", stiffness: 330, damping: 28, mass: 0.78 })}
-          >
+          <button type="button" className="sr-only" onClick={onClose}>
+            Close thread actions
+          </button>
+          <div>
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0))]"
@@ -198,7 +149,6 @@ export const ThreadActionsSheet = memo(function ThreadActionsSheet({
                     <button
                       ref={index === 0 ? firstItemRef : undefined}
                       type="button"
-                      role="menuitem"
                       onClick={action.onSelect}
                       disabled={disabled}
                       title={disabled ? action.disabledReason : undefined}
@@ -227,10 +177,9 @@ export const ThreadActionsSheet = memo(function ThreadActionsSheet({
                 );
               })}
             </ul>
-          </motion.div>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>,
-    portalRoot,
+          </div>
+        </SheetContent>
+      </SheetPortal>
+    </Sheet>
   );
 });

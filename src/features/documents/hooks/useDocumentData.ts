@@ -4,7 +4,7 @@
  * Document data normalization, filtering, and computed document sets.
  */
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { DocumentCardData } from "@features/documents/components/documentsHub/utils/documentHelpers";
 import { normalizeDocument } from "@features/documents/components/documentsHub/utils/documentHelpers";
 
@@ -46,11 +46,7 @@ export interface DocumentDataSlice {
   docsById: Record<string, DocumentCardData>;
   emptyFileCount: number;
 
-  // --- Filter toolbar keyboard nav ---
-  filterButtonRefs: React.MutableRefObject<Array<HTMLButtonElement | null>>;
-  onFilterKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   documentTypes: Array<{ id: string; label: string; icon: React.ReactNode }>;
-  filterIds: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +153,7 @@ export function useDocumentData({
   }, [allDocuments]);
 
   // -------------------------------------------------------------------------
-  // Filter toolbar keyboard navigation
+  // Filter toolbar options
   // -------------------------------------------------------------------------
 
   const documentTypes = useMemo(
@@ -168,45 +164,6 @@ export function useDocumentData({
       { id: "favorites", label: "Favorites", icon: null as React.ReactNode },
     ],
     [],
-  );
-
-  const filterIds: Array<string> = useMemo(
-    () => documentTypes.map((t) => t.id),
-    [documentTypes],
-  );
-
-  const filterButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
-
-  const focusFilterByIndex = useCallback((i: number) => {
-    filterButtonRefs.current[i]?.focus();
-  }, []);
-
-  const onFilterKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      const idx = filterIds.indexOf(filter);
-      let nextIdx = idx;
-
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-        e.preventDefault();
-        nextIdx = (idx + 1) % filterIds.length;
-      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-        e.preventDefault();
-        nextIdx = (idx - 1 + filterIds.length) % filterIds.length;
-      } else if (e.key === "Home") {
-        e.preventDefault();
-        nextIdx = 0;
-      } else if (e.key === "End") {
-        e.preventDefault();
-        nextIdx = filterIds.length - 1;
-      }
-
-      if (nextIdx !== idx) {
-        const nextId = filterIds[nextIdx];
-        setFilter(nextId);
-        focusFilterByIndex(nextIdx);
-      }
-    },
-    [filter, filterIds, focusFilterByIndex, setFilter],
   );
 
   // -------------------------------------------------------------------------
@@ -227,9 +184,6 @@ export function useDocumentData({
     filteredDocuments,
     docsById,
     emptyFileCount,
-    filterButtonRefs,
-    onFilterKeyDown,
     documentTypes,
-    filterIds,
   };
 }

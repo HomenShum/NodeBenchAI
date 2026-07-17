@@ -14,6 +14,7 @@ import {
   Variable,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ai-ui/tabs";
 import type {
   DeepSimClaim,
   DeepSimCounterModel,
@@ -388,6 +389,15 @@ function DecisionMemoViewInner({ memo: overrideMemo }: { memo?: DeepSimMemo }) {
     setSearchParams(next, { replace: true });
   };
 
+  const handleWorkflowChange = (nextWorkflow: string) => {
+    const matchingFixture = DEEP_SIM_FIXTURE_OPTIONS.find((option) =>
+      nextWorkflow === "founder_strategy"
+        ? option.key.includes("founder") || option.key.includes("strategy")
+        : !option.key.includes("founder") && !option.key.includes("strategy"),
+    );
+    if (matchingFixture) handleFixtureChange(matchingFixture.key);
+  };
+
   // Render immediately visible — no stagger gating on IntersectionObserver
   const stagger = useCallback(
     (_delay: string): React.CSSProperties => ({}),
@@ -465,35 +475,30 @@ function DecisionMemoViewInner({ memo: overrideMemo }: { memo?: DeepSimMemo }) {
         </div>
 
         {/* Workflow tabs */}
-        <div style={stagger("0.15s")} className="mt-6 flex gap-1 border-b border-white/[0.06]" role="tablist" aria-label="Workflow type">
+        <Tabs value={activeTab} onValueChange={handleWorkflowChange} className="contents">
+        <TabsList
+          style={stagger("0.15s")}
+          className="mt-6 flex h-auto justify-start gap-1 rounded-none border-b border-white/[0.06] bg-transparent p-0"
+          aria-label="Workflow type"
+        >
           {WORKFLOW_TABS.map((tab) => (
-            <button
+            <TabsTrigger
               key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              onClick={() => {
-                const matchingFixture = DEEP_SIM_FIXTURE_OPTIONS.find((o) =>
-                  tab.id === "founder_strategy"
-                    ? o.key.includes("founder") || o.key.includes("strategy")
-                    : !o.key.includes("founder") && !o.key.includes("strategy"),
-                );
-                if (matchingFixture) handleFixtureChange(matchingFixture.key);
-              }}
+              value={tab.id}
               className={cn(
-                "-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
+                "-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors data-[state=active]:bg-transparent data-[state=active]:text-content data-[state=active]:shadow-none",
                 activeTab === tab.id
                   ? "border-indigo-500 text-content"
                   : "border-transparent text-content-muted/70 hover:text-content-secondary",
               )}
             >
               {tab.label}
-            </button>
+            </TabsTrigger>
           ))}
-        </div>
+        </TabsList>
 
         {/* Tab panel content */}
-        <div role="tabpanel" aria-label={`${activeTab === "founder_strategy" ? "Founder Strategy" : "Investor Diligence"} content`}>
+        <TabsContent value={activeTab} className="mt-0" aria-label={`${activeTab === "founder_strategy" ? "Founder Strategy" : "Investor Diligence"} content`}>
 
         {/* Stats row */}
         <div style={stagger("0.2s")} className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Memo overview" data-agent-id="memo-overview">
@@ -620,7 +625,8 @@ function DecisionMemoViewInner({ memo: overrideMemo }: { memo?: DeepSimMemo }) {
           </div>
         </div>
 
-        </div>{/* end tabpanel */}
+        </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

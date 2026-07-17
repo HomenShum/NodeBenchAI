@@ -12,6 +12,12 @@
  */
 
 import { useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ai-ui/dropdown-menu";
 
 interface MessageActionsProps {
   /** The text/markdown to copy to clipboard. */
@@ -35,7 +41,6 @@ interface MessageActionsProps {
 export function MessageActions({ copyText, onRegenerate, onPin, onBranch, onWhy, onReact, onCompare, onShare }: MessageActionsProps) {
   const [copied, setCopied] = useState(false);
   const [reaction, setReaction] = useState<"up" | "down" | null>(null);
-  const [regenOpen, setRegenOpen] = useState(false);
 
   const copy = async () => {
     try {
@@ -65,26 +70,26 @@ export function MessageActions({ copyText, onRegenerate, onPin, onBranch, onWhy,
       </button>
 
       {onRegenerate && (
-        <div className="rd-msg-actions__regen">
-          <button
-            type="button"
-            className="rd-msg-actions__btn"
-            onClick={() => setRegenOpen((v) => !v)}
-            aria-expanded={regenOpen}
-            aria-haspopup="menu"
-            title="Regenerate"
-          >
-            <RegenIcon />
-          </button>
-          {regenOpen && (
-            <div className="rd-msg-actions__menu" role="menu" onMouseLeave={() => setRegenOpen(false)}>
-              <button role="menuitem" onClick={() => { onRegenerate(); setRegenOpen(false); }}>Regenerate</button>
-              <button role="menuitem" onClick={() => { onRegenerate("free"); setRegenOpen(false); }}>Try free tier</button>
-              <button role="menuitem" onClick={() => { onRegenerate("fast"); setRegenOpen(false); }}>Try fast tier</button>
-              <button role="menuitem" onClick={() => { onRegenerate("deep"); setRegenOpen(false); }}>Try deep tier</button>
-            </div>
-          )}
-        </div>
+        <DropdownMenu>
+          <div className="rd-msg-actions__regen">
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="rd-msg-actions__btn"
+                title="Regenerate"
+                aria-label="Regenerate"
+              >
+                <RegenIcon />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="rd-msg-actions__menu" align="start" sideOffset={4}>
+              <DropdownMenuItem onSelect={() => onRegenerate()}>Regenerate</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onRegenerate("free")}>Try free tier</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onRegenerate("fast")}>Try fast tier</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onRegenerate("deep")}>Try deep tier</DropdownMenuItem>
+            </DropdownMenuContent>
+          </div>
+        </DropdownMenu>
       )}
 
       {onPin && (

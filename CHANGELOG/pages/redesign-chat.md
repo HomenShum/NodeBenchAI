@@ -3,6 +3,23 @@
 Append-only lane for the public redesign chat, reproducible answer receipts, and their
 transition into an authenticated live conversation. Newest entries first.
 
+## 2026-07-16 - Normalize structured answer typography
+
+Structured answer copy now uses the compact product reading scale instead of an oversized
+display treatment: 14px at a calm 450 weight with a 1.55 line height. The answer card and
+mobile transcript use the existing spacing tokens for a quieter, more consistent rhythm.
+
+This is presentation-only. Browser comparison confirmed identical answer text, visible
+content, and accessibility snapshots; runtime provenance, controls, and touch targets are
+unchanged. The focused chat guards, typecheck, design-system suite, and production build
+pass, and the visual-rubric type-scale score improves from 0 to 1 without regression.
+
+**PR / canonical main commit**: pending CI-gated candidate.
+
+**Evidence state**: local responsive evidence remains outside git under `.qa/evidence/`.
+
+**Author**: Homen Shum + Codex.
+
 ## 2026-07-16 - Continue an immutable answer in live chat
 
 Reproducible answer receipts now separate two intents that were previously collapsed:

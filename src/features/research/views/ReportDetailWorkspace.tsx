@@ -17,6 +17,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { FileText, LayoutGrid, Map as MapIcon, FileStack } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ai-ui/tabs";
 import MobileReportSurface from "@/features/research/views/MobileReportSurface";
 import { CardInspector } from "@/features/research/components/CardInspector";
 import type {
@@ -177,7 +178,9 @@ export function ReportDetailWorkspace({
       />
 
       {/* Desktop cards workspace — hidden on mobile */}
-      <div
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as WorkspaceTab)}
         data-testid="report-detail-workspace"
         className="hidden md:flex h-full min-h-0 flex-col"
       >
@@ -192,16 +195,15 @@ export function ReportDetailWorkspace({
 
       <TabBar
         activeTab={activeTab}
-        onChange={setActiveTab}
         cardCount={tabCounts.cards}
         sourceCount={tabCounts.sources}
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {activeTab === "brief" && (
+        <TabsContent value="brief" className="mt-0 flex min-h-0 flex-1 overflow-hidden">
           <BriefTab cards={columns[0]?.cards ?? []} />
-        )}
-        {activeTab === "cards" && (
+        </TabsContent>
+        <TabsContent value="cards" className="mt-0 flex min-h-0 flex-1 overflow-hidden">
           <div className="flex flex-1 min-h-0 gap-3 overflow-hidden">
             <div className="flex min-w-0 flex-1 overflow-hidden">
               <CardsTab
@@ -233,16 +235,16 @@ export function ReportDetailWorkspace({
               />
             </div>
           </div>
-        )}
-        {activeTab === "map" && (
+        </TabsContent>
+        <TabsContent value="map" className="mt-0 flex min-h-0 flex-1 overflow-hidden">
           <MapTab
             cards={columns.flatMap((c) => c.cards)}
             rootUri={columns[0]?.uri ?? rootUri}
           />
-        )}
-        {activeTab === "sources" && (
+        </TabsContent>
+        <TabsContent value="sources" className="mt-0 flex min-h-0 flex-1 overflow-hidden">
           <SourcesTab cards={columns.flatMap((c) => c.cards)} />
-        )}
+        </TabsContent>
       </div>
 
       {compareTray.length > 0 && (
@@ -251,7 +253,7 @@ export function ReportDetailWorkspace({
           onClear={() => setCompareTray([])}
         />
       )}
-      </div>
+      </Tabs>
     </>
   );
 }
@@ -340,12 +342,10 @@ type TabDef = {
 
 function TabBar({
   activeTab,
-  onChange,
   cardCount,
   sourceCount,
 }: {
   activeTab: WorkspaceTab;
-  onChange: (t: WorkspaceTab) => void;
   cardCount: number;
   sourceCount: number;
 }) {
@@ -359,23 +359,19 @@ function TabBar({
     { id: "sources", label: "Sources", icon: FileStack, count: sourceCount },
   ];
   return (
-    <div
-      role="tablist"
+    <TabsList
       aria-label="Workspace view"
-      className="flex items-center gap-1 border-b border-white/[0.06] bg-white/[0.01] px-3"
+      className="flex h-auto items-center justify-start gap-1 rounded-none border-b border-white/[0.06] bg-white/[0.01] p-0 px-3"
     >
       {tabs.map((t) => {
         const isActive = activeTab === t.id;
         const IconCmp = t.icon;
         return (
-          <button
+          <TabsTrigger
             key={t.id}
-            role="tab"
-            type="button"
-            aria-selected={isActive}
-            aria-disabled={t.disabled}
-            onClick={() => !t.disabled && onChange(t.id)}
-            className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition ${
+            value={t.id}
+            disabled={t.disabled}
+            className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none ${
               t.disabled
                 ? "cursor-not-allowed text-white/25"
                 : isActive
@@ -408,10 +404,10 @@ function TabBar({
                 className="absolute inset-x-0 -bottom-px h-px bg-[#d97757]"
               />
             )}
-          </button>
+          </TabsTrigger>
         );
       })}
-    </div>
+    </TabsList>
   );
 }
 

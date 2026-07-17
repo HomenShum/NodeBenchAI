@@ -4,6 +4,7 @@
 
 import React, { memo } from "react";
 import { Star, Trash2, X, Plus, Loader2, Sparkles } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ai-ui/toggle-group";
 
 export type DocumentType = {
   id: string;
@@ -18,8 +19,6 @@ type Props = {
   filter: string;
   setFilter: (id: string) => void;
   countsByFilter: Record<string, number>;
-  filterButtonRefs: React.MutableRefObject<Array<HTMLButtonElement | null>>;
-  onFilterKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   onUploadClick: () => void;
@@ -40,8 +39,6 @@ const FiltersToolsBar = memo(function FiltersToolsBar(props: Props) {
     filter,
     setFilter,
     countsByFilter,
-    filterButtonRefs,
-    onFilterKeyDown,
     viewMode,
     setViewMode,
     loggedInUser,
@@ -58,30 +55,26 @@ const FiltersToolsBar = memo(function FiltersToolsBar(props: Props) {
 
   return (
     <div className="flex items-center justify-between gap-4 py-4">
-      <div
+      <ToggleGroup
+        type="single"
+        value={filter}
+        onValueChange={(value) => value && setFilter(value)}
         className="flex flex-wrap items-center gap-2"
-        role="tablist"
         aria-label="Document filters"
-        onKeyDown={onFilterKeyDown}
       >
-        {documentTypes.map((t, idx) => {
+        {documentTypes.map((t) => {
           const isActive = filter === t.id;
           const count = countsByFilter[t.id] ?? 0;
           return (
-            <button
+            <ToggleGroupItem
               key={t.id}
-              ref={(el) => {
-                filterButtonRefs.current[idx] = el;
-              }}
-              onClick={() => setFilter(t.id)}
+              value={t.id}
+              aria-label={`Filter by ${t.label}`}
               className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium border transition-all duration-200 ${
                 isActive
                   ? "bg-content text-surface border-content shadow-sm"
                   : "bg-surface text-content-secondary border-edge hover:border-content-muted/30 hover:text-content"
               }`}
-              role="tab"
-              aria-selected={isActive}
-              tabIndex={isActive ? 0 : -1}
             >
               <span className={isActive ? "opacity-90" : "opacity-70"}>{t.icon}</span>
               <span>{t.label}</span>
@@ -94,15 +87,21 @@ const FiltersToolsBar = memo(function FiltersToolsBar(props: Props) {
                   ({count})
                 </span>
               )}
-            </button>
+            </ToggleGroupItem>
           );
         })}
-      </div>
+      </ToggleGroup>
 
       <div className="flex items-center gap-3">
-        <div className="flex gap-0.5 rounded-lg border border-edge bg-surface-secondary p-1 shadow-sm">
-          <button
-            onClick={() => setViewMode("cards")}
+        <ToggleGroup
+          type="single"
+          value={viewMode}
+          onValueChange={(value) => value && setViewMode(value as ViewMode)}
+          aria-label="Document view"
+          className="flex gap-0.5 rounded-lg border border-edge bg-surface-secondary p-1 shadow-sm"
+        >
+          <ToggleGroupItem
+            value="cards"
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
               viewMode === "cards"
                 ? "border border-edge bg-surface text-content shadow-sm"
@@ -110,9 +109,9 @@ const FiltersToolsBar = memo(function FiltersToolsBar(props: Props) {
             }`}
           >
             Cards
-          </button>
-          <button
-            onClick={() => setViewMode("list")}
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="list"
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
               viewMode === "list"
                 ? "border border-edge bg-surface text-content shadow-sm"
@@ -120,9 +119,9 @@ const FiltersToolsBar = memo(function FiltersToolsBar(props: Props) {
             }`}
           >
             List
-          </button>
-          <button
-            onClick={() => setViewMode("segmented")}
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="segmented"
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
               viewMode === "segmented"
                 ? "border border-edge bg-surface text-content shadow-sm"
@@ -131,8 +130,8 @@ const FiltersToolsBar = memo(function FiltersToolsBar(props: Props) {
             title="Show grouped sections"
           >
             Grouped
-          </button>
-        </div>
+          </ToggleGroupItem>
+        </ToggleGroup>
 
         <button
           onClick={onUploadClick}

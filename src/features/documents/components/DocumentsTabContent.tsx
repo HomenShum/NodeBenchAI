@@ -49,8 +49,6 @@ export interface DocumentsTabContentProps {
   setDocViewMode: (mode: ViewMode) => void;
   documentTypes: DocumentType[];
   countsByFilter: Record<string, number>;
-  filterButtonRefs: React.MutableRefObject<Array<HTMLButtonElement | null>>;
-  onFilterKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
 
   // Documents data
   filteredDocuments: DocumentCardData[];
@@ -143,8 +141,6 @@ export const DocumentsTabContent = memo(function DocumentsTabContent(
     setDocViewMode,
     documentTypes,
     countsByFilter,
-    filterButtonRefs,
-    onFilterKeyDown,
     filteredDocuments,
     orderedDocuments,
     groupedDocuments,
@@ -399,8 +395,6 @@ export const DocumentsTabContent = memo(function DocumentsTabContent(
               filter={filter}
               setFilter={setFilter}
               countsByFilter={countsByFilter}
-              filterButtonRefs={filterButtonRefs}
-              onFilterKeyDown={onFilterKeyDown}
               viewMode={docViewMode}
               setViewMode={setDocViewMode}
               loggedInUser={loggedInUser}

@@ -8,6 +8,7 @@ import {
     FileText, Youtube, Globe, Filter, ChevronDown, Link2,
     ShieldCheck, Clock, Eye
 } from 'lucide-react';
+import { Sheet, SheetContent, SheetOverlay, SheetPortal } from '@/components/ai-ui/sheet';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -136,13 +137,13 @@ export function EvidenceDrawer({
     const verifiedCount = sources.filter(s => s.verified).length;
     const unverifiedCount = sources.length - verifiedCount;
 
-    if (!isOpen) return null;
-
     return (
-        <div
-            className={`fixed inset-y-0 right-0 w-[400px] bg-surface border-l border-edge shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300 ${className}`}
-            role="dialog"
-            aria-modal="true"
+        <Sheet open={isOpen} onOpenChange={(next) => { if (!next) onClose(); }}>
+          <SheetPortal>
+            <SheetOverlay className="bg-black/30" />
+          <SheetContent
+            showCloseButton={false}
+            className={`inset-y-0 right-0 w-[400px] max-w-full bg-surface border-l border-edge shadow-2xl z-50 flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right motion-reduce:animate-none ${className}`}
             aria-labelledby="evidence-drawer-title"
         >
             {/* Header */}
@@ -288,7 +289,9 @@ export function EvidenceDrawer({
                     Click any source to open in new tab
                 </p>
             </div>
-        </div>
+          </SheetContent>
+          </SheetPortal>
+        </Sheet>
     );
 }
 

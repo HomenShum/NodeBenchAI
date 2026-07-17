@@ -73,8 +73,6 @@ export default function DocumentsWorkspaceSurface({
     orderDocsBy,
     saveOrderForFilter,
     saveOrderForSegmented,
-    filterButtonRefs,
-    onFilterKeyDown,
   } = order;
   const {
     handleChatWithFile,
@@ -167,8 +165,6 @@ export default function DocumentsWorkspaceSurface({
                   setDocViewMode: overlay.setDocViewMode,
                   documentTypes,
                   countsByFilter: data.countsByFilter as Record<string, number>,
-                  filterButtonRefs,
-                  onFilterKeyDown,
                   filteredDocuments: data.filteredDocuments,
                   orderedDocuments: data.orderedDocuments,
                   groupedDocuments: data.groupedDocuments,

@@ -1,6 +1,15 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useDeferredValue, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { DialogOverlay } from "@/shared/components/DialogOverlay";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ai-ui/dialog";
+import {
+    Command as CommandPrimitive,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+    CommandShortcut,
+} from "@/components/ai-ui/command";
 import { useQuery} from "convex/react";
 import { useConvexApi } from "@/lib/convexApi";
 import {
@@ -57,9 +66,7 @@ export function CommandPalette({
     const navigate = useNavigate();
     const [query, setQuery] = useState('');
     const deferredQuery = useDeferredValue(query);
-    const [selectedIndex, setSelectedIndex] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
-    const listRef = useRef<HTMLDivElement>(null);
     const navigateToSurface = useCallback((surfaceId: CockpitSurfaceId) => {
         navigate(buildCockpitPath({ surfaceId }));
         onClose();
@@ -288,63 +295,21 @@ export function CommandPalette({
         settings: 'Settings'
     };
 
-    // Keyboard navigation
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setSelectedIndex(prev => Math.min(prev + 1, filteredCommands.length - 1));
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setSelectedIndex(prev => Math.max(prev - 1, 0));
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                const selectedCommand = filteredCommands[selectedIndex];
-                if (selectedCommand) {
-                    executeCommand(selectedCommand);
-                }
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                onClose();
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, filteredCommands, selectedIndex, onClose, executeCommand]);
-
-    // Auto-focus input when opened
-    useEffect(() => {
-        if (isOpen) {
-            setQuery('');
-            setSelectedIndex(0);
-            requestAnimationFrame(() => inputRef.current?.focus());
-        }
-    }, [isOpen]);
-
-    // Scroll selected item into view
-    useEffect(() => {
-        if (listRef.current && isOpen) {
-            const selectedElement = listRef.current.querySelector(`[data-index="${selectedIndex}"]`);
-            selectedElement?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        }
-    }, [selectedIndex, isOpen]);
-
     if (!isOpen) return null;
 
-    let commandIndex = 0;
-
     return (
-        <DialogOverlay
-            isOpen={isOpen}
-            onClose={onClose}
-            ariaLabel="Command palette"
-            positionClassName="items-start justify-center pt-[15vh] px-4"
-            backdropClassName="bg-black/50 backdrop-blur-sm"
-            contentClassName="w-full max-w-2xl bg-surface rounded-lg shadow-2xl dark:shadow-black/40 overflow-hidden border border-edge"
-        >
+        <Dialog open={isOpen} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+          <DialogContent
+            className="top-[15vh] w-[calc(100%-2rem)] max-w-2xl translate-y-0 gap-0 overflow-hidden border-edge bg-surface p-0 shadow-2xl dark:shadow-black/40"
+            aria-describedby={undefined}
+            onOpenAutoFocus={(event) => {
+                event.preventDefault();
+                setQuery('');
+                requestAnimationFrame(() => inputRef.current?.focus());
+            }}
+          >
+            <DialogTitle className="sr-only">Command palette</DialogTitle>
+            <CommandPrimitive shouldFilter={false} label="Search commands" className="bg-transparent text-content">
             {/* Palette Header */}
             <div className="flex items-center justify-between px-4 pt-3 pb-2">
                 <div className="flex items-center gap-2">
@@ -358,17 +323,15 @@ export function CommandPalette({
             </div>
 
             {/* Search Input */}
-            <div className="flex items-center gap-3 px-4 py-2.5 border-b border-edge">
-                <Search className="w-5 h-5 text-content-muted flex-shrink-0" />
-                <label htmlFor="command-palette-input" className="sr-only">Search commands</label>
-                <input
+            <div className="border-b border-edge">
+                <CommandInput
                     id="command-palette-input"
                     ref={inputRef}
-                    type="text"
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onValueChange={setQuery}
                     placeholder="Search commands or navigate…"
-                    className="flex-1 bg-transparent border-none outline-none text-content placeholder:text-content-muted dark:placeholder-gray-500 text-sm"
+                    className="text-content placeholder:text-content-muted dark:placeholder-gray-500"
+                    aria-label="Search commands"
                     data-agent-id="cmd:search"
                     data-agent-action="search"
                     data-agent-label="Search commands"
@@ -376,47 +339,36 @@ export function CommandPalette({
             </div>
 
             {/* Commands List */}
-            <div
-                ref={listRef}
+            <CommandList
+                accessibleLabel="Commands"
                 className="max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent"
             >
                 {filteredCommands.length === 0 ? (
-                    <div className="py-12 text-center text-content-muted text-sm">
+                    <CommandEmpty className="py-12 text-center text-content-muted text-sm">
                         <FileSearch className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p>No commands found</p>
                         <p className="text-xs mt-1">Try a different search term</p>
-                    </div>
+                    </CommandEmpty>
                 ) : (
                     Object.entries(groupedCommands).map(([section, commands]) => (
-                        <div key={section} className="py-2">
-                            <div className="px-4 py-1.5 text-xs font-semibold text-content-secondary">
-                                {sectionLabels[section] || section}
-                            </div>
+                        <CommandGroup
+                            key={section}
+                            heading={sectionLabels[section] || section}
+                            className="py-2 [&_[cmdk-group-heading]]:px-4 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-content-secondary"
+                        >
                             {commands.map((cmd) => {
-                                const currentIndex = commandIndex++;
-                                const isSelected = currentIndex === selectedIndex;
-
                                 return (
-                                    <button
+                                    <CommandItem
                                         key={cmd.id}
-                                        data-index={currentIndex}
+                                        value={cmd.id}
+                                        keywords={[cmd.label, cmd.description ?? "", ...cmd.keywords]}
                                         data-agent-id={`cmd:${cmd.id}`}
                                         data-agent-action="navigate"
                                         data-agent-label={cmd.label}
-                                        onClick={() => executeCommand(cmd)}
-                                        onMouseEnter={() => setSelectedIndex(currentIndex)}
-                                        className={`
-                                                    w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors border-l-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring
-                                                    ${isSelected
-                                                ? 'bg-surface-secondary text-content border-l-[rgb(79, 70, 229)]'
-                                                : 'text-content-secondary hover:bg-surface-hover border-l-transparent'
-                                            }
-                                                `}
+                                        onSelect={() => executeCommand(cmd)}
+                                        className="group w-full cursor-pointer gap-3 rounded-none border-l-2 border-l-transparent px-4 py-2.5 text-left text-content-secondary transition-colors hover:bg-surface-hover data-[selected=true]:border-l-[rgb(79,70,229)] data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content"
                                     >
-                                        <div className={`
-                                                    flex items-center justify-center w-8 h-8 rounded-lg
-                                                    ${isSelected ? 'bg-surface text-content' : 'bg-surface-secondary text-content-muted'}
-                                                `}>
+                                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-secondary text-content-muted group-data-[selected=true]:bg-surface group-data-[selected=true]:text-content">
                                             {cmd.icon}
                                         </div>
                                         <div className="flex-1 min-w-0">
@@ -426,19 +378,17 @@ export function CommandPalette({
                                             )}
                                         </div>
                                         {cmd.shortcut ? (
-                                            <kbd className="hidden sm:block px-2 py-1 bg-surface-secondary rounded text-xs font-mono text-content-secondary">
+                                            <CommandShortcut className="hidden rounded bg-surface-secondary px-2 py-1 font-mono text-content-secondary sm:block">
                                                 {cmd.shortcut}
-                                            </kbd>
-                                        ) : isSelected ? (
-                                            <ArrowRight className="w-4 h-4 text-content-muted" />
-                                        ) : null}
-                                    </button>
+                                            </CommandShortcut>
+                                        ) : <ArrowRight className="hidden h-4 w-4 text-content-muted group-data-[selected=true]:block" />}
+                                    </CommandItem>
                                 );
                             })}
-                        </div>
+                        </CommandGroup>
                     ))
                 )}
-            </div>
+            </CommandList>
 
             {/* Footer Hints */}
             <div className="px-4 py-2 border-t border-edge bg-surface-secondary flex items-center justify-between text-xs text-content-secondary">
@@ -457,6 +407,8 @@ export function CommandPalette({
                     <span>Command Palette</span>
                 </span>
             </div>
-        </DialogOverlay>
+            </CommandPrimitive>
+          </DialogContent>
+        </Dialog>
     );
 }

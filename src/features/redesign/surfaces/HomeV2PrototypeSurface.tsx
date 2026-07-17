@@ -5,6 +5,7 @@ import { UniversalComposer, type RouterTier } from "../components/UniversalCompo
 import type { LiveArtifactsResult, LiveArtifactSourceRow } from "../hooks/useLiveArtifacts";
 import type { ReportCardData } from "../fixtures";
 import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ai-ui/toggle-group";
 
 interface HomeAskContext {
   reportId?: string;
@@ -159,6 +160,7 @@ const reportEntities = [
 type PrototypeReportEntity = (typeof reportEntities)[number];
 type ReportsRailStatus = "verified" | "review" | "stale" | "drafting" | "monitoring";
 type ReportsRailItem = {
+  id?: string;
   icon: string;
   name: string;
   status?: ReportsRailStatus;
@@ -235,6 +237,7 @@ function buildLiveRailGroups(reports: ReportCardData[]): typeof reportsRailGroup
     else if (/monitor|watch/.test(kind)) groupLabel = "Monitoring";
     if (!groups[groupLabel]) groups[groupLabel] = [];
     groups[groupLabel].push({
+      id: report.id,
       icon: report.entity.slice(0, 1).toUpperCase(),
       name: report.entity,
       status: statusMap[report.status] ?? "review",
@@ -1031,21 +1034,26 @@ export function PrototypeV2LeftRail({ surface, onAsk, selectedEntity = "Anthropi
             />
           </div>
         </div>
-        <div className="lr-filters" role="tablist" aria-label="Filter reports by status">
+        <ToggleGroup
+          type="single"
+          value={reportsRailFilter}
+          onValueChange={(value) => {
+            if (value) setReportsRailFilter(value as (typeof reportRailFilters)[number]["id"]);
+          }}
+          className="lr-filters"
+          aria-label="Filter reports by status"
+        >
           {reportRailFilters.map((filter) => (
-            <button
+            <ToggleGroupItem
               key={filter.id}
-              type="button"
-              role="tab"
-              aria-selected={reportsRailFilter === filter.id}
+              value={filter.id}
               className={`lr-filter ${reportsRailFilter === filter.id ? "active" : ""}`}
               data-filter={filter.id}
-              onClick={() => setReportsRailFilter(filter.id)}
             >
               {filter.label}
-            </button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
         <div className="lr-body">
           {filteredGroups.map((group) => (
             <ReportsV3RailGroup
@@ -1196,7 +1204,7 @@ function ReportsRailGroup({
         const selected = selectedName ? selectedName === item.name : item.active;
         return (
           <button
-            key={`${label}-${item.name}`}
+            key={`${label}-${item.id ?? item.name}`}
             className={`rd-v2-nav-row rd-v2-report-nav-row ${selected ? "is-active" : ""}`}
             type="button"
             data-status={item.status}
@@ -1544,7 +1552,7 @@ function ReportsV3RailGroup({
             const selected = selectedName ? selectedName === item.name : item.active;
             return (
               <button
-                key={`${label}-${item.name}`}
+                key={`${label}-${item.id ?? item.name}`}
                 className={`lr-entity ${selected ? "active" : ""}`}
                 type="button"
                 data-name={item.name}

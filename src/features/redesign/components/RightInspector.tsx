@@ -11,6 +11,7 @@ import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtif
 import { VoiceCostBadge } from "@/features/voice";
 import { useCurrentUserId } from "@/hooks/useCurrentUser";
 import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ai-ui/tabs";
 
 export type AgentRailStatus = "done" | "running" | "queued" | "blocked" | "idle";
 
@@ -86,27 +87,26 @@ export function RightInspector({ activeLiveArtifactDetail, agentSnapshot }: Righ
       data-agent-context-ref={graphPacket?.contextRef ?? ""}
       data-agent-context-rank={graphPacket?.agentRank ?? ""}
     >
-      <div className="chat-ctx-tabs" role="tablist" aria-label="Chat context panels">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ChatContextTab)}>
+      <TabsList className="chat-ctx-tabs" aria-label="Chat context panels">
         {chatContextTabs.map((tab) => (
-          <button
+          <TabsTrigger
             key={tab.id}
+            value={tab.id}
             id={`chat-context-tab-${tab.id}`}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
             aria-controls={`chat-context-panel-${tab.id}`}
             className={`chat-ctx-tab ${activeTab === tab.id ? "active" : ""}`}
-            onClick={() => setActiveTab(tab.id)}
           >
             {tab.label}
-          </button>
+          </TabsTrigger>
         ))}
-      </div>
+      </TabsList>
 
-      <div
+      <TabsContent
+        value="session"
+        forceMount
         id="chat-context-panel-session"
         className={`chat-ctx-panel ${activeTab === "session" ? "active" : ""}`}
-        role="tabpanel"
         aria-labelledby="chat-context-tab-session"
         hidden={activeTab !== "session"}
       >
@@ -116,17 +116,19 @@ export function RightInspector({ activeLiveArtifactDetail, agentSnapshot }: Righ
           </div>
         )}
         <SessionContextPanel snapshot={resolvedAgentSnapshot} />
-      </div>
+      </TabsContent>
 
-      <div
+      <TabsContent
+        value="trace"
+        forceMount
         id="chat-context-panel-trace"
         className={`chat-ctx-panel ${activeTab === "trace" ? "active" : ""}`}
-        role="tabpanel"
         aria-labelledby="chat-context-tab-trace"
         hidden={activeTab !== "trace"}
       >
         <TraceContextPanel snapshot={resolvedAgentSnapshot} graphPacket={graphPacket} />
-      </div>
+      </TabsContent>
+      </Tabs>
     </aside>
   );
 }

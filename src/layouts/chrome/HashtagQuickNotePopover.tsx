@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useRef } from "react";
-import ReactDOM from "react-dom";
+import React, { useMemo } from "react";
 import { Id } from "../../../convex/_generated/dataModel";
 import { X, ExternalLink } from "lucide-react";
 import { useQuery, useMutation, useAction} from "convex/react";
 import { useConvexApi } from "@/lib/convexApi";
 import { toast } from "sonner";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ai-ui/popover";
 
 interface HashtagQuickNotePopoverProps {
   isOpen: boolean;
@@ -14,57 +14,6 @@ interface HashtagQuickNotePopoverProps {
   onClose: () => void;
 }
 
-function ensurePortalRoot(): HTMLElement {
-  let root = document.getElementById("hashtag-popover-root");
-  if (!root) {
-    root = document.createElement("div");
-    root.id = "hashtag-popover-root";
-    document.body.appendChild(root);
-  }
-  return root;
-}
-
-function useAnchoredPosition(anchorEl: HTMLElement | null, deps: any[]) {
-  const [pos, setPos] = React.useState({ top: 0, left: 0 });
-
-  const recompute = React.useCallback(() => {
-    if (!anchorEl) return;
-    const rect = anchorEl.getBoundingClientRect();
-    const margin = 8;
-    const width = Math.min(640, Math.max(360, rect.width));
-    const height = 420;
-
-    // Default place below
-    let top = rect.bottom + margin + window.scrollY;
-    let placement: "bottom" | "top" = "bottom";
-    // If overflow bottom, place above
-    if (top + height > window.scrollY + window.innerHeight) {
-      top = rect.top - margin - height + window.scrollY;
-      placement = "top";
-    }
-
-    let left = rect.left + window.scrollX;
-    // If overflow right, shift left
-    if (left + width > window.scrollX + window.innerWidth - margin) {
-      left = Math.max(margin, window.scrollX + window.innerWidth - margin - width);
-    }
-
-    setPos({ top, left });
-  }, [anchorEl]);
-
-  React.useLayoutEffect(() => {
-    recompute();
-    window.addEventListener("resize", recompute);
-    window.addEventListener("scroll", recompute, true);
-    return () => {
-      window.removeEventListener("resize", recompute);
-      window.removeEventListener("scroll", recompute, true);
-    };
-  }, [recompute, ...deps]);
-
-  return pos;
-}
-
 export default function HashtagQuickNotePopover({
   isOpen,
   dossierId,
@@ -72,51 +21,23 @@ export default function HashtagQuickNotePopover({
   anchorEl,
   onClose,
 }: HashtagQuickNotePopoverProps) {
-  const portalRoot = useMemo(() => (typeof window !== "undefined" ? ensurePortalRoot() : null), []);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const virtualAnchorRef = useMemo(() => ({ current: anchorEl }), [anchorEl]);
+  if (!dossierId || !anchorEl) return null;
 
-  const { top, left } = useAnchoredPosition(anchorEl, [isOpen, dossierId]);
-
-  // Close on Escape
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, onClose]);
-
-  // Close on click outside
-  useEffect(() => {
-    if (!isOpen) return;
-    const onClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    window.addEventListener("mousedown", onClick);
-    return () => window.removeEventListener("mousedown", onClick);
-  }, [isOpen, onClose]);
-
-  if (!isOpen || !dossierId || !portalRoot) return null;
-
-  return ReactDOM.createPortal(
-    <div
-      ref={containerRef}
-      style={{
-        position: "absolute",
-        top: `${top}px`,
-        left: `${left}px`,
-        width: "640px",
-        maxHeight: "420px",
-        zIndex: 9999,
-      }}
-      className="bg-surface border border-edge rounded-lg shadow-2xl overflow-hidden"
-    >
+  return (
+    <Popover open={isOpen} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <PopoverAnchor virtualRef={virtualAnchorRef} />
+      <PopoverContent
+        side="bottom"
+        align="start"
+        sideOffset={8}
+        collisionPadding={8}
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        className="z-[9999] w-[min(640px,calc(100vw-16px))] max-h-[420px] bg-surface border border-edge rounded-lg shadow-2xl overflow-hidden p-0"
+      >
       <HashtagContent dossierId={dossierId} hashtag={hashtag || ""} onClose={onClose} />
-    </div>,
-    portalRoot
+      </PopoverContent>
+    </Popover>
   );
 }
 

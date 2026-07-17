@@ -1,7 +1,8 @@
 import React from "react";
-import { createPortal } from "react-dom";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 import { Mail, CalendarDays } from "lucide-react";
+import { Checkbox } from "@/components/ai-ui/checkbox";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ai-ui/hover-card";
 
 export type AgendaMiniKind = "task" | "event" | "holiday" | "note";
 
@@ -161,74 +162,10 @@ export const AgendaMiniRow: React.FC<AgendaMiniRowProps> = React.memo(function A
   );
   const time = kind === "event" ? eventTime(item) : undefined;
   const id = String(item?._id ?? "");
-  const [hovered, setHovered] = React.useState(false);
-  const anchorRef = React.useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
-  const openHoverTimerRef = React.useRef<number | null>(null);
-  const closeHoverTimerRef = React.useRef<number | null>(null);
-
-  const updatePosition = React.useCallback(() => {
-    const el = anchorRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const width = 256; // w-64
-    const margin = 8;
-    let left = rect.right - width; // align right edges
-    if (left < margin) left = margin;
-    if (left + width > window.innerWidth - margin) left = window.innerWidth - margin - width;
-    const top = rect.bottom + 4; // mt-1
-    setPos({ top, left });
-  }, []);
-
-  React.useEffect(() => {
-    if (!hovered) return;
-    updatePosition();
-    const onScroll = () => updatePosition();
-    const onResize = () => updatePosition();
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", onResize);
-    return () => {
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [hovered, updatePosition]);
-
-  React.useEffect(() => {
-    return () => {
-      if (openHoverTimerRef.current) window.clearTimeout(openHoverTimerRef.current);
-      if (closeHoverTimerRef.current) window.clearTimeout(closeHoverTimerRef.current);
-    };
-  }, []);
-
-  const openHoverCard = React.useCallback(() => {
-    if (closeHoverTimerRef.current) {
-      window.clearTimeout(closeHoverTimerRef.current);
-      closeHoverTimerRef.current = null;
-    }
-    if (hovered) return;
-    if (openHoverTimerRef.current) window.clearTimeout(openHoverTimerRef.current);
-    openHoverTimerRef.current = window.setTimeout(() => {
-      updatePosition();
-      setHovered(true);
-      openHoverTimerRef.current = null;
-    }, 90);
-  }, [hovered, updatePosition]);
-
-  const closeHoverCard = React.useCallback(() => {
-    if (openHoverTimerRef.current) {
-      window.clearTimeout(openHoverTimerRef.current);
-      openHoverTimerRef.current = null;
-    }
-    if (closeHoverTimerRef.current) window.clearTimeout(closeHoverTimerRef.current);
-    closeHoverTimerRef.current = window.setTimeout(() => {
-      setHovered(false);
-      closeHoverTimerRef.current = null;
-    }, 120);
-  }, []);
-
   return (
-    <div
-      ref={anchorRef}
+    <HoverCard openDelay={90} closeDelay={120}>
+      <HoverCardTrigger asChild>
+        <div
       data-agenda-mini-row
       data-note-id={kind === 'note' ? id : undefined}
       data-event-id={kind === 'event' ? id : undefined}
@@ -246,27 +183,21 @@ export const AgendaMiniRow: React.FC<AgendaMiniRowProps> = React.memo(function A
       tabIndex={onSelect ? 0 : -1}
       onClick={() => onSelect?.(id)}
       onKeyDown={(e) => { if (onSelect && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onSelect(id); } }}
-      onMouseEnter={openHoverCard}
-      onMouseLeave={closeHoverCard}
-      onFocus={openHoverCard}
-      onBlur={closeHoverCard}
     >
       <span className={`absolute left-0 top-0 bottom-0 w-0.5 ${stripeClass(kind, item?.status)}`} aria-hidden />
       <div className="min-w-0 flex flex-col gap-0.5">
         <div className="flex items-center gap-2 min-w-0 flex-wrap">
           {kind === 'task' && showCheckbox ? (
-            <input
-              type="checkbox"
+            <Checkbox
               checked={String(item?.status ?? 'todo') === 'done'}
-              onChange={(e) => {
-                e.stopPropagation();
+              onCheckedChange={(checked) => {
                 const tid = (item?._id ?? "") as Id<any>;
-                onToggleComplete?.(tid, e.target.checked);
+                onToggleComplete?.(tid, checked === true);
               }}
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
               aria-label={String(item?.status ?? 'todo') === 'done' ? 'Mark task as not done' : 'Mark task as done'}
-              className="h-3.5 w-3.5 rounded border-edge text-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/50 bg-surface dark:bg-surface"
+              className="h-3.5 w-3.5 rounded border-edge bg-surface text-[var(--accent-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-primary)]/50 dark:bg-surface"
             />
           ) : null}
           <span
@@ -286,13 +217,15 @@ export const AgendaMiniRow: React.FC<AgendaMiniRowProps> = React.memo(function A
           <span className={`truncate text-xs ${kind === 'task' && String(item?.status ?? 'todo') === 'done' ? 'text-content-secondary line-through' : 'text-content'}`}>{title}</span>
         </div>
       </div>
-      {hovered && pos && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed z-[9999] w-64 max-w-[80vw] rounded-md border border-edge bg-surface shadow-lg p-2 text-content"
-          style={{ top: pos.top, left: pos.left }}
-          onMouseEnter={openHoverCard}
-          onMouseLeave={closeHoverCard}
-        >
+        </div>
+      </HoverCardTrigger>
+      <HoverCardContent
+        align="end"
+        side="bottom"
+        sideOffset={4}
+        collisionPadding={8}
+        className="z-[9999] w-64 max-w-[80vw] border-edge bg-surface p-2 text-content shadow-lg"
+      >
           {/* Header */}
           <div className="flex items-center justify-between gap-2">
             <div className="truncate text-xs font-semibold" title={title}>{title}</div>
@@ -383,10 +316,8 @@ export const AgendaMiniRow: React.FC<AgendaMiniRowProps> = React.memo(function A
               </>
             )}
           </div>
-        </div>,
-        document.body
-      )}
-    </div>
+      </HoverCardContent>
+    </HoverCard>
   );
 });
 

@@ -125,11 +125,7 @@ export interface UseDocumentWorkspaceStateReturn {
   docsById: Record<string, DocumentCardData>;
   emptyFileCount: number;
 
-  // --- Filter toolbar keyboard nav ---
-  filterButtonRefs: React.MutableRefObject<Array<HTMLButtonElement | null>>;
-  onFilterKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   documentTypes: Array<{ id: string; label: string; icon: React.ReactNode }>;
-  filterIds: string[];
 
   // --- CRUD handlers ---
   handleDeleteDocument: (documentId: Id<"documents">) => void;
@@ -221,10 +217,7 @@ export function useDocumentWorkspaceState({
     countsByFilter: data.countsByFilter,
     filteredDocuments: data.filteredDocuments,
     emptyFileCount: data.emptyFileCount,
-    filterButtonRefs: data.filterButtonRefs,
-    onFilterKeyDown: data.onFilterKeyDown,
     documentTypes: data.documentTypes,
-    filterIds: data.filterIds,
 
     // --- Selection slice ---
     selectedDocIds: selection.selectedDocIds,

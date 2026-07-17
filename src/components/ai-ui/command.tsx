@@ -35,9 +35,11 @@ const CommandDialog = ({ children, ...props }: DialogProps) => {
 
 const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
-  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
->(({ className, ...props }, ref) => (
-  <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & {
+    wrapperClassName?: string
+  }
+>(({ className, wrapperClassName, ...props }, ref) => (
+  <div className={cn("flex items-center border-b px-3", wrapperClassName)} cmdk-input-wrapper="">
     <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
     <CommandPrimitive.Input
       ref={ref}
@@ -54,14 +56,27 @@ CommandInput.displayName = CommandPrimitive.Input.displayName
 
 const CommandList = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.List>,
-  React.ComponentPropsWithoutRef<typeof CommandPrimitive.List>
->(({ className, ...props }, ref) => (
-  <CommandPrimitive.List
-    ref={ref}
-    className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden", className)}
-    {...props}
-  />
-))
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.List> & {
+    accessibleLabel?: string
+  }
+>(({ className, accessibleLabel, ...props }, ref) => {
+  const setRef = (node: React.ElementRef<typeof CommandPrimitive.List> | null) => {
+    if (typeof ref === "function") ref(node)
+    else if (ref) ref.current = node
+    if (node && accessibleLabel) {
+      node.setAttribute("aria-label", accessibleLabel)
+      queueMicrotask(() => node.setAttribute("aria-label", accessibleLabel))
+    }
+  }
+
+  return (
+    <CommandPrimitive.List
+      ref={setRef}
+      className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden", className)}
+      {...props}
+    />
+  )
+})
 
 CommandList.displayName = CommandPrimitive.List.displayName
 

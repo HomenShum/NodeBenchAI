@@ -6527,69 +6527,7 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 }
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Sprint 1 P0.1 â€” citation hover popover â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-[data-redesign] .rd-cite-wrap {
-  position: relative;
-  display: inline;
-}
-[data-redesign] .rd-cite-wrap .rd-cite-popover {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%) translateY(2px);
-  z-index: 80;
-  width: max-content;
-  max-width: 320px;
-  padding: 10px 12px;
-  background: var(--rd-paper);
-  color: var(--rd-ink);
-  border: 1px solid var(--rd-line-strong);
-  border-radius: var(--rd-r-sm);
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
-  font-family: var(--rd-font-display);
-  font-size: 12px;
-  line-height: 1.45;
-  letter-spacing: 0;
-  pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 120ms ease-out, transform 120ms ease-out, visibility 120ms;
-}
-[data-redesign] .rd-cite-wrap .rd-cite:hover + .rd-cite-popover,
-[data-redesign] .rd-cite-wrap .rd-cite:focus-visible + .rd-cite-popover {
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(-50%) translateY(0);
-}
-[data-redesign] .rd-cite-popover__quote {
-  display: block;
-  color: var(--rd-ink-strong);
-  font-style: italic;
-  margin-bottom: 6px;
-}
-[data-redesign] .rd-cite-popover__source {
-  display: block;
-  font-family: var(--rd-font-mono);
-  font-size: 10.5px;
-  color: var(--rd-ink-soft);
-  letter-spacing: 0.02em;
-}
 /* Sprint 3 P2.9 â€” source freshness pill inside popover */
-[data-redesign] .rd-cite-popover__freshness {
-  display: inline-block;
-  margin-top: 6px;
-  padding: 2px 6px;
-  font-family: var(--rd-font-mono);
-  font-size: 9.5px;
-  color: var(--rd-ink-mute);
-  background: var(--rd-line-faint);
-  border-radius: 4px;
-  letter-spacing: 0.04em;
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-redesign] .rd-cite-wrap .rd-cite-popover {
-    transition: none;
-  }
-}
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Sprint 3 P2.11 â€” Open-questions tray â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 [data-redesign] .rd-open-q {

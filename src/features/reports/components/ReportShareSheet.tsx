@@ -1,6 +1,6 @@
 import { memo, useEffect } from "react";
 import { Globe, Link2, Lock, FileDown, FileText, Printer, ExternalLink, X, Check } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { Sheet, SheetContent, SheetOverlay, SheetPortal } from "@/components/ai-ui/sheet";
 
 export type ReportVisibility = "private" | "public";
 
@@ -42,50 +42,29 @@ export const ReportShareSheet = memo(function ReportShareSheet({
   useEffect(() => {
     if (!open) return;
     haptic(12);
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [open, onClose]);
+  }, [open]);
 
   return (
-    <AnimatePresence>
-      {open ? (
-        <motion.div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Share ${entityName}`}
-          className="fixed inset-0 z-[60] flex items-end justify-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <motion.button
+    <Sheet open={open} onOpenChange={(next) => { if (!next) { haptic(6); onClose(); } }}>
+      <SheetPortal>
+        <SheetOverlay asChild className="z-[60] bg-black/40 backdrop-blur-md">
+          <button
             type="button"
             aria-label="Close share panel"
             onClick={() => {
               haptic(6);
               onClose();
             }}
-            className="absolute inset-0 bg-black/40 backdrop-blur-md"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
           />
-          <motion.div
-            role="menu"
-            className="relative w-full max-w-[520px] rounded-t-[26px] border-t border-[var(--nb-border-faint)] bg-[var(--nb-surface-overlay)] px-2 pb-[calc(env(safe-area-inset-bottom)+96px)] pt-2 shadow-[0_-24px_60px_-30px_rgba(0,0,0,0.95)] sm:mb-4 sm:max-w-[360px] sm:rounded-[22px] sm:border sm:pb-[max(12px,env(safe-area-inset-bottom))]"
-            initial={{ y: 520, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 520, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 320, damping: 26, mass: 1 }}
+        </SheetOverlay>
+        <div className="pointer-events-none fixed inset-0 z-[60] flex items-end justify-center">
+          <SheetContent
+            aria-label={`Share ${entityName}`}
+            showCloseButton={false}
+            onPointerDownOutside={(event) => event.preventDefault()}
+            className="pointer-events-auto relative w-full max-w-[520px] rounded-t-[26px] border-t border-[var(--nb-border-faint)] bg-[var(--nb-surface-overlay)] px-2 pb-[calc(env(safe-area-inset-bottom)+96px)] pt-2 shadow-[0_-24px_60px_-30px_rgba(0,0,0,0.95)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-bottom-full data-[state=closed]:slide-out-to-bottom-full motion-reduce:animate-none sm:mb-4 sm:max-w-[360px] sm:rounded-[22px] sm:border sm:pb-[max(12px,env(safe-area-inset-bottom))]"
           >
+            <div>
             <div className="mx-auto mt-1 mb-2 h-[5px] w-[36px] rounded-full bg-white/[0.18]" aria-hidden="true" />
             <div className="mb-2 flex items-center justify-between px-3">
               <h2 className="nb-text-title truncate text-gray-50">Share {entityName}</h2>
@@ -184,10 +163,11 @@ export const ReportShareSheet = memo(function ReportShareSheet({
                 <ExternalLink className="h-3 w-3" />
               </a>
             </div>
-          </motion.div>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>
+            </div>
+          </SheetContent>
+        </div>
+      </SheetPortal>
+    </Sheet>
   );
 });
 
@@ -240,7 +220,6 @@ function ActionRow({ icon: Icon, label, subtitle, onSelect, disabled, accent }: 
     <li>
       <button
         type="button"
-        role="menuitem"
         onClick={onSelect}
         disabled={disabled}
         className={`nb-pressable flex min-h-[48px] w-full items-start gap-3 rounded-[14px] px-3 py-3.5 text-left font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 ${

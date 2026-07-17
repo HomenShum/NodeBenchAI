@@ -16,16 +16,15 @@ describe("ThreadActionsSheet", () => {
     hasActiveSession: true,
   };
 
-  it("renders as a compact dialog-backed action menu with the expected Manus-like actions", () => {
+  it("renders as a compact dialog-backed action list with the expected actions", () => {
     render(<ThreadActionsSheet {...baseProps} />);
 
     expect(screen.getByRole("dialog", { name: "Thread actions" })).toBeInTheDocument();
-    expect(screen.getByRole("menu", { name: "Thread actions" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /favorite/i })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /rename/i })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /view all files/i })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /task details/i })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /^delete/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /favorite/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /rename/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /view all files/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /task details/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^delete/i })).toBeInTheDocument();
     expect(screen.queryByText(/Keep this thread close at hand/i)).not.toBeInTheDocument();
   });
 

@@ -26,6 +26,24 @@ import { CommandPalette } from "./CommandPalette";
 import type { FederatedSearchResponse } from "../../../layouts/chrome/commandPalette/types";
 import { clearRecentCmdkSearches, getRecentCmdkSearches } from "../../../layouts/chrome/commandPalette/recentSearches";
 
+class ResizeObserverMock implements ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+Object.defineProperty(globalThis, "ResizeObserver", {
+  configurable: true,
+  writable: true,
+  value: ResizeObserverMock,
+});
+
+Object.defineProperty(Element.prototype, "scrollIntoView", {
+  configurable: true,
+  writable: true,
+  value: vi.fn(),
+});
+
 /* -------------------------------------------------------------------------- */
 /* Mocks                                                                       */
 /* -------------------------------------------------------------------------- */

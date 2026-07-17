@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { DialogOverlay } from "@/shared/components/DialogOverlay";
 
 interface ShortcutGroup {
   label: string;
@@ -79,10 +80,6 @@ export function ShortcutsOverlay() {
         e.preventDefault();
         setOpen(true);
       }
-      if (e.key === "Escape" && open) {
-        e.preventDefault();
-        setOpen(false);
-      }
     };
     const onCustom = () => setOpen(true);
     window.addEventListener("keydown", onKey);
@@ -91,12 +88,18 @@ export function ShortcutsOverlay() {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("rd:shortcuts:open", onCustom);
     };
-  }, [open]);
+  }, []);
 
-  if (!open) return null;
   return (
-    <div className="rd-shortcuts__backdrop" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onClick={() => setOpen(false)}>
-      <div className="rd-shortcuts" onClick={(e) => e.stopPropagation()}>
+    <DialogOverlay
+      isOpen={open}
+      onClose={() => setOpen(false)}
+      ariaLabel="Keyboard shortcuts"
+      positionClassName="rd-shortcuts__backdrop"
+      backdropClassName="bg-transparent"
+      contentClassName="rd-shortcuts"
+    >
+      <div>
         <header className="rd-shortcuts__head">
           <h2>Keyboard shortcuts</h2>
           <button className="rd-shortcuts__close" onClick={() => setOpen(false)} aria-label="Close">✕</button>
@@ -121,6 +124,6 @@ export function ShortcutsOverlay() {
           ))}
         </div>
       </div>
-    </div>
+    </DialogOverlay>
   );
 }

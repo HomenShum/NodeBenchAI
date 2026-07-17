@@ -1,7 +1,11 @@
-import { useEffect, useMemo, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { useFocusTrap } from "@/hooks/useFocusTrap";
+import type { ReactNode } from "react";
+import { motion } from "framer-motion";
+import {
+  Sheet,
+  SheetContent,
+  SheetOverlay,
+  SheetPortal,
+} from "@/components/ai-ui/sheet";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -38,17 +42,6 @@ const contentVariants = {
   exit: { opacity: 0, scale: 0.96, y: 4, transition: { duration: 0.15 } },
 };
 
-function useBodyScrollLock(locked: boolean) {
-  useEffect(() => {
-    if (!locked) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [locked]);
-}
-
 /**
  * DialogOverlay — shared modal primitive with spring animation.
  *
@@ -68,86 +61,53 @@ export function DialogOverlay({
   backdropClassName,
   contentClassName,
 }: Props) {
-  useBodyScrollLock(isOpen);
-
-  const { containerProps } = useFocusTrap<HTMLDivElement>({
-    enabled: isOpen,
-    autoFocus,
-    onEscape: closeOnEscape ? onClose : undefined,
-  });
-
-  const portalRoot = useMemo(() => (typeof document === "undefined" ? null : document.body), []);
-
-  if (!portalRoot) return null;
-
   const reduced = prefersReducedMotion();
-
-  // Non-animated fallback for reduced motion
-  if (reduced) {
-    if (!isOpen) return null;
-    return createPortal(
-      <div
-        className={cn(
-          "fixed inset-0 z-50 flex items-center justify-center p-4",
-          positionClassName,
-        )}
-      >
-        <div
-          className={cn("absolute inset-0 bg-black/50", backdropClassName)}
-          onClick={closeOnBackdrop ? onClose : undefined}
-          aria-hidden="true"
-        />
-        <div
-          {...containerProps}
-          role="dialog"
-          aria-modal="true"
-          aria-label={ariaLabel}
-          className={cn("relative z-10", contentClassName)}
-          onClick={(e) => e.stopPropagation()}
+  return (
+    <Sheet
+      open={isOpen}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <SheetPortal>
+        <SheetOverlay
+          asChild={!reduced}
+          className={cn("z-50 bg-black/50", backdropClassName)}
+          onPointerDown={(event) => {
+            if (!closeOnBackdrop) event.preventDefault();
+          }}
         >
-          {children}
-        </div>
-      </div>,
-      portalRoot,
-    );
-  }
-
-  return createPortal(
-    <AnimatePresence>
-      {isOpen && (
-        <div
-          className={cn(
-            "fixed inset-0 z-50 flex items-center justify-center p-4",
-            positionClassName,
+          {reduced ? undefined : (
+            <motion.div variants={backdropVariants} initial="hidden" animate="visible" exit="exit" />
           )}
-        >
-          <motion.div
-            className={cn("absolute inset-0 bg-black/50", backdropClassName)}
-            variants={backdropVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            onClick={closeOnBackdrop ? onClose : undefined}
-            aria-hidden="true"
-          />
-          <motion.div
-            {...containerProps}
-            role="dialog"
-            aria-modal="true"
+        </SheetOverlay>
+        <div className={cn("fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none", positionClassName)}>
+          <SheetContent
+            asChild={!reduced}
+            showCloseButton={false}
             aria-label={ariaLabel}
-            className={cn("relative z-10", contentClassName)}
-            variants={contentVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            onClick={(e) => e.stopPropagation()}
+            className={cn("relative z-10 pointer-events-auto", contentClassName)}
+            onEscapeKeyDown={(event) => {
+              if (!closeOnEscape) event.preventDefault();
+            }}
+            onPointerDownOutside={(event) => {
+              if (!closeOnBackdrop) event.preventDefault();
+            }}
+            onOpenAutoFocus={(event) => {
+              if (!autoFocus) event.preventDefault();
+            }}
           >
-            {children}
-          </motion.div>
+            {reduced ? (
+              <div>{children}</div>
+            ) : (
+              <motion.div variants={contentVariants} initial="hidden" animate="visible" exit="exit">
+                {children}
+              </motion.div>
+            )}
+          </SheetContent>
         </div>
-      )}
-    </AnimatePresence>,
-    portalRoot,
+      </SheetPortal>
+    </Sheet>
   );
 }
 

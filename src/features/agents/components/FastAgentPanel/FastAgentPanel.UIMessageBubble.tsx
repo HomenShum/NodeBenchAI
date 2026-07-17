@@ -1824,7 +1824,6 @@ export function FastAgentUIMessageBubble({
   const COLLAPSE_THRESHOLD = 1200; // chars (~300 words)
 
   // Smart actions menu
-  const [showSmartActions, setShowSmartActions] = useState(false);
 
   // Markdown raw/rendered toggle
   const [showRawMarkdown, setShowRawMarkdown] = useState(false);

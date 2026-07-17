@@ -28,6 +28,7 @@ import { TimelineStrip, type TimelineEvent, type TemporalPhase } from "@/feature
 import type { ReaderItem } from "@/features/research/components/FeedReaderModal";
 import { cn } from "@/lib/utils";
 import { SurfacePageHeader } from "@/shared/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ai-ui/tabs";
 
 function SectionFallback({
   title,
@@ -697,21 +698,27 @@ function ResearchHubContent(props: ResearchHubProps) {
 
           {/* LEFT: MAIN CONTENT WITH TABS */}
           <div className="flex-1 pl-6 md:pl-10 pr-4 md:pr-6 py-4 pb-28 sm:pb-20">
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => {
+                const tab = value as ContentTab;
+                setActiveTab(tab);
+                onTabChange?.(tab);
+              }}
+              className="contents"
+            >
 
             {/* TAB NAVIGATION */}
-            <nav className="flex gap-1 border-b border-edge mb-4" role="tablist">
+            <TabsList className="mb-4 flex h-auto justify-start gap-1 rounded-none border-b border-edge bg-transparent p-0" aria-label="Research views">
               {CONTENT_TABS.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
                 return (
-                  <button
+                  <TabsTrigger
                     key={tab.id}
-                    type="button"
-                    role="tab"
-                    onClick={() => { setActiveTab(tab.id); onTabChange?.(tab.id); }}
-                    aria-selected={isActive}
+                    value={tab.id}
                     className={cn(
-                      'flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-150',
+                      'flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-150 data-[state=active]:bg-transparent data-[state=active]:text-content data-[state=active]:shadow-none',
                       isActive
                         ? 'border-indigo-500 text-content'
                         : 'border-transparent text-content-muted hover:text-content'
@@ -719,16 +726,16 @@ function ResearchHubContent(props: ResearchHubProps) {
                   >
                     <Icon className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">{tab.label}</span>
-                  </button>
+                  </TabsTrigger>
                 );
               })}
-            </nav>
+            </TabsList>
 
             {/* TAB CONTENT */}
             <div className="space-y-6">
 
               {/* OVERVIEW TAB: Digest + Personal Pulse */}
-              {activeTab === 'overview' && (
+              <TabsContent value="overview" className="mt-0">
                 <div className="space-y-6">
                   {/* Executive Synthesis */}
                   <section ref={actIRef} data-act-id="actI">
@@ -778,10 +785,10 @@ function ResearchHubContent(props: ResearchHubProps) {
                     </SectionErrorBoundary>
                   </section>
                 </div>
-              )}
+              </TabsContent>
 
               {/* SIGNALS TAB: Live Signal Stream */}
-              {activeTab === 'signals' && (
+              <TabsContent value="signals" className="mt-0">
                 <section ref={actIIIRef} data-act-id="actIII" className="animate-in fade-in duration-300">
                   <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -807,10 +814,10 @@ function ResearchHubContent(props: ResearchHubProps) {
                     </div>
                   </SectionErrorBoundary>
                 </section>
-              )}
+              </TabsContent>
 
               {/* BRIEFING TAB: Institutional Briefing */}
-              {activeTab === 'briefing' && (
+              <TabsContent value="briefing" className="mt-0">
                 <section ref={actIIRef} data-act-id="actII" className="animate-in fade-in duration-300">
                   <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -838,10 +845,10 @@ function ResearchHubContent(props: ResearchHubProps) {
                     />
                   </SectionErrorBoundary>
                 </section>
-              )}
+              </TabsContent>
 
               {/* FORECASTS TAB: Prediction Cockpit */}
-              {activeTab === 'forecasts' && (
+              <TabsContent value="forecasts" className="mt-0">
                 <section className="animate-in fade-in duration-300 pb-8">
                   <SectionErrorBoundary
                     section="Forecasts"
@@ -857,10 +864,11 @@ function ResearchHubContent(props: ResearchHubProps) {
                     </React.Suspense>
                   </SectionErrorBoundary>
                 </section>
-              )}
+              </TabsContent>
 
               {/* Deals, Changes, Changelog tabs removed — accessible via Cmd+K */}
             </div>
+            </Tabs>
           </div>
 
           {/* RIGHT: COMPACT HUD SIDEBAR */}

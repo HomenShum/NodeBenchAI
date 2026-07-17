@@ -5,12 +5,14 @@
  * Stores to localStorage via useFeedbackStore. No backend required.
  */
 
-import { memo, useState, useCallback, useEffect, useRef } from "react";
+import { memo, useState, useCallback, useRef } from "react";
 import {
   useFeedbackStore,
   FEEDBACK_CATEGORIES,
   type FeedbackCategory,
 } from "../hooks/useFeedbackStore";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ai-ui/popover";
+import { toast } from "sonner";
 
 // ── Star rating component ────────────────────────────────────────────────────
 
@@ -65,49 +67,7 @@ export const FeedbackWidget = memo(function FeedbackWidget() {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [category, setCategory] = useState<FeedbackCategory>("Other");
-  const [showThanks, setShowThanks] = useState(false);
-  const formRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Focus input when form opens
-  useEffect(() => {
-    if (isOpen) {
-      // Small delay for the animation to start
-      const t = setTimeout(() => inputRef.current?.focus(), 80);
-      return () => clearTimeout(t);
-    }
-  }, [isOpen]);
-
-  // Escape to close
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setIsOpen(false);
-        buttonRef.current?.focus();
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isOpen]);
-
-  // Click outside to close
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (
-        formRef.current &&
-        !formRef.current.contains(e.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [isOpen]);
 
   const resetForm = useCallback(() => {
     setRating(0);
@@ -120,21 +80,15 @@ export const FeedbackWidget = memo(function FeedbackWidget() {
     submitFeedback({ rating, comment, category });
     resetForm();
     setIsOpen(false);
-    setShowThanks(true);
-    const t = setTimeout(() => setShowThanks(false), 2000);
-    return () => clearTimeout(t);
+    toast.success("Thanks for your feedback!");
   }, [rating, comment, category, submitFeedback, resetForm]);
 
   return (
-    <>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       {/* Floating button */}
+      <PopoverTrigger asChild>
       <button
-        ref={buttonRef}
         type="button"
-        onClick={() => {
-          if (showThanks) return;
-          setIsOpen((v) => !v);
-        }}
         className={`
           fixed bottom-12 right-4 z-40
           flex items-center justify-center
@@ -149,33 +103,23 @@ export const FeedbackWidget = memo(function FeedbackWidget() {
         aria-expanded={isOpen}
         aria-haspopup="dialog"
       >
-        {showThanks ? (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97757" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
-        ) : (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97757" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        )}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97757" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
       </button>
-
-      {/* Thanks toast */}
-      {showThanks && (
-        <div
-          className="fixed bottom-24 right-4 z-40 px-3 py-1.5 rounded-lg border border-accent-primary/20 bg-accent-primary/10 backdrop-blur-xl text-[12px] text-accent-primary font-medium animate-in fade-in slide-in-from-bottom-2 duration-200"
-          role="status"
-          aria-live="polite"
-        >
-          Thanks for your feedback!
-        </div>
-      )}
+      </PopoverTrigger>
 
       {/* Feedback form */}
-      {isOpen && (
-        <div
-          ref={formRef}
-          className="fixed bottom-24 right-4 z-40 w-72 rounded-xl border border-white/[0.06] bg-[rgba(20,22,28,0.95)] backdrop-blur-2xl shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200"
+        <PopoverContent
+          side="top"
+          align="end"
+          sideOffset={8}
+          collisionPadding={16}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            inputRef.current?.focus();
+          }}
+          className="z-40 w-72 rounded-xl border border-white/[0.06] bg-[rgba(20,22,28,0.95)] p-0 backdrop-blur-2xl shadow-2xl"
           role="dialog"
           aria-label="Feedback form"
           aria-modal="false"
@@ -265,8 +209,7 @@ export const FeedbackWidget = memo(function FeedbackWidget() {
               Submit
             </button>
           </div>
-        </div>
-      )}
-    </>
+        </PopoverContent>
+    </Popover>
   );
 });

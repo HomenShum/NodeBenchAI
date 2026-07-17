@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { LazyCodeBlock } from "@/shared/components/LazyCodeBlock";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ai-ui/tabs";
 import { cn } from "@/lib/utils";
 import { SourceChip } from "@/shared/ui";
 
@@ -132,27 +133,32 @@ export function ProductDirectionMemoView() {
         </div>
       </header>
 
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Product direction memo sections">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "rounded-full border px-3 py-1.5 text-sm transition",
-              activeTab === tab.id
-                ? "border-indigo-400/40 bg-indigo-500/10 text-indigo-100"
-                : "border-edge bg-surface/50 text-content-muted hover:border-edge hover:text-content",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as MemoTab)}
+        className="contents"
+      >
+        <TabsList
+          className="flex h-auto flex-wrap justify-start gap-2 bg-transparent p-0"
+          aria-label="Product direction memo sections"
+        >
+          {TABS.map((tab) => (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-sm transition data-[state=active]:bg-indigo-500/10 data-[state=active]:text-indigo-100 data-[state=active]:shadow-none",
+                activeTab === tab.id
+                  ? "border-indigo-400/40 bg-indigo-500/10 text-indigo-100"
+                  : "border-edge bg-surface/50 text-content-muted hover:border-edge hover:text-content",
+              )}
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      {activeTab === "executive" ? (
+      <TabsContent value="executive" className="mt-0">
         <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
           <SectionCard title="Executive Answer" icon={<BadgeCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />}>
             <div className="space-y-4">
@@ -212,9 +218,9 @@ export function ProductDirectionMemoView() {
             </div>
           </SectionCard>
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === "evidence" ? (
+      <TabsContent value="evidence" className="mt-0">
         <div className="grid gap-6 lg:grid-cols-2">
           <SectionCard title="Publicly Supported Facts" icon={<BookOpen className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />}>
             <div className="space-y-4">
@@ -249,9 +255,9 @@ export function ProductDirectionMemoView() {
             </SectionCard>
           </div>
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === "options" ? (
+      <TabsContent value="options" className="mt-0">
         <div className="space-y-6">
           <SectionCard title="Credibility Filter" icon={<ShieldAlert className="h-4 w-4 text-content-secondary" />}>
             <div className="grid gap-4 lg:grid-cols-3">
@@ -315,9 +321,9 @@ export function ProductDirectionMemoView() {
             ))}
           </div>
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === "plan" ? (
+      <TabsContent value="plan" className="mt-0">
         <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           <SectionCard title="Phased Build Plan" icon={<Layers3 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />}>
             <div className="space-y-4">
@@ -361,9 +367,9 @@ export function ProductDirectionMemoView() {
             </SectionCard>
           </div>
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === "narrative" ? (
+      <TabsContent value="narrative" className="mt-0">
         <div className="grid gap-6 lg:grid-cols-2">
           <SectionCard title="Defensible Narrative" icon={<BadgeCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />}>
             <BulletList items={analysis.defensible_narrative.narrative_arc} />
@@ -390,9 +396,9 @@ export function ProductDirectionMemoView() {
             </SectionCard>
           </div>
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === "json" ? (
+      <TabsContent value="json" className="mt-0">
         <div className="grid gap-6 lg:grid-cols-2">
           <SectionCard title="Typed Output" icon={<FileJson2 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />}>
             <LazyCodeBlock code={formattedJson} language="json" />
@@ -401,7 +407,8 @@ export function ProductDirectionMemoView() {
             <LazyCodeBlock code={schemaJson} language="json" />
           </SectionCard>
         </div>
-      ) : null}
+      </TabsContent>
+      </Tabs>
     </div>
   );
 }

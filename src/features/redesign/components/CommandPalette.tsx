@@ -21,8 +21,8 @@
  *   - role="dialog" aria-modal aria-label
  *   - role="listbox" with role="option" + aria-selected on each result
  *   - aria-live="polite" announces N results across M collections
- *   - Focus trap (modal); Escape closes; focus returns to trigger element
- *   - Tab cycles input <-> result list; Cmd+1..7 jumps groups; Up/Down moves selection
+ *   - Radix Dialog owns the modal focus trap; Escape closes; focus returns to trigger element
+ *   - cmdk owns option traversal; Cmd+1..7 jumps groups
  *   - Enter opens; Cmd+Enter "ask about this" pre-fills the chat composer
  *
  * Design reduction (.claude/rules/reexamine_design_reduction.md):
@@ -33,6 +33,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ai-ui/dialog";
+import {
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ai-ui/command";
 import { useFederatedSearch } from "../../../layouts/chrome/commandPalette/useFederatedSearch";
 import {
   addRecentCmdkSearch,
@@ -96,6 +104,12 @@ type FlatItem =
       flatIndex: number;
     };
 
+function flatItemValue(item: FlatItem): string {
+  if (item.kind === "command") return `command:${item.command.id}`;
+  if (item.kind === "recent") return `recent:${item.query}`;
+  return `result:${item.collection}:${item.handle.uri}:${item.flatIndex}`;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Component                                                                   */
 /* -------------------------------------------------------------------------- */
@@ -105,7 +119,6 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const [recents, setRecents] = useState<CmdkRecentSearch[]>([]);
@@ -334,17 +347,7 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
         jumpToGroup(Number(e.key));
         return;
       }
-      // Arrow up/down — move selection.
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setActive((a) => Math.min(flatItems.length - 1, a + 1));
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setActive((a) => Math.max(0, a - 1));
-        return;
-      }
+      // Arrow navigation is delegated to cmdk.
       if (e.key === "Enter") {
         e.preventDefault();
         const item = flatItems[active];
@@ -360,26 +363,6 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, flatItems, active, executeItem, jumpToGroup, handleClose]);
-
-  /* -------- focus trap inside dialog (Tab/Shift+Tab cycles within) -------- */
-  const handleDialogKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "Tab") return;
-    const root = dialogRef.current;
-    if (!root) return;
-    const focusable = root.querySelectorAll<HTMLElement>(
-      'input, button, [tabindex]:not([tabindex="-1"])',
-    );
-    if (focusable.length === 0) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }, []);
 
   /* -------- scroll active row into view -------- */
   useEffect(() => {
@@ -421,34 +404,42 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
   const totalResults = flatItems.filter((i) => i.kind === "result").length;
 
   return (
-    <div
-      className="rd-cmdk__backdrop"
-      role="presentation"
-      onClick={handleClose}
-      data-cmdk-modal
-    >
-      <div
-        ref={dialogRef}
-        className="rd-cmdk"
-        role="dialog"
-        aria-modal="true"
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) handleClose(); }}>
+      <DialogContent
+        className="w-auto max-w-none border-0 bg-transparent p-0 shadow-none"
+        overlayClassName="rd-cmdk__backdrop"
+        showCloseButton={false}
         aria-label="Command palette"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={handleDialogKeyDown}
+        aria-modal="true"
+        aria-describedby={undefined}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          inputRef.current?.focus();
+        }}
       >
+        <div className="rd-cmdk">
+        <DialogTitle className="sr-only">Command palette</DialogTitle>
+        <Command
+          shouldFilter={false}
+          label="Search anything"
+          value={flatItems[active] ? flatItemValue(flatItems[active]) : undefined}
+          onValueChange={(value) => {
+            const next = flatItems.findIndex((item) => flatItemValue(item) === value);
+            if (next >= 0) setActive(next);
+          }}
+          className="rounded-none bg-transparent text-inherit"
+        >
         <div className="rd-cmdk__head">
           <SearchIcon />
-          <input
+          <CommandInput
             ref={inputRef}
             data-cmdk-input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onValueChange={setQuery}
             placeholder="Search anything..."
             aria-label="Search anything"
-            aria-controls="rd-cmdk-listbox"
-            aria-activedescendant={
-              flatItems[active] ? `rd-cmdk-row-${flatItems[active].flatIndex}` : undefined
-            }
+            className="h-auto border-0 p-0"
+            wrapperClassName="contents [&>svg]:hidden"
             spellCheck={false}
           />
           <span className="rd-cmdk__esc" aria-label="Close">Esc</span>
@@ -484,33 +475,33 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
           {liveRegionMessage}
         </span>
 
-        <div
+        <CommandList
           ref={listRef}
           id="rd-cmdk-listbox"
           className="rd-cmdk__list"
-          role="listbox"
-          aria-label="Search results"
+          accessibleLabel="Search results"
         >
           {/* Loading skeleton (only when no prior data is visible) */}
           {isLoading && !data ? <SkeletonGroups /> : null}
 
           {/* Empty mode — show recents (if any), then commands */}
           {!showSearchMode && recentsBucket.length > 0 ? (
-            <div className="rd-cmdk__group" data-cmdk-group="recents">
-              <div className="rd-cmdk__group-label">Recent searches</div>
+            <CommandGroup
+              className="rd-cmdk__group"
+              data-cmdk-group="recents"
+              heading="Recent searches"
+            >
               {recentsBucket.map((it) => {
                 if (it.kind !== "recent") return null;
                 const isActive = it.flatIndex === active;
                 return (
-                  <button
+                  <CommandItem
                     key={`recent-${it.query}`}
-                    type="button"
-                    role="option"
+                    value={flatItemValue(it)}
                     id={`rd-cmdk-row-${it.flatIndex}`}
                     data-flat-index={it.flatIndex}
                     data-cmdk-result
                     data-cmdk-active={isActive || undefined}
-                    aria-selected={isActive}
                     data-active={isActive || undefined}
                     className="rd-cmdk__row"
                     onMouseEnter={() => setActive(it.flatIndex)}
@@ -518,10 +509,10 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
                   >
                     <span className="rd-cmdk__row-label">{it.query}</span>
                     <span className="rd-cmdk__row-hint">Re-run search</span>
-                  </button>
+                  </CommandItem>
                 );
               })}
-            </div>
+            </CommandGroup>
           ) : null}
 
           {/* Search mode — federated result groups */}
@@ -533,7 +524,7 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
                 // Render group ONLY when it has results OR an error to surface.
                 if (items.length === 0 && result.ok) return null;
                 return (
-                  <div
+                  <CommandGroup
                     key={collection}
                     className="rd-cmdk__group"
                     data-cmdk-group={collection}
@@ -552,15 +543,13 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
                       if (it.kind !== "result") return null;
                       const isActive = it.flatIndex === active;
                       return (
-                        <button
+                        <CommandItem
                           key={`${collection}-${it.handle.uri}-${it.flatIndex}`}
-                          type="button"
-                          role="option"
+                          value={flatItemValue(it)}
                           id={`rd-cmdk-row-${it.flatIndex}`}
                           data-flat-index={it.flatIndex}
                           data-cmdk-result
                           data-cmdk-active={isActive || undefined}
-                          aria-selected={isActive}
                           data-active={isActive || undefined}
                           className="rd-cmdk__row"
                           onMouseEnter={() => setActive(it.flatIndex)}
@@ -579,7 +568,7 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
                           {it.handle.snippet ? (
                             <span className="rd-cmdk__row-snippet">{it.handle.snippet}</span>
                           ) : null}
-                        </button>
+                        </CommandItem>
                       );
                     })}
                     {result.count > items.length ? (
@@ -587,28 +576,27 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
                         + {result.count - items.length} more in {COLLECTION_LABELS[collection].toLowerCase()}
                       </div>
                     ) : null}
-                  </div>
+                  </CommandGroup>
                 );
               })
             : null}
 
           {/* Always render Commands group (acts as nav fallback) */}
           {commandsBucket.length > 0 ? (
-            <div className="rd-cmdk__group" data-cmdk-group="commands">
+            <CommandGroup className="rd-cmdk__group" data-cmdk-group="commands">
               <div className="rd-cmdk__group-label">Commands</div>
               {commandsBucket.map((it) => {
                 if (it.kind !== "command") return null;
                 const isActive = it.flatIndex === active;
                 return (
-                  <button
+                  <CommandItem
                     key={it.command.id}
-                    type="button"
-                    role="option"
+                    value={flatItemValue(it)}
+                    keywords={[it.command.label, it.command.hint ?? "", it.command.keywords ?? ""]}
                     id={`rd-cmdk-row-${it.flatIndex}`}
                     data-flat-index={it.flatIndex}
                     data-cmdk-result
                     data-cmdk-active={isActive || undefined}
-                    aria-selected={isActive}
                     data-active={isActive || undefined}
                     className="rd-cmdk__row"
                     onMouseEnter={() => setActive(it.flatIndex)}
@@ -625,10 +613,10 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
                         ))}
                       </span>
                     ) : null}
-                  </button>
+                  </CommandItem>
                 );
               })}
-            </div>
+            </CommandGroup>
           ) : null}
 
           {/* Empty + no recents */}
@@ -647,9 +635,11 @@ export function CommandPalette({ open, onClose, extra = [] }: CommandPaletteProp
               0 results for "{query}"
             </div>
           ) : null}
+        </CommandList>
+        </Command>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
