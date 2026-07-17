@@ -817,7 +817,10 @@ export interface ParsedMemo {
 export type RequestedResponseShape =
   | { kind: "memo" }
   | { kind: "title_only" }
-  | { kind: "bullets"; count: number };
+  | { kind: "bullets"; count: number }
+  | { kind: "sentence" }
+  | { kind: "paragraph" }
+  | { kind: "word_limit"; limit: number };
 
 const RESPONSE_COUNT_WORDS: Record<string, number> = {
   one: 1,
@@ -862,6 +865,39 @@ const TITLE_ONLY_PATTERNS: RegExp[] = [
   ),
 ];
 
+// "one sentence" / "one paragraph" requests. The unit is parameterized so the
+// two shapes cannot drift apart the way the title determiners once did (#565).
+function singleUnitPatterns(unit: string): RegExp[] {
+  return [
+    new RegExp(String.raw`\b(?:in|as)\s+(?:exactly\s+)?(?:one|a\s+single|1)\s+${unit}\b`),
+    new RegExp(String.raw`\b(?:only|just)\s+(?:one|a\s+single|1)\s+${unit}\b`),
+    new RegExp(String.raw`\bone[- ]${unit}\s+(?:answer|summary|response|reply)\b`),
+  ];
+}
+const SINGLE_SENTENCE_PATTERNS = singleUnitPatterns("sentence");
+const SINGLE_PARAGRAPH_PATTERNS = singleUnitPatterns("paragraph");
+
+// "under 50 words" and equivalents. Bounds reject degenerate limits ("under 2
+// words") and absurd ones that would never bind ("under 90000 words").
+const WORD_LIMIT_MIN = 5;
+const WORD_LIMIT_MAX = 400;
+const WORD_LIMIT_PATTERNS: RegExp[] = [
+  /\b(?:under|within|at most|no more than|max(?:imum)?(?: of)?|fewer than|less than)\s+(\d+)\s+words\b/,
+  /\bin\s+(\d+)\s+words\s+or\s+(?:less|fewer)\b/,
+];
+
+function detectWordLimit(normalized: string): number | null {
+  for (const pattern of WORD_LIMIT_PATTERNS) {
+    const match = normalized.match(pattern);
+    if (!match) continue;
+    const limit = Number(match[1]);
+    if (Number.isInteger(limit) && limit >= WORD_LIMIT_MIN && limit <= WORD_LIMIT_MAX) {
+      return limit;
+    }
+  }
+  return null;
+}
+
 export function detectRequestedResponseShape(prompt: string): RequestedResponseShape {
   const normalized = prompt.replace(/\s+/g, " ").trim().toLowerCase();
   if (TITLE_ONLY_PATTERNS.some((pattern) => pattern.test(normalized))) {
@@ -872,7 +908,86 @@ export function detectRequestedResponseShape(prompt: string): RequestedResponseS
     /\b(?:exactly|in|as|using|give(?: me)?|return|output|provide|write)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:concise\s+|short\s+)?(?:bullet(?:\s+points?)?|bullets)\b/,
   );
   const count = bulletMatch ? parseRequestedCount(bulletMatch[1]) : null;
-  return count ? { kind: "bullets", count } : { kind: "memo" };
+  if (count) return { kind: "bullets", count };
+
+  if (SINGLE_SENTENCE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return { kind: "sentence" };
+  }
+  if (SINGLE_PARAGRAPH_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return { kind: "paragraph" };
+  }
+  const wordLimit = detectWordLimit(normalized);
+  if (wordLimit !== null) return { kind: "word_limit", limit: wordLimit };
+
+  return { kind: "memo" };
+}
+
+/**
+ * System-prompt fragments for a requested response shape. One function so the
+ * shape detector, the model instruction, and the deterministic policy can
+ * never disagree about which shapes exist — adding a union member without a
+ * branch here is a compile error via the exhaustive switch.
+ */
+export function responseShapeSystemInstructions(shape: RequestedResponseShape): {
+  shapeInstruction: string;
+  citationInstruction: string;
+  calculationInstruction: string;
+} {
+  const inlineCitations =
+    "Use [1], [2], [3] inline cite markers when a statement has a supported source URL.";
+  const compactCalculation =
+    "If the request requires a calculation or reconciliation, include the exact derivation and pass/fail conclusion within the requested response shape.";
+  switch (shape.kind) {
+    case "title_only":
+      return {
+        shapeInstruction:
+          "The user requested a title-only response. Output exactly one plain-text title line with no heading, label, bullets, explanation, or memo sections.",
+        citationInstruction: "Do not include citation markers in the title.",
+        calculationInstruction: "",
+      };
+    case "bullets":
+      return {
+        shapeInstruction: `The user requested exactly ${shape.count} bullets. Output exactly ${shape.count} Markdown bullet lines beginning with "- " and no heading, preamble, conclusion, or memo sections.`,
+        citationInstruction: inlineCitations,
+        calculationInstruction:
+          "If the request requires a calculation or reconciliation, include the exact derivation and pass/fail conclusion within the requested bullet count.",
+      };
+    case "sentence":
+      return {
+        shapeInstruction:
+          "The user requested a single-sentence response. Output exactly one sentence with no heading, bullets, preamble, or memo sections.",
+        citationInstruction: inlineCitations,
+        calculationInstruction: compactCalculation,
+      };
+    case "paragraph":
+      return {
+        shapeInstruction:
+          "The user requested a single-paragraph response. Output exactly one plain-prose paragraph with no heading, bullets, or memo sections.",
+        citationInstruction: inlineCitations,
+        calculationInstruction: compactCalculation,
+      };
+    case "word_limit":
+      return {
+        shapeInstruction: `The user requested a response of at most ${shape.limit} words. Stay within ${shape.limit} words of plain prose with no heading, bullets, or memo sections.`,
+        citationInstruction: inlineCitations,
+        calculationInstruction: compactCalculation,
+      };
+    case "memo":
+      return {
+        shapeInstruction: `Produce a banker-style memo. Do not include To, From, Date, or Subject headers. Use exactly these markdown section headings:
+1. Short answer (one sentence with citation markers like [1] [2])
+2. Why it matters (one paragraph with citation markers)
+3. Evidence (3-5 bullets, each citing a source)
+4. Risks / unknowns (2-3 bullets)
+5. Next action (one imperative sentence)`,
+        citationInstruction: inlineCitations,
+        calculationInstruction: `If the user's request involves a numeric calculation, reconciliation, balancing check, or explicitly
+asks you to "show your math" / "show your work" / confirm a total: state the actual derivation
+(the specific numbers and operation, e.g. "$X - $Y = $Z") and an explicit pass/fail confirmation
+of what they asked you to verify inside "Why it matters" - do not just assert the conclusion. This
+does not apply to ordinary research/company/market questions.`,
+      };
+  }
 }
 
 function sourceUrl(source: string): string | null {
@@ -910,6 +1025,28 @@ function citationIndices(text: string): number[] {
   return [...text.matchAll(/\[(\d+)\]/g)].map((match) => Number(match[1]));
 }
 
+// Split on sentence-final punctuation, but keep a citation marker that trails
+// the terminator ("...claim. [1]") attached to the sentence it annotates.
+// Shared by the superlative gate and the sentence/word-limit shape policies.
+const SENTENCE_SPLITTER = /(?<=[.!?])\s+(?!\[\d+\])/;
+
+// Flatten memo prose into plain sentences: markdown bullet/number prefixes
+// removed per line, whitespace collapsed.
+function plainProse(parts: string[]): string {
+  return parts
+    .map((part) =>
+      part
+        .split("\n")
+        .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim())
+        .filter(Boolean)
+        .join(" "),
+    )
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /**
  * Sentence-level honesty gate for "best/strongest source|claim" superlatives.
  *
@@ -929,9 +1066,7 @@ function gateSuperlativeClaims(
     return { text, sanitizedUngrounded: false };
   }
   let sanitizedUngrounded = false;
-  // Split on sentence-final punctuation, but keep a citation marker that trails
-  // the terminator ("...claim. [1]") attached to the sentence it annotates.
-  const sentences = text.split(/(?<=[.!?])\s+(?!\[\d+\])/);
+  const sentences = text.split(SENTENCE_SPLITTER);
   const gated = sentences.map((sentence) => {
     if (!UNSUPPORTED_SUPERLATIVE_TEST.test(sentence)) return sentence;
     const grounded = citationIndices(sentence).some((idx) => supportedIdx.has(idx));
@@ -1056,6 +1191,56 @@ export function applyDeterministicResponsePolicy(
     const title = (compactResponseUnit(honest.shortAnswer || honest.whyItMatters, true) || "Evidence review").slice(0, 240);
     return {
       shortAnswer: hasSupportedUrl ? title : `Source needed: ${title}`.slice(0, 240),
+      whyItMatters: "",
+      risks: [],
+      nextAction: "",
+    };
+  }
+
+  if (shape.kind === "sentence") {
+    const prose = plainProse([honest.shortAnswer]) || plainProse([honest.whyItMatters]) || "Evidence review.";
+    const sentence = (prose.split(SENTENCE_SPLITTER)[0] ?? prose).trim().slice(0, 400);
+    return {
+      shortAnswer: hasSupportedUrl ? sentence : `Source needed: ${sentence}`.slice(0, 400),
+      whyItMatters: "",
+      risks: [],
+      nextAction: "",
+    };
+  }
+
+  if (shape.kind === "paragraph") {
+    const body = plainProse([honest.shortAnswer, honest.whyItMatters]) || "Evidence review.";
+    const paragraph = hasSupportedUrl ? body : `${body} ${SOURCE_NEEDED_LIMITATION}`;
+    return {
+      shortAnswer: paragraph.slice(0, 1600),
+      whyItMatters: "",
+      risks: [],
+      nextAction: "",
+    };
+  }
+
+  if (shape.kind === "word_limit") {
+    // Honesty costs two words of the budget when no supported URL exists —
+    // "Source needed:" — rather than busting the user's explicit limit with
+    // the full limitation sentence.
+    const prefix = hasSupportedUrl ? "" : "Source needed: ";
+    const budget = Math.max(1, shape.limit - (prefix ? 2 : 0));
+    const prose = plainProse([honest.shortAnswer, honest.whyItMatters]) || "Evidence review.";
+    const words: string[] = [];
+    for (const sentence of prose.split(SENTENCE_SPLITTER)) {
+      const tokens = sentence.trim().split(/\s+/).filter(Boolean);
+      if (tokens.length === 0) continue;
+      if (words.length === 0 && tokens.length > budget) {
+        // Even the first sentence overruns: hard-trim at the word boundary so
+        // the explicit limit still wins over completeness.
+        words.push(...tokens.slice(0, budget));
+        break;
+      }
+      if (words.length + tokens.length > budget) break;
+      words.push(...tokens);
+    }
+    return {
+      shortAnswer: `${prefix}${words.join(" ") || "Evidence review."}`,
       whyItMatters: "",
       risks: [],
       nextAction: "",
@@ -1624,28 +1809,11 @@ export const runStreamingChat = internalAction({
         ? `\n\nA server-side VERIFIED_CALCULATION is available in the context packet's "verifiedCalculation" field: ${bankReconciliationFact.fact} This arithmetic has already been computed and checked for you. State it verbatim (the exact numbers and the tie/no-tie conclusion) inside "Why it matters" instead of recomputing or restating different numbers.`
         : "";
       const requestedResponseShape = detectRequestedResponseShape(args.prompt);
-      const responseShapeInstruction = requestedResponseShape.kind === "title_only"
-        ? "The user requested a title-only response. Output exactly one plain-text title line with no heading, label, bullets, explanation, or memo sections."
-        : requestedResponseShape.kind === "bullets"
-          ? `The user requested exactly ${requestedResponseShape.count} bullets. Output exactly ${requestedResponseShape.count} Markdown bullet lines beginning with \"- \" and no heading, preamble, conclusion, or memo sections.`
-          : `Produce a banker-style memo. Do not include To, From, Date, or Subject headers. Use exactly these markdown section headings:
-1. Short answer (one sentence with citation markers like [1] [2])
-2. Why it matters (one paragraph with citation markers)
-3. Evidence (3-5 bullets, each citing a source)
-4. Risks / unknowns (2-3 bullets)
-5. Next action (one imperative sentence)`;
-      const citationInstruction = requestedResponseShape.kind === "title_only"
-        ? "Do not include citation markers in the title."
-        : "Use [1], [2], [3] inline cite markers when a statement has a supported source URL.";
-      const calculationInstruction = requestedResponseShape.kind === "title_only"
-        ? ""
-        : requestedResponseShape.kind === "bullets"
-          ? "If the request requires a calculation or reconciliation, include the exact derivation and pass/fail conclusion within the requested bullet count."
-          : `If the user's request involves a numeric calculation, reconciliation, balancing check, or explicitly
-asks you to "show your math" / "show your work" / confirm a total: state the actual derivation
-(the specific numbers and operation, e.g. "$X - $Y = $Z") and an explicit pass/fail confirmation
-of what they asked you to verify inside "Why it matters" - do not just assert the conclusion. This
-does not apply to ordinary research/company/market questions.`;
+      const {
+        shapeInstruction: responseShapeInstruction,
+        citationInstruction,
+        calculationInstruction,
+      } = responseShapeSystemInstructions(requestedResponseShape);
       const systemPrompt = `You are NodeBench's evidence-first analyst. ${responseShapeInstruction}
 
 ${citationInstruction} ${liveGrounding.useLiveGrounding ? "Keep claims grounded in the web sources you retrieve. Prefer recency." : "Use only the selected memory/context packet and cached source refs; do not imply a fresh web search was performed."} If you can't find grounded evidence, say so explicitly.
