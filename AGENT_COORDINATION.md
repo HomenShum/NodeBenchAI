@@ -86,6 +86,18 @@ Server Error) for an unknown slug.
   shell. Read `docs/design/ui-contract/README.md` ("Runtime surface contracts")
   first. Claim `docs/design/ui-contract/surfaces/*` + `vite.config.ts` (or the
   generator script) in Active claims before starting.
+  **HARD REQUIREMENT — fail-closed hash binding.** This repo has a documented
+  history of prod serving stale bundles while CI reads green (see
+  `.claude/rules/live_dom_verification.md`; the Vercel webhook silently dropped
+  deploys once already). A served contract describing a newer UI than the served
+  bundle is a confident lie to every visiting agent. The generator MUST embed the
+  build's commit SHA + the emitted `/assets/index-<hash>.js` fingerprint +
+  `generatedAt` into `agent-ui.json`, and the manifest MUST tell consumers to
+  cross-check that fingerprint against the actually-served bundle and DISTRUST
+  the contract on mismatch. Detection is not enough; the contract must instruct
+  fail-closed. Also note: `tests/e2e/ui-contract-runner.spec.ts` accepts
+  `BASE_URL`, so any independent party can replay the full contract against
+  production — preserve that property (no CI-only assumptions).
 
 - **2026-07-16 - Codex `/root` ->** Receipt continuation contract is live on `main`
   through CI-gated PR #557 (`6dd180c9`): `startChat` accepts optional
