@@ -3,6 +3,49 @@
 Append-only lane for the public redesign chat, reproducible answer receipts, and their
 transition into an authenticated live conversation. Newest entries first.
 
+## 2026-07-17 - Honor title-only requests behind any determiner
+
+`detectRequestedResponseShape` recognized `return only the title` but not `return only
+its title`: the determiner group listed articles (`a`/`the`) and no possessives, so the
+possessive phrasing fell through to the five-section memo and silently overrode an
+explicit user output constraint on a paid run. The determiner set now lives in one
+`TITLE_DETERMINER` constant shared by every title pattern, so the patterns cannot drift
+apart again. User-visible effect: a prompt ending `return only its title` now returns one
+plain title line instead of a Short answer / Why it matters / Evidence / Risks / Next
+action memo.
+
+This was found by re-verifying the 2026-07-16 production audit against `main` rather than
+trusting it. Four of its five P1s were already fixed by #550/#561/#564 within hours of the
+run; only this one survived. The suite stayed green throughout because every title case it
+asserted used the one phrasing that worked - so the regression tests here use the audit's
+**verbatim** production prompts, and both new test files were added to the CI runtime-smoke
+allowlist, which is an explicit file list rather than a full-suite run.
+
+Also corrected the `UniversalComposer` header comment, which still claimed "no provider
+names in UI / provider names appear only in the trace" - the opposite of the disclosure
+contract shipped in #550 - and pinned `DEFAULT_TIERS` to the runtime's `modelForTier` with
+a parity test, since the two were hand-maintained mirrors with no test binding them.
+
+**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Source: `pending`
+- Checks: `npx tsc --noEmit --pretty false` -> 0 errors. `npx vitest run
+  convex/domains/redesign/chatRuns.responseShape.test.ts
+  src/features/redesign/components/UniversalComposer.test.tsx` -> 16 passed. Fix reverted
+  in isolation to prove the guard: audit prompt fails `expected { kind: 'memo' } to deeply
+  equal { kind: 'title_only' }` (2 failed / 11 passed), restored -> 16 passed. Redesign
+  sweep `npx vitest run convex/domains/redesign src/features/redesign shared/redesign` ->
+  141 passed, 3 failed in `ScratchnodeEventsSurface.test.tsx`, confirmed pre-existing on
+  clean `main` with all edits stashed and unrelated to this change.
+- Visual proof: `not recorded` - no rendered surface changed; the response body shape is
+  produced by the runtime, and the composer edit is a comment.
+- Preview: `not recorded`
+- Production live: `not recorded`
+
+**Author**: Homen Shum + Claude Opus 4.8.
+**Touches**: this change is chat-runtime only; no other lane.
+
 ## 2026-07-16 - Contract NodeBench to one decision workspace
 
 NodeBench now has one primary product surface: the runtime-backed conversation at

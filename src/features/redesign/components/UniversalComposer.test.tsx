@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { modelForTier } from "../../../../convex/domains/redesign/chatRuns";
 import {
   CANCEL_ARM_DELAY_MS,
   DEFAULT_TIERS,
@@ -26,6 +27,20 @@ describe("UniversalComposer runtime controls", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  // The preflight names a provider and model before a paid submit, but DEFAULT_TIERS
+  // is a hand-maintained mirror of the runtime's modelForTier. Drift between them
+  // makes the disclosure advertise a model the runtime never runs — and never prices.
+  it("discloses the exact model the chat runtime resolves for every offered tier", () => {
+    expect(DEFAULT_TIERS.length).toBeGreaterThan(0);
+
+    for (const tier of DEFAULT_TIERS) {
+      expect({ id: tier.id, model: tier.model }).toEqual({
+        id: tier.id,
+        model: modelForTier(tier.id),
+      });
+    }
   });
 
   it("does not let the second click of submit immediately cancel the new run", () => {

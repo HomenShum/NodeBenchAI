@@ -32,6 +32,46 @@ describe("redesign chat runtime response policy", () => {
     expect(detectRequestedResponseShape("Research Acme's market position.")).toEqual({ kind: "memo" });
   });
 
+  // Both prompts below are verbatim from the 2026-07-16 authenticated production
+  // runs. The possessive one silently rendered the five-section memo in prod while
+  // this suite stayed green, because every title case asserted here used "the".
+  it("honors the shape of the verbatim production prompts that regressed", () => {
+    expect(
+      detectRequestedResponseShape(
+        "Production recovery QA run 2026-07-16: From the attached Daily Brief, identify one unresolved claim and return only its title. Do not write, share, approve, or modify any data.",
+      ),
+    ).toEqual({ kind: "title_only" });
+
+    expect(
+      detectRequestedResponseShape(
+        "Production QA run 2026-07-16: Using the attached Daily Brief, return exactly two bullets: (1) the strongest supported claim with its best source, and (2) one concrete review gap. Do not write, share, approve, or modify any data.",
+      ),
+    ).toEqual({ kind: "bullets", count: 2 });
+  });
+
+  it("detects a title request behind any determiner, not just an article", () => {
+    for (const prompt of [
+      "Return only its title.",
+      "Return only their title.",
+      "Just give me his title.",
+      "Return only this title.",
+      "Return only title.",
+      "Provide its title only",
+      "Title-only please.",
+    ]) {
+      expect(detectRequestedResponseShape(prompt)).toEqual({ kind: "title_only" });
+    }
+  });
+
+  it("does not mistake incidental prose about titles for a shape request", () => {
+    expect(
+      detectRequestedResponseShape("Summarize the report and explain why its title is misleading."),
+    ).toEqual({ kind: "memo" });
+    expect(
+      detectRequestedResponseShape("Compare each vendor's job titles across the market."),
+    ).toEqual({ kind: "memo" });
+  });
+
   it("returns one plain title line while omitting memo-only fields", () => {
     const shaped = applyDeterministicResponsePolicy(
       "Provide a title only",

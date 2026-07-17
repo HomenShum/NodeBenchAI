@@ -100,6 +100,8 @@ jobs:
           src/features/dogfood/components/TasteBenchPanel.test.tsx
           src/features/evaluation/data/tasteBenchScenario.test.ts
           scripts/__tests__/releaseWorkflowContracts.test.ts
+          convex/domains/redesign/chatRuns.responseShape.test.ts
+          src/features/redesign/components/UniversalComposer.test.tsx
 
   scratchnode-launch-gates:
     name: ScratchNode launch gates

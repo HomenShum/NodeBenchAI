@@ -842,13 +842,29 @@ function parseRequestedCount(value: string): number | null {
   return Number.isInteger(count) && count >= 1 && count <= 12 ? count : null;
 }
 
+// Determiners that may precede "title". Articles alone drop possessive phrasings
+// such as "return only its title", which then fall back to the five-section memo
+// and silently override the user's explicit shape request. Kept in one place so
+// the patterns below cannot drift apart.
+const TITLE_DETERMINER = String.raw`(?:a |an |the |its |their |his |her |our |your |this |that )?`;
+
+const TITLE_ONLY_PATTERNS: RegExp[] = [
+  /\btitle[- ]only\b/,
+  new RegExp(
+    String.raw`\b(?:only|just) (?:give|return|output|provide|write|respond with)?\s*(?:me )?`
+      + TITLE_DETERMINER
+      + String.raw`title\b`,
+  ),
+  new RegExp(
+    String.raw`\b(?:give|return|output|provide|write|respond with) (?:me )?`
+      + TITLE_DETERMINER
+      + String.raw`title only\b`,
+  ),
+];
+
 export function detectRequestedResponseShape(prompt: string): RequestedResponseShape {
   const normalized = prompt.replace(/\s+/g, " ").trim().toLowerCase();
-  if (
-    /\btitle[- ]only\b/.test(normalized)
-    || /\b(?:only|just) (?:give|return|output|provide|write|respond with)?\s*(?:me )?(?:a |the )?title\b/.test(normalized)
-    || /\b(?:give|return|output|provide|write|respond with) (?:me )?(?:a |the )?title only\b/.test(normalized)
-  ) {
+  if (TITLE_ONLY_PATTERNS.some((pattern) => pattern.test(normalized))) {
     return { kind: "title_only" };
   }
 
