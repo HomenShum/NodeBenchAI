@@ -3,6 +3,43 @@
 Append-only lane for the public redesign chat, reproducible answer receipts, and their
 transition into an authenticated live conversation. Newest entries first.
 
+## 2026-07-17 - Ground "best source" superlatives on their own citation
+
+`applyDeterministicResponsePolicy` only rewrote unsupported "best/strongest source|claim"
+superlatives when the run had **zero** URL-backed evidence rows. In a mixed run - one real
+URL plus several cached section labels like `Setup` or `Rising Action` - the superlative
+passed through, so an answer could claim "strongest supported claim with its best source"
+while the rendered best source was a label with no URL. On a paid runtime path that is a
+false confidence signal, not honest degradation.
+
+The gate is now sentence-level: a superlative stands only if its own sentence carries a
+`[N]` citation resolving to a URL-backed evidence row; otherwise that sentence is rewritten
+to "source or claim requiring verification" and the source-needed limitation is appended.
+A superlative citing a cached label, or citing nothing, is rewritten even when a URL-backed
+row exists elsewhere in the same run. The "best/strongest" pattern now lives in one shared
+constant used by both the sanitizer and the gate so they cannot disagree.
+
+This closes the residual left open by the 2026-07-16 audit follow-up (#565 fixed four of
+the five P1s; this is the fifth). Tracked as #566.
+
+**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Source: `pending`
+- Checks: `npx tsc -p convex --noEmit --pretty false` -> 0 errors. `npx vitest run
+  convex/domains/redesign/chatRuns.responseShape.test.ts` -> 16 passed (3 new: grounded
+  citation kept, cached-label citation rewritten, uncited superlative rewritten). Gate
+  reverted to run-level in isolation to prove the guard: the cached-label and uncited cases
+  fail `expected 'acme is the strongest supported claim...' not to contain 'strongest
+  supported claim'` (2 failed / 14 passed), restored -> 16 passed.
+- Visual proof: `not recorded` - the answer body is runtime-produced; no rendered surface
+  markup changed.
+- Preview: `not recorded`
+- Production live: `not recorded`
+
+**Author**: Homen Shum + Claude Opus 4.8.
+**Touches**: chat-runtime only.
+
 ## 2026-07-17 - Honor title-only requests behind any determiner
 
 `detectRequestedResponseShape` recognized `return only the title` but not `return only

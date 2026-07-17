@@ -893,11 +893,53 @@ function urlsInText(text: string): string[] {
   });
 }
 
+// One source of truth for the "best/strongest source|claim" superlative, shared
+// by the sanitizer (replace) and the sentence-level gate (test) so the two can
+// never disagree about what counts as an unsupported strength claim.
+const UNSUPPORTED_SUPERLATIVE_SOURCE = String.raw`\b(?:best|strongest)\s+(?:(?:supported|grounded|available)\s+)?(?:source|claim|evidence)\b`;
+const UNSUPPORTED_SUPERLATIVE_TEST = new RegExp(UNSUPPORTED_SUPERLATIVE_SOURCE, "i");
+
 function sanitizeUnsupportedSuperlatives(text: string): string {
   return text.replace(
-    /\b(?:best|strongest)\s+(?:(?:supported|grounded|available)\s+)?(?:source|claim|evidence)\b/gi,
+    new RegExp(UNSUPPORTED_SUPERLATIVE_SOURCE, "gi"),
     "source or claim requiring verification",
   );
+}
+
+function citationIndices(text: string): number[] {
+  return [...text.matchAll(/\[(\d+)\]/g)].map((match) => Number(match[1]));
+}
+
+/**
+ * Sentence-level honesty gate for "best/strongest source|claim" superlatives.
+ *
+ * A run-level "some supported URL exists somewhere" check is too weak: a mixed
+ * run (one URL-backed row plus several cached section labels) would let the
+ * answer assert "strongest supported claim with its best source" while the
+ * rendered best source is a label with no URL. So the sentence making the
+ * superlative must itself cite a [N] marker resolving to a URL-backed evidence
+ * row; otherwise the superlative is rewritten and the caller appends the
+ * source-needed limitation.
+ */
+function gateSuperlativeClaims(
+  text: string,
+  supportedIdx: Set<number>,
+): { text: string; sanitizedUngrounded: boolean } {
+  if (!UNSUPPORTED_SUPERLATIVE_TEST.test(text)) {
+    return { text, sanitizedUngrounded: false };
+  }
+  let sanitizedUngrounded = false;
+  // Split on sentence-final punctuation, but keep a citation marker that trails
+  // the terminator ("...claim. [1]") attached to the sentence it annotates.
+  const sentences = text.split(/(?<=[.!?])\s+(?!\[\d+\])/);
+  const gated = sentences.map((sentence) => {
+    if (!UNSUPPORTED_SUPERLATIVE_TEST.test(sentence)) return sentence;
+    const grounded = citationIndices(sentence).some((idx) => supportedIdx.has(idx));
+    if (grounded) return sentence;
+    sanitizedUngrounded = true;
+    return sanitizeUnsupportedSuperlatives(sentence);
+  });
+  return { text: gated.join(" "), sanitizedUngrounded };
 }
 
 function compactResponseUnit(text: string, stripCitations = false): string {
@@ -944,21 +986,29 @@ export function applyDeterministicResponsePolicy(
   prompt: string,
   parsed: ParsedMemo,
   evidence: Array<{
+    idx?: number;
     source: string;
     quote?: string;
     blocking?: boolean;
     verificationState?: EvidenceVerificationState;
   }>,
 ): ParsedMemo {
-  const supportedUrls = evidence.flatMap((row) => {
-    const url = sourceUrl(row.source);
-    return url
+  const supportedRows = evidence.filter(
+    (row) =>
+      sourceUrl(row.source)
       && row.blocking !== true
       && row.verificationState !== "unsupported"
-      && row.verificationState !== "fetch_blocked"
-      ? [url]
-      : [];
+      && row.verificationState !== "fetch_blocked",
+  );
+  const supportedUrls = supportedRows.flatMap((row) => {
+    const url = sourceUrl(row.source);
+    return url ? [url] : [];
   });
+  // Which citation markers ([N]) point at a URL-backed row. Drives the
+  // sentence-level superlative gate below.
+  const supportedIdx = new Set(
+    supportedRows.flatMap((row) => (row.idx !== undefined ? [row.idx] : [])),
+  );
   const requestedUrls = urlsInText(prompt);
   // Grounding providers commonly return an opaque redirect even when the
   // user supplied the canonical source. Keep the provider URL in evidence,
@@ -967,17 +1017,37 @@ export function applyDeterministicResponsePolicy(
   const primarySupportedUrl = hasSupportedUrl
     ? requestedUrls[0] ?? supportedUrls[0]
     : null;
-  const honest: ParsedMemo = hasSupportedUrl
-    ? parsed
-    : {
-        shortAnswer: sanitizeUnsupportedSuperlatives(parsed.shortAnswer),
-        whyItMatters: sanitizeUnsupportedSuperlatives(parsed.whyItMatters),
+  let honest: ParsedMemo;
+  if (hasSupportedUrl) {
+    // Some URL-backed evidence exists, but a superlative must be grounded by its
+    // OWN citation, not by the mere presence of a URL elsewhere in the run.
+    const gatedShort = gateSuperlativeClaims(parsed.shortAnswer, supportedIdx);
+    const gatedWhy = gateSuperlativeClaims(parsed.whyItMatters, supportedIdx);
+    if (gatedShort.sanitizedUngrounded || gatedWhy.sanitizedUngrounded) {
+      honest = {
+        shortAnswer: gatedShort.text,
+        whyItMatters: gatedWhy.text,
         risks: [
-          ...parsed.risks.map(sanitizeUnsupportedSuperlatives).filter((risk) => risk !== SOURCE_NEEDED_LIMITATION),
+          ...parsed.risks.filter((risk) => risk !== SOURCE_NEEDED_LIMITATION),
           SOURCE_NEEDED_LIMITATION,
         ],
-        nextAction: "Add a supported source URL before selecting or promoting any claim.",
+        nextAction: parsed.nextAction,
       };
+    } else {
+      // No ungrounded superlative — leave the parsed memo byte-for-byte intact.
+      honest = parsed;
+    }
+  } else {
+    honest = {
+      shortAnswer: sanitizeUnsupportedSuperlatives(parsed.shortAnswer),
+      whyItMatters: sanitizeUnsupportedSuperlatives(parsed.whyItMatters),
+      risks: [
+        ...parsed.risks.map(sanitizeUnsupportedSuperlatives).filter((risk) => risk !== SOURCE_NEEDED_LIMITATION),
+        SOURCE_NEEDED_LIMITATION,
+      ],
+      nextAction: "Add a supported source URL before selecting or promoting any claim.",
+    };
+  }
 
   const shape = detectRequestedResponseShape(prompt);
   if (shape.kind === "memo") return honest;
