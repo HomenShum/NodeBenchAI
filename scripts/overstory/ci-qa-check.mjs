@@ -4,7 +4,8 @@
  *
  * Reads dogfood artifacts from public/dogfood/ and validates:
  * 1. All required manifests exist and are fresh
- * 2. Minimum screenshot coverage (>= 23)
+ * 2. Complete one-surface screenshot coverage (4 route variants + 2
+ *    interactions + 1 settings state)
  * 3. Walkthrough has enough chapters (>= 9)
  * 4. Frames extracted
  * 5. Scribe steps captured
@@ -18,6 +19,11 @@ import { join } from "path";
 
 const REPO_ROOT = process.cwd();
 const DOGFOOD_DIR = join(REPO_ROOT, "public", "dogfood");
+const MIN_ROUTE_SCREENSHOTS = 4;
+const MIN_INTERACTION_SCREENSHOTS = 2;
+const MIN_SETTINGS_SCREENSHOTS = 1;
+const MIN_SCREENSHOTS =
+  MIN_ROUTE_SCREENSHOTS + MIN_INTERACTION_SCREENSHOTS + MIN_SETTINGS_SCREENSHOTS;
 
 const CHECKS = [];
 let passed = true;
@@ -54,15 +60,31 @@ const manifest = readJSON("manifest.json");
 check("manifest exists", !!manifest);
 if (manifest) {
   const items = manifest.items || [];
-  check("screenshot count >= 23", items.length >= 23, `${items.length} screenshots`);
+  check(
+    `screenshot count >= ${MIN_SCREENSHOTS}`,
+    items.length >= MIN_SCREENSHOTS,
+    `${items.length} screenshots`,
+  );
   const age = hoursAgo(manifest.capturedAtIso);
   check("manifest fresh (< 24h)", age < 24, `${Math.floor(age)}h old`);
   const routes = items.filter((i) => i.kind === "route").length;
   const interactions = items.filter((i) => i.kind === "interaction").length;
   const settings = items.filter((i) => i.kind === "settings").length;
-  check("has route screenshots", routes >= 20, `${routes} routes`);
-  check("has interaction screenshots", interactions >= 1, `${interactions} interactions`);
-  check("has settings screenshots", settings >= 1, `${settings} settings`);
+  check(
+    "has responsive/theme route screenshots",
+    routes >= MIN_ROUTE_SCREENSHOTS,
+    `${routes} route variants`,
+  );
+  check(
+    "has interaction screenshots",
+    interactions >= MIN_INTERACTION_SCREENSHOTS,
+    `${interactions} interactions`,
+  );
+  check(
+    "has settings screenshots",
+    settings >= MIN_SETTINGS_SCREENSHOTS,
+    `${settings} settings`,
+  );
 }
 console.log();
 

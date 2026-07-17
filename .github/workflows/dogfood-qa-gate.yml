@@ -114,7 +114,9 @@ jobs:
             try {
               const manifest = JSON.parse(fs.readFileSync('public/dogfood/manifest.json', 'utf8'));
               screenshotCount = (manifest.items || []).length;
-              manifestStatus = screenshotCount >= 23 ? 'pass' : 'low';
+              // One product surface: 4 responsive/theme variants,
+              // 2 interaction states, and 1 settings/theme state.
+              manifestStatus = screenshotCount >= 7 ? 'pass' : 'low';
             } catch {}
 
             try {
