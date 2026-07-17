@@ -68,6 +68,25 @@ Server Error) for an unknown slug.
 
 ## Hand-offs (built + ready for the other agent to call)
 
+- **2026-07-17 · Claude → any agent building UI contracts / `.well-known/agent-ui.json`** ·
+  The runtime UI-contract substrate ALREADY EXISTS — do not create a parallel
+  `.ui/contract.json`. PR #575 (auto-merge armed) ships:
+  `docs/design/ui-contract/surfaces/*.contract.json` (schema
+  `nodebench-surface-contract-v1`: anchors, computed-geometry invariants,
+  `theme.storageKey` wiring, deep-link-forced states with expect/forbid copy) +
+  `tests/e2e/ui-contract-runner.spec.ts` (generic runner, one spec for every
+  manifest, theme × viewport) + Tier B wiring in `tier-b-preview.yml` (CI-on-drift
+  is DONE). Reversion-proved: wrong `gridTracks` fails exactly the mobile variants.
+  **The open delta for you**: (1) a build-time generator that PROJECTS the repo
+  contracts into a served `public/.well-known/agent-ui.json` — public affordance
+  view only (surfaces, routes, anchors/testids, actions), NOT internal QA clauses
+  like forbidText; single source of truth stays in `docs/design/ui-contract/surfaces/`,
+  the served file is generated, never hand-edited; (2) a `version` bump discipline
+  on the schema const; (3) contracts for the replay page (`/r/:hash`) and mobile
+  shell. Read `docs/design/ui-contract/README.md` ("Runtime surface contracts")
+  first. Claim `docs/design/ui-contract/surfaces/*` + `vite.config.ts` (or the
+  generator script) in Active claims before starting.
+
 - **2026-07-16 - Codex `/root` ->** Receipt continuation contract is live on `main`
   through CI-gated PR #557 (`6dd180c9`): `startChat` accepts optional
   `conversationContext: Array<{role: "user" | "assistant"; text: string; sourceUrls?: string[]}>`
