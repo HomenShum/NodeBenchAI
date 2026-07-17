@@ -4,6 +4,7 @@
 
 import { memo, useCallback, useState } from "react";
 import { useRevealOnMount } from "@/hooks/useRevealOnMount";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ai-ui/tabs";
 
 type LegalTab = "terms" | "privacy";
 
@@ -181,34 +182,44 @@ export const LegalPage = memo(function LegalPage() {
           </p>
         </div>
 
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as LegalTab)}
+          className="contents"
+        >
         {/* Tabs */}
-        <div style={stagger("0.1s")} className="mb-8 flex justify-center gap-2">
+        <TabsList style={stagger("0.1s")} className="mb-8 flex h-auto justify-center gap-2 bg-transparent p-0" aria-label="Legal documents">
           {TABS.map((tab) => (
-            <button
+            <TabsTrigger
               key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+              value={tab.id}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white/[0.08] data-[state=active]:text-content data-[state=active]:shadow-none ${
                 activeTab === tab.id
                   ? "bg-white/[0.08] text-content"
                   : "text-content-muted hover:bg-white/[0.04] hover:text-content-secondary"
               }`}
-              aria-selected={activeTab === tab.id}
-              role="tab"
             >
               {tab.label}
-            </button>
+            </TabsTrigger>
           ))}
-        </div>
+        </TabsList>
 
         {/* Content */}
-        <div
+        <TabsContent
+          value="terms"
           style={stagger("0.2s")}
-          className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 sm:p-8"
-          role="tabpanel"
+          className="mt-0 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 sm:p-8"
         >
-          {activeTab === "terms" ? <TermsContent /> : <PrivacyContent />}
-        </div>
+          <TermsContent />
+        </TabsContent>
+        <TabsContent
+          value="privacy"
+          style={stagger("0.2s")}
+          className="mt-0 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 sm:p-8"
+        >
+          <PrivacyContent />
+        </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

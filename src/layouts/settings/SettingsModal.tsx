@@ -3,6 +3,8 @@ import { useThemeSafe } from "../../contexts/ThemeContext";
 import { useQuery, useMutation, useAction} from "convex/react";
 import { useConvexApi } from "@/lib/convexApi";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ai-ui/checkbox";
+import { Switch } from "@/components/ai-ui/switch";
 import { WebMcpSettingsPanel } from "./WebMcpSettingsPanel";
 import { useAuthActions } from "@convex-dev/auth/react";
 import {
@@ -819,26 +821,20 @@ export function SettingsModal({ isOpen, onClose, initialTab }: Props) {
                         <div className="text-sm font-semibold">Expand Ungrouped Section by Default</div>
                         <div className="text-xs text-content-secondary">Whether the ungrouped documents section should be expanded when you first open the app.</div>
                       </div>
-                      <label className="inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="sr-only peer"
-                          checked={userPreferences?.isUngroupedExpanded ?? true}
-                          onChange={(e) => {
-                            if (user === null) {
-                              toast.error("Please sign in to change preferences");
-                              return;
-                            }
-                            void updateUngroupedExpandedState({ isExpanded: e.target.checked })
-                              .then(() => toast.success("Section expansion preference updated"))
-                              .catch((err: any) => toast.error(err?.message ?? "Failed to update preference"));
-                          }}
-                          disabled={user === null}
-                        />
-                        <div className="w-10 h-5 bg-surface-secondary dark:bg-white/[0.12] peer-focus:outline-none rounded-full peer peer-checked:bg-blue-600 transition-colors">
-                          <div className="w-4 h-4 bg-white rounded-full shadow transform transition-transform translate-x-0 peer-checked:translate-x-5 m-0.5" />
-                        </div>
-                      </label>
+                      <Switch
+                        aria-label="Expand ungrouped section by default"
+                        checked={userPreferences?.isUngroupedExpanded ?? true}
+                        onCheckedChange={(checked) => {
+                          if (user === null) {
+                            toast.error("Please sign in to change preferences");
+                            return;
+                          }
+                          void updateUngroupedExpandedState({ isExpanded: checked })
+                            .then(() => toast.success("Section expansion preference updated"))
+                            .catch((err: any) => toast.error(err?.message ?? "Failed to update preference"));
+                        }}
+                        disabled={user === null}
+                      />
                     </div>
                   </div>
                 </div>
@@ -970,28 +966,22 @@ export function SettingsModal({ isOpen, onClose, initialTab }: Props) {
                           <div className="text-sm">Show Week in Today's Agenda</div>
                           <div className="text-xs text-content-secondary">Display upcoming events for the current week in today's agenda.</div>
                         </div>
-                        <label className="inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            checked={calendarPrefs?.showWeekInAgenda ?? true}
-                            onChange={(e) => {
-                              if (user === null) {
-                                toast.error("Please sign in to change preferences");
-                                return;
-                              }
-                              setSavingPlannerPrefs(true);
-                              void setPlannerViewPrefs({ showWeekInAgenda: e.target.checked })
-                                .then(() => toast.success(`Week display ${e.target.checked ? "enabled" : "disabled"}`))
-                                .catch((err: any) => toast.error(err?.message ?? "Failed to update preference"))
-                                .finally(() => setSavingPlannerPrefs(false));
-                            }}
-                            disabled={savingPlannerPrefs || user === null}
-                          />
-                          <div className="w-10 h-5 bg-surface-secondary dark:bg-white/[0.12] peer-focus:outline-none rounded-full peer peer-checked:bg-blue-600 transition-colors">
-                            <div className="w-4 h-4 bg-white rounded-full shadow transform transition-transform translate-x-0 peer-checked:translate-x-5 m-0.5" />
-                          </div>
-                        </label>
+                        <Switch
+                          aria-label="Show week in today's agenda"
+                          checked={calendarPrefs?.showWeekInAgenda ?? true}
+                          onCheckedChange={(checked) => {
+                            if (user === null) {
+                              toast.error("Please sign in to change preferences");
+                              return;
+                            }
+                            setSavingPlannerPrefs(true);
+                            void setPlannerViewPrefs({ showWeekInAgenda: checked })
+                              .then(() => toast.success(`Week display ${checked ? "enabled" : "disabled"}`))
+                              .catch((err: any) => toast.error(err?.message ?? "Failed to update preference"))
+                              .finally(() => setSavingPlannerPrefs(false));
+                          }}
+                          disabled={savingPlannerPrefs || user === null}
+                        />
                       </div>
 
                       {/* Agenda Mode */}
@@ -1364,26 +1354,19 @@ export function SettingsModal({ isOpen, onClose, initialTab }: Props) {
                         <div className="text-sm">API key reminder banner</div>
                         <div className="text-xs text-content-secondary">Show a banner when no API keys are linked.</div>
                       </div>
-                      <label className="inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="sr-only peer"
-                          aria-label="Show API key reminder banner"
-                          checked={!(userPreferences?.linkReminderOptOut ?? false)}
-                          onChange={(e) => {
-                            if (user === null) { toast.error("Please sign in"); return; }
-                            setSavingReminder(true);
-                            void updateUserPreferences({ linkReminderOptOut: !e.target.checked })
-                              .then(() => toast.success("Preference updated"))
-                              .catch((err: any) => toast.error(err?.message ?? "Failed"))
-                              .finally(() => setSavingReminder(false));
-                          }}
-                          disabled={savingReminder}
-                        />
-                        <div className="w-10 h-5 bg-surface-secondary dark:bg-white/[0.12] peer-focus:outline-none rounded-full peer peer-checked:bg-blue-600 transition-colors">
-                          <div className="w-4 h-4 bg-white rounded-full shadow transform transition-transform translate-x-0 peer-checked:translate-x-5 m-0.5" />
-                        </div>
-                      </label>
+                      <Switch
+                        aria-label="Show API key reminder banner"
+                        checked={!(userPreferences?.linkReminderOptOut ?? false)}
+                        onCheckedChange={(checked) => {
+                          if (user === null) { toast.error("Please sign in"); return; }
+                          setSavingReminder(true);
+                          void updateUserPreferences({ linkReminderOptOut: !checked })
+                            .then(() => toast.success("Preference updated"))
+                            .catch((err: any) => toast.error(err?.message ?? "Failed"))
+                            .finally(() => setSavingReminder(false));
+                        }}
+                        disabled={savingReminder}
+                      />
                     </div>
                   </div>
 
@@ -1566,13 +1549,12 @@ export function SettingsModal({ isOpen, onClose, initialTab }: Props) {
                       </div>
                       <div className="flex items-center gap-2">
                         <label className="inline-flex items-center gap-2 text-xs">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={userPreferences?.gmailIngestEnabled ?? true}
-                            onChange={async (e) => {
+                            onCheckedChange={async (checked) => {
                               setSavingCalendarIngest(true);
                               try {
-                                await updateUserPreferences({ gmailIngestEnabled: e.target.checked });
+                                await updateUserPreferences({ gmailIngestEnabled: checked === true });
                                 toast.success("Gmail ingest preference saved");
                               } catch (err: any) {
                                 toast.error(err?.message ?? "Failed to save");
@@ -1584,13 +1566,12 @@ export function SettingsModal({ isOpen, onClose, initialTab }: Props) {
                           Gmail
                         </label>
                         <label className="inline-flex items-center gap-2 text-xs">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={userPreferences?.gcalSyncEnabled ?? true}
-                            onChange={async (e) => {
+                            onCheckedChange={async (checked) => {
                               setSavingCalendarIngest(true);
                               try {
-                                await updateUserPreferences({ gcalSyncEnabled: e.target.checked });
+                                await updateUserPreferences({ gcalSyncEnabled: checked === true });
                                 toast.success("GCal sync preference saved");
                               } catch (err: any) {
                                 toast.error(err?.message ?? "Failed to save");
@@ -1814,25 +1795,21 @@ export function SettingsModal({ isOpen, onClose, initialTab }: Props) {
                         <div className="text-sm font-medium">Enable Notifications</div>
                         <div className="text-xs text-content-secondary">Master toggle for all notifications</div>
                       </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="sr-only peer"
-                          checked={smsPreferences?.smsNotificationsEnabled ?? false}
-                          onChange={async (e) => {
-                            setSavingSmsPrefs(true);
-                            try {
-                              await updateSmsPreferences({ smsNotificationsEnabled: e.target.checked });
-                              toast.success(e.target.checked ? "Notifications enabled" : "Notifications disabled");
-                            } catch (err: any) {
-                              toast.error(err?.message ?? "Failed to update");
-                            } finally {
-                              setSavingSmsPrefs(false);
-                            }
-                          }}
-                        />
-                        <div className="w-11 h-6 bg-surface-secondary dark:bg-white/[0.12] peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-edge dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                      </label>
+                      <Switch
+                        aria-label="Enable notifications"
+                        checked={smsPreferences?.smsNotificationsEnabled ?? false}
+                        onCheckedChange={async (checked) => {
+                          setSavingSmsPrefs(true);
+                          try {
+                            await updateSmsPreferences({ smsNotificationsEnabled: checked });
+                            toast.success(checked ? "Notifications enabled" : "Notifications disabled");
+                          } catch (err: any) {
+                            toast.error(err?.message ?? "Failed to update");
+                          } finally {
+                            setSavingSmsPrefs(false);
+                          }
+                        }}
+                      />
                     </div>
 
                     {/* Notification Types */}
@@ -1844,14 +1821,12 @@ export function SettingsModal({ isOpen, onClose, initialTab }: Props) {
                           <div className="text-sm">Meeting Created</div>
                           <div className="text-xs text-content-secondary">When a new meeting is added from Gmail</div>
                         </div>
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 text-blue-600 rounded border-edge dark:border-gray-600 focus:ring-ring"
+                        <Checkbox
                           checked={smsPreferences?.smsMeetingCreated ?? false}
                           disabled={!smsPreferences?.smsNotificationsEnabled}
-                          onChange={async (e) => {
+                          onCheckedChange={async (checked) => {
                             try {
-                              await updateSmsPreferences({ smsMeetingCreated: e.target.checked });
+                              await updateSmsPreferences({ smsMeetingCreated: checked === true });
                               toast.success("Preference saved");
                             } catch (err: any) {
                               toast.error(err?.message ?? "Failed to update");
@@ -1865,14 +1840,12 @@ export function SettingsModal({ isOpen, onClose, initialTab }: Props) {
                           <div className="text-sm">Meeting Reminder</div>
                           <div className="text-xs text-content-secondary">Before meeting starts</div>
                         </div>
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 text-blue-600 rounded border-edge dark:border-gray-600 focus:ring-ring"
+                        <Checkbox
                           checked={smsPreferences?.smsMeetingReminder ?? false}
                           disabled={!smsPreferences?.smsNotificationsEnabled}
-                          onChange={async (e) => {
+                          onCheckedChange={async (checked) => {
                             try {
-                              await updateSmsPreferences({ smsMeetingReminder: e.target.checked });
+                              await updateSmsPreferences({ smsMeetingReminder: checked === true });
                               toast.success("Preference saved");
                             } catch (err: any) {
                               toast.error(err?.message ?? "Failed to update");
@@ -1886,14 +1859,12 @@ export function SettingsModal({ isOpen, onClose, initialTab }: Props) {
                           <div className="text-sm">Morning Digest</div>
                           <div className="text-xs text-content-secondary">Daily summary of today's meetings</div>
                         </div>
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 text-blue-600 rounded border-edge dark:border-gray-600 focus:ring-ring"
+                        <Checkbox
                           checked={smsPreferences?.smsMorningDigest ?? false}
                           disabled={!smsPreferences?.smsNotificationsEnabled}
-                          onChange={async (e) => {
+                          onCheckedChange={async (checked) => {
                             try {
-                              await updateSmsPreferences({ smsMorningDigest: e.target.checked });
+                              await updateSmsPreferences({ smsMorningDigest: checked === true });
                               toast.success("Preference saved");
                             } catch (err: any) {
                               toast.error(err?.message ?? "Failed to update");

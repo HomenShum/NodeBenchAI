@@ -1,9 +1,9 @@
-import React, { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, Component, type ReactNode, type ErrorInfo } from "react";
-import ReactDOM from "react-dom";
+import React, { Suspense, useMemo, Component, type ReactNode, type ErrorInfo } from "react";
 import { Id } from "../../../convex/_generated/dataModel";
 import { X } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ai-ui/popover";
 
 // Lazy-load heavy editors so they don't bloat the main bundle.
 const UnifiedEditor = React.lazy(() => import("@features/editor/components/UnifiedEditor"));
@@ -36,102 +36,23 @@ interface MiniEditorPopoverProps {
   onClose: () => void;
 }
 
-const portalRootId = "mini-editor-portal-root";
-
-function ensurePortalRoot(): HTMLElement {
-  let root = document.getElementById(portalRootId);
-  if (!root) {
-    root = document.createElement("div");
-    root.id = portalRootId;
-    document.body.appendChild(root);
-  }
-  return root;
-}
-
-function useAnchoredPosition(anchorEl: HTMLElement | null, deps: React.DependencyList = []) {
-  const [pos, setPos] = useState<{ top: number; left: number; placement: "bottom" | "top" }>({ top: 0, left: 0, placement: "bottom" });
-
-  const recompute = React.useCallback(() => {
-    if (!anchorEl) return;
-    const rect = anchorEl.getBoundingClientRect();
-    const margin = 8;
-    const width = Math.min(640, Math.max(360, rect.width));
-    const height = 420; // outer container height
-
-    // Default place below
-    let top = rect.bottom + margin + window.scrollY;
-    let placement: "bottom" | "top" = "bottom";
-    // If overflow bottom, place above
-    if (top + height > window.scrollY + window.innerHeight) {
-      top = rect.top - margin - height + window.scrollY;
-      placement = "top";
-    }
-
-    let left = rect.left + window.scrollX;
-    // If overflow right, shift left
-    if (left + width > window.scrollX + window.innerWidth - margin) {
-      left = Math.max(margin, window.scrollX + window.innerWidth - margin - width);
-    }
-
-    setPos({ top, left, placement });
-  }, [anchorEl]);
-
-  useLayoutEffect(() => {
-    recompute();
-    const onResize = () => recompute();
-    const onScroll = () => recompute();
-    window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", onScroll, true);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("scroll", onScroll, true);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anchorEl, ...deps]);
-
-  return pos;
-}
-
 export default function MiniEditorPopover({ isOpen, documentId, anchorEl, onClose }: MiniEditorPopoverProps) {
-  const portalRoot = useMemo(() => (typeof window !== "undefined" ? ensurePortalRoot() : null), []);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const virtualAnchorRef = useMemo(() => ({ current: anchorEl }), [anchorEl]);
+  if (!documentId || !anchorEl) return null;
 
-  const { top, left } = useAnchoredPosition(anchorEl, [isOpen, documentId]);
-
-  // Close on Escape
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, onClose]);
-
-  // Close on outside click
-  useEffect(() => {
-    if (!isOpen) return;
-    const onDocClick = (e: MouseEvent) => {
-      const el = containerRef.current;
-      if (!el) return;
-      if (e.target instanceof Node && !el.contains(e.target)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [isOpen, onClose]);
-
-  if (!isOpen || !documentId || !anchorEl || !portalRoot) return null;
-
-  const content = (
-    <div
-      ref={containerRef}
+  return (
+    <Popover open={isOpen} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <PopoverAnchor virtualRef={virtualAnchorRef} />
+      <PopoverContent
       role="dialog"
       aria-modal="false"
       aria-label="Mini editor"
-      className="fixed z-[70] w-[min(640px,calc(100vw-24px))] shadow-2xl rounded-lg border border-edge bg-surface"
-      style={{ top, left }}
+      side="bottom"
+      align="start"
+      sideOffset={8}
+      collisionPadding={8}
+      onOpenAutoFocus={(event) => event.preventDefault()}
+      className="z-[70] w-[min(640px,calc(100vw-24px))] shadow-2xl rounded-lg border border-edge bg-surface p-0"
     >
       <div className="flex items-center justify-between px-3 py-2 border-b border-edge bg-surface-secondary dark:bg-gray-800 rounded-t-xl">
         <div className="text-xs text-content-secondary">Quick Edit</div>
@@ -147,10 +68,9 @@ export default function MiniEditorPopover({ isOpen, documentId, anchorEl, onClos
       <div className="p-3 max-h-[360px] overflow-auto bg-surface rounded-b-xl">
         <MiniContent documentId={documentId} onClose={onClose} />
       </div>
-    </div>
+      </PopoverContent>
+    </Popover>
   );
-
-  return ReactDOM.createPortal(content, portalRoot);
 }
 
 function MiniContent({ documentId, onClose }: { documentId: Id<"documents">; onClose: () => void }) {

@@ -10,9 +10,21 @@
  * local state, refs) remain as props.
  */
 
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { X } from "lucide-react";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ai-ui/dialog";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverClose,
+  PopoverContent,
+} from "@/components/ai-ui/popover";
 import {
   usePlannerEditorCtx,
   usePlannerViewCtx,
@@ -58,6 +70,20 @@ export default function DocumentsPlannerOverlays({
   miniEditorDocId,
   closeMiniEditor,
 }: DocumentsPlannerOverlaysProps) {
+  const inlineCreateAnchorRef = useMemo(
+    () => ({
+      current: {
+        getBoundingClientRect: () =>
+          new DOMRect(
+            typeof window === "undefined" ? 0 : window.innerWidth - 24,
+            typeof window === "undefined" ? 0 : window.innerHeight - 24,
+            0,
+            0,
+          ),
+      },
+    }),
+    [],
+  );
   // ── Context slices ──────────────────────────────────────────────────────────
   const {
     agendaPopover,
@@ -86,39 +112,38 @@ export default function DocumentsPlannerOverlays({
   return (
     <>
       {/* New Task Modal */}
-      {showNewTaskModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[1px] flex items-center justify-center p-4"
-          onClick={() => {
-            if (!isSubmittingTask) setShowNewTaskModal(false);
-          }}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="new-task-modal-title"
-            className="w-full max-w-md rounded-lg border border-edge bg-surface-secondary shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+      <Dialog
+        open={showNewTaskModal}
+        onOpenChange={(open) => {
+          if (!open && !isSubmittingTask) setShowNewTaskModal(false);
+        }}
+      >
+          <DialogContent
+            className="w-[calc(100%-2rem)] max-w-md gap-0 rounded-lg border-edge bg-surface-secondary p-0 shadow-2xl"
+            overlayClassName="bg-black/30 backdrop-blur-[1px]"
+            showCloseButton={false}
             ref={modalRef}
             onKeyDown={handleModalKeyDown}
+            onEscapeKeyDown={(event) => { if (isSubmittingTask) event.preventDefault(); }}
+            onPointerDownOutside={(event) => { if (isSubmittingTask) event.preventDefault(); }}
             aria-busy={isSubmittingTask}
           >
             <div className="px-4 py-3 border-b border-edge flex items-center justify-between">
-              <h3
-                id="new-task-modal-title"
+              <DialogTitle
                 className="text-sm font-semibold text-content"
               >
                 New Task
-              </h3>
+              </DialogTitle>
 
-              <button
-                aria-label="Close"
-                className="w-7 h-7 p-1.5 rounded-md flex items-center justify-center bg-surface hover:bg-surface-hover border border-edge text-content-secondary"
-                onClick={() => !isSubmittingTask && setShowNewTaskModal(false)}
-                disabled={isSubmittingTask}
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <DialogClose asChild>
+                <button
+                  aria-label="Close"
+                  className="w-7 h-7 p-1.5 rounded-md flex items-center justify-center bg-surface hover:bg-surface-hover border border-edge text-content-secondary"
+                  disabled={isSubmittingTask}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </DialogClose>
             </div>
 
             <form
@@ -216,9 +241,8 @@ export default function DocumentsPlannerOverlays({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </DialogContent>
+      </Dialog>
 
       {/* Unified Task Editor Panel (overlay only outside list mode) */}
       {selectedTaskId && mode !== "list" && (
@@ -231,14 +255,22 @@ export default function DocumentsPlannerOverlays({
       )}
 
       {/* Centralized Agenda Create (floating popover) */}
-      {inlineCreate && (
-        <div
-          className="fixed z-[70]"
-          style={{ right: 24, bottom: 24 }}
-          role="dialog"
-          aria-label="Create agenda item"
-        >
-          <div className="w-[min(520px,calc(100vw-32px))] rounded-lg border border-edge bg-surface-secondary shadow-2xl">
+      <Popover
+        open={!!inlineCreate}
+        onOpenChange={(open) => { if (!open) setInlineCreate(null); }}
+      >
+        <PopoverAnchor virtualRef={inlineCreateAnchorRef} />
+        {inlineCreate ? (
+          <PopoverContent
+            role="dialog"
+            aria-label="Create agenda item"
+            side="top"
+            align="end"
+            sideOffset={0}
+            collisionPadding={16}
+            className="z-[70] w-[min(520px,calc(100vw-32px))] border-0 bg-transparent p-0 shadow-none"
+          >
+          <div className="rounded-lg border border-edge bg-surface-secondary shadow-2xl">
             <div className="flex items-center justify-between px-3 py-2 border-b border-edge bg-surface rounded-t-xl">
               <div className="text-xs text-content-secondary">
                 Create on{" "}
@@ -249,13 +281,15 @@ export default function DocumentsPlannerOverlays({
                 })}
               </div>
 
-              <button
-                aria-label="Close create panel"
-                className="w-7 h-7 p-1.5 rounded-md flex items-center justify-center bg-surface hover:bg-surface-hover border border-edge text-content-secondary"
-                onClick={() => setInlineCreate(null)}
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <PopoverClose asChild>
+                <button
+                  type="button"
+                  aria-label="Close create panel"
+                  className="w-7 h-7 p-1.5 rounded-md flex items-center justify-center bg-surface hover:bg-surface-hover border border-edge text-content-secondary"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </PopoverClose>
             </div>
 
             <div className="p-3">
@@ -277,8 +311,9 @@ export default function DocumentsPlannerOverlays({
               </Suspense>
             </div>
           </div>
-        </div>
-      )}
+          </PopoverContent>
+        ) : null}
+      </Popover>
 
       {/* Mini Editor Popover */}
       {!hideCalendarCard && (

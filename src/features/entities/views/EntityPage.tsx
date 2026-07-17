@@ -77,6 +77,7 @@ import { EntityNotebookSurface } from "@/features/entities/components/EntityNote
 import { ViewModeToggle } from "@/features/entities/components/ViewModeToggle";
 import { useViewMode } from "@/features/entities/lib/useViewMode";
 import { EntityShareSheet } from "@/features/entities/components/EntityShareSheet";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ai-ui/toggle-group";
 import { DiligenceSection } from "@/features/entities/components/DiligenceSection";
 import { SignInForm } from "@/SignInForm";
 import { SignOutButton } from "@/SignOutButton";
@@ -87,6 +88,13 @@ import {
   type EntityNoteDocument,
 } from "@/features/entities/lib/entityNoteDocument";
 import { getStarterEntityWorkspace } from "@/features/entities/lib/starterEntityWorkspaces";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ai-ui/dialog";
 
 const EntityNoteEditor = lazy(
   () => import("@/features/entities/components/EntityNoteEditor"),
@@ -1916,15 +1924,6 @@ function EntityWorkspaceView({
     [workspace?.timeline],
   );
 
-  // Close sources modal on Escape
-  useEffect(() => {
-    if (!showSources) return;
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setShowSources(false);
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [showSources]);
   const latestBriefReport = useMemo(
     () => workspace?.latest ?? workspace?.timeline?.[0] ?? null,
     [workspace?.latest, workspace?.timeline],
@@ -2680,46 +2679,41 @@ function EntityWorkspaceView({
       ) : null}
 
       {/* ── Sources modal ── */}
-      {showSources ? (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm sm:p-8"
-          onClick={() => setShowSources(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Sources for ${entity.name}`}
-        >
-          <div
-            className="relative w-full max-w-[720px] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-white/[0.1] dark:bg-[#1a1a1b]"
-            onClick={(e) => e.stopPropagation()}
+      <Dialog open={showSources} onOpenChange={setShowSources}>
+          <DialogContent
+            className="top-4 max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] max-w-[720px] translate-y-0 gap-0 overflow-hidden rounded-lg border-gray-200 bg-white p-0 shadow-xl sm:top-8 sm:max-h-[calc(100vh-4rem)] dark:border-white/[0.1] dark:bg-[#1a1a1b]"
+            overlayClassName="bg-black/40 backdrop-blur-sm"
+            showCloseButton={false}
           >
             {/* Modal header */}
             <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-3 dark:border-white/[0.06]">
               <div>
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                <DialogTitle className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                   {sourceCount} source{sourceCount === 1 ? "" : "s"}
-                </h2>
-                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                </DialogTitle>
+                <DialogDescription className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                   Across all saved revisions of {entity.name}
-                </p>
+                </DialogDescription>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowSources(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/[0.06] dark:hover:text-gray-300"
-                aria-label="Close sources"
-              >
-                <svg
-                  className="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              <DialogClose asChild>
+                <button
+                  type="button"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/[0.06] dark:hover:text-gray-300"
+                  aria-label="Close sources"
                 >
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </DialogClose>
             </div>
 
             {/* Source list */}
@@ -2780,9 +2774,8 @@ function EntityWorkspaceView({
                 </ul>
               )}
             </div>
-          </div>
-        </div>
-      ) : null}
+          </DialogContent>
+      </Dialog>
 
       {/* ── Inline context strip — earned-complexity: only the
            "Since last visit" chip is ever rendered when there are
@@ -3588,16 +3581,17 @@ function EntityWorkspaceView({
                     and "Related" — plain product language. The storage
                     key stays "evidence"/"context" so existing persisted
                     preferences don't get migrated. */}
-                  <div
-                    role="tablist"
+                  <ToggleGroup
+                    type="single"
+                    value={workspaceRailView}
+                    onValueChange={(value) => {
+                      if (value === "evidence" || value === "context") setWorkspaceRailView(value);
+                    }}
                     aria-label="Companion panel"
                     className="inline-flex rounded-full border border-black/8 bg-black/[0.03] p-1 dark:border-white/10 dark:bg-white/[0.03]"
                   >
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={workspaceRailView === "evidence"}
-                      onClick={() => setWorkspaceRailView("evidence")}
+                    <ToggleGroupItem
+                      value="evidence"
                       className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
                         workspaceRailView === "evidence"
                           ? "bg-[var(--accent-primary)] text-white"
@@ -3605,12 +3599,9 @@ function EntityWorkspaceView({
                       }`}
                     >
                       Sources
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={workspaceRailView === "context"}
-                      onClick={() => setWorkspaceRailView("context")}
+                    </ToggleGroupItem>
+                    <ToggleGroupItem
+                      value="context"
                       className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
                         workspaceRailView === "context"
                           ? "bg-[var(--accent-primary)] text-white"
@@ -3618,8 +3609,8 @@ function EntityWorkspaceView({
                       }`}
                     >
                       Related
-                    </button>
-                  </div>
+                    </ToggleGroupItem>
+                  </ToggleGroup>
                 </div>
 
                 <div className="flex flex-wrap gap-2 text-xs text-content-muted">

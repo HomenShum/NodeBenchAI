@@ -11,6 +11,7 @@ import {
   useRollbackInterceptor,
   type RollbackOutcome,
 } from "@/features/chat/hooks/useRollbackInterceptor";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ai-ui/toggle-group";
 
 export type ProductComposerMode = "ask" | "note" | "task";
 
@@ -455,8 +456,10 @@ export function ProductIntakeComposer({
     >
       {showIntegratedCaptureModes ? (
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
-          <div
-            role="tablist"
+          <ToggleGroup
+            type="single"
+            value={mode}
+            onValueChange={(value) => value && onModeChange?.(value as ProductComposerMode)}
             aria-label="Composer mode"
             className={`inline-flex items-center gap-1 rounded-full p-1 ${
               isChatVariant
@@ -465,13 +468,10 @@ export function ProductIntakeComposer({
             }`}
           >
             {captureModes.map(({ id, label, icon: Icon }) => (
-              <button
+              <ToggleGroupItem
                 key={id}
-                type="button"
-                role="tab"
-                aria-selected={mode === id}
+                value={id}
                 data-state={mode === id ? "active" : "inactive"}
-                onClick={() => onModeChange?.(id)}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-fast ease-out active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/40 motion-reduce:transform-none motion-reduce:transition-none ${
                   mode === id
                     ? isChatVariant
@@ -484,9 +484,9 @@ export function ProductIntakeComposer({
               >
                 <Icon className="h-3.5 w-3.5" />
                 {label}
-              </button>
+              </ToggleGroupItem>
             ))}
-          </div>
+          </ToggleGroup>
         </div>
       ) : null}
 
@@ -581,22 +581,21 @@ export function ProductIntakeComposer({
               : "flex text-gray-500 dark:text-gray-300"
           }`}>
             {showResearchLaneControls ? (
-              <div
-                role="tablist"
+              <ToggleGroup
+                type="single"
+                value={selectedResearchLane}
+                onValueChange={(value) => value && onResearchLaneChange?.(value)}
                 aria-label="Research lane"
                 className="flex min-w-0 flex-wrap items-center gap-2"
               >
                 {researchLanes!.map((lane) => {
                   const active = selectedResearchLane === lane.id;
                   return (
-                    <button
+                    <ToggleGroupItem
                       key={lane.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={active}
+                      value={lane.id}
                       data-testid="home-research-lane"
                       data-state={active ? "active" : "inactive"}
-                      onClick={() => onResearchLaneChange?.(lane.id)}
                       className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium transition-all duration-fast ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/35 ${
                         active
                           ? "border-[var(--accent-primary)]/25 bg-[var(--accent-primary)]/10 text-[#ad5f45] shadow-sm dark:text-[#ffd7ca]"
@@ -605,10 +604,10 @@ export function ProductIntakeComposer({
                     >
                       <span>{lane.label}</span>
                       <span className="font-mono text-[10px] opacity-70">&middot; {lane.note}</span>
-                    </button>
+                    </ToggleGroupItem>
                   );
                 })}
-              </div>
+              </ToggleGroup>
             ) : (
               <>
                 <Sparkles className={`mt-0.5 shrink-0 text-[var(--accent-primary)] ${isChatVariant ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
@@ -835,8 +834,10 @@ export function ProductIntakeComposer({
         ) : null}
 
         {showLensSelector && !isCaptureMode ? (
-          <div
-            role="tablist"
+          <ToggleGroup
+            type="single"
+            value={lens}
+            onValueChange={(value) => value && onLensChange(value as LensId)}
             aria-label="Lens"
             className={`no-scrollbar -mx-1 mt-3 flex items-center justify-start gap-0.5 overflow-x-auto rounded-full p-1 px-1 sm:justify-center sm:overflow-visible ${
               isChatVariant
@@ -845,12 +846,9 @@ export function ProductIntakeComposer({
             }`}
           >
             {LENSES.map((option) => (
-              <button
+              <ToggleGroupItem
                 key={option.id}
-                type="button"
-                role="tab"
-                aria-selected={lens === option.id}
-                onClick={() => onLensChange(option.id)}
+                value={option.id}
                 className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-all duration-fast ease-out active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/40 motion-reduce:transform-none motion-reduce:transition-none ${
                   lens === option.id
                     ? isChatVariant
@@ -862,9 +860,9 @@ export function ProductIntakeComposer({
                 }`}
               >
                 {option.label}
-              </button>
+              </ToggleGroupItem>
             ))}
-          </div>
+          </ToggleGroup>
         ) : null}
 
         {files.length > 0 ? (

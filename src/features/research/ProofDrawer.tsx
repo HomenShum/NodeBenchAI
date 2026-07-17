@@ -38,7 +38,8 @@
  *   - prefers-reduced-motion shrinks the slide animation
  */
 
-import { useEffect, useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { Sheet, SheetContent, SheetOverlay, SheetPortal } from "@/components/ai-ui/sheet";
 
 export interface ProofCitation {
   id: string;
@@ -329,40 +330,6 @@ export function ProofDrawer({
   evalScore,
   versions,
 }: ProofDrawerProps) {
-  const drawerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "Tab") {
-        const root = drawerRef.current;
-        if (!root) return;
-        const focusables = Array.from(
-          root.querySelectorAll<HTMLElement>(
-            'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
-          ),
-        );
-        if (focusables.length === 0) return;
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    // Initial focus
-    drawerRef.current?.querySelector<HTMLElement>("button[aria-label='Close proof drawer']")?.focus();
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
   const showCitations = citations ?? SHOWCASE_CITATIONS;
   const showSnapshots = sourceSnapshots ?? SHOWCASE_SNAPSHOTS;
   const showTools = toolCalls ?? SHOWCASE_TOOL_CALLS;
@@ -374,26 +341,14 @@ export function ProofDrawer({
   const usingShowcase = !citations && !sourceSnapshots && !toolCalls && !claims && !contradictions && !modelTrace && !evalScore && !versions;
 
   return (
-    <div
-      data-testid="proof-drawer"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="proof-drawer-title"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        display: "flex",
-        justifyContent: "flex-end",
-        background: "rgba(15,23,42,0.32)",
-        animation: "rd-fade-in 180ms ease",
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <aside
-        ref={drawerRef}
+    <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <SheetPortal>
+        <SheetOverlay className="z-[100] bg-slate-900/30" />
+      <SheetContent
+        data-testid="proof-drawer"
+        aria-labelledby="proof-drawer-title"
+        showCloseButton={false}
+        className="right-0 top-0 z-[100] motion-reduce:animate-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right"
         style={{
           width: "min(520px, 100vw)",
           height: "100vh",
@@ -405,6 +360,7 @@ export function ProofDrawer({
           overflowY: "auto",
         }}
       >
+        <aside style={{ display: "contents" }}>
         <header
           style={{
             position: "sticky",
@@ -888,8 +844,10 @@ export function ProofDrawer({
             </ol>
           )}
         </Section>
-      </aside>
-    </div>
+        </aside>
+      </SheetContent>
+      </SheetPortal>
+    </Sheet>
   );
 }
 

@@ -29,7 +29,13 @@
  *   - DETERMINISTIC — match scan walks the DOM in document order; same input
  *                    + same content → same match list
  */
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverClose,
+  PopoverContent,
+} from "@/components/ai-ui/popover";
 
 const MAX_QUERY = 200;
 const MAX_MATCHES = 200;
@@ -121,21 +127,19 @@ export function NotebookBlockFinder({
     setQueryRaw(next.length > MAX_QUERY ? next.slice(0, MAX_QUERY) : next);
   };
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const virtualAnchorRef = useMemo(
+    () => ({
+      current: {
+        getBoundingClientRect: () => {
+          const rect = containerRef.current?.getBoundingClientRect();
+          const right = rect ? rect.right - 12 : 332;
+          const top = rect ? rect.top + 12 : 12;
+          return new DOMRect(right, top, 0, 0);
+        },
+      },
+    }),
+    [containerRef],
+  );
 
   const matches = useMemo(
     () => findMatches(containerRef.current ?? null, query.trim()),
@@ -154,14 +158,28 @@ export function NotebookBlockFinder({
   };
 
   return (
-    <div
-      data-testid={testId}
-      data-report-id={reportId}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      className="absolute right-3 top-3 z-30 w-[320px] rounded-lg border border-black/[0.08] bg-white p-3 shadow-lg dark:border-white/[0.08] dark:bg-[#1b1815]"
-    >
+    <Popover open modal onOpenChange={(open) => { if (!open) onClose(); }}>
+      <PopoverAnchor virtualRef={virtualAnchorRef} />
+      <PopoverContent
+        data-testid={testId}
+        data-report-id={reportId}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        side="bottom"
+        align="end"
+        sideOffset={0}
+        collisionPadding={12}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          inputRef.current?.focus();
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          containerRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
+        }}
+        className="z-30 w-[320px] rounded-lg border border-black/[0.08] bg-white p-3 shadow-lg dark:border-white/[0.08] dark:bg-[#1b1815]"
+      >
       <form onSubmit={handleSubmit} className="flex items-center gap-2">
         <label className="sr-only" htmlFor={`${titleId}-input`}>
           Find in notebook
@@ -169,14 +187,15 @@ export function NotebookBlockFinder({
         <span id={titleId} className="text-[11px] uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
           Find in notebook
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close finder"
-          className="ml-auto rounded px-1.5 py-0.5 text-xs text-gray-500 hover:bg-black/[0.04] dark:text-gray-400 dark:hover:bg-white/[0.06]"
-        >
-          Esc
-        </button>
+        <PopoverClose asChild>
+          <button
+            type="button"
+            aria-label="Close finder"
+            className="ml-auto rounded px-1.5 py-0.5 text-xs text-gray-500 hover:bg-black/[0.04] dark:text-gray-400 dark:hover:bg-white/[0.06]"
+          >
+            Esc
+          </button>
+        </PopoverClose>
       </form>
       <input
         id={`${titleId}-input`}
@@ -215,7 +234,8 @@ export function NotebookBlockFinder({
           ))}
         </ul>
       ) : null}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

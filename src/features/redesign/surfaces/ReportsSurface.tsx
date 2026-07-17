@@ -33,6 +33,16 @@ import {
   type TopologySnapshot,
   type TopologyViewMode,
 } from "../lib/reportTopology";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ai-ui/dropdown-menu";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ai-ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ai-ui/toggle-group";
 
 type SortKey = "updated" | "entity" | "sources" | "claims" | "status";
 const SORT_OPTIONS: Array<{ id: SortKey; label: string }> = [
@@ -225,23 +235,11 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
   const [inlineFilterOpen, setInlineFilterOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("updated");
-  const [sortOpen, setSortOpen] = useState(false);
   const [stageOverrides, setStageOverrides] = useState<Record<string, ReportStage>>({});
   const [graphSelectedReportId, setGraphSelectedReportId] = useState<string | null>(null);
   const [graphScaleMode, setGraphScaleMode] = useState<ReportGraphScaleMode>("clustered");
   const [notebookReportId, setNotebookReportId] = useState<string | null>(null);
-  const sortRef = useRef<HTMLDivElement>(null);
   const inlineFilterRef = useRef<HTMLInputElement>(null);
-
-  // Click-outside dismiss for sort dropdown
-  useEffect(() => {
-    if (!sortOpen) return;
-    const onClick = (e: MouseEvent) => {
-      if (!sortRef.current?.contains(e.target as Node)) setSortOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [sortOpen]);
 
   useEffect(() => {
     if (!inlineFilterOpen) return;
@@ -455,57 +453,63 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
       ) : (
       <>
       <div className="rd-v3-view-bar view-bar">
-        <div className="rd-v3-tabs view-tabs" role="tablist" aria-label="Report views">
-          {REPORT_VIEW_MODES.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={viewMode === item.id}
-              className={`view-tab ${viewMode === item.id ? "is-active active" : ""}`}
-              onClick={() => setReportViewMode(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      <div className="rd-v3-filter-pills status-pills" role="tablist" aria-label="Filter reports by status">
+        <Tabs value={viewMode} onValueChange={(value) => setReportViewMode(value as ReportViewMode)}>
+          <TabsList className="rd-v3-tabs view-tabs" aria-label="Report views">
+            {REPORT_VIEW_MODES.map((item) => (
+              <TabsTrigger
+                key={item.id}
+                value={item.id}
+                className={`view-tab ${viewMode === item.id ? "is-active active" : ""}`}
+              >
+                {item.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      <div className="rd-v3-filter-pills status-pills">
+        <ToggleGroup
+          type="single"
+          value={filter}
+          onValueChange={(value) => { if (value) setFilter(value as (typeof STATUS_FILTERS)[number]["id"]); }}
+          aria-label="Filter reports by status"
+          className="contents"
+        >
         {STATUS_FILTERS.map((item) => (
-          <button
+          <ToggleGroupItem
             key={item.id}
-            type="button"
+            value={item.id}
             className={`status-pill ${filter === item.id ? "is-active active" : ""}`}
-            aria-selected={filter === item.id}
-            onClick={() => setFilter(item.id)}
           >
             {item.label} <span className="pill-count">{counts[item.id] ?? 0}</span>
-          </button>
+          </ToggleGroupItem>
         ))}
+        </ToggleGroup>
         <button type="button" className={`status-pill ${kindFilter !== "all" ? "is-active active" : ""}`} onClick={() => setKindFilter(kindFilter === "all" ? "Diligence" : "all")}>
           {kindFilter === "all" ? "Type" : kindFilter}
         </button>
       </div>
-      <div className="rd-v3-sort" style={{ position: "relative" }}>
-        <button type="button" onClick={() => setSortOpen((v) => !v)}>
-          {SORT_OPTIONS.find((s) => s.id === sortKey)?.label.split(" (")[0] ?? "Updated"} ▾
-        </button>
-        {sortOpen && (
-          <div className="rd-sort__menu" role="menu" style={{ left: 0, top: 36 }}>
+      <DropdownMenu>
+        <div className="rd-v3-sort" style={{ position: "relative" }}>
+          <DropdownMenuTrigger asChild>
+            <button type="button">
+              {SORT_OPTIONS.find((s) => s.id === sortKey)?.label.split(" (")[0] ?? "Updated"} ▾
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="rd-sort__menu" align="start" sideOffset={4}>
+            <DropdownMenuRadioGroup value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
             {SORT_OPTIONS.map((s) => (
-              <button
+              <DropdownMenuRadioItem
                 key={s.id}
-                role="menuitemradio"
-                aria-selected={sortKey === s.id}
+                value={s.id}
                 className="rd-sort__option"
-                onClick={() => { setSortKey(s.id); setSortOpen(false); }}
               >
-                <span aria-hidden="true">{sortKey === s.id ? "✓" : ""}</span>
                 <span>{s.label}</span>
-              </button>
+              </DropdownMenuRadioItem>
             ))}
-          </div>
-        )}
-      </div>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </div>
+      </DropdownMenu>
       <div className="view-filter-wrap" data-open={inlineFilterOpen || query ? "true" : "false"}>
         {!inlineFilterOpen && !query ? (
           <button
@@ -704,80 +708,86 @@ export function ReportsSurface({ onOpen, onRunBatch, onSelectReport, inspectedRe
         <div className="rd-reports-filterbar__facets">
           <div className="rd-facet">
             <span className="rd-facet__label">Status</span>
-            <div className="rd-facet__chips" role="tablist" aria-label="Filter by status">
+            <ToggleGroup
+              type="single"
+              value={filter}
+              onValueChange={(value) => { if (value) setFilter(value as (typeof STATUS_FILTERS)[number]["id"]); }}
+              className="rd-facet__chips"
+              aria-label="Filter by status"
+            >
               {STATUS_FILTERS.map((f) => (
-                <button
+                <ToggleGroupItem
                   key={f.id}
-                  role="tab"
-                  aria-selected={filter === f.id}
+                  value={f.id}
                   className="rd-facet__chip"
-                  onClick={() => setFilter(f.id)}
                 >
                   {f.label}
                   <span className="rd-facet__count">{counts[f.id] ?? 0}</span>
-                </button>
+                </ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
           </div>
 
           <div className="rd-facet">
             <span className="rd-facet__label">Type</span>
-            <div className="rd-facet__chips" role="tablist" aria-label="Filter by type">
+            <ToggleGroup
+              type="single"
+              value={kindFilter}
+              onValueChange={(value) => { if (value) setKindFilter(value as (typeof KIND_FILTERS)[number]["id"]); }}
+              className="rd-facet__chips"
+              aria-label="Filter by type"
+            >
               {KIND_FILTERS.map((f) => (
-                <button
+                <ToggleGroupItem
                   key={f.id}
-                  role="tab"
-                  aria-selected={kindFilter === f.id}
+                  value={f.id}
                   className="rd-facet__chip"
-                  onClick={() => setKindFilter(f.id)}
-                >{f.label}</button>
+                >{f.label}</ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
           </div>
 
           <div className="rd-facet rd-facet--right">
-            <div className="rd-sort" ref={sortRef}>
-              <button
-                type="button"
-                className="rd-sort__btn"
-                onClick={() => setSortOpen((v) => !v)}
-                aria-haspopup="menu"
-                aria-expanded={sortOpen}
-              >
-                Sort: {SORT_OPTIONS.find((s) => s.id === sortKey)?.label.split(" (")[0]}
-                <span aria-hidden="true">▾</span>
-              </button>
-              {sortOpen && (
-                <div className="rd-sort__menu" role="menu">
+            <DropdownMenu>
+              <div className="rd-sort">
+                <DropdownMenuTrigger asChild>
+                  <button type="button" className="rd-sort__btn">
+                    Sort: {SORT_OPTIONS.find((s) => s.id === sortKey)?.label.split(" (")[0]}
+                    <span aria-hidden="true">▾</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="rd-sort__menu" align="start" sideOffset={4}>
+                  <DropdownMenuRadioGroup value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
                   {SORT_OPTIONS.map((s) => (
-                    <button
+                    <DropdownMenuRadioItem
                       key={s.id}
-                      role="menuitemradio"
-                      aria-selected={sortKey === s.id}
+                      value={s.id}
                       className="rd-sort__option"
-                      onClick={() => { setSortKey(s.id); setSortOpen(false); }}
                     >
-                      <span aria-hidden="true">{sortKey === s.id ? "✓" : ""}</span>
                       <span>{s.label}</span>
-                    </button>
+                    </DropdownMenuRadioItem>
                   ))}
-                </div>
-              )}
-            </div>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </div>
+            </DropdownMenu>
             <span className="rd-facet__label">View</span>
-            <div className="rd-facet__chips" role="radiogroup" aria-label="Density">
+            <ToggleGroup
+              type="single"
+              value={density}
+              onValueChange={(value) => { if (value) setDensity(value as Density); }}
+              className="rd-facet__chips"
+              aria-label="Density"
+            >
               {(["compact", "grid", "list"] as Density[]).map((d) => (
-                <button
+                <ToggleGroupItem
                   key={d}
-                  role="radio"
-                  aria-checked={density === d}
-                  aria-selected={density === d}
+                  value={d}
                   className="rd-facet__chip"
-                  onClick={() => setDensity(d)}
                   style={{ textTransform: "capitalize" }}
-                >{d}</button>
+                >{d}</ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
           </div>
         </div>
       </div>
@@ -2031,9 +2041,7 @@ function ReportCardV3({
   const signals = reportSignals(report);
   const backlinks = reportBacklinks(report);
   const artifactPreview = reportArtifactPreview(detail, report, stage);
-  const [menuOpen, setMenuOpen] = useState(false);
   const menuAction = (label: string) => {
-    setMenuOpen(false);
     if (label === "Open notebook") {
       onOpen(report.id, "brief");
       return;
@@ -2062,35 +2070,30 @@ function ReportCardV3({
         <span className="rd-v3-icon v3-icon" data-type={reportIconType(report)}>{report.entity.slice(0, 1).toUpperCase()}</span>
         <strong className="v3-title">{report.entity}</strong>
         <Pill tone={stageTone(stage)}>{stageLabel(stage)}</Pill>
-        <div className="card-dd-wrap">
-          <button
-            type="button"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            aria-label={`Open action menu for ${report.entity}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              setMenuOpen((value) => !value);
-            }}
-          >
-            ...
-          </button>
-          {menuOpen && (
-            <div className="card-dd" role="menu" onClick={(event) => event.stopPropagation()}>
+        <DropdownMenu>
+          <div className="card-dd-wrap">
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Open action menu for ${report.entity}`}
+                onClick={(event) => event.stopPropagation()}
+              >
+                ...
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="card-dd" align="end" sideOffset={4}>
               {["Open notebook", "Export PDF", "Export Notion", "Copy link", "Refresh sources", "Archive"].map((label) => (
-                <button
+                <DropdownMenuItem
                   key={label}
-                  type="button"
-                  role="menuitem"
                   className={label === "Archive" ? "card-dd-item card-dd-item--danger" : "card-dd-item"}
-                  onClick={() => menuAction(label)}
+                  onSelect={() => menuAction(label)}
                 >
                   {label}
-                </button>
+                </DropdownMenuItem>
               ))}
-            </div>
-          )}
-        </div>
+            </DropdownMenuContent>
+          </div>
+        </DropdownMenu>
       </div>
       <div className="v3-body">
       <p className="rd-v3-card__kind">{report.kind}</p>

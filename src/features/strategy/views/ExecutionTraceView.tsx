@@ -14,6 +14,8 @@ import {
 import { useConvexAuth, useQuery } from "convex/react";
 
 import { LazyCodeBlock } from "@/shared/components/LazyCodeBlock";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ai-ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ai-ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { SourceChip } from "@/shared/ui";
 import { api } from "../../../../convex/_generated/api";
@@ -450,14 +452,17 @@ export function ExecutionTraceView() {
               Start with the level of detail you actually need, then drill down only when the workflow outcome needs explanation or a full audit trail.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Execution trace disclosure levels">
+          <ToggleGroup
+            type="single"
+            value={disclosureLevel}
+            onValueChange={(value) => value && setDisclosureLevel(value as DisclosureLevel)}
+            className="flex flex-wrap gap-2"
+            aria-label="Execution trace disclosure levels"
+          >
             {DISCLOSURE_LEVELS.map((level) => (
-              <button
+              <ToggleGroupItem
                 key={level.id}
-                type="button"
-                role="tab"
-                aria-selected={disclosureLevel === level.id}
-                onClick={() => setDisclosureLevel(level.id)}
+                value={level.id}
                 className={cn(
                   "rounded-full border px-3 py-1.5 text-sm transition",
                   disclosureLevel === level.id
@@ -466,36 +471,41 @@ export function ExecutionTraceView() {
                 )}
               >
                 {level.label}
-              </button>
+              </ToggleGroupItem>
             ))}
-          </div>
+          </ToggleGroup>
         </div>
         <div className="mt-3 text-sm text-content-muted">
           {DISCLOSURE_LEVELS.find((level) => level.id === disclosureLevel)?.description}
         </div>
       </section>
 
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Execution trace sections">
-        {visibleTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "rounded-full border px-3 py-1.5 text-sm transition",
-              activeTab === tab.id
-                ? "border-cyan-400/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-100"
-                : "border-edge bg-surface/50 text-content-muted hover:border-primary/30 hover:text-content",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as TraceTab)}
+        className="contents"
+      >
+        <TabsList
+          className="flex h-auto flex-wrap justify-start gap-2 bg-transparent p-0"
+          aria-label="Execution trace sections"
+        >
+          {visibleTabs.map((tab) => (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-sm transition data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-700 data-[state=active]:shadow-none dark:data-[state=active]:text-cyan-100",
+                activeTab === tab.id
+                  ? "border-cyan-400/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-100"
+                  : "border-edge bg-surface/50 text-content-muted hover:border-primary/30 hover:text-content",
+              )}
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      {activeTab === "overview" ? (
+      <TabsContent value="overview" className="mt-0">
         <>
           {disclosureLevel === "outcome" ? (
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -649,9 +659,9 @@ export function ExecutionTraceView() {
             </div>
           ) : null}
         </>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === "timeline" ? (
+      <TabsContent value="timeline" className="mt-0">
         <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
           <SectionCard title="Step Timeline" icon={<Waypoints className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />}>
             <div className="space-y-4">
@@ -697,9 +707,9 @@ export function ExecutionTraceView() {
             emptyLabel="No span-level trajectory overlays are available for this workflow yet."
           />
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === "evidence" ? (
+      <TabsContent value="evidence" className="mt-0">
         <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           <SectionCard title="Evidence Catalog" icon={<Files className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />}>
             <div className="space-y-4">
@@ -737,9 +747,9 @@ export function ExecutionTraceView() {
             <BulletList items={trace.limitations} />
           </SectionCard>
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === "diffs" ? (
+      <TabsContent value="diffs" className="mt-0">
         <div className="space-y-6">
           {trace.diffs.map((diff: any) => (
             <SectionCard key={diff.diff_id} title={diff.target} icon={<GitCompareArrows className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />}>
@@ -779,9 +789,9 @@ export function ExecutionTraceView() {
             </SectionCard>
           ))}
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === "verification" ? (
+      <TabsContent value="verification" className="mt-0">
         <SectionCard title="Verification Loop" icon={<ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />}>
           <div className="space-y-4">
             {trace.verification_checks.map((check: any) => (
@@ -807,9 +817,9 @@ export function ExecutionTraceView() {
             ))}
           </div>
         </SectionCard>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === "json" ? (
+      <TabsContent value="json" className="mt-0">
         <div className="grid gap-6 lg:grid-cols-2">
           <SectionCard title="Typed Output" icon={<FileJson2 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />}>
             <LazyCodeBlock code={formattedJson} language="json" />
@@ -818,7 +828,8 @@ export function ExecutionTraceView() {
             <LazyCodeBlock code={schemaJson} language="json" />
           </SectionCard>
         </div>
-      ) : null}
+      </TabsContent>
+      </Tabs>
     </div>
   );
 }

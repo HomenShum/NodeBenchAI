@@ -45,6 +45,12 @@ import {
   type MainView,
 } from "@/lib/registry/viewRegistry";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ai-ui/dialog";
 
 import { trackEvent } from "@/lib/analytics";
 import { usePathTracking } from "../hooks/usePathTracking";
@@ -61,7 +67,6 @@ import { IOSChrome } from "./IOSChrome";
 import { ProductTopNav } from "./ProductTopNav";
 // AgentPresenceRail removed — replaced by floating FAB + slide-over panel
 // FeedbackWidget removed — overlapped FastAgent FAB, localStorage-only
-// useBottomSheet removed — unified panel uses fixed position overlay
 import { useSwipeNavigation } from "@/lib/hooks/useSwipeNavigation";
 import { loadLastChatPath } from "@/features/product/lib/productSession";
 import { ObjectFirstGlobalToggle } from "./ObjectFirstToggle";
@@ -982,31 +987,25 @@ export function CockpitLayout({
         {/* Jarvis HUD — disabled, agent panel handles chat */}
 
         {/* Keyboard shortcuts overlay */}
-        {showShortcuts && (
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowShortcuts(false)}
-            role="presentation"
-          >
-            <div
-              className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[rgba(20,22,28,0.96)] p-6 shadow-2xl backdrop-blur-2xl"
-              role="dialog"
-              aria-label="Keyboard shortcuts"
-              aria-modal="true"
-              onClick={(e) => e.stopPropagation()}
+        <Dialog open={showShortcuts} onOpenChange={setShowShortcuts}>
+            <DialogContent
+              className="z-[100] w-[calc(100%-2rem)] max-w-md rounded-2xl border-white/[0.08] bg-[rgba(20,22,28,0.96)] p-6 shadow-2xl backdrop-blur-2xl"
+              overlayClassName="z-[100] bg-black/50 backdrop-blur-sm"
+              showCloseButton={false}
             >
               <div className="mb-5 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-content">Keyboard Shortcuts</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowShortcuts(false)}
-                  className="rounded-lg p-1.5 text-content-muted transition-colors hover:bg-white/[0.06] hover:text-content"
-                  aria-label="Close shortcuts panel"
-                >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                </button>
+                <DialogTitle className="text-base font-semibold text-content">Keyboard Shortcuts</DialogTitle>
+                <DialogClose asChild>
+                  <button
+                    type="button"
+                    className="rounded-lg p-1.5 text-content-muted transition-colors hover:bg-white/[0.06] hover:text-content"
+                    aria-label="Close shortcuts panel"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </DialogClose>
               </div>
               <div className="space-y-3">
                 {([
@@ -1023,9 +1022,8 @@ export function CockpitLayout({
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        )}
+            </DialogContent>
+        </Dialog>
       </div>
   );
 }

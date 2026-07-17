@@ -29,7 +29,6 @@ import { TopNav } from "./components/TopNav";
 import { ReportNotebookView } from "./components/ReportNotebookView";
 import { CommandPalette, useCommandPalette } from "./components/CommandPalette";
 import { ShortcutsOverlay } from "./components/ShortcutsOverlay";
-import { ToastViewport } from "./components/Toast";
 import {
   HomeV2BriefingRail,
   HomeV2EditionRail,
@@ -243,7 +242,6 @@ export default function RedesignShell() {
           <NavBanner pathname={location.pathname} />
           <CommandPalette open={cmdk.open} onClose={() => cmdk.setOpen(false)} />
           <ShortcutsOverlay />
-          <ToastViewport />
         </div>
       );
     }
@@ -255,7 +253,6 @@ export default function RedesignShell() {
         <NavBanner pathname={location.pathname} />
         <CommandPalette open={cmdk.open} onClose={() => cmdk.setOpen(false)} />
         <ShortcutsOverlay />
-        <ToastViewport />
       </div>
     );
   }
@@ -269,7 +266,6 @@ export default function RedesignShell() {
         {showQaChrome && <ThemeFab theme={theme} setTheme={setTheme} />}
         <CommandPalette open={cmdk.open} onClose={() => cmdk.setOpen(false)} />
         <ShortcutsOverlay />
-        <ToastViewport />
       </div>
     );
   }
@@ -428,7 +424,6 @@ export default function RedesignShell() {
       {/* Cross-surface primitives — Cmd+K palette, ? shortcuts, toasts */}
       <CommandPalette open={cmdk.open} onClose={() => cmdk.setOpen(false)} />
       <ShortcutsOverlay />
-      <ToastViewport />
     </div>
   );
 }

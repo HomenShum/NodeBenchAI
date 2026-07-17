@@ -7,8 +7,9 @@
  * Design: glass card overlay, step dots, skip link, reduced-motion safe.
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { MessageSquare, BarChart3, Activity } from "lucide-react";
+import { DialogOverlay } from "@/shared/components/DialogOverlay";
 
 const STORAGE_KEY = "nodebench-onboarded";
 
@@ -62,24 +63,17 @@ export function OnboardingWizard({ onClose }: { onClose: () => void }) {
     else finish();
   }, [step, finish]);
 
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") finish();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [finish]);
-
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      data-agent-id="onboarding"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Welcome to NodeBench"
+    <DialogOverlay
+      isOpen
+      onClose={finish}
+      ariaLabel="Welcome to NodeBench"
+      closeOnBackdrop={false}
+      positionClassName="z-[60]"
+      backdropClassName="z-[60] bg-black/60 backdrop-blur-sm"
+      contentClassName="mx-4 w-full max-w-lg"
     >
-      <div className="relative max-w-lg w-full mx-4 rounded-2xl border border-white/[0.06] bg-[var(--bg-primary)] p-8 shadow-2xl">
+      <div data-agent-id="onboarding" className="relative w-full rounded-2xl border border-white/[0.06] bg-[var(--bg-primary)] p-8 shadow-2xl">
         {/* Skip link */}
         <button
           type="button"
@@ -129,7 +123,7 @@ export function OnboardingWizard({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
-    </div>
+    </DialogOverlay>
   );
 }
 

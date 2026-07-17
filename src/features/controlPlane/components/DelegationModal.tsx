@@ -26,6 +26,7 @@ import {
   Clock,
   Send,
 } from "lucide-react";
+import { DialogOverlay } from "@/shared/components/DialogOverlay";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -241,16 +242,16 @@ function DelegationModalInner({
     });
   }, [buildBrief, packetSummary]);
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Delegation Modal"
+    <DialogOverlay
+      isOpen={isOpen}
+      onClose={onClose}
+      ariaLabel="Delegation Modal"
+      closeOnBackdrop={false}
+      backdropClassName="bg-black/60 backdrop-blur-sm"
+      contentClassName="mx-4 w-full max-w-2xl"
     >
-      <div className="relative mx-4 w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-white/[0.08] bg-surface-secondary p-6 shadow-2xl">
+      <div className="relative w-full max-h-[85vh] overflow-y-auto rounded-2xl border border-white/[0.08] bg-surface-secondary p-6 shadow-2xl">
         {/* Close button */}
         <button
           type="button"
@@ -480,7 +481,7 @@ function DelegationModalInner({
           </div>
         </div>
       </div>
-    </div>
+    </DialogOverlay>
   );
 }
 

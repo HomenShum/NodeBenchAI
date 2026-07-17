@@ -1,9 +1,9 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import ReactDOM from "react-dom";
+import { useMemo } from "react";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 import DualCreateMiniPanel from "@/features/documents/editors/DualCreateMiniPanel";
 import DualEditMiniPanel from "@/features/documents/editors/DualEditMiniPanel";
 import PopoverMiniEditor from "@/features/documents/editors/PopoverMiniEditor";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ai-ui/popover";
 
 type Props = {
   isOpen: boolean;
@@ -19,111 +19,27 @@ type Props = {
   documentIdForAssociation?: Id<"documents"> | null;
 };
 
-const portalRootId = "agenda-editor-portal-root";
-
-function ensurePortalRoot(): HTMLElement {
-  let root = document.getElementById(portalRootId);
-  if (!root) {
-    root = document.createElement("div");
-    root.id = portalRootId;
-    document.body.appendChild(root);
-  }
-  return root;
-}
-
-function useAnchoredPosition(anchorEl: HTMLElement | null, deps: React.DependencyList = []) {
-  const [pos, setPos] = useState<{ top: number; left: number; placement: "bottom" | "top" } | null>(null);
-
-  const recompute = React.useCallback(() => {
-    if (!anchorEl) return;
-    // Prefer anchoring to the inner agenda mini row when present
-    const inner = anchorEl.querySelector<HTMLElement>('[data-agenda-mini-row]');
-    const target: HTMLElement = inner ?? anchorEl;
-    const rect = target.getBoundingClientRect();
-    const margin = 8;
-    const width = Math.min(560, Math.max(360, rect.width));
-    const height = 500; // approximate outer height
-
-    // Default: open to the right of the anchor (east placement)
-    // Note: popover is fixed-position; use viewport coordinates directly (no scroll offsets).
-    let top = rect.top;
-    // Clamp vertically within viewport
-    if (top + height > window.innerHeight - margin) {
-      top = Math.max(margin, window.innerHeight - margin - height);
-    }
-
-    // Prefer opening to the RIGHT of the anchor
-    let left = rect.right + margin;
-    const viewportRight = window.innerWidth - margin;
-    // If not enough space on the right, open to the LEFT of the anchor instead of overlapping
-    if (left + width > viewportRight) {
-      left = rect.left - width - margin;
-    }
-    // Clamp within viewport bounds
-    const viewportLeft = margin;
-    if (left < viewportLeft) left = viewportLeft;
-    if (left + width > viewportRight) {
-      left = Math.max(viewportLeft, viewportRight - width);
-    }
-
-    setPos({ top, left, placement: "bottom" });
-  }, [anchorEl]);
-
-  useLayoutEffect(() => {
-    recompute();
-    const onResize = () => recompute();
-    const onScroll = () => recompute();
-    window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", onScroll, true);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("scroll", onScroll, true);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anchorEl, ...deps]);
-
-  return pos;
-}
-
 export default function AgendaEditorPopover({ isOpen, anchorEl, onClose, kind, eventId, taskId, dateMs, defaultKind: _defaultKind, defaultTitle, defaultAllDay, documentIdForAssociation }: Props) {
-  const portalRoot = useMemo(() => (typeof window !== "undefined" ? ensurePortalRoot() : null), []);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const pos = useAnchoredPosition(anchorEl, [isOpen, eventId, taskId, dateMs]);
+  const virtualTarget = useMemo(
+    () => anchorEl?.querySelector<HTMLElement>('[data-agenda-mini-row]') ?? anchorEl,
+    [anchorEl],
+  );
+  const virtualAnchorRef = useMemo(() => ({ current: virtualTarget }), [virtualTarget]);
+  if (!anchorEl) return null;
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, onClose]);
-
-  // Close on outside click
-  useEffect(() => {
-    if (!isOpen) return;
-    const onDocClick = (e: MouseEvent) => {
-      const el = containerRef.current;
-      if (!el) return;
-      if (e.target instanceof Node && !el.contains(e.target)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [isOpen, onClose]);
-
-  // Do not render until we have a computed position to avoid flashing at (0,0)
-  if (!isOpen || !anchorEl || !portalRoot || !pos) return null;
-
-  const content = (
-    <div
-      ref={containerRef}
+  return (
+    <Popover open={isOpen} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <PopoverAnchor virtualRef={virtualAnchorRef} />
+      <PopoverContent
       role="dialog"
       aria-modal="false"
       aria-label="Agenda editor"
-      className="fixed z-[9999] w-[min(560px,calc(100vw-24px))] shadow-2xl rounded-lg border border-edge bg-surface-secondary"
-      style={{ top: pos.top, left: pos.left }}
+      side="right"
+      align="start"
+      sideOffset={8}
+      collisionPadding={8}
+      onOpenAutoFocus={(event) => event.preventDefault()}
+      className="z-[9999] w-[min(560px,calc(100vw-24px))] p-0 shadow-2xl rounded-lg border border-edge bg-surface-secondary"
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
@@ -154,8 +70,7 @@ export default function AgendaEditorPopover({ isOpen, anchorEl, onClose, kind, e
           />
         )}
       </div>
-    </div>
+      </PopoverContent>
+    </Popover>
   );
-
-  return ReactDOM.createPortal(content, portalRoot);
 }

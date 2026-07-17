@@ -3,6 +3,13 @@ import { useQuery } from "convex/react";
 import { Search, X } from "lucide-react";
 import { useConvexApi } from "@/lib/convexApi";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ai-ui/dialog";
 
 export type ProductFileAsset = {
   _id: string;
@@ -58,24 +65,27 @@ export function ProductFileAssetPicker({
     });
   }, [files, query]);
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 px-4 pb-4 pt-16 sm:items-center sm:pb-0" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="w-full max-w-[560px] rounded-[28px] border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-[#101418]">
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+      <DialogContent
+        className="bottom-4 top-auto w-[calc(100%-2rem)] max-w-[560px] translate-y-0 gap-0 rounded-[28px] border-black/10 bg-white p-0 shadow-2xl sm:bottom-auto sm:top-[50%] sm:translate-y-[-50%] dark:border-white/10 dark:bg-[#101418]"
+        overlayClassName="bg-black/45"
+        showCloseButton={false}
+      >
         <div className="flex items-start justify-between gap-3 border-b border-black/5 px-5 py-4 dark:border-white/8">
           <div>
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{description}</p>
+            <DialogTitle className="text-base font-semibold text-gray-900 dark:text-gray-100">{title}</DialogTitle>
+            <DialogDescription className="mt-1 text-sm text-gray-500 dark:text-gray-400">{description}</DialogDescription>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/10 text-gray-500 transition hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/40 dark:border-white/10 dark:text-gray-400 dark:hover:text-gray-100"
-            aria-label="Close file picker"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <DialogClose asChild>
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/10 text-gray-500 transition hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/40 dark:border-white/10 dark:text-gray-400 dark:hover:text-gray-100"
+              aria-label="Close file picker"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </DialogClose>
         </div>
 
         <div className="border-b border-black/5 px-5 py-4 dark:border-white/8">
@@ -126,8 +136,8 @@ export function ProductFileAssetPicker({
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

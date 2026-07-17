@@ -248,9 +248,7 @@ export function DocumentsHomeHub({
     orderDocsBy: docWs.orderDocsBy,
     saveOrderForFilter: docWs.saveOrderForFilter,
     saveOrderForSegmented: docWs.saveOrderForSegmented,
-    filterButtonRefs: docWs.filterButtonRefs,
-    onFilterKeyDown: docWs.onFilterKeyDown,
-  }), [docWs.docOrderByFilter, docWs.setDocOrderByFilter, docWs.segmentedOrderByGroup, docWs.setSegmentedOrderByGroup, docWs.orderDocsBy, docWs.saveOrderForFilter, docWs.saveOrderForSegmented, docWs.filterButtonRefs, docWs.onFilterKeyDown]);
+  }), [docWs.docOrderByFilter, docWs.setDocOrderByFilter, docWs.segmentedOrderByGroup, docWs.setSegmentedOrderByGroup, docWs.orderDocsBy, docWs.saveOrderForFilter, docWs.saveOrderForSegmented]);
 
   const documentUploadSlice = useMemo(() => ({
     isUploading: docWs.isUploading,

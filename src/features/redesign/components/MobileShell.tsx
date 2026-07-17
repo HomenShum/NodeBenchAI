@@ -18,6 +18,7 @@ import { Pill } from "./Pill";
 import { UniversalComposer, type RouterTier } from "./UniversalComposer";
 import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 import { useReportsLive } from "../hooks/useReportsLive";
+import { Sheet, SheetContent, SheetOverlay } from "@/components/ai-ui/sheet";
 import { useInboxLive } from "../hooks/useInboxLive";
 import { sanitizeDecisionText } from "../surfaces/ProductDecisionQueue";
 
@@ -590,23 +591,13 @@ function MobileMe() {
 
 function BottomSheet({ kind, detail, onClose }: { kind: "sources" | "graph" | "entity"; detail?: LiveArtifactDetail; onClose: () => void }) {
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`${kind} sheet`}
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "rgba(15, 16, 17, 0.40)",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "flex-end",
-        zIndex: 30,
-      }}
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
+    <Sheet open onOpenChange={(next) => { if (!next) onClose(); }}>
+      <SheetOverlay className="absolute z-30 bg-[rgba(15,16,17,0.40)]" />
+      <div className="pointer-events-none absolute inset-0 z-30 flex flex-col justify-end">
+      <SheetContent
+        aria-label={`${kind} sheet`}
+        showCloseButton={false}
+        className="pointer-events-auto relative w-full data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom motion-reduce:animate-none"
         style={{
           background: "var(--rd-panel)",
           borderRadius: "16px 16px 0 0",
@@ -628,8 +619,9 @@ function BottomSheet({ kind, detail, onClose }: { kind: "sources" | "graph" | "e
         {kind === "sources" && <SheetSources detail={detail} />}
         {kind === "graph" && <SheetGraph detail={detail} />}
         {kind === "entity" && <SheetEntity detail={detail} />}
+      </SheetContent>
       </div>
-    </div>
+    </Sheet>
   );
 }
 

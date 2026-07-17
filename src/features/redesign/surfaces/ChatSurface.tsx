@@ -7,7 +7,7 @@
  * Bottom: UniversalComposer.
  */
 
-import React, { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { UniversalComposer, DEFAULT_TIERS, type RouterTier } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
@@ -39,6 +39,23 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ai-ui/dialog";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ai-ui/context-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ai-ui/tooltip";
 
 /**
  * Sprint 4 P2.13 — deterministic reproducibility hash for an answer.
@@ -1706,11 +1723,18 @@ function InlineCorrection({ onSave }: InlineCorrectionProps = {}) {
           <span>Correct this</span>
         </button>
       )}
-      {editing && (
-        <div className="rd-correct-overlay" role="dialog" aria-modal="true" aria-label="Correct claim">
-          <div className="rd-correct-dialog">
+      <Dialog open={editing !== null} onOpenChange={(open) => { if (!open) setEditing(null); }}>
+        {editing && (
+          <DialogContent
+            className="rd-correct-dialog"
+            overlayClassName="rd-correct-overlay"
+            portalContainer={typeof document !== "undefined" ? document.querySelector<HTMLElement>("[data-redesign]") : null}
+            showCloseButton={false}
+          >
             <div className="rd-correct-dialog__head">
-              <span className="rd-eyebrow">Correct this claim</span>
+              <DialogTitle className="rd-eyebrow text-[10px] font-semibold leading-none tracking-[0.12em]">
+                Correct this claim
+              </DialogTitle>
               <button
                 type="button"
                 className="rd-correct-dialog__close"
@@ -1745,9 +1769,9 @@ function InlineCorrection({ onSave }: InlineCorrectionProps = {}) {
                 {busy ? "Saving…" : "Queue patch"}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </DialogContent>
+        )}
+      </Dialog>
     </>
   );
 }
@@ -1766,14 +1790,6 @@ function ABCompareModal({
   onClose: () => void;
   onPick: (variant: "A" | "B", variantBRunId?: string) => void;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   // Phase 7 — real Variant B parallel run.
   // When the modal opens and the original prompt was captured, kick off a
   // second startChat call and subscribe to its run row + events so the modal
@@ -1848,10 +1864,17 @@ function ABCompareModal({
     : variantBPacket?.whyItMatters || "";
 
   return (
-    <div className="rd-ab-overlay" role="dialog" aria-modal="true" aria-label="A/B compare answers">
-      <div className="rd-ab-dialog">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        className="rd-ab-dialog"
+        overlayClassName="rd-ab-overlay"
+        portalContainer={typeof document !== "undefined" ? document.querySelector<HTMLElement>("[data-redesign]") : null}
+        showCloseButton={false}
+      >
         <header className="rd-ab-dialog__head">
-          <span className="rd-eyebrow">A/B compare · {tierMeta.label} tier</span>
+          <DialogTitle className="rd-eyebrow text-[10px] font-semibold leading-none tracking-[0.12em]">
+            A/B compare · {tierMeta.label} tier
+          </DialogTitle>
           <span className="rd-ab-dialog__hint">
             {variantBStatus === "blocked"
               ? "Original prompt unavailable — no fixture Variant B generated."
@@ -1909,8 +1932,8 @@ function ABCompareModal({
             >Pick B</button>
           </article>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -2073,7 +2096,6 @@ function AnswerPacket({
   const [hoverCite, setHoverCite] = useState<number | null>(null);
   // Sprint 2 P0.3 — counterfactual probe state
   const [maskedIdx, setMaskedIdx] = useState<number | null>(null);
-  const [probeMenu, setProbeMenu] = useState<{ idx: number; x: number; y: number } | null>(null);
   const [traceOpen, setTraceOpen] = useState(false);
   const traceRef = useRef<HTMLDetailsElement | null>(null);
   const researchStages = buildResearchStages(toolCalls ?? packet.trace);
@@ -2085,14 +2107,7 @@ function AnswerPacket({
   // Wire citation interactivity: hover [N] in body → highlight matching source row in evidence list
   const handleCiteEnter = (idx: number) => setHoverCite(idx);
   const handleCiteLeave = () => setHoverCite(null);
-  // Right-click on a cite chip → counterfactual probe menu
-  const handleCiteContext = (idx: number, e: ReactMouseEvent) => {
-    e.preventDefault();
-    if (!onProbeRunWithoutSource) return;
-    setProbeMenu({ idx, x: e.clientX, y: e.clientY });
-  };
   const probeWithoutSource = (idx: number) => {
-    setProbeMenu(null);
     // Phase 5 — if a real probe handler is wired (authenticated user with
     // an active runId on this turn), call the real action.
     if (onProbeRunWithoutSource) {
@@ -2119,20 +2134,6 @@ function AnswerPacket({
       traceRef.current?.scrollIntoView({ block: "nearest", behavior: "auto" });
     }, 0);
   };
-  // Dismiss probe menu on outside click / Escape
-  useEffect(() => {
-    if (!probeMenu) return;
-    const onDoc = () => setProbeMenu(null);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setProbeMenu(null);
-    };
-    window.addEventListener("click", onDoc);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("click", onDoc);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [probeMenu]);
   return (
     <div className="rd-chat-msg rd-chat-msg--assistant" data-hover-cite={hoverCite ?? undefined}>
       {/* Avatar gutter — parity-studio bot icon pattern */}
@@ -2189,9 +2190,11 @@ function AnswerPacket({
       {/* Short answer — citations clickable + hover-linked to evidence list */}
       <section>
         <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Short answer</div>
-        <p className="rd-answer-copy">
-          {renderInlineWithCites(packet.shortAnswer, packet.evidence, handleCiteEnter, handleCiteLeave, handleCiteContext, maskedIdx)}
-        </p>
+        <TooltipProvider delayDuration={180}>
+          <p className="rd-answer-copy">
+            {renderInlineWithCites(packet.shortAnswer, packet.evidence, handleCiteEnter, handleCiteLeave, onProbeRunWithoutSource ? probeWithoutSource : undefined, maskedIdx)}
+          </p>
+        </TooltipProvider>
       </section>
 
       {/* Compact response shapes intentionally omit memo-only sections. */}
@@ -2317,39 +2320,6 @@ function AnswerPacket({
       </div>
       </article>
 
-      {/* Sprint 2 P0.3 — counterfactual probe context menu (right-click on cite chip) */}
-      {probeMenu && (
-        <div
-          className="rd-cite-menu"
-          role="menu"
-          style={{ position: "fixed", top: probeMenu.y, left: probeMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            className="rd-cite-menu__item"
-            role="menuitem"
-            onClick={() => probeWithoutSource(probeMenu.idx)}
-          >
-            <span aria-hidden="true">🔬</span>
-            <span>Probe without source [{probeMenu.idx}]</span>
-            <span className="rd-cite-menu__hint">re-eval the answer if this source were absent</span>
-          </button>
-          <button
-            type="button"
-            className="rd-cite-menu__item"
-            role="menuitem"
-            onClick={() => {
-              const target = document.querySelector(`.rd-evidence-row[data-cite="${probeMenu.idx}"]`);
-              target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-              setProbeMenu(null);
-            }}
-          >
-            <span aria-hidden="true">↓</span>
-            <span>Jump to evidence row</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -2562,8 +2532,8 @@ function formatPct(value: number | undefined): string {
 /**
  * Render text with [N] citation patterns turned into interactive chips.
  *
- * Sprint 1 P0.1 — hover the chip to see the source quote + provenance in a popover.
- * The popover is pure-CSS positioned (`.rd-cite-wrap`) so no JS positioning math.
+ * Hover uses the shared Radix tooltip and right-click uses the shared Radix
+ * context menu, keeping positioning, dismissal, and keyboard focus primitive-owned.
  * Hovering a [N] also fires the linkage handler so the evidence row highlights.
  */
 function renderInlineWithCites(
@@ -2571,7 +2541,7 @@ function renderInlineWithCites(
   evidence: ChatAnswer["evidence"],
   onEnter: (idx: number) => void,
   onLeave: () => void,
-  onContextMenu?: (idx: number, e: ReactMouseEvent) => void,
+  onProbe?: (idx: number) => void,
   maskedIdx?: number | null,
 ): ReactNode[] {
   const re = /\[(\d+)\]/g;
@@ -2585,39 +2555,60 @@ function renderInlineWithCites(
     const sourceUrl = sourceUrlFromText(cite.source);
     if (m.index > last) out.push(<span key={`t${last}`}>{text.slice(last, m.index)}</span>);
     out.push(
-      <span key={`c${m.index}`} className="rd-cite-wrap">
-        <a
-          href={sourceUrl ?? `#cite-${idx}`}
-          className="rd-cite"
-          data-cite={idx}
-          data-masked={maskedIdx === idx || undefined}
-          aria-describedby={`rd-cite-pop-${idx}`}
-          title="Right-click to probe without this source"
-          onMouseEnter={() => onEnter(idx)}
-          onMouseLeave={onLeave}
-          onFocus={() => onEnter(idx)}
-          onBlur={onLeave}
-          onContextMenu={onContextMenu ? (e) => onContextMenu(idx, e) : undefined}
-          onClick={(e) => {
-            e.preventDefault();
-            if (sourceUrl) {
-              window.open(sourceUrl, "_blank", "noopener,noreferrer");
-              return;
-            }
-            const target = document.querySelector(`.rd-evidence-row[data-cite="${idx}"]`);
-            target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-          }}
-        >{idx}</a>
-        <span
-          id={`rd-cite-pop-${idx}`}
-          className="rd-cite-popover"
-          role="tooltip"
+      <ContextMenu key={`c${m.index}`}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <ContextMenuTrigger asChild>
+              <a
+                href={sourceUrl ?? `#cite-${idx}`}
+                className="rd-cite"
+                data-cite={idx}
+                data-masked={maskedIdx === idx || undefined}
+                title={onProbe ? "Right-click to probe without this source" : undefined}
+                onMouseEnter={() => onEnter(idx)}
+                onMouseLeave={onLeave}
+                onFocus={() => onEnter(idx)}
+                onBlur={onLeave}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (sourceUrl) {
+                    window.open(sourceUrl, "_blank", "noopener,noreferrer");
+                    return;
+                  }
+                  const target = document.querySelector(`.rd-evidence-row[data-cite="${idx}"]`);
+                  target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                }}
+              >{idx}</a>
+            </ContextMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs bg-[var(--rd-ink)] text-[var(--rd-paper)]">
+            <span className="block">&ldquo;{cite.quote}&rdquo;</span>
+            <span className="mt-1 block opacity-70">{sourceLabel(cite.source)}</span>
+          </TooltipContent>
+        </Tooltip>
+        <ContextMenuContent
+          className="rd-cite-menu min-w-[260px] bg-[var(--rd-paper)] text-[var(--rd-ink)]"
+          portalContainer={typeof document !== "undefined" ? document.querySelector<HTMLElement>("[data-redesign]") : null}
         >
-          <span className="rd-cite-popover__quote">&ldquo;{cite.quote}&rdquo;</span>
-          <span className="rd-cite-popover__source">{sourceLabel(cite.source)}</span>
-          {/* Sprint 3 P2.9 — source freshness */}
-        </span>
-      </span>,
+          {onProbe ? (
+            <ContextMenuItem className="rd-cite-menu__item" onSelect={() => onProbe(idx)}>
+              <span aria-hidden="true">🔬</span>
+              <span>Probe without source [{idx}]</span>
+              <span className="rd-cite-menu__hint">re-eval the answer if this source were absent</span>
+            </ContextMenuItem>
+          ) : null}
+          <ContextMenuItem
+            className="rd-cite-menu__item"
+            onSelect={() => {
+              const target = document.querySelector(`.rd-evidence-row[data-cite="${idx}"]`);
+              target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+            }}
+          >
+            <span aria-hidden="true">↓</span>
+            <span>Jump to evidence row</span>
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>,
     );
     last = m.index + m[0].length;
   }

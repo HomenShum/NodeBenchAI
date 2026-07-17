@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { X, ExternalLink, Calendar, Tag, Sparkles, MessageSquare, Copy } from "lucide-react";
 import { useFastAgent } from "@/features/agents/context/FastAgentContext";
 import { useReaderContent } from "@/features/research/hooks/useReaderContent";
@@ -10,6 +10,7 @@ import CostCrossoverCalculator from "./CostCrossoverCalculator";
 import SignalTimeseriesPanel from "./SignalTimeseriesPanel";
 import RepoSignalPanel from "./RepoSignalPanel";
 import StrategyMetricsPanel from "./StrategyMetricsPanel";
+import { DialogOverlay } from "@/shared/components/DialogOverlay";
 
 export interface ReaderItem {
   id?: string;
@@ -33,33 +34,7 @@ interface FeedReaderModalProps {
 export const FeedReaderModal: React.FC<FeedReaderModalProps> = ({ item, onClose, techStack = [] }) => {
   const { openWithContext } = useFastAgent();
   const readerState = useReaderContent(item?.url, item?.title);
-  const modalRef = useRef<HTMLDivElement | null>(null);
   const [deepDiveTab, setDeepDiveTab] = useState<"summary" | "data" | "timeline">("summary");
-
-  useEffect(() => {
-    if (!item) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      if (!modalRef.current || !target) return;
-      if (!modalRef.current.contains(target)) {
-        onClose();
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    window.addEventListener("pointerdown", handlePointerDown, true);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown, true);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [item, onClose]);
 
   const readerData = readerState.status === "ready" ? readerState.data : null;
   const safeTitle = item?.title ?? "";
@@ -162,13 +137,16 @@ export const FeedReaderModal: React.FC<FeedReaderModalProps> = ({ item, onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200 pointer-events-none">
-
+    <DialogOverlay
+      isOpen={Boolean(item)}
+      onClose={onClose}
+      ariaLabel={safeTitle ? `Read ${safeTitle}` : "Feed reader"}
+      positionClassName="z-[100] p-4 sm:p-6"
+      backdropClassName="z-[100] bg-black/30"
+      contentClassName="w-full max-w-6xl"
+    >
       <div
-        ref={modalRef}
         className="relative w-full max-w-6xl h-[90vh] bg-surface rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ring-1 ring-white/10 pointer-events-auto"
-        role="dialog"
-        aria-modal="true"
         aria-labelledby="feed-reader-modal-title"
       >
         <div className="px-8 py-5 border-b border-edge flex items-center justify-between bg-surface z-10">
@@ -470,7 +448,7 @@ export const FeedReaderModal: React.FC<FeedReaderModalProps> = ({ item, onClose,
           </div>
         </div>
       </div>
-    </div>
+    </DialogOverlay>
   );
 };
 
