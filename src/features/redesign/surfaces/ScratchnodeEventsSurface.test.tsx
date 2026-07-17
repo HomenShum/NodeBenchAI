@@ -19,24 +19,52 @@ import { MemoryRouter } from "react-router-dom";
 type MockedResponses = {
   listMyJoinedEvents?: unknown;
   listMyNotes?: unknown;
+  scratchnodeImportStatus?: unknown;
 };
 let mockedResponses: MockedResponses = {};
+const mockRunImport = vi.fn(async () => ({ ok: true }));
 
 vi.mock("convex/react", () => ({
   useQuery: (fnRef: unknown, args: unknown) => {
     if (args === "skip") return undefined;
     if (fnRef === "fn:listMyJoinedEvents") return mockedResponses.listMyJoinedEvents;
     if (fnRef === "fn:listMyNotes") return mockedResponses.listMyNotes;
+    if (fnRef === "fn:getScratchnodeImportStatus") return mockedResponses.scratchnodeImportStatus;
     return undefined;
   },
+  useMutation: () => mockRunImport,
 }));
 
-vi.mock("../../../../convex/_generated/api", () => ({
-  api: {
-    scratchnodeHandoff: { listMyJoinedEvents: "fn:listMyJoinedEvents" },
-    notes: { listMyNotes: "fn:listMyNotes" },
-  },
-}));
+// The api mock is a Proxy so that a component adding a NEW `(api as any).x.y.z`
+// reference degrades to an unknown-function query (useQuery returns undefined,
+// the surface's honest gates render nothing) instead of throwing a TypeError at
+// property access. That exact TypeError shipped red on main for three tests
+// while CI's allowlist never ran this file (issue #567). Known functions still
+// resolve to stable "fn:" strings so responses stay keyed by name.
+vi.mock("../../../../convex/_generated/api", () => {
+  // Declared inside the factory: vi.mock is hoisted above top-level statements.
+  const KNOWN_API_FNS: Record<string, string> = {
+    "scratchnodeHandoff.listMyJoinedEvents": "fn:listMyJoinedEvents",
+    "notes.listMyNotes": "fn:listMyNotes",
+    "domains.product.scratchnodeImport.getScratchnodeImportStatus":
+      "fn:getScratchnodeImportStatus",
+    "domains.product.scratchnodeImport.importPublishedWiki": "fn:importPublishedWiki",
+  };
+  const apiNode = (path: string): unknown => {
+    const known = KNOWN_API_FNS[path];
+    if (known) return known;
+    return new Proxy(
+      {},
+      {
+        get: (_target, prop) => {
+          if (typeof prop !== "string") return undefined;
+          return apiNode(path ? `${path}.${prop}` : prop);
+        },
+      },
+    );
+  };
+  return { api: apiNode("") };
+});
 
 import { ScratchnodeEventsSurface } from "./ScratchnodeEventsSurface";
 
@@ -227,5 +255,53 @@ describe("ScratchnodeEventsSurface — step 9 NodeBench handoff", () => {
     expect(getByTestId("scratchnode-events-loading")).toBeTruthy();
     expect(queryByTestId("scratchnode-events-empty-no-events")).toBeNull();
     expect(queryByTestId("scratchnode-events-empty-no-session")).toBeNull();
+  });
+
+  /**
+   * Scenario 7 — Attendee whose event has a published recap wiki.
+   * User: returning attendee; the host published the event wiki and the
+   *   attendee wants it inside NodeBench.
+   * Goal: see the import affordance on that event row and none on rows
+   *   without a published wiki (honest gate: no affordance without a
+   *   KNOWN published recap).
+   * Failure mode covered: the ImportRecapButton query reads an api path
+   *   (domains.product.scratchnodeImport) that this file's api mock did
+   *   not model — three tests crashed with a TypeError on clean main
+   *   while CI's runtime-smoke allowlist never ran the file (issue #567).
+   */
+  it("renders the import-recap affordance only when a published wiki exists", () => {
+    setMockedResponses({
+      listMyJoinedEvents: { joined: SAMPLE_EVENTS, _truncated: false },
+      scratchnodeImportStatus: {
+        published: true,
+        imported: false,
+        documentId: null,
+        entitySlug: null,
+      },
+    });
+    const { getAllByTestId } = renderSurface("session-power-user-9");
+    // The status mock is keyed by function (not per-slug), so every rendered
+    // row reports a published recap — assert one affordance per row.
+    expect(getAllByTestId(/scratchnode-import-recap-/)).toHaveLength(
+      SAMPLE_EVENTS.length,
+    );
+  });
+
+  /**
+   * Scenario 8 — Import status still loading (or wiki unpublished).
+   * User: attendee opening the list the moment after join; status query
+   *   has not resolved.
+   * Goal: no import affordance flashes before the published state is
+   *   KNOWN (mirrors the component's "honest gate" comment).
+   * Failure mode covered: affordance rendered from undefined status →
+   *   click on a recap that may not exist.
+   */
+  it("renders no import affordance while import status is unresolved", () => {
+    setMockedResponses({
+      listMyJoinedEvents: { joined: SAMPLE_EVENTS, _truncated: false },
+      // scratchnodeImportStatus intentionally absent → useQuery undefined
+    });
+    const { queryByTestId } = renderSurface("session-power-user-9");
+    expect(queryByTestId(/scratchnode-import-recap-/)).toBeNull();
   });
 });

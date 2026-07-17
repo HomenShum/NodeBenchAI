@@ -3,6 +3,48 @@
 Append-only lane for the public redesign chat, reproducible answer receipts, and their
 transition into an authenticated live conversation. Newest entries first.
 
+## 2026-07-17 - Resolve the four hardening residuals from the production audit
+
+The 2026-07-16 audit cycle left four filed residuals (#567-#570); all four land here.
+
+1. **Red tests CI could not see (#567)** - three ScratchnodeEventsSurface tests failed on
+   clean main (`TypeError: reading 'product'`) because the test's api mock predated
+   ImportRecapButton's `domains.product.scratchnodeImport` query, and the runtime-smoke
+   allowlist never ran the file. The api mock is now a Proxy that degrades unknown
+   function refs to unresolved queries, the missing `useMutation` mock is added, two
+   scenarios cover the import affordance's published/unresolved gates, and the file joins
+   the CI allowlist.
+2. **Timer-only cancel guard (#568)** - Stop and submit are both always rendered: Stop in
+   a reserved `visibility:hidden` slot, submit staying at identical coordinates while
+   streaming (disabled). A double-click's second click lands on an inert control at ANY
+   user double-click interval; the 400ms arming stays as defense in depth.
+3. **Shape detector gap (#569)** - "in one sentence", "a single paragraph", and
+   "under N words" are now detected, instructed via an exhaustive
+   `responseShapeSystemInstructions` switch, and deterministically enforced (first-sentence
+   extraction, prose collapse, sentence-accumulating word budget). Honesty survives
+   compaction: unsupported runs carry `Source needed:` within the requested shape.
+   JSON/table stay model-side deliberately - the render path is markdown prose.
+4. **No computed-geometry regression capture (#570)** - one-flow-regression (Tier B,
+   per-PR) gains a 390x844 test asserting `.rd-shell__main` resolves to ONE grid track and
+   `main#main-content` stays >300px wide - the audit's 70px collapse was invisible to both
+   the CSS-source string guard and the document-overflow boolean.
+
+**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Source: `pending`
+- Checks: `npx tsc --noEmit` -> 0 errors. Full runtime-smoke allowlist locally ->
+  312 passed / 25 skipped (integration skips without env keys, matching CI). Adjacent
+  guards (ChatResponseShape, ChatRunLifecycle, ChatContinuation, sourceVerificationPolicy)
+  -> 12 passed.
+- Visual proof: `not recorded` - behavior changes are runtime/composer mechanics.
+- Preview: Tier B one-flow-regression includes the new 390px geometry test on this PR.
+- Production live: `not recorded` at entry time.
+
+**Author**: Homen Shum + Claude Fable 5.
+**Touches**: [components/fast-agent-panel.md](../components/fast-agent-panel.md) is NOT
+touched - the composer change is redesign-chat's UniversalComposer, not FastAgentPanel.
+
 ## 2026-07-17 - Ground "best source" superlatives on their own citation
 
 `applyDeterministicResponsePolicy` only rewrote unsupported "best/strongest source|claim"
@@ -22,10 +64,10 @@ constant used by both the sanitizer and the gate so they cannot disagree.
 This closes the residual left open by the 2026-07-16 audit follow-up (#565 fixed four of
 the five P1s; this is the fifth). Tracked as #566.
 
-**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+**PR / canonical main commit**: `#571` / `6198dc39`.
 
 **Evidence state**:
-- Source: `pending`
+- Source: `merged`
 - Checks: `npx tsc -p convex --noEmit --pretty false` -> 0 errors. `npx vitest run
   convex/domains/redesign/chatRuns.responseShape.test.ts` -> 16 passed (3 new: grounded
   citation kept, cached-label citation rewritten, uncited superlative rewritten). Gate
@@ -63,10 +105,10 @@ names in UI / provider names appear only in the trace" - the opposite of the dis
 contract shipped in #550 - and pinned `DEFAULT_TIERS` to the runtime's `modelForTier` with
 a parity test, since the two were hand-maintained mirrors with no test binding them.
 
-**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+**PR / canonical main commit**: `#565` / `b2d12ae0`.
 
 **Evidence state**:
-- Source: `pending`
+- Source: `merged`
 - Checks: `npx tsc --noEmit --pretty false` -> 0 errors. `npx vitest run
   convex/domains/redesign/chatRuns.responseShape.test.ts
   src/features/redesign/components/UniversalComposer.test.tsx` -> 16 passed. Fix reverted

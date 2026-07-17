@@ -59,9 +59,17 @@ describe("UniversalComposer runtime controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run research" }));
     expect(onSubmit).toHaveBeenCalledTimes(1);
 
-    // The parent flips streaming after accepting the first click. The control at
-    // the same coordinates is now Stop, but it stays inert through dblclick #2.
+    // The parent flips streaming after accepting the first click. The submit
+    // button STAYS at the same coordinates — disabled, so the second click of
+    // a double-click is structurally a no-op at any double-click interval.
+    // Stop lives in its own reserved slot and is also arm-delayed.
     rerender(<UniversalComposer {...props} streaming />);
+    const submit = screen.getByRole("button", { name: "Run research" });
+    expect(submit).toBeDisabled();
+    fireEvent.click(submit);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onStop).not.toHaveBeenCalled();
+
     const stop = screen.getByRole("button", { name: "Cancel active run" });
     expect(stop).toBeDisabled();
     fireEvent.click(stop);
@@ -70,6 +78,11 @@ describe("UniversalComposer runtime controls", () => {
 
     act(() => vi.advanceTimersByTime(CANCEL_ARM_DELAY_MS));
     expect(stop).toBeEnabled();
+    // Even armed, the submit slot stays inert — the double-click landing zone
+    // never becomes a cancel control (issue #568's structural requirement).
+    fireEvent.click(submit);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onStop).not.toHaveBeenCalled();
 
     // Escape remains usable even when focus is no longer in the textarea.
     fireEvent.keyDown(document, { key: "Escape" });

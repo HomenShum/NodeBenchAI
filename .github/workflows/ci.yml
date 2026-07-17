@@ -102,6 +102,7 @@ jobs:
           scripts/__tests__/releaseWorkflowContracts.test.ts
           convex/domains/redesign/chatRuns.responseShape.test.ts
           src/features/redesign/components/UniversalComposer.test.tsx
+          src/features/redesign/surfaces/ScratchnodeEventsSurface.test.tsx
 
   scratchnode-launch-gates:
     name: ScratchNode launch gates

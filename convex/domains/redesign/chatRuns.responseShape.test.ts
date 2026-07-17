@@ -63,6 +63,91 @@ describe("redesign chat runtime response policy", () => {
     }
   });
 
+  // Issue #569 — every explicit shape beyond title/bullets used to fall
+  // through to the five-section memo. These scenarios model an analyst
+  // pasting exact-output constraints into the composer.
+  it("detects single-sentence, single-paragraph, and word-limit requests", () => {
+    expect(detectRequestedResponseShape("Summarize the brief in one sentence.")).toEqual({ kind: "sentence" });
+    expect(detectRequestedResponseShape("Give me just one sentence on the risk.")).toEqual({ kind: "sentence" });
+    expect(detectRequestedResponseShape("Write a one-sentence summary.")).toEqual({ kind: "sentence" });
+    expect(detectRequestedResponseShape("Explain the funding round in a single paragraph.")).toEqual({ kind: "paragraph" });
+    expect(detectRequestedResponseShape("One-paragraph answer please.")).toEqual({ kind: "paragraph" });
+    expect(detectRequestedResponseShape("Summarize in under 50 words.")).toEqual({ kind: "word_limit", limit: 50 });
+    expect(detectRequestedResponseShape("Answer in 30 words or fewer.")).toEqual({ kind: "word_limit", limit: 30 });
+    expect(detectRequestedResponseShape("No more than 80 words.")).toEqual({ kind: "word_limit", limit: 80 });
+  });
+
+  it("keeps memo for incidental or degenerate shape phrasing", () => {
+    // The memo template itself says "one sentence" per heading — user prose
+    // that merely mentions sentences/paragraphs must not flip the shape.
+    expect(detectRequestedResponseShape("The first sentence of their pitch is misleading.")).toEqual({ kind: "memo" });
+    expect(detectRequestedResponseShape("Compare the opening paragraph across both reports.")).toEqual({ kind: "memo" });
+    // Degenerate or absurd limits never bind.
+    expect(detectRequestedResponseShape("Summarize in under 2 words.")).toEqual({ kind: "memo" });
+    expect(detectRequestedResponseShape("Summarize in under 90000 words.")).toEqual({ kind: "memo" });
+    // Bullets outrank a word limit when both appear.
+    expect(
+      detectRequestedResponseShape("Give me exactly 3 bullets, under 50 words."),
+    ).toEqual({ kind: "bullets", count: 3 });
+  });
+
+  it("returns exactly one sentence while omitting memo-only fields", () => {
+    // idx binds the [1] marker to the URL-backed row so the #571 superlative
+    // gate recognizes the claim as grounded and leaves the sentence intact.
+    const shaped = applyDeterministicResponsePolicy(
+      "Summarize the brief in one sentence.",
+      memo,
+      [{ idx: 1, source: "https://example.com/acme", quote: "Acme launched a new product." }],
+    );
+    expect(shaped.shortAnswer).toBe("Acme is the strongest supported claim in the current packet. [1]");
+    expect(shaped.whyItMatters).toBe("");
+    expect(shaped.risks).toEqual([]);
+    expect(shaped.nextAction).toBe("");
+  });
+
+  it("collapses the memo into one paragraph and keeps the source-needed limitation inline when unsupported", () => {
+    const supported = applyDeterministicResponsePolicy(
+      "Explain it in a single paragraph.",
+      memo,
+      [{ source: "https://example.com/acme", quote: "Acme launched a new product." }],
+    );
+    expect(supported.shortAnswer).not.toContain("\n");
+    expect(supported.whyItMatters).toBe("");
+
+    const unsupported = applyDeterministicResponsePolicy(
+      "Explain it in a single paragraph.",
+      memo,
+      [{ source: "Setup" }],
+    );
+    // Honesty survives the compact shape: the limitation rides inside the
+    // paragraph because compact renders hide the risks section entirely.
+    expect(unsupported.shortAnswer).toContain("Source needed");
+    expect(unsupported.risks).toEqual([]);
+  });
+
+  it("enforces an explicit word limit deterministically, including the honesty prefix", () => {
+    const longMemo = {
+      ...memo,
+      shortAnswer:
+        "Acme closed the round. The filing lists twelve investors across three continents and two follow-on commitments.",
+    };
+    const shaped = applyDeterministicResponsePolicy(
+      "Summarize in under 8 words.",
+      longMemo,
+      [{ source: "https://example.com/acme", quote: "Acme closed the round." }],
+    );
+    expect(shaped.shortAnswer.split(/\s+/).length).toBeLessThanOrEqual(8);
+    expect(shaped.whyItMatters).toBe("");
+
+    const unsupported = applyDeterministicResponsePolicy(
+      "Summarize in under 8 words.",
+      longMemo,
+      [{ source: "Setup" }],
+    );
+    expect(unsupported.shortAnswer.startsWith("Source needed:")).toBe(true);
+    expect(unsupported.shortAnswer.split(/\s+/).length).toBeLessThanOrEqual(8);
+  });
+
   it("does not mistake incidental prose about titles for a shape request", () => {
     expect(
       detectRequestedResponseShape("Summarize the report and explain why its title is misleading."),
