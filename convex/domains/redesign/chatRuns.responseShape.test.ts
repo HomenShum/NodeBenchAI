@@ -148,6 +148,78 @@ describe("redesign chat runtime response policy", () => {
     expect(unsupported.shortAnswer.split(/\s+/).length).toBeLessThanOrEqual(8);
   });
 
+  it("detects explicit JSON and table format requests, not incidental mentions", () => {
+    expect(detectRequestedResponseShape("Return the funding rounds as JSON.")).toEqual({ kind: "json" });
+    expect(detectRequestedResponseShape("Respond with valid JSON only.")).toEqual({ kind: "json" });
+    expect(detectRequestedResponseShape("Output a JSON array of competitors.")).toEqual({ kind: "json" });
+    expect(detectRequestedResponseShape("Compare the vendors in a markdown table.")).toEqual({ kind: "table" });
+    expect(detectRequestedResponseShape("Format the pricing tiers as a table.")).toEqual({ kind: "table" });
+    // Incidental prose stays a memo.
+    expect(detectRequestedResponseShape("Why did the JSON parser fail last run?")).toEqual({ kind: "memo" });
+    expect(detectRequestedResponseShape("Check the table below for the raw numbers.")).toEqual({ kind: "memo" });
+  });
+
+  it("passes through valid JSON from raw output, normalized and fence-stripped", () => {
+    const raw = 'Here is the data:\n```json\n{"company":"Acme","round":"Series B","note":"brace } inside string"}\n```\nHope that helps!';
+    const shaped = applyDeterministicResponsePolicy(
+      "Return the round as JSON.",
+      memo,
+      [{ idx: 1, source: "https://example.com/acme", quote: "Acme raised." }],
+      raw,
+    );
+    expect(JSON.parse(shaped.shortAnswer)).toEqual({
+      company: "Acme",
+      round: "Series B",
+      note: "brace } inside string",
+    });
+    expect(shaped.whyItMatters).toBe("");
+    expect(shaped.risks).toEqual([]);
+  });
+
+  it("fails closed with an honest message when JSON is invalid, and surfaces the source-needed limitation as a risks row on unsupported runs", () => {
+    const invalid = applyDeterministicResponsePolicy(
+      "Return the round as JSON.",
+      memo,
+      [{ idx: 1, source: "https://example.com/acme" }],
+      "The model rambled with {broken json",
+    );
+    expect(invalid.shortAnswer).toContain("did not produce valid JSON");
+
+    const unsupported = applyDeterministicResponsePolicy(
+      "Return the round as JSON.",
+      memo,
+      [{ source: "Setup" }],
+      '{"company":"Acme"}',
+    );
+    // A limitation cannot ride inside JSON without corrupting it — it must
+    // surface as a risks row instead, which un-compacts the render.
+    expect(JSON.parse(unsupported.shortAnswer)).toEqual({ company: "Acme" });
+    expect(unsupported.risks).toContain(
+      "Source needed: no supported URL is available, so source-strength and claim-strength comparisons are unverified.",
+    );
+  });
+
+  it("extracts the markdown table block and drops surrounding prose", () => {
+    const raw = "Sure!\n| Vendor | Price |\n| --- | --- |\n| Acme | $10 |\n| Bolt | $12 |\nLet me know if you need more.";
+    const shaped = applyDeterministicResponsePolicy(
+      "Compare vendors in a markdown table.",
+      memo,
+      [{ idx: 1, source: "https://example.com/acme" }],
+      raw,
+    );
+    expect(shaped.shortAnswer.split("\n")).toHaveLength(4);
+    expect(shaped.shortAnswer.startsWith("| Vendor |")).toBe(true);
+    expect(shaped.shortAnswer).not.toContain("Sure!");
+
+    const missing = applyDeterministicResponsePolicy(
+      "Compare vendors in a markdown table.",
+      memo,
+      [{ idx: 1, source: "https://example.com/acme" }],
+      "No table here, just prose.",
+    );
+    expect(missing.shortAnswer).toContain("did not produce a Markdown table");
+  });
+
   it("does not mistake incidental prose about titles for a shape request", () => {
     expect(
       detectRequestedResponseShape("Summarize the report and explain why its title is misleading."),

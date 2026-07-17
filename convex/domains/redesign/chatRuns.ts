@@ -820,7 +820,9 @@ export type RequestedResponseShape =
   | { kind: "bullets"; count: number }
   | { kind: "sentence" }
   | { kind: "paragraph" }
-  | { kind: "word_limit"; limit: number };
+  | { kind: "word_limit"; limit: number }
+  | { kind: "json" }
+  | { kind: "table" };
 
 const RESPONSE_COUNT_WORDS: Record<string, number> = {
   one: 1,
@@ -898,6 +900,19 @@ function detectWordLimit(normalized: string): number | null {
   return null;
 }
 
+// Explicit machine-format asks. Anchored on format keywords next to a request
+// verb or preposition so incidental prose ("the JSON parser failed", "the
+// table below") stays a memo.
+const JSON_SHAPE_PATTERNS: RegExp[] = [
+  /\b(?:as|in|return|output|respond (?:in|with))\s+(?:valid\s+|raw\s+|pure\s+)?json\b/,
+  /\bjson\s+(?:only|format|object|array)\b/,
+  /\bformat(?:ted)?\s+as\s+json\b/,
+];
+const TABLE_SHAPE_PATTERNS: RegExp[] = [
+  /\b(?:as|in|return|output|format(?:ted)? as)\s+a?\s*(?:markdown\s+)?table\b/,
+  /\b(?:markdown\s+)?table\s+(?:only|format)\b/,
+];
+
 export function detectRequestedResponseShape(prompt: string): RequestedResponseShape {
   const normalized = prompt.replace(/\s+/g, " ").trim().toLowerCase();
   if (TITLE_ONLY_PATTERNS.some((pattern) => pattern.test(normalized))) {
@@ -909,6 +924,15 @@ export function detectRequestedResponseShape(prompt: string): RequestedResponseS
   );
   const count = bulletMatch ? parseRequestedCount(bulletMatch[1]) : null;
   if (count) return { kind: "bullets", count };
+
+  // Machine formats outrank prose shapes: "one row per company, as JSON"
+  // is a JSON ask, not a sentence ask.
+  if (JSON_SHAPE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return { kind: "json" };
+  }
+  if (TABLE_SHAPE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return { kind: "table" };
+  }
 
   if (SINGLE_SENTENCE_PATTERNS.some((pattern) => pattern.test(normalized))) {
     return { kind: "sentence" };
@@ -972,6 +996,22 @@ export function responseShapeSystemInstructions(shape: RequestedResponseShape): 
         citationInstruction: inlineCitations,
         calculationInstruction: compactCalculation,
       };
+    case "json":
+      return {
+        shapeInstruction:
+          "The user requested JSON. Output ONLY one valid JSON object or array — no code fences, no prose before or after, no comments.",
+        citationInstruction:
+          "Do not embed [N] citation markers inside JSON values; supporting sources appear in the evidence panel.",
+        calculationInstruction: compactCalculation,
+      };
+    case "table":
+      return {
+        shapeInstruction:
+          "The user requested a table. Output ONLY one GitHub-flavored Markdown table (header row, separator row, data rows) — no code fences and no prose before or after.",
+        citationInstruction:
+          "Do not embed [N] citation markers inside table cells; supporting sources appear in the evidence panel.",
+        calculationInstruction: compactCalculation,
+      };
     case "memo":
       return {
         shapeInstruction: `Produce a banker-style memo. Do not include To, From, Date, or Subject headers. Use exactly these markdown section headings:
@@ -1029,6 +1069,69 @@ function citationIndices(text: string): number[] {
 // the terminator ("...claim. [1]") attached to the sentence it annotates.
 // Shared by the superlative gate and the sentence/word-limit shape policies.
 const SENTENCE_SPLITTER = /(?<=[.!?])\s+(?!\[\d+\])/;
+
+function stripCodeFences(text: string): string {
+  return text.replace(/```[a-z]*\r?\n?/gi, "").replace(/```/g, "").trim();
+}
+
+// Upper bound on a structured block we will validate and return verbatim.
+// Truncating JSON breaks validity, so oversized blocks fail honestly instead.
+const MAX_STRUCTURED_BLOCK_CHARS = 20_000;
+
+/**
+ * First balanced top-level JSON object/array in the text, string-aware so
+ * braces inside quoted values don't unbalance the scan. Null when nothing
+ * balanced is found.
+ */
+function extractJsonBlock(raw: string): string | null {
+  const text = stripCodeFences(raw);
+  const start = text.search(/[[{]/);
+  if (start === -1) return null;
+  const open = text[start];
+  const close = open === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = inString;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === open) depth++;
+    else if (ch === close) {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+/** Longest run of consecutive `| ... |` lines — header + separator minimum. */
+function extractMarkdownTable(raw: string): string | null {
+  const lines = stripCodeFences(raw).split("\n");
+  let best: string[] = [];
+  let current: string[] = [];
+  for (const line of lines) {
+    if (/^\s*\|.*\|\s*$/.test(line)) {
+      current.push(line.trim());
+    } else {
+      if (current.length > best.length) best = current;
+      current = [];
+    }
+  }
+  if (current.length > best.length) best = current;
+  return best.length >= 2 ? best.join("\n") : null;
+}
 
 // Flatten memo prose into plain sentences: markdown bullet/number prefixes
 // removed per line, whitespace collapsed.
@@ -1127,6 +1230,10 @@ export function applyDeterministicResponsePolicy(
     blocking?: boolean;
     verificationState?: EvidenceVerificationState;
   }>,
+  // Unparsed model output. JSON/table shapes must read this: parseMemo is
+  // heading-driven and lossy, so structured blocks cannot be reconstructed
+  // from memo fields. Optional so prose-shape callers/tests stay unchanged.
+  rawText?: string,
 ): ParsedMemo {
   const supportedRows = evidence.filter(
     (row) =>
@@ -1193,6 +1300,41 @@ export function applyDeterministicResponsePolicy(
       shortAnswer: hasSupportedUrl ? title : `Source needed: ${title}`.slice(0, 240),
       whyItMatters: "",
       risks: [],
+      nextAction: "",
+    };
+  }
+
+  if (shape.kind === "json") {
+    const block = extractJsonBlock(rawText ?? honest.shortAnswer);
+    let rendered: string | null = null;
+    if (block && block.length <= MAX_STRUCTURED_BLOCK_CHARS) {
+      try {
+        rendered = JSON.stringify(JSON.parse(block), null, 2);
+      } catch {
+        rendered = null;
+      }
+    }
+    return {
+      shortAnswer:
+        rendered
+        ?? "The run did not produce valid JSON. Retry the run, or drop the JSON constraint for a prose answer.",
+      whyItMatters: "",
+      // The limitation cannot ride inside the JSON without corrupting it, so
+      // it surfaces as a risks row (the compact gate shows risks when present).
+      risks: rendered && !hasSupportedUrl ? [SOURCE_NEEDED_LIMITATION] : [],
+      nextAction: "",
+    };
+  }
+
+  if (shape.kind === "table") {
+    const table = extractMarkdownTable(rawText ?? honest.shortAnswer);
+    const bounded = table && table.length <= MAX_STRUCTURED_BLOCK_CHARS ? table : null;
+    return {
+      shortAnswer:
+        bounded
+        ?? "The run did not produce a Markdown table. Retry the run, or drop the table constraint for a prose answer.",
+      whyItMatters: "",
+      risks: bounded && !hasSupportedUrl ? [SOURCE_NEEDED_LIMITATION] : [],
       nextAction: "",
     };
   }
@@ -2011,7 +2153,7 @@ Context: ${JSON.stringify(contextBundle)}${conversationSection}${pinnedSection}$
       if (evidence.length > 0 && !/\[\d+\]/.test(parsed.whyItMatters)) {
         parsed.whyItMatters = `${parsed.whyItMatters} [1]`;
       }
-      parsed = applyDeterministicResponsePolicy(args.prompt, parsed, evidence);
+      parsed = applyDeterministicResponsePolicy(args.prompt, parsed, evidence, rawText);
       const tr4 = {
         step: "Bind evidence",
         detail: `${evidence.length} citations from ${groundingChunks.length} Gemini chunks + ${fallbackSources.length} fallback sources + ${memoryEvidence.length} cached sources`,

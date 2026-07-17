@@ -3,6 +3,34 @@
 Append-only lane for the public redesign chat, reproducible answer receipts, and their
 transition into an authenticated live conversation. Newest entries first.
 
+## 2026-07-17 - Honor JSON and table response shapes end to end
+
+The last declared shape boundary falls: "as JSON" / "in a markdown table" are now
+detected, instructed, and deterministically enforced. The policy reads the RAW model
+output (parseMemo is lossy for structured blocks), extracts the first balanced JSON
+block (string-aware brace scan, fence-stripped, 20k-char bound) or the longest
+`| ... |` line run, validates, and fails closed with an honest retry message when the
+model did not comply. Honesty on unsupported runs surfaces as a risks row - a
+limitation cannot ride inside JSON without corrupting it. Both renderers now show
+structured bodies in a bounded monospace block (`.rd-answer-structured`) with its own
+horizontal scroll, via a shared `isStructuredAnswer` so they cannot disagree.
+
+**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Source: `pending`
+- Checks: `npx tsc --noEmit` -> 0 errors. `npx vitest run chatRuns.responseShape +
+  ChatResponseShape.guard + ChatRunLifecycle.guard` -> 30 passed (4 new: detector
+  incl. incidental-mention negatives, fenced-JSON passthrough with brace-in-string,
+  invalid-JSON fail-closed + risks-row honesty, table extraction + missing-table
+  fail-closed).
+- Visual proof: `not recorded` at entry time - mono block verified in the design pass.
+- Preview: Tier B one-flow-regression runs on the PR.
+- Production live: `not recorded` at entry time.
+
+**Author**: Homen Shum + Claude Fable 5.
+**Touches**: chat runtime + both answer renderers + agent-workspace.css.
+
 ## 2026-07-17 - Resolve the four hardening residuals from the production audit
 
 The 2026-07-16 audit cycle left four filed residuals (#567-#570); all four land here.

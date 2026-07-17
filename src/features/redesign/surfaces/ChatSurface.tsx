@@ -28,6 +28,7 @@ import {
 } from "../hooks/useRedesignChatRun";
 import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
 import { buildConversationContext } from "../lib/chatContinuation";
+import { isStructuredAnswer } from "../../../../shared/redesign/answerFormat";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { LiveResearchChecklist, type ResearchStage, type ResearchStageId } from "../../research/LiveResearchChecklist";
@@ -1875,14 +1876,20 @@ function AnswerPacket({
           <ProbeBanner idx={maskedIdx} onRestore={restoreProbe} />
         )}
 
-      {/* Short answer — citations clickable + hover-linked to evidence list */}
+      {/* Short answer — citations clickable + hover-linked to evidence list.
+          JSON/table shapes render as a monospace block: citations never live
+          inside structured bodies (the shape instruction forbids them). */}
       <section>
         <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Short answer</div>
-        <TooltipProvider delayDuration={180}>
-          <p className="rd-answer-copy">
-            {renderInlineWithCites(packet.shortAnswer, packet.evidence, handleCiteEnter, handleCiteLeave, onProbeRunWithoutSource ? probeWithoutSource : undefined, maskedIdx)}
-          </p>
-        </TooltipProvider>
+        {isStructuredAnswer(packet.shortAnswer) ? (
+          <pre className="rd-answer-structured">{packet.shortAnswer}</pre>
+        ) : (
+          <TooltipProvider delayDuration={180}>
+            <p className="rd-answer-copy">
+              {renderInlineWithCites(packet.shortAnswer, packet.evidence, handleCiteEnter, handleCiteLeave, onProbeRunWithoutSource ? probeWithoutSource : undefined, maskedIdx)}
+            </p>
+          </TooltipProvider>
+        )}
       </section>
 
       {/* Compact response shapes intentionally omit memo-only sections. */}

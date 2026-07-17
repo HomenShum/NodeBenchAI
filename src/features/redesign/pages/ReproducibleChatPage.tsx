@@ -17,6 +17,7 @@
 import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRedesignChatByHash, type ChatAnswer } from "../hooks/useRedesignChatRun";
+import { isStructuredAnswer } from "../../../../shared/redesign/answerFormat";
 
 interface ReproducibleChatPageProps {
   hash: string;
@@ -220,18 +221,22 @@ export function ReproducibleChatPage({ hash }: ReproducibleChatPageProps) {
 
         <section>
           <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Short answer</div>
-          <p style={{
-            fontFamily: "var(--rd-font-display)",
-            fontSize: 18,
-            fontWeight: 510,
-            lineHeight: 1.4,
-            color: "var(--rd-ink-strong)",
-            letterSpacing: "-0.18px",
-            whiteSpace: "pre-wrap",
-            margin: 0,
-          }}>
-            {packet.shortAnswer}
-          </p>
+          {isStructuredAnswer(packet.shortAnswer) ? (
+            <pre className="rd-answer-structured">{packet.shortAnswer}</pre>
+          ) : (
+            <p style={{
+              fontFamily: "var(--rd-font-display)",
+              fontSize: 18,
+              fontWeight: 510,
+              lineHeight: 1.4,
+              color: "var(--rd-ink-strong)",
+              letterSpacing: "-0.18px",
+              whiteSpace: "pre-wrap",
+              margin: 0,
+            }}>
+              {packet.shortAnswer}
+            </p>
+          )}
         </section>
 
         {packet.whyItMatters?.trim() && <section>
