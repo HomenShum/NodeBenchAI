@@ -603,39 +603,6 @@
   border-right: none;
 }
 
-[data-redesign][data-wide="true"] .rd-shell {
-  grid-template-columns: 168px minmax(0, 1fr);
-}
-
-[data-redesign][data-wide="true"] .rd-shell__main,
-[data-redesign][data-wide="true"] .rd-shell--home-v2 .rd-shell__main,
-[data-redesign][data-wide="true"] .rd-shell--reports-v3 .rd-shell__main,
-[data-redesign][data-wide="true"] .rd-shell--chat-v3 .rd-shell__main {
-  grid-template-columns: minmax(0, 1fr) 320px;
-}
-
-[data-redesign][data-wide="true"] .rd-shell--chat-v3 .rd-pane--right.chat-context {
-  width: 320px;
-}
-
-[data-redesign][data-wide="true"] .rd-shell--home-v2 .rd-shell__main > .rd-pane:first-child,
-[data-redesign][data-wide="true"] .rd-shell--reports-v3 .rd-shell__main > .rd-pane:first-child {
-  padding-left: 40px;
-  padding-right: 40px;
-}
-
-[data-redesign][data-wide="true"] .rd-v2-home {
-  max-width: 1180px;
-}
-
-[data-redesign][data-wide="true"] .rd-v3-halo-card {
-  flex-basis: 188px;
-}
-
-[data-redesign][data-wide="true"] .rd-shell--reports-v3 .rd-v3-grid {
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-}
-
 [data-redesign] .rd-v2-left {
   min-height: 0;
   overflow-y: auto;
@@ -2835,20 +2802,9 @@
 
 @media (max-width: 640px) {
   [data-redesign] [data-rd-topnav] {
-    gap: 2px !important;
+    gap: 6px !important;
     padding: 8px 6px !important;
     overflow: hidden;
-  }
-
-  [data-redesign] [data-rd-topnav] > button:first-of-type,
-  [data-redesign] [data-rd-wide-toggle],
-  [data-redesign] [data-rd-account-slot] { display: none !important; }
-
-  [data-redesign] [data-rd-topnav] nav { flex: 1; justify-content: space-between; min-width: 0; }
-  [data-redesign] [data-rd-topnav] nav .rd-btn { min-height: 32px !important; padding: 6px 8px !important; font-size: 11.5px !important; }
-
-  [data-redesign] [data-rd-topnav-search] {
-    display: none !important;
   }
 
   [data-redesign] .rd-shell--home-v2 .rd-shell__main > .rd-pane:first-child {
@@ -12278,23 +12234,18 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 
 @media (max-width: 760px) {
   /* Keep this selector more specific than the desktop chat grid in
-     agent-workspace.css, which is imported after this file. Persisted
-     data-wide state must never reserve an inspector column on mobile. */
-  [data-redesign] .rd-shell.rd-shell--chat-v3 .rd-shell__main,
-  [data-redesign][data-wide="true"] .rd-shell.rd-shell--chat-v3 .rd-shell__main {
+     agent-workspace.css, which is imported after this file. */
+  [data-redesign] .rd-shell.rd-shell--chat-v3 .rd-shell__main {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Chat also carries the home shell class for shared chrome. Do not let the
-     home wide-mode gutters push the transcript and composer past the viewport. */
-  [data-redesign] .rd-shell.rd-shell--chat-v3 .rd-shell__main > .rd-pane:first-child,
-  [data-redesign][data-wide="true"] .rd-shell.rd-shell--chat-v3 .rd-shell__main > .rd-pane:first-child {
+  /* Chat also carries the home shell class for shared chrome. */
+  [data-redesign] .rd-shell.rd-shell--chat-v3 .rd-shell__main > .rd-pane:first-child {
     min-width: 0;
     padding-inline: 0;
   }
 
-  [data-redesign] .rd-shell.rd-shell--chat-v3 .rd-pane--right.chat-context,
-  [data-redesign][data-wide="true"] .rd-shell.rd-shell--chat-v3 .rd-pane--right.chat-context {
+  [data-redesign] .rd-shell.rd-shell--chat-v3 .rd-pane--right.chat-context {
     display: none;
     width: 0;
   }

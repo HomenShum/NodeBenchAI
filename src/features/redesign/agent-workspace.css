@@ -5,16 +5,11 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-[data-redesign][data-wide="true"] .rd-shell.rd-shell--chat-focus {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 [data-redesign] .rd-shell--chat-v3 .rd-shell__main {
   grid-template-columns: minmax(0, 1fr) 320px;
 }
 
-[data-redesign] .rd-shell--chat-v3.rd-shell--chat-no-inspector .rd-shell__main,
-[data-redesign][data-wide="true"] .rd-shell--chat-v3.rd-shell--chat-no-inspector .rd-shell__main {
+[data-redesign] .rd-shell--chat-v3.rd-shell--chat-no-inspector .rd-shell__main {
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -140,6 +135,60 @@
   margin: 0 auto;
 }
 
+.rd-account-trigger {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: var(--rd-accent-soft);
+  color: var(--rd-accent-strong);
+  font-family: var(--rd-font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rd-account-trigger:focus-visible {
+  outline: 2px solid var(--rd-accent);
+  outline-offset: 2px;
+}
+
+.rd-account-menu {
+  min-width: 170px;
+  border-color: var(--rd-line);
+  background: var(--rd-panel);
+  color: var(--rd-ink);
+  font-family: var(--rd-font-sans);
+}
+
+[data-redesign] .rd-launch-context {
+  display: grid;
+  gap: 4px;
+  width: min(100%, 840px);
+  margin: 0 auto 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--rd-line-faint);
+  border-left: 2px solid var(--rd-accent);
+  border-radius: var(--rd-r-sm);
+  background: var(--rd-paper-warm);
+}
+
+[data-redesign] .rd-launch-context strong {
+  color: var(--rd-ink-strong);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+[data-redesign] .rd-launch-context p {
+  margin: 0;
+  color: var(--rd-ink-mute);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 [data-redesign] .rd-run-scope {
   margin: 0 4px 8px;
   color: var(--rd-ink-mute);
@@ -247,9 +296,19 @@
     gap: 8px;
   }
 
-  [data-redesign] .rd-run-scope > summary span:nth-of-type(2),
+  [data-redesign] .rd-run-scope > summary span:nth-of-type(2) {
+    display: block;
+    min-width: 0;
+    flex: 1;
+    max-width: none;
+  }
+
   [data-redesign] .rd-run-scope > summary span:nth-of-type(3) {
     display: none;
+  }
+
+  [data-redesign] .rd-run-scope > summary span:nth-of-type(4) {
+    flex: 0 0 auto;
   }
 
   [data-redesign] .rd-chat-transcript__content {

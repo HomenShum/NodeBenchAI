@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { UniversalComposer, DEFAULT_TIERS, type RouterTier } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
 import type { AgentRailItem, AgentRailSnapshot, AgentRailStatus } from "../components/RightInspector";
@@ -436,14 +436,14 @@ function buildChatAgentRailSnapshot(args: {
       label: liveDetail.title,
       status: "done",
       detail: `${liveDetail.kind} - ${liveDetail.sourceCount} sources`,
-      href: `/redesign/workspace?report=${encodeURIComponent(liveDetail.id)}&tab=brief`,
+      href: `/redesign/chat?report=${encodeURIComponent(liveDetail.id)}&artifact=brief`,
     });
     artifactItems.push({
       id: "notebook",
       label: "Report notebook",
       status: liveDetail.notebookHtml ? "done" : "queued",
       detail: liveDetail.primaryAction,
-      href: `/redesign/workspace?report=${encodeURIComponent(liveDetail.id)}&tab=notebook`,
+      href: `/redesign/chat?report=${encodeURIComponent(liveDetail.id)}&artifact=notebook`,
     });
   }
   if (run?.hash) {
@@ -616,7 +616,7 @@ function buildChatAgentRailSnapshot(args: {
           ? `${verifiedSourceCount} verified · ${softWarningSourceCount} limited · ${sourceCount} total`
           : isRunning ? "Checks pending" : "No claim checks recorded",
       reviewHref: liveDetail
-        ? `/redesign/workspace?report=${encodeURIComponent(liveDetail.id)}&tab=sources`
+        ? `/redesign/chat?report=${encodeURIComponent(liveDetail.id)}&artifact=sources`
         : undefined,
     },
   };
@@ -778,6 +778,68 @@ function buildResearchStages(trace: ResearchTraceLike[] = [], running = false): 
   return [{ ...RESEARCH_STAGE_TEMPLATE[0], state: "running", detail: "Waiting for the first runtime event" }];
 }
 
+function LaunchContextCard({
+  intent,
+  artifactKey,
+  requestedReportId,
+  detail,
+  isAuthenticated,
+}: {
+  intent: string | null;
+  artifactKey: string | null;
+  requestedReportId: string | null;
+  detail: LiveArtifactDetail | null | undefined;
+  isAuthenticated: boolean;
+}) {
+  if (!intent && !artifactKey && !requestedReportId) return null;
+
+  const artifactLabels: Record<string, string> = {
+    brief: "Brief",
+    cards: "Claim card",
+    map: "Map",
+    notebook: "Notebook",
+    sources: "Source",
+  };
+  const artifactLabel = artifactKey ? artifactLabels[artifactKey] ?? "Artifact" : null;
+
+  let title = "Context selected";
+  let body = detail
+    ? `${detail.title} is attached to the next run with ${detail.sourceCount} source${detail.sourceCount === 1 ? "" : "s"}. Nothing is written until you explicitly ask.`
+    : "The requested saved context is not available in this session. You can still ask a new question below.";
+
+  if (artifactLabel) {
+    title = `${artifactLabel} context selected`;
+  } else if (requestedReportId || intent === "review-report") {
+    title = detail ? "Report context selected" : "Requested report unavailable";
+  } else if (intent === "account" || intent === "settings") {
+    title = "Account controls";
+    body = isAuthenticated
+      ? "Use the account menu in the header to sign out. Your conversation remains on this workspace."
+      : "Use Sign in in the header to connect an email-backed account and run live chat.";
+  } else if (intent === "attention") {
+    title = "Attention review";
+    body = "Ask NodeBench to identify unresolved follow-ups, approvals, or evidence gaps. There is no separate inbox to manage.";
+  } else if (intent === "reports") {
+    title = "Saved research";
+    body = "Ask for the report, company, or prior decision you need. Results stay in this conversation instead of opening a separate report browser.";
+  } else if (intent === "sources") {
+    title = "Source review";
+    body = detail
+      ? `${detail.sourceCount} source${detail.sourceCount === 1 ? "" : "s"} from ${detail.title} will ground the next run.`
+      : "Attach a source or name the evidence you want reviewed in the composer below.";
+  } else if (intent === "workspace") {
+    title = detail ? "Workspace context selected" : "Workspace context unavailable";
+  }
+
+  return (
+    <aside className="rd-launch-context" data-testid="chat-launch-context" aria-label={title}>
+      <span className="rd-eyebrow">Current focus</span>
+      <strong>{title}</strong>
+      <p>{body}</p>
+    </aside>
+  );
+}
+
 export function ChatSurface({
   contextLabel = "Asking about: current context",
   workspaceDetail,
@@ -787,13 +849,12 @@ export function ChatSurface({
   onAgentRailChange,
 }: ChatSurfaceProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const liveArtifacts = useLiveArtifacts(24);
-  const requestedReportId = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("report")
-    : null;
-  const requestedArtifactKey = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("artifact")
-    : null;
+  const launchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const requestedReportId = launchParams.get("report");
+  const requestedArtifactKey = launchParams.get("artifact");
+  const requestedIntent = launchParams.get("intent");
   const _rawLiveDetail = requestedReportId
     ? liveArtifacts.details.find((detail) => detail.id === requestedReportId) ?? null
     : liveArtifacts.details[0];
@@ -807,8 +868,7 @@ export function ChatSurface({
   const probeRun = useMutation(api.domains.redesign.chatRuns.probeRun);
   // ?fresh=1 escape hatch: treat as if no live artifact is loaded and show the
   // explicit live-chat unavailable state instead of seeded showcase content.
-  const _skipLiveSeed = typeof window !== "undefined"
-    && new URLSearchParams(window.location.search).has("fresh");
+  const _skipLiveSeed = launchParams.has("fresh");
   const liveDetail = workspaceDetail ?? (_skipLiveSeed ? null : _rawLiveDetail);
   useEffect(() => {
     onActiveContextChange?.(liveDetail ?? null);
@@ -828,7 +888,8 @@ export function ChatSurface({
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const consumedInitialPromptRef = useRef<string | null>(null);
   const hasInitialPrompt = Boolean(initialPrompt?.trim());
-  const hasLaunchContext = hasInitialPrompt || Boolean(continuationHash);
+  const hasLaunchContext = hasInitialPrompt
+    || Boolean(continuationHash || requestedIntent || requestedArtifactKey || requestedReportId);
   const turnIdCounterRef = useRef(0);
   const nextTurnId = (prefix: "u" | "a") => {
     turnIdCounterRef.current += 1;
@@ -926,11 +987,7 @@ export function ChatSurface({
     ]);
     showToast({
       tone: "success",
-      message: "Follow-up queued in this chat. Open Inbox to promote it to shared workflow state.",
-      action: {
-        label: "Open Inbox",
-        onClick: () => navigate("/redesign/inbox"),
-      },
+      message: "Follow-up queued in this conversation. Ask NodeBench to promote it when you are ready.",
     });
   };
   const removeFollowUp = (id: string) => {
@@ -938,10 +995,10 @@ export function ChatSurface({
   };
   const openCurrentReport = () => {
     if (liveDetail?.id) {
-      navigate(`/redesign/workspace?report=${encodeURIComponent(liveDetail.id)}&tab=brief`);
+      navigate(`/redesign/chat?report=${encodeURIComponent(liveDetail.id)}&artifact=brief`);
       return;
     }
-    navigate("/redesign/reports");
+    navigate("/redesign/chat?intent=reports");
   };
 
   const agentRailSnapshot = useMemo(() => buildChatAgentRailSnapshot({
@@ -1310,6 +1367,13 @@ export function ChatSurface({
       </BatchLiveBoundary>
       <Conversation className="rd-chat-transcript">
         <ConversationContent className="rd-chat-transcript__content">
+        <LaunchContextCard
+          intent={requestedIntent}
+          artifactKey={requestedArtifactKey}
+          requestedReportId={requestedReportId}
+          detail={liveDetail}
+          isAuthenticated={isAuthenticated}
+        />
         {batch && <BatchMonitorCell batch={batch} />}
 
         {turns.length === 0 && continuationHash && continuedRun === undefined ? (
@@ -1678,12 +1742,8 @@ function InlineCorrection({ onSave }: InlineCorrectionProps = {}) {
         showToast({
           tone: result.ok ? "success" : "warning",
           message: result.message || (result.ok
-            ? "Correction saved. Review at /redesign/me."
+            ? "Correction saved to your NodeBench memory."
             : "Could not save correction — try again."),
-          action: result.ok ? {
-            label: "Open Me",
-            onClick: () => { window.location.href = "/redesign/me"; },
-          } : undefined,
         });
       } finally {
         setBusy(false);
@@ -1695,11 +1755,7 @@ function InlineCorrection({ onSave }: InlineCorrectionProps = {}) {
     // but it is not written to the long-term feedback ledger.
     showToast({
       tone: "info",
-      message: "Sign in to persist corrections to memory.",
-      action: {
-        label: "Open Me",
-        onClick: () => { window.location.href = "/redesign/me"; },
-      },
+      message: "Use Sign in in the header to persist corrections to memory.",
     });
     setEditing(null);
   };

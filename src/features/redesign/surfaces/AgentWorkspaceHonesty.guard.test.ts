@@ -20,7 +20,7 @@ describe("first-class agent workspace honesty contract", () => {
     expect(chat).toContain("runtimeContextPacket.selectedContext.length");
     expect(chat).toContain("blockedClaimCount");
     expect(inspector).toContain('title="Scope"');
-    expect(inspector).toContain("Open review workspace");
+    expect(inspector).toContain("Review sources here");
   });
 
   it("does not simulate execution or advertise toast-only work controls", () => {
@@ -67,8 +67,9 @@ describe("first-class agent workspace honesty contract", () => {
     expect(chat).not.toContain("scrollRef");
     expect(chat).not.toContain("unseenCount");
     expect(shell).toContain('import "./agent-workspace.css"');
-    expect(shell).toContain(') : surface === "chat" ? (');
-    expect(workspaceCss).toContain('[data-redesign][data-wide="true"] .rd-shell.rd-shell--chat-focus');
+    expect(shell).toContain("showChatInspector &&");
+    expect(shell).toContain('data-product-surface="decision-workspace"');
+    expect(workspaceCss).not.toContain('data-wide="true"');
     expect(conversation).toContain('reducedMotion ? "instant" : "smooth"');
   });
 });

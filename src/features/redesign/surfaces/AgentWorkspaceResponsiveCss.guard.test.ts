@@ -12,17 +12,12 @@ const workspaceCss = readFileSync(
   "utf8",
 );
 
-const selectorWeight = (selector: string) =>
-  (selector.match(/\[[^\]]+\]|\.[-_a-zA-Z0-9]+/g) ?? []).length;
-
 describe("agent workspace responsive CSS contract", () => {
-  it("out-ranks the later desktop chat grid when persisted wide mode reaches mobile", () => {
+  it("collapses the contextual inspector without any legacy wide-mode state", () => {
     const desktopSelector = "[data-redesign] .rd-shell--chat-v3 .rd-shell__main";
-    const mobileWideSelector =
-      '[data-redesign][data-wide="true"] .rd-shell.rd-shell--chat-v3 .rd-shell__main';
-    const mobileRuleStart = primitives.indexOf(
-      "[data-redesign] .rd-shell.rd-shell--chat-v3 .rd-shell__main,",
-    );
+    const mobileSelector =
+      "[data-redesign] .rd-shell.rd-shell--chat-v3 .rd-shell__main";
+    const mobileRuleStart = primitives.indexOf(`${mobileSelector} {`);
     const mobileRuleEnd = primitives.indexOf(
       "[data-redesign] .rd-agent-workspace-head { padding: 14px; }",
       mobileRuleStart,
@@ -34,22 +29,22 @@ describe("agent workspace responsive CSS contract", () => {
       primitives.lastIndexOf("@media (max-width: 760px) {", mobileRuleStart),
     ).toBeGreaterThan(-1);
     expect(workspaceCss).toContain(`${desktopSelector} {`);
-    expect(selectorWeight(mobileWideSelector)).toBeGreaterThan(
-      selectorWeight(desktopSelector),
-    );
 
     const mobileChatRules = primitives.slice(mobileRuleStart, mobileRuleEnd);
-    expect(mobileChatRules).toContain(mobileWideSelector);
+    expect(mobileChatRules).toContain(mobileSelector);
     expect(mobileChatRules).toContain("grid-template-columns: minmax(0, 1fr);");
     expect(mobileChatRules).toContain(
       '.rd-shell.rd-shell--chat-v3 .rd-shell__main > .rd-pane:first-child',
     );
     expect(mobileChatRules).toContain("padding-inline: 0;");
     expect(mobileChatRules).toContain(
-      '[data-redesign][data-wide="true"] .rd-shell.rd-shell--chat-v3 .rd-pane--right.chat-context',
+      "[data-redesign] .rd-shell.rd-shell--chat-v3 .rd-pane--right.chat-context",
     );
     expect(mobileChatRules).toContain("display: none;");
     expect(mobileChatRules).toContain("width: 0;");
     expect(mobileChatRules).not.toContain("!important");
+    expect(primitives).not.toContain('data-wide="true"');
+    expect(workspaceCss).not.toContain('data-wide="true"');
+    expect(primitives).not.toMatch(/data-rd-account-slot[^}]*display:\s*none/);
   });
 });

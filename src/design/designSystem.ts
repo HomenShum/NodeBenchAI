@@ -350,7 +350,7 @@ export function getNodeBenchAiDesignManifest(): AiDesignManifest {
         "no primitive drives a live stream — Convex hooks remain the data source (honesty contract)",
         "success-green is reserved for completed state and never used for selection",
         "source-merged, visual-proof-complete, and production-live-verified are distinct evidence states",
-        "web navigation remains Home - Reports - Chat - Inbox - Me; Workspace remains a separate deployed surface",
+        "NodeBench exposes one canonical decision workspace; reports, attention, settings, and receipts remain contextual states of that conversation",
       ],
     },
   };
