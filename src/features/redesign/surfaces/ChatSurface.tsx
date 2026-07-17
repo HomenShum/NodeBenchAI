@@ -3,7 +3,6 @@
  *
  * Spec: not just message bubbles. Where research becomes memory.
  * Center: active conversation + answer packets + run checkpoints + capture acks.
- * Right: active entity card + sources + report status (handled by RedesignShell).
  * Bottom: UniversalComposer.
  */
 
@@ -11,7 +10,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { UniversalComposer, DEFAULT_TIERS, type RouterTier } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
-import type { AgentRailItem, AgentRailSnapshot, AgentRailStatus } from "../components/RightInspector";
 import { StreamingMarkdown } from "../components/StreamingMarkdown";
 import type { ActiveBatchRun, ChatAnswer } from "../fixtures";
 import { useBatchLive } from "../hooks/useBatchLive";
@@ -27,7 +25,6 @@ import {
   useRedesignChatRun,
   type ChatRunState,
   type ConversationContextTurn,
-  type RealChatRun,
 } from "../hooks/useRedesignChatRun";
 import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
 import { buildConversationContext } from "../lib/chatContinuation";
@@ -131,8 +128,6 @@ interface ChatSurfaceProps {
   workspaceDetail?: LiveArtifactDetail;
   initialPrompt?: string;
   continuationHash?: string;
-  onActiveContextChange?: (detail: LiveArtifactDetail | null) => void;
-  onAgentRailChange?: (snapshot: AgentRailSnapshot | null) => void;
 }
 
 interface Turn {
@@ -168,25 +163,10 @@ function restoredTurns(context: ConversationContextTurn[] | undefined, createdAt
   }));
 }
 
-function agentStatusFromPlanner(status?: string): AgentRailStatus {
-  if (!status) return "queued";
-  if (status === "complete" || status === "selected") return "done";
-  if (status === "blocked" || status === "source_validation_failed") return "blocked";
-  if (status === "candidate" || status === "pending") return "running";
-  return "queued";
-}
-
 function compactRunId(runId?: string): string | undefined {
   if (!runId) return undefined;
   if (runId.length <= 16) return runId;
   return `${runId.slice(0, 6)}...${runId.slice(-6)}`;
-}
-
-function formatRailUsd(value?: number | null): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "not recorded";
-  if (value <= 0) return "$0.00";
-  if (value < 0.01) return `$${value.toFixed(4)}`;
-  return `$${value.toFixed(2)}`;
 }
 
 function isBlockingClaimCheck(check: { status?: string; verified?: boolean; blocking?: boolean; verificationState?: string }): boolean {
@@ -243,382 +223,57 @@ function buildLiveContextRef(detail: LiveArtifactDetail | null, artifactKey?: st
   return artifactKey ? `${base}::artifact:${encodeURIComponent(artifactKey)}` : base;
 }
 
-function formatLatency(value?: number | null): string {
-  if (!value || !Number.isFinite(value)) return "pending";
-  if (value < 1000) return `${Math.round(value)}ms`;
-  return `${(value / 1000).toFixed(1)}s`;
+interface RunScopeSnapshot {
+  status: "idle" | "thinking" | "ok" | "error";
+  reads: string;
+  writes: string;
+  verification: string;
 }
 
-function buildChatAgentRailSnapshot(args: {
+function buildRunScopeSnapshot(args: {
   chatState: ChatRunState;
-  authLoading: boolean;
-  isAuthenticated: boolean;
   liveDetail: LiveArtifactDetail | null | undefined;
   turns: Turn[];
-  pinned: Array<{ id: string; label: string; tier: RouterTier; sourceCount: number }>;
-  followUps: Array<{ id: string; label: string; reportTitle?: string; createdAt: number }>;
-  batch: ActiveBatchRun | null;
-  tier: RouterTier;
-  skipLiveSeed: boolean;
-}): AgentRailSnapshot {
-  const {
-    chatState,
-    authLoading,
-    isAuthenticated,
-    liveDetail,
-    turns,
-    pinned,
-    followUps,
-    batch,
-    tier,
-    skipLiveSeed,
-  } = args;
-  const run: RealChatRun | null = chatState.run;
-  const lastUserPrompt = [...turns].reverse().find((turn) => turn.role === "user" && turn.text?.trim())?.text?.trim();
+}): RunScopeSnapshot {
+  const { chatState, liveDetail, turns } = args;
+  const run = chatState.run;
   const lastAssistantPacket = [...turns].reverse().find((turn) => turn.role === "assistant" && turn.packet)?.packet;
   const activePacket = run?.packet ?? lastAssistantPacket;
-  const isRunning = chatState.status === "thinking" || run?.status === "pending" || run?.status === "running";
-  const hasAnswer = Boolean(activePacket?.shortAnswer);
   const runtime = run?.runtime ?? activePacket?.runtime;
   const runtimeContextPacket = runtime?.contextPacket;
-  const liveGroundingDecision = runtime?.liveGroundingDecision;
-  const contextCandidates = runtime?.contextCandidates ?? [];
-  const toolDecisions = runtime?.toolDecisions ?? [];
   const claimChecks = runtime?.claimChecks ?? [];
   const metrics = runtime?.metrics;
-  const runtimeSourceCount = metrics?.sourceCount ?? run?.groundingChunks.length ?? activePacket?.sourceCount ?? 0;
-  const sourceCount = runtimeSourceCount || liveDetail?.sourceCount || 0;
-  const verifiedSourceCount = metrics?.verifiedSourceCount ?? claimChecks.filter((check) => check.verified === true).length;
+  const sourceCount = metrics?.sourceCount ?? run?.groundingChunks.length ?? activePacket?.sourceCount ?? liveDetail?.sourceCount ?? 0;
+  const verifiedSourceCount = metrics?.verifiedSourceCount
+    ?? claimChecks.filter((check) => check.verified === true).length;
   const softWarningSourceCount = metrics?.softWarningSourceCount
     ?? claimChecks.filter((check) => check.verified === false && !isBlockingClaimCheck(check)).length;
-  const unsupportedSourceCount = metrics?.unsupportedSourceCount
+  const blockedClaimCount = metrics?.unsupportedSourceCount
     ?? claimChecks.filter((check) => isBlockingClaimCheck(check)).length;
-  const blockedClaimCount = unsupportedSourceCount;
-  const toolCallCount = metrics?.toolCallCount ?? run?.toolCalls.length ?? activePacket?.trace.length ?? 0;
-  const estimatedCost = metrics?.estimatedCostUsd ?? run?.estimatedCostUsd;
-  const latency = metrics?.timeToFinalMs ?? metrics?.totalLatencyMs ?? run?.totalLatencyMs;
-  const memoryHitRate = typeof metrics?.memoryHitRate === "number" ? `${Math.round(metrics.memoryHitRate * 100)}%` : "pending";
-  const cacheHitRate = typeof metrics?.sourceCacheHitRate === "number" ? `${Math.round(metrics.sourceCacheHitRate * 100)}%` : "pending";
-  const graphPacket = liveDetail ? buildGraphContextBridgePacket({ detail: liveDetail, mode: "agent" }) : null;
-
-  const canRunLive = chatState.available && !skipLiveSeed;
-  const authDetail = skipLiveSeed
-    ? "fresh=1 disables live chat so QA can verify the empty run path."
-    : authLoading
-      ? "Resolving account session before live research can start."
-      : canRunLive
-        ? "Email-backed account can start scheduled research runs."
-        : !isAuthenticated
-          ? "Sign in before live research. Public memory remains browsable."
-          : "Account needs email or Google link before live research.";
-
-  const memoryStatus: AgentRailStatus =
-    contextCandidates.length > 0 || runtimeContextPacket?.hasContext ? "done" : isRunning ? "running" : "queued";
-  const sourceStatus: AgentRailStatus =
-    runtimeSourceCount > 0 ? "done" : isRunning ? "running" : "queued";
-  const verifyStatus: AgentRailStatus =
-    blockedClaimCount > 0 ? "blocked" : claimChecks.length > 0 || verifiedSourceCount > 0 ? "done" : isRunning && sourceCount > 0 ? "running" : "queued";
-
-  const progress: AgentRailItem[] = [
-    {
-      id: "goal",
-      label: "Define research goal and context",
-      status: lastUserPrompt || liveDetail ? "done" : "queued",
-      detail: lastUserPrompt ?? liveDetail?.title ?? "Waiting for a prompt.",
-    },
-    {
-      id: "memory",
-      label: "Search memory and current reports",
-      status: memoryStatus,
-      detail: runtimeContextPacket?.hasContext
-        ? `${runtimeContextPacket.title}: ${runtimeContextPacket.selectedContext.length} selected context items, ${runtimeContextPacket.sourceRefs.length} source refs.`
-        : contextCandidates[0]?.detail ?? (liveDetail ? `${liveDetail.title} selected from saved memory.` : "Runs before any live source refresh."),
-    },
-    {
-      id: "graph-context",
-      label: "Resolve graph context packet",
-      status: runtimeContextPacket?.hasContext ? "done" : isRunning ? "running" : "queued",
-      detail: runtimeContextPacket?.hasContext
-        ? `${runtimeContextPacket.graph.nodeCount} nodes, ${runtimeContextPacket.graph.edgeCount} edges, ${runtimeContextPacket.verification.tier} verification.`
-        : graphPacket?.agentSummary ?? "Packs first-ring report graph, source refs, and safe action handles.",
-    },
-    {
-      id: "tools",
-      label: "Invoke tools and source retrieval",
-      status: toolDecisions.length > 0 ? agentStatusFromPlanner(toolDecisions[0].status) : sourceStatus,
-      detail: liveGroundingDecision
-        ? `${liveGroundingDecision.useLiveGrounding ? "Live grounding enabled" : "Live grounding skipped"}: ${liveGroundingDecision.reason}`
-        : toolDecisions[0]?.detail ?? `${toolCallCount} tool-call cards, ${sourceCount} source rows.`,
-    },
-    {
-      id: "verify",
-      label: "Verify citations and claim support",
-      status: verifyStatus,
-      detail: blockedClaimCount > 0
-        ? `${blockedClaimCount} source${blockedClaimCount === 1 ? "" : "s"} unsupported; ${softWarningSourceCount} fetch-limited or provider-grounded.`
-        : `${verifiedSourceCount || 0} verified · ${softWarningSourceCount || 0} fetch-limited/provider-grounded · ${sourceCount || 0} total.`,
-    },
-    {
-      id: "packet",
-      label: "Assemble answer packet",
-      status: hasAnswer && !isRunning ? "done" : isRunning ? "running" : "queued",
-      detail: hasAnswer ? activePacket?.nextAction || activePacket?.shortAnswer : "Short answer, evidence, risks, next action.",
-    },
-    {
-      id: "handoff",
-      label: "Prepare notebook and follow-up handoff",
-      status: followUps.length || pinned.length ? "done" : hasAnswer ? "queued" : "queued",
-      detail: `${pinned.length} pinned context item${pinned.length === 1 ? "" : "s"}, ${followUps.length} queued follow-up${followUps.length === 1 ? "" : "s"}.`,
-    },
-    {
-      id: "telemetry",
-      label: "Record telemetry and QA evidence",
-      status: metrics ? "done" : isRunning ? "running" : "queued",
-      detail: `${formatLatency(latency)} final latency, ${formatRailUsd(estimatedCost)} estimated cost.`,
-    },
-  ];
-
-  const runDetails: AgentRailItem[] = [
-    {
-      id: "access",
-      label: "Live research access",
-      status: canRunLive ? "done" : authLoading ? "running" : "blocked",
-      detail: authDetail,
-    },
-    {
-      id: "routing",
-      label: "Router tier",
-      status: "done",
-      detail: `${normalizeRouterTierForChatRun(tier)} mode selected for this thread.`,
-    },
-    {
-      id: "run",
-      label: "Current run",
-      status: isRunning ? "running" : run?.status === "complete" ? "done" : run?.status === "error" ? "blocked" : "idle",
-      detail: run?.runId ? `${run.status} - ${compactRunId(run.runId)}` : "No active research run subscribed.",
-      meta: run?.hash ? `replay /r/${run.hash}` : undefined,
-      href: run?.hash ? `/redesign/chat/r/${encodeURIComponent(run.hash)}` : undefined,
-    },
-    {
-      id: "cost",
-      label: "Cost and cache",
-      status: estimatedCost > 0 || metrics ? "done" : "queued",
-      detail: `${formatRailUsd(estimatedCost)} estimated - memory ${memoryHitRate} - source cache ${cacheHitRate} - live search ${metrics?.liveSearchCalls ?? "not recorded"}${runtimeContextPacket ? ` - runtime graph ${runtimeContextPacket.graph.nodeCount} nodes` : ""}.`,
-    },
-    {
-      id: "context-runtime",
-      label: "Context runtime packet",
-      status: runtimeContextPacket ? runtimeContextPacket.hasContext ? "done" : "blocked" : "queued",
-      detail: runtimeContextPacket
-        ? `${runtimeContextPacket.contextRef ?? "prompt-only"} - ${runtimeContextPacket.telemetry.candidateCount} candidates - ${runtimeContextPacket.rejectedContext.length} rejected.`
-        : "Waiting for server-side ContextRuntimePacket event.",
-    },
-    {
-      id: "graph-packet",
-      label: "Graph context bridge",
-      status: graphPacket ? "done" : "queued",
-      detail: graphPacket
-        ? `${graphPacket.contextRef} - human ${graphPacket.humanRank}, agent ${graphPacket.agentRank}, approval ${graphPacket.approvalRequired ? "required" : "not required"}.`
-        : "No selected live report graph yet.",
-    },
-    {
-      id: "writes",
-      label: "Safe writes",
-      status: "idle",
-      detail: "Notebook patches, follow-ups, CRM exports, and shared writes stay user-approved.",
-    },
-  ];
-
-  const artifactItems: AgentRailItem[] = [];
-  if (liveDetail) {
-    artifactItems.push({
-      id: "active-report",
-      label: liveDetail.title,
-      status: "done",
-      detail: `${liveDetail.kind} - ${liveDetail.sourceCount} sources`,
-      href: `/redesign/chat?report=${encodeURIComponent(liveDetail.id)}&artifact=brief`,
-    });
-    artifactItems.push({
-      id: "notebook",
-      label: "Report notebook",
-      status: liveDetail.notebookHtml ? "done" : "queued",
-      detail: liveDetail.primaryAction,
-      href: `/redesign/chat?report=${encodeURIComponent(liveDetail.id)}&artifact=notebook`,
-    });
-  }
-  if (run?.hash) {
-    artifactItems.push({
-      id: "replay",
-      label: "Reproducible answer link",
-      status: "done",
-      detail: `/redesign/chat/r/${run.hash}`,
-      href: `/redesign/chat/r/${encodeURIComponent(run.hash)}`,
-    });
-  }
-  if (hasAnswer) {
-    artifactItems.push({
-      id: "answer",
-      label: "Answer packet",
-      status: run?.status === "complete" || !isRunning ? "done" : "running",
-      detail: `${activePacket?.sourceCount ?? sourceCount} source${(activePacket?.sourceCount ?? sourceCount) === 1 ? "" : "s"} · ${activePacket?.paidCalls ?? 0} paid call${(activePacket?.paidCalls ?? 0) === 1 ? "" : "s"}`,
-    });
-  }
-  for (const item of pinned.slice(0, 2)) {
-    artifactItems.push({
-      id: `pin-${item.id}`,
-      label: item.label,
-      status: "done",
-      detail: `${item.tier} context - ${item.sourceCount} sources`,
-    });
-  }
-  for (const item of followUps.slice(0, 2)) {
-    artifactItems.push({
-      id: `followup-${item.id}`,
-      label: item.label,
-      status: "done",
-      detail: item.reportTitle ? `Queued for ${item.reportTitle}` : "Queued in chat",
-    });
-  }
-  if (batch) {
-    artifactItems.push({
-      id: "batch",
-      label: `Batch: ${batch.universeName}`,
-      status: batch.doneCount >= batch.totalEntities ? "done" : "running",
-      detail: `${batch.doneCount}/${batch.totalEntities} done - ${formatRailUsd(batch.spentUsd)} spent`,
-    });
-  }
-
-  const backgroundAgents: AgentRailItem[] = [
-    {
-      id: "coordinator",
-      label: "Coordinator",
-      status: lastUserPrompt || run || hasAnswer ? isRunning ? "running" : "done" : "queued",
-      detail: "Selects context, routing, and safe write policy.",
-    },
-    {
-      id: "memory",
-      label: "Memory agent",
-      status: memoryStatus,
-      detail: graphPacket?.title ?? contextCandidates[0]?.label ?? "Reports, notebook blocks, prior chats, and sources.",
-    },
-    {
-      id: "graph",
-      label: "Graph context agent",
-      status: runtimeContextPacket?.hasContext ? "done" : isRunning ? "running" : "queued",
-      detail: runtimeContextPacket?.hasContext
-        ? runtimeContextPacket.graph.clusters.map((cluster) => `${cluster.name}:${cluster.count}`).join(" · ")
-        : graphPacket?.whySelected[2] ?? "Builds bounded neighborhoods before paid live search.",
-    },
-    {
-      id: "source",
-      label: "Source verifier",
-      status: verifyStatus,
-      detail: claimChecks[0]?.detail ?? `${sourceCount} source row${sourceCount === 1 ? "" : "s"} in scope.`,
-    },
-    {
-      id: "notebook",
-      label: "Notebook agent",
-      status: followUps.length || pinned.length ? "done" : hasAnswer ? "queued" : "idle",
-      detail: "Produces proposed handoffs; does not overwrite user-edited notebook text.",
-    },
-    {
-      id: "judge",
-      label: "Judge / eval",
-      status: claimChecks.length || metrics ? "done" : isRunning ? "running" : "queued",
-      detail: "Checks unsupported claims, source precision, privacy, cost, and final quality.",
-    },
-  ];
-
-  const sourceItems: AgentRailItem[] = [];
-  for (const chunk of run?.groundingChunks ?? []) {
-    sourceItems.push({
-      id: `grounding-${chunk.idx}`,
-      label: sourceLabel(chunk.source),
-      status: "done",
-      detail: chunk.quote,
-      href: sourceUrlFromText(chunk.source) ?? undefined,
-    });
-  }
-  for (const row of activePacket?.evidence ?? []) {
-    if (sourceItems.length >= 5) break;
-    sourceItems.push({
-      id: `evidence-${row.idx}`,
-      label: sourceLabel(row.source),
-      status: blockedClaimCount > 0 ? "blocked" : "done",
-      detail: row.quote,
-      href: sourceUrlFromText(row.source) ?? undefined,
-    });
-  }
-  for (const row of liveDetail?.sourceRows ?? []) {
-    if (sourceItems.length >= 5) break;
-    sourceItems.push({
-      id: `live-source-${row.id}`,
-      label: row.title,
-      status: "done",
-      detail: row.host || row.refreshed,
-      href: row.href,
-    });
-  }
-  if (sourceItems.length === 0) {
-    sourceItems.push(
-      { id: "memory", label: "Saved memory", status: liveDetail ? "done" : "queued", detail: "Source of truth for reports and artifacts." },
-      { id: "typesense", label: "Memory search", status: "queued", detail: "Fast retrieval layer before paid live search." },
-    );
-  }
-
-  const title = isRunning
-    ? "Agent is running"
-    : chatState.status === "error"
-      ? "Agent needs attention"
-      : hasAnswer
-        ? "Agent run complete"
-        : liveDetail
-          ? "Agent ready on report"
-          : "Agent ready";
-
-  const snapshotStatus: AgentRailSnapshot["status"] =
-    isRunning ? "thinking" : chatState.status === "error" ? "error" : hasAnswer || liveDetail ? "ok" : "idle";
+  const isRunning = chatState.status === "thinking" || run?.status === "pending" || run?.status === "running";
+  const hasAnswer = Boolean(activePacket?.shortAnswer);
 
   return {
-    title,
-    hasIntent: Boolean(run || hasAnswer),
-    subtitle: lastUserPrompt
-      ? lastUserPrompt
+    status: isRunning
+      ? "thinking"
+      : chatState.status === "error"
+        ? "error"
+        : hasAnswer || liveDetail
+          ? "ok"
+          : "idle",
+    reads: runtimeContextPacket?.hasContext
+      ? `${runtimeContextPacket.selectedContext.length} selected context items · ${runtimeContextPacket.sourceRefs.length} source refs`
       : liveDetail
-        ? `${liveDetail.title} - ${liveDetail.sourceCount} sources - ${liveDetail.followUps} follow-ups`
-        : "Ask a question to start a traceable research run.",
-    status: snapshotStatus,
-    runId: compactRunId(run?.runId),
-    progress,
-    runDetails,
-    artifacts: artifactItems.length ? artifactItems : [{ id: "none", label: "No artifacts yet", status: "queued", detail: "The next answer packet will appear here." }],
-    backgroundAgents,
-    sources: sourceItems,
-    metrics: [
-      { label: "sources", value: String(runtimeSourceCount), tone: "accent" },
-      { label: "tools", value: String(toolCallCount), tone: "green" },
-      { label: "latency", value: formatLatency(latency), tone: latency ? "green" : "accent" },
-      { label: "context", value: graphPacket ? graphPacket.packedNodes.toLocaleString() : "0", tone: "accent" },
-      { label: "graph", value: graphPacket ? String(graphPacket.packedNodes) : "0", tone: "accent" },
-      { label: "cost", value: formatRailUsd(estimatedCost), tone: typeof estimatedCost === "number" && estimatedCost > 0 ? "amber" : "accent" },
-    ],
-    contract: {
-      objective: lastUserPrompt ?? (liveDetail ? `Work from ${liveDetail.title}.` : "Waiting for a request."),
-      reads: runtimeContextPacket?.hasContext
-        ? `${runtimeContextPacket.selectedContext.length} selected context items · ${runtimeContextPacket.sourceRefs.length} source refs`
-        : liveDetail
-          ? `${liveDetail.title} · ${liveDetail.sourceCount} attached source${liveDetail.sourceCount === 1 ? "" : "s"}`
-          : "Prompt only · no report context attached",
-      writes: "Review mode · no automatic shared writes",
-      verification: blockedClaimCount > 0
-        ? `${blockedClaimCount} unsupported source${blockedClaimCount === 1 ? "" : "s"} blocking review`
-        : claimChecks.length > 0
-          ? `${verifiedSourceCount} verified · ${softWarningSourceCount} limited · ${sourceCount} total`
-          : isRunning ? "Checks pending" : "No claim checks recorded",
-      reviewHref: liveDetail
-        ? `/redesign/chat?report=${encodeURIComponent(liveDetail.id)}&artifact=sources`
-        : undefined,
-    },
+        ? `${liveDetail.title} · ${liveDetail.sourceCount} attached source${liveDetail.sourceCount === 1 ? "" : "s"}`
+        : "Prompt only · no report context attached",
+    writes: "Review mode · no automatic shared writes",
+    verification: blockedClaimCount > 0
+      ? `${blockedClaimCount} unsupported source${blockedClaimCount === 1 ? "" : "s"} blocking review`
+      : claimChecks.length > 0
+        ? `${verifiedSourceCount} verified · ${softWarningSourceCount} limited · ${sourceCount} total`
+        : isRunning
+          ? "Checks pending"
+          : "No claim checks recorded",
   };
 }
 
@@ -841,12 +496,10 @@ function LaunchContextCard({
 }
 
 export function ChatSurface({
-  contextLabel = "Asking about: current context",
+  contextLabel = "Current context",
   workspaceDetail,
   initialPrompt,
   continuationHash,
-  onActiveContextChange,
-  onAgentRailChange,
 }: ChatSurfaceProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -870,9 +523,6 @@ export function ChatSurface({
   // explicit live-chat unavailable state instead of seeded showcase content.
   const _skipLiveSeed = launchParams.has("fresh");
   const liveDetail = workspaceDetail ?? (_skipLiveSeed ? null : _rawLiveDetail);
-  useEffect(() => {
-    onActiveContextChange?.(liveDetail ?? null);
-  }, [liveDetail, onActiveContextChange]);
   const liveStarters = useMemo(() => {
     if (!liveDetail) return undefined;
     return [
@@ -1001,30 +651,11 @@ export function ChatSurface({
     navigate("/redesign/chat?intent=reports");
   };
 
-  const agentRailSnapshot = useMemo(() => buildChatAgentRailSnapshot({
+  const runScopeSnapshot = useMemo(() => buildRunScopeSnapshot({
     chatState: chatRun.state,
-    authLoading,
-    isAuthenticated,
     liveDetail,
     turns,
-    pinned,
-    followUps,
-    batch,
-    tier,
-    skipLiveSeed: _skipLiveSeed,
-  }), [authLoading, batch, chatRun.state, followUps, isAuthenticated, liveDetail, pinned, _skipLiveSeed, tier, turns]);
-  const lastAgentRailSnapshotKey = useRef<string>("");
-
-  useEffect(() => {
-    const nextKey = JSON.stringify(agentRailSnapshot);
-    if (lastAgentRailSnapshotKey.current === nextKey) return;
-    lastAgentRailSnapshotKey.current = nextKey;
-    onAgentRailChange?.(agentRailSnapshot);
-  }, [agentRailSnapshot, onAgentRailChange]);
-
-  useEffect(() => {
-    return () => onAgentRailChange?.(null);
-  }, [onAgentRailChange]);
+  }), [chatRun.state, liveDetail, turns]);
 
   // Phase 5 — real counterfactual probe via the probeRun mutation.
   // Looks up the original run, kicks off a new run with the masked
@@ -1072,7 +703,7 @@ export function ChatSurface({
 
   useEffect(() => {
     if (hasUserInteracted || hasLaunchContext) return;
-    setCtx(liveDetail ? `Asking about: ${liveDetail.title}` : contextLabel);
+    setCtx(liveDetail?.title ?? contextLabel);
   }, [contextLabel, hasLaunchContext, hasUserInteracted, liveDetail]);
 
   // Phase 2 — when the streamed chat run completes, commit the final packet
@@ -1505,7 +1136,7 @@ export function ChatSurface({
       )}
       <div className="rd-composer-dock">
         <div className="rd-composer-shell">
-          <RunScopeDisclosure snapshot={agentRailSnapshot} />
+          <RunScopeDisclosure snapshot={runScopeSnapshot} />
           <UniversalComposer
             hideAttachments
             contextLabel={ctx}
@@ -1630,20 +1261,21 @@ export function ChatSurface({
   );
 }
 
-function RunScopeDisclosure({ snapshot }: { snapshot: AgentRailSnapshot }) {
-  const contract = snapshot.contract;
+function RunScopeDisclosure({ snapshot }: { snapshot: RunScopeSnapshot }) {
   return (
     <details className="rd-run-scope" data-status={snapshot.status}>
       <summary>
-        <span>Review mode</span>
-        <span>{contract?.reads ?? "Prompt only"}</span>
-        <span aria-hidden="true">·</span>
-        <span>No automatic shared writes</span>
+        <svg className="rd-run-scope__icon" width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
+          <path d="m9 12 2 2 4-4" />
+        </svg>
+        <span>{snapshot.reads}</span>
+        <span>Review · no shared writes</span>
       </summary>
       <dl>
-        <div><dt>Reads</dt><dd>{contract?.reads ?? "No runtime context recorded."}</dd></div>
-        <div><dt>Writes</dt><dd>{contract?.writes ?? "Review mode · no automatic shared writes"}</dd></div>
-        <div><dt>Checks</dt><dd>{contract?.verification ?? "Not started"}</dd></div>
+        <div><dt>Reads</dt><dd>{snapshot.reads}</dd></div>
+        <div><dt>Writes</dt><dd>{snapshot.writes}</dd></div>
+        <div><dt>Checks</dt><dd>{snapshot.verification}</dd></div>
       </dl>
     </details>
   );

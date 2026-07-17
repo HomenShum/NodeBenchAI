@@ -7,7 +7,6 @@ const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8"
 
 describe("first-class agent workspace honesty contract", () => {
   const chat = read("src/features/redesign/surfaces/ChatSurface.tsx");
-  const inspector = read("src/features/redesign/components/RightInspector.tsx");
   const shell = read("src/features/redesign/RedesignShell.tsx");
   const prototype = read("src/features/redesign/surfaces/HomeV2PrototypeSurface.tsx");
   const workspaceCss = read("src/features/redesign/agent-workspace.css");
@@ -19,8 +18,8 @@ describe("first-class agent workspace honesty contract", () => {
     expect(chat).toContain('writes: "Review mode · no automatic shared writes"');
     expect(chat).toContain("runtimeContextPacket.selectedContext.length");
     expect(chat).toContain("blockedClaimCount");
-    expect(inspector).toContain('title="Scope"');
-    expect(inspector).toContain("Review sources here");
+    expect(chat).toContain("sourceUrlFromText");
+    expect(chat).toContain("How we got this answer");
   });
 
   it("does not simulate execution or advertise toast-only work controls", () => {
@@ -30,10 +29,9 @@ describe("first-class agent workspace honesty contract", () => {
     expect(chat).not.toContain("Scroll to bottom on mount");
     expect(chat).not.toContain('>Track updates<');
     expect(chat).not.toContain('>Export<');
-    expect(inspector).not.toContain("traceBarWidth");
-    expect(inspector).not.toContain("traceDuration");
-    expect(inspector).not.toContain('title="Agents"');
-    expect(shell).toContain("activeChatAgentRail?.hasIntent");
+    expect(shell).not.toContain("RightInspector");
+    expect(chat).not.toContain("traceBarWidth");
+    expect(chat).not.toContain("traceDuration");
   });
 
   it("keeps production chat free of prototype conversations and inferred runtime facts", () => {
@@ -44,8 +42,8 @@ describe("first-class agent workspace honesty contract", () => {
     expect(chat).not.toContain("WORKING_NOTES_MARKDOWN");
     expect(chat).not.toContain("sourceFreshness");
     expect(chat).not.toContain("ChatV2NextActions");
-    expect(chat).toContain("hasIntent: Boolean(run || hasAnswer)");
-    expect(chat).toContain("runtimeSourceCount > 0 ? \"done\"");
+    expect(chat).toContain("hasAnswer = Boolean(activePacket?.shortAnswer)");
+    expect(chat).toContain("metrics?.sourceCount ?? run?.groundingChunks.length");
     expect(chat).toContain("hideAttachments");
     expect(chat).toContain("telemetry not recorded");
     expect(chat).toContain("cost not recorded");
@@ -67,7 +65,7 @@ describe("first-class agent workspace honesty contract", () => {
     expect(chat).not.toContain("scrollRef");
     expect(chat).not.toContain("unseenCount");
     expect(shell).toContain('import "./agent-workspace.css"');
-    expect(shell).toContain("showChatInspector &&");
+    expect(shell).toContain("rd-shell--chat-no-inspector");
     expect(shell).toContain('data-product-surface="decision-workspace"');
     expect(workspaceCss).not.toContain('data-wide="true"');
     expect(conversation).toContain('reducedMotion ? "instant" : "smooth"');

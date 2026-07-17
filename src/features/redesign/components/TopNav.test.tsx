@@ -17,6 +17,10 @@ vi.mock("convex/react", () => ({
   useConvexAuth: () => authMocks.state,
 }));
 
+vi.mock("@/hooks/useCurrentUser", () => ({
+  useCurrentUserId: () => null,
+}));
+
 describe("TopNav — single-surface header", () => {
   beforeEach(() => {
     authMocks.signIn.mockReset();
@@ -32,7 +36,7 @@ describe("TopNav — single-surface header", () => {
 
     expect(getByRole("banner")).toBeTruthy();
     expect(getByRole("link", { name: "NodeBench decision workspace" })).toHaveAttribute("href", "/redesign/chat");
-    expect(getByText("Decision workspace")).toBeTruthy();
+    expect(queryByText("Decision workspace")).toBeNull();
     expect(getByRole("button", { name: "Sign in" })).toBeTruthy();
     expect(getByRole("button", { name: "Switch to dark mode" })).toBeTruthy();
     expect(queryByRole("navigation")).toBeNull();

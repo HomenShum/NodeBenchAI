@@ -463,7 +463,7 @@ export function WorkspaceSurface({ reportId, initialTab = "brief", buildRoute }:
               ? <LiveArtifactPlaceholder loading={liveArtifacts.isLoading} reportId={selectedReportId} />
               : <SourcesTab report={effectiveLiveReport} />
         )}
-        {tab === "chat" && <ChatSurface contextLabel={`Asking about: ${workspaceTitle}`} workspaceDetail={workspaceDetail} />}
+        {tab === "chat" && <ChatSurface contextLabel={workspaceTitle} workspaceDetail={workspaceDetail} />}
         {tab === "map" && (
           workspaceDetail
             ? (

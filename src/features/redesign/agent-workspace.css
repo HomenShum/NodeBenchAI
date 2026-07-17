@@ -6,15 +6,7 @@
 }
 
 [data-redesign] .rd-shell--chat-v3 .rd-shell__main {
-  grid-template-columns: minmax(0, 1fr) 320px;
-}
-
-[data-redesign] .rd-shell--chat-v3.rd-shell--chat-no-inspector .rd-shell__main {
   grid-template-columns: minmax(0, 1fr);
-}
-
-[data-redesign] .rd-shell--chat-v3 .rd-pane--right.chat-context {
-  width: 320px;
 }
 
 [data-redesign] .rd-shell--chat-v3 .rd-shell__main > .rd-pane:first-child {
@@ -157,11 +149,28 @@
 }
 
 .rd-account-menu {
-  min-width: 170px;
+  width: min(340px, calc(100vw - 24px));
   border-color: var(--rd-line);
   background: var(--rd-panel);
   color: var(--rd-ink);
   font-family: var(--rd-font-sans);
+}
+
+.rd-account-menu .rd-account-voice {
+  margin: 4px;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: none;
+}
+
+[data-redesign] .rd-composer-submit {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
 }
 
 [data-redesign] .rd-launch-context {
@@ -204,10 +213,23 @@
   list-style-position: inside;
 }
 
-[data-redesign] .rd-run-scope > summary span:nth-of-type(2) {
+[data-redesign] .rd-run-scope__icon {
+  flex: 0 0 auto;
+  color: var(--rd-green);
+}
+
+[data-redesign] .rd-run-scope > summary span:first-of-type {
+  min-width: 0;
+  flex: 1;
   max-width: 36ch;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-redesign] .rd-run-scope > summary span:last-of-type {
+  flex: 0 0 auto;
+  color: var(--rd-ink-soft);
   white-space: nowrap;
 }
 
@@ -259,12 +281,6 @@
   line-height: 1.2;
 }
 
-[data-redesign] .rd-chat-empty__sub {
-  max-width: 58ch;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
 [data-redesign] .rd-chat-empty__chips {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
@@ -296,18 +312,14 @@
     gap: 8px;
   }
 
-  [data-redesign] .rd-run-scope > summary span:nth-of-type(2) {
+  [data-redesign] .rd-run-scope > summary span:first-of-type {
     display: block;
     min-width: 0;
     flex: 1;
     max-width: none;
   }
 
-  [data-redesign] .rd-run-scope > summary span:nth-of-type(3) {
-    display: none;
-  }
-
-  [data-redesign] .rd-run-scope > summary span:nth-of-type(4) {
+  [data-redesign] .rd-run-scope > summary span:last-of-type {
     flex: 0 0 auto;
   }
 

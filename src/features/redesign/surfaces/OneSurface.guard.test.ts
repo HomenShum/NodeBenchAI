@@ -10,7 +10,6 @@ describe("NodeBench one-surface product contract", () => {
   const shell = read("src/features/redesign/RedesignShell.tsx");
   const header = read("src/features/redesign/components/TopNav.tsx");
   const chat = read("src/features/redesign/surfaces/ChatSurface.tsx");
-  const inspector = read("src/features/redesign/components/RightInspector.tsx");
   const workspaceCss = read("src/features/redesign/agent-workspace.css");
 
   it("mounts only the canonical decision workspace in the primary shell", () => {
@@ -23,6 +22,7 @@ describe("NodeBench one-surface product contract", () => {
     expect(shell).not.toContain("<WorkspaceSurface");
     expect(shell).not.toContain("<CommandPalette");
     expect(shell).not.toContain("<ShortcutsOverlay");
+    expect(shell).not.toContain("<RightInspector");
   });
 
   it("keeps the header free of page navigation and duplicate input", () => {
@@ -38,22 +38,19 @@ describe("NodeBench one-surface product contract", () => {
   });
 
   it("keeps contextual chat actions inside the same surface", () => {
-    for (const source of [chat, inspector]) {
-      expect(source).not.toMatch(/\/redesign\/(?:reports|inbox|me|workspace)/);
-    }
+    expect(chat).not.toMatch(/\/redesign\/(?:reports|inbox|me|workspace)/);
     expect(chat).toContain("/redesign/chat?report=");
     expect(chat).toContain("requestedIntent");
     expect(chat).toContain("<LaunchContextCard");
     expect(chat).toContain("buildLiveContextRef(liveDetail, requestedArtifactKey)");
     expect(chat).not.toContain("Review settings");
-    expect(inspector).not.toContain("Open Map");
-    expect(inspector).not.toContain("Open notebook handoff");
-    expect(inspector).toContain("Review sources here");
+    expect(chat).toContain("How we got this answer");
+    expect(chat).toContain("sourceUrlFromText");
   });
 
   it("keeps read scope visible on mobile", () => {
-    expect(workspaceCss).toMatch(/span:nth-of-type\(2\)[^{]*\{[^}]*display:\s*block/s);
-    expect(workspaceCss).not.toMatch(/span:nth-of-type\(2\)[^{]*,[^{]*span:nth-of-type\(3\)[^{]*\{[^}]*display:\s*none/s);
+    expect(workspaceCss).toMatch(/span:first-of-type[^{]*\{[^}]*display:\s*block/s);
+    expect(workspaceCss).not.toMatch(/rd-run-scope[^}]*display:\s*none/s);
   });
 
   it("routes the root application to chat on desktop and mobile", () => {

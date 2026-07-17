@@ -13,10 +13,8 @@ import "./tokens.css";
 import "./primitives.css";
 import "./agent-workspace.css";
 
-import { RightInspector, type AgentRailSnapshot } from "./components/RightInspector";
 import { TopNav } from "./components/TopNav";
 import { ChatSurface } from "./surfaces/ChatSurface";
-import type { LiveArtifactDetail } from "./hooks/useLiveArtifacts";
 import { parseChatLaunchParams } from "./lib/chatContinuation";
 import { canonicalRedesignChatTarget, pathToChatHash } from "./lib/oneSurfaceRouting";
 
@@ -29,8 +27,6 @@ export default function RedesignShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [theme, setTheme] = useState<"light" | "dark">(readInitialTheme);
-  const [activeChatDetail, setActiveChatDetail] = useState<LiveArtifactDetail | null>(null);
-  const [activeChatAgentRail, setActiveChatAgentRail] = useState<AgentRailSnapshot | null>(null);
 
   const canonicalTarget = useMemo(
     () => canonicalRedesignChatTarget(location.pathname, location.search),
@@ -39,7 +35,6 @@ export default function RedesignShell() {
   const chatLaunch = useMemo(() => parseChatLaunchParams(location.search), [location.search]);
   const routeChatHash = useMemo(() => pathToChatHash(location.pathname), [location.pathname]);
   const continuationHash = chatLaunch.continuationHash ?? routeChatHash ?? undefined;
-  const showChatInspector = Boolean(activeChatAgentRail?.hasIntent);
 
   useEffect(() => {
     if (canonicalTarget) navigate(canonicalTarget, { replace: true });
@@ -62,6 +57,10 @@ export default function RedesignShell() {
       data-redesign
       data-redesign-theme={theme}
       data-product-surface="decision-workspace"
+      data-screen-id="decision-workspace"
+      data-screen-title="NodeBench"
+      data-screen-path="/redesign/chat"
+      data-screen-state="ready"
       style={{
         height: "100dvh",
         overflow: "hidden",
@@ -75,7 +74,7 @@ export default function RedesignShell() {
       />
 
       <div
-        className={`rd-shell rd-shell--home-v2 rd-shell--chat-v3 rd-shell--chat-focus ${showChatInspector ? "" : "rd-shell--chat-no-inspector"}`}
+        className="rd-shell rd-shell--home-v2 rd-shell--chat-v3 rd-shell--chat-focus rd-shell--chat-no-inspector"
         style={{ flex: 1, minHeight: 0 }}
       >
         <div className="rd-shell__main">
@@ -84,18 +83,10 @@ export default function RedesignShell() {
               <ChatSurface
                 initialPrompt={chatLaunch.prompt}
                 continuationHash={continuationHash}
-                onActiveContextChange={setActiveChatDetail}
-                onAgentRailChange={setActiveChatAgentRail}
               />
             </div>
           </main>
 
-          {showChatInspector && (
-            <RightInspector
-              activeLiveArtifactDetail={activeChatDetail ?? undefined}
-              agentSnapshot={activeChatAgentRail}
-            />
-          )}
         </div>
       </div>
 
