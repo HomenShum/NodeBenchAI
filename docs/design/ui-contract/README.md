@@ -4,6 +4,27 @@ This directory is the append-only evidence store for NodeBench UI migrations.
 It is governed by [`../UI_CONTRACT.md`](../UI_CONTRACT.md); the machine-readable
 companion is [`src/design/designSystem.ts`](../../../src/design/designSystem.ts).
 
+## Runtime surface contracts (`surfaces/`)
+
+`surfaces/*.contract.json` are **executable** surface contracts — the third
+layer beside the static design manifest (designSystem.ts) and this evidence
+store. Each declares a surface's anchors, computed-geometry invariants, theme
+wiring (the storage key + attribute the shell actually reads), and
+deep-link-forced states with copy that must agree with reality.
+
+`tests/e2e/ui-contract-runner.spec.ts` executes every manifest against the
+live DOM per theme x viewport (Tier B runs it per-PR against the preview).
+Adding a surface means adding a manifest — no new spec code. Vision QA
+(Gemini loop, screenshot review) stays for taste; everything objectively
+checkable belongs in a contract here instead.
+
+Why this layer exists — two shipped failures no other layer could catch:
+the 2026-07-16 mobile collapse (computed `70px 320px` invisible to overflow
+booleans and CSS-source string guards) and the 2026-07-17 discovery that
+every "dark" QA capture since #561 was a light render because the capture
+spec wrote a theme key the shell no longer read. Both are now contract
+clauses (`geometry`, `theme.storageKey`).
+
 At the current `origin/main` boundary through PR #527, this directory contains
 the protocol and schema only. No dated proof folder is present, so this document
 does not claim screenshots, QA findings, an Agentic UI Bar score, preview

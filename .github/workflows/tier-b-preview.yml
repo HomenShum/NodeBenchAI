@@ -303,7 +303,9 @@ jobs:
           fi
           # exact-kit-parity-prod: visual selector parity (per-PR canonical-component check)
           # one-flow-regression: full surface tour + A9 fallback + interactive chip behavior
-          npx playwright test tests/e2e/vercel-preview-security.spec.ts tests/e2e/exact-kit-parity-prod.spec.ts tests/e2e/one-flow-regression.spec.ts --project=chromium --reporter=line
+          # ui-contract-runner: executes docs/design/ui-contract/surfaces/*.contract.json
+          #   (anchors, computed geometry, theme wiring, state copy) against the preview
+          npx playwright test tests/e2e/vercel-preview-security.spec.ts tests/e2e/exact-kit-parity-prod.spec.ts tests/e2e/one-flow-regression.spec.ts tests/e2e/ui-contract-runner.spec.ts --project=chromium --reporter=line
 
       - name: Upload Playwright artifacts on failure
         if: failure()
