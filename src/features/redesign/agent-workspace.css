@@ -237,7 +237,11 @@
 
 [data-redesign] .rd-run-scope > summary span:first-of-type {
   min-width: 0;
-  flex: 1;
+  /* Size to content, shrink with ellipsis under pressure. flex: 1 reserved a
+     36ch column sized for the old title-bearing string, which left the
+     trailing "Review" span floating mid-row once the title moved to the
+     context chip. */
+  flex: 0 1 auto;
   max-width: 36ch;
   overflow: hidden;
   text-overflow: ellipsis;

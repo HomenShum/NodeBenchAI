@@ -203,6 +203,10 @@ async function setTheme(page: Page, theme: "dark" | "light") {
       }),
     );
     localStorage.setItem("theme", t);
+    // RedesignShell (the ONLY product surface since #561) reads this key.
+    // The two legacy keys above serve pre-redesign routes; without this one
+    // the "dark" variant screenshots silently captured light renders.
+    localStorage.setItem("nodebench:redesign:theme", t);
     localStorage.setItem("nodebench-redesign-qa-chrome", "1");
   }, theme);
 }
