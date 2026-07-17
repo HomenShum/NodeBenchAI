@@ -76,7 +76,7 @@ describe("redesign chat runtime response policy", () => {
     const shaped = applyDeterministicResponsePolicy(
       "Provide a title only",
       memo,
-      [{ source: "https://example.com/acme", quote: "Acme launched a new product." }],
+      [{ idx: 1, source: "https://example.com/acme", quote: "Acme launched a new product." }],
     );
 
     expect(shaped.shortAnswer).not.toContain("\n");
@@ -90,7 +90,7 @@ describe("redesign chat runtime response policy", () => {
     const shaped = applyDeterministicResponsePolicy(
       "Answer in exactly 3 bullets",
       memo,
-      [{ source: "https://example.com/acme", quote: "Acme launched a new product." }],
+      [{ idx: 1, source: "https://example.com/acme", quote: "Acme launched a new product." }],
     );
     const bullets = shaped.shortAnswer.split("\n");
 
@@ -202,5 +202,50 @@ describe("redesign chat runtime response policy", () => {
       expect(shaped.shortAnswer.toLowerCase()).not.toContain("strongest supported claim");
       expect(shaped.nextAction).toContain("Add a supported source URL");
     }
+  });
+
+  // Mixed run: one URL-backed row plus cached section labels. This is the exact
+  // shape the 2026-07-16 audit hit ("strongest supported claim with its best
+  // source" while the best source rendered as a label like "Setup"). A run-level
+  // "some URL exists" gate lets it pass; the claim must be grounded by its own
+  // citation.
+  const mixedEvidence = [
+    { idx: 1, source: "https://example.com/acme-filing", quote: "Acme raised $50M." },
+    { idx: 2, source: "Setup", quote: "Act I framing" },
+    { idx: 3, source: "Rising Action", quote: "Act II framing" },
+  ];
+
+  it("keeps a best-source superlative that cites the URL-backed row", () => {
+    const grounded = applyDeterministicResponsePolicy(
+      "Analyze Acme",
+      { shortAnswer: "Acme is the strongest supported claim [1].", whyItMatters: "", risks: [], nextAction: "" },
+      mixedEvidence,
+    );
+
+    expect(grounded.shortAnswer).toContain("strongest supported claim");
+    expect(grounded.risks).toEqual([]);
+  });
+
+  it("rewrites a best-source superlative citing a cached label even when a URL-backed row exists elsewhere", () => {
+    const mislabeled = applyDeterministicResponsePolicy(
+      "Analyze Acme",
+      { shortAnswer: "Acme is the strongest supported claim [2].", whyItMatters: "", risks: [], nextAction: "" },
+      mixedEvidence,
+    );
+
+    expect(mislabeled.shortAnswer.toLowerCase()).not.toContain("strongest supported claim");
+    expect(mislabeled.shortAnswer).toContain("source or claim requiring verification");
+    expect(mislabeled.risks.at(-1)).toContain("Source needed:");
+  });
+
+  it("rewrites a best-source superlative that carries no citation at all", () => {
+    const uncited = applyDeterministicResponsePolicy(
+      "Analyze Acme",
+      { shortAnswer: "Acme is the best source in the packet.", whyItMatters: "", risks: [], nextAction: "" },
+      mixedEvidence,
+    );
+
+    expect(uncited.shortAnswer.toLowerCase()).not.toContain("best source");
+    expect(uncited.risks.at(-1)).toContain("Source needed:");
   });
 });
