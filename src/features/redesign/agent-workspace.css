@@ -85,6 +85,23 @@
   gap: 18px;
 }
 
+/* JSON / Markdown-table answer bodies (json/table response shapes). Mono
+   block with its own horizontal scroll so wide tables never stretch the
+   workspace column. */
+[data-redesign] .rd-answer-structured {
+  margin: 0;
+  padding: 12px 14px;
+  color: var(--rd-ink-strong);
+  font-family: var(--rd-font-mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+  background: var(--rd-surface-sunken, rgba(127, 127, 127, 0.06));
+  border: 1px solid var(--rd-line-faint);
+  border-radius: 8px;
+}
+
 [data-redesign] .rd-answer-copy {
   margin: 0;
   color: var(--rd-ink-strong);
