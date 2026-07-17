@@ -42,5 +42,61 @@
       "expectText": "Notebook context unavailable",
       "forbidText": "Notebook context selected"
     }
-  ]
+  ],
+  "answerPacket": {
+    "why": "The honesty ladder as machine-provable state schemas: per response shape x evidence support, the rendered packet MUST carry these fields and NEVER others. Compact shapes rely on empty memo fields to render compact (isCompactResponse in both renderers), so a forbidden field leaking is a UX regression, not just a data bug. Executed by convex/domains/redesign/chatRuns.contract.test.ts through the REAL detectRequestedResponseShape + applyDeterministicResponsePolicy.",
+    "sourceNeededMarker": "Source needed",
+    "states": [
+      {
+        "shape": "title_only",
+        "prompt": "Return only its title.",
+        "supported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "risks", "nextAction"], "forbidPatterns": { "shortAnswer": ["\\n", "\\[\\d+\\]"] } },
+        "unsupported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "risks", "nextAction"], "requirePatterns": { "shortAnswer": ["^Source needed: "] } }
+      },
+      {
+        "shape": "bullets",
+        "prompt": "Answer in exactly 3 bullets.",
+        "supported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "risks", "nextAction"], "requirePatterns": { "shortAnswer": ["^- "] }, "lineCount": { "field": "shortAnswer", "equals": 3 } },
+        "unsupported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "risks", "nextAction"], "requirePatterns": { "shortAnswer": ["Source needed" ] }, "lineCount": { "field": "shortAnswer", "equals": 3 } }
+      },
+      {
+        "shape": "sentence",
+        "prompt": "Summarize the brief in one sentence.",
+        "supported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "risks", "nextAction"], "forbidPatterns": { "shortAnswer": ["\\n"] } },
+        "unsupported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "risks", "nextAction"], "requirePatterns": { "shortAnswer": ["^Source needed: "] } }
+      },
+      {
+        "shape": "paragraph",
+        "prompt": "Explain it in a single paragraph.",
+        "supported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "risks", "nextAction"], "forbidPatterns": { "shortAnswer": ["\\n"] } },
+        "unsupported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "risks", "nextAction"], "requirePatterns": { "shortAnswer": ["Source needed"] } }
+      },
+      {
+        "shape": "word_limit",
+        "prompt": "Summarize in under 8 words.",
+        "supported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "risks", "nextAction"], "maxWords": { "field": "shortAnswer", "count": 8 } },
+        "unsupported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "risks", "nextAction"], "maxWords": { "field": "shortAnswer", "count": 8 }, "requirePatterns": { "shortAnswer": ["^Source needed:"] } }
+      },
+      {
+        "shape": "json",
+        "prompt": "Return the round as JSON.",
+        "rawText": "```json\n{\"company\":\"Acme\",\"round\":\"Series B\"}\n```",
+        "supported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "risks", "nextAction"], "parsesAs": { "field": "shortAnswer", "format": "json" }, "forbidPatterns": { "shortAnswer": ["\\[\\d+\\]"] } },
+        "unsupported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "nextAction"], "parsesAs": { "field": "shortAnswer", "format": "json" }, "riskRowPattern": "^Source needed" }
+      },
+      {
+        "shape": "table",
+        "prompt": "Compare vendors in a markdown table.",
+        "rawText": "| Vendor | Price |\n| --- | --- |\n| Acme | $10 |",
+        "supported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "risks", "nextAction"], "requirePatterns": { "shortAnswer": ["^\\| "] } },
+        "unsupported": { "require": ["shortAnswer"], "forbid": ["whyItMatters", "nextAction"], "requirePatterns": { "shortAnswer": ["^\\| "] }, "riskRowPattern": "^Source needed" }
+      },
+      {
+        "shape": "memo",
+        "prompt": "Research Acme's market position.",
+        "supported": { "require": ["shortAnswer", "whyItMatters"] },
+        "unsupported": { "require": ["shortAnswer"], "riskRowPattern": "^Source needed", "requirePatterns": { "nextAction": ["supported source"] } }
+      }
+    ]
+  }
 }

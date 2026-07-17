@@ -101,6 +101,7 @@ jobs:
           src/features/evaluation/data/tasteBenchScenario.test.ts
           scripts/__tests__/releaseWorkflowContracts.test.ts
           convex/domains/redesign/chatRuns.responseShape.test.ts
+          convex/domains/redesign/chatRuns.contract.test.ts
           src/features/redesign/components/UniversalComposer.test.tsx
           src/features/redesign/surfaces/ScratchnodeEventsSurface.test.tsx
 
