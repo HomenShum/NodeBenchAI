@@ -3,29 +3,9 @@ import path from "node:path";
 
 const ROUTES = [
   {
-    path: "/?surface=home",
-    name: "home",
-    readyHeading: /(Ask once\. Turn it into reusable intelligence\.|Daily intelligence pulse)/i,
-  },
-  {
-    path: "/?surface=chat",
-    name: "chat",
-    readyHeading: "Ask NodeBench",
-  },
-  {
-    path: "/?surface=reports",
-    name: "reports",
-    readyHeading: "Reports",
-  },
-  {
-    path: "/?surface=inbox",
-    name: "inbox",
-    readyHeading: "Where you decide. Everything else runs in the background.",
-  },
-  {
-    path: "/?surface=me",
-    name: "me",
-    readyHeading: "This is what NodeBench remembers about you.",
+    path: "/redesign/chat",
+    name: "decision-workspace",
+    readyHeading: "What do you need to know?",
   },
 ] as const;
 
@@ -134,6 +114,12 @@ function formatBrowserIssues(issues: BrowserIssue[]) {
 }
 
 async function signInIfPrompted(page: Page) {
+  // The single workspace is intentionally usable before authentication. Its
+  // header's "Sign in" control is an account action, not an auth wall.
+  if (await page.locator("#main-content").isVisible().catch(() => false)) {
+    return;
+  }
+
   const anonymousButton = page.getByRole("button", { name: /sign in anonymously/i }).first();
   if (await anonymousButton.count()) {
     await anonymousButton.click();
@@ -143,19 +129,6 @@ async function signInIfPrompted(page: Page) {
     return;
   }
 
-  const signInButton = page.getByRole("button", { name: /^sign in$/i }).first();
-  if (await signInButton.count()) {
-    await signInButton.click();
-    await page.waitForTimeout(500);
-
-    const modalAnonymousButton = page.getByRole("button", { name: /sign in anonymously/i }).first();
-    if (await modalAnonymousButton.count()) {
-      await modalAnonymousButton.click();
-      await page.waitForLoadState("domcontentloaded");
-      await page.waitForSelector("#main-content", { state: "visible", timeout: 60_000 });
-      await page.waitForTimeout(1000);
-    }
-  }
 }
 
 async function navigateWithinApp(page: Page, targetPath: string) {
@@ -213,40 +186,7 @@ async function ensureSurfaceReady(
   if (routeRegionVisible) {
     return;
   }
-  if (route.name === "chat") {
-    const chatRegion = page.getByRole("region", { name: "Chat" }).first();
-    const chatRegionVisible = await chatRegion.isVisible().catch(() => false);
-    if (chatRegionVisible) {
-      return;
-    }
-    await expect(
-      page.locator("textarea:visible").first(),
-    ).toBeVisible({ timeout: 20_000 });
-    return;
-  }
   await expect(heading).toBeVisible({ timeout: 20_000 });
-}
-
-async function ensureChatRunReady(page: Page, query: string) {
-  await expect(page).toHaveURL(/(?:surface=chat|\/redesign\/chat(?:$|[/?#]))/, { timeout: 20_000 });
-  await expect(page.getByText("Something went wrong")).toHaveCount(0);
-  const queryHeading = page.getByRole("heading", { name: query }).first();
-  const headingVisible = await queryHeading.isVisible().catch(() => false);
-  if (headingVisible) {
-    return;
-  }
-  const queryEcho = page.getByText(query, { exact: true }).first();
-  const queryEchoVisible = await queryEcho.isVisible().catch(() => false);
-  if (queryEchoVisible) {
-    return;
-  }
-  const primaryComposer = page.locator("textarea:visible").first();
-  if (await primaryComposer.count()) {
-    await expect(primaryComposer).toBeVisible({ timeout: 20_000 });
-    return;
-  }
-
-  await expect(page.locator("textarea:visible").first()).toBeVisible({ timeout: 20_000 });
 }
 
 async function setTheme(page: Page, theme: "dark" | "light") {
@@ -349,17 +289,16 @@ test.describe("Full UI Dogfood", () => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await setTheme(page, "dark");
 
-      activeRoute = "/?surface=home";
-      await navigateWithinApp(page, "/?surface=home");
-      const homeQuery = "What does Ditto AI do and what matters most right now?";
-      const homeInput = page.locator("textarea:visible").first();
-      await expect(homeInput).toBeVisible({ timeout: 20_000 });
-      await homeInput.fill(homeQuery);
-      await page.getByRole("button", { name: /^run research$/i }).first().click();
-      await page.waitForTimeout(2500);
-      await ensureChatRunReady(page, homeQuery);
+      activeRoute = "/redesign/chat";
+      await navigateWithinApp(page, "/redesign/chat");
+      const workspaceQuery = "What changed, why does it matter, and what should I do next?";
+      const workspaceInput = page.locator("textarea:visible").first();
+      await expect(workspaceInput).toBeVisible({ timeout: 20_000 });
+      await workspaceInput.fill(workspaceQuery);
+      await expect(workspaceInput).toHaveValue(workspaceQuery);
+      await expect(page.getByRole("button", { name: /^run research$/i })).toBeEnabled();
       await page.screenshot({
-        path: getScreenshotPath("interaction-home-to-chat.png"),
+        path: getScreenshotPath("interaction-workspace-ready.png"),
         fullPage: true,
       });
 
@@ -374,15 +313,16 @@ test.describe("Full UI Dogfood", () => {
       await themeToggle.click();
       await page.waitForTimeout(500);
 
-      activeRoute = "/?surface=reports";
-      await navigateWithinApp(page, "/?surface=reports");
-      const visibleChatButton = page.locator("button:visible").filter({ hasText: /^Chat$/i }).first();
-      await expect(visibleChatButton).toBeVisible({ timeout: 20_000 });
-      await visibleChatButton.click();
-      await page.waitForTimeout(1500);
-      await ensureChatRunReady(page, homeQuery);
+      activeRoute = "/reports/dogfood-report/notebook";
+      await navigateWithinApp(page, "/reports/dogfood-report/notebook");
+      await expect(page).toHaveURL(
+        /\/redesign\/chat\?report=dogfood-report&artifact=notebook/,
+      );
+      await expect(page.getByText(/notebook context/i).first()).toBeVisible();
+      await expect(page.locator('[data-product-surface="decision-workspace"]')).toHaveCount(1);
+      await expect(page.locator("textarea:visible")).toHaveCount(1);
       await page.screenshot({
-        path: getScreenshotPath("interaction-reports-to-chat.png"),
+        path: getScreenshotPath("interaction-report-context.png"),
         fullPage: true,
       });
     }
