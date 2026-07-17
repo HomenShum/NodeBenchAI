@@ -3,6 +3,45 @@
 Append-only lane for the public redesign chat, reproducible answer receipts, and their
 transition into an authenticated live conversation. Newest entries first.
 
+## 2026-07-17 - Design nitpick pass over the 4-variant dogfood captures
+
+Pixel review of every capture (desktop/mobile x dark/light + interactions) after the
+recent workspace changes. Six findings, five fixed, one accepted:
+
+- **Dishonest dark evidence (P1)**: the capture spec's `setTheme` wrote only legacy
+  cockpit keys; `RedesignShell` reads `nodebench:redesign:theme`, so every "dark"
+  screenshot since #561 was a light render mislabeled dark. Spec now writes the
+  shell's key - pass-2 captures are the first honest dark evidence.
+- **Contradictory state copy (P2)**: the context-miss banner titled itself
+  "Notebook context selected" while the body said the context was unavailable.
+  Title now tracks the miss.
+- **Mobile truncation of load-bearing data (P2)**: the status row repeated the
+  context title the chip below already carries, pushing "12 attached sources"
+  into ellipsis at 390px. Row now leads with the count.
+- **Emoji chips (P2)**: starter chips used platform emoji against an all-SVG
+  surface; replaced with a shared STARTER_ICONS stroke-SVG set.
+- **Floating meta text (P3)**: `flex: 1 + max-width: 36ch` reserved a title-sized
+  column in the run-scope summary, leaving "Review · no shared writes" mid-air on
+  desktop once the title moved. Content-sized with shrink+ellipsis kept.
+- **Accepted**: first-chip two-line wrap is content-driven (dated title), not a
+  layout defect.
+
+Pass 3 re-capture: zero new findings; loop converged.
+
+**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Source: `pending`
+- Checks: `npx tsc --noEmit` -> 0 errors. Redesign feature suite -> 92 passed.
+  CSS/lifecycle/shape guards + composer suite -> 34 passed post-rebase.
+- Visual proof: `test-results/full-ui-dogfood/` pass-3 captures (not committed;
+  regenerate via the dogfood spec).
+- Preview: Tier B one-flow-regression runs on the PR.
+- Production live: `not recorded` at entry time.
+
+**Author**: Homen Shum + Claude Fable 5.
+**Touches**: ChatSurface, ChatEmptyState, agent-workspace.css, full-ui-dogfood spec.
+
 ## 2026-07-17 - Honor JSON and table response shapes end to end
 
 The last declared shape boundary falls: "as JSON" / "in a markdown table" are now
@@ -15,10 +54,10 @@ limitation cannot ride inside JSON without corrupting it. Both renderers now sho
 structured bodies in a bounded monospace block (`.rd-answer-structured`) with its own
 horizontal scroll, via a shared `isStructuredAnswer` so they cannot disagree.
 
-**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+**PR / canonical main commit**: `#573` / `e7e423fb`.
 
 **Evidence state**:
-- Source: `pending`
+- Source: `merged`
 - Checks: `npx tsc --noEmit` -> 0 errors. `npx vitest run chatRuns.responseShape +
   ChatResponseShape.guard + ChatRunLifecycle.guard` -> 30 passed (4 new: detector
   incl. incidental-mention negatives, fenced-JSON passthrough with brace-in-string,
