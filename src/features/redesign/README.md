@@ -1,6 +1,6 @@
 # `src/features/redesign/`
 
-> Current NodeBench redesign surface mounted at `/redesign`. It is route-distinct from the ExactKit cockpit at `/?surface=...` and from ScratchNode's event room at `scratchnode.live`.
+> NodeBench's canonical decision workspace, mounted at `/redesign/chat`. Every primary NodeBench entry point resolves to this same runtime-backed conversation; saved reports, attention, settings, artifacts, and receipts are contextual states rather than peer destinations.
 >
 > Read [docs/architecture/REDESIGN_ROADMAP.md](../../../docs/architecture/REDESIGN_ROADMAP.md) for the full architecture and journey. This README is the developer-facing inventory + extension cookbook.
 >
@@ -12,16 +12,19 @@
 
 ```bash
 npm run dev
-# Open http://localhost:5200/redesign
-# Toggle the floating "Phone" FAB (bottom-right) to preview the mobile shell
-# Toggle the "◐" FAB next to it to switch light/dark mode
+# Open http://localhost:5200/redesign/chat
 ```
 
-All redesign code is scoped to `[data-redesign]`. It shares live Convex runtime primitives with the product, but route ownership is explicit: `/redesign/*` is the current redesign, `/?surface=*` is the ExactKit cockpit, and `scratchnode.live/e/:slug` is the ScratchNode event room.
+All redesign code is scoped to `[data-redesign]`. The active shell shares the live Convex runtime primitives with the product. Legacy `/redesign/*` paths preserve useful URL context, while retired or unknown main-site product paths replace into `/redesign/chat`; none mount the old cockpit. Purpose-built read-only delivery routes remain available, and Workspace stays isolated on its dedicated hostname rather than appearing as another main-site surface.
 
 ---
 
 ## File map
+
+The active runtime tree is `RedesignShell` → `TopNav` + `ChatSurface` + the conditional
+`RightInspector`. The remaining historical surface modules are retained only as
+unmounted migration references while their reusable runtime fragments are folded into
+the conversation; adding them back to `RedesignShell` violates the one-surface guard.
 
 ```
 src/features/redesign/
@@ -54,22 +57,19 @@ src/features/redesign/
 
 | Path | Renders |
 |---|---|
-| `/redesign` | HomeSurface |
-| `/redesign/reports` | ReportsSurface |
-| `/redesign/chat` | ChatSurface (with `RightInspector` Agent Runtime Inspector on desktop) |
-| `/redesign/inbox` | InboxSurface |
-| `/redesign/me` | MeSurface |
-| `/redesign/workspace` | WorkspaceSurface (6-tab — Brief default) |
+| `/redesign/chat` | The canonical `ChatSurface`, with a contextual runtime inspector after a run starts |
+| `/redesign/chat/r/:hash` | The same conversation with an immutable receipt loaded as context and the composer still available |
+| `/redesign`, `/redesign/reports/*`, `/redesign/inbox`, `/redesign/me`, `/redesign/workspace` | Context-preserving replace into `/redesign/chat` |
+| Main-site `/reports/:id` and its brief/cards/notebook/sources/graph/map tabs | Report and artifact context in `/redesign/chat`; recursive editing stays on the Workspace hostname |
+| Other retired or unknown main-site product paths | Replace into `/redesign/chat` without mounting the old cockpit |
+
+Compatibility aliases accept valid URL-encoded paths. Invalid percent-encoded HTTP
+request targets are rejected with `400` by the hosting boundary before React runs;
+NodeBench does not present those invalid targets as application deep links.
 
 Wired in [src/App.tsx](../../App.tsx) as a standalone route check before `/memo` — bypasses the cockpit entirely.
 
-Important route split:
-
-| Route | Do not confuse with |
-|---|---|
-| `/redesign/chat` | `/?surface=chat` ExactKit cockpit |
-| `/redesign/reports` | `/?surface=reports` ExactKit cockpit |
-| `scratchnode.live/e/:slug` | NodeBench redesign or cockpit routes |
+ScratchNode's `scratchnode.live/e/:slug` event room remains a separate product and runtime contract.
 
 ---
 

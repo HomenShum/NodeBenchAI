@@ -3,6 +3,31 @@
 Append-only lane for the public redesign chat, reproducible answer receipts, and their
 transition into an authenticated live conversation. Newest entries first.
 
+## 2026-07-16 - Contract NodeBench to one decision workspace
+
+NodeBench now has one primary product surface: the runtime-backed conversation at
+`/redesign/chat`. The former Home, Reports, Inbox, Me, Workspace, mobile-shell, command
+palette, and reproducible-answer destinations no longer mount competing application
+trees. Their URLs preserve useful report, artifact, attention, settings, and receipt
+context while replacing into the same conversation and keeping the composer available.
+The old cockpit fallback is also removed from the main site: retired or unknown product
+paths now resolve to the same chat, while read-only delivery routes and the separately
+hosted Workspace keep their bounded contracts.
+Main-site report graph, notebook, cards, sources, map, and brief editor URLs now carry
+their report and artifact into chat instead of mounting another interactive workspace.
+
+The header is reduced to product identity, explicit authentication, and theme. It no
+longer duplicates the composer with global search or exposes wide mode, five peer tabs,
+or ambiguous `Continue` copy. Runtime sources, approvals, exports, follow-ups, receipts,
+provider/model metadata, usage, cost, and failure/retry states remain protected.
+
+**PR / canonical main commit**: pending CI-gated candidate.
+
+**Evidence state**: responsive before/after evidence and the protected function ledger
+remain outside git under `.qa/evidence/2026-07-16-one-surface/`.
+
+**Author**: Homen Shum + Codex.
+
 ## 2026-07-16 - Normalize structured answer typography
 
 Structured answer copy now uses the compact product reading scale instead of an oversized

@@ -509,11 +509,23 @@ window.addEventListener('message', async (message) => {
             if (id.includes('/node_modules/convex/')) {
               return 'convex-runtime';
             }
-            // Editor ecosystem — ALL related packages MUST land in one chunk.
-            // @blocknote/@tiptap/prosemirror have circular init deps; splitting
-            // them across chunks causes "Cannot access X before initialization".
-            // Including the full transitive set (unified/rehype/remark, yjs,
-            // emoji-mart, floating-ui) prevents Rollup from splitting them.
+            // Editor ecosystem: keep each internally coupled family intact.
+            // Splitting the stateful BlockNote/TipTap/ProseMirror graph causes
+            // "Cannot access X before initialization" at runtime.
+            // Markdown syntax/AST packages form a one-way dependency of the
+            // editor runtime. Keep that complete family together, but separate
+            // from the stateful editor graph so neither release chunk grows
+            // beyond the PWA or bundle-budget limits.
+            if (
+              id.includes('/node_modules/unified/') ||
+              id.includes('/node_modules/rehype-') ||
+              id.includes('/node_modules/remark-') ||
+              id.includes('/node_modules/hast-') ||
+              id.includes('/node_modules/mdast-') ||
+              id.includes('/node_modules/unist-')
+            ) {
+              return 'editor-markdown-vendor';
+            }
             if (
               id.includes('/node_modules/@tiptap/') ||
               id.includes('/node_modules/@blocknote/') ||
@@ -524,12 +536,6 @@ window.addEventListener('message', async (message) => {
               id.includes('/node_modules/y-protocols') ||
               id.includes('/node_modules/yjs/') ||
               id.includes('/node_modules/lib0/') ||
-              id.includes('/node_modules/unified/') ||
-              id.includes('/node_modules/rehype-') ||
-              id.includes('/node_modules/remark-') ||
-              id.includes('/node_modules/hast-') ||
-              id.includes('/node_modules/mdast-') ||
-              id.includes('/node_modules/unist-') ||
               id.includes('/node_modules/emoji-mart') ||
               id.includes('/node_modules/@emoji-mart/') ||
               id.includes('/node_modules/@floating-ui/')
@@ -714,10 +720,12 @@ window.addEventListener('message', async (message) => {
             return 'route-calendar';
           }
 
-          // Heavy editors from src
-          if (id.includes('/components/Editor/') || id.includes('UnifiedEditor')) {
-            return 'editor';
-          }
+          // Editor application modules already sit behind lazy route/component
+          // boundaries. Do not force them into one shared chunk: doing so creates
+          // a circular chunk graph with BlockNote, TipTap, Mantine, and React,
+          // which Rolldown resolves by merging the whole graph into a multi-MiB
+          // `editor` chunk. Leaving them unmatched preserves the real lazy
+          // boundaries and keeps every emitted chunk within the release budget.
 
           // Default: shared application code
           return undefined;

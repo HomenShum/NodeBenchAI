@@ -1,111 +1,64 @@
-/**
- * TopNav — unified top horizontal navigation scenarios.
- *
- * Scenario: Returning user navigating /redesign expects parity with cockpit
- *
- * Who:     A returning NodeBench user who has been working in the main
- *          cockpit (which has a sticky top horizontal nav: brand · 5 tabs
- *          · search · theme · profile).  They land on /redesign and
- *          expect the same affordances — without leaving the redesign's
- *          editorial token system.
- * What:    They expect to see (a) the brand mark, (b) all 5 surface tabs
- *          with the active one highlighted, (c) a search chip with the
- *          Ctrl K keyboard hint, (d) a theme toggle, (e) a profile/sign-in
- *          slot.  They expect aria-current on the active tab and Alt+1..5
- *          to jump between surfaces.
- * Scale:   Single-component render.  At production scale this nav
- *          mounts on every desktop /redesign view that isn't the
- *          standalone workspace; correctness here is rendered on
- *          every page load.
- * Duration: Short-running.  No state accumulation.
- * Failure mode covered: missing tab, wrong active state, missing Ctrl K
- *          shortcut chip, palette-trigger callback silently dropped.
- */
-import { describe, expect, it, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render } from "@testing-library/react";
+
 import { TopNav } from "./TopNav";
 
-// The TopNav reaches into Convex auth (account CTA + auth state).
-// In the test environment we stub these to a deterministic guest state.
+const authMocks = vi.hoisted(() => ({
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  state: { isAuthenticated: false, isLoading: false },
+}));
+
 vi.mock("@convex-dev/auth/react", () => ({
-  useAuthActions: () => ({ signIn: vi.fn() }),
+  useAuthActions: () => ({ signIn: authMocks.signIn, signOut: authMocks.signOut }),
 }));
 
 vi.mock("convex/react", () => ({
-  useConvexAuth: () => ({ isAuthenticated: false, isLoading: false }),
+  useConvexAuth: () => authMocks.state,
 }));
 
-function renderTopNav(overrides: Partial<React.ComponentProps<typeof TopNav>> = {}) {
-  const props: React.ComponentProps<typeof TopNav> = {
-    active: "home",
-    onChange: vi.fn(),
-    onOpenPalette: vi.fn(),
-    theme: "light",
-    onToggleTheme: vi.fn(),
-    ...overrides,
-  };
-  const utils = render(
-    <MemoryRouter>
-      <div data-redesign data-redesign-theme="light">
-        <TopNav {...props} />
-      </div>
-    </MemoryRouter>,
-  );
-  return { ...utils, props };
-}
-
-describe("TopNav — unified top horizontal nav (Bug 2)", () => {
-  it("renders all 5 primary nav items in order", () => {
-    const { getByRole } = renderTopNav();
-    const nav = getByRole("navigation", { name: /primary navigation/i });
-    const tabs = nav.querySelectorAll("button");
-    expect(tabs.length).toBe(5);
-    expect(Array.from(tabs).map((b) => b.textContent?.trim())).toEqual([
-      "Home",
-      "Reports",
-      "Chat",
-      "Inbox",
-      "Me",
-    ]);
+describe("TopNav — single-surface header", () => {
+  beforeEach(() => {
+    authMocks.signIn.mockReset();
+    authMocks.signOut.mockReset();
+    authMocks.state.isAuthenticated = false;
+    authMocks.state.isLoading = false;
   });
 
-  it("marks the active item with aria-current=page", () => {
-    const { getByRole } = renderTopNav({ active: "reports" });
-    const nav = getByRole("navigation", { name: /primary navigation/i });
-    const current = nav.querySelectorAll('[aria-current="page"]');
-    expect(current.length).toBe(1);
-    expect(current[0].textContent?.trim()).toBe("Reports");
-  });
-
-  it("exposes the Ctrl K shortcut chip on the search button", () => {
-    const { container } = renderTopNav();
-    const searchBtn = container.querySelector(
-      "[data-rd-topnav-search]",
-    ) as HTMLButtonElement | null;
-    expect(searchBtn).not.toBeNull();
-    expect(searchBtn?.getAttribute("aria-keyshortcuts")).toMatch(/K/);
-    const kbd = container.querySelector("[data-rd-topnav-kbd]");
-    expect(kbd?.textContent?.trim()).toBe("Ctrl K");
-  });
-
-  it("invokes onOpenPalette when the search button is clicked", () => {
-    const { container, props } = renderTopNav();
-    const searchBtn = container.querySelector(
-      "[data-rd-topnav-search]",
-    ) as HTMLButtonElement;
-    fireEvent.click(searchBtn);
-    expect(props.onOpenPalette).toHaveBeenCalledTimes(1);
-  });
-
-  it("invokes onChange when a tab is clicked", () => {
-    const { getByRole, props } = renderTopNav();
-    const nav = getByRole("navigation", { name: /primary navigation/i });
-    const inboxTab = Array.from(nav.querySelectorAll("button")).find(
-      (b) => b.textContent?.trim() === "Inbox",
+  it("keeps identity and utilities without advertising another product surface", () => {
+    const { getByRole, getByText, queryByRole, queryByText } = render(
+      <TopNav theme="light" onToggleTheme={vi.fn()} />,
     );
-    expect(inboxTab).toBeDefined();
-    fireEvent.click(inboxTab!);
-    expect(props.onChange).toHaveBeenCalledWith("inbox");
+
+    expect(getByRole("banner")).toBeTruthy();
+    expect(getByRole("link", { name: "NodeBench decision workspace" })).toHaveAttribute("href", "/redesign/chat");
+    expect(getByText("Decision workspace")).toBeTruthy();
+    expect(getByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(getByRole("button", { name: "Switch to dark mode" })).toBeTruthy();
+    expect(queryByRole("navigation")).toBeNull();
+    expect(queryByText("Home")).toBeNull();
+    expect(queryByText("Reports")).toBeNull();
+    expect(queryByText("Inbox")).toBeNull();
+    expect(queryByText("Me")).toBeNull();
+  });
+
+  it("keeps theme switching explicit and keyboard reachable", () => {
+    const onToggleTheme = vi.fn();
+    const { getByRole } = render(<TopNav theme="light" onToggleTheme={onToggleTheme} />);
+    fireEvent.click(getByRole("button", { name: "Switch to dark mode" }));
+    expect(onToggleTheme).toHaveBeenCalledTimes(1);
+  });
+
+  it("labels authentication honestly", () => {
+    const { getByRole } = render(<TopNav theme="light" onToggleTheme={vi.fn()} />);
+    fireEvent.click(getByRole("button", { name: "Sign in" }));
+    expect(authMocks.signIn).toHaveBeenCalledWith("google", expect.objectContaining({ redirectTo: expect.any(String) }));
+  });
+
+  it("gives signed-in users a keyboard-reachable account menu", () => {
+    authMocks.state.isAuthenticated = true;
+    const { getByRole } = render(<TopNav theme="light" onToggleTheme={vi.fn()} />);
+
+    expect(getByRole("button", { name: "Account menu" })).toHaveAttribute("aria-haspopup", "menu");
   });
 });

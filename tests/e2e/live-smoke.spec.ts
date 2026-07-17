@@ -29,7 +29,7 @@
  * hydrate and render the correct component for the route".
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { installVercelPreviewBypass } from "./helpers/vercelPreview";
 
 const BASE_URL =
@@ -44,11 +44,20 @@ test.describe("live-smoke — Tier B hydrated-DOM verification", () => {
     await installVercelPreviewBypass(page, BASE_URL);
   });
 
+  async function expectSingleWorkspace(page: Page) {
+    await expect(page).toHaveURL(/\/redesign\/chat(?:[/?#]|$)/);
+    await expect(page.locator('[data-product-surface="decision-workspace"]')).toHaveCount(1);
+    await expect(page.getByTestId("one-surface-workspace")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("textarea:visible")).toHaveCount(1);
+    await expect(page.locator("nav")).toHaveCount(0);
+  }
+
   test("landing renders after hydration", async ({ page }) => {
     await page.goto(BASE_URL + "/");
-    // After hydration there must be AT LEAST one element with real content —
-    // picking <h1> as the universal "page has content" signal.
-    await expect(page.locator("h1").first()).toBeVisible({ timeout: 15_000 });
+    await expectSingleWorkspace(page);
+    await expect(
+      page.getByRole("heading", { name: "What do you need to know?" }),
+    ).toBeVisible();
   });
 
   test("/share/{dummy} renders 'Link not found' StatusCard", async ({ page }) => {
@@ -90,65 +99,31 @@ test.describe("live-smoke — Tier B hydrated-DOM verification", () => {
     });
   });
 
-  test("/reports/:slug/graph mounts ReportDetailWorkspace", async ({ page }) => {
+  test("/reports/:slug/graph opens map context in the single workspace", async ({ page }) => {
     const response = await page.goto(BASE_URL + "/reports/acme-ai/graph");
     expect(response?.status()).toBe(200);
-    // ReportDetailPage falls back to fixture cards in demo mode so this
-    // assertion does not require the Convex ontology to be populated.
-    await expect(
-      page.locator('[data-testid="report-detail-workspace"]'),
-    ).toBeVisible({ timeout: 20_000 });
-    // Cards tab is the default; expect at least one card + the breadcrumb.
-    await expect(
-      page.locator('[data-testid="resource-card"]').first(),
-    ).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('[aria-label="Breadcrumb"]')).toBeVisible();
+    await expectSingleWorkspace(page);
+    await expect(page).toHaveURL(/\/redesign\/chat\?report=acme-ai&artifact=map/);
+    await expect(page.getByText(/map context/i).first()).toBeVisible();
+    await expect(page.locator('[data-testid="report-detail-workspace"]')).toHaveCount(0);
   });
 
-  test("/?surface=reports shows one honest runtime state", async ({ page }) => {
+  test("/?surface=reports retires the reports rail into the single workspace", async ({ page }) => {
     const response = await page.goto(BASE_URL + "/?surface=reports");
     expect(response?.status()).toBe(200);
-    const reports = page.getByTestId("reports-performance-root");
-    await expect(reports).toBeVisible({ timeout: 20_000 });
-    await expect
-      .poll(() => reports.getAttribute("data-reports-source"), { timeout: 20_000 })
-      .not.toBe("loading");
-
-    const state = await reports.evaluate((node) => ({
-      loading: node.querySelectorAll('[data-testid="reports-loading"]').length,
-      empty: node.querySelectorAll('[data-testid="reports-empty"]').length,
-      cards: node.querySelectorAll('[data-testid="report-card"]').length,
-    }));
-    expect(Number(state.loading > 0) + Number(state.empty > 0) + Number(state.cards > 0)).toBe(1);
-    await expect(reports).not.toContainText(/Orbital Labs|DISCO|Mercor/i);
-
-    if (state.cards > 0) {
-      const firstCard = reports.locator('[data-testid="report-card"]').first();
-      const actionRow = firstCard.locator('[data-testid="report-card-actions"]');
-      await expect(actionRow).toBeVisible();
-      await expect(firstCard.getByRole("button", { name: /Open .* report/i })).toBeVisible();
-      await expect(actionRow.getByRole("button", { name: /Resume report chat/i })).toBeVisible();
-    }
+    await expectSingleWorkspace(page);
+    await expect(page.getByTestId("reports-performance-root")).toHaveCount(0);
   });
 
-  test("/workspace/w/:id mounts UniversalWorkspacePage chromelessly", async ({ page }) => {
-    // Workspace is a separate deploy surface per docs/design/PRODUCT_SURFACES.md.
-    // On the main domain the path `/workspace/*` triggers the chromeless shell
-    // (the same bundle rendered via `workspace.nodebenchai.com` once DNS is live).
+  test("main-host /workspace/w/:id converges on the single workspace", async ({ page }) => {
+    // Dedicated workspace hosts retain their separate delivery surface. On the
+    // main product host, workspace paths must not resurrect a second app shell.
     const response = await page.goto(BASE_URL + "/workspace/w/acme-ai?tab=brief");
     expect(response?.status()).toBe(200);
-    // Chromeless shell: assert the stable runtime contact and current report-shell
-    // contract rather than retired fixture-era copy.
-    const workspace = page.locator(
-      '[data-agent-contact="standalone-workspace-runtime"]',
-    );
-    await expect(workspace).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("heading", { name: "acme-ai" })).toBeVisible();
-    await expect(page.getByText("WORKSPACE", { exact: true })).toBeVisible();
+    await expectSingleWorkspace(page);
     await expect(
-      page.getByText("Detail pending - report shell active", { exact: true }),
-    ).toBeVisible();
-    await expect(page.locator("[data-rd-topnav]")).toHaveCount(0);
+      page.locator('[data-agent-contact="standalone-workspace-runtime"]'),
+    ).toHaveCount(0);
   });
 
   test("console has no uncaught errors during landing load", async ({ page }) => {

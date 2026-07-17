@@ -185,7 +185,7 @@ function SessionContextPanel({ snapshot }: { snapshot: AgentRailSnapshot }) {
 
       {contract.reviewHref && (
         <div className="chat-run-handoff">
-          <a href={contract.reviewHref}>Open review workspace <span aria-hidden="true">→</span></a>
+          <a href={contract.reviewHref}>Review sources here <span aria-hidden="true">→</span></a>
           <small>Inspect sources and proposed changes before any shared write.</small>
         </div>
       )}
@@ -426,8 +426,8 @@ function buildFallbackAgentSnapshot(detail: LiveArtifactDetail | undefined, isLo
     ],
     artifacts: hasDetail
       ? [
-          { id: "artifact", label: detail.title, status: "done", detail: detail.kind, href: `/redesign/workspace?report=${encodeURIComponent(detail.id)}&tab=brief` },
-          { id: "notebook", label: "Notebook handoff", status: detail.notebookHtml ? "done" : "queued", detail: detail.notebookHtml ? "Draft available" : "No notebook draft yet", href: `/redesign/workspace?report=${encodeURIComponent(detail.id)}&tab=notebook` },
+          { id: "artifact", label: detail.title, status: "done", detail: detail.kind, href: `/redesign/chat?report=${encodeURIComponent(detail.id)}&artifact=brief` },
+          { id: "notebook", label: "Notebook handoff", status: detail.notebookHtml ? "done" : "queued", detail: detail.notebookHtml ? "Draft available" : "No notebook draft yet", href: `/redesign/chat?report=${encodeURIComponent(detail.id)}&artifact=notebook` },
         ]
       : [{ id: "empty", label: "No artifacts yet", status: "queued", detail: "Start with a question, source, or report." }],
     backgroundAgents: [
@@ -623,10 +623,10 @@ function GraphPanel({ detail, nodes }: { detail?: LiveArtifactDetail; nodes: Arr
         {detail ? (
           <a
             className="rd-btn rd-btn--quiet rd-btn--sm"
-            href={`/redesign/workspace?report=${encodeURIComponent(detail.id)}&tab=map`}
+            href={`/redesign/chat?report=${encodeURIComponent(detail.id)}&artifact=map`}
             style={{ padding: "1px 6px", fontSize: 10, textDecoration: "none" }}
           >
-            Open Map
+            Use map context
           </a>
         ) : (
           <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)" }}>No map yet</span>
@@ -705,17 +705,17 @@ function ThreadsPanel({ detail }: { detail?: LiveArtifactDetail }) {
     {
       title: detail ? `Review ${detail.kind.toLowerCase()} claims` : "Start a research thread",
       when: detail?.updatedAt ?? "now",
-      href: detail ? `/redesign/workspace?report=${encodeURIComponent(detail.id)}&tab=chat` : "/redesign/chat",
+      href: detail ? `/redesign/chat?report=${encodeURIComponent(detail.id)}` : "/redesign/chat",
     },
     {
-      title: detail ? "Open notebook handoff" : "Attach sources",
+      title: detail ? "Use notebook context" : "Attach sources",
       when: "next",
-      href: detail ? `/redesign/workspace?report=${encodeURIComponent(detail.id)}&tab=notebook` : "/redesign/workspace?tab=sources",
+      href: detail ? `/redesign/chat?report=${encodeURIComponent(detail.id)}&artifact=notebook` : "/redesign/chat?intent=sources",
     },
     {
-      title: detail ? "Export reusable memory" : "Create report",
+      title: detail ? "Use brief context" : "Find saved research",
       when: "later",
-      href: detail ? `/redesign/workspace?report=${encodeURIComponent(detail.id)}&tab=brief` : "/redesign/reports",
+      href: detail ? `/redesign/chat?report=${encodeURIComponent(detail.id)}&artifact=brief` : "/redesign/chat?intent=reports",
     },
   ];
 
