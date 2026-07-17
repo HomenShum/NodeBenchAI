@@ -1,0 +1,65 @@
+# Nightly design loop — the hand-run capture → contract → review loop, on a
+# cadence. Builds main, serves the production bundle, executes every surface
+# contract (fails the run on drift), captures the 4-variant screenshot set,
+# and uploads both as artifacts so any agent or human can review the visual
+# state of the app each morning without rebuilding anything.
+name: Nightly design loop
+
+on:
+  schedule:
+    - cron: "17 9 * * *" # 09:17 UTC ≈ 2:17am PT, after the day's merges settle
+  workflow_dispatch: {}
+
+env:
+  VITE_CONVEX_URL: ${{ secrets.CONVEX_URL || vars.CONVEX_URL || 'https://agile-caribou-964.convex.cloud' }}
+
+jobs:
+  design-loop:
+    name: Contract sweep + screenshot capture
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          package-manager-cache: false
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Serve bundle
+        run: |
+          npx vite preview --host 127.0.0.1 --port 4173 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4173/ > /dev/null && break
+            sleep 1
+          done
+
+      - name: Execute surface contracts (fails on drift)
+        env:
+          BASE_URL: http://127.0.0.1:4173
+        run: npx playwright test tests/e2e/ui-contract-runner.spec.ts --project=chromium --workers=1 --reporter=line
+
+      - name: Capture 4-variant screenshot set
+        env:
+          BASE_URL: http://127.0.0.1:4173
+          DOGFOOD_SCREENSHOT_DIR: nightly-captures
+        run: npx playwright test tests/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1 --reporter=line
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-design-loop-${{ github.run_id }}
+          path: |
+            nightly-captures/
+            playwright-report/
+          retention-days: 14

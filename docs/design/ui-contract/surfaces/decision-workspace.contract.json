@@ -41,6 +41,22 @@
       "url": "/redesign/chat?report=__contract_missing__&artifact=notebook",
       "expectText": "Notebook context unavailable",
       "forbidText": "Notebook context selected"
+    },
+    {
+      "name": "replay-miss",
+      "why": "an unknown /r/{hash} share link must degrade into the live workspace with an honest banner, never a blank page or a fabricated receipt",
+      "url": "/redesign/chat/r/__contract_missing__",
+      "expectText": "That reproducible answer is unavailable",
+      "expectTestId": "continued-chat-context"
+    },
+    {
+      "name": "mobile-entry-redirect",
+      "why": "since the one-surface contraction (#561) every entry point resolves to the workspace; the legacy mobile shell must not resurface",
+      "url": "/",
+      "viewport": "mobile",
+      "expectUrlPattern": "/redesign/chat",
+      "expectTestId": "one-surface-workspace",
+      "forbidTestId": "mobile-home-surface"
     }
   ],
   "answerPacket": {
