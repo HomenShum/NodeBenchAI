@@ -7,8 +7,11 @@
  *   - Bottom row: `+` tools menu (left) · mic (left) · keyboard hint · circular send (right).
  *   - Tools / paid-tier hints / estimates live behind the dropdown popover, not as a 4-pill row.
  *
- * Spec: "no provider names in UI" — the dropdown shows tiers (Auto / Quick / Deep / Compare),
- * not model names. Provider names appear only in the trace.
+ * Disclosure contract: a paid run must reveal its resolved provider and model
+ * BEFORE submit, not only afterwards in the trace. `DEFAULT_TIERS` therefore
+ * mirrors `modelForTier` in convex/domains/redesign/chatRuns.ts, and a parity
+ * test pins the two together — if they drift, the preflight advertises a model
+ * the runtime does not charge for.
  *
  * Submit: Enter sends. Shift+Enter inserts newline. ⌘↵ also sends.
  */
