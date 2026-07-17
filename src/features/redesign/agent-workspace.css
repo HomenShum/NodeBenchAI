@@ -282,6 +282,7 @@
 }
 
 [data-redesign] .rd-chat-empty {
+  position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -293,13 +294,118 @@
   padding: 28px 0;
 }
 
+/* ── Ember threads — the landing's signature composition ──────────────────
+   Motion identity: one easing ("settle"), three durations. Draw-in runs once
+   on arrival (staggered, < 1s total), then the whole constellation drifts
+   almost imperceptibly. Composer focus warms the threads — the evidence
+   leans in. Reduced motion flattens everything to the static composition. */
+[data-redesign] {
+  --rd-ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --rd-dur-quick: 240ms;
+  --rd-dur-move: 480ms;
+  --rd-dur-enter: 840ms;
+}
+
+[data-redesign] .rd-ember {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--rd-ink-mute);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  transition: opacity var(--rd-dur-move) var(--rd-ease-settle);
+  animation: rd-ember-drift 12s var(--rd-ease-settle) infinite alternate;
+}
+
+[data-redesign] .rd-chat-empty__hero,
+[data-redesign] .rd-chat-empty__chips {
+  position: relative;
+  z-index: 1;
+}
+
+[data-redesign] .rd-ember__thread {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  opacity: 0.26;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: rd-ember-draw var(--rd-dur-enter) var(--rd-ease-settle) both;
+  animation-delay: calc(var(--i) * 110ms);
+}
+
+[data-redesign] .rd-ember__node {
+  fill: var(--rd-accent);
+  opacity: 0.85;
+  animation: rd-ember-node var(--rd-dur-move) var(--rd-ease-settle) both;
+  animation-delay: calc(var(--i) * 110ms);
+}
+
+/* The evidence leans in when the user commits attention to the composer. */
+[data-redesign] .rd-chat-workspace:focus-within .rd-ember {
+  opacity: 0.85;
+}
+
+@keyframes rd-ember-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes rd-ember-node {
+  from { opacity: 0; transform: scale(0.4); transform-origin: center; transform-box: fill-box; }
+  to { opacity: 0.85; transform: scale(1); transform-origin: center; transform-box: fill-box; }
+}
+
+@keyframes rd-ember-drift {
+  from { transform: translateY(0); }
+  to { transform: translateY(-7px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-ember,
+  [data-redesign] .rd-ember__thread,
+  [data-redesign] .rd-ember__node {
+    animation: none;
+  }
+}
+
+/* Narrow viewports: quieter constellation, and the two low side nodes give
+   their space back to the stacked chips. */
+@media (max-width: 760px) {
+  [data-redesign] .rd-ember {
+    opacity: 0.35;
+  }
+  [data-redesign] .rd-ember path:nth-of-type(5),
+  [data-redesign] .rd-ember path:nth-of-type(6),
+  [data-redesign] .rd-ember circle:nth-of-type(5),
+  [data-redesign] .rd-ember circle:nth-of-type(6) {
+    display: none;
+  }
+}
+
 [data-redesign] .rd-chat-empty__hero {
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 [data-redesign] .rd-chat-empty__h {
-  font-size: 24px;
-  line-height: 1.2;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+}
+
+[data-redesign] .rd-chat-empty__tag {
+  margin: 10px 0 0;
+  color: var(--rd-ink-mute);
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+[data-redesign] .rd-chat-empty__tag em {
+  font-style: normal;
+  color: var(--rd-accent-strong);
 }
 
 [data-redesign] .rd-chat-empty__chips {

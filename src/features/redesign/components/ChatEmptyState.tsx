@@ -85,11 +85,70 @@ const STARTERS = [
   { icon: STARTER_ICONS.watch, title: "What's new in my watchlist?", prompt: "Summarize what changed in my watchlist over the last 7 days. Group by signal class." },
 ];
 
+/**
+ * "Ember threads" — the landing's signature composition. Abstract source
+ * nodes whose threads converge into the composer below: the product truth
+ * (answers drawing on evidence) as form, not copy. Deterministic geometry
+ * (no randomness — replay-stable screenshots), aria-hidden decoration, and
+ * the draw-in/drift motion lives entirely in CSS so prefers-reduced-motion
+ * can flatten it to the static composition.
+ */
+const EMBER_NODES: Array<{ x: number; y: number }> = [
+  { x: 96, y: 96 },
+  { x: 232, y: 34 },
+  { x: 598, y: 48 },
+  { x: 756, y: 128 },
+  { x: 152, y: 296 },
+  { x: 694, y: 312 },
+];
+// Past the viewBox floor on purpose: threads clip at the SVG's bottom edge
+// still converging, so they read as running INTO the composer dock below
+// rather than dying in the empty band.
+const EMBER_FOCUS = { x: 420, y: 560 };
+
+function EmberThreads() {
+  return (
+    <svg
+      className="rd-ember"
+      viewBox="0 0 840 520"
+      preserveAspectRatio="xMidYMax meet"
+      aria-hidden="true"
+      data-testid="ember-threads"
+    >
+      {EMBER_NODES.map((node, i) => (
+        <path
+          key={`t-${node.x}`}
+          className="rd-ember__thread"
+          style={{ ["--i" as string]: i }}
+          pathLength={1}
+          d={`M ${node.x} ${node.y} Q ${(node.x + EMBER_FOCUS.x) / 2} ${
+            node.y + (EMBER_FOCUS.y - node.y) * 0.72
+          } ${EMBER_FOCUS.x} ${EMBER_FOCUS.y}`}
+        />
+      ))}
+      {EMBER_NODES.map((node, i) => (
+        <circle
+          key={`n-${node.x}`}
+          className="rd-ember__node"
+          style={{ ["--i" as string]: i }}
+          cx={node.x}
+          cy={node.y}
+          r={3}
+        />
+      ))}
+    </svg>
+  );
+}
+
 export function ChatEmptyState({ onPick, starters = STARTERS }: ChatEmptyStateProps) {
   return (
     <div className="rd-chat-empty">
+      <EmberThreads />
       <div className="rd-chat-empty__hero">
         <h2 className="rd-chat-empty__h">What do you need to know?</h2>
+        <p className="rd-chat-empty__tag">
+          Answers with <em>receipts</em>.
+        </p>
       </div>
 
       <div className="rd-chat-empty__chips">
