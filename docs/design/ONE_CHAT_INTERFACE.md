@@ -51,13 +51,50 @@ never a same-PR flip).
 
 ## Phases
 
-- **A (now)**: ChatAssistantMessage + ChatSurface + ReproducibleChatPage on the
-  new anatomy. Guards rewritten to the new markup (ChatResponseShape.guard,
-  AgentWorkspaceHonesty.guard substrings). Contracts + 92-test suite green.
-  Evidence pairs via `?qaState=answer`.
-- **B**: FastAgentPanel consumes ChatAssistantMessage for overlapping turns.
-- **C**: retire duplicate FastAgentPanel bubble internals + this doc records
-  the removal.
+- **A — COMPLETE (PR #583)**: ChatAssistantMessage + ChatSurface +
+  ReproducibleChatPage on the new anatomy; guards rewritten to the new markup.
+- **B — COMPLETE (PR #584)**: FastAgentPanel consumes ChatAssistantMessage for
+  overlapping completed turns behind an opt-in prop; honest adapter
+  (describeCanonicalAnswerFit / buildCanonicalAnswerProps) never fabricates
+  verification, trace, durations, costs, or router tiers.
+- **C — COMPLETE (this PR)**: adoption is the DEFAULT — the opt-in
+  `preferCanonicalAnswer` prop and the compact-sidebar bypass are deleted; the
+  fit gate alone routes every panel turn. Routing-predicate mirrors collapsed
+  into `adapters/convexToUIParts.ts`. Delete + read-aloud ported into the
+  canonical toolbar (stroke SVGs). Reasoning trigger count made honest (no
+  "0 steps"; count omitted when the section has no step rows).
+
+### Markdown-prose decision (Phase C, recorded)
+
+Markdown-rich completed panel turns (fences / headings / tables / lists /
+links) now ADOPT with `proseFormat="markdown"` on ChatAssistantMessage — a
+strictly additive prop, default `"plain"`, so flagship/receipt callers are
+unchanged. Markdown prose renders through the shared ai-elements streamdown
+renderer (`src/components/ai-elements/streamdown-renderer.tsx`, consumed via
+`MessageResponse`, never edited) and carries NO [N] cite interactivity: panel
+markdown never had bound cites, and the adapter still refuses bare-[N] turns
+outright. Still refused (legacy anatomy retained for them): streaming/live
+turns, agent hierarchy, fusion/memory/media/domain parts,
+`{{cite:}}`/`{{entity:}}`/`@@entity:` token answers, gallery markers, think
+tags, and user turns.
+
+### Phase C removal ledger
+
+Deleted because the gate makes them dead:
+- `preferCanonicalAnswer` prop + its production call-site opt-in (no callers;
+  the gate routes unconditionally).
+- The `compact` bypass inside the adoption memo (gate alone routes; the
+  compact sidebar renders the canonical anatomy for overlapping turns).
+- The bubble's private `getNormalizedToolName` / `isFusionSearchTool` /
+  `isMemoryPlanningToolName` mirrors and the adapter's private copies — ONE
+  shared implementation now lives in `adapters/convexToUIParts.ts`.
+
+Deliberately KEPT: the bubble's compositional renderers (text via
+ReactMarkdown, ToolStep accordions, AISources, ThinkingAccordion, smart
+actions, action bar). Each remains reachable for refused shapes — e.g. a
+completed turn whose prose carries a bare `[N]` or `{{cite:}}` token renders
+the full legacy anatomy including its tool steps and sources — so none of
+them satisfies the unreachability bar for deletion.
 
 ## Definition of done (Phase A)
 

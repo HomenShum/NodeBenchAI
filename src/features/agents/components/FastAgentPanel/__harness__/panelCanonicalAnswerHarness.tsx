@@ -1,11 +1,14 @@
 /**
- * Dev-only visual harness for Phase B of docs/design/ONE_CHAT_INTERFACE.md.
+ * Dev-only visual harness for Phases B + C of docs/design/ONE_CHAT_INTERFACE.md.
  *
- * Renders exactly what FastAgentUIMessageBubble returns for an ADOPTED turn
+ * Renders exactly what FastAgentUIMessageBubble returns for ADOPTED turns
  * (`<PanelCanonicalAnswer {...buildCanonicalAnswerProps(...)} />`) using the
  * real adapter chain (convexToUIParts → describeCanonicalAnswerFit →
- * buildCanonicalAnswerProps) over a fixture message — no Convex providers
- * required, no production route touched. Served only by the Vite dev server:
+ * buildCanonicalAnswerProps) over fixture messages — no Convex providers
+ * required, no production route touched. Phase C added a markdown-rich
+ * adopted turn (proseFormat="markdown", streamdown prose row) below the
+ * plain adopted turn, plus the ported read-aloud/delete toolbar actions.
+ * Served only by the Vite dev server:
  *   npx vite --port 4189
  *   → /src/features/agents/components/FastAgentPanel/__harness__/panel-canonical-answer-harness.html
  *
@@ -71,23 +74,88 @@ const fixture = {
   ],
 } as unknown as UIMessage;
 
-const uiParts = convexToUIParts(fixture);
-const fit = describeCanonicalAnswerFit(uiParts, fixture);
-const mapped = buildCanonicalAnswerProps(uiParts, fixture);
+const MARKDOWN_TEXT = [
+  "## What changed at Acme",
+  "",
+  "Acme closed its **$40M Series B** and published the migration guide:",
+  "",
+  "- Lead investor: [Meridian Capital](https://example.com/meridian)",
+  "- Platform team headcount doubles this quarter",
+  "- Compliance certifications land first",
+  "",
+  "| Metric | Before | After |",
+  "| --- | --- | --- |",
+  "| ARR | $6M | $11M |",
+  "| Pilots converted | 4 | 11 |",
+  "",
+  "```ts",
+  "const runway = raise / burnRate; // 31 months",
+  "```",
+].join("\n");
+
+const markdownFixture = {
+  id: "harness-message-2",
+  key: "harness-thread-0-1",
+  order: 1,
+  stepOrder: 0,
+  status: "success",
+  agentName: "coordinator",
+  role: "assistant",
+  _creationTime: Date.now() - 2 * 60_000,
+  model: "gemini-3.5-flash",
+  text: MARKDOWN_TEXT,
+  parts: [
+    { type: "text", text: MARKDOWN_TEXT },
+    {
+      type: "tool-webSearch",
+      toolCallId: "call-md-1",
+      state: "output-available",
+      input: { query: "Acme migration guide" },
+      output: "Acme published its platform migration guide on Tuesday.",
+    },
+    {
+      type: "source-url",
+      sourceId: "src-md-1",
+      url: "https://example.com/acme-migration-guide",
+      title: "Acme migration guide",
+    },
+  ],
+} as unknown as UIMessage;
+
+function AdoptedTurn({
+  label,
+  message,
+}: {
+  label: string;
+  message: UIMessage;
+}) {
+  const uiParts = convexToUIParts(message);
+  const fit = describeCanonicalAnswerFit(uiParts, message);
+  const mapped = buildCanonicalAnswerProps(uiParts, message);
+  return (
+    <section style={{ marginBottom: 32 }}>
+      <p
+        data-testid={`harness-fit-${label}`}
+        style={{ fontFamily: "monospace", fontSize: 12 }}
+      >
+        [{label}] adoptable={String(fit.adoptable)} proseFormat={mapped.proseFormat}{" "}
+        reasons=[{fit.reasons.join("; ")}]
+      </p>
+      <PanelCanonicalAnswer
+        {...mapped}
+        onRegenerate={() => console.log("regenerate", label)}
+        onReadAloud={() => console.log("read aloud", label)}
+        onDelete={() => console.log("delete", label)}
+      />
+    </section>
+  );
+}
 
 function Harness() {
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
-      <p
-        data-testid="harness-fit"
-        style={{ fontFamily: "monospace", fontSize: 12 }}
-      >
-        adoptable={String(fit.adoptable)} reasons=[{fit.reasons.join("; ")}]
-      </p>
-      <PanelCanonicalAnswer
-        {...mapped}
-        onRegenerate={() => console.log("regenerate")}
-      />
+      <AdoptedTurn label="plain" message={fixture} />
+      <AdoptedTurn label="markdown" message={markdownFixture} />
     </div>
   );
 }
