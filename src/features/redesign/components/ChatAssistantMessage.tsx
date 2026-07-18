@@ -31,6 +31,7 @@ import {
   MessageContent,
   MessageActions,
   MessageAction,
+  MessageResponse,
 } from "@/components/ai-elements/message";
 import { Reasoning, ReasoningTrigger } from "@/components/ai-elements/reasoning";
 import { Tool } from "@/components/ai-elements/tool";
@@ -68,7 +69,11 @@ export type { ChatAnswer };
 // Stroke SVGs, not emoji: color-emoji glyphs ignore the [data-redesign] theme
 // tokens and clash with every other icon on the surface (repo icon rule; the
 // same fix the starter chips got). currentColor lets MessageAction theme them.
-function ActionGlyph({ kind }: { kind: "promote" | "compare" | "share" }) {
+function ActionGlyph({
+  kind,
+}: {
+  kind: "promote" | "compare" | "share" | "readAloud" | "delete";
+}) {
   const paths: Record<typeof kind, ReactNode> = {
     // shield + check — "promote strongest claim"
     promote: (
@@ -91,6 +96,23 @@ function ActionGlyph({ kind }: { kind: "promote" | "compare" | "share" }) {
       <>
         <path d="M7 17 17 7" />
         <path d="M8 7h9v9" />
+      </>
+    ),
+    // speaker + sound wave — "read aloud" (ported from the legacy panel bubble)
+    readAloud: (
+      <>
+        <path d="M11 5 6 9H2v6h4l5 4z" />
+        <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+      </>
+    ),
+    // trash can — "delete message" (ported from the legacy panel bubble)
+    delete: (
+      <>
+        <path d="M3 6h18" />
+        <path d="M8 6V4h8v2" />
+        <path d="m19 6-1 14H6L5 6" />
+        <path d="M10 11v5" />
+        <path d="M14 11v5" />
       </>
     ),
   };
@@ -700,6 +722,15 @@ export interface ChatAssistantMessageProps {
    * callers omit this and keep the DEFAULT_TIERS label.
    */
   receiptTierLabel?: string;
+  /**
+   * How the shortAnswer prose renders (Phase C of ONE_CHAT_INTERFACE).
+   * "plain" (default — flagship/receipt callers unchanged) renders pre-wrap
+   * text with interactive [N] cite chips. "markdown" renders through the
+   * shared ai-elements streamdown renderer for markdown-rich adopted panel
+   * turns. Markdown prose carries NO [N] cite interactivity: panel markdown
+   * never had bound cites, and the adapter refuses bare-[N] turns outright.
+   */
+  proseFormat?: "plain" | "markdown";
   onRegenerate?: (tierOverride?: "free" | "fast" | "deep") => void;
   onPin?: () => void;
   onAddFollowUp?: () => void;
@@ -708,6 +739,10 @@ export interface ChatAssistantMessageProps {
   onShare?: () => void;
   /** When set, 👍/👎 persist via recordReaction. */
   onReact?: (kind: "up" | "down") => void;
+  /** When set, a delete action renders in the toolbar (panel port). */
+  onDelete?: () => void;
+  /** When set, a read-aloud action renders in the toolbar (panel port). */
+  onReadAloud?: () => void;
   /** When set, "Probe without [N]" re-runs the model with that source masked. */
   onProbeRunWithoutSource?: (maskedSourceIdx: number) => void;
 }
@@ -723,6 +758,7 @@ export function ChatAssistantMessage({
   receiptCostUsd,
   variant = "live",
   receiptTierLabel,
+  proseFormat = "plain",
   onRegenerate,
   onPin,
   onAddFollowUp,
@@ -730,6 +766,8 @@ export function ChatAssistantMessage({
   onCompare,
   onShare,
   onReact,
+  onDelete,
+  onReadAloud,
   onProbeRunWithoutSource,
 }: ChatAssistantMessageProps) {
   const tierMeta = DEFAULT_TIERS.find((t) => t.id === tier) ?? DEFAULT_TIERS[0];
@@ -738,6 +776,15 @@ export function ChatAssistantMessage({
   const [sourcesOpen, setSourcesOpen] = useState(false);
 
   const researchStages = buildResearchStages(toolCalls ?? packet.trace);
+  // Honest step count for the Reasoning trigger (Phase C "0 steps" fix): the
+  // count must reflect what the section actually renders. The trace list
+  // inside the section renders packet.trace rows, so trace-backed turns keep
+  // that count (buildResearchStages template-matches and can ground FEWER
+  // stages than trace rows — pure stages-length would change flagship
+  // output). Trace-less turns fall back to the checklist stage count. Zero
+  // renders no count at all — never "0 steps".
+  const reasoningStepCount =
+    packet.trace.length > 0 ? packet.trace.length : researchStages.length;
   // The "panel" variant never suppresses Sources: panel packets are always
   // compact-shaped (no memo fields) yet their evidence rows are the core
   // trust surface, not memo furniture.
@@ -780,7 +827,15 @@ export function ChatAssistantMessage({
 
   const showActions =
     variant !== "receipt" &&
-    Boolean(onReact || onRegenerate || onPin || onCompare || onShare);
+    Boolean(
+      onReact ||
+        onRegenerate ||
+        onPin ||
+        onCompare ||
+        onShare ||
+        onDelete ||
+        onReadAloud,
+    );
 
   return (
     <Message
@@ -815,6 +870,14 @@ export function ChatAssistantMessage({
         <div className="rd-answer-prose">
           {isStructuredAnswer(packet.shortAnswer) ? (
             <pre className="rd-answer-structured">{packet.shortAnswer}</pre>
+          ) : proseFormat === "markdown" ? (
+            /* Markdown-rich adopted turns (Phase C) render through the shared
+               ai-elements streamdown renderer (MessageResponse lazy-loads
+               streamdown-renderer.tsx with a plain-text Suspense fallback).
+               No [N] cite interactivity here by design. */
+            <div className="rd-answer-copy rd-answer-copy--markdown">
+              <MessageResponse>{packet.shortAnswer}</MessageResponse>
+            </div>
           ) : (
             <TooltipProvider delayDuration={180}>
               <p className="rd-answer-copy">
@@ -880,9 +943,11 @@ export function ChatAssistantMessage({
           <Reasoning defaultOpen={false} className="rd-answer-disclosure rd-answer-reasoning">
             <ReasoningTrigger className="rd-answer-disclose">
               <span className="rd-eyebrow rd-answer-disclose__label">Reasoning</span>
-              <span className="rd-mono rd-answer-disclose__meta">
-                {packet.trace.length} step{packet.trace.length === 1 ? "" : "s"}
-              </span>
+              {reasoningStepCount > 0 && (
+                <span className="rd-mono rd-answer-disclose__meta">
+                  {reasoningStepCount} step{reasoningStepCount === 1 ? "" : "s"}
+                </span>
+              )}
             </ReasoningTrigger>
             <CollapsibleContent className="rd-answer-disclosure__body rd-stack" style={{ gap: 10 }}>
               {researchStages.length > 0 && (
@@ -1002,6 +1067,11 @@ export function ChatAssistantMessage({
           <FeedbackButton copyText={`${packet.shortAnswer}\n\n${packet.whyItMatters}`.trim()} />
           <FeedbackThumb kind="up" onReact={onReact} />
           <FeedbackThumb kind="down" onReact={onReact} onRegenerate={onRegenerate} />
+          {onReadAloud && (
+            <MessageAction tooltip="Read aloud" label="Read message aloud" className="rd-answer-action" onClick={onReadAloud}>
+              <ActionGlyph kind="readAloud" />
+            </MessageAction>
+          )}
           {onPin && (
             <MessageAction tooltip="Promote strongest claim" label="Promote claim" className="rd-answer-action" onClick={onPin}>
               <ActionGlyph kind="promote" />
@@ -1015,6 +1085,11 @@ export function ChatAssistantMessage({
           {onShare && (
             <MessageAction tooltip="Copy reproducible share link" label="Share reproducible link" className="rd-answer-action" onClick={onShare}>
               <ActionGlyph kind="share" />
+            </MessageAction>
+          )}
+          {onDelete && (
+            <MessageAction tooltip="Delete message" label="Delete message" className="rd-answer-action" onClick={onDelete}>
+              <ActionGlyph kind="delete" />
             </MessageAction>
           )}
         </MessageActions>

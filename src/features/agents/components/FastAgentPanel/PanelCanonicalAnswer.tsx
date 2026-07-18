@@ -45,6 +45,9 @@ function useHostTheme(): "dark" | "light" {
 
 export interface PanelCanonicalAnswerProps extends CanonicalAnswerProps {
   onRegenerate?: () => void;
+  /** Phase C ports of the legacy bubble action bar. */
+  onDelete?: () => void;
+  onReadAloud?: () => void;
 }
 
 export function PanelCanonicalAnswer({
@@ -53,7 +56,10 @@ export function PanelCanonicalAnswer({
   workingNotesMarkdown,
   createdAt,
   receiptTierLabel,
+  proseFormat,
   onRegenerate,
+  onDelete,
+  onReadAloud,
 }: PanelCanonicalAnswerProps) {
   const theme = useHostTheme();
   return (
@@ -70,10 +76,13 @@ export function PanelCanonicalAnswer({
         tier="auto"
         variant="panel"
         receiptTierLabel={receiptTierLabel}
+        proseFormat={proseFormat}
         toolCalls={toolCalls.length > 0 ? toolCalls : undefined}
         workingNotesMarkdown={workingNotesMarkdown}
         createdAt={createdAt}
         onRegenerate={onRegenerate ? () => onRegenerate() : undefined}
+        onDelete={onDelete}
+        onReadAloud={onReadAloud}
       />
     </div>
   );

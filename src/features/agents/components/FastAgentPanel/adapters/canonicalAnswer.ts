@@ -20,73 +20,91 @@
  *     (or "agent run") instead of a flagship tier the panel never routed.
  *
  * Turns that CANNOT be mapped without fabrication or rendering regression
- * stay on the legacy bubble anatomy (expand–contract: Phase C retires it).
+ * stay on the legacy bubble anatomy. Since Phase C, adoption is the DEFAULT
+ * (no opt-in prop): this gate alone routes every panel turn, and markdown-rich
+ * completed turns adopt with proseFormat="markdown".
  */
 
 import type { UIMessage } from "@convex-dev/agent/react";
 import type { ChatAnswer } from "@/features/redesign/hooks/useRedesignChatRun";
 import type { ToolCall } from "@/features/redesign/components/ChatToolCall";
-import type {
-  ConvexUIParts,
-  NormalizedToolPart,
-  SourcePart,
+import {
+  getNormalizedToolName,
+  isFusionSearchToolName,
+  isMemoryPlanningToolName,
+  type ConvexUIParts,
+  type NormalizedToolPart,
+  type SourcePart,
 } from "./convexToUIParts";
 
-// ── Routing predicates (mirrors of the bubble's private route table) ─────────
-// FastAgentPanel.UIMessageBubble keeps these private and imports THIS module,
-// so re-importing them from the bubble would create a cycle. They are small
-// string predicates; the contract tests pin that both sides agree.
-
-function getNormalizedToolName(part: NormalizedToolPart): string {
-  return part.type === "dynamic-tool"
-    ? part.toolName
-    : part.type.replace(/^tool-/, "");
-}
-
-function isFusionSearchToolName(toolName: string): boolean {
-  return (
-    toolName === "fusionSearch" ||
-    toolName === "quickSearch" ||
-    (toolName.includes("fusion") && toolName.includes("Search"))
-  );
-}
-
-function isMemoryPlanningToolName(toolName: string): boolean {
-  return ["createPlan", "updatePlanStep", "writeMemory", "logEpisodic"].some(
-    (name) => toolName.includes(name),
-  );
-}
+// Routing predicates live in ./convexToUIParts — ONE source of truth shared
+// with the legacy bubble renderer (Phase C collapsed the per-file mirrors).
 
 // ── Eligibility ──────────────────────────────────────────────────────────────
 
 /**
- * Prose the flagship component can render faithfully is plain text with no
- * block-level Markdown, no panel token systems, and no gallery markers. The
- * flagship prose row renders plain text with [N] cite chips — Markdown would
- * render literally (a regression, not a crash), and panel citation tokens
- * ({{cite:...}}) belong to the panel's own hover system. Each pattern here is
- * a named reason so tests and the Phase C ledger can see WHY a turn stayed on
- * the legacy anatomy.
+ * Prose the flagship component cannot render faithfully in EITHER prose
+ * format stays on the legacy anatomy. Since Phase C, block-level Markdown is
+ * no longer a refusal: markdown-rich completed turns adopt with
+ * proseFormat="markdown" (rendered by the shared ai-elements streamdown
+ * renderer, with no [N] cite interactivity). What still refuses: panel token
+ * systems ({{cite:...}}, @@entity:...@@ belong to the panel's own hover
+ * system), think tags, gallery/selection markers, and bare [N] references.
+ * Each pattern is a named reason so tests can see WHY a turn stayed legacy.
  */
 const BLOCKED_TEXT_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/```/, "code fence"],
-  [/^\s{0,3}#{1,6}\s/m, "markdown heading"],
-  [/^\s*\|.*\|\s*$/m, "markdown table"],
-  [/^\s*(?:[-*+]|\d+[.)])\s+/m, "markdown list"],
-  [/\]\(/, "markdown link or image"],
   [/<think>/, "inline think tag"],
   [/\{\{(?:cite|entity|arbitrage|fact):/, "panel citation/entity token"],
+  [/@@entity:/, "panel citation/entity token"],
   [/<!--\s*[A-Z_]+_DATA/, "gallery/selection marker"],
   // A bare [3] in panel prose is a model-authored reference with no evidence
   // binding. Mapping sources to idx 1..n would FABRICATE a citation binding
-  // the runtime never made, so such turns are not adopted.
+  // the runtime never made, so such turns are not adopted — in plain OR
+  // markdown format (markdown prose has no cite binding either).
   [/\[\d+\]/, "unbound numeric citation"],
+];
+
+/**
+ * Block-level Markdown signals (Phase C). A completed turn whose prose
+ * matches any of these adopts with proseFormat="markdown" instead of staying
+ * on the legacy anatomy. Inline emphasis alone stays "plain" — the flagship
+ * plain row renders it as-is, exactly as Phase B did.
+ */
+const MARKDOWN_SIGNAL_PATTERNS: ReadonlyArray<RegExp> = [
+  /```/, // code fence
+  /^\s{0,3}#{1,6}\s/m, // heading
+  /^\s*\|.*\|\s*$/m, // table row
+  /^\s*(?:[-*+]|\d+[.)])\s+/m, // list item
+  /\]\(/, // link or image
 ];
 
 export interface CanonicalAnswerFit {
   adoptable: boolean;
   /** Human-readable reasons the turn stayed on the legacy anatomy. */
   reasons: string[];
+}
+
+/** Materialized text plus every raw text part — the gate and the mapper must
+ *  look at the same prose surface or a marker could slip between them. */
+function proseCandidatesOf(uiParts: ConvexUIParts): string[] {
+  return [
+    uiParts.text,
+    ...uiParts.renderParts.flatMap((entry) =>
+      entry.kind === "text" ? [entry.part.text] : [],
+    ),
+  ];
+}
+
+/** Phase C: does the adopted prose need the markdown renderer? */
+export function detectProseFormat(
+  uiParts: ConvexUIParts,
+): "plain" | "markdown" {
+  const candidates = proseCandidatesOf(uiParts);
+  return MARKDOWN_SIGNAL_PATTERNS.some((pattern) =>
+    candidates.some((candidate) => pattern.test(candidate)),
+  )
+    ? "markdown"
+    : "plain";
 }
 
 const COMPLETED_STATUSES = new Set(["success", "complete"]);
@@ -120,12 +138,7 @@ export function describeCanonicalAnswerFit(
   // Scan BOTH the materialized text and every raw text part: a marker or
   // token present only in a part would otherwise slip past the gate while the
   // legacy renderer still extracts meaning from it.
-  const proseCandidates = [
-    uiParts.text,
-    ...uiParts.renderParts.flatMap((entry) =>
-      entry.kind === "text" ? [entry.part.text] : [],
-    ),
-  ];
+  const proseCandidates = proseCandidatesOf(uiParts);
   for (const [pattern, label] of BLOCKED_TEXT_PATTERNS) {
     if (proseCandidates.some((candidate) => pattern.test(candidate))) {
       reasons.push(`prose contains ${label}`);
@@ -165,6 +178,8 @@ export interface CanonicalAnswerProps {
   createdAt?: number;
   /** Honest receipt label: the actual model, never a fabricated router tier. */
   receiptTierLabel: string;
+  /** Phase C: markdown-rich adopted turns render via the streamdown prose row. */
+  proseFormat: "plain" | "markdown";
 }
 
 function toolCallStatus(part: NormalizedToolPart): ToolCall["status"] {
@@ -263,5 +278,6 @@ export function buildCanonicalAnswerProps(
     ...(reasoning ? { workingNotesMarkdown: reasoning } : {}),
     ...(createdAt !== undefined ? { createdAt } : {}),
     receiptTierLabel: model ?? "agent run",
+    proseFormat: detectProseFormat(uiParts),
   };
 }

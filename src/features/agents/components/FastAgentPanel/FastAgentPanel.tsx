@@ -2308,9 +2308,6 @@ export const FastAgentPanel = memo(function FastAgentPanel({
                             searchHighlight={searchQuery || undefined}
                             fontSize={fontSize}
                             compact={isCompactSidebar}
-                            /* Phase B (ONE_CHAT_INTERFACE): completed overlapping
-                               turns adopt the canonical ChatAssistantMessage. */
-                            preferCanonicalAnswer
                           />
                           {/* Save to notebook — appears under completed assistant
                               responses when the user is on an entity page. Writes

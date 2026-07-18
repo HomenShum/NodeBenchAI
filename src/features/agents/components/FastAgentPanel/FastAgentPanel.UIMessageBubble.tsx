@@ -124,11 +124,15 @@ import { formatBriefDateTime } from '@/lib/briefDate';
 import { useMessageHandlers } from './MessageHandlersContext';
 import {
   convexToUIParts,
+  getNormalizedToolName,
+  isFusionSearchToolName,
+  isMemoryPlanningToolName,
   type ConvexUIRenderPart,
   type DomainCategory,
   type NormalizedToolPart,
 } from './adapters/convexToUIParts';
-// Phase B (ONE_CHAT_INTERFACE): canonical-answer adoption for overlapping turns
+// Canonical-answer adoption (ONE_CHAT_INTERFACE Phase B, default since
+// Phase C): the fit gate alone routes every turn.
 import {
   buildCanonicalAnswerProps,
   describeCanonicalAnswerFit,
@@ -157,16 +161,6 @@ interface FastAgentUIMessageBubbleProps {
   fontSize?: number;
   /** Compact presentation for the cockpit sidebar variant. */
   compact?: boolean;
-  /**
-   * Phase B of docs/design/ONE_CHAT_INTERFACE.md — when set, COMPLETED
-   * assistant turns whose shape overlaps the flagship answer anatomy (prose +
-   * plain tool calls + sources) render the canonical ChatAssistantMessage
-   * instead of the legacy bubble internals. Streaming, markdown-rich, and
-   * domain-rendered turns always keep the legacy anatomy. Default off so
-   * existing callers and the legacy-markup contract tests are unchanged
-   * (expand–contract: the legacy internals retire in Phase C).
-   */
-  preferCanonicalAnswer?: boolean;
 }
 
 /**
@@ -937,16 +931,8 @@ function logFusionPayloadEvent(_event: FusionPayloadEvent): void {
   // });
 }
 
-/**
- * Check if a tool name is a fusion search tool.
- * Used to determine render precedence for fusion results.
- */
-function isFusionSearchTool(toolName: string | undefined): boolean {
-  if (!toolName) return false;
-  return toolName === 'fusionSearch' ||
-    toolName === 'quickSearch' ||
-    toolName.includes('fusion') && toolName.includes('Search');
-}
+// isFusionSearchToolName lives in ./adapters/convexToUIParts — shared with
+// the canonical-answer adoption gate (Phase C collapsed the local mirror).
 
 function formatCitationDateOnly(input?: string): string | null {
   if (!input) return null;
@@ -1521,17 +1507,9 @@ function distributeVisibleParts<
   return distributed;
 }
 
-function getNormalizedToolName(part: NormalizedToolPart): string {
-  return part.type === 'dynamic-tool'
-    ? part.toolName
-    : part.type.replace(/^tool-/, '');
-}
-
-function isMemoryPlanningToolName(toolName: string): boolean {
-  return ['createPlan', 'updatePlanStep', 'writeMemory', 'logEpisodic'].some((name) =>
-    toolName.includes(name)
-  );
-}
+// getNormalizedToolName / isMemoryPlanningToolName live in
+// ./adapters/convexToUIParts — shared with the canonical-answer adoption
+// gate (Phase C collapsed the local mirrors).
 
 function getAvailableToolOutput(part: NormalizedToolPart): unknown {
   return part.state === 'output-available' ? part.output : undefined;
@@ -1755,18 +1733,17 @@ export function FastAgentUIMessageBubble({
   searchHighlight,
   fontSize,
   compact = false,
-  preferCanonicalAnswer = false,
 }: FastAgentUIMessageBubbleProps) {
   const uiParts = useMemo(() => convexToUIParts(message), [message]);
-  // Phase B (ONE_CHAT_INTERFACE): adopt the canonical answer anatomy for
-  // overlapping completed turns. Computed unconditionally (hooks rule); the
+  // ONE_CHAT_INTERFACE Phase C: adoption is the DEFAULT. The fit gate
+  // (describeCanonicalAnswerFit) ALONE routes every turn — no opt-in prop,
+  // no caller-variant bypass. Computed unconditionally (hooks rule); the
   // conditional swap happens at the very end of render, after every hook ran.
   const canonicalAnswer = useMemo(() => {
-    if (!preferCanonicalAnswer || compact) return null;
     const fit = describeCanonicalAnswerFit(uiParts, message);
     if (!fit.adoptable) return null;
     return buildCanonicalAnswerProps(uiParts, message);
-  }, [compact, message, preferCanonicalAnswer, uiParts]);
+  }, [message, uiParts]);
   const toolRenderParts = useMemo(
     () => uiParts.renderParts.filter(isToolRenderPart),
     [uiParts.renderParts],
@@ -1803,7 +1780,7 @@ export function FastAgentUIMessageBubble({
         return { entry, route: 'goal-card' };
       }
 
-      if (part.state === 'output-available' && isFusionSearchTool(toolName)) {
+      if (part.state === 'output-available' && isFusionSearchToolName(toolName)) {
         const fusedSearch = parseFusionSearchOutput(part.output, toolName);
         if (fusedSearch.isValid && fusedSearch.results.length > 0) {
           return { entry, route: 'fused-search', fusedSearch };
@@ -2148,7 +2125,7 @@ export function FastAgentUIMessageBubble({
 
     for (const part of toolResultParts) {
       const toolName = getNormalizedToolName(part);
-      if (!isFusionSearchTool(toolName)) continue;
+      if (!isFusionSearchToolName(toolName)) continue;
 
       const toolOutput = part.state === 'output-available' ? part.output : undefined;
       const parsed = parseFusionSearchOutput(toolOutput, toolName);
@@ -2927,17 +2904,24 @@ export function FastAgentUIMessageBubble({
       } as TextRenderPart)
     : null;
 
-  // Phase B (ONE_CHAT_INTERFACE): overlapping completed turns render the ONE
-  // canonical assistant anatomy. Every hook above already ran, so this swap is
-  // hooks-safe; non-overlapping turns fall through to the legacy anatomy.
+  // ONE_CHAT_INTERFACE (default since Phase C): overlapping completed turns
+  // render the ONE canonical assistant anatomy. Every hook above already ran,
+  // so this swap is hooks-safe; refused turns fall through to the legacy
+  // anatomy (streaming, hierarchy, fusion, memory, media, domain, token
+  // answers, bare-[N] prose, user turns).
   if (canonicalAnswer) {
     const canRegenerate = Boolean(
       onRegenerateMessage || (messageKey && contextHandlers.onRegenerateMessage),
+    );
+    const canDelete = Boolean(
+      onDeleteMessage || (messageId && contextHandlers.onDeleteMessage),
     );
     return (
       <PanelCanonicalAnswer
         {...canonicalAnswer}
         onRegenerate={canRegenerate ? handleRegenerate : undefined}
+        onDelete={canDelete ? handleDelete : undefined}
+        onReadAloud={handleReadAloud}
       />
     );
   }

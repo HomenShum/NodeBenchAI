@@ -559,6 +559,37 @@ function normalizeToolParts(
   return normalized;
 }
 
+// ── Shared tool-routing predicates ──────────────────────────────────────────
+// One source of truth for the tool-name routing rules used by BOTH the legacy
+// bubble renderer and the canonical-answer adoption gate. Phase C of
+// ONE_CHAT_INTERFACE collapsed the per-file mirrors (the bubble and
+// adapters/canonicalAnswer.ts each kept private copies); housing them here
+// avoids a bubble ↔ adapter import cycle.
+
+/** Normalized tool name for a unified/dynamic AI SDK tool part. */
+export function getNormalizedToolName(part: NormalizedToolPart): string {
+  return part.type === "dynamic-tool"
+    ? part.toolName
+    : part.type.replace(/^tool-/, "");
+}
+
+/** Fusion/quick search tools render through FusedSearchResults (panel-only). */
+export function isFusionSearchToolName(toolName: string | undefined): boolean {
+  if (!toolName) return false;
+  return (
+    toolName === "fusionSearch" ||
+    toolName === "quickSearch" ||
+    (toolName.includes("fusion") && toolName.includes("Search"))
+  );
+}
+
+/** Memory/planning tools render through MemoryPill (panel-only). */
+export function isMemoryPlanningToolName(toolName: string): boolean {
+  return ["createPlan", "updatePlanStep", "writeMemory", "logEpisodic"].some(
+    (name) => toolName.includes(name),
+  );
+}
+
 function normalizeDomainType(type: string): string {
   return type
     .replace(/^data-/, "")

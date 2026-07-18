@@ -687,6 +687,73 @@
   color: var(--rd-ink-mute);
 }
 
+/* Markdown-rich adopted turns (Phase C): streamdown output flows as normal
+   block HTML, so the pre-wrap that plain prose needs is reset here. Every
+   wide child (tables, code blocks) scrolls inside its own container. No
+   animation is introduced — nothing to gate on prefers-reduced-motion. */
+[data-redesign] .rd-answer-copy--markdown {
+  white-space: normal;
+  font-size: max(14px, calc(var(--rd-type-answer) - 2px));
+  line-height: 1.6;
+}
+[data-redesign] .rd-answer-copy--markdown h1,
+[data-redesign] .rd-answer-copy--markdown h2,
+[data-redesign] .rd-answer-copy--markdown h3,
+[data-redesign] .rd-answer-copy--markdown h4 {
+  margin: 12px 0 4px;
+  color: var(--rd-ink-strong);
+  font-family: var(--rd-font-display);
+  font-weight: 620;
+  line-height: 1.3;
+}
+[data-redesign] .rd-answer-copy--markdown h1 { font-size: 1.15em; }
+[data-redesign] .rd-answer-copy--markdown h2 { font-size: 1.08em; }
+[data-redesign] .rd-answer-copy--markdown h3,
+[data-redesign] .rd-answer-copy--markdown h4 { font-size: 1em; }
+[data-redesign] .rd-answer-copy--markdown p {
+  margin: 0 0 8px;
+}
+[data-redesign] .rd-answer-copy--markdown ul,
+[data-redesign] .rd-answer-copy--markdown ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+[data-redesign] .rd-answer-copy--markdown li {
+  margin: 2px 0;
+}
+[data-redesign] .rd-answer-copy--markdown code {
+  font-family: var(--rd-font-mono, ui-monospace, monospace);
+  font-size: 0.86em;
+}
+[data-redesign] .rd-answer-copy--markdown pre {
+  overflow-x: auto;
+  border-radius: 8px;
+}
+[data-redesign] .rd-answer-copy--markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+[data-redesign] .rd-answer-copy--markdown th,
+[data-redesign] .rd-answer-copy--markdown td {
+  padding: 4px 10px;
+  border: 1px solid var(--rd-line-faint);
+  text-align: left;
+}
+[data-redesign] .rd-answer-copy--markdown a {
+  color: var(--rd-accent, #d97757);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+[data-redesign] .rd-answer-copy--markdown blockquote {
+  margin: 0 0 8px;
+  padding-left: 12px;
+  border-left: 2px solid var(--rd-line-faint);
+  color: var(--rd-ink-mute);
+}
+
 /* Row 3 — risks callout + nextAction */
 [data-redesign] .rd-answer-risks {
   display: flex;
