@@ -215,6 +215,24 @@ describe("PanelCanonicalAnswer adoption contract (one chat interface, Phases B+C
     expect(mount!.querySelector(".rd-cite")).toBeNull();
   });
 
+  it("renders a markdown TABLE through the markdown prose row, not the raw mono block", () => {
+    // Regression pin (caught visually in the Phase C harness): a markdown
+    // table has >= 2 pipe lines, which also satisfies isStructuredAnswer's
+    // plain-packet table heuristic. proseFormat="markdown" must win or the
+    // adopted turn re-inflates the escaped .rd-answer-structured block.
+    const markdown = "| Metric | Value |\n| --- | --- |\n| ARR | $11M |";
+    render(
+      <FastAgentUIMessageBubble
+        message={message([{ type: "text", text: markdown }], { text: markdown })}
+      />,
+    );
+
+    const mount = canonical();
+    expect(mount).not.toBeNull();
+    expect(mount!.querySelector(".rd-answer-copy--markdown")).not.toBeNull();
+    expect(mount!.querySelector(".rd-answer-structured")).toBeNull();
+  });
+
   it("keeps agent-hierarchy and fusion-search turns on the panel-specific renderers", () => {
     render(
       <FastAgentUIMessageBubble

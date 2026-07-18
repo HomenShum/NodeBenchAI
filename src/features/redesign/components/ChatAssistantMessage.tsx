@@ -868,16 +868,18 @@ export function ChatAssistantMessage({
         {/* Row 2 — PROSE leads. shortAnswer + whyItMatters as one flowing body.
             json/table shapes keep the .rd-answer-structured mono block. */}
         <div className="rd-answer-prose">
-          {isStructuredAnswer(packet.shortAnswer) ? (
-            <pre className="rd-answer-structured">{packet.shortAnswer}</pre>
-          ) : proseFormat === "markdown" ? (
+          {proseFormat === "markdown" ? (
             /* Markdown-rich adopted turns (Phase C) render through the shared
                ai-elements streamdown renderer (MessageResponse lazy-loads
                streamdown-renderer.tsx with a plain-text Suspense fallback).
-               No [N] cite interactivity here by design. */
+               Checked BEFORE isStructuredAnswer: a markdown table would trip
+               the plain-packet pipe-table heuristic and re-inflate the raw
+               mono block. No [N] cite interactivity here by design. */
             <div className="rd-answer-copy rd-answer-copy--markdown">
               <MessageResponse>{packet.shortAnswer}</MessageResponse>
             </div>
+          ) : isStructuredAnswer(packet.shortAnswer) ? (
+            <pre className="rd-answer-structured">{packet.shortAnswer}</pre>
           ) : (
             <TooltipProvider delayDuration={180}>
               <p className="rd-answer-copy">
