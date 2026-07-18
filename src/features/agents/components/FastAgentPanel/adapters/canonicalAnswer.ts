@@ -117,18 +117,27 @@ export function describeCanonicalAnswerFit(
     reasons.push("domain/data part (panel-specific renderer)");
   }
 
+  // Scan BOTH the materialized text and every raw text part: a marker or
+  // token present only in a part would otherwise slip past the gate while the
+  // legacy renderer still extracts meaning from it.
+  const proseCandidates = [
+    uiParts.text,
+    ...uiParts.renderParts.flatMap((entry) =>
+      entry.kind === "text" ? [entry.part.text] : [],
+    ),
+  ];
   for (const [pattern, label] of BLOCKED_TEXT_PATTERNS) {
-    if (pattern.test(uiParts.text)) {
+    if (proseCandidates.some((candidate) => pattern.test(candidate))) {
       reasons.push(`prose contains ${label}`);
     }
   }
 
   for (const entry of uiParts.renderParts) {
-    if (entry.kind === "domain" || entry.kind === "domain-tool") {
-      reasons.push(`${entry.kind} render part (panel-specific renderer)`);
+    if (entry.kind === "domain") {
+      reasons.push("domain render part (panel-specific renderer)");
       continue;
     }
-    if (entry.kind !== "tool") continue;
+    if (entry.kind !== "tool" && entry.kind !== "domain-tool") continue;
     const toolName = getNormalizedToolName(entry.part);
     if (toolName.startsWith("delegateTo")) {
       reasons.push("agent delegation (goal-card hierarchy is panel-specific)");
@@ -138,6 +147,8 @@ export function describeCanonicalAnswerFit(
       reasons.push("fusion search tool (panel-specific renderer)");
     } else if (isMemoryPlanningToolName(toolName)) {
       reasons.push("memory/planning tool (panel-specific memory pill)");
+    } else if (entry.kind === "domain-tool") {
+      reasons.push("domain-tool render part (panel-specific renderer)");
     }
   }
 
