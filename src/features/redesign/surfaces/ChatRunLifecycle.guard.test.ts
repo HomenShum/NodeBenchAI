@@ -11,6 +11,9 @@ describe("durable chat run lifecycle contract", () => {
   const hook = read("src/features/redesign/hooks/useRedesignChatRun.ts");
   const chat = read("src/features/redesign/surfaces/ChatSurface.tsx");
   const composer = read("src/features/redesign/components/UniversalComposer.tsx");
+  // Phase A of docs/design/ONE_CHAT_INTERFACE.md — the RuntimeBoard metric strip
+  // (provider/model/tokens/cost/receipt) lives in the one ChatAssistantMessage.
+  const chatMsg = read("src/features/redesign/components/ChatAssistantMessage.tsx");
 
   it("deduplicates paid submissions by owner and client request id", () => {
     expect(schema).toContain('.index("by_user_client_request", ["userId", "clientRequestId"])');
@@ -40,6 +43,6 @@ describe("durable chat run lifecycle contract", () => {
   it("surfaces stored provider, model, token, cost, and receipt metadata", () => {
     expect(schema).toContain("runtimeReceiptId: v.optional(v.string())");
     expect(hook).toContain("runtimeReceiptId: runRow?.runtimeReceiptId");
-    expect(chat).toContain('<RuntimeMetric label="Receipt"');
+    expect(chatMsg).toContain('<RuntimeMetric label="Receipt"');
   });
 });
