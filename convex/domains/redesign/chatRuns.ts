@@ -1541,6 +1541,88 @@ export const startChat = mutation({
 });
 
 /**
+ * Operator-only showcase mint — runs the REAL chat pipeline for a designated
+ * existing user, for producing the landing page's "answered example" receipt.
+ *
+ * internalMutation: unreachable from any client; invoked exclusively via
+ * `npx convex run` with a deploy key (the repo's sanctioned happy-path-probe
+ * convention, see .claude/rules/backend_contract_migration.md). Nothing is
+ * fabricated: the run goes through startChat's exact insert + runStreamingChat
+ * scheduling, owned by a real email-backed account resolved from ownerEmail,
+ * so quotas, ownership, and privacy semantics are identical to a normal run.
+ */
+export const mintShowcaseRun = internalMutation({
+  args: {
+    prompt: v.string(),
+    tier: v.union(v.literal("fast"), v.literal("auto"), v.literal("deep")),
+    ownerEmail: v.string(),
+    contextRef: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<string> => {
+    const prompt = args.prompt.slice(0, MAX_PROMPT_CHARS);
+    if (prompt.trim().length < 3) throw new Error("Prompt too short.");
+    // Resolve a real, non-anonymous owner. Known auth providers only — an
+    // unknown email fails closed rather than minting an orphaned run.
+    let ownerId: any = null;
+    for (const provider of ["password", "resend", "email", "google"]) {
+      const account = await ctx.db
+        .query("authAccounts")
+        .withIndex("providerAndAccountId", (q: any) =>
+          q.eq("provider", provider).eq("providerAccountId", args.ownerEmail),
+        )
+        .first();
+      if (account) {
+        ownerId = account.userId;
+        break;
+      }
+    }
+    if (!ownerId) {
+      throw new Error(`No non-anonymous account found for ${args.ownerEmail}; refusing to mint an ownerless run.`);
+    }
+    const model = modelForTier(args.tier);
+    const runId = generateRunId();
+    await ctx.db.insert("redesignChatRuns", {
+      runId,
+      userId: ownerId,
+      prompt,
+      tier: args.tier,
+      model,
+      provider: "google-gemini",
+      runtimeReceiptId: `redesign-chat:${runId}`,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+    await ctx.scheduler.runAfter(0, internal.domains.redesign.chatRuns.runStreamingChat, {
+      runId,
+      prompt,
+      tier: args.tier,
+      contextRef: args.contextRef,
+      model,
+    });
+    return runId;
+  },
+});
+
+/** Operator companion to mintShowcaseRun: poll a run's terminal state + hash. */
+export const readRunForOperator = internalQuery({
+  args: { runId: v.string() },
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query("redesignChatRuns")
+      .withIndex("by_runId", (q: any) => q.eq("runId", args.runId))
+      .first();
+    if (!row) return null;
+    return {
+      status: row.status,
+      hash: row.hash ?? null,
+      errorMessage: row.errorMessage ?? null,
+      shortAnswer: row.packet?.shortAnswer?.slice(0, 200) ?? null,
+      sourceCount: row.packet?.sourceCount ?? null,
+    };
+  },
+});
+
+/**
  * Phase 5 — counterfactual probe. Re-runs a prior chat with one source
  * marked unreliable in the system prompt. Looks up the original run by
  * runId, reads the prompt + masked source URL, calls startChat with
