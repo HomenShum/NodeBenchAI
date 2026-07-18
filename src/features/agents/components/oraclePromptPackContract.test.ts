@@ -35,9 +35,15 @@ describe("Oracle prompt pack", () => {
   });
 
   it("documents the anti-one-shot closed loop explicitly", () => {
-    const loop = read("ORACLE_LOOP.md");
+    // The root ORACLE_LOOP.md became a pointer stub during doc consolidation;
+    // the operating loop's content lives in the canonical doc. Assert the stub
+    // still points there, then assert content where it actually lives. (This
+    // test was red on main for exactly this drift — and the pinned tsc command
+    // carried an invalid single-dash `-noEmit` flag, now corrected in the doc.)
+    expect(read("ORACLE_LOOP.md")).toContain("docs/architecture/oracle/LOOP.md");
+    const loop = read("docs/architecture/oracle/LOOP.md");
     expect(loop).toContain("no one-shot");
-    expect(loop).toContain("npx tsc -p convex -noEmit --pretty false");
+    expect(loop).toContain("npx tsc -p convex --noEmit --pretty false");
     expect(loop).toContain("npm run dogfood:verify");
     expect(loop).toContain("Do not accept \"looks correct\" as evidence");
     expect(loop).toContain("self-review as sufficient validation");
