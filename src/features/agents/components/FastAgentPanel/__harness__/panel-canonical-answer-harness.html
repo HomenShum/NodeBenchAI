@@ -3,10 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PanelCanonicalAnswer harness (Phase B evidence)</title>
+    <title>PanelCanonicalAnswer harness (Phase B+C evidence)</title>
     <style>
       body { margin: 0; background: #fbfaf8; }
       html.dark body { background: #0f1011; }
+      /* The app ships this Tailwind utility globally; the harness has no app
+         stylesheet, so replicate it for screenshot fidelity (MessageAction
+         renders an sr-only label). */
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border-width: 0;
+      }
     </style>
   </head>
   <body>

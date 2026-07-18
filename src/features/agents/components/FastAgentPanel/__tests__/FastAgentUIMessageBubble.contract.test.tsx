@@ -61,7 +61,10 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
     stopMock.mockClear();
   });
 
-  it("uses the adapter-backed Message shell and ordered text-part fallback", () => {
+  it("feeds ordered text parts into the canonical prose when no materialized text exists", () => {
+    // Phase C (ONE_CHAT_INTERFACE): a completed plain-prose turn adopts the
+    // canonical anatomy by default, so the ordered text-part fallback now
+    // surfaces as the adapter-joined packet prose instead of legacy owners.
     render(
       <FastAgentUIMessageBubble
         message={message(
@@ -74,12 +77,11 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
       />,
     );
 
-    const article = screen.getByRole("article", { name: "Assistant response" });
-    expect(article).toHaveClass("is-assistant");
-    const orderedText = Array.from(
-      article.querySelectorAll<HTMLElement>('[data-render-part-kind="text"]'),
-    ).map((owner) => owner.textContent?.trim());
-    expect(orderedText).toEqual(["Adapter", "fallback"]);
+    expect(screen.getByTestId("panel-canonical-answer")).toBeInTheDocument();
+    expect(screen.getByText("Adapter fallback")).toBeInTheDocument();
+    expect(
+      document.querySelectorAll('[data-render-part-kind="text"]'),
+    ).toHaveLength(0);
   });
 
   it("keeps Convex smooth streaming for both text and reasoning", () => {
@@ -126,8 +128,11 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
     expect(screen.queryByText(/~\d+\s*tok/i)).not.toBeInTheDocument();
   });
 
-  it("renders one AI Elements tool for one unified AI SDK tool part", () => {
-    render(
+  it("renders one canonical Tool disclosure for one unified AI SDK tool part", () => {
+    // Phase C: a completed turn with prose + one plain tool adopts the
+    // canonical anatomy; the tool re-houses in ONE Tool disclosure whose
+    // expanded card reveals the honest result preview exactly once.
+    const { container } = render(
       <FastAgentUIMessageBubble
         message={message([
           {
@@ -141,10 +146,17 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Used 1 tool" }));
-    const toolTrigger = screen.getByRole("button", { name: /marketLookup/i });
-    expect(screen.getAllByText("marketLookup")).toHaveLength(1);
-    fireEvent.click(toolTrigger);
+    expect(screen.getByTestId("panel-canonical-answer")).toBeInTheDocument();
+    const disclosures = container.querySelectorAll(".rd-answer-tool");
+    expect(disclosures).toHaveLength(1);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Tool · marketLookup/ }),
+    );
+    const toolCard = container.querySelector<HTMLButtonElement>(
+      ".rd-toolcall__head",
+    );
+    expect(toolCard).not.toBeNull();
+    fireEvent.click(toolCard!);
     expect(screen.getAllByText("Unified result sentinel")).toHaveLength(1);
   });
 
@@ -152,7 +164,9 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
     { label: "boolean false", output: false, rendered: "false" },
     { label: "numeric zero", output: 0, rendered: "0" },
   ])("renders the present $label tool output", ({ output, rendered }) => {
-    render(
+    // Phase C: falsy-but-present outputs must still surface — the canonical
+    // Tool card carries them as an honest JSON result preview.
+    const { container } = render(
       <FastAgentUIMessageBubble
         message={message([
           {
@@ -166,15 +180,18 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Used 1 tool" }));
-    fireEvent.click(screen.getByRole("button", { name: /presenceCheck/i }));
-
-    expect(screen.getByText("Result")).toBeInTheDocument();
+    expect(screen.getByTestId("panel-canonical-answer")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Tool · presenceCheck/ }),
+    );
+    fireEvent.click(container.querySelector<HTMLButtonElement>(".rd-toolcall__head")!);
     expect(screen.getByText(rendered)).toBeInTheDocument();
   });
 
-  it("treats an empty-string tool output as present and renders its result shell", () => {
-    render(
+  it("renders an empty-string tool output as a completed call without inventing a result body", () => {
+    // Phase C: the canonical card reports the call as done; an empty output
+    // yields no result preview — honest absence, not a fabricated shell.
+    const { container } = render(
       <FastAgentUIMessageBubble
         message={message([
           {
@@ -188,10 +205,12 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Used 1 tool" }));
-    fireEvent.click(screen.getByRole("button", { name: /emptyResult/i }));
-
-    expect(screen.getByText("Result")).toBeInTheDocument();
+    expect(screen.getByTestId("panel-canonical-answer")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Tool · emptyResult/ }));
+    const toolCard = container.querySelector<HTMLButtonElement>(".rd-toolcall__head");
+    expect(toolCard).not.toBeNull();
+    expect(toolCard).toHaveAttribute("aria-disabled", "true");
+    expect(container.querySelector(".rd-toolcall__result")).toBeNull();
   });
 
   it("gives a structured domain card precedence and invokes its callback once", () => {
@@ -312,8 +331,10 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
     );
   });
 
-  it("renders adapter-routed URL sources once through the Sources primitive", () => {
-    render(
+  it("renders adapter-routed URL sources once through the canonical Sources collapsible", () => {
+    // Phase C: the adopted turn houses its source as ONE evidence row with an
+    // honest empty quote (no fabricated verification badge) and a working link.
+    const { container } = render(
       <FastAgentUIMessageBubble
         message={message([
           {
@@ -326,12 +347,15 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Used 1 sources" }));
+    expect(screen.getByTestId("panel-canonical-answer")).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/1 evidence row/));
     const links = screen.getAllByRole("link", {
-      name: "Evidence source sentinel",
+      name: /Evidence source sentinel/,
     });
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", "https://example.com/evidence");
+    expect(container.querySelectorAll(".rd-evidence-row")).toHaveLength(1);
+    expect(screen.queryByText(/verified in source body/)).toBeNull();
   });
 
   it("keeps canonical Markdown without heuristic confidence or duplicate source projections", () => {
@@ -422,7 +446,9 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders canonical sources and token/model provenance exactly once", () => {
+  it("surfaces model provenance exactly once through the honest receipt line", () => {
+    // Phase C: the adopted turn's receipt line carries the ACTUAL model label
+    // exactly once and never invents latency/cost the panel did not record.
     const { container } = render(
       <FastAgentUIMessageBubble
         message={message(
@@ -442,15 +468,16 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Used 1 sources" }));
+    expect(screen.getByTestId("panel-canonical-answer")).toBeInTheDocument();
     expect(
-      screen.getAllByRole("link", { name: "Provenance source sentinel" }),
-    ).toHaveLength(1);
+      screen.getByText(/gpt-5\.4-mini · 1 source · telemetry not recorded/),
+    ).toBeInTheDocument();
+    expect(container.querySelectorAll(".rd-answer-receipt__line")).toHaveLength(1);
 
-    const provenanceBadges = container.querySelectorAll('[title*="gpt-5.4-mini"]');
-    expect(provenanceBadges).toHaveLength(1);
-    expect(provenanceBadges[0]).toHaveTextContent("1.2K↓");
-    expect(provenanceBadges[0]).toHaveTextContent("345↑");
+    fireEvent.click(screen.getByText(/1 evidence row/));
+    expect(
+      screen.getAllByRole("link", { name: /Provenance source sentinel/ }),
+    ).toHaveLength(1);
   });
 
   it("renders canonical standard owners in their original interleaved order", () => {
@@ -694,6 +721,9 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
   });
 
   it("does not execute assistant-authored JavaScript in the page origin", () => {
+    // Phase C: a fenced-code answer adopts the canonical markdown prose row.
+    // The security intent is unchanged — assistant code renders statically,
+    // with no run affordance and no execution in the page origin.
     render(
       <FastAgentUIMessageBubble
         message={message([{
@@ -703,7 +733,12 @@ describe("FastAgentUIMessageBubble AI Elements contract", () => {
       />,
     );
 
+    expect(screen.getByTestId("panel-canonical-answer")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^run$/i })).not.toBeInTheDocument();
+    expect(
+      (window as Window & { __assistantCodeRan?: boolean }).__assistantCodeRan,
+    ).toBeUndefined();
+    // The canonical toolbar still offers copy.
     expect(screen.getAllByRole("button", { name: /copy/i }).length).toBeGreaterThan(0);
   });
 

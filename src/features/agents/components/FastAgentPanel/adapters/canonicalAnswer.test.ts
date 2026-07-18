@@ -14,6 +14,7 @@ import { convexToUIParts } from "./convexToUIParts";
 import {
   buildCanonicalAnswerProps,
   describeCanonicalAnswerFit,
+  detectProseFormat,
 } from "./canonicalAnswer";
 
 function message(
@@ -69,11 +70,8 @@ describe("describeCanonicalAnswerFit — the overlap gate", () => {
     ["failed turn", [{ type: "text", text: PROSE }], { status: "failed" as const, text: PROSE }, /non-completed status/],
     ["user turn", [{ type: "text", text: PROSE }], { role: "user" as const, text: PROSE }, /not an assistant turn/],
     ["empty prose", [], { text: "" }, /no prose answer/],
-    ["code fence", [{ type: "text", text: "run:\n```sh\nls\n```" }], { text: "run:\n```sh\nls\n```" }, /code fence/],
-    ["markdown table", [{ type: "text", text: "| a | b |\n| 1 | 2 |" }], { text: "| a | b |\n| 1 | 2 |" }, /markdown table/],
-    ["markdown list", [{ type: "text", text: "Items:\n- one\n- two" }], { text: "Items:\n- one\n- two" }, /markdown list/],
-    ["markdown link", [{ type: "text", text: "See [docs](https://x.dev)." }], { text: "See [docs](https://x.dev)." }, /markdown link/],
     ["panel citation token", [{ type: "text", text: "Growth {{cite:feed_1|src}} continues." }], { text: "Growth {{cite:feed_1|src}} continues." }, /citation\/entity token/],
+    ["panel entity token", [{ type: "text", text: "About @@entity:acme|Acme|type:company@@ today." }], { text: "About @@entity:acme|Acme|type:company@@ today." }, /citation\/entity token/],
     ["unbound [N] citation", [{ type: "text", text: "Revenue grew [1]." }], { text: "Revenue grew [1]." }, /unbound numeric citation/],
     ["gallery marker", [{ type: "text", text: "Done <!-- SOURCE_GALLERY_DATA [] -->" }], { text: "Done" }, /gallery\/selection marker/],
     ["file attachment", [{ type: "text", text: PROSE }, { type: "file", url: "https://x.dev/f.pdf", mediaType: "application/pdf" }], { text: PROSE }, /file attachment/],
@@ -90,6 +88,40 @@ describe("describeCanonicalAnswerFit — the overlap gate", () => {
       expect(fit.reasons.join("; ")).toMatch(reasonPattern);
     },
   );
+});
+
+describe("markdown-rich turns adopt with proseFormat=\"markdown\" (Phase C)", () => {
+  it.each([
+    ["code fence", "run:\n```sh\nls\n```"],
+    ["markdown heading", "## Findings\nAcme raised."],
+    ["markdown table", "| a | b |\n| 1 | 2 |"],
+    ["markdown list", "Items:\n- one\n- two"],
+    ["markdown link", "See [docs](https://x.dev)."],
+  ])("adopts a completed turn with a %s", (_label, text) => {
+    const msg = message([{ type: "text", text }], { text });
+    const uiParts = convexToUIParts(msg);
+    expect(describeCanonicalAnswerFit(uiParts, msg)).toEqual({
+      adoptable: true,
+      reasons: [],
+    });
+    expect(detectProseFormat(uiParts)).toBe("markdown");
+    expect(buildCanonicalAnswerProps(uiParts, msg).proseFormat).toBe("markdown");
+  });
+
+  it("keeps plain prose on the plain format — inline emphasis is not a markdown signal", () => {
+    const text = "Acme raised a *new* round and is hiring.";
+    const msg = message([{ type: "text", text }], { text });
+    const uiParts = convexToUIParts(msg);
+    expect(detectProseFormat(uiParts)).toBe("plain");
+    expect(buildCanonicalAnswerProps(uiParts, msg).proseFormat).toBe("plain");
+  });
+
+  it("still refuses markdown that carries a bare [N] reference — no cite binding is fabricated in either format", () => {
+    const text = "## Findings\nRevenue grew [1].";
+    const fit = fitFor([{ type: "text", text }], { text });
+    expect(fit.adoptable).toBe(false);
+    expect(fit.reasons.join("; ")).toMatch(/unbound numeric citation/);
+  });
 });
 
 describe("buildCanonicalAnswerProps — honesty of the mapping", () => {
@@ -123,6 +155,7 @@ describe("buildCanonicalAnswerProps — honesty of the mapping", () => {
     expect(props.packet.whyItMatters).toBe("");
     expect(props.packet.risks).toEqual([]);
     expect(props.packet.nextAction).toBe("");
+    expect(props.proseFormat).toBe("plain");
   });
 
   it("never fabricates trace steps", () => {
