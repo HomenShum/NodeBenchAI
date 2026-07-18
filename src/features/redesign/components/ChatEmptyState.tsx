@@ -167,6 +167,15 @@ export function ChatEmptyState({ onPick, starters = STARTERS }: ChatEmptyStatePr
         ))}
       </div>
 
+      {/* Value before identity: a real, persisted production answer — prompt,
+          evidence rows, model, cost, deterministic hash — reachable in one
+          click with no account and no spend. The route carries the answer
+          into a live composer, so the example IS a usable starting point.
+          Swap the hash when a stronger showcase receipt is minted. */}
+      <a className="rd-chat-empty__example" href="/redesign/chat/r/36imyvtrf0d3">
+        See a real answered example, receipts included →
+      </a>
+
     </div>
   );
 }

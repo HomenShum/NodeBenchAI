@@ -234,7 +234,11 @@ export function LiveResearchChecklist({
           {warnings.length > 0 ? ` · ${warnings.length} flagged` : ""}
         </span>
       </header>
+      {/* rd-run-thread: on the redesign surface an ember thread connects the
+          stage dots and is drawn downward by progress (agent-workspace.css).
+          Inert everywhere else — the class has no styles outside [data-redesign]. */}
       <ol
+        className="rd-run-thread"
         style={{
           listStyle: "none",
           padding: 0,
