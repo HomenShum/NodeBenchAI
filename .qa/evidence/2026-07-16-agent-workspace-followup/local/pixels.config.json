@@ -1,0 +1,42 @@
+{
+  "repo": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai",
+  "url": "http://127.0.0.1:4178/redesign/chat?qa=pixels",
+  "outDir": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.qa/evidence/2026-07-16-agent-workspace-followup/local/pixels",
+  "assert": [
+    "What do you need to know?",
+    "No automatic shared writes",
+    "Run research"
+  ],
+  "shots": [
+    {
+      "name": "desktop-light",
+      "scheme": "light",
+      "viewport": { "width": 1512, "height": 900 },
+      "fullPage": false,
+      "waitMs": 1400
+    },
+    {
+      "name": "mobile-light",
+      "scheme": "light",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": false,
+      "waitMs": 1800
+    },
+    {
+      "name": "desktop-dark",
+      "scheme": "dark",
+      "viewport": { "width": 1512, "height": 900 },
+      "fullPage": false,
+      "waitMs": 1400,
+      "clicks": ["[aria-label=\"Switch to dark mode\"]"]
+    },
+    {
+      "name": "mobile-dark",
+      "scheme": "dark",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": false,
+      "waitMs": 1800,
+      "clicks": ["[aria-label=\"Switch to dark mode\"]"]
+    }
+  ]
+}

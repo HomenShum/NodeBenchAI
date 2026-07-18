@@ -1,0 +1,26 @@
+{
+  "repo": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/prod-parity-runtime",
+  "url": "http://127.0.0.1:4175/redesign/chat",
+  "outDir": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.qa/evidence/2026-07-16-agent-workspace-depth/local",
+  "assert": [
+    "What do you need to know?",
+    "No automatic shared writes",
+    "Run research"
+  ],
+  "shots": [
+    { "name": "chat-desktop-light", "scheme": "light", "viewport": { "width": 1512, "height": 812 }, "fullPage": false, "waitMs": 1200 },
+    { "name": "chat-desktop-dark", "scheme": "dark", "clicks": ["[aria-label=\"Switch to dark mode\"]"], "viewport": { "width": 1512, "height": 812 }, "fullPage": false, "waitMs": 1200 },
+    { "name": "chat-tablet-light", "scheme": "light", "viewport": { "width": 834, "height": 1112 }, "fullPage": false, "waitMs": 1200 },
+    { "name": "chat-mobile-light", "scheme": "light", "viewport": { "width": 390, "height": 844 }, "fullPage": false, "waitMs": 1200 },
+    { "name": "chat-mobile-dark", "scheme": "dark", "clicks": ["[aria-label=\"Switch to dark mode\"]"], "viewport": { "width": 390, "height": 844 }, "fullPage": false, "waitMs": 1200 },
+    {
+      "name": "chat-mobile-anonymous-degraded",
+      "scheme": "light",
+      "clicks": ["text=Find the review gaps"],
+      "assert": ["Live chat is not running", "Sign in with an email-backed account", "No automatic shared writes"],
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": false,
+      "waitMs": 1200
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "repo": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/prod-parity-runtime",
+  "url": "https://www.nodebenchai.com/developers",
+  "outDir": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/prod-parity-runtime/.qa/evidence/2026-07-15-runtime-grounded-control-focus/baseline/developers",
+  "waitMs": 3000,
+  "shots": [
+    {
+      "name": "developers-desktop-light",
+      "scheme": "light",
+      "viewport": { "width": 1512, "height": 900 },
+      "fullPage": true
+    },
+    {
+      "name": "developers-mobile-light",
+      "scheme": "light",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": true
+    }
+  ]
+}

@@ -59,8 +59,11 @@ describe("Scenario: a coding agent reads the manifest before migrating", () => {
 
   it("scopes governance to the AI surface, not the whole app", () => {
     expect(aiSurfaceRoots).toContain("src/components/ai-elements");
-    expect(aiSurfaceRoots).toContain("src/features/agents/components/ai");
+    // The ai/ wrapper layer was removed in the one-chat legacy sweep — the
+    // canonical answer component's home is governed instead.
+    expect(aiSurfaceRoots).toContain("src/features/redesign/components");
     expect(aiSurfaceRoots).toContain("src/features/agents/components/FastAgentPanel");
+    expect(aiSurfaceRoots).not.toContain("src/features/agents/components/ai");
   });
 
   it("records the current migration scoreboard without closing the 56-file program", () => {

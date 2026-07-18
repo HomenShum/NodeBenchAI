@@ -1,0 +1,8 @@
+{
+  "repo": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai",
+  "url": "http://127.0.0.1:4178/redesign/chat?qa=prettify",
+  "outDir": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.qa/evidence/2026-07-16-agent-workspace-followup/local/prettify",
+  "viewport": { "width": 1512, "height": 900 },
+  "scheme": "light",
+  "waitMs": 1400
+}

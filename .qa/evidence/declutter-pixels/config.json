@@ -1,0 +1,50 @@
+{
+  "repo": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai",
+  "url": "https://www.nodebenchai.com/agents",
+  "outDir": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.qa/evidence/declutter-pixels",
+  "assert": ["NodeBench", "Agents"],
+  "shots": [
+    {
+      "name": "agents-desktop-light",
+      "scheme": "light",
+      "viewport": { "width": 1512, "height": 982 },
+      "fullPage": false,
+      "waitMs": 1400
+    },
+    {
+      "name": "agents-desktop-dark",
+      "scheme": "dark",
+      "viewport": { "width": 1512, "height": 982 },
+      "fullPage": false,
+      "waitMs": 1400
+    },
+    {
+      "name": "agents-tablet-light",
+      "scheme": "light",
+      "viewport": { "width": 834, "height": 1112 },
+      "fullPage": false,
+      "waitMs": 1400
+    },
+    {
+      "name": "agents-tablet-dark",
+      "scheme": "dark",
+      "viewport": { "width": 834, "height": 1112 },
+      "fullPage": false,
+      "waitMs": 1400
+    },
+    {
+      "name": "agents-mobile-light",
+      "scheme": "light",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": false,
+      "waitMs": 1400
+    },
+    {
+      "name": "agents-mobile-dark",
+      "scheme": "dark",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": false,
+      "waitMs": 1400
+    }
+  ]
+}
