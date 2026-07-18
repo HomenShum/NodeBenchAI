@@ -38,11 +38,10 @@ import {
 } from "../hooks/useRedesignChatRun";
 import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
 import { buildConversationContext } from "../lib/chatContinuation";
-import { isStructuredAnswer } from "../../../../shared/redesign/answerFormat";
 import { STARTER_ICONS } from "../components/ChatEmptyState";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { LiveResearchChecklist, type ResearchStage, type ResearchStageId } from "../../research/LiveResearchChecklist";
+import { LiveResearchChecklist } from "../../research/LiveResearchChecklist";
 import {
   Conversation,
   ConversationContent,
@@ -53,18 +52,6 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ai-ui/dialog";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ai-ui/context-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ai-ui/tooltip";
 
 /**
  * Sprint 4 P2.13 — deterministic reproducibility hash for an answer.
@@ -248,21 +235,6 @@ class BatchLiveBoundary extends React.Component<
     if (this.state.hasError) return null;
     return this.props.children;
   }
-}
-
-/** Phase 1: map server-side trace rows to the existing ChatToolCall shape so
- *  the inline tool-call card list (Sprint 1 affordance) renders real timings. */
-function traceToToolCalls(trace: ChatAnswer["trace"]): ToolCall[] {
-  return trace.map((row) => ({
-    step: row.step,
-    detail: row.detail,
-    status: row.status === "ok" ? "ok"
-      : row.status === "error" ? "error"
-      : row.status === "warn" ? "warn"
-      : "ok",
-    durationMs: row.durationMs,
-    tool: row.step.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
-  }));
 }
 
 function liveChatUnavailableMarkdown(reason: string, detail?: LiveArtifactDetail | null): string {
@@ -833,14 +805,6 @@ export function ChatSurface({
     ));
   };
 
-  const branchFromTurn = (turnId: string) => {
-    const idx = turns.findIndex((t) => t.id === turnId);
-    if (idx < 0) return;
-    setHasUserInteracted(true);
-    setTurns(turns.slice(0, idx + 1));
-    setCtx(`Branched from message ${turnId}`);
-  };
-
   return (
     <div
       className="rd-chat-workspace"
@@ -921,7 +885,6 @@ export function ChatSurface({
                   tier={t.tier ?? "auto"}
                   createdAt={t.createdAt}
                   onRegenerate={(tierOverride) => regenerate(t.id, tierOverride)}
-                  onBranch={() => branchFromTurn(t.id)}
                 />
               );
               return (
@@ -1579,14 +1542,12 @@ function StreamingAnswer({
   tier,
   createdAt,
   onRegenerate,
-  onBranch,
 }: {
   text: string;
   streaming?: boolean;
   tier: RouterTier;
   createdAt?: number;
   onRegenerate?: (tierOverride?: "free" | "fast" | "deep") => void;
-  onBranch?: () => void;
 }) {
   const tierMeta = DEFAULT_TIERS.find((t) => t.id === tier) ?? DEFAULT_TIERS[0];
   return (

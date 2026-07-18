@@ -90,7 +90,11 @@ export const nbRadiusScalePx = [4, 6, 8, 12, 16, 24, 9999] as const;
  */
 export const aiSurfaceRoots = [
   "src/components/ai-elements", // 24 vendored AI Elements primitives (we own them)
-  "src/features/agents/components/ai", // thin consumers: AiMessage, AiConversation, AiPromptInput
+  // The thin ai/ consumer layer (AiMessage/AiConversation/AiPromptInput) was
+  // removed in the one-chat legacy sweep: runtime-dead — FastAgentPanel wires
+  // the primitives directly, and completed answers render the canonical
+  // ChatAssistantMessage (docs/design/ONE_CHAT_INTERFACE.md).
+  "src/features/redesign/components", // canonical ChatAssistantMessage + chat components
   "src/features/agents/components/FastAgentPanel", // live adapters + preserved domain renderers
 ] as const;
 
@@ -265,7 +269,7 @@ export function getNodeBenchAiDesignManifest(): AiDesignManifest {
         {
           primitive: "message + reasoning + tool + sources",
           consumers: [
-            "src/features/agents/components/ai/AiMessage.tsx",
+            "src/features/redesign/components/ChatAssistantMessage.tsx",
             "src/features/agents/components/FastAgentPanel/FastAgentPanel.UIMessageBubble.tsx",
           ],
           role: "The active-path UIMessage bubble: parts → text / reasoning / tool / sources, with domain cards passed through.",
@@ -280,7 +284,6 @@ export function getNodeBenchAiDesignManifest(): AiDesignManifest {
         {
           primitive: "prompt-input + context + model-selector",
           consumers: [
-            "src/features/agents/components/ai/AiPromptInput.tsx",
             "src/features/agents/components/FastAgentPanel/FastAgentPanel.InputBar.tsx",
           ],
           role: "Composer: autoresize, send/stop, attachments, model, slash/@mentions/voice.",

@@ -91,16 +91,6 @@ export function ReproducibleChatPage({ hash }: ReproducibleChatPageProps) {
     );
   }
 
-  const cost = row.estimatedCostUsd;
-  const latencyStr = row.totalLatencyMs
-    ? row.totalLatencyMs < 1000
-      ? `${row.totalLatencyMs}ms`
-      : `${(row.totalLatencyMs / 1000).toFixed(1)}s`
-    : null;
-  const costStr = typeof cost === "number"
-    ? cost >= 0.01 ? `$${cost.toFixed(3)}` : "<$0.01"
-    : null;
-
   const created = new Date(row.createdAt);
 
   return (
@@ -121,10 +111,10 @@ export function ReproducibleChatPage({ hash }: ReproducibleChatPageProps) {
         <span className="rd-mono" style={{ fontSize: 11, color: "var(--rd-ink-mute)" }}>
           /r/{hash}
         </span>
+        {/* Latency + cost live in the canonical answer's receipt line below —
+            the banner keeps only page-level identity (tier · model · date). */}
         <span className="rd-mono" style={{ fontSize: 11, color: "var(--rd-ink-soft)" }}>
           {row.tier} tier · {row.model} · {created.toISOString().slice(0, 10)}
-          {latencyStr && ` · ${latencyStr}`}
-          {costStr && ` · ${costStr}`}
         </span>
         <div className="rd-row" style={{ marginLeft: "auto", gap: 8, flexWrap: "wrap" }}>
           <button

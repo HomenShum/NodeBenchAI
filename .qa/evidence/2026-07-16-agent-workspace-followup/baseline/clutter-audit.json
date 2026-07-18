@@ -1,0 +1,966 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-16T08:07:00.986Z",
+  "privacy": {
+    "rawSelectors": true,
+    "rawPaths": false,
+    "sampledText": true
+  },
+  "states": [
+    {
+      "name": "desktop-light",
+      "url": {
+        "protocol": "https:",
+        "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+        "pathnameHash": "sha256-b51bd3cd196e580fe563",
+        "pathSegments": 2
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "scheme": "light",
+      "reducedMotion": false,
+      "auditIdentity": {
+        "fingerprint": "sha256-4bd930a9ac22e38ad15f",
+        "requestedUrl": {
+          "protocol": "https:",
+          "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+          "pathnameHash": "sha256-b51bd3cd196e580fe563",
+          "pathSegments": 2
+        },
+        "finalUrl": {
+          "protocol": "https:",
+          "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+          "pathnameHash": "sha256-b51bd3cd196e580fe563",
+          "pathSegments": 2
+        },
+        "responseStatus": 200,
+        "rootSelectorHash": "sha256-639b42e9060697a1da95",
+        "readySelectorHash": "sha256-738fb6e743f73bc5dfd2",
+        "setupContract": [],
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "scheme": "light",
+        "reducedMotion": false,
+        "contextKeyHash": "sha256-ed2bba3695a83c650224",
+        "storageStateHash": null
+      },
+      "readiness": {
+        "rootFound": true,
+        "charset": "UTF-8",
+        "consoleErrorCount": 0,
+        "mojibakeCount": 0,
+        "setupClicks": [],
+        "asserts": [
+          {
+            "name": "idle-state",
+            "scope": "root",
+            "present": true
+          },
+          {
+            "name": "read-scope",
+            "scope": "root",
+            "present": true
+          },
+          {
+            "name": "write-scope",
+            "scope": "root",
+            "present": true
+          },
+          {
+            "name": "checks-state",
+            "scope": "root",
+            "present": true
+          }
+        ]
+      },
+      "geometry": {
+        "documentWidth": 1280,
+        "documentHeight": 720,
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "scrollScreens": 1,
+        "hOverflow": false
+      },
+      "counts": {
+        "renderedElements": 63,
+        "semanticUnits": 33,
+        "interactive": 2,
+        "interactiveAboveFold": 2,
+        "enabled": 2,
+        "disabled": 0,
+        "headings": 0,
+        "media": 0,
+        "statuses": 0,
+        "closedDisclosures": 0,
+        "openDisclosures": 0
+      },
+      "densities": {
+        "semanticAboveFold": 30,
+        "controlsAboveFold": 2
+      },
+      "repetition": {
+        "duplicateActions": [],
+        "duplicateTextBlocks": []
+      },
+      "exposure": {
+        "controlClusters": []
+      },
+      "footprint": {
+        "largePassiveRegions": [
+          {
+            "selector": "#chat-context-panel-session",
+            "areaViewportFraction": 0.247,
+            "height": 635,
+            "textLength": 809,
+            "controls": 0,
+            "media": 0,
+            "confidence": "low"
+          }
+        ],
+        "emptyRegions": [],
+        "fixedSticky": []
+      },
+      "reachability": {
+        "horizontalControlScrollers": [],
+        "clippedControls": [],
+        "unlabeledControls": []
+      },
+      "protectedInventory": [
+        {
+          "name": "composer",
+          "selector": "textarea[aria-label^=\"Ask anything\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        },
+        {
+          "name": "context-control",
+          "selector": "button[aria-label=\"Change context\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        },
+        {
+          "name": "run-control",
+          "selector": "button[aria-label=\"Run research\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        }
+      ],
+      "candidates": [
+        {
+          "kind": "large-passive-region",
+          "confidence": "low",
+          "selector": "#chat-context-panel-session",
+          "areaViewportFraction": 0.247
+        }
+      ],
+      "limitations": [
+        "Static rendered-DOM inventory; usefulness and handler liveness are not inferred.",
+        "Repeated names/text may be legitimate in lists, tables, or responsive duplicate navigation.",
+        "Large passive/empty region detection is low-confidence and requires pixel inspection.",
+        "Setup clicks are explicit; audited controls are never auto-clicked.",
+        "Lower counts are descriptive and cannot prove a better interface."
+      ]
+    },
+    {
+      "name": "tablet-light",
+      "url": {
+        "protocol": "https:",
+        "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+        "pathnameHash": "sha256-b51bd3cd196e580fe563",
+        "pathSegments": 2
+      },
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "scheme": "light",
+      "reducedMotion": false,
+      "auditIdentity": {
+        "fingerprint": "sha256-20587aba9fc23437a327",
+        "requestedUrl": {
+          "protocol": "https:",
+          "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+          "pathnameHash": "sha256-b51bd3cd196e580fe563",
+          "pathSegments": 2
+        },
+        "finalUrl": {
+          "protocol": "https:",
+          "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+          "pathnameHash": "sha256-b51bd3cd196e580fe563",
+          "pathSegments": 2
+        },
+        "responseStatus": 200,
+        "rootSelectorHash": "sha256-639b42e9060697a1da95",
+        "readySelectorHash": "sha256-738fb6e743f73bc5dfd2",
+        "setupContract": [],
+        "viewport": {
+          "width": 820,
+          "height": 1180
+        },
+        "scheme": "light",
+        "reducedMotion": false,
+        "contextKeyHash": "sha256-ed2bba3695a83c650224",
+        "storageStateHash": null
+      },
+      "readiness": {
+        "rootFound": true,
+        "charset": "UTF-8",
+        "consoleErrorCount": 0,
+        "mojibakeCount": 0,
+        "setupClicks": [],
+        "asserts": [
+          {
+            "name": "idle-state",
+            "scope": "root",
+            "present": true
+          },
+          {
+            "name": "read-scope",
+            "scope": "root",
+            "present": true
+          },
+          {
+            "name": "write-scope",
+            "scope": "root",
+            "present": true
+          },
+          {
+            "name": "checks-state",
+            "scope": "root",
+            "present": true
+          }
+        ]
+      },
+      "geometry": {
+        "documentWidth": 820,
+        "documentHeight": 1180,
+        "viewportWidth": 820,
+        "viewportHeight": 1180,
+        "scrollScreens": 1,
+        "hOverflow": false
+      },
+      "counts": {
+        "renderedElements": 63,
+        "semanticUnits": 33,
+        "interactive": 2,
+        "interactiveAboveFold": 2,
+        "enabled": 2,
+        "disabled": 0,
+        "headings": 0,
+        "media": 0,
+        "statuses": 0,
+        "closedDisclosures": 0,
+        "openDisclosures": 0
+      },
+      "densities": {
+        "semanticAboveFold": 24,
+        "controlsAboveFold": 2
+      },
+      "repetition": {
+        "duplicateActions": [],
+        "duplicateTextBlocks": []
+      },
+      "exposure": {
+        "controlClusters": []
+      },
+      "footprint": {
+        "largePassiveRegions": [],
+        "emptyRegions": [],
+        "fixedSticky": []
+      },
+      "reachability": {
+        "horizontalControlScrollers": [],
+        "clippedControls": [],
+        "unlabeledControls": []
+      },
+      "protectedInventory": [
+        {
+          "name": "composer",
+          "selector": "textarea[aria-label^=\"Ask anything\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        },
+        {
+          "name": "context-control",
+          "selector": "button[aria-label=\"Change context\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        },
+        {
+          "name": "run-control",
+          "selector": "button[aria-label=\"Run research\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        }
+      ],
+      "candidates": [],
+      "limitations": [
+        "Static rendered-DOM inventory; usefulness and handler liveness are not inferred.",
+        "Repeated names/text may be legitimate in lists, tables, or responsive duplicate navigation.",
+        "Large passive/empty region detection is low-confidence and requires pixel inspection.",
+        "Setup clicks are explicit; audited controls are never auto-clicked.",
+        "Lower counts are descriptive and cannot prove a better interface."
+      ]
+    },
+    {
+      "name": "mobile-light",
+      "url": {
+        "protocol": "https:",
+        "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+        "pathnameHash": "sha256-b51bd3cd196e580fe563",
+        "pathSegments": 2
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scheme": "light",
+      "reducedMotion": false,
+      "auditIdentity": {
+        "fingerprint": "sha256-bf3d037fe3aa97eef1df",
+        "requestedUrl": {
+          "protocol": "https:",
+          "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+          "pathnameHash": "sha256-b51bd3cd196e580fe563",
+          "pathSegments": 2
+        },
+        "finalUrl": {
+          "protocol": "https:",
+          "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+          "pathnameHash": "sha256-b51bd3cd196e580fe563",
+          "pathSegments": 2
+        },
+        "responseStatus": 200,
+        "rootSelectorHash": "sha256-639b42e9060697a1da95",
+        "readySelectorHash": "sha256-738fb6e743f73bc5dfd2",
+        "setupContract": [],
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scheme": "light",
+        "reducedMotion": false,
+        "contextKeyHash": "sha256-ed2bba3695a83c650224",
+        "storageStateHash": null
+      },
+      "readiness": {
+        "rootFound": true,
+        "charset": "UTF-8",
+        "consoleErrorCount": 0,
+        "mojibakeCount": 0,
+        "setupClicks": [],
+        "asserts": [
+          {
+            "name": "idle-state",
+            "scope": "root",
+            "present": false
+          },
+          {
+            "name": "read-scope",
+            "scope": "root",
+            "present": false
+          },
+          {
+            "name": "write-scope",
+            "scope": "root",
+            "present": false
+          },
+          {
+            "name": "checks-state",
+            "scope": "root",
+            "present": false
+          }
+        ]
+      },
+      "geometry": {
+        "documentWidth": 390,
+        "documentHeight": 844,
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "scrollScreens": 1,
+        "hOverflow": false
+      },
+      "counts": {
+        "renderedElements": 0,
+        "semanticUnits": 0,
+        "interactive": 0,
+        "interactiveAboveFold": 0,
+        "enabled": 0,
+        "disabled": 0,
+        "headings": 0,
+        "media": 0,
+        "statuses": 0,
+        "closedDisclosures": 0,
+        "openDisclosures": 0
+      },
+      "densities": {
+        "semanticAboveFold": 0,
+        "controlsAboveFold": 0
+      },
+      "repetition": {
+        "duplicateActions": [],
+        "duplicateTextBlocks": []
+      },
+      "exposure": {
+        "controlClusters": []
+      },
+      "footprint": {
+        "largePassiveRegions": [],
+        "emptyRegions": [],
+        "fixedSticky": []
+      },
+      "reachability": {
+        "horizontalControlScrollers": [],
+        "clippedControls": [],
+        "unlabeledControls": []
+      },
+      "protectedInventory": [
+        {
+          "name": "composer",
+          "selector": "textarea[aria-label^=\"Ask anything\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        },
+        {
+          "name": "context-control",
+          "selector": "button[aria-label=\"Change context\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        },
+        {
+          "name": "run-control",
+          "selector": "button[aria-label=\"Run research\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        }
+      ],
+      "candidates": [],
+      "limitations": [
+        "Static rendered-DOM inventory; usefulness and handler liveness are not inferred.",
+        "Repeated names/text may be legitimate in lists, tables, or responsive duplicate navigation.",
+        "Large passive/empty region detection is low-confidence and requires pixel inspection.",
+        "Setup clicks are explicit; audited controls are never auto-clicked.",
+        "Lower counts are descriptive and cannot prove a better interface."
+      ]
+    },
+    {
+      "name": "desktop-dark",
+      "url": {
+        "protocol": "https:",
+        "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+        "pathnameHash": "sha256-b51bd3cd196e580fe563",
+        "pathSegments": 2
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "scheme": "dark",
+      "reducedMotion": false,
+      "auditIdentity": {
+        "fingerprint": "sha256-d4c92032bd049ed6726c",
+        "requestedUrl": {
+          "protocol": "https:",
+          "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+          "pathnameHash": "sha256-b51bd3cd196e580fe563",
+          "pathSegments": 2
+        },
+        "finalUrl": {
+          "protocol": "https:",
+          "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+          "pathnameHash": "sha256-b51bd3cd196e580fe563",
+          "pathSegments": 2
+        },
+        "responseStatus": 200,
+        "rootSelectorHash": "sha256-639b42e9060697a1da95",
+        "readySelectorHash": "sha256-738fb6e743f73bc5dfd2",
+        "setupContract": [
+          "theme"
+        ],
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "scheme": "dark",
+        "reducedMotion": false,
+        "contextKeyHash": "sha256-ed2bba3695a83c650224",
+        "storageStateHash": null
+      },
+      "readiness": {
+        "rootFound": true,
+        "charset": "UTF-8",
+        "consoleErrorCount": 0,
+        "mojibakeCount": 0,
+        "setupClicks": [
+          {
+            "name": "theme",
+            "ok": true
+          }
+        ],
+        "asserts": [
+          {
+            "name": "idle-state",
+            "scope": "root",
+            "present": true
+          },
+          {
+            "name": "read-scope",
+            "scope": "root",
+            "present": true
+          },
+          {
+            "name": "write-scope",
+            "scope": "root",
+            "present": true
+          },
+          {
+            "name": "checks-state",
+            "scope": "root",
+            "present": true
+          }
+        ]
+      },
+      "geometry": {
+        "documentWidth": 1280,
+        "documentHeight": 720,
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "scrollScreens": 1,
+        "hOverflow": false
+      },
+      "counts": {
+        "renderedElements": 63,
+        "semanticUnits": 33,
+        "interactive": 2,
+        "interactiveAboveFold": 2,
+        "enabled": 2,
+        "disabled": 0,
+        "headings": 0,
+        "media": 0,
+        "statuses": 0,
+        "closedDisclosures": 0,
+        "openDisclosures": 0
+      },
+      "densities": {
+        "semanticAboveFold": 30,
+        "controlsAboveFold": 2
+      },
+      "repetition": {
+        "duplicateActions": [],
+        "duplicateTextBlocks": []
+      },
+      "exposure": {
+        "controlClusters": []
+      },
+      "footprint": {
+        "largePassiveRegions": [
+          {
+            "selector": "#chat-context-panel-session",
+            "areaViewportFraction": 0.247,
+            "height": 635,
+            "textLength": 809,
+            "controls": 0,
+            "media": 0,
+            "confidence": "low"
+          }
+        ],
+        "emptyRegions": [],
+        "fixedSticky": []
+      },
+      "reachability": {
+        "horizontalControlScrollers": [],
+        "clippedControls": [],
+        "unlabeledControls": []
+      },
+      "protectedInventory": [
+        {
+          "name": "composer",
+          "selector": "textarea[aria-label^=\"Ask anything\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        },
+        {
+          "name": "context-control",
+          "selector": "button[aria-label=\"Change context\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        },
+        {
+          "name": "run-control",
+          "selector": "button[aria-label=\"Run research\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        }
+      ],
+      "candidates": [
+        {
+          "kind": "large-passive-region",
+          "confidence": "low",
+          "selector": "#chat-context-panel-session",
+          "areaViewportFraction": 0.247
+        }
+      ],
+      "limitations": [
+        "Static rendered-DOM inventory; usefulness and handler liveness are not inferred.",
+        "Repeated names/text may be legitimate in lists, tables, or responsive duplicate navigation.",
+        "Large passive/empty region detection is low-confidence and requires pixel inspection.",
+        "Setup clicks are explicit; audited controls are never auto-clicked.",
+        "Lower counts are descriptive and cannot prove a better interface."
+      ]
+    },
+    {
+      "name": "tablet-dark",
+      "url": {
+        "protocol": "https:",
+        "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+        "pathnameHash": "sha256-b51bd3cd196e580fe563",
+        "pathSegments": 2
+      },
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "scheme": "dark",
+      "reducedMotion": false,
+      "auditIdentity": {
+        "fingerprint": "sha256-cb4ae5f9d8a2192a608f",
+        "requestedUrl": {
+          "protocol": "https:",
+          "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+          "pathnameHash": "sha256-b51bd3cd196e580fe563",
+          "pathSegments": 2
+        },
+        "finalUrl": {
+          "protocol": "https:",
+          "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+          "pathnameHash": "sha256-b51bd3cd196e580fe563",
+          "pathSegments": 2
+        },
+        "responseStatus": 200,
+        "rootSelectorHash": "sha256-639b42e9060697a1da95",
+        "readySelectorHash": "sha256-738fb6e743f73bc5dfd2",
+        "setupContract": [
+          "theme"
+        ],
+        "viewport": {
+          "width": 820,
+          "height": 1180
+        },
+        "scheme": "dark",
+        "reducedMotion": false,
+        "contextKeyHash": "sha256-ed2bba3695a83c650224",
+        "storageStateHash": null
+      },
+      "readiness": {
+        "rootFound": true,
+        "charset": "UTF-8",
+        "consoleErrorCount": 0,
+        "mojibakeCount": 0,
+        "setupClicks": [
+          {
+            "name": "theme",
+            "ok": true
+          }
+        ],
+        "asserts": [
+          {
+            "name": "idle-state",
+            "scope": "root",
+            "present": true
+          },
+          {
+            "name": "read-scope",
+            "scope": "root",
+            "present": true
+          },
+          {
+            "name": "write-scope",
+            "scope": "root",
+            "present": true
+          },
+          {
+            "name": "checks-state",
+            "scope": "root",
+            "present": true
+          }
+        ]
+      },
+      "geometry": {
+        "documentWidth": 820,
+        "documentHeight": 1180,
+        "viewportWidth": 820,
+        "viewportHeight": 1180,
+        "scrollScreens": 1,
+        "hOverflow": false
+      },
+      "counts": {
+        "renderedElements": 63,
+        "semanticUnits": 33,
+        "interactive": 2,
+        "interactiveAboveFold": 2,
+        "enabled": 2,
+        "disabled": 0,
+        "headings": 0,
+        "media": 0,
+        "statuses": 0,
+        "closedDisclosures": 0,
+        "openDisclosures": 0
+      },
+      "densities": {
+        "semanticAboveFold": 24,
+        "controlsAboveFold": 2
+      },
+      "repetition": {
+        "duplicateActions": [],
+        "duplicateTextBlocks": []
+      },
+      "exposure": {
+        "controlClusters": []
+      },
+      "footprint": {
+        "largePassiveRegions": [],
+        "emptyRegions": [],
+        "fixedSticky": []
+      },
+      "reachability": {
+        "horizontalControlScrollers": [],
+        "clippedControls": [],
+        "unlabeledControls": []
+      },
+      "protectedInventory": [
+        {
+          "name": "composer",
+          "selector": "textarea[aria-label^=\"Ask anything\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        },
+        {
+          "name": "context-control",
+          "selector": "button[aria-label=\"Change context\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        },
+        {
+          "name": "run-control",
+          "selector": "button[aria-label=\"Run research\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        }
+      ],
+      "candidates": [],
+      "limitations": [
+        "Static rendered-DOM inventory; usefulness and handler liveness are not inferred.",
+        "Repeated names/text may be legitimate in lists, tables, or responsive duplicate navigation.",
+        "Large passive/empty region detection is low-confidence and requires pixel inspection.",
+        "Setup clicks are explicit; audited controls are never auto-clicked.",
+        "Lower counts are descriptive and cannot prove a better interface."
+      ]
+    },
+    {
+      "name": "mobile-dark",
+      "url": {
+        "protocol": "https:",
+        "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+        "pathnameHash": "sha256-b51bd3cd196e580fe563",
+        "pathSegments": 2
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scheme": "dark",
+      "reducedMotion": false,
+      "auditIdentity": {
+        "fingerprint": "sha256-23b9e06fb54695ca49d5",
+        "requestedUrl": {
+          "protocol": "https:",
+          "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+          "pathnameHash": "sha256-b51bd3cd196e580fe563",
+          "pathSegments": 2
+        },
+        "finalUrl": {
+          "protocol": "https:",
+          "hostHash": "sha256-7119d9eb4c402f7fa3f2",
+          "pathnameHash": "sha256-b51bd3cd196e580fe563",
+          "pathSegments": 2
+        },
+        "responseStatus": 200,
+        "rootSelectorHash": "sha256-639b42e9060697a1da95",
+        "readySelectorHash": "sha256-738fb6e743f73bc5dfd2",
+        "setupContract": [
+          "theme"
+        ],
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scheme": "dark",
+        "reducedMotion": false,
+        "contextKeyHash": "sha256-ed2bba3695a83c650224",
+        "storageStateHash": null
+      },
+      "readiness": {
+        "rootFound": true,
+        "charset": "UTF-8",
+        "consoleErrorCount": 0,
+        "mojibakeCount": 0,
+        "setupClicks": [
+          {
+            "name": "theme",
+            "ok": true
+          }
+        ],
+        "asserts": [
+          {
+            "name": "idle-state",
+            "scope": "root",
+            "present": false
+          },
+          {
+            "name": "read-scope",
+            "scope": "root",
+            "present": false
+          },
+          {
+            "name": "write-scope",
+            "scope": "root",
+            "present": false
+          },
+          {
+            "name": "checks-state",
+            "scope": "root",
+            "present": false
+          }
+        ]
+      },
+      "geometry": {
+        "documentWidth": 390,
+        "documentHeight": 844,
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "scrollScreens": 1,
+        "hOverflow": false
+      },
+      "counts": {
+        "renderedElements": 0,
+        "semanticUnits": 0,
+        "interactive": 0,
+        "interactiveAboveFold": 0,
+        "enabled": 0,
+        "disabled": 0,
+        "headings": 0,
+        "media": 0,
+        "statuses": 0,
+        "closedDisclosures": 0,
+        "openDisclosures": 0
+      },
+      "densities": {
+        "semanticAboveFold": 0,
+        "controlsAboveFold": 0
+      },
+      "repetition": {
+        "duplicateActions": [],
+        "duplicateTextBlocks": []
+      },
+      "exposure": {
+        "controlClusters": []
+      },
+      "footprint": {
+        "largePassiveRegions": [],
+        "emptyRegions": [],
+        "fixedSticky": []
+      },
+      "reachability": {
+        "horizontalControlScrollers": [],
+        "clippedControls": [],
+        "unlabeledControls": []
+      },
+      "protectedInventory": [
+        {
+          "name": "composer",
+          "selector": "textarea[aria-label^=\"Ask anything\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        },
+        {
+          "name": "context-control",
+          "selector": "button[aria-label=\"Change context\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        },
+        {
+          "name": "run-control",
+          "selector": "button[aria-label=\"Run research\"]",
+          "scope": "root",
+          "minCount": 1,
+          "count": 0,
+          "ok": false,
+          "assertText": []
+        }
+      ],
+      "candidates": [],
+      "limitations": [
+        "Static rendered-DOM inventory; usefulness and handler liveness are not inferred.",
+        "Repeated names/text may be legitimate in lists, tables, or responsive duplicate navigation.",
+        "Large passive/empty region detection is low-confidence and requires pixel inspection.",
+        "Setup clicks are explicit; audited controls are never auto-clicked.",
+        "Lower counts are descriptive and cannot prove a better interface."
+      ]
+    }
+  ]
+}
