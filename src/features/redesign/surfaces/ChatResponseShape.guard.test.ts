@@ -56,4 +56,15 @@ describe("compact chat response rendering (one chat interface)", () => {
     // The live surface no longer defines a local AnswerPacket.
     expect(chat).not.toContain("function AnswerPacket(");
   });
+
+  it("uses stroke-SVG action icons, never emoji (theme-aware icon rule)", () => {
+    // The adversarial verify pass caught 📌/⇄/↗ emoji shipped as action-bar
+    // icons on the first cut — color-emoji glyphs ignore the [data-redesign]
+    // theme and clash with every other icon. Pin the fix so they can't return.
+    for (const emoji of ["📌", "⇄", "↗", "🔎", "📊", "🧾", "✅", "📤"]) {
+      expect(chatMsg).not.toContain(emoji);
+    }
+    expect(chatMsg).toContain("ActionGlyph");
+    expect(chatMsg).toContain('stroke="currentColor"');
+  });
 });

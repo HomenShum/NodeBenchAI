@@ -64,6 +64,53 @@ import { showToast } from "./Toast";
 
 export type { ChatAnswer };
 
+// ── Action-bar glyphs ─────────────────────────────────────────────────────────
+// Stroke SVGs, not emoji: color-emoji glyphs ignore the [data-redesign] theme
+// tokens and clash with every other icon on the surface (repo icon rule; the
+// same fix the starter chips got). currentColor lets MessageAction theme them.
+function ActionGlyph({ kind }: { kind: "promote" | "compare" | "share" }) {
+  const paths: Record<typeof kind, ReactNode> = {
+    // shield + check — "promote strongest claim"
+    promote: (
+      <>
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        <path d="m9 12 2 2 4-4" />
+      </>
+    ),
+    // two opposed arrows — "A/B compare"
+    compare: (
+      <>
+        <path d="M8 3 4 7l4 4" />
+        <path d="M4 7h16" />
+        <path d="m16 21 4-4-4-4" />
+        <path d="M20 17H4" />
+      </>
+    ),
+    // arrow to upper-right — "share reproducible link"
+    share: (
+      <>
+        <path d="M7 17 17 7" />
+        <path d="M8 7h9v9" />
+      </>
+    ),
+  };
+  return (
+    <svg
+      width={14}
+      height={14}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[kind]}
+    </svg>
+  );
+}
+
 // ── Shared pure helpers ──────────────────────────────────────────────────────
 
 export function sourceUrlFromText(source: string): string | null {
@@ -939,17 +986,17 @@ export function ChatAssistantMessage({
           <FeedbackThumb kind="down" onReact={onReact} onRegenerate={onRegenerate} />
           {onPin && (
             <MessageAction tooltip="Promote strongest claim" label="Promote claim" className="rd-answer-action" onClick={onPin}>
-              <span aria-hidden="true">📌</span>
+              <ActionGlyph kind="promote" />
             </MessageAction>
           )}
           {onCompare && (
             <MessageAction tooltip="A/B compare this answer" label="A/B compare" className="rd-answer-action" onClick={onCompare}>
-              <span aria-hidden="true">⇄</span>
+              <ActionGlyph kind="compare" />
             </MessageAction>
           )}
           {onShare && (
             <MessageAction tooltip="Copy reproducible share link" label="Share reproducible link" className="rd-answer-action" onClick={onShare}>
-              <span aria-hidden="true">↗</span>
+              <ActionGlyph kind="share" />
             </MessageAction>
           )}
         </MessageActions>
