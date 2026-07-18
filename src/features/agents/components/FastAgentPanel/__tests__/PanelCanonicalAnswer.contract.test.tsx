@@ -1,20 +1,26 @@
 /**
- * Phase B of docs/design/ONE_CHAT_INTERFACE.md — FastAgentPanel adopts the
- * canonical ChatAssistantMessage for OVERLAPPING completed turns.
+ * Phases B + C of docs/design/ONE_CHAT_INTERFACE.md — FastAgentPanel renders
+ * the canonical ChatAssistantMessage for OVERLAPPING completed turns, BY
+ * DEFAULT (Phase C removed the opt-in prop; describeCanonicalAnswerFit alone
+ * routes every turn).
  *
  * Scenario coverage (scenario_testing rule):
- *   Persona A — operator on the production panel (preferCanonicalAnswer on)
- *     reading a completed grounded answer: canonical anatomy renders with an
- *     HONEST receipt (real model label, "telemetry not recorded"), sources
- *     without fabricated verification badges, and re-housed tool calls.
- *   Persona B — a caller that never opted in (legacy contract tests, cockpit
- *     sidebar): identical message keeps the legacy anatomy byte-for-byte.
- *   Persona C — operator mid-run (streaming) and power users whose answers
- *     carry markdown, agent hierarchy, fusion search, or model-authored [N]
- *     references: every one of those stays on the panel-specific anatomy.
+ *   Persona A — operator on the production panel reading a completed grounded
+ *     answer: canonical anatomy renders with an HONEST receipt (real model
+ *     label, "telemetry not recorded"), sources without fabricated
+ *     verification badges, re-housed tool calls, ported read-aloud/delete
+ *     actions, and no "0 steps" theater on the Reasoning trigger.
+ *   Persona B — operator in the compact cockpit sidebar: the SAME gate routes
+ *     — an overlapping completed turn adopts there too (no caller bypass).
+ *   Persona C — power user whose completed answer is markdown-rich (fences,
+ *     lists, tables): it adopts with proseFormat="markdown" and renders via
+ *     the streamdown prose row — never as escaped plain text.
+ *   Persona D — operator mid-run (streaming) and turns carrying agent
+ *     hierarchy, fusion search, or model-authored [N] references: every one
+ *     of those stays on the panel-specific legacy anatomy.
  */
 import type { UIMessage } from "@convex-dev/agent/react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FastAgentUIMessageBubble } from "../FastAgentPanel.UIMessageBubble";
@@ -95,18 +101,14 @@ function legacyTextOwners(): NodeListOf<HTMLElement> {
   return document.querySelectorAll<HTMLElement>('[data-render-part-kind="text"]');
 }
 
-describe("PanelCanonicalAnswer adoption contract (one chat interface, Phase B)", () => {
+describe("PanelCanonicalAnswer adoption contract (one chat interface, Phases B+C)", () => {
   beforeEach(() => {
     smoothTextMock.mockClear();
+    speakMock.mockClear();
   });
 
-  it("renders the canonical anatomy for a completed overlapping turn (operator, opted-in panel)", () => {
-    render(
-      <FastAgentUIMessageBubble
-        message={completedGroundedAnswer()}
-        preferCanonicalAnswer
-      />,
-    );
+  it("renders the canonical anatomy for a completed overlapping turn — by default, no opt-in prop", () => {
+    render(<FastAgentUIMessageBubble message={completedGroundedAnswer()} />);
 
     const mount = canonical();
     expect(mount).not.toBeNull();
@@ -135,28 +137,50 @@ describe("PanelCanonicalAnswer adoption contract (one chat interface, Phase B)",
     // No fabricated trace steps.
     expect(screen.queryByText(/How we got this answer/)).toBeNull();
 
+    // Phase C "0 steps" fix: the panel packet has no trace and its tool names
+    // ground no checklist stages, so the Reasoning trigger renders WITHOUT a
+    // step count instead of printing "0 steps".
+    expect(screen.queryByText(/0 steps/)).toBeNull();
+    expect(screen.getByText("Reasoning")).toBeInTheDocument();
+
     // The legacy anatomy is fully replaced for this turn.
     expect(legacyTextOwners().length).toBe(0);
   });
 
-  it("keeps the legacy anatomy when the caller never opted in (expand–contract guarantee)", () => {
-    render(<FastAgentUIMessageBubble message={completedGroundedAnswer()} />);
-
-    expect(canonical()).toBeNull();
-    expect(legacyTextOwners().length).toBeGreaterThan(0);
-  });
-
-  it("keeps the legacy anatomy for the compact cockpit sidebar even when opted in", () => {
+  it("ports read-aloud and delete into the canonical toolbar as stroke-SVG actions", () => {
+    const onDeleteMessage = vi.fn();
     render(
       <FastAgentUIMessageBubble
         message={completedGroundedAnswer()}
-        preferCanonicalAnswer
-        compact
+        onDeleteMessage={onDeleteMessage}
       />,
     );
 
-    expect(canonical()).toBeNull();
-    expect(legacyTextOwners().length).toBeGreaterThan(0);
+    expect(canonical()).not.toBeNull();
+
+    const readAloud = screen.getByRole("button", { name: /read message aloud/i });
+    fireEvent.click(readAloud);
+    expect(speakMock).toHaveBeenCalledWith(PROSE);
+
+    const del = screen.getByRole("button", { name: /delete message/i });
+    fireEvent.click(del);
+    expect(onDeleteMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits the delete action when no delete handler exists (no dead controls)", () => {
+    render(<FastAgentUIMessageBubble message={completedGroundedAnswer()} />);
+
+    expect(canonical()).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /delete message/i })).toBeNull();
+  });
+
+  it("adopts in the compact cockpit sidebar too — the fit gate alone routes", () => {
+    render(
+      <FastAgentUIMessageBubble message={completedGroundedAnswer()} compact />,
+    );
+
+    expect(canonical()).not.toBeNull();
+    expect(legacyTextOwners().length).toBe(0);
   });
 
   it("keeps streaming turns on the panel-specific live anatomy", () => {
@@ -166,7 +190,6 @@ describe("PanelCanonicalAnswer adoption contract (one chat interface, Phase B)",
           status: "streaming",
           text: "Partial answer",
         })}
-        preferCanonicalAnswer
       />,
     );
 
@@ -174,17 +197,22 @@ describe("PanelCanonicalAnswer adoption contract (one chat interface, Phase B)",
     expect(screen.getByText("Streaming...")).toBeInTheDocument();
   });
 
-  it("keeps markdown-rich answers on the legacy anatomy (fidelity over adoption)", () => {
+  it("adopts markdown-rich answers with the streamdown prose row (Phase C)", () => {
     const markdown = "Here is the fix:\n\n```ts\nconst x = 1;\n```";
     render(
       <FastAgentUIMessageBubble
         message={message([{ type: "text", text: markdown }], { text: markdown })}
-        preferCanonicalAnswer
       />,
     );
 
-    expect(canonical()).toBeNull();
-    expect(legacyTextOwners().length).toBeGreaterThan(0);
+    const mount = canonical();
+    expect(mount).not.toBeNull();
+    expect(legacyTextOwners().length).toBe(0);
+    // The markdown prose row is present (streamdown lazy-loads; its Suspense
+    // fallback shows the raw text, never an escaped legacy bubble).
+    expect(mount!.querySelector(".rd-answer-copy--markdown")).not.toBeNull();
+    // No interactive [N] cite chips are fabricated for markdown prose.
+    expect(mount!.querySelector(".rd-cite")).toBeNull();
   });
 
   it("keeps agent-hierarchy and fusion-search turns on the panel-specific renderers", () => {
@@ -203,7 +231,6 @@ describe("PanelCanonicalAnswer adoption contract (one chat interface, Phase B)",
           ],
           { text: "Delegated the work." },
         )}
-        preferCanonicalAnswer
       />,
     );
     expect(canonical()).toBeNull();
@@ -223,7 +250,6 @@ describe("PanelCanonicalAnswer adoption contract (one chat interface, Phase B)",
           ],
           { text: "Search finished.", id: "message-2" },
         )}
-        preferCanonicalAnswer
       />,
     );
     expect(canonical()).toBeNull();
@@ -245,7 +271,6 @@ describe("PanelCanonicalAnswer adoption contract (one chat interface, Phase B)",
           ],
           { text: prose },
         )}
-        preferCanonicalAnswer
       />,
     );
 
@@ -262,7 +287,6 @@ describe("PanelCanonicalAnswer adoption contract (one chat interface, Phase B)",
           role: "user",
           text: "What changed at Acme?",
         })}
-        preferCanonicalAnswer
       />,
     );
 
