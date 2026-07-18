@@ -620,3 +620,302 @@
     min-height: 48px;
   }
 }
+
+/* ── One chat interface — prose-led assistant message (ChatAssistantMessage) ──
+   The ai-elements <Message>/<MessageContent> frame is restyled here so the
+   terracotta / Manrope DNA wins over the primitives. The avatar-less assistant
+   Message reuses the .rd-chat-msg class (so the [data-hover-cite] evidence
+   binding in primitives.css still resolves) but overrides its 32px-avatar grid
+   via the higher-specificity .rd-chat-msg.rd-chat-assistant selector. */
+[data-redesign] .rd-chat-msg.rd-chat-assistant {
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: none;
+  gap: var(--rd-s-2);
+  width: 100%;
+  max-width: 100%;
+}
+[data-redesign] .rd-chat-assistant__content {
+  width: 100%;
+  max-width: 100%;
+  gap: var(--rd-s-2);
+  padding: var(--rd-s-2) var(--rd-s-3);
+  background: var(--rd-paper-warm);
+  border-radius: var(--rd-r-md);
+  border-bottom-left-radius: 4px;
+  color: var(--rd-ink);
+}
+/* User turns keep their own right-aligned bubble; the Message wrapper must not
+   clamp it to the primitive's 95% column. */
+[data-redesign] .rd-user-message {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Row 1 — receipt line */
+[data-redesign] .rd-answer-receipt {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+[data-redesign] .rd-answer-receipt__line {
+  font-size: 11px;
+  color: var(--rd-ink-faint);
+  letter-spacing: 0.02em;
+}
+[data-redesign] .rd-answer-receipt__when {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-answer-badges {
+  margin-top: 2px;
+}
+
+/* Row 2 — prose leads. shortAnswer + whyItMatters flow as one body; the
+   secondary paragraph keeps .rd-answer-copy's white-space: pre-wrap. */
+[data-redesign] .rd-answer-prose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+[data-redesign] .rd-answer-copy--secondary {
+  font-size: max(13.5px, calc(var(--rd-type-answer) - 3px));
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--rd-ink-mute);
+}
+
+/* Row 3 — risks callout + nextAction */
+[data-redesign] .rd-answer-risks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--rd-line);
+  border-radius: var(--rd-r-sm);
+  background: var(--rd-surface-sunken, rgba(127, 127, 127, 0.05));
+}
+[data-redesign] .rd-answer-risks__label {
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-answer-risks__list {
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+[data-redesign] .rd-answer-risks__item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: var(--rd-ink-mute);
+}
+[data-redesign] .rd-answer-risks__item .rd-dot {
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+[data-redesign] .rd-answer-next {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--rd-accent-tint);
+  border: 1px solid var(--rd-accent-ring);
+  border-radius: var(--rd-r-sm);
+}
+[data-redesign] .rd-answer-next__text {
+  margin: 0;
+  color: var(--rd-ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+[data-redesign] .rd-answer-next__label {
+  margin-right: 4px;
+  color: var(--rd-accent-strong);
+}
+
+/* Row 4 — collapsed-by-default disclosures (Reasoning / Tool / Sources).
+   Each trigger is a full-width row with an ember-ticked eyebrow label, a mono
+   meta count, and a rotating chevron. */
+[data-redesign] .rd-answer-disclosure {
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+}
+[data-redesign] .rd-answer-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+[data-redesign] .rd-answer-tool {
+  border: 1px solid var(--rd-line-faint);
+  border-radius: var(--rd-r-sm);
+  background: var(--rd-surface-sunken, rgba(127, 127, 127, 0.03));
+}
+[data-redesign] .rd-answer-disclose {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 6px;
+  color: var(--rd-ink-mute);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+[data-redesign] .rd-answer-disclose:hover {
+  color: var(--rd-ink);
+}
+[data-redesign] .rd-answer-disclose:focus-visible {
+  outline: 2px solid var(--rd-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+[data-redesign] .rd-answer-disclose__label {
+  flex: 0 0 auto;
+  position: relative;
+  padding-bottom: 3px;
+  color: var(--rd-accent-strong);
+}
+[data-redesign] .rd-answer-disclose__meta {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-answer-disclose::after {
+  content: "\25B8"; /* ▸ */
+  flex: 0 0 auto;
+  font-size: 9px;
+  color: var(--rd-ink-soft);
+  transition: transform var(--rd-dur-quick) var(--rd-ease-settle);
+}
+[data-redesign] .rd-answer-disclose[data-state="open"]::after {
+  transform: rotate(90deg);
+}
+[data-redesign] .rd-answer-disclosure__body {
+  padding: 4px 4px 10px;
+}
+[data-redesign] .rd-answer-sources .rd-answer-disclosure__body {
+  width: 100%;
+  max-width: 100%;
+}
+[data-redesign] .rd-answer-trace__label {
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-answer-trace__list {
+  margin-top: 10px;
+  gap: 4px;
+  list-style: none;
+  padding: 0;
+}
+[data-redesign] .rd-answer-trace__row {
+  gap: 12px;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+/* Evidence rows inside <Sources>. The grid layout moved from inline styles to
+   classes; the highlight binding (data-active / [data-hover-cite]) stays in
+   primitives.css. */
+[data-redesign] .rd-evidence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+[data-redesign] .rd-answer-sources .rd-evidence-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: start;
+  border-radius: var(--rd-r-sm);
+}
+[data-redesign] .rd-evidence-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+[data-redesign] .rd-evidence-row__quote {
+  margin: 0;
+  font-size: 13px;
+}
+[data-redesign] .rd-evidence-row__badge {
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+[data-redesign] .rd-evidence-row__link {
+  font-size: 10.5px;
+  color: var(--rd-accent-strong);
+  text-decoration: none;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-redesign] .rd-evidence-row__src {
+  font-size: 10.5px;
+  color: var(--rd-ink-soft);
+}
+
+/* Message-level action toolbar (<MessageActions>) — copy / thumbs / promote /
+   compare / share. Always visible; the prior AnswerPacket hid these behind a
+   dead prop. */
+[data-redesign] .rd-answer-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rd-line-faint);
+}
+[data-redesign] .rd-answer-action {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--rd-ink-mute);
+  background: transparent;
+  border: 1px solid transparent;
+}
+[data-redesign] .rd-answer-action:hover {
+  color: var(--rd-accent-strong);
+  background: var(--rd-accent-soft);
+}
+[data-redesign] .rd-answer-action:focus-visible {
+  outline: 2px solid var(--rd-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-answer-disclose::after {
+    transition: none;
+  }
+}
+
+@media (max-width: 760px) {
+  [data-redesign] .rd-answer-receipt__when {
+    margin-left: 0;
+  }
+  [data-redesign] .rd-answer-sources .rd-evidence-row {
+    grid-template-columns: auto 1fr;
+  }
+  [data-redesign] .rd-evidence-row__link,
+  [data-redesign] .rd-evidence-row__src {
+    grid-column: 2;
+    max-width: 100%;
+  }
+}
